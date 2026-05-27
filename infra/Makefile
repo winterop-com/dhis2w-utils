@@ -1,4 +1,4 @@
-.PHONY: help versions pull build up up-fresh up-seeded down clean status logs ps pat seed wait build-e2e-dump
+.PHONY: help versions pull build up up-fresh up-seeded down clean status logs ps pat seed profile wait build-e2e-dump
 .DEFAULT_GOAL := help
 
 DHIS2_VERSION  ?= 43
@@ -63,10 +63,15 @@ wait: ## block until DHIS2 responds at /api/me (uses seed_auth's readiness probe
 seed: ## seed standard PAT variations + OAuth2 client into the running stack
 	@cd .. && uv run --with bcrypt python infra/scripts/seed_auth.py --url $(DHIS2_URL) --username $(DHIS2_USER) --password $(DHIS2_PASS)
 
-up-seeded: ## up + wait + seed — one-shot "I want a DHIS2 with auth ready"
+profile: ## write project-scoped `local_basic` Basic-auth profile to <repo>/.dhis2/profiles.toml
+	@echo ">>> Writing local_basic profile (DHIS2 v$(DHIS2_VERSION))"
+	@cd .. && DHIS2_PASSWORD=$(DHIS2_PASS) uv run dhis2 profile add local_basic --local --auth basic --url $(DHIS2_URL) --username $(DHIS2_USER) --version v$(DHIS2_VERSION) --default
+
+up-seeded: ## up + wait + seed + profile — one-shot "I want a DHIS2 with auth ready"
 	@$(MAKE) up
 	@$(MAKE) wait
 	@$(MAKE) seed
+	@$(MAKE) profile
 
 build-e2e-dump: ## populate a fresh DHIS2 with test metadata + data + analytics, then dump to infra/v$(DHIS2_VERSION)/dump.sql.gz
 	@echo ">>> Building e2e dump for DHIS2 $(DHIS2_VERSION) — this WIPES any existing volume state"
