@@ -13,7 +13,10 @@ jobs:
   slow-tests:
     name: stack + make test-slow (v${{ matrix.dhis2_version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Stack-up + test-slow + verify-examples (full 100+ example sweep) needs
+    # ~40 min on ubuntu-latest; 60 leaves headroom for the slowest CLI examples
+    # under post-refresh analytics load.
+    timeout-minutes: 60
     # One in-progress run per (branch, dhis2_version) pair. Per-job
     # concurrency (not workflow-level) so the v42 and v43 matrix jobs
     # don't cancel each other.
