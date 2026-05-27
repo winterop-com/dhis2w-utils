@@ -7,7 +7,7 @@ from typing import Any
 
 from dhis2w_client import AuthProvider
 from dhis2w_client.v42.client import Dhis2Client
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 _VERSION_RE = re.compile(r"^(\d+)\.(\d+)")
 
@@ -75,6 +75,18 @@ class SchemasManifest(BaseModel):
     raw_version: str
     version_key: str
     schemas: list[Schema]
+
+    @model_validator(mode="after")
+    def _canonicalize_order(self) -> SchemasManifest:
+        """Sort schemas and per-schema properties so the manifest is byte-stable across re-fetches.
+
+        DHIS2's /api/schemas response order is not contractual; without this, every regeneration
+        reshuffles the manifest JSON and inflates diffs.
+        """
+        for schema in self.schemas:
+            schema.properties.sort(key=lambda property_spec: (property_spec.name or "", property_spec.fieldName or ""))
+        self.schemas.sort(key=lambda schema: (schema.klass or "", schema.name))
+        return self
 
 
 async def discover(url: str, auth: AuthProvider) -> SchemasManifest:
