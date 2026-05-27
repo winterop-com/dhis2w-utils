@@ -38,8 +38,8 @@ def build_auth() -> AuthProvider:
 async def main() -> None:
     """Connect with hand-rolled auth and print the authenticated identity."""
     base_url = os.environ.get("DHIS2_URL", "http://localhost:8080")
-    # `version=Dhis2.V42` pins the generated module; pass None for auto-detect via /api/system/info.
-    async with Dhis2Client(base_url, auth=build_auth(), version=Dhis2.V42) as client:
+    # `version=Dhis2.V41` pins the generated module; pass None for auto-detect via /api/system/info.
+    async with Dhis2Client(base_url, auth=build_auth(), version=Dhis2.V41) as client:
         me = await client.system.me()
         info = await client.system.info()
         print(f"Connected to DHIS2 {info.version} at {base_url}")

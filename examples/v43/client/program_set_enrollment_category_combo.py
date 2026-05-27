@@ -52,20 +52,31 @@ async def main() -> None:
             print("skipping: instance has fewer than 2 CategoryCombos; can't pick an alt")
             return
 
-        print(
-            f"before: {target.id} name={target.name!r} "
-            f"enrollmentCategoryCombo="
-            f"{target.enrollmentCategoryCombo.id if target.enrollmentCategoryCombo else None}"
-        )
+        original_cc = target.enrollmentCategoryCombo.id if target.enrollmentCategoryCombo else None
+        # When the field was unset, restoring to the program's main categoryCombo
+        # (always the default in seeded fixtures) gives the same downstream
+        # behaviour — v43 only rejects enrollments when enrollmentCategoryCombo
+        # is non-null *and* non-default.
+        restore_cc = original_cc or (target.categoryCombo.id if target.categoryCombo else None)
+        print(f"before: {target.id} name={target.name!r} enrollmentCategoryCombo={original_cc}")
         print(f"  using alt CC: {alt_combo.id} name={alt_combo.name!r}")
 
-        updated = await client.programs.set_enrollment_category_combo(target.id, alt_combo.id)
-
-        print(
-            f"after:  {updated.id} "
-            f"enrollmentCategoryCombo="
-            f"{updated.enrollmentCategoryCombo.id if updated.enrollmentCategoryCombo else None}"
-        )
+        try:
+            updated = await client.programs.set_enrollment_category_combo(target.id, alt_combo.id)
+            print(
+                f"after:  {updated.id} "
+                f"enrollmentCategoryCombo="
+                f"{updated.enrollmentCategoryCombo.id if updated.enrollmentCategoryCombo else None}"
+            )
+        finally:
+            # Restore — otherwise downstream verify-examples runs that enroll
+            # against this Program get rejected by v43 with the misleading
+            # `E1055 Default AttributeOptionCombo is not allowed as Program has
+            # non-default CategoryCombo` (the message says `categoryCombo` but
+            # the actual constraint is on the v43-only `enrollmentCategoryCombo`).
+            if restore_cc and restore_cc != alt_combo.id:
+                await client.programs.set_enrollment_category_combo(target.id, restore_cc)
+                print(f"restored: enrollmentCategoryCombo to {restore_cc}")
 
 
 if __name__ == "__main__":

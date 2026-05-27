@@ -40,5 +40,8 @@ make -C "$INFRA_DIR" wait DHIS2_URL="$DHIS2_URL" DHIS2_USER="$DHIS2_USER" DHIS2_
 echo ">>> Seeding PATs + OAuth2 client ..."
 make -C "$INFRA_DIR" seed DHIS2_URL="$DHIS2_URL" DHIS2_USER="$DHIS2_USER" DHIS2_PASS="$DHIS2_PASS"
 
+echo ">>> Writing local_basic profile ..."
+make -C "$INFRA_DIR" profile DHIS2_VERSION="$DHIS2_VERSION" DHIS2_URL="$DHIS2_URL" DHIS2_USER="$DHIS2_USER" DHIS2_PASS="$DHIS2_PASS"
+
 echo ">>> Ready. Streaming logs (Ctrl+C to stop the stack)."
 DHIS2_VERSION="$DHIS2_VERSION" DHIS2_IMAGE_TAG="$DHIS2_IMAGE_TAG" "${COMPOSE[@]}" logs -f dhis2 postgresql analytics-trigger

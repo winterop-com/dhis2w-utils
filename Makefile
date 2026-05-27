@@ -148,6 +148,15 @@ dhis2-codegen-play-v43:
 
 dhis2-codegen-play: dhis2-codegen-play-v42 dhis2-codegen-play-v43
 
+refresh-analytics:
+	@echo ">>> Refreshing analytics tables (blocks until ANALYTICS_TABLE task completes)"
+	@if [ -f infra/home/credentials/.env.auth ]; then \
+		set -a; . infra/home/credentials/.env.auth; set +a; \
+		$(UV) run dhis2 maintenance refresh analytics --watch --timeout 600; \
+	else \
+		$(UV) run dhis2 maintenance refresh analytics --watch --timeout 600; \
+	fi
+
 verify-examples:
 	@echo ">>> Running every non-interactive example against profile $${DHIS2_PROFILE:-local_basic} (DHIS2 v$(or $(DHIS2_VERSION),42))"
 	@if [ -f infra/home/credentials/.env.auth ]; then \

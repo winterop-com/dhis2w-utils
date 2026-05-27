@@ -67,6 +67,8 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # Creates a Route pointing at https://example.com/ — external network
         # egress out of the docker DHIS2 instance, not guaranteed in CI.
         "client/routes_run.py",
+        # Same Route + external egress as the cli/client siblings.
+        "mcp/route_register_and_run.py",
         # --- Slow server-side jobs --------------------------------------
         # Kicks `dhis2 maintenance refresh analytics --watch`; analytics
         # rebuilds legitimately take several minutes on a populated stack.
@@ -80,6 +82,22 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         "mcp/analytics_outlier_tracked_entities.py",
     },
 )
+
+# Per-version skip overrides for examples that only fail on one major.
+# Keyed by `v{N}` -> example paths relative to `examples/v{N}/`.
+SKIP_BY_VERSION: dict[str, frozenset[str]] = {
+    "v43": frozenset(
+        {
+            # BUGS.md #36 — v43's full `POST /api/resourceTables/analytics`
+            # job aborts with `column "yearly" does not exist` when there's
+            # 2024 event data for `lxAQ7Zs9VYR` (Antenatal Care). The
+            # `?skipPrograms=` workaround DHIS2 should honour is silently
+            # ignored on v43. Analytics tables stay empty, so this example's
+            # explicit "did analytics build?" probe correctly raises.
+            "client/viz_multiline_by_province.py",
+        }
+    ),
+}
 
 DEFAULT_PROFILE = "local_basic"
 # 300s headroom: some scripts (`options.sh`, `metadata_list_get.sh`,
@@ -167,7 +185,9 @@ def run_suite(
     console: Console | None = None,
 ) -> list[ExampleResult]:
     """Run every discovered example, stream per-example status lines, return results."""
-    skip = SKIP_BY_DEFAULT | extra_skip if not include_browser else extra_skip
+    version_key = f"v{os.environ.get('DHIS2_VERSION', '42')}"
+    per_version_skip = SKIP_BY_VERSION.get(version_key, frozenset())
+    skip = extra_skip | per_version_skip if include_browser else SKIP_BY_DEFAULT | extra_skip | per_version_skip
     console = console or Console()
     examples = discover_examples()
     console.print(
