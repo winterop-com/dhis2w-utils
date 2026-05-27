@@ -54,28 +54,35 @@ The pattern is illustrated in the file with BUGS.md #33 (v43 CategoryCombo COC a
 
 ## Test connection details
 
+The `@pytest.mark.slow` E2E suite targets the local docker stack — `make -C infra up-seeded DHIS2_VERSION=N` brings up the matching DHIS2 major and writes `infra/home/credentials/.env.auth` with `DHIS2_URL` and `DHIS2_PAT`. Each member's `tests/conftest.py` auto-sources that file and exposes the fixtures below.
+
 Defaults:
 
 ```
-DHIS2_PLAY_URL=https://play.im.dhis2.org/dev
-DHIS2_PLAY_USER=system
-DHIS2_PLAY_PASS=System123
+DHIS2_LOCAL_URL=http://localhost:8080
+DHIS2_LOCAL_USER=admin
+DHIS2_LOCAL_PASS=district
 ```
 
-Overridable via environment variables. Tests are parameterised through session-scoped fixtures in each member's `tests/conftest.py`:
+Overridable via environment variables. Session-scoped fixtures in each member's `tests/conftest.py`:
 
 ```python
 @pytest.fixture(scope="session")
-def play_url() -> str: ...
+def local_url() -> str: ...
 
 @pytest.fixture(scope="session")
-def play_username() -> str: ...
+def local_username() -> str: ...
 
 @pytest.fixture(scope="session")
-def play_password() -> str: ...
+def local_password() -> str: ...
+
+@pytest.fixture(scope="session")
+def local_available(local_url: str) -> bool: ...   # probes /dhis-web-login/, gate for skips
 ```
 
 Simple strings, not dataclasses — this sidesteps mypy's "duplicate conftest module" problem across workspace members.
+
+Live-against-play coverage lives in a separate workflow — `@pytest.mark.contract` (`.github/workflows/contract.yml`) hits `play.im.dhis2.org/dev-2-{42,43}` to catch upstream API drift. Nightly E2E never touches play.
 
 ## Destructive writes
 

@@ -1,4 +1,4 @@
-"""End-to-end codegen against the live play DHIS2 instance. Marked slow."""
+"""End-to-end codegen against the local DHIS2 stack. Marked slow."""
 
 from __future__ import annotations
 
@@ -15,21 +15,34 @@ from dhis2w_codegen.emit import emit
 pytestmark = pytest.mark.slow
 
 
-async def test_discover_returns_populated_manifest(play_url: str, play_username: str, play_password: str) -> None:
+async def test_discover_returns_populated_manifest(
+    local_url: str,
+    local_username: str,
+    local_password: str,
+    local_available: bool,
+) -> None:
     """Discover returns populated manifest."""
-    auth = BasicAuth(username=play_username, password=play_password)
-    manifest = await discover(play_url, auth)
+    if not local_available:
+        pytest.skip(f"local DHIS2 not reachable at {local_url}")
+    auth = BasicAuth(username=local_username, password=local_password)
+    manifest = await discover(local_url, auth)
     assert manifest.raw_version
     assert manifest.version_key.startswith("v")
-    assert len(manifest.schemas) > 50  # play has well over 100
+    assert len(manifest.schemas) > 50
 
 
 async def test_full_codegen_cycle_produces_importable_module(
-    play_url: str, play_username: str, play_password: str, tmp_path: Path
+    local_url: str,
+    local_username: str,
+    local_password: str,
+    local_available: bool,
+    tmp_path: Path,
 ) -> None:
     """Full codegen cycle produces importable module."""
-    auth = BasicAuth(username=play_username, password=play_password)
-    manifest = await discover(play_url, auth)
+    if not local_available:
+        pytest.skip(f"local DHIS2 not reachable at {local_url}")
+    auth = BasicAuth(username=local_username, password=local_password)
+    manifest = await discover(local_url, auth)
     destination = tmp_path / manifest.version_key
     emit(manifest, destination)
 
