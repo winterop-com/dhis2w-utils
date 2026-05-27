@@ -42,24 +42,30 @@ class _RefById(BaseModel):
 async def main() -> None:
     """Build 3 typed DataValues and push them grouped by DataSet (v42 — auto-target OK)."""
     async with open_client(profile_from_env()) as client:
-        # Find a DataSet whose own categoryCombo is default — v43 enforces
-        # `E8023 Data set not usable with attribute option combo` when the
-        # posted attributeOptionCombo doesn't match the DataSet's CC, so the
-        # default AOC below (`HllvX50cXC0`) only works for default-CC DataSets.
-        # v41/v42 silently accepted any AOC. (BUGS.md #41)
+        # Walk DataSets and pick the first one whose categoryCombo is default —
+        # v43 enforces `E8023 Data set not usable with attribute option combo`
+        # when the posted attributeOptionCombo doesn't match the DataSet's CC,
+        # so the default AOC below (`HllvX50cXC0`) only works for default-CC
+        # DataSets. v41/v42 silently accepted any AOC. (BUGS.md #41)
+        # DataSet.categoryCombo[id,isDefault] is filtered client-side rather
+        # than server-side via `categoryCombo.isDefault:eq:true` because v41
+        # rejects that filter shape with 400.
         ds_rows = await client.resources.data_sets.list(
-            fields="id,periodType,dataSetElements[dataElement[id,categoryCombo[id]]],organisationUnits[id]",
-            filters=[
-                "categoryCombo.isDefault:eq:true",
-                "dataSetElements:!empty",
-                "organisationUnits:!empty",
-            ],
-            page_size=1,
+            fields="id,periodType,categoryCombo[id,isDefault],dataSetElements[dataElement[id,categoryCombo[id]]],organisationUnits[id]",
+            filters=["dataSetElements:!empty", "organisationUnits:!empty"],
+            page_size=50,
         )
-        if not ds_rows:
+        ds = next(
+            (
+                row
+                for row in ds_rows
+                if row.categoryCombo and (row.categoryCombo.model_extra or {}).get("isDefault") is True
+            ),
+            None,
+        )
+        if ds is None:
             print("no default-CC DataSet with DEs + OUs — skipping bulk demo")
             return
-        ds = ds_rows[0]
         de_uid: str | None = None
         de_cc_id: str | None = None
         for dse in ds.dataSetElements or []:
