@@ -30,29 +30,68 @@ from _runner import run_example
 from dhis2w_client.v42 import DataValue
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.client_context import open_client
+from pydantic import BaseModel
+
+
+class _RefById(BaseModel):
+    """Typed view of `{id: ...}` envelopes — `DataSet.organisationUnits` is `list[Any]` in the generated model."""
+
+    id: str
 
 
 async def main() -> None:
     """Build 3 typed DataValues and push them grouped by DataSet (v42 — auto-target OK)."""
     async with open_client(profile_from_env()) as client:
-        # Find a seeded DataSet with DEs + OUs to write against.
+        # Find a DataSet whose own categoryCombo is default — v43 enforces
+        # `E8023 Data set not usable with attribute option combo` when the
+        # posted attributeOptionCombo doesn't match the DataSet's CC, so the
+        # default AOC below (`HllvX50cXC0`) only works for default-CC DataSets.
+        # v41/v42 silently accepted any AOC. (BUGS.md #41)
         ds_rows = await client.resources.data_sets.list(
-            fields="id,periodType,dataSetElements[dataElement[id]],organisationUnits[id]",
-            filters=["dataSetElements:!empty", "organisationUnits:!empty"],
+            fields="id,periodType,dataSetElements[dataElement[id,categoryCombo[id]]],organisationUnits[id]",
+            filters=[
+                "categoryCombo.isDefault:eq:true",
+                "dataSetElements:!empty",
+                "organisationUnits:!empty",
+            ],
             page_size=1,
         )
         if not ds_rows:
-            print("no DataSet with DEs + OUs — skipping bulk demo")
+            print("no default-CC DataSet with DEs + OUs — skipping bulk demo")
             return
         ds = ds_rows[0]
-        de_uid = (
-            ds.dataSetElements[0].dataElement.id if ds.dataSetElements and ds.dataSetElements[0].dataElement else None
-        )
-        ou_uid = ds.organisationUnits[0].id if ds.organisationUnits else None
+        de_uid: str | None = None
+        de_cc_id: str | None = None
+        for dse in ds.dataSetElements or []:
+            if not dse.dataElement or not dse.dataElement.id:
+                continue
+            de_uid = dse.dataElement.id
+            cc_ref = (dse.dataElement.model_extra or {}).get("categoryCombo") or {}
+            de_cc_id = cc_ref.get("id") if isinstance(cc_ref, dict) else None
+            break
+        ou_uid = _RefById.model_validate(ds.organisationUnits[0]).id if ds.organisationUnits else None
         if not de_uid or not ou_uid:
             print("first DataSet missing dataElement or orgUnit ref — skipping bulk demo")
             return
-        period = "210701" if str(ds.periodType) == "Monthly" else "2107"
+
+        # v43 also enforces `E8024 Data set + data element not usable with
+        # category option combo` when the posted COC doesn't match the DE's
+        # categoryCombo. So look up the DE's CC's first COC instead of
+        # hardcoding the default — works on v41/v42 (any valid COC for the
+        # DE's CC is accepted) and on v43 (matches the strict check).
+        coc_uid = "HllvX50cXC0"
+        if de_cc_id:
+            cc_detail = await client.resources.category_combos.get(de_cc_id, fields="categoryOptionCombos[id]")
+            for coc in cc_detail.categoryOptionCombos or []:
+                first_id = _RefById.model_validate(coc).id
+                if first_id:
+                    coc_uid = first_id
+                    break
+
+        # Pick three distinct periods so each DataValue lands on its own key —
+        # v43 rejects multiple values targeting the same data-value key in
+        # one batch with `E8128 Value #N all affect the same data value`.
+        periods = ["210701", "210702", "210703"] if str(ds.periodType) == "Monthly" else ["2107", "2108", "2109"]
 
         # Build typed DataValues — same shape across v41/v42/v43.
         values = [
@@ -60,11 +99,11 @@ async def main() -> None:
                 dataElement=de_uid,
                 period=period,
                 orgUnit=ou_uid,
-                categoryOptionCombo="HllvX50cXC0",
+                categoryOptionCombo=coc_uid,
                 attributeOptionCombo="HllvX50cXC0",
-                value=str(n),
+                value=str(value),
             )
-            for n in (10, 20, 30)
+            for period, value in zip(periods, (10, 20, 30), strict=True)
         ]
 
         # The grouped push pre-fetches DE→DataSet membership and chunks

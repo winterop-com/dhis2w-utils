@@ -54,6 +54,12 @@ def profiles_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.delenv("DHIS2_PROFILE", raising=False)
     monkeypatch.delenv("DHIS2_URL", raising=False)
     monkeypatch.delenv("DHIS2_PAT", raising=False)
+    # Chdir into tmp_path so the profile resolver's project-local walk-up
+    # (`.dhis2/profiles.toml` searched from CWD upward, per CLAUDE.md #1)
+    # finds nothing and falls through to the global stub we just wrote.
+    # Otherwise a `<repo>/.dhis2/profiles.toml` left behind by `make
+    # dhis2-run` shadows the fixture.
+    monkeypatch.chdir(tmp_path)
     return path
 
 

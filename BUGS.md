@@ -2998,3 +2998,94 @@ curl -sf -u admin:district -X POST 'http://localhost:8080/api/oAuth2Clients' \
 **Status on v41 (`2.41.8.1`, local stack 2026-05-15):** still present, behaviour shifted from silent to loud. The original repro showed the server accepting the `clientId` body with `201 Created` while silently dropping the value (`cid` stayed empty). `2.41.8.1` now rejects the same body with `409 "Missing required property cid" E4000` instead. The underlying wire-shape divergence is unchanged — v41 still requires `cid` while v42 + v43 use `clientId` — so the per-version payload builders in `dhis2w_client.v{N}.oauth2_payload` stay.
 
 **Verifier:** `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_39_v41_oauth2_payload_with_clientid_persists_empty`, `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_39_workaround_v41_register_emits_cid_not_clientid`, `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_39_v41_live_oauth2_rejects_v42_shape`
+
+### 40. v43: `E1055` enrollment error message says `categoryCombo` but actually fires on `enrollmentCategoryCombo`
+
+**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub, `make dhis2-run DHIS2_VERSION=43`). Login as `admin/district`. Discovered while bisecting nightly E2E failures where `tracker_clinic_intake.py` failed after `program_set_enrollment_category_combo.py` mutated the seeded Child Programme.
+
+**Repro (against a v43 instance whose `Child Programme` (`IpHINAT79UW`) has `enrollmentCategoryCombo` set to a non-default CC):**
+
+```bash
+# 1. Set a non-default enrollmentCategoryCombo on the program. (Pick any
+#    non-default CC UID in your stack; here `slXsKhSM6RA` happens to be
+#    "Births services".)
+curl -sf -u admin:district -X PATCH 'http://localhost:8080/api/programs/IpHINAT79UW' \
+  -H 'Content-Type: application/json-patch+json' \
+  -d '[{"op":"add","path":"/enrollmentCategoryCombo","value":{"id":"slXsKhSM6RA"}}]'
+
+# 2. Confirm Program.categoryCombo is still default (it was never touched).
+curl -sf -u admin:district 'http://localhost:8080/api/programs/IpHINAT79UW?fields=categoryCombo[id,isDefault],enrollmentCategoryCombo[id,isDefault]'
+# {"categoryCombo":{"id":"bjDvmb4bfuf","isDefault":true},
+#  "enrollmentCategoryCombo":{"id":"slXsKhSM6RA","isDefault":false}}
+
+# 3. Try a minimal enrollment with no attributeOptionCombo — expects implicit default.
+curl -sf -u admin:district -X POST 'http://localhost:8080/api/tracker?async=false' \
+  -H 'Content-Type: application/json' \
+  -d '{"trackedEntities":[{"trackedEntityType":"nEenWmSyUEp","orgUnit":"Rp268JB6Ne4",
+       "enrollments":[{"program":"IpHINAT79UW","orgUnit":"Rp268JB6Ne4",
+                       "enrolledAt":"2024-06-01","occurredAt":"2024-06-01","status":"ACTIVE"}]}]}'
+# 409 ERROR:
+# {"errorReports":[{"message":"Default AttributeOptionCombo is not allowed as
+#                              Program has non-default CategoryCombo.",
+#                  "errorCode":"E1055","trackerType":"ENROLLMENT",...}]}
+```
+
+**Expected:** Either the error message names the actual offending field (`enrollmentCategoryCombo`) so callers can reason about the constraint without bisecting program state, or the constraint matches the message (look at `categoryCombo` instead of `enrollmentCategoryCombo`).
+
+**Actual:** v43's `EnrollmentValidationService` checks `Program.enrollmentCategoryCombo` (a v43-only field added alongside the existing `Program.categoryCombo`) when validating the enrollment's AOC, but the error template wasn't updated — it still names `CategoryCombo`. Reading the message points debug effort at the wrong attribute (`Program.categoryCombo` is the default in the seeded fixtures, so the message is contradictory at face value). Even passing an explicit `attributeOptionCombo: "HllvX50cXC0"` (the default) on the enrollment doesn't satisfy the check — the constraint is "must be non-default-AOC whenever enrollmentCategoryCombo is non-default".
+
+**Impact:** Any v43 caller that mutates `Program.enrollmentCategoryCombo` (a deliberate v43-only feature) and then enrolls without an explicit non-default AOC. In this repo the failure surfaced as cascading test failures — `program_set_enrollment_category_combo.py` left the seeded Child Programme with `enrollmentCategoryCombo=non-default`, breaking every downstream verify-examples enrollment until the program was reset.
+
+**Workaround in this repo:** `examples/v43/client/program_set_enrollment_category_combo.py` now restores the original `enrollmentCategoryCombo` (or the program's default `categoryCombo` when no original was set) in a `finally` block, so the seeded program is left in its pre-mutation state. The misleading error message is documented here so future debugging hops directly to `enrollmentCategoryCombo` instead of chasing `categoryCombo`.
+
+**How to know it's fixed:** Either the `E1055` template is updated to mention `enrollmentCategoryCombo` when that's the field that triggered the check, or the check on `Program.enrollmentCategoryCombo` is removed / aligned with `Program.categoryCombo`.
+
+**Verifier:** None — bug is purely diagnostic (message wording); behaviour itself is consistent.
+
+### 41. v43: `E8023` / `E8024` strict COC/AOC matching on `POST /api/dataValueSets` — `force=true` doesn't bypass
+
+**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub). Discovered while reshaping `examples/v{N}/client/aggregate_bulk_grouped.py` for v43 — the v42-compatible code hardcodes the default COC + AOC (`HllvX50cXC0`) and v43 rejects every write against a DataSet or DataElement whose `categoryCombo` is non-default, even with `force=true` or `strictCategoryOptionCombos=false`.
+
+**Repro (against a v43 instance with the seeded Sierra Leone fixture):**
+
+```bash
+# 'Child Health' (BfMAe6Itzgt) has default DataSet CC but its DEs have
+# non-default CC ('dzjKKQq0cSO' = "Location and age group"). Posting with
+# the default COC fails:
+curl -sf -u admin:district -X POST 'http://localhost:8080/api/dataValueSets?force=true' \
+  -H 'Content-Type: application/json' \
+  -d '{"dataSet":"BfMAe6Itzgt","dataValues":[
+        {"dataElement":"s46m5MS0hxu","period":"210701","orgUnit":"y77LiPqLMoq",
+         "categoryOptionCombo":"HllvX50cXC0","attributeOptionCombo":"HllvX50cXC0","value":"10"}]}'
+# 409 with conflicts:
+# E8024: Data set BfMAe6Itzgt + data element s46m5MS0hxu not usable with category option combo(s): [HllvX50cXC0]
+
+# Same payload but with the matching COC from the DE's CC succeeds:
+curl -sf -u admin:district -X POST 'http://localhost:8080/api/dataValueSets?force=true' \
+  -H 'Content-Type: application/json' \
+  -d '{"dataSet":"BfMAe6Itzgt","dataValues":[
+        {"dataElement":"s46m5MS0hxu","period":"210701","orgUnit":"y77LiPqLMoq",
+         "categoryOptionCombo":"Prlt0C1RF0s","attributeOptionCombo":"HllvX50cXC0","value":"10"}]}'
+# 200 OK.
+
+# `EPI Stock` (TuL8IOPzpHh) has non-default DataSet CC. Even with the correct
+# COC, the default AOC triggers E8023:
+curl -sf -u admin:district -X POST 'http://localhost:8080/api/dataValueSets?force=true' \
+  -H 'Content-Type: application/json' \
+  -d '{"dataSet":"TuL8IOPzpHh","dataValues":[
+        {"dataElement":"<any-DE-in-EPI-Stock>","period":"210701","orgUnit":"<any-OU>",
+         "categoryOptionCombo":"<matching-COC>","attributeOptionCombo":"HllvX50cXC0","value":"10"}]}'
+# 409: E8023 Data set TuL8IOPzpHh not usable with attribute option combo(s): [HllvX50cXC0]
+```
+
+**Expected:** Either `force=true` / `strictCategoryOptionCombos=false` / `strictAttributeOptionCombos=false` actually bypass the COC/AOC matching checks (matching v41 + v42 behaviour), or the strictness is documented as forced-on so callers stop reaching for those flags.
+
+**Actual:** v43's `DataValueValidationService` (or successor) enforces `E8024` (COC must be in the DE's CategoryCombo) and `E8023` (AOC must be in the DataSet's CategoryCombo) unconditionally on `POST /api/dataValueSets`. The published `force` / `strictCategoryOptionCombos` / `strictAttributeOptionCombos` request flags are accepted but appear ignored for this specific pair of checks — confirmed by sending all three set to `false` and the same `force=true` and getting the identical 409. v41 + v42 accepted the default-COC / default-AOC pair silently against any DE / DataSet.
+
+**Impact:** Any v43 caller pushing aggregate data values against DEs or DataSets with non-default category combos. v41 + v42 callers that used the default COC/AOC as a convenience hit `E8023`/`E8024` immediately on v43.
+
+**Workaround in this repo:** `examples/v{41,42,43}/client/aggregate_bulk_grouped.py` now (a) filters DataSet selection to `categoryCombo.isDefault:eq:true` so the default AOC is valid, and (b) looks up the picked DE's `categoryCombo.categoryOptionCombos[0].id` and uses it as the COC instead of hardcoding `HllvX50cXC0`. This shape works on v41/v42 (any valid COC for the DE's CC is accepted) and v43 (matches the strict check). The same example also splits the three data-values across distinct periods (`210701/210702/210703`) because v43 additionally rejects multiple values targeting the same `(DE, OU, COC, AOC, period)` key in one batch with `E8128 Value #N all affect the same data value`.
+
+**How to know it's fixed:** `POST /api/dataValueSets?force=true` (or with `strictCategoryOptionCombos=false`/`strictAttributeOptionCombos=false`) against a v43 stack accepts `HllvX50cXC0` for a DE whose CC is non-default — matching v41 + v42 behaviour.
+
+**Verifier:** None — covered indirectly by `examples/v{N}/client/aggregate_bulk_grouped.py` passing on `make verify-examples DHIS2_VERSION=43`.
