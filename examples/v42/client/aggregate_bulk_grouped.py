@@ -52,7 +52,9 @@ async def main() -> None:
         # rejects that filter shape with 400.
         ds_rows = await client.resources.data_sets.list(
             fields="id,periodType,categoryCombo[id,isDefault],dataSetElements[dataElement[id,categoryCombo[id]]],organisationUnits[id]",
-            filters=["dataSetElements:!empty", "organisationUnits:!empty"],
+            # v41 rejects `:!empty` with `E1003 "!empty" is not a valid operator`;
+            # `:gt:0` (count > 0) is the cross-version-compatible shape.
+            filters=["dataSetElements:gt:0", "organisationUnits:gt:0"],
             page_size=50,
         )
         ds = next(
