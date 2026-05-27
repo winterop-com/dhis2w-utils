@@ -12,6 +12,7 @@ Adds ~5-10s to `make test`.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,26 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 _GENERATED_ROOT = _REPO_ROOT / "packages" / "dhis2w-client" / "src" / "dhis2w_client" / "generated"
 
 _VERSIONS = ["v41", "v42", "v43"]
+
+
+@pytest.mark.parametrize("version_key", _VERSIONS)
+def test_schemas_manifest_is_canonical(version_key: str) -> None:
+    """Committed schemas_manifest.json must equal the bytes the SchemasManifest validator produces.
+
+    DHIS2's /api/schemas response order is not stable; the SchemasManifest validator
+    sorts schemas and per-schema properties so re-fetches produce byte-identical output.
+    A drift here means someone committed an un-canonicalized manifest and every
+    subsequent regeneration will re-shuffle the file.
+    """
+    manifest_path = _GENERATED_ROOT / version_key / "schemas_manifest.json"
+    committed_bytes = manifest_path.read_bytes()
+    manifest = SchemasManifest.model_validate_json(committed_bytes)
+    canonical_bytes = json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True).encode("utf-8")
+    assert committed_bytes == canonical_bytes, (
+        f"{manifest_path} is not in canonical order. "
+        f"Re-run `dhis2 dev codegen rebuild` against a live DHIS2 instance, "
+        f"or round-trip the manifest through SchemasManifest.model_validate_json + emit() to re-canonicalize."
+    )
 
 
 @pytest.mark.parametrize("version_key", _VERSIONS)
