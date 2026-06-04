@@ -7,7 +7,7 @@ authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 requires-python = ">=3.13"
 dependencies = [
   "dhis2w-core>=0.14.0,<0.15",
-  "typer>=0.24",
+  "typer>=0.26",
   "rich>=15",
 ]
 
