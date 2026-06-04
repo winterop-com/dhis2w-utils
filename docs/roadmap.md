@@ -125,6 +125,14 @@ Optional `ProgramStageSection` grouping (rarely used in practice) is still unaut
 - `Local OIDC` login-page button is non-functional for browser clicks (CLI-only `redirect_url`); no per-provider "hide from login UI" flag in DHIS2 v42 — documented in `docs/architecture/auth.md`.
 - Bearer-to-JSESSIONID path for browser workflows on OIDC profiles is unverified (flagged in `authenticated_session` docstring).
 
+### Metadata listing consolidation
+
+Listing collapsed onto one surface — generic `metadata list <type>` + the `metadata_list` MCP tool (see the 2026-06-04 decisions-log entry). Three follow-ups remain:
+
+- **Re-expose type-specific list filters + curated columns.** The dropped typed lists had ergonomic filters (`--domain-type`, `--program-type`, `--period-type`, viz `--type`, …) and resource-aware columns. They currently round-trip through the generic `--filter <prop>:<op>:<value>` DSL. Design how to surface the common ones on the canonical command/tool (named convenience flags? a per-resource filter registry?) before migrating docs/examples, so the rewrites aren't redone.
+- **Guard the `/api/metadata?<resource>=true` bundle export against giant payloads.** For organisation units this can embed geojson geometry and balloon to a size that can overload the server. Needs a size/field guard (or a refusal with a `--fields` hint) on `metadata export`; warrants a `BUGS.md` entry once characterized with a repro.
+- **Migrate docs/examples** still referencing the removed typed lists (~42 `examples/v{41,42,43}/cli/*.sh`, ~19 doc pages incl. the MCP tutorial and `architecture/conventions.md` naming examples).
+
 ## Near-term plan (next 3–5 PRs)
 
 Latest cycle closed the **category-dimension strategic option** (Category #205, CategoryCombo + read-only CategoryOptionCombo #208, the one-pass `CategoryComboBuilder` create-or-reuse helper #209) plus the smaller `metadata merge-bundle` verb (#206). With every authoring path on the main workflow now covered, the codegen emitters fully regen-stable, and bulk verbs (rename / retag / share) shipped on top of `patch_bulk` / `apply_sharing_bulk`, the obvious tactical sweep is complete.

@@ -2,6 +2,16 @@
 
 Running list of architectural choices and the reasoning behind them. Each entry is a terse "we decided X because Y, alternatives were Z". This file is a first stop when you're wondering "why is it done that way?".
 
+## 2026-06-04 — Single metadata listing surface: drop typed per-resource `list`
+
+**Decision:** Listing metadata goes through ONE surface — the generic `dhis2 metadata list <type>` CLI command and the `metadata_list` MCP tool (plus `metadata list <type> --count` / the `metadata_count` tool for totals). The 34 typed per-resource list commands (`metadata data-elements list`, `metadata indicators list`, …), their 34 MCP counterparts (`metadata_data_element_list`, …), and the ~33 now-dead `service.list_<resource>` functions are removed. Kept: `metadata type list` (the resource-type catalog), every typed sub-app's authoring verbs (`create` / `rename` / `delete` / `add-*` / …), and the special reads (`members`, `tree`, `list-for-combo`, `vars-for`).
+
+**Why:** both list paths hit the same endpoint — `GET /api/<resource>` (e.g. `/api/dataElements`) — so the typed `list` duplicated the generic one with a different, inconsistent flag set. That confused humans and LLM clients alike (a model reaches for `metadata data-elements list --all` and hits "No such option", because `--all`/`--fields`/`--count` live only on the generic command). `/api/metadata` is a separate bundle-export endpoint, not involved in listing. Pre-1.0, no deployed users, so the removal is clean — no shims, no aliases.
+
+**Cost / follow-up:** the typed lists carried resource-specific convenience filters (`--domain-type`, `--program-type`, `--period-type`, viz `--type`, `--program`, `--data-set`) and curated table columns the generic command lacks. For now those are expressed via the generic `--filter <prop>:<op>:<value>` DSL (e.g. `--filter domainType:eq:AGGREGATE`). Re-exposing type-specific filters/columns ergonomically on the canonical surface is tracked in `docs/roadmap.md` (Gaps → Metadata listing consolidation) — that design should land BEFORE the example scripts are rewritten to `--filter`, to avoid churning them twice.
+
+**Pending (split-PR checklist):** docs + examples still reference the removed typed lists — ~42 example scripts (`examples/v{41,42,43}/cli/*.sh`, gated by `make verify-examples`) and ~19 doc pages (incl. the MCP tutorial worked example and `architecture/conventions.md` naming examples). Migrate those as their own slice once the filter-exposure design is settled.
+
 ## 2026-05-13 — Lift `Profile` + PAT/Basic `open_client` into `dhis2w-client`
 
 **Decision:** the `Profile` Pydantic model, `profile_from_env_raw()`, and a lightweight `open_client(profile)` that handles `auth in ("pat", "basic")` now live in `dhis2w-client`. `dhis2w-core` becomes a strict superset — TOML loading + multi-profile `resolve()` chain + OAuth2 `_build_oauth2` + token-store wiring stay there, and its `open_client` delegates PAT/Basic to the new helpers in `dhis2w-client`. Every `from dhis2w_core.profile import Profile` / `from dhis2w_core.client_context import build_auth, open_client` import keeps working via re-export.
