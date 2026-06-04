@@ -308,11 +308,21 @@ def register(mcp: Any) -> None:
     async def dhis2_cli(args: list[str], profile: str | None = None) -> CliResult:
         """Run a `dhis2` CLI command — your gateway to a DHIS2 server.
 
-        The `dhis2` CLI is self-documenting. DISCOVER before guessing:
+        Common tasks (go direct — no discovery needed). Resource types are plural camelCase
+        (dataElements, indicators, organisationUnits, programs, dataSets, ...):
+          - How many of a resource:  dhis2_cli(["metadata", "list", "dataElements", "--count"])  -> {"total": N}
+          - List a resource:         dhis2_cli(["metadata", "list", "dataElements"])
+                                     narrow with --filter <prop>:<op>:<value> (e.g. domainType:eq:AGGREGATE);
+                                     --all streams every page.
+          - One object by UID:       dhis2_cli(["metadata", "get", "dataElements", "<uid>"])
+          - Server version / me:     dhis2_cli(["system", "info"]) / dhis2_cli(["system", "whoami"])
+
+        Otherwise the CLI is self-documenting — DISCOVER before guessing:
           dhis2_cli(["--help"])                     -> list command groups
           dhis2_cli(["metadata", "--help"])         -> drill into a group
           dhis2_cli(["metadata", "list", "--help"]) -> see a command's options
-        Command shape: [<group>, <subgroup?>, <verb>, <args/options...>].
+        Command shape: [<group>, <subgroup?>, <verb>, <args/options...>]. Listing any metadata
+        resource goes through `metadata list <type>` (there is no `metadata <type> list`).
 
         Output contract:
           - `--json` is added automatically; on success (exit_code 0) `stdout` is JSON — parse it.

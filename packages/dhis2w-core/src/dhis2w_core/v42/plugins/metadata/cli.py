@@ -40,173 +40,172 @@ program_rule_app = typer.Typer(
 )
 app.add_typer(program_rule_app, name="program-rule")
 sql_view_app = typer.Typer(
-    help="SQL view workflows (list / show / execute / refresh / adhoc).",
+    help="SQL view workflows (show / execute / refresh / adhoc).",
     no_args_is_help=True,
 )
 app.add_typer(sql_view_app, name="sql-view")
 viz_app = typer.Typer(
-    help="Visualization authoring (list / show / create / clone / delete).",
+    help="Visualization authoring (show / create / clone / delete).",
     no_args_is_help=True,
 )
 app.add_typer(viz_app, name="viz")
 dashboard_app = typer.Typer(
-    help="Dashboard composition (list / show / add-item / remove-item).",
+    help="Dashboard composition (show / add-item / remove-item).",
     no_args_is_help=True,
 )
 app.add_typer(dashboard_app, name="dashboard")
 map_app = typer.Typer(
-    help="Map authoring (list / show / create / clone / delete).",
+    help="Map authoring (show / create / clone / delete).",
     no_args_is_help=True,
 )
 app.add_typer(map_app, name="map")
 data_elements_app = typer.Typer(
-    help="DataElement authoring (list / show / create / rename / delete + legend-sets).",
+    help="DataElement authoring (show / create / rename / delete + legend-sets).",
     no_args_is_help=True,
 )
 app.add_typer(data_elements_app, name="data-elements")
 data_element_groups_app = typer.Typer(
-    help="DataElementGroup workflows (list / show / members / create / add-members / remove-members / delete).",
+    help="DataElementGroup workflows (show / members / create / add-members / remove-members / delete).",
     no_args_is_help=True,
 )
 app.add_typer(data_element_groups_app, name="data-element-groups")
 data_element_group_sets_app = typer.Typer(
-    help="DataElementGroupSet workflows (list / show / create / add-groups / remove-groups / delete).",
+    help="DataElementGroupSet workflows (show / create / add-groups / remove-groups / delete).",
     no_args_is_help=True,
 )
 app.add_typer(data_element_group_sets_app, name="data-element-group-sets")
 indicators_app = typer.Typer(
-    help="Indicator authoring (list / show / create / rename / validate-expression / delete).",
+    help="Indicator authoring (show / create / rename / validate-expression / delete).",
     no_args_is_help=True,
 )
 app.add_typer(indicators_app, name="indicators")
 indicator_groups_app = typer.Typer(
-    help="IndicatorGroup workflows (list / show / members / create / add-members / remove-members / delete).",
+    help="IndicatorGroup workflows (show / members / create / add-members / remove-members / delete).",
     no_args_is_help=True,
 )
 app.add_typer(indicator_groups_app, name="indicator-groups")
 indicator_group_sets_app = typer.Typer(
-    help="IndicatorGroupSet workflows (list / show / create / add-groups / remove-groups / delete).",
+    help="IndicatorGroupSet workflows (show / create / add-groups / remove-groups / delete).",
     no_args_is_help=True,
 )
 app.add_typer(indicator_group_sets_app, name="indicator-group-sets")
 program_indicators_app = typer.Typer(
-    help="ProgramIndicator authoring (list / show / create / rename / validate-expression / delete).",
+    help="ProgramIndicator authoring (show / create / rename / validate-expression / delete).",
     no_args_is_help=True,
 )
 app.add_typer(program_indicators_app, name="program-indicators")
 program_indicator_groups_app = typer.Typer(
-    help="ProgramIndicatorGroup workflows (list / show / members / create / add-members / remove-members / delete).",
+    help="ProgramIndicatorGroup workflows (show / members / create / add-members / remove-members / delete).",
     no_args_is_help=True,
 )
 app.add_typer(program_indicator_groups_app, name="program-indicator-groups")
 category_options_app = typer.Typer(
-    help="CategoryOption authoring (list / show / create / rename / set-validity / delete).",
+    help="CategoryOption authoring (show / create / rename / set-validity / delete).",
     no_args_is_help=True,
 )
 app.add_typer(category_options_app, name="category-options")
 category_option_groups_app = typer.Typer(
-    help="CategoryOptionGroup workflows (list / show / members / create / add-members / remove-members / delete).",
+    help="CategoryOptionGroup workflows (show / members / create / add-members / remove-members / delete).",
     no_args_is_help=True,
 )
 app.add_typer(category_option_groups_app, name="category-option-groups")
 category_option_group_sets_app = typer.Typer(
-    help="CategoryOptionGroupSet workflows (list / show / create / add-groups / remove-groups / delete).",
+    help="CategoryOptionGroupSet workflows (show / create / add-groups / remove-groups / delete).",
     no_args_is_help=True,
 )
 app.add_typer(category_option_group_sets_app, name="category-option-group-sets")
 categories_app = typer.Typer(
-    help="Category authoring (list / show / create / rename / add-option / remove-option / delete).",
+    help="Category authoring (show / create / rename / add-option / remove-option / delete).",
     no_args_is_help=True,
 )
 app.add_typer(categories_app, name="categories")
 category_combos_app = typer.Typer(
     help=(
-        "CategoryCombo authoring "
-        "(list / show / create / rename / add-category / remove-category / wait-for-cocs / delete)."
+        "CategoryCombo authoring (show / create / rename / add-category / remove-category / wait-for-cocs / delete)."
     ),
     no_args_is_help=True,
 )
 app.add_typer(category_combos_app, name="category-combos")
 category_option_combos_app = typer.Typer(
-    help="CategoryOptionCombo read access (list / show / list-for-combo). DHIS2 owns writes.",
+    help="CategoryOptionCombo read access (show / list-for-combo). DHIS2 owns writes.",
     no_args_is_help=True,
 )
 app.add_typer(category_option_combos_app, name="category-option-combos")
 data_sets_app = typer.Typer(
-    help="DataSet authoring (list / show / create / rename / add-element / remove-element / delete).",
+    help="DataSet authoring (show / create / rename / add-element / remove-element / delete).",
     no_args_is_help=True,
 )
 app.add_typer(data_sets_app, name="data-sets")
 sections_app = typer.Typer(
-    help="Section authoring (list / show / create / rename / add-element / remove-element / reorder / delete).",
+    help="Section authoring (show / create / rename / add-element / remove-element / reorder / delete).",
     no_args_is_help=True,
 )
 app.add_typer(sections_app, name="sections")
 validation_rules_app = typer.Typer(
-    help="ValidationRule authoring (list / show / create / rename / delete).",
+    help="ValidationRule authoring (show / create / rename / delete).",
     no_args_is_help=True,
 )
 app.add_typer(validation_rules_app, name="validation-rules")
 validation_rule_groups_app = typer.Typer(
-    help="ValidationRuleGroup workflows (list / show / members / create / add-members / remove-members / delete).",
+    help="ValidationRuleGroup workflows (show / members / create / add-members / remove-members / delete).",
     no_args_is_help=True,
 )
 app.add_typer(validation_rule_groups_app, name="validation-rule-groups")
 predictors_app = typer.Typer(
-    help="Predictor authoring (list / show / create / rename / delete).",
+    help="Predictor authoring (show / create / rename / delete).",
     no_args_is_help=True,
 )
 app.add_typer(predictors_app, name="predictors")
 predictor_groups_app = typer.Typer(
-    help="PredictorGroup workflows (list / show / members / create / add-members / remove-members / delete).",
+    help="PredictorGroup workflows (show / members / create / add-members / remove-members / delete).",
     no_args_is_help=True,
 )
 app.add_typer(predictor_groups_app, name="predictor-groups")
 tracked_entity_attributes_app = typer.Typer(
-    help="TrackedEntityAttribute authoring (list / show / create / rename / delete).",
+    help="TrackedEntityAttribute authoring (show / create / rename / delete).",
     no_args_is_help=True,
 )
 app.add_typer(tracked_entity_attributes_app, name="tracked-entity-attributes")
 tracked_entity_types_app = typer.Typer(
-    help="TrackedEntityType authoring (list / show / create / rename / add-attribute / remove-attribute / delete).",
+    help="TrackedEntityType authoring (show / create / rename / add-attribute / remove-attribute / delete).",
     no_args_is_help=True,
 )
 app.add_typer(tracked_entity_types_app, name="tracked-entity-types")
 programs_app = typer.Typer(
     help=(
-        "Program authoring (list / show / create / rename / add-attribute / remove-attribute "
+        "Program authoring (show / create / rename / add-attribute / remove-attribute "
         "/ add-to-ou / remove-from-ou / delete)."
     ),
     no_args_is_help=True,
 )
 app.add_typer(programs_app, name="programs")
 program_stages_app = typer.Typer(
-    help=("ProgramStage authoring (list / show / create / rename / add-element / remove-element / reorder / delete)."),
+    help=("ProgramStage authoring (show / create / rename / add-element / remove-element / reorder / delete)."),
     no_args_is_help=True,
 )
 app.add_typer(program_stages_app, name="program-stages")
 organisation_units_app = typer.Typer(
-    help="OrganisationUnit hierarchy workflows (list / show / tree / create / move / delete).",
+    help="OrganisationUnit hierarchy workflows (show / tree / create / move / delete).",
     no_args_is_help=True,
 )
 app.add_typer(organisation_units_app, name="organisation-units")
 organisation_unit_groups_app = typer.Typer(
-    help="OrganisationUnitGroup workflows (list / show / members / create / add-members / remove-members / delete).",
+    help="OrganisationUnitGroup workflows (show / members / create / add-members / remove-members / delete).",
     no_args_is_help=True,
 )
 app.add_typer(organisation_unit_groups_app, name="organisation-unit-groups")
 organisation_unit_group_sets_app = typer.Typer(
-    help="OrganisationUnitGroupSet workflows (list / show / create / add-groups / remove-groups / delete).",
+    help="OrganisationUnitGroupSet workflows (show / create / add-groups / remove-groups / delete).",
     no_args_is_help=True,
 )
 app.add_typer(organisation_unit_group_sets_app, name="organisation-unit-group-sets")
 organisation_unit_levels_app = typer.Typer(
-    help="OrganisationUnitLevel naming (list / show / rename).",
+    help="OrganisationUnitLevel naming (show / rename).",
     no_args_is_help=True,
 )
 app.add_typer(organisation_unit_levels_app, name="organisation-unit-levels")
 legend_sets_app = typer.Typer(
-    help="LegendSet authoring (list / show / create / clone / delete).",
+    help="LegendSet authoring (show / create / clone / delete).",
     no_args_is_help=True,
 )
 app.add_typer(legend_sets_app, name="legend-sets")
