@@ -333,6 +333,9 @@ def register(mcp: Any) -> None:
                                      default fields are id,name — pick others in ONE call with
                                      --fields id,code,name,description (avoid fetch-then-refetch);
                                      narrow with --filter <prop>:<op>:<value> (e.g. domainType:eq:AGGREGATE);
+                                     filter ops: eq (exact), ilike (contains), $ilike (starts-with),
+                                     ilike$ (ends-with), token (word) — e.g. "starting with anc" ->
+                                     --filter name:$ilike:anc (drop the i for case-sensitive);
                                      --all streams every page.
           - One object by UID:       dhis2_cli(["metadata", "get", "dataElements", "<uid>"])
           - Server version / me:     dhis2_cli(["system", "info"]) / dhis2_cli(["system", "whoami"])

@@ -244,8 +244,10 @@ def list_command(
         typer.Option(
             "--filter",
             help=(
-                "Filter in `property:operator:value` form. Repeatable — AND'd by default, "
-                "use --root-junction OR to switch."
+                "Filter as `property:operator:value`. Repeatable — AND'd by default, use "
+                "--root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), "
+                "ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates); drop the `i` for "
+                "case-sensitive. E.g. name:$ilike:anc lists names starting with 'anc'."
             ),
         ),
     ] = None,
