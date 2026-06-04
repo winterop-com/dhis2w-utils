@@ -17,7 +17,7 @@ from rich.table import Table
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v41.cli_output import is_json_output, render_conflicts, render_webmessage
 from dhis2w_core.v41.plugins.metadata import service
-from dhis2w_core.v41.plugins.metadata.models import MetadataBundle
+from dhis2w_core.v41.plugins.metadata.models import MetadataBundle, MetadataCount
 
 app = typer.Typer(help="Inspect and list DHIS2 metadata (wraps generated CRUD resources).", no_args_is_help=True)
 type_app = typer.Typer(help="Metadata resource types (the catalog).", no_args_is_help=True)
@@ -281,9 +281,25 @@ def list_command(
         typer.Option("--translate/--no-translate", help="Return server-side translations for i18n fields."),
     ] = None,
     locale: Annotated[str | None, typer.Option("--locale", help="Locale for --translate, e.g. 'fr'.")] = None,
+    count: Annotated[
+        bool,
+        typer.Option(
+            "--count",
+            help="Print only the total number of matching items (DHIS2 pager total), not the rows. "
+            "Respects --filter; ignores --fields / --page / --page-size / --all.",
+        ),
+    ] = False,
 ) -> None:
     """List instances of a metadata resource."""
     rj = root_junction if filters and len(filters) > 1 else None
+    if count:
+        total = asyncio.run(service.count_metadata(profile_from_env(), resource, filters=filters, root_junction=rj))
+        result = MetadataCount(resource=resource, total=total)
+        if is_json_output():
+            typer.echo(result.model_dump_json(indent=2))
+        else:
+            typer.echo(f"{resource}: {total}")
+        return
     if fetch_all:
         items = asyncio.run(
             _collect_all(

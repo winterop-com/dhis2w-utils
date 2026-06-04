@@ -10,7 +10,7 @@ from dhis2w_client.v43 import JsonPatchOpAdapter, LegendSet, WebMessageResponse
 
 from dhis2w_core.profile import resolve_profile
 from dhis2w_core.v43.plugins.metadata import service
-from dhis2w_core.v43.plugins.metadata.models import MetadataBundle
+from dhis2w_core.v43.plugins.metadata.models import MetadataBundle, MetadataCount
 from dhis2w_core.v43.plugins.metadata.service import MergeResult
 
 
@@ -73,6 +73,31 @@ def register(mcp: Any) -> None:
             locale=locale,
         )
         return [_dump_model(model) for model in models]
+
+    @mcp.tool()
+    async def metadata_count(
+        resource: str,
+        filters: list[str] | None = None,
+        root_junction: str | None = None,
+        profile: str | None = None,
+    ) -> MetadataCount:
+        """Count instances of a metadata resource without fetching the rows.
+
+        Returns the DHIS2 `pager.total` for `resource` (e.g. `dataElements`,
+        `indicators`) in one cheap request. `filters` narrows the count the same
+        way `metadata_list`'s filters narrow a listing (AND by default; pass
+        `root_junction="OR"` to OR them). Prefer this over `metadata_list` for
+        "how many X" questions — it never pulls the full collection.
+
+        `profile` selects a named profile; omit for the default.
+        """
+        total = await service.count_metadata(
+            resolve_profile(profile),
+            resource,
+            filters=filters,
+            root_junction=root_junction,
+        )
+        return MetadataCount(resource=resource, total=total)
 
     @mcp.tool()
     async def metadata_get(
