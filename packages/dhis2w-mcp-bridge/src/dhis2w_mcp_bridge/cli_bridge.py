@@ -352,6 +352,12 @@ def register(mcp: Any) -> None:
           - `--help` / `--version` exit 0 with human text (discovery output, not data).
           - Any non-zero exit_code is a failure: read `stderr` for the message (it is NOT JSON).
 
+        Responding: the host already shows the user every tool call and its full output, so do NOT
+        re-print large JSON or long lists verbatim in your reply — that just makes you slow. Answer
+        the question or give a short summary (counts, the few rows asked for). Reproduce raw output
+        only when the user explicitly asks for "the raw JSON" / "the full list". Prefer narrowing the
+        query (--count, --filter, --fields) over fetching everything and summarizing after.
+
         Connecting: pass `profile` to select a configured DHIS2 profile (e.g. profile="prod"),
         or rely on the server's DHIS2_PROFILE env / default. On "no DHIS2 profile is configured",
         do NOT invent credentials — ask the user to run `dhis2 profile add` / `profile bootstrap`.
