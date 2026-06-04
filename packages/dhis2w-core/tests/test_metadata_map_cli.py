@@ -54,18 +54,6 @@ def _map() -> Map:
     )
 
 
-def test_map_list_renders_table(pat_profile: None) -> None:  # noqa: ARG001
-    """Map list renders table."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_maps",
-        new=AsyncMock(return_value=[_map()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "map", "list"])
-    assert result.exit_code == 0, result.output
-    assert "MapProbe001" in result.output
-    assert "Probe choropleth" in result.output
-
-
 def test_map_show_renders_layer_summary(pat_profile: None) -> None:  # noqa: ARG001
     """Map show renders layer summary."""
     with patch(
@@ -164,14 +152,3 @@ def test_map_delete_with_yes_runs(pat_profile: None) -> None:  # noqa: ARG001
         result = CliRunner().invoke(build_app(), ["metadata", "map", "delete", "MapProbe001", "-y"])
     assert result.exit_code == 0, result.output
     assert "deleted" in result.output
-
-
-def test_map_ls_alias(pat_profile: None) -> None:  # noqa: ARG001
-    """Map ls alias."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_maps",
-        new=AsyncMock(return_value=[]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "map", "ls"])
-    assert result.exit_code == 0, result.output
-    assert "no maps" in result.output

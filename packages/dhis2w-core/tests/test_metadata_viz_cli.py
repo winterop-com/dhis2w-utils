@@ -74,28 +74,6 @@ def _dashboard() -> Dashboard:
 # ---- viz list / show / create / clone / delete ---------------------------
 
 
-def test_viz_list_renders_type_column(pat_profile: None) -> None:  # noqa: ARG001
-    """Viz list renders type column."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_visualizations",
-        new=AsyncMock(return_value=[_viz()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "viz", "list"])
-    assert result.exit_code == 0, result.output
-    assert "ANC probe line" in result.output
-    assert "LINE" in result.output
-
-
-def test_viz_list_forwards_type_filter(pat_profile: None) -> None:  # noqa: ARG001
-    """Viz list forwards type filter."""
-    mock = AsyncMock(return_value=[])
-    with patch("dhis2w_core.v42.plugins.metadata.service.list_visualizations", new=mock):
-        result = CliRunner().invoke(build_app(), ["metadata", "viz", "list", "--type", "PIVOT_TABLE"])
-    assert result.exit_code == 0, result.output
-    assert mock.await_args is not None
-    assert mock.await_args.kwargs["viz_type"] == "PIVOT_TABLE"
-
-
 def test_viz_show_renders_axes_and_data_elements(pat_profile: None) -> None:  # noqa: ARG001
     """Viz show renders axes and data elements."""
     with patch(
@@ -203,30 +181,7 @@ def test_viz_delete_with_yes_skips_prompt(pat_profile: None) -> None:  # noqa: A
     assert "deleted" in result.output
 
 
-def test_viz_ls_hidden_alias_routes_to_list(pat_profile: None) -> None:  # noqa: ARG001
-    """Viz ls hidden alias routes to list."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_visualizations",
-        new=AsyncMock(return_value=[]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "viz", "ls"])
-    assert result.exit_code == 0, result.output
-    assert "no visualizations" in result.output
-
-
 # ---- dashboard list / show / add-item / remove-item ----------------------
-
-
-def test_dashboard_list_renders_uid_and_name(pat_profile: None) -> None:  # noqa: ARG001
-    """Dashboard list renders uid and name."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_dashboards",
-        new=AsyncMock(return_value=[_dashboard()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "dashboard", "list"])
-    assert result.exit_code == 0, result.output
-    assert "DashProbe01" in result.output
-    assert "Probe dashboard" in result.output
 
 
 def test_dashboard_show_renders_item_slot(pat_profile: None) -> None:  # noqa: ARG001
@@ -305,14 +260,3 @@ def test_dashboard_remove_item_reports_new_count(pat_profile: None) -> None:  # 
     assert result.exit_code == 0, result.output
     assert "removed" in result.output
     assert "now 0 items" in result.output
-
-
-def test_dashboard_ls_hidden_alias_routes_to_list(pat_profile: None) -> None:  # noqa: ARG001
-    """Dashboard ls hidden alias routes to list."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_dashboards",
-        new=AsyncMock(return_value=[]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "dashboard", "ls"])
-    assert result.exit_code == 0, result.output
-    assert "no dashboards" in result.output

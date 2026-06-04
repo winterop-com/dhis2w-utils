@@ -2,7 +2,7 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 338 across 13 plugin groups.
+**Total tools**: 304 across 13 plugin groups.
 
 ## Plugins
 
@@ -14,7 +14,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 - [`files_*`](#files) — 5 tools
 - [`maintenance_*`](#maintenance) — 15 tools
 - [`messaging_*`](#messaging) — 11 tools
-- [`metadata_*`](#metadata) — 231 tools
+- [`metadata_*`](#metadata) — 197 tools
 - [`profile_*`](#profile) — 4 tools
 - [`route_*`](#route) — 7 tools
 - [`system_*`](#system) — 5 tools
@@ -970,16 +970,6 @@ Fetch one CategoryCombo by UID.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_category_combo_list`
-
-Page through CategoryCombos.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
-| `profile` | `string` | no | — |
-
 ### `metadata_category_combo_remove_category`
 
 Remove a Category from this CategoryCombo's membership.
@@ -1046,16 +1036,6 @@ Fetch one Category by UID.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_category_list`
-
-Page through Categories.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
-| `profile` | `string` | no | — |
-
 ### `metadata_category_option_combo_get`
 
 Fetch one CategoryOptionCombo by UID.
@@ -1063,16 +1043,6 @@ Fetch one CategoryOptionCombo by UID.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_category_option_combo_list`
-
-Page through every CategoryOptionCombo across every CategoryCombo.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_category_option_combo_list_for_combo`
@@ -1160,14 +1130,6 @@ Fetch one CategoryOptionGroup with member + group-set refs.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_category_option_group_list`
-
-List every CategoryOptionGroup.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_category_option_group_members`
 
 Page through CategoryOptions in a group.
@@ -1232,14 +1194,6 @@ Fetch one CategoryOptionGroupSet by UID.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_category_option_group_set_list`
-
-List every CategoryOptionGroupSet.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_category_option_group_set_remove_groups`
 
 Drop groups from a CategoryOptionGroupSet via the per-item DELETE shortcut.
@@ -1248,16 +1202,6 @@ Drop groups from a CategoryOptionGroupSet via the per-item DELETE shortcut.
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
 | `group_uids` | `list[string]` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_category_option_list`
-
-Page through CategoryOptions.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_category_option_rename`
@@ -1341,14 +1285,6 @@ Show one Dashboard with every dashboardItem resolved inline.
 | `dashboard_uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_dashboard_list`
-
-List every Dashboard on the instance, sorted by name.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_data_element_create`
 
 Create a DataElement. Omit `category_combo_uid` to use the instance default.
@@ -1429,14 +1365,6 @@ Fetch one DataElementGroup with member + group-set refs inline.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_data_element_group_list`
-
-List every DataElementGroup.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_data_element_group_members`
 
 Page through DataElements in a group.
@@ -1501,14 +1429,6 @@ Fetch one DataElementGroupSet by UID.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_data_element_group_set_list`
-
-List every DataElementGroupSet.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_data_element_group_set_remove_groups`
 
 Drop groups from a group set via the per-item DELETE shortcut.
@@ -1517,17 +1437,6 @@ Drop groups from a group set via the per-item DELETE shortcut.
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
 | `group_uids` | `list[string]` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_data_element_list`
-
-Page through DataElements. `domain_type` = `AGGREGATE` or `TRACKER`.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `domain_type` | `string` | no | — |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_data_element_rename`
@@ -1599,17 +1508,6 @@ Fetch one DataSet with its DSE + section + OU refs resolved.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_data_set_list`
-
-Page through DataSets, optionally filtered by periodType.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `period_type` | `string` | no | — |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_data_set_remove_element`
@@ -1788,14 +1686,6 @@ Fetch one IndicatorGroup with member + group-set refs.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_indicator_group_list`
-
-List every IndicatorGroup.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_indicator_group_members`
 
 Page through Indicators in a group.
@@ -1859,14 +1749,6 @@ Fetch one IndicatorGroupSet by UID.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_indicator_group_set_list`
-
-List every IndicatorGroupSet.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_indicator_group_set_remove_groups`
 
 Drop groups from an IndicatorGroupSet via the per-item DELETE shortcut.
@@ -1875,16 +1757,6 @@ Drop groups from an IndicatorGroupSet via the per-item DELETE shortcut.
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
 | `group_uids` | `list[string]` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_indicator_list`
-
-Page through Indicators.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_indicator_rename`
@@ -1948,14 +1820,6 @@ Fetch one LegendSet by UID with its colour bands resolved inline.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_legend_set_list`
-
-List every LegendSet with its `legends` child bands resolved inline.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_list`
 
 List instances of a metadata resource (e.g. `dataElements`, `indicators`).
@@ -2015,14 +1879,6 @@ Show one Map with its viewport + every mapViews layer resolved inline.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `map_uid` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_map_list`
-
-List every Map on the instance, sorted by name.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
 | `profile` | `string` | no | — |
 
 ### `metadata_merge`
@@ -2194,14 +2050,6 @@ Fetch one OrganisationUnitGroup with member + group-set refs inline.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_organisation_unit_group_list`
-
-List every OrganisationUnitGroup.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_organisation_unit_group_members`
 
 Page through OUs that belong to one group.
@@ -2266,14 +2114,6 @@ Fetch one group set with per-group member counts.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_organisation_unit_group_set_list`
-
-List every OrganisationUnitGroupSet.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_organisation_unit_group_set_remove_groups`
 
 Drop groups from a group set via the per-item DELETE shortcut.
@@ -2294,14 +2134,6 @@ Fetch one level row — pass `uid` or `level` (numeric depth), not both.
 | `level` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
-### `metadata_organisation_unit_level_list`
-
-List every OrganisationUnitLevel sorted by depth (1 = roots).
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_organisation_unit_level_rename`
 
 Rename a level row — pass `uid` or `level` (numeric depth), not both.
@@ -2313,17 +2145,6 @@ Rename a level row — pass `uid` or `level` (numeric depth), not both.
 | `level` | `integer` | no | — |
 | `code` | `string` | no | — |
 | `offline_levels` | `integer` | no | — |
-| `profile` | `string` | no | — |
-
-### `metadata_organisation_unit_list`
-
-Page through OrganisationUnits with parent + hierarchy columns.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `level` | `integer` | no | — |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_organisation_unit_move`
@@ -2436,14 +2257,6 @@ Fetch one PredictorGroup with predictor refs.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_predictor_group_list`
-
-List every PredictorGroup.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_predictor_group_members`
 
 Page through Predictors in a group.
@@ -2463,17 +2276,6 @@ Detach Predictors from a group.
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
 | `predictor_uids` | `list[string]` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_predictor_list`
-
-Page through Predictors.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `period_type` | `string` | no | — |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_predictor_rename`
@@ -2637,14 +2439,6 @@ Fetch one ProgramIndicatorGroup with member refs.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_program_indicator_group_list`
-
-List every ProgramIndicatorGroup.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_program_indicator_group_members`
 
 Page through ProgramIndicators in a group.
@@ -2664,17 +2458,6 @@ Drop ProgramIndicators from a group via the per-item DELETE shortcut.
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
 | `program_indicator_uids` | `list[string]` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_program_indicator_list`
-
-Page through ProgramIndicators, optionally scoped to one program.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `program_uid` | `string` | no | — |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_program_indicator_rename`
@@ -2706,17 +2489,6 @@ Parse-check one program-indicator expression via DHIS2's validator.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `expression` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_program_list`
-
-Page through Programs, optionally filtered by programType.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `program_type` | `string` | no | — |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_program_remove_attribute`
@@ -2759,15 +2531,6 @@ Show one ProgramRule with actions resolved inline.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `rule_uid` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_program_rule_list`
-
-List every ProgramRule (optionally scoped to a program), sorted by priority.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `program_uid` | `string` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_program_rule_validate_expression`
@@ -2853,17 +2616,6 @@ Fetch one ProgramStage with its PSDE list resolved.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_program_stage_list`
-
-Page through ProgramStages, optionally scoped to one Program.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `program_uid` | `string` | no | — |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_program_stage_remove_element`
@@ -3001,17 +2753,6 @@ Fetch one Section with its DE + indicator refs resolved.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_section_list`
-
-List Sections across every DataSet, or narrow to one DataSet.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `data_set_uid` | `string` | no | — |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
-| `profile` | `string` | no | — |
-
 ### `metadata_section_remove_element`
 
 Remove a DataElement from a Section (stays on the parent DataSet).
@@ -3079,15 +2820,6 @@ Show one SqlView with its stored sqlQuery.
 | `view_uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_sql_view_list`
-
-List every SqlView on the instance (optionally filtered by `view_type`).
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `view_type` | `string` | no | — |
-| `profile` | `string` | no | — |
-
 ### `metadata_sql_view_refresh`
 
 Refresh a MATERIALIZED_VIEW or lazily create a VIEW's DB object.
@@ -3139,17 +2871,6 @@ Fetch one TrackedEntityAttribute.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_tracked_entity_attribute_list`
-
-Page through TrackedEntityAttributes.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `value_type` | `string` | no | — |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_tracked_entity_attribute_rename`
@@ -3212,16 +2933,6 @@ Fetch one TrackedEntityType.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_tracked_entity_type_list`
-
-Page through TrackedEntityTypes.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_tracked_entity_type_remove_attribute`
@@ -3344,14 +3055,6 @@ Fetch one ValidationRuleGroup with rule refs.
 | `uid` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_validation_rule_group_list`
-
-List every ValidationRuleGroup.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profile` | `string` | no | — |
-
 ### `metadata_validation_rule_group_members`
 
 Page through ValidationRules in a group.
@@ -3371,17 +3074,6 @@ Detach ValidationRules from a group.
 | --- | --- | --- | --- |
 | `uid` | `string` | yes | — |
 | `validation_rule_uids` | `list[string]` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_validation_rule_list`
-
-Page through ValidationRules, optionally filtered by periodType.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `period_type` | `string` | no | — |
-| `page` | `integer` | no | — |
-| `page_size` | `integer` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_validation_rule_rename`
@@ -3433,15 +3125,6 @@ Show one Visualization with axes + data dimensions resolved inline.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `viz_uid` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `metadata_viz_list`
-
-List every Visualization on the instance (optionally filtered by type).
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `viz_type` | `string` | no | — |
 | `profile` | `string` | no | — |
 
 ## `profile`

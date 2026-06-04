@@ -384,11 +384,6 @@ def register(mcp: Any) -> None:
         )
 
     @mcp.tool()
-    async def metadata_legend_set_list(profile: str | None = None) -> list[LegendSet]:
-        """List every LegendSet with its `legends` child bands resolved inline."""
-        return await service.list_legend_sets(resolve_profile(profile))
-
-    @mcp.tool()
     async def metadata_legend_set_get(uid: str, profile: str | None = None) -> LegendSet:
         """Fetch one LegendSet by UID with its colour bands resolved inline."""
         return await service.show_legend_set(resolve_profile(profile), uid)
@@ -779,15 +774,6 @@ def register(mcp: Any) -> None:
         )
 
     @mcp.tool()
-    async def metadata_program_rule_list(
-        program_uid: str | None = None,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every ProgramRule (optionally scoped to a program), sorted by priority."""
-        rules = await service.list_program_rules(resolve_profile(profile), program_uid=program_uid)
-        return [_dump_model(rule) for rule in rules]
-
-    @mcp.tool()
     async def metadata_program_rule_get(
         rule_uid: str,
         profile: str | None = None,
@@ -837,18 +823,6 @@ def register(mcp: Any) -> None:
         return [_dump_model(r) for r in rules]
 
     @mcp.tool()
-    async def metadata_sql_view_list(
-        view_type: str | None = None,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every SqlView on the instance (optionally filtered by `view_type`).
-
-        `view_type` accepts `VIEW`, `MATERIALIZED_VIEW`, or `QUERY`.
-        """
-        views = await service.list_sql_views(resolve_profile(profile), view_type=view_type)
-        return [_dump_model(v) for v in views]
-
-    @mcp.tool()
     async def metadata_sql_view_get(
         view_uid: str,
         profile: str | None = None,
@@ -889,20 +863,6 @@ def register(mcp: Any) -> None:
         """Refresh a MATERIALIZED_VIEW or lazily create a VIEW's DB object."""
         response = await service.refresh_sql_view(resolve_profile(profile), view_uid)
         return _dump_model(response)
-
-    @mcp.tool()
-    async def metadata_viz_list(
-        viz_type: str | None = None,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every Visualization on the instance (optionally filtered by type).
-
-        `viz_type` accepts any VisualizationType — LINE, COLUMN, BAR,
-        STACKED_COLUMN, STACKED_BAR, AREA, PIE, RADAR, PIVOT_TABLE,
-        SINGLE_VALUE, etc.
-        """
-        vizes = await service.list_visualizations(resolve_profile(profile), viz_type=viz_type)
-        return [_dump_model(v) for v in vizes]
 
     @mcp.tool()
     async def metadata_viz_get(
@@ -970,12 +930,6 @@ def register(mcp: Any) -> None:
         return _dump_model(clone)
 
     @mcp.tool()
-    async def metadata_dashboard_list(profile: str | None = None) -> list[dict[str, Any]]:
-        """List every Dashboard on the instance, sorted by name."""
-        dashboards = await service.list_dashboards(resolve_profile(profile))
-        return [_dump_model(d) for d in dashboards]
-
-    @mcp.tool()
     async def metadata_dashboard_get(
         dashboard_uid: str,
         profile: str | None = None,
@@ -1016,12 +970,6 @@ def register(mcp: Any) -> None:
             height=height,
         )
         return _dump_model(dashboard)
-
-    @mcp.tool()
-    async def metadata_map_list(profile: str | None = None) -> list[dict[str, Any]]:
-        """List every Map on the instance, sorted by name."""
-        maps = await service.list_maps(resolve_profile(profile))
-        return [_dump_model(m) for m in maps]
 
     @mcp.tool()
     async def metadata_map_get(
@@ -1094,22 +1042,6 @@ def register(mcp: Any) -> None:
             new_description=new_description,
         )
         return _dump_model(clone)
-
-    @mcp.tool()
-    async def metadata_data_element_list(
-        domain_type: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through DataElements. `domain_type` = `AGGREGATE` or `TRACKER`."""
-        rows = await service.list_data_elements(
-            resolve_profile(profile),
-            domain_type=domain_type,
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(row) for row in rows]
 
     @mcp.tool()
     async def metadata_data_element_get(
@@ -1198,14 +1130,6 @@ def register(mcp: Any) -> None:
         await service.delete_data_element(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_data_element_group_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every DataElementGroup."""
-        groups = await service.list_data_element_groups(resolve_profile(profile))
-        return [_dump_model(g) for g in groups]
-
-    @mcp.tool()
     async def metadata_data_element_group_get(
         uid: str,
         profile: str | None = None,
@@ -1286,14 +1210,6 @@ def register(mcp: Any) -> None:
         await service.delete_data_element_group(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_data_element_group_set_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every DataElementGroupSet."""
-        group_sets = await service.list_data_element_group_sets(resolve_profile(profile))
-        return [_dump_model(gs) for gs in group_sets]
-
-    @mcp.tool()
     async def metadata_data_element_group_set_get(
         uid: str,
         profile: str | None = None,
@@ -1360,16 +1276,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete a DataElementGroupSet — groups stay."""
         await service.delete_data_element_group_set(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_indicator_list(
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through Indicators."""
-        rows = await service.list_indicators(resolve_profile(profile), page=page, page_size=page_size)
-        return [_dump_model(row) for row in rows]
 
     @mcp.tool()
     async def metadata_indicator_get(
@@ -1465,14 +1371,6 @@ def register(mcp: Any) -> None:
         await service.delete_indicator(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_indicator_group_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every IndicatorGroup."""
-        groups = await service.list_indicator_groups(resolve_profile(profile))
-        return [_dump_model(g) for g in groups]
-
-    @mcp.tool()
     async def metadata_indicator_group_get(
         uid: str,
         profile: str | None = None,
@@ -1553,14 +1451,6 @@ def register(mcp: Any) -> None:
         await service.delete_indicator_group(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_indicator_group_set_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every IndicatorGroupSet."""
-        group_sets = await service.list_indicator_group_sets(resolve_profile(profile))
-        return [_dump_model(gs) for gs in group_sets]
-
-    @mcp.tool()
     async def metadata_indicator_group_set_get(
         uid: str,
         profile: str | None = None,
@@ -1625,22 +1515,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete an IndicatorGroupSet — groups stay."""
         await service.delete_indicator_group_set(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_program_indicator_list(
-        program_uid: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through ProgramIndicators, optionally scoped to one program."""
-        rows = await service.list_program_indicators(
-            resolve_profile(profile),
-            program_uid=program_uid,
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(pi) for pi in rows]
 
     @mcp.tool()
     async def metadata_program_indicator_get(
@@ -1734,14 +1608,6 @@ def register(mcp: Any) -> None:
         await service.delete_program_indicator(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_program_indicator_group_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every ProgramIndicatorGroup."""
-        groups = await service.list_program_indicator_groups(resolve_profile(profile))
-        return [_dump_model(g) for g in groups]
-
-    @mcp.tool()
     async def metadata_program_indicator_group_get(
         uid: str,
         profile: str | None = None,
@@ -1822,16 +1688,6 @@ def register(mcp: Any) -> None:
         await service.delete_program_indicator_group(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_category_option_list(
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through CategoryOptions."""
-        rows = await service.list_category_options(resolve_profile(profile), page=page, page_size=page_size)
-        return [_dump_model(co) for co in rows]
-
-    @mcp.tool()
     async def metadata_category_option_get(
         uid: str,
         profile: str | None = None,
@@ -1908,16 +1764,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete a CategoryOption — DHIS2 rejects deletes on options in use."""
         await service.delete_category_option(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_category_list(
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through Categories."""
-        rows = await service.list_categories(resolve_profile(profile), page=page, page_size=page_size)
-        return [_dump_model(cat) for cat in rows]
 
     @mcp.tool()
     async def metadata_category_get(
@@ -1999,16 +1845,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete a Category — DHIS2 rejects deletes on categories referenced by a CategoryCombo."""
         await service.delete_category(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_category_combo_list(
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through CategoryCombos."""
-        rows = await service.list_category_combos(resolve_profile(profile), page=page, page_size=page_size)
-        return [_dump_model(cc) for cc in rows]
 
     @mcp.tool()
     async def metadata_category_combo_get(uid: str, profile: str | None = None) -> dict[str, Any]:
@@ -2130,16 +1966,6 @@ def register(mcp: Any) -> None:
         return _dump_model(result)
 
     @mcp.tool()
-    async def metadata_category_option_combo_list(
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through every CategoryOptionCombo across every CategoryCombo."""
-        rows = await service.list_category_option_combos(resolve_profile(profile), page=page, page_size=page_size)
-        return [_dump_model(row) for row in rows]
-
-    @mcp.tool()
     async def metadata_category_option_combo_get(uid: str, profile: str | None = None) -> dict[str, Any]:
         """Fetch one CategoryOptionCombo by UID."""
         coc = await service.show_category_option_combo(resolve_profile(profile), uid)
@@ -2153,14 +1979,6 @@ def register(mcp: Any) -> None:
         """List every CategoryOptionCombo materialised by one CategoryCombo."""
         rows = await service.list_category_option_combos_for_combo(resolve_profile(profile), combo_uid)
         return [_dump_model(row) for row in rows]
-
-    @mcp.tool()
-    async def metadata_category_option_group_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every CategoryOptionGroup."""
-        groups = await service.list_category_option_groups(resolve_profile(profile))
-        return [_dump_model(g) for g in groups]
 
     @mcp.tool()
     async def metadata_category_option_group_get(
@@ -2245,14 +2063,6 @@ def register(mcp: Any) -> None:
         await service.delete_category_option_group(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_category_option_group_set_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every CategoryOptionGroupSet."""
-        gs_rows = await service.list_category_option_group_sets(resolve_profile(profile))
-        return [_dump_model(gs) for gs in gs_rows]
-
-    @mcp.tool()
     async def metadata_category_option_group_set_get(
         uid: str,
         profile: str | None = None,
@@ -2319,22 +2129,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete a CategoryOptionGroupSet — member groups stay."""
         await service.delete_category_option_group_set(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_data_set_list(
-        period_type: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through DataSets, optionally filtered by periodType."""
-        rows = await service.list_data_sets(
-            resolve_profile(profile),
-            period_type=period_type,
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(ds) for ds in rows]
 
     @mcp.tool()
     async def metadata_data_set_get(
@@ -2433,22 +2227,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete a DataSet — DHIS2 rejects deletes on DataSets with saved values."""
         await service.delete_data_set(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_section_list(
-        data_set_uid: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List Sections across every DataSet, or narrow to one DataSet."""
-        rows = await service.list_sections(
-            resolve_profile(profile),
-            data_set_uid=data_set_uid,
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(s) for s in rows]
 
     @mcp.tool()
     async def metadata_section_get(
@@ -2559,22 +2337,6 @@ def register(mcp: Any) -> None:
         await service.delete_section(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_validation_rule_list(
-        period_type: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through ValidationRules, optionally filtered by periodType."""
-        rows = await service.list_validation_rules(
-            resolve_profile(profile),
-            period_type=period_type,
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(r) for r in rows]
-
-    @mcp.tool()
     async def metadata_validation_rule_get(
         uid: str,
         profile: str | None = None,
@@ -2641,14 +2403,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete a ValidationRule."""
         await service.delete_validation_rule(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_validation_rule_group_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every ValidationRuleGroup."""
-        groups = await service.list_validation_rule_groups(resolve_profile(profile))
-        return [_dump_model(g) for g in groups]
 
     @mcp.tool()
     async def metadata_validation_rule_group_get(
@@ -2731,22 +2485,6 @@ def register(mcp: Any) -> None:
         await service.delete_validation_rule_group(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_predictor_list(
-        period_type: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through Predictors."""
-        rows = await service.list_predictors(
-            resolve_profile(profile),
-            period_type=period_type,
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(p) for p in rows]
-
-    @mcp.tool()
     async def metadata_predictor_get(
         uid: str,
         profile: str | None = None,
@@ -2813,14 +2551,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete a Predictor."""
         await service.delete_predictor(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_predictor_group_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every PredictorGroup."""
-        groups = await service.list_predictor_groups(resolve_profile(profile))
-        return [_dump_model(g) for g in groups]
 
     @mcp.tool()
     async def metadata_predictor_group_get(
@@ -2903,22 +2633,6 @@ def register(mcp: Any) -> None:
         await service.delete_predictor_group(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_tracked_entity_attribute_list(
-        value_type: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through TrackedEntityAttributes."""
-        rows = await service.list_tracked_entity_attributes(
-            resolve_profile(profile),
-            value_type=value_type,
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(r) for r in rows]
-
-    @mcp.tool()
     async def metadata_tracked_entity_attribute_get(
         uid: str,
         profile: str | None = None,
@@ -2999,20 +2713,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete a TrackedEntityAttribute."""
         await service.delete_tracked_entity_attribute(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_tracked_entity_type_list(
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through TrackedEntityTypes."""
-        rows = await service.list_tracked_entity_types(
-            resolve_profile(profile),
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(r) for r in rows]
 
     @mcp.tool()
     async def metadata_tracked_entity_type_get(
@@ -3113,22 +2813,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete a TrackedEntityType."""
         await service.delete_tracked_entity_type(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_program_list(
-        program_type: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through Programs, optionally filtered by programType."""
-        rows = await service.list_programs(
-            resolve_profile(profile),
-            program_type=program_type,
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(r) for r in rows]
 
     @mcp.tool()
     async def metadata_program_get(
@@ -3330,22 +3014,6 @@ def register(mcp: Any) -> None:
         await service.delete_program(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_program_stage_list(
-        program_uid: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through ProgramStages, optionally scoped to one Program."""
-        rows = await service.list_program_stages(
-            resolve_profile(profile),
-            program_uid=program_uid,
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(s) for s in rows]
-
-    @mcp.tool()
     async def metadata_program_stage_get(
         uid: str,
         profile: str | None = None,
@@ -3476,22 +3144,6 @@ def register(mcp: Any) -> None:
         await service.delete_program_stage(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_organisation_unit_list(
-        level: int | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Page through OrganisationUnits with parent + hierarchy columns."""
-        units = await service.list_organisation_units(
-            resolve_profile(profile),
-            level=level,
-            page=page,
-            page_size=page_size,
-        )
-        return [_dump_model(u) for u in units]
-
-    @mcp.tool()
     async def metadata_organisation_unit_get(
         uid: str,
         profile: str | None = None,
@@ -3559,14 +3211,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete an OU — DHIS2 rejects deletes on units with children or data."""
         await service.delete_organisation_unit(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_organisation_unit_group_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every OrganisationUnitGroup."""
-        groups = await service.list_organisation_unit_groups(resolve_profile(profile))
-        return [_dump_model(g) for g in groups]
 
     @mcp.tool()
     async def metadata_organisation_unit_group_get(
@@ -3652,14 +3296,6 @@ def register(mcp: Any) -> None:
         await service.delete_organisation_unit_group(resolve_profile(profile), uid)
 
     @mcp.tool()
-    async def metadata_organisation_unit_group_set_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every OrganisationUnitGroupSet."""
-        group_sets = await service.list_organisation_unit_group_sets(resolve_profile(profile))
-        return [_dump_model(gs) for gs in group_sets]
-
-    @mcp.tool()
     async def metadata_organisation_unit_group_set_get(
         uid: str,
         profile: str | None = None,
@@ -3730,14 +3366,6 @@ def register(mcp: Any) -> None:
     ) -> None:
         """Delete an OrganisationUnitGroupSet — groups stay."""
         await service.delete_organisation_unit_group_set(resolve_profile(profile), uid)
-
-    @mcp.tool()
-    async def metadata_organisation_unit_level_list(
-        profile: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List every OrganisationUnitLevel sorted by depth (1 = roots)."""
-        levels = await service.list_organisation_unit_levels(resolve_profile(profile))
-        return [_dump_model(row) for row in levels]
 
     @mcp.tool()
     async def metadata_organisation_unit_level_get(

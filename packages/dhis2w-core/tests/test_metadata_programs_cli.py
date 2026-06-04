@@ -46,32 +46,6 @@ def _program() -> Program:
     )
 
 
-def test_programs_list_renders_type_and_counts(pat_profile: None) -> None:  # noqa: ARG001
-    """Programs list renders type and counts."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_programs",
-        new=AsyncMock(return_value=[_program()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "programs", "list"])
-    assert result.exit_code == 0, result.output
-    assert "Example ANC" in result.output
-    # Rich may truncate the cell; check for a recognisable prefix
-    assert "WITH_REG" in result.output
-
-
-def test_programs_list_forwards_program_type(pat_profile: None) -> None:  # noqa: ARG001
-    """Programs list forwards program type."""
-    mock = AsyncMock(return_value=[])
-    with patch("dhis2w_core.v42.plugins.metadata.service.list_programs", new=mock):
-        result = CliRunner().invoke(
-            build_app(),
-            ["metadata", "programs", "list", "--program-type", "WITHOUT_REGISTRATION"],
-        )
-    assert result.exit_code == 0, result.output
-    assert mock.await_args is not None
-    assert mock.await_args.kwargs["program_type"] == "WITHOUT_REGISTRATION"
-
-
 def test_programs_create_forwards_tet_and_knobs(pat_profile: None) -> None:  # noqa: ARG001
     """Programs create forwards tet and knobs."""
     mock = AsyncMock(return_value=_program())

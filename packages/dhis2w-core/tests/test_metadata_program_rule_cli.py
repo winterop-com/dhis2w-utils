@@ -48,17 +48,6 @@ def _rule() -> ProgramRule:
     )
 
 
-def test_program_rule_list_prints_priority_and_name(pat_profile: None) -> None:  # noqa: ARG001
-    """Program rule list prints priority and name."""
-    rules = [_rule()]
-    with patch("dhis2w_core.v42.plugins.metadata.service.list_program_rules", new=AsyncMock(return_value=rules)):
-        result = CliRunner().invoke(build_app(), ["metadata", "program-rule", "list", "--program", "PROG"])
-    assert result.exit_code == 0, result.output
-    assert "PrAnc000001" in result.output
-    assert "ANC visit count" in result.output
-    assert "> 50" in result.output
-
-
 def test_program_rule_show_renders_action_table(pat_profile: None) -> None:  # noqa: ARG001
     """Program rule show renders action table."""
     with patch("dhis2w_core.v42.plugins.metadata.service.show_program_rule", new=AsyncMock(return_value=_rule())):
