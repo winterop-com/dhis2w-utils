@@ -3061,6 +3061,7 @@ $ dhis2 metadata ls [OPTIONS] RESOURCE
 * `--translate / --no-translate`: Return server-side translations for i18n fields.
 * `--locale TEXT`: Locale for --translate, e.g. &#x27;fr&#x27;.
 * `--count`: Print only the total number of matching items (DHIS2 pager total), not the rows. Respects --filter; ignores --fields / --page / --page-size / --all.
+* `-o, --output PATH`: Write the result JSON to this file and print a one-line summary instead of the rows. Combine with --fields / --filter / --all to dump a full slice without flooding the caller.
 * `--help`: Show this message and exit.
 
 ### `dhis2 metadata list`
@@ -3089,6 +3090,7 @@ $ dhis2 metadata list [OPTIONS] RESOURCE
 * `--translate / --no-translate`: Return server-side translations for i18n fields.
 * `--locale TEXT`: Locale for --translate, e.g. &#x27;fr&#x27;.
 * `--count`: Print only the total number of matching items (DHIS2 pager total), not the rows. Respects --filter; ignores --fields / --page / --page-size / --all.
+* `-o, --output PATH`: Write the result JSON to this file and print a one-line summary instead of the rows. Combine with --fields / --filter / --all to dump a full slice without flooding the caller.
 * `--help`: Show this message and exit.
 
 ### `dhis2 metadata search`

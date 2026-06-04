@@ -143,3 +143,13 @@ class MetadataCount(BaseModel):
 
     resource: str
     total: int
+
+
+class MetadataWriteResult(BaseModel):
+    """Summary of a `metadata list --output` write: how many rows landed where."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    resource: str
+    written: int
+    path: str

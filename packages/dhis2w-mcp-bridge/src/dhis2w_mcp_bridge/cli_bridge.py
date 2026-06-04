@@ -337,6 +337,9 @@ def register(mcp: Any) -> None:
                                      ilike$ (ends-with), token (word) — e.g. "starting with anc" ->
                                      --filter name:$ilike:anc (drop the i for case-sensitive);
                                      --all streams every page.
+          - Dump everything to file: add --output <file> (e.g. dataElements.json) -> returns
+                                     {"written": N, "path": ...}. Use this for "give me ALL as JSON":
+                                     report the path to the user; do NOT print the rows yourself.
           - One object by UID:       dhis2_cli(["metadata", "get", "dataElements", "<uid>"])
           - Server version / me:     dhis2_cli(["system", "info"]) / dhis2_cli(["system", "whoami"])
 

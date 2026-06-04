@@ -17,7 +17,7 @@ from rich.table import Table
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v41.cli_output import is_json_output, render_conflicts, render_webmessage
 from dhis2w_core.v41.plugins.metadata import service
-from dhis2w_core.v41.plugins.metadata.models import MetadataBundle, MetadataCount
+from dhis2w_core.v41.plugins.metadata.models import MetadataBundle, MetadataCount, MetadataWriteResult
 
 app = typer.Typer(help="Inspect and list DHIS2 metadata (wraps generated CRUD resources).", no_args_is_help=True)
 type_app = typer.Typer(help="Metadata resource types (the catalog).", no_args_is_help=True)
@@ -290,6 +290,15 @@ def list_command(
             "Respects --filter; ignores --fields / --page / --page-size / --all.",
         ),
     ] = False,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Write the result JSON to this file and print a one-line summary instead of the rows. "
+            "Combine with --fields / --filter / --all to dump a full slice without flooding the caller.",
+        ),
+    ] = None,
 ) -> None:
     """List instances of a metadata resource."""
     rj = root_junction if filters and len(filters) > 1 else None
@@ -329,6 +338,15 @@ def list_command(
             )
         )
     rows = [_dump_for_cli(model) for model in items]
+    if output is not None:
+        destination = output.expanduser()
+        destination.write_text(json.dumps(rows, indent=2), encoding="utf-8")
+        written = MetadataWriteResult(resource=resource, written=len(rows), path=str(destination.resolve()))
+        if is_json_output():
+            typer.echo(written.model_dump_json(indent=2))
+        else:
+            typer.echo(f"wrote {written.written} {resource} to {written.path}")
+        return
     if is_json_output():
         typer.echo(json.dumps(rows, indent=2))
         return
