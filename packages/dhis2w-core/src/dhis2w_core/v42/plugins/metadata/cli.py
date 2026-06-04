@@ -2261,43 +2261,6 @@ def attribute_find_command(
 # ---------------------------------------------------------------------------
 
 
-@program_rule_app.command("list")
-@program_rule_app.command("ls", hidden=True)
-def program_rule_list_command(
-    program_uid: Annotated[
-        str | None,
-        typer.Option("--program", help="Program UID; omit to list every rule on the instance."),
-    ] = None,
-) -> None:
-    """List every ProgramRule (optionally scoped to one program), sorted by priority."""
-    rules = asyncio.run(service.list_program_rules(profile_from_env(), program_uid=program_uid))
-    if is_json_output():
-        typer.echo("[" + ",".join(r.model_dump_json(exclude_none=True) for r in rules) + "]")
-        return
-    if not rules:
-        typer.echo("no program rules")
-        return
-    title = f"program rules ({len(rules)})"
-    if program_uid is not None:
-        title += f" — program {program_uid}"
-    table = Table(title=title)
-    table.add_column("priority", justify="right", style="dim")
-    table.add_column("uid", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("condition", overflow="fold")
-    table.add_column("actions", justify="right")
-    for rule in rules:
-        actions = rule.programRuleActions or []
-        table.add_row(
-            str(rule.priority if rule.priority is not None else "-"),
-            rule.id or "-",
-            rule.name or "-",
-            rule.condition or "-",
-            str(len(actions)),
-        )
-    _console.print(table)
-
-
 @program_rule_app.command("get")
 def program_rule_get_command(
     rule_uid: Annotated[str, typer.Argument(help="ProgramRule UID.")],
@@ -2489,40 +2452,6 @@ def _render_sql_view_result(result: Any, *, fmt: str) -> None:
     _console.print(table)
 
 
-@sql_view_app.command("list")
-@sql_view_app.command("ls", hidden=True)
-def sql_view_list_command(
-    view_type: Annotated[
-        str | None,
-        typer.Option("--type", help="Filter by SqlViewType: VIEW, MATERIALIZED_VIEW, or QUERY."),
-    ] = None,
-) -> None:
-    """List every SqlView on the instance, sorted by name."""
-    views = asyncio.run(service.list_sql_views(profile_from_env(), view_type=view_type))
-    if is_json_output():
-        typer.echo("[" + ",".join(v.model_dump_json(exclude_none=True) for v in views) + "]")
-        return
-    if not views:
-        typer.echo("no SQL views")
-        return
-    title = f"SQL views ({len(views)})"
-    if view_type is not None:
-        title += f" — type {view_type}"
-    table = Table(title=title)
-    table.add_column("uid", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("type", style="dim")
-    table.add_column("description", overflow="fold")
-    for view in views:
-        table.add_row(
-            view.id or "-",
-            view.name or "-",
-            str(view.type) if view.type is not None else "-",
-            view.description or "-",
-        )
-    _console.print(table)
-
-
 @sql_view_app.command("get")
 def sql_view_get_command(
     view_uid: Annotated[str, typer.Argument(help="SqlView UID.")],
@@ -2664,34 +2593,6 @@ def _collect_dataDimensionItem_targets(items: Any) -> list[str]:
             if isinstance(uid, str):
                 uids.append(uid)
     return uids
-
-
-@viz_app.command("list")
-@viz_app.command("ls", hidden=True)
-def viz_list_command(
-    viz_type: Annotated[
-        str | None,
-        typer.Option("--type", help="Filter by VisualizationType (LINE / COLUMN / PIVOT_TABLE / SINGLE_VALUE / ...)."),
-    ] = None,
-) -> None:
-    """List every Visualization on the instance, sorted by name."""
-    vizes = asyncio.run(service.list_visualizations(profile_from_env(), viz_type=viz_type))
-    if is_json_output():
-        typer.echo("[" + ",".join(v.model_dump_json(exclude_none=True) for v in vizes) + "]")
-        return
-    if not vizes:
-        typer.echo("no visualizations")
-        return
-    title = f"visualizations ({len(vizes)})"
-    if viz_type is not None:
-        title += f" — type {viz_type}"
-    table = Table(title=title)
-    table.add_column("uid", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("type", style="dim")
-    for viz in vizes:
-        table.add_row(viz.id or "-", viz.name or "-", str(viz.type) if viz.type is not None else "-")
-    _console.print(table)
 
 
 @viz_app.command("get")
@@ -2837,26 +2738,6 @@ def viz_delete_command(
     typer.echo(f"deleted visualization {viz_uid}")
 
 
-@dashboard_app.command("list")
-@dashboard_app.command("ls", hidden=True)
-def dashboard_list_command() -> None:
-    """List every Dashboard on the instance, sorted by name."""
-    dashboards = asyncio.run(service.list_dashboards(profile_from_env()))
-    if is_json_output():
-        typer.echo("[" + ",".join(d.model_dump_json(exclude_none=True) for d in dashboards) + "]")
-        return
-    if not dashboards:
-        typer.echo("no dashboards")
-        return
-    table = Table(title=f"dashboards ({len(dashboards)})")
-    table.add_column("uid", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("description", overflow="fold")
-    for d in dashboards:
-        table.add_row(d.id or "-", d.name or "-", d.description or "-")
-    _console.print(table)
-
-
 @dashboard_app.command("get")
 def dashboard_get_command(
     dashboard_uid: Annotated[str, typer.Argument(help="Dashboard UID.")],
@@ -2959,32 +2840,6 @@ def dashboard_remove_item_command(
     _console.print(
         f"[green]removed[/green] item [cyan]{item_uid}[/cyan] from dashboard {dashboard_uid} (now {item_count} items)",
     )
-
-
-@map_app.command("list")
-@map_app.command("ls", hidden=True)
-def map_list_command() -> None:
-    """List every Map on the instance, sorted by name."""
-    maps = asyncio.run(service.list_maps(profile_from_env()))
-    if is_json_output():
-        typer.echo("[" + ",".join(m.model_dump_json(exclude_none=True) for m in maps) + "]")
-        return
-    if not maps:
-        typer.echo("no maps")
-        return
-    table = Table(title=f"maps ({len(maps)})")
-    table.add_column("uid", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("description", overflow="fold")
-    table.add_column("zoom", justify="right", style="dim")
-    for m in maps:
-        table.add_row(
-            m.id or "-",
-            m.name or "-",
-            m.description or "-",
-            str(m.zoom if m.zoom is not None else "-"),
-        )
-    _console.print(table)
 
 
 @map_app.command("get")
@@ -3149,32 +3004,6 @@ def _parse_legend_spec(spec: str) -> tuple[float, float, str, str | None]:
     return (start, end, color, name)
 
 
-@legend_sets_app.command("list")
-@legend_sets_app.command("ls", hidden=True)
-def legend_sets_list_command() -> None:
-    """List every LegendSet with its legend count."""
-    legend_sets = asyncio.run(service.list_legend_sets(profile_from_env()))
-    if is_json_output():
-        typer.echo("[" + ",".join(ls.model_dump_json(exclude_none=True) for ls in legend_sets) + "]")
-        return
-    if not legend_sets:
-        typer.echo("no legendSets on this instance")
-        return
-    table = Table(title=f"DHIS2 legendSets ({len(legend_sets)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("legends", justify="right")
-    for row in legend_sets:
-        table.add_row(
-            str(row.id or "-"),
-            str(row.name or "-"),
-            str(row.code or "-"),
-            str(len(row.legends or [])),
-        )
-    _console.print(table)
-
-
 @legend_sets_app.command("get")
 def legend_sets_get_command(
     uid: Annotated[str, typer.Argument(help="LegendSet UID.")],
@@ -3322,50 +3151,6 @@ def legend_sets_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@data_elements_app.command("list")
-@data_elements_app.command("ls", hidden=True)
-def data_elements_list_command(
-    domain_type: Annotated[
-        str | None,
-        typer.Option("--domain-type", help="Filter to AGGREGATE or TRACKER."),
-    ] = None,
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List DataElements with type + aggregation columns."""
-    rows = asyncio.run(
-        service.list_data_elements(
-            profile_from_env(),
-            domain_type=domain_type,
-            page=page,
-            page_size=page_size,
-        ),
-    )
-    if is_json_output():
-        typer.echo(json.dumps([de.model_dump(by_alias=True, exclude_none=True, mode="json") for de in rows], indent=2))
-        return
-    if not rows:
-        typer.echo(f"no dataElements on page {page}")
-        return
-    table = Table(title=f"DHIS2 dataElements (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("valueType", style="magenta")
-    table.add_column("domainType", style="dim")
-    table.add_column("aggregationType", style="dim")
-    for row in rows:
-        table.add_row(
-            str(row.id or "-"),
-            str(row.name or "-"),
-            str(row.code or "-"),
-            str(row.valueType.value if row.valueType else "-"),
-            str(row.domainType.value if row.domainType else "-"),
-            str(row.aggregationType.value if row.aggregationType else "-"),
-        )
-    _console.print(table)
-
-
 @data_elements_app.command("get")
 def data_elements_get_command(
     uid: Annotated[str, typer.Argument(help="DataElement UID.")],
@@ -3499,35 +3284,6 @@ def data_elements_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@data_element_groups_app.command("list")
-@data_element_groups_app.command("ls", hidden=True)
-def data_element_groups_list_command() -> None:
-    """List every DataElementGroup with member counts."""
-    groups = asyncio.run(service.list_data_element_groups(profile_from_env()))
-    if is_json_output():
-        typer.echo(
-            json.dumps([g.model_dump(by_alias=True, exclude_none=True, mode="json") for g in groups], indent=2),
-        )
-        return
-    if not groups:
-        typer.echo("no dataElementGroups on this instance")
-        return
-    table = Table(title=f"DHIS2 dataElementGroups ({len(groups)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("members", justify="right")
-    for group in groups:
-        member_count = len(group.dataElements or [])
-        table.add_row(
-            str(group.id or "-"),
-            str(group.name or "-"),
-            str(group.code or "-"),
-            str(member_count),
-        )
-    _console.print(table)
-
-
 @data_element_groups_app.command("get")
 def data_element_groups_get_command(
     uid: Annotated[str, typer.Argument(help="DataElementGroup UID.")],
@@ -3655,40 +3411,6 @@ def data_element_groups_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@data_element_group_sets_app.command("list")
-@data_element_group_sets_app.command("ls", hidden=True)
-def data_element_group_sets_list_command() -> None:
-    """List every DataElementGroupSet with group counts."""
-    group_sets = asyncio.run(service.list_data_element_group_sets(profile_from_env()))
-    if is_json_output():
-        typer.echo(
-            json.dumps(
-                [gs.model_dump(by_alias=True, exclude_none=True, mode="json") for gs in group_sets],
-                indent=2,
-            ),
-        )
-        return
-    if not group_sets:
-        typer.echo("no dataElementGroupSets on this instance")
-        return
-    table = Table(title=f"DHIS2 dataElementGroupSets ({len(group_sets)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("groups", justify="right")
-    table.add_column("compulsory", justify="center")
-    for gs in group_sets:
-        groups = gs.dataElementGroups or []
-        table.add_row(
-            str(gs.id or "-"),
-            str(gs.name or "-"),
-            str(gs.code or "-"),
-            str(len(groups)),
-            "yes" if gs.compulsory else "no",
-        )
-    _console.print(table)
-
-
 @data_element_group_sets_app.command("get")
 def data_element_group_sets_get_command(
     uid: Annotated[str, typer.Argument(help="DataElementGroupSet UID.")],
@@ -3794,40 +3516,6 @@ def data_element_group_sets_delete_command(
 # ---------------------------------------------------------------------------
 # Indicator workflows — `dhis2 metadata indicators ...`
 # ---------------------------------------------------------------------------
-
-
-@indicators_app.command("list")
-@indicators_app.command("ls", hidden=True)
-def indicators_list_command(
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List Indicators with type + expression summary columns."""
-    rows = asyncio.run(service.list_indicators(profile_from_env(), page=page, page_size=page_size))
-    if is_json_output():
-        typer.echo(
-            json.dumps([ind.model_dump(by_alias=True, exclude_none=True, mode="json") for ind in rows], indent=2)
-        )
-        return
-    if not rows:
-        typer.echo(f"no indicators on page {page}")
-        return
-    table = Table(title=f"DHIS2 indicators (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("type", style="magenta")
-    table.add_column("annualized", justify="center")
-    for row in rows:
-        itype = getattr(row.indicatorType, "id", None) if row.indicatorType else None
-        table.add_row(
-            str(row.id or "-"),
-            str(row.name or "-"),
-            str(row.code or "-"),
-            str(itype or "-"),
-            "yes" if row.annualized else "no",
-        )
-    _console.print(table)
 
 
 @indicators_app.command("get")
@@ -3968,34 +3656,6 @@ def indicators_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@indicator_groups_app.command("list")
-@indicator_groups_app.command("ls", hidden=True)
-def indicator_groups_list_command() -> None:
-    """List every IndicatorGroup with member counts."""
-    groups = asyncio.run(service.list_indicator_groups(profile_from_env()))
-    if is_json_output():
-        typer.echo(
-            json.dumps([g.model_dump(by_alias=True, exclude_none=True, mode="json") for g in groups], indent=2),
-        )
-        return
-    if not groups:
-        typer.echo("no indicatorGroups on this instance")
-        return
-    table = Table(title=f"DHIS2 indicatorGroups ({len(groups)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("members", justify="right")
-    for group in groups:
-        table.add_row(
-            str(group.id or "-"),
-            str(group.name or "-"),
-            str(group.code or "-"),
-            str(len(group.indicators or [])),
-        )
-    _console.print(table)
-
-
 @indicator_groups_app.command("get")
 def indicator_groups_get_command(
     uid: Annotated[str, typer.Argument(help="IndicatorGroup UID.")],
@@ -4120,40 +3780,6 @@ def indicator_groups_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@indicator_group_sets_app.command("list")
-@indicator_group_sets_app.command("ls", hidden=True)
-def indicator_group_sets_list_command() -> None:
-    """List every IndicatorGroupSet with group counts."""
-    group_sets = asyncio.run(service.list_indicator_group_sets(profile_from_env()))
-    if is_json_output():
-        typer.echo(
-            json.dumps(
-                [gs.model_dump(by_alias=True, exclude_none=True, mode="json") for gs in group_sets],
-                indent=2,
-            ),
-        )
-        return
-    if not group_sets:
-        typer.echo("no indicatorGroupSets on this instance")
-        return
-    table = Table(title=f"DHIS2 indicatorGroupSets ({len(group_sets)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("groups", justify="right")
-    table.add_column("compulsory", justify="center")
-    for gs in group_sets:
-        groups = gs.indicatorGroups or []
-        table.add_row(
-            str(gs.id or "-"),
-            str(gs.name or "-"),
-            str(gs.code or "-"),
-            str(len(groups)),
-            "yes" if gs.compulsory else "no",
-        )
-    _console.print(table)
-
-
 @indicator_group_sets_app.command("get")
 def indicator_group_sets_get_command(
     uid: Annotated[str, typer.Argument(help="IndicatorGroupSet UID.")],
@@ -4253,46 +3879,6 @@ def indicator_group_sets_delete_command(
 # ---------------------------------------------------------------------------
 # ProgramIndicator workflows — `dhis2 metadata program-indicators ...`
 # ---------------------------------------------------------------------------
-
-
-@program_indicators_app.command("list")
-@program_indicators_app.command("ls", hidden=True)
-def program_indicators_list_command(
-    program_uid: Annotated[str | None, typer.Option("--program", "-p", help="Scope to one program's PIs.")] = None,
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List ProgramIndicators with their program + analytics-type columns."""
-    rows = asyncio.run(
-        service.list_program_indicators(
-            profile_from_env(),
-            program_uid=program_uid,
-            page=page,
-            page_size=page_size,
-        ),
-    )
-    if is_json_output():
-        typer.echo(json.dumps([pi.model_dump(by_alias=True, exclude_none=True, mode="json") for pi in rows], indent=2))
-        return
-    if not rows:
-        typer.echo(f"no programIndicators on page {page}")
-        return
-    table = Table(title=f"DHIS2 programIndicators (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("program", style="dim")
-    table.add_column("analyticsType", style="magenta")
-    for pi in rows:
-        program_id = getattr(pi.program, "id", None) if pi.program else None
-        table.add_row(
-            str(pi.id or "-"),
-            str(pi.name or "-"),
-            str(pi.code or "-"),
-            str(program_id or "-"),
-            str(pi.analyticsType.value if pi.analyticsType else "-"),
-        )
-    _console.print(table)
 
 
 @program_indicators_app.command("get")
@@ -4433,34 +4019,6 @@ def program_indicators_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@program_indicator_groups_app.command("list")
-@program_indicator_groups_app.command("ls", hidden=True)
-def program_indicator_groups_list_command() -> None:
-    """List every ProgramIndicatorGroup with member counts."""
-    groups = asyncio.run(service.list_program_indicator_groups(profile_from_env()))
-    if is_json_output():
-        typer.echo(
-            json.dumps([g.model_dump(by_alias=True, exclude_none=True, mode="json") for g in groups], indent=2),
-        )
-        return
-    if not groups:
-        typer.echo("no programIndicatorGroups on this instance")
-        return
-    table = Table(title=f"DHIS2 programIndicatorGroups ({len(groups)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("members", justify="right")
-    for group in groups:
-        table.add_row(
-            str(group.id or "-"),
-            str(group.name or "-"),
-            str(group.code or "-"),
-            str(len(group.programIndicators or [])),
-        )
-    _console.print(table)
-
-
 @program_indicator_groups_app.command("get")
 def program_indicator_groups_get_command(
     uid: Annotated[str, typer.Argument(help="ProgramIndicatorGroup UID.")],
@@ -4588,37 +4146,6 @@ def program_indicator_groups_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@category_options_app.command("list")
-@category_options_app.command("ls", hidden=True)
-def category_options_list_command(
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List CategoryOptions with their validity window columns."""
-    rows = asyncio.run(service.list_category_options(profile_from_env(), page=page, page_size=page_size))
-    if is_json_output():
-        typer.echo(json.dumps([co.model_dump(by_alias=True, exclude_none=True, mode="json") for co in rows], indent=2))
-        return
-    if not rows:
-        typer.echo(f"no categoryOptions on page {page}")
-        return
-    table = Table(title=f"DHIS2 categoryOptions (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("startDate", style="dim")
-    table.add_column("endDate", style="dim")
-    for co in rows:
-        table.add_row(
-            str(co.id or "-"),
-            str(co.name or "-"),
-            str(co.code or "-"),
-            str(co.startDate.date() if co.startDate else "-"),
-            str(co.endDate.date() if co.endDate else "-"),
-        )
-    _console.print(table)
-
-
 @category_options_app.command("get")
 def category_options_get_command(
     uid: Annotated[str, typer.Argument(help="CategoryOption UID.")],
@@ -4744,39 +4271,6 @@ def category_options_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@categories_app.command("list")
-@categories_app.command("ls", hidden=True)
-def categories_list_command(
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List Categories with their option counts."""
-    rows = asyncio.run(service.list_categories(profile_from_env(), page=page, page_size=page_size))
-    if is_json_output():
-        typer.echo(
-            json.dumps([cat.model_dump(by_alias=True, exclude_none=True, mode="json") for cat in rows], indent=2)
-        )
-        return
-    if not rows:
-        typer.echo(f"no categories on page {page}")
-        return
-    table = Table(title=f"DHIS2 categories (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("type", style="dim")
-    table.add_column("options", justify="right")
-    for cat in rows:
-        table.add_row(
-            str(cat.id or "-"),
-            str(cat.name or "-"),
-            str(cat.code or "-"),
-            str(cat.dataDimensionType or "-"),
-            str(len(cat.categoryOptions or [])),
-        )
-    _console.print(table)
-
-
 @categories_app.command("get")
 def categories_get_command(
     uid: Annotated[str, typer.Argument(help="Category UID.")],
@@ -4896,41 +4390,6 @@ def categories_delete_command(
 # ---------------------------------------------------------------------------
 # CategoryCombo workflows — `dhis2 metadata category-combos ...`
 # ---------------------------------------------------------------------------
-
-
-@category_combos_app.command("list")
-@category_combos_app.command("ls", hidden=True)
-def category_combos_list_command(
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List CategoryCombos with their category + materialised-COC counts."""
-    rows = asyncio.run(service.list_category_combos(profile_from_env(), page=page, page_size=page_size))
-    if is_json_output():
-        typer.echo(json.dumps([cc.model_dump(by_alias=True, exclude_none=True, mode="json") for cc in rows], indent=2))
-        return
-    if not rows:
-        typer.echo(f"no categoryCombos on page {page}")
-        return
-    table = Table(title=f"DHIS2 categoryCombos (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("type", style="dim")
-    table.add_column("default", justify="center")
-    table.add_column("categories", justify="right")
-    table.add_column("COCs", justify="right")
-    for cc in rows:
-        table.add_row(
-            str(cc.id or "-"),
-            str(cc.name or "-"),
-            str(cc.code or "-"),
-            str(cc.dataDimensionType or "-"),
-            "[green]yes[/green]" if cc.isDefault else "[dim]no[/dim]",
-            str(len(cc.categories or [])),
-            str(len(cc.categoryOptionCombos or [])),
-        )
-    _console.print(table)
 
 
 @category_combos_app.command("get")
@@ -5170,35 +4629,6 @@ def category_combos_build_command(
 # ---------------------------------------------------------------------------
 
 
-@category_option_combos_app.command("list")
-@category_option_combos_app.command("ls", hidden=True)
-def category_option_combos_list_command(
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """Page through every CategoryOptionCombo across every CategoryCombo."""
-    rows = asyncio.run(
-        service.list_category_option_combos(profile_from_env(), page=page, page_size=page_size),
-    )
-    if is_json_output():
-        typer.echo(
-            json.dumps([row.model_dump(by_alias=True, exclude_none=True, mode="json") for row in rows], indent=2)
-        )
-        return
-    if not rows:
-        typer.echo(f"no categoryOptionCombos on page {page}")
-        return
-    table = Table(title=f"DHIS2 categoryOptionCombos (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("combo", style="dim", overflow="fold")
-    for row in rows:
-        combo_id = row.categoryCombo.id if row.categoryCombo else "-"
-        table.add_row(str(row.id or "-"), str(row.name or "-"), str(row.code or "-"), str(combo_id or "-"))
-    _console.print(table)
-
-
 @category_option_combos_app.command("get")
 def category_option_combos_get_command(
     uid: Annotated[str, typer.Argument(help="CategoryOptionCombo UID.")],
@@ -5240,34 +4670,6 @@ def category_option_combos_list_for_combo_command(
 # ---------------------------------------------------------------------------
 # CategoryOptionGroup — `dhis2 metadata category-option-groups ...`
 # ---------------------------------------------------------------------------
-
-
-@category_option_groups_app.command("list")
-@category_option_groups_app.command("ls", hidden=True)
-def category_option_groups_list_command() -> None:
-    """List every CategoryOptionGroup with member counts."""
-    groups = asyncio.run(service.list_category_option_groups(profile_from_env()))
-    if is_json_output():
-        typer.echo(
-            json.dumps([g.model_dump(by_alias=True, exclude_none=True, mode="json") for g in groups], indent=2),
-        )
-        return
-    if not groups:
-        typer.echo("no categoryOptionGroups on this instance")
-        return
-    table = Table(title=f"DHIS2 categoryOptionGroups ({len(groups)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("members", justify="right")
-    for group in groups:
-        table.add_row(
-            str(group.id or "-"),
-            str(group.name or "-"),
-            str(group.code or "-"),
-            str(len(group.categoryOptions or [])),
-        )
-    _console.print(table)
 
 
 @category_option_groups_app.command("get")
@@ -5404,36 +4806,6 @@ def category_option_groups_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@category_option_group_sets_app.command("list")
-@category_option_group_sets_app.command("ls", hidden=True)
-def category_option_group_sets_list_command() -> None:
-    """List every CategoryOptionGroupSet."""
-    gs_rows = asyncio.run(service.list_category_option_group_sets(profile_from_env()))
-    if is_json_output():
-        typer.echo(
-            json.dumps([gs.model_dump(by_alias=True, exclude_none=True, mode="json") for gs in gs_rows], indent=2),
-        )
-        return
-    if not gs_rows:
-        typer.echo("no categoryOptionGroupSets on this instance")
-        return
-    table = Table(title=f"DHIS2 categoryOptionGroupSets ({len(gs_rows)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("groups", justify="right")
-    table.add_column("dimType", style="magenta")
-    for gs in gs_rows:
-        table.add_row(
-            str(gs.id or "-"),
-            str(gs.name or "-"),
-            str(gs.code or "-"),
-            str(len(gs.categoryOptionGroups or [])),
-            str(gs.dataDimensionType.value if gs.dataDimensionType else "-"),
-        )
-    _console.print(table)
-
-
 @category_option_group_sets_app.command("get")
 def category_option_group_sets_get_command(
     uid: Annotated[str, typer.Argument(help="CategoryOptionGroupSet UID.")],
@@ -5561,51 +4933,6 @@ def _unit_level(unit: Any) -> int | None:
     return unit.hierarchyLevel  # type: ignore[no-any-return]
 
 
-@organisation_units_app.command("list")
-@organisation_units_app.command("ls", hidden=True)
-def organisation_units_list_command(
-    level: Annotated[int | None, typer.Option("--level", help="Filter by hierarchy level (1 = roots).")] = None,
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List organisation units with parent + hierarchy columns.
-
-    Server-side paged so large trees don't stream into memory at once.
-    Combine with `--level N` to sweep a single rung ("every district",
-    "every facility").
-    """
-    units = asyncio.run(
-        service.list_organisation_units(profile_from_env(), level=level, page=page, page_size=page_size),
-    )
-    if is_json_output():
-        typer.echo(json.dumps([u.model_dump(by_alias=True, exclude_none=True, mode="json") for u in units], indent=2))
-        return
-    if not units:
-        typer.echo(f"no organisationUnits on page {page}")
-        return
-    table = Table(title=f"DHIS2 organisationUnits (page {page}, {len(units)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("level", justify="right")
-    table.add_column("parent", style="dim", overflow="fold")
-    for unit in units:
-        parent_ref = unit.parent
-        parent_label = "-"
-        if parent_ref is not None:
-            parent_id = getattr(parent_ref, "id", None)
-            if parent_id:
-                parent_label = str(parent_id)
-        table.add_row(
-            str(unit.id or "-"),
-            str(unit.name or "-"),
-            str(unit.code or "-"),
-            str(_unit_level(unit) or "-"),
-            parent_label,
-        )
-    _console.print(table)
-
-
 @organisation_units_app.command("get")
 def organisation_units_get_command(
     uid: Annotated[str, typer.Argument(help="OrganisationUnit UID.")],
@@ -5721,33 +5048,6 @@ def organisation_units_delete_command(
 # ---------------------------------------------------------------------------
 # OrganisationUnitGroup — `dhis2 metadata organisation-unit-groups ...`
 # ---------------------------------------------------------------------------
-
-
-@organisation_unit_groups_app.command("list")
-@organisation_unit_groups_app.command("ls", hidden=True)
-def organisation_unit_groups_list_command() -> None:
-    """List every OrganisationUnitGroup with member counts."""
-    groups = asyncio.run(service.list_organisation_unit_groups(profile_from_env()))
-    if is_json_output():
-        typer.echo(json.dumps([g.model_dump(by_alias=True, exclude_none=True, mode="json") for g in groups], indent=2))
-        return
-    if not groups:
-        typer.echo("no organisationUnitGroups on this instance")
-        return
-    table = Table(title=f"DHIS2 organisationUnitGroups ({len(groups)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("members", justify="right")
-    for group in groups:
-        member_count = len(group.organisationUnits or [])
-        table.add_row(
-            str(group.id or "-"),
-            str(group.name or "-"),
-            str(group.code or "-"),
-            str(member_count),
-        )
-    _console.print(table)
 
 
 @organisation_unit_groups_app.command("get")
@@ -5882,37 +5182,6 @@ def organisation_unit_groups_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@organisation_unit_group_sets_app.command("list")
-@organisation_unit_group_sets_app.command("ls", hidden=True)
-def organisation_unit_group_sets_list_command() -> None:
-    """List every OrganisationUnitGroupSet with group counts."""
-    group_sets = asyncio.run(service.list_organisation_unit_group_sets(profile_from_env()))
-    if is_json_output():
-        typer.echo(
-            json.dumps([gs.model_dump(by_alias=True, exclude_none=True, mode="json") for gs in group_sets], indent=2)
-        )
-        return
-    if not group_sets:
-        typer.echo("no organisationUnitGroupSets on this instance")
-        return
-    table = Table(title=f"DHIS2 organisationUnitGroupSets ({len(group_sets)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("groups", justify="right")
-    table.add_column("compulsory", justify="center")
-    for gs in group_sets:
-        groups = gs.organisationUnitGroups or []
-        table.add_row(
-            str(gs.id or "-"),
-            str(gs.name or "-"),
-            str(gs.code or "-"),
-            str(len(groups)),
-            "yes" if gs.compulsory else "no",
-        )
-    _console.print(table)
-
-
 @organisation_unit_group_sets_app.command("get")
 def organisation_unit_group_sets_get_command(
     uid: Annotated[str, typer.Argument(help="OrganisationUnitGroupSet UID.")],
@@ -6034,37 +5303,6 @@ def organisation_unit_group_sets_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@organisation_unit_levels_app.command("list")
-@organisation_unit_levels_app.command("ls", hidden=True)
-def organisation_unit_levels_list_command() -> None:
-    """List every OrganisationUnitLevel sorted by depth (roots first)."""
-    levels = asyncio.run(service.list_organisation_unit_levels(profile_from_env()))
-    if is_json_output():
-        typer.echo(
-            json.dumps([lvl.model_dump(by_alias=True, exclude_none=True, mode="json") for lvl in levels], indent=2)
-        )
-        return
-    if not levels:
-        typer.echo("no organisationUnitLevels on this instance")
-        return
-    table = Table(title=f"DHIS2 organisationUnitLevels ({len(levels)})")
-    table.add_column("level", justify="right")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("offlineLevels", justify="right")
-    for row in levels:
-        name_display = str(row.name) if row.name else "[dim](unnamed)[/dim]"
-        table.add_row(
-            str(row.level or "-"),
-            str(row.id or "-"),
-            name_display,
-            str(row.code or "-"),
-            str(row.offlineLevels or "-"),
-        )
-    _console.print(table)
-
-
 @organisation_unit_levels_app.command("get")
 def organisation_unit_levels_get_command(
     uid: Annotated[str, typer.Argument(help="OrganisationUnitLevel UID (or pass --by-level).")],
@@ -6137,48 +5375,6 @@ def organisation_unit_levels_rename_command(
 # ---------------------------------------------------------------------------
 # DataSet workflows — `dhis2 metadata data-sets ...`
 # ---------------------------------------------------------------------------
-
-
-@data_sets_app.command("list")
-@data_sets_app.command("ls", hidden=True)
-def data_sets_list_command(
-    period_type: Annotated[
-        str | None,
-        typer.Option("--period-type", help="Filter by period type (Monthly / Weekly / Daily / …)."),
-    ] = None,
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List DataSets with period type + member counts."""
-    rows = asyncio.run(
-        service.list_data_sets(
-            profile_from_env(),
-            period_type=period_type,
-            page=page,
-            page_size=page_size,
-        ),
-    )
-    if is_json_output():
-        typer.echo(json.dumps([ds.model_dump(by_alias=True, exclude_none=True, mode="json") for ds in rows], indent=2))
-        return
-    if not rows:
-        typer.echo(f"no dataSets on page {page}")
-        return
-    table = Table(title=f"DHIS2 dataSets (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("periodType", style="dim")
-    table.add_column("elements", justify="right")
-    table.add_column("sections", justify="right")
-    for ds in rows:
-        table.add_row(
-            str(ds.id or "-"),
-            str(ds.name or "-"),
-            str(ds.periodType.value if ds.periodType else "-"),
-            str(len(ds.dataSetElements or [])),
-            str(len(ds.sections or [])),
-        )
-    _console.print(table)
 
 
 @data_sets_app.command("get")
@@ -6338,54 +5534,6 @@ def data_sets_delete_command(
 # ---------------------------------------------------------------------------
 # Section workflows — `dhis2 metadata sections ...`
 # ---------------------------------------------------------------------------
-
-
-@sections_app.command("list")
-@sections_app.command("ls", hidden=True)
-def sections_list_command(
-    data_set: Annotated[
-        str | None,
-        typer.Option("--data-set", "-ds", help="Narrow to sections in one DataSet."),
-    ] = None,
-    page: Annotated[int, typer.Option("--page", help="1-based page number (ignored with --data-set).")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List Sections, optionally scoped to a single DataSet."""
-    rows = asyncio.run(
-        service.list_sections(
-            profile_from_env(),
-            data_set_uid=data_set,
-            page=page,
-            page_size=page_size,
-        ),
-    )
-    if is_json_output():
-        typer.echo(json.dumps([s.model_dump(by_alias=True, exclude_none=True, mode="json") for s in rows], indent=2))
-        return
-    if not rows:
-        if data_set is not None:
-            typer.echo(f"no sections on dataSet {data_set}")
-        else:
-            typer.echo(f"no sections on page {page}")
-        return
-    title = (
-        f"DHIS2 sections on {data_set} ({len(rows)})" if data_set else f"DHIS2 sections (page {page}, {len(rows)} rows)"
-    )
-    table = Table(title=title)
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("sortOrder", justify="right")
-    table.add_column("dataSet", style="dim")
-    table.add_column("elements", justify="right")
-    for section in rows:
-        table.add_row(
-            str(section.id or "-"),
-            str(section.name or "-"),
-            str(section.sortOrder if section.sortOrder is not None else "-"),
-            str(section.dataSet.id if section.dataSet else "-"),
-            str(len(section.dataElements or [])),
-        )
-    _console.print(table)
 
 
 @sections_app.command("get")
@@ -6562,48 +5710,6 @@ def sections_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@validation_rules_app.command("list")
-@validation_rules_app.command("ls", hidden=True)
-def validation_rules_list_command(
-    period_type: Annotated[
-        str | None,
-        typer.Option("--period-type", help="Filter by period type (Monthly / Weekly / …)."),
-    ] = None,
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List ValidationRules with their operator + importance columns."""
-    rows = asyncio.run(
-        service.list_validation_rules(
-            profile_from_env(),
-            period_type=period_type,
-            page=page,
-            page_size=page_size,
-        ),
-    )
-    if is_json_output():
-        typer.echo(json.dumps([r.model_dump(by_alias=True, exclude_none=True, mode="json") for r in rows], indent=2))
-        return
-    if not rows:
-        typer.echo(f"no validationRules on page {page}")
-        return
-    table = Table(title=f"DHIS2 validationRules (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("periodType", style="dim")
-    table.add_column("operator", style="dim")
-    table.add_column("importance", style="dim")
-    for rule in rows:
-        table.add_row(
-            str(rule.id or "-"),
-            str(rule.name or "-"),
-            str(rule.periodType.value if rule.periodType else "-"),
-            str(rule.operator.value if rule.operator else "-"),
-            str(rule.importance.value if rule.importance else "-"),
-        )
-    _console.print(table)
-
-
 @validation_rules_app.command("get")
 def validation_rules_get_command(
     uid: Annotated[str, typer.Argument(help="ValidationRule UID.")],
@@ -6708,32 +5814,6 @@ def validation_rules_delete_command(
 # ---------------------------------------------------------------------------
 # ValidationRuleGroup workflows — `dhis2 metadata validation-rule-groups ...`
 # ---------------------------------------------------------------------------
-
-
-@validation_rule_groups_app.command("list")
-@validation_rule_groups_app.command("ls", hidden=True)
-def validation_rule_groups_list_command() -> None:
-    """List every ValidationRuleGroup with member counts."""
-    groups = asyncio.run(service.list_validation_rule_groups(profile_from_env()))
-    if is_json_output():
-        typer.echo(json.dumps([g.model_dump(by_alias=True, exclude_none=True, mode="json") for g in groups], indent=2))
-        return
-    if not groups:
-        typer.echo("no validationRuleGroups on this instance")
-        return
-    table = Table(title=f"DHIS2 validationRuleGroups ({len(groups)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("members", justify="right")
-    for group in groups:
-        table.add_row(
-            str(group.id or "-"),
-            str(group.name or "-"),
-            str(group.code or "-"),
-            str(len(group.validationRules or [])),
-        )
-    _console.print(table)
 
 
 @validation_rule_groups_app.command("get")
@@ -6872,48 +5952,6 @@ def validation_rule_groups_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@predictors_app.command("list")
-@predictors_app.command("ls", hidden=True)
-def predictors_list_command(
-    period_type: Annotated[
-        str | None,
-        typer.Option("--period-type", help="Filter by period type."),
-    ] = None,
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List Predictors with their output DE + period columns."""
-    rows = asyncio.run(
-        service.list_predictors(
-            profile_from_env(),
-            period_type=period_type,
-            page=page,
-            page_size=page_size,
-        ),
-    )
-    if is_json_output():
-        typer.echo(json.dumps([p.model_dump(by_alias=True, exclude_none=True, mode="json") for p in rows], indent=2))
-        return
-    if not rows:
-        typer.echo(f"no predictors on page {page}")
-        return
-    table = Table(title=f"DHIS2 predictors (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("periodType", style="dim")
-    table.add_column("output DE", style="dim")
-    table.add_column("samples", justify="right")
-    for predictor in rows:
-        table.add_row(
-            str(predictor.id or "-"),
-            str(predictor.name or "-"),
-            str(predictor.periodType.value if predictor.periodType else "-"),
-            str(predictor.output.id if predictor.output else "-"),
-            str(predictor.sequentialSampleCount if predictor.sequentialSampleCount is not None else "-"),
-        )
-    _console.print(table)
-
-
 @predictors_app.command("get")
 def predictors_get_command(
     uid: Annotated[str, typer.Argument(help="Predictor UID.")],
@@ -7019,32 +6057,6 @@ def predictors_delete_command(
 # ---------------------------------------------------------------------------
 # PredictorGroup workflows — `dhis2 metadata predictor-groups ...`
 # ---------------------------------------------------------------------------
-
-
-@predictor_groups_app.command("list")
-@predictor_groups_app.command("ls", hidden=True)
-def predictor_groups_list_command() -> None:
-    """List every PredictorGroup."""
-    groups = asyncio.run(service.list_predictor_groups(profile_from_env()))
-    if is_json_output():
-        typer.echo(json.dumps([g.model_dump(by_alias=True, exclude_none=True, mode="json") for g in groups], indent=2))
-        return
-    if not groups:
-        typer.echo("no predictorGroups on this instance")
-        return
-    table = Table(title=f"DHIS2 predictorGroups ({len(groups)})")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("code", style="dim")
-    table.add_column("members", justify="right")
-    for group in groups:
-        table.add_row(
-            str(group.id or "-"),
-            str(group.name or "-"),
-            str(group.code or "-"),
-            str(len(group.predictors or [])),
-        )
-    _console.print(table)
 
 
 @predictor_groups_app.command("get")
@@ -7181,50 +6193,6 @@ def predictor_groups_delete_command(
 # ---------------------------------------------------------------------------
 
 
-@tracked_entity_attributes_app.command("list")
-@tracked_entity_attributes_app.command("ls", hidden=True)
-def tracked_entity_attributes_list_command(
-    value_type: Annotated[
-        str | None,
-        typer.Option("--value-type", help="Filter by valueType (TEXT / NUMBER / DATE / …)."),
-    ] = None,
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List TrackedEntityAttributes with their valueType + unique/generated toggles."""
-    rows = asyncio.run(
-        service.list_tracked_entity_attributes(
-            profile_from_env(),
-            value_type=value_type,
-            page=page,
-            page_size=page_size,
-        ),
-    )
-    if is_json_output():
-        typer.echo(
-            json.dumps([tea.model_dump(by_alias=True, exclude_none=True, mode="json") for tea in rows], indent=2),
-        )
-        return
-    if not rows:
-        typer.echo(f"no trackedEntityAttributes on page {page}")
-        return
-    table = Table(title=f"DHIS2 trackedEntityAttributes (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("valueType", style="dim")
-    table.add_column("unique", justify="center")
-    table.add_column("generated", justify="center")
-    for tea in rows:
-        table.add_row(
-            str(tea.id or "-"),
-            str(tea.name or "-"),
-            str(tea.valueType.value if tea.valueType else "-"),
-            "yes" if tea.unique else "-",
-            "yes" if tea.generated else "-",
-        )
-    _console.print(table)
-
-
 @tracked_entity_attributes_app.command("get")
 def tracked_entity_attributes_get_command(
     uid: Annotated[str, typer.Argument(help="TrackedEntityAttribute UID.")],
@@ -7353,39 +6321,6 @@ def tracked_entity_attributes_delete_command(
 # ---------------------------------------------------------------------------
 # TrackedEntityType workflows — `dhis2 metadata tracked-entity-types ...`
 # ---------------------------------------------------------------------------
-
-
-@tracked_entity_types_app.command("list")
-@tracked_entity_types_app.command("ls", hidden=True)
-def tracked_entity_types_list_command(
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List TrackedEntityTypes with attribute-count column."""
-    rows = asyncio.run(
-        service.list_tracked_entity_types(profile_from_env(), page=page, page_size=page_size),
-    )
-    if is_json_output():
-        typer.echo(
-            json.dumps([tet.model_dump(by_alias=True, exclude_none=True, mode="json") for tet in rows], indent=2),
-        )
-        return
-    if not rows:
-        typer.echo(f"no trackedEntityTypes on page {page}")
-        return
-    table = Table(title=f"DHIS2 trackedEntityTypes (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("featureType", style="dim")
-    table.add_column("attributes", justify="right")
-    for tet in rows:
-        table.add_row(
-            str(tet.id or "-"),
-            str(tet.name or "-"),
-            str(tet.featureType.value if tet.featureType else "-"),
-            str(len(tet.trackedEntityTypeAttributes or [])),
-        )
-    _console.print(table)
 
 
 @tracked_entity_types_app.command("get")
@@ -7540,52 +6475,6 @@ def tracked_entity_types_delete_command(
 # ---------------------------------------------------------------------------
 # Program workflows — `dhis2 metadata programs ...`
 # ---------------------------------------------------------------------------
-
-
-@programs_app.command("list")
-@programs_app.command("ls", hidden=True)
-def programs_list_command(
-    program_type: Annotated[
-        str | None,
-        typer.Option("--program-type", help="Filter by WITH_REGISTRATION or WITHOUT_REGISTRATION."),
-    ] = None,
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List Programs with their programType + stage counts."""
-    rows = asyncio.run(
-        service.list_programs(
-            profile_from_env(),
-            program_type=program_type,
-            page=page,
-            page_size=page_size,
-        ),
-    )
-    if is_json_output():
-        typer.echo(json.dumps([p.model_dump(by_alias=True, exclude_none=True, mode="json") for p in rows], indent=2))
-        return
-    if not rows:
-        typer.echo(f"no programs on page {page}")
-        return
-    table = Table(title=f"DHIS2 programs (page {page}, {len(rows)} rows)")
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("type", style="dim")
-    table.add_column("TET", style="dim")
-    table.add_column("stages", justify="right")
-    table.add_column("TEAs", justify="right")
-    table.add_column("OUs", justify="right")
-    for program in rows:
-        table.add_row(
-            str(program.id or "-"),
-            str(program.name or "-"),
-            str(program.programType.value if program.programType else "-"),
-            str(program.trackedEntityType.id if program.trackedEntityType else "-"),
-            str(len(program.programStages or [])),
-            str(len(program.programTrackedEntityAttributes or [])),
-            str(len(program.organisationUnits or [])),
-        )
-    _console.print(table)
 
 
 @programs_app.command("get")
@@ -7825,55 +6714,6 @@ def programs_delete_command(
 # ---------------------------------------------------------------------------
 # ProgramStage workflows — `dhis2 metadata program-stages ...`
 # ---------------------------------------------------------------------------
-
-
-@program_stages_app.command("list")
-@program_stages_app.command("ls", hidden=True)
-def program_stages_list_command(
-    program: Annotated[
-        str | None,
-        typer.Option("--program", "-p", help="Filter to stages belonging to one Program UID."),
-    ] = None,
-    page: Annotated[int, typer.Option("--page", help="1-based page number.")] = 1,
-    page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
-) -> None:
-    """List ProgramStages with sort-order + PSDE-count columns."""
-    rows = asyncio.run(
-        service.list_program_stages(
-            profile_from_env(),
-            program_uid=program,
-            page=page,
-            page_size=page_size,
-        ),
-    )
-    if is_json_output():
-        typer.echo(json.dumps([s.model_dump(by_alias=True, exclude_none=True, mode="json") for s in rows], indent=2))
-        return
-    if not rows:
-        typer.echo(f"no programStages on page {page}" if program is None else f"no programStages on program {program}")
-        return
-    title = (
-        f"DHIS2 programStages on {program} ({len(rows)})"
-        if program
-        else f"DHIS2 programStages (page {page}, {len(rows)} rows)"
-    )
-    table = Table(title=title)
-    table.add_column("id", style="cyan", no_wrap=True)
-    table.add_column("name", overflow="fold")
-    table.add_column("sortOrder", justify="right")
-    table.add_column("program", style="dim")
-    table.add_column("repeatable", justify="center")
-    table.add_column("DEs", justify="right")
-    for stage in rows:
-        table.add_row(
-            str(stage.id or "-"),
-            str(stage.name or "-"),
-            str(stage.sortOrder if stage.sortOrder is not None else "-"),
-            str(stage.program.id if stage.program else "-"),
-            "yes" if stage.repeatable else "-",
-            str(len(stage.programStageDataElements or [])),
-        )
-    _console.print(table)
 
 
 @program_stages_app.command("get")

@@ -61,19 +61,6 @@ def _result() -> SqlViewResult:
     )
 
 
-def test_sql_view_list_renders_type_column(pat_profile: None) -> None:  # noqa: ARG001
-    """Sql view list renders type column."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_sql_views",
-        new=AsyncMock(return_value=[_view()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "sql-view", "list"])
-    assert result.exit_code == 0, result.output
-    assert "OU per level" in result.output
-    assert "SqvOuLvl001" in result.output
-    assert "VIEW" in result.output
-
-
 def test_sql_view_show_prints_sql_query_body(pat_profile: None) -> None:  # noqa: ARG001
     """Sql view show prints sql query body."""
     with patch(
@@ -207,14 +194,3 @@ def test_sql_view_adhoc_refuses_missing_sql_file(pat_profile: None) -> None:  # 
     )
     assert result.exit_code == 2, result.output
     assert "SQL file not found" in result.output
-
-
-def test_sql_view_ls_hidden_alias_routes_to_list(pat_profile: None) -> None:  # noqa: ARG001
-    """The hidden `ls` alias mirrors `list` — per the workspace's feedback rule."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_sql_views",
-        new=AsyncMock(return_value=[]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "sql-view", "ls"])
-    assert result.exit_code == 0, result.output
-    assert "no SQL views" in result.output

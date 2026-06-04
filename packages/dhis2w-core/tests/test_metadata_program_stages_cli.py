@@ -45,30 +45,6 @@ def _stage() -> ProgramStage:
     )
 
 
-def test_program_stages_list_renders_program_column(pat_profile: None) -> None:  # noqa: ARG001
-    """Program stages list renders program column."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_program_stages",
-        new=AsyncMock(return_value=[_stage()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "program-stages", "list"])
-    assert result.exit_code == 0, result.output
-    assert "ANC 1st visit" in result.output
-
-
-def test_program_stages_list_forwards_program_filter(pat_profile: None) -> None:  # noqa: ARG001
-    """Program stages list forwards program filter."""
-    mock = AsyncMock(return_value=[])
-    with patch("dhis2w_core.v42.plugins.metadata.service.list_program_stages", new=mock):
-        result = CliRunner().invoke(
-            build_app(),
-            ["metadata", "program-stages", "list", "--program", "PRG1"],
-        )
-    assert result.exit_code == 0, result.output
-    assert mock.await_args is not None
-    assert mock.await_args.kwargs["program_uid"] == "PRG1"
-
-
 def test_program_stages_create_forwards_flags(pat_profile: None) -> None:  # noqa: ARG001
     """Program stages create forwards flags."""
     mock = AsyncMock(return_value=_stage())
