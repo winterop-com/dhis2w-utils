@@ -14,6 +14,7 @@ the live tree so it cannot silently drift.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import shutil
 import sys
@@ -241,6 +242,21 @@ def timeout_from_env() -> float:
     return value if value > 0 else DEFAULT_TIMEOUT_SECONDS
 
 
+def _compact_json(text: str) -> str:
+    """Re-serialize JSON output without indentation to cut tokens for the model; pass non-JSON through.
+
+    The CLI pretty-prints `--json` with `indent=2`; that whitespace ~doubles the tokens a model
+    has to read. Compacting a large list/object response is a cheap, lossless win on the read side.
+    """
+    stripped = text.lstrip()
+    if not stripped or stripped[0] not in "[{":
+        return text
+    try:
+        return json.dumps(json.loads(text), separators=(",", ":"), ensure_ascii=False)
+    except ValueError:
+        return text
+
+
 async def run_cli(
     args: list[str],
     profile: str | None = None,
@@ -294,9 +310,11 @@ async def run_cli(
             stdout="",
             stderr=f"`dhis2` timed out after {timeout:g}s (set {TIMEOUT_ENV} to adjust).",
         )
+    exit_code = proc.returncode if proc.returncode is not None else EXIT_TIMEOUT
+    stdout = stdout_raw.decode(errors="replace")
     return CliResult(
-        exit_code=proc.returncode if proc.returncode is not None else EXIT_TIMEOUT,
-        stdout=stdout_raw.decode(errors="replace"),
+        exit_code=exit_code,
+        stdout=_compact_json(stdout) if exit_code == 0 else stdout,
         stderr=stderr_raw.decode(errors="replace"),
     )
 
@@ -312,6 +330,8 @@ def register(mcp: Any) -> None:
         (dataElements, indicators, organisationUnits, programs, dataSets, ...):
           - How many of a resource:  dhis2_cli(["metadata", "list", "dataElements", "--count"])  -> {"total": N}
           - List a resource:         dhis2_cli(["metadata", "list", "dataElements"])
+                                     default fields are id,name — pick others in ONE call with
+                                     --fields id,code,name,description (avoid fetch-then-refetch);
                                      narrow with --filter <prop>:<op>:<value> (e.g. domainType:eq:AGGREGATE);
                                      --all streams every page.
           - One object by UID:       dhis2_cli(["metadata", "get", "dataElements", "<uid>"])

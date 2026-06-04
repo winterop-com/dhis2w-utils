@@ -69,6 +69,20 @@ async def test_does_not_duplicate_json(fake_cli: Path) -> None:
     assert json.loads(result.stdout)["argv"] == ["--json", "metadata", "list"]
 
 
+async def test_json_output_is_compacted(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A success JSON payload is returned compact (no indentation) to save the model tokens."""
+    monkeypatch.setenv("FAKE_STDOUT", '[\n  {\n    "id": "x",\n    "name": "Foo"\n  }\n]\n')
+    result = await run_cli(["metadata", "list", "dataElements"])
+    assert result.stdout == '[{"id":"x","name":"Foo"}]'
+
+
+async def test_non_json_output_passes_through(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Non-JSON success output (e.g. --help text) is left untouched."""
+    monkeypatch.setenv("FAKE_STDOUT", "Usage: dhis2 metadata ...\n")
+    result = await run_cli(["metadata", "--help"])
+    assert result.stdout == "Usage: dhis2 metadata ...\n"
+
+
 async def test_surfaces_nonzero_exit_and_stderr(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A non-zero CLI exit (e.g. Typer usage error -> 2) is surfaced with its stderr."""
     monkeypatch.setenv("FAKE_EXIT", "2")
