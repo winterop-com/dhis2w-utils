@@ -14,6 +14,7 @@ members = [
     "dhis2w-codegen",
     "dhis2w-core",
     "dhis2w-mcp",
+    "dhis2w-mcp-bridge",
 ]
 
 [manifest.dependency-groups]
@@ -675,6 +676,21 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=3.4" },
 ]
 provides-extras = ["browser"]
+
+[[package]]
+name = "dhis2w-mcp-bridge"
+version = "0.14.2"
+source = { editable = "packages/dhis2w-mcp-bridge" }
+dependencies = [
+    { name = "dhis2w-cli" },
+    { name = "fastmcp" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dhis2w-cli", editable = "packages/dhis2w-cli" },
+    { name = "fastmcp", specifier = ">=3.4" },
+]
 
 [[package]]
 name = "dnspython"

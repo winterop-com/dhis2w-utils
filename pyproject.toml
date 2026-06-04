@@ -6,6 +6,7 @@ dhis2w-client = { workspace = true }
 dhis2w-core = { workspace = true }
 dhis2w-cli = { workspace = true }
 dhis2w-mcp = { workspace = true }
+dhis2w-mcp-bridge = { workspace = true }
 dhis2w-browser = { workspace = true }
 dhis2w-codegen = { workspace = true }
 

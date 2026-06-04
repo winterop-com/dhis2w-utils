@@ -10,6 +10,9 @@
 
 For direct CLI use, the [CLI surface](../cli/index.md) is what you want. For Python integration, the [Python client](../client/index.md).
 
+!!! tip "Small local models: use the CLI bridge"
+    Running a small, context-limited local model (LM Studio, Ollama, llama.cpp) — e.g. for sensitive data that must stay on-box? The ~337 typed tools here cost ≈50-65k tokens of context up front. The separate [`dhis2w-mcp-bridge`](bridge.md) server exposes the whole CLI as a single `dhis2_cli` tool the model discovers via `--help`, with an optional read-only guard.
+
 ## Install
 
 Two install paths depending on whether you want the binary on your global `PATH` or pinned inside a project.
