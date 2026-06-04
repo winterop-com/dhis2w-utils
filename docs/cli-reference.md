@@ -3060,6 +3060,7 @@ $ dhis2 metadata ls [OPTIONS] RESOURCE
 * `--all`: Stream every page server-side (ignores --page/--page-size). Useful for dumping a full catalog.
 * `--translate / --no-translate`: Return server-side translations for i18n fields.
 * `--locale TEXT`: Locale for --translate, e.g. &#x27;fr&#x27;.
+* `--count`: Print only the total number of matching items (DHIS2 pager total), not the rows. Respects --filter; ignores --fields / --page / --page-size / --all.
 * `--help`: Show this message and exit.
 
 ### `dhis2 metadata list`
@@ -3087,6 +3088,7 @@ $ dhis2 metadata list [OPTIONS] RESOURCE
 * `--all`: Stream every page server-side (ignores --page/--page-size). Useful for dumping a full catalog.
 * `--translate / --no-translate`: Return server-side translations for i18n fields.
 * `--locale TEXT`: Locale for --translate, e.g. &#x27;fr&#x27;.
+* `--count`: Print only the total number of matching items (DHIS2 pager total), not the rows. Respects --filter; ignores --fields / --page / --page-size / --all.
 * `--help`: Show this message and exit.
 
 ### `dhis2 metadata search`

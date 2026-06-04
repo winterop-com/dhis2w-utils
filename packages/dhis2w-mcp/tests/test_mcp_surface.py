@@ -19,6 +19,7 @@ async def test_server_registers_expected_tools() -> None:
         "profile_verify",
         "metadata_type_list",
         "metadata_list",
+        "metadata_count",
         "metadata_get",
         "analytics_query",
         "maintenance_refresh_analytics",

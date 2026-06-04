@@ -133,6 +133,36 @@ async def list_metadata(
         return models
 
 
+async def count_metadata(
+    profile: Profile,
+    resource: str,
+    *,
+    filters: list[str] | None = None,
+    root_junction: str | None = None,
+) -> int:
+    """Return the total number of matching instances of a metadata resource (DHIS2 `pager.total`).
+
+    Issues a single paged request (`pageSize=1`, `fields=id`) and reads the
+    pager total, so counting is one cheap round-trip regardless of how many
+    objects exist — no need to fetch every row. `filters` narrows the count the
+    same way it narrows `list_metadata`.
+    """
+    async with open_client(profile) as client:
+        accessor = _resolve_accessor(client.resources, resource)
+        raw = await accessor.list_raw(
+            fields="id",
+            filters=filters,
+            root_junction=root_junction,
+            page=1,
+            page_size=1,
+            paging=True,
+        )
+    total = raw.get("pager", {}).get("total") if isinstance(raw, dict) else None
+    if not isinstance(total, int):
+        raise UnknownResourceError(f"DHIS2 returned no pager total for resource {resource!r}; cannot count")
+    return total
+
+
 async def iter_metadata(
     profile: Profile,
     resource: str,

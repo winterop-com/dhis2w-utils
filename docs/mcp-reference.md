@@ -2,7 +2,7 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 337 across 13 plugin groups.
+**Total tools**: 338 across 13 plugin groups.
 
 ## Plugins
 
@@ -14,7 +14,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 - [`files_*`](#files) — 5 tools
 - [`maintenance_*`](#maintenance) — 15 tools
 - [`messaging_*`](#messaging) — 11 tools
-- [`metadata_*`](#metadata) — 230 tools
+- [`metadata_*`](#metadata) — 231 tools
 - [`profile_*`](#profile) — 4 tools
 - [`route_*`](#route) — 7 tools
 - [`system_*`](#system) — 5 tools
@@ -1304,6 +1304,17 @@ Partial-update the label fields on a Category.
 | `name` | `string` | no | — |
 | `short_name` | `string` | no | — |
 | `description` | `string` | no | — |
+| `profile` | `string` | no | — |
+
+### `metadata_count`
+
+Count instances of a metadata resource without fetching the rows.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `resource` | `string` | yes | — |
+| `filters` | `list[string]` | no | — |
+| `root_junction` | `string` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_dashboard_add_item`
