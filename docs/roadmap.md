@@ -133,6 +133,16 @@ Listing collapsed onto one surface — generic `metadata list <type>` + the `met
 - **Guard the `/api/metadata?<resource>=true` bundle export against giant payloads.** For organisation units this can embed geojson geometry and balloon to a size that can overload the server. Needs a size/field guard (or a refusal with a `--fields` hint) on `metadata export`; warrants a `BUGS.md` entry once characterized with a repro.
 - **Migrate docs/examples** still referencing the removed typed lists (~42 `examples/v{41,42,43}/cli/*.sh`, ~19 doc pages incl. the MCP tutorial and `architecture/conventions.md` naming examples).
 
+### Small-model bridge: CLI read-surface follow-ups
+
+Surfaced by the `dhis2w-mcp-bridge` gap probes (small local models driving the CLI). Shipped already: camelCase resource-name discovery + did-you-mean, `type list --json`, `show`→`get` help, the rewritten `dhis2_cli` docstring, single-string-arg tolerance, paging help. Remaining:
+
+- **CLI bug — `data tracker list <TET> --program <uid>` is unusable.** The command always sends both `trackedEntityType` (from the required positional) and `program`, which DHIS2 rejects (400 E1003). Send only one scope (prefer `--program` when given). Fix across the v41/v42/v43 tracker trees.
+- **CLI bug — `files documents list --details` shows empty detail columns.** It uses `Document.url` (a filename like `pivot-table.pdf`) as the fileResource UID and fetches `/api/fileResources/<filename>` (500, swallowed). `/api/documents` exposes no fileResource UID — source contentType/size from `/api/documents/{uid}/data` headers instead. v41/v42/v43 files trees.
+- **Malformed-UID pre-validation on `metadata get`** (BUGS.md #42): reject non-`^[A-Za-z][A-Za-z0-9]{10}$` UIDs locally with a clear message instead of surfacing the upstream 405.
+- **Help-text polish for analytics/data reads** — fill the empty `--option` help (tracker/event/aggregate), add runnable examples + the `--dim dx:/pe:/ou:` and period grammar (proposals captured from the agent sweep).
+- **Removed typed `list` discoverability** — point `metadata <subapp> list`/`show` at `metadata list <type>` / `get` (hidden redirect commands or epilog).
+
 ## Near-term plan (next 3–5 PRs)
 
 Latest cycle closed the **category-dimension strategic option** (Category #205, CategoryCombo + read-only CategoryOptionCombo #208, the one-pass `CategoryComboBuilder` create-or-reuse helper #209) plus the smaller `metadata merge-bundle` verb (#206). With every authoring path on the main workflow now covered, the codegen emitters fully regen-stable, and bulk verbs (rename / retag / share) shipped on top of `patch_bulk` / `apply_sharing_bulk`, the obvious tactical sweep is complete.

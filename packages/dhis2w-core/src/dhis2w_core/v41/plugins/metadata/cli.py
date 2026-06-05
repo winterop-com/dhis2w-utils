@@ -265,11 +265,20 @@ def list_command(
     ] = None,
     page: Annotated[
         int | None,
-        typer.Option("--page", help="Server-side page number (1-based). Ignored when --all is set."),
+        typer.Option(
+            "--page",
+            help="Server-side page number (1-based). With NO paging flag the FULL collection is "
+            "returned; passing --page switches to paged mode (pageSize defaults to 50). "
+            "Ignored when --all is set.",
+        ),
     ] = None,
     page_size: Annotated[
         int | None,
-        typer.Option("--page-size", help="Server-side page size (default 50). Ignored when --all is set."),
+        typer.Option(
+            "--page-size",
+            help="Rows per page; applies only in paged mode (when --page/--page-size is given), "
+            "default 50. Omit all paging flags to get everything. Ignored when --all is set.",
+        ),
     ] = None,
     fetch_all: Annotated[
         bool,

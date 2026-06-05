@@ -3055,8 +3055,8 @@ $ dhis2 metadata ls [OPTIONS] RESOURCE
 * `--filter TEXT`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates); drop the `i` for case-sensitive. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
 * `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.  [default: AND]
 * `--order TEXT`: Sort clause like &#x27;name:asc&#x27; or &#x27;created:desc&#x27;. Repeatable (later clauses tie-break).
-* `--page INTEGER`: Server-side page number (1-based). Ignored when --all is set.
-* `--page-size INTEGER`: Server-side page size (default 50). Ignored when --all is set.
+* `--page INTEGER`: Server-side page number (1-based). With NO paging flag the FULL collection is returned; passing --page switches to paged mode (pageSize defaults to 50). Ignored when --all is set.
+* `--page-size INTEGER`: Rows per page; applies only in paged mode (when --page/--page-size is given), default 50. Omit all paging flags to get everything. Ignored when --all is set.
 * `--all`: Stream every page server-side (ignores --page/--page-size). Useful for dumping a full catalog.
 * `--translate / --no-translate`: Return server-side translations for i18n fields.
 * `--locale TEXT`: Locale for --translate, e.g. &#x27;fr&#x27;.
@@ -3084,8 +3084,8 @@ $ dhis2 metadata list [OPTIONS] RESOURCE
 * `--filter TEXT`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates); drop the `i` for case-sensitive. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
 * `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.  [default: AND]
 * `--order TEXT`: Sort clause like &#x27;name:asc&#x27; or &#x27;created:desc&#x27;. Repeatable (later clauses tie-break).
-* `--page INTEGER`: Server-side page number (1-based). Ignored when --all is set.
-* `--page-size INTEGER`: Server-side page size (default 50). Ignored when --all is set.
+* `--page INTEGER`: Server-side page number (1-based). With NO paging flag the FULL collection is returned; passing --page switches to paged mode (pageSize defaults to 50). Ignored when --all is set.
+* `--page-size INTEGER`: Rows per page; applies only in paged mode (when --page/--page-size is given), default 50. Omit all paging flags to get everything. Ignored when --all is set.
 * `--all`: Stream every page server-side (ignores --page/--page-size). Useful for dumping a full catalog.
 * `--translate / --no-translate`: Return server-side translations for i18n fields.
 * `--locale TEXT`: Locale for --translate, e.g. &#x27;fr&#x27;.
