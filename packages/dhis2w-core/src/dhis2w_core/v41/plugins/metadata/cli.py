@@ -211,6 +211,18 @@ app.add_typer(legend_sets_app, name="legend-sets")
 _console = Console()
 
 
+_RICH_MARKUP = re.compile(r"\[/?[a-z0-9 #]+\]")
+
+
+def _emit_mutation(*parts: str) -> None:
+    """Emit a write summary: a JSON {ok, summary} object under --json, else the rich line(s)."""
+    if is_json_output():
+        text = " ".join(parts)
+        typer.echo(json.dumps({"ok": True, "summary": _RICH_MARKUP.sub("", text).strip()}))
+    else:
+        _console.print(*parts)
+
+
 @type_app.command("list")
 @type_app.command("ls", hidden=True)
 def type_list_command() -> None:
@@ -2790,7 +2802,7 @@ def viz_delete_command(
     if not yes:
         typer.confirm(f"really delete visualization {viz_uid}?", abort=True)
     asyncio.run(service.delete_visualization(profile_from_env(), viz_uid))
-    typer.echo(f"deleted visualization {viz_uid}")
+    _emit_mutation(f"deleted visualization {viz_uid}")
 
 
 @dashboard_app.command("get")
@@ -2877,7 +2889,7 @@ def dashboard_add_item_command(
         ),
     )
     item_count = len(dashboard.dashboardItems or [])
-    _console.print(
+    _emit_mutation(
         f"[green]added[/green] {kind} [cyan]{target_uid}[/cyan] to dashboard {dashboard_uid} (now {item_count} items)",
     )
 
@@ -2892,7 +2904,7 @@ def dashboard_remove_item_command(
         service.dashboard_remove_item(profile_from_env(), dashboard_uid, item_uid),
     )
     item_count = len(dashboard.dashboardItems or [])
-    _console.print(
+    _emit_mutation(
         f"[green]removed[/green] item [cyan]{item_uid}[/cyan] from dashboard {dashboard_uid} (now {item_count} items)",
     )
 
@@ -3032,7 +3044,7 @@ def map_delete_command(
     if not yes:
         typer.confirm(f"really delete map {map_uid}?", abort=True)
     asyncio.run(service.delete_map(profile_from_env(), map_uid))
-    typer.echo(f"deleted map {map_uid}")
+    _emit_mutation(f"deleted map {map_uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -3198,7 +3210,7 @@ def legend_sets_delete_command(
     if not yes:
         typer.confirm(f"really delete legendSet {uid}?", abort=True)
     asyncio.run(service.delete_legend_set(profile_from_env(), uid))
-    typer.echo(f"deleted legendSet {uid}")
+    _emit_mutation(f"deleted legendSet {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -3331,7 +3343,7 @@ def data_elements_delete_command(
     if not yes:
         typer.confirm(f"really delete dataElement {uid}?", abort=True)
     asyncio.run(service.delete_data_element(profile_from_env(), uid))
-    typer.echo(f"deleted dataElement {uid}")
+    _emit_mutation(f"deleted dataElement {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -3426,7 +3438,7 @@ def data_element_groups_add_members_command(
         service.add_data_element_group_members(profile_from_env(), uid, data_element_uids=data_element_uids),
     )
     total = len(group.dataElements or [])
-    _console.print(f"[green]added[/green] {len(data_element_uids)} DE(s) to {uid}  total members={total}")
+    _emit_mutation(f"[green]added[/green] {len(data_element_uids)} DE(s) to {uid}  total members={total}")
 
 
 @data_element_groups_app.command("remove-members")
@@ -3446,7 +3458,7 @@ def data_element_groups_remove_members_command(
         ),
     )
     total = len(group.dataElements or [])
-    _console.print(f"[green]removed[/green] {len(data_element_uids)} DE(s) from {uid}  total members={total}")
+    _emit_mutation(f"[green]removed[/green] {len(data_element_uids)} DE(s) from {uid}  total members={total}")
 
 
 @data_element_groups_app.command("delete")
@@ -3458,7 +3470,7 @@ def data_element_groups_delete_command(
     if not yes:
         typer.confirm(f"really delete dataElementGroup {uid}?", abort=True)
     asyncio.run(service.delete_data_element_group(profile_from_env(), uid))
-    typer.echo(f"deleted dataElementGroup {uid}")
+    _emit_mutation(f"deleted dataElementGroup {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -3540,7 +3552,7 @@ def data_element_group_sets_add_groups_command(
     """Add `--group` members to a group set."""
     gs = asyncio.run(service.add_data_element_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.dataElementGroups or [])
-    _console.print(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total groups={total}")
+    _emit_mutation(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total groups={total}")
 
 
 @data_element_group_sets_app.command("remove-groups")
@@ -3553,7 +3565,7 @@ def data_element_group_sets_remove_groups_command(
     """Drop `--group` members from a group set."""
     gs = asyncio.run(service.remove_data_element_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.dataElementGroups or [])
-    _console.print(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total groups={total}")
+    _emit_mutation(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total groups={total}")
 
 
 @data_element_group_sets_app.command("delete")
@@ -3565,7 +3577,7 @@ def data_element_group_sets_delete_command(
     if not yes:
         typer.confirm(f"really delete dataElementGroupSet {uid}?", abort=True)
     asyncio.run(service.delete_data_element_group_set(profile_from_env(), uid))
-    typer.echo(f"deleted dataElementGroupSet {uid}")
+    _emit_mutation(f"deleted dataElementGroupSet {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -3703,7 +3715,7 @@ def indicators_delete_command(
     if not yes:
         typer.confirm(f"really delete indicator {uid}?", abort=True)
     asyncio.run(service.delete_indicator(profile_from_env(), uid))
-    typer.echo(f"deleted indicator {uid}")
+    _emit_mutation(f"deleted indicator {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -3799,7 +3811,7 @@ def indicator_groups_add_members_command(
         service.add_indicator_group_members(profile_from_env(), uid, indicator_uids=indicator_uids),
     )
     total = len(group.indicators or [])
-    _console.print(f"[green]added[/green] {len(indicator_uids)} indicator(s) to {uid}  total={total}")
+    _emit_mutation(f"[green]added[/green] {len(indicator_uids)} indicator(s) to {uid}  total={total}")
 
 
 @indicator_groups_app.command("remove-members")
@@ -3815,7 +3827,7 @@ def indicator_groups_remove_members_command(
         service.remove_indicator_group_members(profile_from_env(), uid, indicator_uids=indicator_uids),
     )
     total = len(group.indicators or [])
-    _console.print(f"[green]removed[/green] {len(indicator_uids)} indicator(s) from {uid}  total={total}")
+    _emit_mutation(f"[green]removed[/green] {len(indicator_uids)} indicator(s) from {uid}  total={total}")
 
 
 @indicator_groups_app.command("delete")
@@ -3827,7 +3839,7 @@ def indicator_groups_delete_command(
     if not yes:
         typer.confirm(f"really delete indicatorGroup {uid}?", abort=True)
     asyncio.run(service.delete_indicator_group(profile_from_env(), uid))
-    typer.echo(f"deleted indicatorGroup {uid}")
+    _emit_mutation(f"deleted indicatorGroup {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -3905,7 +3917,7 @@ def indicator_group_sets_add_groups_command(
     """Add `--group` members to a group set."""
     gs = asyncio.run(service.add_indicator_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.indicatorGroups or [])
-    _console.print(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total={total}")
+    _emit_mutation(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total={total}")
 
 
 @indicator_group_sets_app.command("remove-groups")
@@ -3916,7 +3928,7 @@ def indicator_group_sets_remove_groups_command(
     """Drop `--group` members from a group set."""
     gs = asyncio.run(service.remove_indicator_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.indicatorGroups or [])
-    _console.print(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total={total}")
+    _emit_mutation(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total={total}")
 
 
 @indicator_group_sets_app.command("delete")
@@ -3928,7 +3940,7 @@ def indicator_group_sets_delete_command(
     if not yes:
         typer.confirm(f"really delete indicatorGroupSet {uid}?", abort=True)
     asyncio.run(service.delete_indicator_group_set(profile_from_env(), uid))
-    typer.echo(f"deleted indicatorGroupSet {uid}")
+    _emit_mutation(f"deleted indicatorGroupSet {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -4066,7 +4078,7 @@ def program_indicators_delete_command(
     if not yes:
         typer.confirm(f"really delete programIndicator {uid}?", abort=True)
     asyncio.run(service.delete_program_indicator(profile_from_env(), uid))
-    typer.echo(f"deleted programIndicator {uid}")
+    _emit_mutation(f"deleted programIndicator {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -4163,7 +4175,7 @@ def program_indicator_groups_add_members_command(
         ),
     )
     total = len(group.programIndicators or [])
-    _console.print(f"[green]added[/green] {len(program_indicator_uids)} PI(s) to {uid}  total={total}")
+    _emit_mutation(f"[green]added[/green] {len(program_indicator_uids)} PI(s) to {uid}  total={total}")
 
 
 @program_indicator_groups_app.command("remove-members")
@@ -4181,7 +4193,7 @@ def program_indicator_groups_remove_members_command(
         ),
     )
     total = len(group.programIndicators or [])
-    _console.print(f"[green]removed[/green] {len(program_indicator_uids)} PI(s) from {uid}  total={total}")
+    _emit_mutation(f"[green]removed[/green] {len(program_indicator_uids)} PI(s) from {uid}  total={total}")
 
 
 @program_indicator_groups_app.command("delete")
@@ -4193,7 +4205,7 @@ def program_indicator_groups_delete_command(
     if not yes:
         typer.confirm(f"really delete programIndicatorGroup {uid}?", abort=True)
     asyncio.run(service.delete_program_indicator_group(profile_from_env(), uid))
-    typer.echo(f"deleted programIndicatorGroup {uid}")
+    _emit_mutation(f"deleted programIndicatorGroup {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -4318,7 +4330,7 @@ def category_options_delete_command(
     if not yes:
         typer.confirm(f"really delete categoryOption {uid}?", abort=True)
     asyncio.run(service.delete_category_option(profile_from_env(), uid))
-    typer.echo(f"deleted categoryOption {uid}")
+    _emit_mutation(f"deleted categoryOption {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -4417,7 +4429,7 @@ def categories_add_option_command(
 ) -> None:
     """Append a CategoryOption to this Category's ordered membership."""
     asyncio.run(service.add_category_option(profile_from_env(), uid, option_uid))
-    _console.print(f"[green]added[/green] option [cyan]{option_uid}[/cyan] to category [cyan]{uid}[/cyan]")
+    _emit_mutation(f"[green]added[/green] option [cyan]{option_uid}[/cyan] to category [cyan]{uid}[/cyan]")
 
 
 @categories_app.command("remove-option")
@@ -4427,7 +4439,7 @@ def categories_remove_option_command(
 ) -> None:
     """Remove a CategoryOption from this Category's membership."""
     asyncio.run(service.remove_category_option(profile_from_env(), uid, option_uid))
-    _console.print(f"[green]removed[/green] option [cyan]{option_uid}[/cyan] from category [cyan]{uid}[/cyan]")
+    _emit_mutation(f"[green]removed[/green] option [cyan]{option_uid}[/cyan] from category [cyan]{uid}[/cyan]")
 
 
 @categories_app.command("delete")
@@ -4439,7 +4451,7 @@ def categories_delete_command(
     if not yes:
         typer.confirm(f"really delete category {uid}?", abort=True)
     asyncio.run(service.delete_category(profile_from_env(), uid))
-    typer.echo(f"deleted category {uid}")
+    _emit_mutation(f"deleted category {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -4540,7 +4552,7 @@ def category_combos_add_category_command(
     `wait-for-cocs` if you need to block until the new matrix lands.
     """
     asyncio.run(service.add_category_to_combo(profile_from_env(), uid, category_uid))
-    _console.print(f"[green]added[/green] category [cyan]{category_uid}[/cyan] to combo [cyan]{uid}[/cyan]")
+    _emit_mutation(f"[green]added[/green] category [cyan]{category_uid}[/cyan] to combo [cyan]{uid}[/cyan]")
 
 
 @category_combos_app.command("remove-category")
@@ -4550,7 +4562,7 @@ def category_combos_remove_category_command(
 ) -> None:
     """Remove a Category from this combo's membership."""
     asyncio.run(service.remove_category_from_combo(profile_from_env(), uid, category_uid))
-    _console.print(
+    _emit_mutation(
         f"[green]removed[/green] category [cyan]{category_uid}[/cyan] from combo [cyan]{uid}[/cyan]",
     )
 
@@ -4600,7 +4612,7 @@ def category_combos_delete_command(
     if not yes:
         typer.confirm(f"really delete categoryCombo {uid}?", abort=True)
     asyncio.run(service.delete_category_combo(profile_from_env(), uid))
-    typer.echo(f"deleted categoryCombo {uid}")
+    _emit_mutation(f"deleted categoryCombo {uid}")
 
 
 @category_combos_app.command("build")
@@ -4821,7 +4833,7 @@ def category_option_groups_add_members_command(
         ),
     )
     total = len(group.categoryOptions or [])
-    _console.print(f"[green]added[/green] {len(category_option_uids)} CO(s) to {uid}  total={total}")
+    _emit_mutation(f"[green]added[/green] {len(category_option_uids)} CO(s) to {uid}  total={total}")
 
 
 @category_option_groups_app.command("remove-members")
@@ -4841,7 +4853,7 @@ def category_option_groups_remove_members_command(
         ),
     )
     total = len(group.categoryOptions or [])
-    _console.print(f"[green]removed[/green] {len(category_option_uids)} CO(s) from {uid}  total={total}")
+    _emit_mutation(f"[green]removed[/green] {len(category_option_uids)} CO(s) from {uid}  total={total}")
 
 
 @category_option_groups_app.command("delete")
@@ -4853,7 +4865,7 @@ def category_option_groups_delete_command(
     if not yes:
         typer.confirm(f"really delete categoryOptionGroup {uid}?", abort=True)
     asyncio.run(service.delete_category_option_group(profile_from_env(), uid))
-    typer.echo(f"deleted categoryOptionGroup {uid}")
+    _emit_mutation(f"deleted categoryOptionGroup {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -4940,7 +4952,7 @@ def category_option_group_sets_add_groups_command(
     """Add `--group` members to a group set."""
     gs = asyncio.run(service.add_category_option_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.categoryOptionGroups or [])
-    _console.print(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total={total}")
+    _emit_mutation(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total={total}")
 
 
 @category_option_group_sets_app.command("remove-groups")
@@ -4954,7 +4966,7 @@ def category_option_group_sets_remove_groups_command(
     """Drop `--group` members from a group set."""
     gs = asyncio.run(service.remove_category_option_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.categoryOptionGroups or [])
-    _console.print(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total={total}")
+    _emit_mutation(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total={total}")
 
 
 @category_option_group_sets_app.command("delete")
@@ -4966,7 +4978,7 @@ def category_option_group_sets_delete_command(
     if not yes:
         typer.confirm(f"really delete categoryOptionGroupSet {uid}?", abort=True)
     asyncio.run(service.delete_category_option_group_set(profile_from_env(), uid))
-    typer.echo(f"deleted categoryOptionGroupSet {uid}")
+    _emit_mutation(f"deleted categoryOptionGroupSet {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -5097,7 +5109,7 @@ def organisation_units_delete_command(
     if not yes:
         typer.confirm(f"really delete organisationUnit {uid}?", abort=True)
     asyncio.run(service.delete_organisation_unit(profile_from_env(), uid))
-    typer.echo(f"deleted organisationUnit {uid}")
+    _emit_mutation(f"deleted organisationUnit {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -5200,7 +5212,7 @@ def organisation_unit_groups_add_members_command(
         service.add_organisation_unit_group_members(profile_from_env(), uid, ou_uids=ou_uids),
     )
     member_count = len(group.organisationUnits or [])
-    _console.print(
+    _emit_mutation(
         f"[green]added[/green] {len(ou_uids)} OU(s) to {uid}  total members={member_count}",
     )
 
@@ -5215,7 +5227,7 @@ def organisation_unit_groups_remove_members_command(
         service.remove_organisation_unit_group_members(profile_from_env(), uid, ou_uids=ou_uids),
     )
     member_count = len(group.organisationUnits or [])
-    _console.print(
+    _emit_mutation(
         f"[green]removed[/green] {len(ou_uids)} OU(s) from {uid}  total members={member_count}",
     )
 
@@ -5229,7 +5241,7 @@ def organisation_unit_groups_delete_command(
     if not yes:
         typer.confirm(f"really delete organisationUnitGroup {uid}?", abort=True)
     asyncio.run(service.delete_organisation_unit_group(profile_from_env(), uid))
-    typer.echo(f"deleted organisationUnitGroup {uid}")
+    _emit_mutation(f"deleted organisationUnitGroup {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -5323,7 +5335,7 @@ def organisation_unit_group_sets_add_groups_command(
         service.add_organisation_unit_group_set_groups(profile_from_env(), uid, group_uids=group_uids),
     )
     total = len(group_set.organisationUnitGroups or [])
-    _console.print(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total groups={total}")
+    _emit_mutation(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total groups={total}")
 
 
 @organisation_unit_group_sets_app.command("remove-groups")
@@ -5338,7 +5350,7 @@ def organisation_unit_group_sets_remove_groups_command(
         service.remove_organisation_unit_group_set_groups(profile_from_env(), uid, group_uids=group_uids),
     )
     total = len(group_set.organisationUnitGroups or [])
-    _console.print(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total groups={total}")
+    _emit_mutation(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total groups={total}")
 
 
 @organisation_unit_group_sets_app.command("delete")
@@ -5350,7 +5362,7 @@ def organisation_unit_group_sets_delete_command(
     if not yes:
         typer.confirm(f"really delete organisationUnitGroupSet {uid}?", abort=True)
     asyncio.run(service.delete_organisation_unit_group_set(profile_from_env(), uid))
-    typer.echo(f"deleted organisationUnitGroupSet {uid}")
+    _emit_mutation(f"deleted organisationUnitGroupSet {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -5549,7 +5561,7 @@ def data_sets_add_element_command(
             category_combo_uid=category_combo,
         ),
     )
-    _console.print(
+    _emit_mutation(
         f"[green]+ element[/green] dataSet [cyan]{ds.id}[/cyan]  "
         f"de={data_element_uid}  total={len(ds.dataSetElements or [])}",
     )
@@ -5583,7 +5595,7 @@ def data_sets_delete_command(
     if not yes:
         typer.confirm(f"really delete dataSet {uid}?", abort=True)
     asyncio.run(service.delete_data_set(profile_from_env(), uid))
-    typer.echo(f"deleted dataSet {uid}")
+    _emit_mutation(f"deleted dataSet {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -5702,7 +5714,7 @@ def sections_add_element_command(
             position=position,
         ),
     )
-    _console.print(
+    _emit_mutation(
         f"[green]+ element[/green] section [cyan]{section.id}[/cyan]  "
         f"de={data_element_uid}  total={len(section.dataElements or [])}",
     )
@@ -5757,7 +5769,7 @@ def sections_delete_command(
     if not yes:
         typer.confirm(f"really delete section {uid}?", abort=True)
     asyncio.run(service.delete_section(profile_from_env(), uid))
-    typer.echo(f"deleted section {uid}")
+    _emit_mutation(f"deleted section {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -5863,7 +5875,7 @@ def validation_rules_delete_command(
     if not yes:
         typer.confirm(f"really delete validationRule {uid}?", abort=True)
     asyncio.run(service.delete_validation_rule(profile_from_env(), uid))
-    typer.echo(f"deleted validationRule {uid}")
+    _emit_mutation(f"deleted validationRule {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -5999,7 +6011,7 @@ def validation_rule_groups_delete_command(
     if not yes:
         typer.confirm(f"really delete validationRuleGroup {uid}?", abort=True)
     asyncio.run(service.delete_validation_rule_group(profile_from_env(), uid))
-    typer.echo(f"deleted validationRuleGroup {uid}")
+    _emit_mutation(f"deleted validationRuleGroup {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -6106,7 +6118,7 @@ def predictors_delete_command(
     if not yes:
         typer.confirm(f"really delete predictor {uid}?", abort=True)
     asyncio.run(service.delete_predictor(profile_from_env(), uid))
-    typer.echo(f"deleted predictor {uid}")
+    _emit_mutation(f"deleted predictor {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -6240,7 +6252,7 @@ def predictor_groups_delete_command(
     if not yes:
         typer.confirm(f"really delete predictorGroup {uid}?", abort=True)
     asyncio.run(service.delete_predictor_group(profile_from_env(), uid))
-    typer.echo(f"deleted predictorGroup {uid}")
+    _emit_mutation(f"deleted predictorGroup {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -6370,7 +6382,7 @@ def tracked_entity_attributes_delete_command(
     if not yes:
         typer.confirm(f"really delete trackedEntityAttribute {uid}?", abort=True)
     asyncio.run(service.delete_tracked_entity_attribute(profile_from_env(), uid))
-    typer.echo(f"deleted trackedEntityAttribute {uid}")
+    _emit_mutation(f"deleted trackedEntityAttribute {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -6524,7 +6536,7 @@ def tracked_entity_types_delete_command(
     if not yes:
         typer.confirm(f"really delete trackedEntityType {uid}?", abort=True)
     asyncio.run(service.delete_tracked_entity_type(profile_from_env(), uid))
-    typer.echo(f"deleted trackedEntityType {uid}")
+    _emit_mutation(f"deleted trackedEntityType {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -6763,7 +6775,7 @@ def programs_delete_command(
     if not yes:
         typer.confirm(f"really delete program {uid}?", abort=True)
     asyncio.run(service.delete_program(profile_from_env(), uid))
-    typer.echo(f"deleted program {uid}")
+    _emit_mutation(f"deleted program {uid}")
 
 
 # ---------------------------------------------------------------------------
@@ -6982,4 +6994,4 @@ def program_stages_delete_command(
     if not yes:
         typer.confirm(f"really delete programStage {uid}?", abort=True)
     asyncio.run(service.delete_program_stage(profile_from_env(), uid))
-    typer.echo(f"deleted programStage {uid}")
+    _emit_mutation(f"deleted programStage {uid}")
