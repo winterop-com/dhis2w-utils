@@ -94,3 +94,9 @@ dhis2 metadata export \
     --output /tmp/vaccine-type.json
 
 # dhis2 metadata import /tmp/vaccine-type.json --dry-run
+
+# Create an OptionSet directly (no hand-written import bundle needed), then add
+# its options with `options sync`, then delete it.
+# OS_UID=$(dhis2 --json metadata options create --name "Vaccine type" --value-type TEXT --code VACCINE_TYPE | jq -r '.response.uid')
+# dhis2 metadata options sync "$OS_UID" /tmp/vaccine-options.json
+# dhis2 metadata options delete "$OS_UID" --yes

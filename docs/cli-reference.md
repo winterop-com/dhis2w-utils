@@ -3666,6 +3666,8 @@ $ dhis2 metadata options [OPTIONS] COMMAND [ARGS]...
 
 * `get`: Show one OptionSet with its options...
 * `find`: Locate a single option inside a set by...
+* `create`: Create an OptionSet (then add its options...
+* `delete`: Delete an OptionSet by UID.
 * `sync`: Idempotently sync an OptionSet to match a...
 * `attribute`: External-system code mapping on Options...
 
@@ -3702,6 +3704,43 @@ $ dhis2 metadata options find [OPTIONS]
 * `--set TEXT`: OptionSet UID or business code.  [required]
 * `--code TEXT`: Business code of the option to locate.
 * `--name TEXT`: Display name of the option (exact match).
+* `--help`: Show this message and exit.
+
+#### `dhis2 metadata options create`
+
+Create an OptionSet (then add its options with `options sync`).
+
+**Usage**:
+
+```console
+$ dhis2 metadata options create [OPTIONS]
+```
+
+**Options**:
+
+* `--name TEXT`: OptionSet name.  [required]
+* `--value-type TEXT`: DHIS2 ValueType, e.g. TEXT / NUMBER / INTEGER.  [required]
+* `--code TEXT`: Business code.
+* `--uid TEXT`: Explicit 11-char UID.
+* `--help`: Show this message and exit.
+
+#### `dhis2 metadata options delete`
+
+Delete an OptionSet by UID.
+
+**Usage**:
+
+```console
+$ dhis2 metadata options delete [OPTIONS] UID
+```
+
+**Arguments**:
+
+* `UID`: OptionSet UID.  [required]
+
+**Options**:
+
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 #### `dhis2 metadata options sync`
@@ -9012,6 +9051,8 @@ $ dhis2 user-group [OPTIONS] COMMAND [ARGS]...
 * `ls`: List user groups.
 * `list`: List user groups.
 * `get`: Fetch one user group by UID.
+* `create`: Create a user group (then add members with...
+* `delete`: Delete a user group by UID.
 * `add-member`: Add a user to a group (POST...
 * `remove-member`: Remove a user from a group (DELETE...
 * `sharing-get`: Print the current sharing block for one...
@@ -9070,6 +9111,42 @@ $ dhis2 user-group get [OPTIONS] UID
 **Options**:
 
 * `--fields TEXT`: DHIS2 field selector.
+* `--help`: Show this message and exit.
+
+### `dhis2 user-group create`
+
+Create a user group (then add members with `add-member`).
+
+**Usage**:
+
+```console
+$ dhis2 user-group create [OPTIONS]
+```
+
+**Options**:
+
+* `--name TEXT`: User-group name.  [required]
+* `--code TEXT`: Business code.
+* `--uid TEXT`: Explicit 11-char UID.
+* `--help`: Show this message and exit.
+
+### `dhis2 user-group delete`
+
+Delete a user group by UID.
+
+**Usage**:
+
+```console
+$ dhis2 user-group delete [OPTIONS] UID
+```
+
+**Arguments**:
+
+* `UID`: User-group UID.  [required]
+
+**Options**:
+
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 ### `dhis2 user-group add-member`

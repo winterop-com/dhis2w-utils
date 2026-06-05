@@ -2042,6 +2042,34 @@ def options_find_command(
     )
 
 
+@options_app.command("create")
+def options_create_command(
+    name: Annotated[str, typer.Option("--name", help="OptionSet name.")],
+    value_type: Annotated[str, typer.Option("--value-type", help="DHIS2 ValueType, e.g. TEXT / NUMBER / INTEGER.")],
+    code: Annotated[str | None, typer.Option("--code", help="Business code.")] = None,
+    uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
+) -> None:
+    """Create an OptionSet (then add its options with `options sync`)."""
+    from dhis2w_core.v42.cli_output import render_webmessage  # noqa: PLC0415
+
+    response = asyncio.run(
+        service.create_option_set(profile_from_env(), name=name, value_type=value_type, code=code, uid=uid)
+    )
+    render_webmessage(response, action="created")
+
+
+@options_app.command("delete")
+def options_delete_command(
+    uid: Annotated[str, typer.Argument(help="OptionSet UID.")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
+) -> None:
+    """Delete an OptionSet by UID."""
+    if not yes and not typer.confirm(f"Delete optionSet {uid}?"):
+        raise typer.Abort()
+    asyncio.run(service.delete_option_set(profile_from_env(), uid))
+    _emit_mutation(f"deleted optionSet {uid}")
+
+
 @options_app.command("sync")
 def options_sync_command(
     set_ref: Annotated[str, typer.Argument(help="OptionSet UID or business code.")],

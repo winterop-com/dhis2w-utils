@@ -1061,6 +1061,33 @@ async def show_option_set(profile: Profile, uid_or_code: str) -> Any:
         return await client.option_sets.get_by_code(uid_or_code)
 
 
+async def create_option_set(
+    profile: Profile,
+    *,
+    name: str,
+    value_type: str,
+    code: str | None = None,
+    uid: str | None = None,
+) -> WebMessageResponse:
+    """Create an OptionSet (name + valueType); returns the import-summary (new UID in response.uid)."""
+    from dhis2w_client.generated.v42.schemas import OptionSet  # noqa: PLC0415
+
+    payload: dict[str, Any] = {"name": name, "valueType": value_type}
+    if code:
+        payload["code"] = code
+    if uid:
+        payload["id"] = uid
+    async with open_client(profile) as client:
+        result = await client.resources.option_sets.create(OptionSet.model_validate(payload))
+        return WebMessageResponse.model_validate(result)
+
+
+async def delete_option_set(profile: Profile, uid: str) -> None:
+    """Delete an OptionSet by UID."""
+    async with open_client(profile) as client:
+        await client.resources.option_sets.delete(uid)
+
+
 async def find_option_in_set(
     profile: Profile,
     *,

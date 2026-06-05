@@ -34,3 +34,8 @@ fi
 # Grant / revoke a role on a user:
 # dhis2 user-role add-user "$ROLE_UID" "$USER_UID"
 # dhis2 user-role remove-user "$ROLE_UID" "$USER_UID"
+
+# Create / delete a user group directly (no import bundle needed):
+# UG_UID=$(dhis2 --json user-group create --name "Data reviewers" --code DATA_REVIEWERS | jq -r '.response.uid')
+# dhis2 user-group add-member "$UG_UID" "$USER_UID"
+# dhis2 user-group delete "$UG_UID" --yes

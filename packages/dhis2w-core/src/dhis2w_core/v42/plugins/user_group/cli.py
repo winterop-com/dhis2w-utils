@@ -99,6 +99,31 @@ def get_command(
     render_detail(f"user-group {group.name or group.id or '?'}", rows)
 
 
+@app.command("create")
+def create_command(
+    name: Annotated[str, typer.Option("--name", help="User-group name.")],
+    code: Annotated[str | None, typer.Option("--code", help="Business code.")] = None,
+    uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
+) -> None:
+    """Create a user group (then add members with `add-member`)."""
+    from dhis2w_core.v42.cli_output import render_webmessage  # noqa: PLC0415
+
+    response = asyncio.run(service.create_user_group(profile_from_env(), name=name, code=code, uid=uid))
+    render_webmessage(response, action="created")
+
+
+@app.command("delete")
+def delete_command(
+    uid: Annotated[str, typer.Argument(help="User-group UID.")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
+) -> None:
+    """Delete a user group by UID."""
+    if not yes and not typer.confirm(f"Delete userGroup {uid}?"):
+        raise typer.Abort()
+    asyncio.run(service.delete_user_group(profile_from_env(), uid))
+    typer.echo(f"deleted userGroup {uid}")
+
+
 @app.command("add-member")
 def add_member_command(
     group_uid: Annotated[str, typer.Argument(help="User-group UID.")],
