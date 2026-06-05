@@ -17,7 +17,7 @@ A running inventory of what the workspace covers today, gaps surfaced during use
 
 ### CLI surface
 
-Sixteen top-level domains: `analytics`, `apps`, `browser`, `data`, `dev`, `doctor`, `files`, `maintenance`, `messaging`, `metadata`, `profile`, `route`, `system`, `user`, `user-group`, `user-role`. Each plugin shares a `service.py` between the CLI and MCP sides; the same typed call from both surfaces.
+Seventeen top-level domains: `analytics`, `apps`, `browser`, `data`, `dev`, `doctor`, `files`, `maintenance`, `messaging`, `metadata`, `profile`, `route`, `security`, `system`, `user`, `user-group`, `user-role`. Each plugin shares a `service.py` between the CLI and MCP sides; the same typed call from both surfaces.
 
 `dhis2 metadata` has the full workflow surface:
 
@@ -118,6 +118,23 @@ Roughly forty entries in the repo-root `BUGS.md` (the file is the source of trut
 The organisation-unit PR (#174) set a template — canonical DHIS2 resource names, hand-written accessors, per-item membership shortcuts, no `*Spec`. The triples sweep (#174 / #175 / #176 / #180 / #181), aggregate data-set surface (#185), validation-rule + predictor CRUD (#186), the full tracker-schema stretch (TET + TEA #188, Program + PTEA + OU #189, ProgramStage + PSDE #194), and the category-dimension stack (Category #205, CategoryCombo + read-only CategoryOptionCombo #208, the one-pass `CategoryComboBuilder` helper #209) have all landed on top of it. **No metadata-authoring gaps remain on the main workflow paths.**
 
 Optional `ProgramStageSection` grouping (rarely used in practice) is still unauthored; reach for `metadata patch` for it. That's the only known absence and it stays parked unless a concrete caller surfaces.
+
+### Security plugin: read-surface build-out
+
+`dhis2 security` ships its first command — `settings` (the security slice of
+`/api/systemSettings`: password policy, credential expiry, registration, lockout).
+Deliberately small and read-only, built to grow one command at a time. The
+[security plugin page](architecture/security-plugin.md) carries a step-by-step
+extension recipe (service -> cli -> sweep v41/v43 -> example x3 -> docs -> test, plus
+how to add an MCP surface). Candidate next commands, read-only first:
+
+- `dhis2 security whoami` — authenticated user + roles + authority count (`/api/me`; typed `Me` exists).
+- `dhis2 security authorities` — effective authorities (`/api/me/authorities`).
+- `dhis2 security password-policy --lint` — pass/warn checks over `settings` against a baseline (sibling of the `doctor` probe model).
+- `dhis2 security sharing-defaults` — default public-access / authority-grant settings for new metadata.
+
+Writes (rotating credentials, toggling registration, editing security settings) stay
+out of scope until a concrete caller needs them.
 
 ### OIDC / OAuth2 polish
 
