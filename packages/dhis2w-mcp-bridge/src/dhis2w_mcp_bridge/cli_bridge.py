@@ -211,10 +211,24 @@ def _is_help_or_version(args: list[str]) -> bool:
     return any(token in _HELP_FLAGS for token in args)
 
 
+_DISK_WRITE_FLAGS = frozenset({"--output", "-o"})
+
+
+def _writes_to_disk(args: list[str]) -> bool:
+    """Return True if argv writes to a local file (e.g. `metadata list --output` / `export -o`)."""
+    return any(token in _DISK_WRITE_FLAGS or token.startswith(("--output=", "-o=")) for token in args)
+
+
 def is_read_only(args: list[str]) -> bool:
-    """Return True when `args` targets a known read-only command (or help/version/discovery)."""
+    """Return True when `args` targets a known read-only command (or help/version/discovery).
+
+    A read command that writes a local file (`--output`/`-o`) is NOT read-only — under
+    DHIS2_MCP_READONLY a confused model could otherwise overwrite arbitrary host files.
+    """
     if not args or _is_help_or_version(args):
         return True
+    if _writes_to_disk(args):
+        return False
     path = _command_path(args)
     return any(path[: len(prefix)] == prefix for prefix in READ_ONLY_COMMANDS)
 
@@ -280,13 +294,14 @@ async def run_cli(
             args = [*shlex.split(args[0]), *args[1:]]
     if read_only and not is_read_only(args):
         blocked = " ".join(args) or "<empty>"
+        reason = "writes a local file (--output/-o)" if _writes_to_disk(args) else "non-read commands"
         return CliResult(
             exit_code=EXIT_REFUSED,
             stdout="",
             stderr=(
-                f"refused: read-only mode ({READONLY_ENV}=1) blocks {blocked!r}. "
+                f"refused: read-only mode ({READONLY_ENV}=1) blocks {reason}: {blocked!r}. "
                 "Allowed: list/get/show/info/whoami/query/find/tree/members/diff and similar "
-                f"reads, or any `--help`. Unset {READONLY_ENV} for full access."
+                f"reads (without --output), or any `--help`. Unset {READONLY_ENV} for full access."
             ),
         )
     binary = _resolve_binary()

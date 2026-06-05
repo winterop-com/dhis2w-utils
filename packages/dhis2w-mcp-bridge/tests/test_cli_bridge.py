@@ -158,6 +158,19 @@ async def test_readonly_refuses_writes_without_spawning(monkeypatch: pytest.Monk
         assert "read-only" in result.stderr
 
 
+async def test_readonly_refuses_disk_write_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A read command that writes a local file (--output/-o) is refused — no host-file overwrite."""
+    monkeypatch.setenv("DHIS2_CLI_BIN", "/no/such/dhis2-binary")  # would 127 if it spawned
+    for args in (
+        ["metadata", "list", "dataElements", "--output", "/tmp/x.json"],
+        ["metadata", "export", "-o", "/tmp/x.json"],
+        ["metadata", "list", "dataElements", "--output=/tmp/x.json"],
+    ):
+        result = await run_cli(args, read_only=True)
+        assert result.exit_code == EXIT_REFUSED, f"{args} should be refused"
+        assert "read-only" in result.stderr
+
+
 def _live_leaf_paths() -> set[tuple[str, ...]]:
     """Introspect the Typer/Click command tree and return every leaf command path."""
     import typer.main
