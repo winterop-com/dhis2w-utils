@@ -51,7 +51,7 @@ $ dhis2 analytics [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `query`: Run an analytics query.
+* `query`: Run an aggregate analytics query (requires...
 * `outlier-detection`: Run `/api/analytics/outlierDetection` —...
 * `events`: Event analytics — line-lists events or...
 * `enrollments`: Enrollment analytics — line-lists...
@@ -59,7 +59,11 @@ $ dhis2 analytics [OPTIONS] COMMAND [ARGS]...
 
 ### `dhis2 analytics query`
 
-Run an analytics query. Use `--shape` to pick `table`, `raw`, or `dvs`.
+Run an aggregate analytics query (requires at least dx + pe dimensions).
+
+Example: analytics query --dim dx:Uvn6LCg7dVU --dim pe:LAST_12_MONTHS --dim ou:ImspTQPwCqd
+
+Use `--shape` to pick `table`, `raw`, or `dvs`.
 
 **Usage**:
 
@@ -69,15 +73,15 @@ $ dhis2 analytics query [OPTIONS]
 
 **Options**:
 
-* `--dimension, --dim TEXT`: Dimension string (repeatable), e.g. dx:UID, pe:LAST_12_MONTHS, ou:UID.  [required]
+* `--dimension, --dim TEXT`: Repeatable &#x27;axis:value&#x27;: dx:&lt;UID&gt;, pe:&lt;period&gt; (both required), ou:&lt;UID&gt;.  [required]
 * `--shape TEXT`: Response shape: `table` (default, aggregated), `raw` (/api/analytics/rawData), `dvs` (/api/analytics/dataValueSet — DataValueSet shape).  [default: table]
 * `--filter TEXT`: Filter string (repeatable), same syntax as --dimension.
 * `--agg TEXT`: SUM | AVERAGE | COUNT | MIN | MAX | AVERAGE_SUM_ORG_UNIT ...
 * `--output-id-scheme TEXT`: UID | NAME | CODE | ID — how UIDs appear in the response
 * `--num-den / --no-num-den`: Include indicator numerator/denominator columns.  [default: no-num-den]
 * `--display-property TEXT`: NAME | SHORTNAME — which label to render metadata with.
-* `--start-date TEXT`
-* `--end-date TEXT`
+* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
 * `--skip-meta`
 * `--help`: Show this message and exit.
 
@@ -122,11 +126,15 @@ $ dhis2 analytics events [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `query`: Run an event analytics query...
+* `query`: Run an event analytics query.
 
 #### `dhis2 analytics events query`
 
-Run an event analytics query (`/api/analytics/events/{mode}/{program}`).
+Run an event analytics query.
+
+Example: analytics events query &lt;PROGRAM_UID&gt; --mode query --dim pe:LAST_12_MONTHS --dim ou:&lt;ouUID&gt;
+
+PROGRAM is a program UID; --mode is query (line list) or aggregate.
 
 **Usage**:
 
@@ -141,12 +149,12 @@ $ dhis2 analytics events query [OPTIONS] PROGRAM
 **Options**:
 
 * `--mode TEXT`: `query` (line-listed events) or `aggregate` (grouped counts).  [default: query]
-* `--dimension, --dim TEXT`: Dimension string (repeatable), e.g. pe:LAST_12_MONTHS, ou:UID.
+* `--dimension, --dim TEXT`: Repeatable &#x27;axis:value&#x27;: pe:&lt;period&gt;, ou:&lt;UID&gt;. Aggregate value dim = &lt;stage&gt;.&lt;de&gt; (no dx:).
 * `--filter TEXT`: Filter string (repeatable), same syntax as --dimension.
 * `--stage TEXT`: Program stage UID to narrow events.
 * `--output-type TEXT`: EVENT | ENROLLMENT | TRACKED_ENTITY_INSTANCE (row shape).
-* `--start-date TEXT`
-* `--end-date TEXT`
+* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
 * `--skip-meta`
 * `--page INTEGER`
 * `--page-size INTEGER`
@@ -188,8 +196,8 @@ $ dhis2 analytics enrollments query [OPTIONS] PROGRAM
 
 * `--dimension, --dim TEXT`: Dimension string (repeatable).
 * `--filter TEXT`: Filter string (repeatable).
-* `--start-date TEXT`
-* `--end-date TEXT`
+* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
 * `--skip-meta`
 * `--page INTEGER`
 * `--page-size INTEGER`
@@ -232,9 +240,9 @@ $ dhis2 analytics tracked-entities query [OPTIONS] TRACKED_ENTITY_TYPE
 * `--dimension, --dim TEXT`: Dimension string (repeatable).
 * `--filter TEXT`: Filter string (repeatable).
 * `--program TEXT`: Program UID (repeatable) to narrow results.
-* `--start-date TEXT`
-* `--end-date TEXT`
-* `--ou-mode TEXT`: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default SELECTED).
+* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
+* `--ou-mode TEXT`: SELECTED|CHILDREN|DESCENDANTS|ACCESSIBLE|ALL (default SELECTED; DESCENDANTS reaches facilities).
 * `--display-property TEXT`: NAME | SHORTNAME.
 * `--skip-meta`
 * `--skip-data`
@@ -722,7 +730,9 @@ $ dhis2 data aggregate [OPTIONS] COMMAND [ARGS]...
 
 #### `dhis2 data aggregate get`
 
-Fetch a data value set.
+Fetch a data value set. Needs --ds plus a period (--pe or --start-date/--end-date) and --ou.
+
+Example: data aggregate get --ds &lt;dataSetUID&gt; --pe 202401 --ou &lt;ouUID&gt; --children
 
 **Usage**:
 
@@ -733,11 +743,11 @@ $ dhis2 data aggregate get [OPTIONS]
 **Options**:
 
 * `--data-set, --ds TEXT`: DataSet UID.
-* `--period, --pe TEXT`: Period (e.g. 202401, 2024W12, 2024).
+* `--period, --pe TEXT`: Period; match the dataSet&#x27;s periodType (Monthly=202401, Yearly=2024, Weekly=2024W12).
 * `--start-date TEXT`: ISO date (YYYY-MM-DD).
 * `--end-date TEXT`: ISO date (YYYY-MM-DD).
 * `--org-unit, --ou TEXT`: OrganisationUnit UID.
-* `--children`: Include descendants of org_unit.
+* `--children`: Include descendant org units (values usually live at facility level).
 * `--data-element-group, --deg TEXT`: DataElementGroup UID (narrows to its member DEs).
 * `--limit INTEGER`: Max rows to include in output.
 * `--help`: Show this message and exit.
@@ -852,10 +862,10 @@ $ dhis2 data tracker ls [OPTIONS] [TYPE]
 
 * `--program TEXT`: Program UID — list the program&#x27;s tracked entities. Alternative to TYPE; DHIS2 rejects a program and a TrackedEntityType together.
 * `--te-uids TEXT`: Comma-separated tracked-entity UIDs to fetch directly.
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--fields TEXT`
-* `--filter TEXT`
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
+* `--filter TEXT`: Attribute filter &#x27;ATTR_UID:op:value&#x27; (repeatable).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`: 1-based page number.
 * `--updated-after TEXT`: ISO-8601 cutoff — only entities updated after this.
@@ -881,10 +891,10 @@ $ dhis2 data tracker list [OPTIONS] [TYPE]
 
 * `--program TEXT`: Program UID — list the program&#x27;s tracked entities. Alternative to TYPE; DHIS2 rejects a program and a TrackedEntityType together.
 * `--te-uids TEXT`: Comma-separated tracked-entity UIDs to fetch directly.
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--fields TEXT`
-* `--filter TEXT`
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
+* `--filter TEXT`: Attribute filter &#x27;ATTR_UID:op:value&#x27; (repeatable).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`: 1-based page number.
 * `--updated-after TEXT`: ISO-8601 cutoff — only entities updated after this.
@@ -906,8 +916,8 @@ $ dhis2 data tracker get [OPTIONS] UID
 
 **Options**:
 
-* `--program TEXT`
-* `--fields TEXT`
+* `--program TEXT`: Program UID.
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--help`: Show this message and exit.
 
 #### `dhis2 data tracker type`
@@ -1037,12 +1047,12 @@ $ dhis2 data tracker enrollment ls [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--te TEXT`
+* `--program TEXT`: Program UID.
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te TEXT`: TrackedEntity UID.
 * `--status TEXT`: ACTIVE | COMPLETED | CANCELLED
-* `--fields TEXT`
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`
 * `--updated-after TEXT`
@@ -1060,12 +1070,12 @@ $ dhis2 data tracker enrollment list [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--te TEXT`
+* `--program TEXT`: Program UID.
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te TEXT`: TrackedEntity UID.
 * `--status TEXT`: ACTIVE | COMPLETED | CANCELLED
-* `--fields TEXT`
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`
 * `--updated-after TEXT`
@@ -1108,13 +1118,15 @@ $ dhis2 data tracker event [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List events (works with both event and...
-* `list`: List events (works with both event and...
+* `ls`: List events (event and tracker programs).
+* `list`: List events (event and tracker programs).
 * `create`: Add one event — tracker (with enrollment)...
 
 ##### `dhis2 data tracker event ls`
 
-List events (works with both event and tracker programs).
+List events (event and tracker programs). Scope with --program and/or --org-unit.
+
+Example: data tracker event list --program &lt;programUID&gt; --ou &lt;ouUID&gt;
 
 **Usage**:
 
@@ -1124,23 +1136,25 @@ $ dhis2 data tracker event ls [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`
-* `--program-stage TEXT`
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--te TEXT`
-* `--enrollment TEXT`
-* `--status TEXT`
-* `--after TEXT`
-* `--before TEXT`
-* `--fields TEXT`
+* `--program TEXT`: Program UID.
+* `--program-stage TEXT`: ProgramStage UID to narrow to one stage.
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te TEXT`: TrackedEntity UID.
+* `--enrollment TEXT`: Enrollment UID to list its events.
+* `--status TEXT`: Event status: ACTIVE | COMPLETED | VISITED | SCHEDULE | OVERDUE | SKIPPED.
+* `--after TEXT`: Only events on/after this ISO date (YYYY-MM-DD).
+* `--before TEXT`: Only events on/before this ISO date (YYYY-MM-DD).
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`
 * `--help`: Show this message and exit.
 
 ##### `dhis2 data tracker event list`
 
-List events (works with both event and tracker programs).
+List events (event and tracker programs). Scope with --program and/or --org-unit.
+
+Example: data tracker event list --program &lt;programUID&gt; --ou &lt;ouUID&gt;
 
 **Usage**:
 
@@ -1150,16 +1164,16 @@ $ dhis2 data tracker event list [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`
-* `--program-stage TEXT`
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--te TEXT`
-* `--enrollment TEXT`
-* `--status TEXT`
-* `--after TEXT`
-* `--before TEXT`
-* `--fields TEXT`
+* `--program TEXT`: Program UID.
+* `--program-stage TEXT`: ProgramStage UID to narrow to one stage.
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te TEXT`: TrackedEntity UID.
+* `--enrollment TEXT`: Enrollment UID to list its events.
+* `--status TEXT`: Event status: ACTIVE | COMPLETED | VISITED | SCHEDULE | OVERDUE | SKIPPED.
+* `--after TEXT`: Only events on/after this ISO date (YYYY-MM-DD).
+* `--before TEXT`: Only events on/before this ISO date (YYYY-MM-DD).
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`
 * `--help`: Show this message and exit.
@@ -1221,10 +1235,10 @@ $ dhis2 data tracker relationship ls [OPTIONS]
 
 **Options**:
 
-* `--te TEXT`
-* `--enrollment TEXT`
+* `--te TEXT`: TrackedEntity UID.
+* `--enrollment TEXT`: Enrollment UID to list its events.
 * `--event TEXT`
-* `--fields TEXT`
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--help`: Show this message and exit.
 
@@ -1240,10 +1254,10 @@ $ dhis2 data tracker relationship list [OPTIONS]
 
 **Options**:
 
-* `--te TEXT`
-* `--enrollment TEXT`
+* `--te TEXT`: TrackedEntity UID.
+* `--enrollment TEXT`: Enrollment UID to list its events.
 * `--event TEXT`
-* `--fields TEXT`
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--help`: Show this message and exit.
 

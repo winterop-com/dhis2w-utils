@@ -53,9 +53,13 @@ Ranked by primary-prompt wall-clock; `ok` = correct.
 
 From the 6-agent gap sweep (vs play42). Each is ready to apply across v41/v42/v43.
 
-### 1. Help-text fills for analytics/tracker/aggregate reads
-Many option helps are empty (no description) and there are no runnable examples. Highest-value
-target for small models. Exact proposals (v42 line numbers; mirror to v41/v43):
+### 1. Help-text fills for analytics/tracker/aggregate reads — [SHIPPED]
+Filled the empty `--option` helps (tracker list/event-list `--program`/`--org-unit`/`--ou-mode`/
+`--fields`/`--filter`/`--status`/`--after`/`--before`/`--te`/`--enrollment`/`--program-stage`,
+analytics `--start-date`/`--end-date`/`--ou-mode`), expanded the analytics `--dim` help (dx:/pe:/ou:
+prefixes; events aggregate `<stage>.<de>` no-dx: rule), and added runnable examples to the
+analytics query/events + aggregate get docstrings. Period/UID detail lives in the bridge docstring.
+Original proposals (v42 line numbers; mirrored to v41/v43):
 - `analytics/cli.py` `--dim` (query, ~line 61): "Dimension as 'axis:value', repeatable. axis =
   dx (data element/indicator UID, or DE.COC), pe (period e.g. LAST_12_MONTHS or 202401), ou
   (org-unit UID). dx+pe required. UIDs from `metadata list … --fields id,name`."

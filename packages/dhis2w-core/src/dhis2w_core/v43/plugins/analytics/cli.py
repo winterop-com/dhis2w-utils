@@ -58,7 +58,9 @@ def query_command(
     dimension: Annotated[
         list[str],
         typer.Option(
-            "--dimension", "--dim", help="Dimension string (repeatable), e.g. dx:UID, pe:LAST_12_MONTHS, ou:UID."
+            "--dimension",
+            "--dim",
+            help="Repeatable 'axis:value': dx:<UID>, pe:<period> (both required), ou:<UID>.",
         ),
     ],
     shape: Annotated[
@@ -87,11 +89,19 @@ def query_command(
     display_property: Annotated[
         str | None, typer.Option("--display-property", help="NAME | SHORTNAME — which label to render metadata with.")
     ] = None,
-    start_date: Annotated[str | None, typer.Option("--start-date")] = None,
-    end_date: Annotated[str | None, typer.Option("--end-date")] = None,
+    start_date: Annotated[
+        str | None,
+        typer.Option("--start-date", help="Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension)."),
+    ] = None,
+    end_date: Annotated[str | None, typer.Option("--end-date", help="Fixed window end, ISO date YYYY-MM-DD.")] = None,
     skip_meta: Annotated[bool, typer.Option("--skip-meta")] = False,
 ) -> None:
-    """Run an analytics query. Use `--shape` to pick `table`, `raw`, or `dvs`."""
+    """Run an aggregate analytics query (requires at least dx + pe dimensions).
+
+    Example: analytics query --dim dx:Uvn6LCg7dVU --dim pe:LAST_12_MONTHS --dim ou:ImspTQPwCqd
+
+    Use `--shape` to pick `table`, `raw`, or `dvs`.
+    """
     try:
         response = asyncio.run(
             service.query_analytics(
@@ -129,7 +139,11 @@ def events_query_command(
     ] = "query",
     dimension: Annotated[
         list[str] | None,
-        typer.Option("--dimension", "--dim", help="Dimension string (repeatable), e.g. pe:LAST_12_MONTHS, ou:UID."),
+        typer.Option(
+            "--dimension",
+            "--dim",
+            help="Repeatable 'axis:value': pe:<period>, ou:<UID>. Aggregate value dim = <stage>.<de> (no dx:).",
+        ),
     ] = None,
     filter: Annotated[
         list[str] | None,
@@ -140,13 +154,21 @@ def events_query_command(
         str | None,
         typer.Option("--output-type", help="EVENT | ENROLLMENT | TRACKED_ENTITY_INSTANCE (row shape)."),
     ] = None,
-    start_date: Annotated[str | None, typer.Option("--start-date")] = None,
-    end_date: Annotated[str | None, typer.Option("--end-date")] = None,
+    start_date: Annotated[
+        str | None,
+        typer.Option("--start-date", help="Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension)."),
+    ] = None,
+    end_date: Annotated[str | None, typer.Option("--end-date", help="Fixed window end, ISO date YYYY-MM-DD.")] = None,
     skip_meta: Annotated[bool, typer.Option("--skip-meta")] = False,
     page: Annotated[int | None, typer.Option("--page")] = None,
     page_size: Annotated[int | None, typer.Option("--page-size")] = None,
 ) -> None:
-    """Run an event analytics query (`/api/analytics/events/{mode}/{program}`)."""
+    """Run an event analytics query.
+
+    Example: analytics events query <PROGRAM_UID> --mode query --dim pe:LAST_12_MONTHS --dim ou:<ouUID>
+
+    PROGRAM is a program UID; --mode is query (line list) or aggregate.
+    """
     try:
         response = asyncio.run(
             service.query_events(
@@ -181,8 +203,11 @@ def enrollments_query_command(
         list[str] | None,
         typer.Option("--filter", help="Filter string (repeatable)."),
     ] = None,
-    start_date: Annotated[str | None, typer.Option("--start-date")] = None,
-    end_date: Annotated[str | None, typer.Option("--end-date")] = None,
+    start_date: Annotated[
+        str | None,
+        typer.Option("--start-date", help="Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension)."),
+    ] = None,
+    end_date: Annotated[str | None, typer.Option("--end-date", help="Fixed window end, ISO date YYYY-MM-DD.")] = None,
     skip_meta: Annotated[bool, typer.Option("--skip-meta")] = False,
     page: Annotated[int | None, typer.Option("--page")] = None,
     page_size: Annotated[int | None, typer.Option("--page-size")] = None,
@@ -291,11 +316,17 @@ def tracked_entities_query_command(
         list[str] | None,
         typer.Option("--program", help="Program UID (repeatable) to narrow results."),
     ] = None,
-    start_date: Annotated[str | None, typer.Option("--start-date")] = None,
-    end_date: Annotated[str | None, typer.Option("--end-date")] = None,
+    start_date: Annotated[
+        str | None,
+        typer.Option("--start-date", help="Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension)."),
+    ] = None,
+    end_date: Annotated[str | None, typer.Option("--end-date", help="Fixed window end, ISO date YYYY-MM-DD.")] = None,
     ou_mode: Annotated[
         str | None,
-        typer.Option("--ou-mode", help="SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default SELECTED)."),
+        typer.Option(
+            "--ou-mode",
+            help="SELECTED|CHILDREN|DESCENDANTS|ACCESSIBLE|ALL (default SELECTED; DESCENDANTS reaches facilities).",
+        ),
     ] = None,
     display_property: Annotated[
         str | None,
