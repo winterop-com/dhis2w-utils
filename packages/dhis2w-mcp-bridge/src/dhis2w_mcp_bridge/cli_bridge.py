@@ -270,11 +270,14 @@ async def run_cli(
     read_only: bool = False,
 ) -> CliResult:
     """Run `dhis2 --json [-p <profile>] <args>` as a subprocess and capture the result."""
-    # Some models pass the whole command as one string ("metadata list dataElements --count")
-    # instead of a token list. Split it so the read-only guard and the CLI both see real tokens.
-    if len(args) == 1 and " " in args[0]:
+    # Some models pack the command into the FIRST arg as one string — either the whole command
+    # ("metadata list dataElements --count") or just the command path with the flags following
+    # as separate args (["metadata list organisationUnits", "--all", ...]). The command position
+    # never holds a legitimate space, so split a space-containing first token (keeping any later
+    # args) — so the read-only guard and the CLI both see real tokens.
+    if args and " " in args[0]:
         with contextlib.suppress(ValueError):
-            args = shlex.split(args[0])
+            args = [*shlex.split(args[0]), *args[1:]]
     if read_only and not is_read_only(args):
         blocked = " ".join(args) or "<empty>"
         return CliResult(

@@ -76,6 +76,19 @@ async def test_single_string_args_are_tokenized(fake_cli: Path) -> None:
     assert json.loads(result.stdout)["argv"] == ["--json", "metadata", "list", "dataElements", "--count"]
 
 
+async def test_command_packed_first_arg_with_separate_flags(fake_cli: Path) -> None:
+    """A command packed into args[0] with flags as later args (gemma-style) is tokenized."""
+    result = await run_cli(["metadata list organisationUnits", "--filter", "level:eq:2"])
+    assert json.loads(result.stdout)["argv"] == [
+        "--json",
+        "metadata",
+        "list",
+        "organisationUnits",
+        "--filter",
+        "level:eq:2",
+    ]
+
+
 async def test_single_string_read_allowed_under_readonly(monkeypatch: pytest.MonkeyPatch) -> None:
     """A single-string read command is tokenized, then allowed by the read-only guard."""
     monkeypatch.setenv("DHIS2_CLI_BIN", "/no/such/dhis2-binary")  # 127 if it runs (allowed), 126 if refused
