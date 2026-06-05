@@ -30,6 +30,7 @@ $ dhis2 [OPTIONS] COMMAND [ARGS]...
 * `metadata`: DHIS2 metadata inspection.
 * `profile`: Manage DHIS2 profiles.
 * `route`: DHIS2 integration routes.
+* `security`: DHIS2 security posture (read-only).
 * `system`: DHIS2 system info.
 * `user`: DHIS2 user administration.
 * `user-group`: DHIS2 user-group administration.
@@ -8787,6 +8788,38 @@ $ dhis2 route run [OPTIONS] ROUTE
 * `-X, --method TEXT`: [default: GET]
 * `--body PATH`: JSON body file for POST/PUT.
 * `--path TEXT`: Additional path segment appended to the route&#x27;s target URL.
+* `--help`: Show this message and exit.
+
+## `dhis2 security`
+
+DHIS2 security posture (read-only).
+
+**Usage**:
+
+```console
+$ dhis2 security [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `settings`: Show the server&#x27;s security-relevant system...
+
+### `dhis2 security settings`
+
+Show the server&#x27;s security-relevant system settings. `--json` for the full payload.
+
+**Usage**:
+
+```console
+$ dhis2 security settings [OPTIONS]
+```
+
+**Options**:
+
 * `--help`: Show this message and exit.
 
 ## `dhis2 system`
