@@ -69,6 +69,26 @@ async def test_does_not_duplicate_json(fake_cli: Path) -> None:
     assert json.loads(result.stdout)["argv"] == ["--json", "metadata", "list"]
 
 
+async def test_single_string_args_are_tokenized(fake_cli: Path) -> None:
+    """A whole command passed as one string (a common model mistake) is split into tokens."""
+    result = await run_cli(["metadata list dataElements --count"])
+    assert json.loads(result.stdout)["argv"] == ["--json", "metadata", "list", "dataElements", "--count"]
+
+
+async def test_single_string_read_allowed_under_readonly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A single-string read command is tokenized, then allowed by the read-only guard."""
+    monkeypatch.setenv("DHIS2_CLI_BIN", "/no/such/dhis2-binary")  # 127 if it runs (allowed), 126 if refused
+    result = await run_cli(["system info"], read_only=True)
+    assert result.exit_code == EXIT_CLI_NOT_FOUND  # allowed past the guard, then binary missing
+
+
+async def test_single_string_write_still_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A single-string write command is still refused after tokenizing."""
+    monkeypatch.setenv("DHIS2_CLI_BIN", "/no/such/dhis2-binary")
+    result = await run_cli(["metadata create dataElements x.json"], read_only=True)
+    assert result.exit_code == EXIT_REFUSED
+
+
 async def test_json_output_is_compacted(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A success JSON payload is returned compact (no indentation) to save the model tokens."""
     monkeypatch.setenv("FAKE_STDOUT", '[\n  {\n    "id": "x",\n    "name": "Foo"\n  }\n]\n')
