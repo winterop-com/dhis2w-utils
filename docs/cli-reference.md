@@ -2998,42 +2998,42 @@ $ dhis2 metadata [OPTIONS] COMMAND [ARGS]...
 * `merge`: Export resources from one profile and...
 * `merge-bundle`: Import a saved bundle file into a target...
 * `type`: Metadata resource types (the catalog).
-* `options`: OptionSet workflows (show / find / sync).
+* `options`: OptionSet workflows (get / find / sync).
 * `attribute`: Cross-resource AttributeValue workflows...
-* `program-rule`: Program rule workflows (show / vars-for /...
-* `sql-view`: SQL view workflows (show / execute /...
-* `viz`: Visualization authoring (show / create /...
-* `dashboard`: Dashboard composition (show / add-item /...
-* `map`: Map authoring (show / create / clone /...
-* `data-elements`: DataElement authoring (show / create /...
-* `data-element-groups`: DataElementGroup workflows (show / members...
-* `data-element-group-sets`: DataElementGroupSet workflows (show /...
-* `indicators`: Indicator authoring (show / create /...
-* `indicator-groups`: IndicatorGroup workflows (show / members /...
-* `indicator-group-sets`: IndicatorGroupSet workflows (show / create...
-* `program-indicators`: ProgramIndicator authoring (show / create...
-* `program-indicator-groups`: ProgramIndicatorGroup workflows (show /...
-* `category-options`: CategoryOption authoring (show / create /...
-* `category-option-groups`: CategoryOptionGroup workflows (show /...
-* `category-option-group-sets`: CategoryOptionGroupSet workflows (show /...
-* `categories`: Category authoring (show / create / rename...
-* `category-combos`: CategoryCombo authoring (show / create /...
-* `category-option-combos`: CategoryOptionCombo read access (show /...
-* `data-sets`: DataSet authoring (show / create / rename...
-* `sections`: Section authoring (show / create / rename...
-* `validation-rules`: ValidationRule authoring (show / create /...
-* `validation-rule-groups`: ValidationRuleGroup workflows (show /...
-* `predictors`: Predictor authoring (show / create /...
-* `predictor-groups`: PredictorGroup workflows (show / members /...
-* `tracked-entity-attributes`: TrackedEntityAttribute authoring (show /...
-* `tracked-entity-types`: TrackedEntityType authoring (show / create...
-* `programs`: Program authoring (show / create / rename...
-* `program-stages`: ProgramStage authoring (show / create /...
-* `organisation-units`: OrganisationUnit hierarchy workflows (show...
-* `organisation-unit-groups`: OrganisationUnitGroup workflows (show /...
-* `organisation-unit-group-sets`: OrganisationUnitGroupSet workflows (show /...
-* `organisation-unit-levels`: OrganisationUnitLevel naming (show / rename).
-* `legend-sets`: LegendSet authoring (show / create / clone...
+* `program-rule`: Program rule workflows (get / vars-for /...
+* `sql-view`: SQL view workflows (get / execute /...
+* `viz`: Visualization authoring (get / create /...
+* `dashboard`: Dashboard composition (get / add-item /...
+* `map`: Map authoring (get / create / clone /...
+* `data-elements`: DataElement authoring (get / create /...
+* `data-element-groups`: DataElementGroup workflows (get / members...
+* `data-element-group-sets`: DataElementGroupSet workflows (get /...
+* `indicators`: Indicator authoring (get / create / rename...
+* `indicator-groups`: IndicatorGroup workflows (get / members /...
+* `indicator-group-sets`: IndicatorGroupSet workflows (get / create...
+* `program-indicators`: ProgramIndicator authoring (get / create /...
+* `program-indicator-groups`: ProgramIndicatorGroup workflows (get /...
+* `category-options`: CategoryOption authoring (get / create /...
+* `category-option-groups`: CategoryOptionGroup workflows (get /...
+* `category-option-group-sets`: CategoryOptionGroupSet workflows (get /...
+* `categories`: Category authoring (get / create / rename...
+* `category-combos`: CategoryCombo authoring (get / create /...
+* `category-option-combos`: CategoryOptionCombo read access (get /...
+* `data-sets`: DataSet authoring (get / create / rename /...
+* `sections`: Section authoring (get / create / rename /...
+* `validation-rules`: ValidationRule authoring (get / create /...
+* `validation-rule-groups`: ValidationRuleGroup workflows (get /...
+* `predictors`: Predictor authoring (get / create / rename...
+* `predictor-groups`: PredictorGroup workflows (get / members /...
+* `tracked-entity-attributes`: TrackedEntityAttribute authoring (get /...
+* `tracked-entity-types`: TrackedEntityType authoring (get / create...
+* `programs`: Program authoring (get / create / rename /...
+* `program-stages`: ProgramStage authoring (get / create /...
+* `organisation-units`: OrganisationUnit hierarchy workflows (get...
+* `organisation-unit-groups`: OrganisationUnitGroup workflows (get /...
+* `organisation-unit-group-sets`: OrganisationUnitGroupSet workflows (get /...
+* `organisation-unit-levels`: OrganisationUnitLevel naming (get / rename).
+* `legend-sets`: LegendSet authoring (get / create / clone...
 
 ### `dhis2 metadata ls`
 
@@ -3572,7 +3572,7 @@ $ dhis2 metadata type list [OPTIONS]
 
 ### `dhis2 metadata options`
 
-OptionSet workflows (show / find / sync).
+OptionSet workflows (get / find / sync).
 
 **Usage**:
 
@@ -3848,7 +3848,7 @@ $ dhis2 metadata attribute find [OPTIONS] RESOURCE ATTRIBUTE VALUE
 
 ### `dhis2 metadata program-rule`
 
-Program rule workflows (show / vars-for / validate / where-de-is-used).
+Program rule workflows (get / vars-for / validate / where-de-is-used).
 
 **Usage**:
 
@@ -3955,7 +3955,7 @@ $ dhis2 metadata program-rule where-de-is-used [OPTIONS] DATA_ELEMENT_UID
 
 ### `dhis2 metadata sql-view`
 
-SQL view workflows (show / execute / refresh / adhoc).
+SQL view workflows (get / execute / refresh / adhoc).
 
 **Usage**:
 
@@ -4064,7 +4064,7 @@ $ dhis2 metadata sql-view adhoc [OPTIONS] NAME SQL_PATH
 
 ### `dhis2 metadata viz`
 
-Visualization authoring (show / create / clone / delete).
+Visualization authoring (get / create / clone / delete).
 
 **Usage**:
 
@@ -4173,7 +4173,7 @@ $ dhis2 metadata viz delete [OPTIONS] VIZ_UID
 
 ### `dhis2 metadata dashboard`
 
-Dashboard composition (show / add-item / remove-item).
+Dashboard composition (get / add-item / remove-item).
 
 **Usage**:
 
@@ -4259,7 +4259,7 @@ $ dhis2 metadata dashboard remove-item [OPTIONS] DASHBOARD_UID ITEM_UID
 
 ### `dhis2 metadata map`
 
-Map authoring (show / create / clone / delete).
+Map authoring (get / create / clone / delete).
 
 **Usage**:
 
@@ -4371,7 +4371,7 @@ $ dhis2 metadata map delete [OPTIONS] MAP_UID
 
 ### `dhis2 metadata data-elements`
 
-DataElement authoring (show / create / rename / delete + legend-sets).
+DataElement authoring (get / create / rename / delete + legend-sets).
 
 **Usage**:
 
@@ -4498,7 +4498,7 @@ $ dhis2 metadata data-elements delete [OPTIONS] UID
 
 ### `dhis2 metadata data-element-groups`
 
-DataElementGroup workflows (show / members / create / add-members / remove-members / delete).
+DataElementGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -4635,7 +4635,7 @@ $ dhis2 metadata data-element-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata data-element-group-sets`
 
-DataElementGroupSet workflows (show / create / add-groups / remove-groups / delete).
+DataElementGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
@@ -4753,7 +4753,7 @@ $ dhis2 metadata data-element-group-sets delete [OPTIONS] UID
 
 ### `dhis2 metadata indicators`
 
-Indicator authoring (show / create / rename / validate-expression / delete).
+Indicator authoring (get / create / rename / validate-expression / delete).
 
 **Usage**:
 
@@ -4898,7 +4898,7 @@ $ dhis2 metadata indicators delete [OPTIONS] UID
 
 ### `dhis2 metadata indicator-groups`
 
-IndicatorGroup workflows (show / members / create / add-members / remove-members / delete).
+IndicatorGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -5035,7 +5035,7 @@ $ dhis2 metadata indicator-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata indicator-group-sets`
 
-IndicatorGroupSet workflows (show / create / add-groups / remove-groups / delete).
+IndicatorGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
@@ -5152,7 +5152,7 @@ $ dhis2 metadata indicator-group-sets delete [OPTIONS] UID
 
 ### `dhis2 metadata program-indicators`
 
-ProgramIndicator authoring (show / create / rename / validate-expression / delete).
+ProgramIndicator authoring (get / create / rename / validate-expression / delete).
 
 **Usage**:
 
@@ -5296,7 +5296,7 @@ $ dhis2 metadata program-indicators delete [OPTIONS] UID
 
 ### `dhis2 metadata program-indicator-groups`
 
-ProgramIndicatorGroup workflows (show / members / create / add-members / remove-members / delete).
+ProgramIndicatorGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -5433,7 +5433,7 @@ $ dhis2 metadata program-indicator-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata category-options`
 
-CategoryOption authoring (show / create / rename / set-validity / delete).
+CategoryOption authoring (get / create / rename / set-validity / delete).
 
 **Usage**:
 
@@ -5556,7 +5556,7 @@ $ dhis2 metadata category-options delete [OPTIONS] UID
 
 ### `dhis2 metadata category-option-groups`
 
-CategoryOptionGroup workflows (show / members / create / add-members / remove-members / delete).
+CategoryOptionGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -5694,7 +5694,7 @@ $ dhis2 metadata category-option-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata category-option-group-sets`
 
-CategoryOptionGroupSet workflows (show / create / add-groups / remove-groups / delete).
+CategoryOptionGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
@@ -5812,7 +5812,7 @@ $ dhis2 metadata category-option-group-sets delete [OPTIONS] UID
 
 ### `dhis2 metadata categories`
 
-Category authoring (show / create / rename / add-option / remove-option / delete).
+Category authoring (get / create / rename / add-option / remove-option / delete).
 
 **Usage**:
 
@@ -5952,7 +5952,7 @@ $ dhis2 metadata categories delete [OPTIONS] UID
 
 ### `dhis2 metadata category-combos`
 
-CategoryCombo authoring (show / create / rename / add-category / remove-category / wait-for-cocs / delete).
+CategoryCombo authoring (get / create / rename / add-category / remove-category / wait-for-cocs / delete).
 
 **Usage**:
 
@@ -6146,7 +6146,7 @@ $ dhis2 metadata category-combos build [OPTIONS]
 
 ### `dhis2 metadata category-option-combos`
 
-CategoryOptionCombo read access (show / list-for-combo). DHIS2 owns writes.
+CategoryOptionCombo read access (get / list-for-combo). DHIS2 owns writes.
 
 **Usage**:
 
@@ -6201,7 +6201,7 @@ $ dhis2 metadata category-option-combos list-for-combo [OPTIONS] COMBO_UID
 
 ### `dhis2 metadata data-sets`
 
-DataSet authoring (show / create / rename / add-element / remove-element / delete).
+DataSet authoring (get / create / rename / add-element / remove-element / delete).
 
 **Usage**:
 
@@ -6347,7 +6347,7 @@ $ dhis2 metadata data-sets delete [OPTIONS] UID
 
 ### `dhis2 metadata sections`
 
-Section authoring (show / create / rename / add-element / remove-element / reorder / delete).
+Section authoring (get / create / rename / add-element / remove-element / reorder / delete).
 
 **Usage**:
 
@@ -6511,7 +6511,7 @@ $ dhis2 metadata sections delete [OPTIONS] UID
 
 ### `dhis2 metadata validation-rules`
 
-ValidationRule authoring (show / create / rename / delete).
+ValidationRule authoring (get / create / rename / delete).
 
 **Usage**:
 
@@ -6616,7 +6616,7 @@ $ dhis2 metadata validation-rules delete [OPTIONS] UID
 
 ### `dhis2 metadata validation-rule-groups`
 
-ValidationRuleGroup workflows (show / members / create / add-members / remove-members / delete).
+ValidationRuleGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -6753,7 +6753,7 @@ $ dhis2 metadata validation-rule-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata predictors`
 
-Predictor authoring (show / create / rename / delete).
+Predictor authoring (get / create / rename / delete).
 
 **Usage**:
 
@@ -6858,7 +6858,7 @@ $ dhis2 metadata predictors delete [OPTIONS] UID
 
 ### `dhis2 metadata predictor-groups`
 
-PredictorGroup workflows (show / members / create / add-members / remove-members / delete).
+PredictorGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -6995,7 +6995,7 @@ $ dhis2 metadata predictor-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata tracked-entity-attributes`
 
-TrackedEntityAttribute authoring (show / create / rename / delete).
+TrackedEntityAttribute authoring (get / create / rename / delete).
 
 **Usage**:
 
@@ -7107,7 +7107,7 @@ $ dhis2 metadata tracked-entity-attributes delete [OPTIONS] UID
 
 ### `dhis2 metadata tracked-entity-types`
 
-TrackedEntityType authoring (show / create / rename / add-attribute / remove-attribute / delete).
+TrackedEntityType authoring (get / create / rename / add-attribute / remove-attribute / delete).
 
 **Usage**:
 
@@ -7254,7 +7254,7 @@ $ dhis2 metadata tracked-entity-types delete [OPTIONS] UID
 
 ### `dhis2 metadata programs`
 
-Program authoring (show / create / rename / add-attribute / remove-attribute / add-to-ou / remove-from-ou / delete).
+Program authoring (get / create / rename / add-attribute / remove-attribute / add-to-ou / remove-from-ou / delete).
 
 **Usage**:
 
@@ -7452,7 +7452,7 @@ $ dhis2 metadata programs delete [OPTIONS] UID
 
 ### `dhis2 metadata program-stages`
 
-ProgramStage authoring (show / create / rename / add-element / remove-element / reorder / delete).
+ProgramStage authoring (get / create / rename / add-element / remove-element / reorder / delete).
 
 **Usage**:
 
@@ -7627,7 +7627,7 @@ $ dhis2 metadata program-stages delete [OPTIONS] UID
 
 ### `dhis2 metadata organisation-units`
 
-OrganisationUnit hierarchy workflows (show / tree / create / move / delete).
+OrganisationUnit hierarchy workflows (get / tree / create / move / delete).
 
 **Usage**:
 
@@ -7748,7 +7748,7 @@ $ dhis2 metadata organisation-units delete [OPTIONS] UID
 
 ### `dhis2 metadata organisation-unit-groups`
 
-OrganisationUnitGroup workflows (show / members / create / add-members / remove-members / delete).
+OrganisationUnitGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -7886,7 +7886,7 @@ $ dhis2 metadata organisation-unit-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata organisation-unit-group-sets`
 
-OrganisationUnitGroupSet workflows (show / create / add-groups / remove-groups / delete).
+OrganisationUnitGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
@@ -8004,7 +8004,7 @@ $ dhis2 metadata organisation-unit-group-sets delete [OPTIONS] UID
 
 ### `dhis2 metadata organisation-unit-levels`
 
-OrganisationUnitLevel naming (show / rename).
+OrganisationUnitLevel naming (get / rename).
 
 **Usage**:
 
@@ -8064,7 +8064,7 @@ $ dhis2 metadata organisation-unit-levels rename [OPTIONS] UID
 
 ### `dhis2 metadata legend-sets`
 
-LegendSet authoring (show / create / clone / delete).
+LegendSet authoring (get / create / clone / delete).
 
 **Usage**:
 

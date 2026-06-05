@@ -1010,7 +1010,7 @@ def _resolve_accessor(resources: object, resource: str) -> Any:
         available = _resource_names(resources)
         raise UnknownResourceError(
             f"unknown metadata resource {resource!r} (tried attribute {attr!r}); "
-            f"this instance exposes {len(available)} types — call `list_resource_types` to see them"
+            f"this instance exposes {len(available)} types — run `dhis2 metadata type list` to see them"
         )
     return accessor
 

@@ -69,6 +69,7 @@ READ_ONLY_COMMANDS: Final[frozenset[tuple[str, ...]]] = frozenset(
         ("dev", "customize", "show"),
         ("doctor", "bugs"),
         ("doctor", "integrity"),
+        ("doctor", "metadata"),
         ("files", "documents", "get"),
         ("files", "documents", "list"),
         ("files", "documents", "ls"),
