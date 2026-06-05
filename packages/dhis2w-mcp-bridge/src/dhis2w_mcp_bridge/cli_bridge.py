@@ -330,7 +330,7 @@ def register(mcp: Any) -> None:
         (dataElements, indicators, programs, dataSets, organisationUnits, organisationUnitLevels,
         organisationUnitGroups, categoryOptions, ...):
           - How many of ANY resource: dhis2_cli(["metadata", "list", "<type>", "--count"]) -> {"total": N}.
-                                     e.g. "how many org unit levels" -> ["metadata","list","organisationUnitLevels","--count"].
+                                     e.g. "org unit levels" -> list organisationUnitLevels --count.
                                      Counting/listing is ALWAYS `metadata list <type>` — never `system info`,
                                      and never answer counts from memory.
           - Unsure of the type name? dhis2_cli(["metadata", "type", "list"]) lists every resource type.
