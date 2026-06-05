@@ -28,6 +28,7 @@ READ_ONLY_VERBS = frozenset(
         "find", "search", "query", "list-for-combo", "vars-for", "where-de-is-used",
         "authority-list", "hub-list", "hub-url", "oidc-config", "status", "diff",
         "diff-profiles", "verify", "bugs", "integrity", "metadata", "outlier-detection",
+        "usage", "export",
     }
 )  # fmt: skip
 

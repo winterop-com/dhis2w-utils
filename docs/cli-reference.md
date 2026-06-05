@@ -3056,7 +3056,7 @@ $ dhis2 metadata ls [OPTIONS] RESOURCE
 **Options**:
 
 * `--fields TEXT`: DHIS2 field selector: plain (&#x27;id,name&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), nested (&#x27;children&#x27;), or exclusions (&#x27;:all,!lastUpdated&#x27;).  [default: id,name]
-* `--filter TEXT`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates); drop the `i` for case-sensitive. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
+* `--filter TEXT`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates), in: (any-of), null / !null (presence); drop the `i` for case-sensitive. Nested paths use dots, e.g. dataSetElements.dataSet.id:eq:&lt;uid&gt; or categoryCombo.id:eq:&lt;uid&gt;. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
 * `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.  [default: AND]
 * `--order TEXT`: Sort clause like &#x27;name:asc&#x27; or &#x27;created:desc&#x27;. Repeatable (later clauses tie-break).
 * `--page INTEGER`: Server-side page number (1-based). With NO paging flag the FULL collection is returned; passing --page switches to paged mode (pageSize defaults to 50). Ignored when --all is set.
@@ -3085,7 +3085,7 @@ $ dhis2 metadata list [OPTIONS] RESOURCE
 **Options**:
 
 * `--fields TEXT`: DHIS2 field selector: plain (&#x27;id,name&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), nested (&#x27;children&#x27;), or exclusions (&#x27;:all,!lastUpdated&#x27;).  [default: id,name]
-* `--filter TEXT`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates); drop the `i` for case-sensitive. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
+* `--filter TEXT`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates), in: (any-of), null / !null (presence); drop the `i` for case-sensitive. Nested paths use dots, e.g. dataSetElements.dataSet.id:eq:&lt;uid&gt; or categoryCombo.id:eq:&lt;uid&gt;. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
 * `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.  [default: AND]
 * `--order TEXT`: Sort clause like &#x27;name:asc&#x27; or &#x27;created:desc&#x27;. Repeatable (later clauses tie-break).
 * `--page INTEGER`: Server-side page number (1-based). With NO paging flag the FULL collection is returned; passing --page switches to paged mode (pageSize defaults to 50). Ignored when --all is set.
@@ -3211,7 +3211,7 @@ $ dhis2 metadata export [OPTIONS]
 * `--skip-translation`: Exclude translation blocks.
 * `--skip-validation`: Skip validation during export (matches DHIS2&#x27;s server-side option).
 * `--check-references / --no-check-references`: After export, walk the bundle and warn on references to UIDs not in the bundle (e.g. a dataElement&#x27;s categoryCombo missing from a filtered export). On by default.  [default: check-references]
-* `-o, --output PATH`: Write the bundle to this file (JSON). Omit to print to stdout.
+* `-o, --output PATH`: Write the bundle to this file (JSON). A full-catalog export is tens of MB (org-unit geometry) — prefer this; omitting prints the whole bundle to stdout.
 * `--pretty / --no-pretty`: Indent JSON output (default: pretty).  [default: pretty]
 * `--help`: Show this message and exit.
 

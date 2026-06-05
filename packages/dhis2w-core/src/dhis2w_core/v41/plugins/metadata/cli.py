@@ -247,8 +247,10 @@ def list_command(
             help=(
                 "Filter as `property:operator:value`. Repeatable — AND'd by default, use "
                 "--root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), "
-                "ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates); drop the `i` for "
-                "case-sensitive. E.g. name:$ilike:anc lists names starting with 'anc'."
+                "ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates), in:[a,b] (any-of), "
+                "null / !null (presence); drop the `i` for case-sensitive. Nested paths use dots, e.g. "
+                "dataSetElements.dataSet.id:eq:<uid> or categoryCombo.id:eq:<uid>. "
+                "E.g. name:$ilike:anc lists names starting with 'anc'."
             ),
         ),
     ] = None,
@@ -672,7 +674,10 @@ def export_command(
         typer.Option(
             "--output",
             "-o",
-            help="Write the bundle to this file (JSON). Omit to print to stdout.",
+            help=(
+                "Write the bundle to this file (JSON). A full-catalog export is tens of MB "
+                "(org-unit geometry) — prefer this; omitting prints the whole bundle to stdout."
+            ),
         ),
     ] = None,
     pretty: Annotated[bool, typer.Option("--pretty/--no-pretty", help="Indent JSON output (default: pretty).")] = True,

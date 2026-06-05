@@ -110,3 +110,56 @@ masked as clean exit-1 messages.
   (`^[A-Za-z][A-Za-z0-9]{10}$`) locally before the request.
 - Re-expose type-specific list filters + migrate docs/examples off the removed typed lists
   (separate, pre-existing roadmap item).
+
+## Round 2 — read+write agent sweep (reads → play42, writes → local_basic round-trips)
+
+Five agents exercised read + write across the CLI (all writes were create→verify→delete on
+local_basic with `ZZPROBE_` prefixes; zero leftovers, play42 never mutated).
+
+### Shipped from this round
+- **Read-only guard fix**: `metadata usage` and `metadata export` are pure reads but were
+  refused under `DHIS2_MCP_READONLY=1` — added to the allowlist (+ drift-test verbs).
+- **Docstring**: added `metadata search <text>` (the best cross-type name→UID resolver) and
+  `metadata usage <uid>` (reverse lookup); `--fields` presets (`:identifiable/:nameable/:owner/
+  :all`, `:all,!field`); nested filter paths (`dataSetElements.dataSet.id:eq:`), `in:[a,b]`,
+  `null/!null`; and an `export` warning (always `-o`, never to stdout — a full export is ~20MB).
+- **`metadata list --filter` help**: documents `in:[]`, `null/!null`, and dotted nested paths.
+- **`metadata export --output` help**: payload-size caution.
+
+### Write-surface feasibility for a small model (3–4B)
+| operation | feasibility | blocker |
+|---|---|---|
+| dataElement create/rename/delete | HIGH | 3 obvious flags, no UID lookups |
+| aggregate set/delete (data value) | HIGH | inline flags; `--coc` optional |
+| dataSet create / add-element | MED-HIGH | one DE UID lookup; add/remove print non-JSON |
+| dataElementGroup create / add-members | GOOD | repeatable `-e`, clear |
+| orgUnit create/move/delete | GOOD | two positional UIDs on move |
+| program create | MED | default WITH_REGISTRATION needs a `-tet` UID; use WITHOUT_REGISTRATION |
+| indicator create | MED | needs an indicatorType UID (no authoring group) + `#{de}` expression |
+| tracker event create | MED | 4 UIDs + `--dv UID=value` micro-syntax |
+| sharing (`metadata share`) | MED | DHIS2 singular type name (`dataElement`) vs plural elsewhere; `rwrw----` string |
+| category → categoryCombo chain | LOW | 3-level dependency, `--expected N` for COCs, reverse-order delete; `build --spec` needs JSON |
+| optionSet create/delete | LOW | no create/delete verb — must hand-write a `metadata import` bundle |
+| userGroup create/delete | LOW | no create/delete verb — `metadata import` only |
+| tracker entity/event DELETE | LOW | no inline delete — JSON file + `push --strategy DELETE` (async) |
+| route create | LOW | flag-form hangs on the interactive auth prompt; `--file` no-auth shape undocumented |
+
+### Deferred write-surface fixes (queued)
+- **`--json` not honored by mutating relationship verbs** (`add-element`/`remove-element`/
+  `add-option`/`add-category`/`add-to-ou`/`remove-from-ou`/`add-members`/`remove-members` and
+  some `delete`s print a plain-text summary at exit 0) — breaks the bridge "success ⇒ JSON"
+  contract. Make them emit JSON under `--json`. Broad sweep, v41/v42/v43.
+- **`route create`**: flag-form drops into an interactive auth prompt (hangs without a TTY) and
+  `--file` with `auth:{type:none}` crashes with a raw pydantic traceback. Add `--no-auth`/`--auth`,
+  accept/normalize a no-auth payload, and replace the traceback with a clean error.
+- **`metadata share` accepts only the singular DHIS2 type** (`dataElement`) while get/list want
+  plural — accept plural too (or map it) so the vocabulary is consistent.
+- **Missing authoring verbs**: `optionSets` and `userGroups` have no `create`/`delete` (only
+  `metadata import`); `metadata import` create returns an empty `objectReports` so the new UID
+  isn't echoed (forces a follow-up list). Consider create/delete verbs + echoing created UIDs.
+- **No inline tracker delete** (`data tracker event/enrollment/entity delete`); `push` is async
+  (returns a job, not a confirmation) while `event create` is sync — sibling inconsistency.
+- **`data aggregate get` is keyed by dataSet, `set` by dataElement** — a model can't verify its
+  own write with the same key; consider a `--de` filter on `get`.
+- **Generic 409 on constrained deletes** (e.g. orgUnit with children) — surface the real reason.
+- **Stale `pager.total`** after a delete (DHIS2 quirk — `--count` lags the row query briefly).

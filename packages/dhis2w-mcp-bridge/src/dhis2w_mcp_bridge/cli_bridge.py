@@ -134,7 +134,9 @@ READ_ONLY_COMMANDS: Final[frozenset[tuple[str, ...]]] = frozenset(
         ("metadata", "program-rule", "where-de-is-used"),
         ("metadata", "program-stages", "get"),
         ("metadata", "programs", "get"),
+        ("metadata", "export"),
         ("metadata", "search"),
+        ("metadata", "usage"),
         ("metadata", "sections", "get"),
         ("metadata", "sql-view", "get"),
         ("metadata", "tracked-entity-attributes", "get"),
@@ -346,6 +348,9 @@ def register(mcp: Any) -> None:
                                 -> {"resource": "<type>", "total": N}
           - List a resource:    dhis2_cli(["metadata", "list", "<type>"])
           - One object by UID:  dhis2_cli(["metadata", "get", "<type>", "<uid>"])
+          - Find by name/code:  dhis2_cli(["metadata", "search", "<text>"])  (cross-type; the best
+                                name->UID resolver). What references a UID:
+                                dhis2_cli(["metadata", "usage", "<uid>"])
           - Server version:     dhis2_cli(["system", "info"])
           - Current user:       dhis2_cli(["system", "whoami"])
 
@@ -360,13 +365,18 @@ def register(mcp: Any) -> None:
 
         NARROWING a list (do it in ONE call — avoid fetch-then-refetch):
           - Pick fields:  --fields id,code,name,description   (default is id,name)
+                          presets: :identifiable, :nameable, :owner, :all; exclude with :all,!sharing
           - Filter:       --filter <prop>:<op>:<value>        (e.g. domainType:eq:AGGREGATE)
                 ops: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with),
-                     token (word). Drop the `i` for case-sensitive.
+                     token (word), in:[a,b] (any-of), null / !null (presence). Drop `i` for case-sensitive.
                 "contains anc" -> name:ilike:anc   "starts with anc" -> name:$ilike:anc
+                nested paths use dots (X belonging to Y): dataSetElements.dataSet.id:eq:<uid>,
+                     categoryCombo.id:eq:<uid>, program.id:eq:<uid>
           - Every page:   --all                                (NOT --all-streams)
           - Dump to file: --output <file>   -> {"written": N, "path": ...}. Use for "give me ALL
                           as JSON": report the path; do NOT print the rows yourself.
+          - Whole-catalog `metadata export` is HUGE (tens of MB with org-unit geometry): ALWAYS pass
+            -o <file> and report the path — never export to stdout.
 
         ANALYTICS / DATA (aggregate values, event/tracker data) need UIDs, not names:
           dhis2_cli(["analytics", "query", "--dim", "dx:<uid>",

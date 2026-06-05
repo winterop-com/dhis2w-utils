@@ -135,13 +135,18 @@ Listing collapsed onto one surface — generic `metadata list <type>` + the `met
 
 ### Small-model bridge: CLI read-surface follow-ups
 
-Surfaced by the `dhis2w-mcp-bridge` gap probes (small local models driving the CLI). Shipped already: camelCase resource-name discovery + did-you-mean, `type list --json`, `show`→`get` help, the rewritten `dhis2_cli` docstring, single-string-arg tolerance, paging help. Remaining:
+Surfaced by the `dhis2w-mcp-bridge` gap probes (small local models driving the CLI). Shipped already: camelCase resource-name discovery + did-you-mean, `type list --json`, `show`→`get` help, the rewritten `dhis2_cli` docstring (incl. `search`/`usage`/field-presets/nested-filters/export-warning), single-string-arg tolerance, paging help, `--filter` nested/`in`/`null` help, read-only allowlist for `metadata usage`/`export`. See `docs/notes/small-model-bridge.md` for the full log + write-surface feasibility table. Remaining:
 
 - ~~**CLI bug — `data tracker list <TET> --program <uid>` is unusable.**~~ Shipped: `TYPE` is now optional; the command takes a TrackedEntityType OR `--program` (exactly one), sending only the chosen scope. v41/v42/v43.
 - **CLI bug — `files documents list --details` shows empty detail columns.** It uses `Document.url` (a filename like `pivot-table.pdf`) as the fileResource UID and fetches `/api/fileResources/<filename>` (500, swallowed). `/api/documents` exposes no fileResource UID — source contentType/size from `/api/documents/{uid}/data` headers instead. v41/v42/v43 files trees.
 - **Malformed-UID pre-validation on `metadata get`** (BUGS.md #42): reject non-`^[A-Za-z][A-Za-z0-9]{10}$` UIDs locally with a clear message instead of surfacing the upstream 405.
 - **Help-text polish for analytics/data reads** — fill the empty `--option` help (tracker/event/aggregate), add runnable examples + the `--dim dx:/pe:/ou:` and period grammar (proposals captured from the agent sweep).
 - **Removed typed `list` discoverability** — point `metadata <subapp> list`/`show` at `metadata list <type>` / `get` (hidden redirect commands or epilog).
+- **Write verbs should honor `--json`.** Relationship mutators (`add-element`/`remove-element`/`add-option`/`add-category`/`add-to-ou`/`remove-from-ou`/`add-members`/`remove-members` + some `delete`s) print a plain-text summary at exit 0, breaking the bridge "success ⇒ JSON" contract. Emit JSON under `--json`. v41/v42/v43.
+- **`route create` is unusable headless** — flag-form hangs on the interactive auth prompt; `--file` with `auth:{type:none}` crashes with a raw pydantic traceback. Add `--no-auth`/`--auth`, accept a no-auth payload, replace the traceback with a clean error.
+- **`metadata share` only accepts the singular DHIS2 type** (`dataElement`) while get/list want plural — accept plural too for a consistent vocabulary.
+- **Missing authoring verbs**: `optionSets` and `userGroups` have no `create`/`delete` (only `metadata import`, which returns an empty `objectReports` so the new UID isn't echoed). Add create/delete verbs + echo created UIDs.
+- **Tracker write ergonomics** — no inline `data tracker event/enrollment/entity delete` (only `push --strategy DELETE` with a hand-written JSON bundle, async); `data aggregate get` is keyed by dataSet while `set` is keyed by dataElement (can't verify a write with the same key).
 
 ## Near-term plan (next 3–5 PRs)
 
