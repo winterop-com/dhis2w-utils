@@ -96,10 +96,9 @@ and consider narrowing the broad `except LookupError` so `KeyError`/`IndexError`
 masked as clean exit-1 messages.
 
 ### 5. CLI bugs (our code)
-- **`data tracker list <TET> --program <uid>` always 400s** — the CLI sends both
-  `trackedEntityType` (required positional) and `program`; DHIS2 rejects (E1003). Send only
-  one scope (prefer `--program` when given). `tracker/cli.py list_command` + `service.py
-  list_tracked_entities`, v41/v42/v43.
+- **[SHIPPED] `data tracker list <TET> --program <uid>` always 400s** — fixed: `TYPE` is now
+  optional and the command takes a TrackedEntityType OR `--program` (exactly one), sending only
+  the chosen scope. v41/v42/v43.
 - **`files documents list --details` shows empty columns** — uses `Document.url` (a filename
   like `pivot-table.pdf`) as the fileResource UID → `/api/fileResources/<filename>` 500
   (swallowed). `/api/documents` exposes no FR UID; source contentType/size from

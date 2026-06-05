@@ -137,7 +137,7 @@ Listing collapsed onto one surface — generic `metadata list <type>` + the `met
 
 Surfaced by the `dhis2w-mcp-bridge` gap probes (small local models driving the CLI). Shipped already: camelCase resource-name discovery + did-you-mean, `type list --json`, `show`→`get` help, the rewritten `dhis2_cli` docstring, single-string-arg tolerance, paging help. Remaining:
 
-- **CLI bug — `data tracker list <TET> --program <uid>` is unusable.** The command always sends both `trackedEntityType` (from the required positional) and `program`, which DHIS2 rejects (400 E1003). Send only one scope (prefer `--program` when given). Fix across the v41/v42/v43 tracker trees.
+- ~~**CLI bug — `data tracker list <TET> --program <uid>` is unusable.**~~ Shipped: `TYPE` is now optional; the command takes a TrackedEntityType OR `--program` (exactly one), sending only the chosen scope. v41/v42/v43.
 - **CLI bug — `files documents list --details` shows empty detail columns.** It uses `Document.url` (a filename like `pivot-table.pdf`) as the fileResource UID and fetches `/api/fileResources/<filename>` (500, swallowed). `/api/documents` exposes no fileResource UID — source contentType/size from `/api/documents/{uid}/data` headers instead. v41/v42/v43 files trees.
 - **Malformed-UID pre-validation on `metadata get`** (BUGS.md #42): reject non-`^[A-Za-z][A-Za-z0-9]{10}$` UIDs locally with a clear message instead of surfacing the upstream 405.
 - **Help-text polish for analytics/data reads** — fill the empty `--option` help (tracker/event/aggregate), add runnable examples + the `--dim dx:/pe:/ou:` and period grammar (proposals captured from the agent sweep).

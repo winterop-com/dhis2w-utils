@@ -821,8 +821,8 @@ $ dhis2 data tracker [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List tracked entities of the given...
-* `list`: List tracked entities of the given...
+* `ls`: List tracked entities by TrackedEntityType...
+* `list`: List tracked entities by TrackedEntityType...
 * `get`: Fetch one tracked entity by UID...
 * `type`: List every configured TrackedEntityType on...
 * `push`: Bulk import via POST /api/tracker.
@@ -834,21 +834,23 @@ $ dhis2 data tracker [OPTIONS] COMMAND [ARGS]...
 
 #### `dhis2 data tracker ls`
 
-List tracked entities of the given TrackedEntityType (name or UID).
+List tracked entities by TrackedEntityType (TYPE) or by --program — give exactly one.
+
+Example: dhis2 data tracker list Person --ou ImspTQPwCqd
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker ls [OPTIONS] TYPE
+$ dhis2 data tracker ls [OPTIONS] [TYPE]
 ```
 
 **Arguments**:
 
-* `TYPE`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27;, &#x27;Patient&#x27;, or &#x27;tet01234567&#x27;.  [required]
+* `[TYPE]`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27; or &#x27;tet01234567&#x27;. Give this OR --program (not both).
 
 **Options**:
 
-* `--program TEXT`: Optional program UID to further scope the listing.
+* `--program TEXT`: Program UID — list the program&#x27;s tracked entities. Alternative to TYPE; DHIS2 rejects a program and a TrackedEntityType together.
 * `--te-uids TEXT`: Comma-separated tracked-entity UIDs to fetch directly.
 * `--org-unit, --ou TEXT`
 * `--ou-mode TEXT`: [default: DESCENDANTS]
@@ -861,21 +863,23 @@ $ dhis2 data tracker ls [OPTIONS] TYPE
 
 #### `dhis2 data tracker list`
 
-List tracked entities of the given TrackedEntityType (name or UID).
+List tracked entities by TrackedEntityType (TYPE) or by --program — give exactly one.
+
+Example: dhis2 data tracker list Person --ou ImspTQPwCqd
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker list [OPTIONS] TYPE
+$ dhis2 data tracker list [OPTIONS] [TYPE]
 ```
 
 **Arguments**:
 
-* `TYPE`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27;, &#x27;Patient&#x27;, or &#x27;tet01234567&#x27;.  [required]
+* `[TYPE]`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27; or &#x27;tet01234567&#x27;. Give this OR --program (not both).
 
 **Options**:
 
-* `--program TEXT`: Optional program UID to further scope the listing.
+* `--program TEXT`: Program UID — list the program&#x27;s tracked entities. Alternative to TYPE; DHIS2 rejects a program and a TrackedEntityType together.
 * `--te-uids TEXT`: Comma-separated tracked-entity UIDs to fetch directly.
 * `--org-unit, --ou TEXT`
 * `--ou-mode TEXT`: [default: DESCENDANTS]

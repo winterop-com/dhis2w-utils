@@ -64,14 +64,19 @@ def _attr_value(entity: Any, attribute_uid: str) -> str | None:
 @app.command("ls", hidden=True)
 def list_command(
     type: Annotated[
-        str,
+        str | None,
         typer.Argument(
-            help="TrackedEntityType name (case-insensitive) or UID — e.g. 'Person', 'Patient', or 'tet01234567'.",
+            help="TrackedEntityType name (case-insensitive) or UID — e.g. 'Person' or 'tet01234567'. "
+            "Give this OR --program (not both).",
         ),
-    ],
+    ] = None,
     program: Annotated[
         str | None,
-        typer.Option("--program", help="Optional program UID to further scope the listing."),
+        typer.Option(
+            "--program",
+            help="Program UID — list the program's tracked entities. Alternative to TYPE; "
+            "DHIS2 rejects a program and a TrackedEntityType together.",
+        ),
     ] = None,
     tracked_entities: Annotated[
         str | None,
@@ -88,12 +93,22 @@ def list_command(
         typer.Option("--updated-after", help="ISO-8601 cutoff — only entities updated after this."),
     ] = None,
 ) -> None:
-    """List tracked entities of the given TrackedEntityType (name or UID)."""
-    try:
-        tet_uid = asyncio.run(service.resolve_tracked_entity_type(profile_from_env(), type))
-    except ValueError as exc:
-        typer.secho(f"error: {exc}", err=True, fg=typer.colors.RED)
-        raise typer.Exit(1) from exc
+    """List tracked entities by TrackedEntityType (TYPE) or by --program — give exactly one.
+
+    Example: dhis2 data tracker list Person --ou ImspTQPwCqd
+    """
+    if (type is None) == (program is None):
+        typer.secho(
+            "error: give either a TrackedEntityType (TYPE) or --program, not both", err=True, fg=typer.colors.RED
+        )
+        raise typer.Exit(2)
+    tet_uid: str | None = None
+    if type is not None:
+        try:
+            tet_uid = asyncio.run(service.resolve_tracked_entity_type(profile_from_env(), type))
+        except ValueError as exc:
+            typer.secho(f"error: {exc}", err=True, fg=typer.colors.RED)
+            raise typer.Exit(1) from exc
     entities = asyncio.run(
         service.list_tracked_entities(
             profile_from_env(),
@@ -114,7 +129,7 @@ def list_command(
         return
     rows = [e.model_dump(by_alias=True, exclude_none=True, mode="json") for e in entities]
     render_list(
-        f"tracked entities (type={type})",
+        f"tracked entities ({'program=' + program if program else 'type=' + str(type)})",
         rows,
         [
             ColumnSpec("id", "trackedEntity", style="cyan", no_wrap=True),
