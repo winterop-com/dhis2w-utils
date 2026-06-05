@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 from collections.abc import AsyncIterator, Mapping, Sequence
@@ -80,8 +81,19 @@ def _attr_name(resource: str) -> str:
 
 
 def _resource_names(resources: object) -> list[str]:
-    """List the Resources attribute names that map to real metadata types."""
-    return sorted(name for name in dir(resources) if not name.startswith("_"))
+    """List the DHIS2 wire (camelCase) resource names this client exposes.
+
+    Reads each accessor's `_path` (`/api/<wireName>`) so discovery output matches the
+    camelCase names the docs and `metadata list <resource>` expect, not snake_case attrs.
+    """
+    names: list[str] = []
+    for attr in dir(resources):
+        if attr.startswith("_"):
+            continue
+        path = getattr(getattr(resources, attr, None), "_path", None)
+        if isinstance(path, str) and path.startswith("/api/"):
+            names.append(path.removeprefix("/api/"))
+    return sorted(names)
 
 
 async def list_resource_types(profile: Profile) -> list[str]:
@@ -1002,8 +1014,10 @@ def _resolve_accessor(resources: object, resource: str) -> Any:
     accessor = getattr(resources, attr, None)
     if accessor is None:
         available = _resource_names(resources)
+        suggestions = difflib.get_close_matches(resource, available, n=3, cutoff=0.6)
+        hint = f" did you mean {' or '.join(repr(s) for s in suggestions)}?" if suggestions else ""
         raise UnknownResourceError(
-            f"unknown metadata resource {resource!r} (tried attribute {attr!r}); "
+            f"unknown metadata resource {resource!r} (tried attribute {attr!r});{hint} "
             f"this instance exposes {len(available)} types — run `dhis2 metadata type list` to see them"
         )
     return accessor
