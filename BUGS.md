@@ -38,6 +38,7 @@ filing.
 - [#8](#8-apischemas-mis-reports-the-plural-wire-key-for-userroleauthorities-as-authoritys) — `/api/schemas` mis-reports `UserRole.authorities` as `authoritys` **[FIXED]**
 - [#14](#14-oas-routeauth-is-a-oneof-with-no-discriminator--and-the-auth-scheme-schemas-are-missing-their-jackson-type-field) — OAS `Route.auth` is an undiscriminated `oneOf`
 - [#15](#15-oas-emits-jobconfigurationjobparameters-and-webmessageresponse-as-undiscriminated-oneofs) — OAS emits `JobConfiguration.jobParameters` + `WebMessage.response` as undiscriminated `oneOf`
+- [#42](#42-metadata-get-with-a-malformed-uid-returns-http-405-instead-of-404) — malformed UID → HTTP 405 instead of 404 on `GET /api/{resource}/{uid}`
 - [#19](#19-get-apivalidationresults-silently-ignores-fields-and-fieldsall) — `GET /api/validationResults` ignores `fields=*`
 - [#21](#21-attribute-value-filters-path-property-is-the-attribute-uid-not-attributevaluesvalue) — Attribute-value filter path is Attribute UID, not `attributeValues.value` **[PARTIAL]**
 - [#22](#22-programrulevariablesourcetype-is-a-schema-fiction--wire-uses-programrulevariablesourcetype-and-fields-omits-it) — `ProgramRuleVariable.sourceType` is a schema fiction **[FIXED]**
@@ -2689,6 +2690,35 @@ The same flow happens through the official Settings UI at `/dhis-web-settings/#/
 **Workaround in this repo:** none in code — `client.system.set_calendar()` already invalidates its own cache after POST, so a stale read on the same client is impossible. Behaviour against play42 is documented next to the method so users know the write is best-effort against shared/multi-replica DHIS2 instances. The local single-replica `infra/` stack (`make -C infra up-fresh`) is the suggested test target — it persists the value end-to-end.
 
 **How to know it's fixed:** `POST /api/systemSettings/keyCalendar` followed by an immediate `GET /api/systemSettings/keyCalendar` (same session, same base URL) returns the just-written value on `play.im.dhis2.org/dev-2-42`. (Local single-replica `infra/` already round-trips fine.) Or the POST starts returning a 4xx if the value cannot actually be set on shared instances.
+
+---
+
+### 42. metadata get with a malformed UID returns HTTP 405 instead of 404
+
+**Observed on:** DHIS2 `2.42.6-SNAPSHOT` (`play.im.dhis2.org/dev-2-42`).
+
+**Repro:**
+
+```bash
+# Wrong-length id (not exactly 11 chars) -> 405:
+curl -s -u admin:district 'https://play.im.dhis2.org/dev-2-42/api/dataElements/abc' \
+  -o /dev/null -w '%{http_code}\n'        # 405  "Request method 'GET' is not supported"
+# Correctly-shaped (11 chars) but missing -> clean 404:
+curl -s -u admin:district 'https://play.im.dhis2.org/dev-2-42/api/dataElements/abcdefghijk' \
+  -o /dev/null -w '%{http_code}\n'        # 404  E1005 "... could not be found."
+```
+
+**Expected:** a malformed UID returns the same clean `404` / `E1005` (or a `400` "invalid UID") as a well-formed-but-missing one.
+
+**Actual:** any path segment that isn't exactly 11 chars fails the by-id mapping's length constraint and falls through to the collection POST handler, yielding `405 "Request method 'GET' is not supported"` — which misleads the caller into thinking GET is unsupported. The discriminator is length-only (11 chars), not the UID regex, so a digit-first 11-char value still routes to a clean 404.
+
+**Impact:** `dhis2 metadata get <type> <bad-uid>` surfaces `DHIS2 API error (405): Request method 'GET' is not supported` for a simple typo'd/truncated UID, reading as "this command is broken".
+
+**Workaround in this repo:** pre-validate UID shape (`^[A-Za-z][A-Za-z0-9]{10}$`) in `dhis2 metadata get` (mirror across v41/v43) and fail locally with "not a valid DHIS2 UID" before the request — not yet implemented (tracked in `docs/roadmap.md`).
+
+**How to know it's fixed:** `GET /api/dataElements/abc` returns `404`/`E1005` (or a `400` invalid-UID) instead of `405`.
+
+**Verifier:** none yet.
 
 ---
 

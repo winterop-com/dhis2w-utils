@@ -51,7 +51,7 @@ $ dhis2 analytics [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `query`: Run an analytics query.
+* `query`: Run an aggregate analytics query (requires...
 * `outlier-detection`: Run `/api/analytics/outlierDetection` —...
 * `events`: Event analytics — line-lists events or...
 * `enrollments`: Enrollment analytics — line-lists...
@@ -59,7 +59,11 @@ $ dhis2 analytics [OPTIONS] COMMAND [ARGS]...
 
 ### `dhis2 analytics query`
 
-Run an analytics query. Use `--shape` to pick `table`, `raw`, or `dvs`.
+Run an aggregate analytics query (requires at least dx + pe dimensions).
+
+Example: analytics query --dim dx:Uvn6LCg7dVU --dim pe:LAST_12_MONTHS --dim ou:ImspTQPwCqd
+
+Use `--shape` to pick `table`, `raw`, or `dvs`.
 
 **Usage**:
 
@@ -69,15 +73,15 @@ $ dhis2 analytics query [OPTIONS]
 
 **Options**:
 
-* `--dimension, --dim TEXT`: Dimension string (repeatable), e.g. dx:UID, pe:LAST_12_MONTHS, ou:UID.  [required]
+* `--dimension, --dim TEXT`: Repeatable &#x27;axis:value&#x27;: dx:&lt;UID&gt;, pe:&lt;period&gt; (both required), ou:&lt;UID&gt;.  [required]
 * `--shape TEXT`: Response shape: `table` (default, aggregated), `raw` (/api/analytics/rawData), `dvs` (/api/analytics/dataValueSet — DataValueSet shape).  [default: table]
 * `--filter TEXT`: Filter string (repeatable), same syntax as --dimension.
 * `--agg TEXT`: SUM | AVERAGE | COUNT | MIN | MAX | AVERAGE_SUM_ORG_UNIT ...
 * `--output-id-scheme TEXT`: UID | NAME | CODE | ID — how UIDs appear in the response
 * `--num-den / --no-num-den`: Include indicator numerator/denominator columns.  [default: no-num-den]
 * `--display-property TEXT`: NAME | SHORTNAME — which label to render metadata with.
-* `--start-date TEXT`
-* `--end-date TEXT`
+* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
 * `--skip-meta`
 * `--help`: Show this message and exit.
 
@@ -122,11 +126,15 @@ $ dhis2 analytics events [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `query`: Run an event analytics query...
+* `query`: Run an event analytics query.
 
 #### `dhis2 analytics events query`
 
-Run an event analytics query (`/api/analytics/events/{mode}/{program}`).
+Run an event analytics query.
+
+Example: analytics events query &lt;PROGRAM_UID&gt; --mode query --dim pe:LAST_12_MONTHS --dim ou:&lt;ouUID&gt;
+
+PROGRAM is a program UID; --mode is query (line list) or aggregate.
 
 **Usage**:
 
@@ -141,12 +149,12 @@ $ dhis2 analytics events query [OPTIONS] PROGRAM
 **Options**:
 
 * `--mode TEXT`: `query` (line-listed events) or `aggregate` (grouped counts).  [default: query]
-* `--dimension, --dim TEXT`: Dimension string (repeatable), e.g. pe:LAST_12_MONTHS, ou:UID.
+* `--dimension, --dim TEXT`: Repeatable &#x27;axis:value&#x27;: pe:&lt;period&gt;, ou:&lt;UID&gt;. Aggregate value dim = &lt;stage&gt;.&lt;de&gt; (no dx:).
 * `--filter TEXT`: Filter string (repeatable), same syntax as --dimension.
 * `--stage TEXT`: Program stage UID to narrow events.
 * `--output-type TEXT`: EVENT | ENROLLMENT | TRACKED_ENTITY_INSTANCE (row shape).
-* `--start-date TEXT`
-* `--end-date TEXT`
+* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
 * `--skip-meta`
 * `--page INTEGER`
 * `--page-size INTEGER`
@@ -188,8 +196,8 @@ $ dhis2 analytics enrollments query [OPTIONS] PROGRAM
 
 * `--dimension, --dim TEXT`: Dimension string (repeatable).
 * `--filter TEXT`: Filter string (repeatable).
-* `--start-date TEXT`
-* `--end-date TEXT`
+* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
 * `--skip-meta`
 * `--page INTEGER`
 * `--page-size INTEGER`
@@ -232,9 +240,9 @@ $ dhis2 analytics tracked-entities query [OPTIONS] TRACKED_ENTITY_TYPE
 * `--dimension, --dim TEXT`: Dimension string (repeatable).
 * `--filter TEXT`: Filter string (repeatable).
 * `--program TEXT`: Program UID (repeatable) to narrow results.
-* `--start-date TEXT`
-* `--end-date TEXT`
-* `--ou-mode TEXT`: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default SELECTED).
+* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
+* `--ou-mode TEXT`: SELECTED|CHILDREN|DESCENDANTS|ACCESSIBLE|ALL (default SELECTED; DESCENDANTS reaches facilities).
 * `--display-property TEXT`: NAME | SHORTNAME.
 * `--skip-meta`
 * `--skip-data`
@@ -722,7 +730,9 @@ $ dhis2 data aggregate [OPTIONS] COMMAND [ARGS]...
 
 #### `dhis2 data aggregate get`
 
-Fetch a data value set.
+Fetch a data value set. Needs --ds plus a period (--pe or --start-date/--end-date) and --ou.
+
+Example: data aggregate get --ds &lt;dataSetUID&gt; --pe 202401 --ou &lt;ouUID&gt; --children
 
 **Usage**:
 
@@ -733,11 +743,11 @@ $ dhis2 data aggregate get [OPTIONS]
 **Options**:
 
 * `--data-set, --ds TEXT`: DataSet UID.
-* `--period, --pe TEXT`: Period (e.g. 202401, 2024W12, 2024).
+* `--period, --pe TEXT`: Period; match the dataSet&#x27;s periodType (Monthly=202401, Yearly=2024, Weekly=2024W12).
 * `--start-date TEXT`: ISO date (YYYY-MM-DD).
 * `--end-date TEXT`: ISO date (YYYY-MM-DD).
 * `--org-unit, --ou TEXT`: OrganisationUnit UID.
-* `--children`: Include descendants of org_unit.
+* `--children`: Include descendant org units (values usually live at facility level).
 * `--data-element-group, --deg TEXT`: DataElementGroup UID (narrows to its member DEs).
 * `--limit INTEGER`: Max rows to include in output.
 * `--help`: Show this message and exit.
@@ -821,11 +831,12 @@ $ dhis2 data tracker [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List tracked entities of the given...
-* `list`: List tracked entities of the given...
+* `ls`: List tracked entities by TrackedEntityType...
+* `list`: List tracked entities by TrackedEntityType...
 * `get`: Fetch one tracked entity by UID...
 * `type`: List every configured TrackedEntityType on...
 * `push`: Bulk import via POST /api/tracker.
+* `delete`: Delete tracked entities by UID (cascades...
 * `register`: Register a tracked entity + enroll in one...
 * `outstanding`: List ACTIVE enrollments missing events on...
 * `enrollment`: Enrollments.
@@ -834,26 +845,28 @@ $ dhis2 data tracker [OPTIONS] COMMAND [ARGS]...
 
 #### `dhis2 data tracker ls`
 
-List tracked entities of the given TrackedEntityType (name or UID).
+List tracked entities by TrackedEntityType (TYPE) or by --program — give exactly one.
+
+Example: dhis2 data tracker list Person --ou ImspTQPwCqd
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker ls [OPTIONS] TYPE
+$ dhis2 data tracker ls [OPTIONS] [TYPE]
 ```
 
 **Arguments**:
 
-* `TYPE`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27;, &#x27;Patient&#x27;, or &#x27;tet01234567&#x27;.  [required]
+* `[TYPE]`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27; or &#x27;tet01234567&#x27;. Give this OR --program (not both).
 
 **Options**:
 
-* `--program TEXT`: Optional program UID to further scope the listing.
+* `--program TEXT`: Program UID — list the program&#x27;s tracked entities. Alternative to TYPE; DHIS2 rejects a program and a TrackedEntityType together.
 * `--te-uids TEXT`: Comma-separated tracked-entity UIDs to fetch directly.
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--fields TEXT`
-* `--filter TEXT`
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
+* `--filter TEXT`: Attribute filter &#x27;ATTR_UID:op:value&#x27; (repeatable).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`: 1-based page number.
 * `--updated-after TEXT`: ISO-8601 cutoff — only entities updated after this.
@@ -861,26 +874,28 @@ $ dhis2 data tracker ls [OPTIONS] TYPE
 
 #### `dhis2 data tracker list`
 
-List tracked entities of the given TrackedEntityType (name or UID).
+List tracked entities by TrackedEntityType (TYPE) or by --program — give exactly one.
+
+Example: dhis2 data tracker list Person --ou ImspTQPwCqd
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker list [OPTIONS] TYPE
+$ dhis2 data tracker list [OPTIONS] [TYPE]
 ```
 
 **Arguments**:
 
-* `TYPE`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27;, &#x27;Patient&#x27;, or &#x27;tet01234567&#x27;.  [required]
+* `[TYPE]`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27; or &#x27;tet01234567&#x27;. Give this OR --program (not both).
 
 **Options**:
 
-* `--program TEXT`: Optional program UID to further scope the listing.
+* `--program TEXT`: Program UID — list the program&#x27;s tracked entities. Alternative to TYPE; DHIS2 rejects a program and a TrackedEntityType together.
 * `--te-uids TEXT`: Comma-separated tracked-entity UIDs to fetch directly.
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--fields TEXT`
-* `--filter TEXT`
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
+* `--filter TEXT`: Attribute filter &#x27;ATTR_UID:op:value&#x27; (repeatable).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`: 1-based page number.
 * `--updated-after TEXT`: ISO-8601 cutoff — only entities updated after this.
@@ -902,8 +917,8 @@ $ dhis2 data tracker get [OPTIONS] UID
 
 **Options**:
 
-* `--program TEXT`
-* `--fields TEXT`
+* `--program TEXT`: Program UID.
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--help`: Show this message and exit.
 
 #### `dhis2 data tracker type`
@@ -943,6 +958,25 @@ $ dhis2 data tracker push [OPTIONS] FILE
 * `--atomic TEXT`: ALL | OBJECT
 * `--dry-run`
 * `--async`
+* `--help`: Show this message and exit.
+
+#### `dhis2 data tracker delete`
+
+Delete tracked entities by UID (cascades to their enrollments + events).
+
+**Usage**:
+
+```console
+$ dhis2 data tracker delete [OPTIONS] UIDS...
+```
+
+**Arguments**:
+
+* `UIDS...`: Tracked entity UID(s) to delete.  [required]
+
+**Options**:
+
+* `--async`: Return a job reference immediately instead of waiting.
 * `--help`: Show this message and exit.
 
 #### `dhis2 data tracker register`
@@ -1019,6 +1053,7 @@ $ dhis2 data tracker enrollment [OPTIONS] COMMAND [ARGS]...
 
 * `ls`: List enrollments (tracker programs only).
 * `list`: List enrollments (tracker programs only).
+* `delete`: Delete enrollments by UID.
 * `create`: Enroll an existing tracked entity in a...
 
 ##### `dhis2 data tracker enrollment ls`
@@ -1033,12 +1068,12 @@ $ dhis2 data tracker enrollment ls [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--te TEXT`
+* `--program TEXT`: Program UID.
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te TEXT`: TrackedEntity UID.
 * `--status TEXT`: ACTIVE | COMPLETED | CANCELLED
-* `--fields TEXT`
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`
 * `--updated-after TEXT`
@@ -1056,15 +1091,34 @@ $ dhis2 data tracker enrollment list [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--te TEXT`
+* `--program TEXT`: Program UID.
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te TEXT`: TrackedEntity UID.
 * `--status TEXT`: ACTIVE | COMPLETED | CANCELLED
-* `--fields TEXT`
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`
 * `--updated-after TEXT`
+* `--help`: Show this message and exit.
+
+##### `dhis2 data tracker enrollment delete`
+
+Delete enrollments by UID.
+
+**Usage**:
+
+```console
+$ dhis2 data tracker enrollment delete [OPTIONS] UIDS...
+```
+
+**Arguments**:
+
+* `UIDS...`: Enrollment UID(s) to delete.  [required]
+
+**Options**:
+
+* `--async`: Return a job reference immediately instead of waiting.
 * `--help`: Show this message and exit.
 
 ##### `dhis2 data tracker enrollment create`
@@ -1104,13 +1158,16 @@ $ dhis2 data tracker event [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List events (works with both event and...
-* `list`: List events (works with both event and...
+* `ls`: List events (event and tracker programs).
+* `list`: List events (event and tracker programs).
+* `delete`: Delete events by UID.
 * `create`: Add one event — tracker (with enrollment)...
 
 ##### `dhis2 data tracker event ls`
 
-List events (works with both event and tracker programs).
+List events (event and tracker programs). Scope with --program and/or --org-unit.
+
+Example: data tracker event list --program &lt;programUID&gt; --ou &lt;ouUID&gt;
 
 **Usage**:
 
@@ -1120,23 +1177,25 @@ $ dhis2 data tracker event ls [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`
-* `--program-stage TEXT`
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--te TEXT`
-* `--enrollment TEXT`
-* `--status TEXT`
-* `--after TEXT`
-* `--before TEXT`
-* `--fields TEXT`
+* `--program TEXT`: Program UID.
+* `--program-stage TEXT`: ProgramStage UID to narrow to one stage.
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te TEXT`: TrackedEntity UID.
+* `--enrollment TEXT`: Enrollment UID to list its events.
+* `--status TEXT`: Event status: ACTIVE | COMPLETED | VISITED | SCHEDULE | OVERDUE | SKIPPED.
+* `--after TEXT`: Only events on/after this ISO date (YYYY-MM-DD).
+* `--before TEXT`: Only events on/before this ISO date (YYYY-MM-DD).
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`
 * `--help`: Show this message and exit.
 
 ##### `dhis2 data tracker event list`
 
-List events (works with both event and tracker programs).
+List events (event and tracker programs). Scope with --program and/or --org-unit.
+
+Example: data tracker event list --program &lt;programUID&gt; --ou &lt;ouUID&gt;
 
 **Usage**:
 
@@ -1146,18 +1205,37 @@ $ dhis2 data tracker event list [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`
-* `--program-stage TEXT`
-* `--org-unit, --ou TEXT`
-* `--ou-mode TEXT`: [default: DESCENDANTS]
-* `--te TEXT`
-* `--enrollment TEXT`
-* `--status TEXT`
-* `--after TEXT`
-* `--before TEXT`
-* `--fields TEXT`
+* `--program TEXT`: Program UID.
+* `--program-stage TEXT`: ProgramStage UID to narrow to one stage.
+* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
+* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te TEXT`: TrackedEntity UID.
+* `--enrollment TEXT`: Enrollment UID to list its events.
+* `--status TEXT`: Event status: ACTIVE | COMPLETED | VISITED | SCHEDULE | OVERDUE | SKIPPED.
+* `--after TEXT`: Only events on/after this ISO date (YYYY-MM-DD).
+* `--before TEXT`: Only events on/before this ISO date (YYYY-MM-DD).
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`
+* `--help`: Show this message and exit.
+
+##### `dhis2 data tracker event delete`
+
+Delete events by UID.
+
+**Usage**:
+
+```console
+$ dhis2 data tracker event delete [OPTIONS] UIDS...
+```
+
+**Arguments**:
+
+* `UIDS...`: Event UID(s) to delete.  [required]
+
+**Options**:
+
+* `--async`: Return a job reference immediately instead of waiting.
 * `--help`: Show this message and exit.
 
 ##### `dhis2 data tracker event create`
@@ -1217,10 +1295,10 @@ $ dhis2 data tracker relationship ls [OPTIONS]
 
 **Options**:
 
-* `--te TEXT`
-* `--enrollment TEXT`
+* `--te TEXT`: TrackedEntity UID.
+* `--enrollment TEXT`: Enrollment UID to list its events.
 * `--event TEXT`
-* `--fields TEXT`
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--help`: Show this message and exit.
 
@@ -1236,10 +1314,10 @@ $ dhis2 data tracker relationship list [OPTIONS]
 
 **Options**:
 
-* `--te TEXT`
-* `--enrollment TEXT`
+* `--te TEXT`: TrackedEntity UID.
+* `--enrollment TEXT`: Enrollment UID to list its events.
 * `--event TEXT`
-* `--fields TEXT`
+* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--help`: Show this message and exit.
 
@@ -1883,10 +1961,10 @@ $ dhis2 files documents [OPTIONS] COMMAND [ARGS]...
 
 List documents — external URL links and UPLOAD_FILE blobs.
 
-For UPLOAD_FILE docs the backing blob lives in `/api/fileResources/{uid}`
-where `{uid}` is `Document.url` (DHIS2 reuses the `url` field as the FR
-pointer). Pass `--details` to pull each fileResource&#x27;s `contentType`,
-`contentLength`, and `storageStatus` inline.
+Pass `--details` to inline each UPLOAD_FILE&#x27;s fileResource contentType / size /
+storageStatus. NOTE: `/api/documents` does not expose the fileResource UID, so details
+are only available where a document&#x27;s `url` is itself an 11-char UID (older data); for
+filename-style `url`s the detail columns show `-`.
 
 **Usage**:
 
@@ -1906,10 +1984,10 @@ $ dhis2 files documents ls [OPTIONS]
 
 List documents — external URL links and UPLOAD_FILE blobs.
 
-For UPLOAD_FILE docs the backing blob lives in `/api/fileResources/{uid}`
-where `{uid}` is `Document.url` (DHIS2 reuses the `url` field as the FR
-pointer). Pass `--details` to pull each fileResource&#x27;s `contentType`,
-`contentLength`, and `storageStatus` inline.
+Pass `--details` to inline each UPLOAD_FILE&#x27;s fileResource contentType / size /
+storageStatus. NOTE: `/api/documents` does not expose the fileResource UID, so details
+are only available where a document&#x27;s `url` is itself an 11-char UID (older data); for
+filename-style `url`s the detail columns show `-`.
 
 **Usage**:
 
@@ -2998,42 +3076,42 @@ $ dhis2 metadata [OPTIONS] COMMAND [ARGS]...
 * `merge`: Export resources from one profile and...
 * `merge-bundle`: Import a saved bundle file into a target...
 * `type`: Metadata resource types (the catalog).
-* `options`: OptionSet workflows (show / find / sync).
+* `options`: OptionSet workflows (get / find / sync).
 * `attribute`: Cross-resource AttributeValue workflows...
-* `program-rule`: Program rule workflows (show / vars-for /...
-* `sql-view`: SQL view workflows (list / show / execute...
-* `viz`: Visualization authoring (list / show /...
-* `dashboard`: Dashboard composition (list / show /...
-* `map`: Map authoring (list / show / create /...
-* `data-elements`: DataElement authoring (list / show /...
-* `data-element-groups`: DataElementGroup workflows (list / show /...
-* `data-element-group-sets`: DataElementGroupSet workflows (list / show...
-* `indicators`: Indicator authoring (list / show / create...
-* `indicator-groups`: IndicatorGroup workflows (list / show /...
-* `indicator-group-sets`: IndicatorGroupSet workflows (list / show /...
-* `program-indicators`: ProgramIndicator authoring (list / show /...
-* `program-indicator-groups`: ProgramIndicatorGroup workflows (list /...
-* `category-options`: CategoryOption authoring (list / show /...
-* `category-option-groups`: CategoryOptionGroup workflows (list / show...
-* `category-option-group-sets`: CategoryOptionGroupSet workflows (list /...
-* `categories`: Category authoring (list / show / create /...
-* `category-combos`: CategoryCombo authoring (list / show /...
-* `category-option-combos`: CategoryOptionCombo read access (list /...
-* `data-sets`: DataSet authoring (list / show / create /...
-* `sections`: Section authoring (list / show / create /...
-* `validation-rules`: ValidationRule authoring (list / show /...
-* `validation-rule-groups`: ValidationRuleGroup workflows (list / show...
-* `predictors`: Predictor authoring (list / show / create...
-* `predictor-groups`: PredictorGroup workflows (list / show /...
-* `tracked-entity-attributes`: TrackedEntityAttribute authoring (list /...
-* `tracked-entity-types`: TrackedEntityType authoring (list / show /...
-* `programs`: Program authoring (list / show / create /...
-* `program-stages`: ProgramStage authoring (list / show /...
-* `organisation-units`: OrganisationUnit hierarchy workflows (list...
-* `organisation-unit-groups`: OrganisationUnitGroup workflows (list /...
-* `organisation-unit-group-sets`: OrganisationUnitGroupSet workflows (list /...
-* `organisation-unit-levels`: OrganisationUnitLevel naming (list / show...
-* `legend-sets`: LegendSet authoring (list / show / create...
+* `program-rule`: Program rule workflows (get / vars-for /...
+* `sql-view`: SQL view workflows (get / execute /...
+* `viz`: Visualization authoring (get / create /...
+* `dashboard`: Dashboard composition (get / add-item /...
+* `map`: Map authoring (get / create / clone /...
+* `data-elements`: DataElement authoring (get / create /...
+* `data-element-groups`: DataElementGroup workflows (get / members...
+* `data-element-group-sets`: DataElementGroupSet workflows (get /...
+* `indicators`: Indicator authoring (get / create / rename...
+* `indicator-groups`: IndicatorGroup workflows (get / members /...
+* `indicator-group-sets`: IndicatorGroupSet workflows (get / create...
+* `program-indicators`: ProgramIndicator authoring (get / create /...
+* `program-indicator-groups`: ProgramIndicatorGroup workflows (get /...
+* `category-options`: CategoryOption authoring (get / create /...
+* `category-option-groups`: CategoryOptionGroup workflows (get /...
+* `category-option-group-sets`: CategoryOptionGroupSet workflows (get /...
+* `categories`: Category authoring (get / create / rename...
+* `category-combos`: CategoryCombo authoring (get / create /...
+* `category-option-combos`: CategoryOptionCombo read access (get /...
+* `data-sets`: DataSet authoring (get / create / rename /...
+* `sections`: Section authoring (get / create / rename /...
+* `validation-rules`: ValidationRule authoring (get / create /...
+* `validation-rule-groups`: ValidationRuleGroup workflows (get /...
+* `predictors`: Predictor authoring (get / create / rename...
+* `predictor-groups`: PredictorGroup workflows (get / members /...
+* `tracked-entity-attributes`: TrackedEntityAttribute authoring (get /...
+* `tracked-entity-types`: TrackedEntityType authoring (get / create...
+* `programs`: Program authoring (get / create / rename /...
+* `program-stages`: ProgramStage authoring (get / create /...
+* `organisation-units`: OrganisationUnit hierarchy workflows (get...
+* `organisation-unit-groups`: OrganisationUnitGroup workflows (get /...
+* `organisation-unit-group-sets`: OrganisationUnitGroupSet workflows (get /...
+* `organisation-unit-levels`: OrganisationUnitLevel naming (get / rename).
+* `legend-sets`: LegendSet authoring (get / create / clone...
 
 ### `dhis2 metadata ls`
 
@@ -3052,14 +3130,16 @@ $ dhis2 metadata ls [OPTIONS] RESOURCE
 **Options**:
 
 * `--fields TEXT`: DHIS2 field selector: plain (&#x27;id,name&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), nested (&#x27;children&#x27;), or exclusions (&#x27;:all,!lastUpdated&#x27;).  [default: id,name]
-* `--filter TEXT`: Filter in `property:operator:value` form. Repeatable — AND&#x27;d by default, use --root-junction OR to switch.
+* `--filter TEXT`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates), in: (any-of), null / !null (presence); drop the `i` for case-sensitive. Nested paths use dots, e.g. dataSetElements.dataSet.id:eq:&lt;uid&gt; or categoryCombo.id:eq:&lt;uid&gt;. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
 * `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.  [default: AND]
 * `--order TEXT`: Sort clause like &#x27;name:asc&#x27; or &#x27;created:desc&#x27;. Repeatable (later clauses tie-break).
-* `--page INTEGER`: Server-side page number (1-based). Ignored when --all is set.
-* `--page-size INTEGER`: Server-side page size (default 50). Ignored when --all is set.
+* `--page INTEGER`: Server-side page number (1-based). With NO paging flag the FULL collection is returned; passing --page switches to paged mode (pageSize defaults to 50). Ignored when --all is set.
+* `--page-size INTEGER`: Rows per page; applies only in paged mode (when --page/--page-size is given), default 50. Omit all paging flags to get everything. Ignored when --all is set.
 * `--all`: Stream every page server-side (ignores --page/--page-size). Useful for dumping a full catalog.
 * `--translate / --no-translate`: Return server-side translations for i18n fields.
 * `--locale TEXT`: Locale for --translate, e.g. &#x27;fr&#x27;.
+* `--count`: Print only the total number of matching items (DHIS2 pager total), not the rows. Respects --filter; ignores --fields / --page / --page-size / --all.
+* `-o, --output PATH`: Write the result JSON to this file and print a one-line summary instead of the rows. Combine with --fields / --filter / --all to dump a full slice without flooding the caller.
 * `--help`: Show this message and exit.
 
 ### `dhis2 metadata list`
@@ -3079,14 +3159,16 @@ $ dhis2 metadata list [OPTIONS] RESOURCE
 **Options**:
 
 * `--fields TEXT`: DHIS2 field selector: plain (&#x27;id,name&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), nested (&#x27;children&#x27;), or exclusions (&#x27;:all,!lastUpdated&#x27;).  [default: id,name]
-* `--filter TEXT`: Filter in `property:operator:value` form. Repeatable — AND&#x27;d by default, use --root-junction OR to switch.
+* `--filter TEXT`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates), in: (any-of), null / !null (presence); drop the `i` for case-sensitive. Nested paths use dots, e.g. dataSetElements.dataSet.id:eq:&lt;uid&gt; or categoryCombo.id:eq:&lt;uid&gt;. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
 * `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.  [default: AND]
 * `--order TEXT`: Sort clause like &#x27;name:asc&#x27; or &#x27;created:desc&#x27;. Repeatable (later clauses tie-break).
-* `--page INTEGER`: Server-side page number (1-based). Ignored when --all is set.
-* `--page-size INTEGER`: Server-side page size (default 50). Ignored when --all is set.
+* `--page INTEGER`: Server-side page number (1-based). With NO paging flag the FULL collection is returned; passing --page switches to paged mode (pageSize defaults to 50). Ignored when --all is set.
+* `--page-size INTEGER`: Rows per page; applies only in paged mode (when --page/--page-size is given), default 50. Omit all paging flags to get everything. Ignored when --all is set.
 * `--all`: Stream every page server-side (ignores --page/--page-size). Useful for dumping a full catalog.
 * `--translate / --no-translate`: Return server-side translations for i18n fields.
 * `--locale TEXT`: Locale for --translate, e.g. &#x27;fr&#x27;.
+* `--count`: Print only the total number of matching items (DHIS2 pager total), not the rows. Respects --filter; ignores --fields / --page / --page-size / --all.
+* `-o, --output PATH`: Write the result JSON to this file and print a one-line summary instead of the rows. Combine with --fields / --filter / --all to dump a full slice without flooding the caller.
 * `--help`: Show this message and exit.
 
 ### `dhis2 metadata search`
@@ -3203,7 +3285,7 @@ $ dhis2 metadata export [OPTIONS]
 * `--skip-translation`: Exclude translation blocks.
 * `--skip-validation`: Skip validation during export (matches DHIS2&#x27;s server-side option).
 * `--check-references / --no-check-references`: After export, walk the bundle and warn on references to UIDs not in the bundle (e.g. a dataElement&#x27;s categoryCombo missing from a filtered export). On by default.  [default: check-references]
-* `-o, --output PATH`: Write the bundle to this file (JSON). Omit to print to stdout.
+* `-o, --output PATH`: Write the bundle to this file (JSON). A full-catalog export is tens of MB (org-unit geometry) — prefer this; omitting prints the whole bundle to stdout.
 * `--pretty / --no-pretty`: Indent JSON output (default: pretty).  [default: pretty]
 * `--help`: Show this message and exit.
 
@@ -3370,7 +3452,7 @@ $ dhis2 metadata share [OPTIONS] RESOURCE_TYPE [UIDS]...
 
 **Arguments**:
 
-* `RESOURCE_TYPE`: DHIS2 singular resource type as it appears on `/api/sharing?type=` — e.g. `dataSet`, `dataElement`, `program`, `dashboard`.  [required]
+* `RESOURCE_TYPE`: DHIS2 resource type — singular or plural, e.g. `dataElement`/`dataElements`, `dataSet`/`dataSets`, `program`. Normalized to the singular `/api/sharing?type=` form.  [required]
 * `[UIDS]...`: UIDs to share. Pass `-` to read one UID per line from stdin.
 
 **Options**:
@@ -3568,7 +3650,7 @@ $ dhis2 metadata type list [OPTIONS]
 
 ### `dhis2 metadata options`
 
-OptionSet workflows (show / find / sync).
+OptionSet workflows (get / find / sync).
 
 **Usage**:
 
@@ -3584,6 +3666,8 @@ $ dhis2 metadata options [OPTIONS] COMMAND [ARGS]...
 
 * `get`: Show one OptionSet with its options...
 * `find`: Locate a single option inside a set by...
+* `create`: Create an OptionSet (then add its options...
+* `delete`: Delete an OptionSet by UID.
 * `sync`: Idempotently sync an OptionSet to match a...
 * `attribute`: External-system code mapping on Options...
 
@@ -3620,6 +3704,43 @@ $ dhis2 metadata options find [OPTIONS]
 * `--set TEXT`: OptionSet UID or business code.  [required]
 * `--code TEXT`: Business code of the option to locate.
 * `--name TEXT`: Display name of the option (exact match).
+* `--help`: Show this message and exit.
+
+#### `dhis2 metadata options create`
+
+Create an OptionSet (then add its options with `options sync`).
+
+**Usage**:
+
+```console
+$ dhis2 metadata options create [OPTIONS]
+```
+
+**Options**:
+
+* `--name TEXT`: OptionSet name.  [required]
+* `--value-type TEXT`: DHIS2 ValueType, e.g. TEXT / NUMBER / INTEGER.  [required]
+* `--code TEXT`: Business code.
+* `--uid TEXT`: Explicit 11-char UID.
+* `--help`: Show this message and exit.
+
+#### `dhis2 metadata options delete`
+
+Delete an OptionSet by UID.
+
+**Usage**:
+
+```console
+$ dhis2 metadata options delete [OPTIONS] UID
+```
+
+**Arguments**:
+
+* `UID`: OptionSet UID.  [required]
+
+**Options**:
+
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 #### `dhis2 metadata options sync`
@@ -3844,7 +3965,7 @@ $ dhis2 metadata attribute find [OPTIONS] RESOURCE ATTRIBUTE VALUE
 
 ### `dhis2 metadata program-rule`
 
-Program rule workflows (show / vars-for / validate / where-de-is-used).
+Program rule workflows (get / vars-for / validate / where-de-is-used).
 
 **Usage**:
 
@@ -3858,42 +3979,10 @@ $ dhis2 metadata program-rule [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every ProgramRule (optionally scoped...
-* `list`: List every ProgramRule (optionally scoped...
 * `get`: Show one ProgramRule with its condition,...
 * `vars-for`: List every `ProgramRuleVariable` in scope...
 * `validate-expression`: Parse-check a program-rule condition...
 * `where-de-is-used`: Impact analysis — list every rule whose...
-
-#### `dhis2 metadata program-rule ls`
-
-List every ProgramRule (optionally scoped to one program), sorted by priority.
-
-**Usage**:
-
-```console
-$ dhis2 metadata program-rule ls [OPTIONS]
-```
-
-**Options**:
-
-* `--program TEXT`: Program UID; omit to list every rule on the instance.
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata program-rule list`
-
-List every ProgramRule (optionally scoped to one program), sorted by priority.
-
-**Usage**:
-
-```console
-$ dhis2 metadata program-rule list [OPTIONS]
-```
-
-**Options**:
-
-* `--program TEXT`: Program UID; omit to list every rule on the instance.
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata program-rule get`
 
@@ -3983,7 +4072,7 @@ $ dhis2 metadata program-rule where-de-is-used [OPTIONS] DATA_ELEMENT_UID
 
 ### `dhis2 metadata sql-view`
 
-SQL view workflows (list / show / execute / refresh / adhoc).
+SQL view workflows (get / execute / refresh / adhoc).
 
 **Usage**:
 
@@ -3997,42 +4086,10 @@ $ dhis2 metadata sql-view [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every SqlView on the instance, sorted...
-* `list`: List every SqlView on the instance, sorted...
 * `get`: Show one SqlView&#x27;s metadata + its stored...
 * `execute`: Run a SqlView and render its rows as a...
 * `refresh`: Refresh a MATERIALIZED_VIEW or lazily...
 * `adhoc`: Register a throwaway SqlView from a .sql...
-
-#### `dhis2 metadata sql-view ls`
-
-List every SqlView on the instance, sorted by name.
-
-**Usage**:
-
-```console
-$ dhis2 metadata sql-view ls [OPTIONS]
-```
-
-**Options**:
-
-* `--type TEXT`: Filter by SqlViewType: VIEW, MATERIALIZED_VIEW, or QUERY.
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata sql-view list`
-
-List every SqlView on the instance, sorted by name.
-
-**Usage**:
-
-```console
-$ dhis2 metadata sql-view list [OPTIONS]
-```
-
-**Options**:
-
-* `--type TEXT`: Filter by SqlViewType: VIEW, MATERIALIZED_VIEW, or QUERY.
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata sql-view get`
 
@@ -4124,7 +4181,7 @@ $ dhis2 metadata sql-view adhoc [OPTIONS] NAME SQL_PATH
 
 ### `dhis2 metadata viz`
 
-Visualization authoring (list / show / create / clone / delete).
+Visualization authoring (get / create / clone / delete).
 
 **Usage**:
 
@@ -4138,42 +4195,10 @@ $ dhis2 metadata viz [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every Visualization on the instance,...
-* `list`: List every Visualization on the instance,...
 * `get`: Show one Visualization with axes + data...
 * `create`: Create a Visualization from flags — one...
 * `clone`: Clone an existing Visualization with a...
 * `delete`: Delete a Visualization.
-
-#### `dhis2 metadata viz ls`
-
-List every Visualization on the instance, sorted by name.
-
-**Usage**:
-
-```console
-$ dhis2 metadata viz ls [OPTIONS]
-```
-
-**Options**:
-
-* `--type TEXT`: Filter by VisualizationType (LINE / COLUMN / PIVOT_TABLE / SINGLE_VALUE / ...).
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata viz list`
-
-List every Visualization on the instance, sorted by name.
-
-**Usage**:
-
-```console
-$ dhis2 metadata viz list [OPTIONS]
-```
-
-**Options**:
-
-* `--type TEXT`: Filter by VisualizationType (LINE / COLUMN / PIVOT_TABLE / SINGLE_VALUE / ...).
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata viz get`
 
@@ -4265,7 +4290,7 @@ $ dhis2 metadata viz delete [OPTIONS] VIZ_UID
 
 ### `dhis2 metadata dashboard`
 
-Dashboard composition (list / show / add-item / remove-item).
+Dashboard composition (get / add-item / remove-item).
 
 **Usage**:
 
@@ -4279,39 +4304,9 @@ $ dhis2 metadata dashboard [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every Dashboard on the instance,...
-* `list`: List every Dashboard on the instance,...
 * `get`: Show one Dashboard with every...
 * `add-item`: Add a Visualization or Map item to a...
 * `remove-item`: Remove one dashboardItem by its UID.
-
-#### `dhis2 metadata dashboard ls`
-
-List every Dashboard on the instance, sorted by name.
-
-**Usage**:
-
-```console
-$ dhis2 metadata dashboard ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata dashboard list`
-
-List every Dashboard on the instance, sorted by name.
-
-**Usage**:
-
-```console
-$ dhis2 metadata dashboard list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata dashboard get`
 
@@ -4381,7 +4376,7 @@ $ dhis2 metadata dashboard remove-item [OPTIONS] DASHBOARD_UID ITEM_UID
 
 ### `dhis2 metadata map`
 
-Map authoring (list / show / create / clone / delete).
+Map authoring (get / create / clone / delete).
 
 **Usage**:
 
@@ -4395,40 +4390,10 @@ $ dhis2 metadata map [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every Map on the instance, sorted by...
-* `list`: List every Map on the instance, sorted by...
 * `get`: Show one Map with its viewport + every...
 * `create`: Create a single-layer thematic choropleth...
 * `clone`: Clone an existing Map with a fresh UID +...
 * `delete`: Delete a Map.
-
-#### `dhis2 metadata map ls`
-
-List every Map on the instance, sorted by name.
-
-**Usage**:
-
-```console
-$ dhis2 metadata map ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata map list`
-
-List every Map on the instance, sorted by name.
-
-**Usage**:
-
-```console
-$ dhis2 metadata map list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata map get`
 
@@ -4523,7 +4488,7 @@ $ dhis2 metadata map delete [OPTIONS] MAP_UID
 
 ### `dhis2 metadata data-elements`
 
-DataElement authoring (list / show / create / rename / delete + legend-sets).
+DataElement authoring (get / create / rename / delete + legend-sets).
 
 **Usage**:
 
@@ -4537,47 +4502,11 @@ $ dhis2 metadata data-elements [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List DataElements with type + aggregation...
-* `list`: List DataElements with type + aggregation...
 * `get`: Show one DataElement with its references...
 * `create`: Create a DataElement (defaults aggregate +...
 * `rename`: Partial-update the label fields on a...
 * `set-legend-sets`: Replace the legend-set refs on one...
 * `delete`: Delete a DataElement — DHIS2 rejects...
-
-#### `dhis2 metadata data-elements ls`
-
-List DataElements with type + aggregation columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata data-elements ls [OPTIONS]
-```
-
-**Options**:
-
-* `--domain-type TEXT`: Filter to AGGREGATE or TRACKER.
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata data-elements list`
-
-List DataElements with type + aggregation columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata data-elements list [OPTIONS]
-```
-
-**Options**:
-
-* `--domain-type TEXT`: Filter to AGGREGATE or TRACKER.
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata data-elements get`
 
@@ -4686,7 +4615,7 @@ $ dhis2 metadata data-elements delete [OPTIONS] UID
 
 ### `dhis2 metadata data-element-groups`
 
-DataElementGroup workflows (list / show / members / create / add-members / remove-members / delete).
+DataElementGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -4700,42 +4629,12 @@ $ dhis2 metadata data-element-groups [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every DataElementGroup with member...
-* `list`: List every DataElementGroup with member...
 * `get`: Show one group with its member refs and...
 * `members`: Page through DataElements inside one group.
 * `create`: Create an empty DataElementGroup.
 * `add-members`: Add `--data-element` members via the...
 * `remove-members`: Drop `--data-element` members via the...
 * `delete`: Delete the grouping row — member DEs stay.
-
-#### `dhis2 metadata data-element-groups ls`
-
-List every DataElementGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata data-element-groups ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata data-element-groups list`
-
-List every DataElementGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata data-element-groups list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata data-element-groups get`
 
@@ -4853,7 +4752,7 @@ $ dhis2 metadata data-element-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata data-element-group-sets`
 
-DataElementGroupSet workflows (list / show / create / add-groups / remove-groups / delete).
+DataElementGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
@@ -4867,41 +4766,11 @@ $ dhis2 metadata data-element-group-sets [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every DataElementGroupSet with group...
-* `list`: List every DataElementGroupSet with group...
 * `get`: Show one group set with its groups.
 * `create`: Create an empty DataElementGroupSet.
 * `add-groups`: Add `--group` members to a group set.
 * `remove-groups`: Drop `--group` members from a group set.
 * `delete`: Delete a DataElementGroupSet — member...
-
-#### `dhis2 metadata data-element-group-sets ls`
-
-List every DataElementGroupSet with group counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata data-element-group-sets ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata data-element-group-sets list`
-
-List every DataElementGroupSet with group counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata data-element-group-sets list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata data-element-group-sets get`
 
@@ -5001,7 +4870,7 @@ $ dhis2 metadata data-element-group-sets delete [OPTIONS] UID
 
 ### `dhis2 metadata indicators`
 
-Indicator authoring (list / show / create / rename / validate-expression / delete).
+Indicator authoring (get / create / rename / validate-expression / delete).
 
 **Usage**:
 
@@ -5015,46 +4884,12 @@ $ dhis2 metadata indicators [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List Indicators with type + expression...
-* `list`: List Indicators with type + expression...
 * `get`: Show one Indicator with expression pair +...
 * `create`: Create an Indicator from a numerator /...
 * `rename`: Partial-update label fields on an Indicator.
 * `validate-expression`: Parse-check one indicator expression —...
 * `set-legend-sets`: Replace the legend-set refs on one Indicator.
 * `delete`: Delete an Indicator — DHIS2 rejects...
-
-#### `dhis2 metadata indicators ls`
-
-List Indicators with type + expression summary columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata indicators ls [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata indicators list`
-
-List Indicators with type + expression summary columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata indicators list [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata indicators get`
 
@@ -5180,7 +5015,7 @@ $ dhis2 metadata indicators delete [OPTIONS] UID
 
 ### `dhis2 metadata indicator-groups`
 
-IndicatorGroup workflows (list / show / members / create / add-members / remove-members / delete).
+IndicatorGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -5194,42 +5029,12 @@ $ dhis2 metadata indicator-groups [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every IndicatorGroup with member counts.
-* `list`: List every IndicatorGroup with member counts.
 * `get`: Show one group with its member refs.
 * `members`: Page through Indicators inside one group.
 * `create`: Create an empty IndicatorGroup.
 * `add-members`: Add `--indicator` members via the per-item...
 * `remove-members`: Drop `--indicator` members via the...
 * `delete`: Delete the grouping row — member...
-
-#### `dhis2 metadata indicator-groups ls`
-
-List every IndicatorGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata indicator-groups ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata indicator-groups list`
-
-List every IndicatorGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata indicator-groups list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata indicator-groups get`
 
@@ -5347,7 +5152,7 @@ $ dhis2 metadata indicator-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata indicator-group-sets`
 
-IndicatorGroupSet workflows (list / show / create / add-groups / remove-groups / delete).
+IndicatorGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
@@ -5361,41 +5166,11 @@ $ dhis2 metadata indicator-group-sets [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every IndicatorGroupSet with group...
-* `list`: List every IndicatorGroupSet with group...
 * `get`: Show one group set with its groups.
 * `create`: Create an empty IndicatorGroupSet.
 * `add-groups`: Add `--group` members to a group set.
 * `remove-groups`: Drop `--group` members from a group set.
 * `delete`: Delete an IndicatorGroupSet — member...
-
-#### `dhis2 metadata indicator-group-sets ls`
-
-List every IndicatorGroupSet with group counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata indicator-group-sets ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata indicator-group-sets list`
-
-List every IndicatorGroupSet with group counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata indicator-group-sets list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata indicator-group-sets get`
 
@@ -5494,7 +5269,7 @@ $ dhis2 metadata indicator-group-sets delete [OPTIONS] UID
 
 ### `dhis2 metadata program-indicators`
 
-ProgramIndicator authoring (list / show / create / rename / validate-expression / delete).
+ProgramIndicator authoring (get / create / rename / validate-expression / delete).
 
 **Usage**:
 
@@ -5508,48 +5283,12 @@ $ dhis2 metadata program-indicators [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List ProgramIndicators with their program...
-* `list`: List ProgramIndicators with their program...
 * `get`: Show one ProgramIndicator with its...
 * `create`: Create a ProgramIndicator for a given...
 * `rename`: Partial-update label fields on a...
 * `validate-expression`: Parse-check one program-indicator...
 * `set-legend-sets`: Replace the legend-set refs on one...
 * `delete`: Delete a ProgramIndicator — DHIS2 rejects...
-
-#### `dhis2 metadata program-indicators ls`
-
-List ProgramIndicators with their program + analytics-type columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata program-indicators ls [OPTIONS]
-```
-
-**Options**:
-
-* `-p, --program TEXT`: Scope to one program&#x27;s PIs.
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata program-indicators list`
-
-List ProgramIndicators with their program + analytics-type columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata program-indicators list [OPTIONS]
-```
-
-**Options**:
-
-* `-p, --program TEXT`: Scope to one program&#x27;s PIs.
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata program-indicators get`
 
@@ -5674,7 +5413,7 @@ $ dhis2 metadata program-indicators delete [OPTIONS] UID
 
 ### `dhis2 metadata program-indicator-groups`
 
-ProgramIndicatorGroup workflows (list / show / members / create / add-members / remove-members / delete).
+ProgramIndicatorGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -5688,42 +5427,12 @@ $ dhis2 metadata program-indicator-groups [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every ProgramIndicatorGroup with...
-* `list`: List every ProgramIndicatorGroup with...
 * `get`: Show one group with its member refs.
 * `members`: Page through ProgramIndicators inside one...
 * `create`: Create an empty ProgramIndicatorGroup.
 * `add-members`: Add `--program-indicator` members via the...
 * `remove-members`: Drop `--program-indicator` members via the...
 * `delete`: Delete the grouping row — member program...
-
-#### `dhis2 metadata program-indicator-groups ls`
-
-List every ProgramIndicatorGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata program-indicator-groups ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata program-indicator-groups list`
-
-List every ProgramIndicatorGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata program-indicator-groups list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata program-indicator-groups get`
 
@@ -5841,7 +5550,7 @@ $ dhis2 metadata program-indicator-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata category-options`
 
-CategoryOption authoring (list / show / create / rename / set-validity / delete).
+CategoryOption authoring (get / create / rename / set-validity / delete).
 
 **Usage**:
 
@@ -5855,45 +5564,11 @@ $ dhis2 metadata category-options [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List CategoryOptions with their validity...
-* `list`: List CategoryOptions with their validity...
 * `get`: Show one CategoryOption with its...
 * `create`: Create a CategoryOption.
 * `rename`: Partial-update the label fields on a...
 * `set-validity`: Set the `startDate` / `endDate` validity...
 * `delete`: Delete a CategoryOption — DHIS2 rejects...
-
-#### `dhis2 metadata category-options ls`
-
-List CategoryOptions with their validity window columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata category-options ls [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata category-options list`
-
-List CategoryOptions with their validity window columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata category-options list [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata category-options get`
 
@@ -5998,7 +5673,7 @@ $ dhis2 metadata category-options delete [OPTIONS] UID
 
 ### `dhis2 metadata category-option-groups`
 
-CategoryOptionGroup workflows (list / show / members / create / add-members / remove-members / delete).
+CategoryOptionGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -6012,42 +5687,12 @@ $ dhis2 metadata category-option-groups [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every CategoryOptionGroup with member...
-* `list`: List every CategoryOptionGroup with member...
 * `get`: Show one group with its member + group-set...
 * `members`: Page through CategoryOptions inside one...
 * `create`: Create an empty CategoryOptionGroup.
 * `add-members`: Add `--category-option` members via the...
 * `remove-members`: Drop `--category-option` members via the...
 * `delete`: Delete the grouping row — member category...
-
-#### `dhis2 metadata category-option-groups ls`
-
-List every CategoryOptionGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata category-option-groups ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata category-option-groups list`
-
-List every CategoryOptionGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata category-option-groups list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata category-option-groups get`
 
@@ -6166,7 +5811,7 @@ $ dhis2 metadata category-option-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata category-option-group-sets`
 
-CategoryOptionGroupSet workflows (list / show / create / add-groups / remove-groups / delete).
+CategoryOptionGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
@@ -6180,41 +5825,11 @@ $ dhis2 metadata category-option-group-sets [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every CategoryOptionGroupSet.
-* `list`: List every CategoryOptionGroupSet.
 * `get`: Show one group set with its groups.
 * `create`: Create an empty CategoryOptionGroupSet.
 * `add-groups`: Add `--group` members to a group set.
 * `remove-groups`: Drop `--group` members from a group set.
 * `delete`: Delete a CategoryOptionGroupSet — member...
-
-#### `dhis2 metadata category-option-group-sets ls`
-
-List every CategoryOptionGroupSet.
-
-**Usage**:
-
-```console
-$ dhis2 metadata category-option-group-sets ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata category-option-group-sets list`
-
-List every CategoryOptionGroupSet.
-
-**Usage**:
-
-```console
-$ dhis2 metadata category-option-group-sets list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata category-option-group-sets get`
 
@@ -6314,7 +5929,7 @@ $ dhis2 metadata category-option-group-sets delete [OPTIONS] UID
 
 ### `dhis2 metadata categories`
 
-Category authoring (list / show / create / rename / add-option / remove-option / delete).
+Category authoring (get / create / rename / add-option / remove-option / delete).
 
 **Usage**:
 
@@ -6328,46 +5943,12 @@ $ dhis2 metadata categories [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List Categories with their option counts.
-* `list`: List Categories with their option counts.
 * `get`: Show one Category with its options inline.
 * `create`: Create a Category, optionally wiring...
 * `rename`: Partial-update the label fields on a...
 * `add-option`: Append a CategoryOption to this Category&#x27;s...
 * `remove-option`: Remove a CategoryOption from this...
 * `delete`: Delete a Category — DHIS2 rejects deletes...
-
-#### `dhis2 metadata categories ls`
-
-List Categories with their option counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata categories ls [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata categories list`
-
-List Categories with their option counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata categories list [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata categories get`
 
@@ -6488,7 +6069,7 @@ $ dhis2 metadata categories delete [OPTIONS] UID
 
 ### `dhis2 metadata category-combos`
 
-CategoryCombo authoring (list / show / create / rename / add-category / remove-category / wait-for-cocs / delete).
+CategoryCombo authoring (get / create / rename / add-category / remove-category / wait-for-cocs / delete).
 
 **Usage**:
 
@@ -6502,8 +6083,6 @@ $ dhis2 metadata category-combos [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List CategoryCombos with their category +...
-* `list`: List CategoryCombos with their category +...
 * `get`: Show one CategoryCombo with its category +...
 * `create`: Create a CategoryCombo with an ordered...
 * `rename`: Partial-update label fields on a...
@@ -6512,38 +6091,6 @@ $ dhis2 metadata category-combos [OPTIONS] COMMAND [ARGS]...
 * `wait-for-cocs`: Block until the COC matrix on this combo...
 * `delete`: Delete a CategoryCombo — DHIS2 rejects the...
 * `build`: One-pass create-or-reuse for the full...
-
-#### `dhis2 metadata category-combos ls`
-
-List CategoryCombos with their category + materialised-COC counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata category-combos ls [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata category-combos list`
-
-List CategoryCombos with their category + materialised-COC counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata category-combos list [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata category-combos get`
 
@@ -6716,7 +6263,7 @@ $ dhis2 metadata category-combos build [OPTIONS]
 
 ### `dhis2 metadata category-option-combos`
 
-CategoryOptionCombo read access (list / show / list-for-combo). DHIS2 owns writes.
+CategoryOptionCombo read access (get / list-for-combo). DHIS2 owns writes.
 
 **Usage**:
 
@@ -6730,42 +6277,8 @@ $ dhis2 metadata category-option-combos [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: Page through every CategoryOptionCombo...
-* `list`: Page through every CategoryOptionCombo...
 * `get`: Show one CategoryOptionCombo with its...
 * `list-for-combo`: List every CategoryOptionCombo...
-
-#### `dhis2 metadata category-option-combos ls`
-
-Page through every CategoryOptionCombo across every CategoryCombo.
-
-**Usage**:
-
-```console
-$ dhis2 metadata category-option-combos ls [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata category-option-combos list`
-
-Page through every CategoryOptionCombo across every CategoryCombo.
-
-**Usage**:
-
-```console
-$ dhis2 metadata category-option-combos list [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata category-option-combos get`
 
@@ -6805,7 +6318,7 @@ $ dhis2 metadata category-option-combos list-for-combo [OPTIONS] COMBO_UID
 
 ### `dhis2 metadata data-sets`
 
-DataSet authoring (list / show / create / rename / add-element / remove-element / delete).
+DataSet authoring (get / create / rename / add-element / remove-element / delete).
 
 **Usage**:
 
@@ -6819,48 +6332,12 @@ $ dhis2 metadata data-sets [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List DataSets with period type + member...
-* `list`: List DataSets with period type + member...
 * `get`: Show one DataSet with its DSE + section +...
 * `create`: Create a DataSet.
 * `rename`: Partial-update the label fields on a DataSet.
 * `add-element`: Attach a DataElement to the DataSet...
 * `remove-element`: Detach a DataElement from the DataSet.
 * `delete`: Delete a DataSet — DHIS2 rejects deletes...
-
-#### `dhis2 metadata data-sets ls`
-
-List DataSets with period type + member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata data-sets ls [OPTIONS]
-```
-
-**Options**:
-
-* `--period-type TEXT`: Filter by period type (Monthly / Weekly / Daily / …).
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata data-sets list`
-
-List DataSets with period type + member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata data-sets list [OPTIONS]
-```
-
-**Options**:
-
-* `--period-type TEXT`: Filter by period type (Monthly / Weekly / Daily / …).
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata data-sets get`
 
@@ -6987,7 +6464,7 @@ $ dhis2 metadata data-sets delete [OPTIONS] UID
 
 ### `dhis2 metadata sections`
 
-Section authoring (list / show / create / rename / add-element / remove-element / reorder / delete).
+Section authoring (get / create / rename / add-element / remove-element / reorder / delete).
 
 **Usage**:
 
@@ -7001,8 +6478,6 @@ $ dhis2 metadata sections [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List Sections, optionally scoped to a...
-* `list`: List Sections, optionally scoped to a...
 * `get`: Show one Section with its ordered DE list...
 * `create`: Create a Section attached to a DataSet.
 * `rename`: Partial-update the label / sort-order...
@@ -7010,40 +6485,6 @@ $ dhis2 metadata sections [OPTIONS] COMMAND [ARGS]...
 * `remove-element`: Remove a DataElement from the Section...
 * `reorder`: Replace the Section&#x27;s `dataElements` with...
 * `delete`: Delete a Section — DEs stay on the parent...
-
-#### `dhis2 metadata sections ls`
-
-List Sections, optionally scoped to a single DataSet.
-
-**Usage**:
-
-```console
-$ dhis2 metadata sections ls [OPTIONS]
-```
-
-**Options**:
-
-* `-ds, --data-set TEXT`: Narrow to sections in one DataSet.
-* `--page INTEGER`: 1-based page number (ignored with --data-set).  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata sections list`
-
-List Sections, optionally scoped to a single DataSet.
-
-**Usage**:
-
-```console
-$ dhis2 metadata sections list [OPTIONS]
-```
-
-**Options**:
-
-* `-ds, --data-set TEXT`: Narrow to sections in one DataSet.
-* `--page INTEGER`: 1-based page number (ignored with --data-set).  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata sections get`
 
@@ -7187,7 +6628,7 @@ $ dhis2 metadata sections delete [OPTIONS] UID
 
 ### `dhis2 metadata validation-rules`
 
-ValidationRule authoring (list / show / create / rename / delete).
+ValidationRule authoring (get / create / rename / delete).
 
 **Usage**:
 
@@ -7201,46 +6642,10 @@ $ dhis2 metadata validation-rules [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List ValidationRules with their operator +...
-* `list`: List ValidationRules with their operator +...
 * `get`: Show one ValidationRule with both...
 * `create`: Create a ValidationRule.
 * `rename`: Partial-update the label fields on a...
 * `delete`: Delete a ValidationRule — any outstanding...
-
-#### `dhis2 metadata validation-rules ls`
-
-List ValidationRules with their operator + importance columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata validation-rules ls [OPTIONS]
-```
-
-**Options**:
-
-* `--period-type TEXT`: Filter by period type (Monthly / Weekly / …).
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata validation-rules list`
-
-List ValidationRules with their operator + importance columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata validation-rules list [OPTIONS]
-```
-
-**Options**:
-
-* `--period-type TEXT`: Filter by period type (Monthly / Weekly / …).
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata validation-rules get`
 
@@ -7328,7 +6733,7 @@ $ dhis2 metadata validation-rules delete [OPTIONS] UID
 
 ### `dhis2 metadata validation-rule-groups`
 
-ValidationRuleGroup workflows (list / show / members / create / add-members / remove-members / delete).
+ValidationRuleGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -7342,42 +6747,12 @@ $ dhis2 metadata validation-rule-groups [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every ValidationRuleGroup with member...
-* `list`: List every ValidationRuleGroup with member...
 * `get`: Show one group with its rule refs.
 * `members`: Page through ValidationRules inside a group.
 * `create`: Create an empty ValidationRuleGroup.
 * `add-members`: Attach ValidationRules to a group.
 * `remove-members`: Detach ValidationRules from a group.
 * `delete`: Delete a ValidationRuleGroup — member...
-
-#### `dhis2 metadata validation-rule-groups ls`
-
-List every ValidationRuleGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata validation-rule-groups ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata validation-rule-groups list`
-
-List every ValidationRuleGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata validation-rule-groups list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata validation-rule-groups get`
 
@@ -7495,7 +6870,7 @@ $ dhis2 metadata validation-rule-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata predictors`
 
-Predictor authoring (list / show / create / rename / delete).
+Predictor authoring (get / create / rename / delete).
 
 **Usage**:
 
@@ -7509,46 +6884,10 @@ $ dhis2 metadata predictors [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List Predictors with their output DE +...
-* `list`: List Predictors with their output DE +...
 * `get`: Show one Predictor with generator + output...
 * `create`: Create a Predictor.
 * `rename`: Partial-update the label fields on a...
 * `delete`: Delete a Predictor.
-
-#### `dhis2 metadata predictors ls`
-
-List Predictors with their output DE + period columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata predictors ls [OPTIONS]
-```
-
-**Options**:
-
-* `--period-type TEXT`: Filter by period type.
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata predictors list`
-
-List Predictors with their output DE + period columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata predictors list [OPTIONS]
-```
-
-**Options**:
-
-* `--period-type TEXT`: Filter by period type.
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata predictors get`
 
@@ -7636,7 +6975,7 @@ $ dhis2 metadata predictors delete [OPTIONS] UID
 
 ### `dhis2 metadata predictor-groups`
 
-PredictorGroup workflows (list / show / members / create / add-members / remove-members / delete).
+PredictorGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -7650,42 +6989,12 @@ $ dhis2 metadata predictor-groups [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every PredictorGroup.
-* `list`: List every PredictorGroup.
 * `get`: Show one group with its predictor refs.
 * `members`: Page through Predictors in a group.
 * `create`: Create an empty PredictorGroup.
 * `add-members`: Attach Predictors to a group.
 * `remove-members`: Detach Predictors from a group.
 * `delete`: Delete a PredictorGroup — member...
-
-#### `dhis2 metadata predictor-groups ls`
-
-List every PredictorGroup.
-
-**Usage**:
-
-```console
-$ dhis2 metadata predictor-groups ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata predictor-groups list`
-
-List every PredictorGroup.
-
-**Usage**:
-
-```console
-$ dhis2 metadata predictor-groups list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata predictor-groups get`
 
@@ -7803,7 +7112,7 @@ $ dhis2 metadata predictor-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata tracked-entity-attributes`
 
-TrackedEntityAttribute authoring (list / show / create / rename / delete).
+TrackedEntityAttribute authoring (get / create / rename / delete).
 
 **Usage**:
 
@@ -7817,46 +7126,10 @@ $ dhis2 metadata tracked-entity-attributes [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List TrackedEntityAttributes with their...
-* `list`: List TrackedEntityAttributes with their...
 * `get`: Show one TrackedEntityAttribute with its...
 * `create`: Create a TrackedEntityAttribute.
 * `rename`: Partial-update the label fields on a...
 * `delete`: Delete a TrackedEntityAttribute — DHIS2...
-
-#### `dhis2 metadata tracked-entity-attributes ls`
-
-List TrackedEntityAttributes with their valueType + unique/generated toggles.
-
-**Usage**:
-
-```console
-$ dhis2 metadata tracked-entity-attributes ls [OPTIONS]
-```
-
-**Options**:
-
-* `--value-type TEXT`: Filter by valueType (TEXT / NUMBER / DATE / …).
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata tracked-entity-attributes list`
-
-List TrackedEntityAttributes with their valueType + unique/generated toggles.
-
-**Usage**:
-
-```console
-$ dhis2 metadata tracked-entity-attributes list [OPTIONS]
-```
-
-**Options**:
-
-* `--value-type TEXT`: Filter by valueType (TEXT / NUMBER / DATE / …).
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata tracked-entity-attributes get`
 
@@ -7951,7 +7224,7 @@ $ dhis2 metadata tracked-entity-attributes delete [OPTIONS] UID
 
 ### `dhis2 metadata tracked-entity-types`
 
-TrackedEntityType authoring (list / show / create / rename / add-attribute / remove-attribute / delete).
+TrackedEntityType authoring (get / create / rename / add-attribute / remove-attribute / delete).
 
 **Usage**:
 
@@ -7965,46 +7238,12 @@ $ dhis2 metadata tracked-entity-types [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List TrackedEntityTypes with...
-* `list`: List TrackedEntityTypes with...
 * `get`: Show one TrackedEntityType with its...
 * `create`: Create a TrackedEntityType.
 * `rename`: Partial-update the label fields on a...
 * `add-attribute`: Attach a TrackedEntityAttribute to a...
 * `remove-attribute`: Detach a TrackedEntityAttribute from a...
 * `delete`: Delete a TrackedEntityType — DHIS2 rejects...
-
-#### `dhis2 metadata tracked-entity-types ls`
-
-List TrackedEntityTypes with attribute-count column.
-
-**Usage**:
-
-```console
-$ dhis2 metadata tracked-entity-types ls [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata tracked-entity-types list`
-
-List TrackedEntityTypes with attribute-count column.
-
-**Usage**:
-
-```console
-$ dhis2 metadata tracked-entity-types list [OPTIONS]
-```
-
-**Options**:
-
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata tracked-entity-types get`
 
@@ -8132,7 +7371,7 @@ $ dhis2 metadata tracked-entity-types delete [OPTIONS] UID
 
 ### `dhis2 metadata programs`
 
-Program authoring (list / show / create / rename / add-attribute / remove-attribute / add-to-ou / remove-from-ou / delete).
+Program authoring (get / create / rename / add-attribute / remove-attribute / add-to-ou / remove-from-ou / delete).
 
 **Usage**:
 
@@ -8146,8 +7385,6 @@ $ dhis2 metadata programs [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List Programs with their programType +...
-* `list`: List Programs with their programType +...
 * `get`: Show one Program with counts inline.
 * `create`: Create a Program.
 * `rename`: Partial-update the label fields on a Program.
@@ -8156,40 +7393,6 @@ $ dhis2 metadata programs [OPTIONS] COMMAND [ARGS]...
 * `add-to-ou`: Scope the Program to another...
 * `remove-from-ou`: Drop an OrganisationUnit from the...
 * `delete`: Delete a Program — DHIS2 rejects deletes...
-
-#### `dhis2 metadata programs ls`
-
-List Programs with their programType + stage counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata programs ls [OPTIONS]
-```
-
-**Options**:
-
-* `--program-type TEXT`: Filter by WITH_REGISTRATION or WITHOUT_REGISTRATION.
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata programs list`
-
-List Programs with their programType + stage counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata programs list [OPTIONS]
-```
-
-**Options**:
-
-* `--program-type TEXT`: Filter by WITH_REGISTRATION or WITHOUT_REGISTRATION.
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata programs get`
 
@@ -8366,7 +7569,7 @@ $ dhis2 metadata programs delete [OPTIONS] UID
 
 ### `dhis2 metadata program-stages`
 
-ProgramStage authoring (list / show / create / rename / add-element / remove-element / reorder / delete).
+ProgramStage authoring (get / create / rename / add-element / remove-element / reorder / delete).
 
 **Usage**:
 
@@ -8380,8 +7583,6 @@ $ dhis2 metadata program-stages [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List ProgramStages with sort-order +...
-* `list`: List ProgramStages with sort-order +...
 * `get`: Show one ProgramStage with its PSDE list...
 * `create`: Create a ProgramStage under `--program`.
 * `rename`: Partial-update the label fields on a...
@@ -8389,40 +7590,6 @@ $ dhis2 metadata program-stages [OPTIONS] COMMAND [ARGS]...
 * `remove-element`: Detach a DataElement from the ProgramStage.
 * `reorder`: Replace the ProgramStage&#x27;s PSDE list with...
 * `delete`: Delete a ProgramStage — DHIS2 rejects...
-
-#### `dhis2 metadata program-stages ls`
-
-List ProgramStages with sort-order + PSDE-count columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata program-stages ls [OPTIONS]
-```
-
-**Options**:
-
-* `-p, --program TEXT`: Filter to stages belonging to one Program UID.
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata program-stages list`
-
-List ProgramStages with sort-order + PSDE-count columns.
-
-**Usage**:
-
-```console
-$ dhis2 metadata program-stages list [OPTIONS]
-```
-
-**Options**:
-
-* `-p, --program TEXT`: Filter to stages belonging to one Program UID.
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata program-stages get`
 
@@ -8577,7 +7744,7 @@ $ dhis2 metadata program-stages delete [OPTIONS] UID
 
 ### `dhis2 metadata organisation-units`
 
-OrganisationUnit hierarchy workflows (list / show / tree / create / move / delete).
+OrganisationUnit hierarchy workflows (get / tree / create / move / delete).
 
 **Usage**:
 
@@ -8591,55 +7758,11 @@ $ dhis2 metadata organisation-units [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List organisation units with parent +...
-* `list`: List organisation units with parent +...
 * `get`: Show one OU with parent + core hierarchy...
 * `tree`: Render a bounded-depth subtree indented by...
 * `create`: Create a child OU under `parent_uid`.
 * `move`: Reparent an OU.
 * `delete`: Delete an OU.
-
-#### `dhis2 metadata organisation-units ls`
-
-List organisation units with parent + hierarchy columns.
-
-Server-side paged so large trees don&#x27;t stream into memory at once.
-Combine with `--level N` to sweep a single rung (&quot;every district&quot;,
-&quot;every facility&quot;).
-
-**Usage**:
-
-```console
-$ dhis2 metadata organisation-units ls [OPTIONS]
-```
-
-**Options**:
-
-* `--level INTEGER`: Filter by hierarchy level (1 = roots).
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata organisation-units list`
-
-List organisation units with parent + hierarchy columns.
-
-Server-side paged so large trees don&#x27;t stream into memory at once.
-Combine with `--level N` to sweep a single rung (&quot;every district&quot;,
-&quot;every facility&quot;).
-
-**Usage**:
-
-```console
-$ dhis2 metadata organisation-units list [OPTIONS]
-```
-
-**Options**:
-
-* `--level INTEGER`: Filter by hierarchy level (1 = roots).
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata organisation-units get`
 
@@ -8742,7 +7865,7 @@ $ dhis2 metadata organisation-units delete [OPTIONS] UID
 
 ### `dhis2 metadata organisation-unit-groups`
 
-OrganisationUnitGroup workflows (list / show / members / create / add-members / remove-members / delete).
+OrganisationUnitGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
@@ -8756,42 +7879,12 @@ $ dhis2 metadata organisation-unit-groups [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every OrganisationUnitGroup with...
-* `list`: List every OrganisationUnitGroup with...
 * `get`: Show one group with its member refs and...
 * `members`: Page through the OUs inside one group.
 * `create`: Create an empty OrganisationUnitGroup.
 * `add-members`: Add `--ou` members to a group via the...
 * `remove-members`: Drop `--ou` members from a group via the...
 * `delete`: Delete an OrganisationUnitGroup — members...
-
-#### `dhis2 metadata organisation-unit-groups ls`
-
-List every OrganisationUnitGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata organisation-unit-groups ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata organisation-unit-groups list`
-
-List every OrganisationUnitGroup with member counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata organisation-unit-groups list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata organisation-unit-groups get`
 
@@ -8910,7 +8003,7 @@ $ dhis2 metadata organisation-unit-groups delete [OPTIONS] UID
 
 ### `dhis2 metadata organisation-unit-group-sets`
 
-OrganisationUnitGroupSet workflows (list / show / create / add-groups / remove-groups / delete).
+OrganisationUnitGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
@@ -8924,41 +8017,11 @@ $ dhis2 metadata organisation-unit-group-sets [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every OrganisationUnitGroupSet with...
-* `list`: List every OrganisationUnitGroupSet with...
 * `get`: Show one group set with its groups +...
 * `create`: Create an empty OrganisationUnitGroupSet.
 * `add-groups`: Add `--group` members to a group set.
 * `remove-groups`: Drop `--group` members from a group set.
 * `delete`: Delete an OrganisationUnitGroupSet —...
-
-#### `dhis2 metadata organisation-unit-group-sets ls`
-
-List every OrganisationUnitGroupSet with group counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata organisation-unit-group-sets ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata organisation-unit-group-sets list`
-
-List every OrganisationUnitGroupSet with group counts.
-
-**Usage**:
-
-```console
-$ dhis2 metadata organisation-unit-group-sets list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata organisation-unit-group-sets get`
 
@@ -9058,7 +8121,7 @@ $ dhis2 metadata organisation-unit-group-sets delete [OPTIONS] UID
 
 ### `dhis2 metadata organisation-unit-levels`
 
-OrganisationUnitLevel naming (list / show / rename).
+OrganisationUnitLevel naming (get / rename).
 
 **Usage**:
 
@@ -9072,38 +8135,8 @@ $ dhis2 metadata organisation-unit-levels [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every OrganisationUnitLevel sorted by...
-* `list`: List every OrganisationUnitLevel sorted by...
 * `get`: Show one level row — by UID (default) or...
 * `rename`: Give a level a human label — turns &#x27;level...
-
-#### `dhis2 metadata organisation-unit-levels ls`
-
-List every OrganisationUnitLevel sorted by depth (roots first).
-
-**Usage**:
-
-```console
-$ dhis2 metadata organisation-unit-levels ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata organisation-unit-levels list`
-
-List every OrganisationUnitLevel sorted by depth (roots first).
-
-**Usage**:
-
-```console
-$ dhis2 metadata organisation-unit-levels list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata organisation-unit-levels get`
 
@@ -9148,7 +8181,7 @@ $ dhis2 metadata organisation-unit-levels rename [OPTIONS] UID
 
 ### `dhis2 metadata legend-sets`
 
-LegendSet authoring (list / show / create / clone / delete).
+LegendSet authoring (get / create / clone / delete).
 
 **Usage**:
 
@@ -9162,40 +8195,10 @@ $ dhis2 metadata legend-sets [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `ls`: List every LegendSet with its legend count.
-* `list`: List every LegendSet with its legend count.
 * `get`: Show one LegendSet with its ordered...
 * `create`: Create a LegendSet with ordered...
 * `clone`: Duplicate an existing LegendSet with the...
 * `delete`: Delete a LegendSet.
-
-#### `dhis2 metadata legend-sets ls`
-
-List every LegendSet with its legend count.
-
-**Usage**:
-
-```console
-$ dhis2 metadata legend-sets ls [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 metadata legend-sets list`
-
-List every LegendSet with its legend count.
-
-**Usage**:
-
-```console
-$ dhis2 metadata legend-sets list [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
 
 #### `dhis2 metadata legend-sets get`
 
@@ -9681,12 +8684,11 @@ $ dhis2 route get [OPTIONS] ROUTE
 
 Create a route via POST /api/routes.
 
-With `--file`: pass a full JSON spec (advanced — see BUGS.md for the DHIS2 schema).
+With `--file`: a full JSON spec. Omit `auth` (or set it to null) for no upstream auth.
 
-Without `--file`: guided wizard. Prompts for code, name, url, then asks which
-upstream auth type to use. Secrets (basic password, bearer token, header/query
-value, OAuth2 client_secret) never come in via argv — they&#x27;re read from env
-(`DHIS2_ROUTE_UPSTREAM_*`) or at the hidden-input prompt.
+Flag form: pass --code/--name/--url. Add --no-auth for an unauthenticated route (required
+when not running in a TTY — the auth wizard needs interactive input). Secrets never come via
+argv — they&#x27;re read from env (`DHIS2_ROUTE_UPSTREAM_*`) or hidden prompts in the wizard.
 
 **Usage**:
 
@@ -9701,6 +8703,7 @@ $ dhis2 route create [OPTIONS]
 * `--name TEXT`
 * `--url TEXT`: Target URL the route proxies to.
 * `--authorities TEXT`: Comma-separated DHIS2 authorities allowed to run this route.
+* `--no-auth`: Create an unauthenticated route (skip the auth wizard) — for headless/bridge use.
 * `--help`: Show this message and exit.
 
 ### `dhis2 route update`
@@ -10048,6 +9051,8 @@ $ dhis2 user-group [OPTIONS] COMMAND [ARGS]...
 * `ls`: List user groups.
 * `list`: List user groups.
 * `get`: Fetch one user group by UID.
+* `create`: Create a user group (then add members with...
+* `delete`: Delete a user group by UID.
 * `add-member`: Add a user to a group (POST...
 * `remove-member`: Remove a user from a group (DELETE...
 * `sharing-get`: Print the current sharing block for one...
@@ -10106,6 +9111,42 @@ $ dhis2 user-group get [OPTIONS] UID
 **Options**:
 
 * `--fields TEXT`: DHIS2 field selector.
+* `--help`: Show this message and exit.
+
+### `dhis2 user-group create`
+
+Create a user group (then add members with `add-member`).
+
+**Usage**:
+
+```console
+$ dhis2 user-group create [OPTIONS]
+```
+
+**Options**:
+
+* `--name TEXT`: User-group name.  [required]
+* `--code TEXT`: Business code.
+* `--uid TEXT`: Explicit 11-char UID.
+* `--help`: Show this message and exit.
+
+### `dhis2 user-group delete`
+
+Delete a user group by UID.
+
+**Usage**:
+
+```console
+$ dhis2 user-group delete [OPTIONS] UID
+```
+
+**Arguments**:
+
+* `UID`: User-group UID.  [required]
+
+**Options**:
+
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 ### `dhis2 user-group add-member`

@@ -17,7 +17,7 @@ ROOT_UID=ImspTQPwCqd
 # ---------------------------------------------------------------------------
 
 # Top-level roots — level 1 on every instance is the country root(s).
-dhis2 metadata organisation-units list --level 1
+dhis2 metadata list organisationUnits --filter level:eq:1
 
 # Walk a bounded-depth subtree. Indentation mirrors hierarchyLevel.
 dhis2 metadata organisation-units tree "$ROOT_UID" --max-depth 2 | head -40 || true
@@ -29,7 +29,7 @@ dhis2 metadata organisation-units get "$ROOT_UID"
 # Levels — give every depth a human label
 # ---------------------------------------------------------------------------
 
-dhis2 metadata organisation-unit-levels list
+dhis2 metadata list organisationUnitLevels
 
 # `--by-level` resolves the numeric depth to the underlying UID row so
 # "level 2" is a stable handle across instances.
@@ -39,7 +39,7 @@ dhis2 metadata organisation-unit-levels rename 2 --by-level --name "Province"
 # Groups — CXw2yu5fodb is the "Public" seeded group
 # ---------------------------------------------------------------------------
 
-dhis2 metadata organisation-unit-groups list | head -10 || true
+dhis2 metadata list organisationUnitGroups | head -10 || true
 dhis2 metadata organisation-unit-groups get CXw2yu5fodb
 dhis2 metadata organisation-unit-groups members CXw2yu5fodb --page-size 5
 
@@ -47,7 +47,7 @@ dhis2 metadata organisation-unit-groups members CXw2yu5fodb --page-size 5
 # Group sets — Bpx0589u8y0 is "Facility Ownership" (seeded)
 # ---------------------------------------------------------------------------
 
-dhis2 metadata organisation-unit-group-sets list | head -10 || true
+dhis2 metadata list organisationUnitGroupSets | head -10 || true
 dhis2 metadata organisation-unit-group-sets get Bpx0589u8y0
 
 # ---------------------------------------------------------------------------

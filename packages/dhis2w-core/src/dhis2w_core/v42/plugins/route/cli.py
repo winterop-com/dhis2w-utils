@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -18,6 +19,7 @@ from dhis2w_client.v42.auth_schemes import (
     HttpBasicAuthScheme,
     OAuth2ClientCredentialsAuthScheme,
 )
+from pydantic import ValidationError
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import (
@@ -216,19 +218,50 @@ def create_command(
         str | None,
         typer.Option("--authorities", help="Comma-separated DHIS2 authorities allowed to run this route."),
     ] = None,
+    no_auth: Annotated[
+        bool,
+        typer.Option(
+            "--no-auth", help="Create an unauthenticated route (skip the auth wizard) — for headless/bridge use."
+        ),
+    ] = False,
 ) -> None:
     """Create a route via POST /api/routes.
 
-    With `--file`: pass a full JSON spec (advanced — see BUGS.md for the DHIS2 schema).
+    With `--file`: a full JSON spec. Omit `auth` (or set it to null) for no upstream auth.
 
-    Without `--file`: guided wizard. Prompts for code, name, url, then asks which
-    upstream auth type to use. Secrets (basic password, bearer token, header/query
-    value, OAuth2 client_secret) never come in via argv — they're read from env
-    (`DHIS2_ROUTE_UPSTREAM_*`) or at the hidden-input prompt.
+    Flag form: pass --code/--name/--url. Add --no-auth for an unauthenticated route (required
+    when not running in a TTY — the auth wizard needs interactive input). Secrets never come via
+    argv — they're read from env (`DHIS2_ROUTE_UPSTREAM_*`) or hidden prompts in the wizard.
     """
     if file is not None:
-        payload = RoutePayload.model_validate(json.loads(file.read_text(encoding="utf-8")))
+        raw = json.loads(file.read_text(encoding="utf-8"))
+        if isinstance(raw, dict) and isinstance(raw.get("auth"), dict) and raw["auth"].get("type") in (None, "none"):
+            raw.pop("auth")  # the auth union has no `none` variant — omit it for an unauthenticated route
+        try:
+            payload = RoutePayload.model_validate(raw)
+        except ValidationError as exc:
+            errs = exc.errors()
+            if errs:
+                loc = ".".join(str(p) for p in errs[0]["loc"])
+                detail = f"{loc}: {errs[0]['msg']}"
+            else:
+                detail = str(exc)
+            typer.secho(
+                f"error: invalid route spec ({exc.error_count()} error(s)): {detail}",
+                err=True,
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(2) from exc
     else:
+        interactive = sys.stdin.isatty()
+        missing = [flag for flag, val in (("--code", code), ("--name", name), ("--url", url)) if not val]
+        if missing and not interactive:
+            typer.secho(
+                f"error: {', '.join(missing)} required (or use --file) when not running interactively",
+                err=True,
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(2)
         if not code:
             code = typer.prompt("Route code (stable identifier)")
         if not name:
@@ -236,13 +269,18 @@ def create_command(
         if not url:
             url = typer.prompt("Target URL")
         parsed_authorities = [a.strip() for a in authorities.split(",") if a.strip()] if authorities else None
-        payload = RoutePayload(
-            code=code,
-            name=name,
-            url=url,
-            authorities=parsed_authorities,
-            auth=_prompt_auth(),
-        )
+        if no_auth:
+            auth = None
+        elif interactive:
+            auth = _prompt_auth()
+        else:
+            auth = None
+            typer.secho(
+                "note: no --no-auth and not a TTY — creating an unauthenticated route (use --file for upstream auth).",
+                err=True,
+                fg=typer.colors.YELLOW,
+            )
+        payload = RoutePayload(code=code, name=name, url=url, authorities=parsed_authorities, auth=auth)
     response = asyncio.run(service.add_route(profile_from_env(), payload))
     render_webmessage(response, action="created")
 

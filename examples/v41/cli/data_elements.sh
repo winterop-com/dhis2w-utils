@@ -13,9 +13,9 @@ set -euo pipefail
 # List + show
 # ---------------------------------------------------------------------------
 
-dhis2 metadata data-elements ls --domain-type AGGREGATE --page-size 5 | head -14 || true
-dhis2 metadata data-element-groups ls | head -10 || true
-dhis2 metadata data-element-group-sets ls | head -10 || true
+dhis2 metadata list dataElements --filter domainType:eq:AGGREGATE --page-size 5 | head -14 || true
+dhis2 metadata list dataElementGroups | head -10 || true
+dhis2 metadata list dataElementGroupSets | head -10 || true
 
 # ---------------------------------------------------------------------------
 # Create a throwaway aggregate DE, attach to a group, roll through the

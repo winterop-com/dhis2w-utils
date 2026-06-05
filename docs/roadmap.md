@@ -125,6 +125,24 @@ Optional `ProgramStageSection` grouping (rarely used in practice) is still unaut
 - `Local OIDC` login-page button is non-functional for browser clicks (CLI-only `redirect_url`); no per-provider "hide from login UI" flag in DHIS2 v42 — documented in `docs/architecture/auth.md`.
 - Bearer-to-JSESSIONID path for browser workflows on OIDC profiles is unverified (flagged in `authenticated_session` docstring).
 
+### Metadata listing consolidation
+
+Listing collapsed onto one surface — generic `metadata list <type>` + the `metadata_list` MCP tool (see the 2026-06-04 decisions-log entry). Three follow-ups remain:
+
+- **Re-expose type-specific list filters + curated columns.** The dropped typed lists had ergonomic filters (`--domain-type`, `--program-type`, `--period-type`, viz `--type`, …) and resource-aware columns. They currently round-trip through the generic `--filter <prop>:<op>:<value>` DSL. Design how to surface the common ones on the canonical command/tool (named convenience flags? a per-resource filter registry?) before migrating docs/examples, so the rewrites aren't redone.
+- **Guard the `/api/metadata?<resource>=true` bundle export against giant payloads.** For organisation units this can embed geojson geometry and balloon to a size that can overload the server. Needs a size/field guard (or a refusal with a `--fields` hint) on `metadata export`; warrants a `BUGS.md` entry once characterized with a repro.
+- **Migrate docs/examples** still referencing the removed typed lists (~42 `examples/v{41,42,43}/cli/*.sh`, ~19 doc pages incl. the MCP tutorial and `architecture/conventions.md` naming examples).
+
+### Small-model bridge: CLI read-surface follow-ups
+
+Surfaced by the `dhis2w-mcp-bridge` gap probes (small local models driving the CLI). Shipped: camelCase discovery + did-you-mean, `type list --json`, `show`→`get` help, the rewritten `dhis2_cli` docstring (incl. `search`/`usage`/field-presets/nested-filters/export-warning + a WRITES primer), single-string-arg tolerance, paging help, `--filter` nested/`in`/`null` help, read-only allowlist for `metadata usage`/`export`, the analytics/tracker/aggregate help-text fills, the tracker `--program` fix, malformed-UID pre-validation on `metadata get` (BUGS #42), relationship mutators + deletes honor `--json`, headless `route create` (`--no-auth` + clean ValidationError), `files documents list --details` (no more filename-as-FR-UID), and `metadata share` accepting the plural type. See `docs/notes/small-model-bridge.md` + `docs/notes/bridge-verification.md`. Remaining:
+
+- **Removed typed `list` discoverability** — point `metadata <subapp> list`/`show` at `metadata list <type>` / `get` (hidden redirect commands or epilog).
+- ~~**Missing authoring verbs: `optionSets` + `userGroups` `create`/`delete`**~~ Shipped: `metadata options create/delete` + `user-group create/delete` (build the schema, POST via `resources.<accessor>.create`, return a typed WebMessageResponse). v41/v42/v43 + tests + examples.
+- ~~**Inline tracker delete**~~ Shipped: `data tracker delete` / `event delete` / `enrollment delete` via `delete_tracker_objects` (minimal bundle + importStrategy=DELETE). v41/v42/v43 + tests + examples.
+- **Removed typed `list` discoverability** — point `metadata <subapp> list`/`show` at `metadata list <type>` / `get` (hidden redirect commands or epilog).
+- **`data aggregate get` is keyed by dataSet, `set` by dataElement** — can't verify a write with the same key; consider a `--de` filter on `get`.
+
 ## Near-term plan (next 3–5 PRs)
 
 Latest cycle closed the **category-dimension strategic option** (Category #205, CategoryCombo + read-only CategoryOptionCombo #208, the one-pass `CategoryComboBuilder` create-or-reuse helper #209) plus the smaller `metadata merge-bundle` verb (#206). With every authoring path on the main workflow now covered, the codegen emitters fully regen-stable, and bulk verbs (rename / retag / share) shipped on top of `patch_bulk` / `apply_sharing_bulk`, the obvious tactical sweep is complete.

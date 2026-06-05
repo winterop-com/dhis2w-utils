@@ -64,23 +64,40 @@ def _attr_value(entity: Any, attribute_uid: str) -> str | None:
 @app.command("ls", hidden=True)
 def list_command(
     type: Annotated[
-        str,
+        str | None,
         typer.Argument(
-            help="TrackedEntityType name (case-insensitive) or UID — e.g. 'Person', 'Patient', or 'tet01234567'.",
+            help="TrackedEntityType name (case-insensitive) or UID — e.g. 'Person' or 'tet01234567'. "
+            "Give this OR --program (not both).",
         ),
-    ],
+    ] = None,
     program: Annotated[
         str | None,
-        typer.Option("--program", help="Optional program UID to further scope the listing."),
+        typer.Option(
+            "--program",
+            help="Program UID — list the program's tracked entities. Alternative to TYPE; "
+            "DHIS2 rejects a program and a TrackedEntityType together.",
+        ),
     ] = None,
     tracked_entities: Annotated[
         str | None,
         typer.Option("--te-uids", help="Comma-separated tracked-entity UIDs to fetch directly."),
     ] = None,
-    org_unit: Annotated[str | None, typer.Option("--org-unit", "--ou")] = None,
-    ou_mode: Annotated[str, typer.Option("--ou-mode")] = "DESCENDANTS",
-    fields: Annotated[str | None, typer.Option("--fields")] = None,
-    filter: Annotated[str | None, typer.Option("--filter")] = None,
+    org_unit: Annotated[
+        str | None, typer.Option("--org-unit", "--ou", help="OrganisationUnit UID to scope the listing.")
+    ] = None,
+    ou_mode: Annotated[
+        str,
+        typer.Option(
+            "--ou-mode",
+            help="Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).",
+        ),
+    ] = "DESCENDANTS",
+    fields: Annotated[
+        str | None, typer.Option("--fields", help="DHIS2 field selector (comma-separated; nest with []).")
+    ] = None,
+    filter: Annotated[
+        str | None, typer.Option("--filter", help="Attribute filter 'ATTR_UID:op:value' (repeatable).")
+    ] = None,
     page_size: Annotated[int, typer.Option("--page-size")] = 50,
     page: Annotated[int | None, typer.Option("--page", help="1-based page number.")] = None,
     updated_after: Annotated[
@@ -88,12 +105,22 @@ def list_command(
         typer.Option("--updated-after", help="ISO-8601 cutoff — only entities updated after this."),
     ] = None,
 ) -> None:
-    """List tracked entities of the given TrackedEntityType (name or UID)."""
-    try:
-        tet_uid = asyncio.run(service.resolve_tracked_entity_type(profile_from_env(), type))
-    except ValueError as exc:
-        typer.secho(f"error: {exc}", err=True, fg=typer.colors.RED)
-        raise typer.Exit(1) from exc
+    """List tracked entities by TrackedEntityType (TYPE) or by --program — give exactly one.
+
+    Example: dhis2 data tracker list Person --ou ImspTQPwCqd
+    """
+    if (type is None) == (program is None):
+        typer.secho(
+            "error: give either a TrackedEntityType (TYPE) or --program, not both", err=True, fg=typer.colors.RED
+        )
+        raise typer.Exit(2)
+    tet_uid: str | None = None
+    if type is not None:
+        try:
+            tet_uid = asyncio.run(service.resolve_tracked_entity_type(profile_from_env(), type))
+        except ValueError as exc:
+            typer.secho(f"error: {exc}", err=True, fg=typer.colors.RED)
+            raise typer.Exit(1) from exc
     entities = asyncio.run(
         service.list_tracked_entities(
             profile_from_env(),
@@ -114,7 +141,7 @@ def list_command(
         return
     rows = [e.model_dump(by_alias=True, exclude_none=True, mode="json") for e in entities]
     render_list(
-        f"tracked entities (type={type})",
+        f"tracked entities ({'program=' + program if program else 'type=' + str(type)})",
         rows,
         [
             ColumnSpec("id", "trackedEntity", style="cyan", no_wrap=True),
@@ -129,8 +156,10 @@ def list_command(
 @app.command("get")
 def get_command(
     uid: Annotated[str, typer.Argument(help="Tracked entity UID.")],
-    program: Annotated[str | None, typer.Option("--program")] = None,
-    fields: Annotated[str | None, typer.Option("--fields")] = None,
+    program: Annotated[str | None, typer.Option("--program", help="Program UID.")] = None,
+    fields: Annotated[
+        str | None, typer.Option("--fields", help="DHIS2 field selector (comma-separated; nest with []).")
+    ] = None,
 ) -> None:
     """Fetch one tracked entity by UID (TrackedEntityType inferred from the entity)."""
     entity = asyncio.run(service.get_tracked_entity(profile_from_env(), uid, program=program, fields=fields))
@@ -157,12 +186,22 @@ def get_command(
 @enrollment_app.command("list")
 @enrollment_app.command("ls", hidden=True)
 def enrollment_list_command(
-    program: Annotated[str | None, typer.Option("--program")] = None,
-    org_unit: Annotated[str | None, typer.Option("--org-unit", "--ou")] = None,
-    ou_mode: Annotated[str, typer.Option("--ou-mode")] = "DESCENDANTS",
-    tracked_entity: Annotated[str | None, typer.Option("--te")] = None,
+    program: Annotated[str | None, typer.Option("--program", help="Program UID.")] = None,
+    org_unit: Annotated[
+        str | None, typer.Option("--org-unit", "--ou", help="OrganisationUnit UID to scope the listing.")
+    ] = None,
+    ou_mode: Annotated[
+        str,
+        typer.Option(
+            "--ou-mode",
+            help="Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).",
+        ),
+    ] = "DESCENDANTS",
+    tracked_entity: Annotated[str | None, typer.Option("--te", help="TrackedEntity UID.")] = None,
     status: Annotated[str | None, typer.Option("--status", help="ACTIVE | COMPLETED | CANCELLED")] = None,
-    fields: Annotated[str | None, typer.Option("--fields")] = None,
+    fields: Annotated[
+        str | None, typer.Option("--fields", help="DHIS2 field selector (comma-separated; nest with []).")
+    ] = None,
     page_size: Annotated[int, typer.Option("--page-size")] = 50,
     page: Annotated[int | None, typer.Option("--page")] = None,
     updated_after: Annotated[str | None, typer.Option("--updated-after")] = None,
@@ -202,20 +241,42 @@ def enrollment_list_command(
 @event_app.command("list")
 @event_app.command("ls", hidden=True)
 def event_list_command(
-    program: Annotated[str | None, typer.Option("--program")] = None,
-    program_stage: Annotated[str | None, typer.Option("--program-stage")] = None,
-    org_unit: Annotated[str | None, typer.Option("--org-unit", "--ou")] = None,
-    ou_mode: Annotated[str, typer.Option("--ou-mode")] = "DESCENDANTS",
-    tracked_entity: Annotated[str | None, typer.Option("--te")] = None,
-    enrollment: Annotated[str | None, typer.Option("--enrollment")] = None,
-    status: Annotated[str | None, typer.Option("--status")] = None,
-    occurred_after: Annotated[str | None, typer.Option("--after")] = None,
-    occurred_before: Annotated[str | None, typer.Option("--before")] = None,
-    fields: Annotated[str | None, typer.Option("--fields")] = None,
+    program: Annotated[str | None, typer.Option("--program", help="Program UID.")] = None,
+    program_stage: Annotated[
+        str | None, typer.Option("--program-stage", help="ProgramStage UID to narrow to one stage.")
+    ] = None,
+    org_unit: Annotated[
+        str | None, typer.Option("--org-unit", "--ou", help="OrganisationUnit UID to scope the listing.")
+    ] = None,
+    ou_mode: Annotated[
+        str,
+        typer.Option(
+            "--ou-mode",
+            help="Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).",
+        ),
+    ] = "DESCENDANTS",
+    tracked_entity: Annotated[str | None, typer.Option("--te", help="TrackedEntity UID.")] = None,
+    enrollment: Annotated[str | None, typer.Option("--enrollment", help="Enrollment UID to list its events.")] = None,
+    status: Annotated[
+        str | None,
+        typer.Option("--status", help="Event status: ACTIVE | COMPLETED | VISITED | SCHEDULE | OVERDUE | SKIPPED."),
+    ] = None,
+    occurred_after: Annotated[
+        str | None, typer.Option("--after", help="Only events on/after this ISO date (YYYY-MM-DD).")
+    ] = None,
+    occurred_before: Annotated[
+        str | None, typer.Option("--before", help="Only events on/before this ISO date (YYYY-MM-DD).")
+    ] = None,
+    fields: Annotated[
+        str | None, typer.Option("--fields", help="DHIS2 field selector (comma-separated; nest with []).")
+    ] = None,
     page_size: Annotated[int, typer.Option("--page-size")] = 50,
     page: Annotated[int | None, typer.Option("--page")] = None,
 ) -> None:
-    """List events (works with both event and tracker programs)."""
+    """List events (event and tracker programs). Scope with --program and/or --org-unit.
+
+    Example: data tracker event list --program <programUID> --ou <ouUID>
+    """
     events = asyncio.run(
         service.list_events(
             profile_from_env(),
@@ -255,10 +316,12 @@ def event_list_command(
 @relationship_app.command("list")
 @relationship_app.command("ls", hidden=True)
 def relationship_list_command(
-    tracked_entity: Annotated[str | None, typer.Option("--te")] = None,
-    enrollment: Annotated[str | None, typer.Option("--enrollment")] = None,
+    tracked_entity: Annotated[str | None, typer.Option("--te", help="TrackedEntity UID.")] = None,
+    enrollment: Annotated[str | None, typer.Option("--enrollment", help="Enrollment UID to list its events.")] = None,
     event: Annotated[str | None, typer.Option("--event")] = None,
-    fields: Annotated[str | None, typer.Option("--fields")] = None,
+    fields: Annotated[
+        str | None, typer.Option("--fields", help="DHIS2 field selector (comma-separated; nest with []).")
+    ] = None,
     page_size: Annotated[int, typer.Option("--page-size")] = 50,
 ) -> None:
     """List relationships (one of --te/--enrollment/--event required)."""
@@ -351,6 +414,54 @@ def push_command(
         )
     )
     render_webmessage(response, action="pushed")
+
+
+@app.command("delete")
+def delete_command(
+    uids: Annotated[list[str], typer.Argument(help="Tracked entity UID(s) to delete.")],
+    async_mode: Annotated[
+        bool, typer.Option("--async", help="Return a job reference immediately instead of waiting.")
+    ] = False,
+) -> None:
+    """Delete tracked entities by UID (cascades to their enrollments + events)."""
+    from dhis2w_core.v42.cli_output import render_webmessage
+
+    response = asyncio.run(
+        service.delete_tracker_objects(profile_from_env(), kind="trackedEntities", uids=uids, async_mode=async_mode)
+    )
+    render_webmessage(response, action="deleted")
+
+
+@event_app.command("delete")
+def event_delete_command(
+    uids: Annotated[list[str], typer.Argument(help="Event UID(s) to delete.")],
+    async_mode: Annotated[
+        bool, typer.Option("--async", help="Return a job reference immediately instead of waiting.")
+    ] = False,
+) -> None:
+    """Delete events by UID."""
+    from dhis2w_core.v42.cli_output import render_webmessage
+
+    response = asyncio.run(
+        service.delete_tracker_objects(profile_from_env(), kind="events", uids=uids, async_mode=async_mode)
+    )
+    render_webmessage(response, action="deleted")
+
+
+@enrollment_app.command("delete")
+def enrollment_delete_command(
+    uids: Annotated[list[str], typer.Argument(help="Enrollment UID(s) to delete.")],
+    async_mode: Annotated[
+        bool, typer.Option("--async", help="Return a job reference immediately instead of waiting.")
+    ] = False,
+) -> None:
+    """Delete enrollments by UID."""
+    from dhis2w_core.v42.cli_output import render_webmessage
+
+    response = asyncio.run(
+        service.delete_tracker_objects(profile_from_env(), kind="enrollments", uids=uids, async_mode=async_mode)
+    )
+    render_webmessage(response, action="deleted")
 
 
 def _parse_kv(values: list[str], *, flag_name: str) -> dict[str, str]:

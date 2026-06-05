@@ -5,19 +5,19 @@
 set -euo pipefail
 
 # Read paths.
-dhis2 metadata category-combos list --page-size 5
-CC_UID=$(dhis2 --json metadata category-combos list --page-size 1 | jq -r '.[0].id')
+dhis2 metadata list categoryCombos --page-size 5
+CC_UID=$(dhis2 --json metadata list categoryCombos --page-size 1 | jq -r '.[0].id')
 [ -n "$CC_UID" ] && dhis2 metadata category-combos get "$CC_UID"
 
 # Read the materialised matrix for one combo.
-dhis2 metadata category-option-combos list-for-combo "$CC_UID"
+dhis2 metadata list categoryOptionCombos-for-combo "$CC_UID"
 
 # Authoring (commented — running creates real metadata).
 # Pick two categories with N and M options. Their cross-product is N*M
 # CategoryOptionCombos; we wait for the matrix to land before doing
 # anything that depends on it (data-element creation, viz pivot, ...).
 #
-# CAT_UIDS=$(dhis2 --json metadata categories list --page-size 2 | jq -r '.[].id' | xargs)
+# CAT_UIDS=$(dhis2 --json metadata list categories --page-size 2 | jq -r '.[].id' | xargs)
 # read -ra CAT_ARR <<<"$CAT_UIDS"
 # CC_NEW=$(dhis2 metadata category-combos create \
 #     --name "DemoCombo" \

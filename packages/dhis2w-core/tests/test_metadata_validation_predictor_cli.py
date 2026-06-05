@@ -87,18 +87,6 @@ def _predictor_group() -> PredictorGroup:
 # ---- validation-rules list / create / delete --------------------------------
 
 
-def test_validation_rules_list_renders_operator_column(pat_profile: None) -> None:  # noqa: ARG001
-    """Validation rules list renders operator column."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_validation_rules",
-        new=AsyncMock(return_value=[_validation_rule()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "validation-rules", "list"])
-    assert result.exit_code == 0, result.output
-    assert "BCG gt zero" in result.output
-    assert "greater_than" in result.output
-
-
 def test_validation_rules_create_forwards_flags(pat_profile: None) -> None:  # noqa: ARG001
     """Validation rules create forwards flags."""
     mock = AsyncMock(return_value=_validation_rule())
@@ -148,17 +136,6 @@ def test_validation_rules_delete_skips_confirm_with_yes(pat_profile: None) -> No
 # ---- validation-rule-groups -------------------------------------------------
 
 
-def test_validation_rule_groups_list_renders_member_count(pat_profile: None) -> None:  # noqa: ARG001
-    """Validation rule groups list renders member count."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_validation_rule_groups",
-        new=AsyncMock(return_value=[_validation_rule_group()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "validation-rule-groups", "list"])
-    assert result.exit_code == 0, result.output
-    assert "BCG rules" in result.output
-
-
 def test_validation_rule_groups_add_members_forwards_repeated_flag(pat_profile: None) -> None:  # noqa: ARG001
     """Validation rule groups add members forwards repeated flag."""
     mock = AsyncMock(return_value=_validation_rule_group())
@@ -182,18 +159,6 @@ def test_validation_rule_groups_add_members_forwards_repeated_flag(pat_profile: 
 
 
 # ---- predictors list / create / delete -------------------------------------
-
-
-def test_predictors_list_renders_output_column(pat_profile: None) -> None:  # noqa: ARG001
-    """Predictors list renders output column."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_predictors",
-        new=AsyncMock(return_value=[_predictor()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "predictors", "list"])
-    assert result.exit_code == 0, result.output
-    assert "BCG 3m rolling" in result.output
-    assert "deOutput0001" in result.output
 
 
 def test_predictors_create_forwards_every_flag(pat_profile: None) -> None:  # noqa: ARG001
@@ -240,17 +205,6 @@ def test_predictors_delete_skips_confirm_with_yes(pat_profile: None) -> None:  #
 
 
 # ---- predictor-groups -------------------------------------------------------
-
-
-def test_predictor_groups_list_renders_members_column(pat_profile: None) -> None:  # noqa: ARG001
-    """Predictor groups list renders members column."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_predictor_groups",
-        new=AsyncMock(return_value=[_predictor_group()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "predictor-groups", "list"])
-    assert result.exit_code == 0, result.output
-    assert "BCG predictors" in result.output
 
 
 def test_predictor_groups_add_members_forwards_repeated_flag(pat_profile: None) -> None:  # noqa: ARG001

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -60,10 +61,10 @@ def documents_list_command(
 ) -> None:
     """List documents — external URL links and UPLOAD_FILE blobs.
 
-    For UPLOAD_FILE docs the backing blob lives in `/api/fileResources/{uid}`
-    where `{uid}` is `Document.url` (DHIS2 reuses the `url` field as the FR
-    pointer). Pass `--details` to pull each fileResource's `contentType`,
-    `contentLength`, and `storageStatus` inline.
+    Pass `--details` to inline each UPLOAD_FILE's fileResource contentType / size /
+    storageStatus. NOTE: `/api/documents` does not expose the fileResource UID, so details
+    are only available where a document's `url` is itself an 11-char UID (older data); for
+    filename-style `url`s the detail columns show `-`.
     """
     docs = asyncio.run(
         service.list_documents(profile_from_env(), filter=filter_expr, page=page, page_size=page_size),
@@ -77,7 +78,11 @@ def documents_list_command(
 
     fr_index: dict[str, Any] = {}
     if details:
-        fr_uids = [doc.url for doc in docs if not doc.external and doc.url]
+        fr_uids = [
+            doc.url
+            for doc in docs
+            if not doc.external and doc.url and re.fullmatch(r"[A-Za-z][A-Za-z0-9]{10}", doc.url)
+        ]
         fr_index = asyncio.run(service.get_file_resources_bulk(profile_from_env(), fr_uids))
 
     table = Table(title=f"DHIS2 documents ({len(docs)})")
@@ -92,8 +97,6 @@ def documents_list_command(
     for doc in docs:
         kind = "[blue]EXTERNAL_URL[/blue]" if doc.external else "[green]UPLOAD_FILE[/green]"
         target = doc.url or "-"
-        if not doc.external and doc.url:
-            target = f"fileResource [cyan]{doc.url}[/cyan]"
         row = [doc.id or "", kind, doc.name or "", target]
         if details:
             fr = fr_index.get(doc.url or "") if not doc.external else None

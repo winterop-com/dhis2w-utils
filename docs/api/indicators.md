@@ -50,7 +50,7 @@ Every `create` defaults `annualized=False`; flip to `True` for rate-per-year ind
 ## CLI
 
 ```bash
-dhis2 metadata indicators list
+dhis2 metadata list indicators
 dhis2 metadata indicators validate-expression "#{s46m5MS0hxu}"
 dhis2 metadata indicators create \
     --name "BCG coverage" --short-name "BCG cov" \

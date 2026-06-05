@@ -59,31 +59,6 @@ def _section() -> Section:
 # ---- data-sets list / show / create / rename / add-element / remove-element / delete ----
 
 
-def test_data_sets_list_renders_period_type_column(pat_profile: None) -> None:  # noqa: ARG001
-    """Data sets list renders period type column."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_data_sets",
-        new=AsyncMock(return_value=[_data_set()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "data-sets", "list"])
-    assert result.exit_code == 0, result.output
-    assert "ANC Monthly" in result.output
-    assert "Monthly" in result.output
-
-
-def test_data_sets_list_forwards_period_filter(pat_profile: None) -> None:  # noqa: ARG001
-    """Data sets list forwards period filter."""
-    mock = AsyncMock(return_value=[])
-    with patch("dhis2w_core.v42.plugins.metadata.service.list_data_sets", new=mock):
-        result = CliRunner().invoke(
-            build_app(),
-            ["metadata", "data-sets", "list", "--period-type", "Weekly"],
-        )
-    assert result.exit_code == 0, result.output
-    assert mock.await_args is not None
-    assert mock.await_args.kwargs["period_type"] == "Weekly"
-
-
 def test_data_sets_show_renders_counts(pat_profile: None) -> None:  # noqa: ARG001
     """Data sets show renders counts."""
     with patch(
@@ -179,20 +154,6 @@ def test_data_sets_delete_skips_confirm_with_yes(pat_profile: None) -> None:  # 
 
 
 # ---- sections list / show / create / add-element / reorder / delete -----------
-
-
-def test_sections_list_narrows_to_data_set(pat_profile: None) -> None:  # noqa: ARG001
-    """Sections list narrows to data set."""
-    mock = AsyncMock(return_value=[_section()])
-    with patch("dhis2w_core.v42.plugins.metadata.service.list_sections", new=mock):
-        result = CliRunner().invoke(
-            build_app(),
-            ["metadata", "sections", "list", "--data-set", "DS_PROBE001"],
-        )
-    assert result.exit_code == 0, result.output
-    assert "Stock" in result.output
-    assert mock.await_args is not None
-    assert mock.await_args.kwargs["data_set_uid"] == "DS_PROBE001"
 
 
 def test_sections_create_seeds_data_elements(pat_profile: None) -> None:  # noqa: ARG001

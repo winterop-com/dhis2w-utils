@@ -60,18 +60,6 @@ def _tet() -> TrackedEntityType:
 # ---- tracked-entity-attributes ---------------------------------------------
 
 
-def test_tea_list_renders_value_type_column(pat_profile: None) -> None:  # noqa: ARG001
-    """Tea list renders value type column."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_tracked_entity_attributes",
-        new=AsyncMock(return_value=[_tea()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "tracked-entity-attributes", "list"])
-    assert result.exit_code == 0, result.output
-    assert "National ID" in result.output
-    assert "TEXT" in result.output
-
-
 def test_tea_create_forwards_flags(pat_profile: None) -> None:  # noqa: ARG001
     """Tea create forwards flags."""
     mock = AsyncMock(return_value=_tea())
@@ -117,18 +105,6 @@ def test_tea_delete_skips_confirm_with_yes(pat_profile: None) -> None:  # noqa: 
 
 
 # ---- tracked-entity-types --------------------------------------------------
-
-
-def test_tet_list_renders_attributes_count(pat_profile: None) -> None:  # noqa: ARG001
-    """Tet list renders attributes count."""
-    with patch(
-        "dhis2w_core.v42.plugins.metadata.service.list_tracked_entity_types",
-        new=AsyncMock(return_value=[_tet()]),
-    ):
-        result = CliRunner().invoke(build_app(), ["metadata", "tracked-entity-types", "list"])
-    assert result.exit_code == 0, result.output
-    assert "Person" in result.output
-    assert "NONE" in result.output
 
 
 def test_tet_create_forwards_every_flag(pat_profile: None) -> None:  # noqa: ARG001

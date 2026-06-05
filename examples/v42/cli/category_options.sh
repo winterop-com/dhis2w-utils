@@ -15,9 +15,9 @@ set -euo pipefail
 # List + show
 # ---------------------------------------------------------------------------
 
-dhis2 metadata category-options ls --page-size 3 | head -10 || true
-dhis2 metadata category-option-groups ls | head -10 || true
-dhis2 metadata category-option-group-sets ls | head -10 || true
+dhis2 metadata list categoryOptions --page-size 3 | head -10 || true
+dhis2 metadata list categoryOptionGroups | head -10 || true
+dhis2 metadata list categoryOptionGroupSets | head -10 || true
 
 # ---------------------------------------------------------------------------
 # Create a throw-away CO with a 2024 validity window, attach to a

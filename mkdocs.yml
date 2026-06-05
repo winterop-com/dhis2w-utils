@@ -158,6 +158,7 @@ nav:
   - MCP:
       - Introduction: mcp/index.md
       - Tutorial: mcp/tutorial.md
+      - CLI bridge (local models): mcp/bridge.md
       - Architecture: architecture/mcp.md
       - Reference: mcp-reference.md
 

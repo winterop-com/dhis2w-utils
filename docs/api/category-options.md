@@ -42,7 +42,7 @@ Pass `None` on either side of `set_validity_window` to clear that bound — DHIS
 ## CLI
 
 ```bash
-dhis2 metadata category-options list
+dhis2 metadata list categoryOptions
 dhis2 metadata category-options create \
     --name "CY2024" --short-name "CY2024" \
     --start-date 2024-01-01 --end-date 2024-12-31

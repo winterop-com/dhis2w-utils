@@ -17,9 +17,9 @@ BCG_DE=s46m5MS0hxu           # BCG doses given — seeded DE
 # List + show
 # ---------------------------------------------------------------------------
 
-dhis2 metadata indicators ls --page-size 3 | head -10 || true
-dhis2 metadata indicator-groups ls | head -10 || true
-dhis2 metadata indicator-group-sets ls | head -10 || true
+dhis2 metadata list indicators --page-size 3 | head -10 || true
+dhis2 metadata list indicatorGroups | head -10 || true
+dhis2 metadata list indicatorGroupSets | head -10 || true
 
 # ---------------------------------------------------------------------------
 # Validate an expression before creating (typos catch early instead of

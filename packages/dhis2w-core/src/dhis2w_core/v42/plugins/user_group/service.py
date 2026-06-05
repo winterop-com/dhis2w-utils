@@ -9,7 +9,7 @@ Sharing edits go through the typed `apply_sharing` helper.
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
 from dhis2w_client.generated.v42.oas import UserGroup
 from dhis2w_client.v42 import (
@@ -54,6 +54,30 @@ async def get_user_group(profile: Profile, uid: str, *, fields: str | None = Non
     async with open_client(profile) as client:
         group = await client.resources.user_groups.get(uid, fields=fields)
     return cast(UserGroup, group)
+
+
+async def create_user_group(
+    profile: Profile,
+    *,
+    name: str,
+    code: str | None = None,
+    uid: str | None = None,
+) -> WebMessageResponse:
+    """Create a UserGroup; returns the import-summary (new UID in response.uid)."""
+    payload: dict[str, Any] = {"name": name}
+    if code:
+        payload["code"] = code
+    if uid:
+        payload["id"] = uid
+    async with open_client(profile) as client:
+        result = await client.resources.user_groups.create(UserGroup.model_validate(payload))
+        return WebMessageResponse.model_validate(result)
+
+
+async def delete_user_group(profile: Profile, uid: str) -> None:
+    """Delete a UserGroup by UID."""
+    async with open_client(profile) as client:
+        await client.resources.user_groups.delete(uid)
 
 
 async def add_member(profile: Profile, group_uid: str, user_uid: str) -> WebMessageResponse:

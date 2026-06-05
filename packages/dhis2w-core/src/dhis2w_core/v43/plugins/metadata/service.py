@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 from collections.abc import AsyncIterator, Mapping, Sequence
@@ -80,8 +81,19 @@ def _attr_name(resource: str) -> str:
 
 
 def _resource_names(resources: object) -> list[str]:
-    """List the Resources attribute names that map to real metadata types."""
-    return sorted(name for name in dir(resources) if not name.startswith("_"))
+    """List the DHIS2 wire (camelCase) resource names this client exposes.
+
+    Reads each accessor's `_path` (`/api/<wireName>`) so discovery output matches the
+    camelCase names the docs and `metadata list <resource>` expect, not snake_case attrs.
+    """
+    names: list[str] = []
+    for attr in dir(resources):
+        if attr.startswith("_"):
+            continue
+        path = getattr(getattr(resources, attr, None), "_path", None)
+        if isinstance(path, str) and path.startswith("/api/"):
+            names.append(path.removeprefix("/api/"))
+    return sorted(names)
 
 
 async def list_resource_types(profile: Profile) -> list[str]:
@@ -117,6 +129,14 @@ async def list_metadata(
     full catalog in one response; for memory-friendly streaming use
     `iter_metadata`.
     """
+    # organisationUnitLevels: the convenience accessor synthesises the unnamed levels DHIS2 omits,
+    # so an unfiltered list returns the COMPLETE hierarchy (matching the removed typed
+    # `organisation-unit-levels list`). Filtered/paged queries fall through to the generic path.
+    if _attr_name(resource) == "organisation_unit_levels" and not filters and page is None and page_size is None:
+        async with open_client(profile) as client:
+            ou_levels: list[BaseModel] = []
+            ou_levels.extend(await client.organisation_unit_levels.list_with_gaps())
+            return ou_levels
     async with open_client(profile) as client:
         accessor = _resolve_accessor(client.resources, resource)
         models: list[BaseModel] = await accessor.list(
@@ -131,6 +151,36 @@ async def list_metadata(
             locale=locale,
         )
         return models
+
+
+async def count_metadata(
+    profile: Profile,
+    resource: str,
+    *,
+    filters: list[str] | None = None,
+    root_junction: str | None = None,
+) -> int:
+    """Return the total number of matching instances of a metadata resource (DHIS2 `pager.total`).
+
+    Issues a single paged request (`pageSize=1`, `fields=id`) and reads the
+    pager total, so counting is one cheap round-trip regardless of how many
+    objects exist — no need to fetch every row. `filters` narrows the count the
+    same way it narrows `list_metadata`.
+    """
+    async with open_client(profile) as client:
+        accessor = _resolve_accessor(client.resources, resource)
+        raw = await accessor.list_raw(
+            fields="id",
+            filters=filters,
+            root_junction=root_junction,
+            page=1,
+            page_size=1,
+            paging=True,
+        )
+    total = raw.get("pager", {}).get("total") if isinstance(raw, dict) else None
+    if not isinstance(total, int):
+        raise UnknownResourceError(f"DHIS2 returned no pager total for resource {resource!r}; cannot count")
+    return total
 
 
 async def iter_metadata(
@@ -972,9 +1022,11 @@ def _resolve_accessor(resources: object, resource: str) -> Any:
     accessor = getattr(resources, attr, None)
     if accessor is None:
         available = _resource_names(resources)
+        suggestions = difflib.get_close_matches(resource, available, n=3, cutoff=0.6)
+        hint = f" did you mean {' or '.join(repr(s) for s in suggestions)}?" if suggestions else ""
         raise UnknownResourceError(
-            f"unknown metadata resource {resource!r} (tried attribute {attr!r}); "
-            f"this instance exposes {len(available)} types — call `list_resource_types` to see them"
+            f"unknown metadata resource {resource!r} (tried attribute {attr!r});{hint} "
+            f"this instance exposes {len(available)} types — run `dhis2 metadata type list` to see them"
         )
     return accessor
 
@@ -1015,6 +1067,33 @@ async def show_option_set(profile: Profile, uid_or_code: str) -> Any:
             )
             return OptionSet.model_validate(raw)
         return await client.option_sets.get_by_code(uid_or_code)
+
+
+async def create_option_set(
+    profile: Profile,
+    *,
+    name: str,
+    value_type: str,
+    code: str | None = None,
+    uid: str | None = None,
+) -> WebMessageResponse:
+    """Create an OptionSet (name + valueType); returns the import-summary (new UID in response.uid)."""
+    from dhis2w_client.generated.v43.schemas import OptionSet  # noqa: PLC0415
+
+    payload: dict[str, Any] = {"name": name, "valueType": value_type}
+    if code:
+        payload["code"] = code
+    if uid:
+        payload["id"] = uid
+    async with open_client(profile) as client:
+        result = await client.resources.option_sets.create(OptionSet.model_validate(payload))
+        return WebMessageResponse.model_validate(result)
+
+
+async def delete_option_set(profile: Profile, uid: str) -> None:
+    """Delete an OptionSet by UID."""
+    async with open_client(profile) as client:
+        await client.resources.option_sets.delete(uid)
 
 
 async def find_option_in_set(
@@ -1154,12 +1233,6 @@ async def show_program_rule(profile: Profile, rule_uid: str) -> Any:
         return await client.program_rules.get_rule(rule_uid)
 
 
-async def list_program_rules(profile: Profile, program_uid: str | None = None) -> list[Any]:
-    """List every ProgramRule (optionally scoped to a program) sorted by priority."""
-    async with open_client(profile) as client:
-        return await client.program_rules.list_rules(program_uid=program_uid)
-
-
 async def list_program_rule_variables(profile: Profile, program_uid: str) -> list[Any]:
     """List every `ProgramRuleVariable` in scope for a program."""
     async with open_client(profile) as client:
@@ -1186,12 +1259,6 @@ async def program_rules_using_data_element(profile: Profile, data_element_uid: s
     """Impact analysis: every ProgramRule whose actions reference the DE."""
     async with open_client(profile) as client:
         return await client.program_rules.where_de_is_used(data_element_uid)
-
-
-async def list_sql_views(profile: Profile, view_type: str | None = None) -> list[Any]:
-    """List every SqlView (optionally filtered by type), sorted by name."""
-    async with open_client(profile) as client:
-        return await client.sql_views.list_views(view_type=view_type)
 
 
 async def show_sql_view(profile: Profile, view_uid: str) -> Any:
@@ -1237,12 +1304,6 @@ async def adhoc_sql_view(
             keep=keep,
             **kwargs,
         )
-
-
-async def list_visualizations(profile: Profile, viz_type: str | None = None) -> list[Any]:
-    """List every Visualization (optionally filtered by type), sorted by name."""
-    async with open_client(profile) as client:
-        return await client.visualizations.list_all(viz_type=viz_type)
 
 
 async def show_visualization(profile: Profile, viz_uid: str) -> Any:
@@ -1365,12 +1426,6 @@ async def dashboard_remove_item(profile: Profile, dashboard_uid: str, item_uid: 
         return await client.dashboards.remove_item(dashboard_uid, item_uid)
 
 
-async def list_maps(profile: Profile) -> list[Any]:
-    """List every Map on the instance, sorted by name."""
-    async with open_client(profile) as client:
-        return await client.maps.list_all()
-
-
 async def show_map(profile: Profile, map_uid: str) -> Any:
     """Fetch one Map with every mapViews layer resolved inline."""
     async with open_client(profile) as client:
@@ -1450,18 +1505,6 @@ async def delete_map(profile: Profile, map_uid: str) -> None:
 # ---------------------------------------------------------------------------
 # DataElement workflows — `dhis2 metadata data-elements ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_data_elements(
-    profile: Profile,
-    *,
-    domain_type: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[DataElement]:
-    """Page through DataElements optionally narrowed to one domain."""
-    async with open_client(profile) as client:
-        return await client.data_elements.list_all(domain_type=domain_type, page=page, page_size=page_size)
 
 
 async def show_data_element(profile: Profile, uid: str) -> DataElement:
@@ -1548,12 +1591,6 @@ async def delete_data_element(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def list_data_element_groups(profile: Profile) -> list[DataElementGroup]:
-    """List every DataElementGroup."""
-    async with open_client(profile) as client:
-        return await client.data_element_groups.list_all()
-
-
 async def show_data_element_group(profile: Profile, uid: str) -> DataElementGroup:
     """Fetch one group with member + group-set refs inline."""
     async with open_client(profile) as client:
@@ -1625,12 +1662,6 @@ async def delete_data_element_group(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def list_data_element_group_sets(profile: Profile) -> list[DataElementGroupSet]:
-    """List every DataElementGroupSet."""
-    async with open_client(profile) as client:
-        return await client.data_element_group_sets.list_all()
-
-
 async def show_data_element_group_set(profile: Profile, uid: str) -> DataElementGroupSet:
     """Fetch one group set by UID."""
     async with open_client(profile) as client:
@@ -1692,17 +1723,6 @@ async def delete_data_element_group_set(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # Indicator workflows — `dhis2 metadata indicators ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_indicators(
-    profile: Profile,
-    *,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[Indicator]:
-    """Page through Indicators."""
-    async with open_client(profile) as client:
-        return await client.indicators.list_all(page=page, page_size=page_size)
 
 
 async def show_indicator(profile: Profile, uid: str) -> Indicator:
@@ -1788,12 +1808,6 @@ async def delete_indicator(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def list_indicator_groups(profile: Profile) -> list[IndicatorGroup]:
-    """List every IndicatorGroup."""
-    async with open_client(profile) as client:
-        return await client.indicator_groups.list_all()
-
-
 async def show_indicator_group(profile: Profile, uid: str) -> IndicatorGroup:
     """Fetch one group with member + group-set refs."""
     async with open_client(profile) as client:
@@ -1865,12 +1879,6 @@ async def delete_indicator_group(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def list_indicator_group_sets(profile: Profile) -> list[IndicatorGroupSet]:
-    """List every IndicatorGroupSet."""
-    async with open_client(profile) as client:
-        return await client.indicator_group_sets.list_all()
-
-
 async def show_indicator_group_set(profile: Profile, uid: str) -> IndicatorGroupSet:
     """Fetch one group set by UID."""
     async with open_client(profile) as client:
@@ -1930,18 +1938,6 @@ async def delete_indicator_group_set(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # OrganisationUnit hierarchy — `dhis2 metadata organisation-units ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_organisation_units(
-    profile: Profile,
-    *,
-    level: int | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[OrganisationUnit]:
-    """Page through OUs with parent + hierarchy columns resolved."""
-    async with open_client(profile) as client:
-        return await client.organisation_units.list_all(level=level, page=page, page_size=page_size)
 
 
 async def show_organisation_unit(profile: Profile, uid: str) -> OrganisationUnit:
@@ -2005,12 +2001,6 @@ async def delete_organisation_unit(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # OrganisationUnitGroup — `dhis2 metadata organisation-unit-groups ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_organisation_unit_groups(profile: Profile) -> list[OrganisationUnitGroup]:
-    """Return every OrganisationUnitGroup."""
-    async with open_client(profile) as client:
-        return await client.organisation_unit_groups.list_all()
 
 
 async def show_organisation_unit_group(profile: Profile, uid: str) -> OrganisationUnitGroup:
@@ -2084,12 +2074,6 @@ async def delete_organisation_unit_group(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # OrganisationUnitGroupSet — `dhis2 metadata organisation-unit-group-sets ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_organisation_unit_group_sets(profile: Profile) -> list[OrganisationUnitGroupSet]:
-    """Return every OrganisationUnitGroupSet."""
-    async with open_client(profile) as client:
-        return await client.organisation_unit_group_sets.list_all()
 
 
 async def show_organisation_unit_group_set(
@@ -2180,18 +2164,6 @@ async def delete_organisation_unit_group_set(profile: Profile, uid: str) -> None
 # ---------------------------------------------------------------------------
 
 
-async def list_organisation_unit_levels(profile: Profile) -> list[OrganisationUnitLevel]:
-    """List every OrganisationUnitLevel sorted by depth, including synthetic placeholders.
-
-    DHIS2 only persists level rows when the admin creates one, so
-    unnamed depths are invisible by default. This returns placeholders
-    (`id=None`, `name=None`) for every tree depth without a row so
-    callers see the complete shape of the hierarchy.
-    """
-    async with open_client(profile) as client:
-        return await client.organisation_unit_levels.list_with_gaps()
-
-
 async def show_organisation_unit_level(profile: Profile, uid: str) -> OrganisationUnitLevel | None:
     """Fetch one level row by UID."""
     async with open_client(profile) as client:
@@ -2246,12 +2218,6 @@ async def rename_organisation_unit_level_by_level(
 # ---------------------------------------------------------------------------
 # LegendSet authoring — `dhis2 metadata legend-sets ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_legend_sets(profile: Profile) -> list[LegendSet]:
-    """Return every LegendSet with its legends resolved inline."""
-    async with open_client(profile) as client:
-        return await client.legend_sets.list_all()
 
 
 async def show_legend_set(profile: Profile, uid: str) -> LegendSet:
@@ -2316,18 +2282,6 @@ async def delete_legend_set(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # ProgramIndicator workflows — `dhis2 metadata program-indicators ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_program_indicators(
-    profile: Profile,
-    *,
-    program_uid: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[ProgramIndicator]:
-    """Page through ProgramIndicators, optionally scoped to one program."""
-    async with open_client(profile) as client:
-        return await client.program_indicators.list_all(program_uid=program_uid, page=page, page_size=page_size)
 
 
 async def show_program_indicator(profile: Profile, uid: str) -> ProgramIndicator:
@@ -2411,12 +2365,6 @@ async def delete_program_indicator(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def list_program_indicator_groups(profile: Profile) -> list[ProgramIndicatorGroup]:
-    """List every ProgramIndicatorGroup."""
-    async with open_client(profile) as client:
-        return await client.program_indicator_groups.list_all()
-
-
 async def show_program_indicator_group(profile: Profile, uid: str) -> ProgramIndicatorGroup:
     """Fetch one group with member refs inline."""
     async with open_client(profile) as client:
@@ -2486,17 +2434,6 @@ async def delete_program_indicator_group(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # CategoryOption workflows — `dhis2 metadata category-options ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_category_options(
-    profile: Profile,
-    *,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[CategoryOption]:
-    """Page through CategoryOptions."""
-    async with open_client(profile) as client:
-        return await client.category_options.list_all(page=page, page_size=page_size)
 
 
 async def show_category_option(profile: Profile, uid: str) -> CategoryOption:
@@ -2574,17 +2511,6 @@ async def delete_category_option(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def list_categories(
-    profile: Profile,
-    *,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[Category]:
-    """Page through Categories."""
-    async with open_client(profile) as client:
-        return await client.categories.list_all(page=page, page_size=page_size)
-
-
 async def show_category(profile: Profile, uid: str) -> Category:
     """Fetch one Category by UID."""
     async with open_client(profile) as client:
@@ -2654,17 +2580,6 @@ async def delete_category(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # CategoryCombo workflows — `dhis2 metadata category-combos ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_category_combos(
-    profile: Profile,
-    *,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[CategoryCombo]:
-    """Page through CategoryCombos."""
-    async with open_client(profile) as client:
-        return await client.category_combos.list_all(page=page, page_size=page_size)
 
 
 async def show_category_combo(profile: Profile, uid: str) -> CategoryCombo:
@@ -2768,17 +2683,6 @@ async def build_category_combo_spec(
 # ---------------------------------------------------------------------------
 
 
-async def list_category_option_combos(
-    profile: Profile,
-    *,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[CategoryOptionCombo]:
-    """Page through every CategoryOptionCombo across every CategoryCombo."""
-    async with open_client(profile) as client:
-        return await client.category_option_combos.list_all(page=page, page_size=page_size)
-
-
 async def show_category_option_combo(profile: Profile, uid: str) -> CategoryOptionCombo:
     """Fetch one CategoryOptionCombo by UID."""
     async with open_client(profile) as client:
@@ -2794,12 +2698,6 @@ async def list_category_option_combos_for_combo(profile: Profile, combo_uid: str
 # ---------------------------------------------------------------------------
 # CategoryOptionGroup — `dhis2 metadata category-option-groups ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_category_option_groups(profile: Profile) -> list[CategoryOptionGroup]:
-    """List every CategoryOptionGroup."""
-    async with open_client(profile) as client:
-        return await client.category_option_groups.list_all()
 
 
 async def show_category_option_group(profile: Profile, uid: str) -> CategoryOptionGroup:
@@ -2875,12 +2773,6 @@ async def delete_category_option_group(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def list_category_option_group_sets(profile: Profile) -> list[CategoryOptionGroupSet]:
-    """List every CategoryOptionGroupSet."""
-    async with open_client(profile) as client:
-        return await client.category_option_group_sets.list_all()
-
-
 async def show_category_option_group_set(profile: Profile, uid: str) -> CategoryOptionGroupSet:
     """Fetch one group set by UID."""
     async with open_client(profile) as client:
@@ -2942,18 +2834,6 @@ async def delete_category_option_group_set(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # DataSet — `dhis2 metadata data-sets ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_data_sets(
-    profile: Profile,
-    *,
-    period_type: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[DataSet]:
-    """Page through DataSets, optionally filtered by periodType."""
-    async with open_client(profile) as client:
-        return await client.data_sets.list_all(period_type=period_type, page=page, page_size=page_size)
 
 
 async def show_data_set(profile: Profile, uid: str) -> DataSet:
@@ -3049,20 +2929,6 @@ async def delete_data_set(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # Section — `dhis2 metadata sections ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_sections(
-    profile: Profile,
-    *,
-    data_set_uid: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[Section]:
-    """List Sections across every DataSet, or narrow to one DataSet with `data_set_uid`."""
-    async with open_client(profile) as client:
-        if data_set_uid is not None:
-            return await client.sections.list_for(data_set_uid)
-        return await client.sections.list_all(page=page, page_size=page_size)
 
 
 async def show_section(profile: Profile, uid: str) -> Section:
@@ -3167,22 +3033,6 @@ async def delete_section(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def list_validation_rules(
-    profile: Profile,
-    *,
-    period_type: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[ValidationRule]:
-    """Page through ValidationRules, optionally filtered by periodType."""
-    async with open_client(profile) as client:
-        return await client.validation_rules.list_all(
-            period_type=period_type,
-            page=page,
-            page_size=page_size,
-        )
-
-
 async def show_validation_rule(profile: Profile, uid: str) -> ValidationRule:
     """Fetch one ValidationRule with both sides resolved."""
     async with open_client(profile) as client:
@@ -3250,12 +3100,6 @@ async def delete_validation_rule(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # ValidationRuleGroup — `dhis2 metadata validation-rule-groups ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_validation_rule_groups(profile: Profile) -> list[ValidationRuleGroup]:
-    """List every ValidationRuleGroup."""
-    async with open_client(profile) as client:
-        return await client.validation_rule_groups.list_all()
 
 
 async def show_validation_rule_group(profile: Profile, uid: str) -> ValidationRuleGroup:
@@ -3329,18 +3173,6 @@ async def delete_validation_rule_group(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def list_predictors(
-    profile: Profile,
-    *,
-    period_type: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[Predictor]:
-    """Page through Predictors."""
-    async with open_client(profile) as client:
-        return await client.predictors.list_all(period_type=period_type, page=page, page_size=page_size)
-
-
 async def show_predictor(profile: Profile, uid: str) -> Predictor:
     """Fetch one Predictor."""
     async with open_client(profile) as client:
@@ -3408,12 +3240,6 @@ async def delete_predictor(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # PredictorGroup — `dhis2 metadata predictor-groups ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_predictor_groups(profile: Profile) -> list[PredictorGroup]:
-    """List every PredictorGroup."""
-    async with open_client(profile) as client:
-        return await client.predictor_groups.list_all()
 
 
 async def show_predictor_group(profile: Profile, uid: str) -> PredictorGroup:
@@ -3485,22 +3311,6 @@ async def delete_predictor_group(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # TrackedEntityAttribute — `dhis2 metadata tracked-entity-attributes ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_tracked_entity_attributes(
-    profile: Profile,
-    *,
-    value_type: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[TrackedEntityAttribute]:
-    """Page through TrackedEntityAttributes."""
-    async with open_client(profile) as client:
-        return await client.tracked_entity_attributes.list_all(
-            value_type=value_type,
-            page=page,
-            page_size=page_size,
-        )
 
 
 async def show_tracked_entity_attribute(profile: Profile, uid: str) -> TrackedEntityAttribute:
@@ -3584,17 +3394,6 @@ async def delete_tracked_entity_attribute(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # TrackedEntityType — `dhis2 metadata tracked-entity-types ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_tracked_entity_types(
-    profile: Profile,
-    *,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[TrackedEntityType]:
-    """Page through TrackedEntityTypes."""
-    async with open_client(profile) as client:
-        return await client.tracked_entity_types.list_all(page=page, page_size=page_size)
 
 
 async def show_tracked_entity_type(profile: Profile, uid: str) -> TrackedEntityType:
@@ -3692,18 +3491,6 @@ async def delete_tracked_entity_type(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # Program — `dhis2 metadata programs ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_programs(
-    profile: Profile,
-    *,
-    program_type: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[Program]:
-    """Page through Programs, optionally filtered by programType."""
-    async with open_client(profile) as client:
-        return await client.programs.list_all(program_type=program_type, page=page, page_size=page_size)
 
 
 async def show_program(profile: Profile, uid: str) -> Program:
@@ -3887,20 +3674,6 @@ async def delete_program(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 # ProgramStage — `dhis2 metadata program-stages ...`
 # ---------------------------------------------------------------------------
-
-
-async def list_program_stages(
-    profile: Profile,
-    *,
-    program_uid: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[ProgramStage]:
-    """Page through ProgramStages, optionally scoped to one Program."""
-    async with open_client(profile) as client:
-        if program_uid:
-            return await client.program_stages.list_for(program_uid)
-        return await client.program_stages.list_all(page=page, page_size=page_size)
 
 
 async def show_program_stage(profile: Profile, uid: str) -> ProgramStage:

@@ -16,8 +16,8 @@ set -euo pipefail
 # List what's already on the instance
 # ---------------------------------------------------------------------------
 
-dhis2 metadata data-sets ls --page-size 3 | head -10 || true
-dhis2 metadata sections ls --page-size 3 | head -10 || true
+dhis2 metadata list dataSets --page-size 3 | head -10 || true
+dhis2 metadata list sections --page-size 3 | head -10 || true
 
 # ---------------------------------------------------------------------------
 # Round up two existing DEs to use as section members.

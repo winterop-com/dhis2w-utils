@@ -57,7 +57,7 @@ DHIS2 rejects DataSets without a `categoryCombo`. Omit `category_combo_uid` on `
 ## CLI
 
 ```bash
-dhis2 metadata data-sets list --period-type Monthly
+dhis2 metadata list dataSets --period-type Monthly
 dhis2 metadata data-sets create \
     --name "ANC Monthly" --short-name "ANCm" --period-type Monthly \
     --open-future-periods 2 --expiry-days 10

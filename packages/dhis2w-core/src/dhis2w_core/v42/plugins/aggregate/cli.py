@@ -22,18 +22,34 @@ app = typer.Typer(
 @app.command("get")
 def get_command(
     data_set: Annotated[str | None, typer.Option("--data-set", "--ds", help="DataSet UID.")] = None,
-    period: Annotated[str | None, typer.Option("--period", "--pe", help="Period (e.g. 202401, 2024W12, 2024).")] = None,
+    period: Annotated[
+        str | None,
+        typer.Option(
+            "--period",
+            "--pe",
+            help="Period; match the dataSet's periodType (Monthly=202401, Yearly=2024, Weekly=2024W12).",
+        ),
+    ] = None,
     start_date: Annotated[str | None, typer.Option("--start-date", help="ISO date (YYYY-MM-DD).")] = None,
     end_date: Annotated[str | None, typer.Option("--end-date", help="ISO date (YYYY-MM-DD).")] = None,
     org_unit: Annotated[str | None, typer.Option("--org-unit", "--ou", help="OrganisationUnit UID.")] = None,
-    children: Annotated[bool, typer.Option("--children", help="Include descendants of org_unit.")] = False,
+    children: Annotated[
+        bool,
+        typer.Option(
+            "--children",
+            help="Include descendant org units (values usually live at facility level).",
+        ),
+    ] = False,
     data_element_group: Annotated[
         str | None,
         typer.Option("--data-element-group", "--deg", help="DataElementGroup UID (narrows to its member DEs)."),
     ] = None,
     limit: Annotated[int | None, typer.Option("--limit", help="Max rows to include in output.")] = None,
 ) -> None:
-    """Fetch a data value set."""
+    """Fetch a data value set. Needs --ds plus a period (--pe or --start-date/--end-date) and --ou.
+
+    Example: data aggregate get --ds <dataSetUID> --pe 202401 --ou <ouUID> --children
+    """
     envelope = asyncio.run(
         service.get_data_values(
             profile_from_env(),

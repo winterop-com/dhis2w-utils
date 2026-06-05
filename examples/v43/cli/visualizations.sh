@@ -22,8 +22,8 @@ DASHBOARD=TAMlzYkstb7
 # ---------------------------------------------------------------------------
 
 # Every visualization, sorted by name. Filter by type to scope.
-dhis2 metadata viz list
-dhis2 metadata viz list --type LINE
+dhis2 metadata list visualizations
+dhis2 metadata list visualizations --filter type:eq:LINE
 
 # Show one viz with its axes, data elements, periods, and org units.
 dhis2 metadata viz get Qyuliufvfjl
@@ -102,7 +102,7 @@ dhis2 metadata viz clone VizCliDem01 \
 # ---------------------------------------------------------------------------
 
 # Auto-stack a new item below everything already on the dashboard.
-dhis2 metadata dashboard list
+dhis2 metadata list dashboards
 dhis2 metadata dashboard get "$DASHBOARD"
 
 # Add the demo line chart to the overview dashboard (auto-stack, full width).

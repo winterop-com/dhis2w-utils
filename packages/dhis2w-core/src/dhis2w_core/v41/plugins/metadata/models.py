@@ -134,3 +134,22 @@ class MetadataBundle(BaseModel):
         consumed on the very next line by `client.post_raw`.
         """
         return self.model_dump(exclude_none=True, mode="json", by_alias=True)
+
+
+class MetadataCount(BaseModel):
+    """Total number of instances of a metadata resource (DHIS2 pager total)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    resource: str
+    total: int
+
+
+class MetadataWriteResult(BaseModel):
+    """Summary of a `metadata list --output` write: how many rows landed where."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    resource: str
+    written: int
+    path: str

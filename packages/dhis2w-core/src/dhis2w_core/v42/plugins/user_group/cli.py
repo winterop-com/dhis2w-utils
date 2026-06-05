@@ -31,6 +31,14 @@ app = typer.Typer(
 _DEFAULT_FIELDS = "id,name,displayName,users"
 
 
+def _emit_mutation(summary: str) -> None:
+    """Emit a write summary: a JSON {ok, summary} object under --json, else the plain line."""
+    if is_json_output():
+        typer.echo(json.dumps({"ok": True, "summary": summary}))
+    else:
+        typer.echo(summary)
+
+
 @app.command("list")
 @app.command("ls", hidden=True)
 def list_command(
@@ -99,6 +107,31 @@ def get_command(
     render_detail(f"user-group {group.name or group.id or '?'}", rows)
 
 
+@app.command("create")
+def create_command(
+    name: Annotated[str, typer.Option("--name", help="User-group name.")],
+    code: Annotated[str | None, typer.Option("--code", help="Business code.")] = None,
+    uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
+) -> None:
+    """Create a user group (then add members with `add-member`)."""
+    from dhis2w_core.v42.cli_output import render_webmessage  # noqa: PLC0415
+
+    response = asyncio.run(service.create_user_group(profile_from_env(), name=name, code=code, uid=uid))
+    render_webmessage(response, action="created")
+
+
+@app.command("delete")
+def delete_command(
+    uid: Annotated[str, typer.Argument(help="User-group UID.")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
+) -> None:
+    """Delete a user group by UID."""
+    if not yes and not typer.confirm(f"Delete userGroup {uid}?"):
+        raise typer.Abort()
+    asyncio.run(service.delete_user_group(profile_from_env(), uid))
+    _emit_mutation(f"deleted userGroup {uid}")
+
+
 @app.command("add-member")
 def add_member_command(
     group_uid: Annotated[str, typer.Argument(help="User-group UID.")],
@@ -106,7 +139,7 @@ def add_member_command(
 ) -> None:
     """Add a user to a group (POST /api/userGroups/<gid>/users/<uid>)."""
     envelope = asyncio.run(service.add_member(profile_from_env(), group_uid, user_uid))
-    typer.echo(f"added {user_uid} -> {group_uid}: {envelope.httpStatus or envelope.status or 'OK'}")
+    _emit_mutation(f"added {user_uid} -> {group_uid}: {envelope.httpStatus or envelope.status or 'OK'}")
 
 
 @app.command("remove-member")
@@ -116,7 +149,7 @@ def remove_member_command(
 ) -> None:
     """Remove a user from a group (DELETE /api/userGroups/<gid>/users/<uid>)."""
     envelope = asyncio.run(service.remove_member(profile_from_env(), group_uid, user_uid))
-    typer.echo(f"removed {user_uid} from {group_uid}: {envelope.httpStatus or envelope.status or 'OK'}")
+    _emit_mutation(f"removed {user_uid} from {group_uid}: {envelope.httpStatus or envelope.status or 'OK'}")
 
 
 @app.command("sharing-get")

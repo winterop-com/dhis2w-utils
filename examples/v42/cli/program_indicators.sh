@@ -16,8 +16,8 @@ BCG_DE=s46m5MS0hxu          # BCG doses given — seeded DE referenced by progra
 # List + show
 # ---------------------------------------------------------------------------
 
-dhis2 metadata program-indicators ls --program "$CHILD_PROGRAM" --page-size 3 | head -10 || true
-dhis2 metadata program-indicator-groups ls | head -10 || true
+dhis2 metadata list programIndicators --filter program.id:eq:"$CHILD_PROGRAM" --page-size 3 | head -10 || true
+dhis2 metadata list programIndicatorGroups | head -10 || true
 
 # ---------------------------------------------------------------------------
 # Pre-flight expression validation — catches DE-reference typos before
