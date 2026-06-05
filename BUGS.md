@@ -3119,3 +3119,36 @@ curl -sf -u admin:district -X POST 'http://localhost:8080/api/dataValueSets?forc
 **How to know it's fixed:** `POST /api/dataValueSets?force=true` (or with `strictCategoryOptionCombos=false`/`strictAttributeOptionCombos=false`) against a v43 stack accepts `HllvX50cXC0` for a DE whose CC is non-default — matching v41 + v42 behaviour.
 
 **Verifier:** None — covered indirectly by `examples/v{N}/client/aggregate_bulk_grouped.py` passing on `make verify-examples DHIS2_VERSION=43`.
+
+### 42. `GET /api/systemSettings` returns `keyAnalysisDisplayProperty: "name"` (lowercase) — generated `SystemSettings` enum rejects it
+
+**Observed on:** DHIS2 `2.42` + `2.43` (`https://play.im.dhis2.org/dev-2-42`, `.../dev-2-43`). Login as `admin/district`.
+
+**Repro (against any v42 / v43 instance):**
+
+```bash
+curl -sf -u admin:district 'https://play.im.dhis2.org/dev-2-42/api/systemSettings' \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["keyAnalysisDisplayProperty"])'
+# -> name      (lowercase)
+```
+
+```python
+# The generated OAS model can't validate the live response because of that one field:
+from dhis2w_client.generated.v42.oas import SystemSettings
+SystemSettings.model_validate(raw)   # raw = the JSON above
+# pydantic ValidationError: keyAnalysisDisplayProperty
+#   Input should be 'NAME' or 'SHORTNAME' [input_value='name']
+```
+
+**Expected:** `/api/systemSettings` returns `keyAnalysisDisplayProperty` in the same casing the OpenAPI `DisplayProperty` enum declares (`NAME` / `SHORTNAME`) — the same value the schema endpoint and most other resources use uppercase.
+
+**Actual:** The settings endpoint serialises this enum lowercase (`name`), diverging from the OAS `DisplayProperty` enum. It is the **only** one of the ~100 settings keys that the generated `SystemSettings` rejects — every other key (including all the password/credential/registration/lockout fields) validates cleanly. So the full generated `SystemSettings` model can't parse a real `/api/systemSettings` response as-is.
+
+**Impact:** Any caller wanting to read `/api/systemSettings` through the typed generated `SystemSettings`. One stray lowercase enum makes the whole-object parse fail.
+
+**Workaround in this repo:** The `security` plugin's `SecuritySettings`
+(`dhis2w_core.v{41,42,43}.plugins.security.models`) is a deliberate typed **projection** of the security-relevant fields of `SystemSettings` — it omits `keyAnalysisDisplayProperty`, so it validates the live response. This is the documented reason we don't reuse the generated `SystemSettings` wholesale for that read. When a typed full-settings accessor is wanted, the clean fix is an OAS spec-patch widening `DisplayProperty` (or that one field) to accept both casings, then `client.system.settings() -> SystemSettings`.
+
+**How to know it's fixed:** `SystemSettings.model_validate(<live /api/systemSettings>)` succeeds without a spec-patch — i.e. DHIS2 ships `keyAnalysisDisplayProperty` uppercase.
+
+**Verifier:** None yet — characterised during the `security` plugin build.

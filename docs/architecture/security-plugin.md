@@ -36,6 +36,18 @@ security-relevant fields; Pydantic's default `extra="ignore"` drops the rest of 
 ~100-key settings object, so the slice stays focused in **both** the table and under
 `--json` (no need to filter with `?key=` query params).
 
+`SecuritySettings` is a **deliberate projection** of the generated OAS
+`SystemSettings` model (`dhis2w_client.generated.v{41,42,43}.oas`), which already
+declares every field here. We don't reuse the full generated model for this read
+because it can't validate a live `/api/systemSettings` response: the endpoint returns
+`keyAnalysisDisplayProperty` lowercase (`"name"`), which the OAS `DisplayProperty`
+enum rejects ([BUGS.md #42](https://github.com/winterop-com/dhis2w-utils/blob/main/BUGS.md)).
+The projection omits that one field, so it parses. The clean long-term fix is an OAS
+spec-patch widening that enum, then a `client.system.settings() -> SystemSettings`
+accessor the plugin can call — at which point this projection can shrink to a render
+concern. Per `CLAUDE.md` rule 7, always grep the generated trees before hand-writing a
+model; this is the documented exception, not a license to duplicate.
+
 | Field (wire key) | Meaning |
 | --- | --- |
 | `minPasswordLength` | Minimum password length the server enforces |
