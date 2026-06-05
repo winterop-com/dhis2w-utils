@@ -416,6 +416,54 @@ def push_command(
     render_webmessage(response, action="pushed")
 
 
+@app.command("delete")
+def delete_command(
+    uids: Annotated[list[str], typer.Argument(help="Tracked entity UID(s) to delete.")],
+    async_mode: Annotated[
+        bool, typer.Option("--async", help="Return a job reference immediately instead of waiting.")
+    ] = False,
+) -> None:
+    """Delete tracked entities by UID (cascades to their enrollments + events)."""
+    from dhis2w_core.v41.cli_output import render_webmessage
+
+    response = asyncio.run(
+        service.delete_tracker_objects(profile_from_env(), kind="trackedEntities", uids=uids, async_mode=async_mode)
+    )
+    render_webmessage(response, action="deleted")
+
+
+@event_app.command("delete")
+def event_delete_command(
+    uids: Annotated[list[str], typer.Argument(help="Event UID(s) to delete.")],
+    async_mode: Annotated[
+        bool, typer.Option("--async", help="Return a job reference immediately instead of waiting.")
+    ] = False,
+) -> None:
+    """Delete events by UID."""
+    from dhis2w_core.v41.cli_output import render_webmessage
+
+    response = asyncio.run(
+        service.delete_tracker_objects(profile_from_env(), kind="events", uids=uids, async_mode=async_mode)
+    )
+    render_webmessage(response, action="deleted")
+
+
+@enrollment_app.command("delete")
+def enrollment_delete_command(
+    uids: Annotated[list[str], typer.Argument(help="Enrollment UID(s) to delete.")],
+    async_mode: Annotated[
+        bool, typer.Option("--async", help="Return a job reference immediately instead of waiting.")
+    ] = False,
+) -> None:
+    """Delete enrollments by UID."""
+    from dhis2w_core.v41.cli_output import render_webmessage
+
+    response = asyncio.run(
+        service.delete_tracker_objects(profile_from_env(), kind="enrollments", uids=uids, async_mode=async_mode)
+    )
+    render_webmessage(response, action="deleted")
+
+
 def _parse_kv(values: list[str], *, flag_name: str) -> dict[str, str]:
     """Parse repeated `--kv key=value` flags into a dict; raise on malformed entries."""
     parsed: dict[str, str] = {}

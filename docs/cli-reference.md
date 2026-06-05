@@ -836,6 +836,7 @@ $ dhis2 data tracker [OPTIONS] COMMAND [ARGS]...
 * `get`: Fetch one tracked entity by UID...
 * `type`: List every configured TrackedEntityType on...
 * `push`: Bulk import via POST /api/tracker.
+* `delete`: Delete tracked entities by UID (cascades...
 * `register`: Register a tracked entity + enroll in one...
 * `outstanding`: List ACTIVE enrollments missing events on...
 * `enrollment`: Enrollments.
@@ -959,6 +960,25 @@ $ dhis2 data tracker push [OPTIONS] FILE
 * `--async`
 * `--help`: Show this message and exit.
 
+#### `dhis2 data tracker delete`
+
+Delete tracked entities by UID (cascades to their enrollments + events).
+
+**Usage**:
+
+```console
+$ dhis2 data tracker delete [OPTIONS] UIDS...
+```
+
+**Arguments**:
+
+* `UIDS...`: Tracked entity UID(s) to delete.  [required]
+
+**Options**:
+
+* `--async`: Return a job reference immediately instead of waiting.
+* `--help`: Show this message and exit.
+
 #### `dhis2 data tracker register`
 
 Register a tracked entity + enroll in one program in one call.
@@ -1033,6 +1053,7 @@ $ dhis2 data tracker enrollment [OPTIONS] COMMAND [ARGS]...
 
 * `ls`: List enrollments (tracker programs only).
 * `list`: List enrollments (tracker programs only).
+* `delete`: Delete enrollments by UID.
 * `create`: Enroll an existing tracked entity in a...
 
 ##### `dhis2 data tracker enrollment ls`
@@ -1081,6 +1102,25 @@ $ dhis2 data tracker enrollment list [OPTIONS]
 * `--updated-after TEXT`
 * `--help`: Show this message and exit.
 
+##### `dhis2 data tracker enrollment delete`
+
+Delete enrollments by UID.
+
+**Usage**:
+
+```console
+$ dhis2 data tracker enrollment delete [OPTIONS] UIDS...
+```
+
+**Arguments**:
+
+* `UIDS...`: Enrollment UID(s) to delete.  [required]
+
+**Options**:
+
+* `--async`: Return a job reference immediately instead of waiting.
+* `--help`: Show this message and exit.
+
 ##### `dhis2 data tracker enrollment create`
 
 Enroll an existing tracked entity in a program.
@@ -1120,6 +1160,7 @@ $ dhis2 data tracker event [OPTIONS] COMMAND [ARGS]...
 
 * `ls`: List events (event and tracker programs).
 * `list`: List events (event and tracker programs).
+* `delete`: Delete events by UID.
 * `create`: Add one event — tracker (with enrollment)...
 
 ##### `dhis2 data tracker event ls`
@@ -1176,6 +1217,25 @@ $ dhis2 data tracker event list [OPTIONS]
 * `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
 * `--page INTEGER`
+* `--help`: Show this message and exit.
+
+##### `dhis2 data tracker event delete`
+
+Delete events by UID.
+
+**Usage**:
+
+```console
+$ dhis2 data tracker event delete [OPTIONS] UIDS...
+```
+
+**Arguments**:
+
+* `UIDS...`: Event UID(s) to delete.  [required]
+
+**Options**:
+
+* `--async`: Return a job reference immediately instead of waiting.
 * `--help`: Show this message and exit.
 
 ##### `dhis2 data tracker event create`

@@ -312,6 +312,27 @@ async def push_tracker(
         return await client.post("/api/tracker", bundle, params=params, model=WebMessageResponse)
 
 
+_TRACKER_ID_FIELD = {"trackedEntities": "trackedEntity", "enrollments": "enrollment", "events": "event"}
+
+
+async def delete_tracker_objects(
+    profile: Profile,
+    *,
+    kind: str,
+    uids: list[str],
+    atomic_mode: str | None = None,
+    async_mode: bool = False,
+) -> WebMessageResponse:
+    """Delete tracker objects by UID (kind = trackedEntities | enrollments | events) via importStrategy=DELETE.
+
+    Builds the minimal `{<kind>: [{<idField>: uid}, ...]}` bundle and pushes it with DELETE.
+    Deleting a tracked entity cascades to its enrollments and events.
+    """
+    id_field = _TRACKER_ID_FIELD[kind]
+    bundle: dict[str, Any] = {kind: [{id_field: uid} for uid in uids]}
+    return await push_tracker(profile, bundle, import_strategy="DELETE", atomic_mode=atomic_mode, async_mode=async_mode)
+
+
 async def register_tracked_entity(
     profile: Profile,
     *,
