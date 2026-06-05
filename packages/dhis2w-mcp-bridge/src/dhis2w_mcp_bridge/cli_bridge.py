@@ -332,57 +332,65 @@ def register(mcp: Any) -> None:
 
     @mcp.tool()
     async def dhis2_cli(args: list[str], profile: str | None = None) -> CliResult:
-        """Run a `dhis2` CLI command — your gateway to a DHIS2 server.
+        """Run a `dhis2` CLI command against a DHIS2 server.
 
-        Common tasks (go direct — no discovery needed). Resource types are plural camelCase
-        (dataElements, indicators, programs, dataSets, organisationUnits, organisationUnitLevels,
-        optionSets, categories, categoryOptions, trackedEntityTypes, ...). These are DISTINCT —
-        optionSets != categories != categoryOptions. If you are not 100% sure of the exact type
-        name, run dhis2_cli(["metadata", "type", "list"]) and copy the name verbatim; do NOT guess.
-          - How many of ANY resource: dhis2_cli(["metadata", "list", "<type>", "--count"]) -> {"total": N}.
-                                     e.g. "org unit levels" -> list organisationUnitLevels --count.
-                                     Counting/listing is ALWAYS `metadata list <type>` — never `system info`,
-                                     and never answer counts from memory.
-          - Unsure of the type name? dhis2_cli(["metadata", "type", "list"]) lists every resource type.
-          - List a resource:         dhis2_cli(["metadata", "list", "dataElements"])
-                                     default fields are id,name — pick others in ONE call with
-                                     --fields id,code,name,description (avoid fetch-then-refetch);
-                                     narrow with --filter <prop>:<op>:<value> (e.g. domainType:eq:AGGREGATE);
-                                     filter ops: eq (exact), ilike (contains), $ilike (starts-with),
-                                     ilike$ (ends-with), token (word); drop the i for case-sensitive.
-                                     "contains anc" -> name:ilike:anc; "starts with anc" -> name:$ilike:anc.
-                                     To fetch every page, pass the flag --all (NOT --all-streams).
-          - Dump everything to file: add --output <file> (e.g. dataElements.json) -> returns
-                                     {"written": N, "path": ...}. Use this for "give me ALL as JSON":
-                                     report the path to the user; do NOT print the rows yourself.
-          - One object by UID:       dhis2_cli(["metadata", "get", "dataElements", "<uid>"])
-          - Server version / me:     dhis2_cli(["system", "info"]) / dhis2_cli(["system", "whoami"])
+        Never answer counts or data from memory — always run a command.
 
-        Otherwise the CLI is self-documenting — DISCOVER before guessing:
-          dhis2_cli(["--help"])                     -> list command groups
-          dhis2_cli(["metadata", "--help"])         -> drill into a group
-          dhis2_cli(["metadata", "list", "--help"]) -> see a command's options
-        Command shape: [<group>, <subgroup?>, <verb>, <args/options...>]. Listing any metadata
-        resource goes through `metadata list <type>` (there is no `metadata <type> list`).
+        OUTPUT CONTRACT (read this first):
+          - `--json` is added automatically. On success exit_code is 0 and `stdout` is JSON — parse it.
+          - Any non-zero exit_code is a failure: the message is in `stderr` (plain text, NOT JSON).
+          - `--help`/`--version` exit 0 with human text (that is discovery output, not data).
 
-        Output contract:
-          - `--json` is added automatically; on success (exit_code 0) `stdout` is JSON — parse it.
-          - `--help` / `--version` exit 0 with human text (discovery output, not data).
-          - Any non-zero exit_code is a failure: read `stderr` for the message (it is NOT JSON).
+        COMMON READS (go direct, no discovery needed):
+          - Count any resource: dhis2_cli(["metadata", "list", "<type>", "--count"])
+                                -> {"resource": "<type>", "total": N}
+          - List a resource:    dhis2_cli(["metadata", "list", "<type>"])
+          - One object by UID:  dhis2_cli(["metadata", "get", "<type>", "<uid>"])
+          - Server version:     dhis2_cli(["system", "info"])
+          - Current user:       dhis2_cli(["system", "whoami"])
 
-        Responding: the host already shows the user every tool call and its full output, so do NOT
-        re-print large JSON or long lists verbatim in your reply — that just makes you slow. Answer
-        the question or give a short summary (counts, the few rows asked for). Reproduce raw output
-        only when the user explicitly asks for "the raw JSON" / "the full list". Prefer narrowing the
-        query (--count, --filter, --fields) over fetching everything and summarizing after.
+        The verb is `get` (NOT `show`). Listing ANY resource is `metadata list <type>` —
+        there is NO `metadata <type> list`.
 
-        Connecting: pass `profile` to select a configured DHIS2 profile (e.g. profile="prod"),
-        or rely on the server's DHIS2_PROFILE env / default. On "no DHIS2 profile is configured",
-        do NOT invent credentials — ask the user to run `dhis2 profile add` / `profile bootstrap`.
+        RESOURCE TYPES are plural camelCase and DISTINCT: dataElements, indicators, programs,
+        dataSets, organisationUnits, organisationUnitLevels, optionSets, categories,
+        categoryOptions, trackedEntityTypes, ... (optionSets != categories != categoryOptions).
+        If you are not 100% sure of the exact name, run dhis2_cli(["metadata", "type", "list"])
+        and copy it verbatim — do NOT guess.
 
-        Writes (create / delete / push / set / import / merge / ...) change live server data —
-        confirm intent with the user first. If the server runs with DHIS2_MCP_READONLY=1, only
-        read commands and `--help` are permitted; writes return a refusal.
+        NARROWING a list (do it in ONE call — avoid fetch-then-refetch):
+          - Pick fields:  --fields id,code,name,description   (default is id,name)
+          - Filter:       --filter <prop>:<op>:<value>        (e.g. domainType:eq:AGGREGATE)
+                ops: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with),
+                     token (word). Drop the `i` for case-sensitive.
+                "contains anc" -> name:ilike:anc   "starts with anc" -> name:$ilike:anc
+          - Every page:   --all                                (NOT --all-streams)
+          - Dump to file: --output <file>   -> {"written": N, "path": ...}. Use for "give me ALL
+                          as JSON": report the path; do NOT print the rows yourself.
+
+        ANALYTICS / DATA (aggregate values, event/tracker data) need UIDs, not names:
+          dhis2_cli(["analytics", "query", "--dim", "dx:<uid>",
+                     "--dim", "pe:LAST_12_MONTHS", "--dim", "ou:<uid>"])
+          Flags are --dim (repeatable), NOT --dx/--pe/--ou. Resolve each name to a UID FIRST:
+          dhis2_cli(["metadata", "list", "<type>", "--filter", "name:ilike:<text>", "--fields", "id,name"]).
+
+        DISCOVER when unsure (the CLI is self-documenting):
+          dhis2_cli(["--help"])                      -> command groups
+          dhis2_cli(["metadata", "--help"])          -> drill into a group
+          dhis2_cli(["metadata", "list", "--help"])  -> a command's options
+          Shape: [<group>, <subgroup?>, <verb>, <args/options...>].
+
+        RESPONDING: the host already shows the user every call and its full output, so do NOT
+        re-print large JSON or long lists — just answer (the count, the few rows asked for) or
+        summarize briefly. Print raw output only if the user asks for "the raw JSON"/"the full list".
+        Prefer narrowing (--count, --filter, --fields) over fetching everything and summarizing after.
+
+        CONNECTING: pass `profile` to select a configured profile (e.g. profile="prod"), or rely on
+        the server default. On "no DHIS2 profile is configured", do NOT invent credentials — ask the
+        user to run `dhis2 profile add` / `profile bootstrap`.
+
+        WRITES (create/delete/push/set/import/merge/...) change live data — confirm intent first.
+        Under DHIS2_MCP_READONLY=1 only reads and `--help` are allowed; writes return a refusal.
 
         Args:
             args: CLI arguments already split into tokens (no shell quoting).
