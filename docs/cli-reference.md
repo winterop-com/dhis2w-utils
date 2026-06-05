@@ -1901,10 +1901,10 @@ $ dhis2 files documents [OPTIONS] COMMAND [ARGS]...
 
 List documents — external URL links and UPLOAD_FILE blobs.
 
-For UPLOAD_FILE docs the backing blob lives in `/api/fileResources/{uid}`
-where `{uid}` is `Document.url` (DHIS2 reuses the `url` field as the FR
-pointer). Pass `--details` to pull each fileResource&#x27;s `contentType`,
-`contentLength`, and `storageStatus` inline.
+Pass `--details` to inline each UPLOAD_FILE&#x27;s fileResource contentType / size /
+storageStatus. NOTE: `/api/documents` does not expose the fileResource UID, so details
+are only available where a document&#x27;s `url` is itself an 11-char UID (older data); for
+filename-style `url`s the detail columns show `-`.
 
 **Usage**:
 
@@ -1924,10 +1924,10 @@ $ dhis2 files documents ls [OPTIONS]
 
 List documents — external URL links and UPLOAD_FILE blobs.
 
-For UPLOAD_FILE docs the backing blob lives in `/api/fileResources/{uid}`
-where `{uid}` is `Document.url` (DHIS2 reuses the `url` field as the FR
-pointer). Pass `--details` to pull each fileResource&#x27;s `contentType`,
-`contentLength`, and `storageStatus` inline.
+Pass `--details` to inline each UPLOAD_FILE&#x27;s fileResource contentType / size /
+storageStatus. NOTE: `/api/documents` does not expose the fileResource UID, so details
+are only available where a document&#x27;s `url` is itself an 11-char UID (older data); for
+filename-style `url`s the detail columns show `-`.
 
 **Usage**:
 
@@ -3392,7 +3392,7 @@ $ dhis2 metadata share [OPTIONS] RESOURCE_TYPE [UIDS]...
 
 **Arguments**:
 
-* `RESOURCE_TYPE`: DHIS2 singular resource type as it appears on `/api/sharing?type=` — e.g. `dataSet`, `dataElement`, `program`, `dashboard`.  [required]
+* `RESOURCE_TYPE`: DHIS2 resource type — singular or plural, e.g. `dataElement`/`dataElements`, `dataSet`/`dataSets`, `program`. Normalized to the singular `/api/sharing?type=` form.  [required]
 * `[UIDS]...`: UIDs to share. Pass `-` to read one UID per line from stdin.
 
 **Options**:
@@ -8585,12 +8585,11 @@ $ dhis2 route get [OPTIONS] ROUTE
 
 Create a route via POST /api/routes.
 
-With `--file`: pass a full JSON spec (advanced — see BUGS.md for the DHIS2 schema).
+With `--file`: a full JSON spec. Omit `auth` (or set it to null) for no upstream auth.
 
-Without `--file`: guided wizard. Prompts for code, name, url, then asks which
-upstream auth type to use. Secrets (basic password, bearer token, header/query
-value, OAuth2 client_secret) never come in via argv — they&#x27;re read from env
-(`DHIS2_ROUTE_UPSTREAM_*`) or at the hidden-input prompt.
+Flag form: pass --code/--name/--url. Add --no-auth for an unauthenticated route (required
+when not running in a TTY — the auth wizard needs interactive input). Secrets never come via
+argv — they&#x27;re read from env (`DHIS2_ROUTE_UPSTREAM_*`) or hidden prompts in the wizard.
 
 **Usage**:
 
@@ -8605,6 +8604,7 @@ $ dhis2 route create [OPTIONS]
 * `--name TEXT`
 * `--url TEXT`: Target URL the route proxies to.
 * `--authorities TEXT`: Comma-separated DHIS2 authorities allowed to run this route.
+* `--no-auth`: Create an unauthenticated route (skip the auth wizard) — for headless/bridge use.
 * `--help`: Show this message and exit.
 
 ### `dhis2 route update`

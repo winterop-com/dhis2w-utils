@@ -1255,14 +1255,26 @@ def _render_bundle_summary(summary: dict[str, int], *, destination: str) -> None
     err_console.print(table)
 
 
+def _share_type(resource_type: str) -> str:
+    """Normalize a resource type to the SINGULAR form `/api/sharing?type=` expects.
+
+    Accepts the singular (`dataElement`) or the plural used by get/list (`dataElements`).
+    """
+    if resource_type.endswith("ies"):
+        return resource_type[:-3] + "y"
+    if resource_type.endswith("s") and not resource_type.endswith("ss"):
+        return resource_type[:-1]
+    return resource_type
+
+
 @app.command("share")
 def share_command(
     resource_type: Annotated[
         str,
         typer.Argument(
             help=(
-                "DHIS2 singular resource type as it appears on `/api/sharing?type=` — "
-                "e.g. `dataSet`, `dataElement`, `program`, `dashboard`."
+                "DHIS2 resource type — singular or plural, e.g. `dataElement`/`dataElements`, "
+                "`dataSet`/`dataSets`, `program`. Normalized to the singular `/api/sharing?type=` form."
             ),
         ),
     ],
@@ -1318,6 +1330,7 @@ def share_command(
     `dhis2 --json metadata list ... | jq -r '.[].id'` to filter-then-share without
     leaving the shell.
     """
+    resource_type = _share_type(resource_type)
     if not user_access and not user_group_access and public_access is None:
         raise typer.BadParameter(
             "pass at least one of --public-access / --user-access / --user-group-access",
