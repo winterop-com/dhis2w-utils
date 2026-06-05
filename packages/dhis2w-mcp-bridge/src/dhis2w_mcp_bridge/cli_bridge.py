@@ -402,8 +402,15 @@ def register(mcp: Any) -> None:
         the server default. On "no DHIS2 profile is configured", do NOT invent credentials — ask the
         user to run `dhis2 profile add` / `profile bootstrap`.
 
-        WRITES (create/delete/push/set/import/merge/...) change live data — confirm intent first.
-        Under DHIS2_MCP_READONLY=1 only reads and `--help` are allowed; writes return a refusal.
+        WRITES change live data — confirm intent first; refused under DHIS2_MCP_READONLY=1.
+          - Author with: metadata <type-kebab> create --name X --short-name X ... — e.g.
+            metadata data-elements create --name "Cases" --short-name "Cases" --value-type NUMBER.
+            There is NO `metadata create <type>`. Find the required flags with
+            `metadata <type-kebab> create --help` (kebab-case: data-elements, data-sets,
+            organisation-units, category-combos, indicators, ...).
+          - create/get/rename/delete return JSON; relationship verbs (add-element, add-member,
+            add-to-ou, ...) print a short summary line, not JSON.
+          - Share with the SINGULAR type: metadata share dataElement <uid> --public-access rw------
 
         Args:
             args: CLI arguments already split into tokens (no shell quoting).

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Annotated, Any
@@ -532,6 +533,13 @@ def get_command(
     notable extras). Use `--json` for the full payload when debugging or
     piping into jq. Pass `--fields` to narrow what DHIS2 returns.
     """
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]{10}", uid):
+        typer.secho(
+            f"error: {uid!r} is not a valid DHIS2 UID (11 chars: a letter then 10 letters/digits)",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(2)
     from dhis2w_core.v41.cli_output import DetailRow, render_detail
 
     model = asyncio.run(
