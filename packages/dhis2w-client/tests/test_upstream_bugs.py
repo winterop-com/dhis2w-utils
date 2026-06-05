@@ -1796,3 +1796,61 @@ async def test_bug_37_live_verifier(local_url: str) -> None:
     """
     _skip_if_stack_unreachable(local_url)
     pytest.skip("perf bug, not binary verifiable — see BUGS.md #37")
+
+
+_BUG_42_FIELD = "keyAnalysisDisplayProperty"
+
+
+@pytest.mark.upstream_bug
+async def test_bug_42_generated_system_settings_rejects_lowercase_display_property() -> None:
+    """BUGS.md #42 — bug-still-present: generated `SystemSettings` can't parse a settings payload.
+
+    `/api/systemSettings` serialises `keyAnalysisDisplayProperty` lowercase
+    (`"name"`), which the OAS `DisplayProperty` enum (`NAME`/`SHORTNAME`)
+    rejects — the only one of ~100 keys that fails. The `security` plugin's
+    `SecuritySettings` projection (`dhis2w_core.v{41,42,43}.plugins.security.models`)
+    omits the field as the workaround. Dropping that single key makes the full
+    generated model parse, proving the projection is the minimal slice needed.
+    """
+    from dhis2w_client.generated.v42.oas import SystemSettings
+    from pydantic import ValidationError
+
+    payload = {"minPasswordLength": 8, "maxPasswordLength": 72, _BUG_42_FIELD: "name"}
+    with pytest.raises(ValidationError) as exc_info:
+        SystemSettings.model_validate(payload)
+    assert _BUG_42_FIELD in str(exc_info.value), (
+        "BUGS.md #42: expected the lowercase enum to be the validation failure. "
+        "If this changed, DHIS2 may have fixed the casing — verify upstream."
+    )
+
+    cleaned = {key: value for key, value in payload.items() if key != _BUG_42_FIELD}
+    assert SystemSettings.model_validate(cleaned).minPasswordLength == 8
+
+
+@pytest.mark.upstream_bug
+@pytest.mark.slow
+async def test_bug_42_live_system_settings_lowercase_display_property(local_url: str) -> None:
+    """BUGS.md #42 — bug-still-present (LIVE): real `/api/systemSettings` breaks generated `SystemSettings`.
+
+    Requires a running stack (`make dhis2-run DHIS2_VERSION=<N>`). Fetches the
+    real settings object, asserts `keyAnalysisDisplayProperty` is the lowercase
+    `"name"` and that the generated `SystemSettings` rejects the payload on that
+    field. When DHIS2 ships the casing fix, the assertions fail — the signal to
+    collapse the `SecuritySettings` projection into the generated `SystemSettings`
+    and add a `client.system.settings()` accessor.
+    """
+    from dhis2w_client.generated.v42.oas import SystemSettings
+    from pydantic import ValidationError
+
+    _skip_if_stack_unreachable(local_url)
+    async with Dhis2Client(local_url, auth=_live_auth()) as client:
+        _skip_unless_version(client, _AnyVersion)
+        raw = await client.get_raw("/api/systemSettings")
+        assert raw.get(_BUG_42_FIELD) == "name", (
+            f"BUGS.md #42: expected /api/systemSettings to return {_BUG_42_FIELD!r} as lowercase "
+            f"'name'; got {raw.get(_BUG_42_FIELD)!r}. DHIS2 may have fixed the casing — verify "
+            f"upstream, then collapse the SecuritySettings projection into the generated SystemSettings."
+        )
+        with pytest.raises(ValidationError) as exc_info:
+            SystemSettings.model_validate(raw)
+        assert _BUG_42_FIELD in str(exc_info.value)

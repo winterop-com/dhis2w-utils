@@ -3151,4 +3151,4 @@ SystemSettings.model_validate(raw)   # raw = the JSON above
 
 **How to know it's fixed:** `SystemSettings.model_validate(<live /api/systemSettings>)` succeeds without a spec-patch — i.e. DHIS2 ships `keyAnalysisDisplayProperty` uppercase.
 
-**Verifier:** None yet — characterised during the `security` plugin build.
+**Verifier:** `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_42_generated_system_settings_rejects_lowercase_display_property` (mocked) + `::test_bug_42_live_system_settings_lowercase_display_property` (live, `-m slow`).
