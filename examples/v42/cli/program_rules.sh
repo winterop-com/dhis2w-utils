@@ -15,7 +15,7 @@ CHILD_PROGRAM=IpHINAT79UW
 # --- List + inspect ---------------------------------------------------------
 # Scoped to one program, ordered by priority, with action counts per rule.
 
-dhis2 metadata program-rule list --program "$CHILD_PROGRAM"
+dhis2 metadata list programRules --filter program.id:eq:"$CHILD_PROGRAM"
 
 # Show one rule with its condition + every action resolved inline.
 dhis2 metadata program-rule get GC4gpdoSD4r

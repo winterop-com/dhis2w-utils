@@ -19,8 +19,8 @@ DE_VALUETYPE_MV=SqvDeVtMV01
 # --- Catalog ----------------------------------------------------------------
 # Every view, grouped by type. Pipe `--type QUERY` to list only dynamic ones.
 
-dhis2 metadata sql-view list
-dhis2 metadata sql-view list --type QUERY
+dhis2 metadata list sqlViews
+dhis2 metadata list sqlViews --filter type:eq:QUERY
 
 # --- Inspect ----------------------------------------------------------------
 # Show the SQL body for a saved view — handy before executing something new.

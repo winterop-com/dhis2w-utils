@@ -135,6 +135,14 @@ async def list_metadata(
     full catalog in one response; for memory-friendly streaming use
     `iter_metadata`.
     """
+    # organisationUnitLevels: the convenience accessor synthesises the unnamed levels DHIS2 omits,
+    # so an unfiltered list returns the COMPLETE hierarchy (matching the removed typed
+    # `organisation-unit-levels list`). Filtered/paged queries fall through to the generic path.
+    if _attr_name(resource) == "organisation_unit_levels" and not filters and page is None and page_size is None:
+        async with open_client(profile) as client:
+            ou_levels: list[BaseModel] = []
+            ou_levels.extend(await client.organisation_unit_levels.list_with_gaps())
+            return ou_levels
     async with open_client(profile) as client:
         accessor = _resolve_accessor(client.resources, resource)
         models: list[BaseModel] = await accessor.list(

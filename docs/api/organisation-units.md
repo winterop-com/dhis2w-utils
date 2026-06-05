@@ -83,7 +83,7 @@ await client.organisation_unit_levels.rename_by_level(4, name="Facility")
 The CLI mirrors this:
 
 ```bash
-dhis2 metadata organisation-unit-levels list
+dhis2 metadata list organisationUnitLevels
 dhis2 metadata organisation-unit-levels rename 2 --by-level --name Province
 ```
 

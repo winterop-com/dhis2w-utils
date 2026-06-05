@@ -15,7 +15,7 @@ set -euo pipefail
 # List + show
 # ---------------------------------------------------------------------------
 
-dhis2 metadata legend-sets list | head -20
+dhis2 metadata list legendSets | head -20
 dhis2 metadata legend-sets get LsDoseBand1
 
 # ---------------------------------------------------------------------------

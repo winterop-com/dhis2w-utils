@@ -21,7 +21,7 @@ IMMUNIZATION_MAP=iKgbemGaDUh
 # List + inspect
 # ---------------------------------------------------------------------------
 
-dhis2 metadata map list
+dhis2 metadata list maps
 dhis2 metadata map get "$DOSES_MAP"
 
 # ---------------------------------------------------------------------------

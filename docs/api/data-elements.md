@@ -46,7 +46,7 @@ async with Dhis2Client(...) as client:
 ## CLI
 
 ```bash
-dhis2 metadata data-elements list --domain-type AGGREGATE
+dhis2 metadata list dataElements --filter domainType:eq:AGGREGATE
 dhis2 metadata data-elements create --name "BCG doses" --short-name "BCG" --value-type NUMBER --legend-set LsDoseBand1
 dhis2 metadata data-element-groups create --name "Vaccines" --short-name "Vacc"
 dhis2 metadata data-element-groups add-members <GROUP_UID> --data-element <DE_UID>

@@ -38,7 +38,7 @@ echo "created TET $TET_UID"
 # Pick the root org unit to scope the program to.
 # ---------------------------------------------------------------------------
 
-OU_UID=$(dhis2 --json metadata organisation-units ls --page-size 1 \
+OU_UID=$(dhis2 --json metadata list organisationUnits --page-size 1 \
     | python -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')
 echo "using root OU $OU_UID"
 

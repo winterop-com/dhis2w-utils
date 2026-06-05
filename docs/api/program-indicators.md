@@ -58,7 +58,7 @@ async with Dhis2Client(...) as client:
 ## CLI
 
 ```bash
-dhis2 metadata program-indicators list --program IpHINAT79UW
+dhis2 metadata list programIndicators --filter program.id:eq:IpHINAT79UW
 dhis2 metadata program-indicators validate-expression "#{IpHINAT79UW.s46m5MS0hxu}"
 dhis2 metadata program-indicators create \
     --name "BCG per enrollment" --short-name "BCG per enr" \
