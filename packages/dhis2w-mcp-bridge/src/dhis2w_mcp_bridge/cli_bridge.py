@@ -327,8 +327,13 @@ def register(mcp: Any) -> None:
         """Run a `dhis2` CLI command — your gateway to a DHIS2 server.
 
         Common tasks (go direct — no discovery needed). Resource types are plural camelCase
-        (dataElements, indicators, organisationUnits, programs, dataSets, ...):
-          - How many of a resource:  dhis2_cli(["metadata", "list", "dataElements", "--count"])  -> {"total": N}
+        (dataElements, indicators, programs, dataSets, organisationUnits, organisationUnitLevels,
+        organisationUnitGroups, categoryOptions, ...):
+          - How many of ANY resource: dhis2_cli(["metadata", "list", "<type>", "--count"]) -> {"total": N}.
+                                     e.g. "how many org unit levels" -> ["metadata","list","organisationUnitLevels","--count"].
+                                     Counting/listing is ALWAYS `metadata list <type>` — never `system info`,
+                                     and never answer counts from memory.
+          - Unsure of the type name? dhis2_cli(["metadata", "type", "list"]) lists every resource type.
           - List a resource:         dhis2_cli(["metadata", "list", "dataElements"])
                                      default fields are id,name — pick others in ONE call with
                                      --fields id,code,name,description (avoid fetch-then-refetch);
