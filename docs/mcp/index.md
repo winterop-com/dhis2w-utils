@@ -8,6 +8,8 @@
 - Building agent-assisted operations on a live DHIS2 stack where every tool call surfaces a typed result and a typed error.
 - Auditing what an agent is doing against DHIS2 — every tool call is logged with its arguments.
 
+This full server is the right choice for **any capable cloud/hosted model** (Claude, GPT, Gemini) and the hosts that drive them — they select among the ~337 typed tools well and get a typed result + typed error on every call. For **small on-box local models** that can't spare the schema budget, reach for the single-tool bridge instead (see the tip below).
+
 For direct CLI use, the [CLI surface](../cli/index.md) is what you want. For Python integration, the [Python client](../client/index.md).
 
 !!! tip "Small local models: use the CLI bridge"

@@ -7,6 +7,15 @@ one tool that shells out to the local `dhis2` binary.
 
 ## When to reach for it
 
+!!! tip "Rule of thumb: local model -> bridge, cloud model -> full server"
+    Use **`dhis2w-mcp-bridge`** (this server, one `dhis2_cli` tool) for **small on-box local
+    models** (LM Studio, Ollama, llama.cpp). Use the full **[`dhis2w-mcp`](index.md)** server
+    (~337 typed tools) for **any capable cloud/hosted model** — Claude, GPT, Gemini, and the
+    hosts that drive them (Claude Code, Claude Desktop, Cursor) do their own tool selection and
+    benefit from the typed per-tool schemas and typed errors. The bridge is a deliberate
+    trade-off for models that can't afford ~53k tokens of schema or reliably pick among hundreds
+    of tools; a cloud model gives that up for nothing.
+
 Use the bridge for **small local models running on-box against sensitive data** (LM Studio,
 Ollama, llama.cpp): the data cannot go to a hosted model, and a modest local model cannot
 spare ~53k tokens for tool schemas or reliably choose among hundreds of tools. The bridge
@@ -39,15 +48,65 @@ CliResult = { exit_code: int, stdout: str, stderr: str }
 `--help`/`--version` exit 0 with human text. Any non-zero exit is a failure with the message
 on `stderr` (never JSON). `profile` is injected as `-p <profile>`.
 
-## Install & wire into LM Studio
+## Install
 
-The bridge depends on `dhis2w-cli`, so installing it provides the `dhis2` binary.
+The bridge depends on `dhis2w-cli`, so installing it also provides the `dhis2` binary it shells
+out to. Published on PyPI as [`dhis2w-mcp-bridge`](https://pypi.org/project/dhis2w-mcp-bridge/).
+
+### Global user install — recommended
+
+`uv tool install` puts the `dhis2w-mcp-bridge` binary on uv's tool `PATH`, so LM Studio (and any
+host) can launch it by name without knowing where it lives:
 
 ```bash
-uv tool install dhis2w-mcp-bridge        # or: uv run dhis2w-mcp-bridge (workspace checkout)
+uv tool install dhis2w-mcp-bridge
+dhis2w-mcp-bridge --version
 ```
 
-`~/.lmstudio/mcp.json`:
+Update or remove later:
+
+```bash
+uv tool upgrade dhis2w-mcp-bridge                          # latest
+uv tool install --reinstall dhis2w-mcp-bridge==<version>   # pin a specific version
+uv tool uninstall dhis2w-mcp-bridge                        # remove
+```
+
+If it isn't on `PATH` afterwards, run `uv tool update-shell` once and restart your terminal.
+
+### One-shot via `uvx` (no install)
+
+```bash
+uvx dhis2w-mcp-bridge
+```
+
+Each `uvx` run rebuilds a temporary environment, so it's slower than `uv tool install` — use it
+to try a single session.
+
+### From the workspace checkout (developing the bridge)
+
+```bash
+git clone git@github.com:winterop-com/dhis2w-utils.git
+cd dhis2w-utils && make install
+uv run dhis2w-mcp-bridge --version
+```
+
+## Wire into LM Studio
+
+LM Studio reads MCP servers from `~/.lmstudio/mcp.json`. With a global install, point it at the
+binary by name:
+
+```json
+{
+  "mcpServers": {
+    "dhis2": {
+      "command": "dhis2w-mcp-bridge",
+      "env": { "DHIS2_PROFILE": "local_basic", "DHIS2_MCP_READONLY": "1" }
+    }
+  }
+}
+```
+
+From a workspace checkout instead, launch it through `uv run`:
 
 ```json
 {
