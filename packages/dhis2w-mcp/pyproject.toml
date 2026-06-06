@@ -1,17 +1,17 @@
 [project]
 name = "dhis2w-mcp"
-version = "0.15.0"
+version = "0.16.0"
 description = "dhis2 FastMCP server — mounts plugins from dhis2w-core."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 requires-python = ">=3.13"
 dependencies = [
-  "dhis2w-core>=0.15.0,<0.16",
+  "dhis2w-core>=0.16.0,<0.17",
   "fastmcp>=3.4",
 ]
 
 [project.optional-dependencies]
-browser = ["dhis2w-browser>=0.15.0,<0.16"]
+browser = ["dhis2w-browser>=0.16.0,<0.17"]
 
 [project.scripts]
 dhis2w-mcp = "dhis2w_mcp.server:main"

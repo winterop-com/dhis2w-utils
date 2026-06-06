@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.16.0 — 2026-06-06
+
+Minor release. A new top-level `dhis2 schema` command for type introspection, plus an unknown-`--fields` guard on `metadata list` — together they let a small local model discover and verify field names instead of guessing them.
+
+### Schema command (new)
+
+- **`dhis2 schema <type>`** — describe a generated type's fields (name, type, required, description) by introspecting the **local generated models**, not the server's live schema. Resolves any modeled type, metadata or instance-side: `dataElement`, plural `dataElements`, `WebMessage`, or tracker write shapes like `TrackerEvent` / `TrackerTrackedEntity`. Case-insensitive; an unknown name prints a did-you-mean list (exit 2).
+- **Version is auto-detected from the connected server** (`/api/system/info`, SNAPSHOT-safe), then the matching generated tree is introspected — so `dhis2 -p <profile> schema dataElement` shows that server's major automatically, with no `version` pin or `DHIS2_VERSION`. "Schema" is the toolkit's own typed view: the OpenAPI-derived `oas` tree (preferred — the maturing source of truth) with the `/api/schemas`-derived `schemas` tree as the interim complement, selectable via `--source`.
+- Top-level (not under `metadata`) because it spans more than the metadata CRUD vocabulary. CLI-only plugin across v41 / v42 / v43; added to the `dhis2w-mcp-bridge` read-only allowlist, and the bridge's `dhis2_cli` docstring now points models at it for "what fields does X have".
+
+### Metadata
+
+- **`metadata list <type> --fields ...` warns on unknown field names.** DHIS2 silently drops unrecognized `--fields`, so a caller that mistypes (or hallucinates) a field never learns it was wrong. The command now emits a soft YELLOW stderr warning naming any requested field absent from the generated model (union of the oas / schemas / tracker trees). Conservative and non-blocking: only plain comma-lists of simple identifiers are checked — preset (`:owner`), wildcard, `!exclusion`, nested (`a[b]`), and dotted (`a.b`) expressions are skipped, and the query still runs.
+
+### Workspace packages
+
+All six publishable members + `dhis2w-codegen` bumped 0.15.0 → 0.16.0. Inter-package pins shifted `>=0.15.0,<0.16` → `>=0.16.0,<0.17`.
+
 ## 0.15.0 — 2026-06-06
 
 Minor release. Two new surfaces — a single-tool MCP bridge for small local models and a read-only `security` plugin — plus codegen hardening and a workspace dependency bump. Pre-1.0, so the minor bump carries the new packages and the read-surface changes together.
