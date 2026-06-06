@@ -5,6 +5,10 @@
 (≈50-65k tokens of schema loaded into the model's context up front), this server registers
 one tool that shells out to the local `dhis2` binary.
 
+For *why* it's one tool instead of many — the design reasoning and how the approach is
+validated — see [Bridge design: one tool, not many](../architecture/mcp-bridge.md). This page
+is the usage guide.
+
 ## When to reach for it
 
 !!! tip "Rule of thumb: local model -> bridge, cloud model -> full server"

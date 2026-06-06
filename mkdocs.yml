@@ -160,6 +160,7 @@ nav:
       - Introduction: mcp/index.md
       - Tutorial: mcp/tutorial.md
       - CLI bridge (local models): mcp/bridge.md
+      - "Bridge design: one tool, not many": architecture/mcp-bridge.md
       - Architecture: architecture/mcp.md
       - Reference: mcp-reference.md
 
