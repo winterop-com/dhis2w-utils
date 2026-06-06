@@ -325,3 +325,14 @@ Caveat: max 30 turns is barely above the ~22-call ideal (1 create + 10 elements 
 verify), so on-pace models are under-tested — see the higher-budget champion re-run below. Bottom
 line: a 10-object *wired* write is beyond all current local models; the capable-agent oracle does it
 100%. This is the real write ceiling, far above the hinted single-key bench write.
+
+### Round 6 follow-ups: budget vs ceiling, and the oracle baseline
+
+- **Higher turn budget doesn't rescue it.** Re-ran the champion `gemma-4-26b-a4b-qat` at **50 turns**
+  (vs 30): it did *worse* — data set + only 2/10 elements, 0 attached (vs 6/10 before). Run-to-run it
+  swings (6/10 then 2/10) but never attaches. So this is a **coherence ceiling**, not a step-budget
+  one: the model loses the thread holding 10 object UIDs and wiring them over a long sequence.
+- **The oracle (capable agent) does it 100%.** The same 10-element wired write, driven
+  deterministically: data set + 10 elements + 10 attaches → verified "10 elements attached" → cleaned
+  up, 0 leftovers. The CLI is fine; the failure is entirely model coherence over a long multi-object
+  write. That gap — trivial for a capable agent, a wall for every local model — is the headline.
