@@ -48,6 +48,21 @@ The six publishable workspace members ship to PyPI in lockstep — every release
    - `uvx --refresh --from 'dhis2w-client==0.6.0' python -c 'import dhis2w_client; print(dhis2w_client.__file__)'` pulls and imports the new wheel.
    - `uv tool list` (or `uv tool upgrade dhis2w-cli`) shows the right version.
 
+## First release of a new package
+
+A brand-new `dhis2w-*` project does not exist on PyPI yet, and OIDC cannot create it from a
+non-user identity. Before its first release, add a **pending publisher** on PyPI (one-time, web UI
+only): https://pypi.org/manage/account/publishing/ → "Add a new pending publisher":
+
+- PyPI Project Name: `dhis2w-<name>`
+- Owner: `winterop-com` · Repository: `dhis2w-utils`
+- Workflow filename: `pypi-publish.yml` · Environment: `pypi`
+
+Without it, the `publish` job 400s on that wheel (`Non-user identities cannot create new projects`).
+The siblings that sort earlier still upload, so the publish step is `skip-existing`: once the
+pending publisher exists, re-run with `gh workflow run pypi-publish.yml -f version=<X.Y.Z>` and only
+the missing package uploads.
+
 ## Pre-release flow
 
 For dry runs without committing to a SemVer slot:
