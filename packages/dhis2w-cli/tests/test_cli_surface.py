@@ -2,8 +2,36 @@
 
 from __future__ import annotations
 
+import pytest
+import typer.main
 from dhis2w_cli.main import build_app
 from typer.testing import CliRunner
+
+
+@pytest.mark.slow
+def test_every_command_renders_help() -> None:
+    """Every leaf command's `--help` renders (exit 0) — no broken/unregistered command in the tree.
+
+    The deterministic "all commands work" structural guard across the full CLI surface (~363 leaves).
+    A capable agent's command-discoverability column in the model matrix should match this 100%.
+    """
+    app = build_app()
+    root = typer.main.get_command(app)
+    runner = CliRunner()
+    leaves: list[tuple[str, ...]] = []
+
+    def walk(node: object, path: tuple[str, ...]) -> None:
+        commands = getattr(node, "commands", None)
+        if commands:
+            for name, child in commands.items():
+                walk(child, (*path, name))
+        else:
+            leaves.append(path)
+
+    walk(root, ())
+    assert len(leaves) > 300, f"expected the full CLI surface, found only {len(leaves)} leaves"
+    broken = [" ".join(path) for path in leaves if runner.invoke(app, [*path, "--help"]).exit_code != 0]
+    assert not broken, f"commands with broken --help: {broken}"
 
 
 def test_help_lists_discovered_plugins() -> None:
