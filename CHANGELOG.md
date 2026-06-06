@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.15.0 — 2026-06-06
+
+Minor release. Two new surfaces — a single-tool MCP bridge for small local models and a read-only `security` plugin — plus codegen hardening and a workspace dependency bump. Pre-1.0, so the minor bump carries the new packages and the read-surface changes together.
+
+### CLI bridge for local models (new package: `dhis2w-mcp-bridge`)
+
+- **`dhis2w-mcp-bridge` exposes the whole `dhis2` CLI as a single MCP tool, `dhis2_cli`.** Where `dhis2w-mcp` registers ~337 typed tools (≈50-65k tokens of schema up front), the bridge registers one tool that shells out to the local `dhis2` binary, so a modest on-box model (LM Studio / Ollama / llama.cpp) drives the CLI by progressive discovery (`--help` → group → command). Everything stays local — the server spawns the subprocess and sends data nowhere. `--json` is injected automatically; `profile` is injected as `-p <profile>`.
+- **`DHIS2_MCP_READONLY=1` restricts the bridge to read commands** (and `--help`); writes are refused (exit 126) before any subprocess runs. Fail-closed: the read-only allowlist is introspected from the Typer tree and verified by a drift test, so it cannot silently drift. `security settings` is included in the allowlist as a pure read (it is a read under `security` but a write under `dev customize`, so it is allowed by explicit path, not by verb).
+- **Read-surface hardening for small models**: `metadata list <type> --count` (one-request totals), `--output <file>` for bulk dumps, `metadata type list` (JSON array of camelCase wire names), did-you-mean errors on unknown resource types, and a bridge docstring rewritten for 3-4B models (output contract, top reads first, filter-operator grammar). Typed per-resource `list` commands are consolidated onto the generic `metadata list <type>`.
+
+### Security plugin (new)
+
+- **`dhis2 security settings`** — read-only display of the security slice of `/api/systemSettings` (password policy, credential expiry, registration, lockout). CLI-only plugin (no MCP surface yet); ships across the v41 / v42 / v43 trees. `SecuritySettings` is a deliberate typed projection of the generated `SystemSettings` because the live endpoint returns `keyAnalysisDisplayProperty` lowercase, which the generated `DisplayProperty` enum rejects (BUGS.md #42). An extension guide (`docs/architecture/security-plugin.md`) walks through adding the next command (#361, #362).
+
+### Codegen
+
+- **Inline string enums are lifted to `Literal[...]` instead of degrading to `str`.** Preserves the allowed-value set on the emitted models across all three version trees (#356).
+- **`schemas_manifest.json` ordering is canonicalized across re-fetches**, so re-running codegen produces a stable, diff-friendly manifest (#358).
+
+### Tooling + tests
+
+- **`make bridge-round`** (+ `infra/scripts/bridge_round.py`) — repeatable rig that drives `dhis2w-mcp-bridge` with a local LM Studio model for read / write / benchmark rounds.
+- **BUGS.md #42 tripwire** — paired mocked + live tests that fire when DHIS2 stops returning lowercase `keyAnalysisDisplayProperty`, signalling the `SecuritySettings` projection can collapse into the generated model.
+- Nightly E2E repointed at the local docker stack (#357); Material for MkDocs build notice silenced.
+
+### Workspace packages
+
+All publishable members + `dhis2w-codegen` and the new `dhis2w-mcp-bridge` bumped 0.14.2 → 0.15.0. Inter-package pins shifted `>=0.14.0,<0.15` → `>=0.15.0,<0.16` (minor bump = new upper bound, pre-1.0 policy). Workspace dependencies refreshed to latest (#359).
+
 ## 0.14.2 — 2026-05-15
 
 Additive feature patch on top of 0.14.1 — one new typed accessor on `Dhis2Client` for callers that proxy GETs through DHIS2's `/api/routes/{id}/run` reverse-proxy endpoint.

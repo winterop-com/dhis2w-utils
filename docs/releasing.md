@@ -1,6 +1,6 @@
 # Releasing to PyPI
 
-The five publishable workspace members ship to PyPI in lockstep — every release tags every package at the same version. The internal `dhis2w-codegen` package is workspace-only and does not ship.
+The six publishable workspace members ship to PyPI in lockstep — every release tags every package at the same version. The internal `dhis2w-codegen` package is workspace-only and does not ship.
 
 | Package | PyPI |
 | --- | --- |
@@ -9,10 +9,11 @@ The five publishable workspace members ship to PyPI in lockstep — every releas
 | `dhis2w-cli` | https://pypi.org/project/dhis2w-cli/ |
 | `dhis2w-browser` | https://pypi.org/project/dhis2w-browser/ |
 | `dhis2w-mcp` | https://pypi.org/project/dhis2w-mcp/ |
+| `dhis2w-mcp-bridge` | https://pypi.org/project/dhis2w-mcp-bridge/ |
 
 ## Versioning policy
 
-- **Lockstep.** All five publishable packages share the same `version =` value in their `pyproject.toml`. Bump them together, never one at a time.
+- **Lockstep.** All six publishable packages share the same `version =` value in their `pyproject.toml`. Bump them together, never one at a time.
 - **SemVer.** `MAJOR.MINOR.PATCH` for stable releases; pre-releases use SemVer suffixes (`0.6.0a1`, `0.6.0rc1`). Pre-1.0 means breaking changes can land on minor bumps.
 - **Inter-package deps** are pinned to `>=<current>,<<next-major>` (e.g. `dhis2w-client>=0.5.0,<0.6`). When the next minor lands, every consumer's pin needs the same shift.
 

@@ -8,7 +8,7 @@
 
 A Python toolkit for DHIS2 — pure client library, CLI, MCP server, Playwright browser automation, and a shared plugin runtime, all in one `uv` workspace. Targets DHIS2 v41, v42, and v43.
 
-The repo lives at `winterop-com/dhis2w-utils`; PyPI ships the five publishable members under the `dhis2w-*` prefix. Not affiliated with DHIS2.
+The repo lives at `winterop-com/dhis2w-utils`; PyPI ships the six publishable members under the `dhis2w-*` prefix. Not affiliated with DHIS2.
 
 > **Learning path · step 1 of 8** — You are here. Quick install + profile + first CLI / Python call below. Next: the [contributor walkthrough](docs/walkthrough.md) for the local docker stack, or jump to a surface-specific tutorial — [CLI](docs/guides/cli-tutorial.md), [Python](docs/guides/client-tutorial.md), [MCP](docs/mcp/tutorial.md).
 
@@ -20,10 +20,11 @@ The repo lives at `winterop-com/dhis2w-utils`; PyPI ships the five publishable m
 | [`dhis2w-core`](https://pypi.org/project/dhis2w-core/) | `uv add dhis2w-core` | Shared runtime: profile discovery, plugin registry, auth factory, token store, first-party plugins. |
 | [`dhis2w-cli`](https://pypi.org/project/dhis2w-cli/) | `uv tool install dhis2w-cli` | Typer console script `dhis2`. |
 | [`dhis2w-mcp`](https://pypi.org/project/dhis2w-mcp/) | `uv tool install dhis2w-mcp` | FastMCP server `dhis2w-mcp`. |
+| [`dhis2w-mcp-bridge`](https://pypi.org/project/dhis2w-mcp-bridge/) | `uv tool install dhis2w-mcp-bridge` | FastMCP server `dhis2w-mcp-bridge` — exposes the whole `dhis2` CLI as a single `dhis2_cli` tool for small local models. |
 | [`dhis2w-browser`](https://pypi.org/project/dhis2w-browser/) | `uv add dhis2w-browser` | Playwright helpers for DHIS2 UI automation — PAT minting, Playwright-driven OIDC login + consent, dashboard / viz / map screenshot capture. Mounted under `dhis2 browser` when the `[browser]` extra is installed on `dhis2w-cli`. |
 | `dhis2w-codegen` | _workspace-only_ | Generator that emits pydantic models + `StrEnum`s + CRUD accessors into `dhis2w_client.generated.v{N}/`. Two source-of-truth paths: `/api/schemas` for metadata resources, `/api/openapi.json` for instance-side shapes (tracker writes, envelopes, auth schemes). |
 
-All five publishable packages release together (lockstep versioning); see [`docs/releasing.md`](docs/releasing.md).
+All six publishable packages release together (lockstep versioning); see [`docs/releasing.md`](docs/releasing.md).
 
 ## Install
 
