@@ -300,3 +300,28 @@ real write bar — far above the hinted single-key `bridge-bench` write.
   sub-app is `metadata data-sets` (hyphenated). The model tripped on this (step 11), and so did the
   cleanup script. The `dataSets` vs `data-sets` split between read-by-wire-name and the hyphenated
   mutating sub-apps is a real discoverability wart worth smoothing (accept both forms, or alias).
+
+## Round 6 — multi-purpose write at scale: data set + 10 elements
+
+Drove the whole roster on "create a Monthly data set + ten INTEGER data elements, attach all ten,
+confirm 10" (local_basic, writes on, ZZMulti-prefixed + cleaned before/after each model, max 30 turns).
+
+| model | dataSet | elements | attached | terminated | calls | secs |
+|---|---|---|---|---|---|---|
+| gemma-4-26b-a4b-qat | yes | 6/10 | 0/10 | no | 30 | 140 |
+| gemma-4-12b-qat | no | 0/10 | 0/10 | no | 30 | 385 |
+| gemma-4-12b (bf16) | yes | 7/10 | 0/10 | gave up @19 | 19 | 255 |
+| gemma-4-e4b | no | 6/10 | 0/10 | no | 30 | 427 |
+| qwen2.5-7b-instruct | no | 10/10 | 0/10 | no | 176 | 606 |
+| qwen3.5-4b | yes | 1/10 | 0/10 | gave up @5 | 5 | 27 |
+
+**No model completed it, and `attached=0` for every one.** Two failure modes: (1) pace/step budget —
+the 26B was on-track but ran 1 call/turn and the 30-turn cap cut it off mid-build; (2) UID
+correlation — qwen2.5-7b had calls to spare (176!) but never wired the elements, because the attach
+step requires holding the data set UID and each just-created element UID together. The *wiring* of
+many freshly-created objects is the cognitive wall, not the creates.
+
+Caveat: max 30 turns is barely above the ~22-call ideal (1 create + 10 elements + 10 attach +
+verify), so on-pace models are under-tested — see the higher-budget champion re-run below. Bottom
+line: a 10-object *wired* write is beyond all current local models; the capable-agent oracle does it
+100%. This is the real write ceiling, far above the hinted single-key bench write.
