@@ -47,6 +47,7 @@ nav:
   # the cross-cutting and per-plugin design docs.
   - Get started:
       - Home: index.md
+      - Why dhis2w?: announcement.md
       - Install + local setup: local-setup.md
       - Connect to DHIS2: guides/connecting-to-dhis2.md
       - Walkthrough: walkthrough.md
