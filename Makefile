@@ -1,4 +1,4 @@
-.PHONY: help install lint test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bridge-round refresh-setup refresh-and-verify
+.PHONY: help install lint test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bridge-round bridge-bench refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -34,6 +34,7 @@ help:
 	@echo "  dhis2-codegen-play    Refresh v42 + v43 generated/ trees against play.im.dhis2.org (no docker)"
 	@echo "  verify-examples       Run every non-interactive example + print PASS/FAIL summary"
 	@echo "  bridge-round          Drive dhis2w-mcp-bridge with a local LM Studio model (MODEL=, ROUND=read|write|bench, PROFILE=)"
+	@echo "  bridge-bench          Benchmark the model roster over the bridge: read+write+perf (MODELS= to override)"
 	@echo "  refresh-setup         Wipe + rebuild e2e dump + seed (no example verify — fast iteration on setup)"
 	@echo "  refresh-and-verify    Rebuild dump + seed + run every example (turns the PR #125 ritual into one command)"
 	@echo ""
@@ -182,6 +183,13 @@ bridge-round:
 		--model $(or $(MODEL),google/gemma-4-12b-qat) \
 		--round $(or $(ROUND),read) \
 		--profile $(or $(PROFILE),$(if $(filter write,$(ROUND)),local_basic,play42))
+
+bridge-bench:
+	@echo ">>> Bridge model benchmark (roster in infra/scripts/bench_bridge_models.py)"
+	@echo "    reads -> play42 (read-only), writes -> local_basic; loads/unloads each model itself."
+	@echo "    Override the roster: make bridge-bench MODELS=\"qwen2.5-7b-instruct google/gemma-4-e4b\""
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python infra/scripts/bench_bridge_models.py $(MODELS)
 
 refresh-setup:
 	@echo ">>> [1/2] Rebuilding e2e dump (wipes + reseeds the stack)"

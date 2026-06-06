@@ -261,3 +261,23 @@ Drove the **real bridge** (FastMCP client) from LM Studio's OpenAI-compatible AP
     the generated model (union of oas + schemas + tracker), e.g. `name_type, options_set_id`. Plain
     comma-lists only — preset/wildcard/`!exclusion`/nested/dotted expressions are skipped to avoid
     false positives. Non-blocking: the query still runs, the model just gets the corrective signal.
+
+## Round 4 — read + write + performance benchmark (roster)
+
+Full read+write+perf sweep across a curated model roster, plus the capable cloud model as the
+correctness reference. Results + methodology + roster live in
+[`model-benchmark.md`](model-benchmark.md); re-run with `make bridge-bench`. Headline:
+`gemma-4-12b-qat` is the only local model that passed both read and write, and it beats its bf16
+sibling on speed at equal correctness. qwens read fast but stall on the write (discoverability of
+`dev customize set`). All five now use `dhis2 schema` for the "what fields" task.
+
+### Validated in a live GUI session (gemma-4-12b-qat, chat.md)
+Asked to **create** a dataElement, the model first ran `dhis2_cli(["schema","dataElements"])` to
+check the shape before writing — the `schema` command is now part of the natural write workflow,
+exactly as intended.
+
+### Queued from this round
+- **`dhis2 schema` should expand enum fields to their allowed values.** In the create session the
+  model saw `valueType: ValueType | None` and wanted the members (`NUMBER`, `INTEGER`, `TEXT`, …) to
+  pick the right one — the field type names the enum but not its values. Render enum-typed fields as
+  e.g. `valueType: ValueType (NUMBER, INTEGER, TEXT, ...)` so a model can choose without guessing.
