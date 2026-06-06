@@ -202,6 +202,6 @@ Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.c
 
 - **Every top-level CLI domain has at least one example.** See [CLI reference](cli-reference.md) for the full command tree.
 - **Every plugin with a service layer has both a CLI and client example.** Pairs are intentional — the CLI shows the user-facing path, the client shows what library callers do.
-- **Every MCP plugin group has representative examples.** The 40-ish v42 MCP scripts can't cover all ~337 tools 1:1, but each plugin group (`metadata_*`, `analytics_*`, `data_*`, `apps_*`, ...) gets at least one runnable example showing the expected input shape + how to unpack the `structured_content` return.
+- **Every MCP plugin group has representative examples.** The 40-ish v42 MCP scripts can't cover all ~304 tools 1:1, but each plugin group (`metadata_*`, `analytics_*`, `data_*`, `apps_*`, ...) gets at least one runnable example showing the expected input shape + how to unpack the `structured_content` return.
 
 When adding a new plugin / command / MCP tool: update this file alongside the feature PR so the catalogue stays in sync.

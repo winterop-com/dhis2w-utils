@@ -2,7 +2,7 @@
 
 A FastMCP server that exposes the entire `dhis2` CLI as **one** MCP tool, `dhis2_cli`.
 
-Where `dhis2w-mcp` registers ~337 typed tools (≈50-65k tokens of schema loaded into the
+Where `dhis2w-mcp` registers ~304 typed tools (≈50-65k tokens of schema loaded into the
 model's context up front), this server registers a single tool that shells out to the local
 `dhis2` binary. A small, context-limited **local model** discovers the command surface
 progressively with `--help` and runs commands with `--json` — and nothing leaves the host.
@@ -15,7 +15,7 @@ choosing among hundreds of tools. One tool + on-demand `--help` fits an 8k-conte
 keeps the full DHIS2 surface reachable. Same code as the CLI — the bridge just runs it.
 
 Use `dhis2w-mcp` (the full typed server) for hosts that do progressive tool disclosure
-themselves (e.g. Claude Code handles all 337 tools fine). Use this bridge for small local
+themselves (e.g. Claude Code handles all 304 tools fine). Use this bridge for small local
 models.
 
 ## The tool

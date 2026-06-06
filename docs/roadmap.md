@@ -30,7 +30,7 @@ Seventeen top-level domains: `analytics`, `apps`, `browser`, `data`, `dev`, `doc
 
 ### MCP surface
 
-Roughly 337 tools across 13 plugin groups (`analytics_*`, `apps_*`, `customize_*`, `data_*`, `doctor_*`, `files_*`, `maintenance_*`, `messaging_*`, `metadata_*` (~230), `profile_*`, `route_*`, `system_*`, `user_*`). Counts age with each release; the auto-regenerated [MCP reference](mcp-reference.md) is the source of truth. Most operational CLI commands have a matching MCP tool; `dhis2 dev`, `dhis2 browser`, and profile mutations are intentionally CLI-only (see the [capability matrix](index.md#capability-matrix)).
+Roughly 304 tools across 13 plugin groups (`analytics_*`, `apps_*`, `customize_*`, `data_*`, `doctor_*`, `files_*`, `maintenance_*`, `messaging_*`, `metadata_*` (~197), `profile_*`, `route_*`, `system_*`, `user_*`). Counts age with each release; the auto-regenerated [MCP reference](mcp-reference.md) is the source of truth. Most operational CLI commands have a matching MCP tool; `dhis2 dev`, `dhis2 browser`, and profile mutations are intentionally CLI-only (see the [capability matrix](index.md#capability-matrix)).
 
 ### Typed models shipped
 
@@ -95,7 +95,7 @@ Public distribution is now active — every workspace member (except `dhis2w-cod
 
 ### Docs
 
-- Auto-generated **CLI reference** (`docs/cli-reference.md`, ~10,300 lines from the Typer app) + **MCP reference** (`docs/mcp-reference.md`, roughly 337 tools across 13 groups from the FastMCP server). Both regenerated on every `make docs-build`; the counts age with each release.
+- Auto-generated **CLI reference** (`docs/cli-reference.md`, ~10,300 lines from the Typer app) + **MCP reference** (`docs/mcp-reference.md`, roughly 304 tools across 13 groups from the FastMCP server). Both regenerated on every `make docs-build`; the counts age with each release.
 - **Narrative tutorials**: `docs/guides/cli-tutorial.md`, `docs/guides/client-tutorial.md`, `docs/guides/visualizations.md` (step-by-step viz + dashboard composition).
 - **Examples index** (`docs/examples.md`) catalogues the canonical v42 example set spread across cli / client / mcp on the v42 tree; v41 + v43 mirror most of them. Per-version totals printed by `ls examples/v{41,42,43}/{cli,client,mcp}/` (the source of truth). Tracker-schema authoring examples (steps 1 / 2 / 3 under `examples/v42/cli/tracker_*.sh`) round-trip the full chain end-to-end.
 - **Architecture docs** cover every plugin, the client, auth, profiles, codegen, typed schemas, plugins runtime, external plugins, MCP, versioning, browser automation.

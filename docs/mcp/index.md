@@ -1,6 +1,6 @@
 # `dhis2w-mcp` MCP server
 
-`dhis2w-mcp` is a [FastMCP](https://github.com/jlowin/fastmcp) server that exposes most `dhis2w-core` plugins as typed [Model Context Protocol](https://modelcontextprotocol.io/) tools. When launched by an MCP host (Claude Desktop, Claude Code, Cursor, Continue, Cline, or anything that speaks stdio MCP), it registers around 337 tools sharing the same typed service functions as the CLI and the Python client. A handful of CLI surfaces (`dhis2 dev` codegen + sample fixtures, `dhis2 browser` Playwright automation, profile mutations like `add` / `login` / `remove`) are intentionally CLI-only — see the [capability matrix](../index.md#capability-matrix) for the full list.
+`dhis2w-mcp` is a [FastMCP](https://github.com/jlowin/fastmcp) server that exposes most `dhis2w-core` plugins as typed [Model Context Protocol](https://modelcontextprotocol.io/) tools. When launched by an MCP host (Claude Desktop, Claude Code, Cursor, Continue, Cline, or anything that speaks stdio MCP), it registers around 304 tools sharing the same typed service functions as the CLI and the Python client. A handful of CLI surfaces (`dhis2 dev` codegen + sample fixtures, `dhis2 browser` Playwright automation, profile mutations like `add` / `login` / `remove`) are intentionally CLI-only — see the [capability matrix](../index.md#capability-matrix) for the full list.
 
 ## When to reach for it
 
@@ -8,12 +8,12 @@
 - Building agent-assisted operations on a live DHIS2 stack where every tool call surfaces a typed result and a typed error.
 - Auditing what an agent is doing against DHIS2 — every tool call is logged with its arguments.
 
-This full server is the right choice for **any capable cloud/hosted model** (Claude, GPT, Gemini) and the hosts that drive them — they select among the ~337 typed tools well and get a typed result + typed error on every call. For **small on-box local models** that can't spare the schema budget, reach for the single-tool bridge instead (see the tip below).
+This full server is the right choice for **any capable cloud/hosted model** (Claude, GPT, Gemini) and the hosts that drive them — they select among the ~304 typed tools well and get a typed result + typed error on every call. For **small on-box local models** that can't spare the schema budget, reach for the single-tool bridge instead (see the tip below).
 
 For direct CLI use, the [CLI surface](../cli/index.md) is what you want. For Python integration, the [Python client](../client/index.md).
 
 !!! tip "Small local models: use the CLI bridge"
-    Running a small, context-limited local model (LM Studio, Ollama, llama.cpp) — e.g. for sensitive data that must stay on-box? The ~337 typed tools here cost ≈50-65k tokens of context up front. The separate [`dhis2w-mcp-bridge`](bridge.md) server exposes the whole CLI as a single `dhis2_cli` tool the model discovers via `--help`, with an optional read-only guard.
+    Running a small, context-limited local model (LM Studio, Ollama, llama.cpp) — e.g. for sensitive data that must stay on-box? The ~304 typed tools here cost ≈50-65k tokens of context up front. The separate [`dhis2w-mcp-bridge`](bridge.md) server exposes the whole CLI as a single `dhis2_cli` tool the model discovers via `--help`, with an optional read-only guard.
 
 ## Install
 
@@ -98,7 +98,7 @@ Open the file (create it if it doesn't exist) and add:
 }
 ```
 
-Quit + reopen Claude Desktop. The MCP server tray shows a green dot next to "dhis2"; click it to see the 337+ tools the agent has access to.
+Quit + reopen Claude Desktop. The MCP server tray shows a green dot next to "dhis2"; click it to see the 304+ tools the agent has access to.
 
 To pass extra env vars (e.g. pin the plugin tree or active profile):
 

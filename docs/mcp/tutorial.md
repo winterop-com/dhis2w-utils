@@ -10,7 +10,7 @@ In Claude Desktop / Claude Code / Cursor, ask the agent:
 
 > List the MCP tools you have for DHIS2.
 
-Expect: a count plus a sampled list grouped by plugin (analytics, apps, customize, data, doctor, files, maintenance, messaging, metadata, profile, route, system, user — roughly 337 tools total).
+Expect: a count plus a sampled list grouped by plugin (analytics, apps, customize, data, doctor, files, maintenance, messaging, metadata, profile, route, system, user — roughly 304 tools total).
 
 **Recovery — "zero tools":**
 

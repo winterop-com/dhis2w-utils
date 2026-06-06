@@ -18,7 +18,7 @@ DHIS2 already has a lightweight, official Python client that returns plain JSON 
 
 - **Typed, not stringly-typed.** Every response is a Pydantic model generated from DHIS2's own OpenAPI spec, so your editor autocompletes fields and the type checker catches a misspelled key before you run. No guessing dictionary keys against the docs.
 - **One core, four surfaces.** The same typed client powers a Python library, a `dhis2` CLI, an MCP server, and Playwright browser automation — all sharing one `service.py` per domain, so behaviour never drifts between them.
-- **Built for AI agents.** The MCP server exposes ~337 typed tools, one per CLI command, so any MCP host (Claude, Cursor) can drive a DHIS2 instance directly.
+- **Built for AI agents.** The MCP server exposes ~304 typed tools, one per CLI command, so any MCP host (Claude, Cursor) can drive a DHIS2 instance directly.
 - **Version-aware by design.** Detects v41 / v42 / v43 on connect and binds the matching hand-written tree, so one codebase works across instances instead of branching on the wire shape yourself.
 - **Real auth.** Basic, PAT, and OAuth2/OIDC with PKCE, behind a pluggable `AuthProvider` protocol, with a profile system for juggling multiple instances.
 - **Production posture.** Strict ruff + mypy + pyright, ~1,150 tests, an mkdocs-material site, and runnable examples for every supported version.
@@ -118,7 +118,7 @@ async with Dhis2Client(
 
 ### Use the MCP server
 
-`dhis2w-mcp` exposes ~337 typed tools (one per CLI command) over the MCP stdio transport when connected to a DHIS2 v42 instance; v43 adds a handful more for the v43-only schema fields. Connect any MCP host — Claude Desktop, Claude Code, Cursor, or anything that speaks stdio MCP.
+`dhis2w-mcp` exposes ~304 typed tools (one per CLI command) over the MCP stdio transport when connected to a DHIS2 v42 instance; v43 adds a handful more for the v43-only schema fields. Connect any MCP host — Claude Desktop, Claude Code, Cursor, or anything that speaks stdio MCP.
 
 The PyPI distribution name **is** the binary name here (`dhis2w-mcp`), so the `--from` dance isn't needed:
 

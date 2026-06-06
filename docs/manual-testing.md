@@ -310,7 +310,7 @@ asyncio.run(main())
 PY
 ```
 
-Expect roughly 337 tools across 13 groups (regenerated counts live in `docs/mcp-reference.md`; the per-group breakdown ages with each release):
+Expect roughly 304 tools across 13 groups (regenerated counts live in `docs/mcp-reference.md`; the per-group breakdown ages with each release):
 
 ```
 analytics: 5     messaging: 11

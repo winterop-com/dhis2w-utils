@@ -1,7 +1,7 @@
 # `dhis2w-mcp-bridge` — single-tool CLI bridge for local models
 
 `dhis2w-mcp-bridge` is a separate FastMCP server that exposes the entire `dhis2` CLI as a
-**single** MCP tool, `dhis2_cli`. Where [`dhis2w-mcp`](index.md) registers ~337 typed tools
+**single** MCP tool, `dhis2_cli`. Where [`dhis2w-mcp`](index.md) registers ~304 typed tools
 (≈50-65k tokens of schema loaded into the model's context up front), this server registers
 one tool that shells out to the local `dhis2` binary.
 
@@ -14,7 +14,7 @@ is the usage guide.
 !!! tip "Rule of thumb: local model -> bridge, cloud model -> full server"
     Use **`dhis2w-mcp-bridge`** (this server, one `dhis2_cli` tool) for **small on-box local
     models** (LM Studio, Ollama, llama.cpp). Use the full **[`dhis2w-mcp`](index.md)** server
-    (~337 typed tools) for **any capable cloud/hosted model** — Claude, GPT, Gemini, and the
+    (~304 typed tools) for **any capable cloud/hosted model** — Claude, GPT, Gemini, and the
     hosts that drive them (Claude Code, Claude Desktop, Cursor) do their own tool selection and
     benefit from the typed per-tool schemas and typed errors. The bridge is a deliberate
     trade-off for models that can't afford ~53k tokens of schema or reliably pick among hundreds
@@ -34,7 +34,7 @@ dhis2_cli(["metadata", "list", "dataElements",
 
 Everything stays local — the server spawns the `dhis2` subprocess and never sends data
 anywhere. Use the full [`dhis2w-mcp`](index.md) server instead for hosts that do their own
-progressive tool disclosure (e.g. Claude Code handles all 337 tools comfortably).
+progressive tool disclosure (e.g. Claude Code handles all 304 tools comfortably).
 
 !!! note "MCP-client support"
     The bridge is consumed over MCP. **LM Studio** has a native MCP client and uses it

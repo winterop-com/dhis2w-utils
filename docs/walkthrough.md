@@ -266,7 +266,7 @@ Plugin-specific docs: [metadata](architecture/metadata-plugin.md), [aggregate](a
 
 ## Step 12 — use the MCP server
 
-The same capabilities are available to AI agents via `dhis2w-mcp`. The server exposes roughly **337 tools across 13 plugin groups** — `profile` (4), `system` (5), `metadata` (230 — spans the authoring-triple sub-apps + options + attribute + program-rule + sql-view + viz + dashboard + map + legend-sets + core `list/get/patch/search/usage/export/import/diff/merge`), `data` (15 — aggregate + tracker), `analytics` (5), `route` (7), `maintenance` (15), `files` (5), `messaging` (11), `user` (16 — user + user-group + user-role), `customize` (7), `apps` (13), `doctor` (4). The auto-regenerated [MCP reference](mcp-reference.md) is the source of truth for the current counts.
+The same capabilities are available to AI agents via `dhis2w-mcp`. The server exposes roughly **304 tools across 13 plugin groups** — `profile` (4), `system` (5), `metadata` (197 — spans the authoring-triple sub-apps + options + attribute + program-rule + sql-view + viz + dashboard + map + legend-sets + core `list/get/patch/search/usage/export/import/diff/merge`), `data` (15 — aggregate + tracker), `analytics` (5), `route` (7), `maintenance` (15), `files` (5), `messaging` (11), `user` (16 — user + user-group + user-role), `customize` (7), `apps` (13), `doctor` (4). The auto-regenerated [MCP reference](mcp-reference.md) is the source of truth for the current counts.
 
 ### Option A — one server, select profile per tool call
 

@@ -8,12 +8,12 @@ the pattern is unusual. For the *usage* (install, LM Studio wiring, read-only mo
 ## The problem with the default MCP shape
 
 The conventional way to build an MCP server is **one typed tool per capability**. That is exactly what
-the full [`dhis2w-mcp`](mcp.md) server does — it registers ~337 typed tools, one per CLI capability,
+the full [`dhis2w-mcp`](mcp.md) server does — it registers ~304 typed tools, one per CLI capability,
 each with a JSON Schema for its parameters and return type. For a capable hosted model (Claude, GPT,
 Gemini) that is the right design: the host streams all the schemas in, the model grounds on the typed
 parameters, and every call comes back as a typed result or a typed error.
 
-But the schemas are not free. ~337 tool definitions is **≈50-65k tokens of schema loaded into context
+But the schemas are not free. ~304 tool definitions is **≈50-65k tokens of schema loaded into context
 before the model has done anything**. And the model still has to *choose* the right tool out of
 hundreds on every turn.
 
@@ -57,7 +57,7 @@ re-uses that surface as the model's affordance.
 
 The conventional intuition is *more typed tools = more capability and better grounding*. For a
 token- and selection-constrained model the opposite holds: **fewer tools + progressive discovery
-wins**. The model's "which of 337 tools?" problem becomes a navigable "drill into `--help`" problem
+wins**. The model's "which of 304 tools?" problem becomes a navigable "drill into `--help`" problem
 it can solve incrementally, exactly like a person exploring an unfamiliar CLI.
 
 Giving an agent a shell or a CLI is not itself new. What is deliberate here is packaging
@@ -82,7 +82,7 @@ surface, not the bridge plumbing:
 
 | | small **local** model (on-box, sensitive data) | capable **cloud** model |
 | --- | --- | --- |
-| Server | `dhis2w-mcp-bridge` (one tool) | `dhis2w-mcp` (~337 typed tools) |
+| Server | `dhis2w-mcp-bridge` (one tool) | `dhis2w-mcp` (~304 typed tools) |
 | Why | can't afford schema tokens; can't pick among hundreds | does its own tool selection; benefits from typed schemas + errors |
 
 Rule of thumb: **local model → bridge, cloud model → full server.** See the

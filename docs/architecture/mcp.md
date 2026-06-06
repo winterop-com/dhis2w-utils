@@ -2,7 +2,7 @@
 
 `dhis2w-mcp` exposes the same plugin-registered capabilities as the CLI, but through a FastMCP server that an AI agent can drive over stdio. The CLI and the MCP server share every service function — what differs is how they format I/O.
 
-This is the full ~337-typed-tool server, aimed at capable hosted models. For small on-box local models there is a separate single-tool server, `dhis2w-mcp-bridge` — see [Bridge design: one tool, not many](mcp-bridge.md) for the reasoning and when to use which.
+This is the full ~304-typed-tool server, aimed at capable hosted models. For small on-box local models there is a separate single-tool server, `dhis2w-mcp-bridge` — see [Bridge design: one tool, not many](mcp-bridge.md) for the reasoning and when to use which.
 
 ## Entry point
 

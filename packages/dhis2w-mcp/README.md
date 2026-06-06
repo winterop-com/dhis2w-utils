@@ -2,7 +2,7 @@
 
 FastMCP server that exposes every `dhis2w-core` plugin as MCP tools. Same service functions as the CLI; different I/O shape.
 
-A connected agent (Claude Desktop, Claude Code, Cursor, …) sees roughly 337 typed tools grouped by plugin: `metadata_*`, `data_aggregate_*`, `data_tracker_*`, `analytics_*`, `route_*`, `user_*`, `apps_*`, `system_*`, `messaging_*`, `files_*`, `maintenance_*`, `customize_*`, `profile_*`, `doctor_*`. Counts age with each release; the auto-regenerated `docs/mcp-reference.md` is the source of truth.
+A connected agent (Claude Desktop, Claude Code, Cursor, …) sees roughly 304 typed tools grouped by plugin: `metadata_*`, `data_aggregate_*`, `data_tracker_*`, `analytics_*`, `route_*`, `user_*`, `apps_*`, `system_*`, `messaging_*`, `files_*`, `maintenance_*`, `customize_*`, `profile_*`, `doctor_*`. Counts age with each release; the auto-regenerated `docs/mcp-reference.md` is the source of truth.
 
 ## Install
 

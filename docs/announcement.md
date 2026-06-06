@@ -28,7 +28,7 @@ dhis2 doctor          # ~100 health + integrity checks against a live instance
 
 ## Built for AI agents
 
-The MCP server exposes around 337 typed tools — one per CLI command — so any MCP host like Claude or Cursor can operate a DHIS2 instance directly, with typed inputs and outputs. Point an agent at your instance and it can read metadata, run analytics, or check system health without you wiring up a single endpoint.
+The MCP server exposes around 304 typed tools — one per CLI command — so any MCP host like Claude or Cursor can operate a DHIS2 instance directly, with typed inputs and outputs. Point an agent at your instance and it can read metadata, run analytics, or check system health without you wiring up a single endpoint.
 
 ## Version-aware across v41, v42, v43
 
