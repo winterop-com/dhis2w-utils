@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shlex
 import subprocess
 import sys
 import time
@@ -150,6 +151,19 @@ class _Run(BaseModel):
     tool_args: list[list[str]]
 
 
+def _normalize_args(arguments: object) -> list[str]:
+    """Coerce a model's `args` to a token list — shlex-split a packed string so the call validates."""
+    raw = arguments.get("args") if isinstance(arguments, dict) else None
+    if isinstance(raw, str):
+        try:
+            return shlex.split(raw)
+        except ValueError:
+            return raw.split()
+    if isinstance(raw, list):
+        return [str(token) for token in raw]
+    return []
+
+
 def _bridge_config(profile: str, readonly: str) -> dict[str, object]:
     """Bridge client config (same shape as ~/.lmstudio/mcp.json)."""
     return {
@@ -235,11 +249,13 @@ async def _agent(
                 arguments = json.loads(call.function.arguments or "{}")
             except json.JSONDecodeError:
                 arguments = {}
-            raw_args = arguments.get("args") if isinstance(arguments, dict) else None
-            if isinstance(raw_args, list):
-                tool_args.append([str(token) for token in raw_args])
-            data = (await client.call_tool("dhis2_cli", arguments if isinstance(arguments, dict) else {})).data
-            text = str(data.stdout) if int(data.exit_code) == 0 else f"ERROR (exit {data.exit_code}): {data.stderr}"
+            cli_args = _normalize_args(arguments)
+            tool_args.append(cli_args)
+            try:
+                data = (await client.call_tool("dhis2_cli", {"args": cli_args})).data
+                text = str(data.stdout) if int(data.exit_code) == 0 else f"ERROR (exit {data.exit_code}): {data.stderr}"
+            except Exception as exc:  # noqa: BLE001 - a malformed tool call shouldn't abort the round
+                text = f"ERROR: invalid tool call ({type(exc).__name__})"
             messages.append({"role": "tool", "tool_call_id": call.id, "content": text[:8000]})
     return _Run(
         calls=calls,

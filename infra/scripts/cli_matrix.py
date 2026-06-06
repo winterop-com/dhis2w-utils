@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -130,6 +131,24 @@ def _task(leaf: Leaf) -> str:
     )
 
 
+def _normalize_args(arguments: object) -> list[str]:
+    """Coerce a model's `args` to a token list — shlex-split a packed string so the call is valid.
+
+    FastMCP validates `args` against `list[str]` client-side, so a model that packs the whole
+    command into one string (`"metadata list dataElements ..."`) would raise before the bridge can
+    tokenize it. Split it here instead of crashing the sweep.
+    """
+    raw = arguments.get("args") if isinstance(arguments, dict) else None
+    if isinstance(raw, str):
+        try:
+            return shlex.split(raw)
+        except ValueError:
+            return raw.split()
+    if isinstance(raw, list):
+        return [str(token) for token in raw]
+    return []
+
+
 def _bridge_config() -> dict[str, object]:
     """Read-only bridge config against the read profile."""
     return {
@@ -196,20 +215,17 @@ async def _run_cell(
                 arguments = json.loads(tool_call.function.arguments or "{}")
             except json.JSONDecodeError:
                 arguments = {}
-            args = arguments.get("args") if isinstance(arguments, dict) else None
-            path = [str(token) for token in args] if isinstance(args, list) else []
+            path = _normalize_args(arguments)
             if path[: len(target)] == target and "--help" not in path:
                 hit = True
-            data = (await client.call_tool("dhis2_cli", arguments if isinstance(arguments, dict) else {})).data
-            if hit and int(data.exit_code) == 0:
-                exec_ok = True
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": str(data.stdout if int(data.exit_code) == 0 else data.stderr)[:6000],
-                }
-            )
+            try:
+                data = (await client.call_tool("dhis2_cli", {"args": path})).data
+                output = str(data.stdout) if int(data.exit_code) == 0 else f"ERROR: {data.stderr}"
+                if hit and int(data.exit_code) == 0:
+                    exec_ok = True
+            except Exception as exc:  # noqa: BLE001 - a malformed tool call shouldn't abort the sweep
+                output = f"ERROR: invalid tool call ({type(exc).__name__})"
+            messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": output[:6000]})
         if hit:
             break
     return Cell(
@@ -248,7 +264,13 @@ def _render(results_path: Path, out_path: Path, models: list[str]) -> None:
     lines = [
         "# CLI command x model matrix",
         "",
-        "`HIT` = model formed the right command path; `RUN` = read executed (exit 0).",
+        "`HIT` = model formed the right command path; `RUN` = read executed (exit 0); `miss` = neither.",
+        "",
+        "> **Read `miss` with care.** Each task is auto-derived from a command's one-line help, then the",
+        "> model must pick that exact command among ~200 metadata siblings. A `miss` is usually that",
+        "> ambiguity — the model ran a plausible neighbour — not an inability to use the command. The",
+        "> structural proof that every command works is the deterministic `--help` guard",
+        "> (`test_every_command_renders_help`); this grid measures *discoverability under a vague goal*.",
         "",
     ]
     groups: dict[str, list[str]] = {}
