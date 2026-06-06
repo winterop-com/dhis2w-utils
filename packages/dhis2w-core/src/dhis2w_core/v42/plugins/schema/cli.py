@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated, Any
 
 import typer
 
+from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import ColumnSpec, is_json_output, render_list
 from dhis2w_core.v42.plugins.schema import service
 
@@ -22,13 +24,18 @@ def schema_command(
         typer.Option(help="Which generated tree to read: auto (prefer oas), oas, or schemas."),
     ] = "auto",
 ) -> None:
-    """Describe a type's fields from the generated models. Offline; reflects the active version tree."""
+    """Describe a type's fields from the locally generated models (not the server's live schema).
+
+    Only the DHIS2 major is read live (auto-detected via /api/system/info, SNAPSHOT-safe); the field
+    shapes come from the generated trees, so the output reflects what this client parses/accepts.
+    """
     if source not in _SOURCES:
         raise typer.BadParameter(f"source must be one of {', '.join(_SOURCES)}")
-    result = service.describe_type(type_name, source=source)
+    version = asyncio.run(service.detect_version(profile_from_env()))
+    result = service.describe_type(version, type_name, source=source)
     if result is None:
-        message = f"unknown type {type_name!r}"
-        candidates = service.search_types(type_name)
+        message = f"unknown type {type_name!r} for {version}"
+        candidates = service.search_types(version, type_name)
         if candidates:
             message += f". Did you mean: {', '.join(candidates)}?"
         typer.echo(message, err=True)

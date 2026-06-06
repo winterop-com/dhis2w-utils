@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Describe a generated type's fields via `dhis2 schema <type>` (offline; no server call).
+# Describe a generated type's fields via `dhis2 schema <type>`.
 set -euo pipefail
 
-# The field shape of a metadata type, from the OpenAPI-derived models (the preferred source).
-# Output reflects the ACTIVE version tree (profile.version / DHIS2_VERSION), so the same
-# command against a v41 vs a v43 profile can differ.
+# The DHIS2 major is auto-detected from the connected server (/api/system/info,
+# SNAPSHOT-safe), then the matching generated models are introspected. So the same
+# command against a v41 vs a v43 profile shows that version's shape automatically —
+# no version pin needed. Fields come from the OpenAPI-derived models (preferred source).
 dhis2 schema dataElement
 
 # Plural wire names resolve to the singular class; --json emits a typed object.

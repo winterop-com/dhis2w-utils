@@ -1,9 +1,9 @@
-"""Introspect generated models to describe a type's schema — offline, version-bound.
+"""Describe a type's schema by introspecting the generated models for the server's version.
 
-"Schema" here is the toolkit's own typed view of a type: the OpenAPI-derived `oas`
-tree (preferred — the maturing source of truth) with the `/api/schemas`-derived
-`schemas` tree as the interim complement. Both are introspected from the generated
-trees for the active plugin version; no DHIS2 connection is made.
+"Schema" is the toolkit's own typed view of a type: the OpenAPI-derived `oas` tree (preferred —
+the maturing source of truth) with the `/api/schemas`-derived `schemas` tree as the interim
+complement. The DHIS2 major is auto-detected from the live server (`/api/system/info`, which is
+SNAPSHOT-safe), then the matching generated tree is introspected — there is no per-type wire fetch.
 """
 
 from __future__ import annotations
@@ -15,38 +15,42 @@ import typing
 
 from pydantic import BaseModel
 
+from dhis2w_core.profile import Profile
+from dhis2w_core.v42.client_context import open_client
 from dhis2w_core.v42.plugins.schema.models import SchemaField, TypeSchema
 
-#: Active version key ("v41" / "v42" / "v43"), derived from this module's import path so the
-#: file is identical across the three plugin trees and always reads its matching generated tree.
-_VERSION = __name__.split(".")[1]
+
+async def detect_version(profile: Profile) -> str:
+    """Return the server's generated-client version key (e.g. "v41"), auto-detected on connect."""
+    async with open_client(profile) as client:
+        return client.version_key
 
 
-def describe_type(name: str, source: str = "auto") -> TypeSchema | None:
-    """Return the schema of `name` from the preferred generated tree, or None if unknown."""
+def describe_type(version: str, name: str, source: str = "auto") -> TypeSchema | None:
+    """Return the schema of `name` from the given version's preferred generated tree, or None."""
     for tree in _sources(source):
-        index = _model_index(_load(tree))
+        index = _model_index(_load(version, tree))
         by_lower = {key.lower(): key for key in index}
         for variant in _singular_variants(name):
             canonical = by_lower.get(variant.lower())
             if canonical is not None:
-                return _describe(index[canonical], canonical, tree)
+                return _describe(index[canonical], canonical, tree, version)
     return None
 
 
-def search_types(query: str, *, limit: int = 8) -> list[str]:
-    """Return close-match type names across both trees for a 'did you mean' hint."""
-    names = sorted(set(_model_index(_load("oas"))) | set(_model_index(_load("schemas"))))
+def search_types(version: str, query: str, *, limit: int = 8) -> list[str]:
+    """Return close-match type names across both trees of `version` for a 'did you mean' hint."""
+    names = sorted(set(_model_index(_load(version, "oas"))) | set(_model_index(_load(version, "schemas"))))
     lowered = query.lower()
     ordered: dict[str, None] = {}
-    for candidate in [n for n in names if lowered in n.lower()]:
+    for candidate in [name for name in names if lowered in name.lower()]:
         ordered.setdefault(candidate, None)
     for candidate in difflib.get_close_matches(query, names, n=limit, cutoff=0.6):
         ordered.setdefault(candidate, None)
     return list(ordered)[:limit]
 
 
-def _describe(model: type[BaseModel], canonical: str, tree: str) -> TypeSchema:
+def _describe(model: type[BaseModel], canonical: str, tree: str, version: str) -> TypeSchema:
     """Build a `TypeSchema` from a generated model's declared fields."""
     fields = [
         SchemaField(
@@ -57,12 +61,12 @@ def _describe(model: type[BaseModel], canonical: str, tree: str) -> TypeSchema:
         )
         for field_name, info in model.model_fields.items()
     ]
-    return TypeSchema(name=canonical, source=tree, version=_VERSION, field_count=len(fields), fields=fields)
+    return TypeSchema(name=canonical, source=tree, version=version, field_count=len(fields), fields=fields)
 
 
-def _load(tree: str) -> object:
-    """Import a generated subpackage (`oas` / `schemas`) for the active version."""
-    return importlib.import_module(f"dhis2w_client.generated.{_VERSION}.{tree}")
+def _load(version: str, tree: str) -> object:
+    """Import a generated subpackage (`oas` / `schemas`) for the given version."""
+    return importlib.import_module(f"dhis2w_client.generated.{version}.{tree}")
 
 
 def _model_index(module: object) -> dict[str, type[BaseModel]]:

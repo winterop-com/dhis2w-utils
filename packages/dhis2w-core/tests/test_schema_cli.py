@@ -1,10 +1,11 @@
-"""Verify `dhis2 schema <type>` introspects generated models — offline and version-bound."""
+"""Verify `dhis2 schema <type>` introspects the generated models for the connected server's version."""
 
 from __future__ import annotations
 
 import contextlib
 import json
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from dhis2w_cli.main import build_app
@@ -13,14 +14,28 @@ from typer.testing import CliRunner
 
 @pytest.fixture(autouse=True)
 def _isolated_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pin the plugin tree to v42 and avoid TOML profile resolution."""
+    """Install a raw-env profile so the CLI resolves without touching TOML."""
     monkeypatch.delenv("DHIS2_PROFILE", raising=False)
-    monkeypatch.setenv("DHIS2_VERSION", "42")
+    monkeypatch.setenv("DHIS2_URL", "http://mock.example")
+    monkeypatch.setenv("DHIS2_PAT", "test-token")
 
 
 @pytest.fixture
 def runner() -> CliRunner:
     return CliRunner()
+
+
+def _invoke(runner: CliRunner, args: list[str], *, version: str = "v42") -> Any:
+    """Invoke the schema command with a fake client whose `version_key` is `version`."""
+    fake_client = MagicMock()
+    fake_client.version_key = version
+
+    ctx = AsyncMock()
+    ctx.__aenter__.return_value = fake_client
+    ctx.__aexit__.return_value = None
+
+    with patch("dhis2w_core.v42.plugins.schema.service.open_client", lambda _profile: ctx):
+        return runner.invoke(build_app(), args)
 
 
 def _text(result: Any) -> str:
@@ -33,7 +48,7 @@ def _text(result: Any) -> str:
 
 def test_schema_json_describes_oas_type(runner: CliRunner) -> None:
     """`--json schema dataElement` returns the OAS-tree shape with known fields."""
-    result = runner.invoke(build_app(), ["--json", "schema", "dataElement"])
+    result = _invoke(runner, ["--json", "schema", "dataElement"])
     assert result.exit_code == 0, _text(result)
     payload = json.loads(result.output)
     assert payload["name"] == "DataElement"
@@ -45,40 +60,38 @@ def test_schema_json_describes_oas_type(runner: CliRunner) -> None:
 
 def test_schema_accepts_plural_wire_name(runner: CliRunner) -> None:
     """A plural wire name resolves to its singular class (dataElements -> DataElement)."""
-    result = runner.invoke(build_app(), ["--json", "schema", "dataElements"])
+    result = _invoke(runner, ["--json", "schema", "dataElements"])
     assert result.exit_code == 0, _text(result)
     assert json.loads(result.output)["name"] == "DataElement"
 
 
 def test_schema_human_table_titles_source_and_version(runner: CliRunner) -> None:
-    """The human table header names the resolved type, source tree, and version."""
-    result = runner.invoke(build_app(), ["schema", "dataElement"])
+    """The human table header names the resolved type, source tree, and detected version."""
+    result = _invoke(runner, ["schema", "dataElement"])
     assert result.exit_code == 0, _text(result)
     assert "DataElement (oas, v42)" in result.output
 
 
 def test_schema_source_schemas_reads_the_other_tree(runner: CliRunner) -> None:
     """`--source schemas` reads the /api/schemas-derived tree instead of OAS."""
-    result = runner.invoke(build_app(), ["--json", "schema", "dataElement", "--source", "schemas"])
+    result = _invoke(runner, ["--json", "schema", "dataElement", "--source", "schemas"])
     assert result.exit_code == 0, _text(result)
     assert json.loads(result.output)["source"] == "schemas"
 
 
 def test_schema_unknown_type_exits_2_with_candidates(runner: CliRunner) -> None:
     """An unknown type fails with exit 2 and a did-you-mean list."""
-    result = runner.invoke(build_app(), ["schema", "dataElementz"])
+    result = _invoke(runner, ["schema", "dataElementz"])
     assert result.exit_code == 2
     combined = _text(result)
     assert "Did you mean" in combined
     assert "DataElement" in combined
 
 
-def test_schema_is_version_bound(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The output reflects the active version tree: v41 carries a `user` field v43 dropped."""
-    monkeypatch.setenv("DHIS2_VERSION", "41")
-    v41 = json.loads(runner.invoke(build_app(), ["--json", "schema", "dataElement"]).output)
-    monkeypatch.setenv("DHIS2_VERSION", "43")
-    v43 = json.loads(runner.invoke(build_app(), ["--json", "schema", "dataElement"]).output)
+def test_schema_follows_the_detected_server_version(runner: CliRunner) -> None:
+    """The output tracks the server's auto-detected version: v41 carries a `user` field v43 dropped."""
+    v41 = json.loads(_invoke(runner, ["--json", "schema", "dataElement"], version="v41").output)
+    v43 = json.loads(_invoke(runner, ["--json", "schema", "dataElement"], version="v43").output)
     assert v41["version"] == "v41"
     assert v43["version"] == "v43"
     assert "user" in {field["name"] for field in v41["fields"]}
