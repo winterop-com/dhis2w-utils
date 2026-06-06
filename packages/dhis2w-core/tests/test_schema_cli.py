@@ -58,6 +58,16 @@ def test_schema_json_describes_oas_type(runner: CliRunner) -> None:
     assert {"code", "valueType", "domainType"} <= names
 
 
+def test_schema_expands_enum_field_values(runner: CliRunner) -> None:
+    """Enum-typed fields list their allowed values so a model can pick a valid one."""
+    result = _invoke(runner, ["--json", "schema", "dataElement"])
+    assert result.exit_code == 0, _text(result)
+    value_type = next(f["type"] for f in json.loads(result.output)["fields"] if f["name"] == "valueType")
+    assert "ValueType (" in value_type
+    assert "INTEGER" in value_type
+    assert "NUMBER" in value_type
+
+
 def test_schema_accepts_plural_wire_name(runner: CliRunner) -> None:
     """A plural wire name resolves to its singular class (dataElements -> DataElement)."""
     result = _invoke(runner, ["--json", "schema", "dataElements"])

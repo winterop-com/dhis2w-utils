@@ -9,6 +9,7 @@ SNAPSHOT-safe), then the matching generated tree is introspected — there is no
 from __future__ import annotations
 
 import difflib
+import enum
 import importlib
 import types
 import typing
@@ -162,6 +163,8 @@ def _render_type(annotation: object) -> str:
         return annotation
     origin = typing.get_origin(annotation)
     if origin is None:
+        if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
+            return _render_enum(annotation)
         return getattr(annotation, "__name__", str(annotation).replace("typing.", ""))
     args = typing.get_args(annotation)
     if origin is typing.Union or origin is types.UnionType:
@@ -170,3 +173,9 @@ def _render_type(annotation: object) -> str:
         return rendered + (" | None" if type(None) in args else "")
     name = getattr(origin, "__name__", str(origin))
     return f"{name}[{', '.join(_render_type(arg) for arg in args)}]"
+
+
+def _render_enum(enum_cls: type[enum.Enum]) -> str:
+    """Render an enum field as `Name (VAL1, VAL2, ...)` so a model sees the allowed values."""
+    values = ", ".join(str(member.value) for member in enum_cls)
+    return f"{enum_cls.__name__} ({values})"
