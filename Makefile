@@ -2,6 +2,10 @@
 
 UV := $(shell command -v uv 2> /dev/null)
 
+# Silence Material for MkDocs' "Currently unlicensed" / MkDocs 2.0 build notice.
+# https://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/
+export NO_MKDOCS_2_WARNING := 1
+
 help:
 	@echo "Usage: make [target]"
 	@echo ""
