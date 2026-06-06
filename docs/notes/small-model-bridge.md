@@ -233,3 +233,26 @@ Drove the **real bridge** (FastMCP client) from LM Studio's OpenAI-compatible AP
 - **Bridge arg-robustness**: when `args[0]` contains escaped quotes/commas (a JSON-ish blob), the
   shlex split mis-tokenizes. Detect a single-element `args` that looks like packed JSON and parse
   it, or strip stray quotes before splitting.
+- **"What is the schema of X?" has no affordance → field hallucination.** From a live LM Studio
+  GUI session (gemma-4-12b-qat, `~/Downloads/chat.md`) — confirms the bridge works natively in the
+  GUI's MCP client, but the "schema" question failed hard. Asked for a dataElement's schema, the
+  model tried `--limit 1` (no such option → exit 2), then a pile of invented `--fields`
+  (`name_type`, `options_set_id`, `data_element_type_id_ref_id`, …), and finally answered the
+  unrelated "33 data elements". Two root causes + fixes:
+  - **No command answers "what fields does type X have".** Proposed: a **top-level `dhis2 schema
+    <type>`** that introspects the **generated model** for `<type>` and prints field names + value
+    types + required/optional, version-aware, offline. "Schema" here means the toolkit's own typed
+    view — today a blend of `/api/schemas` (metadata resources) and `/api/openapi.json`
+    (instance-side shapes: tracker writes, envelopes, auth schemes) that codegen already merges into
+    `dhis2w_client.generated.v{N}.{schemas,oas}` — i.e. exactly what the client parses/accepts, not
+    a single live endpoint. **Direction of travel: as the DHIS2 OpenAPI spec matures it becomes the
+    single correct source, subsuming `/api/schemas`** — so build `schema` to prefer the `oas` tree
+    and treat `schemas` as the shrinking interim complement, converging on OAS-only. **Top-level,
+    not under `metadata`**: it resolves *any* modeled type,
+    metadata or instance-side, so it can't be confined to the metadata CRUD vocabulary (it must
+    answer "schema of a tracker event" too). The OAS namespace is large, so an ambiguous/unknown
+    name should list candidates the way `metadata search` does.
+  - **DHIS2 silently accepts unknown `--fields`** and returns partial data at exit 0, so the bad
+    call looks successful and the model never learns it guessed wrong. Consider validating
+    requested `--fields` against the type's schema and emitting a YELLOW stderr warning on unknown
+    names, so a model gets the corrective signal it currently never sees.
