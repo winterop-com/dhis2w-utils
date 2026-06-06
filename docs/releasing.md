@@ -34,16 +34,22 @@ The six publishable workspace members ship to PyPI in lockstep — every release
 
 4. **Commit the bump** with a short conventional-commit message — `chore(release): v0.6.0`.
 
-5. **Tag the commit** and push:
+5. **Tag the commit** and push (annotated — the repo's git config requires a tag message):
 
    ```bash
-   git tag v0.6.0
+   git tag -a v0.6.0 -m v0.6.0
    git push origin main v0.6.0
    ```
 
-6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. Five `build` jobs produce wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token).
+6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. Six `build` jobs produce wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token), with `skip-existing` so a re-run after a partial publish is safe.
 
-7. **Verify**:
+7. **Create the GitHub release** (the tag alone does not — the Releases page stays on the previous version otherwise):
+
+   ```bash
+   gh release create v0.6.0 --verify-tag --title v0.6.0 --notes-file <(sed -n '/^## 0.6.0/,/^## /p' CHANGELOG.md | sed '1d;$d') --latest
+   ```
+
+8. **Verify**:
    - https://github.com/winterop-com/dhis2w-utils/actions — all green.
    - `uvx --refresh --from 'dhis2w-client==0.6.0' python -c 'import dhis2w_client; print(dhis2w_client.__file__)'` pulls and imports the new wheel.
    - `uv tool list` (or `uv tool upgrade dhis2w-cli`) shows the right version.
