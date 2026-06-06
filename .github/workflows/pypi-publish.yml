@@ -88,6 +88,11 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+          # Idempotent re-runs: skip any wheel/sdist already on PyPI so a
+          # partial publish can be re-driven (e.g. after a new project's
+          # Trusted Publisher is configured) without erroring on the
+          # siblings that already uploaded.
+          skip-existing: true
           # No `password` — trusted publishing handles auth via the OIDC
           # token minted by the `id-token: write` permission above.
 
