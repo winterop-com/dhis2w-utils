@@ -29,7 +29,7 @@ async def detect_version(profile: Profile) -> str:
 def describe_type(version: str, name: str, source: str = "auto") -> TypeSchema | None:
     """Return the schema of `name` from the given version's preferred generated tree, or None."""
     for tree in _sources(source):
-        index = _model_index(_load(version, tree))
+        index = _index(version, tree)
         by_lower = {key.lower(): key for key in index}
         for variant in _singular_variants(name):
             canonical = by_lower.get(variant.lower())
@@ -39,8 +39,8 @@ def describe_type(version: str, name: str, source: str = "auto") -> TypeSchema |
 
 
 def search_types(version: str, query: str, *, limit: int = 8) -> list[str]:
-    """Return close-match type names across both trees of `version` for a 'did you mean' hint."""
-    names = sorted(set(_model_index(_load(version, "oas"))) | set(_model_index(_load(version, "schemas"))))
+    """Return close-match type names across every tree of `version` for a 'did you mean' hint."""
+    names = sorted(set(_index(version, "oas")) | set(_index(version, "schemas")))
     lowered = query.lower()
     ordered: dict[str, None] = {}
     for candidate in [name for name in names if lowered in name.lower()]:
@@ -64,8 +64,22 @@ def _describe(model: type[BaseModel], canonical: str, tree: str, version: str) -
     return TypeSchema(name=canonical, source=tree, version=version, field_count=len(fields), fields=fields)
 
 
+def _index(version: str, tree: str) -> dict[str, type[BaseModel]]:
+    """Build the merged model index for a logical tree.
+
+    The `oas` tree also folds in the generated `tracker` module (TrackerEvent,
+    TrackerTrackedEntity, …) — those are OpenAPI-derived instance-side write shapes that
+    live in their own module but belong to the same OAS-preferred view.
+    """
+    modules = ("oas", "tracker") if tree == "oas" else (tree,)
+    merged: dict[str, type[BaseModel]] = {}
+    for module in modules:
+        merged.update(_model_index(_load(version, module)))
+    return merged
+
+
 def _load(version: str, tree: str) -> object:
-    """Import a generated subpackage (`oas` / `schemas`) for the given version."""
+    """Import a generated subpackage/module (`oas` / `schemas` / `tracker`) for the given version."""
     return importlib.import_module(f"dhis2w_client.generated.{version}.{tree}")
 
 

@@ -373,6 +373,9 @@ def register(mcp: Any) -> None:
                                 dhis2_cli(["metadata", "usage", "<uid>"])
           - Server version:     dhis2_cli(["system", "info"])
           - Current user:       dhis2_cli(["system", "whoami"])
+          - Fields of a type:   dhis2_cli(["schema", "<type>"])  -> the typed field list for <type>
+                                (e.g. dataElement, trackerEvent). Use this to answer "what fields
+                                does X have" / "the schema of X" — do NOT guess field names.
 
         The verb is `get` (NOT `show`). Listing ANY resource is `metadata list <type>` —
         there is NO `metadata <type> list`.

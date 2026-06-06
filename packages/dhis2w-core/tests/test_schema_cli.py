@@ -79,6 +79,15 @@ def test_schema_source_schemas_reads_the_other_tree(runner: CliRunner) -> None:
     assert json.loads(result.output)["source"] == "schemas"
 
 
+def test_schema_resolves_tracker_write_types(runner: CliRunner) -> None:
+    """Tracker write models (TrackerEvent, …) resolve via the OAS-folded index."""
+    result = _invoke(runner, ["--json", "schema", "TrackerEvent"])
+    assert result.exit_code == 0, _text(result)
+    payload = json.loads(result.output)
+    assert payload["name"] == "TrackerEvent"
+    assert payload["field_count"] > 0
+
+
 def test_schema_unknown_type_exits_2_with_candidates(runner: CliRunner) -> None:
     """An unknown type fails with exit 2 and a did-you-mean list."""
     result = _invoke(runner, ["schema", "dataElementz"])
