@@ -12,6 +12,19 @@ The repo lives at `winterop-com/dhis2w-utils`; PyPI ships the six publishable me
 
 > **Learning path · step 1 of 8** — You are here. Quick install + profile + first CLI / Python call below. Next: the [contributor walkthrough](docs/walkthrough.md) for the local docker stack, or jump to a surface-specific tutorial — [CLI](docs/guides/cli-tutorial.md), [Python](docs/guides/client-tutorial.md), [MCP](docs/mcp/tutorial.md).
 
+## Why this toolkit?
+
+DHIS2 already has a lightweight, official Python client that returns plain JSON dictionaries — ideal when you want a thin wrapper and a few lines in a notebook. `dhis2w` is built for a different need: a typed, multi-surface toolkit you can depend on across instances and versions.
+
+- **Typed, not stringly-typed.** Every response is a Pydantic model generated from DHIS2's own OpenAPI spec, so your editor autocompletes fields and the type checker catches a misspelled key before you run. No guessing dictionary keys against the docs.
+- **One core, four surfaces.** The same typed client powers a Python library, a `dhis2` CLI, an MCP server, and Playwright browser automation — all sharing one `service.py` per domain, so behaviour never drifts between them.
+- **Built for AI agents.** The MCP server exposes ~337 typed tools, one per CLI command, so any MCP host (Claude, Cursor) can drive a DHIS2 instance directly.
+- **Version-aware by design.** Detects v41 / v42 / v43 on connect and binds the matching hand-written tree, so one codebase works across instances instead of branching on the wire shape yourself.
+- **Real auth.** Basic, PAT, and OAuth2/OIDC with PKCE, behind a pluggable `AuthProvider` protocol, with a profile system for juggling multiple instances.
+- **Production posture.** Strict ruff + mypy + pyright, ~1,150 tests, an mkdocs-material site, and runnable examples for every supported version.
+
+Reach for the official client when you want the smallest possible dependency and raw JSON. Reach for `dhis2w` when you want types, a CLI, agent tooling, and version coverage in one place. Note that `dhis2w` is third-party and pre-1.0.
+
 ## Workspace members
 
 | Package | PyPI | Purpose |
