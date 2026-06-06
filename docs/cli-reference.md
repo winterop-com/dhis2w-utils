@@ -18,6 +18,7 @@ $ dhis2 [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
+* `schema`: Describe a generated type&#x27;s fields...
 * `analytics`: DHIS2 analytics queries.
 * `apps`: DHIS2 apps — /api/apps + /api/appHub.
 * `browser`: Playwright-driven DHIS2 UI automation.
@@ -35,6 +36,25 @@ $ dhis2 [OPTIONS] COMMAND [ARGS]...
 * `user`: DHIS2 user administration.
 * `user-group`: DHIS2 user-group administration.
 * `user-role`: DHIS2 user-role administration.
+
+## `dhis2 schema`
+
+Describe a generated type&#x27;s fields (metadata or instance-side; prefers the OpenAPI tree).
+
+**Usage**:
+
+```console
+$ dhis2 schema [OPTIONS] TYPE_NAME
+```
+
+**Arguments**:
+
+* `TYPE_NAME`: Type name, e.g. dataElement or TrackedEntity (case-insensitive; plural wire names ok).  [required]
+
+**Options**:
+
+* `--source TEXT`: Which generated tree to read: auto (prefer oas), oas, or schemas.  [default: auto]
+* `--help`: Show this message and exit.
 
 ## `dhis2 analytics`
 

@@ -38,6 +38,7 @@ READ_ONLY_VERBS = frozenset(
 # verb would punch a hole. List the read paths explicitly instead.
 READ_ONLY_LEAVES = frozenset(
     {
+        ("schema",),
         ("security", "settings"),
     }
 )
