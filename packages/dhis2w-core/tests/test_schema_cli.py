@@ -97,6 +97,32 @@ def test_schema_unknown_type_exits_2_with_candidates(runner: CliRunner) -> None:
     assert "DataElement" in combined
 
 
+@pytest.mark.parametrize(
+    ("fields", "expected"),
+    [
+        ("id,name,code,valueType", []),
+        ("name,code,name_type,options_set_id", ["name_type", "options_set_id"]),
+        (":owner", []),  # preset — skipped
+        ("id,name,*", []),  # wildcard — skipped
+        ("id,dataSetElements[dataSet[id]]", []),  # nested — skipped
+        ("categoryCombo.id", []),  # dotted path — skipped
+        ("id,name,!sharing", []),  # exclusion — skipped
+    ],
+)
+def test_unknown_fields_flags_only_plain_unknown_identifiers(fields: str, expected: list[str]) -> None:
+    """`unknown_fields` flags bare unknown names and skips any non-trivial --fields syntax."""
+    from dhis2w_core.v42.plugins.schema import service
+
+    assert service.unknown_fields("v42", "dataElements", fields) == expected
+
+
+def test_unknown_fields_skips_unknown_type() -> None:
+    """An unresolvable type yields no warnings (nothing to validate against)."""
+    from dhis2w_core.v42.plugins.schema import service
+
+    assert service.unknown_fields("v42", "bogusType", "a,b,c") == []
+
+
 def test_schema_follows_the_detected_server_version(runner: CliRunner) -> None:
     """The output tracks the server's auto-detected version: v41 carries a `user` field v43 dropped."""
     v41 = json.loads(_invoke(runner, ["--json", "schema", "dataElement"], version="v41").output)

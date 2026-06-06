@@ -50,6 +50,44 @@ def search_types(version: str, query: str, *, limit: int = 8) -> list[str]:
     return list(ordered)[:limit]
 
 
+def unknown_fields(version: str, name: str, fields: str) -> list[str]:
+    """Return requested bare field names absent from every generated model for `name`.
+
+    Conservative: only plain comma-lists of simple identifiers are checked. Returns `[]`
+    when the `--fields` expression uses non-trivial syntax (presets like `:all`, wildcards,
+    `!exclusions`, nested `a[b,c]`, dotted `a.b`) or when the type is unknown — so a real
+    expression never produces a false warning. Membership unions the oas + schemas + tracker
+    trees, so a field is flagged only when no generated view knows it (a likely typo).
+    """
+    tokens = [token.strip() for token in fields.split(",") if token.strip()]
+    if not tokens or any(_has_field_syntax(token) for token in tokens):
+        return []
+    known = _known_field_names(version, name)
+    if known is None:
+        return []
+    lowered = {field.lower() for field in known}
+    return [token for token in tokens if token.lower() not in lowered]
+
+
+def _has_field_syntax(token: str) -> bool:
+    """Return True if a `--fields` token uses preset/wildcard/exclusion/nested/dotted syntax."""
+    return any(char in token for char in ":*![].")
+
+
+def _known_field_names(version: str, name: str) -> set[str] | None:
+    """Union of declared field names for `name` across the generated trees, or None if unknown."""
+    found: set[str] = set()
+    for tree in ("oas", "schemas"):
+        index = _index(version, tree)
+        by_lower = {key.lower(): key for key in index}
+        for variant in _singular_variants(name):
+            canonical = by_lower.get(variant.lower())
+            if canonical is not None:
+                found |= set(index[canonical].model_fields)
+                break
+    return found or None
+
+
 def _describe(model: type[BaseModel], canonical: str, tree: str, version: str) -> TypeSchema:
     """Build a `TypeSchema` from a generated model's declared fields."""
     fields = [

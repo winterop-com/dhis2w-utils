@@ -15,10 +15,12 @@ from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
 
+from dhis2w_core.plugin import resolve_startup_version
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v43.cli_output import is_json_output, render_conflicts, render_webmessage
 from dhis2w_core.v43.plugins.metadata import service
 from dhis2w_core.v43.plugins.metadata.models import MetadataBundle, MetadataCount, MetadataWriteResult
+from dhis2w_core.v43.plugins.schema import service as schema_service
 
 app = typer.Typer(help="Inspect and list DHIS2 metadata (wraps generated CRUD resources).", no_args_is_help=True)
 type_app = typer.Typer(help="Metadata resource types (the catalog).", no_args_is_help=True)
@@ -335,6 +337,7 @@ def list_command(
         else:
             typer.echo(f"{resource}: {total}")
         return
+    _warn_unknown_fields(resource, fields)
     if fetch_all:
         items = asyncio.run(
             _collect_all(
@@ -376,6 +379,24 @@ def list_command(
         typer.echo(json.dumps(rows, indent=2))
         return
     _print_table(resource, rows, fields.split(","))
+
+
+def _warn_unknown_fields(resource: str, fields: str) -> None:
+    """Emit a soft stderr warning when `--fields` names a field absent from the generated model.
+
+    Best-effort and non-blocking: uses the offline plugin-tree version and the generated models,
+    so a model that guessed a field name gets a corrective signal the DHIS2 API never gives (it
+    silently drops unknown fields). Only plain comma-lists are checked (see `schema` service).
+    """
+    version = resolve_startup_version()
+    missing = schema_service.unknown_fields(version, resource, fields)
+    if missing:
+        typer.secho(
+            f"WARNING: --fields not in the generated {version} model for {resource}: "
+            f"{', '.join(missing)} (possible typo, or a field this client doesn't model)",
+            fg="yellow",
+            err=True,
+        )
 
 
 def _dump_for_cli(model: Any) -> dict[str, Any]:
@@ -6704,92 +6725,6 @@ def programs_rename_command(
         typer.echo(program.model_dump_json(indent=2, exclude_none=True))
         return
     _console.print(f"[green]renamed[/green] program [cyan]{program.id}[/cyan]  name={program.name!r}")
-
-
-@programs_app.command("set-labels")
-def programs_set_labels_command(
-    uid: Annotated[str, typer.Argument(help="Program UID.")],
-    enrollments_label: Annotated[
-        str | None,
-        typer.Option("--enrollments-label", help="Custom UI label for enrollments (2-255 chars)."),
-    ] = None,
-    events_label: Annotated[
-        str | None,
-        typer.Option("--events-label", help="Custom UI label for events (2-255 chars)."),
-    ] = None,
-    program_stages_label: Annotated[
-        str | None,
-        typer.Option("--program-stages-label", help="Custom UI label for program stages (2-255 chars)."),
-    ] = None,
-) -> None:
-    """Set the v43-only Program UI label overrides (capture / tracker apps).
-
-    Requires the active DHIS2 to be v43. Pass only the labels to change.
-
-        dhis2 metadata program set-labels PRG... --enrollments-label Visits --events-label Encounters
-    """
-    program = asyncio.run(
-        service.set_program_labels(
-            profile_from_env(),
-            uid,
-            enrollments_label=enrollments_label,
-            events_label=events_label,
-            program_stages_label=program_stages_label,
-        ),
-    )
-    if is_json_output():
-        typer.echo(program.model_dump_json(indent=2, exclude_none=True))
-        return
-    _console.print(f"[green]labels updated[/green] program [cyan]{program.id}[/cyan]  name={program.name!r}")
-
-
-@programs_app.command("set-change-log")
-def programs_set_change_log_command(
-    uid: Annotated[str, typer.Argument(help="Program UID.")],
-    enabled: Annotated[
-        bool,
-        typer.Option("--enable/--disable", help="Turn the per-program change-log audit on or off."),
-    ],
-) -> None:
-    """Toggle the v43-only `enableChangeLog` audit flag on a Program.
-
-    Behavioural switch — orthogonal to the UI label setters. Requires
-    the active DHIS2 to be v43.
-
-        dhis2 metadata program set-change-log PRG... --enable
-    """
-    program = asyncio.run(
-        service.set_program_change_log_enabled(profile_from_env(), uid, enabled),
-    )
-    if is_json_output():
-        typer.echo(program.model_dump_json(indent=2, exclude_none=True))
-        return
-    state = "enabled" if enabled else "disabled"
-    _console.print(f"[green]change-log {state}[/green] program [cyan]{program.id}[/cyan]  name={program.name!r}")
-
-
-@programs_app.command("set-enrollment-category-combo")
-def programs_set_enrollment_category_combo_command(
-    uid: Annotated[str, typer.Argument(help="Program UID.")],
-    category_combo_uid: Annotated[
-        str,
-        typer.Argument(help="UID of the alternative CategoryCombo applied at enrollment time."),
-    ],
-) -> None:
-    """Set the v43-only `enrollmentCategoryCombo` reference on a Program.
-
-    An alt-CC applied specifically at enrollment time, distinct from the
-    Program's regular `categoryCombo`. Requires the active DHIS2 to be v43.
-
-        dhis2 metadata program set-enrollment-category-combo PRG... CC_ALT...
-    """
-    program = asyncio.run(
-        service.set_program_enrollment_category_combo(profile_from_env(), uid, category_combo_uid),
-    )
-    if is_json_output():
-        typer.echo(program.model_dump_json(indent=2, exclude_none=True))
-        return
-    _console.print(f"[green]enrollment cc set[/green] program [cyan]{program.id}[/cyan]  name={program.name!r}")
 
 
 @programs_app.command("add-attribute")

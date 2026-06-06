@@ -255,7 +255,9 @@ Drove the **real bridge** (FastMCP client) from LM Studio's OpenAI-compatible AP
     vocabulary. Unknown names list candidates (exit 2) like `metadata search`. Added to the bridge
     read-only allowlist. Verified live across play41/42/43 (no pin, no `DHIS2_VERSION`): each
     auto-detects its own major — v41 `DataElement` carries a `user` field dropped in v42/v43.
-  - **[QUEUED] DHIS2 silently accepts unknown `--fields`** and returns partial data at exit 0, so a
-    bad `metadata list --fields` call looks successful and the model never learns it guessed wrong.
-    Consider validating requested `--fields` against the type's schema (now that `schema` exposes
-    it) and emitting a YELLOW stderr warning on unknown names, so a model gets the corrective signal.
+  - **[SHIPPED] DHIS2 silently accepts unknown `--fields`** and returns partial data at exit 0, so a
+    bad `metadata list --fields` call looked successful and the model never learned it guessed wrong.
+    `metadata list` now emits a soft YELLOW stderr warning naming any requested field absent from
+    the generated model (union of oas + schemas + tracker), e.g. `name_type, options_set_id`. Plain
+    comma-lists only — preset/wildcard/`!exclusion`/nested/dotted expressions are skipped to avoid
+    false positives. Non-blocking: the query still runs, the model just gets the corrective signal.

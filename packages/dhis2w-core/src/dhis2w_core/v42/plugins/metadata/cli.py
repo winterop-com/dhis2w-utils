@@ -15,10 +15,12 @@ from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
 
+from dhis2w_core.plugin import resolve_startup_version
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import is_json_output, render_conflicts, render_webmessage
 from dhis2w_core.v42.plugins.metadata import service
 from dhis2w_core.v42.plugins.metadata.models import MetadataBundle, MetadataCount, MetadataWriteResult
+from dhis2w_core.v42.plugins.schema import service as schema_service
 
 app = typer.Typer(help="Inspect and list DHIS2 metadata (wraps generated CRUD resources).", no_args_is_help=True)
 type_app = typer.Typer(help="Metadata resource types (the catalog).", no_args_is_help=True)
@@ -335,6 +337,7 @@ def list_command(
         else:
             typer.echo(f"{resource}: {total}")
         return
+    _warn_unknown_fields(resource, fields)
     if fetch_all:
         items = asyncio.run(
             _collect_all(
@@ -376,6 +379,24 @@ def list_command(
         typer.echo(json.dumps(rows, indent=2))
         return
     _print_table(resource, rows, fields.split(","))
+
+
+def _warn_unknown_fields(resource: str, fields: str) -> None:
+    """Emit a soft stderr warning when `--fields` names a field absent from the generated model.
+
+    Best-effort and non-blocking: uses the offline plugin-tree version and the generated models,
+    so a model that guessed a field name gets a corrective signal the DHIS2 API never gives (it
+    silently drops unknown fields). Only plain comma-lists are checked (see `schema` service).
+    """
+    version = resolve_startup_version()
+    missing = schema_service.unknown_fields(version, resource, fields)
+    if missing:
+        typer.secho(
+            f"WARNING: --fields not in the generated {version} model for {resource}: "
+            f"{', '.join(missing)} (possible typo, or a field this client doesn't model)",
+            fg="yellow",
+            err=True,
+        )
 
 
 def _dump_for_cli(model: Any) -> dict[str, Any]:
