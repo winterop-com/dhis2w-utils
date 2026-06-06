@@ -9,6 +9,34 @@ Working log for making the dhis2 toolkit usable by **small local models** (LM St
   follow-ups). Upstream quirk → `BUGS.md` #42. Testing rule: reads → `play42`, writes →
   `local_basic` (never mutate the shared public demo).
 
+## How to run a round (the rig)
+
+The canonical harness is **`infra/scripts/bridge_round.py`**, wrapped by **`make bridge-round`**.
+It drives the real bridge (FastMCP client, same config as `~/.lmstudio/mcp.json`) from LM Studio's
+OpenAI-compatible API — `lms chat` can't do this (it doesn't load MCP servers; only the GUI does).
+
+```bash
+make bridge-round ROUND=read                                   # play42, readonly (default)
+make bridge-round ROUND=write                                  # local_basic, writes on; round-trips minPasswordLength
+make bridge-round ROUND=bench                                  # the timed table prompts below
+make bridge-round MODEL=qwen/qwen3.5-4b ROUND=read             # any LM Studio model key
+```
+
+The target starts `lms server`, loads the model if not already loaded (idempotent — avoids the
+ambiguous-id 400 below), then runs the script. `ROUND=write` forces `--profile local_basic` and
+captures+restores the setting it touches, so it is safe to re-run.
+
+Gotchas (both cost real time once):
+
+- **Duplicate model instances → HTTP 400.** `lms load` of an already-loaded model creates a second
+  instance (`<model>:2`); a bare model id is then ambiguous and the API 400s. The target guards
+  against it; if you load by hand, `lms ps` then `lms unload --all`.
+- **Echo `type:"function"` on tool calls.** When sending the assistant's tool calls back in the next
+  request, each must keep `type:"function"` or LM Studio rejects with `Invalid 'messages'`. The
+  harness models this; note it if you hand-roll a host loop.
+
+Testing rule (unchanged): reads → `play42`, writes → `local_basic` (never the shared public demo).
+
 ## Recommended local models
 
 Benchmark prompt **"get id,code,name,description for all our data elements"** (+ count +

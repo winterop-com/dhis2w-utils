@@ -1,4 +1,4 @@
-.PHONY: help install lint test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples refresh-setup refresh-and-verify
+.PHONY: help install lint test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bridge-round refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -33,6 +33,7 @@ help:
 	@echo "  dhis2-codegen-all     Spin up DHIS2 41/42/43 in turn and regenerate each v{N}/ (~40 min; pass VERSIONS=\"41 42 43\" to narrow)"
 	@echo "  dhis2-codegen-play    Refresh v42 + v43 generated/ trees against play.im.dhis2.org (no docker)"
 	@echo "  verify-examples       Run every non-interactive example + print PASS/FAIL summary"
+	@echo "  bridge-round          Drive dhis2w-mcp-bridge with a local LM Studio model (MODEL=, ROUND=read|write|bench, PROFILE=)"
 	@echo "  refresh-setup         Wipe + rebuild e2e dump + seed (no example verify — fast iteration on setup)"
 	@echo "  refresh-and-verify    Rebuild dump + seed + run every example (turns the PR #125 ritual into one command)"
 	@echo ""
@@ -170,6 +171,17 @@ verify-examples:
 		echo "    note: infra/home/credentials/.env.auth missing — env-dependent examples (profile_crud.py) will fail"; \
 		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python infra/scripts/verify_examples.py; \
 	fi
+
+bridge-round:
+	@echo ">>> Bridge test round: MODEL=$(or $(MODEL),google/gemma-4-12b-qat) ROUND=$(or $(ROUND),read) PROFILE=$(or $(PROFILE),play42)"
+	@echo "    (reads -> play42 readonly; writes -> local_basic. See docs/notes/small-model-bridge.md)"
+	@lms server start >/dev/null 2>&1 || true
+	@lms ps 2>/dev/null | grep -qF "$(or $(MODEL),google/gemma-4-12b-qat)" \
+		|| lms load $(or $(MODEL),google/gemma-4-12b-qat) --gpu max --ttl 3600 -y
+	@$(UV) run python infra/scripts/bridge_round.py \
+		--model $(or $(MODEL),google/gemma-4-12b-qat) \
+		--round $(or $(ROUND),read) \
+		--profile $(or $(PROFILE),$(if $(filter write,$(ROUND)),local_basic,play42))
 
 refresh-setup:
 	@echo ">>> [1/2] Rebuilding e2e dump (wipes + reseeds the stack)"
