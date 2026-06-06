@@ -280,3 +280,23 @@ exactly as intended.
 - **[SHIPPED] `dhis2 schema` expands enum fields to their allowed values.** Enum-typed fields now
   render as `valueType: ValueType (TEXT, NUMBER, INTEGER, ...) | None` (all members), so a model can
   pick a valid value on a write without guessing — the gap seen in the create session.
+
+## Round 5 — multi-purpose write (the real bar)
+
+The `bridge-bench` write is single-purpose and *hinted* (one `dev customize set`). The honest test is
+a multi-object write. Drove the champion `gemma-4-26b-a4b-qat` (local_basic, READONLY off) on:
+"create a Monthly data set + three INTEGER data elements, attach all three, confirm 3 elements."
+
+- **Construction succeeded.** ~10 steps: created the data set, created 3 data elements, attached all
+  three, and verified — even self-correcting `metadata get data-sets` -> `dataSets` mid-run.
+- **Termination failed.** After verifying, it did not recognize it was done — it re-issued the create
+  (rejected), then looped on `--help` to max steps. No clean final confirmation.
+
+So multi-purpose writes are *partially* in reach of the strongest local model: it can build the
+structure, but can't reliably tell it's finished. Smaller models would stall earlier. This is the
+real write bar — far above the hinted single-key `bridge-bench` write.
+
+- **CLI usability finding**: `metadata get dataSets` uses the camelCase wire name, but the mutating
+  sub-app is `metadata data-sets` (hyphenated). The model tripped on this (step 11), and so did the
+  cleanup script. The `dataSets` vs `data-sets` split between read-by-wire-name and the hyphenated
+  mutating sub-apps is a real discoverability wart worth smoothing (accept both forms, or alias).
