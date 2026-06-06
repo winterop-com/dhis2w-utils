@@ -35,7 +35,8 @@ the lone exception is `gemma-4-12b` (bf16), kept on purpose as the head-to-head 
 
 | model | count | schema | filter | write | read tok/s |
 | --- | --- | --- | --- | --- | --- |
-| **`google/gemma-4-12b-qat`** | PASS 11.3s | PASS 16.1s | PASS 11.6s | **PASS** 42.6s/5c | ~16 |
+| **`google/gemma-4-26b-a4b-qat`** (MoE 26B/4B) | PASS 10.1s | PASS 10.2s | PASS 9.7s | **PASS** 21.6s/4c | ~19 |
+| `google/gemma-4-12b-qat` | PASS 11.3s | PASS 16.1s | PASS 11.6s | **PASS** 42.6s/5c | ~16 |
 | `google/gemma-4-12b` (bf16) | PASS 17.5s | PASS 17.5s | PASS 18.9s | **PASS** 77.2s/4c | ~14 |
 | `google/gemma-4-e4b` (4B) | PASS 15.5s | PASS 18.2s | PASS 12.2s | **PASS** 33.7s/2c | ~21 |
 | `qwen2.5-7b-instruct` | PASS 7.2s | PASS 19.4s | PASS 8.6s | found cmd, no confirm 38.0s | ~8 |
@@ -47,9 +48,16 @@ flailing) — its wall-clock isn't comparable (remote, reasoning-dominated), so 
 
 ## Takeaways
 
-- **`gemma-4-12b-qat` is the pick.** The only local model that passed **both** read and write, and
-  it's fast — the qat quant beats its own bf16 sibling on every task (count 11.3s vs 17.5s, write
-  42.6s vs 77.2s) at identical correctness. The "qat seems amazing" read holds up.
+- **Caveat on the `write` column — it is an easy task.** The write prompt is a *single* setting
+  (`dev customize set minPasswordLength 10`) **with the command name hinted**, plus a verify read. It
+  measures execution + arg-formatting, not discovery or multi-object composition. So "PASS write"
+  here is a low bar; do not read it as "handles real writes". The hard writes are the composite
+  scenarios (data set + N elements, program + N stages) — so far run only through the capable-agent
+  oracle, not these local models. That is the test that will actually separate them.
+- **`gemma-4-26b-a4b-qat` is the current pick** (on this easy bar): same 4/4 as `12b-qat` but faster
+  on every task and ~2x faster on the (simple) write — the MoE's 4B active params keep it fast while
+  the extra capacity helps. `12b-qat` is the close runner-up and beats its own bf16 sibling on every
+  task at equal correctness ("qat seems amazing" holds).
 - **`gemma-4-e4b`** is the smallest that completes the write round (and quickest write at 33.7s), but
   its tool-calling is flaky — one run 400'd mid-write before settling. Good when RAM is tight.
 - **qwen reads are strong and fast** (`qwen2.5-7b` count in 7.2s), but **writes are the wall**:
