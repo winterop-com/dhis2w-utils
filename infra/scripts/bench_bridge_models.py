@@ -33,6 +33,7 @@ from pydantic import BaseModel, ConfigDict
 ROSTER: tuple[str, ...] = (
     "google/gemma-4-12b-qat",
     "google/gemma-4-12b",
+    "google/gemma-4-26b-a4b-qat",
     "google/gemma-4-e4b",
     "qwen2.5-7b-instruct",
     "qwen/qwen3.5-4b",

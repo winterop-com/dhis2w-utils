@@ -10,10 +10,14 @@ We benchmark a curated list, not every downloaded model. Add to it on request �
 `infra/scripts/bench_bridge_models.py`:
 
 - `google/gemma-4-12b-qat` — primary recommendation
-- `google/gemma-4-12b` — bf16 baseline (the qat comparison)
+- `google/gemma-4-12b` — bf16 baseline (the only non-qat entry, kept for the qat-vs-bf16 comparison)
+- `google/gemma-4-26b-a4b-qat` — larger MoE (qat); does the qat variant scale up?
 - `google/gemma-4-e4b` — smallest that completes the write round
 - `qwen2.5-7b-instruct` — reliable, fast reads
 - `qwen/qwen3.5-4b` — fast reads, read-only in practice
+
+Note: where a qat build exists we benchmark the qat variant (the `-qat` model key), not the bf16 —
+the lone exception is `gemma-4-12b` (bf16), kept on purpose as the head-to-head against `12b-qat`.
 
 ## Method
 
