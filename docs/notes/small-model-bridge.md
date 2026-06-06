@@ -276,8 +276,7 @@ Asked to **create** a dataElement, the model first ran `dhis2_cli(["schema","dat
 check the shape before writing — the `schema` command is now part of the natural write workflow,
 exactly as intended.
 
-### Queued from this round
-- **`dhis2 schema` should expand enum fields to their allowed values.** In the create session the
-  model saw `valueType: ValueType | None` and wanted the members (`NUMBER`, `INTEGER`, `TEXT`, …) to
-  pick the right one — the field type names the enum but not its values. Render enum-typed fields as
-  e.g. `valueType: ValueType (NUMBER, INTEGER, TEXT, ...)` so a model can choose without guessing.
+### Shipped from this round
+- **[SHIPPED] `dhis2 schema` expands enum fields to their allowed values.** Enum-typed fields now
+  render as `valueType: ValueType (TEXT, NUMBER, INTEGER, ...) | None` (all members), so a model can
+  pick a valid value on a write without guessing — the gap seen in the create session.
