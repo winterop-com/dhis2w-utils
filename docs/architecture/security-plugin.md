@@ -149,7 +149,18 @@ The plugin is a teaching-sized template. Adding a command — say
    and, if the command is example-worthy, to `docs/examples.md`. Run `make docs-build`
    to surface broken links.
 
-8. **Gate** — `make lint && make test` must pass before the PR.
+8. **Bridge read-only allowlist** — a new **read** command is refused by the
+   [CLI bridge](../mcp/bridge.md) under `DHIS2_MCP_READONLY=1` until you register it.
+   Add its leaf path to `READ_ONLY_COMMANDS` in
+   `packages/dhis2w-mcp-bridge/src/dhis2w_mcp_bridge/cli_bridge.py`. The bridge's drift
+   test derives the expected set from a verb heuristic (`get`/`list`/`show`/…), so if your
+   command's verb is one of those you only update the committed set; if the verb is novel
+   or collides with a write elsewhere in the tree (as `settings` does — a read under
+   `security`, a write under `dev customize`), also add the full path to `READ_ONLY_LEAVES`
+   in `packages/dhis2w-mcp-bridge/tests/test_cli_bridge.py`. The bridge is version-agnostic,
+   so this is a single edit, not a three-tree sweep.
+
+9. **Gate** — `make lint && make test` must pass before the PR.
 
 ### Adding an MCP surface
 

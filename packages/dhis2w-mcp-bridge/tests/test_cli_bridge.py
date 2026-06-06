@@ -32,6 +32,16 @@ READ_ONLY_VERBS = frozenset(
     }
 )  # fmt: skip
 
+# Read-only leaves whose verb is NOT a generic read verb, so the verb heuristic can't reach
+# them. `settings` is deliberately absent from READ_ONLY_VERBS: it is a read under `security`
+# (GET /api/systemSettings) but a WRITE under `dev customize` (bulk-set), so allowing the bare
+# verb would punch a hole. List the read paths explicitly instead.
+READ_ONLY_LEAVES = frozenset(
+    {
+        ("security", "settings"),
+    }
+)
+
 
 @pytest.fixture
 def fake_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -195,10 +205,21 @@ def test_readonly_set_matches_live_tree(monkeypatch: pytest.MonkeyPatch) -> None
     """READ_ONLY_COMMANDS must equal what the live command tree yields (no drift)."""
     monkeypatch.setenv("DHIS2_VERSION", "42")
     leaves = _live_leaf_paths()
-    derived = {path for path in leaves if path[-1] in READ_ONLY_VERBS}
+    derived = {path for path in leaves if path[-1] in READ_ONLY_VERBS or path in READ_ONLY_LEAVES}
     assert derived == set(READ_ONLY_COMMANDS), "regenerate READ_ONLY_COMMANDS — CLI tree changed"
     assert set(READ_ONLY_COMMANDS) <= leaves, "stale read-only paths no longer in the CLI"
+    assert leaves >= READ_ONLY_LEAVES, "stale READ_ONLY_LEAVES path no longer in the CLI"
     assert not any("cleanup" in path for path in READ_ONLY_COMMANDS), "read-only path crosses a destructive container"
+
+
+def test_settings_verb_is_read_under_security_but_write_under_customize() -> None:
+    """`settings` is a read under `security` (GET) but a write under `dev customize` (bulk-set).
+
+    Guards the exact collision that bars `settings` from the verb heuristic: the security read
+    must be allowed under read-only mode while the customize write stays denied.
+    """
+    assert is_read_only(["security", "settings"]) is True
+    assert is_read_only(["dev", "customize", "settings"]) is False
 
 
 def test_guard_allows_exactly_read_only_leaves(monkeypatch: pytest.MonkeyPatch) -> None:

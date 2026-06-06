@@ -155,6 +155,7 @@ READ_ONLY_COMMANDS: Final[frozenset[tuple[str, ...]]] = frozenset(
         ("route", "get"),
         ("route", "list"),
         ("route", "ls"),
+        ("security", "settings"),
         ("system", "info"),
         ("system", "whoami"),
         ("user", "get"),

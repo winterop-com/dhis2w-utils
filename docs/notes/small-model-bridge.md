@@ -24,7 +24,8 @@ Ranked by primary-prompt wall-clock; `ok` = correct.
 | qwen3.6-35b-a3b (MoE) | — | yes | 3 | 47 | 8.6 | 52 | uses `--output` |
 | qwen3.5-4b | — | yes | 1 | 62 | 6.3 | 58 | solid |
 | qwen2.5-7b | — | yes | 1 | 74 | 4.0 | 38 | solid |
-| google/gemma-4-12b | — | yes | 1 | **147** | 13 | 91 | correct but slowest |
+| **gemma-4-12b-qat** | 12B (7.2GB) | yes | 1 | 109 | 17 | 33 | qat quant of the 12b below: ~25-40% faster, same accuracy; printed the dump inline (no `--output`) |
+| google/gemma-4-12b | — | yes | 1 | **147** | 13 | 91 | correct but slowest (bf16) |
 | qwen2.5-coder-1.5b | — | **no** | 1 | 6 | 3.4 | 19 | hallucinated "359" on the bulk dump |
 | qwen2.5-coder-14b | — | **no** | 6 | — | 6.6 | 61 | loops on the bulk dump |
 | llama-3.2-3b | — | **no** | 6 | — | fail | 18 | re-calls instead of answering |
@@ -167,3 +168,40 @@ local_basic with `ZZPROBE_` prefixes; zero leftovers, play42 never mutated).
   own write with the same key; consider a `--de` filter on `get`.
 - **Generic 409 on constrained deletes** (e.g. orgUnit with children) — surface the real reason.
 - **Stale `pager.total`** after a delete (DHIS2 quirk — `--count` lags the row query briefly).
+
+## Round 3 — gemma-4-12b-qat sweep + security plugin (reads → play42, writes → local_basic)
+
+Drove the **real bridge** (FastMCP client) from LM Studio's OpenAI-compatible API with
+`gemma-4-12b-qat`. READ round (play42, `DHIS2_MCP_READONLY=1`) then WRITE round (local_basic,
+`DHIS2_MCP_READONLY=0`, minPasswordLength round-tripped 8→10→8).
+
+### Shipped from this round
+- **Read-only guard fix**: `security settings` (the new plugin's only command) is a pure
+  `GET /api/systemSettings` but was refused under `DHIS2_MCP_READONLY=1` — the model hit
+  `exit 126`. Added `("security","settings")` to `READ_ONLY_COMMANDS`. It is path-specific,
+  **not** a new verb: `settings` is a read under `security` but a WRITE under `dev customize`
+  (bulk-set), so the verb heuristic can't reach it — added a `READ_ONLY_LEAVES` exception to the
+  drift test plus a regression test pinning `security settings` allowed / `dev customize settings`
+  denied. The drift test was blind to the gap because both sides derived from the same verb set.
+
+### Model behaviour (gemma-4-12b-qat)
+- **Reads: strong.** Count (1037), ANC-indicator filter, whoami+version all one-shot and fast
+  (see table). The qat quant is the sweet spot of the 12b — much faster than bf16, still correct.
+- **Multi-step write discovery: weak.** Asked to set a system setting, it never found
+  `dev customize set` — guessed `system`, `metadata search` (looped), `--help` pages, and ran out
+  of steps even *with* a hint. The write path itself is fine (confirmed directly through the
+  bridge under `READONLY=0`: set→verify→restore all exit 0); the gap is discoverability — system
+  settings live under `dev customize set <key> <value>`, two levels deep under a `dev` group a
+  model doesn't associate with "settings".
+- **Failure mode: arg-mangling.** At temperature 0.2 it sometimes emitted the whole command as one
+  escaped-quote string (`["metadata\", \"search\", ..."]`) → the bridge's space-split produced
+  `metadata, search, ...` → "No such command". The existing shlex tokenizer handles spaces but not
+  embedded quotes.
+
+### Queued from this round
+- **System-setting writes are undiscoverable** for small models. `dev customize set` is buried;
+  consider surfacing a `system setting set <key> <value>` alias (or a top-level hint) so "set a
+  system setting" maps to where models look first (`system`).
+- **Bridge arg-robustness**: when `args[0]` contains escaped quotes/commas (a JSON-ish blob), the
+  shlex split mis-tokenizes. Detect a single-element `args` that looks like packed JSON and parse
+  it, or strip stray quotes before splitting.
