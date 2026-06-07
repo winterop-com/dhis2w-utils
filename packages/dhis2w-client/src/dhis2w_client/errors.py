@@ -1,4 +1,9 @@
-"""Exception hierarchy for dhis2w-client."""
+"""Exception hierarchy for dhis2w-client — shared across all version trees.
+
+Errors carry no version-specific behaviour, so they live in one module rather than being
+copied per version. A single shared hierarchy means `except dhis2w_client.Dhis2ApiError`
+catches errors from a client bound to *any* DHIS2 major (v41/v42/v43), not just the baseline.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +11,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from dhis2w_client.v41.envelopes import WebMessageResponse
+    from dhis2w_client.v42.envelopes import WebMessageResponse
 
 _WWW_AUTHENTICATE_DESCRIPTION_RE = re.compile(r'error_description\s*=\s*"([^"]*)"', re.IGNORECASE)
 _OPENID_MAPPING_RE = re.compile(
@@ -61,7 +66,8 @@ class Dhis2ApiError(Dhis2ClientError):
 
         DHIS2 returns the envelope on errors too (e.g. 409 on /api/dataValueSets
         with `status=WARNING` + populated `conflicts[]`), so callers can inspect
-        import counts and per-row rejections without re-parsing.
+        import counts and per-row rejections without re-parsing. The error-envelope
+        shape is stable across majors, so the baseline (v42) model parses any tree's body.
 
         Imported lazily because `envelopes.py` pulls in the generated OAS tree,
         which itself imports `client.py` (for the generated resource
@@ -71,7 +77,7 @@ class Dhis2ApiError(Dhis2ClientError):
         """
         if not isinstance(self.body, dict):
             return None
-        from dhis2w_client.v41.envelopes import WebMessageResponse as _WMR
+        from dhis2w_client.v42.envelopes import WebMessageResponse as _WMR
 
         try:
             return _WMR.model_validate(self.body)

@@ -444,7 +444,7 @@ async def test_doctor_refuses_pre_v41_dhis2(profile: Profile) -> None:
     fallback to choose from, so `Dhis2Client.connect()` raises
     `UnsupportedVersionError` before the doctor's probes get a chance.
     """
-    from dhis2w_client.v42.errors import UnsupportedVersionError
+    from dhis2w_client.errors import UnsupportedVersionError
 
     respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text=""))
     respx.get("https://dhis2.example/api/system/info").mock(

@@ -137,7 +137,7 @@ class AnalyticsAccessor:
                     body = response.json()
                 except ValueError:
                     body = response.text
-                from dhis2w_client.v42.errors import AuthenticationError, Dhis2ApiError, format_unauthorized_message
+                from dhis2w_client.errors import AuthenticationError, Dhis2ApiError, format_unauthorized_message
 
                 if response.status_code == 401:
                     raise AuthenticationError(

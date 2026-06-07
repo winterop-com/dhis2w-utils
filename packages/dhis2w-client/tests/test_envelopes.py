@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dhis2w_client import Conflict, ImportCount, ObjectReport, WebMessageResponse
-from dhis2w_client.v42.errors import Dhis2ApiError
+from dhis2w_client.errors import Dhis2ApiError
 
 
 def test_object_report_response_parses_created_uid() -> None:

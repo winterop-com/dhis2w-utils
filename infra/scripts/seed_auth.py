@@ -31,7 +31,7 @@ from _seed_auth_oauth2 import (  # noqa: E402 — path-prepend above is intentio
 from _seed_auth_variations import PAT_VARIATIONS  # noqa: E402
 from _seed_login_customization import apply_login_customization  # noqa: E402
 from dhis2w_client import BasicAuth, Dhis2Client  # noqa: E402
-from dhis2w_client.v42.errors import Dhis2ApiError  # noqa: E402
+from dhis2w_client.errors import Dhis2ApiError  # noqa: E402
 
 
 async def wait_for_ready(url: str, username: str, password: str, *, max_wait_seconds: int = 180) -> None:

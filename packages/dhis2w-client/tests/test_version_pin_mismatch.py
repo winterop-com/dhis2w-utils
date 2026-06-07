@@ -16,7 +16,7 @@ from dhis2w_client import (
     Dhis2,
     Dhis2Client,
 )
-from dhis2w_client.v42.errors import VersionPinMismatchError
+from dhis2w_client.errors import VersionPinMismatchError
 
 
 @respx.mock

@@ -109,8 +109,8 @@ async def test_oauth2_exchange_400_raises_oauth2_flow_error() -> None:
     the HTTP status, the RFC 6749 `error` / `error_description` fields when
     DHIS2 returns them, and a hint about common causes.
     """
+    from dhis2w_client.errors import OAuth2FlowError
     from dhis2w_client.v42.auth.oauth2 import OAuth2Auth as _OAuth2Auth
-    from dhis2w_client.v42.errors import OAuth2FlowError
 
     respx.post("https://dhis2.example/oauth2/token").mock(
         return_value=httpx.Response(
@@ -148,7 +148,7 @@ async def test_oauth2_refresh_400_raises_oauth2_flow_error() -> None:
     not acceptable — this is a known recoverable failure mode and we
     own the UX.
     """
-    from dhis2w_client.v42.errors import OAuth2FlowError
+    from dhis2w_client.errors import OAuth2FlowError
 
     token_store = _InMemoryTokenStore()
     expiring = OAuth2Token(access_token="old", refresh_token="stale-refresh", expires_at=time.time() + 5)
@@ -175,7 +175,7 @@ async def test_oauth2_refresh_400_raises_oauth2_flow_error() -> None:
 
 async def test_oauth2_expired_without_refresh_token_raises() -> None:
     """An expired token without a refresh_token can't be refreshed — must point at `profile login`."""
-    from dhis2w_client.v42.errors import OAuth2FlowError
+    from dhis2w_client.errors import OAuth2FlowError
 
     token_store = _InMemoryTokenStore()
     expiring = OAuth2Token(access_token="old", refresh_token=None, expires_at=time.time() + 5)

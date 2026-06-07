@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from importlib import import_module
 from pathlib import Path
 
 import httpx
 import pytest
 import respx
-from dhis2w_client import BasicAuth, Dhis2Client
+from dhis2w_client import AuthenticationError, BasicAuth, Dhis2ApiError, Dhis2Client
 
 
 def _auth() -> BasicAuth:
@@ -213,8 +212,7 @@ async def test_stream_to_raises_dhis2_api_error_on_4xx(
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
-        errors = import_module(f"dhis2w_client.{client.version_key}.errors")
-        with pytest.raises(errors.Dhis2ApiError) as exc_info:
+        with pytest.raises(Dhis2ApiError) as exc_info:
             await client.analytics.stream_to(destination, params={"dimension": ["bad"]})
     finally:
         await client.close()
@@ -236,8 +234,7 @@ async def test_stream_to_raises_authentication_error_on_401(
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
-        errors = import_module(f"dhis2w_client.{client.version_key}.errors")
-        with pytest.raises(errors.AuthenticationError):
+        with pytest.raises(AuthenticationError):
             await client.analytics.stream_to(tmp_path / "out.json", params={"dimension": ["dx:X"]})
     finally:
         await client.close()

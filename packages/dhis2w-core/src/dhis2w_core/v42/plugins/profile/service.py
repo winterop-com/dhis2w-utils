@@ -5,10 +5,10 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+from dhis2w_client.errors import Dhis2ClientError
 from dhis2w_client.v42 import BasicAuth, Dhis2, Dhis2Client, PatAuth
 from dhis2w_client.v42.auth.base import AuthProvider
 from dhis2w_client.v42.auth.oauth2 import DEFAULT_REDIRECT_URI, OAuth2Auth
-from dhis2w_client.v42.errors import Dhis2ClientError
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_core.oauth2_preflight import check_oauth2_server

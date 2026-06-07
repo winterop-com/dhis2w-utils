@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from dhis2w_client import DataValue, WebMessageResponse
+from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_client.generated.v42.oas import TrackerImportReport
 from dhis2w_client.generated.v42.schemas import (
     Category,
@@ -44,7 +45,6 @@ from dhis2w_client.generated.v42.schemas import (
     Visualization,
 )
 from dhis2w_client.v42.client import Dhis2Client
-from dhis2w_client.v42.errors import Dhis2ApiError
 from pydantic import BaseModel, ConfigDict
 
 _SEED_START_MONOTONIC = time.monotonic()

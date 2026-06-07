@@ -6,7 +6,7 @@ import sys
 
 import pytest
 import typer
-from dhis2w_client.v42.errors import Dhis2ApiError
+from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_core.cli_errors import run_app
 
 _IMPORT_SUMMARY_409 = {

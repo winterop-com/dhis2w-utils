@@ -5,12 +5,33 @@ from __future__ import annotations
 import httpx
 import pytest
 import respx
-from dhis2w_client import BasicAuth, Dhis2Client
+from dhis2w_client import BasicAuth, Dhis2ApiError, Dhis2Client
 
 
 def _auth() -> BasicAuth:
     """Throwaway BasicAuth for connect tests."""
     return BasicAuth(username="admin", password="district")
+
+
+@respx.mock
+async def test_top_level_error_class_catches_a_v41_bound_client_error() -> None:
+    """Errors are shared across trees: the top-level Dhis2ApiError catches a v41-bound client's error.
+
+    Regression for the per-version-exception-class footgun — each tree used to define its own
+    Dhis2ClientError, so `except dhis2w_client.Dhis2ApiError` silently missed v41/v43 errors.
+    """
+    _mock_redirect_probe()
+    respx.get("https://dhis2.example/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": "2.41.0"})
+    )
+    respx.get("https://dhis2.example/api/dataElements/MISSING").mock(
+        return_value=httpx.Response(404, json={"httpStatus": "Not Found", "message": "nope"})
+    )
+    async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
+        assert client.version_key == "v41"
+        with pytest.raises(Dhis2ApiError) as exc_info:  # top-level (v42-baseline) class
+            await client.data_elements.get("MISSING")
+    assert exc_info.value.status_code == 404
 
 
 def _mock_redirect_probe() -> None:

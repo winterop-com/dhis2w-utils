@@ -8,7 +8,7 @@ import httpx
 import pytest
 import respx
 from dhis2w_client import BasicAuth, Dhis2Client, RetryPolicy
-from dhis2w_client.v42.errors import Dhis2ApiError
+from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_client.v42.retry import _RetryTransport, build_retry_transport
 
 

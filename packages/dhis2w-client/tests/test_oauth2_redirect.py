@@ -13,8 +13,8 @@ import socket
 
 import httpx
 import pytest
+from dhis2w_client.errors import OAuth2FlowError
 from dhis2w_client.v42.auth.oauth2 import capture_code
-from dhis2w_client.v42.errors import OAuth2FlowError
 
 
 def _free_port() -> int:

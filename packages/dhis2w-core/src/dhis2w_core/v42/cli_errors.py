@@ -12,8 +12,8 @@ import sys
 from typing import NoReturn
 
 import typer
+from dhis2w_client.errors import AuthenticationError, Dhis2ApiError, Dhis2ClientError, OAuth2FlowError
 from dhis2w_client.v42.envelopes import WebMessageResponse
-from dhis2w_client.v42.errors import AuthenticationError, Dhis2ApiError, Dhis2ClientError, OAuth2FlowError
 
 from dhis2w_core.profile import (
     InvalidProfileNameError,

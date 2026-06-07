@@ -36,9 +36,9 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_client.generated.v42.oas import SharingObject, Status
 from dhis2w_client.v42.envelopes import WebMessageResponse
-from dhis2w_client.v42.errors import Dhis2ApiError
 from dhis2w_client.v42.json_patch import JsonPatchOp
 from dhis2w_client.v42.sharing import SharingBuilder
 

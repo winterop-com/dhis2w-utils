@@ -1,5 +1,12 @@
 """DHIS2 v41 client surface — re-exports the v41 hand-written tree."""
 
+from dhis2w_client.errors import (
+    AuthenticationError,
+    Dhis2ApiError,
+    Dhis2ClientError,
+    OAuth2FlowError,
+    UnsupportedVersionError,
+)
 from dhis2w_client.generated import Dhis2
 from dhis2w_client.profile import (
     PROFILE_NAME_MAX_LEN,
@@ -72,13 +79,6 @@ from dhis2w_client.v41.envelopes import (
     Stats,
     TypeReport,
     WebMessageResponse,
-)
-from dhis2w_client.v41.errors import (
-    AuthenticationError,
-    Dhis2ApiError,
-    Dhis2ClientError,
-    OAuth2FlowError,
-    UnsupportedVersionError,
 )
 from dhis2w_client.v41.files import Document, FileResource, FileResourceDomain, FilesAccessor
 from dhis2w_client.v41.indicator_group_sets import IndicatorGroupSet, IndicatorGroupSetsAccessor

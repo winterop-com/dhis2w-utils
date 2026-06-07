@@ -13,7 +13,7 @@ from __future__ import annotations
 import httpx
 import pytest
 import respx
-from dhis2w_client.v42.errors import VersionPinMismatchError
+from dhis2w_client.errors import VersionPinMismatchError
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile, bind_version_tree
 

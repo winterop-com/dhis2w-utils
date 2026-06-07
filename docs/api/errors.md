@@ -61,4 +61,4 @@ Pass `allow_version_fallback=True` on the client constructor (or via `open_clien
 
 Worked example: [`examples/v42/client/error_handling.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/error_handling.py).
 
-::: dhis2w_client.v42.errors
+::: dhis2w_client.errors

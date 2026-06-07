@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_client.generated.v42.oas import SystemInfo
-from dhis2w_client.v42.errors import Dhis2ApiError
 
 if TYPE_CHECKING:
     from dhis2w_client.v42.client import Dhis2Client

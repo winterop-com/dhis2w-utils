@@ -17,7 +17,7 @@ from typing import Any, Protocol, runtime_checkable
 import httpx
 from pydantic import BaseModel
 
-from dhis2w_client.v42.errors import OAuth2FlowError
+from dhis2w_client.errors import OAuth2FlowError
 
 RedirectCapturer = Callable[[str, str], Awaitable[str]]
 """Callable signature for the redirect-receiver hook.

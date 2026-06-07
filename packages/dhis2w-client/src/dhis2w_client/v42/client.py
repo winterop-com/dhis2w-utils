@@ -12,6 +12,13 @@ import httpx
 from pydantic import BaseModel
 
 from dhis2w_client._dispatch import rebind_accessors_for_version
+from dhis2w_client.errors import (
+    AuthenticationError,
+    Dhis2ApiError,
+    UnsupportedVersionError,
+    VersionPinMismatchError,
+    format_unauthorized_message,
+)
 from dhis2w_client.generated import Dhis2, available_versions, load
 from dhis2w_client.generated.v42.oas import SystemInfo as _SystemInfo
 from dhis2w_client.v42.analytics_stream import AnalyticsAccessor
@@ -31,13 +38,6 @@ from dhis2w_client.v42.data_element_groups import DataElementGroupsAccessor
 from dhis2w_client.v42.data_elements import DataElementsAccessor
 from dhis2w_client.v42.data_sets import DataSetsAccessor
 from dhis2w_client.v42.data_values import DataValuesAccessor
-from dhis2w_client.v42.errors import (
-    AuthenticationError,
-    Dhis2ApiError,
-    UnsupportedVersionError,
-    VersionPinMismatchError,
-    format_unauthorized_message,
-)
 from dhis2w_client.v42.files import FilesAccessor
 from dhis2w_client.v42.indicator_group_sets import IndicatorGroupSetsAccessor
 from dhis2w_client.v42.indicator_groups import IndicatorGroupsAccessor
