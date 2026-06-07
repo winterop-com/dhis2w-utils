@@ -24,7 +24,7 @@ dhis2 user list --filter "username:like:admin" --fields ":identifiable"
 
 Fetch one user. DHIS2's `/api/users/{id}` only accepts a UID (passing a username returns 405), so the service resolves non-UID input through `GET /api/users?filter=username:eq:<input>` first, then refetches by UID. Raises `UserNotFoundError` → clean CLI error when the username doesn't exist.
 
-### `dhis2 user me`
+### `dhis2 system whoami`
 
 Prints `/api/me` — the authenticated user's richer profile (authorities, settings, programs, allowed OUs). Distinct from `get <username>` because `/api/me` returns fields that don't appear on the `/api/users/{uid}` view.
 
@@ -52,7 +52,7 @@ Under the hood: `POST /api/users/invite` with a `UserInvite` body — `{username
 
 ## MCP parity
 
-Every CLI verb has an MCP tool with matching arg names. Read tools (`user_list`, `user_get`, `user_me`) are safe for agent callers; write tools (`user_invite`, `user_reinvite`, `user_reset_password`) hit real DHIS2 state and dispatch real email — scope profiles with read-only PATs when you don't want an agent triggering them.
+Every CLI verb has an MCP tool with matching arg names. Read tools (`user_list`, `user_get`, `whoami`) are safe for agent callers; write tools (`user_invite`, `user_reinvite`, `user_reset_password`) hit real DHIS2 state and dispatch real email — scope profiles with read-only PATs when you don't want an agent triggering them.
 
 ## Service layer
 

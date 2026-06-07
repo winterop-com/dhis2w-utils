@@ -128,5 +128,5 @@ def test_plugin_registers_on_root_cli() -> None:
     assert result.exit_code == 0
     assert "DHIS2 user administration" in result.output
     # Confirm each verb is listed.
-    for verb in ("list", "get", "me", "invite", "reinvite", "reset-password"):
+    for verb in ("list", "get", "invite", "reinvite", "reset-password"):
         assert verb in result.output

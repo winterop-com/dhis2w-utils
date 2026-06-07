@@ -8935,7 +8935,6 @@ $ dhis2 user [OPTIONS] COMMAND [ARGS]...
 * `ls`: List users.
 * `list`: List users.
 * `get`: Fetch one user by UID or username.
-* `me`: Print the authenticated user&#x27;s `/api/me`...
 * `invite`: Create a user and send the invitation email.
 * `reinvite`: Re-send the invitation email for a pending...
 * `reset-password`: Trigger DHIS2&#x27;s password-reset email (POST...
@@ -9007,20 +9006,6 @@ $ dhis2 user get [OPTIONS] UID_OR_USERNAME
 **Options**:
 
 * `--fields TEXT`: DHIS2 field selector.
-* `--help`: Show this message and exit.
-
-### `dhis2 user me`
-
-Print the authenticated user&#x27;s `/api/me` summary. `--json` for full payload.
-
-**Usage**:
-
-```console
-$ dhis2 user me [OPTIONS]
-```
-
-**Options**:
-
 * `--help`: Show this message and exit.
 
 ### `dhis2 user invite`

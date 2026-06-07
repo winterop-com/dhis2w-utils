@@ -36,7 +36,7 @@ async def main() -> None:
         for user in users[:3]:
             print(f"  {user.get('id')}  {user.get('username')}  last_login={user.get('lastLogin')}")
 
-        me = await client.call_tool("user_me", {})
+        me = await client.call_tool("whoami", {})
         payload = me.structured_content or me.data or {}
         if isinstance(payload, dict) and "result" in payload:
             payload = payload["result"]

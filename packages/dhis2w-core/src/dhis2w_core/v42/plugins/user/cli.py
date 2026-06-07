@@ -130,39 +130,6 @@ def get_command(
     render_detail(f"user {user.username or user.id or '?'}", rows)
 
 
-@app.command("me")
-def me_command() -> None:
-    """Print the authenticated user's `/api/me` summary. `--json` for full payload."""
-    me = asyncio.run(service.current_user(profile_from_env()))
-    if is_json_output():
-        typer.echo(me.model_dump_json(indent=2, exclude_none=True))
-        return
-    authorities = me.authorities or []
-    org_units = me.organisationUnits or []
-    user_groups = me.userGroups or []
-    programs = me.programs or []
-    data_view_ous = me.dataViewOrganisationUnits or []
-    rows = [
-        DetailRow("id", str(me.id or "-")),
-        DetailRow("username", str(me.username or "-")),
-        DetailRow("displayName", str(me.displayName or "-")),
-        DetailRow("email", str(me.email or "-")),
-        DetailRow("firstName", str(me.firstName or "-")),
-        DetailRow("surname", str(me.surname or "-")),
-        DetailRow("lastLogin", str(me.lastLogin or "-")),
-        DetailRow("created", str(me.created or "-")),
-        DetailRow(
-            f"authorities ({len(authorities)})",
-            _authorities_preview(authorities, hint_cmd="dhis2 --json user me"),
-        ),
-        DetailRow(f"organisationUnits ({len(org_units)})", format_reflist(org_units)),
-        DetailRow("dataViewOrgUnits", str(len(data_view_ous))),
-        DetailRow(f"userGroups ({len(user_groups)})", format_reflist(user_groups)),
-        DetailRow(f"programs ({len(programs)})", format_reflist(programs)),
-    ]
-    render_detail(f"me — {me.username or me.id or '?'}", rows)
-
-
 @app.command("invite")
 def invite_command(
     email: Annotated[str, typer.Argument(help="Email address for the new user (receives the invitation link).")],

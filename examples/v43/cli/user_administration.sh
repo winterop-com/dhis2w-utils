@@ -16,7 +16,7 @@ dhis2 user get admin --fields "id,username,displayName,lastLogin"
 dhis2 user get M5zQapPyTZI --fields "id,username,authorities"
 
 # The authenticated user's /api/me (authorities, settings, programs).
-dhis2 user me
+dhis2 system whoami
 
 # --- writes (hit real DHIS2 state; uncomment on a real instance) --------------
 

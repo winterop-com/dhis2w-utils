@@ -2,7 +2,7 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 307 across 13 plugin groups.
+**Total tools**: 306 across 13 plugin groups.
 
 ## Plugins
 
@@ -18,7 +18,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 - [`profile_*`](#profile) — 4 tools
 - [`route_*`](#route) — 7 tools
 - [`system_*`](#system) — 5 tools
-- [`user_*`](#user) — 16 tools
+- [`user_*`](#user) — 15 tools
 
 ## `analytics`
 
@@ -3392,14 +3392,6 @@ List DHIS2 users.
 | `page` | `integer` | no | — |
 | `page_size` | `integer` | no | — |
 | `paging` | `boolean` | no | — |
-| `profile` | `string` | no | — |
-
-### `user_me`
-
-Return the authenticated user's `/api/me` payload.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
 | `profile` | `string` | no | — |
 
 ### `user_reinvite`

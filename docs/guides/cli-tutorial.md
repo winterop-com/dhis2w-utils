@@ -221,8 +221,8 @@ Read and write the user surface:
 # Read
 dhis2 user list --filter "disabled:eq:false" --page-size 10
 dhis2 user get admin                                    # by username
-dhis2 user me                                           # the authenticated user
-dhis2 --json user me                                    # full /api/me payload
+dhis2 system whoami                                           # the authenticated user
+dhis2 --json system whoami                                    # full /api/me payload
 
 # Invite a new user (DHIS2 emails them a signup link)
 dhis2 user invite new.user@example.com \

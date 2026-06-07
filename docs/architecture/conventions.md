@@ -76,7 +76,7 @@ A few tools deliberately do not follow the verb table. They are listed here so f
 - `data_aggregate_push`, `data_tracker_push` — DHIS2-vernacular term for bulk write to `/api/dataValueSets` and `/api/tracker`. `_create_many` would be technically correct but `push` is what every DHIS2 doc and SDK uses.
 - `messaging_send`, `messaging_reply`, `messaging_assign`, `messaging_unassign` — domain verbs that map to specific DHIS2 message-conversation endpoints.
 - `analytics_query`, `analytics_events_query`, `analytics_outlier_detection`, `route_run` — read-shaped POSTs. `query` and `run` describe what the call is, not the HTTP verb.
-- `system_info`, `system_whoami`, `user_me` — DHIS2 endpoint vernacular (`/api/system/info`, `/api/me`). `system_info_get` would be technically more consistent, but no DHIS2 reader would call it that.
+- `system_info`, `system_whoami`, `whoami` — DHIS2 endpoint vernacular (`/api/system/info`, `/api/me`). `system_info_get` would be technically more consistent, but no DHIS2 reader would call it that.
 
 ## Plurality
 
