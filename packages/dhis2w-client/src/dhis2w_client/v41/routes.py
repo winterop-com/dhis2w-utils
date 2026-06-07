@@ -18,6 +18,9 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from dhis2w_client.generated.v41.schemas import Route
+from dhis2w_client.v41._collection import parse_collection
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -31,6 +34,14 @@ class RoutesAccessor:
         """Bind to the parent client and start with an empty code->uid cache."""
         self._client = client
         self._code_to_uid: dict[str, str] = {}
+
+    async def list_all(self, *, page: int = 1, page_size: int = 50) -> list[Route]:
+        """Page through the configured reverse-proxy Routes."""
+        raw = await self._client.get_raw(
+            "/api/routes",
+            params={"fields": "id,code,name,url,disabled", "page": str(page), "pageSize": str(page_size)},
+        )
+        return parse_collection(raw, "routes", Route)
 
     async def run(
         self,

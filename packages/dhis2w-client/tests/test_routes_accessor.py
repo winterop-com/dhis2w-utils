@@ -22,6 +22,33 @@ _ROUTE_LOOKUP_BODY = {
 
 
 @respx.mock
+async def test_list_all_pages_routes(server_version: str, mock_system_info: Callable[..., None]) -> None:
+    """`list_all` pages the configured routes into typed Route models across every tree."""
+    mock_system_info(server_version)
+    respx.get("https://dhis2.example/api/routes").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "routes": [
+                    {
+                        "id": "Rabcdef1234",
+                        "code": "health-upstream",
+                        "name": "Health upstream",
+                        "url": "https://up.example",
+                    },
+                ]
+            },
+        ),
+    )
+    async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
+        routes = await client.routes.list_all(page_size=5)
+    assert len(routes) == 1
+    assert type(routes[0]).__name__ == "Route"
+    assert routes[0].id == "Rabcdef1234"
+    assert routes[0].code == "health-upstream"
+
+
+@respx.mock
 async def test_run_resolves_code_to_uid_then_proxies_get(
     server_version: str, mock_system_info: Callable[..., None]
 ) -> None:
