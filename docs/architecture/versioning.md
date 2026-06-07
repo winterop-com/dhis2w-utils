@@ -74,7 +74,7 @@ This selection is independent of the wire client's actual version detection (`Dh
 
 ```bash
 # Force the v43 plugin tree for a one-off run (overrides profile.version)
-DHIS2_VERSION=43 dhis2 metadata data-element list
+DHIS2_VERSION=43 dhis2 metadata list dataElements
 ```
 
 Library callers using `from dhis2w_client.v43 import Dhis2Client` skip the resolution chain entirely — the import path pins the version.

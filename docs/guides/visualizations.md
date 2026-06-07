@@ -243,7 +243,7 @@ dhis2 metadata visualizations clone VizSourceUid --new-name "2025 preview" --new
 dhis2 metadata dashboards add-item TAMlzYkstb7 --viz VizNewClone1 --x 0 --y 95 --width 60 --height 20
 ```
 
-Every MCP tool has a direct CLI equivalent and vice versa. `dhis2 metadata visualizations list --type PIVOT_TABLE` mirrors `metadata_visualization_list(viz_type="PIVOT_TABLE")` on the MCP side. Full surface: `list / ls / get / create / clone / delete` on `viz`; `list / ls / get / add-item / remove-item` on `dashboard`.
+Listing goes through the generic metadata surface — `dhis2 metadata list visualizations` (CLI) / `metadata_list(resource="visualizations")` (MCP). The typed authoring verbs each have a CLI command and a matching MCP tool: `get / create / clone / delete` on `metadata visualizations` (`metadata_visualization_*`), and `get / add-item / remove-item` on `metadata dashboards` (`metadata_dashboard_*`).
 
 ## Worked examples in `examples/v42/client/`
 

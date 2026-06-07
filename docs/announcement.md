@@ -22,7 +22,7 @@ The same typed client backs a Python library, a `dhis2` CLI with eighteen comman
 
 ```bash
 dhis2 system info
-dhis2 metadata data-element list --fields id,name
+dhis2 metadata list dataElements --fields id,name
 dhis2 doctor          # ~100 health + integrity checks against a live instance
 ```
 
