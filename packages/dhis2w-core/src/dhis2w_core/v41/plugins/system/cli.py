@@ -21,6 +21,9 @@ app = typer.Typer(help="DHIS2 system info and current-user access.", no_args_is_
 def whoami_command() -> None:
     """Print the authenticated DHIS2 user for the current environment profile."""
     me = asyncio.run(service.whoami(profile_from_env()))
+    if is_json_output():
+        typer.echo(me.model_dump_json(indent=2, exclude_none=True, by_alias=True))
+        return
     typer.echo(f"{me.username} ({me.displayName or '-'})")
 
 

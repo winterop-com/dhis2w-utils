@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from dhis2w_cli.main import build_app
+from dhis2w_client.v42 import Me
 from typer.testing import CliRunner
 
 _runner = CliRunner()
@@ -62,3 +63,14 @@ def test_settings_set_many_rejects_non_object(pat_profile: None, tmp_path: Path)
     result = _runner.invoke(build_app(), ["system", "settings", "set-many", str(bad)])
     assert result.exit_code != 0
     assert "object" in result.output.lower() or "key" in result.output.lower()
+
+
+def test_whoami_json_emits_parseable_object(pat_profile: None) -> None:  # noqa: ARG001
+    """`dhis2 --json system whoami` emits a JSON object (with `id`), not the plain text form."""
+    import json
+
+    me = Me.model_validate({"id": "abc123XYZ", "username": "admin", "displayName": "Admin User"})
+    with patch("dhis2w_core.v42.plugins.system.service.whoami", new=AsyncMock(return_value=me)):
+        result = _runner.invoke(build_app(), ["--json", "system", "whoami"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["id"] == "abc123XYZ"
