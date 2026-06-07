@@ -4,11 +4,43 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import httpx
 import pytest
+import respx
+
+# --- per-version accessor coverage -------------------------------------------------
+# A respx accessor unit test that connects via `Dhis2Client` and mocks `/api/system/info`
+# exercises whichever version tree the connected server reports (the client dispatches
+# accessors by major on connect). Parametrizing the mocked version therefore re-runs the
+# same v42 test against the v41 + v43 accessor trees — closing their coverage without
+# duplicating the test. Use both fixtures: take `server_version`, then call
+# `mock_system_info(server_version)` in place of a hardcoded `2.42.0` preamble.
+
+_SERVER_VERSIONS = {"v41": "2.41.4", "v42": "2.42.0", "v43": "2.43.0"}
+
+
+@pytest.fixture(params=list(_SERVER_VERSIONS))
+def server_version(request: pytest.FixtureRequest) -> str:
+    """Parametrize a respx accessor test across all three DHIS2 majors (wire version string)."""
+    return _SERVER_VERSIONS[request.param]
+
+
+@pytest.fixture
+def mock_system_info() -> Callable[..., None]:
+    """Return a helper that mocks the redirect probe + `/api/system/info` for a given version.
+
+    The connected `Dhis2Client` then binds that major's accessor tree, so the test body runs
+    against v41 / v42 / v43 depending on the version passed.
+    """
+
+    def _mock(version: str, base_url: str = "https://dhis2.example") -> None:
+        respx.get(f"{base_url}/").mock(return_value=httpx.Response(200, text="<html></html>"))
+        respx.get(f"{base_url}/api/system/info").mock(return_value=httpx.Response(200, json={"version": version}))
+
+    return _mock
 
 
 def _load_seeded_env(start: Path) -> None:
