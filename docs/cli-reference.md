@@ -729,8 +729,6 @@ $ dhis2 customize [OPTIONS] COMMAND [ARGS]...
 * `logo-front`: Upload the login-page splash / upper-right...
 * `logo-banner`: Upload the top-menu banner logo (appears...
 * `style`: Upload a CSS stylesheet that DHIS2 serves...
-* `set`: Set a single system setting.
-* `settings`: Bulk-set system settings from a JSON file.
 * `apply`: Apply a committed preset directory in one...
 * `show`: Show DHIS2&#x27;s current `/api/loginConfig`...
 
@@ -786,43 +784,6 @@ $ dhis2 customize style [OPTIONS] FILE
 **Arguments**:
 
 * `FILE`: CSS file to upload as `/api/files/style`.  [required]
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-### `dhis2 customize set`
-
-Set a single system setting.
-
-**Usage**:
-
-```console
-$ dhis2 customize set [OPTIONS] KEY VALUE
-```
-
-**Arguments**:
-
-* `KEY`: System setting key (e.g. applicationTitle, keyApplicationFooter).  [required]
-* `VALUE`: New value.  [required]
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-### `dhis2 customize settings`
-
-Bulk-set system settings from a JSON file.
-
-**Usage**:
-
-```console
-$ dhis2 customize settings [OPTIONS] FILE
-```
-
-**Arguments**:
-
-* `FILE`: JSON file containing a {key: value} object.  [required]
 
 **Options**:
 
@@ -8861,6 +8822,7 @@ $ dhis2 system [OPTIONS] COMMAND [ARGS]...
 * `whoami`: Print the authenticated DHIS2 user for the...
 * `info`: Print DHIS2 system info (version, build,...
 * `calendar`: Print the active DHIS2 calendar, or change...
+* `settings`: Read/write DHIS2 system settings.
 
 ### `dhis2 system whoami`
 
@@ -8914,6 +8876,62 @@ $ dhis2 system calendar [OPTIONS] [VALUE]:[coptic|ethiopian|gregorian|islamic|is
 **Options**:
 
 * `-y, --yes`: Skip the interactive confirmation. Required for non-interactive callers (CI, scripts).
+* `--help`: Show this message and exit.
+
+### `dhis2 system settings`
+
+Read/write DHIS2 system settings.
+
+**Usage**:
+
+```console
+$ dhis2 system settings [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `set`: Set a single system setting.
+* `set-many`: Bulk-set system settings from a JSON file.
+
+#### `dhis2 system settings set`
+
+Set a single system setting.
+
+**Usage**:
+
+```console
+$ dhis2 system settings set [OPTIONS] KEY VALUE
+```
+
+**Arguments**:
+
+* `KEY`: System setting key (e.g. applicationTitle, keyApplicationFooter).  [required]
+* `VALUE`: New value.  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+#### `dhis2 system settings set-many`
+
+Bulk-set system settings from a JSON file.
+
+**Usage**:
+
+```console
+$ dhis2 system settings set-many [OPTIONS] FILE
+```
+
+**Arguments**:
+
+* `FILE`: JSON file containing a {key: value} object.  [required]
+
+**Options**:
+
 * `--help`: Show this message and exit.
 
 ## `dhis2 user`

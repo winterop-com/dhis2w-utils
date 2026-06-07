@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from pathlib import Path
 from typing import Annotated, Any
 
 import typer
@@ -100,6 +102,33 @@ def calendar_command(
             raise typer.Exit(code=1)
     asyncio.run(service.set_calendar(profile, value))
     typer.echo(f"keyCalendar set to {value.value} (was {current})")
+
+
+settings_app = typer.Typer(help="Read/write DHIS2 system settings.", no_args_is_help=True)
+app.add_typer(settings_app, name="settings")
+
+
+@settings_app.command("set")
+def settings_set_command(
+    key: Annotated[str, typer.Argument(help="System setting key (e.g. applicationTitle, keyApplicationFooter).")],
+    value: Annotated[str, typer.Argument(help="New value.")],
+) -> None:
+    """Set a single system setting."""
+    asyncio.run(service.set_system_setting(profile_from_env(), key, value))
+    typer.echo(f"set {key}")
+
+
+@settings_app.command("set-many")
+def settings_set_many_command(
+    file: Annotated[Path, typer.Argument(help="JSON file containing a {key: value} object.")],
+) -> None:
+    """Bulk-set system settings from a JSON file."""
+    loaded: Any = json.loads(file.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise typer.BadParameter(f"{file} must contain a {{key: value}} object")
+    applied = asyncio.run(service.set_system_settings(profile_from_env(), {str(k): str(v) for k, v in loaded.items()}))
+    for key in applied:
+        typer.echo(f"set {key}")
 
 
 def register(root_app: Any) -> None:

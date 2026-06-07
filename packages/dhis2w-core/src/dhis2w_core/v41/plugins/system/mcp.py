@@ -30,6 +30,21 @@ def register(mcp: Any) -> None:
         return await service.system_info(resolve_profile(profile))
 
     @mcp.tool()
+    async def system_settings_set(key: str, value: str, profile: str | None = None) -> dict[str, str]:
+        """Set a single DHIS2 system setting.
+
+        Login-page relevant keys: `applicationTitle` (no `key` prefix!), `keyApplicationIntro`,
+        `keyApplicationNotification`, `keyApplicationFooter`, `keyApplicationRightFooter`, `keyStyle`.
+        """
+        await service.set_system_setting(resolve_profile(profile), key, value)
+        return {"status": "set", "key": key}
+
+    @mcp.tool()
+    async def system_settings_set_many(settings: dict[str, str], profile: str | None = None) -> list[str]:
+        """Bulk-set DHIS2 system settings from a `{key: value}` mapping; returns keys applied."""
+        return await service.set_system_settings(resolve_profile(profile), settings)
+
+    @mcp.tool()
     async def system_server_info() -> ServerInfo:
         """Return the MCP server's active plugin tree + bound package versions.
 

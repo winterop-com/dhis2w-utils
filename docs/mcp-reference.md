@@ -8,7 +8,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 
 - [`analytics_*`](#analytics) — 5 tools
 - [`apps_*`](#apps) — 13 tools
-- [`customize_*`](#customize) — 7 tools
+- [`customize_*`](#customize) — 5 tools
 - [`data_*`](#data) — 15 tools
 - [`doctor_*`](#doctor) — 4 tools
 - [`files_*`](#files) — 5 tools
@@ -17,7 +17,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 - [`metadata_*`](#metadata) — 200 tools
 - [`profile_*`](#profile) — 4 tools
 - [`route_*`](#route) — 7 tools
-- [`system_*`](#system) — 5 tools
+- [`system_*`](#system) — 7 tools
 - [`user_*`](#user) — 15 tools
 
 ## `analytics`
@@ -261,25 +261,6 @@ Upload an image file as the DHIS2 login-page splash / upper-right logo.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `path` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `customize_setting_set`
-
-Set a single DHIS2 system setting.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `key` | `string` | yes | — |
-| `value` | `string` | yes | — |
-| `profile` | `string` | no | — |
-
-### `customize_setting_set_many`
-
-Bulk-set DHIS2 system settings from a `{key: value}` mapping; returns keys applied.
-
-| Parameter | Type | Required | Description |
-| --- | --- | --- | --- |
-| `settings` | `object` | yes | — |
 | `profile` | `string` | no | — |
 
 ### `customize_show`
@@ -3292,6 +3273,25 @@ Return /api/system/info for the given profile (see `system_whoami` for precedenc
 Return the MCP server's active plugin tree + bound package versions.
 
 No parameters.
+
+### `system_settings_set`
+
+Set a single DHIS2 system setting.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `key` | `string` | yes | — |
+| `value` | `string` | yes | — |
+| `profile` | `string` | no | — |
+
+### `system_settings_set_many`
+
+Bulk-set DHIS2 system settings from a `{key: value}` mapping; returns keys applied.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `settings` | `object` | yes | — |
+| `profile` | `string` | no | — |
 
 ### `system_whoami`
 

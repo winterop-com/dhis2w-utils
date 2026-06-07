@@ -61,7 +61,7 @@ The CLI exposes `rm` as a hidden alias for `delete` on most resources (`dhis2 me
 
 Four shapes for "modify an existing thing":
 
-- **`_set`** is an idempotent write of a singleton value. The resource has no uid (or the uid is implicit / part of the URL). Examples: `system_calendar_set` (one slot in `keyCalendar`), `apps_hub_url_set` (one config knob), `customize_setting_set` (one system setting), `data_aggregate_set` (one data value at a fixed coordinate), `metadata_attribute_set` (one attribute value on a resource).
+- **`_set`** is an idempotent write of a singleton value. The resource has no uid (or the uid is implicit / part of the URL). Examples: `system_calendar_set` (one slot in `keyCalendar`), `apps_hub_url_set` (one config knob), `system_settings_set` (one system setting), `data_aggregate_set` (one data value at a fixed coordinate), `metadata_attribute_set` (one attribute value on a resource).
 - **`_update`** is a PUT of the whole resource. Replace-style. Used by `route_update` because routes are small enough to round-trip the full payload.
 - **`_patch`** is JSON-patch operations on a resource — partial, surgical. `route_patch`, `metadata_patch`.
 - **`_rename`** is sugar over `_patch` for the common case of changing only `name`. 16 tools, all in the metadata plugin.

@@ -34,7 +34,7 @@ def test_cli_help_lists_every_verb() -> None:
     """Direct help on the customize app lists the full verb surface."""
     result = _runner.invoke(customize_app, ["--help"])
     assert result.exit_code == 0
-    for verb in ("logo-front", "logo-banner", "style", "set", "settings", "apply", "show"):
+    for verb in ("logo-front", "logo-banner", "style", "apply", "show"):
         assert verb in result.output
 
 
@@ -133,17 +133,8 @@ def test_apply_preset_dir_rejects_non_object_json(tmp_path: Path) -> None:
         asyncio.run(service.apply_preset_dir(profile=None, directory=tmp_path))  # type: ignore[arg-type]
 
 
-def test_settings_cli_rejects_non_object(tmp_path: Path) -> None:
-    """`dhis2 dev customize settings file.json` fails on non-object JSON."""
-    bad = tmp_path / "bad.json"
-    bad.write_text('["a", "b"]', encoding="utf-8")
-    result = _runner.invoke(customize_app, ["settings", str(bad)])
-    assert result.exit_code != 0
-    assert "object" in result.output.lower() or "key" in result.output.lower()
-
-
 def test_apply_cli_rejects_non_directory(tmp_path: Path) -> None:
-    """`dhis2 dev customize apply FILE` should fail-fast with a clear message."""
+    """`dhis2 customize apply FILE` should fail-fast with a clear message."""
     f = tmp_path / "not-a-dir.txt"
     f.write_text("x")
     result = _runner.invoke(customize_app, ["apply", str(f)])

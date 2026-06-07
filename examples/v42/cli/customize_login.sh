@@ -14,10 +14,10 @@ dhis2 customize logo-front  infra/login-customization/logo_front.png
 dhis2 customize logo-banner infra/login-customization/logo_banner.png
 
 # Tweak specific strings without touching preset.json.
-dhis2 customize set applicationTitle "dhis2-utils local"
-dhis2 customize set keyApplicationIntro "Seeded fixture — admin / district credentials."
-dhis2 customize set keyApplicationNotification "Development instance. Don't reuse credentials."
-dhis2 customize set keyApplicationFooter "Powered by dhis2-utils"
+dhis2 system settings set applicationTitle "dhis2-utils local"
+dhis2 system settings set keyApplicationIntro "Seeded fixture — admin / district credentials."
+dhis2 system settings set keyApplicationNotification "Development instance. Don't reuse credentials."
+dhis2 system settings set keyApplicationFooter "Powered by dhis2-utils"
 
 # Drop a stylesheet for the authenticated UI (login app ignores /api/files/style —
 # post-auth pages serve it). Uncomment when you have a theme to apply.

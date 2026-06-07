@@ -31,7 +31,7 @@ async def main() -> None:
 
         # Bulk-set the login copy.
         await client.call_tool(
-            "customize_setting_set_many",
+            "system_settings_set_many",
             {
                 "settings": {
                     "applicationTitle": "dhis2-utils local",

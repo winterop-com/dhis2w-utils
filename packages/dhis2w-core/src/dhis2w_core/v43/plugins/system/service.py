@@ -120,3 +120,15 @@ async def generate_uids(profile: Profile, *, limit: int = 1) -> list[str]:
     async with open_client(profile) as client:
         response = await client.get("/api/system/id", model=_SystemIdResponse, params={"limit": limit})
     return response.codes
+
+
+async def set_system_setting(profile: Profile, key: str, value: str) -> None:
+    """Set a single DHIS2 system setting."""
+    async with open_client(profile) as client:
+        await client.customize.set_system_setting(key, value)
+
+
+async def set_system_settings(profile: Profile, settings: dict[str, str]) -> list[str]:
+    """Bulk-set DHIS2 system settings from a `{key: value}` mapping; return keys applied."""
+    async with open_client(profile) as client:
+        return await client.customize.set_system_settings(settings)

@@ -33,18 +33,6 @@ async def upload_style(profile: Profile, path: Path) -> None:
         await client.customize.upload_style(css)
 
 
-async def set_system_setting(profile: Profile, key: str, value: str) -> None:
-    """Set a single system setting (login-page copy, theme name, etc.)."""
-    async with open_client(profile) as client:
-        await client.customize.set_system_setting(key, value)
-
-
-async def set_system_settings(profile: Profile, settings: dict[str, str]) -> list[str]:
-    """Bulk-set system settings from a `{key: value}` mapping; return keys applied."""
-    async with open_client(profile) as client:
-        return await client.customize.set_system_settings(settings)
-
-
 async def get_login_config(profile: Profile) -> LoginConfigResponse:
     """Return DHIS2's read-only `/api/loginConfig` summary."""
     async with open_client(profile) as client:

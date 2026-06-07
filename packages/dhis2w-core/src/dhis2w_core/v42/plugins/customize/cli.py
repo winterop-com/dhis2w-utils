@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -48,29 +47,6 @@ def style_command(
     """
     asyncio.run(service.upload_style(profile_from_env(), file))
     typer.echo(f"uploaded {file.name} as /api/files/style (keyStyle=style)")
-
-
-@app.command("set")
-def set_command(
-    key: Annotated[str, typer.Argument(help="System setting key (e.g. applicationTitle, keyApplicationFooter).")],
-    value: Annotated[str, typer.Argument(help="New value.")],
-) -> None:
-    """Set a single system setting."""
-    asyncio.run(service.set_system_setting(profile_from_env(), key, value))
-    typer.echo(f"set {key}")
-
-
-@app.command("settings")
-def settings_command(
-    file: Annotated[Path, typer.Argument(help="JSON file containing a {key: value} object.")],
-) -> None:
-    """Bulk-set system settings from a JSON file."""
-    loaded: Any = json.loads(file.read_text(encoding="utf-8"))
-    if not isinstance(loaded, dict):
-        raise typer.BadParameter(f"{file} must contain a {{key: value}} object")
-    applied = asyncio.run(service.set_system_settings(profile_from_env(), {str(k): str(v) for k, v in loaded.items()}))
-    for key in applied:
-        typer.echo(f"set {key}")
 
 
 @app.command("apply")
