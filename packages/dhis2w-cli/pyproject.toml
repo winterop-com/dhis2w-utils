@@ -1,18 +1,18 @@
 [project]
 name = "dhis2w-cli"
-version = "0.17.0"
+version = "0.18.0"
 description = "dhis2 command-line interface (Typer) — mounts plugins from dhis2w-core."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 requires-python = ">=3.13"
 dependencies = [
-  "dhis2w-core>=0.17.0,<0.18",
+  "dhis2w-core>=0.18.0,<0.19",
   "typer>=0.26",
   "rich>=15",
 ]
 
 [project.optional-dependencies]
-browser = ["dhis2w-browser>=0.17.0,<0.18"]
+browser = ["dhis2w-browser>=0.18.0,<0.19"]
 
 [project.scripts]
 dhis2 = "dhis2w_cli.main:main"

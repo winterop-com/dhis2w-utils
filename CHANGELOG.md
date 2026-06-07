@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.18.0 — 2026-06-07
+
+Minor release. CLI consolidation — the three top-level `user-*` domains collapse into one.
+
+### CLI (breaking)
+
+- **`user-group` and `user-role` are now subgroups of `user`**: `dhis2 user group` (was `user-group`) and `dhis2 user role` (was `user-role`), dropping the redundant `user-` prefix. The user-management verbs (list / get / invite / reset-password / …) stay directly under `dhis2 user`. MCP tools are unchanged (`user_group_*`, `user_role_*`).
+
+### Workspace packages
+
+All six publishable members + `dhis2w-codegen` bumped 0.17.0 → 0.18.0. Inter-package pins shifted `>=0.17.0,<0.18` → `>=0.18.0,<0.19`.
+
 ## 0.17.0 — 2026-06-07
 
 Minor release. A CLI reorganization for a consistent, discoverable command surface, plus a cross-version exception fix in the client. Pre-1.0, so the command renames land as breaking changes in a minor bump.
