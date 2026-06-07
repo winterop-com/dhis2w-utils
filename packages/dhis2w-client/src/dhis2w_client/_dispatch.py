@@ -43,6 +43,8 @@ _ACCESSOR_BINDINGS: list[tuple[str, str, str]] = [
     ("analytics", "analytics_stream", "AnalyticsAccessor"),
     ("tracker", "tracker", "TrackerAccessor"),
     ("apps", "apps", "AppsAccessor"),
+    ("routes", "routes", "RoutesAccessor"),
+    ("datastore", "datastore", "DatastoreAccessor"),
     ("data_elements", "data_elements", "DataElementsAccessor"),
     ("data_element_groups", "data_element_groups", "DataElementGroupsAccessor"),
     ("data_element_group_sets", "data_element_group_sets", "DataElementGroupSetsAccessor"),

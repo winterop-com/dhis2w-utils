@@ -40,6 +40,8 @@ READ_ONLY_LEAVES = frozenset(
     {
         ("schema",),
         ("security", "settings"),
+        ("datastore", "namespaces"),
+        ("datastore", "keys"),
     }
 )
 

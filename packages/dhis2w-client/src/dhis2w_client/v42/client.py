@@ -38,6 +38,7 @@ from dhis2w_client.v42.data_element_groups import DataElementGroupsAccessor
 from dhis2w_client.v42.data_elements import DataElementsAccessor
 from dhis2w_client.v42.data_sets import DataSetsAccessor
 from dhis2w_client.v42.data_values import DataValuesAccessor
+from dhis2w_client.v42.datastore import DatastoreAccessor
 from dhis2w_client.v42.files import FilesAccessor
 from dhis2w_client.v42.indicator_group_sets import IndicatorGroupSetsAccessor
 from dhis2w_client.v42.indicator_groups import IndicatorGroupsAccessor
@@ -186,6 +187,7 @@ class Dhis2Client:
         self.messaging: MessagingAccessor = MessagingAccessor(self)
         self.metadata: MetadataAccessor = MetadataAccessor(self)
         self.routes: RoutesAccessor = RoutesAccessor(self)
+        self.datastore: DatastoreAccessor = DatastoreAccessor(self)
         self.maps: MapsAccessor = MapsAccessor(self)
         self.files: FilesAccessor = FilesAccessor(self)
         self.legend_sets: LegendSetsAccessor = LegendSetsAccessor(self)

@@ -2,7 +2,7 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 306 across 13 plugin groups.
+**Total tools**: 311 across 14 plugin groups.
 
 ## Plugins
 
@@ -10,6 +10,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 - [`apps_*`](#apps) — 13 tools
 - [`customize_*`](#customize) — 5 tools
 - [`data_*`](#data) — 15 tools
+- [`datastore_*`](#datastore) — 5 tools
 - [`doctor_*`](#doctor) — 4 tools
 - [`files_*`](#files) — 5 tools
 - [`maintenance_*`](#maintenance) — 15 tools
@@ -491,6 +492,61 @@ List every TrackedEntityType configured on the connected instance.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
+| `profile` | `string` | no | — |
+
+## `datastore`
+
+### `datastore_delete`
+
+Delete `namespace/key` from the data store. Returns a status line.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `namespace` | `string` | yes | — |
+| `key` | `string` | yes | — |
+| `user` | `boolean` | no | — |
+| `profile` | `string` | no | — |
+
+### `datastore_get`
+
+Return the value at `namespace/key` — arbitrary user JSON (object, array, or scalar).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `namespace` | `string` | yes | — |
+| `key` | `string` | yes | — |
+| `user` | `boolean` | no | — |
+| `profile` | `string` | no | — |
+
+### `datastore_list_keys`
+
+List every key in a data-store namespace.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `namespace` | `string` | yes | — |
+| `user` | `boolean` | no | — |
+| `profile` | `string` | no | — |
+
+### `datastore_list_namespaces`
+
+List every namespace in the DHIS2 data store. `user=True` targets the per-user store.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user` | `boolean` | no | — |
+| `profile` | `string` | no | — |
+
+### `datastore_set`
+
+Create or update `namespace/key`. `value` is arbitrary JSON. Returns a status line.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `namespace` | `string` | yes | — |
+| `key` | `string` | yes | — |
+| `value` | `-` | yes | — |
+| `user` | `boolean` | no | — |
 | `profile` | `string` | no | — |
 
 ## `doctor`

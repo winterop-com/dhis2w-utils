@@ -24,6 +24,7 @@ $ dhis2 [OPTIONS] COMMAND [ARGS]...
 * `browser`: Playwright-driven DHIS2 UI automation.
 * `customize`: Brand + theme a DHIS2 instance (logos,...
 * `data`: DHIS2 data values (aggregate + tracker).
+* `datastore`: DHIS2 key-value data store.
 * `dev`: Developer/operator tools.
 * `doctor`: Probe a DHIS2 instance for known gotchas +...
 * `files`: Manage DHIS2 documents + file resources.
@@ -1450,6 +1451,145 @@ $ dhis2 data tracker relationship list [OPTIONS]
 * `--event TEXT`
 * `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--page-size INTEGER`: [default: 50]
+* `--help`: Show this message and exit.
+
+## `dhis2 datastore`
+
+DHIS2 key-value data store.
+
+**Usage**:
+
+```console
+$ dhis2 datastore [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `namespaces`: List every namespace in the store.
+* `keys`: List every key in a namespace.
+* `get`: Print the value stored at `namespace/key`...
+* `set`: Create or update `namespace/key`.
+* `delete`: Delete `namespace/key`.
+* `delete-namespace`: Delete an entire namespace and every key...
+
+### `dhis2 datastore namespaces`
+
+List every namespace in the store.
+
+**Usage**:
+
+```console
+$ dhis2 datastore namespaces [OPTIONS]
+```
+
+**Options**:
+
+* `--user`: Target the per-user store (/api/userDataStore) instead of the shared one.
+* `--help`: Show this message and exit.
+
+### `dhis2 datastore keys`
+
+List every key in a namespace.
+
+**Usage**:
+
+```console
+$ dhis2 datastore keys [OPTIONS] NAMESPACE
+```
+
+**Arguments**:
+
+* `NAMESPACE`: Namespace to list keys in.  [required]
+
+**Options**:
+
+* `--user`: Target the per-user store (/api/userDataStore) instead of the shared one.
+* `--help`: Show this message and exit.
+
+### `dhis2 datastore get`
+
+Print the value stored at `namespace/key` (JSON).
+
+**Usage**:
+
+```console
+$ dhis2 datastore get [OPTIONS] NAMESPACE KEY
+```
+
+**Arguments**:
+
+* `NAMESPACE`: Namespace.  [required]
+* `KEY`: Key.  [required]
+
+**Options**:
+
+* `--user`: Target the per-user store (/api/userDataStore) instead of the shared one.
+* `--help`: Show this message and exit.
+
+### `dhis2 datastore set`
+
+Create or update `namespace/key`.
+
+**Usage**:
+
+```console
+$ dhis2 datastore set [OPTIONS] NAMESPACE KEY VALUE
+```
+
+**Arguments**:
+
+* `NAMESPACE`: Namespace.  [required]
+* `KEY`: Key.  [required]
+* `VALUE`: Value — parsed as JSON, or stored as a string if not valid JSON.  [required]
+
+**Options**:
+
+* `--user`: Target the per-user store (/api/userDataStore) instead of the shared one.
+* `--help`: Show this message and exit.
+
+### `dhis2 datastore delete`
+
+Delete `namespace/key`.
+
+**Usage**:
+
+```console
+$ dhis2 datastore delete [OPTIONS] NAMESPACE KEY
+```
+
+**Arguments**:
+
+* `NAMESPACE`: Namespace.  [required]
+* `KEY`: Key.  [required]
+
+**Options**:
+
+* `--user`: Target the per-user store (/api/userDataStore) instead of the shared one.
+* `-y, --yes`: Skip the interactive confirmation.
+* `--help`: Show this message and exit.
+
+### `dhis2 datastore delete-namespace`
+
+Delete an entire namespace and every key in it.
+
+**Usage**:
+
+```console
+$ dhis2 datastore delete-namespace [OPTIONS] NAMESPACE
+```
+
+**Arguments**:
+
+* `NAMESPACE`: Namespace to delete (all its keys go with it).  [required]
+
+**Options**:
+
+* `--user`: Target the per-user store (/api/userDataStore) instead of the shared one.
+* `-y, --yes`: Skip the interactive confirmation.
 * `--help`: Show this message and exit.
 
 ## `dhis2 dev`

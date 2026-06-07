@@ -70,6 +70,7 @@ from dhis2w_client.v42.data_element_groups import DataElementGroup, DataElementG
 from dhis2w_client.v42.data_elements import DataElement, DataElementsAccessor
 from dhis2w_client.v42.data_sets import DataSet, DataSetsAccessor
 from dhis2w_client.v42.data_values import DataValuesAccessor
+from dhis2w_client.v42.datastore import DatastoreAccessor
 from dhis2w_client.v42.envelopes import (
     Conflict,
     ConflictRow,
@@ -272,6 +273,7 @@ __all__ = [
     "DataValue",
     "DataValueSet",
     "DataValuesAccessor",
+    "DatastoreAccessor",
     "Dhis2",
     "Dhis2ApiError",
     "Dhis2Client",
