@@ -16,13 +16,6 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-def _mock_preamble() -> None:
-    """Mock the preamble `Dhis2Client.connect()` makes against DHIS2."""
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
-
-
 @respx.mock
 async def test_list_all_pages_option_sets(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`list_all` pages OptionSets into typed models across every version tree."""
@@ -50,9 +43,11 @@ async def test_list_all_pages_option_sets(server_version: str, mock_system_info:
 
 
 @respx.mock
-async def test_get_by_code_returns_none_when_no_match() -> None:
+async def test_get_by_code_returns_none_when_no_match(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Empty `optionSets` list from DHIS2 maps to a None return — not an error."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/optionSets").mock(
         return_value=httpx.Response(200, json={"optionSets": []}),
     )
@@ -66,9 +61,11 @@ async def test_get_by_code_returns_none_when_no_match() -> None:
 
 
 @respx.mock
-async def test_get_by_code_returns_typed_model_with_options() -> None:
+async def test_get_by_code_returns_typed_model_with_options(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Happy path: DHIS2 returns one match → typed `OptionSet` with options populated."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/optionSets").mock(
         return_value=httpx.Response(
             200,
@@ -105,9 +102,9 @@ async def test_get_by_code_returns_typed_model_with_options() -> None:
 
 
 @respx.mock
-async def test_list_options_orders_by_sort_order() -> None:
+async def test_list_options_orders_by_sort_order(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`list_options` hits /api/options with the right filter + order param."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/options").mock(
         return_value=httpx.Response(
             200,
@@ -132,9 +129,11 @@ async def test_list_options_orders_by_sort_order() -> None:
 
 
 @respx.mock
-async def test_find_option_requires_exactly_one_selector() -> None:
+async def test_find_option_requires_exactly_one_selector(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Callers must pass one of code / name — never both, never neither."""
-    _mock_preamble()
+    mock_system_info(server_version)
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
@@ -147,9 +146,11 @@ async def test_find_option_requires_exactly_one_selector() -> None:
 
 
 @respx.mock
-async def test_find_option_filters_server_side_by_code() -> None:
+async def test_find_option_filters_server_side_by_code(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`find_option` ships both filters (optionSet.id + code) as repeatable params."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/options").mock(
         return_value=httpx.Response(
             200,
@@ -181,9 +182,11 @@ async def test_upsert_options_rejects_duplicate_codes_in_spec() -> None:
 
 
 @respx.mock
-async def test_upsert_options_dry_run_reports_diff_without_writing() -> None:
+async def test_upsert_options_dry_run_reports_diff_without_writing(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Dry-run inspects current state but never POSTs / DELETEs."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/options").mock(
         return_value=httpx.Response(
             200,
@@ -225,9 +228,11 @@ async def test_upsert_options_dry_run_reports_diff_without_writing() -> None:
 
 
 @respx.mock
-async def test_upsert_options_writes_and_deletes_via_metadata_bundle() -> None:
+async def test_upsert_options_writes_and_deletes_via_metadata_bundle(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Real run uses `save_bulk` for writes + metadata bundle DELETE for removes (BUGS.md #20)."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/options").mock(
         return_value=httpx.Response(
             200,
@@ -295,9 +300,11 @@ def _mock_attribute_lookup() -> None:
 
 
 @respx.mock
-async def test_get_option_attribute_value_resolves_code_then_reads() -> None:
+async def test_get_option_attribute_value_resolves_code_then_reads(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Business code `SNOMED_CODE` → Attribute UID → attributeValues row match."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup()
     respx.get("https://dhis2.example/api/options/OptVacBCG01").mock(
         return_value=httpx.Response(
@@ -320,9 +327,11 @@ async def test_get_option_attribute_value_resolves_code_then_reads() -> None:
 
 
 @respx.mock
-async def test_get_option_attribute_value_returns_none_when_not_set() -> None:
+async def test_get_option_attribute_value_returns_none_when_not_set(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Missing attribute value → None, not an exception."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup()
     respx.get("https://dhis2.example/api/options/OptVacBCG01").mock(
         return_value=httpx.Response(200, json={"id": "OptVacBCG01", "attributeValues": []}),
@@ -337,9 +346,11 @@ async def test_get_option_attribute_value_returns_none_when_not_set() -> None:
 
 
 @respx.mock
-async def test_resolve_attribute_uid_raises_on_unknown_code() -> None:
+async def test_resolve_attribute_uid_raises_on_unknown_code(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Empty /api/attributes result → LookupError with an actionable message."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/attributes").mock(
         return_value=httpx.Response(200, json={"attributes": []}),
     )
@@ -353,9 +364,11 @@ async def test_resolve_attribute_uid_raises_on_unknown_code() -> None:
 
 
 @respx.mock
-async def test_find_option_by_attribute_uses_uid_as_filter_key() -> None:
+async def test_find_option_by_attribute_uses_uid_as_filter_key(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """BUGS.md #21 workaround: filter uses `<attributeUid>:eq:<value>` not `attributeValues.value`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup()
     list_route = respx.get("https://dhis2.example/api/options").mock(
         return_value=httpx.Response(200, json={"options": [{"id": "OptVacMes01"}]}),
@@ -393,9 +406,11 @@ async def test_find_option_by_attribute_uses_uid_as_filter_key() -> None:
 
 
 @respx.mock
-async def test_set_option_attribute_value_read_merge_writes() -> None:
+async def test_set_option_attribute_value_read_merge_writes(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Set: fetch current → merge new value (drop prior same-attribute entry) → PUT back."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup()
     # Current option carries a stale SNOMED value + an unrelated attribute.
     respx.get("https://dhis2.example/api/options/OptVacBCG01").mock(

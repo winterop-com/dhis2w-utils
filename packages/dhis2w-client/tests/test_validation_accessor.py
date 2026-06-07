@@ -3,19 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 
 import httpx
 import pytest
 import respx
 from dhis2w_client import BasicAuth, Dhis2Client
-
-
-def _mock_preamble() -> None:
-    """Stub the canonical-URL + /api/system/info probes `connect()` performs."""
-    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.4"}),
-    )
 
 
 def _auth() -> BasicAuth:
@@ -27,9 +20,11 @@ def _auth() -> BasicAuth:
 
 
 @respx.mock
-async def test_run_analysis_posts_params_and_parses_violations() -> None:
+async def test_run_analysis_posts_params_and_parses_violations(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Full happy path: request body + JSON envelope + typed `ValidationAnalysisResult` parse."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/dataAnalysis/validationRules").mock(
         return_value=httpx.Response(
             200,
@@ -91,9 +86,9 @@ async def test_run_analysis_posts_params_and_parses_violations() -> None:
 
 
 @respx.mock
-async def test_run_analysis_omits_optional_params() -> None:
+async def test_run_analysis_omits_optional_params(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Defaults don't emit `vrg` / `maxResults` keys."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/dataAnalysis/validationRules").mock(
         return_value=httpx.Response(200, json={"data": []}),
     )
@@ -119,9 +114,9 @@ async def test_run_analysis_omits_optional_params() -> None:
 
 
 @respx.mock
-async def test_list_results_forwards_filters() -> None:
+async def test_list_results_forwards_filters(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Each filter lands as its DHIS2 short-key (`ou` / `pe` / `vr` / `createdDate`)."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/validationResults").mock(
         return_value=httpx.Response(200, json={"validationResults": []}),
     )
@@ -154,9 +149,9 @@ async def test_list_results_forwards_filters() -> None:
 
 
 @respx.mock
-async def test_get_result_parses_typed_model() -> None:
+async def test_get_result_parses_typed_model(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Single-result GET returns a typed `ValidationResult`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/validationResults/42").mock(
         return_value=httpx.Response(
             200,
@@ -181,9 +176,9 @@ async def test_delete_results_rejects_empty_filters() -> None:
 
 
 @respx.mock
-async def test_delete_results_forwards_list_filters() -> None:
+async def test_delete_results_forwards_list_filters(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`org_units` / `periods` / `validation_rules` map to repeated query params."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/validationResults").mock(
         return_value=httpx.Response(200, json={}),
     )
@@ -208,9 +203,9 @@ async def test_delete_results_forwards_list_filters() -> None:
 
 
 @respx.mock
-async def test_describe_expression_generic_uses_get() -> None:
+async def test_describe_expression_generic_uses_get(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`context=generic` uses GET /api/expressions/description?expression=…"""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/expressions/description").mock(
         return_value=httpx.Response(
             200,
@@ -230,9 +225,11 @@ async def test_describe_expression_generic_uses_get() -> None:
 
 
 @respx.mock
-async def test_describe_expression_validation_rule_uses_post_with_text_body() -> None:
+async def test_describe_expression_validation_rule_uses_post_with_text_body(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`context=validation-rule` POSTs to the per-context path with text/plain."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/validationRules/expression/description").mock(
         return_value=httpx.Response(200, json={"status": "ERROR", "message": "Data element not found"}),
     )
@@ -255,9 +252,11 @@ async def test_describe_expression_validation_rule_uses_post_with_text_body() ->
 
 
 @respx.mock
-async def test_predictors_run_all_forwards_date_params() -> None:
+async def test_predictors_run_all_forwards_date_params(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`run_all` POSTs /api/predictors/run with startDate + endDate query params."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/predictors/run").mock(
         return_value=httpx.Response(
             200,
@@ -285,9 +284,9 @@ async def test_predictors_run_all_forwards_date_params() -> None:
 
 
 @respx.mock
-async def test_predictors_run_one_uses_uid_path() -> None:
+async def test_predictors_run_one_uses_uid_path(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`run_one(uid)` uses /api/predictors/{uid}/run."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/predictors/predUid0001/run").mock(
         return_value=httpx.Response(200, json={"status": "OK"}),
     )
@@ -302,9 +301,9 @@ async def test_predictors_run_one_uses_uid_path() -> None:
 
 
 @respx.mock
-async def test_predictors_run_group_uses_group_path() -> None:
+async def test_predictors_run_group_uses_group_path(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`run_group(group_uid)` uses /api/predictorGroups/{uid}/run."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/predictorGroups/pgrpUid00001/run").mock(
         return_value=httpx.Response(200, json={"status": "OK"}),
     )

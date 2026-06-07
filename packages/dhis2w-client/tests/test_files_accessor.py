@@ -2,18 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import httpx
 import pytest
 import respx
 from dhis2w_client import BasicAuth, Dhis2Client, FileResourceDomain
-
-
-def _mock_preamble() -> None:
-    """Stub the canonical-URL + /api/system/info probes `connect()` performs."""
-    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.4"}),
-    )
 
 
 def _auth() -> BasicAuth:
@@ -25,9 +19,9 @@ def _auth() -> BasicAuth:
 
 
 @respx.mock
-async def test_list_documents_returns_typed_models() -> None:
+async def test_list_documents_returns_typed_models(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`list_documents` parses the `documents` array as `Document` pydantic models."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/documents").mock(
         return_value=httpx.Response(
             200,
@@ -53,9 +47,11 @@ async def test_list_documents_returns_typed_models() -> None:
 
 
 @respx.mock
-async def test_list_documents_forwards_filter_and_paging() -> None:
+async def test_list_documents_forwards_filter_and_paging(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """filter / page / page_size reach DHIS2 as query params."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/documents").mock(
         return_value=httpx.Response(200, json={"documents": []}),
     )
@@ -73,7 +69,9 @@ async def test_list_documents_forwards_filter_and_paging() -> None:
 
 
 @respx.mock
-async def test_upload_document_uses_two_step_fileresource_then_document() -> None:
+async def test_upload_document_uses_two_step_fileresource_then_document(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`/api/documents` rejects multipart — upload routes through fileResource + JSON link.
 
     See BUGS.md #16. Flow:
@@ -81,7 +79,7 @@ async def test_upload_document_uses_two_step_fileresource_then_document() -> Non
     2. POST /api/documents (JSON) with url=<fileResourceUid> -> document uid
     3. GET  /api/documents/{uid} -> typed Document
     """
-    _mock_preamble()
+    mock_system_info(server_version)
     fr_post = respx.post("https://dhis2.example/api/fileResources").mock(
         return_value=httpx.Response(202, json={"response": {"fileResource": {"id": "frDocUid0001"}}}),
     )
@@ -124,9 +122,11 @@ async def test_upload_document_uses_two_step_fileresource_then_document() -> Non
 
 
 @respx.mock
-async def test_upload_document_raises_when_document_post_returns_no_uid() -> None:
+async def test_upload_document_raises_when_document_post_returns_no_uid(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """A malformed DHIS2 response on the document-create step surfaces a clear RuntimeError."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.post("https://dhis2.example/api/fileResources").mock(
         return_value=httpx.Response(202, json={"response": {"fileResource": {"id": "frXx00000001"}}}),
     )
@@ -146,9 +146,11 @@ async def test_upload_document_raises_when_document_post_returns_no_uid() -> Non
 
 
 @respx.mock
-async def test_create_external_document_posts_json_body() -> None:
+async def test_create_external_document_posts_json_body(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """External-URL documents go through a JSON POST, not a multipart upload."""
-    _mock_preamble()
+    mock_system_info(server_version)
     post_route = respx.post("https://dhis2.example/api/documents").mock(
         return_value=httpx.Response(200, json={"response": {"uid": "extDoc00001"}}),
     )
@@ -172,9 +174,9 @@ async def test_create_external_document_posts_json_body() -> None:
 
 
 @respx.mock
-async def test_download_document_returns_raw_bytes() -> None:
+async def test_download_document_returns_raw_bytes(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """The `/data` endpoint returns arbitrary bytes straight from `response.content`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     payload = b"\x89PNG\r\n\x1a\n" + b"fake image data"
     respx.get("https://dhis2.example/api/documents/doc1/data").mock(
         return_value=httpx.Response(200, content=payload, headers={"Content-Type": "image/png"}),
@@ -190,9 +192,9 @@ async def test_download_document_returns_raw_bytes() -> None:
 
 
 @respx.mock
-async def test_delete_document() -> None:
+async def test_delete_document(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Delete sends DELETE /api/documents/{uid} and returns without error."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/documents/doc1").mock(
         return_value=httpx.Response(200, json={}),
     )
@@ -210,9 +212,11 @@ async def test_delete_document() -> None:
 
 
 @respx.mock
-async def test_upload_file_resource_parses_nested_envelope() -> None:
+async def test_upload_file_resource_parses_nested_envelope(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """DHIS2 returns `response.fileResource.id` — NOT `response.uid` — on fileResource create."""
-    _mock_preamble()
+    mock_system_info(server_version)
     post_route = respx.post("https://dhis2.example/api/fileResources").mock(
         return_value=httpx.Response(
             202,
@@ -250,9 +254,11 @@ async def test_upload_file_resource_parses_nested_envelope() -> None:
 
 
 @respx.mock
-async def test_upload_file_resource_accepts_string_domain() -> None:
+async def test_upload_file_resource_accepts_string_domain(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Passing `domain='ICON'` string is equivalent to the enum member."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/fileResources").mock(
         return_value=httpx.Response(202, json={"response": {"fileResource": {"id": "iconFrUid001"}}}),
     )
@@ -273,9 +279,9 @@ async def test_upload_file_resource_accepts_string_domain() -> None:
 
 
 @respx.mock
-async def test_download_file_resource_returns_bytes() -> None:
+async def test_download_file_resource_returns_bytes(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """File-resource download returns raw bytes from `/data`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     payload = b"raw_photo_bytes"
     respx.get("https://dhis2.example/api/fileResources/fr1/data").mock(
         return_value=httpx.Response(200, content=payload),
@@ -291,9 +297,11 @@ async def test_download_file_resource_returns_bytes() -> None:
 
 
 @respx.mock
-async def test_get_file_resource_returns_typed_model() -> None:
+async def test_get_file_resource_returns_typed_model(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Single-resource GET returns a typed `FileResource`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/fileResources/fr1").mock(
         return_value=httpx.Response(
             200,

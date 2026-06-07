@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import json as _json
+from collections.abc import Callable
 
 import httpx
 import pytest
 import respx
 from dhis2w_client import (
     BasicAuth,
-    CategoryCombo,
-    CategoryOptionCombo,
     Dhis2Client,
 )
 
@@ -19,16 +18,10 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
-
-
 @respx.mock
-async def test_combo_list_all_returns_typed_combos() -> None:
+async def test_combo_list_all_returns_typed_combos(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Combo list all returns typed combos."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/categoryCombos").mock(
         return_value=httpx.Response(
             200,
@@ -53,14 +46,16 @@ async def test_combo_list_all_returns_typed_combos() -> None:
     finally:
         await client.close()
     assert len(rows) == 1
-    assert isinstance(rows[0], CategoryCombo)
+    assert type(rows[0]).__name__ == "CategoryCombo"
     assert rows[0].isDefault is True
 
 
 @respx.mock
-async def test_combo_create_wires_categories_in_payload() -> None:
+async def test_combo_create_wires_categories_in_payload(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Combo create wires categories in payload."""
-    _mock_preamble()
+    mock_system_info(server_version)
     create_route = respx.post("https://dhis2.example/api/categoryCombos").mock(
         return_value=httpx.Response(
             201,
@@ -136,9 +131,11 @@ async def test_combo_create_against_v43_uses_categories_not_categorys() -> None:
 
 
 @respx.mock
-async def test_combo_wait_for_coc_generation_returns_when_count_lands() -> None:
+async def test_combo_wait_for_coc_generation_returns_when_count_lands(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Helper triggers the v43 maintenance task, then polls until COC count reaches `expected_count`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.post("https://dhis2.example/api/maintenance/categoryOptionComboUpdate").mock(
         return_value=httpx.Response(200, json={"httpStatus": "OK"}),
     )
@@ -163,9 +160,11 @@ async def test_combo_wait_for_coc_generation_returns_when_count_lands() -> None:
 
 
 @respx.mock
-async def test_combo_wait_for_coc_generation_times_out() -> None:
+async def test_combo_wait_for_coc_generation_times_out(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Combo wait for coc generation times out."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.post("https://dhis2.example/api/maintenance/categoryOptionComboUpdate").mock(
         return_value=httpx.Response(200, json={"httpStatus": "OK"}),
     )
@@ -184,9 +183,11 @@ async def test_combo_wait_for_coc_generation_times_out() -> None:
 
 
 @respx.mock
-async def test_coc_list_for_combo_filters_by_category_combo_id() -> None:
+async def test_coc_list_for_combo_filters_by_category_combo_id(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Coc list for combo filters by category combo id."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/categoryOptionCombos").mock(
         return_value=httpx.Response(
             200,
@@ -206,5 +207,5 @@ async def test_coc_list_for_combo_filters_by_category_combo_id() -> None:
         await client.close()
     assert route.call_count == 1
     assert route.calls.last.request.url.params["filter"] == "categoryCombo.id:eq:CC_SEX"
-    assert all(isinstance(row, CategoryOptionCombo) for row in rows)
+    assert all(type(row).__name__ == "CategoryOptionCombo" for row in rows)
     assert {row.id for row in rows} == {"COC_M", "COC_F"}

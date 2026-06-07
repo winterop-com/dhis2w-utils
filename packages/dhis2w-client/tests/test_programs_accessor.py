@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json as _json
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -15,12 +16,6 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
-
-
 def _mock_default_combo() -> None:
     respx.get("https://dhis2.example/api/categoryCombos").mock(
         return_value=httpx.Response(200, json={"categoryCombos": [{"id": "ccDefault001", "name": "default"}]}),
@@ -28,9 +23,9 @@ def _mock_default_combo() -> None:
 
 
 @respx.mock
-async def test_list_all_filters_by_program_type() -> None:
+async def test_list_all_filters_by_program_type(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """List all filters by program type."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/programs").mock(
         return_value=httpx.Response(
             200,
@@ -48,9 +43,11 @@ async def test_list_all_filters_by_program_type() -> None:
 
 
 @respx.mock
-async def test_create_with_registration_requires_tet_raises() -> None:
+async def test_create_with_registration_requires_tet_raises(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Create with registration requires tet raises."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_default_combo()
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
@@ -62,9 +59,11 @@ async def test_create_with_registration_requires_tet_raises() -> None:
 
 
 @respx.mock
-async def test_create_posts_payload_with_tet_ref_and_default_combo() -> None:
+async def test_create_posts_payload_with_tet_ref_and_default_combo(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Create posts payload with tet ref and default combo."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_default_combo()
     post = respx.post("https://dhis2.example/api/programs").mock(
         return_value=httpx.Response(201, json={"response": {"uid": "PRG_NEW00001"}}),
@@ -100,9 +99,11 @@ async def test_create_posts_payload_with_tet_ref_and_default_combo() -> None:
 
 
 @respx.mock
-async def test_create_without_registration_skips_tet_check() -> None:
+async def test_create_without_registration_skips_tet_check(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Create without registration skips tet check."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_default_combo()
     respx.post("https://dhis2.example/api/programs").mock(
         return_value=httpx.Response(201, json={"response": {"uid": "EVT_NEW00001"}}),
@@ -127,9 +128,11 @@ async def test_create_without_registration_skips_tet_check() -> None:
 
 
 @respx.mock
-async def test_add_attribute_round_trips_and_strips_self_ref() -> None:
+async def test_add_attribute_round_trips_and_strips_self_ref(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Add attribute round trips and strips self ref."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programs/PRG1").mock(
         return_value=httpx.Response(
             200,
@@ -173,9 +176,11 @@ async def test_add_attribute_round_trips_and_strips_self_ref() -> None:
 
 
 @respx.mock
-async def test_add_attribute_idempotent_when_already_linked() -> None:
+async def test_add_attribute_idempotent_when_already_linked(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Add attribute idempotent when already linked."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programs/PRG1").mock(
         return_value=httpx.Response(
             200,
@@ -197,9 +202,11 @@ async def test_add_attribute_idempotent_when_already_linked() -> None:
 
 
 @respx.mock
-async def test_add_organisation_unit_uses_per_item_post_shortcut() -> None:
+async def test_add_organisation_unit_uses_per_item_post_shortcut(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Add organisation unit uses per item post shortcut."""
-    _mock_preamble()
+    mock_system_info(server_version)
     post = respx.post("https://dhis2.example/api/programs/PRG1/organisationUnits/OU_A").mock(
         return_value=httpx.Response(204),
     )
@@ -216,9 +223,11 @@ async def test_add_organisation_unit_uses_per_item_post_shortcut() -> None:
 
 
 @respx.mock
-async def test_remove_organisation_unit_uses_per_item_delete_shortcut() -> None:
+async def test_remove_organisation_unit_uses_per_item_delete_shortcut(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Remove organisation unit uses per item delete shortcut."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/programs/PRG1/organisationUnits/OU_A").mock(
         return_value=httpx.Response(204),
     )
@@ -235,9 +244,9 @@ async def test_remove_organisation_unit_uses_per_item_delete_shortcut() -> None:
 
 
 @respx.mock
-async def test_delete_routes_to_programs_uid() -> None:
+async def test_delete_routes_to_programs_uid(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Delete routes to programs uid."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/programs/PRG_X").mock(return_value=httpx.Response(204))
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:

@@ -2,21 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from importlib import import_module
 from pathlib import Path
 
 import httpx
 import pytest
 import respx
 from dhis2w_client import BasicAuth, Dhis2Client
-from dhis2w_client.v42.errors import AuthenticationError, Dhis2ApiError
-
-
-def _mock_preamble() -> None:
-    """Canonical-URL + /api/system/info probes connect() runs."""
-    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.4"}),
-    )
 
 
 def _auth() -> BasicAuth:
@@ -25,9 +18,11 @@ def _auth() -> BasicAuth:
 
 
 @respx.mock
-async def test_aggregate_returns_parsed_grid_with_repeated_dimensions() -> None:
+async def test_aggregate_returns_parsed_grid_with_repeated_dimensions(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`aggregate(dx=, pe=, ou=)` builds repeated `dimension=` params and validates the response into a `Grid`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     grid_payload = {
         "headers": [{"name": "dx", "column": "dx"}, {"name": "value", "column": "value"}],
         "rows": [["fbfJHSPpUQD", "42"]],
@@ -58,9 +53,11 @@ async def test_aggregate_returns_parsed_grid_with_repeated_dimensions() -> None:
 
 
 @respx.mock
-async def test_aggregate_omits_dimensions_that_are_none() -> None:
+async def test_aggregate_omits_dimensions_that_are_none(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`None` arguments don't add empty dimension entries."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/analytics.json").mock(
         return_value=httpx.Response(200, json={"headers": [], "rows": []}),
     )
@@ -76,9 +73,11 @@ async def test_aggregate_omits_dimensions_that_are_none() -> None:
 
 
 @respx.mock
-async def test_stream_to_writes_full_body_to_disk(tmp_path: Path) -> None:
+async def test_stream_to_writes_full_body_to_disk(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Single-chunk response streams end-to-end; bytes-on-disk match the canned body."""
-    _mock_preamble()
+    mock_system_info(server_version)
     payload = b'{"headers":[],"rows":[[1],[2],[3]]}'
     respx.get("https://dhis2.example/api/analytics.json").mock(
         return_value=httpx.Response(200, content=payload),
@@ -100,9 +99,11 @@ async def test_stream_to_writes_full_body_to_disk(tmp_path: Path) -> None:
 
 
 @respx.mock
-async def test_stream_to_forwards_repeated_dimension_params(tmp_path: Path) -> None:
+async def test_stream_to_forwards_repeated_dimension_params(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """List-value params land on the wire as repeated query params, as DHIS2 expects."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/analytics.json").mock(
         return_value=httpx.Response(200, content=b"{}"),
     )
@@ -122,9 +123,11 @@ async def test_stream_to_forwards_repeated_dimension_params(tmp_path: Path) -> N
 
 
 @respx.mock
-async def test_stream_to_accepts_list_of_tuples_params(tmp_path: Path) -> None:
+async def test_stream_to_accepts_list_of_tuples_params(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`params` also accepts `list[tuple[str, Any]]` — same repeated-param semantics."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/analytics.csv").mock(
         return_value=httpx.Response(200, content=b"a,b,c\n1,2,3\n"),
     )
@@ -144,9 +147,11 @@ async def test_stream_to_accepts_list_of_tuples_params(tmp_path: Path) -> None:
 
 
 @respx.mock
-async def test_stream_to_writes_large_body_without_buffering(tmp_path: Path) -> None:
+async def test_stream_to_writes_large_body_without_buffering(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """A payload larger than the chunk_size reassembles correctly on disk."""
-    _mock_preamble()
+    mock_system_info(server_version)
     # 10 KB synthetic CSV — larger than chunk_size so aiter_bytes loops.
     payload = b"a,b,c,d\n" + (b"1,2,3,4\n" * 1000)
     respx.get("https://dhis2.example/api/analytics.csv").mock(
@@ -171,9 +176,11 @@ async def test_stream_to_writes_large_body_without_buffering(tmp_path: Path) -> 
 
 
 @respx.mock
-async def test_stream_to_creates_missing_parent_dirs(tmp_path: Path) -> None:
+async def test_stream_to_creates_missing_parent_dirs(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Destination's parent directories are created if missing — no pre-mkdir needed."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/analytics.json").mock(
         return_value=httpx.Response(200, content=b"{}"),
     )
@@ -193,9 +200,11 @@ async def test_stream_to_creates_missing_parent_dirs(tmp_path: Path) -> None:
 
 
 @respx.mock
-async def test_stream_to_raises_dhis2_api_error_on_4xx(tmp_path: Path) -> None:
+async def test_stream_to_raises_dhis2_api_error_on_4xx(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Server 4xx short-circuits without writing a partial file."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/analytics.json").mock(
         return_value=httpx.Response(400, json={"httpStatus": "Bad Request", "message": "invalid dimension"}),
     )
@@ -204,7 +213,8 @@ async def test_stream_to_raises_dhis2_api_error_on_4xx(tmp_path: Path) -> None:
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
-        with pytest.raises(Dhis2ApiError) as exc_info:
+        errors = import_module(f"dhis2w_client.{client.version_key}.errors")
+        with pytest.raises(errors.Dhis2ApiError) as exc_info:
             await client.analytics.stream_to(destination, params={"dimension": ["bad"]})
     finally:
         await client.close()
@@ -214,9 +224,11 @@ async def test_stream_to_raises_dhis2_api_error_on_4xx(tmp_path: Path) -> None:
 
 
 @respx.mock
-async def test_stream_to_raises_authentication_error_on_401(tmp_path: Path) -> None:
+async def test_stream_to_raises_authentication_error_on_401(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """401 on the analytics endpoint surfaces as `AuthenticationError`, not `Dhis2ApiError`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/analytics.json").mock(
         return_value=httpx.Response(401, text="unauthorized"),
     )
@@ -224,16 +236,19 @@ async def test_stream_to_raises_authentication_error_on_401(tmp_path: Path) -> N
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
-        with pytest.raises(AuthenticationError):
+        errors = import_module(f"dhis2w_client.{client.version_key}.errors")
+        with pytest.raises(errors.AuthenticationError):
             await client.analytics.stream_to(tmp_path / "out.json", params={"dimension": ["dx:X"]})
     finally:
         await client.close()
 
 
 @respx.mock
-async def test_stream_to_supports_non_standard_endpoint(tmp_path: Path) -> None:
+async def test_stream_to_supports_non_standard_endpoint(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`/api/analytics/rawData.json` and similar sub-endpoints work via the `endpoint` arg."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/analytics/rawData.json").mock(
         return_value=httpx.Response(200, content=b'{"rows":[]}'),
     )
@@ -253,7 +268,9 @@ async def test_stream_to_supports_non_standard_endpoint(tmp_path: Path) -> None:
     assert written == 11  # len(b'{"rows":[]}')
 
 
-async def test_stream_to_rejects_unconnected_client(tmp_path: Path) -> None:
+async def test_stream_to_rejects_unconnected_client(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Calling before `connect()` raises a clear RuntimeError."""
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     with pytest.raises(RuntimeError, match="not connected"):

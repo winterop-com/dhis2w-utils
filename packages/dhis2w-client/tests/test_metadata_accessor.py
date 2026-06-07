@@ -4,20 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import httpx
 import respx
 from dhis2w_client import BasicAuth, Dhis2Client
-
-
-def _mock_preamble() -> None:
-    """Stub the canonical-URL + /api/system/info probes `connect()` performs."""
-    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.4"}),
-    )
 
 
 def _auth() -> BasicAuth:
@@ -26,9 +18,11 @@ def _auth() -> BasicAuth:
 
 
 @respx.mock
-async def test_delete_bulk_posts_minimal_bundle_and_returns_webmessage() -> None:
+async def test_delete_bulk_posts_minimal_bundle_and_returns_webmessage(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`delete_bulk` POSTs `{resource: [{id: ...}]}` with the DELETE importStrategy."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(
             200,
@@ -73,9 +67,11 @@ async def test_delete_bulk_posts_minimal_bundle_and_returns_webmessage() -> None
 
 
 @respx.mock
-async def test_delete_bulk_empty_uids_short_circuits_without_http() -> None:
+async def test_delete_bulk_empty_uids_short_circuits_without_http(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """An empty UID list returns a no-op WebMessage without making an HTTP call."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata")
 
     client = Dhis2Client("https://dhis2.example", auth=_auth())
@@ -91,9 +87,11 @@ async def test_delete_bulk_empty_uids_short_circuits_without_http() -> None:
 
 
 @respx.mock
-async def test_delete_bulk_multi_merges_multiple_resource_types() -> None:
+async def test_delete_bulk_multi_merges_multiple_resource_types(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`delete_bulk_multi` builds one bundle spanning every supplied resource type."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(
             200,
@@ -126,9 +124,11 @@ async def test_delete_bulk_multi_merges_multiple_resource_types() -> None:
 
 
 @respx.mock
-async def test_delete_bulk_multi_skips_empty_resource_entries() -> None:
+async def test_delete_bulk_multi_skips_empty_resource_entries(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Resource keys whose UID list is empty are dropped from the wire bundle."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(200, json={"status": "OK", "httpStatus": "OK", "httpStatusCode": 200}),
     )
@@ -151,9 +151,11 @@ async def test_delete_bulk_multi_skips_empty_resource_entries() -> None:
 
 
 @respx.mock
-async def test_dry_run_posts_validate_mode_with_dumped_models() -> None:
+async def test_dry_run_posts_validate_mode_with_dumped_models(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`dry_run` posts bundle with `importMode=VALIDATE`; pydantic items dump via model_dump."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(
             200,
@@ -195,9 +197,11 @@ async def test_dry_run_posts_validate_mode_with_dumped_models() -> None:
 
 
 @respx.mock
-async def test_dry_run_forwards_custom_import_strategy() -> None:
+async def test_dry_run_forwards_custom_import_strategy(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`import_strategy` flows through as the `importStrategy` query param."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(200, json={"status": "OK", "httpStatus": "OK", "httpStatusCode": 200}),
     )
@@ -217,9 +221,9 @@ async def test_dry_run_forwards_custom_import_strategy() -> None:
 
 
 @respx.mock
-async def test_dry_run_empty_bundle_short_circuits() -> None:
+async def test_dry_run_empty_bundle_short_circuits(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Empty `by_resource` (or every list empty) returns a no-op without HTTP."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata")
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
@@ -235,9 +239,11 @@ async def test_dry_run_empty_bundle_short_circuits() -> None:
 
 
 @respx.mock
-async def test_resource_save_bulk_posts_typed_models_to_metadata() -> None:
+async def test_resource_save_bulk_posts_typed_models_to_metadata(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`client.resources.<resource>.save_bulk` dumps typed models + posts to `/api/metadata`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(
             200,
@@ -278,9 +284,11 @@ async def test_resource_save_bulk_posts_typed_models_to_metadata() -> None:
 
 
 @respx.mock
-async def test_resource_save_bulk_dry_run_flag_sets_validate_mode() -> None:
+async def test_resource_save_bulk_dry_run_flag_sets_validate_mode(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`save_bulk(dry_run=True)` adds `importMode=VALIDATE`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(200, json={"status": "OK"}),
     )
@@ -301,9 +309,11 @@ async def test_resource_save_bulk_dry_run_flag_sets_validate_mode() -> None:
 
 
 @respx.mock
-async def test_resource_save_bulk_empty_list_short_circuits() -> None:
+async def test_resource_save_bulk_empty_list_short_circuits(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Empty list returns a no-op envelope without hitting `/api/metadata`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata")
 
     client = Dhis2Client("https://dhis2.example", auth=_auth())
@@ -319,9 +329,11 @@ async def test_resource_save_bulk_empty_list_short_circuits() -> None:
 
 
 @respx.mock
-async def test_delete_bulk_multi_all_empty_short_circuits() -> None:
+async def test_delete_bulk_multi_all_empty_short_circuits(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Every-list-empty payload never hits the wire."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata")
 
     client = Dhis2Client("https://dhis2.example", auth=_auth())
@@ -336,9 +348,11 @@ async def test_delete_bulk_multi_all_empty_short_circuits() -> None:
 
 
 @respx.mock
-async def test_delete_bulk_forwards_atomic_mode_parameter() -> None:
+async def test_delete_bulk_forwards_atomic_mode_parameter(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`atomic_mode='ALL'` flows through as a query parameter."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(200, json={"status": "OK", "httpStatus": "OK", "httpStatusCode": 200}),
     )
@@ -379,9 +393,11 @@ def _search_mock_by_field(
 
 
 @respx.mock
-async def test_search_fans_out_one_call_per_match_axis() -> None:
+async def test_search_fans_out_one_call_per_match_axis(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Fans out id/code/name filters in parallel and merges the bundles."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _search_mock_by_field(
         {
             "id": {"dataElements": [{"id": "deUid000001", "name": "Hit by id"}]},
@@ -407,9 +423,11 @@ async def test_search_fans_out_one_call_per_match_axis() -> None:
 
 
 @respx.mock
-async def test_search_dedupes_hits_matching_on_multiple_axes() -> None:
+async def test_search_dedupes_hits_matching_on_multiple_axes(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Object matching on both id and name collapses to one merged hit."""
-    _mock_preamble()
+    mock_system_info(server_version)
     same = {"id": "deUid000001", "name": "measles doses", "code": "DE_MEASLES"}
     _search_mock_by_field(
         {
@@ -431,9 +449,11 @@ async def test_search_dedupes_hits_matching_on_multiple_axes() -> None:
 
 
 @respx.mock
-async def test_search_omits_non_resource_keys_and_empty_sections() -> None:
+async def test_search_omits_non_resource_keys_and_empty_sections(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """The `system` + `date` envelope keys don't appear as resource hits."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _search_mock_by_field(
         {
             "name": {
@@ -459,9 +479,11 @@ async def test_search_omits_non_resource_keys_and_empty_sections() -> None:
 
 
 @respx.mock
-async def test_search_returns_empty_results_on_no_matches() -> None:
+async def test_search_returns_empty_results_on_no_matches(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Empty bundles round-trip as `SearchResults(total=0)` — not an error."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(200, json={"system": {"version": "2.42.4"}}),
     )
@@ -478,9 +500,11 @@ async def test_search_returns_empty_results_on_no_matches() -> None:
 
 
 @respx.mock
-async def test_search_resource_narrows_to_per_resource_endpoint() -> None:
+async def test_search_resource_narrows_to_per_resource_endpoint(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`resource='dataElements'` hits `/api/dataElements` directly, not `/api/metadata`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/dataElements").mock(
         return_value=httpx.Response(
             200,
@@ -502,9 +526,11 @@ async def test_search_resource_narrows_to_per_resource_endpoint() -> None:
 
 
 @respx.mock
-async def test_search_exact_switches_operator_from_ilike_to_eq() -> None:
+async def test_search_exact_switches_operator_from_ilike_to_eq(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`exact=True` changes the filter operator to `:eq:` on every axis."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(200, json={"system": {"version": "2.42.4"}}),
     )
@@ -527,9 +553,9 @@ async def test_search_exact_switches_operator_from_ilike_to_eq() -> None:
 
 
 @respx.mock
-async def test_search_custom_fields_flow_to_extras() -> None:
+async def test_search_custom_fields_flow_to_extras(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Wider `fields=` selector lands on `SearchHit.extras`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(
             200,
@@ -562,9 +588,11 @@ async def test_search_custom_fields_flow_to_extras() -> None:
 
 
 @respx.mock
-async def test_usage_resolves_resource_then_fans_out_reference_queries() -> None:
+async def test_usage_resolves_resource_then_fans_out_reference_queries(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """DE usage hits `/api/identifiableObjects/{uid}` then the DE reference paths."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/identifiableObjects/deUid000001").mock(
         return_value=httpx.Response(
             200,
@@ -609,9 +637,11 @@ async def test_usage_resolves_resource_then_fans_out_reference_queries() -> None
 
 
 @respx.mock
-async def test_usage_on_visualization_finds_owning_dashboards() -> None:
+async def test_usage_on_visualization_finds_owning_dashboards(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Viz usage follows the dashboards -> dashboardItems.visualization.id path."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/identifiableObjects/vizUid00001").mock(
         return_value=httpx.Response(
             200,
@@ -634,9 +664,11 @@ async def test_usage_on_visualization_finds_owning_dashboards() -> None:
 
 
 @respx.mock
-async def test_usage_unknown_resource_type_returns_empty() -> None:
+async def test_usage_unknown_resource_type_returns_empty(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """UID that resolves to a resource with no reference map → empty result."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/identifiableObjects/unknownUid1").mock(
         return_value=httpx.Response(
             200,

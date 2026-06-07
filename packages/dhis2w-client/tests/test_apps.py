@@ -2,19 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import httpx
 import respx
 from dhis2w_client import BasicAuth, Dhis2Client
-
-
-def _mock_preamble() -> None:
-    """Canonical-URL + /api/system/info probes connect() runs."""
-    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.4"}),
-    )
 
 
 def _auth() -> BasicAuth:
@@ -53,9 +46,9 @@ _HUB_PAYLOAD = [
 
 
 @respx.mock
-async def test_list_apps_parses_installed_rows() -> None:
+async def test_list_apps_parses_installed_rows(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """GET /api/apps → typed list[App]; bundled + non-bundled both land."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/apps").mock(
         return_value=httpx.Response(200, json=_INSTALLED_APPS_PAYLOAD),
     )
@@ -71,9 +64,11 @@ async def test_list_apps_parses_installed_rows() -> None:
 
 
 @respx.mock
-async def test_get_returns_none_when_key_not_installed() -> None:
+async def test_get_returns_none_when_key_not_installed(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`apps.get('missing')` falls through to None rather than raising."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/apps").mock(return_value=httpx.Response(200, json=_INSTALLED_APPS_PAYLOAD))
     async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
         assert await client.apps.get("missing") is None
@@ -83,9 +78,11 @@ async def test_get_returns_none_when_key_not_installed() -> None:
 
 
 @respx.mock
-async def test_install_from_file_posts_multipart(tmp_path: Path) -> None:
+async def test_install_from_file_posts_multipart(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`install_from_file` uploads the zip as `file=` in multipart/form-data."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/apps").mock(return_value=httpx.Response(204))
     zip_path = tmp_path / "widget.zip"
     zip_path.write_bytes(b"fake-zip-bytes")
@@ -100,9 +97,11 @@ async def test_install_from_file_posts_multipart(tmp_path: Path) -> None:
 
 
 @respx.mock
-async def test_install_from_hub_posts_to_versioned_path() -> None:
+async def test_install_from_hub_posts_to_versioned_path(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`install_from_hub('abc')` → POST /api/appHub/abc."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/appHub/abc-123").mock(return_value=httpx.Response(201))
     async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
         await client.apps.install_from_hub("abc-123")
@@ -110,9 +109,9 @@ async def test_install_from_hub_posts_to_versioned_path() -> None:
 
 
 @respx.mock
-async def test_uninstall_calls_delete_on_app_key() -> None:
+async def test_uninstall_calls_delete_on_app_key(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`uninstall('k')` → DELETE /api/apps/k."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/apps/my-app").mock(return_value=httpx.Response(204))
     async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
         await client.apps.uninstall("my-app")
@@ -120,9 +119,9 @@ async def test_uninstall_calls_delete_on_app_key() -> None:
 
 
 @respx.mock
-async def test_reload_calls_put_on_apps() -> None:
+async def test_reload_calls_put_on_apps(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`reload()` → PUT /api/apps (reload from disk; no payload)."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.put("https://dhis2.example/api/apps").mock(return_value=httpx.Response(200))
     async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
         await client.apps.reload()
@@ -130,9 +129,9 @@ async def test_reload_calls_put_on_apps() -> None:
 
 
 @respx.mock
-async def test_hub_list_parses_catalog_rows() -> None:
+async def test_hub_list_parses_catalog_rows(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """GET /api/appHub → typed list[AppHubApp] with nested version records."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/appHub").mock(return_value=httpx.Response(200, json=_HUB_PAYLOAD))
     async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
         hub = await client.apps.hub_list()
@@ -143,9 +142,11 @@ async def test_hub_list_parses_catalog_rows() -> None:
 
 
 @respx.mock
-async def test_hub_list_applies_client_side_query_filter() -> None:
+async def test_hub_list_applies_client_side_query_filter(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`hub_list(query=...)` narrows the catalog by case-insensitive name / description substring."""
-    _mock_preamble()
+    mock_system_info(server_version)
     payload = [
         {"id": "a", "name": "Dashboard Widget"},
         {"id": "b", "name": "Reports App", "description": "Aggregated Dashboard insights"},
@@ -159,9 +160,11 @@ async def test_hub_list_applies_client_side_query_filter() -> None:
 
 
 @respx.mock
-async def test_hub_list_ingests_epoch_millis_created_field() -> None:
+async def test_hub_list_ingests_epoch_millis_created_field(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Per BUGS.md #30, `versions[*].created` is an int on the wire — the model absorbs it."""
-    _mock_preamble()
+    mock_system_info(server_version)
     payload = [
         {
             "id": "hub-x",
@@ -176,9 +179,9 @@ async def test_hub_list_ingests_epoch_millis_created_field() -> None:
 
 
 @respx.mock
-async def test_get_hub_url_reads_system_setting() -> None:
+async def test_get_hub_url_reads_system_setting(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`get_hub_url` unwraps DHIS2's `{keyAppHubUrl: "..."}` envelope."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/systemSettings/keyAppHubUrl").mock(
         return_value=httpx.Response(200, json={"keyAppHubUrl": "https://custom.hub.example/api"}),
     )
@@ -188,9 +191,9 @@ async def test_get_hub_url_reads_system_setting() -> None:
 
 
 @respx.mock
-async def test_set_hub_url_posts_text_plain_body() -> None:
+async def test_set_hub_url_posts_text_plain_body(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`set_hub_url('https://x/api')` POSTs the raw URL as text/plain."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/systemSettings/keyAppHubUrl").mock(
         return_value=httpx.Response(200),
     )
@@ -202,11 +205,13 @@ async def test_set_hub_url_posts_text_plain_body() -> None:
 
 
 @respx.mock
-async def test_restore_reinstalls_hub_backed_entries_and_skips_side_loaded() -> None:
+async def test_restore_reinstalls_hub_backed_entries_and_skips_side_loaded(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """restore() posts /api/appHub/{versionId} for hub entries with a version drift + SKIPs the rest."""
     from dhis2w_client import AppsSnapshot
 
-    _mock_preamble()
+    mock_system_info(server_version)
     installed_now = [
         {
             "key": "hub-app",
@@ -282,11 +287,13 @@ async def test_restore_reinstalls_hub_backed_entries_and_skips_side_loaded() -> 
 
 
 @respx.mock
-async def test_restore_dry_run_reports_available_without_posting() -> None:
+async def test_restore_dry_run_reports_available_without_posting(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`dry_run=True` tags would-install entries as AVAILABLE; no install POSTs."""
     from dhis2w_client import AppsSnapshot
 
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/apps").mock(return_value=httpx.Response(200, json=[]))
     install_route = respx.post("https://dhis2.example/api/appHub/ver-xyz").mock(return_value=httpx.Response(201))
 
@@ -314,9 +321,11 @@ async def test_restore_dry_run_reports_available_without_posting() -> None:
 
 
 @respx.mock
-async def test_snapshot_captures_installed_apps_with_hub_version_id() -> None:
+async def test_snapshot_captures_installed_apps_with_hub_version_id(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """snapshot() cross-references installed apps with the hub catalog to find a rehydration target."""
-    _mock_preamble()
+    mock_system_info(server_version)
     installed = [
         {
             "key": "hub-app",
@@ -360,9 +369,9 @@ async def test_snapshot_captures_installed_apps_with_hub_version_id() -> None:
 
 
 @respx.mock
-async def test_set_hub_url_none_deletes_setting() -> None:
+async def test_set_hub_url_none_deletes_setting(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`set_hub_url(None)` sends a DELETE so DHIS2 reverts to its default hub."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/systemSettings/keyAppHubUrl").mock(
         return_value=httpx.Response(204),
     )

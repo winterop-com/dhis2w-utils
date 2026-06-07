@@ -3,19 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 
 import httpx
 import pytest
 import respx
 from dhis2w_client import BasicAuth, Dhis2Client
-
-
-def _mock_preamble() -> None:
-    """Stub the canonical-URL + /api/system/info probes `connect()` performs."""
-    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.4"}),
-    )
 
 
 def _auth() -> BasicAuth:
@@ -24,9 +17,11 @@ def _auth() -> BasicAuth:
 
 
 @respx.mock
-async def test_list_conversations_returns_typed_models() -> None:
+async def test_list_conversations_returns_typed_models(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`list_conversations` parses the `messageConversations` array into typed objects."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/messageConversations").mock(
         return_value=httpx.Response(
             200,
@@ -64,9 +59,11 @@ async def test_list_conversations_returns_typed_models() -> None:
 
 
 @respx.mock
-async def test_list_conversations_forwards_filter_and_paging() -> None:
+async def test_list_conversations_forwards_filter_and_paging(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`filter` / `page` / `page_size` flow through as DHIS2 query params."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/messageConversations").mock(
         return_value=httpx.Response(200, json={"messageConversations": []}),
     )
@@ -85,7 +82,9 @@ async def test_list_conversations_forwards_filter_and_paging() -> None:
 
 
 @respx.mock
-async def test_send_posts_every_recipient_type_and_parses_location_header() -> None:
+async def test_send_posts_every_recipient_type_and_parses_location_header(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Users + userGroups + orgUnits + attachments land in body; UID comes from Location.
 
     DHIS2's `POST /api/messageConversations` returns just a status envelope
@@ -93,7 +92,7 @@ async def test_send_posts_every_recipient_type_and_parses_location_header() -> N
     (see BUGS.md #17). `send()` extracts it + GETs the conversation back so
     the caller receives a typed object.
     """
-    _mock_preamble()
+    mock_system_info(server_version)
     created_uid = "newConvUid01"
     post_route = respx.post("https://dhis2.example/api/messageConversations").mock(
         return_value=httpx.Response(
@@ -134,9 +133,11 @@ async def test_send_posts_every_recipient_type_and_parses_location_header() -> N
 
 
 @respx.mock
-async def test_send_raises_when_location_header_missing() -> None:
+async def test_send_raises_when_location_header_missing(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Without a Location header there's no way to look up the conversation — fail loud."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.post("https://dhis2.example/api/messageConversations").mock(
         return_value=httpx.Response(201, json={"status": "OK"}),
     )
@@ -158,9 +159,9 @@ async def test_send_rejects_empty_recipients() -> None:
 
 
 @respx.mock
-async def test_reply_posts_plain_text_body() -> None:
+async def test_reply_posts_plain_text_body(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`reply` POSTs the text as raw `text/plain` bytes — DHIS2 v42 ignores JSON bodies here."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/messageConversations/convUidAAA001").mock(
         return_value=httpx.Response(201, json={"status": "OK", "httpStatus": "Created"}),
     )
@@ -179,9 +180,9 @@ async def test_reply_posts_plain_text_body() -> None:
 
 
 @respx.mock
-async def test_mark_read_single_uid_wraps_in_list() -> None:
+async def test_mark_read_single_uid_wraps_in_list(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """A single UID string is wrapped as `[uid]` to match DHIS2's bulk-array body shape."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/messageConversations/read").mock(
         return_value=httpx.Response(200, json={"status": "OK", "httpStatus": "OK", "httpStatusCode": 200}),
     )
@@ -198,9 +199,9 @@ async def test_mark_read_single_uid_wraps_in_list() -> None:
 
 
 @respx.mock
-async def test_mark_unread_list_input() -> None:
+async def test_mark_unread_list_input(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """A list of UIDs maps 1:1 onto the JSON body."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/messageConversations/unread").mock(
         return_value=httpx.Response(200, json={"status": "OK", "httpStatus": "OK", "httpStatusCode": 200}),
     )
@@ -217,9 +218,11 @@ async def test_mark_unread_list_input() -> None:
 
 
 @respx.mock
-async def test_get_conversation_returns_typed_thread() -> None:
+async def test_get_conversation_returns_typed_thread(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Single-conversation GET parses the thread via the typed MessageConversation model."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/messageConversations/convUidAAA001").mock(
         return_value=httpx.Response(
             200,
@@ -251,9 +254,9 @@ async def test_get_conversation_returns_typed_thread() -> None:
 
 
 @respx.mock
-async def test_set_priority_passes_query_param() -> None:
+async def test_set_priority_passes_query_param(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`set_priority` POSTs `/priority` with the enum as a query parameter."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/messageConversations/convUidAAA001/priority").mock(
         return_value=httpx.Response(200, text=""),
     )
@@ -269,9 +272,9 @@ async def test_set_priority_passes_query_param() -> None:
 
 
 @respx.mock
-async def test_set_status_passes_query_param() -> None:
+async def test_set_status_passes_query_param(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`set_status` POSTs `/status` with the enum as a query parameter."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/messageConversations/convUidAAA001/status").mock(
         return_value=httpx.Response(200, text=""),
     )
@@ -287,9 +290,9 @@ async def test_set_status_passes_query_param() -> None:
 
 
 @respx.mock
-async def test_assign_and_unassign() -> None:
+async def test_assign_and_unassign(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`assign` POSTs `/assign?userId=...`; `unassign` DELETEs the same path."""
-    _mock_preamble()
+    mock_system_info(server_version)
     assign_route = respx.post("https://dhis2.example/api/messageConversations/convUidAAA001/assign").mock(
         return_value=httpx.Response(200, text=""),
     )
@@ -310,9 +313,9 @@ async def test_assign_and_unassign() -> None:
 
 
 @respx.mock
-async def test_delete_conversation() -> None:
+async def test_delete_conversation(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Delete fires DELETE on the conversation path + returns None."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/messageConversations/convUidAAA001").mock(
         return_value=httpx.Response(200, json={}),
     )
