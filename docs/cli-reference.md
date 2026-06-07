@@ -3097,11 +3097,11 @@ $ dhis2 metadata [OPTIONS] COMMAND [ARGS]...
 * `merge`: Export resources from one profile and...
 * `merge-bundle`: Import a saved bundle file into a target...
 * `type`: Metadata resource types (the catalog).
-* `options`: OptionSet workflows (get / find / sync).
+* `option-sets`: OptionSet workflows (get / find / sync).
 * `attributes`: Cross-resource AttributeValue workflows...
 * `program-rules`: Program rule workflows (get / vars-for /...
 * `sql-views`: SQL view workflows (get / execute /...
-* `viz`: Visualization authoring (get / create /...
+* `visualizations`: Visualization authoring (get / create /...
 * `dashboards`: Dashboard composition (get / add-item /...
 * `maps`: Map authoring (get / create / clone /...
 * `data-elements`: DataElement authoring (get / create /...
@@ -3669,14 +3669,14 @@ $ dhis2 metadata type list [OPTIONS]
 
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata options`
+### `dhis2 metadata option-sets`
 
 OptionSet workflows (get / find / sync).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata options [OPTIONS] COMMAND [ARGS]...
+$ dhis2 metadata option-sets [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -3692,14 +3692,14 @@ $ dhis2 metadata options [OPTIONS] COMMAND [ARGS]...
 * `sync`: Idempotently sync an OptionSet to match a...
 * `attributes`: External-system code mapping on Options...
 
-#### `dhis2 metadata options get`
+#### `dhis2 metadata option-sets get`
 
 Show one OptionSet with its options resolved inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata options get [OPTIONS] UID_OR_CODE
+$ dhis2 metadata option-sets get [OPTIONS] UID_OR_CODE
 ```
 
 **Arguments**:
@@ -3710,14 +3710,14 @@ $ dhis2 metadata options get [OPTIONS] UID_OR_CODE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata options find`
+#### `dhis2 metadata option-sets find`
 
 Locate a single option inside a set by code or name; exit 1 if no match.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata options find [OPTIONS]
+$ dhis2 metadata option-sets find [OPTIONS]
 ```
 
 **Options**:
@@ -3727,14 +3727,14 @@ $ dhis2 metadata options find [OPTIONS]
 * `--name TEXT`: Display name of the option (exact match).
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata options create`
+#### `dhis2 metadata option-sets create`
 
 Create an OptionSet (then add its options with `options sync`).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata options create [OPTIONS]
+$ dhis2 metadata option-sets create [OPTIONS]
 ```
 
 **Options**:
@@ -3745,14 +3745,14 @@ $ dhis2 metadata options create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata options delete`
+#### `dhis2 metadata option-sets delete`
 
 Delete an OptionSet by UID.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata options delete [OPTIONS] UID
+$ dhis2 metadata option-sets delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -3764,7 +3764,7 @@ $ dhis2 metadata options delete [OPTIONS] UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata options sync`
+#### `dhis2 metadata option-sets sync`
 
 Idempotently sync an OptionSet to match a JSON spec file.
 
@@ -3777,7 +3777,7 @@ spec. `--dry-run` previews the diff without writing.
 **Usage**:
 
 ```console
-$ dhis2 metadata options sync [OPTIONS] SET_REF SPEC_FILE
+$ dhis2 metadata option-sets sync [OPTIONS] SET_REF SPEC_FILE
 ```
 
 **Arguments**:
@@ -3791,14 +3791,14 @@ $ dhis2 metadata options sync [OPTIONS] SET_REF SPEC_FILE
 * `--dry-run`: Compute the diff without writing anything.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata options attributes`
+#### `dhis2 metadata option-sets attributes`
 
 External-system code mapping on Options via Attribute values.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata options attributes [OPTIONS] COMMAND [ARGS]...
+$ dhis2 metadata option-sets attributes [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -3811,14 +3811,14 @@ $ dhis2 metadata options attributes [OPTIONS] COMMAND [ARGS]...
 * `set`: Set / replace an attribute value on an...
 * `find`: Reverse lookup — find the Option whose...
 
-##### `dhis2 metadata options attributes get`
+##### `dhis2 metadata option-sets attributes get`
 
 Read one attribute value off an Option; exit 1 if unset.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata options attributes get [OPTIONS] OPTION_UID ATTRIBUTE
+$ dhis2 metadata option-sets attributes get [OPTIONS] OPTION_UID ATTRIBUTE
 ```
 
 **Arguments**:
@@ -3830,7 +3830,7 @@ $ dhis2 metadata options attributes get [OPTIONS] OPTION_UID ATTRIBUTE
 
 * `--help`: Show this message and exit.
 
-##### `dhis2 metadata options attributes set`
+##### `dhis2 metadata option-sets attributes set`
 
 Set / replace an attribute value on an Option.
 
@@ -3842,7 +3842,7 @@ idempotent — calling twice with the same value is a no-op.
 **Usage**:
 
 ```console
-$ dhis2 metadata options attributes set [OPTIONS] OPTION_UID ATTRIBUTE VALUE
+$ dhis2 metadata option-sets attributes set [OPTIONS] OPTION_UID ATTRIBUTE VALUE
 ```
 
 **Arguments**:
@@ -3855,7 +3855,7 @@ $ dhis2 metadata options attributes set [OPTIONS] OPTION_UID ATTRIBUTE VALUE
 
 * `--help`: Show this message and exit.
 
-##### `dhis2 metadata options attributes find`
+##### `dhis2 metadata option-sets attributes find`
 
 Reverse lookup — find the Option whose attribute matches a value.
 
@@ -3866,7 +3866,7 @@ on miss with a stderr hint.
 **Usage**:
 
 ```console
-$ dhis2 metadata options attributes find [OPTIONS]
+$ dhis2 metadata option-sets attributes find [OPTIONS]
 ```
 
 **Options**:
@@ -4200,14 +4200,14 @@ $ dhis2 metadata sql-views adhoc [OPTIONS] NAME SQL_PATH
 * `--format TEXT`: Output format: table (default), json, or csv.  [default: table]
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata viz`
+### `dhis2 metadata visualizations`
 
 Visualization authoring (get / create / clone / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata viz [OPTIONS] COMMAND [ARGS]...
+$ dhis2 metadata visualizations [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4221,14 +4221,14 @@ $ dhis2 metadata viz [OPTIONS] COMMAND [ARGS]...
 * `clone`: Clone an existing Visualization with a...
 * `delete`: Delete a Visualization.
 
-#### `dhis2 metadata viz get`
+#### `dhis2 metadata visualizations get`
 
 Show one Visualization with axes + data dimensions + period / ou selection.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata viz get [OPTIONS] VIZ_UID
+$ dhis2 metadata visualizations get [OPTIONS] VIZ_UID
 ```
 
 **Arguments**:
@@ -4239,7 +4239,7 @@ $ dhis2 metadata viz get [OPTIONS] VIZ_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata viz create`
+#### `dhis2 metadata visualizations create`
 
 Create a Visualization from flags — one command, no hand-rolled JSON.
 
@@ -4252,7 +4252,7 @@ collapses to columns= / filters=. Override any slot with
 **Usage**:
 
 ```console
-$ dhis2 metadata viz create [OPTIONS]
+$ dhis2 metadata visualizations create [OPTIONS]
 ```
 
 **Options**:
@@ -4269,14 +4269,14 @@ $ dhis2 metadata viz create [OPTIONS]
 * `--filter-dim TEXT`: Override filter dimension: dx / pe / ou.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata viz clone`
+#### `dhis2 metadata visualizations clone`
 
 Clone an existing Visualization with a fresh UID + new name.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata viz clone [OPTIONS] SOURCE_UID
+$ dhis2 metadata visualizations clone [OPTIONS] SOURCE_UID
 ```
 
 **Arguments**:
@@ -4290,14 +4290,14 @@ $ dhis2 metadata viz clone [OPTIONS] SOURCE_UID
 * `--new-description TEXT`: Override the source&#x27;s description on the clone.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata viz delete`
+#### `dhis2 metadata visualizations delete`
 
 Delete a Visualization.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata viz delete [OPTIONS] VIZ_UID
+$ dhis2 metadata visualizations delete [OPTIONS] VIZ_UID
 ```
 
 **Arguments**:

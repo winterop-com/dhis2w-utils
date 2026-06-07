@@ -72,7 +72,7 @@ Four shapes for "modify an existing thing":
 
 A few tools deliberately do not follow the verb table. They are listed here so future readers do not "fix" them:
 
-- `customize_apply`, `metadata_options_sync` — one-shot operations whose verb is the entire point.
+- `customize_apply`, `metadata_option_set_sync` — one-shot operations whose verb is the entire point.
 - `data_aggregate_push`, `data_tracker_push` — DHIS2-vernacular term for bulk write to `/api/dataValueSets` and `/api/tracker`. `_create_many` would be technically correct but `push` is what every DHIS2 doc and SDK uses.
 - `messaging_send`, `messaging_reply`, `messaging_assign`, `messaging_unassign` — domain verbs that map to specific DHIS2 message-conversation endpoints.
 - `analytics_query`, `analytics_events_query`, `analytics_outlier_detection`, `route_run` — read-shaped POSTs. `query` and `run` describe what the call is, not the HTTP verb.

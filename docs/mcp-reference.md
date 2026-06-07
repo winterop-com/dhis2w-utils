@@ -1911,7 +1911,7 @@ Import a saved bundle file into a target profile.
 | `include_sharing` | `boolean` | no | — |
 | `dry_run` | `boolean` | no | — |
 
-### `metadata_options_attribute_find`
+### `metadata_option_set_attribute_find`
 
 Reverse lookup — find the Option in a set whose attribute matches a value.
 
@@ -1922,7 +1922,7 @@ Reverse lookup — find the Option in a set whose attribute matches a value.
 | `value` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_options_attribute_get`
+### `metadata_option_set_attribute_get`
 
 Read one attribute value off an Option; None if unset.
 
@@ -1932,7 +1932,7 @@ Read one attribute value off an Option; None if unset.
 | `attribute` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_options_attribute_set`
+### `metadata_option_set_attribute_set`
 
 Set / replace one attribute value on an Option (read-merge-write).
 
@@ -1943,7 +1943,7 @@ Set / replace one attribute value on an Option (read-merge-write).
 | `value` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_options_find`
+### `metadata_option_set_find`
 
 Locate one option in a set by `option_code` or `option_name`.
 
@@ -1954,7 +1954,7 @@ Locate one option in a set by `option_code` or `option_name`.
 | `option_name` | `string` | no | — |
 | `profile` | `string` | no | — |
 
-### `metadata_options_get`
+### `metadata_option_set_get`
 
 Fetch one OptionSet (with options inline) by UID or business code.
 
@@ -1963,7 +1963,7 @@ Fetch one OptionSet (with options inline) by UID or business code.
 | `uid_or_code` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
-### `metadata_options_sync`
+### `metadata_option_set_sync`
 
 Idempotent bulk sync — reconcile an OptionSet against a spec.
 
@@ -3120,7 +3120,7 @@ Partial-update the label fields on a ValidationRule.
 | `description` | `string` | no | — |
 | `profile` | `string` | no | — |
 
-### `metadata_viz_clone`
+### `metadata_visualization_clone`
 
 Clone an existing Visualization with a fresh UID + new name.
 
@@ -3132,7 +3132,7 @@ Clone an existing Visualization with a fresh UID + new name.
 | `new_description` | `string` | no | — |
 | `profile` | `string` | no | — |
 
-### `metadata_viz_create`
+### `metadata_visualization_create`
 
 Create a Visualization from a typed VisualizationSpec.
 
@@ -3150,7 +3150,7 @@ Create a Visualization from a typed VisualizationSpec.
 | `filter_dimension` | `string` | no | — |
 | `profile` | `string` | no | — |
 
-### `metadata_viz_get`
+### `metadata_visualization_get`
 
 Show one Visualization with axes + data dimensions resolved inline.
 

@@ -616,7 +616,7 @@ def register(mcp: Any) -> None:
         )
 
     @mcp.tool()
-    async def metadata_options_get(uid_or_code: str, profile: str | None = None) -> dict[str, Any] | None:
+    async def metadata_option_set_get(uid_or_code: str, profile: str | None = None) -> dict[str, Any] | None:
         """Fetch one OptionSet (with options inline) by UID or business code.
 
         `uid_or_code` accepts either the 11-char DHIS2 UID or the
@@ -626,7 +626,7 @@ def register(mcp: Any) -> None:
         return _dump_model(result) if result is not None else None
 
     @mcp.tool()
-    async def metadata_options_find(
+    async def metadata_option_set_find(
         set_ref: str,
         option_code: str | None = None,
         option_name: str | None = None,
@@ -647,7 +647,7 @@ def register(mcp: Any) -> None:
         return _dump_model(result) if result is not None else None
 
     @mcp.tool()
-    async def metadata_options_attribute_get(
+    async def metadata_option_set_attribute_get(
         option_uid: str,
         attribute: str,
         profile: str | None = None,
@@ -665,7 +665,7 @@ def register(mcp: Any) -> None:
         )
 
     @mcp.tool()
-    async def metadata_options_attribute_set(
+    async def metadata_option_set_attribute_set(
         option_uid: str,
         attribute: str,
         value: str,
@@ -680,7 +680,7 @@ def register(mcp: Any) -> None:
         )
 
     @mcp.tool()
-    async def metadata_options_attribute_find(
+    async def metadata_option_set_attribute_find(
         set_ref: str,
         attribute: str,
         value: str,
@@ -865,7 +865,7 @@ def register(mcp: Any) -> None:
         return _dump_model(response)
 
     @mcp.tool()
-    async def metadata_viz_get(
+    async def metadata_visualization_get(
         viz_uid: str,
         profile: str | None = None,
     ) -> dict[str, Any]:
@@ -874,7 +874,7 @@ def register(mcp: Any) -> None:
         return _dump_model(viz)
 
     @mcp.tool()
-    async def metadata_viz_create(
+    async def metadata_visualization_create(
         name: str,
         viz_type: str,
         data_elements: list[str],
@@ -912,7 +912,7 @@ def register(mcp: Any) -> None:
         return _dump_model(viz)
 
     @mcp.tool()
-    async def metadata_viz_clone(
+    async def metadata_visualization_clone(
         source_uid: str,
         new_name: str,
         new_uid: str | None = None,
@@ -3362,7 +3362,7 @@ def register(mcp: Any) -> None:
         return _dump_model(row)
 
     @mcp.tool()
-    async def metadata_options_sync(
+    async def metadata_option_set_sync(
         set_ref: str,
         spec: list[dict[str, Any]],
         *,

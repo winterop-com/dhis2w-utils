@@ -216,11 +216,11 @@ The dimensional-placement cheat sheet in the [API reference](../api/visualizatio
 
 ## From the CLI
 
-Everything above is reachable through `dhis2 metadata viz` and `dhis2 metadata dashboards`. The CLI forwards the same flags `VisualizationSpec` consumes; defaults match the library builder.
+Everything above is reachable through `dhis2 metadata visualizations` and `dhis2 metadata dashboards`. The CLI forwards the same flags `VisualizationSpec` consumes; defaults match the library builder.
 
 ```bash
 # Multi-line Penta1 by district, one command, no hand-rolled JSON.
-dhis2 metadata viz create \
+dhis2 metadata visualizations create \
     --name "Penta1 monthly by district" \
     --type LINE \
     --de fClA2Erf6IO \
@@ -230,7 +230,7 @@ dhis2 metadata viz create \
     --ou jUb8gELQApl --ou PMa2VCrupOd --ou qhqAxPSTUXp --ou kJq2mPyFEHo
 
 # Override dimensional placement — one line per DE instead of per OU.
-dhis2 metadata viz create \
+dhis2 metadata visualizations create \
     --name "Penta1 vs Measles — Sierra Leone monthly" \
     --type LINE \
     --de fClA2Erf6IO --de YtbsuPPo010 \
@@ -239,11 +239,11 @@ dhis2 metadata viz create \
     --category-dim pe --series-dim dx --filter-dim ou
 
 # Clone + compose into a dashboard.
-dhis2 metadata viz clone VizSourceUid --new-name "2025 preview" --new-uid VizNewClone1
+dhis2 metadata visualizations clone VizSourceUid --new-name "2025 preview" --new-uid VizNewClone1
 dhis2 metadata dashboards add-item TAMlzYkstb7 --viz VizNewClone1 --x 0 --y 95 --width 60 --height 20
 ```
 
-Every MCP tool has a direct CLI equivalent and vice versa. `dhis2 metadata viz list --type PIVOT_TABLE` mirrors `metadata_viz_list(viz_type="PIVOT_TABLE")` on the MCP side. Full surface: `list / ls / get / create / clone / delete` on `viz`; `list / ls / get / add-item / remove-item` on `dashboard`.
+Every MCP tool has a direct CLI equivalent and vice versa. `dhis2 metadata visualizations list --type PIVOT_TABLE` mirrors `metadata_visualization_list(viz_type="PIVOT_TABLE")` on the MCP side. Full surface: `list / ls / get / create / clone / delete` on `viz`; `list / ls / get / add-item / remove-item` on `dashboard`.
 
 ## Worked examples in `examples/v42/client/`
 

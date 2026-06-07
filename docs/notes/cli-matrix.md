@@ -106,14 +106,14 @@
 | `metadata maps get` | miss | miss | miss | miss | miss | miss |
 | `metadata merge` | miss | miss | miss | miss | miss | miss |
 | `metadata merge-bundle` | miss | miss | miss | miss | miss | miss |
-| `metadata options attribute find` | miss | miss | miss | miss | miss | miss |
-| `metadata options attribute get` | miss | miss | miss | miss | miss | miss |
-| `metadata options attribute set` | miss | miss | miss | miss | miss | miss |
-| `metadata options create` | miss | HIT | miss | miss | miss | miss |
-| `metadata options delete` | miss | miss | miss | miss | miss | miss |
-| `metadata options find` | miss | miss | miss | miss | miss | miss |
-| `metadata options get` | miss | miss | miss | miss | miss | miss |
-| `metadata options sync` | miss | miss | miss | miss | miss | miss |
+| `metadata option-sets attribute find` | miss | miss | miss | miss | miss | miss |
+| `metadata option-sets attribute get` | miss | miss | miss | miss | miss | miss |
+| `metadata option-sets attribute set` | miss | miss | miss | miss | miss | miss |
+| `metadata option-sets create` | miss | HIT | miss | miss | miss | miss |
+| `metadata option-sets delete` | miss | miss | miss | miss | miss | miss |
+| `metadata option-sets find` | miss | miss | miss | miss | miss | miss |
+| `metadata option-sets get` | miss | miss | miss | miss | miss | miss |
+| `metadata option-sets sync` | miss | miss | miss | miss | miss | miss |
 | `metadata organisation-unit-group-sets add-groups` | miss | miss | miss | miss | miss | miss |
 | `metadata organisation-unit-group-sets create` | HIT | HIT | miss | miss | miss | HIT |
 | `metadata organisation-unit-group-sets delete` | miss | miss | miss | miss | miss | HIT |
@@ -212,7 +212,7 @@
 | `metadata validation-rules delete` | miss | miss | miss | miss | miss | miss |
 | `metadata validation-rules get` | miss | miss | miss | miss | miss | miss |
 | `metadata validation-rules rename` | miss | miss | miss | miss | miss | miss |
-| `metadata viz clone` | miss | miss | miss | miss | miss | miss |
-| `metadata viz create` | miss | miss | miss | miss | miss | miss |
-| `metadata viz delete` | miss | miss | miss | miss | miss | miss |
-| `metadata viz get` | miss | miss | miss | miss | miss | miss |
+| `metadata visualizations clone` | miss | miss | miss | miss | miss | miss |
+| `metadata visualizations create` | miss | miss | miss | miss | miss | miss |
+| `metadata visualizations delete` | miss | miss | miss | miss | miss | miss |
+| `metadata visualizations get` | miss | miss | miss | miss | miss | miss |

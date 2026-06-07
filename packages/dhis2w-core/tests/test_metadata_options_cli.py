@@ -59,7 +59,7 @@ def test_options_show_renders_table_for_code_input(pat_profile: None) -> None:  
     """`show VACCINE_TYPE` routes through `service.show_option_set` and prints each option."""
     with patch("dhis2w_core.v42.plugins.metadata.service.show_option_set", new=AsyncMock(return_value=_vaccine_set())):
         runner = CliRunner()
-        result = runner.invoke(build_app(), ["metadata", "options", "get", "VACCINE_TYPE"])
+        result = runner.invoke(build_app(), ["metadata", "option-sets", "get", "VACCINE_TYPE"])
     assert result.exit_code == 0, result.output
     assert "Vaccine type" in result.output
     assert "VACCINE_TYPE" in result.output
@@ -70,7 +70,7 @@ def test_options_show_exits_1_when_not_found(pat_profile: None) -> None:  # noqa
     """None from the service → exit 1 with a stderr hint."""
     with patch("dhis2w_core.v42.plugins.metadata.service.show_option_set", new=AsyncMock(return_value=None)):
         runner = CliRunner()
-        result = runner.invoke(build_app(), ["metadata", "options", "get", "DOES_NOT_EXIST"])
+        result = runner.invoke(build_app(), ["metadata", "option-sets", "get", "DOES_NOT_EXIST"])
     assert result.exit_code == 1
 
 
@@ -79,7 +79,7 @@ def test_options_find_rejects_both_selectors(pat_profile: None) -> None:  # noqa
     runner = CliRunner()
     result = runner.invoke(
         build_app(),
-        ["metadata", "options", "find", "--set", "VACCINE_TYPE", "--code", "X", "--name", "Y"],
+        ["metadata", "option-sets", "find", "--set", "VACCINE_TYPE", "--code", "X", "--name", "Y"],
     )
     assert result.exit_code != 0
     assert "exactly one" in result.output.lower()
@@ -95,7 +95,7 @@ def test_options_find_hit_prints_option_summary(pat_profile: None) -> None:  # n
         runner = CliRunner()
         result = runner.invoke(
             build_app(),
-            ["metadata", "options", "find", "--set", "VACCINE_TYPE", "--code", "MEASLES"],
+            ["metadata", "option-sets", "find", "--set", "VACCINE_TYPE", "--code", "MEASLES"],
         )
     assert result.exit_code == 0, result.output
     assert "MEASLES" in result.output
@@ -139,7 +139,7 @@ def test_options_sync_from_json_file(pat_profile: None, tmp_path: Path) -> None:
         runner = CliRunner()
         result = runner.invoke(
             build_app(),
-            ["metadata", "options", "sync", "VACCINE_TYPE", str(spec_file)],
+            ["metadata", "option-sets", "sync", "VACCINE_TYPE", str(spec_file)],
         )
     assert result.exit_code == 0, result.output
     assert [s.code for s in captured_spec] == ["BCG", "HPV"]
@@ -154,7 +154,7 @@ def test_options_sync_rejects_non_list_json(pat_profile: None, tmp_path: Path) -
     runner = CliRunner()
     result = runner.invoke(
         build_app(),
-        ["metadata", "options", "sync", "VACCINE_TYPE", str(spec_file)],
+        ["metadata", "option-sets", "sync", "VACCINE_TYPE", str(spec_file)],
     )
     assert result.exit_code != 0
     assert "JSON array" in result.output

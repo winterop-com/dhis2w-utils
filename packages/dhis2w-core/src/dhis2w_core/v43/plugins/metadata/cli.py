@@ -26,7 +26,7 @@ app = typer.Typer(help="Inspect and list DHIS2 metadata (wraps generated CRUD re
 type_app = typer.Typer(help="Metadata resource types (the catalog).", no_args_is_help=True)
 app.add_typer(type_app, name="type")
 options_app = typer.Typer(help="OptionSet workflows (get / find / sync).", no_args_is_help=True)
-app.add_typer(options_app, name="options")
+app.add_typer(options_app, name="option-sets")
 options_attribute_app = typer.Typer(
     help="External-system code mapping on Options via Attribute values.",
     no_args_is_help=True,
@@ -51,7 +51,7 @@ viz_app = typer.Typer(
     help="Visualization authoring (get / create / clone / delete).",
     no_args_is_help=True,
 )
-app.add_typer(viz_app, name="viz")
+app.add_typer(viz_app, name="visualizations")
 dashboard_app = typer.Typer(
     help="Dashboard composition (get / add-item / remove-item).",
     no_args_is_help=True,

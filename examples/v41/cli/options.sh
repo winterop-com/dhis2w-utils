@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # OptionSet + Option workflows via `dhis2 metadata`.
 # Two layers: the generic list/get surface (works for every resource) and
-# the workflow-specific `metadata options get / find / sync` commands.
+# the workflow-specific `metadata option-sets get / find / sync` commands.
 set -euo pipefail
 
-# --- Workflow commands (dhis2 metadata options) ----------------------------
+# --- Workflow commands (dhis2 metadata option-sets) ----------------------------
 # Show one OptionSet with its options resolved inline. Accepts a UID or
 # the set's business code — whichever you happen to have in hand.
 
-dhis2 metadata options get VACCINE_TYPE
-dhis2 --json metadata options get OsVaccType1
+dhis2 metadata option-sets get VACCINE_TYPE
+dhis2 --json metadata option-sets get OsVaccType1
 
 # Pinpoint a single option inside a set by code (or by display name):
-dhis2 metadata options find --set VACCINE_TYPE --code BCG
-dhis2 metadata options find --set OsVaccType1 --name Measles
+dhis2 metadata option-sets find --set VACCINE_TYPE --code BCG
+dhis2 metadata option-sets find --set OsVaccType1 --name Measles
 
 # Idempotent bulk sync from a JSON spec file. Spec is an array of
 # `{code, name, sort_order?}` objects. `--dry-run` prints the diff
@@ -31,8 +31,8 @@ cat > /tmp/vaccine-spec.json <<'JSON'
 ]
 JSON
 
-dhis2 metadata options sync VACCINE_TYPE /tmp/vaccine-spec.json --dry-run
-dhis2 metadata options sync VACCINE_TYPE /tmp/vaccine-spec.json
+dhis2 metadata option-sets sync VACCINE_TYPE /tmp/vaccine-spec.json --dry-run
+dhis2 metadata option-sets sync VACCINE_TYPE /tmp/vaccine-spec.json
 
 # Rollback to the original 5 options — remove HPV with --remove-missing,
 # restore MEASLES to its original name:
@@ -45,7 +45,7 @@ cat > /tmp/vaccine-rollback.json <<'JSON'
   {"code": "HEPB", "name": "Hepatitis B"}
 ]
 JSON
-dhis2 metadata options sync VACCINE_TYPE /tmp/vaccine-rollback.json --remove-missing
+dhis2 metadata option-sets sync VACCINE_TYPE /tmp/vaccine-rollback.json --remove-missing
 
 # --- External-system code mapping (Attribute values) ----------------------
 # DHIS2 lets you attach arbitrary typed key-value pairs to any metadata
@@ -54,24 +54,24 @@ dhis2 metadata options sync VACCINE_TYPE /tmp/vaccine-rollback.json --remove-mis
 # external integrations use for ICD-10 / SNOMED / LOINC code mapping.
 
 # Read one attribute value by Option UID + attribute business code:
-dhis2 metadata options attribute get OptVacBCG01 SNOMED_CODE
+dhis2 metadata option-sets attribute get OptVacBCG01 SNOMED_CODE
 
 # Reverse lookup — given an external code, find the DHIS2 Option.
 # THE integration killer: external system hands you a SNOMED code, you
 # return the DHIS2 Option UID it maps to.
-dhis2 metadata options attribute find \
+dhis2 metadata option-sets attribute find \
     --set VACCINE_TYPE \
     --attribute SNOMED_CODE \
     --value 386661006                    # measles vaccine immunisation
 
 # Misses exit 1 with a stderr hint — safe in pipelines:
-# dhis2 metadata options attribute find \
+# dhis2 metadata option-sets attribute find \
 #     --set VACCINE_TYPE --attribute SNOMED_CODE --value 999999999
 
 # Set / replace an attribute value — read-merge-write, idempotent:
-dhis2 metadata options attribute set OptVacBCG01 SNOMED_CODE TESTING-XYZ
-dhis2 metadata options attribute get OptVacBCG01 SNOMED_CODE   # → TESTING-XYZ
-dhis2 metadata options attribute set OptVacBCG01 SNOMED_CODE 77656005   # restore
+dhis2 metadata option-sets attribute set OptVacBCG01 SNOMED_CODE TESTING-XYZ
+dhis2 metadata option-sets attribute get OptVacBCG01 SNOMED_CODE   # → TESTING-XYZ
+dhis2 metadata option-sets attribute set OptVacBCG01 SNOMED_CODE 77656005   # restore
 
 # --- Generic metadata surface (works for every resource) -------------------
 
@@ -97,6 +97,6 @@ dhis2 metadata export \
 
 # Create an OptionSet directly (no hand-written import bundle needed), then add
 # its options with `options sync`, then delete it.
-# OS_UID=$(dhis2 --json metadata options create --name "Vaccine type" --value-type TEXT --code VACCINE_TYPE | jq -r '.response.uid')
-# dhis2 metadata options sync "$OS_UID" /tmp/vaccine-options.json
-# dhis2 metadata options delete "$OS_UID" --yes
+# OS_UID=$(dhis2 --json metadata option-sets create --name "Vaccine type" --value-type TEXT --code VACCINE_TYPE | jq -r '.response.uid')
+# dhis2 metadata option-sets sync "$OS_UID" /tmp/vaccine-options.json
+# dhis2 metadata option-sets delete "$OS_UID" --yes

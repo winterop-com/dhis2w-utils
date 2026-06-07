@@ -80,7 +80,7 @@ def test_viz_show_renders_axes_and_data_elements(pat_profile: None) -> None:  # 
         "dhis2w_core.v42.plugins.metadata.service.show_visualization",
         new=AsyncMock(return_value=_viz()),
     ):
-        result = CliRunner().invoke(build_app(), ["metadata", "viz", "get", "VizProbeLn1"])
+        result = CliRunner().invoke(build_app(), ["metadata", "visualizations", "get", "VizProbeLn1"])
     assert result.exit_code == 0, result.output
     assert "ANC probe line" in result.output
     assert "rows=['pe']" in result.output
@@ -95,7 +95,7 @@ def test_viz_create_forwards_every_flag(pat_profile: None) -> None:  # noqa: ARG
             build_app(),
             [
                 "metadata",
-                "viz",
+                "visualizations",
                 "create",
                 "--name",
                 "probe",
@@ -140,7 +140,7 @@ def test_viz_clone_passes_new_name_and_new_uid(pat_profile: None) -> None:  # no
             build_app(),
             [
                 "metadata",
-                "viz",
+                "visualizations",
                 "clone",
                 "VizProbeLn1",
                 "--new-name",
@@ -164,7 +164,7 @@ def test_viz_delete_prompts_without_yes_flag(pat_profile: None) -> None:  # noqa
     ):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "viz", "delete", "VizProbeLn1"],
+            ["metadata", "visualizations", "delete", "VizProbeLn1"],
             input="n\n",
         )
     assert result.exit_code != 0  # aborted by `typer.confirm(..., abort=True)`
@@ -176,7 +176,7 @@ def test_viz_delete_with_yes_skips_prompt(pat_profile: None) -> None:  # noqa: A
         "dhis2w_core.v42.plugins.metadata.service.delete_visualization",
         new=AsyncMock(return_value=None),
     ):
-        result = CliRunner().invoke(build_app(), ["metadata", "viz", "delete", "VizProbeLn1", "-y"])
+        result = CliRunner().invoke(build_app(), ["metadata", "visualizations", "delete", "VizProbeLn1", "-y"])
     assert result.exit_code == 0, result.output
     assert "deleted" in result.output
 
