@@ -28,6 +28,30 @@ def server_version(request: pytest.FixtureRequest) -> str:
     return _SERVER_VERSIONS[request.param]
 
 
+_PLAY_SERVERS = {
+    "v41": "https://play.im.dhis2.org/dev-2-41",
+    "v42": "https://play.im.dhis2.org/dev-2-42",
+    "v43": "https://play.im.dhis2.org/dev-2-43",
+}
+
+
+@pytest.fixture(params=list(_PLAY_SERVERS))
+def play_target(request: pytest.FixtureRequest) -> tuple[str, str]:
+    """Live read-only DHIS2 play server per major: returns (base_url, version_key).
+
+    Skips if the server isn't reachable, so offline runs don't fail. Reads only — the
+    live tier never writes to the shared play demo (writes go to a local stack).
+    """
+    version_key = str(request.param)
+    url = _PLAY_SERVERS[version_key]
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            client.get(f"{url}/api/system/info.json", auth=("admin", "district")).raise_for_status()
+    except (httpx.RequestError, httpx.HTTPError):
+        pytest.skip(f"play {version_key} not reachable at {url}")
+    return url, version_key
+
+
 @pytest.fixture
 def mock_system_info() -> Callable[..., None]:
     """Return a helper that mocks the redirect probe + `/api/system/info` for a given version.
