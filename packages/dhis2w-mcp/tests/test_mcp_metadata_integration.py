@@ -42,7 +42,7 @@ async def test_list_metadata_types_tool(local_url: str, local_pat: str | None, m
         result = await client.call_tool("metadata_type_list", {})
     types = _extract_payload(result)
     assert isinstance(types, list)
-    assert "data_elements" in types
+    assert "dataElements" in types
     assert "indicators" in types
 
 

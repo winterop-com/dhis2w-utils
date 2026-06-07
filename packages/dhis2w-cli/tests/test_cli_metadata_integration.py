@@ -20,7 +20,7 @@ def test_metadata_types_lists_resources(local_url: str, local_pat: str | None, m
     runner = CliRunner()
     result = runner.invoke(build_app(), ["metadata", "type", "list"])
     assert result.exit_code == 0, result.output
-    assert "data_elements" in result.output
+    assert "dataElements" in result.output
     assert "indicators" in result.output
     assert "DHIS2 metadata types" in result.output
 
