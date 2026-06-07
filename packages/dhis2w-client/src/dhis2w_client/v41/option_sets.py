@@ -68,6 +68,19 @@ class OptionSetsAccessor:
         """Bind to the sharing client — reuses its auth + HTTP pool for every request."""
         self._client = client
 
+    async def list_all(self, *, page: int = 1, page_size: int = 50, include_options: bool = False) -> list[OptionSet]:
+        """Page through OptionSets. `include_options=True` resolves each set's options inline."""
+        fields = (
+            "id,code,name,description,valueType,version,options[id,code,name,sortOrder]"
+            if include_options
+            else "id,code,name,valueType"
+        )
+        raw = await self._client.get_raw(
+            "/api/optionSets",
+            params={"fields": fields, "page": str(page), "pageSize": str(page_size)},
+        )
+        return parse_collection(raw, "optionSets", OptionSet)
+
     async def get_by_code(self, code: str, *, include_options: bool = True) -> OptionSet | None:
         """Fetch an OptionSet by its business code; return None if no match.
 

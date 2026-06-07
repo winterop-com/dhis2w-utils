@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -20,6 +21,32 @@ def _mock_preamble() -> None:
     respx.get("https://dhis2.example/api/system/info").mock(
         return_value=httpx.Response(200, json={"version": "2.42.0"}),
     )
+
+
+@respx.mock
+async def test_list_all_pages_option_sets(server_version: str, mock_system_info: Callable[..., None]) -> None:
+    """`list_all` pages OptionSets into typed models across every version tree."""
+    mock_system_info(server_version)
+    respx.get("https://dhis2.example/api/optionSets").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "optionSets": [
+                    {"id": "OS1", "code": "AGE", "name": "Age category", "valueType": "TEXT"},
+                    {"id": "OS2", "code": "SEX", "name": "Sex", "valueType": "TEXT"},
+                ]
+            },
+        ),
+    )
+    client = Dhis2Client("https://dhis2.example", auth=_auth())
+    try:
+        await client.connect()
+        sets = await client.option_sets.list_all(page_size=5)
+    finally:
+        await client.close()
+    assert len(sets) == 2
+    assert type(sets[0]).__name__ == "OptionSet"
+    assert [s.id for s in sets] == ["OS1", "OS2"]
 
 
 @respx.mock

@@ -67,6 +67,10 @@ async def test_diverged_accessors_parse_real_wire(play_target: tuple[str, str]) 
         assert programs and type(programs[0]).__name__ == "Program"
         assert programs[0].id
 
+        option_sets = await client.option_sets.list_all(page_size=5)
+        assert option_sets and type(option_sets[0]).__name__ == "OptionSet"
+        assert option_sets[0].id
+
         results = await client.metadata.search("anc")
         assert results.total >= 0
         assert isinstance(results.flat(), list)
