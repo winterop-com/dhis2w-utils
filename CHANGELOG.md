@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.17.0 — 2026-06-07
+
+Minor release. A CLI reorganization for a consistent, discoverable command surface, plus a cross-version exception fix in the client. Pre-1.0, so the command renames land as breaking changes in a minor bump.
+
+### CLI reorganization (breaking)
+
+- **Metadata resource groups are plural**, matching the rest of the surface: `metadata dashboards`, `metadata maps`, `metadata attributes`, `metadata program-rules`, `metadata sql-views`. The two abbreviated groups are spelled out: `metadata visualizations` (was `viz`) and `metadata option-sets` (was `options`, now distinct from `category-options`). MCP tools follow (`metadata_visualization_*`, `metadata_option_set_*`).
+- **`dev` is now just developer tooling** (codegen / uid / sample). Its operator + auth utilities moved to where they belong: **`dhis2 customize`** is a top-level domain (was `dev customize`); **`dhis2 profile pat`** and **`dhis2 profile oauth2`** mint PATs / register OAuth2 clients (were under `dev`) — auth setup lives with profiles.
+- **System settings live under `system`**: `dhis2 system settings set` / `set-many` (were `dev customize set` / `settings`), matching DHIS2's "System Settings" vocabulary. `customize` keeps the branding surface (logos, style, apply, login-config show).
+- **One home per concept**: `dhis2 system whoami` is the single current-user command (`user me` removed).
+
+### Client
+
+- **One shared exception hierarchy.** `Dhis2ClientError` / `Dhis2ApiError` / `AuthenticationError` are defined once in `dhis2w_client.errors`, not per version tree — so `except dhis2w_client.Dhis2ApiError` catches errors from a client bound to any DHIS2 major (v41/v42/v43), not just the baseline.
+- **`list_all` on every resource accessor.** Added `client.option_sets.list_all()` and `client.routes.list_all()`; renamed `program_rules.list_rules` / `sql_views.list_views` → `list_all` for a uniform listing verb.
+
+### Testing
+
+- The v41/v43 client accessor trees are now exercised across all three versions (mocked parametrization, coverage omit removed), plus a live read/write parity tier against play41/42/43 + local stacks.
+
+### Workspace packages
+
+All six publishable members + `dhis2w-codegen` bumped 0.16.0 → 0.17.0. Inter-package pins shifted `>=0.16.0,<0.17` → `>=0.17.0,<0.18`.
+
 ## 0.16.0 — 2026-06-06
 
 Minor release. A new top-level `dhis2 schema` command for type introspection, plus an unknown-`--fields` guard on `metadata list` — together they let a small local model discover and verify field names instead of guessing them.

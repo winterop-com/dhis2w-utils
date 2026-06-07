@@ -1,12 +1,12 @@
 [project]
 name = "dhis2w-mcp-bridge"
-version = "0.16.0"
+version = "0.17.0"
 description = "Single-tool MCP bridge that exposes the dhis2 CLI for small local models."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 requires-python = ">=3.13"
 dependencies = [
-    "dhis2w-cli>=0.16.0,<0.17",
+    "dhis2w-cli>=0.17.0,<0.18",
     "fastmcp>=3.4",
 ]
 
