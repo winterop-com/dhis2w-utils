@@ -50,7 +50,7 @@ dominated), so it's left blank.
 ## Takeaways
 
 - **Caveat on the `write` column — it is an easy task.** The write prompt is a *single* setting
-  (`dev customize set minPasswordLength 10`) **with the command name hinted**, plus a verify read. It
+  (`customize set minPasswordLength 10`) **with the command name hinted**, plus a verify read. It
   measures execution + arg-formatting, not discovery or multi-object composition. So "PASS write"
   here is a low bar; do not read it as "handles real writes". The hard writes are the composite
   scenarios (data set + N elements, program + N stages) — so far run only through the capable-agent
@@ -62,11 +62,11 @@ dominated), so it's left blank.
 - **`gemma-4-e4b`** is the smallest that completes the write round (and quickest write at 33.7s), but
   its tool-calling is flaky — one run 400'd mid-write before settling. Good when RAM is tight.
 - **qwen reads are strong and fast** (`qwen2.5-7b` count in 7.2s), but **writes are the wall**:
-  `qwen2.5-7b` finds `dev customize set` yet doesn't cleanly confirm; `qwen3.5-4b` never finds it even
+  `qwen2.5-7b` finds `customize set` yet doesn't cleanly confirm; `qwen3.5-4b` never finds it even
   with a hint. Treat the qwens as read-only drivers.
 - **All five now use `dhis2 schema`** for the schema task — the command + the bridge-docstring hint
   closed the field-hallucination gap across the board (see `small-model-bridge.md`).
-- **The write wall is discoverability**, not capability: `dev customize set` is buried under `dev`.
+- **The write wall is discoverability**, not capability: `customize set` is buried under `dev`.
   This is the standing system-setting-write discoverability item in `small-model-bridge.md`.
 
 ## Re-running

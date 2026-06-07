@@ -156,7 +156,7 @@ The plugin is a teaching-sized template. Adding a command — say
    test derives the expected set from a verb heuristic (`get`/`list`/`show`/…), so if your
    command's verb is one of those you only update the committed set; if the verb is novel
    or collides with a write elsewhere in the tree (as `settings` does — a read under
-   `security`, a write under `dev customize`), also add the full path to `READ_ONLY_LEAVES`
+   `security`, a write under `customize`), also add the full path to `READ_ONLY_LEAVES`
    in `packages/dhis2w-mcp-bridge/tests/test_cli_bridge.py`. The bridge is version-agnostic,
    so this is a single edit, not a three-tree sweep.
 

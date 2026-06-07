@@ -6,7 +6,6 @@ from typing import Any
 
 import typer
 
-from dhis2w_core.v42.plugins.customize import cli as customize_module
 from dhis2w_core.v42.plugins.dev import oauth2 as oauth2_module
 from dhis2w_core.v42.plugins.dev import pat as pat_module
 from dhis2w_core.v42.plugins.dev import sample as sample_module
@@ -28,11 +27,6 @@ app.add_typer(uid_module.app, name="uid")
 app.add_typer(pat_module.app, name="pat")
 app.add_typer(oauth2_module.app, name="oauth2")
 app.add_typer(sample_module.app, name="sample")
-app.add_typer(
-    customize_module.app,
-    name="customize",
-    help="Brand + theme a DHIS2 instance (logos, copy, CSS).",
-)
 
 
 def register(root_app: Any) -> None:

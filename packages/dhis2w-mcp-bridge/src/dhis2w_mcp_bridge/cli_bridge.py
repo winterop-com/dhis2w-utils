@@ -66,7 +66,7 @@ READ_ONLY_COMMANDS: Final[frozenset[tuple[str, ...]]] = frozenset(
         ("data", "tracker", "relationship", "list"),
         ("data", "tracker", "relationship", "ls"),
         ("dev", "codegen", "diff"),
-        ("dev", "customize", "show"),
+        ("customize", "show"),
         ("doctor", "bugs"),
         ("doctor", "integrity"),
         ("doctor", "metadata"),

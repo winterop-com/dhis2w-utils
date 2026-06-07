@@ -207,19 +207,19 @@ Drove the **real bridge** (FastMCP client) from LM Studio's OpenAI-compatible AP
 - **Read-only guard fix**: `security settings` (the new plugin's only command) is a pure
   `GET /api/systemSettings` but was refused under `DHIS2_MCP_READONLY=1` — the model hit
   `exit 126`. Added `("security","settings")` to `READ_ONLY_COMMANDS`. It is path-specific,
-  **not** a new verb: `settings` is a read under `security` but a WRITE under `dev customize`
+  **not** a new verb: `settings` is a read under `security` but a WRITE under `customize`
   (bulk-set), so the verb heuristic can't reach it — added a `READ_ONLY_LEAVES` exception to the
-  drift test plus a regression test pinning `security settings` allowed / `dev customize settings`
+  drift test plus a regression test pinning `security settings` allowed / `customize settings`
   denied. The drift test was blind to the gap because both sides derived from the same verb set.
 
 ### Model behaviour (gemma-4-12b-qat)
 - **Reads: strong.** Count (1037), ANC-indicator filter, whoami+version all one-shot and fast
   (see table). The qat quant is the sweet spot of the 12b — much faster than bf16, still correct.
 - **Multi-step write discovery: weak.** Asked to set a system setting, it never found
-  `dev customize set` — guessed `system`, `metadata search` (looped), `--help` pages, and ran out
+  `customize set` — guessed `system`, `metadata search` (looped), `--help` pages, and ran out
   of steps even *with* a hint. The write path itself is fine (confirmed directly through the
   bridge under `READONLY=0`: set→verify→restore all exit 0); the gap is discoverability — system
-  settings live under `dev customize set <key> <value>`, two levels deep under a `dev` group a
+  settings live under `customize set <key> <value>`, two levels deep under a `dev` group a
   model doesn't associate with "settings".
 - **Failure mode: arg-mangling.** At temperature 0.2 it sometimes emitted the whole command as one
   escaped-quote string (`["metadata\", \"search\", ..."]`) → the bridge's space-split produced
@@ -227,7 +227,7 @@ Drove the **real bridge** (FastMCP client) from LM Studio's OpenAI-compatible AP
   embedded quotes.
 
 ### Queued from this round
-- **System-setting writes are undiscoverable** for small models. `dev customize set` is buried;
+- **System-setting writes are undiscoverable** for small models. `customize set` is buried;
   consider surfacing a `system setting set <key> <value>` alias (or a top-level hint) so "set a
   system setting" maps to where models look first (`system`).
 - **Bridge arg-robustness**: when `args[0]` contains escaped quotes/commas (a JSON-ish blob), the
@@ -269,7 +269,7 @@ correctness reference. Results + methodology + roster live in
 [`model-benchmark.md`](model-benchmark.md); re-run with `make bridge-bench`. Headline:
 `gemma-4-12b-qat` is the only local model that passed both read and write, and it beats its bf16
 sibling on speed at equal correctness. qwens read fast but stall on the write (discoverability of
-`dev customize set`). All five now use `dhis2 schema` for the "what fields" task.
+`customize set`). All five now use `dhis2 schema` for the "what fields" task.
 
 ### Validated in a live GUI session (gemma-4-12b-qat, chat.md)
 Asked to **create** a dataElement, the model first ran `dhis2_cli(["schema","dataElements"])` to
@@ -283,7 +283,7 @@ exactly as intended.
 
 ## Round 5 — multi-purpose write (the real bar)
 
-The `bridge-bench` write is single-purpose and *hinted* (one `dev customize set`). The honest test is
+The `bridge-bench` write is single-purpose and *hinted* (one `customize set`). The honest test is
 a multi-object write. Drove the champion `gemma-4-26b-a4b-qat` (local_basic, READONLY off) on:
 "create a Monthly data set + three INTEGER data elements, attach all three, confirm 3 elements."
 

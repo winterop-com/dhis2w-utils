@@ -22,6 +22,7 @@ $ dhis2 [OPTIONS] COMMAND [ARGS]...
 * `analytics`: DHIS2 analytics queries.
 * `apps`: DHIS2 apps — /api/apps + /api/appHub.
 * `browser`: Playwright-driven DHIS2 UI automation.
+* `customize`: Brand + theme a DHIS2 instance (logos,...
 * `data`: DHIS2 data values (aggregate + tracker).
 * `dev`: Developer/operator tools.
 * `doctor`: Probe a DHIS2 instance for known gotchas +...
@@ -709,6 +710,156 @@ $ dhis2 browser map screenshot [OPTIONS]
 * `--trim / --no-trim`: Crop uniform-colour edges off the bottom + right of each PNG.  [default: trim]
 * `--help`: Show this message and exit.
 
+## `dhis2 customize`
+
+Brand + theme a DHIS2 instance (logos, copy, CSS).
+
+**Usage**:
+
+```console
+$ dhis2 customize [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `logo-front`: Upload the login-page splash / upper-right...
+* `logo-banner`: Upload the top-menu banner logo (appears...
+* `style`: Upload a CSS stylesheet that DHIS2 serves...
+* `set`: Set a single system setting.
+* `settings`: Bulk-set system settings from a JSON file.
+* `apply`: Apply a committed preset directory in one...
+* `show`: Show DHIS2&#x27;s current `/api/loginConfig`...
+
+### `dhis2 customize logo-front`
+
+Upload the login-page splash / upper-right logo.
+
+**Usage**:
+
+```console
+$ dhis2 customize logo-front [OPTIONS] FILE
+```
+
+**Arguments**:
+
+* `FILE`: PNG/JPG/SVG to upload as the login splash logo.  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `dhis2 customize logo-banner`
+
+Upload the top-menu banner logo (appears on every authenticated page).
+
+**Usage**:
+
+```console
+$ dhis2 customize logo-banner [OPTIONS] FILE
+```
+
+**Arguments**:
+
+* `FILE`: PNG/JPG/SVG to upload as the top-menu banner.  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `dhis2 customize style`
+
+Upload a CSS stylesheet that DHIS2 serves on every authenticated page.
+
+NOTE: DHIS2&#x27;s standalone login app (`/dhis-web-login/`) does NOT include this
+stylesheet. Post-auth pages do.
+
+**Usage**:
+
+```console
+$ dhis2 customize style [OPTIONS] FILE
+```
+
+**Arguments**:
+
+* `FILE`: CSS file to upload as `/api/files/style`.  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `dhis2 customize set`
+
+Set a single system setting.
+
+**Usage**:
+
+```console
+$ dhis2 customize set [OPTIONS] KEY VALUE
+```
+
+**Arguments**:
+
+* `KEY`: System setting key (e.g. applicationTitle, keyApplicationFooter).  [required]
+* `VALUE`: New value.  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `dhis2 customize settings`
+
+Bulk-set system settings from a JSON file.
+
+**Usage**:
+
+```console
+$ dhis2 customize settings [OPTIONS] FILE
+```
+
+**Arguments**:
+
+* `FILE`: JSON file containing a {key: value} object.  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `dhis2 customize apply`
+
+Apply a committed preset directory in one call (skips files that don&#x27;t exist).
+
+**Usage**:
+
+```console
+$ dhis2 customize apply [OPTIONS] DIRECTORY
+```
+
+**Arguments**:
+
+* `DIRECTORY`: Directory containing optional logo_front.png, logo_banner.png, style.css, preset.json.  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `dhis2 customize show`
+
+Show DHIS2&#x27;s current `/api/loginConfig` snapshot (what the login app sees).
+
+**Usage**:
+
+```console
+$ dhis2 customize show [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
 ## `dhis2 data`
 
 DHIS2 data values (aggregate + tracker).
@@ -1363,7 +1514,6 @@ $ dhis2 dev [OPTIONS] COMMAND [ARGS]...
 * `pat`: Personal Access Tokens — provision PATs on...
 * `oauth2`: Manage DHIS2 OAuth2 clients on the server...
 * `sample`: Inject known-good fixtures to verify the...
-* `customize`: Brand + theme a DHIS2 instance (logos,...
 
 ### `dhis2 dev codegen`
 
@@ -1720,156 +1870,6 @@ $ dhis2 dev sample all [OPTIONS]
 * `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
 * `--admin-user TEXT`
 * `--keep`: Don&#x27;t delete the fixtures afterwards.
-* `--help`: Show this message and exit.
-
-### `dhis2 dev customize`
-
-Brand + theme a DHIS2 instance (logos, copy, CSS).
-
-**Usage**:
-
-```console
-$ dhis2 dev customize [OPTIONS] COMMAND [ARGS]...
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-**Commands**:
-
-* `logo-front`: Upload the login-page splash / upper-right...
-* `logo-banner`: Upload the top-menu banner logo (appears...
-* `style`: Upload a CSS stylesheet that DHIS2 serves...
-* `set`: Set a single system setting.
-* `settings`: Bulk-set system settings from a JSON file.
-* `apply`: Apply a committed preset directory in one...
-* `show`: Show DHIS2&#x27;s current `/api/loginConfig`...
-
-#### `dhis2 dev customize logo-front`
-
-Upload the login-page splash / upper-right logo.
-
-**Usage**:
-
-```console
-$ dhis2 dev customize logo-front [OPTIONS] FILE
-```
-
-**Arguments**:
-
-* `FILE`: PNG/JPG/SVG to upload as the login splash logo.  [required]
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 dev customize logo-banner`
-
-Upload the top-menu banner logo (appears on every authenticated page).
-
-**Usage**:
-
-```console
-$ dhis2 dev customize logo-banner [OPTIONS] FILE
-```
-
-**Arguments**:
-
-* `FILE`: PNG/JPG/SVG to upload as the top-menu banner.  [required]
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 dev customize style`
-
-Upload a CSS stylesheet that DHIS2 serves on every authenticated page.
-
-NOTE: DHIS2&#x27;s standalone login app (`/dhis-web-login/`) does NOT include this
-stylesheet. Post-auth pages do.
-
-**Usage**:
-
-```console
-$ dhis2 dev customize style [OPTIONS] FILE
-```
-
-**Arguments**:
-
-* `FILE`: CSS file to upload as `/api/files/style`.  [required]
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 dev customize set`
-
-Set a single system setting.
-
-**Usage**:
-
-```console
-$ dhis2 dev customize set [OPTIONS] KEY VALUE
-```
-
-**Arguments**:
-
-* `KEY`: System setting key (e.g. applicationTitle, keyApplicationFooter).  [required]
-* `VALUE`: New value.  [required]
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 dev customize settings`
-
-Bulk-set system settings from a JSON file.
-
-**Usage**:
-
-```console
-$ dhis2 dev customize settings [OPTIONS] FILE
-```
-
-**Arguments**:
-
-* `FILE`: JSON file containing a {key: value} object.  [required]
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 dev customize apply`
-
-Apply a committed preset directory in one call (skips files that don&#x27;t exist).
-
-**Usage**:
-
-```console
-$ dhis2 dev customize apply [OPTIONS] DIRECTORY
-```
-
-**Arguments**:
-
-* `DIRECTORY`: Directory containing optional logo_front.png, logo_banner.png, style.css, preset.json.  [required]
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `dhis2 dev customize show`
-
-Show DHIS2&#x27;s current `/api/loginConfig` snapshot (what the login app sees).
-
-**Usage**:
-
-```console
-$ dhis2 dev customize show [OPTIONS]
-```
-
-**Options**:
-
 * `--help`: Show this message and exit.
 
 ## `dhis2 doctor`

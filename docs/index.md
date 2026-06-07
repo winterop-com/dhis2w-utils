@@ -51,7 +51,7 @@ The generated [MCP reference](mcp-reference.md) currently reports around 304 too
 | Files (documents + file resources) | `dhis2 files` | 5 | [Files plugin](architecture/files-plugin.md) |
 | Messaging (`/api/messageConversations` + ticket-workflow fields) | `dhis2 messaging` | 11 | [Messaging plugin](architecture/messaging-plugin.md) |
 | User admin (users, user-groups, user-roles, sharing) | `dhis2 user` + `dhis2 user-group` + `dhis2 user-role` | 16 | [User plugin](architecture/user-plugin.md) / [User groups + roles](architecture/user-groups-and-roles.md) |
-| Customize (login page / logos / CSS / system settings) | `dhis2 dev customize` | 7 | [Customize plugin](architecture/customize-plugin.md) |
+| Customize (login page / logos / CSS / system settings) | `dhis2 customize` | 7 | [Customize plugin](architecture/customize-plugin.md) |
 | Apps (`/api/apps` + `/api/appHub` + snapshot/restore) | `dhis2 apps` | 13 | [Apps API](api/apps.md) |
 | Doctor (BUGS tripwires + integrity checks + metadata health) | `dhis2 doctor` | 4 | [Doctor plugin](architecture/doctor-plugin.md) |
 | Dev (codegen, uid, pat, oauth2 client, sample fixtures) | `dhis2 dev` | — (dev-only) | [Codegen](codegen.md) |

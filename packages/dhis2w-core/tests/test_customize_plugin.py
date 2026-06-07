@@ -8,25 +8,21 @@ from types import TracebackType
 from unittest.mock import patch
 
 import pytest
+import typer
 from dhis2w_client import CustomizationResult, LoginCustomization
 from dhis2w_core.v42.plugins.customize import plugin, service
 from dhis2w_core.v42.plugins.customize.cli import app as customize_app
-from dhis2w_core.v42.plugins.dev.cli import app as dev_app
 from typer.testing import CliRunner
 
 _runner = CliRunner()
 
 
-def test_plugin_descriptor_is_mcp_only() -> None:
-    """The plugin's CLI is mounted by the dev plugin — register_cli here is a no-op."""
+def test_register_cli_mounts_customize_top_level() -> None:
+    """register_cli mounts the customize sub-app at the root (`dhis2 customize`), not under dev."""
     assert plugin.name == "customize"
-    # Calling register_cli should not explode and should not mount anything.
-    plugin.register_cli(object())
-
-
-def test_cli_is_mounted_under_dev() -> None:
-    """`dhis2 dev customize` must resolve (regression for the dev-vs-root mount decision)."""
-    result = _runner.invoke(dev_app, ["customize", "--help"])
+    root = typer.Typer()
+    plugin.register_cli(root)
+    result = _runner.invoke(root, ["customize", "--help"])
     assert result.exit_code == 0, result.output
     assert "logo-front" in result.output
     assert "logo-banner" in result.output

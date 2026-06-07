@@ -348,7 +348,7 @@ Apache-2.0 Java client maintained by the DHIS2 org ([dhis2/dhis2-java-client](ht
 
 - Typed `/api/sharing` — `Sharing`, `SharingBuilder`, `ACCESS_*` constants, `apply_sharing` / `get_sharing` helpers. Full parity with the Java client's sharing builder.
 - User administration — `dhis2 user list / get / me / invite / reinvite / reset-password`. User-group + user-role plugins covering membership + authority-bundle flows.
-- Branding / theming — `dhis2 dev customize logo-front/banner/style/set/apply/show` + `Dhis2Client.customize` accessor. No equivalent in the Java client.
+- Branding / theming — `dhis2 customize logo-front/banner/style/set/apply/show` + `Dhis2Client.customize` accessor. No equivalent in the Java client.
 - Auth providers (Basic, PAT, OAuth2); ours is async-first with a typed `AuthProvider` Protocol.
 - Generated resource CRUD across v41, v42, v43 (Java is hand-maintained).
 - WebMessageResponse envelope parsing; `.import_count()`, `.conflicts()`, `.rejected_indexes()`, `.task_ref()`, `.created_uid()`.

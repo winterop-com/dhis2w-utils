@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.v42.plugins.customize import cli as cli_module
 from dhis2w_core.v42.plugins.customize import mcp as mcp_module
 
 
@@ -27,8 +28,8 @@ class _CustomizePlugin(BaseModel):
     )
 
     def register_cli(self, app: Any) -> None:
-        """CLI is mounted by the `dev` plugin under `dhis2 dev customize`; no top-level mount."""
-        return None
+        """Mount the customize sub-app under `dhis2 customize`."""
+        cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register `customize_*` tools on the MCP server."""
