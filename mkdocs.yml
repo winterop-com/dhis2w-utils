@@ -63,7 +63,12 @@ nav:
           - Troubleshooting: troubleshooting.md
           - Decisions log: decisions.md
           - Lessons learned: lessons.md
-          - AI agent testing: ai-agent-testing.md
+          - AI agent testing:
+              - Overview: ai-agent-testing.md
+              - Model benchmark: notes/model-benchmark.md
+              - Design log + rounds: notes/small-model-bridge.md
+              - Command x model matrix: notes/cli-matrix.md
+              - Bridge verification: notes/bridge-verification.md
           - Roadmap: roadmap.md
   - Architecture:
       - Overview: architecture/overview.md
