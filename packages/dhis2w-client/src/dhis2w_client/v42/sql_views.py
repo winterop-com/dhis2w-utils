@@ -12,7 +12,7 @@ Generic CRUD is already covered by the generated accessor
 (`client.resources.sql_views`). This module layers the workflow surface
 that generic CRUD doesn't provide:
 
-- `list_views()` — every SqlView with type + sqlQuery eagerly loaded.
+- `list_all()` — every SqlView with type + sqlQuery eagerly loaded.
 - `get(uid)` — one view.
 - `execute(uid, *, variables=..., criteria=...)` — run and return a
   typed `SqlViewResult` (columns + rows + title).
@@ -154,7 +154,7 @@ class SqlViewsAccessor:
         self._client = client
         self.runner: SqlViewRunner = SqlViewRunner(self)
 
-    async def list_views(self, *, view_type: SqlViewType | str | None = None) -> list[SqlView]:
+    async def list_all(self, *, view_type: SqlViewType | str | None = None) -> list[SqlView]:
         """List every SqlView, optionally filtered by type. Sorted by name."""
         filters: list[str] | None = None
         if view_type is not None:

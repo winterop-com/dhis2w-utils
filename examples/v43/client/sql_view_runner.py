@@ -69,7 +69,7 @@ async def main() -> None:
         # same name (DHIS2 SqlView names are UNIQUE) + explicitly deletes
         # it again afterwards so reruns stay idempotent.
         kept_name = "probe: DE search (kept)"
-        for existing in await client.sql_views.list_views():
+        for existing in await client.sql_views.list_all():
             if existing.name == kept_name and existing.id:
                 await client.sql_views.delete(existing.id)
                 print(f"[pre-clean] removed stale {existing.id} ({kept_name!r})")
@@ -82,7 +82,7 @@ async def main() -> None:
         print(f"\n[adhoc DE search keep=True] {kept.height} rows — kept on instance for inspection")
 
         # Idempotent cleanup — find the view we kept and delete it.
-        for view in await client.sql_views.list_views():
+        for view in await client.sql_views.list_all():
             if view.name == kept_name and view.id:
                 await client.sql_views.delete(view.id)
                 print(f"[cleanup] deleted {view.id}")

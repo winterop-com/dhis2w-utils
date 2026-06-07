@@ -14,14 +14,14 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-# ---- list_rules --------------------------------------------------------------
+# ---- list_all --------------------------------------------------------------
 
 
 @respx.mock
-async def test_list_rules_orders_by_priority_and_scopes_to_program(
+async def test_list_all_orders_by_priority_and_scopes_to_program(
     server_version: str, mock_system_info: Callable[..., None]
 ) -> None:
-    """`list_rules(program_uid)` scopes to one program + sorts by priority ascending."""
+    """`list_all(program_uid)` scopes to one program + sorts by priority ascending."""
     mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/programRules").mock(
         return_value=httpx.Response(
@@ -37,7 +37,7 @@ async def test_list_rules_orders_by_priority_and_scopes_to_program(
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
-        rules = await client.program_rules.list_rules(program_uid="PROGRAM_UID")
+        rules = await client.program_rules.list_all(program_uid="PROGRAM_UID")
     finally:
         await client.close()
 
@@ -48,7 +48,7 @@ async def test_list_rules_orders_by_priority_and_scopes_to_program(
 
 
 @respx.mock
-async def test_list_rules_without_program_uid_skips_filter(
+async def test_list_all_without_program_uid_skips_filter(
     server_version: str, mock_system_info: Callable[..., None]
 ) -> None:
     """No program_uid → no filter param emitted; list everything."""
@@ -59,7 +59,7 @@ async def test_list_rules_without_program_uid_skips_filter(
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
-        await client.program_rules.list_rules()
+        await client.program_rules.list_all()
     finally:
         await client.close()
     assert "filter" not in route.calls.last.request.url.params
@@ -245,7 +245,7 @@ async def test_accessor_is_bound_on_client() -> None:
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         for attr in (
-            "list_rules",
+            "list_all",
             "get_rule",
             "variables_for",
             "actions_for",
@@ -261,9 +261,7 @@ async def test_accessor_is_bound_on_client() -> None:
 
 
 @respx.mock
-async def test_list_rules_tolerates_non_list_payload(
-    server_version: str, mock_system_info: Callable[..., None]
-) -> None:
+async def test_list_all_tolerates_non_list_payload(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """DHIS2 returns `programRules: null` on edge-cases; handler returns empty list instead of crashing."""
     mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programRules").mock(
@@ -272,7 +270,7 @@ async def test_list_rules_tolerates_non_list_payload(
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
-        result = await client.program_rules.list_rules()
+        result = await client.program_rules.list_all()
     finally:
         await client.close()
     assert result == []

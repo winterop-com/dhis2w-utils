@@ -2,7 +2,7 @@
 
 Covers every method on `ProgramRulesAccessor`:
 
-1. `list_rules(program_uid)` — rules for a program sorted by priority,
+1. `list_all(program_uid)` — rules for a program sorted by priority,
    with actions resolved inline.
 2. `get_rule(uid)` — single rule fetch.
 3. `variables_for(program_uid)` — variables in scope for expression
@@ -30,8 +30,8 @@ CHILD_PROGRAM = "IpHINAT79UW"
 async def main() -> None:
     """Walk every ProgramRulesAccessor method against the seeded Child Programme."""
     async with open_client(profile_from_env()) as client:
-        rules = await client.program_rules.list_rules(program_uid=CHILD_PROGRAM)
-        print(f"[list_rules] {len(rules)} rules on {CHILD_PROGRAM}:")
+        rules = await client.program_rules.list_all(program_uid=CHILD_PROGRAM)
+        print(f"[list_all] {len(rules)} rules on {CHILD_PROGRAM}:")
         for rule in rules:
             actions = rule.programRuleActions or []
             print(f"  pri={rule.priority}  {rule.name!r}  actions={len(actions)}")

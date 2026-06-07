@@ -15,14 +15,14 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-# ---- list_views -----------------------------------------------------------
+# ---- list_all -----------------------------------------------------------
 
 
 @respx.mock
-async def test_list_views_orders_by_name_and_scopes_paging_off(
+async def test_list_all_orders_by_name_and_scopes_paging_off(
     server_version: str, mock_system_info: Callable[..., None]
 ) -> None:
-    """`list_views` pulls every view sorted by name, paging disabled."""
+    """`list_all` pulls every view sorted by name, paging disabled."""
     mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/sqlViews").mock(
         return_value=httpx.Response(
@@ -38,7 +38,7 @@ async def test_list_views_orders_by_name_and_scopes_paging_off(
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
-        views = await client.sql_views.list_views()
+        views = await client.sql_views.list_all()
     finally:
         await client.close()
     params = route.calls.last.request.url.params
@@ -48,8 +48,8 @@ async def test_list_views_orders_by_name_and_scopes_paging_off(
 
 
 @respx.mock
-async def test_list_views_filters_by_view_type(server_version: str, mock_system_info: Callable[..., None]) -> None:
-    """`list_views(view_type=MATERIALIZED_VIEW)` emits `filter=type:eq:MATERIALIZED_VIEW`."""
+async def test_list_all_filters_by_view_type(server_version: str, mock_system_info: Callable[..., None]) -> None:
+    """`list_all(view_type=MATERIALIZED_VIEW)` emits `filter=type:eq:MATERIALIZED_VIEW`."""
     mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/sqlViews").mock(
         return_value=httpx.Response(200, json={"sqlViews": []}),
@@ -57,7 +57,7 @@ async def test_list_views_filters_by_view_type(server_version: str, mock_system_
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
-        await client.sql_views.list_views(view_type=SqlViewType.MATERIALIZED_VIEW)
+        await client.sql_views.list_all(view_type=SqlViewType.MATERIALIZED_VIEW)
     finally:
         await client.close()
     assert route.calls.last.request.url.params["filter"] == "type:eq:MATERIALIZED_VIEW"
@@ -380,7 +380,7 @@ async def test_accessor_and_runner_are_bound_on_client() -> None:
     """`client.sql_views` + `client.sql_views.runner` are both accessible."""
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
-        assert hasattr(client.sql_views, "list_views")
+        assert hasattr(client.sql_views, "list_all")
         assert hasattr(client.sql_views, "execute")
         assert hasattr(client.sql_views, "refresh")
         assert hasattr(client.sql_views, "runner")

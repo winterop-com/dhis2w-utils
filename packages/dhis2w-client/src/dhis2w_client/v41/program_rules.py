@@ -6,10 +6,8 @@ generated `client.resources.program_rules` accessor (and the other two).
 This accessor layers the **authoring + debugging** helpers that generic
 CRUD doesn't provide:
 
-- `list_rules(program_uid=None)` — rules for a program (or every rule)
+- `list_all(program_uid=None)` — rules for a program (or every rule)
   sorted by priority + with actions resolved inline. One round-trip.
-  Named explicitly (`list_rules` not `list`) so it doesn't shadow
-  Python's builtin in caller code.
 - `get_rule(uid)` — one rule with its actions.
 - `variables_for(program_uid)` — every variable in scope for a program,
   with source-type + the referenced DE / TEA surfaced on a typed model.
@@ -71,7 +69,7 @@ class ProgramRulesAccessor:
         """Bind to the sharing client — reuses its auth + HTTP pool for every request."""
         self._client = client
 
-    async def list_rules(self, program_uid: str | None = None) -> list[ProgramRule]:
+    async def list_all(self, program_uid: str | None = None) -> list[ProgramRule]:
         """List every ProgramRule (optionally scoped to one program) ordered by priority.
 
         Fields selector pulls actions inline so callers get the full shape in
@@ -166,7 +164,7 @@ class ProgramRulesAccessor:
         map back to owning rules. This walks every rule with actions inline
         and filters client-side.
         """
-        every_rule = await self.list_rules()
+        every_rule = await self.list_all()
         matches: list[ProgramRule] = []
         for rule in every_rule:
             for action in rule.programRuleActions or []:

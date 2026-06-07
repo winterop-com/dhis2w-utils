@@ -2,7 +2,7 @@
 
 Covers every method on `SqlViewsAccessor`:
 
-1. `list_views()` — catalog every view with type + description.
+1. `list_all()` — catalog every view with type + description.
 2. `get(uid)` — one view including its stored `sqlQuery`.
 3. `execute(uid, variables=..., criteria=...)` — run and parse the
    `listGrid` response into a typed `SqlViewResult` (columns + rows).
@@ -31,8 +31,8 @@ DE_VALUETYPE_MV = "SqvDeVtMV01"
 async def main() -> None:
     """Walk every SqlViewsAccessor method against the seeded views."""
     async with open_client(profile_from_env()) as client:
-        views = await client.sql_views.list_views()
-        print(f"[list_views] {len(views)} views on the instance:")
+        views = await client.sql_views.list_all()
+        print(f"[list_all] {len(views)} views on the instance:")
         for view in views:
             print(f"  {view.id}  type={view.type}  {view.name!r}")
 
