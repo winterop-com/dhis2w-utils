@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import httpx
 import pytest
 import respx
@@ -11,12 +13,6 @@ from dhis2w_client.generated.v42.enums import ThematicMapType
 
 def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
-
-
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
 
 
 # ---- MapLayerSpec.to_map_view -------------------------------------------
@@ -142,9 +138,9 @@ def test_map_spec_auto_generates_uid_when_omitted() -> None:
 
 
 @respx.mock
-async def test_list_all_orders_by_name_paging_off() -> None:
+async def test_list_all_orders_by_name_paging_off(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """List all orders by name paging off."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/maps").mock(
         return_value=httpx.Response(
             200,
@@ -163,9 +159,11 @@ async def test_list_all_orders_by_name_paging_off() -> None:
 
 
 @respx.mock
-async def test_get_returns_typed_model_with_map_views() -> None:
+async def test_get_returns_typed_model_with_map_views(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Get returns typed model with map views."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/maps/M1").mock(
         return_value=httpx.Response(
             200,
@@ -193,9 +191,11 @@ async def test_get_returns_typed_model_with_map_views() -> None:
 
 
 @respx.mock
-async def test_create_from_spec_posts_through_api_metadata() -> None:
+async def test_create_from_spec_posts_through_api_metadata(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Create from spec posts through api metadata."""
-    _mock_preamble()
+    mock_system_info(server_version)
     metadata_route = respx.post("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(200, json={"status": "OK"}),
     )
@@ -222,9 +222,11 @@ async def test_create_from_spec_posts_through_api_metadata() -> None:
 
 
 @respx.mock
-async def test_clone_strips_server_owned_and_nested_view_uids() -> None:
+async def test_clone_strips_server_owned_and_nested_view_uids(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Clone must drop server-owned fields + the source's nested MapView UIDs."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get(url__regex=r"https://dhis2\.example/api/maps/SRC00000001(\?.*)?$").mock(
         return_value=httpx.Response(
             200,
@@ -263,9 +265,9 @@ async def test_clone_strips_server_owned_and_nested_view_uids() -> None:
 
 
 @respx.mock
-async def test_delete_routes_to_maps_uid() -> None:
+async def test_delete_routes_to_maps_uid(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Delete routes to maps uid."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/maps/M1").mock(
         return_value=httpx.Response(200, json={}),
     )

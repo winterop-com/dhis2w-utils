@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -14,12 +15,6 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
-
-
 def _mock_default_combo() -> None:
     respx.get("https://dhis2.example/api/categoryCombos").mock(
         return_value=httpx.Response(200, json={"categoryCombos": [{"id": "ccDefault001", "name": "default"}]}),
@@ -27,9 +22,11 @@ def _mock_default_combo() -> None:
 
 
 @respx.mock
-async def test_list_all_filters_by_period_type_and_returns_typed_models() -> None:
+async def test_list_all_filters_by_period_type_and_returns_typed_models(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """List all filters by period type and returns typed models."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/dataSets").mock(
         return_value=httpx.Response(
             200,
@@ -55,9 +52,9 @@ async def test_list_all_filters_by_period_type_and_returns_typed_models() -> Non
 
 
 @respx.mock
-async def test_get_returns_typed_model() -> None:
+async def test_get_returns_typed_model(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Get returns typed model."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/dataSets/DS001").mock(
         return_value=httpx.Response(
             200,
@@ -82,9 +79,11 @@ async def test_get_returns_typed_model() -> None:
 
 
 @respx.mock
-async def test_create_falls_back_to_system_default_combo_when_omitted() -> None:
+async def test_create_falls_back_to_system_default_combo_when_omitted(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Create falls back to system default combo when omitted."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_default_combo()
     post = respx.post("https://dhis2.example/api/dataSets").mock(
         return_value=httpx.Response(201, json={"response": {"uid": "DS_NEW00001"}}),
@@ -114,9 +113,11 @@ async def test_create_falls_back_to_system_default_combo_when_omitted() -> None:
 
 
 @respx.mock
-async def test_add_element_round_trips_and_strips_self_ref() -> None:
+async def test_add_element_round_trips_and_strips_self_ref(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Add element round trips and strips self ref."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/dataSets/DS001").mock(
         return_value=httpx.Response(
             200,
@@ -150,9 +151,11 @@ async def test_add_element_round_trips_and_strips_self_ref() -> None:
 
 
 @respx.mock
-async def test_add_element_is_idempotent_when_de_already_present() -> None:
+async def test_add_element_is_idempotent_when_de_already_present(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Add element is idempotent when de already present."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/dataSets/DS001").mock(
         return_value=httpx.Response(
             200,
@@ -175,9 +178,9 @@ async def test_add_element_is_idempotent_when_de_already_present() -> None:
 
 
 @respx.mock
-async def test_remove_element_filters_the_dse_list() -> None:
+async def test_remove_element_filters_the_dse_list(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Remove element filters the dse list."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/dataSets/DS001").mock(
         return_value=httpx.Response(
             200,
@@ -206,9 +209,9 @@ async def test_remove_element_filters_the_dse_list() -> None:
 
 
 @respx.mock
-async def test_delete_routes_to_data_sets_uid() -> None:
+async def test_delete_routes_to_data_sets_uid(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Delete routes to data sets uid."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/dataSets/DS001").mock(return_value=httpx.Response(204))
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import httpx
 import pytest
 import respx
@@ -11,12 +13,6 @@ from dhis2w_client.generated.v42.enums import VisualizationType
 
 def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
-
-
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
 
 
 # ---- VisualizationSpec._resolve_placement ---------------------------------
@@ -253,9 +249,11 @@ def test_spec_rejects_empty_data_dimension() -> None:
 
 
 @respx.mock
-async def test_list_all_orders_by_name_and_disables_paging() -> None:
+async def test_list_all_orders_by_name_and_disables_paging(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """List all orders by name and disables paging."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/visualizations").mock(
         return_value=httpx.Response(
             200,
@@ -280,9 +278,9 @@ async def test_list_all_orders_by_name_and_disables_paging() -> None:
 
 
 @respx.mock
-async def test_list_all_filters_by_viz_type() -> None:
+async def test_list_all_filters_by_viz_type(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """List all filters by viz type."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/visualizations").mock(
         return_value=httpx.Response(200, json={"visualizations": []}),
     )
@@ -299,9 +297,9 @@ async def test_list_all_filters_by_viz_type() -> None:
 
 
 @respx.mock
-async def test_get_returns_typed_model() -> None:
+async def test_get_returns_typed_model(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Get returns typed model."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/visualizations/V1").mock(
         return_value=httpx.Response(
             200,
@@ -322,9 +320,11 @@ async def test_get_returns_typed_model() -> None:
 
 
 @respx.mock
-async def test_create_from_spec_posts_through_api_metadata() -> None:
+async def test_create_from_spec_posts_through_api_metadata(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Creation always routes through `/api/metadata` so DHIS2 populates derived axes."""
-    _mock_preamble()
+    mock_system_info(server_version)
     metadata_route = respx.post("https://dhis2.example/api/metadata").mock(
         return_value=httpx.Response(200, json={"status": "OK"}),
     )
@@ -358,9 +358,11 @@ async def test_create_from_spec_posts_through_api_metadata() -> None:
 
 
 @respx.mock
-async def test_clone_strips_server_owned_fields_and_reuses_data_axes() -> None:
+async def test_clone_strips_server_owned_fields_and_reuses_data_axes(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Clone fetches the source, strips id/created/lastUpdated, and POSTs with a new UID + name."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get(url__regex=r"https://dhis2\.example/api/visualizations/SRC00000001(\?.*)?$").mock(
         return_value=httpx.Response(
             200,
@@ -411,9 +413,9 @@ async def test_clone_strips_server_owned_fields_and_reuses_data_axes() -> None:
 
 
 @respx.mock
-async def test_delete_routes_to_visualizations_uid() -> None:
+async def test_delete_routes_to_visualizations_uid(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Delete routes to visualizations uid."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/visualizations/V1").mock(
         return_value=httpx.Response(200, json={}),
     )

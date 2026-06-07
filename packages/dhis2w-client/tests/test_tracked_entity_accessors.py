@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json as _json
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -15,19 +16,13 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
-
-
 # ---- TrackedEntityAttributesAccessor ---------------------------------------
 
 
 @respx.mock
-async def test_tea_list_all_filters_by_value_type() -> None:
+async def test_tea_list_all_filters_by_value_type(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Tea list all filters by value type."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/trackedEntityAttributes").mock(
         return_value=httpx.Response(
             200,
@@ -45,9 +40,11 @@ async def test_tea_list_all_filters_by_value_type() -> None:
 
 
 @respx.mock
-async def test_tea_create_posts_payload_with_flags_and_option_set() -> None:
+async def test_tea_create_posts_payload_with_flags_and_option_set(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Tea create posts payload with flags and option set."""
-    _mock_preamble()
+    mock_system_info(server_version)
     post = respx.post("https://dhis2.example/api/trackedEntityAttributes").mock(
         return_value=httpx.Response(201, json={"response": {"uid": "TEA_NEW00001"}}),
     )
@@ -78,9 +75,9 @@ async def test_tea_create_posts_payload_with_flags_and_option_set() -> None:
 
 
 @respx.mock
-async def test_tea_delete_routes_to_uid() -> None:
+async def test_tea_delete_routes_to_uid(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Tea delete routes to uid."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/trackedEntityAttributes/TEA_X").mock(
         return_value=httpx.Response(204),
     )
@@ -97,9 +94,9 @@ async def test_tea_delete_routes_to_uid() -> None:
 
 
 @respx.mock
-async def test_tet_create_posts_payload() -> None:
+async def test_tet_create_posts_payload(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Tet create posts payload."""
-    _mock_preamble()
+    mock_system_info(server_version)
     post = respx.post("https://dhis2.example/api/trackedEntityTypes").mock(
         return_value=httpx.Response(201, json={"response": {"uid": "TET_NEW00001"}}),
     )
@@ -125,9 +122,11 @@ async def test_tet_create_posts_payload() -> None:
 
 
 @respx.mock
-async def test_tet_add_attribute_round_trips_and_strips_self_ref() -> None:
+async def test_tet_add_attribute_round_trips_and_strips_self_ref(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Tet add attribute round trips and strips self ref."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/trackedEntityTypes/TET1").mock(
         return_value=httpx.Response(
             200,
@@ -170,9 +169,11 @@ async def test_tet_add_attribute_round_trips_and_strips_self_ref() -> None:
 
 
 @respx.mock
-async def test_tet_add_attribute_idempotent_when_already_present() -> None:
+async def test_tet_add_attribute_idempotent_when_already_present(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Tet add attribute idempotent when already present."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/trackedEntityTypes/TET1").mock(
         return_value=httpx.Response(
             200,
@@ -196,9 +197,9 @@ async def test_tet_add_attribute_idempotent_when_already_present() -> None:
 
 
 @respx.mock
-async def test_tet_remove_attribute_filters_entry() -> None:
+async def test_tet_remove_attribute_filters_entry(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Tet remove attribute filters entry."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/trackedEntityTypes/TET1").mock(
         return_value=httpx.Response(
             200,
@@ -227,9 +228,9 @@ async def test_tet_remove_attribute_filters_entry() -> None:
 
 
 @respx.mock
-async def test_tet_delete_routes_to_uid() -> None:
+async def test_tet_delete_routes_to_uid(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Tet delete routes to uid."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/trackedEntityTypes/TET_X").mock(
         return_value=httpx.Response(204),
     )

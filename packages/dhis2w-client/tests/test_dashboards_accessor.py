@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import httpx
 import pytest
 import respx
@@ -12,16 +14,10 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
-
-
 @respx.mock
-async def test_list_all_orders_by_name_paging_off() -> None:
+async def test_list_all_orders_by_name_paging_off(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """List all orders by name paging off."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/dashboards").mock(
         return_value=httpx.Response(
             200,
@@ -40,9 +36,11 @@ async def test_list_all_orders_by_name_paging_off() -> None:
 
 
 @respx.mock
-async def test_get_returns_typed_dashboard_with_items() -> None:
+async def test_get_returns_typed_dashboard_with_items(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Get returns typed dashboard with items."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/dashboards/D1").mock(
         return_value=httpx.Response(
             200,
@@ -67,9 +65,11 @@ async def test_get_returns_typed_dashboard_with_items() -> None:
 
 
 @respx.mock
-async def test_add_item_auto_stacks_below_existing_items() -> None:
+async def test_add_item_auto_stacks_below_existing_items(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Omitting the slot should drop the new item at y = max(existing y + height)."""
-    _mock_preamble()
+    mock_system_info(server_version)
     # First GET — fetch the dashboard to read existing items.
     respx.get("https://dhis2.example/api/dashboards/D1").mock(
         return_value=httpx.Response(
@@ -101,9 +101,9 @@ async def test_add_item_auto_stacks_below_existing_items() -> None:
 
 
 @respx.mock
-async def test_add_item_respects_explicit_slot() -> None:
+async def test_add_item_respects_explicit_slot(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Add item respects explicit slot."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/dashboards/D1").mock(
         return_value=httpx.Response(200, json={"id": "D1", "name": "Empty", "dashboardItems": []}),
     )
@@ -125,9 +125,9 @@ async def test_add_item_respects_explicit_slot() -> None:
 
 
 @respx.mock
-async def test_remove_item_drops_matching_uid() -> None:
+async def test_remove_item_drops_matching_uid(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Remove item drops matching uid."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/dashboards/D1").mock(
         return_value=httpx.Response(
             200,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import httpx
 import pytest
 import respx
@@ -12,19 +14,15 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
-
-
 # ---- list_rules --------------------------------------------------------------
 
 
 @respx.mock
-async def test_list_rules_orders_by_priority_and_scopes_to_program() -> None:
+async def test_list_rules_orders_by_priority_and_scopes_to_program(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`list_rules(program_uid)` scopes to one program + sorts by priority ascending."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/programRules").mock(
         return_value=httpx.Response(
             200,
@@ -50,9 +48,11 @@ async def test_list_rules_orders_by_priority_and_scopes_to_program() -> None:
 
 
 @respx.mock
-async def test_list_rules_without_program_uid_skips_filter() -> None:
+async def test_list_rules_without_program_uid_skips_filter(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """No program_uid → no filter param emitted; list everything."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/programRules").mock(
         return_value=httpx.Response(200, json={"programRules": []}),
     )
@@ -69,9 +69,9 @@ async def test_list_rules_without_program_uid_skips_filter() -> None:
 
 
 @respx.mock
-async def test_get_rule_returns_typed_model() -> None:
+async def test_get_rule_returns_typed_model(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Get rule returns typed model."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programRules/pr1").mock(
         return_value=httpx.Response(
             200,
@@ -106,9 +106,11 @@ async def test_get_rule_returns_typed_model() -> None:
 
 
 @respx.mock
-async def test_variables_for_names_source_type_field_explicitly() -> None:
+async def test_variables_for_names_source_type_field_explicitly(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """BUGS.md #22b — `fields=*` omits `programRuleVariableSourceType`, so we name it."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/programRuleVariables").mock(
         return_value=httpx.Response(
             200,
@@ -139,9 +141,11 @@ async def test_variables_for_names_source_type_field_explicitly() -> None:
 
 
 @respx.mock
-async def test_actions_for_uses_rule_forward_reference() -> None:
+async def test_actions_for_uses_rule_forward_reference(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """BUGS.md #22c — action→rule back-ref is unreliable; fetch rule + unwrap `programRuleActions`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/programRules/pr1").mock(
         return_value=httpx.Response(
             200,
@@ -170,9 +174,11 @@ async def test_actions_for_uses_rule_forward_reference() -> None:
 
 
 @respx.mock
-async def test_where_de_is_used_matches_rules_touching_a_de() -> None:
+async def test_where_de_is_used_matches_rules_touching_a_de(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Where de is used matches rules touching a de."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programRules").mock(
         return_value=httpx.Response(
             200,
@@ -216,9 +222,11 @@ async def test_where_de_is_used_matches_rules_touching_a_de() -> None:
 
 
 @respx.mock
-async def test_validate_expression_delegates_to_describe_expression() -> None:
+async def test_validate_expression_delegates_to_describe_expression(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`validate_expression` round-trips through `/api/expressions/description` via client.validation."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/expressions/description").mock(
         return_value=httpx.Response(200, json={"status": "OK", "message": "Valid", "description": "#{V_X} > 0"}),
     )
@@ -253,9 +261,11 @@ async def test_accessor_is_bound_on_client() -> None:
 
 
 @respx.mock
-async def test_list_rules_tolerates_non_list_payload() -> None:
+async def test_list_rules_tolerates_non_list_payload(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """DHIS2 returns `programRules: null` on edge-cases; handler returns empty list instead of crashing."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programRules").mock(
         return_value=httpx.Response(200, json={"programRules": None}),
     )
