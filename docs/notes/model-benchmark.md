@@ -41,10 +41,11 @@ the lone exception is `gemma-4-12b` (bf16), kept on purpose as the head-to-head 
 | `google/gemma-4-e4b` (4B) | PASS 15.5s | PASS 18.2s | PASS 12.2s | **PASS** 33.7s/2c | ~21 |
 | `qwen2.5-7b-instruct` | PASS 7.2s | PASS 19.4s | PASS 8.6s | found cmd, no confirm 38.0s | ~8 |
 | `qwen/qwen3.5-4b` | PASS 8.2s | PASS 12.9s | PASS 13.5s | cmd not found 36.0s | ~34 |
-| _me (capable cloud model)_ | PASS | PASS | PASS | PASS | n/a |
+| Claude Code (capable cloud agent) | PASS | PASS | PASS | PASS | n/a |
 
-The cloud-model row is the correctness reference: it knows the commands directly (no discovery
-flailing) — its wall-clock isn't comparable (remote, reasoning-dominated), so it's left blank.
+The Claude Code row is the correctness reference (a capable cloud agent — the oracle): it knows the
+commands directly, no discovery flailing. Its wall-clock isn't comparable (remote, reasoning-
+dominated), so it's left blank.
 
 ## Takeaways
 

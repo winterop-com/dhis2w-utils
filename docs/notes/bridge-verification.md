@@ -1,7 +1,7 @@
 # Bridge verification — capable model + local-model re-benchmark (reads + writes)
 
 Verification of the hardened `dhis2w-mcp-bridge` after the read-surface work. Three parts: a
-capable model (me) driving the bridge, a 6-model qwen benchmark scoring **tool-call parse
+capable agent (Claude Code) driving the bridge, a 6-model qwen benchmark scoring **tool-call parse
 reliability** + correctness + writes, and a self-review of remaining gaps. Reads ran against
 play42 (read-only); writes against local_basic (create-only, auto-cleaned). gemma excluded
 (LM Studio's gemma4 parser fails on complex tool calls — a host bug, not ours).
@@ -22,9 +22,9 @@ play42 (read-only); writes against local_basic (create-only, auto-cleaned). gemm
 - **`qwen2.5-3b`** — weakest; misuses `metadata search` (`--filter` instead of a positional
   query) and wrong command structures. Avoid.
 
-## Part 1 — me (capable model) driving the bridge: PASS
+## Part 1 — a capable agent (Claude Code) driving the bridge: PASS
 
-From the docstring alone I ran every read and a write round-trip with zero friction:
+From the docstring alone, the agent ran every read and a write round-trip with zero friction:
 count (1332), the level-2 join (`organisationUnitLevels level:eq:2`→"District" + the 13
 districts), `metadata search`, `metadata usage` (reverse lookup), the nested filter
 `dataSetElements.dataSet.id:eq:` (123 DEs), `metadata export -o file`, event-analytics
@@ -64,9 +64,9 @@ Findings:
   `metadata list dataElement` (singular) misses were caught by the did-you-mean hint (it
   worked — 2.5-3b recovered to `dataElements`).
 
-## Part 3 — self-review: my remaining gaps (all write-side)
+## Part 3 — remaining gaps (all write-side)
 
-Even as a capable model, where I succeeded only via prior DHIS2 knowledge the docs don't give:
+Spots where even a capable agent succeeded only via prior DHIS2 knowledge the docs don't give:
 - **No write/authoring primer in the docstring.** For `indicator create` I had to know to look
   up an `indicatorType` UID (no authoring group) and the `#{deUID}` expression syntax. The
   docstring is read-only-focused.

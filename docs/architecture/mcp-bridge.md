@@ -113,6 +113,5 @@ backed by a deliberate test apparatus (all runnable from the `Makefile`):
   - `make cli-matrix` — a command x model matrix: does each model find and form each command.
   - `make bridge-round` — drive one model through a round interactively.
 
-Methodology, the tracked model roster, and latest results live in
-[the model benchmark](../notes/model-benchmark.md); the running design log is in
-[the small-model bridge notes](../notes/small-model-bridge.md).
+The full methodology, headline findings, and links to every run log are consolidated in
+[AI agent testing](../ai-agent-testing.md).

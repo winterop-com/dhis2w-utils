@@ -63,7 +63,7 @@ nav:
           - Troubleshooting: troubleshooting.md
           - Decisions log: decisions.md
           - Lessons learned: lessons.md
-          - Model benchmarks: notes/model-benchmark.md
+          - AI agent testing: ai-agent-testing.md
           - Roadmap: roadmap.md
   - Architecture:
       - Overview: architecture/overview.md
