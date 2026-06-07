@@ -77,3 +77,12 @@ make bridge-bench MODELS="qwen2.5-7b-instruct google/gemma-4-e4b"   # a subset
 
 Needs `lms server` running; the harness loads/unloads each model itself (one instance at a time, to
 avoid the ambiguous-model-id 400). Per-model JSON is appended to `/tmp/bench_bridge_results.jsonl`.
+
+## The cli-matrix grid is NOT a capability ranking
+
+The full metadata×roster grid (`docs/notes/cli-matrix.md`, 1230 cells) finished. The "found the right
+command" rates: bf16-12b **12%**, 12b-qat 10%, qwen3.5-4b 8%, **26b-a4b-qat 4%**, qwen2.5-7b 4%,
+e4b 2%. The champion on read+write+perf (`26b-a4b-qat`) scored near the **bottom** — proof the grid
+measures *vague-goal disambiguation* (pick the exact command among ~200 siblings from a one-line
+goal), which is interpretation-noise-dominated, not capability. **Use `bridge-bench` (read+write+perf)
+to judge models; the matrix is a discoverability stress-test of the help surface, not a leaderboard.**
