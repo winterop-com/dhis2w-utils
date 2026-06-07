@@ -230,7 +230,7 @@ PyPI consumers who want the library without the profile layer can construct `Dhi
 
 ## CLI surface
 
-Sixteen top-level domains; every plugin shares a `service.py` between the CLI and MCP sides so one typed call answers both surfaces.
+Eighteen top-level domains; every plugin shares a `service.py` between the CLI and MCP sides so one typed call answers both surfaces.
 
 | Command | What it covers |
 | --- | --- |

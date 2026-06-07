@@ -52,7 +52,7 @@ nav:
       - Connect to DHIS2: guides/connecting-to-dhis2.md
       - Walkthrough: walkthrough.md
       - More guides:
-          - Visualizations + dashboards: guides/visualizations.md
+          - Visualizations: guides/visualizations.md
           - Playwright PAT helper: pat-helper.md
           - Manual testing: manual-testing.md
       - Examples index: examples.md
@@ -63,6 +63,7 @@ nav:
           - Troubleshooting: troubleshooting.md
           - Decisions log: decisions.md
           - Lessons learned: lessons.md
+          - Model benchmarks: notes/model-benchmark.md
           - Roadmap: roadmap.md
   - Architecture:
       - Overview: architecture/overview.md
@@ -77,7 +78,7 @@ nav:
       - Per-version typing:
           - Typed schemas: architecture/typed-schemas.md
           - Version-aware clients: architecture/versioning.md
-          - "Schema diff: v41 -> v42 -> v43": architecture/schema-diff-v41-v42-v43.md
+          - Schema diff (v41/v42/v43): architecture/schema-diff-v41-v42-v43.md
       - Plugins:
           - System module: architecture/system.md
           - Metadata CRUD: architecture/metadata-crud.md
@@ -102,7 +103,7 @@ nav:
       - Reference overview: api/index.md
       - Core:
           - Client + lifecycle: api/client.md
-          - Profile + lightweight open_client: api/profile.md
+          - Profile + open_client: api/profile.md
           - Auth providers: api/auth.md
           - Retry policy: api/retry-policy.md
           - Errors: api/errors.md
@@ -125,7 +126,7 @@ nav:
           - Apps: api/apps.md
           - Validation + predictors: api/validation.md
       - Metadata authoring:
-          - Visualizations + dashboards: api/visualizations.md
+          - Visualizations: api/visualizations.md
           - Maps: api/maps.md
           - Legend sets: api/legend-sets.md
           - Organisation units: api/organisation-units.md
@@ -158,12 +159,14 @@ nav:
       - Architecture: architecture/cli.md
       - Reference: cli-reference.md
   - MCP:
-      - Introduction: mcp/index.md
-      - Tutorial: mcp/tutorial.md
-      - CLI bridge (local models): mcp/bridge.md
-      - "Bridge design: one tool, not many": architecture/mcp-bridge.md
-      - Architecture: architecture/mcp.md
-      - Reference: mcp-reference.md
+      - Overview: mcp/index.md
+      - Full server:
+          - Tutorial: mcp/tutorial.md
+          - Architecture: architecture/mcp.md
+          - Tool reference: mcp-reference.md
+      - Bridge:
+          - Usage: mcp/bridge.md
+          - Design: architecture/mcp-bridge.md
 
 markdown_extensions:
   - admonition

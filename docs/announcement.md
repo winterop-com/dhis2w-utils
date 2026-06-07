@@ -18,7 +18,7 @@ async with Dhis2Client(base_url="...", auth=BasicAuth("admin", "district")) as c
 
 ## One core, four surfaces
 
-The same typed client backs a Python library, a `dhis2` CLI with sixteen command domains, an MCP server, and Playwright browser automation. Each DHIS2 domain has one `service.py` shared between the CLI and MCP, so the two surfaces never drift apart.
+The same typed client backs a Python library, a `dhis2` CLI with eighteen command domains, an MCP server, and Playwright browser automation. Each DHIS2 domain has one `service.py` shared between the CLI and MCP, so the two surfaces never drift apart.
 
 ```bash
 dhis2 system info

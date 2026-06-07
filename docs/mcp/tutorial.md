@@ -1,6 +1,8 @@
 # MCP tutorial
 
-A walk through driving `dhis2w-mcp` from an LLM agent — from "the server isn't loaded" to a real end-to-end DHIS2 workflow with one controlled mutation and a rollback. Assumes you've installed the server per the [introduction](index.md) and wired it into your MCP host.
+A walk through driving `dhis2w-mcp` from an LLM agent — from "the server isn't loaded" to a real end-to-end DHIS2 workflow with one controlled mutation and a rollback. Assumes you've installed the server per the [overview](index.md) and wired it into your MCP host.
+
+This covers the **full server** (typed tools). The single-tool **bridge** for local models is driven differently (the model calls `dhis2_cli([...])` and discovers commands via `--help`) — see its [usage guide](bridge.md).
 
 Each step shows what you ask the agent, which tool it should invoke, the shape of the response you should see, and how to recover when something goes wrong.
 

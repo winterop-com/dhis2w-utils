@@ -231,9 +231,9 @@ With a profile set (or the seeded `.env.auth` sourced for the old-school path), 
 
 ```bash
 dhis2 --help
-# → 16 top-level domains on a fresh install:
-#   analytics, apps, browser, data, dev, doctor, files, maintenance,
-#   messaging, metadata, profile, route, system, user, user-group, user-role
+# → 18 top-level domains on a fresh install:
+#   analytics, apps, browser, data, dev, doctor, files, maintenance, messaging,
+#   metadata, profile, route, schema, security, system, user, user-group, user-role
 # Plus any external plugins registered via entry_points (group="dhis2.plugins").
 
 # system — auth + version probe

@@ -11,14 +11,11 @@ is the usage guide.
 
 ## When to reach for it
 
-!!! tip "Rule of thumb: local model -> bridge, cloud model -> full server"
-    Use **`dhis2w-mcp-bridge`** (this server, one `dhis2_cli` tool) for **small on-box local
-    models** (LM Studio, Ollama, llama.cpp). Use the full **[`dhis2w-mcp`](index.md)** server
-    (~304 typed tools) for **any capable cloud/hosted model** — Claude, GPT, Gemini, and the
-    hosts that drive them (Claude Code, Claude Desktop, Cursor) do their own tool selection and
-    benefit from the typed per-tool schemas and typed errors. The bridge is a deliberate
-    trade-off for models that can't afford ~53k tokens of schema or reliably pick among hundreds
-    of tools; a cloud model gives that up for nothing.
+!!! tip "Which server?"
+    Pick by the model driving it — the full decision table lives in
+    [MCP servers — which one?](index.md#two-servers-which-one). Short version: **small on-box local
+    models** (LM Studio, Ollama, llama.cpp) → this bridge; **capable cloud models** → the full
+    [`dhis2w-mcp`](index.md) server.
 
 Use the bridge for **small local models running on-box against sensitive data** (LM Studio,
 Ollama, llama.cpp): the data cannot go to a hosted model, and a modest local model cannot

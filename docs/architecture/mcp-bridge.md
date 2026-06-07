@@ -85,8 +85,9 @@ surface, not the bridge plumbing:
 | Server | `dhis2w-mcp-bridge` (one tool) | `dhis2w-mcp` (~304 typed tools) |
 | Why | can't afford schema tokens; can't pick among hundreds | does its own tool selection; benefits from typed schemas + errors |
 
-Rule of thumb: **local model → bridge, cloud model → full server.** See the
-[bridge guide](../mcp/bridge.md#when-to-reach-for-it) for the full decision.
+Rule of thumb: **local model → bridge, cloud model → full server.** The canonical decision table
+(and the surface picker) lives in [MCP servers — which one?](../mcp/index.md#two-servers-which-one);
+this page is the *why* behind the bridge half.
 
 ## Safety and locality
 

@@ -44,7 +44,7 @@ Each member's `pyproject.toml` has just:
 
 ## Build + publish
 
-`make build` produces wheels for all members. PyPI publishing is automated — tag a `vX.Y.Z` and `.github/workflows/pypi-publish.yml` builds + uploads every publishable member via PyPI Trusted Publishing (OIDC). Five members ship: `dhis2w-client`, `dhis2w-core`, `dhis2w-cli`, `dhis2w-mcp`, `dhis2w-browser`. The sixth, `dhis2w-codegen`, stays workspace-only — it's a developer tool that emits committed code into `dhis2w-client`'s tree, with no value to PyPI consumers. See [Releasing to PyPI](../releasing.md) for the full bump-and-tag flow.
+`make build` produces wheels for all members. PyPI publishing is automated — tag a `vX.Y.Z` and `.github/workflows/pypi-publish.yml` builds + uploads every publishable member via PyPI Trusted Publishing (OIDC). Six members ship: `dhis2w-client`, `dhis2w-core`, `dhis2w-cli`, `dhis2w-mcp`, `dhis2w-mcp-bridge`, `dhis2w-browser`. The seventh, `dhis2w-codegen`, stays workspace-only — it's a developer tool that emits committed code into `dhis2w-client`'s tree, with no value to PyPI consumers. See [Releasing to PyPI](../releasing.md) for the full bump-and-tag flow.
 
 ## Open questions
 
