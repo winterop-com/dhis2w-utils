@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json as _json
+from collections.abc import Callable
 
 import httpx
 import respx
@@ -18,12 +19,6 @@ from dhis2w_client import (
 
 def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
-
-
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
 
 
 def _spec() -> CategoryComboBuildSpec:
@@ -53,9 +48,11 @@ def _empty_filter_response(collection: str) -> httpx.Response:
 
 
 @respx.mock
-async def test_build_creates_full_stack_when_nothing_exists() -> None:
+async def test_build_creates_full_stack_when_nothing_exists(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """First-run path: every option, category, and the combo are created from scratch."""
-    _mock_preamble()
+    mock_system_info(server_version)
     # All filter lookups return empty — nothing exists yet.
     respx.get("https://dhis2.example/api/categoryOptions").mock(return_value=_empty_filter_response("categoryOptions"))
     respx.get("https://dhis2.example/api/categories").mock(return_value=_empty_filter_response("categories"))
@@ -153,9 +150,11 @@ async def test_build_creates_full_stack_when_nothing_exists() -> None:
 
 
 @respx.mock
-async def test_build_reuses_everything_when_already_present() -> None:
+async def test_build_reuses_everything_when_already_present(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Idempotent path: every option / category / combo already exists by name; no creates fire."""
-    _mock_preamble()
+    mock_system_info(server_version)
 
     def _option_lookup(req: httpx.Request) -> httpx.Response:
         name_filter = req.url.params.get("filter", "")

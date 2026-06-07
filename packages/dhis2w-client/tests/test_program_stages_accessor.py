@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json as _json
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -14,16 +15,12 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
-
-
 @respx.mock
-async def test_list_for_filters_by_program_and_disables_paging() -> None:
+async def test_list_for_filters_by_program_and_disables_paging(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """List for filters by program and disables paging."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/programStages").mock(
         return_value=httpx.Response(
             200,
@@ -43,9 +40,11 @@ async def test_list_for_filters_by_program_and_disables_paging() -> None:
 
 
 @respx.mock
-async def test_create_posts_payload_with_program_ref() -> None:
+async def test_create_posts_payload_with_program_ref(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Create posts payload with program ref."""
-    _mock_preamble()
+    mock_system_info(server_version)
     post = respx.post("https://dhis2.example/api/programStages").mock(
         return_value=httpx.Response(201, json={"response": {"uid": "PS_NEW00001"}}),
     )
@@ -73,9 +72,11 @@ async def test_create_posts_payload_with_program_ref() -> None:
 
 
 @respx.mock
-async def test_add_element_round_trips_and_strips_self_ref() -> None:
+async def test_add_element_round_trips_and_strips_self_ref(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Add element round trips and strips self ref."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programStages/PS1").mock(
         return_value=httpx.Response(
             200,
@@ -112,9 +113,11 @@ async def test_add_element_round_trips_and_strips_self_ref() -> None:
 
 
 @respx.mock
-async def test_add_element_idempotent_when_already_linked() -> None:
+async def test_add_element_idempotent_when_already_linked(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Add element idempotent when already linked."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programStages/PS1").mock(
         return_value=httpx.Response(
             200,
@@ -138,9 +141,9 @@ async def test_add_element_idempotent_when_already_linked() -> None:
 
 
 @respx.mock
-async def test_remove_element_filters_the_psde_list() -> None:
+async def test_remove_element_filters_the_psde_list(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Remove element filters the psde list."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programStages/PS1").mock(
         return_value=httpx.Response(
             200,
@@ -169,9 +172,11 @@ async def test_remove_element_filters_the_psde_list() -> None:
 
 
 @respx.mock
-async def test_reorder_preserves_flags_and_writes_sort_order() -> None:
+async def test_reorder_preserves_flags_and_writes_sort_order(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Reorder preserves flags and writes sort order."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programStages/PS1").mock(
         return_value=httpx.Response(
             200,
@@ -206,9 +211,11 @@ async def test_reorder_preserves_flags_and_writes_sort_order() -> None:
 
 
 @respx.mock
-async def test_delete_routes_through_generated_resource() -> None:
+async def test_delete_routes_through_generated_resource(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Delete routes through generated resource."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/programStages/PS_X").mock(return_value=httpx.Response(204))
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:

@@ -2,18 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import httpx
 import pytest
 import respx
 from dhis2w_client import BasicAuth, Dhis2Client
-
-
-def _mock_preamble() -> None:
-    """Canonical-URL + /api/system/info probes connect() runs."""
-    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.4"}),
-    )
 
 
 def _auth() -> BasicAuth:
@@ -28,9 +22,11 @@ _ROUTE_LOOKUP_BODY = {
 
 
 @respx.mock
-async def test_run_resolves_code_to_uid_then_proxies_get() -> None:
+async def test_run_resolves_code_to_uid_then_proxies_get(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """run(code, path) does one /api/routes lookup, then GETs /api/routes/<uid>/run/<path>."""
-    _mock_preamble()
+    mock_system_info(server_version)
     lookup_route = respx.get("https://dhis2.example/api/routes").mock(
         return_value=httpx.Response(200, json=_ROUTE_LOOKUP_BODY),
     )
@@ -46,9 +42,9 @@ async def test_run_resolves_code_to_uid_then_proxies_get() -> None:
 
 
 @respx.mock
-async def test_run_caches_uid_across_calls() -> None:
+async def test_run_caches_uid_across_calls(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Second run() against the same code skips the /api/routes lookup."""
-    _mock_preamble()
+    mock_system_info(server_version)
     lookup_route = respx.get("https://dhis2.example/api/routes").mock(
         return_value=httpx.Response(200, json=_ROUTE_LOOKUP_BODY),
     )
@@ -62,9 +58,9 @@ async def test_run_caches_uid_across_calls() -> None:
 
 
 @respx.mock
-async def test_run_use_cache_false_refetches_uid() -> None:
+async def test_run_use_cache_false_refetches_uid(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Passing use_cache=False forces a fresh /api/routes lookup even when cached."""
-    _mock_preamble()
+    mock_system_info(server_version)
     lookup_route = respx.get("https://dhis2.example/api/routes").mock(
         return_value=httpx.Response(200, json=_ROUTE_LOOKUP_BODY),
     )
@@ -78,9 +74,9 @@ async def test_run_use_cache_false_refetches_uid() -> None:
 
 
 @respx.mock
-async def test_run_surfaces_non_2xx_without_raising() -> None:
+async def test_run_surfaces_non_2xx_without_raising(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """502 from the proxy lands as response.status_code, not a Dhis2ApiError."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/routes").mock(
         return_value=httpx.Response(200, json=_ROUTE_LOOKUP_BODY),
     )
@@ -94,9 +90,11 @@ async def test_run_surfaces_non_2xx_without_raising() -> None:
 
 
 @respx.mock
-async def test_run_raises_lookup_error_when_code_unknown() -> None:
+async def test_run_raises_lookup_error_when_code_unknown(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """No matching Route -> LookupError, no /run call attempted."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/routes").mock(
         return_value=httpx.Response(
             200,
@@ -109,9 +107,9 @@ async def test_run_raises_lookup_error_when_code_unknown() -> None:
 
 
 @respx.mock
-async def test_invalidate_cache_drops_one_entry() -> None:
+async def test_invalidate_cache_drops_one_entry(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """invalidate_cache(code) forces re-lookup for that code only."""
-    _mock_preamble()
+    mock_system_info(server_version)
     lookup_route = respx.get("https://dhis2.example/api/routes").mock(
         return_value=httpx.Response(200, json=_ROUTE_LOOKUP_BODY),
     )
@@ -126,9 +124,11 @@ async def test_invalidate_cache_drops_one_entry() -> None:
 
 
 @respx.mock
-async def test_run_forwards_params_and_extra_headers() -> None:
+async def test_run_forwards_params_and_extra_headers(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """params=... lands on the query string; extra_headers lands on the request."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/routes").mock(
         return_value=httpx.Response(200, json=_ROUTE_LOOKUP_BODY),
     )

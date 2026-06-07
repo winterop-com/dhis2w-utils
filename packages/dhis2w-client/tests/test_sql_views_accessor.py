@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import httpx
 import pytest
 import respx
-from dhis2w_client import BasicAuth, Dhis2Client, SqlViewResult, SqlViewRunner
+from dhis2w_client import BasicAuth, Dhis2Client, SqlViewResult
 from dhis2w_client.generated.v42.enums import SqlViewType
 
 
@@ -13,19 +15,15 @@ def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
 
 
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
-
-
 # ---- list_views -----------------------------------------------------------
 
 
 @respx.mock
-async def test_list_views_orders_by_name_and_scopes_paging_off() -> None:
+async def test_list_views_orders_by_name_and_scopes_paging_off(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`list_views` pulls every view sorted by name, paging disabled."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/sqlViews").mock(
         return_value=httpx.Response(
             200,
@@ -50,9 +48,9 @@ async def test_list_views_orders_by_name_and_scopes_paging_off() -> None:
 
 
 @respx.mock
-async def test_list_views_filters_by_view_type() -> None:
+async def test_list_views_filters_by_view_type(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`list_views(view_type=MATERIALIZED_VIEW)` emits `filter=type:eq:MATERIALIZED_VIEW`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/sqlViews").mock(
         return_value=httpx.Response(200, json={"sqlViews": []}),
     )
@@ -69,9 +67,11 @@ async def test_list_views_filters_by_view_type() -> None:
 
 
 @respx.mock
-async def test_get_returns_typed_model_with_sql_query() -> None:
+async def test_get_returns_typed_model_with_sql_query(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Get returns typed model with sql query."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/sqlViews/SQL1").mock(
         return_value=httpx.Response(
             200,
@@ -93,9 +93,11 @@ async def test_get_returns_typed_model_with_sql_query() -> None:
 
 
 @respx.mock
-async def test_execute_parses_list_grid_and_exposes_typed_columns_and_rows() -> None:
+async def test_execute_parses_list_grid_and_exposes_typed_columns_and_rows(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Execute parses list grid and exposes typed columns and rows."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/sqlViews/SQL1/data").mock(
         return_value=httpx.Response(
             200,
@@ -119,7 +121,7 @@ async def test_execute_parses_list_grid_and_exposes_typed_columns_and_rows() -> 
         result = await client.sql_views.execute("SQL1")
     finally:
         await client.close()
-    assert isinstance(result, SqlViewResult)
+    assert type(result).__name__ == "SqlViewResult"
     assert result.title == "OU per level"
     assert [c.name for c in result.columns] == ["level", "count"]
     assert result.rows == [[1, 1], [2, 3], [3, 15]]
@@ -133,9 +135,11 @@ async def test_execute_parses_list_grid_and_exposes_typed_columns_and_rows() -> 
 
 
 @respx.mock
-async def test_execute_forwards_variables_and_criteria_as_repeated_params() -> None:
+async def test_execute_forwards_variables_and_criteria_as_repeated_params(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Variables become `?var=k:v`; criteria become `?criteria=k:v`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/sqlViews/SQL1/data").mock(
         return_value=httpx.Response(200, json={"listGrid": {"headers": [], "rows": []}}),
     )
@@ -155,9 +159,11 @@ async def test_execute_forwards_variables_and_criteria_as_repeated_params() -> N
 
 
 @respx.mock
-async def test_execute_missing_list_grid_returns_empty_result() -> None:
+async def test_execute_missing_list_grid_returns_empty_result(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Edge case: DHIS2 occasionally flattens to `{headers, rows}` without the envelope."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/sqlViews/SQL1/data").mock(
         return_value=httpx.Response(200, json={"headers": [{"name": "x"}], "rows": [["v"]]}),
     )
@@ -184,9 +190,9 @@ def test_column_values_raises_on_unknown_column() -> None:
 
 
 @respx.mock
-async def test_refresh_posts_to_execute_endpoint() -> None:
+async def test_refresh_posts_to_execute_endpoint(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Refresh posts to execute endpoint."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/sqlViews/SQL1/execute").mock(
         return_value=httpx.Response(200, json={"status": "OK"}),
     )
@@ -204,9 +210,9 @@ async def test_refresh_posts_to_execute_endpoint() -> None:
 
 
 @respx.mock
-async def test_create_posts_then_refetches_by_id() -> None:
+async def test_create_posts_then_refetches_by_id(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`create` POSTs the view, then re-reads it to return the typed server shape."""
-    _mock_preamble()
+    mock_system_info(server_version)
     from dhis2w_client.generated.v42.schemas import SqlView
 
     candidate = SqlView.model_validate(
@@ -233,9 +239,9 @@ async def test_create_posts_then_refetches_by_id() -> None:
 
 
 @respx.mock
-async def test_delete_routes_to_sql_views_uid() -> None:
+async def test_delete_routes_to_sql_views_uid(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Delete routes to sql views uid."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.delete("https://dhis2.example/api/sqlViews/SQL9").mock(
         return_value=httpx.Response(200, json={}),
     )
@@ -252,9 +258,11 @@ async def test_delete_routes_to_sql_views_uid() -> None:
 
 
 @respx.mock
-async def test_runner_run_forwards_kwargs_as_variables() -> None:
+async def test_runner_run_forwards_kwargs_as_variables(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`runner.run(uid, foo="bar")` → `?var=foo:bar`."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/sqlViews/SQL1/data").mock(
         return_value=httpx.Response(200, json={"listGrid": {"headers": [], "rows": []}}),
     )
@@ -269,9 +277,11 @@ async def test_runner_run_forwards_kwargs_as_variables() -> None:
 
 
 @respx.mock
-async def test_runner_adhoc_registers_executes_and_deletes() -> None:
+async def test_runner_adhoc_registers_executes_and_deletes(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`adhoc()` life-cycles a throwaway view: POST → execute/refresh → GET data → DELETE."""
-    _mock_preamble()
+    mock_system_info(server_version)
 
     create_route = respx.post("https://dhis2.example/api/sqlViews").mock(
         return_value=httpx.Response(201, json={"status": "OK"}),
@@ -304,9 +314,9 @@ async def test_runner_adhoc_registers_executes_and_deletes() -> None:
 
 
 @respx.mock
-async def test_runner_adhoc_with_keep_skips_delete() -> None:
+async def test_runner_adhoc_with_keep_skips_delete(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """`adhoc(..., keep=True)` runs create + execute but leaves the view in place."""
-    _mock_preamble()
+    mock_system_info(server_version)
 
     respx.post("https://dhis2.example/api/sqlViews").mock(
         return_value=httpx.Response(201, json={"status": "OK"}),
@@ -330,9 +340,11 @@ async def test_runner_adhoc_with_keep_skips_delete() -> None:
 
 
 @respx.mock
-async def test_runner_adhoc_view_refreshes_materialized_views_before_reading() -> None:
+async def test_runner_adhoc_view_refreshes_materialized_views_before_reading(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`adhoc(..., view_type=MATERIALIZED_VIEW)` POSTs to `/execute` to create the DB view first."""
-    _mock_preamble()
+    mock_system_info(server_version)
 
     respx.post("https://dhis2.example/api/sqlViews").mock(
         return_value=httpx.Response(201, json={"status": "OK"}),
@@ -372,7 +384,7 @@ async def test_accessor_and_runner_are_bound_on_client() -> None:
         assert hasattr(client.sql_views, "execute")
         assert hasattr(client.sql_views, "refresh")
         assert hasattr(client.sql_views, "runner")
-        assert isinstance(client.sql_views.runner, SqlViewRunner)
+        assert type(client.sql_views.runner).__name__ == "SqlViewRunner"
     finally:
         await client.close()
 

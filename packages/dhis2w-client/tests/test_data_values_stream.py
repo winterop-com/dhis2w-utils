@@ -2,21 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 
 import httpx
 import pytest
 import respx
 from dhis2w_client import BasicAuth, Dhis2Client
-
-
-def _mock_preamble() -> None:
-    """Stub the canonical-URL + /api/system/info probes `connect()` performs."""
-    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.4"}),
-    )
 
 
 def _auth() -> BasicAuth:
@@ -41,9 +33,11 @@ def _success_envelope() -> httpx.Response:
 
 
 @respx.mock
-async def test_stream_from_bytes_sends_payload_and_content_type() -> None:
+async def test_stream_from_bytes_sends_payload_and_content_type(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Single-shot bytes upload — body + Content-Type header reach DHIS2 intact."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/dataValueSets").mock(
         return_value=_success_envelope(),
     )
@@ -66,9 +60,11 @@ async def test_stream_from_bytes_sends_payload_and_content_type() -> None:
 
 
 @respx.mock
-async def test_stream_from_path_reads_and_uploads_file(tmp_path: Path) -> None:
+async def test_stream_from_path_reads_and_uploads_file(
+    tmp_path: Path, server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`Path` source reads the file in chunks and forwards every byte to DHIS2."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/dataValueSets").mock(
         return_value=_success_envelope(),
     )
@@ -95,9 +91,11 @@ async def test_stream_from_path_reads_and_uploads_file(tmp_path: Path) -> None:
 
 
 @respx.mock
-async def test_stream_from_sync_iterable_passes_through() -> None:
+async def test_stream_from_sync_iterable_passes_through(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Generator-style sync iterable streams without buffering the full payload in Python."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/dataValueSets").mock(
         return_value=_success_envelope(),
     )
@@ -120,9 +118,11 @@ async def test_stream_from_sync_iterable_passes_through() -> None:
 
 
 @respx.mock
-async def test_stream_from_async_iterable_passes_through() -> None:
+async def test_stream_from_async_iterable_passes_through(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Async generator source is consumed by httpx's chunked upload."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/dataValueSets").mock(
         return_value=_success_envelope(),
     )
@@ -142,9 +142,11 @@ async def test_stream_from_async_iterable_passes_through() -> None:
 
 
 @respx.mock
-async def test_stream_forwards_every_query_parameter() -> None:
+async def test_stream_forwards_every_query_parameter(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Every knob (dry_run / preheat / strategy / id-schemes / skip-audit / async) flows to DHIS2."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/dataValueSets").mock(
         return_value=_success_envelope(),
     )
@@ -179,9 +181,11 @@ async def test_stream_forwards_every_query_parameter() -> None:
 
 
 @respx.mock
-async def test_stream_default_params_omit_optional_flags() -> None:
+async def test_stream_default_params_omit_optional_flags(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Defaults don't emit stray parameters — dryRun / async / skipAudit absent unless set."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/dataValueSets").mock(
         return_value=_success_envelope(),
     )

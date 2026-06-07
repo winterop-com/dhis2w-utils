@@ -3,19 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 import httpx
 import respx
 from dhis2w_client import BasicAuth, Dhis2Client
-
-
-def _mock_preamble() -> None:
-    """Stub the canonical-URL + /api/system/info probes `connect()` performs."""
-    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.4"}),
-    )
 
 
 def _auth() -> BasicAuth:
@@ -37,9 +30,11 @@ def _ok_response() -> dict[str, Any]:
 
 
 @respx.mock
-async def test_register_posts_te_with_enrollment_and_returns_uids() -> None:
+async def test_register_posts_te_with_enrollment_and_returns_uids(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`register` POSTs a `{trackedEntities: [{...enrollments: [...]}]}` bundle."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/tracker").mock(return_value=httpx.Response(200, json=_ok_response()))
 
     client = Dhis2Client("https://dhis2.example", auth=_auth())
@@ -74,9 +69,11 @@ async def test_register_posts_te_with_enrollment_and_returns_uids() -> None:
 
 
 @respx.mock
-async def test_register_with_inline_events_links_them_to_the_new_enrollment() -> None:
+async def test_register_with_inline_events_links_them_to_the_new_enrollment(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Inline events carry `enrollment` + `trackedEntity` UIDs for the new TE."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/tracker").mock(return_value=httpx.Response(200, json=_ok_response()))
 
     client = Dhis2Client("https://dhis2.example", auth=_auth())
@@ -111,9 +108,11 @@ async def test_register_with_inline_events_links_them_to_the_new_enrollment() ->
 
 
 @respx.mock
-async def test_enroll_posts_enrollment_only_with_generated_uid() -> None:
+async def test_enroll_posts_enrollment_only_with_generated_uid(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`enroll` sends a standalone `{enrollments: [...]}` bundle."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/tracker").mock(return_value=httpx.Response(200, json=_ok_response()))
 
     client = Dhis2Client("https://dhis2.example", auth=_auth())
@@ -140,9 +139,11 @@ async def test_enroll_posts_enrollment_only_with_generated_uid() -> None:
 
 
 @respx.mock
-async def test_add_event_for_tracker_program_carries_enrollment() -> None:
+async def test_add_event_for_tracker_program_carries_enrollment(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Tracker-program event POST carries `enrollment` + `trackedEntity` fields."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/tracker").mock(return_value=httpx.Response(200, json=_ok_response()))
 
     client = Dhis2Client("https://dhis2.example", auth=_auth())
@@ -171,11 +172,13 @@ async def test_add_event_for_tracker_program_carries_enrollment() -> None:
 
 
 @respx.mock
-async def test_add_event_accepts_date_and_datetime_values() -> None:
+async def test_add_event_accepts_date_and_datetime_values(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`occurred_at` normalises `date` / `datetime` to ISO on the wire."""
     import datetime as _dt
 
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/tracker").mock(return_value=httpx.Response(200, json=_ok_response()))
 
     client = Dhis2Client("https://dhis2.example", auth=_auth())
@@ -203,9 +206,11 @@ async def test_add_event_accepts_date_and_datetime_values() -> None:
 
 
 @respx.mock
-async def test_add_event_for_event_program_omits_enrollment() -> None:
+async def test_add_event_for_event_program_omits_enrollment(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Event-only program: no `enrollment` or `trackedEntity` in the payload."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/tracker").mock(return_value=httpx.Response(200, json=_ok_response()))
 
     client = Dhis2Client("https://dhis2.example", auth=_auth())
@@ -232,9 +237,11 @@ async def test_add_event_for_event_program_omits_enrollment() -> None:
 
 
 @respx.mock
-async def test_add_event_for_tracker_program_defaults_to_active_status() -> None:
+async def test_add_event_for_tracker_program_defaults_to_active_status(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Tracker-program events default to ACTIVE — the visit is open until completed."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.post("https://dhis2.example/api/tracker").mock(return_value=httpx.Response(200, json=_ok_response()))
 
     client = Dhis2Client("https://dhis2.example", auth=_auth())
@@ -257,9 +264,11 @@ async def test_add_event_for_tracker_program_defaults_to_active_status() -> None
 
 
 @respx.mock
-async def test_outstanding_filters_enrollments_missing_non_repeatable_stages() -> None:
+async def test_outstanding_filters_enrollments_missing_non_repeatable_stages(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`outstanding` pulls program stages, then enrollments missing any non-repeatable UID."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programs/progUid0001").mock(
         return_value=httpx.Response(
             200,
@@ -322,9 +331,11 @@ async def test_outstanding_filters_enrollments_missing_non_repeatable_stages() -
 
 
 @respx.mock
-async def test_outstanding_returns_empty_when_program_has_no_required_stages() -> None:
+async def test_outstanding_returns_empty_when_program_has_no_required_stages(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """All stages repeatable -> no 'required' concept -> empty result."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/programs/progUid0001").mock(
         return_value=httpx.Response(
             200,

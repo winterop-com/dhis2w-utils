@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -13,12 +14,6 @@ from dhis2w_client import BasicAuth, Dhis2Client
 
 def _auth() -> BasicAuth:
     return BasicAuth(username="admin", password="district")
-
-
-def _mock_preamble() -> None:
-    respx.get("https://dhis2.example/api/system/info").mock(
-        return_value=httpx.Response(200, json={"version": "2.42.0"}),
-    )
 
 
 def _mock_attribute_lookup(code: str = "ICD10_CODE", attribute_uid: str = "AttrIcd01234") -> None:
@@ -32,9 +27,11 @@ def _mock_attribute_lookup(code: str = "ICD10_CODE", attribute_uid: str = "AttrI
 
 
 @respx.mock
-async def test_resolve_attribute_uid_passes_uids_through() -> None:
+async def test_resolve_attribute_uid_passes_uids_through(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Valid 11-char UID returns unchanged without any HTTP call."""
-    _mock_preamble()
+    mock_system_info(server_version)
     client = Dhis2Client("https://dhis2.example", auth=_auth())
     try:
         await client.connect()
@@ -45,9 +42,11 @@ async def test_resolve_attribute_uid_passes_uids_through() -> None:
 
 
 @respx.mock
-async def test_resolve_attribute_uid_resolves_business_code() -> None:
+async def test_resolve_attribute_uid_resolves_business_code(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Non-UID input → /api/attributes lookup by code."""
-    _mock_preamble()
+    mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/attributes").mock(
         return_value=httpx.Response(200, json={"attributes": [{"id": "AttrIcd01234"}]}),
     )
@@ -62,9 +61,11 @@ async def test_resolve_attribute_uid_resolves_business_code() -> None:
 
 
 @respx.mock
-async def test_resolve_attribute_uid_raises_when_code_has_no_match() -> None:
+async def test_resolve_attribute_uid_raises_when_code_has_no_match(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Empty /api/attributes → LookupError with actionable hint."""
-    _mock_preamble()
+    mock_system_info(server_version)
     respx.get("https://dhis2.example/api/attributes").mock(
         return_value=httpx.Response(200, json={"attributes": []}),
     )
@@ -81,9 +82,11 @@ async def test_resolve_attribute_uid_raises_when_code_has_no_match() -> None:
 
 
 @respx.mock
-async def test_get_value_reads_nested_attribute_entry() -> None:
+async def test_get_value_reads_nested_attribute_entry(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """`attributeValues[].attribute.id` matches → value returned."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup()
     respx.get("https://dhis2.example/api/dataElements/DE001").mock(
         return_value=httpx.Response(
@@ -104,9 +107,9 @@ async def test_get_value_reads_nested_attribute_entry() -> None:
 
 
 @respx.mock
-async def test_get_value_returns_none_when_missing() -> None:
+async def test_get_value_returns_none_when_missing(server_version: str, mock_system_info: Callable[..., None]) -> None:
     """Resource has `attributeValues=[]` → None."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup()
     respx.get("https://dhis2.example/api/dataElements/DE001").mock(
         return_value=httpx.Response(200, json={"id": "DE001", "attributeValues": []}),
@@ -124,9 +127,11 @@ async def test_get_value_returns_none_when_missing() -> None:
 
 
 @respx.mock
-async def test_set_value_read_merges_existing_attribute_values() -> None:
+async def test_set_value_read_merges_existing_attribute_values(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Existing attribute entry is replaced; unrelated attribute entries survive."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup()
     respx.get("https://dhis2.example/api/dataElements/DE001").mock(
         return_value=httpx.Response(
@@ -164,9 +169,11 @@ async def test_set_value_read_merges_existing_attribute_values() -> None:
 
 
 @respx.mock
-async def test_delete_value_removes_one_entry_and_returns_true() -> None:
+async def test_delete_value_removes_one_entry_and_returns_true(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Known attribute → filtered out + PUT fires + returns True."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup()
     respx.get("https://dhis2.example/api/dataElements/DE001").mock(
         return_value=httpx.Response(
@@ -191,9 +198,11 @@ async def test_delete_value_removes_one_entry_and_returns_true() -> None:
 
 
 @respx.mock
-async def test_delete_value_returns_false_when_attribute_not_set() -> None:
+async def test_delete_value_returns_false_when_attribute_not_set(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """No matching entry → no PUT, returns False (avoids churn on `lastUpdated`)."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup()
     respx.get("https://dhis2.example/api/dataElements/DE001").mock(
         return_value=httpx.Response(200, json={"id": "DE001", "attributeValues": []}),
@@ -213,9 +222,11 @@ async def test_delete_value_returns_false_when_attribute_not_set() -> None:
 
 
 @respx.mock
-async def test_find_uids_by_value_emits_uid_as_filter_key() -> None:
+async def test_find_uids_by_value_emits_uid_as_filter_key(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """BUGS.md #21 quirk: filter is `<attrUid>:eq:<value>`, applies to every resource."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup(code="SNOMED_CODE", attribute_uid="AttrSnom001")
     route = respx.get("https://dhis2.example/api/organisationUnits").mock(
         return_value=httpx.Response(
@@ -241,9 +252,11 @@ async def test_find_uids_by_value_emits_uid_as_filter_key() -> None:
 
 
 @respx.mock
-async def test_find_one_uid_by_value_returns_first_or_none() -> None:
+async def test_find_one_uid_by_value_returns_first_or_none(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
     """Convenience wrapper — first UID or None on empty result."""
-    _mock_preamble()
+    mock_system_info(server_version)
     _mock_attribute_lookup(code="SNOMED_CODE", attribute_uid="AttrSnom001")
     respx.get("https://dhis2.example/api/options").mock(
         return_value=httpx.Response(200, json={"options": []}),
