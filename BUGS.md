@@ -3152,3 +3152,25 @@ SystemSettings.model_validate(raw)   # raw = the JSON above
 **How to know it's fixed:** `SystemSettings.model_validate(<live /api/systemSettings>)` succeeds without a spec-patch — i.e. DHIS2 ships `keyAnalysisDisplayProperty` uppercase.
 
 **Verifier:** `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_42_generated_system_settings_rejects_lowercase_display_property` (mocked) + `::test_bug_42_live_system_settings_lowercase_display_property` (live, `-m slow`).
+
+### 43. `mapView` schema removed from `/api/schemas` (cross-major, lands first on released `2.42.5`)
+
+**Observed on:** Released `dhis2/core:2.42.5.0`, and the `2.41.9` / `2.42.6` / `2.43.1` SNAPSHOTs on play.im.dhis2.org. Our pinned images `2.41.8.1` / `2.42.4.1` / `2.43.0.0` still expose it.
+
+**Repro:**
+
+```bash
+# Absent on all current play channels:
+curl -sf -u admin:district 'https://play.im.dhis2.org/dev-2-42/api/schemas/mapView.json'   # -> 404
+# Present on the pinned pre-removal images (e.g. dhis2/core:2.42.4.1) — schema count 119 vs 118.
+```
+
+**Expected:** `mapView` stays a top-level schema (it's a documented metadata type; `Map.mapViews[]` references it), so codegen keeps emitting `MapView` + the `OrganisationUnitSelectionMode` enum it carries.
+
+**Actual:** `/api/schemas` drops `mapView` entirely (v42 count 119 -> 118). Codegen then stops emitting `generated.v{N}.schemas.MapView` and `generated.v{N}.enums.OrganisationUnitSelectionMode` (the enum was only carried by mapView's `orgUnitSelectionMode` property). The removal is cross-major (gone on all three SNAPSHOTs) but landed first in a *released* tag on v42 (`2.42.5`); v41/v43 still ship it in their latest released tags.
+
+**Impact:** Hand-written `dhis2w_client.v{N}.maps` imports `MapView` + `OrganisationUnitSelectionMode` from the generated tree (the `MapViewLayer` builder + its `organisation_unit_selection_mode` default). Bumping a major's pin past the removal boundary deletes those generated symbols and breaks `import dhis2w_client` for that tree.
+
+**Workaround in this repo:** v42 pin **held at `2.42.4.1`** (last pre-removal v42 release) in `infra/versions.env`; v41/v43 pins are already pre-removal. The clean fix when bumping past the boundary: define `MapView` + `OrganisationUnitSelectionMode` as hand-written models in `dhis2w_client.v{N}.maps` (still valid wire shapes nested under `Map.mapViews[]`, just no longer enumerated by `/api/schemas`) and drop the generated imports. Needed per-tree as each major's next patch releases.
+
+**How to know it's resolved:** DHIS2 restores `mapView` to `/api/schemas`, or `dhis2w_client.v{N}.maps` no longer imports those two symbols from the generated tree.
