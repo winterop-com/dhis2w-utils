@@ -31,7 +31,7 @@ async def test_connect_binds_the_reported_major(play_target: tuple[str, str]) ->
 
 async def test_identical_accessors_parse_real_wire(play_target: tuple[str, str]) -> None:
     """Identical-across-versions accessors parse the live wire into typed models on every major."""
-    url, version_key = play_target
+    url, _ = play_target
     async with Dhis2Client(url, auth=_auth()) as client:
         data_elements = await client.data_elements.list_all(page_size=5)
         assert data_elements and type(data_elements[0]).__name__ == "DataElement"
@@ -46,7 +46,7 @@ async def test_identical_accessors_parse_real_wire(play_target: tuple[str, str])
 
 async def test_diverged_accessor_parses_real_wire(play_target: tuple[str, str]) -> None:
     """A diverged accessor (category_combos) parses each major's real wire — the high-value check."""
-    url, version_key = play_target
+    url, _ = play_target
     async with Dhis2Client(url, auth=_auth()) as client:
         combos = await client.category_combos.list_all(page_size=5)
         assert combos and type(combos[0]).__name__ == "CategoryCombo"
