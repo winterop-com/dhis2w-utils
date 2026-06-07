@@ -41,3 +41,48 @@ async def test_data_element_create_verify_rename_delete(local_url: str, local_pa
             assert (await client.data_elements.get(created.id)).shortName == "zz-renamed"
         finally:
             await client.data_elements.delete(created.id)
+
+
+async def test_composite_data_set_with_elements(local_url: str, local_pat: str) -> None:
+    """The hard write: create N data elements, a data set, wire them together, verify, tear down.
+
+    This is the multi-object write small local models stall on (correlating freshly-created
+    UIDs). Here it validates the accessor wiring against the live stack end-to-end.
+    """
+    if not local_pat:
+        pytest.skip("no local PAT — run `make dhis2-run` to populate")
+    tag = secrets.token_hex(3)
+    element_count = 3
+    async with Dhis2Client(local_url, auth=PatAuth(token=local_pat)) as client:
+        element_ids: list[str] = []
+        data_set_id: str | None = None
+        try:
+            for index in range(element_count):
+                element = await client.data_elements.create(
+                    name=f"zz-composite-{tag}-de{index}",
+                    short_name=f"zz{tag}de{index}",
+                    value_type="NUMBER",
+                )
+                assert element.id
+                element_ids.append(element.id)
+
+            data_set = await client.data_sets.create(
+                name=f"zz-composite-{tag}-set",
+                short_name=f"zz{tag}set",
+                period_type="Monthly",
+            )
+            data_set_id = data_set.id
+            assert data_set_id
+
+            for element_id in element_ids:
+                await client.data_sets.add_element(data_set_id, element_id)
+
+            fetched = await client.data_sets.get(data_set_id)
+            assert len(fetched.dataSetElements or []) == element_count
+            wired = {(entry.dataElement.id if entry.dataElement else None) for entry in (fetched.dataSetElements or [])}
+            assert wired == set(element_ids)
+        finally:
+            if data_set_id:
+                await client.data_sets.delete(data_set_id)
+            for element_id in element_ids:
+                await client.data_elements.delete(element_id)
