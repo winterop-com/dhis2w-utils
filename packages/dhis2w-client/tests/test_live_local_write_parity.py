@@ -86,3 +86,42 @@ async def test_composite_data_set_with_elements(local_url: str, local_pat: str) 
                 await client.data_sets.delete(data_set_id)
             for element_id in element_ids:
                 await client.data_elements.delete(element_id)
+
+
+async def test_composite_program_with_stages(local_url: str, local_pat: str) -> None:
+    """The second hard write: an event program + N stages, verified and torn down.
+
+    Uses WITHOUT_REGISTRATION so no tracked-entity-type dependency is needed.
+    """
+    if not local_pat:
+        pytest.skip("no local PAT — run `make dhis2-run` to populate")
+    tag = secrets.token_hex(3)
+    stage_count = 2
+    async with Dhis2Client(local_url, auth=PatAuth(token=local_pat)) as client:
+        stage_ids: list[str] = []
+        program_id: str | None = None
+        try:
+            program = await client.programs.create(
+                name=f"zz-program-{tag}",
+                short_name=f"zz{tag}prog",
+                program_type="WITHOUT_REGISTRATION",
+            )
+            program_id = program.id
+            assert program_id
+
+            for index in range(stage_count):
+                stage = await client.program_stages.create(
+                    name=f"zz-program-{tag}-stage{index}",
+                    program_uid=program_id,
+                    sort_order=index + 1,
+                )
+                assert stage.id
+                stage_ids.append(stage.id)
+
+            stages = await client.program_stages.list_for(program_id)
+            assert {stage.id for stage in stages} == set(stage_ids)
+        finally:
+            for stage_id in stage_ids:
+                await client.program_stages.delete(stage_id)
+            if program_id:
+                await client.programs.delete(program_id)
