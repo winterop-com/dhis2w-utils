@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.19.0 — 2026-06-07
+
+Minor release. A new `datastore` surface for DHIS2's key-value store, plus docs + CI hardening.
+
+### Data store (new)
+
+- **`dhis2 datastore`** + `Dhis2Client.datastore` + `datastore_*` MCP tools — namespaced get / set / delete / list over `/api/dataStore` (shared) and `/api/userDataStore` (per-user, `--user`). Stored values are arbitrary JSON; `set` is create-or-update. The bridge allows the reads (namespaces / keys / get) under read-only mode. (There is no `/api/systemDataStore`; instance-wide config stays `dhis2 system settings`.)
+- The previously-unbound `routes` accessor now rebinds per DHIS2 major alongside `datastore`.
+
+### Docs + CI
+
+- Migrate the remaining stale typed-list command examples to the generic `metadata list`.
+- Add `make check-examples` (wired into CI): every v42 example must have a v41 + v43 counterpart.
+- Fix two metadata type-list integration tests that asserted snake_case where the wire emits camelCase (`dataElements`); slow/e2e-only, so fast CI never caught the drift.
+
+### Workspace packages
+
+All six publishable members + `dhis2w-codegen` bumped 0.18.0 → 0.19.0. Inter-package pins shifted `>=0.18.0,<0.19` → `>=0.19.0,<0.20`.
+
 ## 0.18.0 — 2026-06-07
 
 Minor release. CLI consolidation — the three top-level `user-*` domains collapse into one.
