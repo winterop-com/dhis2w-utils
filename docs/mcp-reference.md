@@ -2,7 +2,7 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 304 across 13 plugin groups.
+**Total tools**: 307 across 13 plugin groups.
 
 ## Plugins
 
@@ -14,7 +14,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 - [`files_*`](#files) — 5 tools
 - [`maintenance_*`](#maintenance) — 15 tools
 - [`messaging_*`](#messaging) — 11 tools
-- [`metadata_*`](#metadata) — 197 tools
+- [`metadata_*`](#metadata) — 200 tools
 - [`profile_*`](#profile) — 4 tools
 - [`route_*`](#route) — 7 tools
 - [`system_*`](#system) — 5 tools
@@ -2559,6 +2559,38 @@ Impact analysis — every ProgramRule whose actions reference this DataElement.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `data_element_uid` | `string` | yes | — |
+| `profile` | `string` | no | — |
+
+### `metadata_program_set_change_log_enabled`
+
+Toggle the v43-only `enableChangeLog` audit flag on a Program.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `uid` | `string` | yes | — |
+| `enabled` | `boolean` | yes | — |
+| `profile` | `string` | no | — |
+
+### `metadata_program_set_enrollment_category_combo`
+
+Set the v43-only `enrollmentCategoryCombo` reference on a Program.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `uid` | `string` | yes | — |
+| `category_combo_uid` | `string` | yes | — |
+| `profile` | `string` | no | — |
+
+### `metadata_program_set_labels`
+
+Set the v43-only Program UI label overrides shown in capture / tracker apps.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `uid` | `string` | yes | — |
+| `enrollments_label` | `string` | no | — |
+| `events_label` | `string` | no | — |
+| `program_stages_label` | `string` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_program_stage_add_element`

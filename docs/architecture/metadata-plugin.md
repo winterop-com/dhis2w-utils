@@ -33,11 +33,11 @@ The `<resource>` argument is DHIS2's camelCase plural — `dataElements`, `indic
 | `dhis2 metadata category-options` + `category-option-groups` + `category-option-group-sets` | Disaggregation values + validity windows + analytics dimensions | [category options](../api/category-options.md) |
 | `dhis2 metadata legend-sets` | Colour-range authoring attached to visualisations + maps | [legend sets](../api/legend-sets.md) |
 | `dhis2 metadata options` | `OptionSet` / `Option` workflows — get / find / idempotent `sync` | — |
-| `dhis2 metadata attribute` | Cross-resource `AttributeValue` workflows (get / set / delete / find) | — |
-| `dhis2 metadata program-rule` | Program-rule introspection + expression validation + DE-usage lookup | — |
-| `dhis2 metadata sql-view` | SQL-view list / get / execute / refresh / adhoc | [SQL views](../api/sql-views.md) |
-| `dhis2 metadata viz` + `dhis2 metadata dashboard` | Spec-driven visualization authoring + dashboard composition | [visualizations](../api/visualizations.md) |
-| `dhis2 metadata map` | Thematic-choropleth + boundary map authoring | [maps](../api/maps.md) |
+| `dhis2 metadata attributes` | Cross-resource `AttributeValue` workflows (get / set / delete / find) | — |
+| `dhis2 metadata program-rules` | Program-rule introspection + expression validation + DE-usage lookup | — |
+| `dhis2 metadata sql-views` | SQL-view list / get / execute / refresh / adhoc | [SQL views](../api/sql-views.md) |
+| `dhis2 metadata viz` + `dhis2 metadata dashboards` | Spec-driven visualization authoring + dashboard composition | [visualizations](../api/visualizations.md) |
+| `dhis2 metadata maps` | Thematic-choropleth + boundary map authoring | [maps](../api/maps.md) |
 
 The five analytics triples follow a single canonical-naming rule — lowercase + hyphenate the DHIS2 `/api/<resource>` path — so the CLI / MCP tool / Python attribute names all derive mechanically from the wire resource name (`/api/organisationUnitGroupSets` → `dhis2 metadata organisation-unit-group-sets` → `metadata_organisation_unit_group_set_*` → `client.organisation_unit_group_sets`).
 

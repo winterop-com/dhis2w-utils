@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `dhis2 metadata viz ...` and `dhis2 metadata dashboard ...` —
+# `dhis2 metadata viz ...` and `dhis2 metadata dashboards ...` —
 # visualization authoring + dashboard composition from the terminal.
 #
 # A DHIS2 Visualization is a saved analytics query with a chart type +
@@ -103,29 +103,29 @@ dhis2 metadata viz clone VizCliDem01 \
 
 # Auto-stack a new item below everything already on the dashboard.
 dhis2 metadata list dashboards
-dhis2 metadata dashboard get "$DASHBOARD"
+dhis2 metadata dashboards get "$DASHBOARD"
 
 # Add the demo line chart to the overview dashboard (auto-stack, full width).
-dhis2 metadata dashboard add-item "$DASHBOARD" --viz VizCliDem01
+dhis2 metadata dashboards add-item "$DASHBOARD" --viz VizCliDem01
 
 # Add two KPI tiles side-by-side above the auto-stack line. Pass explicit
 # slot so the tiles share a row.
-dhis2 metadata dashboard add-item "$DASHBOARD" --viz VizCliDem05 \
+dhis2 metadata dashboards add-item "$DASHBOARD" --viz VizCliDem05 \
     --x 0 --y 95 --width 20 --height 15
-dhis2 metadata dashboard add-item "$DASHBOARD" --viz VizCliCln01 \
+dhis2 metadata dashboards add-item "$DASHBOARD" --viz VizCliCln01 \
     --x 20 --y 95 --width 40 --height 15
 
 # Show the dashboard again to confirm placement.
-dhis2 metadata dashboard get "$DASHBOARD"
+dhis2 metadata dashboards get "$DASHBOARD"
 
 # ---------------------------------------------------------------------------
 # Clean up — keep reruns idempotent
 # ---------------------------------------------------------------------------
 
-# Remove items we added (item UID comes from `dhis2 metadata dashboard get`).
+# Remove items we added (item UID comes from `dhis2 metadata dashboards get`).
 # Adjust the UIDs below if you run this against a fresh instance.
 
-# dhis2 metadata dashboard remove-item "$DASHBOARD" <item-uid>
+# dhis2 metadata dashboards remove-item "$DASHBOARD" <item-uid>
 
 # Delete the demo vizes.
 dhis2 metadata viz delete VizCliDem01 -y

@@ -190,7 +190,7 @@ def test_dashboard_show_renders_item_slot(pat_profile: None) -> None:  # noqa: A
         "dhis2w_core.v42.plugins.metadata.service.show_dashboard",
         new=AsyncMock(return_value=_dashboard()),
     ):
-        result = CliRunner().invoke(build_app(), ["metadata", "dashboard", "get", "DashProbe01"])
+        result = CliRunner().invoke(build_app(), ["metadata", "dashboards", "get", "DashProbe01"])
     assert result.exit_code == 0, result.output
     assert "Probe dashboard" in result.output
     assert "VizProbeLn1" in result.output
@@ -205,7 +205,7 @@ def test_dashboard_add_item_forwards_slot(pat_profile: None) -> None:  # noqa: A
             build_app(),
             [
                 "metadata",
-                "dashboard",
+                "dashboards",
                 "add-item",
                 "DashProbe01",
                 "--viz",
@@ -235,7 +235,7 @@ def test_dashboard_add_item_auto_stacks_when_no_slot(pat_profile: None) -> None:
     with patch("dhis2w_core.v42.plugins.metadata.service.dashboard_add_item", new=mock):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "dashboard", "add-item", "DashProbe01", "--viz", "VizProbeLn1"],
+            ["metadata", "dashboards", "add-item", "DashProbe01", "--viz", "VizProbeLn1"],
         )
     assert result.exit_code == 0, result.output
     assert mock.await_args is not None
@@ -255,7 +255,7 @@ def test_dashboard_remove_item_reports_new_count(pat_profile: None) -> None:  # 
     ):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "dashboard", "remove-item", "DashProbe01", "Ditm0001"],
+            ["metadata", "dashboards", "remove-item", "DashProbe01", "Ditm0001"],
         )
     assert result.exit_code == 0, result.output
     assert "removed" in result.output

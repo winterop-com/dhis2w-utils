@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# `dhis2 metadata map ...` — thematic choropleth authoring via REST.
+# `dhis2 metadata maps ...` — thematic choropleth authoring via REST.
 #
 # A DHIS2 Map is a viewport (longitude, latitude, zoom) plus an ordered
 # list of layers. Thematic (choropleth) is the most common layer type
-# and is what `dhis2 metadata map create` builds from flags. Multi-layer
+# and is what `dhis2 metadata maps create` builds from flags. Multi-layer
 # maps (thematic + boundary + facility) need raw construction from the
 # library side.
 #
@@ -22,13 +22,13 @@ IMMUNIZATION_MAP=iKgbemGaDUh
 # ---------------------------------------------------------------------------
 
 dhis2 metadata list maps
-dhis2 metadata map get "$DOSES_MAP"
+dhis2 metadata maps get "$DOSES_MAP"
 
 # ---------------------------------------------------------------------------
 # Create from flags
 # ---------------------------------------------------------------------------
 
-dhis2 metadata map create \
+dhis2 metadata maps create \
     --name "Demo: first doses given 2024 choropleth" \
     --de I78gJm4KBo7 \
     --pe 2024 \
@@ -43,7 +43,7 @@ dhis2 metadata map create \
     --uid MapCliDem01
 
 # Clone it with a new name.
-dhis2 metadata map clone MapCliDem01 \
+dhis2 metadata maps clone MapCliDem01 \
     --new-name "Demo: first doses given (clone)" \
     --new-uid MapCliCln01
 
@@ -51,5 +51,5 @@ dhis2 metadata map clone MapCliDem01 \
 # Clean up
 # ---------------------------------------------------------------------------
 
-dhis2 metadata map delete MapCliDem01 -y
-dhis2 metadata map delete MapCliCln01 -y
+dhis2 metadata maps delete MapCliDem01 -y
+dhis2 metadata maps delete MapCliCln01 -y

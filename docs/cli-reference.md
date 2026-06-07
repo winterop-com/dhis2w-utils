@@ -2153,7 +2153,7 @@ $ dhis2 files resources upload [OPTIONS] FILE
 
 **Options**:
 
-* `--domain [data_value|push_analysis|document|message_attachment|user_avatar|org_unit|icon|job_data]`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
+* `--domain [data_value|document|message_attachment|user_avatar|org_unit|icon|job_data]`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
 * `--help`: Show this message and exit.
 
 #### `dhis2 files resources get`
@@ -3098,12 +3098,12 @@ $ dhis2 metadata [OPTIONS] COMMAND [ARGS]...
 * `merge-bundle`: Import a saved bundle file into a target...
 * `type`: Metadata resource types (the catalog).
 * `options`: OptionSet workflows (get / find / sync).
-* `attribute`: Cross-resource AttributeValue workflows...
-* `program-rule`: Program rule workflows (get / vars-for /...
-* `sql-view`: SQL view workflows (get / execute /...
+* `attributes`: Cross-resource AttributeValue workflows...
+* `program-rules`: Program rule workflows (get / vars-for /...
+* `sql-views`: SQL view workflows (get / execute /...
 * `viz`: Visualization authoring (get / create /...
-* `dashboard`: Dashboard composition (get / add-item /...
-* `map`: Map authoring (get / create / clone /...
+* `dashboards`: Dashboard composition (get / add-item /...
+* `maps`: Map authoring (get / create / clone /...
 * `data-elements`: DataElement authoring (get / create /...
 * `data-element-groups`: DataElementGroup workflows (get / members...
 * `data-element-group-sets`: DataElementGroupSet workflows (get /...
@@ -3690,7 +3690,7 @@ $ dhis2 metadata options [OPTIONS] COMMAND [ARGS]...
 * `create`: Create an OptionSet (then add its options...
 * `delete`: Delete an OptionSet by UID.
 * `sync`: Idempotently sync an OptionSet to match a...
-* `attribute`: External-system code mapping on Options...
+* `attributes`: External-system code mapping on Options...
 
 #### `dhis2 metadata options get`
 
@@ -3791,14 +3791,14 @@ $ dhis2 metadata options sync [OPTIONS] SET_REF SPEC_FILE
 * `--dry-run`: Compute the diff without writing anything.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata options attribute`
+#### `dhis2 metadata options attributes`
 
 External-system code mapping on Options via Attribute values.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata options attribute [OPTIONS] COMMAND [ARGS]...
+$ dhis2 metadata options attributes [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -3811,14 +3811,14 @@ $ dhis2 metadata options attribute [OPTIONS] COMMAND [ARGS]...
 * `set`: Set / replace an attribute value on an...
 * `find`: Reverse lookup — find the Option whose...
 
-##### `dhis2 metadata options attribute get`
+##### `dhis2 metadata options attributes get`
 
 Read one attribute value off an Option; exit 1 if unset.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata options attribute get [OPTIONS] OPTION_UID ATTRIBUTE
+$ dhis2 metadata options attributes get [OPTIONS] OPTION_UID ATTRIBUTE
 ```
 
 **Arguments**:
@@ -3830,7 +3830,7 @@ $ dhis2 metadata options attribute get [OPTIONS] OPTION_UID ATTRIBUTE
 
 * `--help`: Show this message and exit.
 
-##### `dhis2 metadata options attribute set`
+##### `dhis2 metadata options attributes set`
 
 Set / replace an attribute value on an Option.
 
@@ -3842,7 +3842,7 @@ idempotent — calling twice with the same value is a no-op.
 **Usage**:
 
 ```console
-$ dhis2 metadata options attribute set [OPTIONS] OPTION_UID ATTRIBUTE VALUE
+$ dhis2 metadata options attributes set [OPTIONS] OPTION_UID ATTRIBUTE VALUE
 ```
 
 **Arguments**:
@@ -3855,7 +3855,7 @@ $ dhis2 metadata options attribute set [OPTIONS] OPTION_UID ATTRIBUTE VALUE
 
 * `--help`: Show this message and exit.
 
-##### `dhis2 metadata options attribute find`
+##### `dhis2 metadata options attributes find`
 
 Reverse lookup — find the Option whose attribute matches a value.
 
@@ -3866,7 +3866,7 @@ on miss with a stderr hint.
 **Usage**:
 
 ```console
-$ dhis2 metadata options attribute find [OPTIONS]
+$ dhis2 metadata options attributes find [OPTIONS]
 ```
 
 **Options**:
@@ -3876,14 +3876,14 @@ $ dhis2 metadata options attribute find [OPTIONS]
 * `--value TEXT`: Attribute value to match exactly.  [required]
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata attribute`
+### `dhis2 metadata attributes`
 
 Cross-resource AttributeValue workflows (get / set / delete / find).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata attribute [OPTIONS] COMMAND [ARGS]...
+$ dhis2 metadata attributes [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -3897,14 +3897,14 @@ $ dhis2 metadata attribute [OPTIONS] COMMAND [ARGS]...
 * `delete`: Remove one attribute value from any...
 * `find`: Reverse lookup across any resource — list...
 
-#### `dhis2 metadata attribute get`
+#### `dhis2 metadata attributes get`
 
 Read one attribute value off any resource; exit 1 if unset.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata attribute get [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
+$ dhis2 metadata attributes get [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
 ```
 
 **Arguments**:
@@ -3917,14 +3917,14 @@ $ dhis2 metadata attribute get [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata attribute set`
+#### `dhis2 metadata attributes set`
 
 Set / replace one attribute value on any resource (read-merge-write).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata attribute set [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE VALUE
+$ dhis2 metadata attributes set [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE VALUE
 ```
 
 **Arguments**:
@@ -3938,14 +3938,14 @@ $ dhis2 metadata attribute set [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE VALUE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata attribute delete`
+#### `dhis2 metadata attributes delete`
 
 Remove one attribute value from any resource; exit 0 regardless of whether it existed.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata attribute delete [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
+$ dhis2 metadata attributes delete [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
 ```
 
 **Arguments**:
@@ -3958,7 +3958,7 @@ $ dhis2 metadata attribute delete [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata attribute find`
+#### `dhis2 metadata attributes find`
 
 Reverse lookup across any resource — list every UID whose attribute value matches.
 
@@ -3970,7 +3970,7 @@ follow-ups.
 **Usage**:
 
 ```console
-$ dhis2 metadata attribute find [OPTIONS] RESOURCE ATTRIBUTE VALUE
+$ dhis2 metadata attributes find [OPTIONS] RESOURCE ATTRIBUTE VALUE
 ```
 
 **Arguments**:
@@ -3984,14 +3984,14 @@ $ dhis2 metadata attribute find [OPTIONS] RESOURCE ATTRIBUTE VALUE
 * `--filter TEXT`: Extra DHIS2 filter constraints to narrow the search (e.g. `domainType:eq:AGGREGATE`). Repeatable.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata program-rule`
+### `dhis2 metadata program-rules`
 
 Program rule workflows (get / vars-for / validate / where-de-is-used).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-rule [OPTIONS] COMMAND [ARGS]...
+$ dhis2 metadata program-rules [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4005,14 +4005,14 @@ $ dhis2 metadata program-rule [OPTIONS] COMMAND [ARGS]...
 * `validate-expression`: Parse-check a program-rule condition...
 * `where-de-is-used`: Impact analysis — list every rule whose...
 
-#### `dhis2 metadata program-rule get`
+#### `dhis2 metadata program-rules get`
 
 Show one ProgramRule with its condition, priority, and every action.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-rule get [OPTIONS] RULE_UID
+$ dhis2 metadata program-rules get [OPTIONS] RULE_UID
 ```
 
 **Arguments**:
@@ -4023,14 +4023,14 @@ $ dhis2 metadata program-rule get [OPTIONS] RULE_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-rule vars-for`
+#### `dhis2 metadata program-rules vars-for`
 
 List every `ProgramRuleVariable` in scope for a program, sorted by name.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-rule vars-for [OPTIONS] PROGRAM_UID
+$ dhis2 metadata program-rules vars-for [OPTIONS] PROGRAM_UID
 ```
 
 **Arguments**:
@@ -4041,7 +4041,7 @@ $ dhis2 metadata program-rule vars-for [OPTIONS] PROGRAM_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-rule validate-expression`
+#### `dhis2 metadata program-rules validate-expression`
 
 Parse-check a program-rule condition expression.
 
@@ -4057,7 +4057,7 @@ distinguish parser mismatches from real syntax problems.
 **Usage**:
 
 ```console
-$ dhis2 metadata program-rule validate-expression [OPTIONS] EXPRESSION
+$ dhis2 metadata program-rules validate-expression [OPTIONS] EXPRESSION
 ```
 
 **Arguments**:
@@ -4069,7 +4069,7 @@ $ dhis2 metadata program-rule validate-expression [OPTIONS] EXPRESSION
 * `--context TEXT`: Which DHIS2 expression parser to use: program-indicator (default), validation-rule, indicator, predictor, or generic.  [default: program-indicator]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-rule where-de-is-used`
+#### `dhis2 metadata program-rules where-de-is-used`
 
 Impact analysis — list every rule whose actions reference this DataElement.
 
@@ -4080,7 +4080,7 @@ shorthand for `grep -q` pipelines).
 **Usage**:
 
 ```console
-$ dhis2 metadata program-rule where-de-is-used [OPTIONS] DATA_ELEMENT_UID
+$ dhis2 metadata program-rules where-de-is-used [OPTIONS] DATA_ELEMENT_UID
 ```
 
 **Arguments**:
@@ -4091,14 +4091,14 @@ $ dhis2 metadata program-rule where-de-is-used [OPTIONS] DATA_ELEMENT_UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata sql-view`
+### `dhis2 metadata sql-views`
 
 SQL view workflows (get / execute / refresh / adhoc).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sql-view [OPTIONS] COMMAND [ARGS]...
+$ dhis2 metadata sql-views [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4112,14 +4112,14 @@ $ dhis2 metadata sql-view [OPTIONS] COMMAND [ARGS]...
 * `refresh`: Refresh a MATERIALIZED_VIEW or lazily...
 * `adhoc`: Register a throwaway SqlView from a .sql...
 
-#### `dhis2 metadata sql-view get`
+#### `dhis2 metadata sql-views get`
 
 Show one SqlView&#x27;s metadata + its stored SQL body.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sql-view get [OPTIONS] VIEW_UID
+$ dhis2 metadata sql-views get [OPTIONS] VIEW_UID
 ```
 
 **Arguments**:
@@ -4130,14 +4130,14 @@ $ dhis2 metadata sql-view get [OPTIONS] VIEW_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sql-view execute`
+#### `dhis2 metadata sql-views execute`
 
 Run a SqlView and render its rows as a table, JSON array, or CSV.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sql-view execute [OPTIONS] VIEW_UID
+$ dhis2 metadata sql-views execute [OPTIONS] VIEW_UID
 ```
 
 **Arguments**:
@@ -4151,7 +4151,7 @@ $ dhis2 metadata sql-view execute [OPTIONS] VIEW_UID
 * `--format TEXT`: Output format: table (default), json, or csv.  [default: table]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sql-view refresh`
+#### `dhis2 metadata sql-views refresh`
 
 Refresh a MATERIALIZED_VIEW or lazily create a VIEW&#x27;s DB object.
 
@@ -4162,7 +4162,7 @@ MATERIALIZED_VIEW types re-run the underlying SQL each call.
 **Usage**:
 
 ```console
-$ dhis2 metadata sql-view refresh [OPTIONS] VIEW_UID
+$ dhis2 metadata sql-views refresh [OPTIONS] VIEW_UID
 ```
 
 **Arguments**:
@@ -4173,7 +4173,7 @@ $ dhis2 metadata sql-view refresh [OPTIONS] VIEW_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sql-view adhoc`
+#### `dhis2 metadata sql-views adhoc`
 
 Register a throwaway SqlView from a .sql file, execute once, delete it on the way out.
 
@@ -4184,7 +4184,7 @@ the Postgres injector example.
 **Usage**:
 
 ```console
-$ dhis2 metadata sql-view adhoc [OPTIONS] NAME SQL_PATH
+$ dhis2 metadata sql-views adhoc [OPTIONS] NAME SQL_PATH
 ```
 
 **Arguments**:
@@ -4309,14 +4309,14 @@ $ dhis2 metadata viz delete [OPTIONS] VIZ_UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata dashboard`
+### `dhis2 metadata dashboards`
 
 Dashboard composition (get / add-item / remove-item).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata dashboard [OPTIONS] COMMAND [ARGS]...
+$ dhis2 metadata dashboards [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4329,14 +4329,14 @@ $ dhis2 metadata dashboard [OPTIONS] COMMAND [ARGS]...
 * `add-item`: Add a Visualization or Map item to a...
 * `remove-item`: Remove one dashboardItem by its UID.
 
-#### `dhis2 metadata dashboard get`
+#### `dhis2 metadata dashboards get`
 
 Show one Dashboard with every dashboardItem resolved inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata dashboard get [OPTIONS] DASHBOARD_UID
+$ dhis2 metadata dashboards get [OPTIONS] DASHBOARD_UID
 ```
 
 **Arguments**:
@@ -4347,7 +4347,7 @@ $ dhis2 metadata dashboard get [OPTIONS] DASHBOARD_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata dashboard add-item`
+#### `dhis2 metadata dashboards add-item`
 
 Add a Visualization or Map item to a dashboard.
 
@@ -4359,7 +4359,7 @@ you want side-by-side tiling.
 **Usage**:
 
 ```console
-$ dhis2 metadata dashboard add-item [OPTIONS] DASHBOARD_UID
+$ dhis2 metadata dashboards add-item [OPTIONS] DASHBOARD_UID
 ```
 
 **Arguments**:
@@ -4376,14 +4376,14 @@ $ dhis2 metadata dashboard add-item [OPTIONS] DASHBOARD_UID
 * `--height INTEGER`: Slot height. Defaults to 20 when auto.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata dashboard remove-item`
+#### `dhis2 metadata dashboards remove-item`
 
 Remove one dashboardItem by its UID.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata dashboard remove-item [OPTIONS] DASHBOARD_UID ITEM_UID
+$ dhis2 metadata dashboards remove-item [OPTIONS] DASHBOARD_UID ITEM_UID
 ```
 
 **Arguments**:
@@ -4395,14 +4395,14 @@ $ dhis2 metadata dashboard remove-item [OPTIONS] DASHBOARD_UID ITEM_UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata map`
+### `dhis2 metadata maps`
 
 Map authoring (get / create / clone / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata map [OPTIONS] COMMAND [ARGS]...
+$ dhis2 metadata maps [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4416,14 +4416,14 @@ $ dhis2 metadata map [OPTIONS] COMMAND [ARGS]...
 * `clone`: Clone an existing Map with a fresh UID +...
 * `delete`: Delete a Map.
 
-#### `dhis2 metadata map get`
+#### `dhis2 metadata maps get`
 
 Show one Map with its viewport + every mapViews layer.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata map get [OPTIONS] MAP_UID
+$ dhis2 metadata maps get [OPTIONS] MAP_UID
 ```
 
 **Arguments**:
@@ -4434,7 +4434,7 @@ $ dhis2 metadata map get [OPTIONS] MAP_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata map create`
+#### `dhis2 metadata maps create`
 
 Create a single-layer thematic choropleth Map from flags.
 
@@ -4446,7 +4446,7 @@ library side and extend the spec to include boundary / facility
 **Usage**:
 
 ```console
-$ dhis2 metadata map create [OPTIONS]
+$ dhis2 metadata maps create [OPTIONS]
 ```
 
 **Options**:
@@ -4467,14 +4467,14 @@ $ dhis2 metadata map create [OPTIONS]
 * `--color-high TEXT`: Choropleth high-value colour (#hex).  [default: #b30000]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata map clone`
+#### `dhis2 metadata maps clone`
 
 Clone an existing Map with a fresh UID + new name.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata map clone [OPTIONS] SOURCE_UID
+$ dhis2 metadata maps clone [OPTIONS] SOURCE_UID
 ```
 
 **Arguments**:
@@ -4488,14 +4488,14 @@ $ dhis2 metadata map clone [OPTIONS] SOURCE_UID
 * `--new-description TEXT`
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata map delete`
+#### `dhis2 metadata maps delete`
 
 Delete a Map.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata map delete [OPTIONS] MAP_UID
+$ dhis2 metadata maps delete [OPTIONS] MAP_UID
 ```
 
 **Arguments**:

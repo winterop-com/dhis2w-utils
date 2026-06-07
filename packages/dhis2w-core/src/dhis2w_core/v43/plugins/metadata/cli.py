@@ -31,22 +31,22 @@ options_attribute_app = typer.Typer(
     help="External-system code mapping on Options via Attribute values.",
     no_args_is_help=True,
 )
-options_app.add_typer(options_attribute_app, name="attribute")
+options_app.add_typer(options_attribute_app, name="attributes")
 attribute_app = typer.Typer(
     help="Cross-resource AttributeValue workflows (get / set / delete / find).",
     no_args_is_help=True,
 )
-app.add_typer(attribute_app, name="attribute")
+app.add_typer(attribute_app, name="attributes")
 program_rule_app = typer.Typer(
     help="Program rule workflows (get / vars-for / validate / where-de-is-used).",
     no_args_is_help=True,
 )
-app.add_typer(program_rule_app, name="program-rule")
+app.add_typer(program_rule_app, name="program-rules")
 sql_view_app = typer.Typer(
     help="SQL view workflows (get / execute / refresh / adhoc).",
     no_args_is_help=True,
 )
-app.add_typer(sql_view_app, name="sql-view")
+app.add_typer(sql_view_app, name="sql-views")
 viz_app = typer.Typer(
     help="Visualization authoring (get / create / clone / delete).",
     no_args_is_help=True,
@@ -56,12 +56,12 @@ dashboard_app = typer.Typer(
     help="Dashboard composition (get / add-item / remove-item).",
     no_args_is_help=True,
 )
-app.add_typer(dashboard_app, name="dashboard")
+app.add_typer(dashboard_app, name="dashboards")
 map_app = typer.Typer(
     help="Map authoring (get / create / clone / delete).",
     no_args_is_help=True,
 )
-app.add_typer(map_app, name="map")
+app.add_typer(map_app, name="maps")
 data_elements_app = typer.Typer(
     help="DataElement authoring (get / create / rename / delete + legend-sets).",
     no_args_is_help=True,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `dhis2 metadata program-rule ...` — tracker business-logic workflows.
+# `dhis2 metadata program-rules ...` — tracker business-logic workflows.
 #
 # DHIS2 program rules fire in response to tracker events: hide/show fields,
 # emit warnings/errors, assign calculated values. They're configured via
@@ -18,15 +18,15 @@ CHILD_PROGRAM=IpHINAT79UW
 dhis2 metadata list programRules --filter program.id:eq:"$CHILD_PROGRAM"
 
 # Show one rule with its condition + every action resolved inline.
-dhis2 metadata program-rule get GC4gpdoSD4r
+dhis2 metadata program-rules get GC4gpdoSD4r
 
 # Same as `show` but raw JSON — useful when piping into jq.
-dhis2 --json metadata program-rule get GC4gpdoSD4r | jq '.programRuleActions'
+dhis2 --json metadata program-rules get GC4gpdoSD4r | jq '.programRuleActions'
 
 # --- Authoring support ------------------------------------------------------
 # What variables can a rule in this program reference?
 
-dhis2 metadata program-rule vars-for "$CHILD_PROGRAM"
+dhis2 metadata program-rules vars-for "$CHILD_PROGRAM"
 
 # Parse-check a condition before saving. DHIS2 doesn't expose a dedicated
 # program-rule validator — this command uses the program-indicator parser by
@@ -36,15 +36,15 @@ dhis2 metadata program-rule vars-for "$CHILD_PROGRAM"
 # ERROR status, so guard with `|| true` in pipelines where you want to
 # surface but not abort on parser-mismatch errors.
 
-dhis2 metadata program-rule validate-expression '1 + 1 > 0' --context generic || true
+dhis2 metadata program-rules validate-expression '1 + 1 > 0' --context generic || true
 
 # --- Impact analysis --------------------------------------------------------
 # Before renaming or removing a DE, find the program rules that reference it.
 # Exits 1 if nothing matches — safe in CI pipelines.
 
-dhis2 metadata program-rule where-de-is-used vANAXwtLwcT
+dhis2 metadata program-rules where-de-is-used vANAXwtLwcT
 
-# dhis2 metadata program-rule where-de-is-used vANAXwtLwcT \
+# dhis2 metadata program-rules where-de-is-used vANAXwtLwcT \
 #   && echo "still referenced — don't delete"
 
 # --- Generic surface (for CRUD) ---------------------------------------------

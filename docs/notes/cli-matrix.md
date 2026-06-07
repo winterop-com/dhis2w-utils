@@ -11,10 +11,10 @@
 ## metadata
 | command | gemma-4-12b-qat | gemma-4-12b | gemma-4-26b-a4b-qat | gemma-4-e4b | qwen2.5-7b-instruct | qwen3.5-4b |
 | --- | --- | --- | --- | --- | --- | --- |
-| `metadata attribute delete` | miss | miss | miss | miss | miss | miss |
-| `metadata attribute find` | miss | miss | miss | miss | miss | miss |
-| `metadata attribute get` | miss | miss | miss | miss | miss | miss |
-| `metadata attribute set` | miss | miss | miss | miss | miss | miss |
+| `metadata attributes delete` | miss | miss | miss | miss | miss | miss |
+| `metadata attributes find` | miss | miss | miss | miss | miss | miss |
+| `metadata attributes get` | miss | miss | miss | miss | miss | miss |
+| `metadata attributes set` | miss | miss | miss | miss | miss | miss |
 | `metadata categories add-option` | miss | miss | miss | miss | miss | miss |
 | `metadata categories create` | miss | miss | miss | miss | miss | miss |
 | `metadata categories delete` | miss | miss | miss | miss | miss | miss |
@@ -47,9 +47,9 @@
 | `metadata category-options get` | miss | miss | miss | miss | miss | miss |
 | `metadata category-options rename` | miss | miss | miss | miss | miss | miss |
 | `metadata category-options set-validity` | miss | miss | miss | miss | miss | miss |
-| `metadata dashboard add-item` | miss | miss | miss | miss | miss | miss |
-| `metadata dashboard get` | miss | miss | miss | miss | miss | miss |
-| `metadata dashboard remove-item` | miss | HIT | miss | miss | miss | HIT |
+| `metadata dashboards add-item` | miss | miss | miss | miss | miss | miss |
+| `metadata dashboards get` | miss | miss | miss | miss | miss | miss |
+| `metadata dashboards remove-item` | miss | HIT | miss | miss | miss | HIT |
 | `metadata data-element-group-sets add-groups` | miss | miss | miss | miss | miss | miss |
 | `metadata data-element-group-sets create` | HIT | HIT | HIT | miss | miss | HIT |
 | `metadata data-element-group-sets delete` | miss | miss | miss | miss | miss | miss |
@@ -100,10 +100,10 @@
 | `metadata legend-sets get` | miss | miss | miss | miss | miss | miss |
 | `metadata list` | RUN | RUN | RUN | RUN | RUN | RUN |
 | `metadata ls` | miss | miss | miss | miss | miss | miss |
-| `metadata map clone` | miss | miss | miss | miss | miss | miss |
-| `metadata map create` | miss | miss | miss | miss | miss | miss |
-| `metadata map delete` | miss | miss | miss | miss | miss | miss |
-| `metadata map get` | miss | miss | miss | miss | miss | miss |
+| `metadata maps clone` | miss | miss | miss | miss | miss | miss |
+| `metadata maps create` | miss | miss | miss | miss | miss | miss |
+| `metadata maps delete` | miss | miss | miss | miss | miss | miss |
+| `metadata maps get` | miss | miss | miss | miss | miss | miss |
 | `metadata merge` | miss | miss | miss | miss | miss | miss |
 | `metadata merge-bundle` | miss | miss | miss | miss | miss | miss |
 | `metadata options attribute find` | miss | miss | miss | miss | miss | miss |
@@ -155,10 +155,10 @@
 | `metadata program-indicators rename` | miss | miss | miss | miss | miss | miss |
 | `metadata program-indicators set-legend-sets` | miss | miss | miss | miss | miss | miss |
 | `metadata program-indicators validate-expression` | miss | miss | miss | miss | miss | miss |
-| `metadata program-rule get` | miss | miss | miss | miss | miss | miss |
-| `metadata program-rule validate-expression` | miss | miss | miss | miss | miss | miss |
-| `metadata program-rule vars-for` | miss | miss | miss | miss | miss | miss |
-| `metadata program-rule where-de-is-used` | miss | miss | miss | miss | miss | miss |
+| `metadata program-rules get` | miss | miss | miss | miss | miss | miss |
+| `metadata program-rules validate-expression` | miss | miss | miss | miss | miss | miss |
+| `metadata program-rules vars-for` | miss | miss | miss | miss | miss | miss |
+| `metadata program-rules where-de-is-used` | miss | miss | miss | miss | miss | miss |
 | `metadata program-stages add-element` | miss | miss | miss | miss | miss | miss |
 | `metadata program-stages create` | miss | HIT | miss | miss | miss | miss |
 | `metadata program-stages delete` | miss | miss | miss | miss | miss | miss |
@@ -185,10 +185,10 @@
 | `metadata sections rename` | miss | miss | miss | miss | miss | miss |
 | `metadata sections reorder` | miss | miss | miss | miss | miss | miss |
 | `metadata share` | miss | miss | miss | miss | HIT | miss |
-| `metadata sql-view adhoc` | miss | miss | miss | miss | miss | miss |
-| `metadata sql-view execute` | miss | miss | miss | miss | miss | miss |
-| `metadata sql-view get` | miss | miss | miss | miss | miss | miss |
-| `metadata sql-view refresh` | miss | miss | miss | miss | miss | miss |
+| `metadata sql-views adhoc` | miss | miss | miss | miss | miss | miss |
+| `metadata sql-views execute` | miss | miss | miss | miss | miss | miss |
+| `metadata sql-views get` | miss | miss | miss | miss | miss | miss |
+| `metadata sql-views refresh` | miss | miss | miss | miss | miss | miss |
 | `metadata tracked-entity-attributes create` | HIT | miss | miss | HIT | HIT | HIT |
 | `metadata tracked-entity-attributes delete` | miss | miss | miss | miss | miss | miss |
 | `metadata tracked-entity-attributes get` | miss | miss | miss | miss | miss | miss |

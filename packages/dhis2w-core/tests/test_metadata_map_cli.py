@@ -60,7 +60,7 @@ def test_map_show_renders_layer_summary(pat_profile: None) -> None:  # noqa: ARG
         "dhis2w_core.v42.plugins.metadata.service.show_map",
         new=AsyncMock(return_value=_map()),
     ):
-        result = CliRunner().invoke(build_app(), ["metadata", "map", "get", "MapProbe001"])
+        result = CliRunner().invoke(build_app(), ["metadata", "maps", "get", "MapProbe001"])
     assert result.exit_code == 0, result.output
     assert "Probe choropleth" in result.output
     assert "thematic" in result.output
@@ -76,7 +76,7 @@ def test_map_create_forwards_every_flag(pat_profile: None) -> None:  # noqa: ARG
             build_app(),
             [
                 "metadata",
-                "map",
+                "maps",
                 "create",
                 "--name",
                 "demo",
@@ -118,7 +118,7 @@ def test_map_clone_forwards_new_name(pat_profile: None) -> None:  # noqa: ARG001
             build_app(),
             [
                 "metadata",
-                "map",
+                "maps",
                 "clone",
                 "MapProbe001",
                 "--new-name",
@@ -139,7 +139,7 @@ def test_map_delete_aborts_without_yes(pat_profile: None) -> None:  # noqa: ARG0
         "dhis2w_core.v42.plugins.metadata.service.delete_map",
         new=AsyncMock(return_value=None),
     ):
-        result = CliRunner().invoke(build_app(), ["metadata", "map", "delete", "MapProbe001"], input="n\n")
+        result = CliRunner().invoke(build_app(), ["metadata", "maps", "delete", "MapProbe001"], input="n\n")
     assert result.exit_code != 0
 
 
@@ -149,6 +149,6 @@ def test_map_delete_with_yes_runs(pat_profile: None) -> None:  # noqa: ARG001
         "dhis2w_core.v42.plugins.metadata.service.delete_map",
         new=AsyncMock(return_value=None),
     ):
-        result = CliRunner().invoke(build_app(), ["metadata", "map", "delete", "MapProbe001", "-y"])
+        result = CliRunner().invoke(build_app(), ["metadata", "maps", "delete", "MapProbe001", "-y"])
     assert result.exit_code == 0, result.output
     assert "deleted" in result.output

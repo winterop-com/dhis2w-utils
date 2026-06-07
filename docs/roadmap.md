@@ -391,7 +391,7 @@ Items that don't exist in the Java client and now exist here:
 - **Streaming dataValueSets import** — `client.data_values.stream(source, content_type=...)`.
 - **Multi-instance metadata diff** — `dhis2 metadata diff-profiles` exports two profiles concurrently + diffs them.
 - **Files plugin** — CLI + MCP + `client.files` accessor over `/api/documents` + `/api/fileResources`.
-- **SQL views runner** — `client.sql_views` + `dhis2 metadata sql-view {list, get, execute, refresh, adhoc}`.
+- **SQL views runner** — `client.sql_views` + `dhis2 metadata sql-views {list, get, execute, refresh, adhoc}`.
 - **Tracker authoring workflows** — `dhis2 tracker {register, enroll, add-event, outstanding}` verbs + the matching `client.tracker` helpers for operator flows beyond generic CRUD.
 - **Rich conflict renderer** — `dhis2 metadata import` / `dhis2 data aggregate import` render `/api/metadata` and `/api/dataValueSets` error envelopes as a normalised `ConflictRow` table (object UID → offending property → server message).
 - **Apps plugin** — `dhis2 apps {list, add, remove, update, update --all, reload, snapshot, restore, hub-list, hub-url}` + `apps_*` MCP tools + `client.apps` accessor over `/api/apps` and `/api/appHub`. `update --all --dry-run` previews available hub updates before installing; bundled core apps update in place. `hub-list --search` filters the catalog client-side. `hub-url` read/writes the `keyAppHubUrl` system setting so self-hosted hubs can be wired via CLI. `snapshot --output` pins an instance's app inventory to a portable JSON manifest; `restore <manifest>` reinstalls every hub-backed entry via `install_from_hub`, with a `--dry-run` preview that mirrors `update --all --dry-run`.

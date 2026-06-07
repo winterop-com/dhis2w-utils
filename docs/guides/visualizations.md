@@ -216,7 +216,7 @@ The dimensional-placement cheat sheet in the [API reference](../api/visualizatio
 
 ## From the CLI
 
-Everything above is reachable through `dhis2 metadata viz` and `dhis2 metadata dashboard`. The CLI forwards the same flags `VisualizationSpec` consumes; defaults match the library builder.
+Everything above is reachable through `dhis2 metadata viz` and `dhis2 metadata dashboards`. The CLI forwards the same flags `VisualizationSpec` consumes; defaults match the library builder.
 
 ```bash
 # Multi-line Penta1 by district, one command, no hand-rolled JSON.
@@ -240,7 +240,7 @@ dhis2 metadata viz create \
 
 # Clone + compose into a dashboard.
 dhis2 metadata viz clone VizSourceUid --new-name "2025 preview" --new-uid VizNewClone1
-dhis2 metadata dashboard add-item TAMlzYkstb7 --viz VizNewClone1 --x 0 --y 95 --width 60 --height 20
+dhis2 metadata dashboards add-item TAMlzYkstb7 --viz VizNewClone1 --x 0 --y 95 --width 60 --height 20
 ```
 
 Every MCP tool has a direct CLI equivalent and vice versa. `dhis2 metadata viz list --type PIVOT_TABLE` mirrors `metadata_viz_list(viz_type="PIVOT_TABLE")` on the MCP side. Full surface: `list / ls / get / create / clone / delete` on `viz`; `list / ls / get / add-item / remove-item` on `dashboard`.

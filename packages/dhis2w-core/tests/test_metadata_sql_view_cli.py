@@ -67,7 +67,7 @@ def test_sql_view_show_prints_sql_query_body(pat_profile: None) -> None:  # noqa
         "dhis2w_core.v42.plugins.metadata.service.show_sql_view",
         new=AsyncMock(return_value=_view()),
     ):
-        result = CliRunner().invoke(build_app(), ["metadata", "sql-view", "get", "SqvOuLvl001"])
+        result = CliRunner().invoke(build_app(), ["metadata", "sql-views", "get", "SqvOuLvl001"])
     assert result.exit_code == 0, result.output
     assert "OU per level" in result.output
     assert "SELECT hierarchylevel" in result.output
@@ -79,7 +79,7 @@ def test_sql_view_execute_table_renders_columns_and_rows(pat_profile: None) -> N
         "dhis2w_core.v42.plugins.metadata.service.execute_sql_view",
         new=AsyncMock(return_value=_result()),
     ):
-        result = CliRunner().invoke(build_app(), ["metadata", "sql-view", "execute", "SqvOuLvl001"])
+        result = CliRunner().invoke(build_app(), ["metadata", "sql-views", "execute", "SqvOuLvl001"])
     assert result.exit_code == 0, result.output
     assert "level" in result.output
     assert "count" in result.output
@@ -94,7 +94,7 @@ def test_sql_view_execute_json_emits_name_keyed_dicts(pat_profile: None) -> None
     ):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "sql-view", "execute", "SqvOuLvl001", "--format", "json"],
+            ["metadata", "sql-views", "execute", "SqvOuLvl001", "--format", "json"],
         )
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
@@ -113,7 +113,7 @@ def test_sql_view_execute_csv_prints_header_row_plus_data(pat_profile: None) -> 
     ):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "sql-view", "execute", "SqvOuLvl001", "--format", "csv"],
+            ["metadata", "sql-views", "execute", "SqvOuLvl001", "--format", "csv"],
         )
     assert result.exit_code == 0, result.output
     lines = [line for line in result.output.splitlines() if line.strip()]
@@ -129,7 +129,7 @@ def test_sql_view_execute_forwards_var_and_criteria_pairs(pat_profile: None) -> 
             build_app(),
             [
                 "metadata",
-                "sql-view",
+                "sql-views",
                 "execute",
                 "SqvDeByNm01",
                 "--var",
@@ -149,7 +149,7 @@ def test_sql_view_execute_rejects_malformed_var_flag(pat_profile: None) -> None:
     """Sql view execute rejects malformed var flag."""
     result = CliRunner().invoke(
         build_app(),
-        ["metadata", "sql-view", "execute", "SqvOuLvl001", "--var", "no_colon_here"],
+        ["metadata", "sql-views", "execute", "SqvOuLvl001", "--var", "no_colon_here"],
     )
     assert result.exit_code == 2, result.output
     assert "expected key:value" in result.output
@@ -162,7 +162,7 @@ def test_sql_view_refresh_calls_service_and_prints_summary(pat_profile: None) ->
         "dhis2w_core.v42.plugins.metadata.service.refresh_sql_view",
         new=AsyncMock(return_value=envelope),
     ):
-        result = CliRunner().invoke(build_app(), ["metadata", "sql-view", "refresh", "SqvOuLvl001"])
+        result = CliRunner().invoke(build_app(), ["metadata", "sql-views", "refresh", "SqvOuLvl001"])
     assert result.exit_code == 0, result.output
     assert "Refresh complete" in result.output or "OK" in result.output
 
@@ -175,7 +175,7 @@ def test_sql_view_adhoc_reads_sql_file_and_runs(pat_profile: None, tmp_path: Pat
     with patch("dhis2w_core.v42.plugins.metadata.service.adhoc_sql_view", new=mock):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "sql-view", "adhoc", "probe", str(sql_file)],
+            ["metadata", "sql-views", "adhoc", "probe", str(sql_file)],
         )
     assert result.exit_code == 0, result.output
     assert mock.await_args is not None
@@ -190,7 +190,7 @@ def test_sql_view_adhoc_refuses_missing_sql_file(pat_profile: None) -> None:  # 
     """Sql view adhoc refuses missing sql file."""
     result = CliRunner().invoke(
         build_app(),
-        ["metadata", "sql-view", "adhoc", "probe", "nonexistent.sql"],
+        ["metadata", "sql-views", "adhoc", "probe", "nonexistent.sql"],
     )
     assert result.exit_code == 2, result.output
     assert "SQL file not found" in result.output

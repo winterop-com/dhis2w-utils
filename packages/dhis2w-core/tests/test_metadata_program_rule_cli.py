@@ -51,7 +51,7 @@ def _rule() -> ProgramRule:
 def test_program_rule_show_renders_action_table(pat_profile: None) -> None:  # noqa: ARG001
     """Program rule show renders action table."""
     with patch("dhis2w_core.v42.plugins.metadata.service.show_program_rule", new=AsyncMock(return_value=_rule())):
-        result = CliRunner().invoke(build_app(), ["metadata", "program-rule", "get", "PrAnc000001"])
+        result = CliRunner().invoke(build_app(), ["metadata", "program-rules", "get", "PrAnc000001"])
     assert result.exit_code == 0, result.output
     assert "ANC visit count implausibly high" in result.output
     assert "SHOWWARNING" in result.output
@@ -73,7 +73,7 @@ def test_program_rule_vars_for_surfaces_source_type(pat_profile: None) -> None: 
         "dhis2w_core.v42.plugins.metadata.service.list_program_rule_variables",
         new=AsyncMock(return_value=variables),
     ):
-        result = CliRunner().invoke(build_app(), ["metadata", "program-rule", "vars-for", "PROG"])
+        result = CliRunner().invoke(build_app(), ["metadata", "program-rules", "vars-for", "PROG"])
     assert result.exit_code == 0, result.output
     assert "V_X" in result.output
     assert "DATAELEMENT_CURRENT_EVENT" in result.output
@@ -91,7 +91,7 @@ def test_program_rule_validate_expression_exits_1_on_error(pat_profile: None) ->
     ):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "program-rule", "validate-expression", "broken"],
+            ["metadata", "program-rules", "validate-expression", "broken"],
         )
     assert result.exit_code == 1
     assert "ERROR" in result.output
@@ -109,7 +109,7 @@ def test_program_rule_where_de_is_used_exits_1_on_miss(pat_profile: None) -> Non
     ):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "program-rule", "where-de-is-used", "DEghost01"],
+            ["metadata", "program-rules", "where-de-is-used", "DEghost01"],
         )
     assert result.exit_code == 1
     assert "no rules" in result.output.lower()
