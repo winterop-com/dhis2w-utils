@@ -171,6 +171,37 @@ claude mcp add dhis2 -s user \
 
 The full per-client setup, profile-based auth (`.dhis2/profiles.toml` for OAuth2 / OIDC), tool-naming convention, and troubleshooting are in [`packages/dhis2w-mcp/README.md`](packages/dhis2w-mcp/README.md).
 
+### Use the MCP bridge (small local models)
+
+For a **small model running on-box** (LM Studio / Ollama / llama.cpp) against data that can't leave the machine, `dhis2w-mcp-bridge` exposes the whole CLI as a **single** tool, `dhis2_cli`, that the model drives by progressive discovery — ~one tool schema instead of ~304. (Why one tool, not many: [Bridge design](docs/architecture/mcp-bridge.md). Use the full `dhis2w-mcp` server above for capable cloud models.)
+
+```bash
+uv tool install dhis2w-mcp-bridge          # or run on demand: uvx dhis2w-mcp-bridge
+```
+
+**LM Studio** (native MCP client) — `~/.lmstudio/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "dhis2": {
+      "command": "dhis2w-mcp-bridge",
+      "env": { "DHIS2_PROFILE": "local_basic", "DHIS2_MCP_READONLY": "1" }
+    }
+  }
+}
+```
+
+The model then drives the CLI like a terminal, pulling help on demand:
+
+```
+dhis2_cli(["--help"])                                        # discover command groups
+dhis2_cli(["metadata", "list", "dataElements", "--count"])   # {"resource":"dataElements","total":1037}
+dhis2_cli(["schema", "dataElement"])                         # the type's fields (+ enum values)
+```
+
+`--json` is injected automatically; `DHIS2_MCP_READONLY=1` refuses writes (fail-closed). Full usage + read-only details: [the bridge guide](docs/mcp/bridge.md).
+
 ### Use the profile layer (env / TOML config)
 
 The `dhis2w-cli` and `dhis2w-mcp` packages share a profile system that walks `DHIS2_PROFILE` env → `./.dhis2/profiles.toml` → `~/.config/dhis2/profiles.toml`:
