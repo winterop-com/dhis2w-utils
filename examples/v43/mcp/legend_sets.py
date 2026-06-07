@@ -26,7 +26,7 @@ async def main() -> None:
     # before its cleanup step.
     run_code = f"MCP_DEMO_{uuid.uuid4().hex[:8].upper()}"
     async with Client(build_server()) as client:
-        listed = await client.call_tool("metadata_legend_set_list", {"profile": profile})
+        listed = await client.call_tool("metadata_list", {"resource": "legendSets", "profile": profile})
         rows = listed.data or listed.structured_content or []
         print(f"existing legendSets: {len(rows)}")
 

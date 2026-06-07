@@ -1,6 +1,6 @@
 """User groups + user roles via the Python client.
 
-Read + mutate the user-group and user-role surface without going through the
+Read + mutate the user group and user role surface without going through the
 CLI — everything the `dhis2 user-group` and `dhis2 user-role` commands do is
 one httpx call over the typed OAS models.
 

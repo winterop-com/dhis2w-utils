@@ -49,8 +49,8 @@ async def main() -> None:
         print(f"created TET {tet_uid}")
 
         ous_response = await mcp_client.call_tool(
-            "metadata_organisation_unit_list",
-            {"page_size": 1, "profile": profile},
+            "metadata_list",
+            {"resource": "organisationUnits", "page_size": 1, "profile": profile},
         )
         ous = ous_response.data or []
         ou_uid = ous[0]["id"] if isinstance(ous, list) and ous else None

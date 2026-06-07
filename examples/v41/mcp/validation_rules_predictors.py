@@ -32,8 +32,8 @@ async def main() -> None:
         de_uid = des[0]["id"]
 
         levels_response = await mcp_client.call_tool(
-            "metadata_organisation_unit_level_list",
-            {"profile": profile},
+            "metadata_list",
+            {"resource": "organisationUnitLevels", "profile": profile},
         )
         levels = levels_response.data or []
         ou_level_uid = levels[-1]["id"] if isinstance(levels, list) and levels else None

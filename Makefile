@@ -59,6 +59,8 @@ lint:
 check-examples:
 	@echo ">>> Checking per-version example sync (v42 baseline -> v41 + v43)"
 	@$(UV) run python infra/scripts/check_examples_sync.py
+	@echo ">>> Checking example CLI commands + MCP tool references resolve"
+	@$(UV) run python infra/scripts/check_example_refs.py
 
 test:
 	@echo ">>> Running tests (excluding slow + contract)"

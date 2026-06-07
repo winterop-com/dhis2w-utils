@@ -10,7 +10,7 @@ DS_UIDS=$(dhis2 --json metadata list dataSets --page-size 2 | jq -r '.[].id' | x
 read -ra DS_ARR <<<"$DS_UIDS"
 
 # Find a user group to grant access to.
-UG_UID=$(dhis2 --json user-group list --page-size 1 | jq -r '.[0].id')
+UG_UID=$(dhis2 --json user group list --page-size 1 | jq -r '.[0].id')
 
 # Dry-run preview — what would be sent if --dry-run is dropped.
 dhis2 metadata share dataSet "${DS_ARR[@]}" \

@@ -26,11 +26,15 @@ async def main() -> None:
     """Connect to the in-process MCP server and read CategoryCombos + their COCs."""
     profile = os.environ.get("DHIS2_PROFILE", "local_basic")
     async with Client(build_server()) as client:
-        combos = await client.call_tool("metadata_category_combo_list", {"profile": profile, "page_size": 5})
+        combos = await client.call_tool(
+            "metadata_list", {"resource": "categoryCombos", "profile": profile, "page_size": 5}
+        )
         rows = combos.data or combos.structured_content or []
         print(f"metadata_category_combo_list returned {len(rows)} rows")
 
-        cocs = await client.call_tool("metadata_category_option_combo_list", {"profile": profile, "page_size": 5})
+        cocs = await client.call_tool(
+            "metadata_list", {"resource": "categoryOptionCombos", "profile": profile, "page_size": 5}
+        )
         coc_rows = cocs.data or cocs.structured_content or []
         print(f"metadata_category_option_combo_list returned {len(coc_rows)} rows")
 

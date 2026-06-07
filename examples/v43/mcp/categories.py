@@ -24,7 +24,9 @@ async def main() -> None:
     """Connect to the in-process MCP server and read the first page of Categories."""
     profile = os.environ.get("DHIS2_PROFILE", "local_basic")
     async with Client(build_server()) as client:
-        listing = await client.call_tool("metadata_category_list", {"profile": profile, "page_size": 5})
+        listing = await client.call_tool(
+            "metadata_list", {"resource": "categories", "profile": profile, "page_size": 5}
+        )
         rows = listing.data or listing.structured_content or []
         print(f"metadata_category_list returned {len(rows)} rows")
 

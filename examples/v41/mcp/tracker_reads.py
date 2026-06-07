@@ -44,7 +44,7 @@ async def main() -> None:
         # DHIS2 rejects `type` + `program` together on /api/tracker/trackedEntities (E1003).
         # `org_unit` is also required when `ou_mode=DESCENDANTS` (the default) — pick a
         # root OU off the seeded fixture rather than hardcoding a UID.
-        ous = await client.call_tool("metadata_organisation_unit_list", {"level": 1, "page_size": 1})
+        ous = await client.call_tool("metadata_list", {"resource": "organisationUnits", "level": 1, "page_size": 1})
         ou_envelope = ous.structured_content or ous.data or {}
         ou_rows = ou_envelope.get("result", []) if isinstance(ou_envelope, dict) else ou_envelope
         if not ou_rows:

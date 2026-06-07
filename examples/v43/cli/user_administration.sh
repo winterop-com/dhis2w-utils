@@ -23,7 +23,7 @@ dhis2 system whoami
 # Create a new user + email an invitation. DHIS2 derives the username from the
 # email prefix when --username is omitted.
 # dhis2 user invite alice@example.com --first-name Alice --surname Example \
-#     --user-role abcDEFghiJK --org-unit ImspTQPwCqd
+#     --user role abcDEFghiJK --org-unit ImspTQPwCqd
 
 # Re-send an invitation that was already queued but never accepted.
 # dhis2 user reinvite <UID>

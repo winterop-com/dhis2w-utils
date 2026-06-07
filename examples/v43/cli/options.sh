@@ -54,24 +54,20 @@ dhis2 metadata option-sets sync VACCINE_TYPE /tmp/vaccine-rollback.json --remove
 # external integrations use for ICD-10 / SNOMED / LOINC code mapping.
 
 # Read one attribute value by Option UID + attribute business code:
-dhis2 metadata option-sets attribute get OptVacBCG01 SNOMED_CODE
+dhis2 metadata attributes get options OptVacBCG01 SNOMED_CODE
 
 # Reverse lookup — given an external code, find the DHIS2 Option.
 # THE integration killer: external system hands you a SNOMED code, you
 # return the DHIS2 Option UID it maps to.
-dhis2 metadata option-sets attribute find \
-    --set VACCINE_TYPE \
-    --attribute SNOMED_CODE \
-    --value 386661006                    # measles vaccine immunisation
+dhis2 metadata attributes find options SNOMED_CODE 386661006                    # measles vaccine immunisation
 
 # Misses exit 1 with a stderr hint — safe in pipelines:
-# dhis2 metadata option-sets attribute find \
-#     --set VACCINE_TYPE --attribute SNOMED_CODE --value 999999999
+# dhis2 metadata attributes find options SNOMED_CODE 999999999
 
 # Set / replace an attribute value — read-merge-write, idempotent:
-dhis2 metadata option-sets attribute set OptVacBCG01 SNOMED_CODE TESTING-XYZ
-dhis2 metadata option-sets attribute get OptVacBCG01 SNOMED_CODE   # → TESTING-XYZ
-dhis2 metadata option-sets attribute set OptVacBCG01 SNOMED_CODE 77656005   # restore
+dhis2 metadata attributes set options OptVacBCG01 SNOMED_CODE TESTING-XYZ
+dhis2 metadata attributes get options OptVacBCG01 SNOMED_CODE   # → TESTING-XYZ
+dhis2 metadata attributes set options OptVacBCG01 SNOMED_CODE 77656005   # restore
 
 # --- Generic metadata surface (works for every resource) -------------------
 

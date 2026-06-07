@@ -32,8 +32,8 @@ async def main() -> None:
         print(f"subtree rooted at {ROOT_UID}: {len(tree)} units")
 
         level_response = await mcp_client.call_tool(
-            "metadata_organisation_unit_level_list",
-            {"profile": profile},
+            "metadata_list",
+            {"resource": "organisationUnitLevels", "profile": profile},
         )
         levels = level_response.data or level_response.structured_content or []
         print(f"levels: {[row.get('level') for row in levels if isinstance(row, dict)]}")
