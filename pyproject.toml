@@ -75,16 +75,12 @@ branch = true
 relative_files = true
 source = ["packages"]
 omit = [
-  # v41 / v43 hand-written client + plugin trees are mechanical copies of v42
-  # awaiting their own deep test trees. Measuring untested copies drags the
-  # total below the fail-under bar without giving us signal. The per-version
-  # smoke matrix in `tests/test_v{41,43}_smoke.py` (dhis2w-client) and
-  # `tests/test_v{41,43}_plugin_smoke.py` (dhis2w-core) provides structural
-  # guardrails (imports resolve, plugin set is intact, client handshake binds
-  # the right tree) while these omits stay in place. Re-include each tree
-  # once accessor-level v41/v43 tests fill in.
-  "packages/dhis2w-client/src/dhis2w_client/v41/*",
-  "packages/dhis2w-client/src/dhis2w_client/v43/*",
+  # The v41 / v43 hand-written CLIENT trees are now measured: their accessor tests run
+  # against all three trees via the `server_version` parametrization (conftest), so the
+  # v41/v43 accessor code is exercised and counted. The v41 / v43 CORE plugin trees still
+  # have only the per-version smoke matrix (`tests/test_v{41,43}_plugin_smoke.py`) —
+  # imports resolve + plugin set intact — so they stay omitted until their plugin tests
+  # fill in. Drop each core entry once its plugin tests land.
   "packages/dhis2w-core/src/dhis2w_core/v41/*",
   "packages/dhis2w-core/src/dhis2w_core/v43/*",
 ]
