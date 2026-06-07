@@ -27,6 +27,7 @@ async def test_connect_binds_the_reported_major(play_target: tuple[str, str]) ->
         assert client.version_key == version_key
         info = await client.system.info()
         assert (info.version or "").startswith(f"2.{version_key[1:]}")
+        assert (await client.system.me()).username
 
 
 async def test_identical_accessors_parse_real_wire(play_target: tuple[str, str]) -> None:
@@ -43,11 +44,29 @@ async def test_identical_accessors_parse_real_wire(play_target: tuple[str, str])
         indicators = await client.indicators.list_all(page_size=5)
         assert indicators and type(indicators[0]).__name__ == "Indicator"
 
+        data_sets = await client.data_sets.list_all(page_size=5)
+        assert data_sets and type(data_sets[0]).__name__ == "DataSet"
 
-async def test_diverged_accessor_parses_real_wire(play_target: tuple[str, str]) -> None:
-    """A diverged accessor (category_combos) parses each major's real wire — the high-value check."""
+        program_indicators = await client.program_indicators.list_all(page_size=5)
+        assert program_indicators and type(program_indicators[0]).__name__ == "ProgramIndicator"
+
+
+async def test_diverged_accessors_parse_real_wire(play_target: tuple[str, str]) -> None:
+    """Diverged accessors parse each major's real wire — the high-value parity check."""
     url, _ = play_target
     async with Dhis2Client(url, auth=_auth()) as client:
         combos = await client.category_combos.list_all(page_size=5)
         assert combos and type(combos[0]).__name__ == "CategoryCombo"
         assert combos[0].id and combos[0].dataDimensionType is not None
+
+        org_units = await client.organisation_units.list_all(page_size=5)
+        assert org_units and type(org_units[0]).__name__ == "OrganisationUnit"
+        assert org_units[0].id and org_units[0].level is not None
+
+        programs = await client.programs.list_all(page_size=5)
+        assert programs and type(programs[0]).__name__ == "Program"
+        assert programs[0].id
+
+        results = await client.metadata.search("anc")
+        assert results.total >= 0
+        assert isinstance(results.flat(), list)
