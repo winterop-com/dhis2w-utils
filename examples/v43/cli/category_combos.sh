@@ -10,7 +10,7 @@ CC_UID=$(dhis2 --json metadata list categoryCombos --page-size 1 | jq -r '.[0].i
 [ -n "$CC_UID" ] && dhis2 metadata category-combos get "$CC_UID"
 
 # Read the materialised matrix for one combo.
-dhis2 metadata list categoryOptionCombos-for-combo "$CC_UID"
+dhis2 metadata category-option-combos list-for-combo "$CC_UID"
 
 # Authoring (commented — running creates real metadata).
 # Pick two categories with N and M options. Their cross-product is N*M

@@ -13,6 +13,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2] / "examples"
 SUFFIXES = {".py", ".sh"}
 
+# Examples a version legitimately omits (documented divergence, not drift). v43 event/enrollment
+# analytics behaves differently from v41/v42 on the seeded program — the example errors there, so
+# v43 has no counterpart by design (revisit if v43 event analytics is reconciled).
+OMITTED: dict[str, set[Path]] = {
+    "v43": {
+        Path("client/analytics_events_enrollments.py"),
+        Path("mcp/analytics_events_enrollments.py"),
+    },
+}
+
 
 def _source_set(version: str) -> set[Path]:
     base = ROOT / version
@@ -23,7 +33,7 @@ def main() -> int:
     v42 = _source_set("v42")
     missing: list[str] = []
     for version in ("v41", "v43"):
-        for rel in sorted(v42 - _source_set(version)):
+        for rel in sorted(v42 - _source_set(version) - OMITTED.get(version, set())):
             missing.append(f"examples/{version}/{rel} (present in v42)")
     if missing:
         print("Example drift — v42 examples missing a per-version counterpart:")
