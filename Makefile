@@ -1,4 +1,4 @@
-.PHONY: help install lint test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bridge-round bridge-bench cli-matrix composite-scenarios refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bridge-round bridge-bench cli-matrix composite-scenarios refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -55,6 +55,10 @@ lint:
 	@echo ">>> Running type checkers"
 	@$(UV) run mypy --explicit-package-bases packages examples infra/scripts
 	@$(UV) run pyright
+
+check-examples:
+	@echo ">>> Checking per-version example sync (v42 baseline -> v41 + v43)"
+	@$(UV) run python infra/scripts/check_examples_sync.py
 
 test:
 	@echo ">>> Running tests (excluding slow + contract)"

@@ -32,6 +32,9 @@ jobs:
       - name: Lint (ruff + mypy + pyright)
         run: make lint
 
+      - name: Check per-version example sync (v41/v43 mirror v42)
+        run: make check-examples
+
       - name: Test + coverage (fast suite, excludes @pytest.mark.slow)
         run: make coverage
 
