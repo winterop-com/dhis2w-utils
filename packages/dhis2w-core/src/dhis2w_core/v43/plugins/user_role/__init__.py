@@ -6,7 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v43.plugins.user_role import cli as cli_module
 from dhis2w_core.v43.plugins.user_role import mcp as mcp_module
 
 
@@ -19,8 +18,8 @@ class _UserRolePlugin(BaseModel):
     description: str = "List + administer DHIS2 user roles (authorities, user membership)."
 
     def register_cli(self, app: Any) -> None:
-        """Mount the user-role sub-app under `dhis2 user-role`."""
-        cli_module.register(app)
+        """CLI is mounted by the `user` plugin under `dhis2 user role`; no top-level mount."""
+        return None
 
     def register_mcp(self, mcp: Any) -> None:
         """Register user-role tools on the MCP server."""

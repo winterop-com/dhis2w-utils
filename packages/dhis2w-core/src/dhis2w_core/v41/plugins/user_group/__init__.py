@@ -6,7 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v41.plugins.user_group import cli as cli_module
 from dhis2w_core.v41.plugins.user_group import mcp as mcp_module
 
 
@@ -19,8 +18,8 @@ class _UserGroupPlugin(BaseModel):
     description: str = "List + administer DHIS2 user groups (membership, sharing)."
 
     def register_cli(self, app: Any) -> None:
-        """Mount the user-group sub-app under `dhis2 user-group`."""
-        cli_module.register(app)
+        """CLI is mounted by the `user` plugin under `dhis2 user group`; no top-level mount."""
+        return None
 
     def register_mcp(self, mcp: Any) -> None:
         """Register user-group tools on the MCP server."""

@@ -61,12 +61,12 @@ async def test_list_authorities_returns_sorted(basic_profile: Profile) -> None:
     assert auths == ["ALL", "F_METADATA_EXPORT", "F_USER_VIEW"]
 
 
-def test_plugin_registers_on_root_cli() -> None:
-    """Plugin registers on root cli."""
+def test_cli_mounted_under_user() -> None:
+    """CLI is mounted under the user domain (`dhis2 user role`)."""
     from dhis2w_cli.main import build_app
     from typer.testing import CliRunner
 
     runner = CliRunner()
-    result = runner.invoke(build_app(), ["user-role", "--help"])
+    result = runner.invoke(build_app(), ["user", "role", "--help"])
     assert result.exit_code == 0
-    assert "user-role administration" in result.output
+    assert "Manage DHIS2 user roles" in result.output

@@ -101,7 +101,7 @@ Swap the `v42` segment for `v41` or `v43` to target the matching stack. `make re
 | `dev_codegen.sh` | `dhis2 dev codegen generate / rebuild / oas-rebuild` |
 | `maintenance.sh` | `dhis2 maintenance task types/list/status/watch`, `cache`, `cleanup`, `dataintegrity list/run/result` |
 | `user_administration.sh` | `dhis2 user list / get / me / invite / reinvite / reset-password` |
-| `user_groups_and_roles.sh` | `dhis2 user-group {...}`, `dhis2 user-role {...}` |
+| `user_groups_and_roles.sh` | `dhis2 user group {...}`, `dhis2 user role {...}` |
 
 ## v42 MCP examples ([`v42/mcp/`](v42/mcp/))
 

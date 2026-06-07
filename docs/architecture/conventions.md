@@ -9,7 +9,7 @@ This page documents the verb vocabulary used across CLI commands, MCP tools, and
 ## Tool / command naming
 
 - **MCP tool functions**: `<plugin>_<resource>_<verb>` in snake_case, verb-last. Examples: `metadata_data_element_create`, `user_role_authority_list`, `system_calendar_get`.
-- **CLI sub-commands**: `dhis2 <plugin> <resource> <verb>` with hyphens for word boundaries. Examples: `dhis2 metadata data-element create`, `dhis2 user-role authority-list`, `dhis2 system calendar`.
+- **CLI sub-commands**: `dhis2 <plugin> <resource> <verb>` with hyphens for word boundaries. Examples: `dhis2 metadata data-element create`, `dhis2 user role authority-list`, `dhis2 system calendar`.
 - **Service methods** (in `service.py`): verb-first is fine because the module name is the namespace — `service.create_data_element()`, `service.set_calendar()`. The verb-last rule applies only to the MCP-tool function name where there is no surrounding object.
 - **Client accessors** (`client.<resource>.<verb>()`): same as services. `client.data_elements.create()`, `client.system.set_calendar()`.
 

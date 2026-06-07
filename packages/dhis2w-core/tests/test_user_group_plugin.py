@@ -63,12 +63,12 @@ async def test_apply_group_sharing_routes_to_sharing_endpoint(basic_profile: Pro
     assert route.called
 
 
-def test_plugin_registers_on_root_cli() -> None:
-    """Plugin registers on root cli."""
+def test_cli_mounted_under_user() -> None:
+    """CLI is mounted under the user domain (`dhis2 user group`)."""
     from dhis2w_cli.main import build_app
     from typer.testing import CliRunner
 
     runner = CliRunner()
-    result = runner.invoke(build_app(), ["user-group", "--help"])
+    result = runner.invoke(build_app(), ["user", "group", "--help"])
     assert result.exit_code == 0
-    assert "user-group administration" in result.output
+    assert "Manage DHIS2 user groups" in result.output

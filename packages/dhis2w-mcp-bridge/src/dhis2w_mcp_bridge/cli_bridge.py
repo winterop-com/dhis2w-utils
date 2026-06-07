@@ -162,13 +162,13 @@ READ_ONLY_COMMANDS: Final[frozenset[tuple[str, ...]]] = frozenset(
         ("user", "get"),
         ("user", "list"),
         ("user", "ls"),
-        ("user-group", "get"),
-        ("user-group", "list"),
-        ("user-group", "ls"),
-        ("user-role", "authority-list"),
-        ("user-role", "get"),
-        ("user-role", "list"),
-        ("user-role", "ls"),
+        ("user", "group", "get"),
+        ("user", "group", "list"),
+        ("user", "group", "ls"),
+        ("user", "role", "authority-list"),
+        ("user", "role", "get"),
+        ("user", "role", "list"),
+        ("user", "role", "ls"),
     }
 )
 

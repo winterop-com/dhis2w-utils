@@ -35,8 +35,6 @@ $ dhis2 [OPTIONS] COMMAND [ARGS]...
 * `security`: DHIS2 security posture (read-only).
 * `system`: DHIS2 system info.
 * `user`: DHIS2 user administration.
-* `user-group`: DHIS2 user-group administration.
-* `user-role`: DHIS2 user-role administration.
 
 ## `dhis2 schema`
 
@@ -8956,6 +8954,8 @@ $ dhis2 user [OPTIONS] COMMAND [ARGS]...
 * `invite`: Create a user and send the invitation email.
 * `reinvite`: Re-send the invitation email for a pending...
 * `reset-password`: Trigger DHIS2&#x27;s password-reset email (POST...
+* `group`: Manage DHIS2 user groups.
+* `role`: Manage DHIS2 user roles.
 
 ### `dhis2 user ls`
 
@@ -9088,14 +9088,14 @@ $ dhis2 user reset-password [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-## `dhis2 user-group`
+### `dhis2 user group`
 
-DHIS2 user-group administration.
+Manage DHIS2 user groups.
 
 **Usage**:
 
 ```console
-$ dhis2 user-group [OPTIONS] COMMAND [ARGS]...
+$ dhis2 user group [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -9114,14 +9114,14 @@ $ dhis2 user-group [OPTIONS] COMMAND [ARGS]...
 * `sharing-get`: Print the current sharing block for one...
 * `sharing-grant-user`: Grant one user access to a group (shortcut...
 
-### `dhis2 user-group ls`
+#### `dhis2 user group ls`
 
 List user groups.
 
 **Usage**:
 
 ```console
-$ dhis2 user-group ls [OPTIONS]
+$ dhis2 user group ls [OPTIONS]
 ```
 
 **Options**:
@@ -9132,14 +9132,14 @@ $ dhis2 user-group ls [OPTIONS]
 * `--page-size INTEGER`: Server-side page size.
 * `--help`: Show this message and exit.
 
-### `dhis2 user-group list`
+#### `dhis2 user group list`
 
 List user groups.
 
 **Usage**:
 
 ```console
-$ dhis2 user-group list [OPTIONS]
+$ dhis2 user group list [OPTIONS]
 ```
 
 **Options**:
@@ -9150,14 +9150,14 @@ $ dhis2 user-group list [OPTIONS]
 * `--page-size INTEGER`: Server-side page size.
 * `--help`: Show this message and exit.
 
-### `dhis2 user-group get`
+#### `dhis2 user group get`
 
 Fetch one user group by UID. Prints a concise summary; `--json` for full payload.
 
 **Usage**:
 
 ```console
-$ dhis2 user-group get [OPTIONS] UID
+$ dhis2 user group get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9169,14 +9169,14 @@ $ dhis2 user-group get [OPTIONS] UID
 * `--fields TEXT`: DHIS2 field selector.
 * `--help`: Show this message and exit.
 
-### `dhis2 user-group create`
+#### `dhis2 user group create`
 
 Create a user group (then add members with `add-member`).
 
 **Usage**:
 
 ```console
-$ dhis2 user-group create [OPTIONS]
+$ dhis2 user group create [OPTIONS]
 ```
 
 **Options**:
@@ -9186,14 +9186,14 @@ $ dhis2 user-group create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-### `dhis2 user-group delete`
+#### `dhis2 user group delete`
 
 Delete a user group by UID.
 
 **Usage**:
 
 ```console
-$ dhis2 user-group delete [OPTIONS] UID
+$ dhis2 user group delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9205,14 +9205,14 @@ $ dhis2 user-group delete [OPTIONS] UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-### `dhis2 user-group add-member`
+#### `dhis2 user group add-member`
 
 Add a user to a group (POST /api/userGroups/&lt;gid&gt;/users/&lt;uid&gt;).
 
 **Usage**:
 
 ```console
-$ dhis2 user-group add-member [OPTIONS] GROUP_UID USER_UID
+$ dhis2 user group add-member [OPTIONS] GROUP_UID USER_UID
 ```
 
 **Arguments**:
@@ -9224,14 +9224,14 @@ $ dhis2 user-group add-member [OPTIONS] GROUP_UID USER_UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 user-group remove-member`
+#### `dhis2 user group remove-member`
 
 Remove a user from a group (DELETE /api/userGroups/&lt;gid&gt;/users/&lt;uid&gt;).
 
 **Usage**:
 
 ```console
-$ dhis2 user-group remove-member [OPTIONS] GROUP_UID USER_UID
+$ dhis2 user group remove-member [OPTIONS] GROUP_UID USER_UID
 ```
 
 **Arguments**:
@@ -9243,14 +9243,14 @@ $ dhis2 user-group remove-member [OPTIONS] GROUP_UID USER_UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 user-group sharing-get`
+#### `dhis2 user group sharing-get`
 
 Print the current sharing block for one user group. `--json` for full payload.
 
 **Usage**:
 
 ```console
-$ dhis2 user-group sharing-get [OPTIONS] UID
+$ dhis2 user group sharing-get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9261,7 +9261,7 @@ $ dhis2 user-group sharing-get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 user-group sharing-grant-user`
+#### `dhis2 user group sharing-grant-user`
 
 Grant one user access to a group (shortcut over `/api/sharing`).
 
@@ -9271,7 +9271,7 @@ sharing block first, then appending the new grant.
 **Usage**:
 
 ```console
-$ dhis2 user-group sharing-grant-user [OPTIONS] GROUP_UID USER_UID
+$ dhis2 user group sharing-grant-user [OPTIONS] GROUP_UID USER_UID
 ```
 
 **Arguments**:
@@ -9284,14 +9284,14 @@ $ dhis2 user-group sharing-grant-user [OPTIONS] GROUP_UID USER_UID
 * `--metadata-write / --metadata-read`: Grant metadata write (default) or read-only.  [default: metadata-write]
 * `--help`: Show this message and exit.
 
-## `dhis2 user-role`
+### `dhis2 user role`
 
-DHIS2 user-role administration.
+Manage DHIS2 user roles.
 
 **Usage**:
 
 ```console
-$ dhis2 user-role [OPTIONS] COMMAND [ARGS]...
+$ dhis2 user role [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -9307,14 +9307,14 @@ $ dhis2 user-role [OPTIONS] COMMAND [ARGS]...
 * `add-user`: Grant a user a role (POST...
 * `remove-user`: Revoke a role from a user (DELETE...
 
-### `dhis2 user-role ls`
+#### `dhis2 user role ls`
 
 List user roles.
 
 **Usage**:
 
 ```console
-$ dhis2 user-role ls [OPTIONS]
+$ dhis2 user role ls [OPTIONS]
 ```
 
 **Options**:
@@ -9325,14 +9325,14 @@ $ dhis2 user-role ls [OPTIONS]
 * `--page-size INTEGER`: Server-side page size.
 * `--help`: Show this message and exit.
 
-### `dhis2 user-role list`
+#### `dhis2 user role list`
 
 List user roles.
 
 **Usage**:
 
 ```console
-$ dhis2 user-role list [OPTIONS]
+$ dhis2 user role list [OPTIONS]
 ```
 
 **Options**:
@@ -9343,14 +9343,14 @@ $ dhis2 user-role list [OPTIONS]
 * `--page-size INTEGER`: Server-side page size.
 * `--help`: Show this message and exit.
 
-### `dhis2 user-role get`
+#### `dhis2 user role get`
 
 Fetch one user role by UID. Prints a concise summary; `--json` for full payload.
 
 **Usage**:
 
 ```console
-$ dhis2 user-role get [OPTIONS] UID
+$ dhis2 user role get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9362,14 +9362,14 @@ $ dhis2 user-role get [OPTIONS] UID
 * `--fields TEXT`: DHIS2 field selector.
 * `--help`: Show this message and exit.
 
-### `dhis2 user-role authority-list`
+#### `dhis2 user role authority-list`
 
 Print the sorted authorities carried by one role, one per line.
 
 **Usage**:
 
 ```console
-$ dhis2 user-role authority-list [OPTIONS] UID
+$ dhis2 user role authority-list [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9380,14 +9380,14 @@ $ dhis2 user-role authority-list [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 user-role add-user`
+#### `dhis2 user role add-user`
 
 Grant a user a role (POST /api/userRoles/&lt;rid&gt;/users/&lt;uid&gt;).
 
 **Usage**:
 
 ```console
-$ dhis2 user-role add-user [OPTIONS] ROLE_UID USER_UID
+$ dhis2 user role add-user [OPTIONS] ROLE_UID USER_UID
 ```
 
 **Arguments**:
@@ -9399,14 +9399,14 @@ $ dhis2 user-role add-user [OPTIONS] ROLE_UID USER_UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 user-role remove-user`
+#### `dhis2 user role remove-user`
 
 Revoke a role from a user (DELETE /api/userRoles/&lt;rid&gt;/users/&lt;uid&gt;).
 
 **Usage**:
 
 ```console
-$ dhis2 user-role remove-user [OPTIONS] ROLE_UID USER_UID
+$ dhis2 user role remove-user [OPTIONS] ROLE_UID USER_UID
 ```
 
 **Arguments**:

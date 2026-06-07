@@ -20,6 +20,8 @@ from dhis2w_core.v43.cli_output import (
 )
 from dhis2w_core.v43.plugins.user import service
 from dhis2w_core.v43.plugins.user.service import UserInvite, UserNotFoundError
+from dhis2w_core.v43.plugins.user_group import cli as user_group_cli
+from dhis2w_core.v43.plugins.user_role import cli as user_role_cli
 
 app = typer.Typer(help="Inspect + administer DHIS2 users (list, get, invite, reset-password).", no_args_is_help=True)
 
@@ -201,6 +203,10 @@ def _authorities_preview(authorities: list[str], *, hint_cmd: str, limit: int = 
     if len(sorted_auths) > limit:
         preview += f" [dim]+{len(sorted_auths) - limit} more (run `{hint_cmd}` for all)[/dim]"
     return preview
+
+
+app.add_typer(user_group_cli.app, name="group", help="Manage DHIS2 user groups.")
+app.add_typer(user_role_cli.app, name="role", help="Manage DHIS2 user roles.")
 
 
 def register(root_app: Any) -> None:

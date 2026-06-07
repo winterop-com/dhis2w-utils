@@ -238,14 +238,14 @@ Groups and roles have their own plugins:
 
 ```bash
 # User groups
-dhis2 user-group list
-dhis2 user-group add-member <group-uid> <user-uid>
-dhis2 user-group sharing-grant-user <group-uid> <user-uid> --metadata-write
+dhis2 user group list
+dhis2 user group add-member <group-uid> <user-uid>
+dhis2 user group sharing-grant-user <group-uid> <user-uid> --metadata-write
 
 # User roles (authorities, not DHIS2's "roles" = groups)
-dhis2 user-role list
-dhis2 user-role authority-list <role-uid>           # inspect which authorities the role grants
-dhis2 user-role add-user <role-uid> <user-uid>      # grant role to user
+dhis2 user role list
+dhis2 user role authority-list <role-uid>           # inspect which authorities the role grants
+dhis2 user role add-user <role-uid> <user-uid>      # grant role to user
 ```
 
 ## Operating on background jobs: `dhis2 maintenance`
