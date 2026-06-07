@@ -140,7 +140,7 @@ Expect: your username, first three authorities, a data-element count, and the fi
 
 Two paths; pick based on what creds you have:
 
-- **Plain API** — `dhis2 dev pat create` hits `POST /api/apiToken` with Basic admin auth. Fast, no Chromium, no browser. Default recommendation.
+- **Plain API** — `dhis2 profile pat create` hits `POST /api/apiToken` with Basic admin auth. Fast, no Chromium, no browser. Default recommendation.
 - **Playwright** — `dhis2 browser pat` drives the React login form + mints the PAT inside the resulting session. Use when Basic API auth is disabled server-side, or when you're already in a browser workflow.
 
 ```bash

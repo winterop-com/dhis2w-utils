@@ -1511,8 +1511,6 @@ $ dhis2 dev [OPTIONS] COMMAND [ARGS]...
 
 * `codegen`: Generate version-aware DHIS2 client code...
 * `uid`: Generate 11-char DHIS2 UIDs.
-* `pat`: Personal Access Tokens — provision PATs on...
-* `oauth2`: Manage DHIS2 OAuth2 clients on the server...
 * `sample`: Inject known-good fixtures to verify the...
 
 ### `dhis2 dev codegen`
@@ -1634,117 +1632,6 @@ $ dhis2 dev uid [OPTIONS] COMMAND [ARGS]...
 **Options**:
 
 * `-n, --count INTEGER RANGE`: How many UIDs to generate.  [default: 1; 1&lt;=x&lt;=10000]
-* `--help`: Show this message and exit.
-
-### `dhis2 dev pat`
-
-Personal Access Tokens — provision PATs on DHIS2.
-
-**Usage**:
-
-```console
-$ dhis2 dev pat [OPTIONS] COMMAND [ARGS]...
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-**Commands**:
-
-* `create`: Create a DHIS2 Personal Access Token via...
-
-#### `dhis2 dev pat create`
-
-Create a DHIS2 Personal Access Token via POST /api/apiToken.
-
-Admin creds come from env or prompt (never argv). The PAT value is only
-returned once by DHIS2 — capture it here and pipe into a profile:
-
-    export DHIS2_PAT=$(dhis2 dev pat create --url $URL -q)
-    dhis2 profile add local --url $URL --auth pat
-
-Or use `dhis2 profile bootstrap --auth pat` for a one-shot setup.
-
-**Usage**:
-
-```console
-$ dhis2 dev pat create [OPTIONS]
-```
-
-**Options**:
-
-* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--admin-user TEXT`
-* `--description TEXT`
-* `--expires-in-days INTEGER`
-* `--allowed-ip TEXT`: IP allowlist entry; repeat for multiple.
-* `--allowed-method TEXT`: HTTP method allowlist; repeat for each method.
-* `--allowed-referrer TEXT`: Referer allowlist entry; repeat for multiple.
-* `-q, --quiet`: Print only the PAT value, suitable for $(command substitution).
-* `--help`: Show this message and exit.
-
-### `dhis2 dev oauth2`
-
-Manage DHIS2 OAuth2 clients on the server (admin ops).
-
-**Usage**:
-
-```console
-$ dhis2 dev oauth2 [OPTIONS] COMMAND [ARGS]...
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-**Commands**:
-
-* `client`: OAuth2 client registrations at...
-
-#### `dhis2 dev oauth2 client`
-
-OAuth2 client registrations at /api/oAuth2Clients.
-
-**Usage**:
-
-```console
-$ dhis2 dev oauth2 client [OPTIONS] COMMAND [ARGS]...
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-**Commands**:
-
-* `register`: Register an OAuth2 client on DHIS2 via...
-
-##### `dhis2 dev oauth2 client register`
-
-Register an OAuth2 client on DHIS2 via POST /api/oAuth2Clients.
-
-Secrets (admin credentials, client_secret) come from env or interactive
-prompt — never argv.
-
-Prints `client_id` + metadata UID so they can be piped into
-`dhis2 profile add --auth oauth2 ...`. For a one-shot bootstrap (register
-+ save profile + log in) use `dhis2 profile bootstrap` instead.
-
-**Usage**:
-
-```console
-$ dhis2 dev oauth2 client register [OPTIONS]
-```
-
-**Options**:
-
-* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--admin-user TEXT`
-* `--client-id TEXT`: [default: dhis2-utils-local]
-* `--redirect-uri TEXT`: [default: http://localhost:8765]
-* `--scope TEXT`: [default: ALL]
-* `--name TEXT`
 * `--help`: Show this message and exit.
 
 ### `dhis2 dev sample`
@@ -8337,6 +8224,8 @@ $ dhis2 profile [OPTIONS] COMMAND [ARGS]...
 * `logout`: Clear persisted OAuth2 tokens for a profile.
 * `bootstrap`: One-shot: provision a PAT or OAuth2 client...
 * `oidc-config`: Populate an OAuth2 profile by discovering...
+* `pat`: Personal Access Tokens — provision PATs on...
+* `oauth2`: Manage DHIS2 OAuth2 clients on the server...
 
 ### `dhis2 profile ls`
 
@@ -8625,6 +8514,117 @@ $ dhis2 profile oidc-config [OPTIONS] URL
 * `--default`: Set as default after saving.
 * `--login`: Trigger `dhis2 profile login &lt;name&gt;` immediately after saving.
 * `--version TEXT`: Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP to pick which version&#x27;s plugin tree to load; the wire client always auto-detects on connect.
+* `--help`: Show this message and exit.
+
+### `dhis2 profile pat`
+
+Personal Access Tokens — provision PATs on DHIS2.
+
+**Usage**:
+
+```console
+$ dhis2 profile pat [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `create`: Create a DHIS2 Personal Access Token via...
+
+#### `dhis2 profile pat create`
+
+Create a DHIS2 Personal Access Token via POST /api/apiToken.
+
+Admin creds come from env or prompt (never argv). The PAT value is only
+returned once by DHIS2 — capture it here and pipe into a profile:
+
+    export DHIS2_PAT=$(dhis2 dev pat create --url $URL -q)
+    dhis2 profile add local --url $URL --auth pat
+
+Or use `dhis2 profile bootstrap --auth pat` for a one-shot setup.
+
+**Usage**:
+
+```console
+$ dhis2 profile pat create [OPTIONS]
+```
+
+**Options**:
+
+* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
+* `--admin-user TEXT`
+* `--description TEXT`
+* `--expires-in-days INTEGER`
+* `--allowed-ip TEXT`: IP allowlist entry; repeat for multiple.
+* `--allowed-method TEXT`: HTTP method allowlist; repeat for each method.
+* `--allowed-referrer TEXT`: Referer allowlist entry; repeat for multiple.
+* `-q, --quiet`: Print only the PAT value, suitable for $(command substitution).
+* `--help`: Show this message and exit.
+
+### `dhis2 profile oauth2`
+
+Manage DHIS2 OAuth2 clients on the server (admin ops).
+
+**Usage**:
+
+```console
+$ dhis2 profile oauth2 [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `client`: OAuth2 client registrations at...
+
+#### `dhis2 profile oauth2 client`
+
+OAuth2 client registrations at /api/oAuth2Clients.
+
+**Usage**:
+
+```console
+$ dhis2 profile oauth2 client [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `register`: Register an OAuth2 client on DHIS2 via...
+
+##### `dhis2 profile oauth2 client register`
+
+Register an OAuth2 client on DHIS2 via POST /api/oAuth2Clients.
+
+Secrets (admin credentials, client_secret) come from env or interactive
+prompt — never argv.
+
+Prints `client_id` + metadata UID so they can be piped into
+`dhis2 profile add --auth oauth2 ...`. For a one-shot bootstrap (register
++ save profile + log in) use `dhis2 profile bootstrap` instead.
+
+**Usage**:
+
+```console
+$ dhis2 profile oauth2 client register [OPTIONS]
+```
+
+**Options**:
+
+* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
+* `--admin-user TEXT`
+* `--client-id TEXT`: [default: dhis2-utils-local]
+* `--redirect-uri TEXT`: [default: http://localhost:8765]
+* `--scope TEXT`: [default: ALL]
+* `--name TEXT`
 * `--help`: Show this message and exit.
 
 ## `dhis2 route`

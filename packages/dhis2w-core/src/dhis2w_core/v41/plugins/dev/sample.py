@@ -18,10 +18,10 @@ from dhis2w_client.v41 import Dhis2Client, PatAuth, WebMessageResponse
 from dhis2w_client.v41.auth.oauth2 import DEFAULT_REDIRECT_URI
 
 from dhis2w_core.profile import profile_from_env
+from dhis2w_core.v41.admin_auth import resolve_admin_auth
 from dhis2w_core.v41.client_context import open_client
 from dhis2w_core.v41.oauth2_registration import register_oauth2_client
 from dhis2w_core.v41.pat_registration import register_pat
-from dhis2w_core.v41.plugins.dev.admin_auth import resolve_admin_auth
 from dhis2w_core.v41.plugins.route import service as route_service
 from dhis2w_core.v41.plugins.route.service import RoutePayload
 

@@ -23,10 +23,10 @@ def test_plugin_descriptor() -> None:
 
 
 def test_dev_help_lists_subcommands() -> None:
-    """`dhis2 dev --help` lists every dev sub-command (uid / pat / oauth2 / sample)."""
+    """`dhis2 dev --help` lists every dev sub-command (uid / sample)."""
     result = _runner.invoke(build_app(), ["dev", "--help"])
     assert result.exit_code == 0
-    for sub in ("uid", "pat", "oauth2", "sample"):
+    for sub in ("uid", "sample"):
         assert sub in result.output, f"`dhis2 dev` should mount the {sub!r} sub-command"
 
 

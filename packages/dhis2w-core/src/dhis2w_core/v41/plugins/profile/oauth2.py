@@ -7,10 +7,10 @@ import os
 from typing import Annotated
 
 import typer
-from dhis2w_client.v43.auth.oauth2 import DEFAULT_REDIRECT_URI
+from dhis2w_client.v41.auth.oauth2 import DEFAULT_REDIRECT_URI
 
-from dhis2w_core.v43.oauth2_registration import register_oauth2_client
-from dhis2w_core.v43.plugins.dev.admin_auth import resolve_admin_auth
+from dhis2w_core.v41.admin_auth import resolve_admin_auth
+from dhis2w_core.v41.oauth2_registration import register_oauth2_client
 
 app = typer.Typer(help="Manage DHIS2 OAuth2 clients on the server (admin ops).", no_args_is_help=True)
 client_app = typer.Typer(help="OAuth2 client registrations at /api/oAuth2Clients.", no_args_is_help=True)

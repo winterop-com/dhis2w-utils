@@ -15,7 +15,7 @@ class _DevPlugin(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     name: str = "dev"
-    description: str = "Developer/operator tools: codegen, UID generation, OAuth2 client registration."
+    description: str = "Developer/operator tools: codegen, UID generation, sample data."
 
     def register_cli(self, app: Any) -> None:
         """Mount under `dhis2 dev`."""

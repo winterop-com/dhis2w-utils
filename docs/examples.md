@@ -68,7 +68,7 @@ Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.c
 | [`map_screenshot.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/map_screenshot.sh) | `dhis2 browser map screenshot` — PNG capture via the Maps app (needs `[browser]` extra) | [maps API](api/maps.md) |
 | [`apps.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/apps.sh) | `dhis2 apps list / hub-list / hub-url / update --dry-run / update --all / reload` over `/api/apps` + `/api/appHub` | [apps API](api/apps.md) |
 | [`dev_codegen.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/dev_codegen.sh) | `dhis2 dev codegen` — regenerate the typed client from a live instance | [codegen](codegen.md) |
-| [`dev_pat.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/dev_pat.sh) | `dhis2 dev pat create` — provision a PAT as admin | [auth](architecture/auth.md) |
+| [`profile_pat.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/profile_pat.sh) | `dhis2 profile pat create` — provision a PAT as admin | [auth](architecture/auth.md) |
 | [`dev_sample.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/dev_sample.sh) | `dhis2 dev sample ...` — inject fixtures + verify end-to-end | [manual testing](manual-testing.md) |
 
 ## Client examples (Python library)

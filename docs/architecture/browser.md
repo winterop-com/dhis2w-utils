@@ -97,18 +97,18 @@ raises `NotImplementedError` for now (needs a Bearer-to-session smoke
 test). PAT profiles raise `BrowserWorkflowNotSupported` with a message
 pointing users at a Basic profile.
 
-## `dhis2 browser pat` vs `dhis2 dev pat create`
+## `dhis2 browser pat` vs `dhis2 profile pat create`
 
 Both commands mint a DHIS2 Personal Access Token V2 by hitting
 `POST /api/apiToken`. They differ in how they authenticate:
 
 | Command | Auth mechanism | When to use |
 | --- | --- | --- |
-| `dhis2 dev pat create` | Admin auth (Basic or PAT) via the plain API | **Default.** No Playwright, no Chromium, one HTTP call. Fast. |
+| `dhis2 profile pat create` | Admin auth (Basic or PAT) via the plain API | **Default.** No Playwright, no Chromium, one HTTP call. Fast. |
 | `dhis2 browser pat` | Drive the React login form, hit `POST /api/apiToken` inside the resulting browser session | Only when Basic API auth is disabled on the instance, or when you're already in a browser flow and don't want a second trip through the API |
 
 For the common case ("I have admin credentials and I want a PAT"),
-`dhis2 dev pat create` is simpler + faster. `dhis2 browser pat` remains the
+`dhis2 profile pat create` is simpler + faster. `dhis2 browser pat` remains the
 canonical workflow for the edge cases.
 
 ## Headless vs headful

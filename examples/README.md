@@ -96,7 +96,7 @@ Swap the `v42` segment for `v41` or `v43` to target the matching stack. `make re
 | `map_screenshot.sh` | `dhis2 browser map screenshot` (requires `[browser]` extra) |
 | `visualization_screenshot.sh` | `dhis2 browser viz screenshot` (requires `[browser]` extra) |
 | `route_register_and_run.sh` | `dhis2 route list / add / get / run / delete` (all 5 auth types) |
-| `dev_pat.sh` | `dhis2 dev pat create` (`-q` for capture) |
+| `profile_pat.sh` | `dhis2 profile pat create` (`-q` for capture) |
 | `dev_sample.sh` | `dhis2 dev sample route / data-value / pat / oauth2-client / all` |
 | `dev_codegen.sh` | `dhis2 dev codegen generate / rebuild / oas-rebuild` |
 | `maintenance.sh` | `dhis2 maintenance task types/list/status/watch`, `cache`, `cleanup`, `dataintegrity list/run/result` |

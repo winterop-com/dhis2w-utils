@@ -13,7 +13,7 @@ Secrets never go on argv. Every command that needs a PAT, password, or client se
 set -a; source infra/home/credentials/.env.auth; set +a
 ```
 
-That defines the end-user credentials (`DHIS2_PAT`, `DHIS2_PASSWORD`) plus the OAuth2 client config (`DHIS2_OAUTH_CLIENT_ID`, `DHIS2_OAUTH_CLIENT_SECRET`, `DHIS2_OAUTH_REDIRECT_URI`, `DHIS2_OAUTH_SCOPES`). Admin bootstrap commands (`profile bootstrap`, `dev pat create`, `dev oauth2 client register`, `dev sample *`) read `DHIS2_ADMIN_PAT` / `DHIS2_ADMIN_PASSWORD` — those are NOT in `.env.auth`. For local testing the easiest path is:
+That defines the end-user credentials (`DHIS2_PAT`, `DHIS2_PASSWORD`) plus the OAuth2 client config (`DHIS2_OAUTH_CLIENT_ID`, `DHIS2_OAUTH_CLIENT_SECRET`, `DHIS2_OAUTH_REDIRECT_URI`, `DHIS2_OAUTH_SCOPES`). Admin bootstrap commands (`profile bootstrap`, `profile pat create`, `profile oauth2 client register`, `dev sample *`) read `DHIS2_ADMIN_PAT` / `DHIS2_ADMIN_PASSWORD` — those are NOT in `.env.auth`. For local testing the easiest path is:
 
 ```bash
 export DHIS2_ADMIN_PASSWORD=district   # matches the seeded admin/district user
@@ -242,11 +242,11 @@ uv run dhis2 dev uid -n 5
 uv run dhis2 dev codegen rebuild
 
 # PAT provisioning (reads DHIS2_ADMIN_PAT / DHIS2_ADMIN_PASSWORD from env).
-uv run dhis2 dev pat create --url http://localhost:8080 --admin-user admin \
+uv run dhis2 profile pat create --url http://localhost:8080 --admin-user admin \
   --description "smoke test PAT"
 
 # OAuth2 client registration (admin creds + client_secret via env only).
-uv run dhis2 dev oauth2 client register \
+uv run dhis2 profile oauth2 client register \
   --url http://localhost:8080 --admin-user admin \
   --client-id "standalone-$(date +%s)"
 

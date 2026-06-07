@@ -20,6 +20,8 @@ from dhis2w_core.v43.cli_output import is_json_output
 from dhis2w_core.v43.client_context import build_auth, scope_from_resolved
 from dhis2w_core.v43.oauth2_registration import build_admin_auth, register_oauth2_client
 from dhis2w_core.v43.pat_registration import register_pat
+from dhis2w_core.v43.plugins.profile import oauth2 as oauth2_module
+from dhis2w_core.v43.plugins.profile import pat as pat_module
 from dhis2w_core.v43.plugins.profile import service
 
 _VERSION_HELP = (
@@ -752,6 +754,10 @@ def oidc_config_command(
         typer.echo("\n>>> running `dhis2 profile login` now...")
         # Reuse the login command in-process — mirrors what a second CLI invocation would do.
         login_command(name)
+
+
+app.add_typer(pat_module.app, name="pat")
+app.add_typer(oauth2_module.app, name="oauth2")
 
 
 def register(root_app: Any) -> None:

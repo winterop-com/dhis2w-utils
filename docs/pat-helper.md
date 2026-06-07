@@ -6,7 +6,7 @@
 
 Basic auth works but is clumsy for automation: credentials in env vars, no scoping, no revocation story. PATs are a cleaner long-lived credential for background jobs, CI, and the MCP server.
 
-**Default PAT creation path is `dhis2 dev pat create`** — it hits `POST /api/apiToken` via plain Basic admin auth (no browser). The Playwright helper here exists for the edge case where Basic API auth is disabled server-side, or for existing browser flows that already have a session in hand. For the common case, prefer `dhis2 dev pat create` — faster, no Chromium.
+**Default PAT creation path is `dhis2 profile pat create`** — it hits `POST /api/apiToken` via plain Basic admin auth (no browser). The Playwright helper here exists for the edge case where Basic API auth is disabled server-side, or for existing browser flows that already have a session in hand. For the common case, prefer `dhis2 profile pat create` — faster, no Chromium.
 
 ## Usage
 

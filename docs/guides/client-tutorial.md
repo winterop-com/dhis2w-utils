@@ -242,7 +242,7 @@ async with open_client(profile) as client:
 
 Mint a PAT:
 
-- CLI: `dhis2 dev pat create --url <url> --admin-user admin --description "example"` (needs `DHIS2_ADMIN_PAT` or `DHIS2_ADMIN_PASSWORD` in env)
+- CLI: `dhis2 profile pat create --url <url> --admin-user admin --description "example"` (needs `DHIS2_ADMIN_PAT` or `DHIS2_ADMIN_PASSWORD` in env)
 - Web UI: every user's profile page at `/dhis-web-user-profile`
 - Per the seeded e2e fixture: `make dhis2-run` writes one to `infra/home/credentials/.env.auth`
 
