@@ -26,7 +26,7 @@ async def test_connect_binds_the_reported_major(play_target: tuple[str, str]) ->
     async with Dhis2Client(url, auth=_auth()) as client:
         assert client.version_key == version_key
         info = await client.system.info()
-        assert info.version.startswith(f"2.{version_key[1:]}")
+        assert (info.version or "").startswith(f"2.{version_key[1:]}")
 
 
 async def test_identical_accessors_parse_real_wire(play_target: tuple[str, str]) -> None:
