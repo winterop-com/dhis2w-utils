@@ -31,6 +31,11 @@ cleanup() {
 }
 trap cleanup INT TERM
 
+# Wipe any prior volume first: a version switch must not boot a different major's DB (Flyway
+# rejects the unknown migrations). The seeded dump reloads on the fresh volume — this is the
+# documented "data resets on every make dhis2-run" behaviour.
+echo ">>> Resetting volumes for a clean v$DHIS2_VERSION boot ..."
+DHIS2_VERSION="$DHIS2_VERSION" DHIS2_IMAGE_TAG="$DHIS2_IMAGE_TAG" "${COMPOSE[@]}" down -v --remove-orphans
 echo ">>> Starting DHIS2 v$DHIS2_VERSION (image dhis2/core:$DHIS2_IMAGE_TAG) — detached ..."
 DHIS2_VERSION="$DHIS2_VERSION" DHIS2_IMAGE_TAG="$DHIS2_IMAGE_TAG" "${COMPOSE[@]}" up -d --remove-orphans
 
