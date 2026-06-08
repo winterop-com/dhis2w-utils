@@ -5,8 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import httpx
+import pytest
 import respx
-from dhis2w_client import BasicAuth, Dhis2Client
+from dhis2w_client import BasicAuth, Dhis2ApiError, Dhis2Client
 
 
 def _auth() -> BasicAuth:
@@ -71,3 +72,19 @@ async def test_delete_and_user_store_base(server_version: str, mock_system_info:
         assert await client.datastore.list_namespaces(user=True) == ["mine"]
     assert delete_route.called
     assert user_route.called
+
+
+@respx.mock
+async def test_read_surfaces_dhis2_message_on_error(server_version: str, mock_system_info: Callable[..., None]) -> None:
+    """A non-2xx read raises Dhis2ApiError with DHIS2's `message`, not the raw JSON body."""
+    mock_system_info(server_version)
+    respx.get("https://dhis2.example/api/dataStore/nope").mock(
+        return_value=httpx.Response(
+            404, json={"httpStatus": "Not Found", "message": "Namespace not found: 'nope'", "errorCode": "E1005"}
+        )
+    )
+    async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
+        with pytest.raises(Dhis2ApiError) as exc:
+            await client.datastore.list_keys("nope")
+    assert "Namespace not found: 'nope'" in str(exc.value)
+    assert "httpStatus" not in str(exc.value)
