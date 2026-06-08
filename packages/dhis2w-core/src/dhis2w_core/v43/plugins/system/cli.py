@@ -46,6 +46,9 @@ def whoami_command() -> None:
         DetailRow("org units", _format_refs(me.organisationUnits)),
     ]
     render_detail(f"whoami — {me.username or '?'}", rows)
+    if authorities:
+        typer.echo(f"\nauthorities ({len(authorities)}):")
+        typer.echo("  " + ", ".join(sorted(authorities)))
 
 
 @app.command("info")

@@ -97,6 +97,7 @@ def test_whoami_plain_shows_named_refs(pat_profile: None) -> None:  # noqa: ARG0
     assert "Superuser (r1)" in result.output  # role rendered as name (uid)
     assert "Sierra Leone (ou1)" in result.output  # org unit rendered as name (uid)
     assert "g1" in result.output  # group with no displayName falls back to uid
+    assert "F_EXPORT_DATA" in result.output  # every authority is listed out
 
 
 def test_settings_get_prints_value(pat_profile: None) -> None:  # noqa: ARG001
