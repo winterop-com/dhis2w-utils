@@ -184,4 +184,4 @@ For a walk-through of the DHIS2 `analytics_*` tables (schema, cross-verification
 
 ## Licensing
 
-Glowroot is Apache 2.0, pgAdmin is PostgreSQL License, DHIS2 is BSD-3-Clause. This stack is a local dev convenience inside the `dhis2-utils` workspace.
+Glowroot is Apache 2.0, pgAdmin is PostgreSQL License, DHIS2 is BSD-3-Clause. This stack is a local dev convenience inside the `dhis2w-utils` workspace.

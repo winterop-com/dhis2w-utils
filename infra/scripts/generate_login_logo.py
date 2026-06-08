@@ -1,4 +1,4 @@
-"""Generate the committed dhis2-utils wordmark PNGs via Pillow.
+"""Generate the committed dhis2w-utils wordmark PNGs via Pillow.
 
 Run when you want to re-brand (palette change, new font, different text).
 Output lands in `infra/login-customization/{logo_front,logo_banner}.png` —
@@ -34,7 +34,7 @@ def _load_font(size: int) -> Any:
     return ImageFont.load_default()
 
 
-def draw_wordmark(path: Path, *, width: int, height: int, text: str = "dhis2-utils") -> None:
+def draw_wordmark(path: Path, *, width: int, height: int, text: str = "dhis2w-utils") -> None:
     """Render `text` centred on a transparent canvas with the peach accent.
 
     Auto-shrinks the font until the text fits within 85% of the canvas width

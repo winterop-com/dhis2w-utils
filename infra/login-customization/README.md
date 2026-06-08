@@ -1,7 +1,7 @@
 # Login customization — committed preset
 
 Branding applied to every freshly-built DHIS2 fixture so `make dhis2-run`
-on a clean clone shows a dhis2-utils-flavoured login page + authenticated
+on a clean clone shows a dhis2w-utils-flavoured login page + authenticated
 top menu. The seed calls `Dhis2Client.customize.apply_preset(...)` during
 the build, so the committed fixture dump already carries these settings
 — no post-start step needed.
@@ -9,7 +9,7 @@ the build, so the committed fixture dump already carries these settings
 | File | What it does |
 | --- | --- |
 | `logo_front.png` | 64×64 peach "d2" monogram uploaded via `POST /api/staticContent/logo_front`. DHIS2's login app renders it both in the upper-right slot (at native 64×64) and as the OIDC button icon (scaled to 24×24). The square shape stays legible at both sizes. |
-| `logo_banner.png` | 300×60 peach "dhis2-utils" wordmark uploaded via `POST /api/staticContent/logo_banner`. Shown in the top-menu slot on every authenticated page. |
+| `logo_banner.png` | 300×60 peach "dhis2w-utils" wordmark uploaded via `POST /api/staticContent/logo_banner`. Shown in the top-menu slot on every authenticated page. |
 | `preset.json` | System-setting overrides (`applicationTitle`, `keyApplicationIntro`, `keyApplicationNotification`, `keyApplicationFooter`, plus the `keyUseCustomLogo*` flags DHIS2 requires to actually serve the uploaded bytes). |
 
 ## "Local OIDC" button — CLI-only, don't click it from a browser

@@ -11,8 +11,8 @@ from typing import Any
 
 import bcrypt  # injected via `uv run --with bcrypt` by infra/Makefile
 
-OAUTH2_CLIENT_ID = "dhis2-utils-local"
-OAUTH2_CLIENT_SECRET = "dhis2-utils-local-secret-do-not-use-in-prod"  # noqa: S105 — local only
+OAUTH2_CLIENT_ID = "dhis2w-utils-local"
+OAUTH2_CLIENT_SECRET = "dhis2w-utils-local-secret-do-not-use-in-prod"  # noqa: S105 — local only
 OAUTH2_REDIRECT_URI = "http://localhost:8765"
 OAUTH2_SCOPES = "ALL"  # DHIS2 only recognises the single scope `ALL`
 OAUTH2_GRANT_TYPES = "authorization_code,refresh_token"
