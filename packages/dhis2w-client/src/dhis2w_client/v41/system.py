@@ -83,13 +83,19 @@ class Me(BaseModel):
     authorities: list[str] | None = None
     organisationUnits: list[DisplayRef] | None = None
     dataViewOrganisationUnits: list[DisplayRef] | None = None
+    teiSearchOrganisationUnits: list[DisplayRef] | None = None
     userGroups: list[DisplayRef] | None = None
     userRoles: list[DisplayRef] | None = None
     programs: list[DisplayRef] | None = None
+    disabled: bool | None = None
+    externalAuth: bool | None = None
+    twoFactorType: str | None = None
+    passwordLastUpdated: str | None = None
 
     @field_validator(
         "organisationUnits",
         "dataViewOrganisationUnits",
+        "teiSearchOrganisationUnits",
         "userGroups",
         "userRoles",
         "programs",

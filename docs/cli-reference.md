@@ -8957,14 +8957,14 @@ $ dhis2 system [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `whoami`: Print the authenticated DHIS2 user for the...
+* `whoami`: Expose everything DHIS2 reports about the...
 * `info`: Print DHIS2 system info (version, build,...
 * `calendar`: Print the active DHIS2 calendar, or change...
 * `settings`: Read/write DHIS2 system settings.
 
 ### `dhis2 system whoami`
 
-Print the authenticated DHIS2 user for the current environment profile.
+Expose everything DHIS2 reports about the authenticated user. `--json` for the raw object.
 
 **Usage**:
 

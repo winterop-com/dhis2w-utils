@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from dhis2w_client.v43 import DhisCalendar, DisplayRef
+from dhis2w_client.v43 import DhisCalendar
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v43.cli_output import DetailRow, is_json_output, render_detail
@@ -17,34 +17,69 @@ from dhis2w_core.v43.plugins.system import service
 app = typer.Typer(help="DHIS2 system info and current-user access.", no_args_is_help=True)
 
 
-def _format_refs(refs: list[DisplayRef] | None) -> str:
-    """Render a ref list as `name (uid)` entries, joined by commas; `(none)` when empty."""
-    items = refs or []
-    if not items:
-        return "(none)"
-    return ", ".join(f"{ref.displayName} ({ref.id})" if ref.displayName else (ref.id or "?") for ref in items)
+_WHOAMI_HIDE = frozenset(
+    {"access", "sharing", "href", "translations", "favorites", "favorite", "name", "attributeValues", "user"}
+)
+_WHOAMI_LABELS = {
+    "displayName": "display name",
+    "firstName": "first name",
+    "lastLogin": "last login",
+    "lastUpdated": "last updated",
+    "passwordLastUpdated": "password set",
+    "organisationUnits": "org units",
+    "dataViewOrganisationUnits": "data-view OUs",
+    "teiSearchOrganisationUnits": "TEI-search OUs",
+    "userRoles": "roles",
+    "userGroups": "groups",
+    "twoFactorType": "2FA",
+    "externalAuth": "external auth",
+    "emailVerified": "email verified",
+    "selfRegistered": "self-registered",
+    "createdBy": "created by",
+    "lastUpdatedBy": "updated by",
+    "catDimensionConstraints": "category constraints",
+    "cogsDimensionConstraints": "cat-option-group constraints",
+}
+
+
+def _ref_label(item: dict[str, Any]) -> str:
+    """Render a single ref as `name (uid)`, or just the uid / name when one is missing."""
+    name = item.get("displayName") or item.get("name")
+    uid = item.get("id")
+    if name and uid:
+        return f"{name} ({uid})"
+    return str(uid or name or item)
+
+
+def _whoami_value(value: Any) -> str:
+    """Render one /api/me value for the table: refs as `name (uid)`, lists joined, scalars as text."""
+    if isinstance(value, list):
+        if not value:
+            return "(none)"
+        if isinstance(value[0], dict):
+            return ", ".join(_ref_label(item) for item in value)
+        return ", ".join(str(item) for item in value)
+    if isinstance(value, dict):
+        return _ref_label(value)
+    return str(value)
 
 
 @app.command("whoami")
 def whoami_command() -> None:
-    """Print the authenticated DHIS2 user for the current environment profile."""
+    """Expose everything DHIS2 reports about the authenticated user. `--json` for the raw object."""
     me = asyncio.run(service.whoami(profile_from_env()))
     if is_json_output():
         typer.echo(me.model_dump_json(indent=2, exclude_none=True, by_alias=True))
         return
-    authorities = me.authorities or []
+    data = me.model_dump(exclude_none=True)
+    authorities = data.get("authorities") or []
     superuser = "  (incl. ALL — superuser)" if "ALL" in authorities else ""
-    rows = [
-        DetailRow("username", me.username or "-"),
-        DetailRow("displayName", me.displayName or "-"),
-        DetailRow("email", me.email or "-"),
-        DetailRow("id", me.id or "-"),
-        DetailRow("last login", me.lastLogin or "-"),
-        DetailRow("authorities", f"{len(authorities)}{superuser}"),
-        DetailRow("roles", _format_refs(me.userRoles)),
-        DetailRow("groups", _format_refs(me.userGroups)),
-        DetailRow("org units", _format_refs(me.organisationUnits)),
-    ]
+    rows: list[DetailRow] = []
+    for key, value in data.items():
+        if key in _WHOAMI_HIDE:
+            continue
+        rendered = f"{len(authorities)}{superuser}" if key == "authorities" else _whoami_value(value)
+        rows.append(DetailRow(_WHOAMI_LABELS.get(key, key), rendered))
     render_detail(f"whoami — {me.username or '?'}", rows)
     if authorities:
         typer.echo(f"\nauthorities ({len(authorities)}):")

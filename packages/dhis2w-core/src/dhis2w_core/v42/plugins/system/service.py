@@ -88,16 +88,26 @@ async def server_info() -> ServerInfo:
     )
 
 
-_ME_FIELDS = (
-    "id,username,displayName,email,firstName,surname,lastLogin,created,authorities,"
-    "userRoles[id,displayName],userGroups[id,displayName],organisationUnits[id,displayName]"
+_WHOAMI_FIELDS = (
+    "*,userRoles[id,displayName],userGroups[id,displayName],organisationUnits[id,displayName],"
+    "dataViewOrganisationUnits[id,displayName],teiSearchOrganisationUnits[id,displayName]"
 )
 
 
 async def whoami(profile: Profile) -> Me:
-    """Return the authenticated user with role/group/org-unit refs expanded to id + displayName."""
+    """Return the authenticated user: the full /api/users/{id} object plus effective authorities.
+
+    /api/me carries the flattened effective authorities but a thin field set with id-only refs;
+    /api/users/{id} carries the full persisted User (passwordLastUpdated, externalAuth, the org-unit
+    scopes, ...) and, with explicit fields, named refs. Fetch both and merge the authorities in.
+    """
     async with open_client(profile) as client:
-        return await client.get("/api/me", model=Me, params={"fields": _ME_FIELDS})
+        me = await client.system.me()
+        if not me.id:
+            return me
+        user = await client.get(f"/api/users/{me.id}", model=Me, params={"fields": _WHOAMI_FIELDS})
+        user.authorities = me.authorities
+        return user
 
 
 async def system_info(profile: Profile) -> SystemInfo:
