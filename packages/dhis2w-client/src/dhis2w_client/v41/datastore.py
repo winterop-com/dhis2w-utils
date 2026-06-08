@@ -34,10 +34,14 @@ class DatastoreAccessor:
         return "/api/userDataStore" if user else "/api/dataStore"
 
     async def _read(self, path: str) -> Any:
-        """GET arbitrary JSON (object / array / scalar); raise `Dhis2ApiError` on non-2xx."""
+        """GET arbitrary JSON (object / array / scalar); raise `Dhis2ApiError` with DHIS2's message on non-2xx."""
         response = await self._client.get_response(path)
         if not response.is_success:
-            raise Dhis2ApiError(response.status_code, response.text or "datastore read failed")
+            try:
+                detail = response.json().get("message") or response.text
+            except (ValueError, AttributeError, TypeError):
+                detail = response.text
+            raise Dhis2ApiError(response.status_code, detail or "datastore request failed")
         return response.json()
 
     async def list_namespaces(self, *, user: bool = False) -> list[str]:
