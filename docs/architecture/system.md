@@ -22,7 +22,7 @@ Both `SystemInfo` and `Me` carry `model_config = ConfigDict(extra="allow")` so u
 The common fields are explicitly typed:
 
 - **`SystemInfo`** — `version`, `revision`, `buildTime`, `serverDate`, `contextPath`, `calendar`, `dateFormat`, `systemId`, `systemName`
-- **`Me`** — `id`, `username`, `displayName`, `email`, `firstName`, `surname`, `authorities`, `organisationUnits`
+- **`Me`** — `id`, `username`, `displayName`, `email`, `firstName`, `surname`, `authorities`, `organisationUnits`, `userGroups`, `userRoles`
 
 ## Server introspection (`ServerInfo`)
 

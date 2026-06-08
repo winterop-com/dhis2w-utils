@@ -8957,14 +8957,14 @@ $ dhis2 system [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `whoami`: Print the authenticated DHIS2 user for the...
+* `whoami`: Expose everything DHIS2 reports about the...
 * `info`: Print DHIS2 system info (version, build,...
 * `calendar`: Print the active DHIS2 calendar, or change...
 * `settings`: Read/write DHIS2 system settings.
 
 ### `dhis2 system whoami`
 
-Print the authenticated DHIS2 user for the current environment profile.
+Expose everything DHIS2 reports about the authenticated user. `--json` for the raw object.
 
 **Usage**:
 
@@ -9034,6 +9034,9 @@ $ dhis2 system settings [OPTIONS] COMMAND [ARGS]...
 
 * `set`: Set a single system setting.
 * `set-many`: Bulk-set system settings from a JSON file.
+* `get`: Print one system setting&#x27;s value; exit 1...
+* `ls`: List every system setting (key = value).
+* `list`: List every system setting (key = value).
 
 #### `dhis2 system settings set`
 
@@ -9067,6 +9070,52 @@ $ dhis2 system settings set-many [OPTIONS] FILE
 **Arguments**:
 
 * `FILE`: JSON file containing a {key: value} object.  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+#### `dhis2 system settings get`
+
+Print one system setting&#x27;s value; exit 1 if it is unset.
+
+**Usage**:
+
+```console
+$ dhis2 system settings get [OPTIONS] KEY
+```
+
+**Arguments**:
+
+* `KEY`: System setting key (e.g. applicationTitle).  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+#### `dhis2 system settings ls`
+
+List every system setting (key = value).
+
+**Usage**:
+
+```console
+$ dhis2 system settings ls [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+#### `dhis2 system settings list`
+
+List every system setting (key = value).
+
+**Usage**:
+
+```console
+$ dhis2 system settings list [OPTIONS]
+```
 
 **Options**:
 

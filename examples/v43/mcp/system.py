@@ -1,7 +1,7 @@
 """Exercise the `system_*` MCP tools via an in-process FastMCP Client.
 
-Calls both read tools (`system_whoami`, `system_info`) — the entire
-surface of the system plugin is read-only.
+Calls the read tools: `system_whoami`, `system_info`, `system_settings_get`,
+`system_settings_list`.
 
 Usage:
     uv run python examples/v43/mcp/system.py
@@ -27,6 +27,13 @@ async def main() -> None:
         info = await client.call_tool("system_info", {"profile": profile})
         info_payload = info.data or info.structured_content or {}
         print(f"system_info returned {type(info_payload).__name__}")
+
+        title = await client.call_tool("system_settings_get", {"key": "applicationTitle", "profile": profile})
+        print(f"system_settings_get(applicationTitle) -> {title.data}")
+
+        settings = await client.call_tool("system_settings_list", {"profile": profile})
+        settings_payload = settings.data or settings.structured_content or {}
+        print(f"system_settings_list returned {type(settings_payload).__name__}")
 
 
 if __name__ == "__main__":

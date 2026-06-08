@@ -17,14 +17,73 @@ from dhis2w_core.v42.plugins.system import service
 app = typer.Typer(help="DHIS2 system info and current-user access.", no_args_is_help=True)
 
 
+_WHOAMI_HIDE = frozenset(
+    {"access", "sharing", "href", "translations", "favorites", "favorite", "name", "attributeValues", "user"}
+)
+_WHOAMI_LABELS = {
+    "displayName": "display name",
+    "firstName": "first name",
+    "lastLogin": "last login",
+    "lastUpdated": "last updated",
+    "passwordLastUpdated": "password set",
+    "organisationUnits": "org units",
+    "dataViewOrganisationUnits": "data-view OUs",
+    "teiSearchOrganisationUnits": "TEI-search OUs",
+    "userRoles": "roles",
+    "userGroups": "groups",
+    "twoFactorType": "2FA",
+    "externalAuth": "external auth",
+    "emailVerified": "email verified",
+    "selfRegistered": "self-registered",
+    "createdBy": "created by",
+    "lastUpdatedBy": "updated by",
+    "catDimensionConstraints": "category constraints",
+    "cogsDimensionConstraints": "cat-option-group constraints",
+}
+
+
+def _ref_label(item: dict[str, Any]) -> str:
+    """Render a single ref as `name (uid)`, or just the uid / name when one is missing."""
+    name = item.get("displayName") or item.get("name")
+    uid = item.get("id")
+    if name and uid:
+        return f"{name} ({uid})"
+    return str(uid or name or item)
+
+
+def _whoami_value(value: Any) -> str:
+    """Render one /api/me value for the table: refs as `name (uid)`, lists joined, scalars as text."""
+    if isinstance(value, list):
+        if not value:
+            return "(none)"
+        if isinstance(value[0], dict):
+            return ", ".join(_ref_label(item) for item in value)
+        return ", ".join(str(item) for item in value)
+    if isinstance(value, dict):
+        return _ref_label(value)
+    return str(value)
+
+
 @app.command("whoami")
 def whoami_command() -> None:
-    """Print the authenticated DHIS2 user for the current environment profile."""
+    """Expose everything DHIS2 reports about the authenticated user. `--json` for the raw object."""
     me = asyncio.run(service.whoami(profile_from_env()))
     if is_json_output():
         typer.echo(me.model_dump_json(indent=2, exclude_none=True, by_alias=True))
         return
-    typer.echo(f"{me.username} ({me.displayName or '-'})")
+    data = me.model_dump(exclude_none=True)
+    authorities = data.get("authorities") or []
+    superuser = "  (incl. ALL — superuser)" if "ALL" in authorities else ""
+    rows: list[DetailRow] = []
+    for key, value in data.items():
+        if key in _WHOAMI_HIDE:
+            continue
+        rendered = f"{len(authorities)}{superuser}" if key == "authorities" else _whoami_value(value)
+        rows.append(DetailRow(_WHOAMI_LABELS.get(key, key), rendered))
+    render_detail(f"whoami — {me.username or '?'}", rows)
+    if authorities:
+        typer.echo(f"\nauthorities ({len(authorities)}):")
+        typer.echo("  " + ", ".join(sorted(authorities)))
 
 
 @app.command("info")
@@ -132,6 +191,30 @@ def settings_set_many_command(
     applied = asyncio.run(service.set_system_settings(profile_from_env(), {str(k): str(v) for k, v in loaded.items()}))
     for key in applied:
         typer.echo(f"set {key}")
+
+
+@settings_app.command("get")
+def settings_get_command(
+    key: Annotated[str, typer.Argument(help="System setting key (e.g. applicationTitle).")],
+) -> None:
+    """Print one system setting's value; exit 1 if it is unset."""
+    value = asyncio.run(service.get_setting(profile_from_env(), key))
+    if value is None:
+        typer.echo(f"{key} is not set", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(value)
+
+
+@settings_app.command("list")
+@settings_app.command("ls", hidden=True)
+def settings_list_command() -> None:
+    """List every system setting (key = value)."""
+    snapshot = asyncio.run(service.list_settings(profile_from_env()))
+    if is_json_output():
+        typer.echo(snapshot.model_dump_json(indent=2))
+        return
+    for key, value in snapshot.pairs():
+        typer.echo(f"{key} = {value}")
 
 
 def register(root_app: Any) -> None:

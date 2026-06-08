@@ -148,7 +148,7 @@ Listing collapsed onto one surface — generic `metadata list <type>` + the `met
 
 - **Re-expose type-specific list filters + curated columns.** The dropped typed lists had ergonomic filters (`--domain-type`, `--program-type`, `--period-type`, viz `--type`, …) and resource-aware columns. They currently round-trip through the generic `--filter <prop>:<op>:<value>` DSL. Design how to surface the common ones on the canonical command/tool (named convenience flags? a per-resource filter registry?) before migrating docs/examples, so the rewrites aren't redone.
 - **Guard the `/api/metadata?<resource>=true` bundle export against giant payloads.** For organisation units this can embed geojson geometry and balloon to a size that can overload the server. Needs a size/field guard (or a refusal with a `--fields` hint) on `metadata export`; warrants a `BUGS.md` entry once characterized with a repro.
-- **Migrate docs/examples** still referencing the removed typed lists (~42 `examples/v{41,42,43}/cli/*.sh`, ~19 doc pages incl. the MCP tutorial and `architecture/conventions.md` naming examples).
+- **Migrate docs/examples** — largely done. The stale references were swept: the removed `metadata_<type>_list` MCP example calls moved to the generic `metadata_list(resource=...)`, the removed `option-sets attribute` CLI subgroup to `metadata attributes`, and `user-group` / `user-role` to `user group` / `user role`; the showcase doc examples were fixed. `infra/scripts/check_example_refs.py` (wired into `make check-examples` + CI) now resolves every example's CLI command paths against the Typer tree and every `call_tool` name against the live MCP tool set, so this class of drift fails the fast suite instead of surfacing only in nightly e2e.
 
 ### Small-model bridge: CLI read-surface follow-ups
 
@@ -228,7 +228,7 @@ The unique shape of this project — **we generate code from a moving REST API, 
 | Codegen                | Generator emits wrong code                                      | Snapshot tests on the emitted tree pin the diff per PR                      | + mutation tests on the templates             |
 | Schema contract        | Generated code stops matching live API                          | `@pytest.mark.contract` suite hits `play.im.dhis2.org/dev-2-{42,43}`        | Widen to more resources + nightly cron        |
 | Live integration       | End-to-end against real DHIS2                                   | E2E workflow matrix runs `make test-slow` against docker stack v41/v42/v43  | Add a read-only per-PR contract pass          |
-| Examples               | Documented usage drifts from reality                            | `make verify-examples` runs in nightly E2E across v41/v42/v43 trees         | Snapshot stdout for diff-against-baseline     |
+| Examples               | Documented usage drifts from reality                            | `make verify-examples` (nightly E2E) + `check_example_refs.py` resolves every example's CLI/MCP reference in fast CI | Snapshot stdout for diff-against-baseline     |
 | Upstream bugs          | Workaround breaks; fix lands and we don't notice                | `@pytest.mark.upstream_bug` pairs bug-still-present + workaround halves     | Lifecycle automation: open issue when bug clears |
 
 ### Tier A — high leverage, ~1 PR each
