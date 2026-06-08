@@ -48,5 +48,28 @@ make -C "$INFRA_DIR" seed DHIS2_URL="$DHIS2_URL" DHIS2_USER="$DHIS2_USER" DHIS2_
 echo ">>> Writing local_basic profile ..."
 make -C "$INFRA_DIR" profile DHIS2_VERSION="$DHIS2_VERSION" DHIS2_URL="$DHIS2_URL" DHIS2_USER="$DHIS2_USER" DHIS2_PASS="$DHIS2_PASS"
 
+echo ">>> Waiting for analytics tables to finish building (analytics-trigger) ..."
+# The analytics-trigger sidecar fires POST /api/resourceTables/analytics and polls the task to
+# completion ("Analytics tables completed successfully!"). On a fresh volume that work is async, so
+# block on it here — otherwise verify-examples (and any post-Ready automation) races a stack whose
+# analytics tables are still empty, and every analytics-backed example fails. Same trigger as the
+# dhis2-docker stack; this just waits for it. Applies to every version (this script is version-agnostic).
+_analytics_ready=0
+for _ in $(seq 1 150); do
+  if docker logs analytics-trigger 2>&1 | grep -q "Analytics tables completed successfully"; then
+    _analytics_ready=1
+    break
+  fi
+  if docker logs analytics-trigger 2>&1 | grep -q "Analytics failed!"; then
+    break
+  fi
+  sleep 6
+done
+if [ "$_analytics_ready" = "1" ]; then
+  echo ">>> Analytics tables ready."
+else
+  echo ">>> WARNING: analytics tables did not complete — analytics-backed examples/tests may fail."
+fi
+
 echo ">>> Ready. Streaming logs (Ctrl+C to stop the stack)."
 DHIS2_VERSION="$DHIS2_VERSION" DHIS2_IMAGE_TAG="$DHIS2_IMAGE_TAG" "${COMPOSE[@]}" logs -f dhis2 postgresql analytics-trigger
