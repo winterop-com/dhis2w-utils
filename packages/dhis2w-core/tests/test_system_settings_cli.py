@@ -1,4 +1,4 @@
-"""CliRunner tests for `dhis2 system settings` (set / set-many)."""
+"""CliRunner tests for `dhis2 system` — settings (set / set-many / get / list) + whoami."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from dhis2w_cli.main import build_app
 from dhis2w_client.v42 import Me
+from dhis2w_core.v42.plugins.system.models import SystemSettingsSnapshot
 from typer.testing import CliRunner
 
 _runner = CliRunner()
@@ -74,3 +75,51 @@ def test_whoami_json_emits_parseable_object(pat_profile: None) -> None:  # noqa:
         result = _runner.invoke(build_app(), ["--json", "system", "whoami"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["id"] == "abc123XYZ"
+
+
+def test_whoami_plain_shows_named_refs(pat_profile: None) -> None:  # noqa: ARG001
+    """Plain `system whoami` renders roles/groups/org-units as `name (uid)`, plus a superuser hint."""
+    me = Me.model_validate(
+        {
+            "id": "abc123XYZ",
+            "username": "admin",
+            "displayName": "Admin User",
+            "authorities": ["ALL", "F_EXPORT_DATA"],
+            "userRoles": [{"id": "r1", "displayName": "Superuser"}],
+            "userGroups": [{"id": "g1"}],
+            "organisationUnits": [{"id": "ou1", "displayName": "Sierra Leone"}],
+        }
+    )
+    with patch("dhis2w_core.v42.plugins.system.service.whoami", new=AsyncMock(return_value=me)):
+        result = _runner.invoke(build_app(), ["system", "whoami"])
+    assert result.exit_code == 0, result.output
+    assert "superuser" in result.output  # ALL authority -> hint
+    assert "Superuser (r1)" in result.output  # role rendered as name (uid)
+    assert "Sierra Leone (ou1)" in result.output  # org unit rendered as name (uid)
+    assert "g1" in result.output  # group with no displayName falls back to uid
+
+
+def test_settings_get_prints_value(pat_profile: None) -> None:  # noqa: ARG001
+    """`system settings get <key>` prints the value from service.get_setting."""
+    with patch("dhis2w_core.v42.plugins.system.service.get_setting", new=AsyncMock(return_value="MoH")):
+        result = _runner.invoke(build_app(), ["system", "settings", "get", "applicationTitle"])
+    assert result.exit_code == 0, result.output
+    assert "MoH" in result.output
+
+
+def test_settings_get_missing_exits_nonzero(pat_profile: None) -> None:  # noqa: ARG001
+    """`system settings get <key>` exits non-zero when the key is unset."""
+    with patch("dhis2w_core.v42.plugins.system.service.get_setting", new=AsyncMock(return_value=None)):
+        result = _runner.invoke(build_app(), ["system", "settings", "get", "noSuchKey"])
+    assert result.exit_code != 0
+    assert "not set" in result.output
+
+
+def test_settings_list_prints_pairs(pat_profile: None) -> None:  # noqa: ARG001
+    """`system settings list` prints each key = value pair from the snapshot."""
+    snapshot = SystemSettingsSnapshot.model_validate({"applicationTitle": "MoH", "keyDateFormat": "yyyy-MM-dd"})
+    with patch("dhis2w_core.v42.plugins.system.service.list_settings", new=AsyncMock(return_value=snapshot)):
+        result = _runner.invoke(build_app(), ["system", "settings", "list"])
+    assert result.exit_code == 0, result.output
+    assert "applicationTitle = MoH" in result.output
+    assert "keyDateFormat = yyyy-MM-dd" in result.output

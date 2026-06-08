@@ -8,6 +8,7 @@ from dhis2w_client.v42 import DhisCalendar, Me, SystemInfo
 
 from dhis2w_core.profile import resolve_profile
 from dhis2w_core.v42.plugins.system import service
+from dhis2w_core.v42.plugins.system.models import SystemSettingsSnapshot
 from dhis2w_core.v42.plugins.system.service import ServerInfo
 
 
@@ -43,6 +44,16 @@ def register(mcp: Any) -> None:
     async def system_settings_set_many(settings: dict[str, str], profile: str | None = None) -> list[str]:
         """Bulk-set DHIS2 system settings from a `{key: value}` mapping; returns keys applied."""
         return await service.set_system_settings(resolve_profile(profile), settings)
+
+    @mcp.tool()
+    async def system_settings_get(key: str, profile: str | None = None) -> str | None:
+        """Read a single DHIS2 system setting (null when unset)."""
+        return await service.get_setting(resolve_profile(profile), key)
+
+    @mcp.tool()
+    async def system_settings_list(profile: str | None = None) -> SystemSettingsSnapshot:
+        """Return every DHIS2 system setting as a key->value snapshot."""
+        return await service.list_settings(resolve_profile(profile))
 
     @mcp.tool()
     async def system_server_info() -> ServerInfo:

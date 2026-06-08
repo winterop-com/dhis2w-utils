@@ -8,13 +8,21 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from dhis2w_client.v42 import DhisCalendar
+from dhis2w_client.v42 import DhisCalendar, DisplayRef
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import DetailRow, is_json_output, render_detail
 from dhis2w_core.v42.plugins.system import service
 
 app = typer.Typer(help="DHIS2 system info and current-user access.", no_args_is_help=True)
+
+
+def _format_refs(refs: list[DisplayRef] | None) -> str:
+    """Render a ref list as `name (uid)` entries, joined by commas; `(none)` when empty."""
+    items = refs or []
+    if not items:
+        return "(none)"
+    return ", ".join(f"{ref.displayName} ({ref.id})" if ref.displayName else (ref.id or "?") for ref in items)
 
 
 @app.command("whoami")
@@ -24,7 +32,20 @@ def whoami_command() -> None:
     if is_json_output():
         typer.echo(me.model_dump_json(indent=2, exclude_none=True, by_alias=True))
         return
-    typer.echo(f"{me.username} ({me.displayName or '-'})")
+    authorities = me.authorities or []
+    superuser = "  (incl. ALL — superuser)" if "ALL" in authorities else ""
+    rows = [
+        DetailRow("username", me.username or "-"),
+        DetailRow("displayName", me.displayName or "-"),
+        DetailRow("email", me.email or "-"),
+        DetailRow("id", me.id or "-"),
+        DetailRow("last login", me.lastLogin or "-"),
+        DetailRow("authorities", f"{len(authorities)}{superuser}"),
+        DetailRow("roles", _format_refs(me.userRoles)),
+        DetailRow("groups", _format_refs(me.userGroups)),
+        DetailRow("org units", _format_refs(me.organisationUnits)),
+    ]
+    render_detail(f"whoami — {me.username or '?'}", rows)
 
 
 @app.command("info")
@@ -132,6 +153,30 @@ def settings_set_many_command(
     applied = asyncio.run(service.set_system_settings(profile_from_env(), {str(k): str(v) for k, v in loaded.items()}))
     for key in applied:
         typer.echo(f"set {key}")
+
+
+@settings_app.command("get")
+def settings_get_command(
+    key: Annotated[str, typer.Argument(help="System setting key (e.g. applicationTitle).")],
+) -> None:
+    """Print one system setting's value; exit 1 if it is unset."""
+    value = asyncio.run(service.get_setting(profile_from_env(), key))
+    if value is None:
+        typer.echo(f"{key} is not set", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(value)
+
+
+@settings_app.command("list")
+@settings_app.command("ls", hidden=True)
+def settings_list_command() -> None:
+    """List every system setting (key = value)."""
+    snapshot = asyncio.run(service.list_settings(profile_from_env()))
+    if is_json_output():
+        typer.echo(snapshot.model_dump_json(indent=2))
+        return
+    for key, value in snapshot.pairs():
+        typer.echo(f"{key} = {value}")
 
 
 def register(root_app: Any) -> None:

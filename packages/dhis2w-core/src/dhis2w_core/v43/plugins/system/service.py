@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from dhis2w_core.plugin import DEFAULT_VERSION_KEY, resolve_startup_version
 from dhis2w_core.profile import Profile
 from dhis2w_core.v43.client_context import open_client
+from dhis2w_core.v43.plugins.system.models import SystemSettingsSnapshot
 
 
 class _SystemIdResponse(BaseModel):
@@ -87,10 +88,16 @@ async def server_info() -> ServerInfo:
     )
 
 
+_ME_FIELDS = (
+    "id,username,displayName,email,firstName,surname,lastLogin,created,authorities,"
+    "userRoles[id,displayName],userGroups[id,displayName],organisationUnits[id,displayName]"
+)
+
+
 async def whoami(profile: Profile) -> Me:
-    """Return the authenticated user for the given profile."""
+    """Return the authenticated user with role/group/org-unit refs expanded to id + displayName."""
     async with open_client(profile) as client:
-        return await client.system.me()
+        return await client.get("/api/me", model=Me, params={"fields": _ME_FIELDS})
 
 
 async def system_info(profile: Profile) -> SystemInfo:
@@ -132,3 +139,15 @@ async def set_system_settings(profile: Profile, settings: dict[str, str]) -> lis
     """Bulk-set DHIS2 system settings from a `{key: value}` mapping; return keys applied."""
     async with open_client(profile) as client:
         return await client.customize.set_system_settings(settings)
+
+
+async def get_setting(profile: Profile, key: str) -> str | None:
+    """Read a single system setting from `/api/systemSettings/{key}`; None when unset."""
+    async with open_client(profile) as client:
+        return await client.system.setting(key)
+
+
+async def list_settings(profile: Profile) -> SystemSettingsSnapshot:
+    """Read every system setting as a raw `{key: value}` snapshot."""
+    async with open_client(profile) as client:
+        return await client.get("/api/systemSettings", model=SystemSettingsSnapshot)

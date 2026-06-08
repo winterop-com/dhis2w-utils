@@ -84,12 +84,14 @@ class Me(BaseModel):
     organisationUnits: list[DisplayRef] | None = None
     dataViewOrganisationUnits: list[DisplayRef] | None = None
     userGroups: list[DisplayRef] | None = None
+    userRoles: list[DisplayRef] | None = None
     programs: list[DisplayRef] | None = None
 
     @field_validator(
         "organisationUnits",
         "dataViewOrganisationUnits",
         "userGroups",
+        "userRoles",
         "programs",
         mode="before",
     )
