@@ -13,15 +13,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2] / "examples"
 SUFFIXES = {".py", ".sh"}
 
-# Examples a version legitimately omits (documented divergence, not drift). v43 event/enrollment
-# analytics behaves differently from v41/v42 on the seeded program — the example errors there, so
-# v43 has no counterpart by design (revisit if v43 event analytics is reconciled).
-OMITTED: dict[str, set[Path]] = {
-    "v43": {
-        Path("client/analytics_events_enrollments.py"),
-        Path("mcp/analytics_events_enrollments.py"),
-    },
-}
+# Examples a version legitimately omits (documented divergence, not drift). Empty today — every v42
+# example has v41 + v43 counterparts.
+OMITTED: dict[str, set[Path]] = {}
 
 
 def _source_set(version: str) -> set[Path]:
