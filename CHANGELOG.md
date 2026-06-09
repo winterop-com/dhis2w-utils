@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.20.0 — 2026-06-09
+
+Minor release. A far richer `system whoami`, a new read surface for `system settings`, and a cleaner datastore error path.
+
+### System
+
+- **`dhis2 system whoami` now exposes everything DHIS2 reports about the authenticated user.** It fetches the full persisted `/api/users/{id}` record and merges in the effective authorities from `/api/me`, then renders every field in plain mode — roles / groups / org units as `name (uid)`, the complete authority list (with a superuser hint when `ALL` is present), plus `passwordLastUpdated`, `externalAuth`, `disabled`, `twoFactorType`, and the org-unit scopes. `--json` emits the whole `Me` object. The `Me` model gains `userRoles`, `teiSearchOrganisationUnits`, `disabled`, `externalAuth`, `twoFactorType`, `passwordLastUpdated`.
+- **`dhis2 system settings get` + `list` (alias `ls`)** + `system_settings_get` / `system_settings_list` MCP tools — read a single key or the full `/api/systemSettings` snapshot. Pairs with the existing `set` / `set-many`. The bridge classifies the reads under read-only mode.
+
+### Fixes
+
+- **`datastore`** — a failed read now raises `Dhis2ApiError` carrying DHIS2's own `message` (e.g. `Namespace not found: 'x'`) instead of the raw JSON body.
+- **`system whoami --json`** now honors the flag (emits the `Me` object rather than the plain-text form).
+
+### Workspace packages
+
+All six publishable members + `dhis2w-codegen` bumped 0.19.0 → 0.20.0. Inter-package pins shifted `>=0.19.0,<0.20` → `>=0.20.0,<0.21`.
+
 ## 0.19.0 — 2026-06-07
 
 Minor release. A new `datastore` surface for DHIS2's key-value store, plus docs + CI hardening.
