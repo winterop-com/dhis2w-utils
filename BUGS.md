@@ -109,6 +109,40 @@ re-run hit, what was checked, and the outcome. Entries that need write
 access, custom `dhis.conf`, or a server restart are marked **not retested
 against play** — verify locally when a v43 e2e dump exists.
 
+### 2026-06-09 — full sweep (dev read-only + real-release write/data, v41/v42/v43)
+
+Two passes: (a) read-only repros against the dev channels; (b) write/data repros against locally-booted
+real releases (admin/district, Sierra Leone seed). Config-only (#3/#4/#9/#10), fresh-install (#24/#27),
+session (#26), capture-scoped-user (#5), and persisted-validation (#19) entries were not run — they need
+setups a seeded stack can't provide.
+
+Targets:
+
+- dev: `play.im.dhis2.org/dev-2-41` (`2.41.9-SNAPSHOT`), `/dev-2-42` (`2.42.6-SNAPSHOT` rev `68de0ef`), `/dev-2-43` (`2.43.1-SNAPSHOT`)
+- real (local boots): `2.41.8.1`, `2.42.4.1` (the 2.42.5-specific control for #44 ran on `2.42.5.0`), `2.43.0.0`
+
+Notable changes since the 2026-05-08 sweep:
+
+| #   | finding |
+| --- | --- |
+| 22b | **RESOLVED.** `GET /api/programRuleVariables/{id}?fields=*` now returns `programRuleVariableSourceType` on all three dev branches — the omission half of #22 is fixed. |
+| 33  | **No longer reproduces on pinned `2.43.0.0`.** Documented repro yields a populated COC matrix on save (POST → 2 COCs; PUT adding a category → 4), no `categoryOptionComboUpdate` needed. See the re-verify note on #33. |
+| 21  | **v41 diverges:** v41 `2.41.8.1` accepts `filter=attributeValues.value:eq:...` (200); v42/v43 reject it (400 E1003). v42/v43-specific. |
+| 31  | **premise is v42-only:** on v41 `2.41.8.1` and v43 `2.43.0.0`, `/api/expressions/description?context=PREDICTOR_GENERATOR` rejects BOTH lowercase `avg()/sum()` AND uppercase — only v42 accepts lowercase. |
+| 42 (malformed-UID) | **v41 diverges:** `GET /api/dataElements/<bad-uid>` returns the correct 404 on v41 `2.41.8.1`; v42/v43 return 405. v42/v43-specific. |
+| 44  | **Control confirmed 2.42.5-specific:** `POST /api/apiToken` → 201 on `2.42.4.1`, 500 on `2.42.5.0`. |
+
+Confirmed still present (real-release write/data, where run): #2, #6, #11, #16, #17, #18 (all majors); v43
+cluster #34, #35 (E8002), #36 (literal `column "yearly" does not exist`), #40 (E1055 wording), #41. Confirmed
+FIXED-on-v43 (matching tags): #20 (DELETE removes the option), #23 (small-bundle single-pass import is clean),
+#32 (single-replica persists — the no-op is a play multi-replica artifact). #37 unverifiable (perf, needs a
+cold datavalue table). Read-only #1/#13/#14/#15/#28/#29/#30/#38/#39/#42-systemSettings/#43 still present on all
+dev channels.
+
+**Not a bug:** a "nested `fields=foo[bar]` returns empty" symptom seen mid-sweep was a **curl URL-globbing
+artifact** (`[...]` is a curl glob range — use `-g` or `%5B%5D`); with `-g` the nested selectors return
+correctly on every version. No entry filed.
+
 ### 2026-05-08 — read-only sweep against play
 
 Targets:
@@ -1936,7 +1970,7 @@ the API intends.
 
 ### 22. `ProgramRuleVariable.sourceType` is a schema fiction — wire uses `programRuleVariableSourceType` (and `fields=*` omits it)
 
-**STATUS:** FIXED upstream (verified 2026-05-12 on v41/v42/v43 docker images) — `/api/schemas/programRuleVariable` now reports the actual wire field name `programRuleVariableSourceType` (the schema-vs-wire mismatch was corrected). The verifier `test_bug_22_live_verifier` is xfailed. The `fields=*` omission half of the bug needs a separate live re-verify — the test `BUGS.md #22b` covers it; no workaround code in plugins needs removing (we already use the wire-correct name).
+**STATUS:** FIXED upstream (verified 2026-05-12 on v41/v42/v43 docker images) — `/api/schemas/programRuleVariable` now reports the actual wire field name `programRuleVariableSourceType` (the schema-vs-wire mismatch was corrected). The verifier `test_bug_22_live_verifier` is xfailed. The `fields=*` omission half (test `BUGS.md #22b`) was **re-verified RESOLVED 2026-06-09** — `GET /api/programRuleVariables/{id}?fields=*` now returns `programRuleVariableSourceType` on all three dev branches (2.41.9 / 2.42.6 / 2.43.1-SNAPSHOT). Fully fixed; no workaround code in plugins needs removing (we already use the wire-correct name).
 
 **Observed on:** DHIS2 `2.42.4` (core image `dhis2/core:42`).
 
@@ -2732,6 +2766,8 @@ that no longer runs at save time and now needs an explicit maintenance trigger.
 **Verifier:** `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_32_live_verifier`
 
 ### 33. v43: saving a `CategoryCombo` no longer triggers `CategoryOptionCombo` matrix regeneration
+
+**RE-VERIFIED 2026-06-09 — no longer reproduces on pinned `dhis2/core:2.43.0.0`.** The documented repro yields a populated COC matrix on save: POST over a 1-category (2-option) combo returns 2 COCs immediately, and PUT adding a second category regenerates to 4 — no `categoryOptionComboUpdate` call needed. The empty-matrix behaviour is gone on the final `2.43.0.0` release (originally observed via the floating `:43` tag, likely a pre-release build). The v43 workaround (`category_combos.wait_for_coc_generation` firing the maintenance trigger) is now unnecessary-but-harmless on 2.43.0.0 — keep it until `2.43.1` is confirmed to regenerate too, then it can go. NOTE: the live verifier `test_bug_33_v43_live_save_returns_empty_coc_matrix` would now FAIL against 2.43.0.0.
 
 **Observed on:** DHIS2 `2.43.0` (`dhis2/core:43` from Docker Hub, observed against `make dhis2-run DHIS2_VERSION=43`). Login as `admin/district`.
 
