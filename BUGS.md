@@ -143,11 +143,13 @@ dev channels.
 artifact** (`[...]` is a curl glob range — use `-g` or `%5B%5D`); with `-g` the nested selectors return
 correctly on every version. No entry filed.
 
-**Dev-WRITE follow-up (partial — local boots of the dev images `dhis2/core-dev:2.4N`):**
+**Dev-WRITE follow-up (local boots of the dev images `dhis2/core-dev:2.4N`):**
 
 - **v41-dev `2.41.9-SNAPSHOT`:** nothing flipped — #2 / #6 / #11 / #16 / #17 / #18 / #20 all STILL PRESENT (same as the 2.41.8.1 real release); #31 unchanged.
 - **v42-dev `2.42.6-SNAPSHOT`:** **#44 FIXED** — `make dhis2-run` against `dhis2/core-dev:2.42` seeds PATs successfully (`POST /api/apiToken` no longer 500s), so a released `2.42.6` will unblock the v42 bump (and the parked mapView bump, #43). The other v42-dev write repros were not run (stopped to free local ports).
-- **v43-dev `2.43.1-SNAPSHOT`:** not yet run — the #34 / #35 / #36 / #40 / #41 cluster still needs checking against the dev branch.
+- **v43-dev `2.43.1-SNAPSHOT`:** done — nothing flipped vs 2.43.0.0. The cluster #34 / #35 / #36 / #40 / #41 is all STILL PRESENT, #33 still FIXED, #20 / #32 still FIXED-on-v43. Analytics still fails to build (#36; `lastAnalyticsTableSuccess`=1970 — see the #36 sharpening). One characterisation note: #18b's bare-UID-attachment rejection is now a clean 409 (was 500); the "must use {id} refs" quirk itself is unchanged.
+
+**Net dev-branch write-bug result:** the only write bug fixed in any dev branch is **#44** (2.42.6-SNAPSHOT). Nothing else flipped on 2.41.9 / 2.42.6 / 2.43.1-SNAPSHOT.
 
 ### 2026-05-08 — read-only sweep against play
 
@@ -2942,7 +2944,7 @@ The compose-time analytics-trigger sidecar (which runs once just after DHIS2 boo
 
 **Impact:** Any v43 stack that imports event data for one or more event programs and then runs an analytics rebuild. Affects: this repo's `make refresh-and-verify DHIS2_VERSION=43` flow (the post-seed rebuild hangs / fails), and any production v43 deployment with event programs and a periodic analytics refresh.
 
-**Workaround in this repo:** `infra/compose.yml`'s analytics-trigger entrypoint posts to `POST /api/resourceTables/analytics?skipPrograms=lxAQ7Zs9VYR`, skipping the failing program from the rebuild. The other programs (Child Programme, Supervision Visit) build their event analytics normally. Aggregate analytics is unaffected. See `infra/compose.yml`.
+**Workaround in this repo:** `infra/compose.yml`'s analytics-trigger entrypoint posts to `POST /api/resourceTables/analytics?skipPrograms=lxAQ7Zs9VYR`. **This is insufficient (re-verified 2026-06-09 on `2.43.0.0` + `2.43.1-SNAPSHOT`):** v43 ignores `skipPrograms` (the job runs with `skipPrograms: []`), and even if honoured the `yearly` error *also* fires on Child Programme `iphinat79uw` (2025 partition) — so the analytics job aborts regardless and `lastAnalyticsTableSuccess` stays epoch-`1970` on a fresh v43 stack (aggregate analytics never swaps in either, because the job aborts first). The earlier note that "other programs build normally" was wrong. See `infra/compose.yml`.
 
 **How to know it's fixed:** `POST /api/resourceTables/analytics` against a v43 stack with seeded 2024 event data for `lxAQ7Zs9VYR` runs to completion without `bad SQL grammar` / `column "yearly" does not exist` in the task log.
 
