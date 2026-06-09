@@ -143,6 +143,12 @@ dev channels.
 artifact** (`[...]` is a curl glob range — use `-g` or `%5B%5D`); with `-g` the nested selectors return
 correctly on every version. No entry filed.
 
+**Dev-WRITE follow-up (partial — local boots of the dev images `dhis2/core-dev:2.4N`):**
+
+- **v41-dev `2.41.9-SNAPSHOT`:** nothing flipped — #2 / #6 / #11 / #16 / #17 / #18 / #20 all STILL PRESENT (same as the 2.41.8.1 real release); #31 unchanged.
+- **v42-dev `2.42.6-SNAPSHOT`:** **#44 FIXED** — `make dhis2-run` against `dhis2/core-dev:2.42` seeds PATs successfully (`POST /api/apiToken` no longer 500s), so a released `2.42.6` will unblock the v42 bump (and the parked mapView bump, #43). The other v42-dev write repros were not run (stopped to free local ports).
+- **v43-dev `2.43.1-SNAPSHOT`:** not yet run — the #34 / #35 / #36 / #40 / #41 cluster still needs checking against the dev branch.
+
 ### 2026-05-08 — read-only sweep against play
 
 Targets:
@@ -3234,5 +3240,7 @@ ApiTokenController.postJsonObject
 **Impact:** any 2.42.5 instance with the L2 cache enabled (the default) cannot create personal access tokens through `/api/apiToken`. In this repo it breaks PAT seeding (`seed_auth.py`), so `make dhis2-run DHIS2_VERSION=42` can't write the `local_basic` profile and live verify-examples / e2e can't run on 2.42.5.
 
 **Workaround in this repo:** v42 pin **held at `2.42.4.1`** in `infra/versions.env` (PAT creation works there). This also parks the `2.42.5` mapView bump (#43): the mapView hand-write was implemented + verified green (lint + unit tests) on a branch, then reverted, because 2.42.5 can't seed. Re-apply both once DHIS2 fixes the serialization (a later 2.42 patch).
+
+**FIXED in `2.42.6-SNAPSHOT` (dev, verified 2026-06-09):** `make dhis2-run` against `dhis2/core-dev:2.42` seeds PATs successfully — `POST /api/apiToken` no longer 500s. A released `2.42.6` will resolve this and unblock the v42 mapView bump (#43). Still present on the released `2.42.5.0`.
 
 **How to know it's fixed:** `POST /api/apiToken` returns `201` on a `2.42.5+` instance with no `NotSerializableException` in the server log.
