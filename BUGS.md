@@ -3174,3 +3174,29 @@ curl -sf -u admin:district 'https://play.im.dhis2.org/dev-2-42/api/schemas/mapVi
 **Workaround in this repo:** v42 pin **held at `2.42.4.1`** (last pre-removal v42 release) in `infra/versions.env`; v41/v43 pins are already pre-removal. The clean fix when bumping past the boundary: define `MapView` + `OrganisationUnitSelectionMode` as hand-written models in `dhis2w_client.v{N}.maps` (still valid wire shapes nested under `Map.mapViews[]`, just no longer enumerated by `/api/schemas`) and drop the generated imports. Needed per-tree as each major's next patch releases.
 
 **How to know it's resolved:** DHIS2 restores `mapView` to `/api/schemas`, or `dhis2w_client.v{N}.maps` no longer imports those two symbols from the generated tree.
+
+### 44. v42 `2.42.5`: `POST /api/apiToken` returns 500 (`NotSerializableException: MethodAllowedList`)
+
+**Observed on:** `dhis2/core:2.42.5.0`. Not present on `2.42.4.1` (PAT creation works there). Hit by `make dhis2-run DHIS2_VERSION=42` after bumping the pin to `2.42.5.0` — `infra/scripts/seed_auth.py` mints PATs via `POST /api/apiToken` and every create 500s, so the seed aborts.
+
+**Repro:** pin v42 to `2.42.5.0` and `make dhis2-run DHIS2_VERSION=42` — the stack boots healthy but the seed fails on the first PAT create. Equivalently, `POST /api/apiToken` with any valid token-create body (see `infra/scripts/seed_auth.py` for the payload) against a 2.42.5 instance returns 500 (empty body); the server log carries the stacktrace below.
+
+**Expected:** the token is created and `201` returned with the generated `key` (the 2.42.4.1 behaviour).
+
+**Actual:** the `ApiToken` row commits, but the post-commit second-level-cache write fails serialising the entity, and the request 500s:
+
+```
+ApiTokenController.postJsonObject
+  org.springframework.orm.jpa.JpaSystemException: Unable to perform afterTransactionCompletion callback:
+  java.io.NotSerializableException: org.hisp.dhis.security.apikey.MethodAllowedList
+  Caused by: org.ehcache.spi.serialization.SerializerException:
+             java.io.NotSerializableException: org.hisp.dhis.security.apikey.MethodAllowedList
+```
+
+`org.hisp.dhis.security.apikey.MethodAllowedList` (held by `ApiToken`) is not `Serializable`, so writing the entity into the Hibernate L2 / ehcache cache throws on transaction completion.
+
+**Impact:** any 2.42.5 instance with the L2 cache enabled (the default) cannot create personal access tokens through `/api/apiToken`. In this repo it breaks PAT seeding (`seed_auth.py`), so `make dhis2-run DHIS2_VERSION=42` can't write the `local_basic` profile and live verify-examples / e2e can't run on 2.42.5.
+
+**Workaround in this repo:** v42 pin **held at `2.42.4.1`** in `infra/versions.env` (PAT creation works there). This also parks the `2.42.5` mapView bump (#43): the mapView hand-write was implemented + verified green (lint + unit tests) on a branch, then reverted, because 2.42.5 can't seed. Re-apply both once DHIS2 fixes the serialization (a later 2.42 patch).
+
+**How to know it's fixed:** `POST /api/apiToken` returns `201` on a `2.42.5+` instance with no `NotSerializableException` in the server log.
