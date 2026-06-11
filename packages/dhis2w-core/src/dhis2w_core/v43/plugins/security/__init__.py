@@ -1,4 +1,4 @@
-"""Security plugin — inspect DHIS2 security posture (password policy, registration, lockout)."""
+"""Security plugin — inspect DHIS2 security posture (settings, account authorities)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ class _SecurityPlugin(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     name: str = "security"
-    description: str = "Inspect DHIS2 security settings (password policy, registration, lockout)."
+    description: str = "Inspect DHIS2 security posture (settings, account authorities)."
 
     def register_cli(self, app: Any) -> None:
         """Mount the security sub-app under `d2w security`."""

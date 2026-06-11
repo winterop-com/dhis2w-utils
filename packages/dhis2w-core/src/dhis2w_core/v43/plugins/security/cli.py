@@ -8,11 +8,11 @@ from typing import Any
 import typer
 
 from dhis2w_core.profile import profile_from_env
-from dhis2w_core.v43.cli_output import DetailRow, format_bool, is_json_output, render_detail
+from dhis2w_core.v43.cli_output import ColumnSpec, DetailRow, format_bool, is_json_output, render_detail, render_list
 from dhis2w_core.v43.plugins.security import service
 
 app = typer.Typer(
-    help="Inspect DHIS2 security posture (password policy, registration, lockout).",
+    help="Inspect DHIS2 security posture (settings, account authorities).",
     no_args_is_help=True,
 )
 
@@ -53,6 +53,38 @@ def settings_command() -> None:
         DetailRow("enforceVerifiedEmail", _flag(settings.enforceVerifiedEmail)),
     ]
     render_detail("security settings", rows)
+
+
+@app.command("authorities")
+def authorities_command() -> None:
+    """Show my effective authorities, categorised by security risk. `--json` for the full payload."""
+    account = asyncio.run(service.get_account_authorities(profile_from_env()))
+    if is_json_output():
+        typer.echo(account.model_dump_json(indent=2))
+        return
+    rows = [
+        DetailRow("authorities", str(len(account.authorities))),
+        DetailRow("superuser (ALL)", format_bool(account.is_superuser)),
+        DetailRow("risk categories", str(len(account.categories))),
+    ]
+    render_detail("security authorities", rows)
+    if account.categories:
+        render_list(
+            "risk categories",
+            [
+                {
+                    "category": match.label,
+                    "matched": ", ".join(match.matched),
+                    "description": match.description,
+                }
+                for match in account.categories
+            ],
+            [
+                ColumnSpec("Category", "category", style="cyan", no_wrap=True),
+                ColumnSpec("Matched authorities", "matched"),
+                ColumnSpec("Why it matters", "description"),
+            ],
+        )
 
 
 def register(root_app: Any) -> None:

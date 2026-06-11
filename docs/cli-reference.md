@@ -2139,7 +2139,7 @@ $ d2w files resources upload [OPTIONS] FILE
 
 **Options**:
 
-* `--domain [data_value|document|message_attachment|user_avatar|org_unit|icon|job_data]`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
+* `--domain [data_value|push_analysis|document|message_attachment|user_avatar|org_unit|icon|job_data]`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
 * `--help`: Show this message and exit.
 
 #### `d2w files resources get`
@@ -8926,6 +8926,7 @@ $ d2w security [OPTIONS] COMMAND [ARGS]...
 **Commands**:
 
 * `settings`: Show the server&#x27;s security-relevant system...
+* `authorities`: Show my effective authorities, categorised...
 
 ### `d2w security settings`
 
@@ -8935,6 +8936,20 @@ Show the server&#x27;s security-relevant system settings. `--json` for the full 
 
 ```console
 $ d2w security settings [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `d2w security authorities`
+
+Show my effective authorities, categorised by security risk. `--json` for the full payload.
+
+**Usage**:
+
+```console
+$ d2w security authorities [OPTIONS]
 ```
 
 **Options**:
