@@ -29,13 +29,18 @@ TAXONOMY_STRINGS: frozenset[str] = frozenset().union(*(category.authorities for 
 
 
 async def _fetch_inventory(base_url: str) -> set[str]:
-    """Return the authority id inventory from a live instance, skipping if unreachable."""
+    """Return the authority id inventory from a live instance, skipping only if unreachable.
+
+    Only network-level failures (`httpx.RequestError`) skip; an HTTP error
+    status fails the test — a 401/500 from the endpoint must not turn into
+    a green run that validated nothing.
+    """
     try:
         async with httpx.AsyncClient(auth=("admin", "district"), timeout=30.0) as client:
             response = await client.get(f"{base_url}/api/authorities")
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
+    except httpx.RequestError as exc:
         pytest.skip(f"play instance {base_url} unreachable: {exc}")
+    response.raise_for_status()
     body = response.json()
     return {entry["id"] for entry in body.get("systemAuthorities", [])}
 
