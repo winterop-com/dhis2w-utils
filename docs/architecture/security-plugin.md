@@ -136,7 +136,7 @@ The plugin is a teaching-sized template. Adding a command — say
    the same PR and add a `BUGS.md` entry — don't ship "v42-only, others later".
 
 5. **Test** — add a case to
-   `packages/dhis2w-core/tests/test_security_settings_cli.py` (or a sibling). Patch
+   `packages/dhis2w-core/tests/security/test_security_settings_cli.py` (or a sibling). Patch
    `dhis2w_core.v42.plugins.security.service.open_client` with an `AsyncMock` context
    whose fake client returns your model, then drive the command through
    `CliRunner`. Assert both the `--json` payload and one human-output line.
