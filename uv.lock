@@ -650,7 +650,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.13" },
     { name = "questionary", specifier = ">=2.1.1" },
     { name = "rich", specifier = ">=15" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.50" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "tomli-w", specifier = ">=1.2" },
     { name = "typer", specifier = ">=0.26" },
 ]
