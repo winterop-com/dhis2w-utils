@@ -5,7 +5,7 @@ Wraps `POST /api/metadata?importStrategy=DELETE` with a minimal
 every UID at once. Useful for:
 
 - Fixture teardown after a test run.
-- Reacting to a `dhis2 doctor` report — feed it a list of orphan UIDs
+- Reacting to a `d2w doctor` report — feed it a list of orphan UIDs
   the probes surfaced.
 - Bulk cleanup after a scripted import that's obsolete.
 

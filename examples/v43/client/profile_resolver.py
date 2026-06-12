@@ -14,7 +14,7 @@ Usage:
     uv run python examples/v43/client/profile_resolver.py local      # by name
 
 Requires a profile configured, e.g.
-    dhis2 profile add local --url http://localhost:8080 --auth pat --token "$DHIS2_PAT" --default
+    d2w profile add local --url http://localhost:8080 --auth pat --token "$DHIS2_PAT" --default
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Tests for `service.patch_metadata` + `dhis2 metadata patch` CLI + `metadata_patch` MCP."""
+"""Tests for `service.patch_metadata` + `d2w metadata patch` CLI + `metadata_patch` MCP."""
 
 from __future__ import annotations
 

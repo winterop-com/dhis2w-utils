@@ -1,4 +1,4 @@
-"""Typer sub-app for the `browser` plugin — mounts `dhis2 browser ...`."""
+"""Typer sub-app for the `browser` plugin — mounts `d2w browser ...`."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from dhis2w_core.v43.plugins.browser import service
 
 
 def register(app: Any) -> None:
-    """Mount `dhis2 browser` on the root CLI."""
+    """Mount `d2w browser` on the root CLI."""
     browser_app = typer.Typer(
         help="Playwright-driven DHIS2 UI automation.",
         no_args_is_help=True,

@@ -58,15 +58,15 @@ async with Dhis2Client(...) as client:
 ## CLI
 
 ```bash
-dhis2 metadata list programIndicators --filter program.id:eq:IpHINAT79UW
-dhis2 metadata program-indicators validate-expression "#{IpHINAT79UW.s46m5MS0hxu}"
-dhis2 metadata program-indicators create \
+d2w metadata list programIndicators --filter program.id:eq:IpHINAT79UW
+d2w metadata program-indicators validate-expression "#{IpHINAT79UW.s46m5MS0hxu}"
+d2w metadata program-indicators create \
     --name "BCG per enrollment" --short-name "BCG per enr" \
     --program IpHINAT79UW \
     --expression "#{IpHINAT79UW.s46m5MS0hxu}" \
     --analytics-type EVENT
-dhis2 metadata program-indicator-groups create --name "Immun PI" --short-name "Immun"
-dhis2 metadata program-indicator-groups add-members <GROUP_UID> --program-indicator <PI_UID>
+d2w metadata program-indicator-groups create --name "Immun PI" --short-name "Immun"
+d2w metadata program-indicator-groups add-members <GROUP_UID> --program-indicator <PI_UID>
 ```
 
 Every `list` has an `ls` alias; every destructive verb accepts `--yes` / `-y`.

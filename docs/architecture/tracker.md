@@ -21,17 +21,17 @@ Status fields come back as `StrEnum` values (`EnrollmentStatus`, `EventStatus`) 
 
 | Operation | CLI | MCP tool |
 | --- | --- | --- |
-| List TrackedEntityTypes | `dhis2 data tracker type` | `data_tracker_type_list` |
-| List tracked entities | `dhis2 data tracker list <TET_NAME_OR_UID>` | `data_tracker_list` |
-| Get one tracked entity | `dhis2 data tracker get <uid>` | `data_tracker_get` |
-| List enrollments | `dhis2 data tracker enrollment list` | `data_tracker_enrollment_list` |
-| List events | `dhis2 data tracker event list` | `data_tracker_event_list` |
-| List relationships | `dhis2 data tracker relationship list` | `data_tracker_relationship_list` |
-| Register + enroll | `dhis2 data tracker register <program>` | `data_tracker_register` |
-| Enroll existing TE | `dhis2 data tracker enrollment create <te> <program>` | `data_tracker_enroll` |
-| Add one event | `dhis2 data tracker event create` | `data_tracker_event_create` |
-| Outstanding stages | `dhis2 data tracker outstanding <program>` | `data_tracker_outstanding` |
-| Bulk import | `dhis2 data tracker push <file>` | `data_tracker_push` |
+| List TrackedEntityTypes | `d2w data tracker type` | `data_tracker_type_list` |
+| List tracked entities | `d2w data tracker list <TET_NAME_OR_UID>` | `data_tracker_list` |
+| Get one tracked entity | `d2w data tracker get <uid>` | `data_tracker_get` |
+| List enrollments | `d2w data tracker enrollment list` | `data_tracker_enrollment_list` |
+| List events | `d2w data tracker event list` | `data_tracker_event_list` |
+| List relationships | `d2w data tracker relationship list` | `data_tracker_relationship_list` |
+| Register + enroll | `d2w data tracker register <program>` | `data_tracker_register` |
+| Enroll existing TE | `d2w data tracker enrollment create <te> <program>` | `data_tracker_enroll` |
+| Add one event | `d2w data tracker event create` | `data_tracker_event_create` |
+| Outstanding stages | `d2w data tracker outstanding <program>` | `data_tracker_outstanding` |
+| Bulk import | `d2w data tracker push <file>` | `data_tracker_push` |
 
 ## Authoring verbs (register / enroll / add event / outstanding)
 
@@ -46,7 +46,7 @@ needs without parsing `bundleReport`.
 ### Register + enroll in one call (tracker programs)
 
 ```bash
-dhis2 data tracker register IpHINAT79UW \
+d2w data tracker register IpHINAT79UW \
     --ou <facility-uid> \
     --attr w75KJ2mc4zz=Aminata \
     --attr zDhUuAYrxNC=Kamara \
@@ -63,7 +63,7 @@ the newly assigned `tracked_entity` + `enrollment` UIDs.
 For patients already in the system, skip the TE creation:
 
 ```bash
-dhis2 data tracker enrollment create <te-uid> <program-uid> --at <ou-uid>
+d2w data tracker enrollment create <te-uid> <program-uid> --at <ou-uid>
 ```
 
 ### Add one event (tracker + event programs)
@@ -73,7 +73,7 @@ programs, omit it for event programs:
 
 ```bash
 # Tracker program — event binds to an enrollment
-dhis2 data tracker event create \
+d2w data tracker event create \
     --enrollment <enrollment-uid> \
     --program <program-uid> \
     --stage <stage-uid> \
@@ -83,7 +83,7 @@ dhis2 data tracker event create \
     --occurred-at 2024-07-15
 
 # Event program — no enrollment, no TE
-dhis2 data tracker event create \
+d2w data tracker event create \
     --program <event-program-uid> \
     --stage <stage-uid> \
     --at <ou-uid> \
@@ -94,7 +94,7 @@ dhis2 data tracker event create \
 ### Outstanding — "what's due" for tracker programs
 
 ```bash
-dhis2 data tracker outstanding <program-uid> [--ou <uid>]
+d2w data tracker outstanding <program-uid> [--ou <uid>]
 ```
 
 Returns every ACTIVE enrollment on the program that's missing an event
@@ -168,42 +168,42 @@ The plugin doesn't validate this client-side — DHIS2 returns a 400 "Program sp
 
 ## `<type>` arg — TrackedEntityType by name or UID
 
-`dhis2 data tracker list` takes the TrackedEntityType as a positional argument.
+`d2w data tracker list` takes the TrackedEntityType as a positional argument.
 Pass a human name (case-insensitive; resolved server-side) or a UID directly:
 
 ```bash
-dhis2 data tracker type                      # discover configured types first
-dhis2 data tracker list Person               # by name
-dhis2 data tracker list patient              # case-insensitive
-dhis2 data tracker list tet01234567          # by UID
+d2w data tracker type                      # discover configured types first
+d2w data tracker list Person               # by name
+d2w data tracker list patient              # case-insensitive
+d2w data tracker list tet01234567          # by UID
 ```
 
 ## CLI examples
 
 ```bash
 # Find a tracker program first
-dhis2 --json metadata list programs --fields id,name,programType \
+d2w --json metadata list programs --fields id,name,programType \
   | jq '.[] | select(.programType=="WITH_REGISTRATION") | .id'
 
 # List tracked entities of type "Person" under a program
-dhis2 data tracker list Person \
+d2w data tracker list Person \
   --program IpHINAT79UW \
   --org-unit ImspTQPwCqd \
   --ou-mode DESCENDANTS \
   --page-size 10
 
 # Fetch one tracked entity by UID (type inferred from the entity)
-dhis2 data tracker get te01234567
+d2w data tracker get te01234567
 
 # List events (works with either program kind)
-dhis2 data tracker event list \
+d2w data tracker event list \
   --program IpHINAT79UW \
   --org-unit ImspTQPwCqd \
   --status COMPLETED \
   --after 2024-01-01
 
 # Bulk import from a JSON bundle
-dhis2 data tracker push bundle.json --strategy CREATE_AND_UPDATE --dry-run
+d2w data tracker push bundle.json --strategy CREATE_AND_UPDATE --dry-run
 ```
 
 ## MCP examples

@@ -31,6 +31,6 @@ Same reason as `Visualization`: a direct `PUT /api/maps/{uid}` with nested `mapV
 
 - [Visualizations + dashboards](visualizations.md) — maps share the same dimension model (`dx`, `pe`, `ou`) as visualizations; same analytics query drives both.
 - [Analytics](analytics.md) — sanity-check the data path with `client.get_raw("/api/analytics", params={...})` before saving a map.
-- CLI surface: `dhis2 metadata list maps / get / create / clone / delete` + `dhis2 browser map screenshot <uid>`.
+- CLI surface: `d2w metadata list maps / get / create / clone / delete` + `d2w browser map screenshot <uid>`.
 
 ::: dhis2w_client.v42.maps

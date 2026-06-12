@@ -2,7 +2,7 @@
 
 These probes exist to catch when DHIS2 fixes an upstream bug — our `pass`
 turns to `warn` and we know to clean up the corresponding workaround.
-They're not the operator-facing default (run via `dhis2 doctor bugs`).
+They're not the operator-facing default (run via `d2w doctor bugs`).
 """
 
 from __future__ import annotations

@@ -1,12 +1,12 @@
 # Apps plugin
 
-`dhis2 apps` covers the two surfaces DHIS2 exposes for managing installed
+`d2w apps` covers the two surfaces DHIS2 exposes for managing installed
 web apps: the local `/api/apps` endpoint (every app the running instance
 has loaded — bundled core apps, custom uploads, hub-installed) and the
 remote `/api/appHub` proxy (DHIS2's catalog of community-published apps).
 
 ```
-dhis2 apps {list,add,remove,update,reload,restore,snapshot,hub-list,hub-url}
+d2w apps {list,add,remove,update,reload,restore,snapshot,hub-list,hub-url}
 ```
 
 MCP mirrors the read + state-changing tools as `apps_list`, `apps_get`,
@@ -27,19 +27,19 @@ apps the same way it does for non-bundled.
 
 ```bash
 # List everything installed (bundled + custom):
-dhis2 apps list
+d2w apps list
 
 # Install / replace from a local zip:
-dhis2 apps add ./path/to/app.zip
+d2w apps add ./path/to/app.zip
 
 # Install from the App Hub by version UUID:
-dhis2 apps add hub:<version-uuid>
+d2w apps add hub:<version-uuid>
 
 # Remove by app key (the folder name DHIS2 uses):
-dhis2 apps remove <key>
+d2w apps remove <key>
 
 # Force DHIS2 to re-read every app from disk (no version changes):
-dhis2 apps reload
+d2w apps reload
 ```
 
 ### `/api/appHub`
@@ -51,16 +51,16 @@ mirror via `keyAppHubUrl`).
 
 ```bash
 # List + filter the catalog:
-dhis2 apps hub-list --search dashboard
+d2w apps hub-list --search dashboard
 
 # Read / write the keyAppHubUrl system setting (point at a self-hosted hub):
-dhis2 apps hub-url
-dhis2 apps hub-url --set https://hub.example.org
+d2w apps hub-url
+d2w apps hub-url --set https://hub.example.org
 ```
 
 ## Update workflow
 
-`dhis2 apps update --all` is the one non-trivial bit of logic. The
+`d2w apps update --all` is the one non-trivial bit of logic. The
 service walks every installed app, matches each to a hub catalog entry
 via `app_hub_id`, picks the version with the highest numeric semver,
 and either installs it (if newer than the local version) or marks the
@@ -91,9 +91,9 @@ restore on another to mirror the app inventory. Useful for promoting
 staging → prod without round-tripping every zip.
 
 ```bash
-dhis2 apps snapshot --output snapshot.json
-dhis2 apps restore snapshot.json --dry-run    # preview
-dhis2 apps restore snapshot.json              # apply
+d2w apps snapshot --output snapshot.json
+d2w apps restore snapshot.json --dry-run    # preview
+d2w apps restore snapshot.json              # apply
 ```
 
 ## Library API

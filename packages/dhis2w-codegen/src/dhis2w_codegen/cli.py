@@ -1,4 +1,4 @@
-"""Typer sub-app for `dhis2w-codegen` — also mounted under `dhis2 codegen`."""
+"""Typer sub-app for `dhis2w-codegen` — also mounted under `d2w codegen`."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Unit tests for `dhis2 metadata share` bulk-share verb + its service layer."""
+"""Unit tests for `d2w metadata share` bulk-share verb + its service layer."""
 
 from __future__ import annotations
 

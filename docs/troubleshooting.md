@@ -142,7 +142,7 @@ Every `while True` / `while not` and every `asyncio.gather` in `dhis2w-*` source
 
 | Location | Loop | Bound |
 | --- | --- | --- |
-| `dhis2w-browser/src/.../oauth2.py` (`_read_auth_url`) | Reads stderr lines from `dhis2 profile login` | EOF guard (`if not line_bytes: raise RuntimeError`); caller wraps in `asyncio.wait_for(timeout=60s)` |
+| `dhis2w-browser/src/.../oauth2.py` (`_read_auth_url`) | Reads stderr lines from `d2w profile login` | EOF guard (`if not line_bytes: raise RuntimeError`); caller wraps in `asyncio.wait_for(timeout=60s)` |
 | `dhis2w-client/src/.../tasks.py` (`iter_notifications`) | Task-completion poll | `timeout` arg, default 600s, raises `TaskTimeoutError` |
 | `dhis2w-client/src/.../category_combos.py` (`wait_for_coc_generation`) | Poll for COC count | `deadline = loop.time() + timeout_seconds` (default 60s), raises `TimeoutError` |
 | `dhis2w-client/src/.../data_values.py` (`_async_file_chunks`) | File chunk reader | EOF guard (`if not chunk: return`) |
@@ -168,7 +168,7 @@ Every `while True` / `while not` and every `asyncio.gather` in `dhis2w-*` source
 
 All single-spawn-and-wait, no loop:
 
-- `dhis2w-browser/.../oauth2.py:65` — `asyncio.create_subprocess_exec("dhis2 profile login")`, awaited with `wait_for(timeout=60s)`.
+- `dhis2w-browser/.../oauth2.py:65` — `asyncio.create_subprocess_exec("d2w profile login")`, awaited with `wait_for(timeout=60s)`.
 - `dhis2w-codegen/.../emit.py:503,508` — `subprocess.run(["ruff", ...])` after each codegen pass. One-shot.
 - `dhis2w-codegen/.../_shared.py:35,40` — same pattern, one-shot.
 

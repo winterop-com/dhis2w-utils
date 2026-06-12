@@ -47,7 +47,7 @@ async with open_client(profile_from_env()) as client:
 
 The accessor doesn't expose a refresh trigger directly — refresh is a plugin-service surface, not a raw-client one. Three real paths:
 
-1. **CLI**: `dhis2 maintenance refresh analytics --watch`.
+1. **CLI**: `d2w maintenance refresh analytics --watch`.
 2. **MCP**: `maintenance_refresh_analytics` tool with `watch=true`.
 3. **Python via plugin service**: import `dhis2w_core.v42.plugins.maintenance.service.refresh_analytics(profile, ...)` directly — see [`examples/v42/client/task_polling.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/task_polling.py) for the full kick-off + poll-with-`client.tasks.await_completion` pattern.
 

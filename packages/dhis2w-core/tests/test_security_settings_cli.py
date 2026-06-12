@@ -1,4 +1,4 @@
-"""Verify `dhis2 security settings` renders the security slice of /api/systemSettings."""
+"""Verify `d2w security settings` renders the security slice of /api/systemSettings."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def runner() -> CliRunner:
 
 
 def _invoke(runner: CliRunner, args: list[str]) -> Any:
-    """Invoke `dhis2 security settings ...` with a fake client returning `_SETTINGS`."""
+    """Invoke `d2w security settings ...` with a fake client returning `_SETTINGS`."""
     fake_client = MagicMock()
     fake_client.get = AsyncMock(return_value=_SETTINGS)
 

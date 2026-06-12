@@ -36,7 +36,7 @@ async def main() -> None:
         )
         rows = probe.get("rows") or []
         if not rows:
-            raise RuntimeError("analytics returned zero rows — run `dhis2 maintenance refresh-analytics`")
+            raise RuntimeError("analytics returned zero rows — run `d2w maintenance refresh-analytics`")
         print(f"[analytics probe] 202506 rows={len(rows)} (non-zero, safe to render)")
 
         spec = VisualizationSpec(

@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Per-resource filters on `dhis2 metadata export` — narrow the bundle to just
+# Per-resource filters on `d2w metadata export` — narrow the bundle to just
 # the objects you care about, and see which references are left dangling so
 # you know whether the slice will round-trip.
 set -euo pipefail
 
 echo "--- 1. All dataElements with Penta in the name (filtered export)"
-uv run dhis2 metadata export \
+uv run d2w metadata export \
     --resource dataElements \
     --filter "dataElements:name:like:Penta" \
     --output /tmp/penta_elements.json
 
 echo ""
 echo "--- 2. Same but broadened — pull the categoryCombos + optionSets the warning pointed at"
-uv run dhis2 metadata export \
+uv run d2w metadata export \
     --resource dataElements \
     --resource categoryCombos \
     --resource optionSets \
@@ -21,7 +21,7 @@ uv run dhis2 metadata export \
 
 echo ""
 echo "--- 3. Per-resource fields: :owner for dataElements, :identifiable for the heavy categoryCombos collection"
-uv run dhis2 metadata export \
+uv run d2w metadata export \
     --resource dataElements --resource categoryCombos \
     --resource-fields "dataElements::owner" \
     --resource-fields "categoryCombos::identifiable" \
@@ -29,7 +29,7 @@ uv run dhis2 metadata export \
 
 echo ""
 echo "--- 4. Skip the reference check when you know the slice is intentionally partial"
-uv run dhis2 metadata export \
+uv run d2w metadata export \
     --resource dataElements \
     --filter "dataElements:valueType:eq:TEXT" \
     --no-check-references \
@@ -37,7 +37,7 @@ uv run dhis2 metadata export \
 
 echo ""
 echo "--- 5. Multiple resources + multiple filters in one call"
-uv run dhis2 metadata export \
+uv run d2w metadata export \
     --resource dataElements --resource indicators \
     --filter "dataElements:name:like:Penta" \
     --filter "indicators:code:like:HIV_" \

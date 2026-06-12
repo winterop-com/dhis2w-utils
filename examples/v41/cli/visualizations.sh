@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# `dhis2 metadata visualizations ...` and `dhis2 metadata dashboards ...` —
+# `d2w metadata visualizations ...` and `d2w metadata dashboards ...` —
 # visualization authoring + dashboard composition from the terminal.
 #
 # A DHIS2 Visualization is a saved analytics query with a chart type +
 # axis placement attached. Chart rendering depends on dimensional
-# placement (see `dhis2 --json metadata visualizations get | jq '.rowDimensions,
+# placement (see `d2w --json metadata visualizations get | jq '.rowDimensions,
 # .columnDimensions, .filterDimensions'`). When in doubt, prove the
 # data path first: run an analytics query with the same dx/pe/ou
 # selection before saving the viz.
@@ -22,14 +22,14 @@ DASHBOARD=TAMlzYkstb7
 # ---------------------------------------------------------------------------
 
 # Every visualization, sorted by name. Filter by type to scope.
-dhis2 metadata list visualizations
-dhis2 metadata list visualizations --filter type:eq:LINE
+d2w metadata list visualizations
+d2w metadata list visualizations --filter type:eq:LINE
 
 # Show one viz with its axes, data elements, periods, and org units.
-dhis2 metadata visualizations get Qyuliufvfjl
+d2w metadata visualizations get Qyuliufvfjl
 
 # Same as show but emits the full JSON payload — pipe into jq.
-dhis2 --json metadata visualizations get Qyuliufvfjl | jq '.type, .rowDimensions, .columnDimensions, .filterDimensions'
+d2w --json metadata visualizations get Qyuliufvfjl | jq '.type, .rowDimensions, .columnDimensions, .filterDimensions'
 
 # ---------------------------------------------------------------------------
 # Create from flags — no hand-rolled JSON required
@@ -37,7 +37,7 @@ dhis2 --json metadata visualizations get Qyuliufvfjl | jq '.type, .rowDimensions
 
 # Simplest case: LINE default placement (rows=[pe], columns=[ou], filters=[dx]).
 # Multi-line chart with one line per district, 2024 monthly.
-dhis2 metadata visualizations create \
+d2w metadata visualizations create \
     --name "Penta1 monthly by district (demo)" \
     --type LINE \
     --de "$DE_PENTA1" \
@@ -49,7 +49,7 @@ dhis2 metadata visualizations create \
     --uid VizCliDem01
 
 # Explicit dimensional placement — one line per data element instead of per district.
-dhis2 metadata visualizations create \
+d2w metadata visualizations create \
     --name "Penta1 vs Measles — Sierra Leone monthly" \
     --type LINE \
     --de "$DE_PENTA1" --de "$DE_MEASLES" \
@@ -61,7 +61,7 @@ dhis2 metadata visualizations create \
     --uid VizCliDem02
 
 # PIVOT_TABLE with default placement (rows=[ou], columns=[pe], filters=[dx]).
-dhis2 metadata visualizations create \
+d2w metadata visualizations create \
     --name "Measles doses by district x month (demo)" \
     --type PIVOT_TABLE \
     --de "$DE_MEASLES" \
@@ -69,7 +69,7 @@ dhis2 metadata visualizations create \
     --ou "${PROVINCES[@]/#/--ou }" \
     --uid VizCliDem03 2>/dev/null || true  # bash array expansion above is shell-specific; simpler form below
 
-dhis2 metadata visualizations create \
+d2w metadata visualizations create \
     --name "Measles doses by district x month (demo)" \
     --type PIVOT_TABLE \
     --de "$DE_MEASLES" \
@@ -79,7 +79,7 @@ dhis2 metadata visualizations create \
     --uid VizCliDem04
 
 # SINGLE_VALUE tile — big number for a KPI dashboard.
-dhis2 metadata visualizations create \
+d2w metadata visualizations create \
     --name "Measles doses — 2024 Sierra Leone total" \
     --type SINGLE_VALUE \
     --de "$DE_MEASLES" \
@@ -92,7 +92,7 @@ dhis2 metadata visualizations create \
 # ---------------------------------------------------------------------------
 
 # Clone the multi-line chart with a renamed display title.
-dhis2 metadata visualizations clone VizCliDem01 \
+d2w metadata visualizations clone VizCliDem01 \
     --new-name "Penta1 monthly by district (2025 preview)" \
     --new-uid VizCliCln01 \
     --new-description "Clone of the 2024 demo chart — period set matches source"
@@ -102,41 +102,41 @@ dhis2 metadata visualizations clone VizCliDem01 \
 # ---------------------------------------------------------------------------
 
 # Auto-stack a new item below everything already on the dashboard.
-dhis2 metadata list dashboards
-dhis2 metadata dashboards get "$DASHBOARD"
+d2w metadata list dashboards
+d2w metadata dashboards get "$DASHBOARD"
 
 # Add the demo line chart to the overview dashboard (auto-stack, full width).
-dhis2 metadata dashboards add-item "$DASHBOARD" --viz VizCliDem01
+d2w metadata dashboards add-item "$DASHBOARD" --viz VizCliDem01
 
 # Add two KPI tiles side-by-side above the auto-stack line. Pass explicit
 # slot so the tiles share a row.
-dhis2 metadata dashboards add-item "$DASHBOARD" --viz VizCliDem05 \
+d2w metadata dashboards add-item "$DASHBOARD" --viz VizCliDem05 \
     --x 0 --y 95 --width 20 --height 15
-dhis2 metadata dashboards add-item "$DASHBOARD" --viz VizCliCln01 \
+d2w metadata dashboards add-item "$DASHBOARD" --viz VizCliCln01 \
     --x 20 --y 95 --width 40 --height 15
 
 # Show the dashboard again to confirm placement.
-dhis2 metadata dashboards get "$DASHBOARD"
+d2w metadata dashboards get "$DASHBOARD"
 
 # ---------------------------------------------------------------------------
 # Clean up — keep reruns idempotent
 # ---------------------------------------------------------------------------
 
-# Remove items we added (item UID comes from `dhis2 metadata dashboards get`).
+# Remove items we added (item UID comes from `d2w metadata dashboards get`).
 # Adjust the UIDs below if you run this against a fresh instance.
 
-# dhis2 metadata dashboards remove-item "$DASHBOARD" <item-uid>
+# d2w metadata dashboards remove-item "$DASHBOARD" <item-uid>
 
 # Delete the demo vizes.
-dhis2 metadata visualizations delete VizCliDem01 -y
-dhis2 metadata visualizations delete VizCliDem02 -y
-dhis2 metadata visualizations delete VizCliDem04 -y
-dhis2 metadata visualizations delete VizCliDem05 -y
-dhis2 metadata visualizations delete VizCliCln01 -y
+d2w metadata visualizations delete VizCliDem01 -y
+d2w metadata visualizations delete VizCliDem02 -y
+d2w metadata visualizations delete VizCliDem04 -y
+d2w metadata visualizations delete VizCliDem05 -y
+d2w metadata visualizations delete VizCliCln01 -y
 
 # ---------------------------------------------------------------------------
 # Generic CRUD still works for the raw surface
 # ---------------------------------------------------------------------------
 
-dhis2 metadata list visualizations --fields 'id,name,type' --order 'lastUpdated:desc' --page-size 5
-dhis2 metadata list dashboards --fields 'id,name'
+d2w metadata list visualizations --fields 'id,name,type' --order 'lastUpdated:desc' --page-size 5
+d2w metadata list dashboards --fields 'id,name'

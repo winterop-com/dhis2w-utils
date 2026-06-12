@@ -1,4 +1,4 @@
-"""Tests for `service.diff_bundles` + `dhis2 metadata diff` CLI + `metadata_diff` MCP tool."""
+"""Tests for `service.diff_bundles` + `d2w metadata diff` CLI + `metadata_diff` MCP tool."""
 
 from __future__ import annotations
 

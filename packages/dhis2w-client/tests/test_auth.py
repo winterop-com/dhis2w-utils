@@ -143,7 +143,7 @@ async def test_oauth2_exchange_400_raises_oauth2_flow_error() -> None:
 async def test_oauth2_refresh_400_raises_oauth2_flow_error() -> None:
     """When DHIS2 rejects the cached refresh_token (e.g. client rotated), surface a clean OAuth2FlowError.
 
-    The error message must point at `dhis2 profile login <name>` so the
+    The error message must point at `d2w profile login <name>` so the
     user knows the recovery path. Raw httpx.HTTPStatusError tracebacks are
     not acceptable — this is a known recoverable failure mode and we
     own the UX.
@@ -169,7 +169,7 @@ async def test_oauth2_refresh_400_raises_oauth2_flow_error() -> None:
     )
     import pytest
 
-    with pytest.raises(OAuth2FlowError, match=r"token refresh failed.*dhis2 profile login"):
+    with pytest.raises(OAuth2FlowError, match=r"token refresh failed.*d2w profile login"):
         await provider.headers()
 
 
@@ -192,7 +192,7 @@ async def test_oauth2_expired_without_refresh_token_raises() -> None:
     )
     import pytest
 
-    with pytest.raises(OAuth2FlowError, match=r"no refresh_token.*dhis2 profile login"):
+    with pytest.raises(OAuth2FlowError, match=r"no refresh_token.*d2w profile login"):
         await provider.headers()
 
 

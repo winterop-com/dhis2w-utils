@@ -1,4 +1,4 @@
-"""Drive `dhis2 profile login --no-browser` end-to-end via Playwright.
+"""Drive `d2w profile login --no-browser` end-to-end via Playwright.
 
 This is the companion to `examples/v41/client/oidc_login.py` — that one runs
 the OAuth 2.1 + PKCE flow interactively (opens your system browser, you

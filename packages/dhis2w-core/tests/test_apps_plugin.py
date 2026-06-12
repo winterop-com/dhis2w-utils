@@ -92,7 +92,7 @@ def test_plugin_descriptor() -> None:
 
 
 def test_cli_help_lists_every_verb() -> None:
-    """`dhis2 apps --help` exposes every verb including snapshot + restore."""
+    """`d2w apps --help` exposes every verb including snapshot + restore."""
     result = _runner.invoke(apps_app, ["--help"])
     assert result.exit_code == 0, result.output
     for verb in ("list", "add", "remove", "update", "reload", "snapshot", "restore", "hub-list", "hub-url"):
@@ -121,7 +121,7 @@ def test_update_command_requires_key_or_all() -> None:
 
 
 def test_full_cli_mounts_apps_plugin() -> None:
-    """The auto-discovered plugin mounts under `dhis2 apps` on the root CLI."""
+    """The auto-discovered plugin mounts under `d2w apps` on the root CLI."""
     root = build_app()
     result = _runner.invoke(root, ["apps", "--help"])
     assert result.exit_code == 0, result.output

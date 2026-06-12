@@ -27,7 +27,7 @@ the lone exception is `gemma-4-12b` (bf16), kept on purpose as the head-to-head 
   OpenAI-compatible API as the brain. Per task: pass/fail (heuristic), tool-call count, wall-clock,
   completion tokens. `read tok/s` is total read completion-tokens / total read wall-clock (approx).
 - **Tasks:** `count` ("how many data elements" → 1037) · `schema` ("what fields does a data element
-  have" → must call `dhis2 schema` and name real fields) · `filter` (ANC indicators) · `write` (set
+  have" → must call `d2w schema` and name real fields) · `filter` (ANC indicators) · `write` (set
   `minPasswordLength` to 10 with a command hint, then verify). Single representative runs; expect
   run-to-run variance, especially on the write (model nondeterminism).
 
@@ -64,7 +64,7 @@ dominated), so it's left blank.
 - **qwen reads are strong and fast** (`qwen2.5-7b` count in 7.2s), but **writes are the wall**:
   `qwen2.5-7b` finds `system settings set` yet doesn't cleanly confirm; `qwen3.5-4b` never finds it even
   with a hint. Treat the qwens as read-only drivers.
-- **All five now use `dhis2 schema`** for the schema task — the command + the bridge-docstring hint
+- **All five now use `d2w schema`** for the schema task — the command + the bridge-docstring hint
   closed the field-hallucination gap across the board (see `small-model-bridge.md`).
 - **The write wall is discoverability**, not capability: `system settings set` is buried under `dev`.
   This is the standing system-setting-write discoverability item in `small-model-bridge.md`.

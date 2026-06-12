@@ -4,7 +4,7 @@ Running list of architectural choices and the reasoning behind them. Each entry 
 
 ## 2026-06-04 — Single metadata listing surface: drop typed per-resource `list`
 
-**Decision:** Listing metadata goes through ONE surface — the generic `dhis2 metadata list <type>` CLI command and the `metadata_list` MCP tool (plus `metadata list <type> --count` / the `metadata_count` tool for totals). The 34 typed per-resource list commands (`metadata data-elements list`, `metadata indicators list`, …), their 34 MCP counterparts (`metadata_data_element_list`, …), and the ~33 now-dead `service.list_<resource>` functions are removed. Kept: `metadata type list` (the resource-type catalog), every typed sub-app's authoring verbs (`create` / `rename` / `delete` / `add-*` / …), and the special reads (`members`, `tree`, `list-for-combo`, `vars-for`).
+**Decision:** Listing metadata goes through ONE surface — the generic `d2w metadata list <type>` CLI command and the `metadata_list` MCP tool (plus `metadata list <type> --count` / the `metadata_count` tool for totals). The 34 typed per-resource list commands (`metadata data-elements list`, `metadata indicators list`, …), their 34 MCP counterparts (`metadata_data_element_list`, …), and the ~33 now-dead `service.list_<resource>` functions are removed. Kept: `metadata type list` (the resource-type catalog), every typed sub-app's authoring verbs (`create` / `rename` / `delete` / `add-*` / …), and the special reads (`members`, `tree`, `list-for-combo`, `vars-for`).
 
 **Why:** both list paths hit the same endpoint — `GET /api/<resource>` (e.g. `/api/dataElements`) — so the typed `list` duplicated the generic one with a different, inconsistent flag set. That confused humans and LLM clients alike (a model reaches for `metadata data-elements list --all` and hits "No such option", because `--all`/`--fields`/`--count` live only on the generic command). `/api/metadata` is a separate bundle-export endpoint, not involved in listing. Pre-1.0, no deployed users, so the removal is clean — no shims, no aliases.
 
@@ -56,7 +56,7 @@ Hand-written hold-outs: `Me` (not in OpenAPI), `PeriodType` (Java class hierarch
 
 ## 2026-04-18 — OAuth2 redirect receiver is FastAPI + uvicorn, not `asyncio.start_server`
 
-**Decision:** the redirect receiver invoked during `dhis2 profile login` is a FastAPI + uvicorn app (in `dhis2w-core/oauth2_redirect.py`) injected into `OAuth2Auth` via a pluggable `redirect_capturer`. `dhis2w-client` keeps a bare `asyncio.start_server` fallback so the published package stays FastAPI-free.
+**Decision:** the redirect receiver invoked during `d2w profile login` is a FastAPI + uvicorn app (in `dhis2w-core/oauth2_redirect.py`) injected into `OAuth2Auth` via a pluggable `redirect_capturer`. `dhis2w-client` keeps a bare `asyncio.start_server` fallback so the published package stays FastAPI-free.
 
 **Why:** CLAUDE.md mandates FastAPI for any HTTP service. The receiver renders a styled success/error page the user sees after the redirect, and FastAPI makes the route handling, query parsing, and HTML response idiomatic. Keeping FastAPI out of `dhis2w-client` preserves the PyPI-thin client rule.
 
@@ -64,7 +64,7 @@ Hand-written hold-outs: `Me` (not in OpenAPI), `PeriodType` (Java class hierarch
 
 ## 2026-04-18 — Preflight-check DHIS2 before running the OAuth2 flow
 
-**Decision:** both `dhis2 profile verify` (for oauth2 profiles) and `dhis2 profile login` probe `GET /.well-known/openid-configuration` before doing anything else. On 404 / 500 / connection error, we emit an actionable message (`"set oauth2.server.enabled = on in dhis.conf and restart"`) and bail out.
+**Decision:** both `d2w profile verify` (for oauth2 profiles) and `d2w profile login` probe `GET /.well-known/openid-configuration` before doing anything else. On 404 / 500 / connection error, we emit an actionable message (`"set oauth2.server.enabled = on in dhis.conf and restart"`) and bail out.
 
 **Why:** DHIS2 ships Spring Authorization Server switched off. Without the preflight, users would see a cryptic mid-flow failure (404 after the browser opens, or a token-exchange HTTP error). The one extra roundtrip catches the common misconfig and produces a message the user can act on.
 
@@ -93,7 +93,7 @@ Hand-written hold-outs: `Me` (not in OpenAPI), `PeriodType` (Java class hierarch
 
 ## 2026-04-18 — Default profile scope is global; `--global/--local` flag pair
 
-**Decision:** `dhis2 profile add` with no scope flag writes to `~/.config/dhis2/profiles.toml`. `--local` opts into `.dhis2/profiles.toml` in the current directory. `--global` is an explicit no-op alias. `--scope global|project` is removed from docs (still works internally).
+**Decision:** `d2w profile add` with no scope flag writes to `~/.config/dhis2/profiles.toml`. `--local` opts into `.dhis2/profiles.toml` in the current directory. `--global` is an explicit no-op alias. `--scope global|project` is removed from docs (still works internally).
 
 **Why:** users typically have 1-3 DHIS2 instances they return to; global is the correct default. Scoping to the current directory by default would silently create `.dhis2/` in whatever directory you happened to run the command — surprising. The `--global/--local` flag pair matches git (`git config --global`), npm (`npm install -g`), and `aws configure --profile`, all of which treat global as the baseline and local as the override.
 
@@ -103,7 +103,7 @@ Hand-written hold-outs: `Me` (not in OpenAPI), `PeriodType` (Java class hierarch
 
 **Why:** names become env var suffixes (`DHIS2_PROFILE=prod_eu`), TOML keys, and unquoted shell arguments. Allowing spaces/hyphens/dots means every call site needs quoting discipline; the failure mode is subtle and platform-dependent. A narrow grammar avoids the whole class. Typical user names (`local`, `prod`, `laohis42`) fit trivially.
 
-## 2026-04-18 — `dhis2 profile rename` preserves scope + default
+## 2026-04-18 — `d2w profile rename` preserves scope + default
 
 **Decision:** `rename_profile(old, new)` mutates whichever file the old name lives in (project or global), preserves key ordering, and updates the `default` key if the renamed profile was the default. Refuses to clobber an existing name.
 
@@ -164,7 +164,7 @@ Hand-written hold-outs: `Me` (not in OpenAPI), `PeriodType` (Java class hierarch
 
 **Alternatives rejected:**
 
-- MCP shelling out to `dhis2` CLI — slow, brittle, loses pydantic in/out.
+- MCP shelling out to `d2w` CLI — slow, brittle, loses pydantic in/out.
 - MCP importing Typer commands programmatically — fights Typer's CLI ergonomics; you end up wanting the underlying function anyway.
 
 ## 2026-04-17 — Pluggable auth via Protocol
@@ -183,7 +183,7 @@ Hand-written hold-outs: `Me` (not in OpenAPI), `PeriodType` (Java class hierarch
 
 ## 2026-04-17 — Version-aware committed generated clients
 
-**Decision:** `dhis2w_client.generated.v{40,41,42,43}/` are separate modules, populated by `dhis2 codegen`, committed to git. `Dhis2Client.connect()` picks the right one via `/api/system/info`.
+**Decision:** `dhis2w_client.generated.v{40,41,42,43}/` are separate modules, populated by `d2w codegen`, committed to git. `Dhis2Client.connect()` picks the right one via `/api/system/info`.
 
 **Why:** user's explicit direction. DHIS2 schemas evolve per version; a single hand-curated client either lags or grows shims. Committed generated code means PyPI users don't need to run the generator, and diffs are reviewable in PRs.
 
@@ -293,7 +293,7 @@ Hand-written hold-outs: `Me` (not in OpenAPI), `PeriodType` (Java class hierarch
 
 ## 2026-04-17 — CLI tested via `typer.testing.CliRunner`, not subprocess
 
-**Decision:** `dhis2w-cli` integration tests use `CliRunner().invoke(build_app(), [...])` rather than `subprocess.run(["uv", "run", "dhis2", ...])`.
+**Decision:** `dhis2w-cli` integration tests use `CliRunner().invoke(build_app(), [...])` rather than `subprocess.run(["uv", "run", "d2w", ...])`.
 
 **Why:** subprocess invocation is ~2s per test (venv resolution overhead). CliRunner runs Typer dispatch in-process in ~5ms and covers everything that can actually break — command wiring, Typer argument parsing, async-run bridging, printed output. The console-script entry point itself is a one-liner we trust.
 

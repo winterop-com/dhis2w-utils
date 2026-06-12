@@ -96,7 +96,7 @@ coverage:
 
 docs-cli:
 	@echo ">>> Regenerating CLI reference from the Typer app"
-	@$(UV) run typer dhis2w_cli.main utils docs --name dhis2 --title "CLI reference" --output docs/cli-reference.md
+	@$(UV) run typer dhis2w_cli.main utils docs --name d2w --title "CLI reference" --output docs/cli-reference.md
 	@echo "    wrote docs/cli-reference.md"
 
 docs-mcp:
@@ -154,11 +154,11 @@ dhis2-codegen-all:
 
 dhis2-codegen-play-v42:
 	@echo ">>> Refreshing generated/v42 from play.im.dhis2.org/dev-2-42"
-	@$(UV) run dhis2 dev codegen generate --url https://play.im.dhis2.org/dev-2-42 --username admin --password district
+	@$(UV) run d2w dev codegen generate --url https://play.im.dhis2.org/dev-2-42 --username admin --password district
 
 dhis2-codegen-play-v43:
 	@echo ">>> Refreshing generated/v43 from play.im.dhis2.org/dev-2-43"
-	@$(UV) run dhis2 dev codegen generate --url https://play.im.dhis2.org/dev-2-43 --username admin --password district
+	@$(UV) run d2w dev codegen generate --url https://play.im.dhis2.org/dev-2-43 --username admin --password district
 
 dhis2-codegen-play: dhis2-codegen-play-v42 dhis2-codegen-play-v43
 
@@ -166,9 +166,9 @@ refresh-analytics:
 	@echo ">>> Refreshing analytics tables (blocks until ANALYTICS_TABLE task completes)"
 	@if [ -f infra/home/credentials/.env.auth ]; then \
 		set -a; . infra/home/credentials/.env.auth; set +a; \
-		$(UV) run dhis2 maintenance refresh analytics --watch --timeout 600; \
+		$(UV) run d2w maintenance refresh analytics --watch --timeout 600; \
 	else \
-		$(UV) run dhis2 maintenance refresh analytics --watch --timeout 600; \
+		$(UV) run d2w maintenance refresh analytics --watch --timeout 600; \
 	fi
 
 verify-examples:

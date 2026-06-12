@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `dhis2 browser map screenshot` — capture one or more saved Maps as PNGs
+# `d2w browser map screenshot` — capture one or more saved Maps as PNGs
 # via the DHIS2 Maps app. Chrome drives the render so the output matches
 # what a user sees in the Maps viewer.
 #
@@ -15,7 +15,7 @@ IMMUNIZATION_MAP=iKgbemGaDUh
 OUT=/tmp/map-screenshots
 rm -rf "$OUT"
 
-dhis2 browser map screenshot \
+d2w browser map screenshot \
     --output-dir "$OUT" \
     --only "$DOSES_MAP" --only "$IMMUNIZATION_MAP"
 

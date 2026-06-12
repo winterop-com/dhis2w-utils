@@ -93,7 +93,7 @@ class TokenStore(Protocol):
 
 ## DHIS2 server prerequisites (v2.42)
 
-DHIS2 ships its own Spring Authorization Server, but none of it is turned on by default. Without the right `dhis.conf` keys, `dhis2 profile login` will fail in one of three distinct ways depending on which layer is missing. Getting OAuth2 working against a local DHIS2 means adding **all** of these to `dhis.conf` and restarting the instance:
+DHIS2 ships its own Spring Authorization Server, but none of it is turned on by default. Without the right `dhis.conf` keys, `d2w profile login` will fail in one of three distinct ways depending on which layer is missing. Getting OAuth2 working against a local DHIS2 means adding **all** of these to `dhis.conf` and restarting the instance:
 
 ```properties
 # 1. Mount Spring AS endpoints (/oauth2/authorize, /oauth2/token, /oauth2/jwks,
@@ -140,14 +140,14 @@ Two subtleties in the registered OAuth2 client itself (seeded by `make dhis2-see
 - **`clientSettings` and `tokenSettings` must be non-empty Jackson-serialized Spring AS JSON.** Leaving them blank triggers `IllegalArgumentException: settings cannot be empty` inside `Dhis2OAuth2ClientServiceImpl.toObject` on `/oauth2/authorize`. The seed script sends the same defaults DHIS2's built-in settings app writes when a client is created via `/apps/settings#/oauth2`.
 - **Only `ALL` works as a scope.** DHIS2 has no fine-grained OAuth scopes; the seed uses `scopes = "ALL"` and the client's default `--scope` flag is `ALL`.
 
-The `dhis2 profile login` CLI preflights the server with a `GET /.well-known/openid-configuration` before opening a browser, so a misconfigured instance produces the message *"DHIS2 at ... does not expose OAuth2/OIDC endpoints — set `oauth2.server.enabled = on` in dhis.conf and restart"* rather than a cryptic mid-flow failure.
+The `d2w profile login` CLI preflights the server with a `GET /.well-known/openid-configuration` before opening a browser, so a misconfigured instance produces the message *"DHIS2 at ... does not expose OAuth2/OIDC endpoints — set `oauth2.server.enabled = on` in dhis.conf and restart"* rather than a cryptic mid-flow failure.
 
 ### `--no-browser` / `DHIS2_OAUTH_NO_BROWSER`
 
 Pass `--no-browser` (or set `DHIS2_OAUTH_NO_BROWSER=1`) to skip `webbrowser.open()` and print the authorization URL to stderr for copy-paste:
 
 ```
-$ dhis2 profile login local_oidc --no-browser
+$ d2w profile login local_oidc --no-browser
 starting OAuth2 login for 'local_oidc' -> http://localhost:8080 (no-browser mode) ...
 
 Open this URL in a browser to authenticate:
@@ -169,14 +169,14 @@ The flag plumbs through `build_auth(..., open_browser=False)` in `dhis2w_core.cl
 
 `dhis2w_browser` ships two helpers for automating the full flow:
 
-- `drive_oauth2_login(profile_name, *, username, password)` — subprocess-driven. Spawns `dhis2 profile login <name> --no-browser`, reads the auth URL from its stderr, and drives Chromium through (1) the DHIS2 React login form, (2) the Spring AS "Consent required" screen, (3) the loopback redirect. Used by `examples/v42/client/oidc_playwright_login.py` + the `DHIS2_USERNAME`/`DHIS2_PASSWORD`-auto-dispatched `examples/v42/cli/profile_oidc_login.sh`.
+- `drive_oauth2_login(profile_name, *, username, password)` — subprocess-driven. Spawns `d2w profile login <name> --no-browser`, reads the auth URL from its stderr, and drives Chromium through (1) the DHIS2 React login form, (2) the Spring AS "Consent required" screen, (3) the loopback redirect. Used by `examples/v42/client/oidc_playwright_login.py` + the `DHIS2_USERNAME`/`DHIS2_PASSWORD`-auto-dispatched `examples/v42/cli/profile_oidc_login.sh`.
 - `drive_login_form(auth_url, *, username, password)` — lower-level. Takes an authorize URL that an in-process flow already built and drives the same two screens. Used by `examples/v42/client/oidc_login.py`'s library-level `OAuth2Auth` path when `DHIS2_USERNAME`/`DHIS2_PASSWORD` are set.
 
 Both accept `headless=None` which honours the `DHIS2_HEADFUL=1` env fallback (matching every other `dhis2w-browser` helper). Both require the `[browser]` extra (`uv add 'dhis2w-cli[browser]' && playwright install chromium`).
 
 ### "Local OIDC" button on the login page is CLI-only
 
-DHIS2's login page renders a button for every configured OIDC provider. With the committed fixture, that's the `dhis2` provider above, labelled `Local OIDC` via `oidc.provider.dhis2.display_alias`. The button **fails when clicked from a browser** because its `redirect_url` is `http://localhost:8765` — our CLI's ephemeral callback listener, not a long-running HTTP server. Browser users should log in with username + password directly; the OIDC button exists purely so the CLI OAuth2 flow (`dhis2 profile login local_oidc`) has a live provider to round-trip against.
+DHIS2's login page renders a button for every configured OIDC provider. With the committed fixture, that's the `d2w` provider above, labelled `Local OIDC` via `oidc.provider.dhis2.display_alias`. The button **fails when clicked from a browser** because its `redirect_url` is `http://localhost:8765` — our CLI's ephemeral callback listener, not a long-running HTTP server. Browser users should log in with username + password directly; the OIDC button exists purely so the CLI OAuth2 flow (`d2w profile login local_oidc`) has a live provider to round-trip against.
 
 Removing the button is not possible without removing the provider entirely (DHIS2 v42 has no per-provider "hide from login UI" flag), and removing the provider would break the CLI OAuth2 integration path.
 

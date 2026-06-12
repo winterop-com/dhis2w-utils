@@ -4,15 +4,15 @@ One command that diagnoses a DHIS2 instance. Three probe categories, three
 sub-commands, one unified report shape:
 
 ```
-dhis2 doctor metadata     # workspace-specific instance-health checks
-dhis2 doctor integrity    # DHIS2's own /api/dataIntegrity/summary
-dhis2 doctor bugs         # BUGS.md workaround drift detection
+d2w doctor metadata     # workspace-specific instance-health checks
+d2w doctor integrity    # DHIS2's own /api/dataIntegrity/summary
+d2w doctor bugs         # BUGS.md workaround drift detection
 
-dhis2 doctor              # default: metadata + integrity
-dhis2 doctor --all        # includes bugs
+d2w doctor              # default: metadata + integrity
+d2w doctor --all        # includes bugs
 ```
 
-Runs as `dhis2 doctor`, `doctor_run` / `doctor_metadata` / `doctor_integrity`
+Runs as `d2w doctor`, `doctor_run` / `doctor_metadata` / `doctor_integrity`
 / `doctor_bugs` MCP tools, or the library-level `service.run_doctor(...)` —
 same probe set, three surfaces.
 
@@ -53,7 +53,7 @@ duplicate a DHIS2 check. The overlap is intentional — our probes surface
 the offending UIDs immediately (without requiring a prior `dataintegrity
 run` sweep) and the tables stay readable with UIDs in the `offending_uids`
 column. Prefer the workspace probe when you want a quick answer; prefer
-`dhis2 maintenance dataintegrity result <check> --details` when you need
+`d2w maintenance dataintegrity result <check> --details` when you need
 DHIS2-authoritative reporting or the full issue description/recommendation
 DHIS2 ships per check.
 
@@ -66,7 +66,7 @@ Each DHIS2 check becomes one `ProbeResult` — `pass` when 0 issues, `warn`
 when >0. Severity is carried in the message.
 
 The integrity probes `skip` with a hint if DHIS2 hasn't run its checks yet
-— kick them off with `dhis2 maintenance dataintegrity run --watch` first.
+— kick them off with `d2w maintenance dataintegrity run --watch` first.
 
 ### `bugs` — workspace drift detection (maintenance)
 
@@ -74,7 +74,7 @@ Verifies BUGS.md workarounds still apply. When DHIS2 fixes an upstream
 bug a `pass` probe flips to `warn`, giving the workspace a nudge to clean
 up the corresponding workaround without manually watching every DHIS2
 release note. Not usually the right default for operators — run via
-`dhis2 doctor bugs` when doing workspace maintenance.
+`d2w doctor bugs` when doing workspace maintenance.
 
 Current `bugs` probes cover: DHIS2 version floor, `/api/me` auth,
 `/api/loginConfig` summary, `/.well-known/openid-configuration`,
@@ -97,7 +97,7 @@ model for scripting / CI. The MCP tools return the same structured type.
 ## Example output
 
 ```
-                   dhis2 doctor — http://localhost:8080 (DHIS2 2.42.4)
+                   d2w doctor — http://localhost:8080 (DHIS2 2.42.4)
 ┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
 ┃ probe             ┃ category  ┃ status ┃ message                   ┃ offending   ┃
 ┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩

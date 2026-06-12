@@ -1,8 +1,8 @@
 # Maintenance plugin
 
-`dhis2 maintenance` wraps the DHIS2 server's maintenance surface: background-task polling, cache reset, soft-delete cleanup, and data-integrity checks. Every long-running DHIS2 operation returns a task UID — the `task` sub-tree is the shared polling surface those UIDs feed into.
+`d2w maintenance` wraps the DHIS2 server's maintenance surface: background-task polling, cache reset, soft-delete cleanup, and data-integrity checks. Every long-running DHIS2 operation returns a task UID — the `task` sub-tree is the shared polling surface those UIDs feed into.
 
-- CLI: `dhis2 maintenance {task,cache,cleanup,dataintegrity}`
+- CLI: `d2w maintenance {task,cache,cleanup,dataintegrity}`
 - MCP: `maintenance_{task_types,task_list,task_status,cache_clear,cleanup_soft_deleted,dataintegrity_checks,dataintegrity_run,dataintegrity_result}`
 - Models: `Notification`, `DataIntegrityCheck`, `DataIntegrityResult`, `DataIntegrityReport` — all exported from `dhis2w_client`.
 
@@ -18,16 +18,16 @@ DHIS2 records every background job under `/api/system/tasks`. Three levels:
 
 ```bash
 # Which job types does this instance track?
-dhis2 maintenance task types
+d2w maintenance task types
 
 # Which task UIDs exist for ANALYTICS_TABLE?
-dhis2 maintenance task list ANALYTICS_TABLE
+d2w maintenance task list ANALYTICS_TABLE
 
 # Every notification emitted by one task, oldest first.
-dhis2 maintenance task status ANALYTICS_TABLE e1xqWiuxDce
+d2w maintenance task status ANALYTICS_TABLE e1xqWiuxDce
 
 # Stream notifications as they arrive; exits on the first completed=true row.
-dhis2 maintenance task watch DATA_INTEGRITY <uid> --interval 1 --timeout 120
+d2w maintenance task watch DATA_INTEGRITY <uid> --interval 1 --timeout 120
 ```
 
 `Notification` fields: `level` (`INFO`/`WARN`/`ERROR`), `category` (the task type), `message`, `completed`, `time`, `uid`, `id`. DHIS2 returns newest-first; the service reverses to chronological so `task status` reads top-to-bottom with the job.
@@ -37,20 +37,20 @@ dhis2 maintenance task watch DATA_INTEGRITY <uid> --interval 1 --timeout 120
 ## Cache
 
 ```bash
-dhis2 maintenance cache
+d2w maintenance cache
 ```
 
 POSTs `/api/maintenance/cache` (204 No Content). Drops every server-side cache — Hibernate session cache, Ehcache, the DHIS2 app-settings cache. Useful after a SQL-level config change so the server re-reads from disk.
 
 ## Soft-delete cleanup
 
-`dhis2 data aggregate delete` and `dhis2 data tracker push` with `importStrategy=DELETE` don't actually remove rows — they mark them `deleted=true` so DHIS2 can preserve audit trails. Soft-deleted children block parent-metadata removal (see BUGS.md #2). The cleanup sub-commands hit the dedicated maintenance endpoints to purge each kind:
+`d2w data aggregate delete` and `d2w data tracker push` with `importStrategy=DELETE` don't actually remove rows — they mark them `deleted=true` so DHIS2 can preserve audit trails. Soft-deleted children block parent-metadata removal (see BUGS.md #2). The cleanup sub-commands hit the dedicated maintenance endpoints to purge each kind:
 
 ```bash
-dhis2 maintenance cleanup data-values         # POST /api/maintenance/softDeletedDataValueRemoval
-dhis2 maintenance cleanup events              # POST /api/maintenance/softDeletedEventRemoval
-dhis2 maintenance cleanup enrollments         # POST /api/maintenance/softDeletedEnrollmentRemoval
-dhis2 maintenance cleanup tracked-entities    # POST /api/maintenance/softDeletedTrackedEntityRemoval
+d2w maintenance cleanup data-values         # POST /api/maintenance/softDeletedDataValueRemoval
+d2w maintenance cleanup events              # POST /api/maintenance/softDeletedEventRemoval
+d2w maintenance cleanup enrollments         # POST /api/maintenance/softDeletedEnrollmentRemoval
+d2w maintenance cleanup tracked-entities    # POST /api/maintenance/softDeletedTrackedEntityRemoval
 ```
 
 Each POST returns 204 No Content when successful; run in order (entities → enrollments → events → data values) when dismantling a full tracker program.
@@ -61,28 +61,28 @@ DHIS2 ships ~108 data-integrity checks (v42). Each has a stable `name` (query-pa
 
 ```bash
 # Catalog — every built-in check.
-dhis2 maintenance dataintegrity list
+d2w maintenance dataintegrity list
 
 # Kick off a summary run on one check (or omit for all). Async — returns
 # a JobConfigurationWebMessageResponse whose response.id is the task UID.
-dhis2 maintenance dataintegrity run orgunits_invalid_geometry
+d2w maintenance dataintegrity run orgunits_invalid_geometry
 
 # Same, but populates issues[] per check (heavier; use on specific checks).
-dhis2 maintenance dataintegrity run orgunits_invalid_geometry --details
+d2w maintenance dataintegrity run orgunits_invalid_geometry --details
 
 # Read stored results. Summary mode gives per-check `count`; details gives issues[].
-dhis2 maintenance dataintegrity result orgunits_invalid_geometry
-dhis2 maintenance dataintegrity result orgunits_invalid_geometry --details
+d2w maintenance dataintegrity result orgunits_invalid_geometry
+d2w maintenance dataintegrity result orgunits_invalid_geometry --details
 ```
 
 `run` kicks off the job; `result` reads what the job stored. Pass `--watch/-w` to have `run` poll to completion itself — it extracts `jobType` + `id` from the response envelope and streams notifications:
 
 ```bash
-dhis2 maintenance dataintegrity run orgunits_invalid_geometry -w --interval 1 --timeout 60
-dhis2 maintenance dataintegrity result orgunits_invalid_geometry
+d2w maintenance dataintegrity run orgunits_invalid_geometry -w --interval 1 --timeout 60
+d2w maintenance dataintegrity result orgunits_invalid_geometry
 ```
 
-The same `--watch/-w` flag is on every command that returns a JobConfigurationWebMessageResponse (today: `dhis2 maintenance refresh analytics`, `dhis2 maintenance dataintegrity run`). For cases where you only have a task UID — not the response envelope — use the lower-level `dhis2 maintenance task watch <type> <uid>` directly.
+The same `--watch/-w` flag is on every command that returns a JobConfigurationWebMessageResponse (today: `d2w maintenance refresh analytics`, `d2w maintenance dataintegrity run`). For cases where you only have a task UID — not the response envelope — use the lower-level `d2w maintenance task watch <type> <uid>` directly.
 
 DHIS2 uses separate job types for the two data-integrity modes: `DATA_INTEGRITY` for summary, `DATA_INTEGRITY_DETAILS` for details — `--watch` picks the right one from the response, but pass the matching type explicitly if you're calling `task watch` yourself.
 
@@ -129,19 +129,19 @@ Writes — kicking off a run, clearing cache — stay on `service.*` because the
 
 ## Validation rules + predictors
 
-Two sibling workflows live under `dhis2 maintenance`:
+Two sibling workflows live under `d2w maintenance`:
 
 ```
-dhis2 maintenance validation run <ou> --start-date ... --end-date ...
-dhis2 maintenance validation result {list,get,delete}
-dhis2 maintenance validation validate-expression "<expr>" [--context ...]
-dhis2 maintenance validation send-notifications
-dhis2 maintenance predictors run --start-date ... --end-date ... [--predictor|--group]
+d2w maintenance validation run <ou> --start-date ... --end-date ...
+d2w maintenance validation result {list,get,delete}
+d2w maintenance validation validate-expression "<expr>" [--context ...]
+d2w maintenance validation send-notifications
+d2w maintenance predictors run --start-date ... --end-date ... [--predictor|--group]
 ```
 
 CRUD on the rules / predictors themselves stays on the generic metadata
-surface (`dhis2 metadata list validationRules` / `get` / `patch` +
-`dhis2 metadata list predictors`). What's plugin-scoped here is the
+surface (`d2w metadata list validationRules` / `get` / `patch` +
+`d2w metadata list predictors`). What's plugin-scoped here is the
 *workflow* side — running the rules against live data, polling
 violations, firing notifications, running predictor expressions to emit
 synthetic data values.

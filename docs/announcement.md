@@ -18,12 +18,12 @@ async with Dhis2Client(base_url="...", auth=BasicAuth("admin", "district")) as c
 
 ## One core, four surfaces
 
-The same typed client backs a Python library, a `dhis2` CLI with eighteen command domains, an MCP server, and Playwright browser automation. Each DHIS2 domain has one `service.py` shared between the CLI and MCP, so the two surfaces never drift apart.
+The same typed client backs a Python library, a `d2w` CLI with eighteen command domains, an MCP server, and Playwright browser automation. Each DHIS2 domain has one `service.py` shared between the CLI and MCP, so the two surfaces never drift apart.
 
 ```bash
-dhis2 system info
-dhis2 metadata list dataElements --fields id,name
-dhis2 doctor          # ~100 health + integrity checks against a live instance
+d2w system info
+d2w metadata list dataElements --fields id,name
+d2w doctor          # ~100 health + integrity checks against a live instance
 ```
 
 ## Built for AI agents
@@ -32,7 +32,7 @@ The MCP server exposes around 304 typed tools — one per CLI command — so any
 
 ## Version-aware across v41, v42, v43
 
-`dhis2w` detects the DHIS2 major on connect and binds the matching hand-written tree, with the wire-shape differences between versions folded into the library. The same code runs against all three, and `dhis2 --version` tells you exactly which tree booted and why.
+`dhis2w` detects the DHIS2 major on connect and binds the matching hand-written tree, with the wire-shape differences between versions folded into the library. The same code runs against all three, and `d2w --version` tells you exactly which tree booted and why.
 
 ## Real auth, real multi-instance
 
@@ -46,7 +46,7 @@ It's third-party, unaffiliated with DHIS2, and pre-1.0 — the surface is still 
 
 ```bash
 uv tool install dhis2w-cli
-dhis2 --help
+d2w --help
 ```
 
 Source, docs, and runnable examples: https://github.com/winterop-com/dhis2w-utils

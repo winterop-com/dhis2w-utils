@@ -1,11 +1,11 @@
 # CLI reference
 
-dhis2 — command-line interface for DHIS2 (discovers plugins from dhis2w-core).
+d2w — command-line interface for DHIS2 (discovers plugins from dhis2w-core).
 
 **Usage**:
 
 ```console
-$ dhis2 [OPTIONS] COMMAND [ARGS]...
+$ d2w [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -37,14 +37,14 @@ $ dhis2 [OPTIONS] COMMAND [ARGS]...
 * `system`: DHIS2 system info.
 * `user`: DHIS2 user administration.
 
-## `dhis2 schema`
+## `d2w schema`
 
 Describe a generated type&#x27;s fields (metadata or instance-side; prefers the OpenAPI tree).
 
 **Usage**:
 
 ```console
-$ dhis2 schema [OPTIONS] TYPE_NAME
+$ d2w schema [OPTIONS] TYPE_NAME
 ```
 
 **Arguments**:
@@ -56,14 +56,14 @@ $ dhis2 schema [OPTIONS] TYPE_NAME
 * `--source TEXT`: Which generated tree to read: auto (prefer oas), oas, or schemas.  [default: auto]
 * `--help`: Show this message and exit.
 
-## `dhis2 analytics`
+## `d2w analytics`
 
 DHIS2 analytics queries.
 
 **Usage**:
 
 ```console
-$ dhis2 analytics [OPTIONS] COMMAND [ARGS]...
+$ d2w analytics [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -78,7 +78,7 @@ $ dhis2 analytics [OPTIONS] COMMAND [ARGS]...
 * `enrollments`: Enrollment analytics — line-lists...
 * `tracked-entities`: Tracked-entity analytics — line-list TEs...
 
-### `dhis2 analytics query`
+### `d2w analytics query`
 
 Run an aggregate analytics query (requires at least dx + pe dimensions).
 
@@ -89,7 +89,7 @@ Use `--shape` to pick `table`, `raw`, or `dvs`.
 **Usage**:
 
 ```console
-$ dhis2 analytics query [OPTIONS]
+$ d2w analytics query [OPTIONS]
 ```
 
 **Options**:
@@ -106,14 +106,14 @@ $ dhis2 analytics query [OPTIONS]
 * `--skip-meta`
 * `--help`: Show this message and exit.
 
-### `dhis2 analytics outlier-detection`
+### `d2w analytics outlier-detection`
 
 Run `/api/analytics/outlierDetection` — flag statistical anomalies in data values.
 
 **Usage**:
 
 ```console
-$ dhis2 analytics outlier-detection [OPTIONS]
+$ d2w analytics outlier-detection [OPTIONS]
 ```
 
 **Options**:
@@ -131,14 +131,14 @@ $ dhis2 analytics outlier-detection [OPTIONS]
 * `--sort-order TEXT`: ASC | DESC.
 * `--help`: Show this message and exit.
 
-### `dhis2 analytics events`
+### `d2w analytics events`
 
 Event analytics — line-lists events or aggregates them.
 
 **Usage**:
 
 ```console
-$ dhis2 analytics events [OPTIONS] COMMAND [ARGS]...
+$ d2w analytics events [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -149,7 +149,7 @@ $ dhis2 analytics events [OPTIONS] COMMAND [ARGS]...
 
 * `query`: Run an event analytics query.
 
-#### `dhis2 analytics events query`
+#### `d2w analytics events query`
 
 Run an event analytics query.
 
@@ -160,7 +160,7 @@ PROGRAM is a program UID; --mode is query (line list) or aggregate.
 **Usage**:
 
 ```console
-$ dhis2 analytics events query [OPTIONS] PROGRAM
+$ d2w analytics events query [OPTIONS] PROGRAM
 ```
 
 **Arguments**:
@@ -181,14 +181,14 @@ $ dhis2 analytics events query [OPTIONS] PROGRAM
 * `--page-size INTEGER`
 * `--help`: Show this message and exit.
 
-### `dhis2 analytics enrollments`
+### `d2w analytics enrollments`
 
 Enrollment analytics — line-lists enrollments.
 
 **Usage**:
 
 ```console
-$ dhis2 analytics enrollments [OPTIONS] COMMAND [ARGS]...
+$ d2w analytics enrollments [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -199,14 +199,14 @@ $ dhis2 analytics enrollments [OPTIONS] COMMAND [ARGS]...
 
 * `query`: Run an enrollment analytics query...
 
-#### `dhis2 analytics enrollments query`
+#### `d2w analytics enrollments query`
 
 Run an enrollment analytics query (`/api/analytics/enrollments/query/{program}`).
 
 **Usage**:
 
 ```console
-$ dhis2 analytics enrollments query [OPTIONS] PROGRAM
+$ d2w analytics enrollments query [OPTIONS] PROGRAM
 ```
 
 **Arguments**:
@@ -224,14 +224,14 @@ $ dhis2 analytics enrollments query [OPTIONS] PROGRAM
 * `--page-size INTEGER`
 * `--help`: Show this message and exit.
 
-### `dhis2 analytics tracked-entities`
+### `d2w analytics tracked-entities`
 
 Tracked-entity analytics — line-list TEs for a given type.
 
 **Usage**:
 
 ```console
-$ dhis2 analytics tracked-entities [OPTIONS] COMMAND [ARGS]...
+$ d2w analytics tracked-entities [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -242,14 +242,14 @@ $ dhis2 analytics tracked-entities [OPTIONS] COMMAND [ARGS]...
 
 * `query`: Line-list tracked entities via...
 
-#### `dhis2 analytics tracked-entities query`
+#### `d2w analytics tracked-entities query`
 
 Line-list tracked entities via `/api/analytics/trackedEntities/query/{TET_UID}`.
 
 **Usage**:
 
 ```console
-$ dhis2 analytics tracked-entities query [OPTIONS] TRACKED_ENTITY_TYPE
+$ d2w analytics tracked-entities query [OPTIONS] TRACKED_ENTITY_TYPE
 ```
 
 **Arguments**:
@@ -274,14 +274,14 @@ $ dhis2 analytics tracked-entities query [OPTIONS] TRACKED_ENTITY_TYPE
 * `--desc TEXT`: Field to sort descending (repeatable).
 * `--help`: Show this message and exit.
 
-## `dhis2 apps`
+## `d2w apps`
 
 DHIS2 apps — /api/apps + /api/appHub.
 
 **Usage**:
 
 ```console
-$ dhis2 apps [OPTIONS] COMMAND [ARGS]...
+$ d2w apps [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -302,35 +302,35 @@ $ dhis2 apps [OPTIONS] COMMAND [ARGS]...
 * `hub-list`: List apps available in the configured App...
 * `hub-url`: Read or write DHIS2&#x27;s configured App Hub...
 
-### `dhis2 apps ls`
+### `d2w apps ls`
 
 List every installed app (`GET /api/apps`).
 
 **Usage**:
 
 ```console
-$ dhis2 apps ls [OPTIONS]
+$ d2w apps ls [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-### `dhis2 apps list`
+### `d2w apps list`
 
 List every installed app (`GET /api/apps`).
 
 **Usage**:
 
 ```console
-$ dhis2 apps list [OPTIONS]
+$ d2w apps list [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-### `dhis2 apps add`
+### `d2w apps add`
 
 Install an app from a local zip or an App Hub version id.
 
@@ -342,7 +342,7 @@ same app in both paths.
 **Usage**:
 
 ```console
-$ dhis2 apps add [OPTIONS] SOURCE
+$ d2w apps add [OPTIONS] SOURCE
 ```
 
 **Arguments**:
@@ -353,14 +353,14 @@ $ dhis2 apps add [OPTIONS] SOURCE
 
 * `--help`: Show this message and exit.
 
-### `dhis2 apps rm`
+### `d2w apps rm`
 
 Uninstall an app by key (`DELETE /api/apps/{key}`).
 
 **Usage**:
 
 ```console
-$ dhis2 apps rm [OPTIONS] KEY
+$ d2w apps rm [OPTIONS] KEY
 ```
 
 **Arguments**:
@@ -372,14 +372,14 @@ $ dhis2 apps rm [OPTIONS] KEY
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-### `dhis2 apps remove`
+### `d2w apps remove`
 
 Uninstall an app by key (`DELETE /api/apps/{key}`).
 
 **Usage**:
 
 ```console
-$ dhis2 apps remove [OPTIONS] KEY
+$ d2w apps remove [OPTIONS] KEY
 ```
 
 **Arguments**:
@@ -391,7 +391,7 @@ $ dhis2 apps remove [OPTIONS] KEY
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-### `dhis2 apps update`
+### `d2w apps update`
 
 Update one app or every installed app to its latest App Hub version.
 
@@ -406,7 +406,7 @@ first.
 **Usage**:
 
 ```console
-$ dhis2 apps update [OPTIONS] [KEY]
+$ d2w apps update [OPTIONS] [KEY]
 ```
 
 **Arguments**:
@@ -419,25 +419,25 @@ $ dhis2 apps update [OPTIONS] [KEY]
 * `--dry-run`: Show what would change without installing — report the newer hub version for every app with an update available, tagged AVAILABLE.
 * `--help`: Show this message and exit.
 
-### `dhis2 apps reload`
+### `d2w apps reload`
 
 Ask DHIS2 to re-read every app from disk (`PUT /api/apps`).
 
 **Usage**:
 
 ```console
-$ dhis2 apps reload [OPTIONS]
+$ d2w apps reload [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-### `dhis2 apps restore`
+### `d2w apps restore`
 
 Reinstall every hub-backed entry from a snapshot JSON.
 
-The flip side of `dhis2 apps snapshot`. Reads the JSON produced by
+The flip side of `d2w apps snapshot`. Reads the JSON produced by
 `snapshot`, walks each entry, and calls `/api/appHub/{versionId}`
 for every app whose `hub_version_id` is set and whose currently
 installed version differs from the snapshot&#x27;s. Side-loaded entries
@@ -447,19 +447,19 @@ carry their zips.
 **Usage**:
 
 ```console
-$ dhis2 apps restore [OPTIONS] MANIFEST
+$ d2w apps restore [OPTIONS] MANIFEST
 ```
 
 **Arguments**:
 
-* `MANIFEST`: Path to a snapshot JSON file produced by `dhis2 apps snapshot`.  [required]
+* `MANIFEST`: Path to a snapshot JSON file produced by `d2w apps snapshot`.  [required]
 
 **Options**:
 
 * `--dry-run`: Show what would install without running the /api/appHub POSTs — entries that would install are tagged AVAILABLE.
 * `--help`: Show this message and exit.
 
-### `dhis2 apps snapshot`
+### `d2w apps snapshot`
 
 Capture every installed app into a portable JSON snapshot.
 
@@ -476,7 +476,7 @@ bulk-install on production.
 **Usage**:
 
 ```console
-$ dhis2 apps snapshot [OPTIONS]
+$ d2w apps snapshot [OPTIONS]
 ```
 
 **Options**:
@@ -484,7 +484,7 @@ $ dhis2 apps snapshot [OPTIONS]
 * `-o, --output PATH`: Write the snapshot JSON to this file. Omit to print to stdout.
 * `--help`: Show this message and exit.
 
-### `dhis2 apps hub-list`
+### `d2w apps hub-list`
 
 List apps available in the configured App Hub (`GET /api/appHub`).
 
@@ -496,7 +496,7 @@ on v42, so the full catalog is fetched and filtered after.
 **Usage**:
 
 ```console
-$ dhis2 apps hub-list [OPTIONS]
+$ d2w apps hub-list [OPTIONS]
 ```
 
 **Options**:
@@ -505,7 +505,7 @@ $ dhis2 apps hub-list [OPTIONS]
 * `--limit INTEGER`: Cap the number of rows shown.  [default: 50]
 * `--help`: Show this message and exit.
 
-### `dhis2 apps hub-url`
+### `d2w apps hub-url`
 
 Read or write DHIS2&#x27;s configured App Hub URL (`keyAppHubUrl` system setting).
 
@@ -517,7 +517,7 @@ hard-coded default (typically `https://apps.dhis2.org/api`).
 **Usage**:
 
 ```console
-$ dhis2 apps hub-url [OPTIONS]
+$ d2w apps hub-url [OPTIONS]
 ```
 
 **Options**:
@@ -526,14 +526,14 @@ $ dhis2 apps hub-url [OPTIONS]
 * `--clear`: Clear the `keyAppHubUrl` setting so DHIS2 reverts to its default hub.
 * `--help`: Show this message and exit.
 
-## `dhis2 browser`
+## `d2w browser`
 
 Playwright-driven DHIS2 UI automation.
 
 **Usage**:
 
 ```console
-$ dhis2 browser [OPTIONS] COMMAND [ARGS]...
+$ d2w browser [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -547,7 +547,7 @@ $ dhis2 browser [OPTIONS] COMMAND [ARGS]...
 * `viz`: Visualization capture workflows.
 * `map`: Map capture workflows.
 
-### `dhis2 browser pat`
+### `d2w browser pat`
 
 Mint a Personal Access Token V2 via Playwright and print the token value to stdout.
 
@@ -558,7 +558,7 @@ metadata but not the secret.
 **Usage**:
 
 ```console
-$ dhis2 browser pat [OPTIONS]
+$ d2w browser pat [OPTIONS]
 ```
 
 **Options**:
@@ -574,14 +574,14 @@ $ dhis2 browser pat [OPTIONS]
 * `--headless / --headful`: Run browser headlessly (default: visible, so you can watch the flow).  [default: headful]
 * `--help`: Show this message and exit.
 
-### `dhis2 browser dashboard`
+### `d2w browser dashboard`
 
 Dashboard capture workflows.
 
 **Usage**:
 
 ```console
-$ dhis2 browser dashboard [OPTIONS] COMMAND [ARGS]...
+$ d2w browser dashboard [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -592,7 +592,7 @@ $ dhis2 browser dashboard [OPTIONS] COMMAND [ARGS]...
 
 * `screenshot`: Capture full-page PNGs of every DHIS2...
 
-#### `dhis2 browser dashboard screenshot`
+#### `d2w browser dashboard screenshot`
 
 Capture full-page PNGs of every DHIS2 dashboard (or just the ones named via --only).
 
@@ -605,7 +605,7 @@ a plateau detector so one stuck item doesn&#x27;t stall the batch.
 **Usage**:
 
 ```console
-$ dhis2 browser dashboard screenshot [OPTIONS]
+$ d2w browser dashboard screenshot [OPTIONS]
 ```
 
 **Options**:
@@ -617,14 +617,14 @@ $ dhis2 browser dashboard screenshot [OPTIONS]
 * `--trim / --no-trim`: Crop uniform-colour edges off the bottom + right of each PNG.  [default: trim]
 * `--help`: Show this message and exit.
 
-### `dhis2 browser viz`
+### `d2w browser viz`
 
 Visualization capture workflows.
 
 **Usage**:
 
 ```console
-$ dhis2 browser viz [OPTIONS] COMMAND [ARGS]...
+$ d2w browser viz [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -635,7 +635,7 @@ $ dhis2 browser viz [OPTIONS] COMMAND [ARGS]...
 
 * `screenshot`: Capture a PNG of each Visualization (or...
 
-#### `dhis2 browser viz screenshot`
+#### `d2w browser viz screenshot`
 
 Capture a PNG of each Visualization (or just the UIDs named via --only).
 
@@ -654,7 +654,7 @@ chromium` first.
 **Usage**:
 
 ```console
-$ dhis2 browser viz screenshot [OPTIONS]
+$ d2w browser viz screenshot [OPTIONS]
 ```
 
 **Options**:
@@ -666,14 +666,14 @@ $ dhis2 browser viz screenshot [OPTIONS]
 * `--trim / --no-trim`: Crop uniform-colour edges off the bottom + right of each PNG.  [default: trim]
 * `--help`: Show this message and exit.
 
-### `dhis2 browser map`
+### `d2w browser map`
 
 Map capture workflows.
 
 **Usage**:
 
 ```console
-$ dhis2 browser map [OPTIONS] COMMAND [ARGS]...
+$ d2w browser map [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -684,7 +684,7 @@ $ dhis2 browser map [OPTIONS] COMMAND [ARGS]...
 
 * `screenshot`: Capture a PNG of each Map (or the UIDs...
 
-#### `dhis2 browser map screenshot`
+#### `d2w browser map screenshot`
 
 Capture a PNG of each Map (or the UIDs named via --only).
 
@@ -697,7 +697,7 @@ snapping. Requires the `` extra (install with
 **Usage**:
 
 ```console
-$ dhis2 browser map screenshot [OPTIONS]
+$ d2w browser map screenshot [OPTIONS]
 ```
 
 **Options**:
@@ -709,14 +709,14 @@ $ dhis2 browser map screenshot [OPTIONS]
 * `--trim / --no-trim`: Crop uniform-colour edges off the bottom + right of each PNG.  [default: trim]
 * `--help`: Show this message and exit.
 
-## `dhis2 customize`
+## `d2w customize`
 
 Brand + theme a DHIS2 instance (logos, copy, CSS).
 
 **Usage**:
 
 ```console
-$ dhis2 customize [OPTIONS] COMMAND [ARGS]...
+$ d2w customize [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -731,14 +731,14 @@ $ dhis2 customize [OPTIONS] COMMAND [ARGS]...
 * `apply`: Apply a committed preset directory in one...
 * `show`: Show DHIS2&#x27;s current `/api/loginConfig`...
 
-### `dhis2 customize logo-front`
+### `d2w customize logo-front`
 
 Upload the login-page splash / upper-right logo.
 
 **Usage**:
 
 ```console
-$ dhis2 customize logo-front [OPTIONS] FILE
+$ d2w customize logo-front [OPTIONS] FILE
 ```
 
 **Arguments**:
@@ -749,14 +749,14 @@ $ dhis2 customize logo-front [OPTIONS] FILE
 
 * `--help`: Show this message and exit.
 
-### `dhis2 customize logo-banner`
+### `d2w customize logo-banner`
 
 Upload the top-menu banner logo (appears on every authenticated page).
 
 **Usage**:
 
 ```console
-$ dhis2 customize logo-banner [OPTIONS] FILE
+$ d2w customize logo-banner [OPTIONS] FILE
 ```
 
 **Arguments**:
@@ -767,7 +767,7 @@ $ dhis2 customize logo-banner [OPTIONS] FILE
 
 * `--help`: Show this message and exit.
 
-### `dhis2 customize style`
+### `d2w customize style`
 
 Upload a CSS stylesheet that DHIS2 serves on every authenticated page.
 
@@ -777,7 +777,7 @@ stylesheet. Post-auth pages do.
 **Usage**:
 
 ```console
-$ dhis2 customize style [OPTIONS] FILE
+$ d2w customize style [OPTIONS] FILE
 ```
 
 **Arguments**:
@@ -788,14 +788,14 @@ $ dhis2 customize style [OPTIONS] FILE
 
 * `--help`: Show this message and exit.
 
-### `dhis2 customize apply`
+### `d2w customize apply`
 
 Apply a committed preset directory in one call (skips files that don&#x27;t exist).
 
 **Usage**:
 
 ```console
-$ dhis2 customize apply [OPTIONS] DIRECTORY
+$ d2w customize apply [OPTIONS] DIRECTORY
 ```
 
 **Arguments**:
@@ -806,28 +806,28 @@ $ dhis2 customize apply [OPTIONS] DIRECTORY
 
 * `--help`: Show this message and exit.
 
-### `dhis2 customize show`
+### `d2w customize show`
 
 Show DHIS2&#x27;s current `/api/loginConfig` snapshot (what the login app sees).
 
 **Usage**:
 
 ```console
-$ dhis2 customize show [OPTIONS]
+$ d2w customize show [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-## `dhis2 data`
+## `d2w data`
 
 DHIS2 data values (aggregate + tracker).
 
 **Usage**:
 
 ```console
-$ dhis2 data [OPTIONS] COMMAND [ARGS]...
+$ d2w data [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -839,14 +839,14 @@ $ dhis2 data [OPTIONS] COMMAND [ARGS]...
 * `aggregate`: Aggregate data values (dataValueSets).
 * `tracker`: Tracker (entities, enrollments, events,...
 
-### `dhis2 data aggregate`
+### `d2w data aggregate`
 
 Aggregate data values (dataValueSets).
 
 **Usage**:
 
 ```console
-$ dhis2 data aggregate [OPTIONS] COMMAND [ARGS]...
+$ d2w data aggregate [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -860,7 +860,7 @@ $ dhis2 data aggregate [OPTIONS] COMMAND [ARGS]...
 * `set`: Set a single data value.
 * `delete`: Delete a single data value.
 
-#### `dhis2 data aggregate get`
+#### `d2w data aggregate get`
 
 Fetch a data value set. Needs --ds plus a period (--pe or --start-date/--end-date) and --ou.
 
@@ -869,7 +869,7 @@ Example: data aggregate get --ds &lt;dataSetUID&gt; --pe 202401 --ou &lt;ouUID&g
 **Usage**:
 
 ```console
-$ dhis2 data aggregate get [OPTIONS]
+$ d2w data aggregate get [OPTIONS]
 ```
 
 **Options**:
@@ -884,14 +884,14 @@ $ dhis2 data aggregate get [OPTIONS]
 * `--limit INTEGER`: Max rows to include in output.
 * `--help`: Show this message and exit.
 
-#### `dhis2 data aggregate push`
+#### `d2w data aggregate push`
 
 Bulk push data values from a JSON file.
 
 **Usage**:
 
 ```console
-$ dhis2 data aggregate push [OPTIONS] FILE
+$ d2w data aggregate push [OPTIONS] FILE
 ```
 
 **Arguments**:
@@ -907,14 +907,14 @@ $ dhis2 data aggregate push [OPTIONS] FILE
 * `--strategy TEXT`: CREATE | UPDATE | CREATE_AND_UPDATE | DELETE
 * `--help`: Show this message and exit.
 
-#### `dhis2 data aggregate set`
+#### `d2w data aggregate set`
 
 Set a single data value.
 
 **Usage**:
 
 ```console
-$ dhis2 data aggregate set [OPTIONS]
+$ d2w data aggregate set [OPTIONS]
 ```
 
 **Options**:
@@ -928,14 +928,14 @@ $ dhis2 data aggregate set [OPTIONS]
 * `--comment TEXT`
 * `--help`: Show this message and exit.
 
-#### `dhis2 data aggregate delete`
+#### `d2w data aggregate delete`
 
 Delete a single data value.
 
 **Usage**:
 
 ```console
-$ dhis2 data aggregate delete [OPTIONS]
+$ d2w data aggregate delete [OPTIONS]
 ```
 
 **Options**:
@@ -947,14 +947,14 @@ $ dhis2 data aggregate delete [OPTIONS]
 * `--aoc TEXT`
 * `--help`: Show this message and exit.
 
-### `dhis2 data tracker`
+### `d2w data tracker`
 
 Tracker (entities, enrollments, events, relationships).
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker [OPTIONS] COMMAND [ARGS]...
+$ d2w data tracker [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -975,16 +975,16 @@ $ dhis2 data tracker [OPTIONS] COMMAND [ARGS]...
 * `event`: Events.
 * `relationship`: Relationships.
 
-#### `dhis2 data tracker ls`
+#### `d2w data tracker ls`
 
 List tracked entities by TrackedEntityType (TYPE) or by --program — give exactly one.
 
-Example: dhis2 data tracker list Person --ou ImspTQPwCqd
+Example: d2w data tracker list Person --ou ImspTQPwCqd
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker ls [OPTIONS] [TYPE]
+$ d2w data tracker ls [OPTIONS] [TYPE]
 ```
 
 **Arguments**:
@@ -1004,16 +1004,16 @@ $ dhis2 data tracker ls [OPTIONS] [TYPE]
 * `--updated-after TEXT`: ISO-8601 cutoff — only entities updated after this.
 * `--help`: Show this message and exit.
 
-#### `dhis2 data tracker list`
+#### `d2w data tracker list`
 
 List tracked entities by TrackedEntityType (TYPE) or by --program — give exactly one.
 
-Example: dhis2 data tracker list Person --ou ImspTQPwCqd
+Example: d2w data tracker list Person --ou ImspTQPwCqd
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker list [OPTIONS] [TYPE]
+$ d2w data tracker list [OPTIONS] [TYPE]
 ```
 
 **Arguments**:
@@ -1033,14 +1033,14 @@ $ dhis2 data tracker list [OPTIONS] [TYPE]
 * `--updated-after TEXT`: ISO-8601 cutoff — only entities updated after this.
 * `--help`: Show this message and exit.
 
-#### `dhis2 data tracker get`
+#### `d2w data tracker get`
 
 Fetch one tracked entity by UID (TrackedEntityType inferred from the entity).
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker get [OPTIONS] UID
+$ d2w data tracker get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -1053,7 +1053,7 @@ $ dhis2 data tracker get [OPTIONS] UID
 * `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
 * `--help`: Show this message and exit.
 
-#### `dhis2 data tracker type`
+#### `d2w data tracker type`
 
 List every configured TrackedEntityType on the connected instance (name + UID).
 
@@ -1063,21 +1063,21 @@ positional — run this first to see what&#x27;s configured.
 **Usage**:
 
 ```console
-$ dhis2 data tracker type [OPTIONS]
+$ d2w data tracker type [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 data tracker push`
+#### `d2w data tracker push`
 
 Bulk import via POST /api/tracker.
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker push [OPTIONS] FILE
+$ d2w data tracker push [OPTIONS] FILE
 ```
 
 **Arguments**:
@@ -1092,14 +1092,14 @@ $ dhis2 data tracker push [OPTIONS] FILE
 * `--async`
 * `--help`: Show this message and exit.
 
-#### `dhis2 data tracker delete`
+#### `d2w data tracker delete`
 
 Delete tracked entities by UID (cascades to their enrollments + events).
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker delete [OPTIONS] UIDS...
+$ d2w data tracker delete [OPTIONS] UIDS...
 ```
 
 **Arguments**:
@@ -1111,7 +1111,7 @@ $ dhis2 data tracker delete [OPTIONS] UIDS...
 * `--async`: Return a job reference immediately instead of waiting.
 * `--help`: Show this message and exit.
 
-#### `dhis2 data tracker register`
+#### `d2w data tracker register`
 
 Register a tracked entity + enroll in one program in one call.
 
@@ -1123,7 +1123,7 @@ reference them downstream.
 **Usage**:
 
 ```console
-$ dhis2 data tracker register [OPTIONS] PROGRAM
+$ d2w data tracker register [OPTIONS] PROGRAM
 ```
 
 **Arguments**:
@@ -1138,7 +1138,7 @@ $ dhis2 data tracker register [OPTIONS] PROGRAM
 * `--enrolled-at TEXT`: Enrollment date (ISO, e.g. 2024-06-01). Defaults to today server-side.
 * `--help`: Show this message and exit.
 
-#### `dhis2 data tracker outstanding`
+#### `d2w data tracker outstanding`
 
 List ACTIVE enrollments missing events on any non-repeatable program stage.
 
@@ -1153,7 +1153,7 @@ a single outstanding semantic and are skipped.
 **Usage**:
 
 ```console
-$ dhis2 data tracker outstanding [OPTIONS] PROGRAM
+$ d2w data tracker outstanding [OPTIONS] PROGRAM
 ```
 
 **Arguments**:
@@ -1167,14 +1167,14 @@ $ dhis2 data tracker outstanding [OPTIONS] PROGRAM
 * `--page-size INTEGER`: Max enrollments scanned (default 200).  [default: 200]
 * `--help`: Show this message and exit.
 
-#### `dhis2 data tracker enrollment`
+#### `d2w data tracker enrollment`
 
 Enrollments.
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker enrollment [OPTIONS] COMMAND [ARGS]...
+$ d2w data tracker enrollment [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1188,14 +1188,14 @@ $ dhis2 data tracker enrollment [OPTIONS] COMMAND [ARGS]...
 * `delete`: Delete enrollments by UID.
 * `create`: Enroll an existing tracked entity in a...
 
-##### `dhis2 data tracker enrollment ls`
+##### `d2w data tracker enrollment ls`
 
 List enrollments (tracker programs only).
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker enrollment ls [OPTIONS]
+$ d2w data tracker enrollment ls [OPTIONS]
 ```
 
 **Options**:
@@ -1211,14 +1211,14 @@ $ dhis2 data tracker enrollment ls [OPTIONS]
 * `--updated-after TEXT`
 * `--help`: Show this message and exit.
 
-##### `dhis2 data tracker enrollment list`
+##### `d2w data tracker enrollment list`
 
 List enrollments (tracker programs only).
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker enrollment list [OPTIONS]
+$ d2w data tracker enrollment list [OPTIONS]
 ```
 
 **Options**:
@@ -1234,14 +1234,14 @@ $ dhis2 data tracker enrollment list [OPTIONS]
 * `--updated-after TEXT`
 * `--help`: Show this message and exit.
 
-##### `dhis2 data tracker enrollment delete`
+##### `d2w data tracker enrollment delete`
 
 Delete enrollments by UID.
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker enrollment delete [OPTIONS] UIDS...
+$ d2w data tracker enrollment delete [OPTIONS] UIDS...
 ```
 
 **Arguments**:
@@ -1253,14 +1253,14 @@ $ dhis2 data tracker enrollment delete [OPTIONS] UIDS...
 * `--async`: Return a job reference immediately instead of waiting.
 * `--help`: Show this message and exit.
 
-##### `dhis2 data tracker enrollment create`
+##### `d2w data tracker enrollment create`
 
 Enroll an existing tracked entity in a program.
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker enrollment create [OPTIONS] TRACKED_ENTITY PROGRAM
+$ d2w data tracker enrollment create [OPTIONS] TRACKED_ENTITY PROGRAM
 ```
 
 **Arguments**:
@@ -1274,14 +1274,14 @@ $ dhis2 data tracker enrollment create [OPTIONS] TRACKED_ENTITY PROGRAM
 * `--enrolled-at TEXT`: ISO date; defaults to today server-side.
 * `--help`: Show this message and exit.
 
-#### `dhis2 data tracker event`
+#### `d2w data tracker event`
 
 Events.
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker event [OPTIONS] COMMAND [ARGS]...
+$ d2w data tracker event [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1295,7 +1295,7 @@ $ dhis2 data tracker event [OPTIONS] COMMAND [ARGS]...
 * `delete`: Delete events by UID.
 * `create`: Add one event — tracker (with enrollment)...
 
-##### `dhis2 data tracker event ls`
+##### `d2w data tracker event ls`
 
 List events (event and tracker programs). Scope with --program and/or --org-unit.
 
@@ -1304,7 +1304,7 @@ Example: data tracker event list --program &lt;programUID&gt; --ou &lt;ouUID&gt;
 **Usage**:
 
 ```console
-$ dhis2 data tracker event ls [OPTIONS]
+$ d2w data tracker event ls [OPTIONS]
 ```
 
 **Options**:
@@ -1323,7 +1323,7 @@ $ dhis2 data tracker event ls [OPTIONS]
 * `--page INTEGER`
 * `--help`: Show this message and exit.
 
-##### `dhis2 data tracker event list`
+##### `d2w data tracker event list`
 
 List events (event and tracker programs). Scope with --program and/or --org-unit.
 
@@ -1332,7 +1332,7 @@ Example: data tracker event list --program &lt;programUID&gt; --ou &lt;ouUID&gt;
 **Usage**:
 
 ```console
-$ dhis2 data tracker event list [OPTIONS]
+$ d2w data tracker event list [OPTIONS]
 ```
 
 **Options**:
@@ -1351,14 +1351,14 @@ $ dhis2 data tracker event list [OPTIONS]
 * `--page INTEGER`
 * `--help`: Show this message and exit.
 
-##### `dhis2 data tracker event delete`
+##### `d2w data tracker event delete`
 
 Delete events by UID.
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker event delete [OPTIONS] UIDS...
+$ d2w data tracker event delete [OPTIONS] UIDS...
 ```
 
 **Arguments**:
@@ -1370,7 +1370,7 @@ $ dhis2 data tracker event delete [OPTIONS] UIDS...
 * `--async`: Return a job reference immediately instead of waiting.
 * `--help`: Show this message and exit.
 
-##### `dhis2 data tracker event create`
+##### `d2w data tracker event create`
 
 Add one event — tracker (with enrollment) or event-only (standalone).
 
@@ -1382,7 +1382,7 @@ event stands alone, scoped by program + stage + org unit.
 **Usage**:
 
 ```console
-$ dhis2 data tracker event create [OPTIONS]
+$ d2w data tracker event create [OPTIONS]
 ```
 
 **Options**:
@@ -1396,14 +1396,14 @@ $ dhis2 data tracker event create [OPTIONS]
 * `--occurred-at TEXT`: ISO event date; defaults to today server-side.
 * `--help`: Show this message and exit.
 
-#### `dhis2 data tracker relationship`
+#### `d2w data tracker relationship`
 
 Relationships.
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker relationship [OPTIONS] COMMAND [ARGS]...
+$ d2w data tracker relationship [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1415,14 +1415,14 @@ $ dhis2 data tracker relationship [OPTIONS] COMMAND [ARGS]...
 * `ls`: List relationships (one of...
 * `list`: List relationships (one of...
 
-##### `dhis2 data tracker relationship ls`
+##### `d2w data tracker relationship ls`
 
 List relationships (one of --te/--enrollment/--event required).
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker relationship ls [OPTIONS]
+$ d2w data tracker relationship ls [OPTIONS]
 ```
 
 **Options**:
@@ -1434,14 +1434,14 @@ $ dhis2 data tracker relationship ls [OPTIONS]
 * `--page-size INTEGER`: [default: 50]
 * `--help`: Show this message and exit.
 
-##### `dhis2 data tracker relationship list`
+##### `d2w data tracker relationship list`
 
 List relationships (one of --te/--enrollment/--event required).
 
 **Usage**:
 
 ```console
-$ dhis2 data tracker relationship list [OPTIONS]
+$ d2w data tracker relationship list [OPTIONS]
 ```
 
 **Options**:
@@ -1453,14 +1453,14 @@ $ dhis2 data tracker relationship list [OPTIONS]
 * `--page-size INTEGER`: [default: 50]
 * `--help`: Show this message and exit.
 
-## `dhis2 datastore`
+## `d2w datastore`
 
 DHIS2 key-value data store.
 
 **Usage**:
 
 ```console
-$ dhis2 datastore [OPTIONS] COMMAND [ARGS]...
+$ d2w datastore [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1476,14 +1476,14 @@ $ dhis2 datastore [OPTIONS] COMMAND [ARGS]...
 * `delete`: Delete `namespace/key`.
 * `delete-namespace`: Delete an entire namespace and every key...
 
-### `dhis2 datastore namespaces`
+### `d2w datastore namespaces`
 
 List every namespace in the store.
 
 **Usage**:
 
 ```console
-$ dhis2 datastore namespaces [OPTIONS]
+$ d2w datastore namespaces [OPTIONS]
 ```
 
 **Options**:
@@ -1491,14 +1491,14 @@ $ dhis2 datastore namespaces [OPTIONS]
 * `--user`: Target the per-user store (/api/userDataStore) instead of the shared one.
 * `--help`: Show this message and exit.
 
-### `dhis2 datastore keys`
+### `d2w datastore keys`
 
 List every key in a namespace.
 
 **Usage**:
 
 ```console
-$ dhis2 datastore keys [OPTIONS] NAMESPACE
+$ d2w datastore keys [OPTIONS] NAMESPACE
 ```
 
 **Arguments**:
@@ -1510,14 +1510,14 @@ $ dhis2 datastore keys [OPTIONS] NAMESPACE
 * `--user`: Target the per-user store (/api/userDataStore) instead of the shared one.
 * `--help`: Show this message and exit.
 
-### `dhis2 datastore get`
+### `d2w datastore get`
 
 Print the value stored at `namespace/key` (JSON).
 
 **Usage**:
 
 ```console
-$ dhis2 datastore get [OPTIONS] NAMESPACE KEY
+$ d2w datastore get [OPTIONS] NAMESPACE KEY
 ```
 
 **Arguments**:
@@ -1530,14 +1530,14 @@ $ dhis2 datastore get [OPTIONS] NAMESPACE KEY
 * `--user`: Target the per-user store (/api/userDataStore) instead of the shared one.
 * `--help`: Show this message and exit.
 
-### `dhis2 datastore set`
+### `d2w datastore set`
 
 Create or update `namespace/key`.
 
 **Usage**:
 
 ```console
-$ dhis2 datastore set [OPTIONS] NAMESPACE KEY VALUE
+$ d2w datastore set [OPTIONS] NAMESPACE KEY VALUE
 ```
 
 **Arguments**:
@@ -1551,14 +1551,14 @@ $ dhis2 datastore set [OPTIONS] NAMESPACE KEY VALUE
 * `--user`: Target the per-user store (/api/userDataStore) instead of the shared one.
 * `--help`: Show this message and exit.
 
-### `dhis2 datastore delete`
+### `d2w datastore delete`
 
 Delete `namespace/key`.
 
 **Usage**:
 
 ```console
-$ dhis2 datastore delete [OPTIONS] NAMESPACE KEY
+$ d2w datastore delete [OPTIONS] NAMESPACE KEY
 ```
 
 **Arguments**:
@@ -1572,14 +1572,14 @@ $ dhis2 datastore delete [OPTIONS] NAMESPACE KEY
 * `-y, --yes`: Skip the interactive confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 datastore delete-namespace`
+### `d2w datastore delete-namespace`
 
 Delete an entire namespace and every key in it.
 
 **Usage**:
 
 ```console
-$ dhis2 datastore delete-namespace [OPTIONS] NAMESPACE
+$ d2w datastore delete-namespace [OPTIONS] NAMESPACE
 ```
 
 **Arguments**:
@@ -1592,14 +1592,14 @@ $ dhis2 datastore delete-namespace [OPTIONS] NAMESPACE
 * `-y, --yes`: Skip the interactive confirmation.
 * `--help`: Show this message and exit.
 
-## `dhis2 dev`
+## `d2w dev`
 
 Developer/operator tools.
 
 **Usage**:
 
 ```console
-$ dhis2 dev [OPTIONS] COMMAND [ARGS]...
+$ d2w dev [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1612,14 +1612,14 @@ $ dhis2 dev [OPTIONS] COMMAND [ARGS]...
 * `uid`: Generate 11-char DHIS2 UIDs.
 * `sample`: Inject known-good fixtures to verify the...
 
-### `dhis2 dev codegen`
+### `d2w dev codegen`
 
 Generate version-aware DHIS2 client code from /api/schemas.
 
 **Usage**:
 
 ```console
-$ dhis2 dev codegen [OPTIONS] COMMAND [ARGS]...
+$ d2w dev codegen [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1633,14 +1633,14 @@ $ dhis2 dev codegen [OPTIONS] COMMAND [ARGS]...
 * `oas-rebuild`: Emit OpenAPI-derived pydantic models into...
 * `diff`: Diff two committed `schemas_manifest.json`...
 
-#### `dhis2 dev codegen generate`
+#### `d2w dev codegen generate`
 
 Generate the client for the DHIS2 version reported by `--url`.
 
 **Usage**:
 
 ```console
-$ dhis2 dev codegen generate [OPTIONS]
+$ d2w dev codegen generate [OPTIONS]
 ```
 
 **Options**:
@@ -1652,7 +1652,7 @@ $ dhis2 dev codegen generate [OPTIONS]
 * `--output-root PATH`: Directory containing versioned subfolders; defaults to dhis2w-client&#x27;s generated/ folder.
 * `--help`: Show this message and exit.
 
-#### `dhis2 dev codegen rebuild`
+#### `d2w dev codegen rebuild`
 
 Regenerate the client from saved schemas_manifest.json files (no network).
 
@@ -1664,7 +1664,7 @@ schemas_manifest.json is checked in.
 **Usage**:
 
 ```console
-$ dhis2 dev codegen rebuild [OPTIONS]
+$ d2w dev codegen rebuild [OPTIONS]
 ```
 
 **Options**:
@@ -1673,7 +1673,7 @@ $ dhis2 dev codegen rebuild [OPTIONS]
 * `--output-root PATH`: Directory of versioned subfolders; defaults to dhis2w-client generated/.
 * `--help`: Show this message and exit.
 
-#### `dhis2 dev codegen oas-rebuild`
+#### `d2w dev codegen oas-rebuild`
 
 Emit OpenAPI-derived pydantic models into `generated/v{N}/oas/`.
 
@@ -1684,7 +1684,7 @@ emitter&#x27;s output under `schemas/`.
 **Usage**:
 
 ```console
-$ dhis2 dev codegen oas-rebuild [OPTIONS]
+$ d2w dev codegen oas-rebuild [OPTIONS]
 ```
 
 **Options**:
@@ -1693,7 +1693,7 @@ $ dhis2 dev codegen oas-rebuild [OPTIONS]
 * `--output-root PATH`: Directory of versioned subfolders; defaults to dhis2w-client generated/.
 * `--help`: Show this message and exit.
 
-#### `dhis2 dev codegen diff`
+#### `d2w dev codegen diff`
 
 Diff two committed `schemas_manifest.json` files and report drift.
 
@@ -1704,7 +1704,7 @@ when bumping DHIS2 majors.
 **Usage**:
 
 ```console
-$ dhis2 dev codegen diff [OPTIONS] FROM_VERSION TO_VERSION
+$ d2w dev codegen diff [OPTIONS] FROM_VERSION TO_VERSION
 ```
 
 **Arguments**:
@@ -1718,14 +1718,14 @@ $ dhis2 dev codegen diff [OPTIONS] FROM_VERSION TO_VERSION
 * `--json`: Emit a JSON dump instead of the human-readable report.
 * `--help`: Show this message and exit.
 
-### `dhis2 dev uid`
+### `d2w dev uid`
 
 Generate 11-char DHIS2 UIDs.
 
 **Usage**:
 
 ```console
-$ dhis2 dev uid [OPTIONS] COMMAND [ARGS]...
+$ d2w dev uid [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1733,14 +1733,14 @@ $ dhis2 dev uid [OPTIONS] COMMAND [ARGS]...
 * `-n, --count INTEGER RANGE`: How many UIDs to generate.  [default: 1; 1&lt;=x&lt;=10000]
 * `--help`: Show this message and exit.
 
-### `dhis2 dev sample`
+### `d2w dev sample`
 
 Inject known-good fixtures to verify the stack end-to-end (route, data, pat, oauth2-client).
 
 **Usage**:
 
 ```console
-$ dhis2 dev sample [OPTIONS] COMMAND [ARGS]...
+$ d2w dev sample [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1755,7 +1755,7 @@ $ dhis2 dev sample [OPTIONS] COMMAND [ARGS]...
 * `oauth2-client`: Create a sample OAuth2 client on DHIS2,...
 * `all`: Run every sample in sequence — route,...
 
-#### `dhis2 dev sample route`
+#### `d2w dev sample route`
 
 Create a sample route, run it, and (unless --keep) delete it.
 
@@ -1765,7 +1765,7 @@ to target URL) -&gt; delete.
 **Usage**:
 
 ```console
-$ dhis2 dev sample route [OPTIONS]
+$ d2w dev sample route [OPTIONS]
 ```
 
 **Options**:
@@ -1775,14 +1775,14 @@ $ dhis2 dev sample route [OPTIONS]
 * `--keep`: Don&#x27;t delete the sample route afterwards.
 * `--help`: Show this message and exit.
 
-#### `dhis2 dev sample pat`
+#### `d2w dev sample pat`
 
 Create a sample PAT, use it to call /api/me, then (unless --keep) delete it.
 
 **Usage**:
 
 ```console
-$ dhis2 dev sample pat [OPTIONS]
+$ d2w dev sample pat [OPTIONS]
 ```
 
 **Options**:
@@ -1792,7 +1792,7 @@ $ dhis2 dev sample pat [OPTIONS]
 * `--keep`: Don&#x27;t delete the sample PAT afterwards.
 * `--help`: Show this message and exit.
 
-#### `dhis2 dev sample data-value`
+#### `d2w dev sample data-value`
 
 Write a sample data value, read it back, and (unless --keep) delete it.
 
@@ -1807,7 +1807,7 @@ other scopes.
 **Usage**:
 
 ```console
-$ dhis2 dev sample data-value [OPTIONS]
+$ d2w dev sample data-value [OPTIONS]
 ```
 
 **Options**:
@@ -1819,7 +1819,7 @@ $ dhis2 dev sample data-value [OPTIONS]
 * `--keep`: Don&#x27;t delete the sample data value afterwards.
 * `--help`: Show this message and exit.
 
-#### `dhis2 dev sample oauth2-client`
+#### `d2w dev sample oauth2-client`
 
 Create a sample OAuth2 client on DHIS2, verify it persisted, then (unless --keep) delete it.
 
@@ -1830,7 +1830,7 @@ records on the client; no user-impersonation happens.
 **Usage**:
 
 ```console
-$ dhis2 dev sample oauth2-client [OPTIONS]
+$ d2w dev sample oauth2-client [OPTIONS]
 ```
 
 **Options**:
@@ -1841,14 +1841,14 @@ $ dhis2 dev sample oauth2-client [OPTIONS]
 * `--keep`: Don&#x27;t delete the sample OAuth2 client afterwards.
 * `--help`: Show this message and exit.
 
-#### `dhis2 dev sample all`
+#### `d2w dev sample all`
 
 Run every sample in sequence — route, data-value, pat, oauth2-client.
 
 **Usage**:
 
 ```console
-$ dhis2 dev sample all [OPTIONS]
+$ d2w dev sample all [OPTIONS]
 ```
 
 **Options**:
@@ -1858,14 +1858,14 @@ $ dhis2 dev sample all [OPTIONS]
 * `--keep`: Don&#x27;t delete the fixtures afterwards.
 * `--help`: Show this message and exit.
 
-## `dhis2 doctor`
+## `d2w doctor`
 
 Probe a DHIS2 instance for known gotchas + requirements.
 
 **Usage**:
 
 ```console
-$ dhis2 doctor [OPTIONS] COMMAND [ARGS]...
+$ d2w doctor [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1879,56 +1879,56 @@ $ dhis2 doctor [OPTIONS] COMMAND [ARGS]...
 * `integrity`: Run DHIS2&#x27;s own...
 * `bugs`: Run BUGS.md workaround drift detection...
 
-### `dhis2 doctor metadata`
+### `d2w doctor metadata`
 
 Run workspace metadata-health probes only (data sets without DEs, programs without stages, ...).
 
 **Usage**:
 
 ```console
-$ dhis2 doctor metadata [OPTIONS]
+$ d2w doctor metadata [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-### `dhis2 doctor integrity`
+### `d2w doctor integrity`
 
 Run DHIS2&#x27;s own `/api/dataIntegrity/summary` and surface each check as a probe.
 
 **Usage**:
 
 ```console
-$ dhis2 doctor integrity [OPTIONS]
+$ d2w doctor integrity [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-### `dhis2 doctor bugs`
+### `d2w doctor bugs`
 
 Run BUGS.md workaround drift detection (workspace maintenance, not operator-facing).
 
 **Usage**:
 
 ```console
-$ dhis2 doctor bugs [OPTIONS]
+$ d2w doctor bugs [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-## `dhis2 files`
+## `d2w files`
 
 Manage DHIS2 documents + file resources.
 
 **Usage**:
 
 ```console
-$ dhis2 files [OPTIONS] COMMAND [ARGS]...
+$ d2w files [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1940,14 +1940,14 @@ $ dhis2 files [OPTIONS] COMMAND [ARGS]...
 * `documents`: Documents (/api/documents).
 * `resources`: File resources (/api/fileResources).
 
-### `dhis2 files documents`
+### `d2w files documents`
 
 Documents (/api/documents).
 
 **Usage**:
 
 ```console
-$ dhis2 files documents [OPTIONS] COMMAND [ARGS]...
+$ d2w files documents [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -1964,7 +1964,7 @@ $ dhis2 files documents [OPTIONS] COMMAND [ARGS]...
 * `download`: Download the binary payload to `destination`.
 * `delete`: Delete one document.
 
-#### `dhis2 files documents ls`
+#### `d2w files documents ls`
 
 List documents — external URL links and UPLOAD_FILE blobs.
 
@@ -1976,7 +1976,7 @@ filename-style `url`s the detail columns show `-`.
 **Usage**:
 
 ```console
-$ dhis2 files documents ls [OPTIONS]
+$ d2w files documents ls [OPTIONS]
 ```
 
 **Options**:
@@ -1987,7 +1987,7 @@ $ dhis2 files documents ls [OPTIONS]
 * `--details`: For each UPLOAD_FILE, also fetch the backing fileResource&#x27;s contentType / size / storageStatus (one extra request per row).
 * `--help`: Show this message and exit.
 
-#### `dhis2 files documents list`
+#### `d2w files documents list`
 
 List documents — external URL links and UPLOAD_FILE blobs.
 
@@ -1999,7 +1999,7 @@ filename-style `url`s the detail columns show `-`.
 **Usage**:
 
 ```console
-$ dhis2 files documents list [OPTIONS]
+$ d2w files documents list [OPTIONS]
 ```
 
 **Options**:
@@ -2010,14 +2010,14 @@ $ dhis2 files documents list [OPTIONS]
 * `--details`: For each UPLOAD_FILE, also fetch the backing fileResource&#x27;s contentType / size / storageStatus (one extra request per row).
 * `--help`: Show this message and exit.
 
-#### `dhis2 files documents get`
+#### `d2w files documents get`
 
 Show metadata for one document.
 
 **Usage**:
 
 ```console
-$ dhis2 files documents get [OPTIONS] UID
+$ d2w files documents get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -2028,14 +2028,14 @@ $ dhis2 files documents get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 files documents upload`
+#### `d2w files documents upload`
 
 Upload a binary document — prints the new UID.
 
 **Usage**:
 
 ```console
-$ dhis2 files documents upload [OPTIONS] FILE
+$ d2w files documents upload [OPTIONS] FILE
 ```
 
 **Arguments**:
@@ -2047,14 +2047,14 @@ $ dhis2 files documents upload [OPTIONS] FILE
 * `--name TEXT`: Document name (defaults to filename).
 * `--help`: Show this message and exit.
 
-#### `dhis2 files documents upload-url`
+#### `d2w files documents upload-url`
 
 Create an EXTERNAL_URL document — no bytes uploaded; DHIS2 links out to `url`.
 
 **Usage**:
 
 ```console
-$ dhis2 files documents upload-url [OPTIONS] NAME URL
+$ d2w files documents upload-url [OPTIONS] NAME URL
 ```
 
 **Arguments**:
@@ -2066,14 +2066,14 @@ $ dhis2 files documents upload-url [OPTIONS] NAME URL
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 files documents download`
+#### `d2w files documents download`
 
 Download the binary payload to `destination`.
 
 **Usage**:
 
 ```console
-$ dhis2 files documents download [OPTIONS] UID DESTINATION
+$ d2w files documents download [OPTIONS] UID DESTINATION
 ```
 
 **Arguments**:
@@ -2085,14 +2085,14 @@ $ dhis2 files documents download [OPTIONS] UID DESTINATION
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 files documents delete`
+#### `d2w files documents delete`
 
 Delete one document.
 
 **Usage**:
 
 ```console
-$ dhis2 files documents delete [OPTIONS] UID
+$ d2w files documents delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -2103,14 +2103,14 @@ $ dhis2 files documents delete [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 files resources`
+### `d2w files resources`
 
 File resources (/api/fileResources).
 
 **Usage**:
 
 ```console
-$ dhis2 files resources [OPTIONS] COMMAND [ARGS]...
+$ d2w files resources [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -2123,14 +2123,14 @@ $ dhis2 files resources [OPTIONS] COMMAND [ARGS]...
 * `get`: Show metadata for one file resource.
 * `download`: Download the file-resource payload to...
 
-#### `dhis2 files resources upload`
+#### `d2w files resources upload`
 
 Upload a file resource; prints the new UID (reference it from the owning metadata object).
 
 **Usage**:
 
 ```console
-$ dhis2 files resources upload [OPTIONS] FILE
+$ d2w files resources upload [OPTIONS] FILE
 ```
 
 **Arguments**:
@@ -2142,14 +2142,14 @@ $ dhis2 files resources upload [OPTIONS] FILE
 * `--domain [data_value|document|message_attachment|user_avatar|org_unit|icon|job_data]`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
 * `--help`: Show this message and exit.
 
-#### `dhis2 files resources get`
+#### `d2w files resources get`
 
 Show metadata for one file resource.
 
 **Usage**:
 
 ```console
-$ dhis2 files resources get [OPTIONS] UID
+$ d2w files resources get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -2160,14 +2160,14 @@ $ dhis2 files resources get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 files resources download`
+#### `d2w files resources download`
 
 Download the file-resource payload to `destination`.
 
 **Usage**:
 
 ```console
-$ dhis2 files resources download [OPTIONS] UID DESTINATION
+$ d2w files resources download [OPTIONS] UID DESTINATION
 ```
 
 **Arguments**:
@@ -2179,14 +2179,14 @@ $ dhis2 files resources download [OPTIONS] UID DESTINATION
 
 * `--help`: Show this message and exit.
 
-## `dhis2 maintenance`
+## `d2w maintenance`
 
 DHIS2 maintenance (tasks, cache, integrity, cleanup, refresh).
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance [OPTIONS] COMMAND [ARGS]...
+$ d2w maintenance [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -2203,28 +2203,28 @@ $ dhis2 maintenance [OPTIONS] COMMAND [ARGS]...
 * `validation`: Run validation rules + inspect violations...
 * `predictors`: Run predictor expressions (CRUD on...
 
-### `dhis2 maintenance cache`
+### `d2w maintenance cache`
 
 Clear every server-side cache (Hibernate + app caches).
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance cache [OPTIONS]
+$ d2w maintenance cache [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-### `dhis2 maintenance task`
+### `d2w maintenance task`
 
 Background-task polling (all long-running DHIS2 ops).
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance task [OPTIONS] COMMAND [ARGS]...
+$ d2w maintenance task [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -2239,28 +2239,28 @@ $ dhis2 maintenance task [OPTIONS] COMMAND [ARGS]...
 * `status`: Print every notification emitted by a...
 * `watch`: Poll a task until it reports...
 
-#### `dhis2 maintenance task types`
+#### `d2w maintenance task types`
 
 List every background-job type DHIS2 tracks (ANALYTICS_TABLE, DATA_INTEGRITY, ...).
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance task types [OPTIONS]
+$ d2w maintenance task types [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance task ls`
+#### `d2w maintenance task ls`
 
 List every task UID recorded for a given job type.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance task ls [OPTIONS] TASK_TYPE
+$ d2w maintenance task ls [OPTIONS] TASK_TYPE
 ```
 
 **Arguments**:
@@ -2271,14 +2271,14 @@ $ dhis2 maintenance task ls [OPTIONS] TASK_TYPE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance task list`
+#### `d2w maintenance task list`
 
 List every task UID recorded for a given job type.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance task list [OPTIONS] TASK_TYPE
+$ d2w maintenance task list [OPTIONS] TASK_TYPE
 ```
 
 **Arguments**:
@@ -2289,14 +2289,14 @@ $ dhis2 maintenance task list [OPTIONS] TASK_TYPE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance task status`
+#### `d2w maintenance task status`
 
 Print every notification emitted by a task, oldest first.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance task status [OPTIONS] TASK_TYPE TASK_UID
+$ d2w maintenance task status [OPTIONS] TASK_TYPE TASK_UID
 ```
 
 **Arguments**:
@@ -2308,14 +2308,14 @@ $ dhis2 maintenance task status [OPTIONS] TASK_TYPE TASK_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance task watch`
+#### `d2w maintenance task watch`
 
 Poll a task until it reports `completed=true`, streaming each new notification.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance task watch [OPTIONS] TASK_TYPE TASK_UID
+$ d2w maintenance task watch [OPTIONS] TASK_TYPE TASK_UID
 ```
 
 **Arguments**:
@@ -2329,14 +2329,14 @@ $ dhis2 maintenance task watch [OPTIONS] TASK_TYPE TASK_UID
 * `--timeout FLOAT`: Abort after N seconds (default 600).  [default: 600.0]
 * `--help`: Show this message and exit.
 
-### `dhis2 maintenance cleanup`
+### `d2w maintenance cleanup`
 
 Hard-remove soft-deleted rows (unblocks metadata deletion).
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance cleanup [OPTIONS] COMMAND [ARGS]...
+$ d2w maintenance cleanup [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -2350,70 +2350,70 @@ $ dhis2 maintenance cleanup [OPTIONS] COMMAND [ARGS]...
 * `enrollments`: Hard-remove soft-deleted tracker enrollments.
 * `tracked-entities`: Hard-remove soft-deleted tracked entities.
 
-#### `dhis2 maintenance cleanup data-values`
+#### `d2w maintenance cleanup data-values`
 
 Hard-remove soft-deleted data values from `/api/dataValueSets` imports.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance cleanup data-values [OPTIONS]
+$ d2w maintenance cleanup data-values [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance cleanup events`
+#### `d2w maintenance cleanup events`
 
 Hard-remove soft-deleted tracker events.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance cleanup events [OPTIONS]
+$ d2w maintenance cleanup events [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance cleanup enrollments`
+#### `d2w maintenance cleanup enrollments`
 
 Hard-remove soft-deleted tracker enrollments.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance cleanup enrollments [OPTIONS]
+$ d2w maintenance cleanup enrollments [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance cleanup tracked-entities`
+#### `d2w maintenance cleanup tracked-entities`
 
 Hard-remove soft-deleted tracked entities.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance cleanup tracked-entities [OPTIONS]
+$ d2w maintenance cleanup tracked-entities [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-### `dhis2 maintenance dataintegrity`
+### `d2w maintenance dataintegrity`
 
 DHIS2 data-integrity checks.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance dataintegrity [OPTIONS] COMMAND [ARGS]...
+$ d2w maintenance dataintegrity [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -2427,42 +2427,42 @@ $ dhis2 maintenance dataintegrity [OPTIONS] COMMAND [ARGS]...
 * `run`: Kick off a data-integrity run; with...
 * `result`: Read the stored result of a completed...
 
-#### `dhis2 maintenance dataintegrity ls`
+#### `d2w maintenance dataintegrity ls`
 
 List every built-in data-integrity check (name, section, severity).
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance dataintegrity ls [OPTIONS]
+$ d2w maintenance dataintegrity ls [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance dataintegrity list`
+#### `d2w maintenance dataintegrity list`
 
 List every built-in data-integrity check (name, section, severity).
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance dataintegrity list [OPTIONS]
+$ d2w maintenance dataintegrity list [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance dataintegrity run`
+#### `d2w maintenance dataintegrity run`
 
 Kick off a data-integrity run; with --watch, stream progress to completion.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance dataintegrity run [OPTIONS] [CHECK]...
+$ d2w maintenance dataintegrity run [OPTIONS] [CHECK]...
 ```
 
 **Arguments**:
@@ -2478,14 +2478,14 @@ $ dhis2 maintenance dataintegrity run [OPTIONS] [CHECK]...
 * `--timeout FLOAT`: Abort polling after N seconds (default 600).  [default: 600.0]
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance dataintegrity result`
+#### `d2w maintenance dataintegrity result`
 
 Read the stored result of a completed data-integrity run (summary or details mode).
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance dataintegrity result [OPTIONS] [CHECK]...
+$ d2w maintenance dataintegrity result [OPTIONS] [CHECK]...
 ```
 
 **Arguments**:
@@ -2497,14 +2497,14 @@ $ dhis2 maintenance dataintegrity result [OPTIONS] [CHECK]...
 * `--details`: Hit /details (issues[]) instead of /summary (count only).
 * `--help`: Show this message and exit.
 
-### `dhis2 maintenance refresh`
+### `d2w maintenance refresh`
 
 Regenerate analytics / resource / monitoring backing tables.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance refresh [OPTIONS] COMMAND [ARGS]...
+$ d2w maintenance refresh [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -2517,7 +2517,7 @@ $ dhis2 maintenance refresh [OPTIONS] COMMAND [ARGS]...
 * `resource-tables`: Regenerate resource tables only...
 * `monitoring`: Regenerate monitoring tables...
 
-#### `dhis2 maintenance refresh analytics`
+#### `d2w maintenance refresh analytics`
 
 Regenerate the full analytics star schema (`/api/resourceTables/analytics`, job=`ANALYTICS_TABLE`).
 
@@ -2528,7 +2528,7 @@ Also refreshes resource tables unless `--skip-resource-tables` is set.
 **Usage**:
 
 ```console
-$ dhis2 maintenance refresh analytics [OPTIONS]
+$ d2w maintenance refresh analytics [OPTIONS]
 ```
 
 **Options**:
@@ -2540,7 +2540,7 @@ $ dhis2 maintenance refresh analytics [OPTIONS]
 * `--timeout FLOAT`: Abort polling after N seconds (default 600).  [default: 600.0]
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance refresh resource-tables`
+#### `d2w maintenance refresh resource-tables`
 
 Regenerate resource tables only (`/api/resourceTables`, job=`RESOURCE_TABLE`).
 
@@ -2551,7 +2551,7 @@ no new data values landed — faster than a full `refresh analytics` run.
 **Usage**:
 
 ```console
-$ dhis2 maintenance refresh resource-tables [OPTIONS]
+$ d2w maintenance refresh resource-tables [OPTIONS]
 ```
 
 **Options**:
@@ -2561,7 +2561,7 @@ $ dhis2 maintenance refresh resource-tables [OPTIONS]
 * `--timeout FLOAT`: Abort polling after N seconds (default 600).  [default: 600.0]
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance refresh monitoring`
+#### `d2w maintenance refresh monitoring`
 
 Regenerate monitoring tables (`/api/resourceTables/monitoring`, job=`MONITORING`).
 
@@ -2571,7 +2571,7 @@ monitoring. Independent of the analytics + resource tables.
 **Usage**:
 
 ```console
-$ dhis2 maintenance refresh monitoring [OPTIONS]
+$ d2w maintenance refresh monitoring [OPTIONS]
 ```
 
 **Options**:
@@ -2581,14 +2581,14 @@ $ dhis2 maintenance refresh monitoring [OPTIONS]
 * `--timeout FLOAT`: Abort polling after N seconds (default 600).  [default: 600.0]
 * `--help`: Show this message and exit.
 
-### `dhis2 maintenance validation`
+### `d2w maintenance validation`
 
-Run validation rules + inspect violations (CRUD on rules: `dhis2 metadata list validationRules`).
+Run validation rules + inspect violations (CRUD on rules: `d2w metadata list validationRules`).
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance validation [OPTIONS] COMMAND [ARGS]...
+$ d2w maintenance validation [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -2602,14 +2602,14 @@ $ dhis2 maintenance validation [OPTIONS] COMMAND [ARGS]...
 * `validate-expression`: Parse-check an expression + render a human...
 * `result`: List / get / delete persisted validation...
 
-#### `dhis2 maintenance validation run`
+#### `d2w maintenance validation run`
 
 Run a validation-rule analysis + render the violations.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance validation run [OPTIONS] ORG_UNIT
+$ d2w maintenance validation run [OPTIONS] ORG_UNIT
 ```
 
 **Arguments**:
@@ -2626,28 +2626,28 @@ $ dhis2 maintenance validation run [OPTIONS] ORG_UNIT
 * `--persist`: Write violations into `/api/validationResults` (otherwise ephemeral).
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance validation send-notifications`
+#### `d2w maintenance validation send-notifications`
 
 Fire configured notification templates for every current validation violation.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance validation send-notifications [OPTIONS]
+$ d2w maintenance validation send-notifications [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance validation validate-expression`
+#### `d2w maintenance validation validate-expression`
 
 Parse-check an expression + render a human description.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance validation validate-expression [OPTIONS] EXPRESSION
+$ d2w maintenance validation validate-expression [OPTIONS] EXPRESSION
 ```
 
 **Arguments**:
@@ -2659,14 +2659,14 @@ $ dhis2 maintenance validation validate-expression [OPTIONS] EXPRESSION
 * `--context TEXT`: Expression parser context: one of generic, validation-rule, indicator, predictor, program-indicator.  [default: generic]
 * `--help`: Show this message and exit.
 
-#### `dhis2 maintenance validation result`
+#### `d2w maintenance validation result`
 
 List / get / delete persisted validation results.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance validation result [OPTIONS] COMMAND [ARGS]...
+$ d2w maintenance validation result [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -2680,14 +2680,14 @@ $ dhis2 maintenance validation result [OPTIONS] COMMAND [ARGS]...
 * `get`: Show one persisted validation result by id.
 * `delete`: Bulk-delete validation results by filter.
 
-##### `dhis2 maintenance validation result ls`
+##### `d2w maintenance validation result ls`
 
 List persisted validation results.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance validation result ls [OPTIONS]
+$ d2w maintenance validation result ls [OPTIONS]
 ```
 
 **Options**:
@@ -2699,14 +2699,14 @@ $ dhis2 maintenance validation result ls [OPTIONS]
 * `--page-size INTEGER`
 * `--help`: Show this message and exit.
 
-##### `dhis2 maintenance validation result list`
+##### `d2w maintenance validation result list`
 
 List persisted validation results.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance validation result list [OPTIONS]
+$ d2w maintenance validation result list [OPTIONS]
 ```
 
 **Options**:
@@ -2718,14 +2718,14 @@ $ dhis2 maintenance validation result list [OPTIONS]
 * `--page-size INTEGER`
 * `--help`: Show this message and exit.
 
-##### `dhis2 maintenance validation result get`
+##### `d2w maintenance validation result get`
 
 Show one persisted validation result by id.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance validation result get [OPTIONS] RESULT_ID
+$ d2w maintenance validation result get [OPTIONS] RESULT_ID
 ```
 
 **Arguments**:
@@ -2736,14 +2736,14 @@ $ dhis2 maintenance validation result get [OPTIONS] RESULT_ID
 
 * `--help`: Show this message and exit.
 
-##### `dhis2 maintenance validation result delete`
+##### `d2w maintenance validation result delete`
 
 Bulk-delete validation results by filter. At least one filter is required.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance validation result delete [OPTIONS]
+$ d2w maintenance validation result delete [OPTIONS]
 ```
 
 **Options**:
@@ -2753,14 +2753,14 @@ $ dhis2 maintenance validation result delete [OPTIONS]
 * `--vr TEXT`: Validation-rule UID filter. Repeatable.
 * `--help`: Show this message and exit.
 
-### `dhis2 maintenance predictors`
+### `d2w maintenance predictors`
 
-Run predictor expressions (CRUD on predictors: `dhis2 metadata list predictors`).
+Run predictor expressions (CRUD on predictors: `d2w metadata list predictors`).
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance predictors [OPTIONS] COMMAND [ARGS]...
+$ d2w maintenance predictors [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -2771,14 +2771,14 @@ $ dhis2 maintenance predictors [OPTIONS] COMMAND [ARGS]...
 
 * `run`: Run predictor expressions + emit data...
 
-#### `dhis2 maintenance predictors run`
+#### `d2w maintenance predictors run`
 
 Run predictor expressions + emit data values for the given date range.
 
 **Usage**:
 
 ```console
-$ dhis2 maintenance predictors run [OPTIONS]
+$ d2w maintenance predictors run [OPTIONS]
 ```
 
 **Options**:
@@ -2789,14 +2789,14 @@ $ dhis2 maintenance predictors run [OPTIONS]
 * `--group TEXT`: Run all predictors in a PredictorGroup by UID.
 * `--help`: Show this message and exit.
 
-## `dhis2 messaging`
+## `d2w messaging`
 
 DHIS2 internal messaging.
 
 **Usage**:
 
 ```console
-$ dhis2 messaging [OPTIONS] COMMAND [ARGS]...
+$ d2w messaging [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -2818,14 +2818,14 @@ $ dhis2 messaging [OPTIONS] COMMAND [ARGS]...
 * `assign`: Assign a conversation to a user (ticket...
 * `unassign`: Remove the assignee from a conversation.
 
-### `dhis2 messaging ls`
+### `d2w messaging ls`
 
 List conversations the authenticated user is part of.
 
 **Usage**:
 
 ```console
-$ dhis2 messaging ls [OPTIONS]
+$ d2w messaging ls [OPTIONS]
 ```
 
 **Options**:
@@ -2835,14 +2835,14 @@ $ dhis2 messaging ls [OPTIONS]
 * `--page-size INTEGER`: Rows per page (default 50).
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging list`
+### `d2w messaging list`
 
 List conversations the authenticated user is part of.
 
 **Usage**:
 
 ```console
-$ dhis2 messaging list [OPTIONS]
+$ d2w messaging list [OPTIONS]
 ```
 
 **Options**:
@@ -2852,14 +2852,14 @@ $ dhis2 messaging list [OPTIONS]
 * `--page-size INTEGER`: Rows per page (default 50).
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging get`
+### `d2w messaging get`
 
 Show one conversation&#x27;s metadata + message thread.
 
 **Usage**:
 
 ```console
-$ dhis2 messaging get [OPTIONS] UID
+$ d2w messaging get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -2870,14 +2870,14 @@ $ dhis2 messaging get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging send`
+### `d2w messaging send`
 
 Create a new conversation with an initial message.
 
 **Usage**:
 
 ```console
-$ dhis2 messaging send [OPTIONS] SUBJECT TEXT
+$ d2w messaging send [OPTIONS] SUBJECT TEXT
 ```
 
 **Arguments**:
@@ -2890,10 +2890,10 @@ $ dhis2 messaging send [OPTIONS] SUBJECT TEXT
 * `-u, --user TEXT`: User UID recipient. Repeatable.
 * `-g, --user-group TEXT`: User-group UID recipient. Repeatable.
 * `--org-unit, --ou TEXT`: Organisation-unit UID recipient. Repeatable.
-* `-a, --attachment TEXT`: FileResource UID to attach (upload via `dhis2 files resources upload --domain MESSAGE_ATTACHMENT` first). Repeatable.
+* `-a, --attachment TEXT`: FileResource UID to attach (upload via `d2w files resources upload --domain MESSAGE_ATTACHMENT` first). Repeatable.
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging reply`
+### `d2w messaging reply`
 
 Reply to an existing conversation with a plain-text message.
 
@@ -2903,7 +2903,7 @@ internal-note flag only work on the initial `send` call.
 **Usage**:
 
 ```console
-$ dhis2 messaging reply [OPTIONS] UID TEXT
+$ d2w messaging reply [OPTIONS] UID TEXT
 ```
 
 **Arguments**:
@@ -2915,14 +2915,14 @@ $ dhis2 messaging reply [OPTIONS] UID TEXT
 
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging mark-read`
+### `d2w messaging mark-read`
 
 Mark one or more conversations as read.
 
 **Usage**:
 
 ```console
-$ dhis2 messaging mark-read [OPTIONS] UID...
+$ d2w messaging mark-read [OPTIONS] UID...
 ```
 
 **Arguments**:
@@ -2933,14 +2933,14 @@ $ dhis2 messaging mark-read [OPTIONS] UID...
 
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging mark-unread`
+### `d2w messaging mark-unread`
 
 Mark one or more conversations as unread.
 
 **Usage**:
 
 ```console
-$ dhis2 messaging mark-unread [OPTIONS] UID...
+$ d2w messaging mark-unread [OPTIONS] UID...
 ```
 
 **Arguments**:
@@ -2951,14 +2951,14 @@ $ dhis2 messaging mark-unread [OPTIONS] UID...
 
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging delete`
+### `d2w messaging delete`
 
 Delete a conversation (soft-delete for the calling user; other participants keep it).
 
 **Usage**:
 
 ```console
-$ dhis2 messaging delete [OPTIONS] UID
+$ d2w messaging delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -2969,7 +2969,7 @@ $ dhis2 messaging delete [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging set-priority`
+### `d2w messaging set-priority`
 
 Set a conversation&#x27;s ticket-workflow priority.
 
@@ -2979,7 +2979,7 @@ meaningful on TICKET conversations, stored on PRIVATE threads too.
 **Usage**:
 
 ```console
-$ dhis2 messaging set-priority [OPTIONS] UID PRIORITY
+$ d2w messaging set-priority [OPTIONS] UID PRIORITY
 ```
 
 **Arguments**:
@@ -2991,7 +2991,7 @@ $ dhis2 messaging set-priority [OPTIONS] UID PRIORITY
 
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging set-status`
+### `d2w messaging set-status`
 
 Set a conversation&#x27;s ticket-workflow status.
 
@@ -3002,7 +3002,7 @@ initial `send` — DHIS2&#x27;s API requires a separate POST on the
 **Usage**:
 
 ```console
-$ dhis2 messaging set-status [OPTIONS] UID STATUS
+$ d2w messaging set-status [OPTIONS] UID STATUS
 ```
 
 **Arguments**:
@@ -3014,14 +3014,14 @@ $ dhis2 messaging set-status [OPTIONS] UID STATUS
 
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging assign`
+### `d2w messaging assign`
 
 Assign a conversation to a user (ticket workflows).
 
 **Usage**:
 
 ```console
-$ dhis2 messaging assign [OPTIONS] UID USER
+$ d2w messaging assign [OPTIONS] UID USER
 ```
 
 **Arguments**:
@@ -3033,14 +3033,14 @@ $ dhis2 messaging assign [OPTIONS] UID USER
 
 * `--help`: Show this message and exit.
 
-### `dhis2 messaging unassign`
+### `d2w messaging unassign`
 
 Remove the assignee from a conversation.
 
 **Usage**:
 
 ```console
-$ dhis2 messaging unassign [OPTIONS] UID
+$ d2w messaging unassign [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -3051,14 +3051,14 @@ $ dhis2 messaging unassign [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-## `dhis2 metadata`
+## `d2w metadata`
 
 DHIS2 metadata inspection.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -3120,14 +3120,14 @@ $ dhis2 metadata [OPTIONS] COMMAND [ARGS]...
 * `organisation-unit-levels`: OrganisationUnitLevel naming (get / rename).
 * `legend-sets`: LegendSet authoring (get / create / clone...
 
-### `dhis2 metadata ls`
+### `d2w metadata ls`
 
 List instances of a metadata resource.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata ls [OPTIONS] RESOURCE
+$ d2w metadata ls [OPTIONS] RESOURCE
 ```
 
 **Arguments**:
@@ -3149,14 +3149,14 @@ $ dhis2 metadata ls [OPTIONS] RESOURCE
 * `-o, --output PATH`: Write the result JSON to this file and print a one-line summary instead of the rows. Combine with --fields / --filter / --all to dump a full slice without flooding the caller.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata list`
+### `d2w metadata list`
 
 List instances of a metadata resource.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata list [OPTIONS] RESOURCE
+$ d2w metadata list [OPTIONS] RESOURCE
 ```
 
 **Arguments**:
@@ -3178,7 +3178,7 @@ $ dhis2 metadata list [OPTIONS] RESOURCE
 * `-o, --output PATH`: Write the result JSON to this file and print a one-line summary instead of the rows. Combine with --fields / --filter / --all to dump a full slice without flooding the caller.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata search`
+### `d2w metadata search`
 
 Cross-resource metadata search.
 
@@ -3196,7 +3196,7 @@ match too many siblings.
 **Usage**:
 
 ```console
-$ dhis2 metadata search [OPTIONS] QUERY
+$ d2w metadata search [OPTIONS] QUERY
 ```
 
 **Arguments**:
@@ -3211,7 +3211,7 @@ $ dhis2 metadata search [OPTIONS] QUERY
 * `--exact`: Use `:eq:` instead of `:ilike:` — strict UID / code match.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata usage`
+### `d2w metadata usage`
 
 Reverse lookup — find every object that references the given UID.
 
@@ -3229,7 +3229,7 @@ reference-shape for that owning type.
 **Usage**:
 
 ```console
-$ dhis2 metadata usage [OPTIONS] UID
+$ d2w metadata usage [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -3241,7 +3241,7 @@ $ dhis2 metadata usage [OPTIONS] UID
 * `--page-size INTEGER`: Max hits per reference path (default 100).  [default: 100]
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata get`
+### `d2w metadata get`
 
 Fetch one metadata object by UID.
 
@@ -3252,7 +3252,7 @@ piping into jq. Pass `--fields` to narrow what DHIS2 returns.
 **Usage**:
 
 ```console
-$ dhis2 metadata get [OPTIONS] RESOURCE UID
+$ d2w metadata get [OPTIONS] RESOURCE UID
 ```
 
 **Arguments**:
@@ -3265,7 +3265,7 @@ $ dhis2 metadata get [OPTIONS] RESOURCE UID
 * `--fields TEXT`: DHIS2 fields selector.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata export`
+### `d2w metadata export`
 
 Download a metadata bundle from `GET /api/metadata`.
 
@@ -3279,14 +3279,14 @@ are missing.
 **Usage**:
 
 ```console
-$ dhis2 metadata export [OPTIONS]
+$ d2w metadata export [OPTIONS]
 ```
 
 **Options**:
 
 * `--resource TEXT`: Resource type to include (repeatable). Omit for every type DHIS2 exports by default.
 * `--fields TEXT`: DHIS2 field selector. Defaults to &#x27;:owner&#x27; for a lossless round-trip import.  [default: :owner]
-* `--filter TEXT`: Per-resource filter in the form `RESOURCE:property:operator:value`. Repeatable. Example: `--filter dataElements:name:like:ANC`. Same DSL as `dhis2 metadata list --filter`, prefixed with the resource name.
+* `--filter TEXT`: Per-resource filter in the form `RESOURCE:property:operator:value`. Repeatable. Example: `--filter dataElements:name:like:ANC`. Same DSL as `d2w metadata list --filter`, prefixed with the resource name.
 * `--resource-fields TEXT`: Per-resource field selector in the form `RESOURCE:SELECTOR`. Repeatable. Overrides the global `--fields` for the named resource. Example: `--resource-fields dataElements::identifiable`.
 * `--skip-sharing`: Exclude sharing blocks from exported objects.
 * `--skip-translation`: Exclude translation blocks.
@@ -3296,14 +3296,14 @@ $ dhis2 metadata export [OPTIONS]
 * `--pretty / --no-pretty`: Indent JSON output (default: pretty).  [default: pretty]
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata import`
+### `d2w metadata import`
 
 Upload a metadata bundle via `POST /api/metadata` and print the import report.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata import [OPTIONS] FILE
+$ d2w metadata import [OPTIONS] FILE
 ```
 
 **Arguments**:
@@ -3324,7 +3324,7 @@ $ dhis2 metadata import [OPTIONS] FILE
 * `--flush-mode TEXT`: AUTO (default) or OBJECT.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata patch`
+### `d2w metadata patch`
 
 Apply an RFC 6902 JSON Patch to a metadata object (`PATCH /api/&lt;resource&gt;/{uid}`).
 
@@ -3340,7 +3340,7 @@ Two input modes:
 **Usage**:
 
 ```console
-$ dhis2 metadata patch [OPTIONS] RESOURCE UID
+$ d2w metadata patch [OPTIONS] RESOURCE UID
 ```
 
 **Arguments**:
@@ -3355,7 +3355,7 @@ $ dhis2 metadata patch [OPTIONS] RESOURCE UID
 * `--remove TEXT`: Inline `remove` op as `path`. Repeatable.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata rename`
+### `d2w metadata rename`
 
 Bulk-rename metadata objects by RFC 6902 patch.
 
@@ -3372,7 +3372,7 @@ before/after labels would be, then drop the flag to apply.
 **Usage**:
 
 ```console
-$ dhis2 metadata rename [OPTIONS] RESOURCE
+$ d2w metadata rename [OPTIONS] RESOURCE
 ```
 
 **Arguments**:
@@ -3396,7 +3396,7 @@ $ dhis2 metadata rename [OPTIONS] RESOURCE
 * `--dry-run`: Preview the planned patches without sending them.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata retag`
+### `d2w metadata retag`
 
 Bulk-rewrite ref / enum fields on metadata objects.
 
@@ -3415,7 +3415,7 @@ Per-UID failures render through the shared `ConflictRow` renderer
 **Usage**:
 
 ```console
-$ dhis2 metadata retag [OPTIONS] RESOURCE
+$ d2w metadata retag [OPTIONS] RESOURCE
 ```
 
 **Arguments**:
@@ -3437,7 +3437,7 @@ $ dhis2 metadata retag [OPTIONS] RESOURCE
 * `--dry-run`: Preview without sending patches.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata share`
+### `d2w metadata share`
 
 Apply one sharing block across many UIDs of one resource.
 
@@ -3448,13 +3448,13 @@ Per-UID failures render through the same row table used by
 
 Use `--dry-run` to preview the planned grants, then drop the flag to
 apply. UIDs come from positional args or stdin (`-`); pipe from
-`dhis2 --json metadata list ... | jq -r &#x27;.[].id&#x27;` to filter-then-share without
+`d2w --json metadata list ... | jq -r &#x27;.[].id&#x27;` to filter-then-share without
 leaving the shell.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata share [OPTIONS] RESOURCE_TYPE [UIDS]...
+$ d2w metadata share [OPTIONS] RESOURCE_TYPE [UIDS]...
 ```
 
 **Arguments**:
@@ -3471,7 +3471,7 @@ $ dhis2 metadata share [OPTIONS] RESOURCE_TYPE [UIDS]...
 * `--dry-run`: Preview the planned grants without sending them.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata diff`
+### `d2w metadata diff`
 
 Compare two metadata bundles (or one bundle against the live instance).
 
@@ -3482,7 +3482,7 @@ unchanged by default — `--ignore` extends that list.
 **Usage**:
 
 ```console
-$ dhis2 metadata diff [OPTIONS] LEFT [RIGHT]
+$ d2w metadata diff [OPTIONS] LEFT [RIGHT]
 ```
 
 **Arguments**:
@@ -3497,7 +3497,7 @@ $ dhis2 metadata diff [OPTIONS] LEFT [RIGHT]
 * `--ignore TEXT`: Fields to skip when deciding if an object changed. Repeatable. Defaults cover DHIS2&#x27;s per-instance noise (lastUpdated, createdBy, access, ...); pass `--ignore sharing` etc. to extend.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata diff-profiles`
+### `d2w metadata diff-profiles`
 
 Diff a metadata slice between two registered profiles (staging vs prod drift).
 
@@ -3519,7 +3519,7 @@ interactively aren&#x27;t tripped by per-command-exit conventions). Pass
 **Usage**:
 
 ```console
-$ dhis2 metadata diff-profiles [OPTIONS] PROFILE_A PROFILE_B
+$ d2w metadata diff-profiles [OPTIONS] PROFILE_A PROFILE_B
 ```
 
 **Arguments**:
@@ -3530,18 +3530,18 @@ $ dhis2 metadata diff-profiles [OPTIONS] PROFILE_A PROFILE_B
 **Options**:
 
 * `-r, --resource TEXT`: Resource type to compare (e.g. dataElements, indicators). Repeatable. Required — whole-instance diffs are almost always noise.
-* `--filter TEXT`: Per-resource filter in `resource:property:operator:value` form. Repeatable. Example: `--filter dataElements:name:like:ANC` only compares data elements whose name contains &#x27;ANC&#x27;. Same DHIS2 filter DSL as `dhis2 metadata list --filter`.
+* `--filter TEXT`: Per-resource filter in `resource:property:operator:value` form. Repeatable. Example: `--filter dataElements:name:like:ANC` only compares data elements whose name contains &#x27;ANC&#x27;. Same DHIS2 filter DSL as `d2w metadata list --filter`.
 * `--fields TEXT`: DHIS2 field selector applied on both profiles. Defaults to &#x27;:owner&#x27; — the selector DHIS2 itself uses for cross-instance imports (preserves every field needed for a faithful round-trip).  [default: :owner]
 * `--ignore TEXT`: Additional fields to skip when deciding if an object changed. Repeatable. Defaults already cover DHIS2&#x27;s per-instance noise (lastUpdated, createdBy, access, ...). Common extensions for drift checks: `--ignore sharing --ignore translations`.
 * `--show-uids`: List up to 5 offending UIDs per per-resource row.
 * `--exit-on-drift`: Exit 1 when any object differs. CI-friendly (default is always exit 0).
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata merge`
+### `d2w metadata merge`
 
 Export resources from one profile and import them into another.
 
-Pairs with `dhis2 metadata diff-profiles` (which reads the same shape
+Pairs with `d2w metadata diff-profiles` (which reads the same shape
 of narrow resource slice + filters). Preview first with
 `diff-profiles`, then apply the same `--resource` + `--filter` args
 through `merge` to land the changes on the target.
@@ -3558,7 +3558,7 @@ doesn&#x27;t exist on the target&quot; before the real run.
 **Usage**:
 
 ```console
-$ dhis2 metadata merge [OPTIONS] SOURCE_PROFILE TARGET_PROFILE
+$ d2w metadata merge [OPTIONS] SOURCE_PROFILE TARGET_PROFILE
 ```
 
 **Arguments**:
@@ -3569,7 +3569,7 @@ $ dhis2 metadata merge [OPTIONS] SOURCE_PROFILE TARGET_PROFILE
 **Options**:
 
 * `-r, --resource TEXT`: Resource type to merge (e.g. dataElements, indicators). Repeatable. Required — whole-instance merges are almost never what you want.
-* `--filter TEXT`: Per-resource filter in `resource:property:operator:value` form. Repeatable. Same DSL as `dhis2 metadata list --filter` and `dhis2 metadata diff-profiles`.
+* `--filter TEXT`: Per-resource filter in `resource:property:operator:value` form. Repeatable. Same DSL as `d2w metadata list --filter` and `d2w metadata diff-profiles`.
 * `--fields TEXT`: DHIS2 field selector applied on the source export. Defaults to &#x27;:owner&#x27; (faithful round-trip).  [default: :owner]
 * `--strategy TEXT`: Import strategy — CREATE / UPDATE / CREATE_AND_UPDATE / DELETE (default: CREATE_AND_UPDATE).  [default: CREATE_AND_UPDATE]
 * `--atomic TEXT`: atomicMode — ALL / NONE (default: ALL; one broken object aborts the whole import).  [default: ALL]
@@ -3577,11 +3577,11 @@ $ dhis2 metadata merge [OPTIONS] SOURCE_PROFILE TARGET_PROFILE
 * `--dry-run`: Send `importMode=VALIDATE` to the target; reports conflicts + counts without committing.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata merge-bundle`
+### `d2w metadata merge-bundle`
 
 Import a saved bundle file into a target profile.
 
-The bundle-source variant of `dhis2 metadata merge`: instead of
+The bundle-source variant of `d2w metadata merge`: instead of
 exporting from a source profile, read the bundle from disk. Useful
 when the bundle came from a saved `metadata export`, was hand-crafted
 by an operator, or was produced by a non-DHIS2 tool. All other
@@ -3591,7 +3591,7 @@ semantics match `merge` — atomic + sharing skipped by default,
 **Usage**:
 
 ```console
-$ dhis2 metadata merge-bundle [OPTIONS] TARGET_PROFILE BUNDLE
+$ d2w metadata merge-bundle [OPTIONS] TARGET_PROFILE BUNDLE
 ```
 
 **Arguments**:
@@ -3608,14 +3608,14 @@ $ dhis2 metadata merge-bundle [OPTIONS] TARGET_PROFILE BUNDLE
 * `--dry-run`: Send `importMode=VALIDATE` to the target; reports conflicts + counts without committing.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata type`
+### `d2w metadata type`
 
 Metadata resource types (the catalog).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata type [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata type [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -3627,42 +3627,42 @@ $ dhis2 metadata type [OPTIONS] COMMAND [ARGS]...
 * `ls`: List the metadata resource types exposed...
 * `list`: List the metadata resource types exposed...
 
-#### `dhis2 metadata type ls`
+#### `d2w metadata type ls`
 
 List the metadata resource types exposed by the connected DHIS2 instance.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata type ls [OPTIONS]
+$ d2w metadata type ls [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata type list`
+#### `d2w metadata type list`
 
 List the metadata resource types exposed by the connected DHIS2 instance.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata type list [OPTIONS]
+$ d2w metadata type list [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata option-sets`
+### `d2w metadata option-sets`
 
 OptionSet workflows (get / find / sync).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata option-sets [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata option-sets [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -3678,14 +3678,14 @@ $ dhis2 metadata option-sets [OPTIONS] COMMAND [ARGS]...
 * `sync`: Idempotently sync an OptionSet to match a...
 * `attributes`: External-system code mapping on Options...
 
-#### `dhis2 metadata option-sets get`
+#### `d2w metadata option-sets get`
 
 Show one OptionSet with its options resolved inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata option-sets get [OPTIONS] UID_OR_CODE
+$ d2w metadata option-sets get [OPTIONS] UID_OR_CODE
 ```
 
 **Arguments**:
@@ -3696,14 +3696,14 @@ $ dhis2 metadata option-sets get [OPTIONS] UID_OR_CODE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata option-sets find`
+#### `d2w metadata option-sets find`
 
 Locate a single option inside a set by code or name; exit 1 if no match.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata option-sets find [OPTIONS]
+$ d2w metadata option-sets find [OPTIONS]
 ```
 
 **Options**:
@@ -3713,14 +3713,14 @@ $ dhis2 metadata option-sets find [OPTIONS]
 * `--name TEXT`: Display name of the option (exact match).
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata option-sets create`
+#### `d2w metadata option-sets create`
 
 Create an OptionSet (then add its options with `options sync`).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata option-sets create [OPTIONS]
+$ d2w metadata option-sets create [OPTIONS]
 ```
 
 **Options**:
@@ -3731,14 +3731,14 @@ $ dhis2 metadata option-sets create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata option-sets delete`
+#### `d2w metadata option-sets delete`
 
 Delete an OptionSet by UID.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata option-sets delete [OPTIONS] UID
+$ d2w metadata option-sets delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -3750,7 +3750,7 @@ $ dhis2 metadata option-sets delete [OPTIONS] UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata option-sets sync`
+#### `d2w metadata option-sets sync`
 
 Idempotently sync an OptionSet to match a JSON spec file.
 
@@ -3763,7 +3763,7 @@ spec. `--dry-run` previews the diff without writing.
 **Usage**:
 
 ```console
-$ dhis2 metadata option-sets sync [OPTIONS] SET_REF SPEC_FILE
+$ d2w metadata option-sets sync [OPTIONS] SET_REF SPEC_FILE
 ```
 
 **Arguments**:
@@ -3777,14 +3777,14 @@ $ dhis2 metadata option-sets sync [OPTIONS] SET_REF SPEC_FILE
 * `--dry-run`: Compute the diff without writing anything.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata option-sets attributes`
+#### `d2w metadata option-sets attributes`
 
 External-system code mapping on Options via Attribute values.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata option-sets attributes [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata option-sets attributes [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -3797,14 +3797,14 @@ $ dhis2 metadata option-sets attributes [OPTIONS] COMMAND [ARGS]...
 * `set`: Set / replace an attribute value on an...
 * `find`: Reverse lookup — find the Option whose...
 
-##### `dhis2 metadata option-sets attributes get`
+##### `d2w metadata option-sets attributes get`
 
 Read one attribute value off an Option; exit 1 if unset.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata option-sets attributes get [OPTIONS] OPTION_UID ATTRIBUTE
+$ d2w metadata option-sets attributes get [OPTIONS] OPTION_UID ATTRIBUTE
 ```
 
 **Arguments**:
@@ -3816,7 +3816,7 @@ $ dhis2 metadata option-sets attributes get [OPTIONS] OPTION_UID ATTRIBUTE
 
 * `--help`: Show this message and exit.
 
-##### `dhis2 metadata option-sets attributes set`
+##### `d2w metadata option-sets attributes set`
 
 Set / replace an attribute value on an Option.
 
@@ -3828,7 +3828,7 @@ idempotent — calling twice with the same value is a no-op.
 **Usage**:
 
 ```console
-$ dhis2 metadata option-sets attributes set [OPTIONS] OPTION_UID ATTRIBUTE VALUE
+$ d2w metadata option-sets attributes set [OPTIONS] OPTION_UID ATTRIBUTE VALUE
 ```
 
 **Arguments**:
@@ -3841,7 +3841,7 @@ $ dhis2 metadata option-sets attributes set [OPTIONS] OPTION_UID ATTRIBUTE VALUE
 
 * `--help`: Show this message and exit.
 
-##### `dhis2 metadata option-sets attributes find`
+##### `d2w metadata option-sets attributes find`
 
 Reverse lookup — find the Option whose attribute matches a value.
 
@@ -3852,7 +3852,7 @@ on miss with a stderr hint.
 **Usage**:
 
 ```console
-$ dhis2 metadata option-sets attributes find [OPTIONS]
+$ d2w metadata option-sets attributes find [OPTIONS]
 ```
 
 **Options**:
@@ -3862,14 +3862,14 @@ $ dhis2 metadata option-sets attributes find [OPTIONS]
 * `--value TEXT`: Attribute value to match exactly.  [required]
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata attributes`
+### `d2w metadata attributes`
 
 Cross-resource AttributeValue workflows (get / set / delete / find).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata attributes [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata attributes [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -3883,14 +3883,14 @@ $ dhis2 metadata attributes [OPTIONS] COMMAND [ARGS]...
 * `delete`: Remove one attribute value from any...
 * `find`: Reverse lookup across any resource — list...
 
-#### `dhis2 metadata attributes get`
+#### `d2w metadata attributes get`
 
 Read one attribute value off any resource; exit 1 if unset.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata attributes get [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
+$ d2w metadata attributes get [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
 ```
 
 **Arguments**:
@@ -3903,14 +3903,14 @@ $ dhis2 metadata attributes get [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata attributes set`
+#### `d2w metadata attributes set`
 
 Set / replace one attribute value on any resource (read-merge-write).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata attributes set [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE VALUE
+$ d2w metadata attributes set [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE VALUE
 ```
 
 **Arguments**:
@@ -3924,14 +3924,14 @@ $ dhis2 metadata attributes set [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE VALUE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata attributes delete`
+#### `d2w metadata attributes delete`
 
 Remove one attribute value from any resource; exit 0 regardless of whether it existed.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata attributes delete [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
+$ d2w metadata attributes delete [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
 ```
 
 **Arguments**:
@@ -3944,19 +3944,19 @@ $ dhis2 metadata attributes delete [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata attributes find`
+#### `d2w metadata attributes find`
 
 Reverse lookup across any resource — list every UID whose attribute value matches.
 
 Returns UIDs only (one per line) to keep the helper generic across
-resource types. Pipe into `dhis2 metadata get &lt;resource&gt; &lt;uid&gt;` or
-`dhis2 metadata list &lt;resource&gt; --filter id:in:[...]` for typed
+resource types. Pipe into `d2w metadata get &lt;resource&gt; &lt;uid&gt;` or
+`d2w metadata list &lt;resource&gt; --filter id:in:[...]` for typed
 follow-ups.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata attributes find [OPTIONS] RESOURCE ATTRIBUTE VALUE
+$ d2w metadata attributes find [OPTIONS] RESOURCE ATTRIBUTE VALUE
 ```
 
 **Arguments**:
@@ -3970,14 +3970,14 @@ $ dhis2 metadata attributes find [OPTIONS] RESOURCE ATTRIBUTE VALUE
 * `--filter TEXT`: Extra DHIS2 filter constraints to narrow the search (e.g. `domainType:eq:AGGREGATE`). Repeatable.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata program-rules`
+### `d2w metadata program-rules`
 
 Program rule workflows (get / vars-for / validate / where-de-is-used).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-rules [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata program-rules [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -3991,14 +3991,14 @@ $ dhis2 metadata program-rules [OPTIONS] COMMAND [ARGS]...
 * `validate-expression`: Parse-check a program-rule condition...
 * `where-de-is-used`: Impact analysis — list every rule whose...
 
-#### `dhis2 metadata program-rules get`
+#### `d2w metadata program-rules get`
 
 Show one ProgramRule with its condition, priority, and every action.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-rules get [OPTIONS] RULE_UID
+$ d2w metadata program-rules get [OPTIONS] RULE_UID
 ```
 
 **Arguments**:
@@ -4009,14 +4009,14 @@ $ dhis2 metadata program-rules get [OPTIONS] RULE_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-rules vars-for`
+#### `d2w metadata program-rules vars-for`
 
 List every `ProgramRuleVariable` in scope for a program, sorted by name.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-rules vars-for [OPTIONS] PROGRAM_UID
+$ d2w metadata program-rules vars-for [OPTIONS] PROGRAM_UID
 ```
 
 **Arguments**:
@@ -4027,7 +4027,7 @@ $ dhis2 metadata program-rules vars-for [OPTIONS] PROGRAM_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-rules validate-expression`
+#### `d2w metadata program-rules validate-expression`
 
 Parse-check a program-rule condition expression.
 
@@ -4043,7 +4043,7 @@ distinguish parser mismatches from real syntax problems.
 **Usage**:
 
 ```console
-$ dhis2 metadata program-rules validate-expression [OPTIONS] EXPRESSION
+$ d2w metadata program-rules validate-expression [OPTIONS] EXPRESSION
 ```
 
 **Arguments**:
@@ -4055,7 +4055,7 @@ $ dhis2 metadata program-rules validate-expression [OPTIONS] EXPRESSION
 * `--context TEXT`: Which DHIS2 expression parser to use: program-indicator (default), validation-rule, indicator, predictor, or generic.  [default: program-indicator]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-rules where-de-is-used`
+#### `d2w metadata program-rules where-de-is-used`
 
 Impact analysis — list every rule whose actions reference this DataElement.
 
@@ -4066,7 +4066,7 @@ shorthand for `grep -q` pipelines).
 **Usage**:
 
 ```console
-$ dhis2 metadata program-rules where-de-is-used [OPTIONS] DATA_ELEMENT_UID
+$ d2w metadata program-rules where-de-is-used [OPTIONS] DATA_ELEMENT_UID
 ```
 
 **Arguments**:
@@ -4077,14 +4077,14 @@ $ dhis2 metadata program-rules where-de-is-used [OPTIONS] DATA_ELEMENT_UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata sql-views`
+### `d2w metadata sql-views`
 
 SQL view workflows (get / execute / refresh / adhoc).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sql-views [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata sql-views [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4098,14 +4098,14 @@ $ dhis2 metadata sql-views [OPTIONS] COMMAND [ARGS]...
 * `refresh`: Refresh a MATERIALIZED_VIEW or lazily...
 * `adhoc`: Register a throwaway SqlView from a .sql...
 
-#### `dhis2 metadata sql-views get`
+#### `d2w metadata sql-views get`
 
 Show one SqlView&#x27;s metadata + its stored SQL body.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sql-views get [OPTIONS] VIEW_UID
+$ d2w metadata sql-views get [OPTIONS] VIEW_UID
 ```
 
 **Arguments**:
@@ -4116,14 +4116,14 @@ $ dhis2 metadata sql-views get [OPTIONS] VIEW_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sql-views execute`
+#### `d2w metadata sql-views execute`
 
 Run a SqlView and render its rows as a table, JSON array, or CSV.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sql-views execute [OPTIONS] VIEW_UID
+$ d2w metadata sql-views execute [OPTIONS] VIEW_UID
 ```
 
 **Arguments**:
@@ -4137,7 +4137,7 @@ $ dhis2 metadata sql-views execute [OPTIONS] VIEW_UID
 * `--format TEXT`: Output format: table (default), json, or csv.  [default: table]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sql-views refresh`
+#### `d2w metadata sql-views refresh`
 
 Refresh a MATERIALIZED_VIEW or lazily create a VIEW&#x27;s DB object.
 
@@ -4148,7 +4148,7 @@ MATERIALIZED_VIEW types re-run the underlying SQL each call.
 **Usage**:
 
 ```console
-$ dhis2 metadata sql-views refresh [OPTIONS] VIEW_UID
+$ d2w metadata sql-views refresh [OPTIONS] VIEW_UID
 ```
 
 **Arguments**:
@@ -4159,7 +4159,7 @@ $ dhis2 metadata sql-views refresh [OPTIONS] VIEW_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sql-views adhoc`
+#### `d2w metadata sql-views adhoc`
 
 Register a throwaway SqlView from a .sql file, execute once, delete it on the way out.
 
@@ -4170,7 +4170,7 @@ the Postgres injector example.
 **Usage**:
 
 ```console
-$ dhis2 metadata sql-views adhoc [OPTIONS] NAME SQL_PATH
+$ d2w metadata sql-views adhoc [OPTIONS] NAME SQL_PATH
 ```
 
 **Arguments**:
@@ -4186,14 +4186,14 @@ $ dhis2 metadata sql-views adhoc [OPTIONS] NAME SQL_PATH
 * `--format TEXT`: Output format: table (default), json, or csv.  [default: table]
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata visualizations`
+### `d2w metadata visualizations`
 
 Visualization authoring (get / create / clone / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata visualizations [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata visualizations [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4207,14 +4207,14 @@ $ dhis2 metadata visualizations [OPTIONS] COMMAND [ARGS]...
 * `clone`: Clone an existing Visualization with a...
 * `delete`: Delete a Visualization.
 
-#### `dhis2 metadata visualizations get`
+#### `d2w metadata visualizations get`
 
 Show one Visualization with axes + data dimensions + period / ou selection.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata visualizations get [OPTIONS] VIZ_UID
+$ d2w metadata visualizations get [OPTIONS] VIZ_UID
 ```
 
 **Arguments**:
@@ -4225,7 +4225,7 @@ $ dhis2 metadata visualizations get [OPTIONS] VIZ_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata visualizations create`
+#### `d2w metadata visualizations create`
 
 Create a Visualization from flags — one command, no hand-rolled JSON.
 
@@ -4238,7 +4238,7 @@ collapses to columns= / filters=. Override any slot with
 **Usage**:
 
 ```console
-$ dhis2 metadata visualizations create [OPTIONS]
+$ d2w metadata visualizations create [OPTIONS]
 ```
 
 **Options**:
@@ -4255,14 +4255,14 @@ $ dhis2 metadata visualizations create [OPTIONS]
 * `--filter-dim TEXT`: Override filter dimension: dx / pe / ou.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata visualizations clone`
+#### `d2w metadata visualizations clone`
 
 Clone an existing Visualization with a fresh UID + new name.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata visualizations clone [OPTIONS] SOURCE_UID
+$ d2w metadata visualizations clone [OPTIONS] SOURCE_UID
 ```
 
 **Arguments**:
@@ -4276,14 +4276,14 @@ $ dhis2 metadata visualizations clone [OPTIONS] SOURCE_UID
 * `--new-description TEXT`: Override the source&#x27;s description on the clone.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata visualizations delete`
+#### `d2w metadata visualizations delete`
 
 Delete a Visualization.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata visualizations delete [OPTIONS] VIZ_UID
+$ d2w metadata visualizations delete [OPTIONS] VIZ_UID
 ```
 
 **Arguments**:
@@ -4295,14 +4295,14 @@ $ dhis2 metadata visualizations delete [OPTIONS] VIZ_UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata dashboards`
+### `d2w metadata dashboards`
 
 Dashboard composition (get / add-item / remove-item).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata dashboards [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata dashboards [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4315,14 +4315,14 @@ $ dhis2 metadata dashboards [OPTIONS] COMMAND [ARGS]...
 * `add-item`: Add a Visualization or Map item to a...
 * `remove-item`: Remove one dashboardItem by its UID.
 
-#### `dhis2 metadata dashboards get`
+#### `d2w metadata dashboards get`
 
 Show one Dashboard with every dashboardItem resolved inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata dashboards get [OPTIONS] DASHBOARD_UID
+$ d2w metadata dashboards get [OPTIONS] DASHBOARD_UID
 ```
 
 **Arguments**:
@@ -4333,7 +4333,7 @@ $ dhis2 metadata dashboards get [OPTIONS] DASHBOARD_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata dashboards add-item`
+#### `d2w metadata dashboards add-item`
 
 Add a Visualization or Map item to a dashboard.
 
@@ -4345,7 +4345,7 @@ you want side-by-side tiling.
 **Usage**:
 
 ```console
-$ dhis2 metadata dashboards add-item [OPTIONS] DASHBOARD_UID
+$ d2w metadata dashboards add-item [OPTIONS] DASHBOARD_UID
 ```
 
 **Arguments**:
@@ -4362,14 +4362,14 @@ $ dhis2 metadata dashboards add-item [OPTIONS] DASHBOARD_UID
 * `--height INTEGER`: Slot height. Defaults to 20 when auto.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata dashboards remove-item`
+#### `d2w metadata dashboards remove-item`
 
 Remove one dashboardItem by its UID.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata dashboards remove-item [OPTIONS] DASHBOARD_UID ITEM_UID
+$ d2w metadata dashboards remove-item [OPTIONS] DASHBOARD_UID ITEM_UID
 ```
 
 **Arguments**:
@@ -4381,14 +4381,14 @@ $ dhis2 metadata dashboards remove-item [OPTIONS] DASHBOARD_UID ITEM_UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata maps`
+### `d2w metadata maps`
 
 Map authoring (get / create / clone / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata maps [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata maps [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4402,14 +4402,14 @@ $ dhis2 metadata maps [OPTIONS] COMMAND [ARGS]...
 * `clone`: Clone an existing Map with a fresh UID +...
 * `delete`: Delete a Map.
 
-#### `dhis2 metadata maps get`
+#### `d2w metadata maps get`
 
 Show one Map with its viewport + every mapViews layer.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata maps get [OPTIONS] MAP_UID
+$ d2w metadata maps get [OPTIONS] MAP_UID
 ```
 
 **Arguments**:
@@ -4420,7 +4420,7 @@ $ dhis2 metadata maps get [OPTIONS] MAP_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata maps create`
+#### `d2w metadata maps create`
 
 Create a single-layer thematic choropleth Map from flags.
 
@@ -4432,7 +4432,7 @@ library side and extend the spec to include boundary / facility
 **Usage**:
 
 ```console
-$ dhis2 metadata maps create [OPTIONS]
+$ d2w metadata maps create [OPTIONS]
 ```
 
 **Options**:
@@ -4453,14 +4453,14 @@ $ dhis2 metadata maps create [OPTIONS]
 * `--color-high TEXT`: Choropleth high-value colour (#hex).  [default: #b30000]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata maps clone`
+#### `d2w metadata maps clone`
 
 Clone an existing Map with a fresh UID + new name.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata maps clone [OPTIONS] SOURCE_UID
+$ d2w metadata maps clone [OPTIONS] SOURCE_UID
 ```
 
 **Arguments**:
@@ -4474,14 +4474,14 @@ $ dhis2 metadata maps clone [OPTIONS] SOURCE_UID
 * `--new-description TEXT`
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata maps delete`
+#### `d2w metadata maps delete`
 
 Delete a Map.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata maps delete [OPTIONS] MAP_UID
+$ d2w metadata maps delete [OPTIONS] MAP_UID
 ```
 
 **Arguments**:
@@ -4493,14 +4493,14 @@ $ dhis2 metadata maps delete [OPTIONS] MAP_UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata data-elements`
+### `d2w metadata data-elements`
 
 DataElement authoring (get / create / rename / delete + legend-sets).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-elements [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata data-elements [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4515,14 +4515,14 @@ $ dhis2 metadata data-elements [OPTIONS] COMMAND [ARGS]...
 * `set-legend-sets`: Replace the legend-set refs on one...
 * `delete`: Delete a DataElement — DHIS2 rejects...
 
-#### `dhis2 metadata data-elements get`
+#### `d2w metadata data-elements get`
 
 Show one DataElement with its references resolved inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-elements get [OPTIONS] UID
+$ d2w metadata data-elements get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4533,14 +4533,14 @@ $ dhis2 metadata data-elements get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-elements create`
+#### `d2w metadata data-elements create`
 
 Create a DataElement (defaults aggregate + SUM + instance default categoryCombo).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-elements create [OPTIONS]
+$ d2w metadata data-elements create [OPTIONS]
 ```
 
 **Options**:
@@ -4560,14 +4560,14 @@ $ dhis2 metadata data-elements create [OPTIONS]
 * `--zero-significant / --no-zero-significant`: Treat 0 as data, not absence.  [default: no-zero-significant]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-elements rename`
+#### `d2w metadata data-elements rename`
 
 Partial-update the label fields on a DataElement (read, mutate, PUT).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-elements rename [OPTIONS] UID
+$ d2w metadata data-elements rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4582,14 +4582,14 @@ $ dhis2 metadata data-elements rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-elements set-legend-sets`
+#### `d2w metadata data-elements set-legend-sets`
 
 Replace the legend-set refs on one DataElement.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-elements set-legend-sets [OPTIONS] UID
+$ d2w metadata data-elements set-legend-sets [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4601,14 +4601,14 @@ $ dhis2 metadata data-elements set-legend-sets [OPTIONS] UID
 * `--legend-set TEXT`: LegendSet UID to attach. Repeat for multiple. Empty list clears.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-elements delete`
+#### `d2w metadata data-elements delete`
 
 Delete a DataElement — DHIS2 rejects deletes on DEs with saved values.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-elements delete [OPTIONS] UID
+$ d2w metadata data-elements delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4620,14 +4620,14 @@ $ dhis2 metadata data-elements delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata data-element-groups`
+### `d2w metadata data-element-groups`
 
 DataElementGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-groups [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata data-element-groups [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4643,14 +4643,14 @@ $ dhis2 metadata data-element-groups [OPTIONS] COMMAND [ARGS]...
 * `remove-members`: Drop `--data-element` members via the...
 * `delete`: Delete the grouping row — member DEs stay.
 
-#### `dhis2 metadata data-element-groups get`
+#### `d2w metadata data-element-groups get`
 
 Show one group with its member refs and group-sets it belongs to.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-groups get [OPTIONS] UID
+$ d2w metadata data-element-groups get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4661,14 +4661,14 @@ $ dhis2 metadata data-element-groups get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-element-groups members`
+#### `d2w metadata data-element-groups members`
 
 Page through DataElements inside one group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-groups members [OPTIONS] UID
+$ d2w metadata data-element-groups members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4681,14 +4681,14 @@ $ dhis2 metadata data-element-groups members [OPTIONS] UID
 * `--page-size INTEGER`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-element-groups create`
+#### `d2w metadata data-element-groups create`
 
 Create an empty DataElementGroup.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-groups create [OPTIONS]
+$ d2w metadata data-element-groups create [OPTIONS]
 ```
 
 **Options**:
@@ -4700,14 +4700,14 @@ $ dhis2 metadata data-element-groups create [OPTIONS]
 * `--description TEXT`: Free text.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-element-groups add-members`
+#### `d2w metadata data-element-groups add-members`
 
 Add `--data-element` members via the per-item POST shortcut.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-groups add-members [OPTIONS] UID
+$ d2w metadata data-element-groups add-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4719,14 +4719,14 @@ $ dhis2 metadata data-element-groups add-members [OPTIONS] UID
 * `-e, --data-element TEXT`: DataElement UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-element-groups remove-members`
+#### `d2w metadata data-element-groups remove-members`
 
 Drop `--data-element` members via the per-item DELETE shortcut.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-groups remove-members [OPTIONS] UID
+$ d2w metadata data-element-groups remove-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4738,14 +4738,14 @@ $ dhis2 metadata data-element-groups remove-members [OPTIONS] UID
 * `-e, --data-element TEXT`: DataElement UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-element-groups delete`
+#### `d2w metadata data-element-groups delete`
 
 Delete the grouping row — member DEs stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-groups delete [OPTIONS] UID
+$ d2w metadata data-element-groups delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4757,14 +4757,14 @@ $ dhis2 metadata data-element-groups delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata data-element-group-sets`
+### `d2w metadata data-element-group-sets`
 
 DataElementGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-group-sets [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata data-element-group-sets [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4779,14 +4779,14 @@ $ dhis2 metadata data-element-group-sets [OPTIONS] COMMAND [ARGS]...
 * `remove-groups`: Drop `--group` members from a group set.
 * `delete`: Delete a DataElementGroupSet — member...
 
-#### `dhis2 metadata data-element-group-sets get`
+#### `d2w metadata data-element-group-sets get`
 
 Show one group set with its groups.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-group-sets get [OPTIONS] UID
+$ d2w metadata data-element-group-sets get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4797,14 +4797,14 @@ $ dhis2 metadata data-element-group-sets get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-element-group-sets create`
+#### `d2w metadata data-element-group-sets create`
 
 Create an empty DataElementGroupSet.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-group-sets create [OPTIONS]
+$ d2w metadata data-element-group-sets create [OPTIONS]
 ```
 
 **Options**:
@@ -4818,14 +4818,14 @@ $ dhis2 metadata data-element-group-sets create [OPTIONS]
 * `--data-dimension / --no-data-dimension`: Expose as analytics axis.  [default: data-dimension]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-element-group-sets add-groups`
+#### `d2w metadata data-element-group-sets add-groups`
 
 Add `--group` members to a group set.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-group-sets add-groups [OPTIONS] UID
+$ d2w metadata data-element-group-sets add-groups [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4837,14 +4837,14 @@ $ dhis2 metadata data-element-group-sets add-groups [OPTIONS] UID
 * `--group TEXT`: DataElementGroup UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-element-group-sets remove-groups`
+#### `d2w metadata data-element-group-sets remove-groups`
 
 Drop `--group` members from a group set.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-group-sets remove-groups [OPTIONS] UID
+$ d2w metadata data-element-group-sets remove-groups [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4856,14 +4856,14 @@ $ dhis2 metadata data-element-group-sets remove-groups [OPTIONS] UID
 * `--group TEXT`: DataElementGroup UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-element-group-sets delete`
+#### `d2w metadata data-element-group-sets delete`
 
 Delete a DataElementGroupSet — member groups stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-element-group-sets delete [OPTIONS] UID
+$ d2w metadata data-element-group-sets delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4875,14 +4875,14 @@ $ dhis2 metadata data-element-group-sets delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata indicators`
+### `d2w metadata indicators`
 
 Indicator authoring (get / create / rename / validate-expression / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicators [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata indicators [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -4898,14 +4898,14 @@ $ dhis2 metadata indicators [OPTIONS] COMMAND [ARGS]...
 * `set-legend-sets`: Replace the legend-set refs on one Indicator.
 * `delete`: Delete an Indicator — DHIS2 rejects...
 
-#### `dhis2 metadata indicators get`
+#### `d2w metadata indicators get`
 
 Show one Indicator with expression pair + indicatorType resolved inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicators get [OPTIONS] UID
+$ d2w metadata indicators get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4916,14 +4916,14 @@ $ dhis2 metadata indicators get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicators create`
+#### `d2w metadata indicators create`
 
 Create an Indicator from a numerator / denominator expression pair.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicators create [OPTIONS]
+$ d2w metadata indicators create [OPTIONS]
 ```
 
 **Options**:
@@ -4943,14 +4943,14 @@ $ dhis2 metadata indicators create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicators rename`
+#### `d2w metadata indicators rename`
 
 Partial-update label fields on an Indicator.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicators rename [OPTIONS] UID
+$ d2w metadata indicators rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -4964,14 +4964,14 @@ $ dhis2 metadata indicators rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicators validate-expression`
+#### `d2w metadata indicators validate-expression`
 
 Parse-check one indicator expression — fast pre-flight before create.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicators validate-expression [OPTIONS] EXPRESSION
+$ d2w metadata indicators validate-expression [OPTIONS] EXPRESSION
 ```
 
 **Arguments**:
@@ -4982,14 +4982,14 @@ $ dhis2 metadata indicators validate-expression [OPTIONS] EXPRESSION
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicators set-legend-sets`
+#### `d2w metadata indicators set-legend-sets`
 
 Replace the legend-set refs on one Indicator.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicators set-legend-sets [OPTIONS] UID
+$ d2w metadata indicators set-legend-sets [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5001,14 +5001,14 @@ $ dhis2 metadata indicators set-legend-sets [OPTIONS] UID
 * `--legend-set TEXT`: LegendSet UID to attach. Empty list clears.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicators delete`
+#### `d2w metadata indicators delete`
 
 Delete an Indicator — DHIS2 rejects deletes on indicators used in viz/dashboards.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicators delete [OPTIONS] UID
+$ d2w metadata indicators delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5020,14 +5020,14 @@ $ dhis2 metadata indicators delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata indicator-groups`
+### `d2w metadata indicator-groups`
 
 IndicatorGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-groups [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata indicator-groups [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -5043,14 +5043,14 @@ $ dhis2 metadata indicator-groups [OPTIONS] COMMAND [ARGS]...
 * `remove-members`: Drop `--indicator` members via the...
 * `delete`: Delete the grouping row — member...
 
-#### `dhis2 metadata indicator-groups get`
+#### `d2w metadata indicator-groups get`
 
 Show one group with its member refs.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-groups get [OPTIONS] UID
+$ d2w metadata indicator-groups get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5061,14 +5061,14 @@ $ dhis2 metadata indicator-groups get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicator-groups members`
+#### `d2w metadata indicator-groups members`
 
 Page through Indicators inside one group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-groups members [OPTIONS] UID
+$ d2w metadata indicator-groups members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5081,14 +5081,14 @@ $ dhis2 metadata indicator-groups members [OPTIONS] UID
 * `--page-size INTEGER`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicator-groups create`
+#### `d2w metadata indicator-groups create`
 
 Create an empty IndicatorGroup.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-groups create [OPTIONS]
+$ d2w metadata indicator-groups create [OPTIONS]
 ```
 
 **Options**:
@@ -5100,14 +5100,14 @@ $ dhis2 metadata indicator-groups create [OPTIONS]
 * `--description TEXT`: Free text.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicator-groups add-members`
+#### `d2w metadata indicator-groups add-members`
 
 Add `--indicator` members via the per-item POST shortcut.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-groups add-members [OPTIONS] UID
+$ d2w metadata indicator-groups add-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5119,14 +5119,14 @@ $ dhis2 metadata indicator-groups add-members [OPTIONS] UID
 * `-i, --indicator TEXT`: Indicator UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicator-groups remove-members`
+#### `d2w metadata indicator-groups remove-members`
 
 Drop `--indicator` members via the per-item DELETE shortcut.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-groups remove-members [OPTIONS] UID
+$ d2w metadata indicator-groups remove-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5138,14 +5138,14 @@ $ dhis2 metadata indicator-groups remove-members [OPTIONS] UID
 * `-i, --indicator TEXT`: Indicator UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicator-groups delete`
+#### `d2w metadata indicator-groups delete`
 
 Delete the grouping row — member indicators stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-groups delete [OPTIONS] UID
+$ d2w metadata indicator-groups delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5157,14 +5157,14 @@ $ dhis2 metadata indicator-groups delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata indicator-group-sets`
+### `d2w metadata indicator-group-sets`
 
 IndicatorGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-group-sets [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata indicator-group-sets [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -5179,14 +5179,14 @@ $ dhis2 metadata indicator-group-sets [OPTIONS] COMMAND [ARGS]...
 * `remove-groups`: Drop `--group` members from a group set.
 * `delete`: Delete an IndicatorGroupSet — member...
 
-#### `dhis2 metadata indicator-group-sets get`
+#### `d2w metadata indicator-group-sets get`
 
 Show one group set with its groups.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-group-sets get [OPTIONS] UID
+$ d2w metadata indicator-group-sets get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5197,14 +5197,14 @@ $ dhis2 metadata indicator-group-sets get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicator-group-sets create`
+#### `d2w metadata indicator-group-sets create`
 
 Create an empty IndicatorGroupSet.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-group-sets create [OPTIONS]
+$ d2w metadata indicator-group-sets create [OPTIONS]
 ```
 
 **Options**:
@@ -5217,14 +5217,14 @@ $ dhis2 metadata indicator-group-sets create [OPTIONS]
 * `--compulsory / --not-compulsory`: Require indicators to land in exactly one member group.  [default: not-compulsory]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicator-group-sets add-groups`
+#### `d2w metadata indicator-group-sets add-groups`
 
 Add `--group` members to a group set.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-group-sets add-groups [OPTIONS] UID
+$ d2w metadata indicator-group-sets add-groups [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5236,14 +5236,14 @@ $ dhis2 metadata indicator-group-sets add-groups [OPTIONS] UID
 * `--group TEXT`: IndicatorGroup UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicator-group-sets remove-groups`
+#### `d2w metadata indicator-group-sets remove-groups`
 
 Drop `--group` members from a group set.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-group-sets remove-groups [OPTIONS] UID
+$ d2w metadata indicator-group-sets remove-groups [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5255,14 +5255,14 @@ $ dhis2 metadata indicator-group-sets remove-groups [OPTIONS] UID
 * `--group TEXT`: IndicatorGroup UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata indicator-group-sets delete`
+#### `d2w metadata indicator-group-sets delete`
 
 Delete an IndicatorGroupSet — member groups stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata indicator-group-sets delete [OPTIONS] UID
+$ d2w metadata indicator-group-sets delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5274,14 +5274,14 @@ $ dhis2 metadata indicator-group-sets delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata program-indicators`
+### `d2w metadata program-indicators`
 
 ProgramIndicator authoring (get / create / rename / validate-expression / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicators [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata program-indicators [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -5297,14 +5297,14 @@ $ dhis2 metadata program-indicators [OPTIONS] COMMAND [ARGS]...
 * `set-legend-sets`: Replace the legend-set refs on one...
 * `delete`: Delete a ProgramIndicator — DHIS2 rejects...
 
-#### `dhis2 metadata program-indicators get`
+#### `d2w metadata program-indicators get`
 
 Show one ProgramIndicator with its expression + filter resolved inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicators get [OPTIONS] UID
+$ d2w metadata program-indicators get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5315,14 +5315,14 @@ $ dhis2 metadata program-indicators get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-indicators create`
+#### `d2w metadata program-indicators create`
 
 Create a ProgramIndicator for a given program.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicators create [OPTIONS]
+$ d2w metadata program-indicators create [OPTIONS]
 ```
 
 **Options**:
@@ -5341,14 +5341,14 @@ $ dhis2 metadata program-indicators create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-indicators rename`
+#### `d2w metadata program-indicators rename`
 
 Partial-update label fields on a ProgramIndicator.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicators rename [OPTIONS] UID
+$ d2w metadata program-indicators rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5362,14 +5362,14 @@ $ dhis2 metadata program-indicators rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-indicators validate-expression`
+#### `d2w metadata program-indicators validate-expression`
 
 Parse-check one program-indicator expression — fast pre-flight before create.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicators validate-expression [OPTIONS] EXPRESSION
+$ d2w metadata program-indicators validate-expression [OPTIONS] EXPRESSION
 ```
 
 **Arguments**:
@@ -5380,14 +5380,14 @@ $ dhis2 metadata program-indicators validate-expression [OPTIONS] EXPRESSION
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-indicators set-legend-sets`
+#### `d2w metadata program-indicators set-legend-sets`
 
 Replace the legend-set refs on one ProgramIndicator.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicators set-legend-sets [OPTIONS] UID
+$ d2w metadata program-indicators set-legend-sets [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5399,14 +5399,14 @@ $ dhis2 metadata program-indicators set-legend-sets [OPTIONS] UID
 * `--legend-set TEXT`: LegendSet UID to attach. Empty list clears.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-indicators delete`
+#### `d2w metadata program-indicators delete`
 
 Delete a ProgramIndicator — DHIS2 rejects deletes on PIs used in viz / dashboards.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicators delete [OPTIONS] UID
+$ d2w metadata program-indicators delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5418,14 +5418,14 @@ $ dhis2 metadata program-indicators delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata program-indicator-groups`
+### `d2w metadata program-indicator-groups`
 
 ProgramIndicatorGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicator-groups [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata program-indicator-groups [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -5441,14 +5441,14 @@ $ dhis2 metadata program-indicator-groups [OPTIONS] COMMAND [ARGS]...
 * `remove-members`: Drop `--program-indicator` members via the...
 * `delete`: Delete the grouping row — member program...
 
-#### `dhis2 metadata program-indicator-groups get`
+#### `d2w metadata program-indicator-groups get`
 
 Show one group with its member refs.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicator-groups get [OPTIONS] UID
+$ d2w metadata program-indicator-groups get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5459,14 +5459,14 @@ $ dhis2 metadata program-indicator-groups get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-indicator-groups members`
+#### `d2w metadata program-indicator-groups members`
 
 Page through ProgramIndicators inside one group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicator-groups members [OPTIONS] UID
+$ d2w metadata program-indicator-groups members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5479,14 +5479,14 @@ $ dhis2 metadata program-indicator-groups members [OPTIONS] UID
 * `--page-size INTEGER`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-indicator-groups create`
+#### `d2w metadata program-indicator-groups create`
 
 Create an empty ProgramIndicatorGroup.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicator-groups create [OPTIONS]
+$ d2w metadata program-indicator-groups create [OPTIONS]
 ```
 
 **Options**:
@@ -5498,14 +5498,14 @@ $ dhis2 metadata program-indicator-groups create [OPTIONS]
 * `--description TEXT`: Free text.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-indicator-groups add-members`
+#### `d2w metadata program-indicator-groups add-members`
 
 Add `--program-indicator` members via the per-item POST shortcut.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicator-groups add-members [OPTIONS] UID
+$ d2w metadata program-indicator-groups add-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5517,14 +5517,14 @@ $ dhis2 metadata program-indicator-groups add-members [OPTIONS] UID
 * `-i, --program-indicator TEXT`: ProgramIndicator UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-indicator-groups remove-members`
+#### `d2w metadata program-indicator-groups remove-members`
 
 Drop `--program-indicator` members via the per-item DELETE shortcut.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicator-groups remove-members [OPTIONS] UID
+$ d2w metadata program-indicator-groups remove-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5536,14 +5536,14 @@ $ dhis2 metadata program-indicator-groups remove-members [OPTIONS] UID
 * `-i, --program-indicator TEXT`: ProgramIndicator UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-indicator-groups delete`
+#### `d2w metadata program-indicator-groups delete`
 
 Delete the grouping row — member program indicators stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-indicator-groups delete [OPTIONS] UID
+$ d2w metadata program-indicator-groups delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5555,14 +5555,14 @@ $ dhis2 metadata program-indicator-groups delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata category-options`
+### `d2w metadata category-options`
 
 CategoryOption authoring (get / create / rename / set-validity / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-options [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata category-options [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -5577,14 +5577,14 @@ $ dhis2 metadata category-options [OPTIONS] COMMAND [ARGS]...
 * `set-validity`: Set the `startDate` / `endDate` validity...
 * `delete`: Delete a CategoryOption — DHIS2 rejects...
 
-#### `dhis2 metadata category-options get`
+#### `d2w metadata category-options get`
 
 Show one CategoryOption with its categories + groups inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-options get [OPTIONS] UID
+$ d2w metadata category-options get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5595,14 +5595,14 @@ $ dhis2 metadata category-options get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-options create`
+#### `d2w metadata category-options create`
 
 Create a CategoryOption. Omit `--start-date`/`--end-date` for an always-valid option.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-options create [OPTIONS]
+$ d2w metadata category-options create [OPTIONS]
 ```
 
 **Options**:
@@ -5617,14 +5617,14 @@ $ dhis2 metadata category-options create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-options rename`
+#### `d2w metadata category-options rename`
 
 Partial-update the label fields on a CategoryOption.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-options rename [OPTIONS] UID
+$ d2w metadata category-options rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5639,14 +5639,14 @@ $ dhis2 metadata category-options rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-options set-validity`
+#### `d2w metadata category-options set-validity`
 
 Set the `startDate` / `endDate` validity window on a CategoryOption.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-options set-validity [OPTIONS] UID
+$ d2w metadata category-options set-validity [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5659,14 +5659,14 @@ $ dhis2 metadata category-options set-validity [OPTIONS] UID
 * `--end-date TEXT`: ISO-8601 date (empty to clear).
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-options delete`
+#### `d2w metadata category-options delete`
 
 Delete a CategoryOption — DHIS2 rejects deletes on options in use.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-options delete [OPTIONS] UID
+$ d2w metadata category-options delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5678,14 +5678,14 @@ $ dhis2 metadata category-options delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata category-option-groups`
+### `d2w metadata category-option-groups`
 
 CategoryOptionGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-groups [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata category-option-groups [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -5701,14 +5701,14 @@ $ dhis2 metadata category-option-groups [OPTIONS] COMMAND [ARGS]...
 * `remove-members`: Drop `--category-option` members via the...
 * `delete`: Delete the grouping row — member category...
 
-#### `dhis2 metadata category-option-groups get`
+#### `d2w metadata category-option-groups get`
 
 Show one group with its member + group-set refs.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-groups get [OPTIONS] UID
+$ d2w metadata category-option-groups get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5719,14 +5719,14 @@ $ dhis2 metadata category-option-groups get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-option-groups members`
+#### `d2w metadata category-option-groups members`
 
 Page through CategoryOptions inside one group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-groups members [OPTIONS] UID
+$ d2w metadata category-option-groups members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5739,14 +5739,14 @@ $ dhis2 metadata category-option-groups members [OPTIONS] UID
 * `--page-size INTEGER`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-option-groups create`
+#### `d2w metadata category-option-groups create`
 
 Create an empty CategoryOptionGroup.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-groups create [OPTIONS]
+$ d2w metadata category-option-groups create [OPTIONS]
 ```
 
 **Options**:
@@ -5759,14 +5759,14 @@ $ dhis2 metadata category-option-groups create [OPTIONS]
 * `--description TEXT`: Free text.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-option-groups add-members`
+#### `d2w metadata category-option-groups add-members`
 
 Add `--category-option` members via the per-item POST shortcut.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-groups add-members [OPTIONS] UID
+$ d2w metadata category-option-groups add-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5778,14 +5778,14 @@ $ dhis2 metadata category-option-groups add-members [OPTIONS] UID
 * `-c, --category-option TEXT`: CategoryOption UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-option-groups remove-members`
+#### `d2w metadata category-option-groups remove-members`
 
 Drop `--category-option` members via the per-item DELETE shortcut.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-groups remove-members [OPTIONS] UID
+$ d2w metadata category-option-groups remove-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5797,14 +5797,14 @@ $ dhis2 metadata category-option-groups remove-members [OPTIONS] UID
 * `-c, --category-option TEXT`: CategoryOption UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-option-groups delete`
+#### `d2w metadata category-option-groups delete`
 
 Delete the grouping row — member category options stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-groups delete [OPTIONS] UID
+$ d2w metadata category-option-groups delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5816,14 +5816,14 @@ $ dhis2 metadata category-option-groups delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata category-option-group-sets`
+### `d2w metadata category-option-group-sets`
 
 CategoryOptionGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-group-sets [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata category-option-group-sets [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -5838,14 +5838,14 @@ $ dhis2 metadata category-option-group-sets [OPTIONS] COMMAND [ARGS]...
 * `remove-groups`: Drop `--group` members from a group set.
 * `delete`: Delete a CategoryOptionGroupSet — member...
 
-#### `dhis2 metadata category-option-group-sets get`
+#### `d2w metadata category-option-group-sets get`
 
 Show one group set with its groups.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-group-sets get [OPTIONS] UID
+$ d2w metadata category-option-group-sets get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5856,14 +5856,14 @@ $ dhis2 metadata category-option-group-sets get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-option-group-sets create`
+#### `d2w metadata category-option-group-sets create`
 
 Create an empty CategoryOptionGroupSet.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-group-sets create [OPTIONS]
+$ d2w metadata category-option-group-sets create [OPTIONS]
 ```
 
 **Options**:
@@ -5877,14 +5877,14 @@ $ dhis2 metadata category-option-group-sets create [OPTIONS]
 * `--description TEXT`: Free text.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-option-group-sets add-groups`
+#### `d2w metadata category-option-group-sets add-groups`
 
 Add `--group` members to a group set.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-group-sets add-groups [OPTIONS] UID
+$ d2w metadata category-option-group-sets add-groups [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5896,14 +5896,14 @@ $ dhis2 metadata category-option-group-sets add-groups [OPTIONS] UID
 * `--group TEXT`: CategoryOptionGroup UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-option-group-sets remove-groups`
+#### `d2w metadata category-option-group-sets remove-groups`
 
 Drop `--group` members from a group set.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-group-sets remove-groups [OPTIONS] UID
+$ d2w metadata category-option-group-sets remove-groups [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5915,14 +5915,14 @@ $ dhis2 metadata category-option-group-sets remove-groups [OPTIONS] UID
 * `--group TEXT`: CategoryOptionGroup UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-option-group-sets delete`
+#### `d2w metadata category-option-group-sets delete`
 
 Delete a CategoryOptionGroupSet — member groups stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-group-sets delete [OPTIONS] UID
+$ d2w metadata category-option-group-sets delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5934,14 +5934,14 @@ $ dhis2 metadata category-option-group-sets delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata categories`
+### `d2w metadata categories`
 
 Category authoring (get / create / rename / add-option / remove-option / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata categories [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata categories [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -5957,14 +5957,14 @@ $ dhis2 metadata categories [OPTIONS] COMMAND [ARGS]...
 * `remove-option`: Remove a CategoryOption from this...
 * `delete`: Delete a Category — DHIS2 rejects deletes...
 
-#### `dhis2 metadata categories get`
+#### `d2w metadata categories get`
 
 Show one Category with its options inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata categories get [OPTIONS] UID
+$ d2w metadata categories get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -5975,14 +5975,14 @@ $ dhis2 metadata categories get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata categories create`
+#### `d2w metadata categories create`
 
 Create a Category, optionally wiring CategoryOption members on create.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata categories create [OPTIONS]
+$ d2w metadata categories create [OPTIONS]
 ```
 
 **Options**:
@@ -5996,14 +5996,14 @@ $ dhis2 metadata categories create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata categories rename`
+#### `d2w metadata categories rename`
 
 Partial-update the label fields on a Category.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata categories rename [OPTIONS] UID
+$ d2w metadata categories rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6017,14 +6017,14 @@ $ dhis2 metadata categories rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata categories add-option`
+#### `d2w metadata categories add-option`
 
 Append a CategoryOption to this Category&#x27;s ordered membership.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata categories add-option [OPTIONS] UID OPTION_UID
+$ d2w metadata categories add-option [OPTIONS] UID OPTION_UID
 ```
 
 **Arguments**:
@@ -6036,14 +6036,14 @@ $ dhis2 metadata categories add-option [OPTIONS] UID OPTION_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata categories remove-option`
+#### `d2w metadata categories remove-option`
 
 Remove a CategoryOption from this Category&#x27;s membership.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata categories remove-option [OPTIONS] UID OPTION_UID
+$ d2w metadata categories remove-option [OPTIONS] UID OPTION_UID
 ```
 
 **Arguments**:
@@ -6055,14 +6055,14 @@ $ dhis2 metadata categories remove-option [OPTIONS] UID OPTION_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata categories delete`
+#### `d2w metadata categories delete`
 
 Delete a Category — DHIS2 rejects deletes on categories referenced by a CategoryCombo.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata categories delete [OPTIONS] UID
+$ d2w metadata categories delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6074,14 +6074,14 @@ $ dhis2 metadata categories delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata category-combos`
+### `d2w metadata category-combos`
 
 CategoryCombo authoring (get / create / rename / add-category / remove-category / wait-for-cocs / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-combos [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata category-combos [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -6099,14 +6099,14 @@ $ dhis2 metadata category-combos [OPTIONS] COMMAND [ARGS]...
 * `delete`: Delete a CategoryCombo — DHIS2 rejects the...
 * `build`: One-pass create-or-reuse for the full...
 
-#### `dhis2 metadata category-combos get`
+#### `d2w metadata category-combos get`
 
 Show one CategoryCombo with its category + COC refs inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-combos get [OPTIONS] UID
+$ d2w metadata category-combos get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6117,14 +6117,14 @@ $ dhis2 metadata category-combos get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-combos create`
+#### `d2w metadata category-combos create`
 
 Create a CategoryCombo with an ordered list of Category UIDs.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-combos create [OPTIONS]
+$ d2w metadata category-combos create [OPTIONS]
 ```
 
 **Options**:
@@ -6137,14 +6137,14 @@ $ dhis2 metadata category-combos create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-combos rename`
+#### `d2w metadata category-combos rename`
 
 Partial-update label fields on a CategoryCombo.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-combos rename [OPTIONS] UID
+$ d2w metadata category-combos rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6157,7 +6157,7 @@ $ dhis2 metadata category-combos rename [OPTIONS] UID
 * `--code TEXT`: New code.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-combos add-category`
+#### `d2w metadata category-combos add-category`
 
 Append a Category to this combo&#x27;s ordered membership.
 
@@ -6167,7 +6167,7 @@ DHIS2 regenerates the COC matrix server-side. Re-fetch the combo + use
 **Usage**:
 
 ```console
-$ dhis2 metadata category-combos add-category [OPTIONS] UID CATEGORY_UID
+$ d2w metadata category-combos add-category [OPTIONS] UID CATEGORY_UID
 ```
 
 **Arguments**:
@@ -6179,14 +6179,14 @@ $ dhis2 metadata category-combos add-category [OPTIONS] UID CATEGORY_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-combos remove-category`
+#### `d2w metadata category-combos remove-category`
 
 Remove a Category from this combo&#x27;s membership.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-combos remove-category [OPTIONS] UID CATEGORY_UID
+$ d2w metadata category-combos remove-category [OPTIONS] UID CATEGORY_UID
 ```
 
 **Arguments**:
@@ -6198,7 +6198,7 @@ $ dhis2 metadata category-combos remove-category [OPTIONS] UID CATEGORY_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-combos wait-for-cocs`
+#### `d2w metadata category-combos wait-for-cocs`
 
 Block until the COC matrix on this combo reaches `--expected`.
 
@@ -6209,7 +6209,7 @@ next step depends on the matrix being ready.
 **Usage**:
 
 ```console
-$ dhis2 metadata category-combos wait-for-cocs [OPTIONS] UID
+$ d2w metadata category-combos wait-for-cocs [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6223,14 +6223,14 @@ $ dhis2 metadata category-combos wait-for-cocs [OPTIONS] UID
 * `--poll FLOAT`: Seconds between polls (default 1).  [default: 1.0]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-combos delete`
+#### `d2w metadata category-combos delete`
 
 Delete a CategoryCombo — DHIS2 rejects the default combo + combos in use.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-combos delete [OPTIONS] UID
+$ d2w metadata category-combos delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6242,7 +6242,7 @@ $ dhis2 metadata category-combos delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-combos build`
+#### `d2w metadata category-combos build`
 
 One-pass create-or-reuse for the full Category dimension stack.
 
@@ -6258,7 +6258,7 @@ Existing entries are reused; only missing entries get created.
 **Usage**:
 
 ```console
-$ dhis2 metadata category-combos build [OPTIONS]
+$ d2w metadata category-combos build [OPTIONS]
 ```
 
 **Options**:
@@ -6268,14 +6268,14 @@ $ dhis2 metadata category-combos build [OPTIONS]
 * `--poll FLOAT`: Seconds between matrix polls (default 1).  [default: 1.0]
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata category-option-combos`
+### `d2w metadata category-option-combos`
 
 CategoryOptionCombo read access (get / list-for-combo). DHIS2 owns writes.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-combos [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata category-option-combos [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -6287,14 +6287,14 @@ $ dhis2 metadata category-option-combos [OPTIONS] COMMAND [ARGS]...
 * `get`: Show one CategoryOptionCombo with its...
 * `list-for-combo`: List every CategoryOptionCombo...
 
-#### `dhis2 metadata category-option-combos get`
+#### `d2w metadata category-option-combos get`
 
 Show one CategoryOptionCombo with its parent combo + option refs.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-combos get [OPTIONS] UID
+$ d2w metadata category-option-combos get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6305,14 +6305,14 @@ $ dhis2 metadata category-option-combos get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata category-option-combos list-for-combo`
+#### `d2w metadata category-option-combos list-for-combo`
 
 List every CategoryOptionCombo materialised by one CategoryCombo.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata category-option-combos list-for-combo [OPTIONS] COMBO_UID
+$ d2w metadata category-option-combos list-for-combo [OPTIONS] COMBO_UID
 ```
 
 **Arguments**:
@@ -6323,14 +6323,14 @@ $ dhis2 metadata category-option-combos list-for-combo [OPTIONS] COMBO_UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata data-sets`
+### `d2w metadata data-sets`
 
 DataSet authoring (get / create / rename / add-element / remove-element / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-sets [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata data-sets [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -6346,14 +6346,14 @@ $ dhis2 metadata data-sets [OPTIONS] COMMAND [ARGS]...
 * `remove-element`: Detach a DataElement from the DataSet.
 * `delete`: Delete a DataSet — DHIS2 rejects deletes...
 
-#### `dhis2 metadata data-sets get`
+#### `d2w metadata data-sets get`
 
 Show one DataSet with its DSE + section + OU counts inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-sets get [OPTIONS] UID
+$ d2w metadata data-sets get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6364,14 +6364,14 @@ $ dhis2 metadata data-sets get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-sets create`
+#### `d2w metadata data-sets create`
 
 Create a DataSet.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-sets create [OPTIONS]
+$ d2w metadata data-sets create [OPTIONS]
 ```
 
 **Options**:
@@ -6389,14 +6389,14 @@ $ dhis2 metadata data-sets create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-sets rename`
+#### `d2w metadata data-sets rename`
 
 Partial-update the label fields on a DataSet.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-sets rename [OPTIONS] UID
+$ d2w metadata data-sets rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6411,14 +6411,14 @@ $ dhis2 metadata data-sets rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-sets add-element`
+#### `d2w metadata data-sets add-element`
 
 Attach a DataElement to the DataSet (optionally with a per-set CategoryCombo override).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-sets add-element [OPTIONS] DATA_SET_UID DATA_ELEMENT_UID
+$ d2w metadata data-sets add-element [OPTIONS] DATA_SET_UID DATA_ELEMENT_UID
 ```
 
 **Arguments**:
@@ -6431,14 +6431,14 @@ $ dhis2 metadata data-sets add-element [OPTIONS] DATA_SET_UID DATA_ELEMENT_UID
 * `-cc, --category-combo TEXT`: CategoryCombo UID override for this DSE.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-sets remove-element`
+#### `d2w metadata data-sets remove-element`
 
 Detach a DataElement from the DataSet.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-sets remove-element [OPTIONS] DATA_SET_UID DATA_ELEMENT_UID
+$ d2w metadata data-sets remove-element [OPTIONS] DATA_SET_UID DATA_ELEMENT_UID
 ```
 
 **Arguments**:
@@ -6450,14 +6450,14 @@ $ dhis2 metadata data-sets remove-element [OPTIONS] DATA_SET_UID DATA_ELEMENT_UI
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata data-sets delete`
+#### `d2w metadata data-sets delete`
 
 Delete a DataSet — DHIS2 rejects deletes on DataSets with saved values.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata data-sets delete [OPTIONS] UID
+$ d2w metadata data-sets delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6469,14 +6469,14 @@ $ dhis2 metadata data-sets delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata sections`
+### `d2w metadata sections`
 
 Section authoring (get / create / rename / add-element / remove-element / reorder / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sections [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata sections [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -6493,14 +6493,14 @@ $ dhis2 metadata sections [OPTIONS] COMMAND [ARGS]...
 * `reorder`: Replace the Section&#x27;s `dataElements` with...
 * `delete`: Delete a Section — DEs stay on the parent...
 
-#### `dhis2 metadata sections get`
+#### `d2w metadata sections get`
 
 Show one Section with its ordered DE list inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sections get [OPTIONS] UID
+$ d2w metadata sections get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6511,14 +6511,14 @@ $ dhis2 metadata sections get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sections create`
+#### `d2w metadata sections create`
 
 Create a Section attached to a DataSet. Repeat `--data-element` to seed the ordered DE list.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sections create [OPTIONS]
+$ d2w metadata sections create [OPTIONS]
 ```
 
 **Options**:
@@ -6535,14 +6535,14 @@ $ dhis2 metadata sections create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sections rename`
+#### `d2w metadata sections rename`
 
 Partial-update the label / sort-order fields on a Section.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sections rename [OPTIONS] UID
+$ d2w metadata sections rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6556,14 +6556,14 @@ $ dhis2 metadata sections rename [OPTIONS] UID
 * `--sort-order INTEGER`: New sort order.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sections add-element`
+#### `d2w metadata sections add-element`
 
 Append (or insert at `--position`) a DataElement to the Section.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sections add-element [OPTIONS] SECTION_UID DATA_ELEMENT_UID
+$ d2w metadata sections add-element [OPTIONS] SECTION_UID DATA_ELEMENT_UID
 ```
 
 **Arguments**:
@@ -6576,14 +6576,14 @@ $ dhis2 metadata sections add-element [OPTIONS] SECTION_UID DATA_ELEMENT_UID
 * `--position INTEGER`: 0-indexed insertion position. Omit to append.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sections remove-element`
+#### `d2w metadata sections remove-element`
 
 Remove a DataElement from the Section (stays on the parent DataSet).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sections remove-element [OPTIONS] SECTION_UID DATA_ELEMENT_UID
+$ d2w metadata sections remove-element [OPTIONS] SECTION_UID DATA_ELEMENT_UID
 ```
 
 **Arguments**:
@@ -6595,14 +6595,14 @@ $ dhis2 metadata sections remove-element [OPTIONS] SECTION_UID DATA_ELEMENT_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sections reorder`
+#### `d2w metadata sections reorder`
 
 Replace the Section&#x27;s `dataElements` with exactly the given UIDs in order.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sections reorder [OPTIONS] SECTION_UID DATA_ELEMENT_UIDS...
+$ d2w metadata sections reorder [OPTIONS] SECTION_UID DATA_ELEMENT_UIDS...
 ```
 
 **Arguments**:
@@ -6614,14 +6614,14 @@ $ dhis2 metadata sections reorder [OPTIONS] SECTION_UID DATA_ELEMENT_UIDS...
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata sections delete`
+#### `d2w metadata sections delete`
 
 Delete a Section — DEs stay on the parent DataSet.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata sections delete [OPTIONS] UID
+$ d2w metadata sections delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6633,14 +6633,14 @@ $ dhis2 metadata sections delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata validation-rules`
+### `d2w metadata validation-rules`
 
 ValidationRule authoring (get / create / rename / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rules [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata validation-rules [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -6654,14 +6654,14 @@ $ dhis2 metadata validation-rules [OPTIONS] COMMAND [ARGS]...
 * `rename`: Partial-update the label fields on a...
 * `delete`: Delete a ValidationRule — any outstanding...
 
-#### `dhis2 metadata validation-rules get`
+#### `d2w metadata validation-rules get`
 
 Show one ValidationRule with both expression sides inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rules get [OPTIONS] UID
+$ d2w metadata validation-rules get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6672,14 +6672,14 @@ $ dhis2 metadata validation-rules get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata validation-rules create`
+#### `d2w metadata validation-rules create`
 
 Create a ValidationRule.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rules create [OPTIONS]
+$ d2w metadata validation-rules create [OPTIONS]
 ```
 
 **Options**:
@@ -6698,14 +6698,14 @@ $ dhis2 metadata validation-rules create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata validation-rules rename`
+#### `d2w metadata validation-rules rename`
 
 Partial-update the label fields on a ValidationRule.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rules rename [OPTIONS] UID
+$ d2w metadata validation-rules rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6719,14 +6719,14 @@ $ dhis2 metadata validation-rules rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata validation-rules delete`
+#### `d2w metadata validation-rules delete`
 
 Delete a ValidationRule — any outstanding results are purged.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rules delete [OPTIONS] UID
+$ d2w metadata validation-rules delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6738,14 +6738,14 @@ $ dhis2 metadata validation-rules delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata validation-rule-groups`
+### `d2w metadata validation-rule-groups`
 
 ValidationRuleGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rule-groups [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata validation-rule-groups [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -6761,14 +6761,14 @@ $ dhis2 metadata validation-rule-groups [OPTIONS] COMMAND [ARGS]...
 * `remove-members`: Detach ValidationRules from a group.
 * `delete`: Delete a ValidationRuleGroup — member...
 
-#### `dhis2 metadata validation-rule-groups get`
+#### `d2w metadata validation-rule-groups get`
 
 Show one group with its rule refs.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rule-groups get [OPTIONS] UID
+$ d2w metadata validation-rule-groups get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6779,14 +6779,14 @@ $ dhis2 metadata validation-rule-groups get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata validation-rule-groups members`
+#### `d2w metadata validation-rule-groups members`
 
 Page through ValidationRules inside a group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rule-groups members [OPTIONS] UID
+$ d2w metadata validation-rule-groups members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6799,14 +6799,14 @@ $ dhis2 metadata validation-rule-groups members [OPTIONS] UID
 * `--page-size INTEGER`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata validation-rule-groups create`
+#### `d2w metadata validation-rule-groups create`
 
 Create an empty ValidationRuleGroup.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rule-groups create [OPTIONS]
+$ d2w metadata validation-rule-groups create [OPTIONS]
 ```
 
 **Options**:
@@ -6818,14 +6818,14 @@ $ dhis2 metadata validation-rule-groups create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata validation-rule-groups add-members`
+#### `d2w metadata validation-rule-groups add-members`
 
 Attach ValidationRules to a group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rule-groups add-members [OPTIONS] UID
+$ d2w metadata validation-rule-groups add-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6837,14 +6837,14 @@ $ dhis2 metadata validation-rule-groups add-members [OPTIONS] UID
 * `-r, --rule TEXT`: ValidationRule UID (repeatable).  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata validation-rule-groups remove-members`
+#### `d2w metadata validation-rule-groups remove-members`
 
 Detach ValidationRules from a group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rule-groups remove-members [OPTIONS] UID
+$ d2w metadata validation-rule-groups remove-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6856,14 +6856,14 @@ $ dhis2 metadata validation-rule-groups remove-members [OPTIONS] UID
 * `-r, --rule TEXT`: ValidationRule UID (repeatable).  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata validation-rule-groups delete`
+#### `d2w metadata validation-rule-groups delete`
 
 Delete a ValidationRuleGroup — member rules stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata validation-rule-groups delete [OPTIONS] UID
+$ d2w metadata validation-rule-groups delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6875,14 +6875,14 @@ $ dhis2 metadata validation-rule-groups delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata predictors`
+### `d2w metadata predictors`
 
 Predictor authoring (get / create / rename / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictors [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata predictors [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -6896,14 +6896,14 @@ $ dhis2 metadata predictors [OPTIONS] COMMAND [ARGS]...
 * `rename`: Partial-update the label fields on a...
 * `delete`: Delete a Predictor.
 
-#### `dhis2 metadata predictors get`
+#### `d2w metadata predictors get`
 
 Show one Predictor with generator + output inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictors get [OPTIONS] UID
+$ d2w metadata predictors get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6914,14 +6914,14 @@ $ dhis2 metadata predictors get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata predictors create`
+#### `d2w metadata predictors create`
 
 Create a Predictor.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictors create [OPTIONS]
+$ d2w metadata predictors create [OPTIONS]
 ```
 
 **Options**:
@@ -6940,14 +6940,14 @@ $ dhis2 metadata predictors create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata predictors rename`
+#### `d2w metadata predictors rename`
 
 Partial-update the label fields on a Predictor.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictors rename [OPTIONS] UID
+$ d2w metadata predictors rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6961,14 +6961,14 @@ $ dhis2 metadata predictors rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata predictors delete`
+#### `d2w metadata predictors delete`
 
 Delete a Predictor. DHIS2 keeps any data values it has already written.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictors delete [OPTIONS] UID
+$ d2w metadata predictors delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -6980,14 +6980,14 @@ $ dhis2 metadata predictors delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata predictor-groups`
+### `d2w metadata predictor-groups`
 
 PredictorGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictor-groups [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata predictor-groups [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -7003,14 +7003,14 @@ $ dhis2 metadata predictor-groups [OPTIONS] COMMAND [ARGS]...
 * `remove-members`: Detach Predictors from a group.
 * `delete`: Delete a PredictorGroup — member...
 
-#### `dhis2 metadata predictor-groups get`
+#### `d2w metadata predictor-groups get`
 
 Show one group with its predictor refs.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictor-groups get [OPTIONS] UID
+$ d2w metadata predictor-groups get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7021,14 +7021,14 @@ $ dhis2 metadata predictor-groups get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata predictor-groups members`
+#### `d2w metadata predictor-groups members`
 
 Page through Predictors in a group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictor-groups members [OPTIONS] UID
+$ d2w metadata predictor-groups members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7041,14 +7041,14 @@ $ dhis2 metadata predictor-groups members [OPTIONS] UID
 * `--page-size INTEGER`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata predictor-groups create`
+#### `d2w metadata predictor-groups create`
 
 Create an empty PredictorGroup.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictor-groups create [OPTIONS]
+$ d2w metadata predictor-groups create [OPTIONS]
 ```
 
 **Options**:
@@ -7060,14 +7060,14 @@ $ dhis2 metadata predictor-groups create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata predictor-groups add-members`
+#### `d2w metadata predictor-groups add-members`
 
 Attach Predictors to a group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictor-groups add-members [OPTIONS] UID
+$ d2w metadata predictor-groups add-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7079,14 +7079,14 @@ $ dhis2 metadata predictor-groups add-members [OPTIONS] UID
 * `-p, --predictor TEXT`: Predictor UID (repeatable).  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata predictor-groups remove-members`
+#### `d2w metadata predictor-groups remove-members`
 
 Detach Predictors from a group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictor-groups remove-members [OPTIONS] UID
+$ d2w metadata predictor-groups remove-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7098,14 +7098,14 @@ $ dhis2 metadata predictor-groups remove-members [OPTIONS] UID
 * `-p, --predictor TEXT`: Predictor UID (repeatable).  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata predictor-groups delete`
+#### `d2w metadata predictor-groups delete`
 
 Delete a PredictorGroup — member predictors stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata predictor-groups delete [OPTIONS] UID
+$ d2w metadata predictor-groups delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7117,14 +7117,14 @@ $ dhis2 metadata predictor-groups delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata tracked-entity-attributes`
+### `d2w metadata tracked-entity-attributes`
 
 TrackedEntityAttribute authoring (get / create / rename / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-attributes [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata tracked-entity-attributes [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -7138,14 +7138,14 @@ $ dhis2 metadata tracked-entity-attributes [OPTIONS] COMMAND [ARGS]...
 * `rename`: Partial-update the label fields on a...
 * `delete`: Delete a TrackedEntityAttribute — DHIS2...
 
-#### `dhis2 metadata tracked-entity-attributes get`
+#### `d2w metadata tracked-entity-attributes get`
 
 Show one TrackedEntityAttribute with its toggles inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-attributes get [OPTIONS] UID
+$ d2w metadata tracked-entity-attributes get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7156,14 +7156,14 @@ $ dhis2 metadata tracked-entity-attributes get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata tracked-entity-attributes create`
+#### `d2w metadata tracked-entity-attributes create`
 
 Create a TrackedEntityAttribute.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-attributes create [OPTIONS]
+$ d2w metadata tracked-entity-attributes create [OPTIONS]
 ```
 
 **Options**:
@@ -7188,14 +7188,14 @@ $ dhis2 metadata tracked-entity-attributes create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata tracked-entity-attributes rename`
+#### `d2w metadata tracked-entity-attributes rename`
 
 Partial-update the label fields on a TrackedEntityAttribute.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-attributes rename [OPTIONS] UID
+$ d2w metadata tracked-entity-attributes rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7210,14 +7210,14 @@ $ dhis2 metadata tracked-entity-attributes rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata tracked-entity-attributes delete`
+#### `d2w metadata tracked-entity-attributes delete`
 
 Delete a TrackedEntityAttribute — DHIS2 rejects deletes on TEAs wired into a TET or program.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-attributes delete [OPTIONS] UID
+$ d2w metadata tracked-entity-attributes delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7229,14 +7229,14 @@ $ dhis2 metadata tracked-entity-attributes delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata tracked-entity-types`
+### `d2w metadata tracked-entity-types`
 
 TrackedEntityType authoring (get / create / rename / add-attribute / remove-attribute / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-types [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata tracked-entity-types [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -7252,14 +7252,14 @@ $ dhis2 metadata tracked-entity-types [OPTIONS] COMMAND [ARGS]...
 * `remove-attribute`: Detach a TrackedEntityAttribute from a...
 * `delete`: Delete a TrackedEntityType — DHIS2 rejects...
 
-#### `dhis2 metadata tracked-entity-types get`
+#### `d2w metadata tracked-entity-types get`
 
 Show one TrackedEntityType with its attribute link-table counts.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-types get [OPTIONS] UID
+$ d2w metadata tracked-entity-types get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7270,14 +7270,14 @@ $ dhis2 metadata tracked-entity-types get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata tracked-entity-types create`
+#### `d2w metadata tracked-entity-types create`
 
 Create a TrackedEntityType.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-types create [OPTIONS]
+$ d2w metadata tracked-entity-types create [OPTIONS]
 ```
 
 **Options**:
@@ -7294,14 +7294,14 @@ $ dhis2 metadata tracked-entity-types create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata tracked-entity-types rename`
+#### `d2w metadata tracked-entity-types rename`
 
 Partial-update the label fields on a TrackedEntityType.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-types rename [OPTIONS] UID
+$ d2w metadata tracked-entity-types rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7316,14 +7316,14 @@ $ dhis2 metadata tracked-entity-types rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata tracked-entity-types add-attribute`
+#### `d2w metadata tracked-entity-types add-attribute`
 
 Attach a TrackedEntityAttribute to a TrackedEntityType.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-types add-attribute [OPTIONS] TET_UID ATTRIBUTE_UID
+$ d2w metadata tracked-entity-types add-attribute [OPTIONS] TET_UID ATTRIBUTE_UID
 ```
 
 **Arguments**:
@@ -7338,14 +7338,14 @@ $ dhis2 metadata tracked-entity-types add-attribute [OPTIONS] TET_UID ATTRIBUTE_
 * `--display-in-list / --no-display-in-list`: Show in the enrolled-TEI list.  [default: display-in-list]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata tracked-entity-types remove-attribute`
+#### `d2w metadata tracked-entity-types remove-attribute`
 
 Detach a TrackedEntityAttribute from a TrackedEntityType.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-types remove-attribute [OPTIONS] TET_UID ATTRIBUTE_UID
+$ d2w metadata tracked-entity-types remove-attribute [OPTIONS] TET_UID ATTRIBUTE_UID
 ```
 
 **Arguments**:
@@ -7357,14 +7357,14 @@ $ dhis2 metadata tracked-entity-types remove-attribute [OPTIONS] TET_UID ATTRIBU
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata tracked-entity-types delete`
+#### `d2w metadata tracked-entity-types delete`
 
 Delete a TrackedEntityType — DHIS2 rejects deletes on TETs in use by enrolled TEIs.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata tracked-entity-types delete [OPTIONS] UID
+$ d2w metadata tracked-entity-types delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7376,14 +7376,14 @@ $ dhis2 metadata tracked-entity-types delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata programs`
+### `d2w metadata programs`
 
 Program authoring (get / create / rename / add-attribute / remove-attribute / add-to-ou / remove-from-ou / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata programs [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata programs [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -7401,14 +7401,14 @@ $ dhis2 metadata programs [OPTIONS] COMMAND [ARGS]...
 * `remove-from-ou`: Drop an OrganisationUnit from the...
 * `delete`: Delete a Program — DHIS2 rejects deletes...
 
-#### `dhis2 metadata programs get`
+#### `d2w metadata programs get`
 
 Show one Program with counts inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata programs get [OPTIONS] UID
+$ d2w metadata programs get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7419,14 +7419,14 @@ $ dhis2 metadata programs get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata programs create`
+#### `d2w metadata programs create`
 
 Create a Program. `--program-type WITH_REGISTRATION` requires `--tracked-entity-type`.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata programs create [OPTIONS]
+$ d2w metadata programs create [OPTIONS]
 ```
 
 **Options**:
@@ -7451,14 +7451,14 @@ $ dhis2 metadata programs create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata programs rename`
+#### `d2w metadata programs rename`
 
 Partial-update the label fields on a Program.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata programs rename [OPTIONS] UID
+$ d2w metadata programs rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7473,14 +7473,14 @@ $ dhis2 metadata programs rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata programs add-attribute`
+#### `d2w metadata programs add-attribute`
 
 Attach a TrackedEntityAttribute to the Program&#x27;s enrollment form.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata programs add-attribute [OPTIONS] PROGRAM_UID ATTRIBUTE_UID
+$ d2w metadata programs add-attribute [OPTIONS] PROGRAM_UID ATTRIBUTE_UID
 ```
 
 **Arguments**:
@@ -7498,14 +7498,14 @@ $ dhis2 metadata programs add-attribute [OPTIONS] PROGRAM_UID ATTRIBUTE_UID
 * `--render-options-as-radio / --no-render-options-as-radio`: Render option-set choices as radios instead of a dropdown.  [default: no-render-options-as-radio]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata programs remove-attribute`
+#### `d2w metadata programs remove-attribute`
 
 Detach a TrackedEntityAttribute from the Program&#x27;s enrollment form.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata programs remove-attribute [OPTIONS] PROGRAM_UID ATTRIBUTE_UID
+$ d2w metadata programs remove-attribute [OPTIONS] PROGRAM_UID ATTRIBUTE_UID
 ```
 
 **Arguments**:
@@ -7517,14 +7517,14 @@ $ dhis2 metadata programs remove-attribute [OPTIONS] PROGRAM_UID ATTRIBUTE_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata programs add-to-ou`
+#### `d2w metadata programs add-to-ou`
 
 Scope the Program to another OrganisationUnit.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata programs add-to-ou [OPTIONS] PROGRAM_UID ORGANISATION_UNIT_UID
+$ d2w metadata programs add-to-ou [OPTIONS] PROGRAM_UID ORGANISATION_UNIT_UID
 ```
 
 **Arguments**:
@@ -7536,14 +7536,14 @@ $ dhis2 metadata programs add-to-ou [OPTIONS] PROGRAM_UID ORGANISATION_UNIT_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata programs remove-from-ou`
+#### `d2w metadata programs remove-from-ou`
 
 Drop an OrganisationUnit from the Program&#x27;s scope.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata programs remove-from-ou [OPTIONS] PROGRAM_UID ORGANISATION_UNIT_UID
+$ d2w metadata programs remove-from-ou [OPTIONS] PROGRAM_UID ORGANISATION_UNIT_UID
 ```
 
 **Arguments**:
@@ -7555,14 +7555,14 @@ $ dhis2 metadata programs remove-from-ou [OPTIONS] PROGRAM_UID ORGANISATION_UNIT
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata programs delete`
+#### `d2w metadata programs delete`
 
 Delete a Program — DHIS2 rejects deletes on programs with enrollments or events.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata programs delete [OPTIONS] UID
+$ d2w metadata programs delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7574,14 +7574,14 @@ $ dhis2 metadata programs delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata program-stages`
+### `d2w metadata program-stages`
 
 ProgramStage authoring (get / create / rename / add-element / remove-element / reorder / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-stages [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata program-stages [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -7598,14 +7598,14 @@ $ dhis2 metadata program-stages [OPTIONS] COMMAND [ARGS]...
 * `reorder`: Replace the ProgramStage&#x27;s PSDE list with...
 * `delete`: Delete a ProgramStage — DHIS2 rejects...
 
-#### `dhis2 metadata program-stages get`
+#### `d2w metadata program-stages get`
 
 Show one ProgramStage with its PSDE list summary inline.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-stages get [OPTIONS] UID
+$ d2w metadata program-stages get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7616,14 +7616,14 @@ $ dhis2 metadata program-stages get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-stages create`
+#### `d2w metadata program-stages create`
 
 Create a ProgramStage under `--program`.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-stages create [OPTIONS]
+$ d2w metadata program-stages create [OPTIONS]
 ```
 
 **Options**:
@@ -7645,14 +7645,14 @@ $ dhis2 metadata program-stages create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-stages rename`
+#### `d2w metadata program-stages rename`
 
 Partial-update the label fields on a ProgramStage.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-stages rename [OPTIONS] UID
+$ d2w metadata program-stages rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7667,14 +7667,14 @@ $ dhis2 metadata program-stages rename [OPTIONS] UID
 * `--description TEXT`: New description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-stages add-element`
+#### `d2w metadata program-stages add-element`
 
 Attach a DataElement to the ProgramStage.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-stages add-element [OPTIONS] STAGE_UID DATA_ELEMENT_UID
+$ d2w metadata program-stages add-element [OPTIONS] STAGE_UID DATA_ELEMENT_UID
 ```
 
 **Arguments**:
@@ -7692,14 +7692,14 @@ $ dhis2 metadata program-stages add-element [OPTIONS] STAGE_UID DATA_ELEMENT_UID
 * `--sort-order INTEGER`: Position inside the stage data-entry form.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-stages remove-element`
+#### `d2w metadata program-stages remove-element`
 
 Detach a DataElement from the ProgramStage.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-stages remove-element [OPTIONS] STAGE_UID DATA_ELEMENT_UID
+$ d2w metadata program-stages remove-element [OPTIONS] STAGE_UID DATA_ELEMENT_UID
 ```
 
 **Arguments**:
@@ -7711,14 +7711,14 @@ $ dhis2 metadata program-stages remove-element [OPTIONS] STAGE_UID DATA_ELEMENT_
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-stages reorder`
+#### `d2w metadata program-stages reorder`
 
 Replace the ProgramStage&#x27;s PSDE list with exactly the given DE UIDs in order.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-stages reorder [OPTIONS] STAGE_UID DATA_ELEMENT_UIDS...
+$ d2w metadata program-stages reorder [OPTIONS] STAGE_UID DATA_ELEMENT_UIDS...
 ```
 
 **Arguments**:
@@ -7730,14 +7730,14 @@ $ dhis2 metadata program-stages reorder [OPTIONS] STAGE_UID DATA_ELEMENT_UIDS...
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata program-stages delete`
+#### `d2w metadata program-stages delete`
 
 Delete a ProgramStage — DHIS2 rejects deletes on stages with recorded events.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata program-stages delete [OPTIONS] UID
+$ d2w metadata program-stages delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7749,14 +7749,14 @@ $ dhis2 metadata program-stages delete [OPTIONS] UID
 * `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata organisation-units`
+### `d2w metadata organisation-units`
 
 OrganisationUnit hierarchy workflows (get / tree / create / move / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-units [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata organisation-units [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -7771,14 +7771,14 @@ $ dhis2 metadata organisation-units [OPTIONS] COMMAND [ARGS]...
 * `move`: Reparent an OU.
 * `delete`: Delete an OU.
 
-#### `dhis2 metadata organisation-units get`
+#### `d2w metadata organisation-units get`
 
 Show one OU with parent + core hierarchy fields.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-units get [OPTIONS] UID
+$ d2w metadata organisation-units get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7789,14 +7789,14 @@ $ dhis2 metadata organisation-units get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-units tree`
+#### `d2w metadata organisation-units tree`
 
 Render a bounded-depth subtree indented by hierarchy level.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-units tree [OPTIONS] ROOT_UID
+$ d2w metadata organisation-units tree [OPTIONS] ROOT_UID
 ```
 
 **Arguments**:
@@ -7808,14 +7808,14 @@ $ dhis2 metadata organisation-units tree [OPTIONS] ROOT_UID
 * `--max-depth INTEGER`: Depth of descendants to include (0 = just the root).  [default: 3]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-units create`
+#### `d2w metadata organisation-units create`
 
 Create a child OU under `parent_uid`.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-units create [OPTIONS] PARENT_UID
+$ d2w metadata organisation-units create [OPTIONS] PARENT_UID
 ```
 
 **Arguments**:
@@ -7832,14 +7832,14 @@ $ dhis2 metadata organisation-units create [OPTIONS] PARENT_UID
 * `--description TEXT`: Free-text description.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-units move`
+#### `d2w metadata organisation-units move`
 
 Reparent an OU. DHIS2 recomputes `path` + `hierarchyLevel`.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-units move [OPTIONS] UID NEW_PARENT_UID
+$ d2w metadata organisation-units move [OPTIONS] UID NEW_PARENT_UID
 ```
 
 **Arguments**:
@@ -7851,14 +7851,14 @@ $ dhis2 metadata organisation-units move [OPTIONS] UID NEW_PARENT_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-units delete`
+#### `d2w metadata organisation-units delete`
 
 Delete an OU. DHIS2 rejects deletes on units with children or data.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-units delete [OPTIONS] UID
+$ d2w metadata organisation-units delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7870,14 +7870,14 @@ $ dhis2 metadata organisation-units delete [OPTIONS] UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata organisation-unit-groups`
+### `d2w metadata organisation-unit-groups`
 
 OrganisationUnitGroup workflows (get / members / create / add-members / remove-members / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-groups [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata organisation-unit-groups [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -7893,14 +7893,14 @@ $ dhis2 metadata organisation-unit-groups [OPTIONS] COMMAND [ARGS]...
 * `remove-members`: Drop `--ou` members from a group via the...
 * `delete`: Delete an OrganisationUnitGroup — members...
 
-#### `dhis2 metadata organisation-unit-groups get`
+#### `d2w metadata organisation-unit-groups get`
 
 Show one group with its member refs and the group-sets it belongs to.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-groups get [OPTIONS] UID
+$ d2w metadata organisation-unit-groups get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7911,14 +7911,14 @@ $ dhis2 metadata organisation-unit-groups get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-unit-groups members`
+#### `d2w metadata organisation-unit-groups members`
 
 Page through the OUs inside one group.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-groups members [OPTIONS] UID
+$ d2w metadata organisation-unit-groups members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7931,14 +7931,14 @@ $ dhis2 metadata organisation-unit-groups members [OPTIONS] UID
 * `--page-size INTEGER`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-unit-groups create`
+#### `d2w metadata organisation-unit-groups create`
 
 Create an empty OrganisationUnitGroup.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-groups create [OPTIONS]
+$ d2w metadata organisation-unit-groups create [OPTIONS]
 ```
 
 **Options**:
@@ -7951,14 +7951,14 @@ $ dhis2 metadata organisation-unit-groups create [OPTIONS]
 * `--color TEXT`: Hex colour (#RRGGBB).
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-unit-groups add-members`
+#### `d2w metadata organisation-unit-groups add-members`
 
 Add `--ou` members to a group via the per-item POST shortcut.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-groups add-members [OPTIONS] UID
+$ d2w metadata organisation-unit-groups add-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7970,14 +7970,14 @@ $ dhis2 metadata organisation-unit-groups add-members [OPTIONS] UID
 * `--ou TEXT`: OU UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-unit-groups remove-members`
+#### `d2w metadata organisation-unit-groups remove-members`
 
 Drop `--ou` members from a group via the per-item DELETE shortcut.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-groups remove-members [OPTIONS] UID
+$ d2w metadata organisation-unit-groups remove-members [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -7989,14 +7989,14 @@ $ dhis2 metadata organisation-unit-groups remove-members [OPTIONS] UID
 * `--ou TEXT`: OU UID to remove. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-unit-groups delete`
+#### `d2w metadata organisation-unit-groups delete`
 
 Delete an OrganisationUnitGroup — members stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-groups delete [OPTIONS] UID
+$ d2w metadata organisation-unit-groups delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -8008,14 +8008,14 @@ $ dhis2 metadata organisation-unit-groups delete [OPTIONS] UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata organisation-unit-group-sets`
+### `d2w metadata organisation-unit-group-sets`
 
 OrganisationUnitGroupSet workflows (get / create / add-groups / remove-groups / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-group-sets [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata organisation-unit-group-sets [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -8030,14 +8030,14 @@ $ dhis2 metadata organisation-unit-group-sets [OPTIONS] COMMAND [ARGS]...
 * `remove-groups`: Drop `--group` members from a group set.
 * `delete`: Delete an OrganisationUnitGroupSet —...
 
-#### `dhis2 metadata organisation-unit-group-sets get`
+#### `d2w metadata organisation-unit-group-sets get`
 
 Show one group set with its groups + per-group member counts.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-group-sets get [OPTIONS] UID
+$ d2w metadata organisation-unit-group-sets get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -8048,14 +8048,14 @@ $ dhis2 metadata organisation-unit-group-sets get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-unit-group-sets create`
+#### `d2w metadata organisation-unit-group-sets create`
 
 Create an empty OrganisationUnitGroupSet.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-group-sets create [OPTIONS]
+$ d2w metadata organisation-unit-group-sets create [OPTIONS]
 ```
 
 **Options**:
@@ -8069,14 +8069,14 @@ $ dhis2 metadata organisation-unit-group-sets create [OPTIONS]
 * `--data-dimension / --no-data-dimension`: Expose as a pivot/visualisation axis.  [default: data-dimension]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-unit-group-sets add-groups`
+#### `d2w metadata organisation-unit-group-sets add-groups`
 
 Add `--group` members to a group set.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-group-sets add-groups [OPTIONS] UID
+$ d2w metadata organisation-unit-group-sets add-groups [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -8088,14 +8088,14 @@ $ dhis2 metadata organisation-unit-group-sets add-groups [OPTIONS] UID
 * `--group TEXT`: OrganisationUnitGroup UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-unit-group-sets remove-groups`
+#### `d2w metadata organisation-unit-group-sets remove-groups`
 
 Drop `--group` members from a group set.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-group-sets remove-groups [OPTIONS] UID
+$ d2w metadata organisation-unit-group-sets remove-groups [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -8107,14 +8107,14 @@ $ dhis2 metadata organisation-unit-group-sets remove-groups [OPTIONS] UID
 * `--group TEXT`: OrganisationUnitGroup UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-unit-group-sets delete`
+#### `d2w metadata organisation-unit-group-sets delete`
 
 Delete an OrganisationUnitGroupSet — groups stay.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-group-sets delete [OPTIONS] UID
+$ d2w metadata organisation-unit-group-sets delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -8126,14 +8126,14 @@ $ dhis2 metadata organisation-unit-group-sets delete [OPTIONS] UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata organisation-unit-levels`
+### `d2w metadata organisation-unit-levels`
 
 OrganisationUnitLevel naming (get / rename).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-levels [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata organisation-unit-levels [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -8145,14 +8145,14 @@ $ dhis2 metadata organisation-unit-levels [OPTIONS] COMMAND [ARGS]...
 * `get`: Show one level row — by UID (default) or...
 * `rename`: Give a level a human label — turns &#x27;level...
 
-#### `dhis2 metadata organisation-unit-levels get`
+#### `d2w metadata organisation-unit-levels get`
 
 Show one level row — by UID (default) or by numeric depth.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-levels get [OPTIONS] UID
+$ d2w metadata organisation-unit-levels get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -8164,14 +8164,14 @@ $ dhis2 metadata organisation-unit-levels get [OPTIONS] UID
 * `--by-level`: Treat UID as the numeric level (1 = roots).
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata organisation-unit-levels rename`
+#### `d2w metadata organisation-unit-levels rename`
 
 Give a level a human label — turns &#x27;level 2&#x27; into &#x27;Province&#x27;.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata organisation-unit-levels rename [OPTIONS] UID
+$ d2w metadata organisation-unit-levels rename [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -8186,14 +8186,14 @@ $ dhis2 metadata organisation-unit-levels rename [OPTIONS] UID
 * `--offline-levels INTEGER`: How many levels to cache offline from this one.
 * `--help`: Show this message and exit.
 
-### `dhis2 metadata legend-sets`
+### `d2w metadata legend-sets`
 
 LegendSet authoring (get / create / clone / delete).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata legend-sets [OPTIONS] COMMAND [ARGS]...
+$ d2w metadata legend-sets [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -8207,14 +8207,14 @@ $ dhis2 metadata legend-sets [OPTIONS] COMMAND [ARGS]...
 * `clone`: Duplicate an existing LegendSet with the...
 * `delete`: Delete a LegendSet.
 
-#### `dhis2 metadata legend-sets get`
+#### `d2w metadata legend-sets get`
 
 Show one LegendSet with its ordered legends (colour ranges).
 
 **Usage**:
 
 ```console
-$ dhis2 metadata legend-sets get [OPTIONS] UID
+$ d2w metadata legend-sets get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -8225,7 +8225,7 @@ $ dhis2 metadata legend-sets get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata legend-sets create`
+#### `d2w metadata legend-sets create`
 
 Create a LegendSet with ordered colour-range legends.
 
@@ -8241,7 +8241,7 @@ computed fields are populated.
 **Usage**:
 
 ```console
-$ dhis2 metadata legend-sets create [OPTIONS]
+$ d2w metadata legend-sets create [OPTIONS]
 ```
 
 **Options**:
@@ -8252,7 +8252,7 @@ $ dhis2 metadata legend-sets create [OPTIONS]
 * `--uid TEXT`: Fixed 11-char UID. Omit to let the client generate one.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata legend-sets clone`
+#### `d2w metadata legend-sets clone`
 
 Duplicate an existing LegendSet with the same bands + fresh UIDs.
 
@@ -8262,7 +8262,7 @@ without rebuilding the bands by hand.
 **Usage**:
 
 ```console
-$ dhis2 metadata legend-sets clone [OPTIONS] SOURCE_UID
+$ d2w metadata legend-sets clone [OPTIONS] SOURCE_UID
 ```
 
 **Arguments**:
@@ -8276,14 +8276,14 @@ $ dhis2 metadata legend-sets clone [OPTIONS] SOURCE_UID
 * `--new-code TEXT`: Business code on the clone.
 * `--help`: Show this message and exit.
 
-#### `dhis2 metadata legend-sets delete`
+#### `d2w metadata legend-sets delete`
 
 Delete a LegendSet.
 
 **Usage**:
 
 ```console
-$ dhis2 metadata legend-sets delete [OPTIONS] UID
+$ d2w metadata legend-sets delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -8295,14 +8295,14 @@ $ dhis2 metadata legend-sets delete [OPTIONS] UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-## `dhis2 profile`
+## `d2w profile`
 
 Manage DHIS2 profiles.
 
 **Usage**:
 
 ```console
-$ dhis2 profile [OPTIONS] COMMAND [ARGS]...
+$ d2w profile [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -8326,14 +8326,14 @@ $ dhis2 profile [OPTIONS] COMMAND [ARGS]...
 * `pat`: Personal Access Tokens — provision PATs on...
 * `oauth2`: Manage DHIS2 OAuth2 clients on the server...
 
-### `dhis2 profile ls`
+### `d2w profile ls`
 
 List every known profile with its source and default status.
 
 **Usage**:
 
 ```console
-$ dhis2 profile ls [OPTIONS]
+$ d2w profile ls [OPTIONS]
 ```
 
 **Options**:
@@ -8341,14 +8341,14 @@ $ dhis2 profile ls [OPTIONS]
 * `-a, --all`: Include shadowed profiles (global entries hidden by project ones).
 * `--help`: Show this message and exit.
 
-### `dhis2 profile list`
+### `d2w profile list`
 
 List every known profile with its source and default status.
 
 **Usage**:
 
 ```console
-$ dhis2 profile list [OPTIONS]
+$ d2w profile list [OPTIONS]
 ```
 
 **Options**:
@@ -8356,14 +8356,14 @@ $ dhis2 profile list [OPTIONS]
 * `-a, --all`: Include shadowed profiles (global entries hidden by project ones).
 * `--help`: Show this message and exit.
 
-### `dhis2 profile verify`
+### `d2w profile verify`
 
 Verify one profile or all profiles by hitting /api/system/info + /api/me.
 
 **Usage**:
 
 ```console
-$ dhis2 profile verify [OPTIONS] [NAME]
+$ d2w profile verify [OPTIONS] [NAME]
 ```
 
 **Arguments**:
@@ -8374,14 +8374,14 @@ $ dhis2 profile verify [OPTIONS] [NAME]
 
 * `--help`: Show this message and exit.
 
-### `dhis2 profile show`
+### `d2w profile show`
 
 Print one profile (secrets redacted by default).
 
 **Usage**:
 
 ```console
-$ dhis2 profile show [OPTIONS] NAME
+$ d2w profile show [OPTIONS] NAME
 ```
 
 **Arguments**:
@@ -8393,7 +8393,7 @@ $ dhis2 profile show [OPTIONS] NAME
 * `--secrets`: Include sensitive values.
 * `--help`: Show this message and exit.
 
-### `dhis2 profile default`
+### `d2w profile default`
 
 Set `default = &lt;name&gt;` in the global (default) or project profiles.toml.
 
@@ -8405,7 +8405,7 @@ default).
 **Usage**:
 
 ```console
-$ dhis2 profile default [OPTIONS] [NAME]
+$ d2w profile default [OPTIONS] [NAME]
 ```
 
 **Arguments**:
@@ -8419,7 +8419,7 @@ $ dhis2 profile default [OPTIONS] [NAME]
 * `--verify`: Probe the instance after switching.
 * `--help`: Show this message and exit.
 
-### `dhis2 profile add`
+### `d2w profile add`
 
 Add (or upsert) a profile.
 
@@ -8430,7 +8430,7 @@ prompted interactively when missing.
 **Usage**:
 
 ```console
-$ dhis2 profile add [OPTIONS] NAME
+$ d2w profile add [OPTIONS] NAME
 ```
 
 **Arguments**:
@@ -8453,14 +8453,14 @@ $ dhis2 profile add [OPTIONS] NAME
 * `--version TEXT`: Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP to pick which version&#x27;s plugin tree to load; the wire client always auto-detects on connect.
 * `--help`: Show this message and exit.
 
-### `dhis2 profile remove`
+### `d2w profile remove`
 
 Remove a profile. Without --global/--local, removes from whichever file holds it.
 
 **Usage**:
 
 ```console
-$ dhis2 profile remove [OPTIONS] NAME
+$ d2w profile remove [OPTIONS] NAME
 ```
 
 **Arguments**:
@@ -8473,14 +8473,14 @@ $ dhis2 profile remove [OPTIONS] NAME
 * `--local`: Remove from ./.dhis2/profiles.toml specifically.
 * `--help`: Show this message and exit.
 
-### `dhis2 profile rename`
+### `d2w profile rename`
 
 Rename a profile in-place. Preserves scope and updates default if needed.
 
 **Usage**:
 
 ```console
-$ dhis2 profile rename [OPTIONS] OLD_NAME NEW_NAME
+$ d2w profile rename [OPTIONS] OLD_NAME NEW_NAME
 ```
 
 **Arguments**:
@@ -8493,7 +8493,7 @@ $ dhis2 profile rename [OPTIONS] OLD_NAME NEW_NAME
 * `--verify`: Probe the instance after renaming.
 * `--help`: Show this message and exit.
 
-### `dhis2 profile login`
+### `d2w profile login`
 
 Run the OAuth2 authorization-code flow for a profile and persist its tokens.
 
@@ -8507,7 +8507,7 @@ stderr instead of launching the system browser.
 **Usage**:
 
 ```console
-$ dhis2 profile login [OPTIONS] [NAME]
+$ d2w profile login [OPTIONS] [NAME]
 ```
 
 **Arguments**:
@@ -8519,7 +8519,7 @@ $ dhis2 profile login [OPTIONS] [NAME]
 * `--no-browser`: Print the DHIS2 authorization URL instead of launching the system browser. Useful over SSH, under Playwright, or when logging in via a different browser. Also accepts DHIS2_OAUTH_NO_BROWSER=1 as default.
 * `--help`: Show this message and exit.
 
-### `dhis2 profile logout`
+### `d2w profile logout`
 
 Clear persisted OAuth2 tokens for a profile.
 
@@ -8529,7 +8529,7 @@ triggers a fresh `profile login` flow. OAuth2 profiles only.
 **Usage**:
 
 ```console
-$ dhis2 profile logout [OPTIONS] [NAME]
+$ d2w profile logout [OPTIONS] [NAME]
 ```
 
 **Arguments**:
@@ -8540,7 +8540,7 @@ $ dhis2 profile logout [OPTIONS] [NAME]
 
 * `--help`: Show this message and exit.
 
-### `dhis2 profile bootstrap`
+### `d2w profile bootstrap`
 
 One-shot: provision a PAT or OAuth2 client on DHIS2, save a profile, (for oauth2) log in.
 
@@ -8556,7 +8556,7 @@ collide (DHIS2 mints a fresh server-side UID).
 **Usage**:
 
 ```console
-$ dhis2 profile bootstrap [OPTIONS] NAME
+$ d2w profile bootstrap [OPTIONS] NAME
 ```
 
 **Arguments**:
@@ -8579,7 +8579,7 @@ $ dhis2 profile bootstrap [OPTIONS] NAME
 * `--version TEXT`: Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP to pick which version&#x27;s plugin tree to load; the wire client always auto-detects on connect.
 * `--help`: Show this message and exit.
 
-### `dhis2 profile oidc-config`
+### `d2w profile oidc-config`
 
 Populate an OAuth2 profile by discovering a DHIS2 instance&#x27;s OIDC endpoints.
 
@@ -8594,7 +8594,7 @@ automatically) or the full discovery URL.
 **Usage**:
 
 ```console
-$ dhis2 profile oidc-config [OPTIONS] URL
+$ d2w profile oidc-config [OPTIONS] URL
 ```
 
 **Arguments**:
@@ -8611,18 +8611,18 @@ $ dhis2 profile oidc-config [OPTIONS] URL
 * `--global`: Save to ~/.config/dhis2/profiles.toml (default, user-wide).
 * `--local`: Save to ./.dhis2/profiles.toml instead (project-scoped).
 * `--default`: Set as default after saving.
-* `--login`: Trigger `dhis2 profile login &lt;name&gt;` immediately after saving.
+* `--login`: Trigger `d2w profile login &lt;name&gt;` immediately after saving.
 * `--version TEXT`: Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP to pick which version&#x27;s plugin tree to load; the wire client always auto-detects on connect.
 * `--help`: Show this message and exit.
 
-### `dhis2 profile pat`
+### `d2w profile pat`
 
 Personal Access Tokens — provision PATs on DHIS2.
 
 **Usage**:
 
 ```console
-$ dhis2 profile pat [OPTIONS] COMMAND [ARGS]...
+$ d2w profile pat [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -8633,22 +8633,22 @@ $ dhis2 profile pat [OPTIONS] COMMAND [ARGS]...
 
 * `create`: Create a DHIS2 Personal Access Token via...
 
-#### `dhis2 profile pat create`
+#### `d2w profile pat create`
 
 Create a DHIS2 Personal Access Token via POST /api/apiToken.
 
 Admin creds come from env or prompt (never argv). The PAT value is only
 returned once by DHIS2 — capture it here and pipe into a profile:
 
-    export DHIS2_PAT=$(dhis2 dev pat create --url $URL -q)
-    dhis2 profile add local --url $URL --auth pat
+    export DHIS2_PAT=$(d2w dev pat create --url $URL -q)
+    d2w profile add local --url $URL --auth pat
 
-Or use `dhis2 profile bootstrap --auth pat` for a one-shot setup.
+Or use `d2w profile bootstrap --auth pat` for a one-shot setup.
 
 **Usage**:
 
 ```console
-$ dhis2 profile pat create [OPTIONS]
+$ d2w profile pat create [OPTIONS]
 ```
 
 **Options**:
@@ -8663,14 +8663,14 @@ $ dhis2 profile pat create [OPTIONS]
 * `-q, --quiet`: Print only the PAT value, suitable for $(command substitution).
 * `--help`: Show this message and exit.
 
-### `dhis2 profile oauth2`
+### `d2w profile oauth2`
 
 Manage DHIS2 OAuth2 clients on the server (admin ops).
 
 **Usage**:
 
 ```console
-$ dhis2 profile oauth2 [OPTIONS] COMMAND [ARGS]...
+$ d2w profile oauth2 [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -8681,14 +8681,14 @@ $ dhis2 profile oauth2 [OPTIONS] COMMAND [ARGS]...
 
 * `client`: OAuth2 client registrations at...
 
-#### `dhis2 profile oauth2 client`
+#### `d2w profile oauth2 client`
 
 OAuth2 client registrations at /api/oAuth2Clients.
 
 **Usage**:
 
 ```console
-$ dhis2 profile oauth2 client [OPTIONS] COMMAND [ARGS]...
+$ d2w profile oauth2 client [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -8699,7 +8699,7 @@ $ dhis2 profile oauth2 client [OPTIONS] COMMAND [ARGS]...
 
 * `register`: Register an OAuth2 client on DHIS2 via...
 
-##### `dhis2 profile oauth2 client register`
+##### `d2w profile oauth2 client register`
 
 Register an OAuth2 client on DHIS2 via POST /api/oAuth2Clients.
 
@@ -8707,13 +8707,13 @@ Secrets (admin credentials, client_secret) come from env or interactive
 prompt — never argv.
 
 Prints `client_id` + metadata UID so they can be piped into
-`dhis2 profile add --auth oauth2 ...`. For a one-shot bootstrap (register
-+ save profile + log in) use `dhis2 profile bootstrap` instead.
+`d2w profile add --auth oauth2 ...`. For a one-shot bootstrap (register
++ save profile + log in) use `d2w profile bootstrap` instead.
 
 **Usage**:
 
 ```console
-$ dhis2 profile oauth2 client register [OPTIONS]
+$ d2w profile oauth2 client register [OPTIONS]
 ```
 
 **Options**:
@@ -8726,14 +8726,14 @@ $ dhis2 profile oauth2 client register [OPTIONS]
 * `--name TEXT`
 * `--help`: Show this message and exit.
 
-## `dhis2 route`
+## `d2w route`
 
 DHIS2 integration routes.
 
 **Usage**:
 
 ```console
-$ dhis2 route [OPTIONS] COMMAND [ARGS]...
+$ d2w route [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -8751,14 +8751,14 @@ $ dhis2 route [OPTIONS] COMMAND [ARGS]...
 * `delete`: Delete a route.
 * `run`: Execute a route — DHIS2 proxies the...
 
-### `dhis2 route ls`
+### `d2w route ls`
 
 List registered routes.
 
 **Usage**:
 
 ```console
-$ dhis2 route ls [OPTIONS]
+$ d2w route ls [OPTIONS]
 ```
 
 **Options**:
@@ -8766,14 +8766,14 @@ $ dhis2 route ls [OPTIONS]
 * `--fields TEXT`: [default: id,code,name,url,disabled,auth]
 * `--help`: Show this message and exit.
 
-### `dhis2 route list`
+### `d2w route list`
 
 List registered routes.
 
 **Usage**:
 
 ```console
-$ dhis2 route list [OPTIONS]
+$ d2w route list [OPTIONS]
 ```
 
 **Options**:
@@ -8781,14 +8781,14 @@ $ dhis2 route list [OPTIONS]
 * `--fields TEXT`: [default: id,code,name,url,disabled,auth]
 * `--help`: Show this message and exit.
 
-### `dhis2 route get`
+### `d2w route get`
 
 Fetch one route by UID or code.
 
 **Usage**:
 
 ```console
-$ dhis2 route get [OPTIONS] ROUTE
+$ d2w route get [OPTIONS] ROUTE
 ```
 
 **Arguments**:
@@ -8800,7 +8800,7 @@ $ dhis2 route get [OPTIONS] ROUTE
 * `--fields TEXT`
 * `--help`: Show this message and exit.
 
-### `dhis2 route create`
+### `d2w route create`
 
 Create a route via POST /api/routes.
 
@@ -8813,7 +8813,7 @@ argv — they&#x27;re read from env (`DHIS2_ROUTE_UPSTREAM_*`) or hidden prompts
 **Usage**:
 
 ```console
-$ dhis2 route create [OPTIONS]
+$ d2w route create [OPTIONS]
 ```
 
 **Options**:
@@ -8826,7 +8826,7 @@ $ dhis2 route create [OPTIONS]
 * `--no-auth`: Create an unauthenticated route (skip the auth wizard) — for headless/bridge use.
 * `--help`: Show this message and exit.
 
-### `dhis2 route update`
+### `d2w route update`
 
 Replace a route via PUT /api/routes/{uid}.
 
@@ -8835,7 +8835,7 @@ DHIS2 PUT expects the complete object. For partial updates use `patch`.
 **Usage**:
 
 ```console
-$ dhis2 route update [OPTIONS] ROUTE
+$ d2w route update [OPTIONS] ROUTE
 ```
 
 **Arguments**:
@@ -8847,14 +8847,14 @@ $ dhis2 route update [OPTIONS] ROUTE
 * `--file PATH`: JSON file with the full route spec (PUT semantics).  [required]
 * `--help`: Show this message and exit.
 
-### `dhis2 route patch`
+### `d2w route patch`
 
 Apply a JSON Patch to a route via PATCH /api/routes/{uid}.
 
 **Usage**:
 
 ```console
-$ dhis2 route patch [OPTIONS] ROUTE
+$ d2w route patch [OPTIONS] ROUTE
 ```
 
 **Arguments**:
@@ -8866,14 +8866,14 @@ $ dhis2 route patch [OPTIONS] ROUTE
 * `--file PATH`: JSON Patch array (RFC 6902).  [required]
 * `--help`: Show this message and exit.
 
-### `dhis2 route delete`
+### `d2w route delete`
 
 Delete a route.
 
 **Usage**:
 
 ```console
-$ dhis2 route delete [OPTIONS] ROUTE
+$ d2w route delete [OPTIONS] ROUTE
 ```
 
 **Arguments**:
@@ -8884,7 +8884,7 @@ $ dhis2 route delete [OPTIONS] ROUTE
 
 * `--help`: Show this message and exit.
 
-### `dhis2 route run`
+### `d2w route run`
 
 Execute a route — DHIS2 proxies the request to the configured target URL.
 
@@ -8895,7 +8895,7 @@ what DHIS2 substitutes into the wildcard before calling upstream.
 **Usage**:
 
 ```console
-$ dhis2 route run [OPTIONS] ROUTE
+$ d2w route run [OPTIONS] ROUTE
 ```
 
 **Arguments**:
@@ -8909,14 +8909,14 @@ $ dhis2 route run [OPTIONS] ROUTE
 * `--path TEXT`: Additional path segment appended to the route&#x27;s target URL.
 * `--help`: Show this message and exit.
 
-## `dhis2 security`
+## `d2w security`
 
 DHIS2 security posture (read-only).
 
 **Usage**:
 
 ```console
-$ dhis2 security [OPTIONS] COMMAND [ARGS]...
+$ d2w security [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -8927,28 +8927,28 @@ $ dhis2 security [OPTIONS] COMMAND [ARGS]...
 
 * `settings`: Show the server&#x27;s security-relevant system...
 
-### `dhis2 security settings`
+### `d2w security settings`
 
 Show the server&#x27;s security-relevant system settings. `--json` for the full payload.
 
 **Usage**:
 
 ```console
-$ dhis2 security settings [OPTIONS]
+$ d2w security settings [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-## `dhis2 system`
+## `d2w system`
 
 DHIS2 system info.
 
 **Usage**:
 
 ```console
-$ dhis2 system [OPTIONS] COMMAND [ARGS]...
+$ d2w system [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -8962,35 +8962,35 @@ $ dhis2 system [OPTIONS] COMMAND [ARGS]...
 * `calendar`: Print the active DHIS2 calendar, or change...
 * `settings`: Read/write DHIS2 system settings.
 
-### `dhis2 system whoami`
+### `d2w system whoami`
 
 Expose everything DHIS2 reports about the authenticated user. `--json` for the raw object.
 
 **Usage**:
 
 ```console
-$ dhis2 system whoami [OPTIONS]
+$ d2w system whoami [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-### `dhis2 system info`
+### `d2w system info`
 
 Print DHIS2 system info (version, build, analytics state, env).
 
 **Usage**:
 
 ```console
-$ dhis2 system info [OPTIONS]
+$ d2w system info [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-### `dhis2 system calendar`
+### `d2w system calendar`
 
 Print the active DHIS2 calendar, or change it when a value is supplied.
 
@@ -9004,7 +9004,7 @@ confirmation (or `--yes`).
 **Usage**:
 
 ```console
-$ dhis2 system calendar [OPTIONS] [VALUE]:[coptic|ethiopian|gregorian|islamic|iso8601|julian|nepali|persian|thai]
+$ d2w system calendar [OPTIONS] [VALUE]:[coptic|ethiopian|gregorian|islamic|iso8601|julian|nepali|persian|thai]
 ```
 
 **Arguments**:
@@ -9016,14 +9016,14 @@ $ dhis2 system calendar [OPTIONS] [VALUE]:[coptic|ethiopian|gregorian|islamic|is
 * `-y, --yes`: Skip the interactive confirmation. Required for non-interactive callers (CI, scripts).
 * `--help`: Show this message and exit.
 
-### `dhis2 system settings`
+### `d2w system settings`
 
 Read/write DHIS2 system settings.
 
 **Usage**:
 
 ```console
-$ dhis2 system settings [OPTIONS] COMMAND [ARGS]...
+$ d2w system settings [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -9038,14 +9038,14 @@ $ dhis2 system settings [OPTIONS] COMMAND [ARGS]...
 * `ls`: List every system setting (key = value).
 * `list`: List every system setting (key = value).
 
-#### `dhis2 system settings set`
+#### `d2w system settings set`
 
 Set a single system setting.
 
 **Usage**:
 
 ```console
-$ dhis2 system settings set [OPTIONS] KEY VALUE
+$ d2w system settings set [OPTIONS] KEY VALUE
 ```
 
 **Arguments**:
@@ -9057,14 +9057,14 @@ $ dhis2 system settings set [OPTIONS] KEY VALUE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 system settings set-many`
+#### `d2w system settings set-many`
 
 Bulk-set system settings from a JSON file.
 
 **Usage**:
 
 ```console
-$ dhis2 system settings set-many [OPTIONS] FILE
+$ d2w system settings set-many [OPTIONS] FILE
 ```
 
 **Arguments**:
@@ -9075,14 +9075,14 @@ $ dhis2 system settings set-many [OPTIONS] FILE
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 system settings get`
+#### `d2w system settings get`
 
 Print one system setting&#x27;s value; exit 1 if it is unset.
 
 **Usage**:
 
 ```console
-$ dhis2 system settings get [OPTIONS] KEY
+$ d2w system settings get [OPTIONS] KEY
 ```
 
 **Arguments**:
@@ -9093,42 +9093,42 @@ $ dhis2 system settings get [OPTIONS] KEY
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 system settings ls`
+#### `d2w system settings ls`
 
 List every system setting (key = value).
 
 **Usage**:
 
 ```console
-$ dhis2 system settings ls [OPTIONS]
+$ d2w system settings ls [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 system settings list`
+#### `d2w system settings list`
 
 List every system setting (key = value).
 
 **Usage**:
 
 ```console
-$ dhis2 system settings list [OPTIONS]
+$ d2w system settings list [OPTIONS]
 ```
 
 **Options**:
 
 * `--help`: Show this message and exit.
 
-## `dhis2 user`
+## `d2w user`
 
 DHIS2 user administration.
 
 **Usage**:
 
 ```console
-$ dhis2 user [OPTIONS] COMMAND [ARGS]...
+$ d2w user [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -9146,19 +9146,19 @@ $ dhis2 user [OPTIONS] COMMAND [ARGS]...
 * `group`: Manage DHIS2 user groups.
 * `role`: Manage DHIS2 user roles.
 
-### `dhis2 user ls`
+### `d2w user ls`
 
 List users.
 
 Examples:
-  dhis2 user list
-  dhis2 user list --filter &#x27;disabled:eq:true&#x27; --order &#x27;username:asc&#x27;
-  dhis2 user list --filter &#x27;username:like:admin&#x27;
+  d2w user list
+  d2w user list --filter &#x27;disabled:eq:true&#x27; --order &#x27;username:asc&#x27;
+  d2w user list --filter &#x27;username:like:admin&#x27;
 
 **Usage**:
 
 ```console
-$ dhis2 user ls [OPTIONS]
+$ d2w user ls [OPTIONS]
 ```
 
 **Options**:
@@ -9171,19 +9171,19 @@ $ dhis2 user ls [OPTIONS]
 * `--page-size INTEGER`: Server-side page size (default 50).
 * `--help`: Show this message and exit.
 
-### `dhis2 user list`
+### `d2w user list`
 
 List users.
 
 Examples:
-  dhis2 user list
-  dhis2 user list --filter &#x27;disabled:eq:true&#x27; --order &#x27;username:asc&#x27;
-  dhis2 user list --filter &#x27;username:like:admin&#x27;
+  d2w user list
+  d2w user list --filter &#x27;disabled:eq:true&#x27; --order &#x27;username:asc&#x27;
+  d2w user list --filter &#x27;username:like:admin&#x27;
 
 **Usage**:
 
 ```console
-$ dhis2 user list [OPTIONS]
+$ d2w user list [OPTIONS]
 ```
 
 **Options**:
@@ -9196,14 +9196,14 @@ $ dhis2 user list [OPTIONS]
 * `--page-size INTEGER`: Server-side page size (default 50).
 * `--help`: Show this message and exit.
 
-### `dhis2 user get`
+### `d2w user get`
 
 Fetch one user by UID or username. Prints a concise summary; `--json` for full payload.
 
 **Usage**:
 
 ```console
-$ dhis2 user get [OPTIONS] UID_OR_USERNAME
+$ d2w user get [OPTIONS] UID_OR_USERNAME
 ```
 
 **Arguments**:
@@ -9215,7 +9215,7 @@ $ dhis2 user get [OPTIONS] UID_OR_USERNAME
 * `--fields TEXT`: DHIS2 field selector.
 * `--help`: Show this message and exit.
 
-### `dhis2 user invite`
+### `d2w user invite`
 
 Create a user and send the invitation email.
 
@@ -9225,7 +9225,7 @@ the new user sets their password on accept. Prints the new user&#x27;s UID.
 **Usage**:
 
 ```console
-$ dhis2 user invite [OPTIONS] EMAIL
+$ d2w user invite [OPTIONS] EMAIL
 ```
 
 **Arguments**:
@@ -9241,14 +9241,14 @@ $ dhis2 user invite [OPTIONS] EMAIL
 * `--org-unit, --ou TEXT`: Organisation-unit UID for capture scope (repeatable).
 * `--help`: Show this message and exit.
 
-### `dhis2 user reinvite`
+### `d2w user reinvite`
 
 Re-send the invitation email for a pending user (POST /api/users/{uid}/invite).
 
 **Usage**:
 
 ```console
-$ dhis2 user reinvite [OPTIONS] UID
+$ d2w user reinvite [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9259,14 +9259,14 @@ $ dhis2 user reinvite [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 user reset-password`
+### `d2w user reset-password`
 
 Trigger DHIS2&#x27;s password-reset email (POST /api/users/{uid}/reset).
 
 **Usage**:
 
 ```console
-$ dhis2 user reset-password [OPTIONS] UID
+$ d2w user reset-password [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9277,14 +9277,14 @@ $ dhis2 user reset-password [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-### `dhis2 user group`
+### `d2w user group`
 
 Manage DHIS2 user groups.
 
 **Usage**:
 
 ```console
-$ dhis2 user group [OPTIONS] COMMAND [ARGS]...
+$ d2w user group [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -9303,14 +9303,14 @@ $ dhis2 user group [OPTIONS] COMMAND [ARGS]...
 * `sharing-get`: Print the current sharing block for one...
 * `sharing-grant-user`: Grant one user access to a group (shortcut...
 
-#### `dhis2 user group ls`
+#### `d2w user group ls`
 
 List user groups.
 
 **Usage**:
 
 ```console
-$ dhis2 user group ls [OPTIONS]
+$ d2w user group ls [OPTIONS]
 ```
 
 **Options**:
@@ -9321,14 +9321,14 @@ $ dhis2 user group ls [OPTIONS]
 * `--page-size INTEGER`: Server-side page size.
 * `--help`: Show this message and exit.
 
-#### `dhis2 user group list`
+#### `d2w user group list`
 
 List user groups.
 
 **Usage**:
 
 ```console
-$ dhis2 user group list [OPTIONS]
+$ d2w user group list [OPTIONS]
 ```
 
 **Options**:
@@ -9339,14 +9339,14 @@ $ dhis2 user group list [OPTIONS]
 * `--page-size INTEGER`: Server-side page size.
 * `--help`: Show this message and exit.
 
-#### `dhis2 user group get`
+#### `d2w user group get`
 
 Fetch one user group by UID. Prints a concise summary; `--json` for full payload.
 
 **Usage**:
 
 ```console
-$ dhis2 user group get [OPTIONS] UID
+$ d2w user group get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9358,14 +9358,14 @@ $ dhis2 user group get [OPTIONS] UID
 * `--fields TEXT`: DHIS2 field selector.
 * `--help`: Show this message and exit.
 
-#### `dhis2 user group create`
+#### `d2w user group create`
 
 Create a user group (then add members with `add-member`).
 
 **Usage**:
 
 ```console
-$ dhis2 user group create [OPTIONS]
+$ d2w user group create [OPTIONS]
 ```
 
 **Options**:
@@ -9375,14 +9375,14 @@ $ dhis2 user group create [OPTIONS]
 * `--uid TEXT`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
-#### `dhis2 user group delete`
+#### `d2w user group delete`
 
 Delete a user group by UID.
 
 **Usage**:
 
 ```console
-$ dhis2 user group delete [OPTIONS] UID
+$ d2w user group delete [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9394,14 +9394,14 @@ $ dhis2 user group delete [OPTIONS] UID
 * `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
-#### `dhis2 user group add-member`
+#### `d2w user group add-member`
 
 Add a user to a group (POST /api/userGroups/&lt;gid&gt;/users/&lt;uid&gt;).
 
 **Usage**:
 
 ```console
-$ dhis2 user group add-member [OPTIONS] GROUP_UID USER_UID
+$ d2w user group add-member [OPTIONS] GROUP_UID USER_UID
 ```
 
 **Arguments**:
@@ -9413,14 +9413,14 @@ $ dhis2 user group add-member [OPTIONS] GROUP_UID USER_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 user group remove-member`
+#### `d2w user group remove-member`
 
 Remove a user from a group (DELETE /api/userGroups/&lt;gid&gt;/users/&lt;uid&gt;).
 
 **Usage**:
 
 ```console
-$ dhis2 user group remove-member [OPTIONS] GROUP_UID USER_UID
+$ d2w user group remove-member [OPTIONS] GROUP_UID USER_UID
 ```
 
 **Arguments**:
@@ -9432,14 +9432,14 @@ $ dhis2 user group remove-member [OPTIONS] GROUP_UID USER_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 user group sharing-get`
+#### `d2w user group sharing-get`
 
 Print the current sharing block for one user group. `--json` for full payload.
 
 **Usage**:
 
 ```console
-$ dhis2 user group sharing-get [OPTIONS] UID
+$ d2w user group sharing-get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9450,7 +9450,7 @@ $ dhis2 user group sharing-get [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 user group sharing-grant-user`
+#### `d2w user group sharing-grant-user`
 
 Grant one user access to a group (shortcut over `/api/sharing`).
 
@@ -9460,7 +9460,7 @@ sharing block first, then appending the new grant.
 **Usage**:
 
 ```console
-$ dhis2 user group sharing-grant-user [OPTIONS] GROUP_UID USER_UID
+$ d2w user group sharing-grant-user [OPTIONS] GROUP_UID USER_UID
 ```
 
 **Arguments**:
@@ -9473,14 +9473,14 @@ $ dhis2 user group sharing-grant-user [OPTIONS] GROUP_UID USER_UID
 * `--metadata-write / --metadata-read`: Grant metadata write (default) or read-only.  [default: metadata-write]
 * `--help`: Show this message and exit.
 
-### `dhis2 user role`
+### `d2w user role`
 
 Manage DHIS2 user roles.
 
 **Usage**:
 
 ```console
-$ dhis2 user role [OPTIONS] COMMAND [ARGS]...
+$ d2w user role [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
@@ -9496,14 +9496,14 @@ $ dhis2 user role [OPTIONS] COMMAND [ARGS]...
 * `add-user`: Grant a user a role (POST...
 * `remove-user`: Revoke a role from a user (DELETE...
 
-#### `dhis2 user role ls`
+#### `d2w user role ls`
 
 List user roles.
 
 **Usage**:
 
 ```console
-$ dhis2 user role ls [OPTIONS]
+$ d2w user role ls [OPTIONS]
 ```
 
 **Options**:
@@ -9514,14 +9514,14 @@ $ dhis2 user role ls [OPTIONS]
 * `--page-size INTEGER`: Server-side page size.
 * `--help`: Show this message and exit.
 
-#### `dhis2 user role list`
+#### `d2w user role list`
 
 List user roles.
 
 **Usage**:
 
 ```console
-$ dhis2 user role list [OPTIONS]
+$ d2w user role list [OPTIONS]
 ```
 
 **Options**:
@@ -9532,14 +9532,14 @@ $ dhis2 user role list [OPTIONS]
 * `--page-size INTEGER`: Server-side page size.
 * `--help`: Show this message and exit.
 
-#### `dhis2 user role get`
+#### `d2w user role get`
 
 Fetch one user role by UID. Prints a concise summary; `--json` for full payload.
 
 **Usage**:
 
 ```console
-$ dhis2 user role get [OPTIONS] UID
+$ d2w user role get [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9551,14 +9551,14 @@ $ dhis2 user role get [OPTIONS] UID
 * `--fields TEXT`: DHIS2 field selector.
 * `--help`: Show this message and exit.
 
-#### `dhis2 user role authority-list`
+#### `d2w user role authority-list`
 
 Print the sorted authorities carried by one role, one per line.
 
 **Usage**:
 
 ```console
-$ dhis2 user role authority-list [OPTIONS] UID
+$ d2w user role authority-list [OPTIONS] UID
 ```
 
 **Arguments**:
@@ -9569,14 +9569,14 @@ $ dhis2 user role authority-list [OPTIONS] UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 user role add-user`
+#### `d2w user role add-user`
 
 Grant a user a role (POST /api/userRoles/&lt;rid&gt;/users/&lt;uid&gt;).
 
 **Usage**:
 
 ```console
-$ dhis2 user role add-user [OPTIONS] ROLE_UID USER_UID
+$ d2w user role add-user [OPTIONS] ROLE_UID USER_UID
 ```
 
 **Arguments**:
@@ -9588,14 +9588,14 @@ $ dhis2 user role add-user [OPTIONS] ROLE_UID USER_UID
 
 * `--help`: Show this message and exit.
 
-#### `dhis2 user role remove-user`
+#### `d2w user role remove-user`
 
 Revoke a role from a user (DELETE /api/userRoles/&lt;rid&gt;/users/&lt;uid&gt;).
 
 **Usage**:
 
 ```console
-$ dhis2 user role remove-user [OPTIONS] ROLE_UID USER_UID
+$ d2w user role remove-user [OPTIONS] ROLE_UID USER_UID
 ```
 
 **Arguments**:

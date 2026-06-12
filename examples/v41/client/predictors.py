@@ -3,8 +3,8 @@
 Predictors are DHIS2 server-side expressions that generate synthetic
 `DataValue`s from historical data (averages, sums, projections over
 sliding windows). `dhis2w-core` mounts the run surface under
-`dhis2 maintenance predictors`. CRUD on the predictors themselves stays
-on the generic metadata surface (`dhis2 metadata list predictors`).
+`d2w maintenance predictors`. CRUD on the predictors themselves stays
+on the generic metadata surface (`d2w metadata list predictors`).
 
 What this example exercises:
 
@@ -16,7 +16,7 @@ The plugin also exposes `run_group(group_uid, ...)` and
 `run_one(predictor_uid, ...)` for targeted runs; same envelope shape.
 
 Validation-rule runs live in the sibling `validation_rules.py` example —
-same plugin namespace (`dhis2 maintenance ...`) but a different engine
+same plugin namespace (`d2w maintenance ...`) but a different engine
 that returns violations, not generated data values.
 
 Usage:

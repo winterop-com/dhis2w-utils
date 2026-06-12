@@ -23,7 +23,7 @@ def test_missing_profile_prints_clean_error_and_exits_1(
 ) -> None:
     """Missing profile prints clean error and exits 1."""
     _clear_env(monkeypatch, tmp_path)
-    monkeypatch.setattr("sys.argv", ["dhis2", "system", "whoami"])
+    monkeypatch.setattr("sys.argv", ["d2w", "system", "whoami"])
 
     with pytest.raises(SystemExit) as exc_info:
         run_app(build_app())
@@ -31,7 +31,7 @@ def test_missing_profile_prints_clean_error_and_exits_1(
     assert exc_info.value.code == 1
     err = capsys.readouterr().err
     assert "error: no DHIS2 profile is configured" in err
-    assert "dhis2 profile --help" in err
+    assert "d2w profile --help" in err
     assert "Traceback" not in err
 
 
@@ -42,7 +42,7 @@ def test_unknown_profile_prints_clean_error_and_exits_1(
 ) -> None:
     """Unknown profile prints clean error and exits 1."""
     _clear_env(monkeypatch, tmp_path)
-    monkeypatch.setattr("sys.argv", ["dhis2", "--profile", "ghost", "system", "whoami"])
+    monkeypatch.setattr("sys.argv", ["d2w", "--profile", "ghost", "system", "whoami"])
 
     with pytest.raises(SystemExit) as exc_info:
         run_app(build_app())
@@ -50,5 +50,5 @@ def test_unknown_profile_prints_clean_error_and_exits_1(
     assert exc_info.value.code == 1
     err = capsys.readouterr().err
     assert "no profile named 'ghost'" in err
-    assert "dhis2 profile list" in err
+    assert "d2w profile list" in err
     assert "Traceback" not in err

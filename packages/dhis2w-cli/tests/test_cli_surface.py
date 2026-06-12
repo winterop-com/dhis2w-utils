@@ -1,4 +1,4 @@
-"""Unit tests for the dhis2 CLI root and plugin-mounted sub-apps."""
+"""Unit tests for the d2w CLI root and plugin-mounted sub-apps."""
 
 from __future__ import annotations
 

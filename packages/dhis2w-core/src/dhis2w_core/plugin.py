@@ -23,7 +23,7 @@ def resolve_startup_version() -> str:
     Resolution chain (first match wins):
 
     1. `profile.version` from the active profile (set via
-       `dhis2 profile add NAME ... --version v43` or hand-edited in
+       `d2w profile add NAME ... --version v43` or hand-edited in
        `profiles.toml`).
     2. `DHIS2_VERSION` env var, mapped `41` / `42` / `43` -> `v41` / `v42` / `v43`.
        This lets `make verify-examples DHIS2_VERSION=41` exercise the v41

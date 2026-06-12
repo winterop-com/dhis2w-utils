@@ -48,7 +48,7 @@ def test_plugin_descriptor() -> None:
 
 
 def test_cli_help_lists_documents_and_resources() -> None:
-    """`dhis2 files --help` lists both sub-apps."""
+    """`d2w files --help` lists both sub-apps."""
     result = _runner.invoke(files_app, ["--help"])
     assert result.exit_code == 0, result.output
     assert "documents" in result.output
@@ -56,7 +56,7 @@ def test_cli_help_lists_documents_and_resources() -> None:
 
 
 def test_cli_documents_help_lists_verbs() -> None:
-    """`dhis2 files documents --help` exposes list / get / upload / upload-url / download / delete."""
+    """`d2w files documents --help` exposes list / get / upload / upload-url / download / delete."""
     result = _runner.invoke(files_app, ["documents", "--help"])
     assert result.exit_code == 0, result.output
     for verb in ("list", "get", "upload", "upload-url", "download", "delete"):
@@ -64,7 +64,7 @@ def test_cli_documents_help_lists_verbs() -> None:
 
 
 def test_cli_resources_help_lists_verbs() -> None:
-    """`dhis2 files resources --help` exposes upload / get / download."""
+    """`d2w files resources --help` exposes upload / get / download."""
     result = _runner.invoke(files_app, ["resources", "--help"])
     assert result.exit_code == 0, result.output
     for verb in ("upload", "get", "download"):
@@ -72,7 +72,7 @@ def test_cli_resources_help_lists_verbs() -> None:
 
 
 def test_cli_mounted_on_root() -> None:
-    """`dhis2 files` resolves through the root app (plugin auto-discovery)."""
+    """`d2w files` resolves through the root app (plugin auto-discovery)."""
     result = _runner.invoke(build_app(), ["files", "--help"])
     assert result.exit_code == 0, result.output
     assert "documents" in result.output

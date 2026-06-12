@@ -14,9 +14,9 @@ through its web UI.
 | Library (low-level) | `dhis2w_browser.create_pat` | `packages/dhis2w-browser/src/dhis2w_browser/pat.py` |
 | Library (low-level) | `dhis2w_browser.drive_oauth2_login` | `packages/dhis2w-browser/src/dhis2w_browser/oauth2.py` |
 | Service (profile-aware) | `dhis2w_core.v42.plugins.browser.service.authenticated_session` | `packages/dhis2w-core/src/dhis2w_core/v42/plugins/browser/service.py` |
-| CLI | `dhis2 browser pat` | `packages/dhis2w-core/src/dhis2w_core/v42/plugins/browser/cli.py` |
+| CLI | `d2w browser pat` | `packages/dhis2w-core/src/dhis2w_core/v42/plugins/browser/cli.py` |
 
-The browser plugin mounts under the main `dhis2` CLI alongside every other
+The browser plugin mounts under the main `d2w` CLI alongside every other
 plugin (`files`, `messaging`, `metadata`, …) — there's no separate
 `dhis2w-browser` binary. Chromium stays optional: users who install
 `dhis2w-cli` (or `dhis2w-mcp`) without the `[browser]` extra never pull
@@ -29,13 +29,13 @@ The split between `dhis2w-core`'s `browser` plugin and the `dhis2w-browser`
 library follows the same pattern every plugin uses:
 
 ```
-user runs:    dhis2 browser pat ...
+user runs:    d2w browser pat ...
               │
               ▼
 dhis2w-cli:    main.py → discovers plugins → mounts them
               │
               ▼
-dhis2w-core:   plugins/browser/cli.py  (Typer sub-app for `dhis2 browser ...`)
+dhis2w-core:   plugins/browser/cli.py  (Typer sub-app for `d2w browser ...`)
               │
               ▼
 dhis2w-core:   plugins/browser/service.py  (guarded wrapper + install hint)
@@ -76,7 +76,7 @@ Both paths are implemented:
 ## OAuth2 login via Playwright — `drive_oauth2_login`
 
 `dhis2w_browser.drive_oauth2_login(profile_name, username=..., password=...)`
-runs the CLI OAuth2 flow end-to-end from a test harness: spawns `dhis2
+runs the CLI OAuth2 flow end-to-end from a test harness: spawns `d2w
 profile login <name> --no-browser` as a subprocess, reads the authorize URL
 from its stderr, drives a Chromium instance through (1) the DHIS2 React
 login form and (2) the Spring AS "Consent required" screen (ticks the
@@ -97,18 +97,18 @@ raises `NotImplementedError` for now (needs a Bearer-to-session smoke
 test). PAT profiles raise `BrowserWorkflowNotSupported` with a message
 pointing users at a Basic profile.
 
-## `dhis2 browser pat` vs `dhis2 profile pat create`
+## `d2w browser pat` vs `d2w profile pat create`
 
 Both commands mint a DHIS2 Personal Access Token V2 by hitting
 `POST /api/apiToken`. They differ in how they authenticate:
 
 | Command | Auth mechanism | When to use |
 | --- | --- | --- |
-| `dhis2 profile pat create` | Admin auth (Basic or PAT) via the plain API | **Default.** No Playwright, no Chromium, one HTTP call. Fast. |
-| `dhis2 browser pat` | Drive the React login form, hit `POST /api/apiToken` inside the resulting browser session | Only when Basic API auth is disabled on the instance, or when you're already in a browser flow and don't want a second trip through the API |
+| `d2w profile pat create` | Admin auth (Basic or PAT) via the plain API | **Default.** No Playwright, no Chromium, one HTTP call. Fast. |
+| `d2w browser pat` | Drive the React login form, hit `POST /api/apiToken` inside the resulting browser session | Only when Basic API auth is disabled on the instance, or when you're already in a browser flow and don't want a second trip through the API |
 
 For the common case ("I have admin credentials and I want a PAT"),
-`dhis2 profile pat create` is simpler + faster. `dhis2 browser pat` remains the
+`d2w profile pat create` is simpler + faster. `d2w browser pat` remains the
 canonical workflow for the edge cases.
 
 ## Headless vs headful
@@ -120,7 +120,7 @@ canonical workflow for the edge cases.
 3. Default → headless.
 
 Library entry points (`logged_in_page`, `create_pat`) are headless by
-default; tests and automation benefit from that. The `dhis2 browser pat`
+default; tests and automation benefit from that. The `d2w browser pat`
 CLI command flips the default to **headful** so first-time users can watch
 the login; pass `--headless` to flip.
 

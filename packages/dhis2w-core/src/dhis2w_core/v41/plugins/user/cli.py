@@ -1,4 +1,4 @@
-"""Typer sub-app for the `user` plugin (mounted under `dhis2 user`)."""
+"""Typer sub-app for the `user` plugin (mounted under `d2w user`)."""
 
 from __future__ import annotations
 
@@ -59,9 +59,9 @@ def list_command(
     """List users.
 
     Examples:
-      dhis2 user list
-      dhis2 user list --filter 'disabled:eq:true' --order 'username:asc'
-      dhis2 user list --filter 'username:like:admin'
+      d2w user list
+      d2w user list --filter 'disabled:eq:true' --order 'username:asc'
+      d2w user list --filter 'username:like:admin'
     """
     rj = root_junction if filters and len(filters) > 1 else None
     users = asyncio.run(
@@ -126,7 +126,7 @@ def get_command(
         ),
         DetailRow(
             f"authorities ({len(authorities)})",
-            _authorities_preview(authorities, hint_cmd=f"dhis2 --json user get {user.username or user.id}"),
+            _authorities_preview(authorities, hint_cmd=f"d2w --json user get {user.username or user.id}"),
         ),
     ]
     render_detail(f"user {user.username or user.id or '?'}", rows)
@@ -210,5 +210,5 @@ app.add_typer(user_role_cli.app, name="role", help="Manage DHIS2 user roles.")
 
 
 def register(root_app: Any) -> None:
-    """Mount this plugin's Typer sub-app under `dhis2 user`."""
+    """Mount this plugin's Typer sub-app under `d2w user`."""
     root_app.add_typer(app, name="user", help="DHIS2 user administration.")

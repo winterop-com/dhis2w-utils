@@ -25,7 +25,7 @@ examples/plugin-external/
 └── src/dhis2_plugin_hello/
     ├── __init__.py             exports `plugin = _HelloPlugin()`
     ├── service.py              uses `open_client(profile)` like first-party plugins
-    ├── cli.py                  Typer sub-app; `register(app)` mounts `dhis2 hello`
+    ├── cli.py                  Typer sub-app; `register(app)` mounts `d2w hello`
     └── mcp.py                  FastMCP tool `hello_say`
 ```
 
@@ -33,10 +33,10 @@ Install + verify:
 
 ```bash
 uv add --editable examples/plugin-external/
-dhis2 --help | grep hello
+d2w --help | grep hello
 # hello        External plugin example.
 
-dhis2 hello say
+d2w hello say
 # Hello, admin admin!
 ```
 
@@ -55,7 +55,7 @@ Two things make a package a valid external plugin:
    ```
    The group name `dhis2.plugins` is fixed — the loader only looks
    there. The surface-name on the left of `=` is free (but usually
-   matches what ends up in `dhis2 <name>`).
+   matches what ends up in `d2w <name>`).
 
 That's the entire contract. Everything else (service.py / cli.py / mcp.py
 file split) is convention, not requirement — a plugin that only registers
@@ -80,7 +80,7 @@ def register_cli(self, app: Any) -> None:
 If an entry-point's import fails (package not installed in the current
 env, typo in the import path), the loader silently skips it —
 `ImportError` isn't propagated. Broken plugins shouldn't take down
-`dhis2 --help`.
+`d2w --help`.
 
 If a plugin raises during `register_cli` / `register_mcp`, that *does*
 propagate, and the CLI aborts. Fail loudly when the plugin itself is

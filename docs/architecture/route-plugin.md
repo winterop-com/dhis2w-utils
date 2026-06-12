@@ -1,12 +1,12 @@
 # Route plugin
 
-`dhis2 route` covers DHIS2's `/api/routes` integration-route surface — a
+`d2w route` covers DHIS2's `/api/routes` integration-route surface — a
 generic reverse-proxy that lets DHIS2 forward an authenticated CLI / app
 request to an external service, injecting upstream auth on the way out.
 Routes turn DHIS2 into a credential broker for downstream APIs.
 
 ```
-dhis2 route {list,get,create,update,patch,delete,run}
+d2w route {list,get,create,update,patch,delete,run}
 ```
 
 MCP mirrors every command as `route_list`, `route_get`, `route_create`,
@@ -49,7 +49,7 @@ with a `type` key — pydantic routes it to the right subclass.
 
 ```bash
 # Register a route that proxies to an external API with API-token auth:
-dhis2 route create \
+d2w route create \
   --code analytics-bridge \
   --name "External analytics bridge" \
   --url "https://reports.example.org/api" \
@@ -58,11 +58,11 @@ dhis2 route create \
 
 # Run it. Reference the route by UID or by code; DHIS2 issues the upstream
 # call with the stored auth applied.
-dhis2 route run analytics-bridge --method GET
-dhis2 route run E8OPcc45A22 --method GET --path reports/2025
+d2w route run analytics-bridge --method GET
+d2w route run E8OPcc45A22 --method GET --path reports/2025
 
 # POST a JSON body through:
-dhis2 route run analytics-bridge --method POST --body body.json
+d2w route run analytics-bridge --method POST --body body.json
 ```
 
 Every route command (`get`, `update`, `patch`, `delete`, `run`) takes a

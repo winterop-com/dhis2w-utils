@@ -1,4 +1,4 @@
-"""`dhis2 doctor` from Python — programmatic probe results for CI / monitoring.
+"""`d2w doctor` from Python — programmatic probe results for CI / monitoring.
 
 The service returns a typed `DoctorReport`; consumers can iterate probes,
 filter by status, log to whatever observability system they use. No raw

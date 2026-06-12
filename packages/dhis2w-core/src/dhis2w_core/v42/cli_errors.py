@@ -23,17 +23,17 @@ from dhis2w_core.profile import (
 from dhis2w_core.v42.plugins.profile.service import ProfileAlreadyExistsError
 
 _NO_PROFILE_HINT = [
-    "run `dhis2 profile --help` for setup options, or try:",
-    "  dhis2 profile list                             # see what's configured",
-    "  dhis2 profile add <name> --scope global \\",
+    "run `d2w profile --help` for setup options, or try:",
+    "  d2w profile list                             # see what's configured",
+    "  d2w profile add <name> --scope global \\",
     "      --url https://dhis2.example.org \\",
     "      --auth pat --token d2p_... --default",
-    "  dhis2 profile verify <name>                    # confirm auth works",
+    "  d2w profile verify <name>                    # confirm auth works",
 ]
 
 _UNKNOWN_PROFILE_HINT = [
-    "run `dhis2 profile list` to see available profiles",
-    "or `dhis2 profile add <name> ...` to create one",
+    "run `d2w profile list` to see available profiles",
+    "or `d2w profile add <name> ...` to create one",
 ]
 
 _INVALID_NAME_HINT = [
@@ -42,18 +42,18 @@ _INVALID_NAME_HINT = [
 ]
 
 _AUTH_HINT = [
-    "run `dhis2 profile verify <name>` to confirm auth",
-    "or `dhis2 profile show <name>` to inspect the stored credentials",
+    "run `d2w profile verify <name>` to confirm auth",
+    "or `d2w profile show <name>` to inspect the stored credentials",
 ]
 
 _ALREADY_EXISTS_HINT = [
-    "run `dhis2 profile list` to see existing profiles",
-    "or `dhis2 profile remove <name>` first to free the name",
+    "run `d2w profile list` to see existing profiles",
+    "or `d2w profile remove <name>` first to free the name",
 ]
 
 _OAUTH2_HINT = [
-    "run `dhis2 profile login <name>` to re-authorise the OAuth2 flow",
-    "or `dhis2 profile verify <name>` to confirm the current state",
+    "run `d2w profile login <name>` to re-authorise the OAuth2 flow",
+    "or `d2w profile verify <name>` to confirm the current state",
 ]
 
 

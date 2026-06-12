@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `dhis2 dev sample ...` — inject known-good fixtures and verify end-to-end.
+# `d2w dev sample ...` — inject known-good fixtures and verify end-to-end.
 #
 # Each sub-command walks a full lifecycle (create -> verify -> clean up) so a
 # fresh DHIS2 install can be smoke-tested in one pass. Useful after:
@@ -18,24 +18,24 @@ export DHIS2_URL="${DHIS2_URL:-http://localhost:8080}"
 # Skipped here because the outbound request to httpbin.org makes this
 # flaky in offline / sandboxed environments — run it manually when you
 # want to exercise the route lifecycle.
-# dhis2 dev sample route
+# d2w dev sample route
 
 # Write a data value, read it back, soft-delete. Uses the seeded Sierra
 # Leone play42 fixture by default:
 #   - DE  bvoJ1MGZKQv ("Example indicator", INTEGER_ZERO_OR_POSITIVE)
 #   - OU  Rp268JB6Ne4 (Adonkia CHP, facility level)
 #   - Pe  202406 (within the 2024 data window)
-dhis2 dev sample data-value
+d2w dev sample data-value
 
 # Create a fresh PAT, call /api/me with it, delete it.
-dhis2 dev sample pat --admin-user admin
+d2w dev sample pat --admin-user admin
 
 # Create a throwaway OAuth2 client, verify it persists via GET, delete it.
-dhis2 dev sample oauth2-client --admin-user admin
+d2w dev sample oauth2-client --admin-user admin
 
 # Or: run everything in one go.
-# dhis2 dev sample all --admin-user admin
+# d2w dev sample all --admin-user admin
 
 # Add `--keep` to leave a fixture behind for manual inspection:
-# dhis2 dev sample route --keep
-# dhis2 route list      # shows SMOKE_ROUTE until you delete it
+# d2w dev sample route --keep
+# d2w route list      # shows SMOKE_ROUTE until you delete it

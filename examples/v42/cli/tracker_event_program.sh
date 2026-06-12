@@ -29,7 +29,7 @@ OU_FACILITY=ImspTQPwCqd
 # --- Log one event against the event program -------------------------------
 # No --enrollment, no --te — just program + stage + where + when + values.
 
-dhis2 data tracker event create \
+d2w data tracker event create \
     --program "$EVENT_PROGRAM" \
     --stage "$EVENT_STAGE" \
     --at "$OU_FACILITY" \
@@ -40,9 +40,9 @@ dhis2 data tracker event create \
 # --- List events from the event program -----------------------------------
 # Read-back still uses the generic event list verb; filter by program UID.
 
-dhis2 data tracker event list --program "$EVENT_PROGRAM" --org-unit "$OU_FACILITY"
+d2w data tracker event list --program "$EVENT_PROGRAM" --org-unit "$OU_FACILITY"
 
 # Event programs don't have enrollments, so `outstanding` doesn't apply —
 # there's no "due stage" semantic without an enrollment to anchor against.
 # For completeness reporting on event programs, lean on analytics events
-# queries (`dhis2 analytics events ...`) scoped to the program.
+# queries (`d2w analytics events ...`) scoped to the program.

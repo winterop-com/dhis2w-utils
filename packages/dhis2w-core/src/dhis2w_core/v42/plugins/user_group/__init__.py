@@ -18,7 +18,7 @@ class _UserGroupPlugin(BaseModel):
     description: str = "List + administer DHIS2 user groups (membership, sharing)."
 
     def register_cli(self, app: Any) -> None:
-        """CLI is mounted by the `user` plugin under `dhis2 user group`; no top-level mount."""
+        """CLI is mounted by the `user` plugin under `d2w user group`; no top-level mount."""
         return None
 
     def register_mcp(self, mcp: Any) -> None:

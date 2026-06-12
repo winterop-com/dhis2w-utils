@@ -19,7 +19,7 @@ class _AnalyticsPlugin(BaseModel):
     description: str = "Run DHIS2 analytics queries (aggregated, raw, dataValueSet) and trigger refresh."
 
     def register_cli(self, app: Any) -> None:
-        """Mount under `dhis2 analytics`."""
+        """Mount under `d2w analytics`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

@@ -1,7 +1,7 @@
 # Customize plugin — DHIS2 branding + theming
 
 The `customize` plugin is a thin, typed surface over DHIS2's three branding
-endpoint families. One `dhis2 customize apply DIR` re-brands an instance;
+endpoint families. One `d2w customize apply DIR` re-brands an instance;
 the same library call (`Dhis2Client.customize`) lets Python code do it
 programmatically; the same MCP tool set lets an agent do it.
 
@@ -10,7 +10,7 @@ programmatically; the same MCP tool set lets an agent do it.
 | Layer | Entry point | Where |
 | --- | --- | --- |
 | Library | `Dhis2Client.customize` | `packages/dhis2w-client/src/dhis2w_client/customize.py` |
-| CLI | `dhis2 customize …` | `packages/dhis2w-core/src/dhis2w_core/v42/plugins/customize/cli.py` |
+| CLI | `d2w customize …` | `packages/dhis2w-core/src/dhis2w_core/v42/plugins/customize/cli.py` |
 | MCP | `customize_*` tools | `packages/dhis2w-core/src/dhis2w_core/v42/plugins/customize/mcp.py` |
 | Committed preset | `infra/login-customization/` | Applied by the seed in `infra/scripts/build_e2e_dump.py` |
 
@@ -57,7 +57,7 @@ the DHIS2 login app has enough layout quirks around logos (one asset
 renders in two incompatible slots, no `html { background }` under zoom,
 ...) that a half-applied restyle looks worse than the default. The plugin
 still supports logos + CSS; any user can drop them in their own preset
-directory and `dhis2 customize apply DIR` will upload them.
+directory and `d2w customize apply DIR` will upload them.
 
 The seed calls `Dhis2Client.customize.apply_preset(...)` at the end of the
 build so the committed fixture dump (`infra/v42/dump.sql.gz`) already carries
@@ -67,8 +67,8 @@ shows it immediately.
 From the CLI, one call re-applies the preset against a live instance:
 
 ```bash
-dhis2 customize apply infra/login-customization/
-dhis2 customize show   # read back /api/loginConfig to verify
+d2w customize apply infra/login-customization/
+d2w customize show   # read back /api/loginConfig to verify
 ```
 
 ## Known visual quirk — black band below the footer at non-100% zoom
@@ -111,7 +111,7 @@ own CSS imports. It doesn't include `/api/files/style`, so any CSS we'd
 upload only restyles the post-auth UI. Keeping the login page stock
 (DHIS2's blue/white look) is cleaner than half-applied theming. If you do
 want to restyle authenticated pages, drop a `style.css` in the preset
-directory and `dhis2 customize apply` will pick it up; to fully restyle
+directory and `d2w customize apply` will pick it up; to fully restyle
 the login page itself, use DHIS2's `loginPageTemplate` system setting
 (full HTML takeover, out of scope here).
 

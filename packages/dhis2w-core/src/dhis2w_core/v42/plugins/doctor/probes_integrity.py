@@ -4,7 +4,7 @@ DHIS2 ships ~40 built-in integrity checks (organisation-unit coverage,
 indicator expression validity, duplicate category options, etc.) that are
 authoritative for the instance's own definition of "healthy." This module
 surfaces each check's summary as a doctor `ProbeResult` so one
-`dhis2 doctor` run covers workspace metadata probes + DHIS2's own.
+`d2w doctor` run covers workspace metadata probes + DHIS2's own.
 
 Reuses the `maintenance` plugin's typed `DataIntegrityReport` — no duplicate
 parsing logic.
@@ -28,7 +28,7 @@ async def run_integrity_probes(client: Dhis2Client) -> list[ProbeResult]:
     after a default (non-slow) sweep it shows ~89 rows out of the ~108 checks
     DHIS2 ships. We fetch the full check list via `/api/dataIntegrity` and
     emit a warning-level `integrity:coverage` probe when the summary is
-    smaller — so `dhis2 doctor integrity` on a default-swept instance makes
+    smaller — so `d2w doctor integrity` on a default-swept instance makes
     the skipped-slow-checks visible rather than silently reporting "all pass."
     """
     try:
@@ -63,7 +63,7 @@ async def run_integrity_probes(client: Dhis2Client) -> list[ProbeResult]:
                 status="skip",
                 message=(
                     "no data-integrity results on this instance yet — "
-                    "run `dhis2 maintenance dataintegrity run --watch` first"
+                    "run `d2w maintenance dataintegrity run --watch` first"
                 ),
             )
         ]
@@ -91,14 +91,14 @@ async def run_integrity_probes(client: Dhis2Client) -> list[ProbeResult]:
                     status="warn",
                     message=(
                         f"{count} issue(s){sev_suffix} — "
-                        f"run `dhis2 maintenance dataintegrity result {name} --details` for UIDs "
+                        f"run `d2w maintenance dataintegrity result {name} --details` for UIDs "
                         "(requires a prior `dataintegrity run --details`)"
                     ),
                 )
             )
     # Surface the slow-check skip: DHIS2's summary only contains checks that have been run.
     # When it's smaller than the full check list (~108), some weren't executed — likely the
-    # ~19 isSlow ones DHIS2 omits from a default run. Call it out so `dhis2 doctor` doesn't
+    # ~19 isSlow ones DHIS2 omits from a default run. Call it out so `d2w doctor` doesn't
     # silently report "all pass" when 19 checks haven't actually run.
     if total_available is not None and total_available > len(raw):
         gap = total_available - len(raw)
@@ -111,7 +111,7 @@ async def run_integrity_probes(client: Dhis2Client) -> list[ProbeResult]:
                 message=(
                     f"{len(raw)}/{total_available} DHIS2 checks have results — "
                     f"{gap} weren't run (likely isSlow). "
-                    "Re-run `dhis2 maintenance dataintegrity run --slow --details` to cover them."
+                    "Re-run `d2w maintenance dataintegrity run --slow --details` to cover them."
                 ),
             ),
         )

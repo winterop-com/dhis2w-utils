@@ -1,6 +1,6 @@
 """ValidationRule + Predictor authoring round-trip.
 
-The CRUD flip side of `dhis2 maintenance validation run` + `predictors
+The CRUD flip side of `d2w maintenance validation run` + `predictors
 run`. Creates a throw-away rule + predictor on the first aggregate DE
 found, groups each, then tears everything down.
 

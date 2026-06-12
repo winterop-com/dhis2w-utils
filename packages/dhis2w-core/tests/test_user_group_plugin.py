@@ -64,7 +64,7 @@ async def test_apply_group_sharing_routes_to_sharing_endpoint(basic_profile: Pro
 
 
 def test_cli_mounted_under_user() -> None:
-    """CLI is mounted under the user domain (`dhis2 user group`)."""
+    """CLI is mounted under the user domain (`d2w user group`)."""
     from dhis2w_cli.main import build_app
     from typer.testing import CliRunner
 

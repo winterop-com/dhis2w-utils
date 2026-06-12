@@ -37,7 +37,7 @@ for _name in _submodule_names:
 # Skip the eager model_rebuild() loop. Pydantic v2 lazily resolves forward
 # references on first validate; trading a slightly-slower first call against
 # ~900 ms of import-time class rebuilding pays back massively for any caller
-# that doesn't immediately validate every model — `dhis2 --help`, MCP tool
+# that doesn't immediately validate every model — `d2w --help`, MCP tool
 # discovery, library scripts that touch a handful of models.
 # for _cls in _classes.values():
 #     _cls.model_rebuild()

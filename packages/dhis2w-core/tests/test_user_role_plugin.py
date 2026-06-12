@@ -62,7 +62,7 @@ async def test_list_authorities_returns_sorted(basic_profile: Profile) -> None:
 
 
 def test_cli_mounted_under_user() -> None:
-    """CLI is mounted under the user domain (`dhis2 user role`)."""
+    """CLI is mounted under the user domain (`d2w user role`)."""
     from dhis2w_cli.main import build_app
     from typer.testing import CliRunner
 

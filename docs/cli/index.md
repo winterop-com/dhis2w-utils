@@ -1,10 +1,10 @@
-# `dhis2` CLI
+# `d2w` CLI
 
-`dhis2w-cli` is a Typer console script (`dhis2 …`) that bundles every `dhis2w-core` plugin into one entry point. Every command has a matching MCP tool and a matching client accessor — they share the same typed service functions, so the three surfaces stay aligned.
+`dhis2w-cli` is a Typer console script (`d2w …`) that bundles every `dhis2w-core` plugin into one entry point. Every command has a matching MCP tool and a matching client accessor — they share the same typed service functions, so the three surfaces stay aligned.
 
 ## When to reach for it
 
-- Quick one-shot operations from a terminal (`dhis2 metadata list dataElements`, `dhis2 data tracker push fixture.json`, etc.).
+- Quick one-shot operations from a terminal (`d2w metadata list dataElements`, `d2w data tracker push fixture.json`, etc.).
 - Shell pipelines that pipe DHIS2 responses through `jq` / `awk` / standard tooling.
 - CI / cron jobs (every command exits non-zero on failure).
 - Day-to-day admin (the [walkthrough](../walkthrough.md) is a good end-to-end taste).
@@ -13,15 +13,15 @@ For embedding DHIS2 calls inside a Python service use the [Python client](../cli
 
 ## Install
 
-Two install paths depending on whether you want `dhis2` on your global `PATH` or pinned inside a project.
+Two install paths depending on whether you want `d2w` on your global `PATH` or pinned inside a project.
 
 ### Global user install — recommended for day-to-day terminal use
 
-`uv tool install` puts the `dhis2` binary into uv's tool bin directory (which lives on `PATH` after `uv tool update-shell`). Run `dhis2 …` from anywhere on your laptop.
+`uv tool install` puts the `d2w` binary into uv's tool bin directory (which lives on `PATH` after `uv tool update-shell`). Run `d2w …` from anywhere on your laptop.
 
 ```bash
 uv tool install dhis2w-cli
-dhis2 --version
+d2w --version
 ```
 
 For the `[browser]` extra (Playwright-driven PAT mint, screenshots, OIDC login automation):
@@ -39,28 +39,28 @@ uv tool install --reinstall dhis2w-cli==<version>   # pin a specific version
 uv tool uninstall dhis2w-cli                     # remove
 ```
 
-If `dhis2` isn't on `PATH` after install, run `uv tool update-shell` once and restart your terminal.
+If `d2w` isn't on `PATH` after install, run `uv tool update-shell` once and restart your terminal.
 
 ### One-shot via `uvx` (no install)
 
-For a single command without persisting the tool on disk. The package is `dhis2w-cli` but the binary is `dhis2`, so `uvx --from` is required:
+For a single command without persisting the tool on disk. The package is `dhis2w-cli` but the binary is `d2w`, so `uvx --from` is required:
 
 ```bash
-uvx --from dhis2w-cli dhis2 profile verify
+uvx --from dhis2w-cli d2w profile verify
 ```
 
 Each `uvx` invocation re-creates a temporary environment, so it's slower than `uv tool install`. Good for trying the CLI before installing it permanently; not recommended for daily use.
 
 ### Local-to-a-project (pinning a specific version)
 
-When you want the CLI pinned in a project's `uv.lock` (e.g. a sync project that calls `dhis2 …` from its own scripts):
+When you want the CLI pinned in a project's `uv.lock` (e.g. a sync project that calls `d2w …` from its own scripts):
 
 ```bash
 uv add --dev dhis2w-cli
-uv run dhis2 --version
+uv run d2w --version
 ```
 
-Inside that project shell, `uv run dhis2 …` uses the pinned version.
+Inside that project shell, `uv run d2w …` uses the pinned version.
 
 ### From the workspace checkout (developing dhis2w-cli itself)
 
@@ -70,7 +70,7 @@ If you cloned `dhis2-utils` to hack on the CLI:
 git clone git@github.com:winterop-com/dhis2w-utils.git
 cd dhis2w-utils
 make install                          # uv sync --all-packages
-uv run dhis2 --version
+uv run d2w --version
 ```
 
 `make install` runs `uv sync --all-packages --all-extras` at the workspace root, so all six members (including `dhis2w-cli`) install in editable mode.
@@ -81,35 +81,35 @@ Add a profile (interactive secret prompt — PAT, password, or OAuth2 client sec
 
 ```bash
 # Save user-wide to ~/.config/dhis2/profiles.toml (default):
-dhis2 profile add local --url http://localhost:8080 --auth pat --default
+d2w profile add local --url http://localhost:8080 --auth pat --default
 
 # Or scope to a single project directory (.dhis2/profiles.toml):
-dhis2 profile add local --url http://localhost:8080 --auth pat --local --default
+d2w profile add local --url http://localhost:8080 --auth pat --local --default
 
-dhis2 profile verify
-dhis2 system whoami
-dhis2 system info
+d2w profile verify
+d2w system whoami
+d2w system info
 ```
 
-`dhis2 profile add` supports `--auth pat | basic | oauth2`; the OAuth2 path also has `--from-env` to pull `DHIS2_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` / `_SCOPES` from a `.env.auth` (handy with `make dhis2-run`). The [Connecting to DHIS2 guide](../guides/connecting-to-dhis2.md) covers each auth path in detail.
+`d2w profile add` supports `--auth pat | basic | oauth2`; the OAuth2 path also has `--from-env` to pull `DHIS2_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` / `_SCOPES` from a `.env.auth` (handy with `make dhis2-run`). The [Connecting to DHIS2 guide](../guides/connecting-to-dhis2.md) covers each auth path in detail.
 
-The `dhis2 --version` (or `-V`) flag prints the bound `dhis2w-cli` / `dhis2w-core` versions plus the active plugin tree — useful when debugging mismatch between the CLI and the DHIS2 server's reported version.
+The `d2w --version` (or `-V`) flag prints the bound `dhis2w-cli` / `dhis2w-core` versions plus the active plugin tree — useful when debugging mismatch between the CLI and the DHIS2 server's reported version.
 
 ## Verifying the install
 
 ```bash
-dhis2 --version
-dhis2 --help                    # lists every plugin sub-app
-dhis2 metadata --help           # lists metadata commands
-dhis2 system info               # round-trip a real DHIS2 call
+d2w --version
+d2w --help                    # lists every plugin sub-app
+d2w metadata --help           # lists metadata commands
+d2w system info               # round-trip a real DHIS2 call
 ```
 
-If `dhis2 --help` lists every plugin sub-app but `dhis2 system info` fails, the binary is fine — re-check your profile (`dhis2 profile show`, `dhis2 profile verify`).
+If `d2w --help` lists every plugin sub-app but `d2w system info` fails, the binary is fine — re-check your profile (`d2w profile show`, `d2w profile verify`).
 
 ## Where next
 
-- [Tutorial](../guides/cli-tutorial.md) — step-by-step from `dhis2 profile add` through the operator workflow set (profile, metadata, analytics, users, maintenance, files, messaging, apps, route, browser, tracker authoring, doctor). The full surface lives in the auto-generated reference below.
+- [Tutorial](../guides/cli-tutorial.md) — step-by-step from `d2w profile add` through the operator workflow set (profile, metadata, analytics, users, maintenance, files, messaging, apps, route, browser, tracker authoring, doctor). The full surface lives in the auto-generated reference below.
 - [CLI reference](../cli-reference.md) — auto-generated catalog of every command + option (regenerated by `make docs-cli`).
 - [Architecture](../architecture/cli.md) — how the CLI mounts plugin sub-apps, where the service functions live.
-- [PAT helper](../pat-helper.md) — `dhis2 profile pat create` as admin for provisioning PATs at scale.
+- [PAT helper](../pat-helper.md) — `d2w profile pat create` as admin for provisioning PATs at scale.
 - [Examples index](../examples.md) — shell scripts grouped by plugin.

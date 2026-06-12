@@ -1,4 +1,4 @@
-"""External plugin example — `dhis2 hello`.
+"""External plugin example — `d2w hello`.
 
 Registration happens via `[project.entry-points."dhis2.plugins"]` in the
 package's `pyproject.toml`. Once this package is installed in the same
@@ -28,7 +28,7 @@ class _HelloPlugin(BaseModel):
     )
 
     def register_cli(self, app: Any) -> None:
-        """Mount under `dhis2 hello`."""
+        """Mount under `d2w hello`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

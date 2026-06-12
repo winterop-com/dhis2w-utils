@@ -3,7 +3,7 @@
 `ValidationRule`s compare two DHIS2 expressions (`leftSide` vs
 `rightSide`) against a configurable operator and fire violations when
 the comparison fails for a given period + organisation unit. They
-drive `dhis2 maintenance validation run`; DHIS2 ships dozens of
+drive `d2w maintenance validation run`; DHIS2 ships dozens of
 built-in rules for aggregate data-quality checks.
 
 This module adds the authoring primitives — run lives on

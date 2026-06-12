@@ -8,17 +8,17 @@
 
 | Operation | CLI | MCP tool |
 | --- | --- | --- |
-| List available resource types | `dhis2 metadata type list` | `metadata_type_list` |
-| List instances of one type | `dhis2 metadata list <resource>` | `metadata_list` |
-| Fetch one by UID | `dhis2 metadata get <resource> <uid>` | `metadata_get` |
-| Search across every resource | `dhis2 metadata search <query>` | `metadata_search` |
-| Reverse-lookup "what references this UID?" | `dhis2 metadata usage <uid>` | `metadata_usage` |
-| Patch an object (RFC 6902) | `dhis2 metadata patch <resource> <uid>` | `metadata_patch` |
-| Export a bundle | `dhis2 metadata export` | `metadata_export` |
-| Import a bundle | `dhis2 metadata import FILE` | `metadata_import` |
-| Diff two bundles (or bundle vs live) | `dhis2 metadata diff A B [--live]` | `metadata_diff` |
-| Diff two profiles (staging vs prod drift) | `dhis2 metadata diff-profiles A B -r <resource>` | `metadata_diff_profiles` |
-| Merge one profile's metadata into another | `dhis2 metadata merge SOURCE TARGET -r <resource> [--dry-run]` | `metadata_merge` |
+| List available resource types | `d2w metadata type list` | `metadata_type_list` |
+| List instances of one type | `d2w metadata list <resource>` | `metadata_list` |
+| Fetch one by UID | `d2w metadata get <resource> <uid>` | `metadata_get` |
+| Search across every resource | `d2w metadata search <query>` | `metadata_search` |
+| Reverse-lookup "what references this UID?" | `d2w metadata usage <uid>` | `metadata_usage` |
+| Patch an object (RFC 6902) | `d2w metadata patch <resource> <uid>` | `metadata_patch` |
+| Export a bundle | `d2w metadata export` | `metadata_export` |
+| Import a bundle | `d2w metadata import FILE` | `metadata_import` |
+| Diff two bundles (or bundle vs live) | `d2w metadata diff A B [--live]` | `metadata_diff` |
+| Diff two profiles (staging vs prod drift) | `d2w metadata diff-profiles A B -r <resource>` | `metadata_diff_profiles` |
+| Merge one profile's metadata into another | `d2w metadata merge SOURCE TARGET -r <resource> [--dry-run]` | `metadata_merge` |
 
 The `<resource>` argument is DHIS2's camelCase plural — `dataElements`, `indicators`, `organisationUnits`, `dashboards`, `dataSets`. The plugin maps it to the Resources attribute (`data_elements`, etc.) via a tiny camel-to-snake helper.
 
@@ -26,20 +26,20 @@ The `<resource>` argument is DHIS2's camelCase plural — `dataElements`, `indic
 
 | Sub-app | Purpose | API doc |
 | --- | --- | --- |
-| `dhis2 metadata organisation-units` + `organisation-unit-groups` + `organisation-unit-group-sets` + `organisation-unit-levels` | Hierarchy tree walk, per-level rename, group + group-set authoring | [organisation units](../api/organisation-units.md) |
-| `dhis2 metadata data-elements` + `data-element-groups` + `data-element-group-sets` | Aggregate + tracker DE authoring, thematic groups, analytics dimensions | [data elements](../api/data-elements.md) |
-| `dhis2 metadata indicators` + `indicator-groups` + `indicator-group-sets` | Computed-ratio authoring with numerator/denominator expression pre-flight | [indicators](../api/indicators.md) |
-| `dhis2 metadata program-indicators` + `program-indicator-groups` | Tracker-analytics authoring (pair, not triple — DHIS2 has no PIGroupSet) | [program indicators](../api/program-indicators.md) |
-| `dhis2 metadata category-options` + `category-option-groups` + `category-option-group-sets` | Disaggregation values + validity windows + analytics dimensions | [category options](../api/category-options.md) |
-| `dhis2 metadata legend-sets` | Colour-range authoring attached to visualisations + maps | [legend sets](../api/legend-sets.md) |
-| `dhis2 metadata option-sets` | `OptionSet` / `Option` workflows — get / find / idempotent `sync` | — |
-| `dhis2 metadata attributes` | Cross-resource `AttributeValue` workflows (get / set / delete / find) | — |
-| `dhis2 metadata program-rules` | Program-rule introspection + expression validation + DE-usage lookup | — |
-| `dhis2 metadata sql-views` | SQL-view list / get / execute / refresh / adhoc | [SQL views](../api/sql-views.md) |
-| `dhis2 metadata visualizations` + `dhis2 metadata dashboards` | Spec-driven visualization authoring + dashboard composition | [visualizations](../api/visualizations.md) |
-| `dhis2 metadata maps` | Thematic-choropleth + boundary map authoring | [maps](../api/maps.md) |
+| `d2w metadata organisation-units` + `organisation-unit-groups` + `organisation-unit-group-sets` + `organisation-unit-levels` | Hierarchy tree walk, per-level rename, group + group-set authoring | [organisation units](../api/organisation-units.md) |
+| `d2w metadata data-elements` + `data-element-groups` + `data-element-group-sets` | Aggregate + tracker DE authoring, thematic groups, analytics dimensions | [data elements](../api/data-elements.md) |
+| `d2w metadata indicators` + `indicator-groups` + `indicator-group-sets` | Computed-ratio authoring with numerator/denominator expression pre-flight | [indicators](../api/indicators.md) |
+| `d2w metadata program-indicators` + `program-indicator-groups` | Tracker-analytics authoring (pair, not triple — DHIS2 has no PIGroupSet) | [program indicators](../api/program-indicators.md) |
+| `d2w metadata category-options` + `category-option-groups` + `category-option-group-sets` | Disaggregation values + validity windows + analytics dimensions | [category options](../api/category-options.md) |
+| `d2w metadata legend-sets` | Colour-range authoring attached to visualisations + maps | [legend sets](../api/legend-sets.md) |
+| `d2w metadata option-sets` | `OptionSet` / `Option` workflows — get / find / idempotent `sync` | — |
+| `d2w metadata attributes` | Cross-resource `AttributeValue` workflows (get / set / delete / find) | — |
+| `d2w metadata program-rules` | Program-rule introspection + expression validation + DE-usage lookup | — |
+| `d2w metadata sql-views` | SQL-view list / get / execute / refresh / adhoc | [SQL views](../api/sql-views.md) |
+| `d2w metadata visualizations` + `d2w metadata dashboards` | Spec-driven visualization authoring + dashboard composition | [visualizations](../api/visualizations.md) |
+| `d2w metadata maps` | Thematic-choropleth + boundary map authoring | [maps](../api/maps.md) |
 
-The five analytics triples follow a single canonical-naming rule — lowercase + hyphenate the DHIS2 `/api/<resource>` path — so the CLI / MCP tool / Python attribute names all derive mechanically from the wire resource name (`/api/organisationUnitGroupSets` → `dhis2 metadata organisation-unit-group-sets` → `metadata_organisation_unit_group_set_*` → `client.organisation_unit_group_sets`).
+The five analytics triples follow a single canonical-naming rule — lowercase + hyphenate the DHIS2 `/api/<resource>` path — so the CLI / MCP tool / Python attribute names all derive mechanically from the wire resource name (`/api/organisationUnitGroupSets` → `d2w metadata organisation-unit-group-sets` → `metadata_organisation_unit_group_set_*` → `client.organisation_unit_group_sets`).
 
 ## `metadata list` — full flag surface
 
@@ -78,7 +78,7 @@ DHIS2 filters follow `property:operator:value`:
 Combine via repeated `--filter`:
 
 ```bash
-dhis2 metadata list dataElements \
+d2w metadata list dataElements \
   --filter "valueType:eq:INTEGER_POSITIVE" \
   --filter "domainType:eq:AGGREGATE"
 # AND by default — both must match
@@ -87,7 +87,7 @@ dhis2 metadata list dataElements \
 Or OR:
 
 ```bash
-dhis2 metadata list dataElements \
+d2w metadata list dataElements \
   --filter "name:like:Penta" \
   --filter "code:eq:DE_PENTA1" \
   --root-junction OR
@@ -113,13 +113,13 @@ Plain, preset, nested, and transformed:
 
 ```bash
 # Presets save typing for the common shapes
-dhis2 metadata list dataElements --fields ":identifiable"
+d2w metadata list dataElements --fields ":identifiable"
 
 # Nested selector pulls a sub-tree
-dhis2 metadata list organisationUnits --fields "id,name,children[id,name]"
+d2w metadata list organisationUnits --fields "id,name,children[id,name]"
 
 # `:all,!<field>` excludes expensive fields
-dhis2 metadata list dashboards --fields ":all,!dashboardItems"
+d2w metadata list dashboards --fields ":all,!dashboardItems"
 ```
 
 ## Pagination
@@ -135,13 +135,13 @@ dhis2 metadata list dashboards --fields ":all,!dashboardItems"
 ## Localisation
 
 ```bash
-dhis2 metadata list dataElements --translate --locale fr --fields ":identifiable"
+d2w metadata list dataElements --translate --locale fr --fields ":identifiable"
 # displayName returns the French translation when DHIS2 has one
 ```
 
 ## `metadata search` — cross-resource UID / code / name lookup
 
-`dhis2 metadata search <query>` takes one verb and finds every matching object across every enabled DHIS2 metadata resource. The query matches with `ilike` on three axes, OR-merged by the client:
+`d2w metadata search <query>` takes one verb and finds every matching object across every enabled DHIS2 metadata resource. The query matches with `ilike` on three axes, OR-merged by the client:
 
 - `id:ilike:<q>` — full or partial UID.
 - `code:ilike:<q>` — business code fragment.
@@ -151,16 +151,16 @@ Same verb for every use case: paste a UID from a log line, a prefix you remember
 
 ```bash
 # Name fragment — broadest hit set.
-dhis2 metadata search measles
+d2w metadata search measles
 
 # Full UID — resolves to the owning resource type (dataElements, dashboards, ...)
-dhis2 metadata search s46m5MS0hxu
+d2w metadata search s46m5MS0hxu
 
 # Partial UID prefix — ilike:<prefix> matches everything starting with it.
-dhis2 metadata search s46m
+d2w metadata search s46m
 
 # JSON output for scripting.
-dhis2 --json metadata search measles | jq '.hits.dataElements | length'
+d2w --json metadata search measles | jq '.hits.dataElements | length'
 ```
 
 `--page-size N` narrows the per-resource cap (default 50). `--json` emits the typed `SearchResults` payload for downstream pipelines.
@@ -175,7 +175,7 @@ Three flags polish the default broadcast-search behaviour when you know more abo
 
 ```bash
 # Strict UID match, narrowed to DEs, with the value-type column:
-dhis2 metadata search s46m5MS0hxu --exact --resource dataElements \
+d2w metadata search s46m5MS0hxu --exact --resource dataElements \
     --fields id,name,code,valueType,domainType,aggregationType
 ```
 
@@ -196,7 +196,7 @@ result = await mcp.call_tool("metadata_search", {
 
 ## `metadata usage` — reverse lookup "what references this UID?"
 
-`dhis2 metadata usage <uid>` is the complement of `search`: instead of finding the UID, you paste the UID and get back every object that references it. Useful as a deletion-safety probe — any dashboard / visualization / map / dataset / program / program stage / program rule / user / org-unit group that would break if you deleted the UID shows up in the result.
+`d2w metadata usage <uid>` is the complement of `search`: instead of finding the UID, you paste the UID and get back every object that references it. Useful as a deletion-safety probe — any dashboard / visualization / map / dataset / program / program stage / program rule / user / org-unit group that would break if you deleted the UID shows up in the result.
 
 How it works:
 
@@ -207,15 +207,15 @@ How it works:
 
 ```bash
 # Before removing a data element, see what uses it:
-dhis2 metadata usage s46m5MS0hxu
+d2w metadata usage s46m5MS0hxu
 # -> 1 dataset, 10 visualizations, 3 maps (in the Sierra Leone seed)
 
 # A viz is only on dashboards:
-dhis2 metadata usage Qyuliufvfjl
+d2w metadata usage Qyuliufvfjl
 # -> 2 dashboards
 
 # Root org unit surfaces users, OU groups, datasets, programs:
-dhis2 metadata usage ImspTQPwCqd
+d2w metadata usage ImspTQPwCqd
 ```
 
 Coverage is best-effort — the reference map encodes the shapes most likely to block a delete in practice. Unknown owning types (e.g. `userRoles` outside the usual pattern) return an empty result; that's a signal to extend the map, not a proof the UID is unreferenced.
@@ -315,7 +315,7 @@ boundary.
 
 ## Patch — partial updates via RFC 6902 JSON Patch
 
-`dhis2 metadata patch <resource> <uid>` applies an RFC 6902 JSON Patch to a
+`d2w metadata patch <resource> <uid>` applies an RFC 6902 JSON Patch to a
 single metadata object. DHIS2 accepts `PATCH /api/<resource>/{uid}` on every
 metadata type — much lighter than round-tripping the full object via PUT
 when you only need to change a handful of fields.
@@ -327,7 +327,7 @@ combine into a single patch array on the wire. Values are JSON-decoded when
 they parse as JSON, so booleans and numbers type through correctly:
 
 ```bash
-dhis2 metadata patch dataElements fClA2Erf6IO \
+d2w metadata patch dataElements fClA2Erf6IO \
   --set '/description=Renamed via CLI' \
   --set '/zeroIsSignificant=false' \
   --remove '/legacyField'
@@ -344,7 +344,7 @@ cat > patch.json <<'JSON'
   {"op": "test", "path": "/valueType", "value": "INTEGER"}
 ]
 JSON
-dhis2 metadata patch dataElements fClA2Erf6IO --file patch.json
+d2w metadata patch dataElements fClA2Erf6IO --file patch.json
 ```
 
 `--file` and `--set`/`--remove` are mutually exclusive (the CLI refuses
@@ -404,8 +404,8 @@ instead of silent DHIS2 400s when they pass wrong-shape ops.
 
 ## Export / import
 
-Round-trip metadata across instances with `dhis2 metadata export` and
-`dhis2 metadata import` — two commands that together cover the
+Round-trip metadata across instances with `d2w metadata export` and
+`d2w metadata import` — two commands that together cover the
 cross-environment dev workflow (copy a slice from a live instance to a
 fresh stack, diff against upstream, or ship a reviewed bundle through CI).
 
@@ -416,19 +416,19 @@ skip flags.
 
 ```bash
 # Everything DHIS2 exports by default, lossless round-trip fields:
-dhis2 metadata export --output full.json
+d2w metadata export --output full.json
 
 # Narrow slice: dataElements + indicators, identifiable fields only:
-dhis2 metadata export \
+d2w metadata export \
   --resource dataElements --resource indicators \
   --fields ":identifiable" --output slice.json
 
 # Trim sharing blocks (useful when the target has different users/groups):
-dhis2 metadata export --skip-sharing --output clean.json
+d2w metadata export --skip-sharing --output clean.json
 ```
 
 The bundle summary (resource → count) prints to **stderr** so stdout stays
-pipe-friendly (`dhis2 metadata export | jq ...` works). `--output FILE`
+pipe-friendly (`d2w metadata export | jq ...` works). `--output FILE`
 also prints the summary table + the total written.
 
 ### Per-resource filters (narrow the export)
@@ -440,7 +440,7 @@ param form. Both are exposed:
 ```bash
 # All dataElements whose name contains "Penta" AND valueType is INTEGER_POSITIVE,
 # plus every indicator whose code starts with "HIV_":
-dhis2 metadata export \
+d2w metadata export \
   --resource dataElements --resource indicators \
   --filter "dataElements:name:like:Penta" \
   --filter "dataElements:valueType:eq:INTEGER_POSITIVE" \
@@ -449,7 +449,7 @@ dhis2 metadata export \
 
 # Per-resource fields override: keep heavy `:owner` for dataElements, but only
 # grab `:identifiable` for the large categoryCombos collection:
-dhis2 metadata export \
+d2w metadata export \
   --resource dataElements --resource categoryCombos \
   --fields ":owner" \
   --resource-fields "dataElements::owner" \
@@ -457,7 +457,7 @@ dhis2 metadata export \
   --output filtered.json
 ```
 
-The filter DSL is identical to `dhis2 metadata list --filter`
+The filter DSL is identical to `d2w metadata list --filter`
 ([filter syntax](#filter-syntax)) — just prefixed with the resource name
 and a colon. Repeated `--filter` values for the same resource are AND'd
 server-side.
@@ -466,7 +466,7 @@ server-side.
 
 Narrowing an export by filter or resource type means your bundle can end
 up with nested `{"id": "abc"}` references pointing at objects you didn't
-include. `dhis2 metadata export` walks the downloaded bundle by default
+include. `d2w metadata export` walks the downloaded bundle by default
 and warns when this happens:
 
 ```
@@ -510,20 +510,20 @@ parameter.
 
 ```bash
 # Real import (upsert, atomic rollback on any failure):
-dhis2 metadata import bundle.json
+d2w metadata import bundle.json
 
 # Pre-check with DHIS2's validate mode — runs preheat + validation, commits nothing:
-dhis2 metadata import bundle.json --dry-run
+d2w metadata import bundle.json --dry-run
 
 # Tighter strategy: CREATE only (fails if any object already exists):
-dhis2 metadata import bundle.json --strategy CREATE --atomic-mode ALL
+d2w metadata import bundle.json --strategy CREATE --atomic-mode ALL
 
 # Loose: keep going on individual failures, continue-on-error semantics:
-dhis2 metadata import bundle.json --atomic-mode NONE
+d2w metadata import bundle.json --atomic-mode NONE
 
 # Resolve references by CODE instead of UID (useful for bundles from a
 # different instance where UIDs won't match):
-dhis2 metadata import bundle.json --identifier CODE
+d2w metadata import bundle.json --identifier CODE
 ```
 
 `--dry-run` maps to DHIS2's `importMode=VALIDATE` — the server runs the full
@@ -562,26 +562,26 @@ form.
 
 ## Diff — preview before importing
 
-`dhis2 metadata diff` compares two bundles structurally (or one bundle
+`d2w metadata diff` compares two bundles structurally (or one bundle
 against the live instance) and reports per-resource create / update / delete
 counts. Use it as a safety gate before a real `metadata import` so you can
 see exactly which objects get touched.
 
 ```bash
 # File vs file — structural comparison of two exports:
-dhis2 metadata diff baseline.json candidate.json
+d2w metadata diff baseline.json candidate.json
 
 # File vs live instance — "what would change if I imported baseline.json?":
-dhis2 metadata diff baseline.json --live
+d2w metadata diff baseline.json --live
 
 # Show up to 5 offending UIDs per resource row:
-dhis2 metadata diff baseline.json candidate.json --show-uids
+d2w metadata diff baseline.json candidate.json --show-uids
 
 # JSON envelope, for piping into CI:
-dhis2 --json metadata diff baseline.json candidate.json | jq '.total_updated'
+d2w --json metadata diff baseline.json candidate.json | jq '.total_updated'
 
 # Custom ignore list: treat `code` changes as noise too:
-dhis2 metadata diff a.json b.json --ignore code --ignore description
+d2w metadata diff a.json b.json --ignore code --ignore description
 ```
 
 ### What counts as a change
@@ -633,7 +633,7 @@ MCP tool: `metadata_diff` (pass `left_path` + `right_path`, or `left_path` +
 
 ## `diff-profiles` — staging-vs-prod drift
 
-`dhis2 metadata diff-profiles <a> <b>` exports the same resource slice from
+`d2w metadata diff-profiles <a> <b>` exports the same resource slice from
 two registered profiles concurrently and diffs them. Built for drift
 monitoring between environments — staging and prod diverge by design on
 user accounts, org-unit assignments, and incidental settings, so the
@@ -641,22 +641,22 @@ command REQUIRES a resource list and layers filters on top.
 
 ```bash
 # Minimum: narrow to specific resource types (required).
-dhis2 metadata diff-profiles stage prod -r dataElements -r indicators
+d2w metadata diff-profiles stage prod -r dataElements -r indicators
 
 # Per-resource filter — same `property:operator:value` DSL as
-# `dhis2 metadata list --filter`, prefixed with the resource name:
-dhis2 metadata diff-profiles stage prod \
+# `d2w metadata list --filter`, prefixed with the resource name:
+d2w metadata diff-profiles stage prod \
   -r dataElements -r indicators \
   --filter 'dataElements:name:like:Penta' \
   --filter 'indicators:name:like:Penta'
 
 # Extend the ignore list for cross-environment noise
 # (sharing blocks and translations often differ without being "drift"):
-dhis2 metadata diff-profiles stage prod -r dataElements \
+d2w metadata diff-profiles stage prod -r dataElements \
   --ignore sharing --ignore translations
 
 # CI shape: non-zero exit on any drift, JSON output for the alerting script.
-dhis2 metadata diff-profiles stage prod -r dataElements \
+d2w metadata diff-profiles stage prod -r dataElements \
   --exit-on-drift --json
 ```
 

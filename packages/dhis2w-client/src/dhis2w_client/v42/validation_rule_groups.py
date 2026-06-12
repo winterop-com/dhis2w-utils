@@ -1,7 +1,7 @@
 """ValidationRuleGroup authoring — `Dhis2Client.validation_rule_groups`.
 
 `ValidationRuleGroup`s collect ValidationRules into named runs so
-`dhis2 maintenance validation run --group <uid>` exercises a coherent
+`d2w maintenance validation run --group <uid>` exercises a coherent
 subset (BCG-dose rules, ANC rules, …). Follows the same CRUD +
 per-item membership pattern as IndicatorGroupsAccessor.
 """

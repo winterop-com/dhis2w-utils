@@ -18,7 +18,7 @@ class _SecurityPlugin(BaseModel):
     description: str = "Inspect DHIS2 security settings (password policy, registration, lockout)."
 
     def register_cli(self, app: Any) -> None:
-        """Mount the security sub-app under `dhis2 security`."""
+        """Mount the security sub-app under `d2w security`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

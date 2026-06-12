@@ -11,7 +11,7 @@ WORK=/tmp/metadata_round_trip
 mkdir -p "$WORK"
 
 echo "=== 1. Export the slice we want to mutate (filter-narrowed)"
-dhis2 metadata export \
+d2w metadata export \
     --resource dataElements \
     --filter "dataElements:name:like:Penta" \
     --output "$WORK/original.json"
@@ -23,15 +23,15 @@ jq '.dataElements |= map(.description = ("[Penta] " + (.description // "no descr
 
 echo ""
 echo "=== 3. Diff — shows what would change on re-import"
-dhis2 metadata diff "$WORK/original.json" "$WORK/modified.json" --show-uids
+d2w metadata diff "$WORK/original.json" "$WORK/modified.json" --show-uids
 
 echo ""
 echo "=== 4. Dry-run import to confirm DHIS2 accepts the shape"
-dhis2 metadata import "$WORK/modified.json" --dry-run
+d2w metadata import "$WORK/modified.json" --dry-run
 
 echo ""
 echo "=== 5. Real import"
-dhis2 metadata import "$WORK/modified.json"
+d2w metadata import "$WORK/modified.json"
 
 echo ""
 echo "=== 6. Diff the modified bundle against the live instance"
@@ -42,10 +42,10 @@ echo "=== 6. Diff the modified bundle against the live instance"
 # Full diff output — no piping because DHIS2's Rich table renderer +
 # `set -o pipefail` trip on SIGPIPE when the downstream consumer (head /
 # awk + exit / sed + q) closes stdin early.
-dhis2 metadata diff "$WORK/modified.json" --live --show-uids
+d2w metadata diff "$WORK/modified.json" --live --show-uids
 
 echo ""
 echo "=== 7. Revert to the original for idempotency"
-dhis2 metadata import "$WORK/original.json"
+d2w metadata import "$WORK/original.json"
 echo ""
 echo "--- done; work files left at $WORK/ for inspection ---"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# `dhis2 maintenance validation ...` — validate expressions, run the validation
+# `d2w maintenance validation ...` — validate expressions, run the validation
 # engine, browse persisted results. CRUD on the rules themselves stays on the
-# generic `dhis2 metadata list validationRules` surface.
+# generic `d2w metadata list validationRules` surface.
 #
 # Predictor runs (the synthetic-data-value engine) live in the sibling
 # `predictors.sh` — same plugin namespace, different engine.
@@ -14,12 +14,12 @@ set -euo pipefail
 # Parse-check any DHIS2 expression + render a human description. Useful as a
 # pre-save gate before creating a VR or indicator.
 
-dhis2 maintenance validation validate-expression '#{fClA2Erf6IO}'
-dhis2 maintenance validation validate-expression '#{noSuchDeUid}'
+d2w maintenance validation validate-expression '#{fClA2Erf6IO}'
+d2w maintenance validation validate-expression '#{noSuchDeUid}'
 
 # Per-context parsers: validation-rule / indicator / predictor / program-indicator.
 # Each has a different allowed-reference set on the DHIS2 side.
-dhis2 maintenance validation validate-expression '#{fClA2Erf6IO} > 0' --context validation-rule
+d2w maintenance validation validate-expression '#{fClA2Erf6IO} > 0' --context validation-rule
 
 # --- Validation analysis ----------------------------------------------------
 # Evaluate validation rules on an org-unit subtree for a date range. Returns
@@ -33,27 +33,27 @@ dhis2 maintenance validation validate-expression '#{fClA2Erf6IO} > 0' --context 
 #   VrGImmun001  — group wrapping both
 
 # Run one group against the Sierra Leone root OU (walks the full sub-tree):
-dhis2 maintenance validation run ImspTQPwCqd \
+d2w maintenance validation run ImspTQPwCqd \
     --start-date 2024-04-01 --end-date 2024-06-30 \
     --group VrGImmun001 --max-results 10
 
 # Run every rule on the instance (no --group):
-# dhis2 maintenance validation run ImspTQPwCqd \
+# d2w maintenance validation run ImspTQPwCqd \
 #     --start-date 2024-04-01 --end-date 2024-06-30 --max-results 5
 
 # --- Persisted validation results -------------------------------------------
 # Persist the sentinel rule's violations, then browse them via
 # /api/validationResults:
-dhis2 maintenance validation run ImspTQPwCqd \
+d2w maintenance validation run ImspTQPwCqd \
     --start-date 2024-04-01 --end-date 2024-04-30 \
     --group VrGImmun001 --persist --max-results 5
 
-dhis2 maintenance validation result list --ou ImspTQPwCqd --pe 202404
+d2w maintenance validation result list --ou ImspTQPwCqd --pe 202404
 
 # Bulk-delete by filter (at least one filter required — can't wipe the whole
 # table accidentally):
-# dhis2 maintenance validation result delete --pe 202404
+# d2w maintenance validation result delete --pe 202404
 
 # --- CRUD on validation rules ----------------------------------------------
 # Stays on the generic metadata surface — no special plugin:
-dhis2 metadata list validationRules --fields 'id,name,leftSide,rightSide'
+d2w metadata list validationRules --fields 'id,name,leftSide,rightSide'

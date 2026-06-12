@@ -1,4 +1,4 @@
-"""Generated DHIS2 v42 client. Produced by `dhis2 codegen`.
+"""Generated DHIS2 v42 client. Produced by `d2w codegen`.
 
 Re-exports every pydantic resource schema so callers can write:
 

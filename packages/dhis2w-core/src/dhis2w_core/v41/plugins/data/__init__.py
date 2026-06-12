@@ -1,4 +1,4 @@
-"""Data plugin — `dhis2 data` umbrella covering aggregate + tracker sub-domains."""
+"""Data plugin — `d2w data` umbrella covering aggregate + tracker sub-domains."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class _DataPlugin(BaseModel):
     description: str = "DHIS2 data values — aggregate (dataValueSets) and tracker (entities, events, ...)."
 
     def register_cli(self, app: Any) -> None:
-        """Mount under `dhis2 data`."""
+        """Mount under `d2w data`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

@@ -1,4 +1,4 @@
-"""Typer sub-app for the `route` plugin (mounted under `dhis2 route`)."""
+"""Typer sub-app for the `route` plugin (mounted under `d2w route`)."""
 
 from __future__ import annotations
 
@@ -328,5 +328,5 @@ def run_command(
 
 
 def register(root_app: Any) -> None:
-    """Mount under `dhis2 route`."""
+    """Mount under `d2w route`."""
     root_app.add_typer(app, name="route", help="DHIS2 integration routes.")

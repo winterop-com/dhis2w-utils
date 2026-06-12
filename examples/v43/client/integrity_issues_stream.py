@@ -10,9 +10,9 @@ DHIS2's `/api/dataIntegrity/details` returns the whole
 - **Early break** — stop mid-stream without touching every issue (useful
   when just sampling or when an error bubbles up partway).
 
-Prerequisite: `dhis2 maintenance dataintegrity run --details` must have
+Prerequisite: `d2w maintenance dataintegrity run --details` must have
 been called at least once so `/details` has something to return. The
-seeded e2e fixture typically has results already; `dhis2 doctor integrity`
+seeded e2e fixture typically has results already; `d2w doctor integrity`
 also triggers a run.
 
 Usage:
@@ -48,7 +48,7 @@ async def main() -> None:
         print(f"\ntotal issues: {total}")
         if total == 0:
             print("(no issues — either the instance is squeaky clean or no detail run has been triggered yet)")
-            print("  run `dhis2 maintenance dataintegrity run --details --watch` to populate /details")
+            print("  run `d2w maintenance dataintegrity run --details --watch` to populate /details")
             return
 
         print("\nby severity:")

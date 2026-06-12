@@ -1,4 +1,4 @@
-"""Typer sub-app for the tracker domain (mounted under `dhis2 data tracker`).
+"""Typer sub-app for the tracker domain (mounted under `d2w data tracker`).
 
 Tracked-entity listing keys on the TrackedEntityType — the `<type>` positional
 on `list` + `get` accepts a TET name (case-insensitive) or UID directly. Names
@@ -107,7 +107,7 @@ def list_command(
 ) -> None:
     """List tracked entities by TrackedEntityType (TYPE) or by --program — give exactly one.
 
-    Example: dhis2 data tracker list Person --ou ImspTQPwCqd
+    Example: d2w data tracker list Person --ou ImspTQPwCqd
     """
     if (type is None) == (program is None):
         typer.secho(

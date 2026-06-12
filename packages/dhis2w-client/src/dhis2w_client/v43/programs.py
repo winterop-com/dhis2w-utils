@@ -12,7 +12,7 @@ come in two flavours:
   directly; no TET required.
 
 This module is the authoring flip side of the existing tracker-write
-plugin (`dhis2 tracker register / enroll / add-event`). The leaf half
+plugin (`d2w tracker register / enroll / add-event`). The leaf half
 (TET + TEA) lives in `tracked_entity_types.py` /
 `tracked_entity_attributes.py`; the inner layer (ProgramStage + PSDE)
 ships in a follow-up.

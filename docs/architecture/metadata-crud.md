@@ -1,6 +1,6 @@
 # Metadata CRUD via generated resources
 
-Every DHIS2 metadata type exposed on `/api/schemas` gets a generated `_<Name>Resource` class with full CRUD. `dhis2 codegen` stamps them into `dhis2w_client/generated/v{NN}/resources.py` and binds them to `Dhis2Client` as `client.resources.<attr_name>` at connect time.
+Every DHIS2 metadata type exposed on `/api/schemas` gets a generated `_<Name>Resource` class with full CRUD. `d2w codegen` stamps them into `dhis2w_client/generated/v{NN}/resources.py` and binds them to `Dhis2Client` as `client.resources.<attr_name>` at connect time.
 
 ## Surface per resource
 

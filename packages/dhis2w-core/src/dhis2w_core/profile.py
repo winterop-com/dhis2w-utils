@@ -301,7 +301,7 @@ def _resolve_by_name(
         available = sorted(merged)
         raise UnknownProfileError(
             f"no profile named {name!r} (available: {', '.join(available) if available else 'none'}). "
-            "Run `dhis2 profile list` to see all profiles."
+            "Run `d2w profile list` to see all profiles."
         )
     entry = merged[name]
     # If caller asked by explicit name (`arg`/`env-profile`), report THAT origin rather than TOML layer.

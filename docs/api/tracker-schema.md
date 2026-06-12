@@ -1,6 +1,6 @@
 # Tracker schema
 
-The authoring flip side of `dhis2 tracker register / enroll / add-event`. DHIS2's tracker writes need a *schema* on the instance: the `TrackedEntityType` that names the kind of subject, and the `TrackedEntityAttribute`s that describe the fields captured per enrolled TEI. Two accessors cover the leaf half of tracker-schema CRUD:
+The authoring flip side of `d2w tracker register / enroll / add-event`. DHIS2's tracker writes need a *schema* on the instance: the `TrackedEntityType` that names the kind of subject, and the `TrackedEntityAttribute`s that describe the fields captured per enrolled TEI. Two accessors cover the leaf half of tracker-schema CRUD:
 
 | Accessor | API path | Purpose |
 | --- | --- | --- |
@@ -60,14 +60,14 @@ Same call as every other authoring accessor — keyword args. Continues the spec
 
 ```bash
 # TrackedEntityAttribute
-dhis2 metadata tracked-entity-attributes create \
+d2w metadata tracked-entity-attributes create \
     --name "National ID" --short-name NatID --value-type TEXT \
     --unique --generated --pattern "RANDOM(#######)"
 
 # TrackedEntityType + attribute linkage
-dhis2 metadata tracked-entity-types create \
+d2w metadata tracked-entity-types create \
     --name Person --short-name Person --allow-audit-log --feature-type NONE
-dhis2 metadata tracked-entity-types add-attribute <TET_UID> <TEA_UID> --mandatory --searchable
+d2w metadata tracked-entity-types add-attribute <TET_UID> <TEA_UID> --mandatory --searchable
 ```
 
 Every `list` has an `ls` alias; every destructive verb accepts `--yes` / `-y`.
@@ -82,9 +82,9 @@ The point of authoring these here is to make the tracker-write plugin usable end
 
 ```bash
 # 1. author the schema
-dhis2 metadata tracked-entity-types create --name Person --short-name Person ...
+d2w metadata tracked-entity-types create --name Person --short-name Person ...
 # 2. use it
-dhis2 tracker register --type <TET_UID> --ou <OU_UID> ...
+d2w tracker register --type <TET_UID> --ou <OU_UID> ...
 ```
 
 See the [tracker plugin](../architecture/tracker.md) for the write-side reference.

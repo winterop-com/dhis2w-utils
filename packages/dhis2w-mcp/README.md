@@ -28,7 +28,7 @@ uvx dhis2w-mcp
 uvx --refresh dhis2w-mcp
 ```
 
-The PyPI distribution name and the binary name match (`dhis2w-mcp` for both), so unlike `dhis2w-cli` (whose binary is `dhis2`), no `--from` dance is needed.
+The PyPI distribution name and the binary name match (`dhis2w-mcp` for both), so unlike `dhis2w-cli` (whose binary is `d2w`), no `--from` dance is needed.
 
 ### From a workspace checkout (for active development)
 
@@ -72,20 +72,20 @@ For PAT auth, swap the username/password env vars for `"DHIS2_PAT": "d2p_..."`. 
 
 ```bash
 # Option 1 — uvx (no install, fetches from PyPI on each run)
-claude mcp add dhis2 -s user \
+claude mcp add d2w -s user \
   -e DHIS2_URL=https://play.im.dhis2.org/dev-2-43 \
   -e DHIS2_USERNAME=admin \
   -e DHIS2_PASSWORD=district \
   -- uvx dhis2w-mcp
 
 # Option 2 — installed via `uv tool install dhis2w-mcp`
-claude mcp add dhis2 -s user \
+claude mcp add d2w -s user \
   -e DHIS2_URL=https://play.im.dhis2.org/dev-2-43 \
   -e DHIS2_PAT=d2p_... \
   -- dhis2w-mcp
 
 # Option 3 — workspace checkout (recommended for active development)
-claude mcp add dhis2 -s user \
+claude mcp add d2w -s user \
   -- uv run --directory /absolute/path/to/dhis2w-utils dhis2w-mcp
 ```
 
@@ -134,7 +134,7 @@ Three patterns, in order of preference for production:
 
 ### 1. Profile (the workspace flavour)
 
-If your config has a `.dhis2/profiles.toml` (created by `dhis2 profile bootstrap` or `dhis2 profile add`), the server auto-discovers it. Pin one for the agent with `DHIS2_PROFILE`:
+If your config has a `.dhis2/profiles.toml` (created by `d2w profile bootstrap` or `d2w profile add`), the server auto-discovers it. Pin one for the agent with `DHIS2_PROFILE`:
 
 ```json
 "env": { "DHIS2_PROFILE": "prod" }
@@ -161,9 +161,9 @@ If your config has a `.dhis2/profiles.toml` (created by `dhis2 profile bootstrap
 
 ### 3. OAuth2 / OIDC
 
-Configure the OAuth2 client in a named profile (`dhis2 profile add ... --auth oauth2`), run `dhis2 profile login <name>` once to seed the token, then point the MCP server at that profile via `DHIS2_PROFILE`. The server uses the cached refresh token; the agent never sees a credential.
+Configure the OAuth2 client in a named profile (`d2w profile add ... --auth oauth2`), run `d2w profile login <name>` once to seed the token, then point the MCP server at that profile via `DHIS2_PROFILE`. The server uses the cached refresh token; the agent never sees a credential.
 
-If the server starts without a usable profile **and** without env-var auth, every tool call fails with an actionable error pointing at `dhis2 profile bootstrap`.
+If the server starts without a usable profile **and** without env-var auth, every tool call fails with an actionable error pointing at `d2w profile bootstrap`.
 
 ## Tool naming
 
@@ -200,7 +200,7 @@ The server is a long-lived process. Edits made while it's running are not visibl
 | Agent reports no DHIS2 tools | MCP host didn't pick up the server | Reload host config; check `claude mcp list` / `cursor mcp logs` |
 | Tools listed but every call fails with "no profile" | Server can't find a profile or env-var auth | Add `DHIS2_URL` + `DHIS2_PASSWORD` (or `DHIS2_PAT`) to the `env` block, or set `DHIS2_PROFILE` to a profile that exists |
 | Connection works locally but fails for the agent | Working directory mismatch — `.dhis2/profiles.toml` lookup is CWD-relative | Pin `DHIS2_PROFILE` explicitly, or use `~/.config/dhis2/profiles.toml` (user-wide) |
-| 401 Unauthorized on every call | Stale OAuth2 token | Re-run `dhis2 profile login <name>` to refresh; the cached `tokens.sqlite` updates in place |
+| 401 Unauthorized on every call | Stale OAuth2 token | Re-run `d2w profile login <name>` to refresh; the cached `tokens.sqlite` updates in place |
 | `uvx dhis2w-mcp` cold-starts slowly | First fetch from PyPI on each run | Switch to `uv tool install dhis2w-mcp` (one-time fetch, instant subsequent launches) |
 
 ## Architecture

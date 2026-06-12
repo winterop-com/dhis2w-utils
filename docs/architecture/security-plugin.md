@@ -1,12 +1,12 @@
 # Security plugin
 
 Read-only inspection of a DHIS2 instance's security posture. Starts deliberately
-small — one command, `dhis2 security settings` — and is built to grow one command
+small — one command, `d2w security settings` — and is built to grow one command
 at a time.
 
 ```
-dhis2 security settings        # password policy, credential expiry, registration, lockout
-dhis2 --json security settings # the same data as a typed JSON object
+d2w security settings        # password policy, credential expiry, registration, lockout
+d2w --json security settings # the same data as a typed JSON object
 ```
 
 The plugin is **CLI-only** today: the descriptor's `register_mcp` is a no-op and
@@ -91,7 +91,7 @@ if (settings.minPasswordLength or 0) < 12:
 ## Adding the next security command
 
 The plugin is a teaching-sized template. Adding a command — say
-`dhis2 security whoami` — is the same loop every plugin follows. Do the work in the
+`d2w security whoami` — is the same loop every plugin follows. Do the work in the
 **v42 tree first**, verify it against a live server, then sweep the two siblings.
 
 1. **Service function** — add an `async def` to
@@ -180,16 +180,16 @@ When a read command is worth exposing to MCP clients:
 Read-only first; these all map to endpoints the plugin can reach without mutating
 state:
 
-- `dhis2 security whoami` — authenticated user, roles, and authority count from
+- `d2w security whoami` — authenticated user, roles, and authority count from
   `/api/me` (typed `Me` already exists in `dhis2w-client`).
-- `dhis2 security authorities` — the current user's effective authorities from
+- `d2w security authorities` — the current user's effective authorities from
   `/api/me/authorities`.
-- `dhis2 security password-policy --lint` — turn `settings` into pass/warn checks
+- `d2w security password-policy --lint` — turn `settings` into pass/warn checks
   against a baseline (min length, expiry set, lockout on) — a thin sibling of the
   `doctor` probe model.
-- `dhis2 security sharing-defaults` — default public-access settings for new metadata
+- `d2w security sharing-defaults` — default public-access settings for new metadata
   (`keyRequireAddToView`, `keyCanGrantOwnUserAuthorityGroups`, …).
-- `dhis2 security sessions` — active sessions / OAuth2 clients, where the API exposes
+- `d2w security sessions` — active sessions / OAuth2 clients, where the API exposes
   them.
 
 Writes (rotating credentials, toggling self-registration, editing security settings)

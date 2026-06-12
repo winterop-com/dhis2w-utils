@@ -1,4 +1,4 @@
-"""`dhis2 dev pat` — provision DHIS2 Personal Access Tokens via admin auth."""
+"""`d2w dev pat` — provision DHIS2 Personal Access Tokens via admin auth."""
 
 from __future__ import annotations
 
@@ -42,10 +42,10 @@ def pat_create_command(
     Admin creds come from env or prompt (never argv). The PAT value is only
     returned once by DHIS2 — capture it here and pipe into a profile:
 
-        export DHIS2_PAT=$(dhis2 dev pat create --url $URL -q)
-        dhis2 profile add local --url $URL --auth pat
+        export DHIS2_PAT=$(d2w dev pat create --url $URL -q)
+        d2w profile add local --url $URL --auth pat
 
-    Or use `dhis2 profile bootstrap --auth pat` for a one-shot setup.
+    Or use `d2w profile bootstrap --auth pat` for a one-shot setup.
     """
     resolved_url: str = url or os.environ.get("DHIS2_URL") or typer.prompt("DHIS2 base URL")
     admin_auth = resolve_admin_auth(admin_user)

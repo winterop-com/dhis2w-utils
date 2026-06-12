@@ -98,7 +98,7 @@ A Typer app with exactly one `@app.command(...)` runs that command as the root, 
 1. Drop the subcommand name — call `my_app --foo`.
 2. Add a second placeholder command so Typer flips to subcommand-dispatch mode.
 
-Worth keeping in mind whenever a plugin ships exactly one command — adding a second command (or mounting under a parent sub-app that has siblings, like our `dhis2 browser pat` does) avoids the flatten.
+Worth keeping in mind whenever a plugin ships exactly one command — adding a second command (or mounting under a parent sub-app that has siblings, like our `d2w browser pat` does) avoids the flatten.
 
 ## Watching Playwright work during tests
 

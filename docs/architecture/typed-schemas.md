@@ -172,7 +172,7 @@ Because `StrEnum` subclasses `str`, passing a bare string still validates: `Data
 ## Why two codegen paths?
 
 - **`/api/schemas` codegen** — generates the 100+ metadata resources (DataElement, DataSet, Program, …) plus their CONSTANT-property StrEnums. Output lands in `generated/v{N}/schemas/` + `generated/v{N}/enums.py` + `generated/v{N}/resources.py`. This is what `client.resources.data_elements.list()` returns.
-- **`/api/openapi.json` codegen** — generates the instance-side shapes `/api/schemas` can't describe: `WebMessage` envelopes, tracker read/write models, `DataValue` / `DataValueSet`, auth-scheme leaves, data-integrity checks, `SystemInfo`. Output lands in `generated/v{N}/oas/`. Entry points: `dhis2 dev codegen oas-rebuild --version v{N}`.
+- **`/api/openapi.json` codegen** — generates the instance-side shapes `/api/schemas` can't describe: `WebMessage` envelopes, tracker read/write models, `DataValue` / `DataValueSet`, auth-scheme leaves, data-integrity checks, `SystemInfo`. Output lands in `generated/v{N}/oas/`. Entry points: `d2w dev codegen oas-rebuild --version v{N}`.
 
 The top-level domain modules (`dhis2w_client.v42.envelopes`, `.aggregate`, `.system`, `.maintenance`, `.auth_schemes`, `.generated.v42.tracker`) are thin shims over the OAS output. They add caller-friendly helpers (`WebMessageResponse.created_uid()`, `TrackerBundle`, the `AuthScheme` discriminated union) that OpenAPI doesn't express on its own.
 

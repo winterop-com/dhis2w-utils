@@ -1,4 +1,4 @@
-"""`dhis2 dev oauth2` — manage DHIS2 OAuth2 clients via admin auth."""
+"""`d2w dev oauth2` — manage DHIS2 OAuth2 clients via admin auth."""
 
 from __future__ import annotations
 
@@ -32,8 +32,8 @@ def oauth2_client_register_command(
     prompt — never argv.
 
     Prints `client_id` + metadata UID so they can be piped into
-    `dhis2 profile add --auth oauth2 ...`. For a one-shot bootstrap (register
-    + save profile + log in) use `dhis2 profile bootstrap` instead.
+    `d2w profile add --auth oauth2 ...`. For a one-shot bootstrap (register
+    + save profile + log in) use `d2w profile bootstrap` instead.
     """
     resolved_url: str = url or os.environ.get("DHIS2_URL") or typer.prompt("DHIS2 base URL")
     admin_auth = resolve_admin_auth(admin_user)

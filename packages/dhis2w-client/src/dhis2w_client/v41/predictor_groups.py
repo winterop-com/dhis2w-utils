@@ -1,6 +1,6 @@
 """PredictorGroup authoring — `Dhis2Client.predictor_groups`.
 
-`PredictorGroup`s collect Predictors so `dhis2 maintenance predictors
+`PredictorGroup`s collect Predictors so `d2w maintenance predictors
 run --group <uid>` exercises a coherent subset in one pass. Mirrors
 the IndicatorGroup / ValidationRuleGroup CRUD + per-item membership
 pattern.

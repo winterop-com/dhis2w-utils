@@ -19,7 +19,7 @@ class _ProfilePlugin(BaseModel):
     description: str = "List, verify, switch, add, and remove DHIS2 profiles."
 
     def register_cli(self, app: Any) -> None:
-        """Mount under `dhis2 profile`."""
+        """Mount under `d2w profile`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

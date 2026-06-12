@@ -19,7 +19,7 @@ class _MetadataPlugin(BaseModel):
     description: str = "Inspect DHIS2 metadata (lists + get by UID, across every generated resource)."
 
     def register_cli(self, app: Any) -> None:
-        """Mount the metadata sub-app under `dhis2 metadata`."""
+        """Mount the metadata sub-app under `d2w metadata`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

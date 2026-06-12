@@ -39,7 +39,7 @@ A plugin is a normal Python object — usually a frozen dataclass — with two `
     my-capability = "my_package.plugin:plugin"
     ```
 
-    `dhis2w-codegen` already does this — its Typer sub-app is mounted as `dhis2 codegen` without any code living under `dhis2w-core`.
+    `dhis2w-codegen` already does this — its Typer sub-app is mounted as `d2w codegen` without any code living under `dhis2w-core`.
 
 The order of discovery is deterministic (sorted built-ins, then entry points in install order). Duplicates by `plugin.name` are fine — last one wins; we don't currently de-dupe.
 
@@ -111,7 +111,7 @@ def register(mcp: Any) -> None:
         return await service.whoami(profile_from_env())
 ```
 
-That's a full capability in ~30 lines. Both `dhis2 system whoami` and an MCP agent's `whoami` tool call go through `service.whoami` end-to-end.
+That's a full capability in ~30 lines. Both `d2w system whoami` and an MCP agent's `whoami` tool call go through `service.whoami` end-to-end.
 
 ## Profile resolution
 

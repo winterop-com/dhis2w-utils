@@ -1,4 +1,4 @@
-"""CliRunner tests for `dhis2 datastore` (namespaces / keys / get / set / delete)."""
+"""CliRunner tests for `d2w datastore` (namespaces / keys / get / set / delete)."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ token = "d2p_test"
 
 
 def test_namespaces_lists_one_per_line(pat_profile: None) -> None:  # noqa: ARG001
-    """`dhis2 datastore namespaces` prints each namespace from the service."""
+    """`d2w datastore namespaces` prints each namespace from the service."""
     mock = AsyncMock(return_value=["capture", "analytics"])
     with patch("dhis2w_core.v42.plugins.datastore.service.list_namespaces", new=mock):
         result = _runner.invoke(build_app(), ["datastore", "namespaces"])
@@ -44,7 +44,7 @@ def test_namespaces_lists_one_per_line(pat_profile: None) -> None:  # noqa: ARG0
 
 
 def test_get_prints_json_value(pat_profile: None) -> None:  # noqa: ARG001
-    """`dhis2 datastore get NS KEY` prints the value as JSON."""
+    """`d2w datastore get NS KEY` prints the value as JSON."""
     mock = AsyncMock(return_value={"dataItems": ["abc"], "enabled": True})
     with patch("dhis2w_core.v42.plugins.datastore.service.get_value", new=mock):
         result = _runner.invoke(build_app(), ["datastore", "get", "ORG_UNIT_PROFILE", "ORG_UNIT_PROFILE"])
@@ -54,7 +54,7 @@ def test_get_prints_json_value(pat_profile: None) -> None:  # noqa: ARG001
 
 
 def test_set_parses_json_value(pat_profile: None) -> None:  # noqa: ARG001
-    """`dhis2 datastore set NS KEY VALUE` parses VALUE as JSON before storing."""
+    """`d2w datastore set NS KEY VALUE` parses VALUE as JSON before storing."""
     mock = AsyncMock(return_value=None)
     with patch("dhis2w_core.v42.plugins.datastore.service.set_value", new=mock):
         result = _runner.invoke(build_app(), ["datastore", "set", "ns", "k", '{"a": 1}'])
@@ -75,7 +75,7 @@ def test_set_falls_back_to_string(pat_profile: None) -> None:  # noqa: ARG001
 
 
 def test_delete_requires_confirmation(pat_profile: None) -> None:  # noqa: ARG001
-    """`dhis2 datastore delete` aborts without --yes when the prompt is declined."""
+    """`d2w datastore delete` aborts without --yes when the prompt is declined."""
     mock = AsyncMock(return_value=None)
     with patch("dhis2w_core.v42.plugins.datastore.service.delete_key", new=mock):
         result = _runner.invoke(build_app(), ["datastore", "delete", "ns", "k"], input="n\n")
@@ -84,7 +84,7 @@ def test_delete_requires_confirmation(pat_profile: None) -> None:  # noqa: ARG00
 
 
 def test_delete_with_yes_calls_service(pat_profile: None) -> None:  # noqa: ARG001
-    """`dhis2 datastore delete --yes` skips the prompt and deletes."""
+    """`d2w datastore delete --yes` skips the prompt and deletes."""
     mock = AsyncMock(return_value=None)
     with patch("dhis2w_core.v42.plugins.datastore.service.delete_key", new=mock):
         result = _runner.invoke(build_app(), ["datastore", "delete", "ns", "k", "--yes"])

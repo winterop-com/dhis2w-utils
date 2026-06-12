@@ -1,4 +1,4 @@
-"""Dev plugin — `dhis2 dev` for operator / developer one-off tools (codegen, uid, oauth2 client)."""
+"""Dev plugin — `d2w dev` for operator / developer one-off tools (codegen, uid, oauth2 client)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class _DevPlugin(BaseModel):
     description: str = "Developer/operator tools: codegen, UID generation, sample data."
 
     def register_cli(self, app: Any) -> None:
-        """Mount under `dhis2 dev`."""
+        """Mount under `d2w dev`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

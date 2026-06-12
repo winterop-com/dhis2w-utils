@@ -10,7 +10,7 @@ Version-awareness therefore lives in the **payload shapes**, not the URLs. DHIS2
 
 DHIS2 schemas evolve across versions. New metadata types appear, existing types get new properties, enums pick up new constants. A single hand-curated client either gets out of date or lags behind the latest release.
 
-Instead of fighting that, we lean in: each supported DHIS2 version gets its **own generated module** under `dhis2w_client.generated.v{NN}`, produced by `dhis2 codegen` from that instance's `/api/schemas` endpoint.
+Instead of fighting that, we lean in: each supported DHIS2 version gets its **own generated module** under `dhis2w_client.generated.v{NN}`, produced by `d2w codegen` from that instance's `/api/schemas` endpoint.
 
 ## Layout
 
@@ -34,7 +34,7 @@ packages/dhis2w-core/src/dhis2w_core/
 └── v43/plugins/<name>/  # mirror of v42, diverges per-file as v43 quirks land
 ```
 
-Three supported majors — v41, v42, v43. Other DHIS2 majors are out of scope; the codegen tooling can still target them via `dhis2 dev codegen generate --url ...` against an arbitrary stack, but no manifests or generated trees are committed.
+Three supported majors — v41, v42, v43. Other DHIS2 majors are out of scope; the codegen tooling can still target them via `d2w dev codegen generate --url ...` against an arbitrary stack, but no manifests or generated trees are committed.
 
 The hand-written `v{N}/` subpackages start as byte-equivalent copies of v42 and diverge per-file as version-specific behaviour lands (the `categorys` -> `categories` field rename on v43's CategoryCombo, the missing `OAuth2ClientCredentialsAuthScheme` on v41's generated tree, etc.). Until a file diverges, all three trees import from `dhis2w_client.generated.v42.*` to keep the symbol set consistent. Divergence is per-method and called out in BUGS.md.
 
@@ -43,7 +43,7 @@ Each populated `v{NN}/` carries:
 - `__init__.py` — sets `GENERATED = True` and re-exports every resource schema (`from dhis2w_client.generated.v42 import DataElement`).
 - `schemas/` — one pydantic `BaseModel` per DHIS2 metadata type, with `Field(description=...)` hints for owner/writable/bounds.
 - `resources.py` — typed CRUD accessors (`client.resources.dataElements.get/list/create/update/delete`).
-- `schemas_manifest.json` — snapshot of the `/api/schemas` response used at generation time. Committed so `dhis2 dev codegen rebuild` can regenerate offline.
+- `schemas_manifest.json` — snapshot of the `/api/schemas` response used at generation time. Committed so `d2w dev codegen rebuild` can regenerate offline.
 
 The generated code is **committed**, not gitignored. Diffs are reviewable in PRs — you can see when a new field appears on a resource, when an enum gains a constant, when an endpoint is removed. The per-version `infra/v{N}/dump.sql.gz` dumps (Flyway-bootstrapped, no user data) sit alongside as cheap restore points.
 
@@ -64,7 +64,7 @@ from dhis2w_client.generated.v42 import DataElement, OrganisationUnit
 
 ## Plugin-tree selection at CLI / MCP startup
 
-The CLI (`dhis2 ...`) and MCP server (`dhis2w-mcp`) pick a single plugin tree at bootstrap from `dhis2w_core.v{41,42,43}.plugins.*`. The selection chain (`dhis2w_core.plugin.resolve_startup_version`):
+The CLI (`d2w ...`) and MCP server (`dhis2w-mcp`) pick a single plugin tree at bootstrap from `dhis2w_core.v{41,42,43}.plugins.*`. The selection chain (`dhis2w_core.plugin.resolve_startup_version`):
 
 1. **`profile.version`** — if the active profile carries `version = "v41" | "v42" | "v43"` in `profiles.toml`, that tree is loaded.
 2. **`DHIS2_VERSION` env var** — `41` / `42` / `43` map to `v41` / `v42` / `v43`. Lets `make verify-examples DHIS2_VERSION=43` exercise the v43 plugin tree against a v43 stack without hand-editing every profile.
@@ -74,7 +74,7 @@ This selection is independent of the wire client's actual version detection (`Dh
 
 ```bash
 # Force the v43 plugin tree for a one-off run (overrides profile.version)
-DHIS2_VERSION=43 dhis2 metadata list dataElements
+DHIS2_VERSION=43 d2w metadata list dataElements
 ```
 
 Library callers using `from dhis2w_client.v43 import Dhis2Client` skip the resolution chain entirely — the import path pins the version.
@@ -87,7 +87,7 @@ On `Dhis2Client.connect()`:
 2. The minor component is extracted (e.g. `42`) and mapped to `"v42"`.
 3. `dhis2w_client.generated.available_versions()` is consulted — only populated versions (`GENERATED = True`) are candidates.
 4. If `"v42"` is populated, that module is loaded and bound to `client.resources`, `client.models`, etc.
-5. If `"v42"` is not populated and `allow_version_fallback=False` (default), `UnsupportedVersionError` is raised, pointing the user at `dhis2 codegen`.
+5. If `"v42"` is not populated and `allow_version_fallback=False` (default), `UnsupportedVersionError` is raised, pointing the user at `d2w codegen`.
 6. If fallback is enabled and the live version isn't populated, the nearest-lower populated version is chosen — never higher. With v41 + v42 + v43 populated, the practical case is "any DHIS2 above v43 falls back to v43".
 
 ```python
@@ -190,15 +190,15 @@ For each version N, the script:
 
 1. Brings up a fresh `dhis2/core:N` stack with an empty-gzip placeholder where `infra/v{N}/dump.sql.gz` sits (so Flyway bootstraps a clean schema instead of loading the seeded e2e dump into a fresh stack).
 2. Waits for `/api/system/info` to respond.
-3. Runs `dhis2 dev codegen generate` against `http://localhost:8080` with admin/district, which writes `generated/v{N}/schemas/`, `resources.py`, `__init__.py`, and `schemas_manifest.json`.
+3. Runs `d2w dev codegen generate` against `http://localhost:8080` with admin/district, which writes `generated/v{N}/schemas/`, `resources.py`, `__init__.py`, and `schemas_manifest.json`.
 4. `pg_dump`s the post-Flyway schema into `infra/v{N}/dump.sql.gz` (excluding derived analytics_*, aggregated_*, completeness_*, and `_*` tables — those are regenerated by `analytics-trigger`).
 5. Tears down, restores the committed dump.
 
 Rebuilding from a committed manifest (no network) is cheap:
 
 ```bash
-uv run dhis2 dev codegen rebuild                              # every v{N}/schemas_manifest.json
-uv run dhis2 dev codegen rebuild --manifest path/to/foo.json  # just one
+uv run d2w dev codegen rebuild                              # every v{N}/schemas_manifest.json
+uv run d2w dev codegen rebuild --manifest path/to/foo.json  # just one
 ```
 
 Useful after touching `emit.py` or the Jinja templates when you want all three trees refreshed without booting each server.

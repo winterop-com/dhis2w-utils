@@ -54,8 +54,8 @@ status: ## show container state + DHIS2 reachability
 logs: ## follow DHIS2 + postgres logs
 	@$(COMPOSE) logs -f dhis2 postgresql
 
-pat: ## mint a single PAT via `dhis2 browser pat` (Playwright) against the running instance
-	@cd .. && uv run dhis2 browser pat --url $(DHIS2_URL) --username $(DHIS2_USER) --password $(DHIS2_PASS) --headless
+pat: ## mint a single PAT via `d2w browser pat` (Playwright) against the running instance
+	@cd .. && uv run d2w browser pat --url $(DHIS2_URL) --username $(DHIS2_USER) --password $(DHIS2_PASS) --headless
 
 wait: ## block until DHIS2 responds at /api/me (uses seed_auth's readiness probe)
 	@cd .. && uv run --with bcrypt python -c "import asyncio; from infra.scripts.seed_auth import wait_for_ready; asyncio.run(wait_for_ready('$(DHIS2_URL)', '$(DHIS2_USER)', '$(DHIS2_PASS)'))"
@@ -65,7 +65,7 @@ seed: ## seed standard PAT variations + OAuth2 client into the running stack
 
 profile: ## write project-scoped `local_basic` Basic-auth profile to <repo>/.dhis2/profiles.toml
 	@echo ">>> Writing local_basic profile (DHIS2 v$(DHIS2_VERSION))"
-	@cd .. && DHIS2_PASSWORD=$(DHIS2_PASS) uv run dhis2 profile add local_basic --local --auth basic --url $(DHIS2_URL) --username $(DHIS2_USER) --version v$(DHIS2_VERSION) --default
+	@cd .. && DHIS2_PASSWORD=$(DHIS2_PASS) uv run d2w profile add local_basic --local --auth basic --url $(DHIS2_URL) --username $(DHIS2_USER) --version v$(DHIS2_VERSION) --default
 
 up-seeded: ## up + wait + seed + profile — one-shot "I want a DHIS2 with auth ready"
 	@$(MAKE) up

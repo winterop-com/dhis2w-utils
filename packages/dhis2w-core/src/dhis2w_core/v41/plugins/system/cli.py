@@ -1,4 +1,4 @@
-"""Typer sub-app for the `system` plugin (mounted under `dhis2 system`)."""
+"""Typer sub-app for the `system` plugin (mounted under `d2w system`)."""
 
 from __future__ import annotations
 
@@ -218,5 +218,5 @@ def settings_list_command() -> None:
 
 
 def register(root_app: Any) -> None:
-    """Mount this plugin's Typer sub-app under `dhis2 system`."""
+    """Mount this plugin's Typer sub-app under `d2w system`."""
     root_app.add_typer(app, name="system", help="DHIS2 system info.")

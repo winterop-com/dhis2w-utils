@@ -1,7 +1,7 @@
 # dhis2-plugin-hello — external plugin example
 
 Minimal standalone package showing how an external Python package adds a
-`dhis2 <command>` + an MCP tool **without touching this repo**. Everything
+`d2w <command>` + an MCP tool **without touching this repo**. Everything
 works through `importlib.metadata.entry_points(group="dhis2.plugins")` —
 dhis2w-core's loader walks that group at startup and mounts whatever it
 finds.
@@ -17,7 +17,7 @@ examples/plugin-external/
     └── dhis2_plugin_hello/
         ├── __init__.py         # exports `plugin = _HelloPlugin()`
         ├── service.py          # pure library code (uses open_client / profiles)
-        ├── cli.py              # Typer sub-app, mounted as `dhis2 hello`
+        ├── cli.py              # Typer sub-app, mounted as `d2w hello`
         └── mcp.py              # FastMCP tool `hello_say`
 ```
 
@@ -33,13 +33,13 @@ package scan instead.
 uv add --editable examples/plugin-external/
 
 # Verify it registered:
-dhis2 --help | grep hello
+d2w --help | grep hello
 #   hello        External plugin example.
 
-dhis2 hello say
+d2w hello say
 #   Hello, admin admin!
 
-dhis2 hello say --greeting "Hei"
+d2w hello say --greeting "Hei"
 #   Hei, admin admin!
 
 # Uninstall when done:
@@ -62,7 +62,7 @@ async with Client(build_server()) as client:
 1. Replace `dhis2_plugin_hello` with your package name everywhere (dir +
    entry-point + imports).
 2. Change the entry-point key (`hello = "..."`) to your plugin's surface
-   name — this is what appears in `dhis2 --help`.
+   name — this is what appears in `d2w --help`.
 3. Add whatever DHIS2 calls your plugin needs in `service.py`, expose
    them via `cli.py` + `mcp.py`, keep the plugin descriptor in
    `__init__.py`.

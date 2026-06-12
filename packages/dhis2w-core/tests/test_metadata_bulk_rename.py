@@ -1,4 +1,4 @@
-"""Unit tests for `dhis2 metadata rename` bulk-rename verb + its service layer."""
+"""Unit tests for `d2w metadata rename` bulk-rename verb + its service layer."""
 
 from __future__ import annotations
 

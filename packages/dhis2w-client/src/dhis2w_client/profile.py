@@ -95,7 +95,7 @@ def profile_from_env_raw() -> Profile | None:
     into `Profile.version` when set.
 
     Library callers that want full TOML + env precedence resolution (the
-    chain the `dhis2` CLI uses) should install `dhis2w-core` and call
+    chain the `d2w` CLI uses) should install `dhis2w-core` and call
     `dhis2w_core.profile_from_env()` instead.
     """
     base_url = os.environ.get("DHIS2_URL", "").rstrip("/")

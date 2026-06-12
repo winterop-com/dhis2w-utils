@@ -17,10 +17,10 @@ The CLI, MCP tools, and Python attribute names mirror the DHIS2 API paths 1:1 (c
 
 | DHIS2 | CLI | MCP tool prefix | Client attribute |
 | --- | --- | --- | --- |
-| `/api/organisationUnits` | `dhis2 metadata organisation-units …` | `metadata_organisation_unit_*` | `client.organisation_units` |
-| `/api/organisationUnitGroups` | `dhis2 metadata organisation-unit-groups …` | `metadata_organisation_unit_group_*` | `client.organisation_unit_groups` |
-| `/api/organisationUnitGroupSets` | `dhis2 metadata organisation-unit-group-sets …` | `metadata_organisation_unit_group_set_*` | `client.organisation_unit_group_sets` |
-| `/api/organisationUnitLevels` | `dhis2 metadata organisation-unit-levels …` | `metadata_organisation_unit_level_*` | `client.organisation_unit_levels` |
+| `/api/organisationUnits` | `d2w metadata organisation-units …` | `metadata_organisation_unit_*` | `client.organisation_units` |
+| `/api/organisationUnitGroups` | `d2w metadata organisation-unit-groups …` | `metadata_organisation_unit_group_*` | `client.organisation_unit_groups` |
+| `/api/organisationUnitGroupSets` | `d2w metadata organisation-unit-group-sets …` | `metadata_organisation_unit_group_set_*` | `client.organisation_unit_group_sets` |
+| `/api/organisationUnitLevels` | `d2w metadata organisation-unit-levels …` | `metadata_organisation_unit_level_*` | `client.organisation_unit_levels` |
 
 One rule — "lowercase the DHIS2 resource name, hyphenate or underscore the camelCase boundary" — so anyone who knows the API URL can guess every other surface. The same rule will apply to every future `X / XGroup / XGroupSet` triple (data elements, indicators, category options, program indicators).
 
@@ -83,8 +83,8 @@ await client.organisation_unit_levels.rename_by_level(4, name="Facility")
 The CLI mirrors this:
 
 ```bash
-dhis2 metadata list organisationUnitLevels
-dhis2 metadata organisation-unit-levels rename 2 --by-level --name Province
+d2w metadata list organisationUnitLevels
+d2w metadata organisation-unit-levels rename 2 --by-level --name Province
 ```
 
 ::: dhis2w_client.v42.organisation_units

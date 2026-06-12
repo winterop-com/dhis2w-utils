@@ -23,15 +23,15 @@ def test_plugin_descriptor() -> None:
 
 
 def test_dev_help_lists_subcommands() -> None:
-    """`dhis2 dev --help` lists every dev sub-command (uid / sample)."""
+    """`d2w dev --help` lists every dev sub-command (uid / sample)."""
     result = _runner.invoke(build_app(), ["dev", "--help"])
     assert result.exit_code == 0
     for sub in ("uid", "sample"):
-        assert sub in result.output, f"`dhis2 dev` should mount the {sub!r} sub-command"
+        assert sub in result.output, f"`d2w dev` should mount the {sub!r} sub-command"
 
 
 def test_dev_uid_default_count_emits_one_uid() -> None:
-    """`dhis2 dev uid` with no args emits exactly one 11-char DHIS2 UID."""
+    """`d2w dev uid` with no args emits exactly one 11-char DHIS2 UID."""
     result = _runner.invoke(build_app(), ["dev", "uid"])
     assert result.exit_code == 0
     lines = [line for line in result.output.strip().splitlines() if line.strip()]
@@ -40,7 +40,7 @@ def test_dev_uid_default_count_emits_one_uid() -> None:
 
 
 def test_dev_uid_count_emits_n_uids() -> None:
-    """`dhis2 dev uid --count 5` emits five distinct UIDs, one per line."""
+    """`d2w dev uid --count 5` emits five distinct UIDs, one per line."""
     result = _runner.invoke(build_app(), ["dev", "uid", "--count", "5"])
     assert result.exit_code == 0
     lines = [line for line in result.output.strip().splitlines() if line.strip()]

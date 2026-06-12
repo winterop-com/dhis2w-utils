@@ -1,4 +1,4 @@
-"""`dhis2 dev uid` — mint fresh DHIS2 UIDs client-side (offline, CSPRNG)."""
+"""`d2w dev uid` — mint fresh DHIS2 UIDs client-side (offline, CSPRNG)."""
 
 from __future__ import annotations
 

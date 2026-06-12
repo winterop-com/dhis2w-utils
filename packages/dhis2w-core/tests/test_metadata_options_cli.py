@@ -1,4 +1,4 @@
-"""CliRunner + mock tests for `dhis2 metadata options ...`.
+"""CliRunner + mock tests for `d2w metadata options ...`.
 
 Service-layer hits dhis2w-client; we mock those at the module boundary so
 the CLI exercise stays fast and stable without a live stack.
@@ -37,7 +37,7 @@ token = "d2p_test"
     )
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir.parent))
-    # Clear cross-test pollution — other tests invoke `dhis2 --profile ghost`
+    # Clear cross-test pollution — other tests invoke `d2w --profile ghost`
     # which writes into `os.environ` directly inside `dhis2w-cli/main.py`.
     monkeypatch.delenv("DHIS2_PROFILE", raising=False)
     monkeypatch.chdir(tmp_path)

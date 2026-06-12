@@ -1,13 +1,13 @@
-"""Typer sub-app for the `doctor` plugin — mounted as `dhis2 doctor`.
+"""Typer sub-app for the `doctor` plugin — mounted as `d2w doctor`.
 
 Three sub-commands map to three probe categories:
 
-    dhis2 doctor metadata     # workspace metadata-health probes (default)
-    dhis2 doctor integrity    # DHIS2's own /api/dataIntegrity summary
-    dhis2 doctor bugs         # BUGS.md workaround drift detection
+    d2w doctor metadata     # workspace metadata-health probes (default)
+    d2w doctor integrity    # DHIS2's own /api/dataIntegrity summary
+    d2w doctor bugs         # BUGS.md workaround drift detection
 
-    dhis2 doctor              # no sub-command → runs metadata + integrity
-    dhis2 doctor --all        # runs every category
+    d2w doctor              # no sub-command → runs metadata + integrity
+    d2w doctor --all        # runs every category
 
 Non-zero exit when any probe lands on `fail`. `warn` doesn't change exit
 code — bugs drifting upstream or metadata issues are informational, not
@@ -55,7 +55,7 @@ def _render(report: DoctorReport) -> int:
         typer.echo(report.model_dump_json(indent=2, exclude_none=True))
         return 1 if report.fail_count else 0
 
-    table = Table(title=f"dhis2 doctor — {report.base_url} (DHIS2 {report.dhis2_version or '?'})")
+    table = Table(title=f"d2w doctor — {report.base_url} (DHIS2 {report.dhis2_version or '?'})")
     table.add_column("probe", overflow="fold")
     table.add_column("category", no_wrap=True, style="dim")
     table.add_column("status", justify="center", no_wrap=True)
@@ -124,5 +124,5 @@ def bugs_command() -> None:
 
 
 def register(root_app: Any) -> None:
-    """Mount under `dhis2 doctor`."""
+    """Mount under `d2w doctor`."""
     root_app.add_typer(app, name="doctor", help="Probe a DHIS2 instance for known gotchas + requirements.")

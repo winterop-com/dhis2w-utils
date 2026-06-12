@@ -1,4 +1,4 @@
-"""CliRunner + mock tests for `dhis2 metadata viz ...` and `dhis2 metadata dashboard ...`."""
+"""CliRunner + mock tests for `d2w metadata viz ...` and `d2w metadata dashboard ...`."""
 
 from __future__ import annotations
 

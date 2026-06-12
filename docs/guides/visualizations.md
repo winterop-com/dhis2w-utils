@@ -9,8 +9,8 @@ This guide walks through the authoring + dashboard-composition loop end-to-end. 
 
 ## Prerequisites
 
-- A profile pointing at your instance (`dhis2 profile list`).
-- Analytics tables populated — `dhis2 maintenance refresh analytics` if it's been a while.
+- A profile pointing at your instance (`d2w profile list`).
+- Analytics tables populated — `d2w maintenance refresh analytics` if it's been a while.
 - Seeded demo data (`make dhis2-seed`).
 
 ## 1. Start from the analytics query
@@ -18,7 +18,7 @@ This guide walks through the authoring + dashboard-composition loop end-to-end. 
 The seeded stack has four districts (`jUb8gELQApl`, `PMa2VCrupOd`, `qhqAxPSTUXp`, `kJq2mPyFEHo`) and data elements including `fClA2Erf6IO` (Penta1 doses given). To chart Penta1 doses per district for 2024, first confirm the data is actually there:
 
 ```bash
-dhis2 analytics query \
+d2w analytics query \
   --dim dx:fClA2Erf6IO \
   --dim 'pe:202401;202402;202403;202412' \
   --dim 'ou:jUb8gELQApl;PMa2VCrupOd;qhqAxPSTUXp;kJq2mPyFEHo'
@@ -186,20 +186,20 @@ That pattern powers the seeded Overview dashboard in `infra/scripts/build_e2e_du
 
 DHIS2 has no native `/api/visualizations/{uid}.png` endpoint. Two paths to a PNG:
 
-- **`dhis2 browser viz screenshot <uid>`** — captures one or more saved Visualizations through the DHIS2 Data Visualizer app. Navigates to `/dhis-web-data-visualizer/#/<uid>` in an authenticated Playwright context, waits for the chart (SVG / canvas / table) to render, hides the outer DHIS2 header, and writes a PNG with an info banner (name / type / instance / user / timestamp). Works across LINE / COLUMN / STACKED / PIVOT_TABLE / SINGLE_VALUE — same session drives every capture so you pay the login cost once.
-- **`dhis2 browser dashboard screenshot`** — captures a whole dashboard in the same way. Use this when the composition of several vizes on one dashboard is what you want to see.
+- **`d2w browser viz screenshot <uid>`** — captures one or more saved Visualizations through the DHIS2 Data Visualizer app. Navigates to `/dhis-web-data-visualizer/#/<uid>` in an authenticated Playwright context, waits for the chart (SVG / canvas / table) to render, hides the outer DHIS2 header, and writes a PNG with an info banner (name / type / instance / user / timestamp). Works across LINE / COLUMN / STACKED / PIVOT_TABLE / SINGLE_VALUE — same session drives every capture so you pay the login cost once.
+- **`d2w browser dashboard screenshot`** — captures a whole dashboard in the same way. Use this when the composition of several vizes on one dashboard is what you want to see.
 
 Both require the `[browser]` extra (Chromium via Playwright). Install via `uv add 'dhis2w-cli[browser]'` + `playwright install chromium`.
 
 ```bash
 # One viz.
-dhis2 browser viz screenshot --only Qyuliufvfjl
+d2w browser viz screenshot --only Qyuliufvfjl
 
 # Every viz on the instance.
-dhis2 browser viz screenshot --output-dir ./screenshots
+d2w browser viz screenshot --output-dir ./screenshots
 
 # Whole dashboard (all its items in one PNG).
-dhis2 browser dashboard screenshot --only TAMlzYkstb7
+d2w browser dashboard screenshot --only TAMlzYkstb7
 ```
 
 A lightweight analytics-plus-matplotlib path is also possible (`client.analytics.aggregate(...)` returns the data), but it re-implements DHIS2's chart styling. The browser path is the canonical one — every screenshot test in the e2e suite goes through it.
@@ -208,19 +208,19 @@ A lightweight analytics-plus-matplotlib path is also possible (`client.analytics
 
 If the chart renders but the values look off:
 
-1. **Run the equivalent analytics query** (`dhis2 analytics query --dim dx:... --dim pe:... --dim ou:...`) with exactly the UIDs listed in the viz's `dataDimensionItems` / `periods` / `organisationUnits`. If the query returns zeros, analytics tables probably haven't refreshed — `dhis2 maintenance refresh analytics` and retry.
-2. **Inspect the stored axes** via `dhis2 --json metadata get visualizations <uid> --fields 'columns[id,items[id]],rows[id,items[id]],filters[id,items[id]]'`. DHIS2 populates these from `rowDimensions` / `columnDimensions` / `filterDimensions` at import time; if they're empty the viz won't render (the importer may have silently dropped them on a hand-rolled PUT — that's why `create_from_spec` routes through `/api/metadata`).
+1. **Run the equivalent analytics query** (`d2w analytics query --dim dx:... --dim pe:... --dim ou:...`) with exactly the UIDs listed in the viz's `dataDimensionItems` / `periods` / `organisationUnits`. If the query returns zeros, analytics tables probably haven't refreshed — `d2w maintenance refresh analytics` and retry.
+2. **Inspect the stored axes** via `d2w --json metadata get visualizations <uid> --fields 'columns[id,items[id]],rows[id,items[id]],filters[id,items[id]]'`. DHIS2 populates these from `rowDimensions` / `columnDimensions` / `filterDimensions` at import time; if they're empty the viz won't render (the importer may have silently dropped them on a hand-rolled PUT — that's why `create_from_spec` routes through `/api/metadata`).
 3. **Check chart-type assumptions**. `LINE` with `rows=[dx]` (a single DE) and `columns=[pe]` (12 months) produces one x-axis category with 12 single-point series — a flat line at zero. `LINE` wants time on rows (`pe`) and OU or DE on columns as the series dimension.
 
 The dimensional-placement cheat sheet in the [API reference](../api/visualizations.md#dimensional-placement) covers every viz type. Most "chart looks weird" bugs reduce to a mismatched default.
 
 ## From the CLI
 
-Everything above is reachable through `dhis2 metadata visualizations` and `dhis2 metadata dashboards`. The CLI forwards the same flags `VisualizationSpec` consumes; defaults match the library builder.
+Everything above is reachable through `d2w metadata visualizations` and `d2w metadata dashboards`. The CLI forwards the same flags `VisualizationSpec` consumes; defaults match the library builder.
 
 ```bash
 # Multi-line Penta1 by district, one command, no hand-rolled JSON.
-dhis2 metadata visualizations create \
+d2w metadata visualizations create \
     --name "Penta1 monthly by district" \
     --type LINE \
     --de fClA2Erf6IO \
@@ -230,7 +230,7 @@ dhis2 metadata visualizations create \
     --ou jUb8gELQApl --ou PMa2VCrupOd --ou qhqAxPSTUXp --ou kJq2mPyFEHo
 
 # Override dimensional placement — one line per DE instead of per OU.
-dhis2 metadata visualizations create \
+d2w metadata visualizations create \
     --name "Penta1 vs Measles — Sierra Leone monthly" \
     --type LINE \
     --de fClA2Erf6IO --de YtbsuPPo010 \
@@ -239,11 +239,11 @@ dhis2 metadata visualizations create \
     --category-dim pe --series-dim dx --filter-dim ou
 
 # Clone + compose into a dashboard.
-dhis2 metadata visualizations clone VizSourceUid --new-name "2025 preview" --new-uid VizNewClone1
-dhis2 metadata dashboards add-item TAMlzYkstb7 --viz VizNewClone1 --x 0 --y 95 --width 60 --height 20
+d2w metadata visualizations clone VizSourceUid --new-name "2025 preview" --new-uid VizNewClone1
+d2w metadata dashboards add-item TAMlzYkstb7 --viz VizNewClone1 --x 0 --y 95 --width 60 --height 20
 ```
 
-Listing goes through the generic metadata surface — `dhis2 metadata list visualizations` (CLI) / `metadata_list(resource="visualizations")` (MCP). The typed authoring verbs each have a CLI command and a matching MCP tool: `get / create / clone / delete` on `metadata visualizations` (`metadata_visualization_*`), and `get / add-item / remove-item` on `metadata dashboards` (`metadata_dashboard_*`).
+Listing goes through the generic metadata surface — `d2w metadata list visualizations` (CLI) / `metadata_list(resource="visualizations")` (MCP). The typed authoring verbs each have a CLI command and a matching MCP tool: `get / create / clone / delete` on `metadata visualizations` (`metadata_visualization_*`), and `get / add-item / remove-item` on `metadata dashboards` (`metadata_dashboard_*`).
 
 ## Worked examples in `examples/v42/client/`
 

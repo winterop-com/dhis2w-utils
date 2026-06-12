@@ -1,4 +1,4 @@
-"""Typer sub-app for `dhis2 messaging` — DHIS2 internal messaging."""
+"""Typer sub-app for `d2w messaging` — DHIS2 internal messaging."""
 
 from __future__ import annotations
 
@@ -143,7 +143,7 @@ def send_command(
             "--attachment",
             "-a",
             help=(
-                "FileResource UID to attach (upload via `dhis2 files resources upload "
+                "FileResource UID to attach (upload via `d2w files resources upload "
                 "--domain MESSAGE_ATTACHMENT` first). Repeatable."
             ),
         ),
@@ -256,5 +256,5 @@ def unassign_command(uid: Annotated[str, typer.Argument(help="Conversation UID."
 
 
 def register(parent_app: Any) -> None:
-    """Mount `dhis2 messaging` on the root CLI."""
+    """Mount `d2w messaging` on the root CLI."""
     parent_app.add_typer(app, name="messaging", help="DHIS2 internal messaging.")

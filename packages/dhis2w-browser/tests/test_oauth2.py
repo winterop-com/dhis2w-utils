@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from dhis2w_browser.oauth2 import _read_auth_url
 
-# The exact stderr block `dhis2 profile login --no-browser` emits today.
+# The exact stderr block `d2w profile login --no-browser` emits today.
 # Kept verbatim so this test fails if the CLI copy drifts out of sync with
 # the parser.
 _CLI_STDERR_SNIPPET = (

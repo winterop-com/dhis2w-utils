@@ -8,7 +8,7 @@ Shows the full authoring loop when building automated dashboards (e.g.
 3. Call `dashboards.add_item(dashboard_uid, viz_uid, slot=...)` for each
    item. Explicit `DashboardSlot` lets two KPI tiles sit side-by-side
    above a full-width chart.
-4. (Optional) Screenshot via `dhis2 browser dashboard screenshot`.
+4. (Optional) Screenshot via `d2w browser dashboard screenshot`.
 
 Usage:
     uv run python examples/v43/client/dashboard_compose.py

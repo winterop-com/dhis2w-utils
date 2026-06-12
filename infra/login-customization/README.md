@@ -15,7 +15,7 @@ the build, so the committed fixture dump already carries these settings
 ## "Local OIDC" button — CLI-only, don't click it from a browser
 
 The `Local OIDC` button on the login page exists so the CLI OAuth2 flow
-(`dhis2 profile login local_oidc`) has a live end-to-end provider to
+(`d2w profile login local_oidc`) has a live end-to-end provider to
 authenticate against. Its `redirect_url` in `infra/home/dhis.conf` is
 `http://localhost:8765` — the ephemeral localhost listener our CLI spins
 up for the `/oauth2/authorize` callback.
@@ -49,18 +49,18 @@ PIL-based generator. Edit the script to tweak palette / font / size.
 
 ## Customizing a DHIS2 instance yourself
 
-The `dhis2 dev customize` plugin exposes the same surface from the CLI:
+The `d2w dev customize` plugin exposes the same surface from the CLI:
 
 ```bash
 # Apply everything in a preset directory:
-dhis2 dev customize apply infra/login-customization/
+d2w dev customize apply infra/login-customization/
 
 # Or one piece at a time:
-dhis2 dev customize logo-front  path/to/logo.png
-dhis2 dev customize logo-banner path/to/banner.png
-dhis2 dev customize style       path/to/theme.css
-dhis2 dev customize set         applicationTitle "My DHIS2"
-dhis2 dev customize show
+d2w dev customize logo-front  path/to/logo.png
+d2w dev customize logo-banner path/to/banner.png
+d2w dev customize style       path/to/theme.css
+d2w dev customize set         applicationTitle "My DHIS2"
+d2w dev customize show
 ```
 
 See `docs/architecture/customize-plugin.md` for the full surface.

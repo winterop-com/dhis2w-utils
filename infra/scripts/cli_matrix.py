@@ -1,4 +1,4 @@
-"""Command x model matrix: how each LM Studio model handles every dhis2 CLI command.
+"""Command x model matrix: how each LM Studio model handles every d2w CLI command.
 
 Enumerates every leaf command in the CLI, derives a task from its help text, and drives each
 model in the roster through the bridge to see whether it discovers and forms the right command.
@@ -47,7 +47,7 @@ OUT = "docs/notes/cli-matrix.md"
 PROFILE = "play42"
 MAX_STEPS = 4
 SYSTEM_PROMPT = (
-    "You are a DHIS2 operator with one tool, dhis2_cli, that runs the dhis2 CLI. Discover commands "
+    "You are a DHIS2 operator with one tool, dhis2_cli, that runs the d2w CLI. Discover commands "
     "with --help when unsure, then run the one that fits the task. Never answer from memory. Reply "
     "in plain text when done."
 )
@@ -126,7 +126,7 @@ def _task(leaf: Leaf) -> str:
     """Derive a natural task prompt from a command's help text."""
     goal = leaf.help or " ".join(leaf.path)
     return (
-        f"Goal: {goal}. Find and run the single dhis2 command that does this "
+        f"Goal: {goal}. Find and run the single d2w command that does this "
         "(use dataElements as the resource if one is needed)."
     )
 

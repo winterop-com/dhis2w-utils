@@ -22,7 +22,7 @@ class _AppsPlugin(BaseModel):
     )
 
     def register_cli(self, app: Any) -> None:
-        """Mount `dhis2 apps` on the root CLI."""
+        """Mount `d2w apps` on the root CLI."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

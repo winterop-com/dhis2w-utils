@@ -1,7 +1,7 @@
 """User groups + user roles via the Python client.
 
 Read + mutate the user group and user role surface without going through the
-CLI — everything the `dhis2 user-group` and `dhis2 user-role` commands do is
+CLI — everything the `d2w user-group` and `d2w user-role` commands do is
 one httpx call over the typed OAS models.
 
 1. List user groups + their member counts.

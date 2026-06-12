@@ -1,4 +1,4 @@
-"""`dhis2 dev sample` — inject known-good fixtures and verify them end-to-end.
+"""`d2w dev sample` — inject known-good fixtures and verify them end-to-end.
 
 Each command walks a full lifecycle (create -> verify -> clean up) so a fresh
 DHIS2 install can be smoke-tested in one pass. `--keep` skips the cleanup step
@@ -87,7 +87,7 @@ def sample_route_command(
         _ok(f"ran -> {preview}{'...' if len(str(response)) > 200 else ''}")
     finally:
         if keep:
-            _ok(f"--keep set; route {uid} left in place (delete with `dhis2 route delete {uid}`)")
+            _ok(f"--keep set; route {uid} left in place (delete with `d2w route delete {uid}`)")
         else:
             _step(f"delete route {uid}")
             asyncio.run(route_service.delete_route(profile, uid))
@@ -108,7 +108,7 @@ def sample_pat_command(
 
     _step("create PAT via /api/apiToken")
     creds = asyncio.run(
-        register_pat(base_url=resolved_url, admin_auth=admin_auth, description="dhis2 dev sample pat (smoke test)")
+        register_pat(base_url=resolved_url, admin_auth=admin_auth, description="d2w dev sample pat (smoke test)")
     )
     _ok(f"uid={creds.uid}, token={creds.token[:12]}... (redacted)")
 
@@ -213,7 +213,7 @@ def sample_oauth2_client_command(
             client_secret="smoke-secret-do-not-use",
             redirect_uri=DEFAULT_REDIRECT_URI,
             scope="ALL",
-            display_name="dhis2 dev sample oauth2-client (smoke test)",
+            display_name="d2w dev sample oauth2-client (smoke test)",
         )
         _ok(f"created uid={creds.uid}")
 
@@ -245,14 +245,14 @@ def sample_all_command(
     keep: Annotated[bool, typer.Option("--keep", help="Don't delete the fixtures afterwards.")] = False,
 ) -> None:
     """Run every sample in sequence — route, data-value, pat, oauth2-client."""
-    typer.secho("=== dhis2 dev sample route ===", fg=typer.colors.MAGENTA, bold=True)
+    typer.secho("=== d2w dev sample route ===", fg=typer.colors.MAGENTA, bold=True)
     sample_route_command(keep=keep)
     typer.echo()
-    typer.secho("=== dhis2 dev sample data-value ===", fg=typer.colors.MAGENTA, bold=True)
+    typer.secho("=== d2w dev sample data-value ===", fg=typer.colors.MAGENTA, bold=True)
     sample_data_value_command(keep=keep)
     typer.echo()
-    typer.secho("=== dhis2 dev sample pat ===", fg=typer.colors.MAGENTA, bold=True)
+    typer.secho("=== d2w dev sample pat ===", fg=typer.colors.MAGENTA, bold=True)
     sample_pat_command(url=url, admin_user=admin_user, keep=keep)
     typer.echo()
-    typer.secho("=== dhis2 dev sample oauth2-client ===", fg=typer.colors.MAGENTA, bold=True)
+    typer.secho("=== d2w dev sample oauth2-client ===", fg=typer.colors.MAGENTA, bold=True)
     sample_oauth2_client_command(url=url, admin_user=admin_user, keep=keep)

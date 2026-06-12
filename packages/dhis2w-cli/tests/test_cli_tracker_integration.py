@@ -130,7 +130,7 @@ def test_list_tracked_entities_skips_if_no_tracker_program(
     if not (program and org_unit):
         pytest.skip("no tracker program on this instance — nothing to list")
 
-    # dhis2 data tracker list now takes the TET UID as a positional.
+    # d2w data tracker list now takes the TET UID as a positional.
     # Discover one from the instance — skip if none.
     types_result = runner.invoke(build_app(), ["--json", "data", "tracker", "type"])
     if types_result.exit_code != 0:

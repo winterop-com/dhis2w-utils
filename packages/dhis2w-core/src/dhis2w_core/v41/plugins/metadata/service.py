@@ -257,7 +257,7 @@ async def export_metadata(
     (`?dataElements:filter=name:like:ANC`). The dict key is the resource
     name (matching `resources`); the value is a list of
     `property:operator:value` filter strings — same DSL as
-    `dhis2 metadata list --filter`. Repeated filters are AND'd by DHIS2.
+    `d2w metadata list --filter`. Repeated filters are AND'd by DHIS2.
 
     `per_resource_fields` per-resource-overrides the global `fields`
     selector (`?dataElements:fields=:identifiable`). Useful when one
@@ -582,7 +582,7 @@ def diff_bundles(
 ) -> MetadataDiff:
     """Structurally compare two metadata bundles; returns a typed `MetadataDiff`.
 
-    Bundles are the shape `dhis2 metadata export` produces. Default
+    Bundles are the shape `d2w metadata export` produces. Default
     `ignored_fields` skips DHIS2's per-instance noise (`lastUpdated`,
     `createdBy`, `access`, ...) so a round-trip `export → import → export`
     diff shows zero real changes instead of every object as "updated"
@@ -882,7 +882,7 @@ async def usage_metadata(
     Resolves the UID's owning resource via `/api/identifiableObjects/{uid}`,
     then fans out concurrent `/api/<target>?filter=<path>:eq:<uid>` calls
     against every known reference path for that owning type. Useful as a
-    deletion-safety probe before `dhis2 metadata patch` / `delete_bulk`.
+    deletion-safety probe before `d2w metadata patch` / `delete_bulk`.
     """
     async with open_client(profile) as client:
         return await client.metadata.usage(uid, page_size=page_size)
@@ -1032,7 +1032,7 @@ def _resolve_accessor(resources: object, resource: str) -> Any:
         hint = f" did you mean {' or '.join(repr(s) for s in suggestions)}?" if suggestions else ""
         raise UnknownResourceError(
             f"unknown metadata resource {resource!r} (tried attribute {attr!r});{hint} "
-            f"this instance exposes {len(available)} types — run `dhis2 metadata type list` to see them"
+            f"this instance exposes {len(available)} types — run `d2w metadata type list` to see them"
         )
     return accessor
 
@@ -1509,7 +1509,7 @@ async def delete_map(profile: Profile, map_uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# DataElement workflows — `dhis2 metadata data-elements ...`
+# DataElement workflows — `d2w metadata data-elements ...`
 # ---------------------------------------------------------------------------
 
 
@@ -1593,7 +1593,7 @@ async def delete_data_element(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# DataElementGroup — `dhis2 metadata data-element-groups ...`
+# DataElementGroup — `d2w metadata data-element-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -1664,7 +1664,7 @@ async def delete_data_element_group(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# DataElementGroupSet — `dhis2 metadata data-element-group-sets ...`
+# DataElementGroupSet — `d2w metadata data-element-group-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -1727,7 +1727,7 @@ async def delete_data_element_group_set(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Indicator workflows — `dhis2 metadata indicators ...`
+# Indicator workflows — `d2w metadata indicators ...`
 # ---------------------------------------------------------------------------
 
 
@@ -1810,7 +1810,7 @@ async def delete_indicator(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# IndicatorGroup — `dhis2 metadata indicator-groups ...`
+# IndicatorGroup — `d2w metadata indicator-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -1881,7 +1881,7 @@ async def delete_indicator_group(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# IndicatorGroupSet — `dhis2 metadata indicator-group-sets ...`
+# IndicatorGroupSet — `d2w metadata indicator-group-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -1942,7 +1942,7 @@ async def delete_indicator_group_set(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# OrganisationUnit hierarchy — `dhis2 metadata organisation-units ...`
+# OrganisationUnit hierarchy — `d2w metadata organisation-units ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2005,7 +2005,7 @@ async def delete_organisation_unit(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# OrganisationUnitGroup — `dhis2 metadata organisation-unit-groups ...`
+# OrganisationUnitGroup — `d2w metadata organisation-unit-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2078,7 +2078,7 @@ async def delete_organisation_unit_group(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# OrganisationUnitGroupSet — `dhis2 metadata organisation-unit-group-sets ...`
+# OrganisationUnitGroupSet — `d2w metadata organisation-unit-group-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2166,7 +2166,7 @@ async def delete_organisation_unit_group_set(profile: Profile, uid: str) -> None
 
 
 # ---------------------------------------------------------------------------
-# OrganisationUnitLevel naming — `dhis2 metadata organisation-unit-levels ...`
+# OrganisationUnitLevel naming — `d2w metadata organisation-unit-levels ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2222,7 +2222,7 @@ async def rename_organisation_unit_level_by_level(
 
 
 # ---------------------------------------------------------------------------
-# LegendSet authoring — `dhis2 metadata legend-sets ...`
+# LegendSet authoring — `d2w metadata legend-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2286,7 +2286,7 @@ async def delete_legend_set(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ProgramIndicator workflows — `dhis2 metadata program-indicators ...`
+# ProgramIndicator workflows — `d2w metadata program-indicators ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2367,7 +2367,7 @@ async def delete_program_indicator(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ProgramIndicatorGroup — `dhis2 metadata program-indicator-groups ...`
+# ProgramIndicatorGroup — `d2w metadata program-indicator-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2438,7 +2438,7 @@ async def delete_program_indicator_group(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# CategoryOption workflows — `dhis2 metadata category-options ...`
+# CategoryOption workflows — `d2w metadata category-options ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2513,7 +2513,7 @@ async def delete_category_option(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Category workflows — `dhis2 metadata categories ...`
+# Category workflows — `d2w metadata categories ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2584,7 +2584,7 @@ async def delete_category(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# CategoryCombo workflows — `dhis2 metadata category-combos ...`
+# CategoryCombo workflows — `d2w metadata category-combos ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2685,7 +2685,7 @@ async def build_category_combo_spec(
 
 
 # ---------------------------------------------------------------------------
-# CategoryOptionCombo workflows — `dhis2 metadata category-option-combos ...`
+# CategoryOptionCombo workflows — `d2w metadata category-option-combos ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2702,7 +2702,7 @@ async def list_category_option_combos_for_combo(profile: Profile, combo_uid: str
 
 
 # ---------------------------------------------------------------------------
-# CategoryOptionGroup — `dhis2 metadata category-option-groups ...`
+# CategoryOptionGroup — `d2w metadata category-option-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2775,7 +2775,7 @@ async def delete_category_option_group(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# CategoryOptionGroupSet — `dhis2 metadata category-option-group-sets ...`
+# CategoryOptionGroupSet — `d2w metadata category-option-group-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2838,7 +2838,7 @@ async def delete_category_option_group_set(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# DataSet — `dhis2 metadata data-sets ...`
+# DataSet — `d2w metadata data-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -2933,7 +2933,7 @@ async def delete_data_set(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Section — `dhis2 metadata sections ...`
+# Section — `d2w metadata sections ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3035,7 +3035,7 @@ async def delete_section(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ValidationRule — `dhis2 metadata validation-rules ...`
+# ValidationRule — `d2w metadata validation-rules ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3104,7 +3104,7 @@ async def delete_validation_rule(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ValidationRuleGroup — `dhis2 metadata validation-rule-groups ...`
+# ValidationRuleGroup — `d2w metadata validation-rule-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3175,7 +3175,7 @@ async def delete_validation_rule_group(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Predictor — `dhis2 metadata predictors ...`
+# Predictor — `d2w metadata predictors ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3244,7 +3244,7 @@ async def delete_predictor(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# PredictorGroup — `dhis2 metadata predictor-groups ...`
+# PredictorGroup — `d2w metadata predictor-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3315,7 +3315,7 @@ async def delete_predictor_group(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TrackedEntityAttribute — `dhis2 metadata tracked-entity-attributes ...`
+# TrackedEntityAttribute — `d2w metadata tracked-entity-attributes ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3398,7 +3398,7 @@ async def delete_tracked_entity_attribute(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TrackedEntityType — `dhis2 metadata tracked-entity-types ...`
+# TrackedEntityType — `d2w metadata tracked-entity-types ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3495,7 +3495,7 @@ async def delete_tracked_entity_type(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Program — `dhis2 metadata programs ...`
+# Program — `d2w metadata programs ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3634,7 +3634,7 @@ async def delete_program(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ProgramStage — `dhis2 metadata program-stages ...`
+# ProgramStage — `d2w metadata program-stages ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3774,7 +3774,7 @@ async def delete_program_stage(profile: Profile, uid: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Bulk rename — `dhis2 metadata rename ...`
+# Bulk rename — `d2w metadata rename ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3797,7 +3797,7 @@ class BulkRenameEntry(BaseModel):
 
 
 class BulkRenameResult(BaseModel):
-    """Aggregated result from `dhis2 metadata rename`.
+    """Aggregated result from `d2w metadata rename`.
 
     `entries` is always the per-UID preview with before/after values;
     `patch_result` is the committed outcome when `dry_run=False`, else
@@ -3847,7 +3847,7 @@ async def bulk_rename_metadata(
 ) -> BulkRenameResult:
     """Bulk-rename many metadata objects with RFC 6902 patches.
 
-    The filter DSL is the same as `dhis2 metadata list` — each
+    The filter DSL is the same as `d2w metadata list` — each
     `filters` entry is a `<prop>:<op>:<value>` expression, `AND`-joined
     by default (pass `root_junction="OR"` to switch). The mutation
     flags stack: a DE that matches can receive a name prefix + a short
@@ -3983,7 +3983,7 @@ def _apply_string_mutation(
 
 
 # ---------------------------------------------------------------------------
-# Bulk retag — `dhis2 metadata retag ...`
+# Bulk retag — `d2w metadata retag ...`
 # ---------------------------------------------------------------------------
 
 
@@ -4005,7 +4005,7 @@ class BulkRetagEntry(BaseModel):
 
 
 class BulkRetagResult(BaseModel):
-    """Aggregated result from `dhis2 metadata retag`."""
+    """Aggregated result from `d2w metadata retag`."""
 
     model_config = ConfigDict(frozen=True)
 

@@ -42,15 +42,15 @@ Pass `None` on either side of `set_validity_window` to clear that bound — DHIS
 ## CLI
 
 ```bash
-dhis2 metadata list categoryOptions
-dhis2 metadata category-options create \
+d2w metadata list categoryOptions
+d2w metadata category-options create \
     --name "CY2024" --short-name "CY2024" \
     --start-date 2024-01-01 --end-date 2024-12-31
-dhis2 metadata category-options set-validity <CO_UID> --start-date 2024-01-01 --end-date 2024-06-30
-dhis2 metadata category-option-groups create --name "Calendar years" --short-name "Years"
-dhis2 metadata category-option-groups add-members <GROUP_UID> --category-option <CO_UID>
-dhis2 metadata category-option-group-sets create --name "Reporting calendar" --short-name "Cal"
-dhis2 metadata category-option-group-sets add-groups <SET_UID> --group <GROUP_UID>
+d2w metadata category-options set-validity <CO_UID> --start-date 2024-01-01 --end-date 2024-06-30
+d2w metadata category-option-groups create --name "Calendar years" --short-name "Years"
+d2w metadata category-option-groups add-members <GROUP_UID> --category-option <CO_UID>
+d2w metadata category-option-group-sets create --name "Reporting calendar" --short-name "Cal"
+d2w metadata category-option-group-sets add-groups <SET_UID> --group <GROUP_UID>
 ```
 
 Every `list` has an `ls` alias; every destructive verb accepts `--yes` / `-y`.

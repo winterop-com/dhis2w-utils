@@ -6,7 +6,7 @@ dhis2w ships **two** MCP servers. Which one to use depends entirely on the model
 
 | | `dhis2w-mcp` — full server | `dhis2w-mcp-bridge` — bridge |
 | --- | --- | --- |
-| Exposes | ~304 typed tools (one per CLI command) | one tool, `dhis2_cli`, that runs the `dhis2` CLI |
+| Exposes | ~304 typed tools (one per CLI command) | one tool, `dhis2_cli`, that runs the `d2w` CLI |
 | Best for | capable **cloud/hosted** models (Claude, GPT, Gemini) | small models running **on-box** (LM Studio, Ollama, llama.cpp) |
 | Why | the host streams every schema; the model selects among them and grounds on typed params, with a typed result/error per call | ~304 schemas cost ≈50-65k tokens a small model can't spare — it discovers commands via `--help` instead |
 
@@ -19,7 +19,7 @@ The rest of this page sets up the full server (the common path).
 
 ## Setting up the full server (dhis2w-mcp)
 
-`dhis2w-mcp` is a [FastMCP](https://github.com/jlowin/fastmcp) server that exposes most `dhis2w-core` plugins as typed [Model Context Protocol](https://modelcontextprotocol.io/) tools. When launched by an MCP host (Claude Desktop, Claude Code, Cursor, Continue, Cline, or anything that speaks stdio MCP), it registers around 304 tools sharing the same typed service functions as the CLI and the Python client. A handful of CLI surfaces (`dhis2 dev` codegen + sample fixtures, `dhis2 browser` Playwright automation, profile mutations like `add` / `login` / `remove`) are intentionally CLI-only — see the [capability matrix](../index.md#capability-matrix) for the full list.
+`dhis2w-mcp` is a [FastMCP](https://github.com/jlowin/fastmcp) server that exposes most `dhis2w-core` plugins as typed [Model Context Protocol](https://modelcontextprotocol.io/) tools. When launched by an MCP host (Claude Desktop, Claude Code, Cursor, Continue, Cline, or anything that speaks stdio MCP), it registers around 304 tools sharing the same typed service functions as the CLI and the Python client. A handful of CLI surfaces (`d2w dev` codegen + sample fixtures, `d2w browser` Playwright automation, profile mutations like `add` / `login` / `remove`) are intentionally CLI-only — see the [capability matrix](../index.md#capability-matrix) for the full list.
 
 It is the right pick for driving DHIS2 from an LLM agent on a live stack — every tool call surfaces a typed result + typed error and is logged with its arguments. For direct CLI use, see the [CLI surface](../cli/index.md); for Python, the [client library](../client/index.md).
 

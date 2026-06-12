@@ -24,7 +24,7 @@ RedirectCapturer = Callable[[str, str], Awaitable[str]]
 
 Takes `(auth_url, expected_state)` and returns the authorization code. The
 default implementation calls `capture_code()` with sensible defaults; tests
-and specialised callers (e.g. `dhis2 profile verify`'s "don't open a
+and specialised callers (e.g. `d2w profile verify`'s "don't open a
 browser, just fail" probe) can inject their own implementation here.
 """
 
@@ -305,14 +305,14 @@ class OAuth2Auth:
         """Refresh tokens using the refresh_token grant.
 
         Wraps HTTP failures in `OAuth2FlowError` so callers see a clean
-        actionable message ("run `dhis2 profile login <name>`") instead of a
+        actionable message ("run `d2w profile login <name>`") instead of a
         raw `httpx.HTTPStatusError` traceback. The most common case is DHIS2
         rotating its OAuth2 client (volume wiped, client UID reissued) —
         the stored refresh_token no longer matches and DHIS2 returns 400.
         """
         if expired.refresh_token is None:
             raise OAuth2FlowError(
-                "access token expired and no refresh_token available — run `dhis2 profile login <name>` to re-authorise"
+                "access token expired and no refresh_token available — run `d2w profile login <name>` to re-authorise"
             )
         data = {
             "grant_type": "refresh_token",
@@ -326,7 +326,7 @@ class OAuth2Auth:
             raise OAuth2FlowError(
                 f"token refresh failed ({response.status_code}) — "
                 "stored refresh_token rejected by DHIS2. "
-                "Run `dhis2 profile login <name>` to re-authorise."
+                "Run `d2w profile login <name>` to re-authorise."
             )
         return self._token_from_response(response.json(), fallback_refresh=expired.refresh_token)
 

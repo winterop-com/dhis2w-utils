@@ -1,7 +1,7 @@
 [project]
 name = "dhis2-plugin-hello"
 version = "0.1.0"
-description = "Minimal external plugin example — shows how to add a `dhis2 hello` command + MCP tool via entry-point registration."
+description = "Minimal external plugin example — shows how to add a `d2w hello` command + MCP tool via entry-point registration."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

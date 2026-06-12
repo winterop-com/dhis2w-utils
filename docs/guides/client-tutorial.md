@@ -4,7 +4,7 @@
 
 End-to-end tutorial for the `dhis2w-client` Python library. Most blocks are runnable scripts you can paste into a file, set your env, and run; a handful — clearly marked — are fragments that show one specific pattern (the OAuth2 direct-client section toward the end is the main one). When in doubt, the matching script under `examples/v42/client/` (linked from each section) is the runnable form.
 
-If you already use the `dhis2` CLI or the MCP server, this library is what those layers sit on. Use it directly when you're writing Python scripts or your own tooling.
+If you already use the `d2w` CLI or the MCP server, this library is what those layers sit on. Use it directly when you're writing Python scripts or your own tooling.
 
 - [Prerequisites](#prerequisites)
 - [Install](#install)
@@ -58,8 +58,8 @@ Two concepts to internalise before any code:
 
 **Profile.** A `Profile` is "a named bundle of how to reach one DHIS2 instance" — a base URL plus the parameters needed to build the right `AuthProvider`. A profile can be:
 
-- **Resolved from a TOML file** (`~/.config/dhis2/profiles.toml` or `./.dhis2/profiles.toml`) — the same files the `dhis2` CLI manages.
-- **Built from raw env variables** (`DHIS2_URL` + `DHIS2_PAT`, or `DHIS2_URL` + `DHIS2_USERNAME` + `DHIS2_PASSWORD`). The raw-env fallback handles PAT and Basic only; OAuth2 needs a saved profile (`dhis2 profile add ... --auth oauth2 --from-env` reads `DHIS2_OAUTH_*` once and persists the result).
+- **Resolved from a TOML file** (`~/.config/dhis2/profiles.toml` or `./.dhis2/profiles.toml`) — the same files the `d2w` CLI manages.
+- **Built from raw env variables** (`DHIS2_URL` + `DHIS2_PAT`, or `DHIS2_URL` + `DHIS2_USERNAME` + `DHIS2_PASSWORD`). The raw-env fallback handles PAT and Basic only; OAuth2 needs a saved profile (`d2w profile add ... --auth oauth2 --from-env` reads `DHIS2_OAUTH_*` once and persists the result).
 - **Constructed in-memory** from any Python code — no disk, no env, just a Pydantic model.
 
 Profiles are the **preferred entry point** for every Python script. They're what the CLI uses, what the MCP server uses, and what every plugin `service.py` uses. Use them unless you have a specific reason to skip them (see [the direct-client section](#when-to-skip-profiles-direct-client-path) at the end).
@@ -119,7 +119,7 @@ Both paths return the same `Dhis2Client` — only the install footprint and the 
 
 1. Explicit `name` argument to `resolve(name)` (or `--profile` on the CLI).
 2. `DHIS2_PROFILE` env var → resolve that named profile from the merged TOML catalog.
-3. Raw `DHIS2_URL` + (`DHIS2_PAT` or `DHIS2_USERNAME` + `DHIS2_PASSWORD`) env → build a PAT or Basic profile on the fly. OAuth2 is not part of the raw fallback; use `dhis2 profile add ... --auth oauth2 --from-env` to read `DHIS2_OAUTH_*` once and persist a profile.
+3. Raw `DHIS2_URL` + (`DHIS2_PAT` or `DHIS2_USERNAME` + `DHIS2_PASSWORD`) env → build a PAT or Basic profile on the fly. OAuth2 is not part of the raw fallback; use `d2w profile add ... --auth oauth2 --from-env` to read `DHIS2_OAUTH_*` once and persist a profile.
 4. Project-local `.dhis2/profiles.toml` `default` (walking up from `cwd`).
 5. User-global `~/.config/dhis2/profiles.toml` `default`.
 
@@ -204,17 +204,17 @@ The same `open_client` + `client.*` API works regardless of which of the three p
 
 ### Managing on-disk profiles from Python
 
-Every `dhis2 profile ...` CLI command maps 1:1 onto a function in `dhis2w_core.v42.plugins.profile.service`:
+Every `d2w profile ...` CLI command maps 1:1 onto a function in `dhis2w_core.v42.plugins.profile.service`:
 
 | CLI | Python |
 | --- | --- |
-| `dhis2 profile add NAME ...` | `service.add_profile(name, profile, *, scope, make_default)` |
-| `dhis2 profile list` | `service.list_profiles(*, include_shadowed)` → `list[ProfileSummary]` |
-| `dhis2 profile show NAME` | `service.show_profile(name, *, include_secrets)` → `ProfileView` |
-| `dhis2 profile rename OLD NEW` | `service.rename_profile(old, new)` |
-| `dhis2 profile set-default NAME` | `service.set_default_profile(name, *, scope)` |
-| `dhis2 profile remove NAME` | `service.remove_profile(name, *, scope)` |
-| `dhis2 profile verify NAME` | `await service.verify_profile(name)` |
+| `d2w profile add NAME ...` | `service.add_profile(name, profile, *, scope, make_default)` |
+| `d2w profile list` | `service.list_profiles(*, include_shadowed)` → `list[ProfileSummary]` |
+| `d2w profile show NAME` | `service.show_profile(name, *, include_secrets)` → `ProfileView` |
+| `d2w profile rename OLD NEW` | `service.rename_profile(old, new)` |
+| `d2w profile set-default NAME` | `service.set_default_profile(name, *, scope)` |
+| `d2w profile remove NAME` | `service.remove_profile(name, *, scope)` |
+| `d2w profile verify NAME` | `await service.verify_profile(name)` |
 
 Pass a `start: Path` argument to scope the write to a specific project directory — `service.add_profile(..., scope="project", start=tmp_path)` writes to `<tmp_path>/.dhis2/profiles.toml` instead of the user's real `~/.config/dhis2/profiles.toml`. Handy for tests and isolation.
 
@@ -242,7 +242,7 @@ async with open_client(profile) as client:
 
 Mint a PAT:
 
-- CLI: `dhis2 profile pat create --url <url> --admin-user admin --description "example"` (needs `DHIS2_ADMIN_PAT` or `DHIS2_ADMIN_PASSWORD` in env)
+- CLI: `d2w profile pat create --url <url> --admin-user admin --description "example"` (needs `DHIS2_ADMIN_PAT` or `DHIS2_ADMIN_PASSWORD` in env)
 - Web UI: every user's profile page at `/dhis-web-user-profile`
 - Per the seeded e2e fixture: `make dhis2-run` writes one to `infra/home/credentials/.env.auth`
 
@@ -258,7 +258,7 @@ async with open_client(profile) as client:
 
 ### OAuth2 / OIDC (short-lived tokens, auto-refresh)
 
-OAuth2 profiles need one extra step for interactive flows: the user runs `dhis2 profile login <name>` once, which walks the browser flow and persists an access+refresh token in `.dhis2/tokens.sqlite`. `open_client` then picks up the persisted token automatically on later runs.
+OAuth2 profiles need one extra step for interactive flows: the user runs `d2w profile login <name>` once, which walks the browser flow and persists an access+refresh token in `.dhis2/tokens.sqlite`. `open_client` then picks up the persisted token automatically on later runs.
 
 ```python
 profile = Profile(
@@ -553,7 +553,7 @@ async for notification in client.tasks.iter_notifications(ref, poll_interval=1.0
     print(f"  {level:<5} {marker} {notification.message}")
 ```
 
-See `examples/v42/client/task_await.py` for a runnable demo. The CLI `--watch` flag (`dhis2 maintenance refresh analytics --watch`, `dhis2 maintenance dataintegrity run --watch`) uses a Rich-progress wrapper on top of the same primitive.
+See `examples/v42/client/task_await.py` for a runnable demo. The CLI `--watch` flag (`d2w maintenance refresh analytics --watch`, `d2w maintenance dataintegrity run --watch`) uses a Rich-progress wrapper on top of the same primitive.
 
 ### Streaming data-integrity issues
 
@@ -611,7 +611,7 @@ async with open_client(profile_from_env(), allow_version_fallback=True) as clien
     ...
 ```
 
-To pin a specific version regardless of what the server reports, you need the direct-client path — see [below](#when-to-skip-profiles-direct-client-path). Regenerate codegen for a new version with `dhis2 dev codegen rebuild` or point at a live instance with `dhis2 dev codegen generate --url <url>`.
+To pin a specific version regardless of what the server reports, you need the direct-client path — see [below](#when-to-skip-profiles-direct-client-path). Regenerate codegen for a new version with `d2w dev codegen rebuild` or point at a live instance with `d2w dev codegen generate --url <url>`.
 
 ## Retry on transient failures
 

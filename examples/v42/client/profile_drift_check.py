@@ -11,7 +11,7 @@ result into whatever alerting you already have.
 
 For a CLI equivalent of this pattern, see:
 
-    dhis2 metadata diff-profiles <a> <b> -r dataElements -r indicators \
+    d2w metadata diff-profiles <a> <b> -r dataElements -r indicators \
         --filter dataElements:name:like:Penta --exit-on-drift
 
 Exit code:

@@ -6,16 +6,16 @@
 
 | Operation | CLI | MCP tool |
 | --- | --- | --- |
-| Fetch a data value set | `dhis2 data aggregate get` | `data_aggregate_get` |
-| Bulk push values | `dhis2 data aggregate push <file>` | `data_aggregate_push` |
-| Set a single value | `dhis2 data aggregate set` | `data_aggregate_set` |
-| Delete a single value | `dhis2 data aggregate delete` | `data_aggregate_delete` |
+| Fetch a data value set | `d2w data aggregate get` | `data_aggregate_get` |
+| Bulk push values | `d2w data aggregate push <file>` | `data_aggregate_push` |
+| Set a single value | `d2w data aggregate set` | `data_aggregate_set` |
+| Delete a single value | `d2w data aggregate delete` | `data_aggregate_delete` |
 
 ## CLI examples
 
 ```bash
 # Fetch values for a dataset over a date range, limited to 50 rows
-dhis2 data aggregate get \
+d2w data aggregate get \
   --data-set eigJ6l6i7u9 \
   --start-date 2024-01-01 \
   --end-date 2024-01-31 \
@@ -25,13 +25,13 @@ dhis2 data aggregate get \
 
 # Bulk push from a JSON file (accepts either a dataValues array or an envelope)
 echo '{"dataValues": [{"dataElement": "X", "orgUnit": "Y", "period": "202401", "value": "42"}]}' > values.json
-dhis2 data aggregate push values.json --dry-run
+d2w data aggregate push values.json --dry-run
 
 # Set a single value
-dhis2 data aggregate set --de X --pe 202401 --ou Y --value 42 --comment "corrected"
+d2w data aggregate set --de X --pe 202401 --ou Y --value 42 --comment "corrected"
 
 # Delete it
-dhis2 data aggregate delete --de X --pe 202401 --ou Y
+d2w data aggregate delete --de X --pe 202401 --ou Y
 ```
 
 ## MCP examples

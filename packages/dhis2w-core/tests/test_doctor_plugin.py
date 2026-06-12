@@ -470,7 +470,7 @@ async def test_bugs_rawdata_warns_when_fix_appears_upstream(profile: Profile) ->
 
 @respx.mock
 def test_cli_metadata_subcommand_runs_only_metadata() -> None:
-    """`dhis2 doctor metadata` doesn't hit integrity or bugs endpoints."""
+    """`d2w doctor metadata` doesn't hit integrity or bugs endpoints."""
     _mock_preamble()
     _mock_metadata_probes(orphan_data_elements=1)
     result = CliRunner().invoke(build_app(), ["doctor", "metadata"])
@@ -485,7 +485,7 @@ def test_cli_metadata_subcommand_runs_only_metadata() -> None:
 
 @respx.mock
 def test_cli_bugs_subcommand_runs_only_bugs() -> None:
-    """`dhis2 doctor bugs` only runs bug-drift probes."""
+    """`d2w doctor bugs` only runs bug-drift probes."""
     _mock_preamble()
     _mock_bugs_pass()
     result = CliRunner().invoke(build_app(), ["--json", "doctor", "bugs"])
@@ -496,7 +496,7 @@ def test_cli_bugs_subcommand_runs_only_bugs() -> None:
 
 @respx.mock
 def test_cli_all_flag_runs_every_category() -> None:
-    """`dhis2 doctor --all` includes bugs."""
+    """`d2w doctor --all` includes bugs."""
     _mock_preamble()
     _mock_bugs_pass()
     _mock_metadata_probes()
@@ -509,7 +509,7 @@ def test_cli_all_flag_runs_every_category() -> None:
 
 @respx.mock
 def test_cli_default_is_metadata_plus_integrity_no_bugs() -> None:
-    """`dhis2 doctor` (no sub-command, no --all) runs metadata + integrity, skips bugs."""
+    """`d2w doctor` (no sub-command, no --all) runs metadata + integrity, skips bugs."""
     _mock_preamble()
     _mock_metadata_probes()
     _mock_integrity({})

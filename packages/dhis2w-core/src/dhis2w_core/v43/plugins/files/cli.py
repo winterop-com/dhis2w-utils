@@ -1,4 +1,4 @@
-"""Typer sub-app for `dhis2 files` — documents + fileResources management."""
+"""Typer sub-app for `d2w files` — documents + fileResources management."""
 
 from __future__ import annotations
 
@@ -228,5 +228,5 @@ def resources_download_command(
 
 
 def register(parent_app: Any) -> None:
-    """Mount `dhis2 files` on the root CLI."""
+    """Mount `d2w files` on the root CLI."""
     parent_app.add_typer(app, name="files", help="Manage DHIS2 documents + file resources.")

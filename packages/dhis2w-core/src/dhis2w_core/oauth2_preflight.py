@@ -3,7 +3,7 @@
 - `check_oauth2_server` returns a user-facing error string (or None on OK) —
   the fast yes/no check the CLI uses before starting an OAuth2 flow.
 - `fetch_oidc_discovery` returns the parsed discovery doc — used by
-  `dhis2 profile oidc-config` to populate a profile from the advertised
+  `d2w profile oidc-config` to populate a profile from the advertised
   endpoints instead of asking the user to type them.
 """
 

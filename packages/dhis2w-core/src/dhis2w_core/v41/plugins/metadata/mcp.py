@@ -463,7 +463,7 @@ def register(mcp: Any) -> None:
     ) -> dict[str, Any]:
         """Bulk-rename metadata objects by RFC 6902 patch.
 
-        Matches the CLI `dhis2 metadata rename <resource>` surface.
+        Matches the CLI `d2w metadata rename <resource>` surface.
         Pass at least one mutation flag. Prefix/suffix add + strip
         variants are idempotent — re-running won't double-apply. Strip
         runs before add so you can combine `name_strip_prefix=X` +

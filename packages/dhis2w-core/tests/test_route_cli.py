@@ -1,4 +1,4 @@
-"""CliRunner tests for `dhis2 route ...` commands."""
+"""CliRunner tests for `d2w route ...` commands."""
 
 from __future__ import annotations
 
@@ -98,7 +98,7 @@ def test_route_run_surfaces_lookup_error_with_red_hint(
         "route 'chap' has a wildcard URL ('http://upstream.example/**'); "
         "pass --path SEGMENT to fill the wildcard suffix"
     )
-    monkeypatch.setattr("sys.argv", ["dhis2", "route", "run", "chap"])
+    monkeypatch.setattr("sys.argv", ["d2w", "route", "run", "chap"])
     with (
         patch("dhis2w_core.v42.plugins.route.service.run_route", new=AsyncMock(side_effect=error)),
         pytest.raises(SystemExit) as exc_info,
@@ -126,7 +126,7 @@ def test_route_delete_unknown_code_exits_1(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """An unknown code raises LookupError which `run_app` renders as `error: ...` on stderr."""
-    monkeypatch.setattr("sys.argv", ["dhis2", "route", "delete", "nope"])
+    monkeypatch.setattr("sys.argv", ["d2w", "route", "delete", "nope"])
     with (
         patch(
             "dhis2w_core.v42.plugins.route.service.delete_route",

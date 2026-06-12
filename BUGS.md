@@ -702,7 +702,7 @@ silently invalidates every cached token.
   with it. Mobile apps, dashboards, LLMs-via-MCP — all get logged out.
 
 **Workaround in this repo:** No code workaround; we document the
-"rerun `dhis2 profile login`" step for dev. A real fix is infrastructure:
+"rerun `d2w profile login`" step for dev. A real fix is infrastructure:
 explicit keystore via `oauth2.server.jwt.keystore.*` keys, persisted in
 `infra/home/keystore.p12` or similar.
 
@@ -729,7 +729,7 @@ These are different things and DHIS2 mixes them freely:
 
 So a pure OAuth2 setup (no OIDC extras) still requires `oidc.*` keys set. The `oidc.*` prefix implies ID-token semantics that are orthogonal. Users reading the config can't tell which parts are OAuth2 and which are OIDC.
 
-**Impact for us:** We're implementing a pure OAuth2 integration — access tokens, PKCE, refresh tokens. We do NOT parse `id_token`, do NOT hit `/userinfo`, do NOT do discovery. The profile's `auth` kind is `"oauth2"` and the CLI lives under `dhis2 profile login/logout/bootstrap` (protocol-neutral verbs). We deliberately did not call the namespace `oidc` — that would mis-describe what the code does.
+**Impact for us:** We're implementing a pure OAuth2 integration — access tokens, PKCE, refresh tokens. We do NOT parse `id_token`, do NOT hit `/userinfo`, do NOT do discovery. The profile's `auth` kind is `"oauth2"` and the CLI lives under `d2w profile login/logout/bootstrap` (protocol-neutral verbs). We deliberately did not call the namespace `oidc` — that would mis-describe what the code does.
 
 **Expectation:** DHIS2 config keys should split cleanly — `oauth2.*` for the Authorization Server, `oidc.*` only for the extra OIDC features. Right now you can't opt into OAuth2 without setting 10+ `oidc.*`-prefixed keys, which makes it look like you're configuring OIDC when you're not.
 
@@ -767,7 +767,7 @@ The header value is `ApiToken observed-value`, not `Bearer observed-value`.
 **Impact:**
 - Common public APIs reject the upstream call with 401 "invalid_token" or "missing Bearer scheme".
 - Integrators can't use off-the-shelf Bearer-auth endpoints without wrapping them in a shim that rewrites the Authorization header.
-- Cascading into our tooling: `dhis2 route run` then surfaces the 401 as "auth error at GET /api/routes/.../run", suggesting a DHIS2-side auth problem when the failure is actually on the upstream leg.
+- Cascading into our tooling: `d2w route run` then surfaces the 401 as "auth error at GET /api/routes/.../run", suggesting a DHIS2-side auth problem when the failure is actually on the upstream leg.
 
 **Workaround in this repo:** None. Our `examples/cli/route_register_and_run.sh` targets httpbin.org/headers (which echoes whatever DHIS2 sends) instead of httpbin.org/bearer (which rejects the non-standard scheme).
 
@@ -847,7 +847,7 @@ Same behaviour on `DataElement` (`name`, `shortName`, `code`). No trimming, no c
 **Impact:**
 - Reports and dropdown menus render junk names with obvious formatting problems.
 - Metadata-import scripts that copy-paste values from spreadsheets silently introduce whitespace bugs.
-- `dhis2 metadata list <resource> --filter "code:eq:FOO"` fails to find objects whose `code` is actually ` FOO ` in the DB.
+- `d2w metadata list <resource> --filter "code:eq:FOO"` fails to find objects whose `code` is actually ` FOO ` in the DB.
 - No way to audit whitespace-corrupted values after the fact without a full-table scan + regex.
 
 **Workaround in this repo:** None at the CLI/MCP layer — we pass user input through verbatim. Client-side validation in `dhis2w-core` could reject whitespace-abusive values before the POST, but that would diverge from DHIS2's actual constraints (it'd reject inputs DHIS2 itself accepts).
@@ -1035,9 +1035,9 @@ jq '{httpStatusCode, status, message, importCount: .response.importCount, reject
 
 **Actual:** The response body carries the full import summary (rich `conflicts[]` with `errorCode`, `property`, `indexes`, a human message per row). But the 409 status makes every `httpx`, `requests`, or hand-rolled client raise before the body is inspected — so the caller sees `409 Conflict: please check import summary` without the import summary.
 
-**Impact:** Users running `dhis2 data aggregate push` against valid-looking data used to see a bare "please check import summary" message; the *actual* rejection reason (e.g. `E7641: Period 202604 is after latest open future period 202603 for data element X and data set Y`) was in the body but never reached them.
+**Impact:** Users running `d2w data aggregate push` against valid-looking data used to see a bare "please check import summary" message; the *actual* rejection reason (e.g. `E7641: Period 202604 is after latest open future period 202603 for data element X and data set Y`) was in the body but never reached them.
 
-**Workaround in this repo:** `Dhis2ApiError.body` always carries the JSON body; `Dhis2ApiError.web_message` lazily parses it into a typed `WebMessageResponse` (see `packages/dhis2w-client/src/dhis2_client/errors.py`). The CLI's clean-error renderer (`packages/dhis2w-core/src/dhis2_core/cli_errors.py::_render_api_error`) extracts `importCount`, `conflicts[]`, and `rejectedIndexes[]` and prints one line per conflict with `errorCode` / `property` / `value`. `dhis2 data aggregate push` against a rejected row now surfaces the actual E7641-level reason.
+**Workaround in this repo:** `Dhis2ApiError.body` always carries the JSON body; `Dhis2ApiError.web_message` lazily parses it into a typed `WebMessageResponse` (see `packages/dhis2w-client/src/dhis2_client/errors.py`). The CLI's clean-error renderer (`packages/dhis2w-core/src/dhis2_core/cli_errors.py::_render_api_error`) extracts `importCount`, `conflicts[]`, and `rejectedIndexes[]` and prints one line per conflict with `errorCode` / `property` / `value`. `d2w data aggregate push` against a rejected row now surfaces the actual E7641-level reason.
 
 **Expected improvement:** `/api/dataValueSets` returns 200 when `status=WARNING` (process completed, some rows rejected) and reserves 4xx for process failures. OR: the DHIS2 error-body convention is documented so client libraries know to parse the body on 409 rather than raise.
 
@@ -1348,7 +1348,7 @@ curl -s -u admin:district \
 
 **Expected improvement:** upstream, either rename the OAS enum member `MOD_Z_SCORE` → `MODIFIED_Z_SCORE`, or alias the short name server-side. Either fix unblocks typed callers.
 
-**How to know it's fixed:** `grep MOD_Z_SCORE packages/dhis2w-client/src/dhis2_client/generated/v42/openapi.json` returns nothing after the next `dhis2 dev codegen` regeneration against a patched DHIS2.
+**How to know it's fixed:** `grep MOD_Z_SCORE packages/dhis2w-client/src/dhis2_client/generated/v42/openapi.json` returns nothing after the next `d2w dev codegen` regeneration against a patched DHIS2.
 
 **Status on v43 (2.43.1-SNAPSHOT, dev-2-43):** NOT fixed — `OutlierDetectionAlgorithm` still declares `{Z_SCORE, MIN_MAX, MOD_Z_SCORE, INVALID_NUMERIC}` on the v43 OAS. The truncated name remains; the workaround is still required.
 
@@ -2719,7 +2719,7 @@ curl -s -u admin:district 'https://play.im.dhis2.org/dev-2-42/api/systemSettings
 
 **Actual:** `SystemSettingsController.putSystemSettingPlainBody` is annotated `@RequiresAuthority(F_SYSTEM_SETTING)` and `admin` has it (the same session can write `keyApplicationFooter` etc. without issue), so it's not an authority check. `DefaultSystemSettingsService.putAll` validates the key against `SystemSettings.keysWithDefaults()` (which includes `keyCalendar`) and would throw `BadRequestException` on an invalid value — neither of those happens. So the write reaches `systemSettingStore.put(...)` but the subsequent GET (which goes through `getCurrentSettings().toJson(true, Set.of(key))`) keeps returning the default.
 
-**Cross-checked against a local single-replica stack — works there.** Same `POST` against `dhis2/core:42` (`infra/` Docker Compose, DHIS2 `2.42.4`) persists immediately: `POST` returns 200, the next `GET /api/systemSettings/keyCalendar` returns the just-written value, and `/api/system/info.calendar` updates in lock-step. Verified for all nine values (`coptic`, `ethiopian`, `gregorian`, `islamic`, `iso8601`, `julian`, `nepali`, `persian`, `thai`) round-tripping through `dhis2 system calendar <name>` followed by `dhis2 system calendar`. So this is not a v42 regression in `dhis2w-core` itself — `DefaultSystemSettingsService` writes and reads correctly on a single replica.
+**Cross-checked against a local single-replica stack — works there.** Same `POST` against `dhis2/core:42` (`infra/` Docker Compose, DHIS2 `2.42.4`) persists immediately: `POST` returns 200, the next `GET /api/systemSettings/keyCalendar` returns the just-written value, and `/api/system/info.calendar` updates in lock-step. Verified for all nine values (`coptic`, `ethiopian`, `gregorian`, `islamic`, `iso8601`, `julian`, `nepali`, `persian`, `thai`) round-tripping through `d2w system calendar <name>` followed by `d2w system calendar`. So this is not a v42 regression in `dhis2w-core` itself — `DefaultSystemSettingsService` writes and reads correctly on a single replica.
 
 The remaining suspect is the play.im.dhis2.org/dev-2-42 deployment topology: most likely (a) multiple replicas where the GET hits a replica that hasn't seen the write and `allSettings` cache invalidation doesn't propagate cross-replica, or (b) a deployment-level reset that rolls back `keyCalendar` (demo-mode safety).
 
@@ -2727,7 +2727,7 @@ Tested both `Content-Type: text/plain` (request body) and the legacy `?value=...
 
 The same flow happens through the official Settings UI at `/dhis-web-settings/#/calendar`: the dropdown lists all nine calendars, picking one opens a "Change calendar setting" confirmation modal, "Yes, change calendar" fires the same `POST /api/42/systemSettings/keyCalendar` with HTTP 200, and the next read still returns `iso8601`. So this is not specific to a hand-rolled HTTP path — the bundled v42 React app cannot change the calendar on play42 either.
 
-**Impact:** Any tool that flips the system calendar via the documented REST API silently believes it succeeded — and the bundled DHIS2 Settings UI inherits the same silent failure. The dhis2-utils `Dhis2Client.system.set_calendar()` + `dhis2 system calendar <name>` CLI command both reflect this — they pass the "POST returned 200" check but the next read still sees the previous value. Out-of-band evidence required (refresh the DHIS2 Settings UI in a fresh browser context, or wait + retry to test cross-replica propagation).
+**Impact:** Any tool that flips the system calendar via the documented REST API silently believes it succeeded — and the bundled DHIS2 Settings UI inherits the same silent failure. The dhis2-utils `Dhis2Client.system.set_calendar()` + `d2w system calendar <name>` CLI command both reflect this — they pass the "POST returned 200" check but the next read still sees the previous value. Out-of-band evidence required (refresh the DHIS2 Settings UI in a fresh browser context, or wait + retry to test cross-replica propagation).
 
 **Workaround in this repo:** none in code — `client.system.set_calendar()` already invalidates its own cache after POST, so a stale read on the same client is impossible. Behaviour against play42 is documented next to the method so users know the write is best-effort against shared/multi-replica DHIS2 instances. The local single-replica `infra/` stack (`make -C infra up-fresh`) is the suggested test target — it persists the value end-to-end.
 
@@ -2754,9 +2754,9 @@ curl -s -u admin:district 'https://play.im.dhis2.org/dev-2-42/api/dataElements/a
 
 **Actual:** any path segment that isn't exactly 11 chars fails the by-id mapping's length constraint and falls through to the collection POST handler, yielding `405 "Request method 'GET' is not supported"` — which misleads the caller into thinking GET is unsupported. The discriminator is length-only (11 chars), not the UID regex, so a digit-first 11-char value still routes to a clean 404.
 
-**Impact:** `dhis2 metadata get <type> <bad-uid>` surfaces `DHIS2 API error (405): Request method 'GET' is not supported` for a simple typo'd/truncated UID, reading as "this command is broken".
+**Impact:** `d2w metadata get <type> <bad-uid>` surfaces `DHIS2 API error (405): Request method 'GET' is not supported` for a simple typo'd/truncated UID, reading as "this command is broken".
 
-**Workaround in this repo:** pre-validate UID shape (`^[A-Za-z][A-Za-z0-9]{10}$`) in `dhis2 metadata get` (mirror across v41/v43) and fail locally with "not a valid DHIS2 UID" before the request — not yet implemented (tracked in `docs/roadmap.md`).
+**Workaround in this repo:** pre-validate UID shape (`^[A-Za-z][A-Za-z0-9]{10}$`) in `d2w metadata get` (mirror across v41/v43) and fail locally with "not a valid DHIS2 UID" before the request — not yet implemented (tracked in `docs/roadmap.md`).
 
 **How to know it's fixed:** `GET /api/dataElements/abc` returns `404`/`E1005` (or a `400` invalid-UID) instead of `405`.
 
@@ -2815,7 +2815,7 @@ curl -sf -u admin:district "http://localhost:8080/api/categoryCombos/$COMBO?fiel
 
 **Actual on v43:** The CategoryCombo persists with zero COCs. Any feature that reads `/api/categoryOptionCombos` for that combo (data entry against a non-default disaggregation, analytics aggregation, the dataDimensionItems renderer in the Maintenance app) silently sees no options. The matrix only fills after `POST /api/maintenance/categoryOptionComboUpdate` runs (which walks every persisted combo, adds missing COCs, removes orphaned ones). v42 had the same maintenance endpoint but it was rarely needed because save-time generation already handled it.
 
-A combo created against v43 is functionally broken until that maintenance trigger runs — `dhis2 metadata category-combos build --spec ...` polled `wait_for_coc_generation` for 120 s and timed out at 0/N before this was diagnosed.
+A combo created against v43 is functionally broken until that maintenance trigger runs — `d2w metadata category-combos build --spec ...` polled `wait_for_coc_generation` for 120 s and timed out at 0/N before this was diagnosed.
 
 **Impact:** Any code that creates / modifies CategoryCombos and expects the COC matrix to be ready after save. Affects: this repo's `metadata category-combos build` verb (the `CategoryComboBuilder` one-pass helper), any data-entry tooling that targets a freshly-built combo, and likely third-party tooling that relied on the v42 behavior.
 
@@ -2940,7 +2940,7 @@ curl -sf -u admin:district "http://localhost:8080/api/system/tasks/ANALYTICS_TAB
 
 **Actual:** v43's `AbstractJdbcTableManager` emits a `CHECK(yearly = '<year>')` constraint when creating year-partition `analytics_event_<program>_<year>_temp` tables, but the parent `analytics_event_<program>_temp` table doesn't have a `yearly` column. The Postgres planner rejects the constraint, the whole `ANALYTICS_TABLE` job aborts after the first such failure, and any subsequent / parallel analytics queries fail because the resource-table swap never happens. Aggregate analytics partitions (`analytics`, `analytics_<year>`) are also left unbuilt because the job didn't reach the swap stage.
 
-The compose-time analytics-trigger sidecar (which runs once just after DHIS2 boots, before any aggregate data is seeded) doesn't trigger the bug — there's no 2024 event data yet so the year-partition isn't created. The bug surfaces on the *post-seed* rebuild called by `infra/scripts/build_e2e_dump.py::run_analytics()` (and any subsequent `dhis2 maintenance refresh analytics`).
+The compose-time analytics-trigger sidecar (which runs once just after DHIS2 boots, before any aggregate data is seeded) doesn't trigger the bug — there's no 2024 event data yet so the year-partition isn't created. The bug surfaces on the *post-seed* rebuild called by `infra/scripts/build_e2e_dump.py::run_analytics()` (and any subsequent `d2w maintenance refresh analytics`).
 
 **Impact:** Any v43 stack that imports event data for one or more event programs and then runs an analytics rebuild. Affects: this repo's `make refresh-and-verify DHIS2_VERSION=43` flow (the post-seed rebuild hangs / fails), and any production v43 deployment with event programs and a periodic analytics refresh.
 
@@ -3063,7 +3063,7 @@ curl -sf -u admin:district -X POST 'http://localhost:8080/api/oAuth2Clients' \
 
 **Actual:** DHIS2 v42 renamed the OAuth2 client schema property from `cid` to `clientId` (Spring Authorization Server alignment) and gained lenient string-to-collection coercion. v41 still uses the original `cid` + strict Jackson collection deserialisation; payloads built against the v42-shape silently produce a client with no `clientId` (which makes `/oauth2/token` 401 with "invalid_client") or 400 on the array fields.
 
-**Impact:** Any caller registering OAuth2 clients against a v41 server. Affects: this repo's `dhis2 profile register-app --auth oauth2 ...` CLI command, the seed pipeline's `_seed_auth_oauth2.py`, and any third-party tooling that posts to `/api/oAuth2Clients`.
+**Impact:** Any caller registering OAuth2 clients against a v41 server. Affects: this repo's `d2w profile register-app --auth oauth2 ...` CLI command, the seed pipeline's `_seed_auth_oauth2.py`, and any third-party tooling that posts to `/api/oAuth2Clients`.
 
 **Workaround in this repo:** Per-version payload builders at `dhis2w_client.v{N}.oauth2_payload.build_register_payload`. `dhis2w_core.oauth2_registration.register_oauth2_client` connects, reads `client.version_key`, imports the matching builder, and posts the right shape. v41 builds with `cid` + arrays; v42 + v43 build with `clientId` + arrays (arrays work uniformly, so the divergence is only the key name).
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# `dhis2 maintenance predictors run ...` — run DHIS2's predictor engines
+# `d2w maintenance predictors run ...` — run DHIS2's predictor engines
 # (synthetic data values generated from historical data). CRUD on the
-# predictors themselves stays on the generic `dhis2 metadata list predictors`.
+# predictors themselves stays on the generic `d2w metadata list predictors`.
 #
 # Validation-rule runs (a different engine that returns violations) live in
 # the sibling `validation_rules.sh`.
@@ -18,19 +18,19 @@ set -euo pipefail
 # run window inside 2024 produces real predictions.
 
 # Run every predictor on the instance:
-dhis2 maintenance predictors run \
+d2w maintenance predictors run \
     --start-date 2024-04-01 --end-date 2024-06-30
 
 # Run one predictor by UID:
-dhis2 maintenance predictors run \
+d2w maintenance predictors run \
     --predictor PrdSumBCG01 \
     --start-date 2024-04-01 --end-date 2024-04-30
 
 # Run a PredictorGroup:
-dhis2 maintenance predictors run \
+d2w maintenance predictors run \
     --group PdGImmun001 \
     --start-date 2024-04-01 --end-date 2024-06-30
 
 # --- CRUD on predictors ----------------------------------------------------
 # Stays on the generic metadata surface — no special plugin:
-dhis2 metadata list predictors --fields 'id,name,generator,sequentialSampleCount'
+d2w metadata list predictors --fields 'id,name,generator,sequentialSampleCount'

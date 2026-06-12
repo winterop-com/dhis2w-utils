@@ -23,7 +23,7 @@ class _FilesPlugin(BaseModel):
     )
 
     def register_cli(self, app: Any) -> None:
-        """Mount `dhis2 files` on the root CLI."""
+        """Mount `d2w files` on the root CLI."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

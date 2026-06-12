@@ -28,7 +28,7 @@ async def main() -> None:
         # Pick the first profile and verify + show it.
         first = (profiles or {}).get("result", [None])[0]
         if first is None:
-            print("(no profiles — run `dhis2 profile add ...` first)")
+            print("(no profiles — run `d2w profile add ...` first)")
             return
         name = first["name"]
 
