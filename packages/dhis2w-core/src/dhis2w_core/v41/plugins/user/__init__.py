@@ -19,7 +19,7 @@ class _UserPlugin(BaseModel):
     description: str = "List + administer DHIS2 users (invite, reinvite, password reset)."
 
     def register_cli(self, app: Any) -> None:
-        """Mount the user sub-app under `dhis2 user`."""
+        """Mount the user sub-app under `d2w user`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

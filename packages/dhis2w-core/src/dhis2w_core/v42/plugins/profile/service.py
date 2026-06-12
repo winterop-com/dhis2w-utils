@@ -137,7 +137,7 @@ async def _verify_one(name: str, profile: Profile) -> VerifyResult:
                 error=preflight_error,
             )
         # Verify must never trigger the browser flow — if no token is cached yet, tell the
-        # user to run `dhis2 profile login <name>` rather than silently opening a browser.
+        # user to run `d2w profile login <name>` rather than silently opening a browser.
         token_store = token_store_for_scope(_scope_for(resolved))
         try:
             cached = await token_store.get(f"profile:{resolved.name}")
@@ -151,7 +151,7 @@ async def _verify_one(name: str, profile: Profile) -> VerifyResult:
                 auth=profile.auth,
                 error=(
                     f"no cached OAuth2 tokens for profile {resolved.name!r} — "
-                    f"run `dhis2 profile login {resolved.name}` to complete the browser flow first"
+                    f"run `d2w profile login {resolved.name}` to complete the browser flow first"
                 ),
             )
     auth = _build_probe_auth(profile, profile_name=resolved.name, scope=_scope_for(resolved))
@@ -162,7 +162,7 @@ async def _verify_one(name: str, profile: Profile) -> VerifyResult:
             base_url=profile.base_url,
             auth=profile.auth,
             error=(
-                "oauth2 profile has no cached tokens — run `dhis2 profile login "
+                "oauth2 profile has no cached tokens — run `d2w profile login "
                 f"{name}` first to complete the browser flow"
                 if profile.auth == "oauth2"
                 else f"verification does not yet support auth type {profile.auth!r}"
@@ -220,7 +220,7 @@ def _build_probe_auth(
         # flow during `verify` would be surprising — login is an explicit command,
         # so wire a capturer that raises instead of accidentally opening a browser.
         async def _probe_capturer(_auth_url: str, _expected_state: str) -> str:
-            raise Dhis2ClientError("no cached OAuth2 token — run `dhis2 profile login <name>` to authorise")
+            raise Dhis2ClientError("no cached OAuth2 token — run `d2w profile login <name>` to authorise")
 
         return OAuth2Auth(
             base_url=profile.base_url,
@@ -360,7 +360,7 @@ def set_default_profile(name: str, *, scope: str = "global", start: Path | None 
     catalog = load_catalog(start=start)
     if name not in catalog.merged and name not in data.profiles:
         raise UnknownProfileError(
-            f"no profile named {name!r} exists in project or global files; add it first with `dhis2 profile add`."
+            f"no profile named {name!r} exists in project or global files; add it first with `d2w profile add`."
         )
     data.default = name
     write_profiles_file(path, data)

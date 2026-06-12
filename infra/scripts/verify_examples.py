@@ -70,7 +70,7 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # Same Route + external egress as the cli/client siblings.
         "mcp/route_register_and_run.py",
         # --- Slow server-side jobs --------------------------------------
-        # Kicks `dhis2 maintenance refresh analytics --watch`; analytics
+        # Kicks `d2w maintenance refresh analytics --watch`; analytics
         # rebuilds legitimately take several minutes on a populated stack.
         "cli/maintenance.sh",
         # --- Fixture gaps in the seed ----------------------------------

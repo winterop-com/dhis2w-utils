@@ -17,7 +17,7 @@ Convention across all plugins:
   render as `", ".join(format_ref(x) for x in values)` via `format_reflist`
   with a "... +N more" tail past the preview limit.
 - Raw JSON is a global mode — the root CLI accepts `--json` once
-  (`dhis2 --json metadata get ...`) and stores it in `JSON_OUTPUT`.
+  (`d2w --json metadata get ...`) and stores it in `JSON_OUTPUT`.
   Every plugin checks `is_json_output()` to decide whether to emit
   `model_dump_json(indent=2, exclude_none=True)` instead of a Rich table.
 """
@@ -86,7 +86,7 @@ def render_webmessage(
     if ref is not None:
         job_type, task_uid = ref
         typer.echo(f"kicked off {job_type} (task={task_uid})")
-        typer.echo(f"  poll:  dhis2 maintenance task watch {job_type} {task_uid}")
+        typer.echo(f"  poll:  d2w maintenance task watch {job_type} {task_uid}")
         typer.echo("  or re-run with --watch / -w to stream progress")
         return
 

@@ -46,12 +46,12 @@ async with Dhis2Client(...) as client:
 ## CLI
 
 ```bash
-dhis2 metadata list dataElements --filter domainType:eq:AGGREGATE
-dhis2 metadata data-elements create --name "BCG doses" --short-name "BCG" --value-type NUMBER --legend-set LsDoseBand1
-dhis2 metadata data-element-groups create --name "Vaccines" --short-name "Vacc"
-dhis2 metadata data-element-groups add-members <GROUP_UID> --data-element <DE_UID>
-dhis2 metadata data-element-group-sets create --name "Programme area" --short-name "ProgArea"
-dhis2 metadata data-element-group-sets add-groups <SET_UID> --group <GROUP_UID>
+d2w metadata list dataElements --filter domainType:eq:AGGREGATE
+d2w metadata data-elements create --name "BCG doses" --short-name "BCG" --value-type NUMBER --legend-set LsDoseBand1
+d2w metadata data-element-groups create --name "Vaccines" --short-name "Vacc"
+d2w metadata data-element-groups add-members <GROUP_UID> --data-element <DE_UID>
+d2w metadata data-element-group-sets create --name "Programme area" --short-name "ProgArea"
+d2w metadata data-element-group-sets add-groups <SET_UID> --group <GROUP_UID>
 ```
 
 Every `list` has an `ls` alias; every destructive verb accepts `--yes` / `-y`.

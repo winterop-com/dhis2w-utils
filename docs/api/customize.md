@@ -8,6 +8,6 @@ Thin wrapper over DHIS2's three branding endpoint families — `/api/staticConte
 See also:
 - Architecture walkthrough: [Customize plugin](../architecture/customize-plugin.md)
 - Committed preset: `infra/login-customization/`
-- CLI surface: `dhis2 customize` (under [Plugins](../architecture/plugins.md))
+- CLI surface: `d2w customize` (under [Plugins](../architecture/plugins.md))
 
 ::: dhis2w_client.v42.customize

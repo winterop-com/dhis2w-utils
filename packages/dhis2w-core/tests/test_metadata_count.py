@@ -1,4 +1,4 @@
-"""Verify `dhis2 metadata list --count` returns the DHIS2 pager total via accessor.list_raw()."""
+"""Verify `d2w metadata list --count` returns the DHIS2 pager total via accessor.list_raw()."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ _GLOBAL_FLAGS = {"--json", "-j", "--debug", "-d"}
 
 
 def _invoke(runner: CliRunner, accessor: _CountingAccessor, args: list[str]) -> Any:
-    """Invoke `dhis2 metadata list dataElements ...` with the fake accessor injected."""
+    """Invoke `d2w metadata list dataElements ...` with the fake accessor injected."""
     fake_resources = MagicMock()
     fake_resources.data_elements = accessor
     fake_client = MagicMock(resources=fake_resources)

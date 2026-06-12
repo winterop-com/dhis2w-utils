@@ -1,4 +1,4 @@
-"""CliRunner tests for `dhis2 system` — settings (set / set-many / get / list) + whoami."""
+"""CliRunner tests for `d2w system` — settings (set / set-many / get / list) + whoami."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ token = "d2p_test"
 
 
 def test_settings_set_writes_single_key(pat_profile: None) -> None:  # noqa: ARG001
-    """`dhis2 system settings set KEY VALUE` routes to service.set_system_setting."""
+    """`d2w system settings set KEY VALUE` routes to service.set_system_setting."""
     mock = AsyncMock(return_value=None)
     with patch("dhis2w_core.v42.plugins.system.service.set_system_setting", new=mock):
         result = _runner.invoke(build_app(), ["system", "settings", "set", "applicationTitle", "MoH"])
@@ -47,7 +47,7 @@ def test_settings_set_writes_single_key(pat_profile: None) -> None:  # noqa: ARG
 
 
 def test_settings_set_many_applies_object(pat_profile: None, tmp_path: Path) -> None:  # noqa: ARG001
-    """`dhis2 system settings set-many file.json` bulk-applies a {key: value} object."""
+    """`d2w system settings set-many file.json` bulk-applies a {key: value} object."""
     file = tmp_path / "s.json"
     file.write_text('{"applicationTitle": "MoH", "keyApplicationFooter": "bye"}', encoding="utf-8")
     mock = AsyncMock(return_value=["applicationTitle", "keyApplicationFooter"])
@@ -67,7 +67,7 @@ def test_settings_set_many_rejects_non_object(pat_profile: None, tmp_path: Path)
 
 
 def test_whoami_json_emits_parseable_object(pat_profile: None) -> None:  # noqa: ARG001
-    """`dhis2 --json system whoami` emits a JSON object (with `id`), not the plain text form."""
+    """`d2w --json system whoami` emits a JSON object (with `id`), not the plain text form."""
     import json
 
     me = Me.model_validate({"id": "abc123XYZ", "username": "admin", "displayName": "Admin User"})

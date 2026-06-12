@@ -7,7 +7,7 @@ The repo is a `uv` workspace with a virtual root (the root `pyproject.toml` has 
 Three reasons:
 
 - **`dhis2w-client` has to be publishable on its own.** A single-package layout would force PyPI users of the client to pull in Typer, FastMCP, Playwright — none of which they need. A workspace lets us ship the client lean.
-- **CLI and MCP shouldn't be the same install.** A server running `dhis2w-mcp` in a Docker image doesn't need the CLI's Typer tree. A developer running `dhis2` locally doesn't need the MCP stdio loop. Separate members, separate wheels.
+- **CLI and MCP shouldn't be the same install.** A server running `dhis2w-mcp` in a Docker image doesn't need the CLI's Typer tree. A developer running `d2w` locally doesn't need the MCP stdio loop. Separate members, separate wheels.
 - **New surfaces land cleanly.** A future FastAPI web UI or a TUI is a new folder, not a conditional import inside an existing package.
 
 ## Layout
@@ -25,10 +25,10 @@ dhis2w-utils/
 └── packages/
     ├── dhis2w-client/             # httpx + pydantic lib + Profile + open_client (PAT/Basic) (PyPI)
     ├── dhis2w-core/               # TOML profile resolution + OAuth2 token store + plugin runtime + plugins (PyPI)
-    ├── dhis2w-cli/                # Typer console script `dhis2` (PyPI)
+    ├── dhis2w-cli/                # Typer console script `d2w` (PyPI)
     ├── dhis2w-mcp/                # FastMCP server (PyPI)
     ├── dhis2w-browser/            # Playwright helpers (PyPI)
-    └── dhis2w-codegen/            # generator — registers `dhis2 dev codegen` subcommand (workspace-only)
+    └── dhis2w-codegen/            # generator — registers `d2w dev codegen` subcommand (workspace-only)
 ```
 
 ## Configuration split

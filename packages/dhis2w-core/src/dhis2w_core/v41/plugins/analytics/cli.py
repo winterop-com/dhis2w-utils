@@ -1,4 +1,4 @@
-"""Typer sub-app for the `analytics` plugin (mounted under `dhis2 analytics`)."""
+"""Typer sub-app for the `analytics` plugin (mounted under `d2w analytics`)."""
 
 from __future__ import annotations
 
@@ -377,5 +377,5 @@ def tracked_entities_query_command(
 
 
 def register(root_app: Any) -> None:
-    """Mount under `dhis2 analytics`."""
+    """Mount under `d2w analytics`."""
     root_app.add_typer(app, name="analytics", help="DHIS2 analytics queries.")

@@ -1,4 +1,4 @@
-"""Tests for `service.diff_profiles` + `dhis2 metadata diff-profiles` CLI."""
+"""Tests for `service.diff_profiles` + `d2w metadata diff-profiles` CLI."""
 
 from __future__ import annotations
 

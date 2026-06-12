@@ -3,9 +3,9 @@
 Exercises the three CLI surfaces that kick off a background job and stream
 notifications to stdout:
 
-- `dhis2 maintenance refresh analytics --watch`
-- `dhis2 maintenance dataintegrity run --watch`
-- `dhis2 maintenance task watch <type> <uid>` (given a ref from the above)
+- `d2w maintenance refresh analytics --watch`
+- `d2w maintenance dataintegrity run --watch`
+- `d2w maintenance task watch <type> <uid>` (given a ref from the above)
 
 Every test goes through `CliRunner` and hits the real `/api/system/tasks/`
 feed — no respx mocking — so they only run under `@pytest.mark.slow`
@@ -53,7 +53,7 @@ def _contains_completion_marker(output: str) -> bool:
 def test_analytics_refresh_watch_completes(
     monkeypatch: pytest.MonkeyPatch, local_url: str, local_pat: str | None
 ) -> None:
-    """`dhis2 maintenance refresh analytics --watch` kicks off + watches to completion."""
+    """`d2w maintenance refresh analytics --watch` kicks off + watches to completion."""
     _setup_env(monkeypatch, local_url, local_pat)
     result = CliRunner().invoke(
         build_app(),
@@ -68,7 +68,7 @@ def test_analytics_refresh_watch_completes(
 def test_maintenance_dataintegrity_run_watch_completes(
     monkeypatch: pytest.MonkeyPatch, local_url: str, local_pat: str | None
 ) -> None:
-    """`dhis2 maintenance dataintegrity run --watch` kicks off + watches to completion."""
+    """`d2w maintenance dataintegrity run --watch` kicks off + watches to completion."""
     _setup_env(monkeypatch, local_url, local_pat)
     # Pick the smallest-scope check DHIS2 ships so this runs quickly.
     # `orgunits_invalid_geometry` returns within ~1 s on the seeded fixture.
@@ -91,7 +91,7 @@ def test_maintenance_dataintegrity_run_watch_completes(
 def test_maintenance_task_watch_by_explicit_ref(
     monkeypatch: pytest.MonkeyPatch, local_url: str, local_pat: str | None
 ) -> None:
-    """`dhis2 maintenance task watch <type> <uid>` follows a pre-existing task ref.
+    """`d2w maintenance task watch <type> <uid>` follows a pre-existing task ref.
 
     Kicks off a dataintegrity run WITHOUT `--watch` to get the raw
     JobConfigurationWebMessage; extracts `jobType` + `id`; then feeds that

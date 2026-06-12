@@ -1,4 +1,4 @@
-"""Tests for the `dhis2 metadata merge` CLI conflict-rendering path."""
+"""Tests for the `d2w metadata merge` CLI conflict-rendering path."""
 
 from __future__ import annotations
 

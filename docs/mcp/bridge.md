@@ -1,9 +1,9 @@
 # `dhis2w-mcp-bridge` — single-tool CLI bridge for local models
 
-`dhis2w-mcp-bridge` is a separate FastMCP server that exposes the entire `dhis2` CLI as a
+`dhis2w-mcp-bridge` is a separate FastMCP server that exposes the entire `d2w` CLI as a
 **single** MCP tool, `dhis2_cli`. Where [`dhis2w-mcp`](index.md) registers ~304 typed tools
 (≈50-65k tokens of schema loaded into the model's context up front), this server registers
-one tool that shells out to the local `dhis2` binary.
+one tool that shells out to the local `d2w` binary.
 
 For *why* it's one tool instead of many — the design reasoning and how the approach is
 validated — see [Bridge design: one tool, not many](../architecture/mcp-bridge.md). This page
@@ -29,7 +29,7 @@ dhis2_cli(["metadata", "list", "dataElements",
            "--filter", "name:ilike:malaria"])          # run a command
 ```
 
-Everything stays local — the server spawns the `dhis2` subprocess and never sends data
+Everything stays local — the server spawns the `d2w` subprocess and never sends data
 anywhere. Use the full [`dhis2w-mcp`](index.md) server instead for hosts that do their own
 progressive tool disclosure (e.g. Claude Code handles all 304 tools comfortably).
 
@@ -51,7 +51,7 @@ on `stderr` (never JSON). `profile` is injected as `-p <profile>`.
 
 ## Install
 
-The bridge depends on `dhis2w-cli`, so installing it also provides the `dhis2` binary it shells
+The bridge depends on `dhis2w-cli`, so installing it also provides the `d2w` binary it shells
 out to. Published on PyPI as [`dhis2w-mcp-bridge`](https://pypi.org/project/dhis2w-mcp-bridge/).
 
 ### Global user install — recommended
@@ -138,7 +138,7 @@ profile's credentials, so use a read-scoped PAT/user for a hard guarantee.
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `DHIS2_MCP_READONLY` | unset | Truthy (`1`/`true`/`yes`/`on`) restricts to read commands + `--help`; writes refused (exit 126). |
-| `DHIS2_CLI_BIN` | auto | Path to the `dhis2` executable (auto-discovered next to the interpreter, then on `PATH`). |
+| `DHIS2_CLI_BIN` | auto | Path to the `d2w` executable (auto-discovered next to the interpreter, then on `PATH`). |
 | `DHIS2_MCP_CLI_TIMEOUT` | `120` | Per-command timeout in seconds (exit 124 on timeout). |
 
 Bridge exit-code conventions: `124` timeout, `126` refused by read-only mode, `127` CLI not

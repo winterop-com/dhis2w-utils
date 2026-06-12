@@ -1,4 +1,4 @@
-"""Typer sub-app for the `maintenance` plugin (mounted under `dhis2 maintenance`)."""
+"""Typer sub-app for the `maintenance` plugin (mounted under `d2w maintenance`)."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ refresh_app = typer.Typer(
     no_args_is_help=True,
 )
 validation_app = typer.Typer(
-    help="Run validation rules + inspect violations (CRUD on rules: `dhis2 metadata list validationRules`).",
+    help="Run validation rules + inspect violations (CRUD on rules: `d2w metadata list validationRules`).",
     no_args_is_help=True,
 )
 validation_result_app = typer.Typer(
@@ -38,7 +38,7 @@ validation_result_app = typer.Typer(
     no_args_is_help=True,
 )
 predictors_app = typer.Typer(
-    help="Run predictor expressions (CRUD on predictors: `dhis2 metadata list predictors`).",
+    help="Run predictor expressions (CRUD on predictors: `d2w metadata list predictors`).",
     no_args_is_help=True,
 )
 
@@ -332,7 +332,7 @@ def dataintegrity_result_command(
     if non_zero:
         typer.secho(
             "\nhint: add --details to see the offending UIDs (requires a prior "
-            "`dhis2 maintenance dataintegrity run --details`).",
+            "`d2w maintenance dataintegrity run --details`).",
             fg=typer.colors.YELLOW,
         )
 
@@ -744,5 +744,5 @@ def predictors_run_command(
 
 
 def register(root_app: Any) -> None:
-    """Mount under `dhis2 maintenance`."""
+    """Mount under `d2w maintenance`."""
     root_app.add_typer(app, name="maintenance", help="DHIS2 maintenance (tasks, cache, integrity, cleanup, refresh).")

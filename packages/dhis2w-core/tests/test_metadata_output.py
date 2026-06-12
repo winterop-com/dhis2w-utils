@@ -1,4 +1,4 @@
-"""Verify `dhis2 metadata list --output` writes JSON to a file and prints a summary, not the rows."""
+"""Verify `d2w metadata list --output` writes JSON to a file and prints a summary, not the rows."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def _isolated_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _invoke(accessor: _FakeAccessor, args: list[str]) -> Any:
-    """Invoke `dhis2 metadata list dataElements ...` with the fake accessor injected."""
+    """Invoke `d2w metadata list dataElements ...` with the fake accessor injected."""
     fake_resources = MagicMock()
     fake_resources.data_elements = accessor
     ctx = AsyncMock()

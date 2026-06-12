@@ -17,7 +17,7 @@ dependencies = [
 [project.scripts]
 dhis2w-codegen = "dhis2w_codegen.cli:app"
 
-# codegen is mounted under `dhis2 dev codegen` by the dev plugin
+# codegen is mounted under `d2w dev codegen` by the dev plugin
 # (packages/dhis2w-core/src/dhis2w_core/plugins/dev/cli.py). No top-level
 # entry-point registration — dev owns the namespace.
 

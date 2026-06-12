@@ -1,4 +1,4 @@
-"""FastMCP server entrypoint for dhis2w-mcp-bridge — the single-tool `dhis2` CLI bridge."""
+"""FastMCP server entrypoint for dhis2w-mcp-bridge — the single-tool `d2w` CLI bridge."""
 
 from __future__ import annotations
 

@@ -1,13 +1,13 @@
 # Messaging plugin
 
-`dhis2 messaging` covers DHIS2's internal messaging surface
+`d2w messaging` covers DHIS2's internal messaging surface
 (`/api/messageConversations`). Pairs with the files plugin — a
-`MESSAGE_ATTACHMENT`-domain fileResource uploaded via `dhis2 files
+`MESSAGE_ATTACHMENT`-domain fileResource uploaded via `d2w files
 resources upload --domain MESSAGE_ATTACHMENT ...` can be referenced
 from a message by UID.
 
 ```
-dhis2 messaging {list,get,send,reply,mark-read,mark-unread,delete}
+d2w messaging {list,get,send,reply,mark-read,mark-unread,delete}
 ```
 
 MCP mirrors the full surface: `messaging_list`, `messaging_get`,
@@ -27,17 +27,17 @@ MCP mirrors the full surface: `messaging_list`, `messaging_get`,
 
 ```bash
 # Send a direct message:
-dhis2 messaging send "Pilot rollout" "Please review the attached plan." \
+d2w messaging send "Pilot rollout" "Please review the attached plan." \
   --user YzqyZKXzcxI --user aB3dEf5gH7i
 
 # Attach a previously-uploaded fileResource (send-time only):
-dhis2 files resources upload report.pdf --domain MESSAGE_ATTACHMENT  # prints the FR uid
-dhis2 messaging send "Report" "latest numbers" \
+d2w files resources upload report.pdf --domain MESSAGE_ATTACHMENT  # prints the FR uid
+d2w messaging send "Report" "latest numbers" \
   --user YzqyZKXzcxI \
   --attachment <fr-uid>
 
 # Reply to the thread:
-dhis2 messaging reply <conversation-uid> "thanks — reviewed"
+d2w messaging reply <conversation-uid> "thanks — reviewed"
 ```
 
 **Reply attachment caveat:** DHIS2's reply endpoint
@@ -51,13 +51,13 @@ referencing the earlier one in the subject.
 
 ```bash
 # Full inbox (rich table):
-dhis2 messaging list
+d2w messaging list
 
 # Unread only (DHIS2 filter syntax):
-dhis2 messaging list --filter "read:eq:false"
+d2w messaging list --filter "read:eq:false"
 
 # Machine-readable:
-dhis2 --json messaging list
+d2w --json messaging list
 ```
 
 The CLI table colors the `read` column (`unread` bold-yellow) and the
@@ -67,9 +67,9 @@ DIRECT in blue).
 ## Read-state + cleanup
 
 ```bash
-dhis2 messaging mark-read <uid> [<uid> ...]
-dhis2 messaging mark-unread <uid> [<uid> ...]
-dhis2 messaging delete <uid>           # soft-delete for the calling user only
+d2w messaging mark-read <uid> [<uid> ...]
+d2w messaging mark-unread <uid> [<uid> ...]
+d2w messaging delete <uid>           # soft-delete for the calling user only
 ```
 
 `delete` is always soft from the caller's perspective: other participants

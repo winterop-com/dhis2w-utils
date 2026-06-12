@@ -41,7 +41,7 @@ def test_schemas_manifest_is_canonical(version_key: str) -> None:
     canonical_bytes = json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True).encode("utf-8")
     assert committed_bytes == canonical_bytes, (
         f"{manifest_path} is not in canonical order. "
-        f"Re-run `dhis2 dev codegen rebuild` against a live DHIS2 instance, "
+        f"Re-run `d2w dev codegen rebuild` against a live DHIS2 instance, "
         f"or round-trip the manifest through SchemasManifest.model_validate_json + emit() to re-canonicalize."
     )
 
@@ -111,7 +111,7 @@ def _assert_subtree_equal(generated: Path, committed: Path) -> None:
         committed_bytes = (committed / relative_path).read_bytes()
         assert emitted_bytes == committed_bytes, (
             f"{relative_path}: emitter output differs from committed tree. "
-            f"Either run `dhis2 dev codegen rebuild` + `oas-rebuild` to refresh the committed tree, "
+            f"Either run `d2w dev codegen rebuild` + `oas-rebuild` to refresh the committed tree, "
             f"or fix the emitter to produce the committed bytes."
         )
 

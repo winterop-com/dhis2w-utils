@@ -6,12 +6,12 @@
 
 | Operation | CLI | MCP tool |
 | --- | --- | --- |
-| Aggregated query | `dhis2 analytics query` | `analytics_query` |
-| Raw (pre-aggregation) query | `dhis2 analytics query --shape raw` | `analytics_query (shape=raw)` |
-| DataValueSet-shaped output | `dhis2 analytics query --shape dvs` | `analytics_query (shape=dvs)` |
-| Trigger analytics rebuild | `dhis2 maintenance refresh analytics` | `maintenance_refresh_analytics` |
+| Aggregated query | `d2w analytics query` | `analytics_query` |
+| Raw (pre-aggregation) query | `d2w analytics query --shape raw` | `analytics_query (shape=raw)` |
+| DataValueSet-shaped output | `d2w analytics query --shape dvs` | `analytics_query (shape=dvs)` |
+| Trigger analytics rebuild | `d2w maintenance refresh analytics` | `maintenance_refresh_analytics` |
 
-Refresh commands live under `dhis2 maintenance refresh ...` — see the [maintenance plugin](maintenance-plugin.md) for the full surface. This page focuses on the query side.
+Refresh commands live under `d2w maintenance refresh ...` — see the [maintenance plugin](maintenance-plugin.md) for the full surface. This page focuses on the query side.
 
 ## Dimensions and filters
 
@@ -33,14 +33,14 @@ Period keywords DHIS2 understands include `LAST_12_MONTHS`, `LAST_6_MONTHS`, `TH
 
 ```bash
 # Simple aggregated query: one data element over the last 12 months at a specific org unit
-dhis2 analytics query \
+d2w analytics query \
   --dim dx:fbfJHSPpUQD \
   --dim pe:LAST_12_MONTHS \
   --dim ou:ImspTQPwCqd \
   --skip-meta
 
 # Multiple data elements + a filter
-dhis2 analytics query \
+d2w analytics query \
   --dim 'dx:fbfJHSPpUQD;cYeuwXTCPkU' \
   --dim pe:LAST_12_MONTHS \
   --dim ou:ImspTQPwCqd \
@@ -49,35 +49,35 @@ dhis2 analytics query \
   --output-id-scheme NAME
 
 # Raw data variant (no server-side aggregation)
-dhis2 analytics query --shape raw \
+d2w analytics query --shape raw \
   --dim dx:fbfJHSPpUQD \
   --dim pe:LAST_3_MONTHS \
   --dim ou:ImspTQPwCqd
 
 # DataValueSet shape (for pipelines that want dataValues[] output)
-dhis2 analytics query --shape dvs \
+d2w analytics query --shape dvs \
   --dim dx:fbfJHSPpUQD \
   --dim pe:LAST_12_MONTHS \
   --dim ou:ImspTQPwCqd
 
 # Trigger a rebuild of the analytics tables (async; returns a task reference).
-dhis2 maintenance refresh analytics --last-years 2
+d2w maintenance refresh analytics --last-years 2
 
 # Same, but stream notifications until the table rebuild reports completed=true.
-dhis2 maintenance refresh analytics --last-years 2 --watch --interval 1 --timeout 300
+d2w maintenance refresh analytics --last-years 2 --watch --interval 1 --timeout 300
 
 # Event analytics — line-listed events in a program.
-dhis2 analytics events query <PROG_UID> \
+d2w analytics events query <PROG_UID> \
   --dim pe:LAST_12_MONTHS \
   --dim ou:<OU_UID> \
   --stage <STAGE_UID>
 
 # Event analytics — aggregated counts grouped by the supplied dimensions.
-dhis2 analytics events query <PROG_UID> --mode aggregate \
+d2w analytics events query <PROG_UID> --mode aggregate \
   --dim dx:<DATA_ELEMENT_UID> --dim pe:LAST_12_MONTHS --dim ou:<OU_UID>
 
 # Enrollment analytics — line-listed enrollments.
-dhis2 analytics enrollments query <PROG_UID> \
+d2w analytics enrollments query <PROG_UID> \
   --dim pe:LAST_12_MONTHS --start-date 2026-01-01 --end-date 2026-06-30
 ```
 
@@ -159,14 +159,14 @@ existing outliers), and `MIN_MAX` (hard-bound cutoffs).
 
 ```bash
 # Outliers across one data set + the Kambia org unit for the last 12 months:
-dhis2 analytics outlier-detection \
+d2w analytics outlier-detection \
     --data-set BfMAe6Itzgt \
     --org-unit PMa2VCrupOd \
     --period LAST_12_MONTHS \
     --algorithm Z_SCORE --threshold 2.0 --max-results 10
 
 # Or a narrow set of data elements over an explicit date range:
-dhis2 analytics outlier-detection \
+d2w analytics outlier-detection \
     --data-element fClA2Erf6IO --data-element I78gJm4KBo7 \
     --org-unit jUb8gELQApl \
     --start-date 2025-01-01 --end-date 2025-12-31 \
@@ -185,7 +185,7 @@ of a given type, with the same dimension/filter grammar as event/enrollment
 analytics.
 
 ```bash
-dhis2 analytics tracked-entities query FsgEX4d3Fc5 \
+d2w analytics tracked-entities query FsgEX4d3Fc5 \
     --dimension ou:ImspTQPwCqd --ou-mode DESCENDANTS \
     --program IpHINAT79UW \
     --page-size 50 --asc created
@@ -201,9 +201,9 @@ Three endpoints rebuild different layers of DHIS2's analytics backing store:
 
 | Command | Endpoint | Job type | Rebuilds |
 |---|---|---|---|
-| `dhis2 maintenance refresh analytics` | `/api/resourceTables/analytics` | `ANALYTICS_TABLE` | Full star schema (fact + dim tables). Also refreshes resource tables unless `--skip-resource-tables`. |
-| `dhis2 maintenance refresh resource-tables` | `/api/resourceTables` | `RESOURCE_TABLE` | Supporting OU / category hierarchy tables only — skip the analytics star schema. |
-| `dhis2 maintenance refresh monitoring` | `/api/resourceTables/monitoring` | `MONITORING` | Tables backing DHIS2's data-quality / validation-rule monitoring (validation-rule evaluation reads from these). Bundled into `refresh analytics` unless skipped; standalone rebuild is rarely needed. |
+| `d2w maintenance refresh analytics` | `/api/resourceTables/analytics` | `ANALYTICS_TABLE` | Full star schema (fact + dim tables). Also refreshes resource tables unless `--skip-resource-tables`. |
+| `d2w maintenance refresh resource-tables` | `/api/resourceTables` | `RESOURCE_TABLE` | Supporting OU / category hierarchy tables only — skip the analytics star schema. |
+| `d2w maintenance refresh monitoring` | `/api/resourceTables/monitoring` | `MONITORING` | Tables backing DHIS2's data-quality / validation-rule monitoring (validation-rule evaluation reads from these). Bundled into `refresh analytics` unless skipped; standalone rebuild is rarely needed. |
 
 All three accept `--watch` / `-w` to stream the job to completion via
 `/api/system/tasks/{jobType}/{taskUid}`. Library callers use

@@ -18,7 +18,7 @@ _runner = CliRunner()
 
 
 def test_register_cli_mounts_customize_top_level() -> None:
-    """register_cli mounts the customize sub-app at the root (`dhis2 customize`), not under dev."""
+    """register_cli mounts the customize sub-app at the root (`d2w customize`), not under dev."""
     assert plugin.name == "customize"
     root = typer.Typer()
     plugin.register_cli(root)
@@ -134,7 +134,7 @@ def test_apply_preset_dir_rejects_non_object_json(tmp_path: Path) -> None:
 
 
 def test_apply_cli_rejects_non_directory(tmp_path: Path) -> None:
-    """`dhis2 customize apply FILE` should fail-fast with a clear message."""
+    """`d2w customize apply FILE` should fail-fast with a clear message."""
     f = tmp_path / "not-a-dir.txt"
     f.write_text("x")
     result = _runner.invoke(customize_app, ["apply", str(f)])

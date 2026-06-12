@@ -2,7 +2,7 @@
 
 Binary upload/download tools intentionally omit-ed — MCP tools exchange JSON,
 so pushing/pulling multi-MB blobs through a tool call is the wrong shape.
-Operators who need upload/download reach for the CLI (`dhis2 files documents
+Operators who need upload/download reach for the CLI (`d2w files documents
 upload ...`) or the Python library. MCP tools here cover the metadata-only
 operations agents actually benefit from: listing documents, pulling their
 metadata, creating external-URL links, and deleting stale entries.

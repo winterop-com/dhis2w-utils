@@ -22,7 +22,7 @@ class _DatastorePlugin(BaseModel):
     )
 
     def register_cli(self, app: Any) -> None:
-        """Mount the datastore sub-app under `dhis2 datastore`."""
+        """Mount the datastore sub-app under `d2w datastore`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

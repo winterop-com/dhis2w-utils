@@ -128,7 +128,7 @@ make test-slow
 
 ### OAuth2 / OIDC requires extra `dhis.conf` keys
 
-The PAT variants work out of the box against a vanilla DHIS2 instance. **OAuth2 does not.** DHIS2 ships Spring Authorization Server but ships it switched off, and its `/api` JWT validator only trusts issuers registered in `dhis.conf`. The seeded `make dhis2-seed` creates the OAuth2 client but cannot toggle server-side config — you need the following in `dhis.conf` before `dhis2 profile login <name>` will work end-to-end.
+The PAT variants work out of the box against a vanilla DHIS2 instance. **OAuth2 does not.** DHIS2 ships Spring Authorization Server but ships it switched off, and its `/api` JWT validator only trusts issuers registered in `dhis.conf`. The seeded `make dhis2-seed` creates the OAuth2 client but cannot toggle server-side config — you need the following in `dhis.conf` before `d2w profile login <name>` will work end-to-end.
 
 For the full walkthrough, including troubleshooting and why each key matters, see [Connecting to DHIS2 § OAuth2 / OIDC](guides/connecting-to-dhis2.md#option-3-oauth2-oidc).
 

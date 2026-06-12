@@ -6,7 +6,7 @@ Wraps DHIS2's two namespaced key/value stores:
 - `/api/userDataStore` — the per-user store. Reach it by passing `user=True` to any method.
 
 (There is no `/api/systemDataStore`; instance-wide system config is `systemSettings`, exposed by
-`dhis2 system settings`.) Stored values are arbitrary user JSON — object, array, or scalar — so
+`d2w system settings`.) Stored values are arbitrary user JSON — object, array, or scalar — so
 reads return `Any`. `set` is create-or-update: DHIS2 splits create (POST) from update (PUT), so
 this checks existence first and dispatches accordingly.
 """

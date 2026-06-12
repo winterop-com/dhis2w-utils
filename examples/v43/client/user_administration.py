@@ -9,7 +9,7 @@ Walkthrough of the user domain:
 5. (Commented) reset their password via POST /api/users/{uid}/reset.
 
 Uses the generated `/api/users` resource accessor — the same accessor
-the `dhis2 user list/get` CLI commands sit on. Mutations use the
+the `d2w user list/get` CLI commands sit on. Mutations use the
 dedicated `/invite` and `/reset` endpoints that the generated CRUD
 doesn't cover.
 
@@ -29,7 +29,7 @@ from dhis2w_core.profile import profile_from_env
 async def main() -> None:
     """Read + print a few user slices; show the POST shapes without hitting them."""
     async with open_client(profile_from_env()) as client:
-        # 1. List — same accessor the `dhis2 user list` CLI uses.
+        # 1. List — same accessor the `d2w user list` CLI uses.
         users = await client.resources.users.list(
             fields="id,username,displayName,email,disabled,lastLogin",
             filters=["disabled:eq:false"],

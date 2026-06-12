@@ -2,7 +2,7 @@
 
 Working log for making the dhis2 toolkit usable by **small local models** (LM Studio / Ollama
 / llama.cpp) via `dhis2w-mcp-bridge` — a single MCP tool (`dhis2_cli`) that shells out to the
-`dhis2` CLI. Tracks the model benchmark + the CLI/bridge read-surface hardening.
+`d2w` CLI. Tracks the model benchmark + the CLI/bridge read-surface hardening.
 
 - Branch / staging PR: `feat/dhis2-mcp-cli-bridge` (PR #360 — testing PR, split into smaller PRs).
 - Done → PR #360 description + commits. Queued → `docs/roadmap.md` ("Small-model bridge"
@@ -73,7 +73,7 @@ Ranked by primary-prompt wall-clock; `ok` = correct.
 |---|---|
 | bridge docstring | rewritten for 3–4B: output contract + top reads first, `get` not `show`, "listing is `metadata list <type>`", analytics/data `--dim` block, "never answer from memory", count shape `{resource,total}` |
 | discovery | `metadata type list --json` emits a JSON array; names are **camelCase** wire names (from each accessor's `_path`) matching the docs |
-| errors | unknown resource → **did-you-mean** (difflib) + names the real `dhis2 metadata type list` command |
+| errors | unknown resource → **did-you-mean** (difflib) + names the real `d2w metadata type list` command |
 | help | sub-app descriptions say `get` (not `show`); `--page`/`--page-size` explain no-flag=full vs paged-caps-50; filter operators (`ilike` vs `$ilike`), `--all` (not `--all-streams`) |
 | bridge robustness | single-string args tokenized (shlex); `doctor metadata` added to read-only allowlist |
 | capability | `metadata list --count` (one-request totals), `--output <file>` (bulk dump); typed per-resource `list` consolidated onto generic `metadata list <type>` |
@@ -239,7 +239,7 @@ Drove the **real bridge** (FastMCP client) from LM Studio's OpenAI-compatible AP
   model tried `--limit 1` (no such option → exit 2), then a pile of invented `--fields`
   (`name_type`, `options_set_id`, `data_element_type_id_ref_id`, …), and finally answered the
   unrelated "33 data elements". Two root causes + fixes:
-  - **[SHIPPED] No command answered "what fields does type X have".** Added a **top-level `dhis2
+  - **[SHIPPED] No command answered "what fields does type X have".** Added a **top-level `d2w
     schema <type>`** that introspects the **generated model** for `<type>` and prints field names +
     types + required/optional. The DHIS2 major is **auto-detected from the connected server**
     (`/api/system/info`, SNAPSHOT-safe) — no version pin needed — then the matching generated tree
@@ -269,7 +269,7 @@ correctness reference. Results + methodology + roster live in
 [`model-benchmark.md`](model-benchmark.md); re-run with `make bridge-bench`. Headline:
 `gemma-4-12b-qat` is the only local model that passed both read and write, and it beats its bf16
 sibling on speed at equal correctness. qwens read fast but stall on the write (discoverability of
-`system settings set`). All five now use `dhis2 schema` for the "what fields" task.
+`system settings set`). All five now use `d2w schema` for the "what fields" task.
 
 ### Validated in a live GUI session (gemma-4-12b-qat, chat.md)
 Asked to **create** a dataElement, the model first ran `dhis2_cli(["schema","dataElements"])` to
@@ -277,7 +277,7 @@ check the shape before writing — the `schema` command is now part of the natur
 exactly as intended.
 
 ### Shipped from this round
-- **[SHIPPED] `dhis2 schema` expands enum fields to their allowed values.** Enum-typed fields now
+- **[SHIPPED] `d2w schema` expands enum fields to their allowed values.** Enum-typed fields now
   render as `valueType: ValueType (TEXT, NUMBER, INTEGER, ...) | None` (all members), so a model can
   pick a valid value on a write without guessing — the gap seen in the create session.
 

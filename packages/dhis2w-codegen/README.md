@@ -6,12 +6,12 @@ Version-aware DHIS2 client generator. Hits a live DHIS2 instance's `/api/schemas
 
 ## Subcommands
 
-Mounted as `dhis2 dev codegen` when working from the workspace.
+Mounted as `d2w dev codegen` when working from the workspace.
 
-- `dhis2 dev codegen generate --url <DHIS2> --username <u> --password <p>` — full flow against a live DHIS2. Discovers version from `/api/system/info`, fetches `/api/schemas`, emits into `generated/v{N}/`.
-- `dhis2 dev codegen rebuild` — regenerate from the committed `schemas_manifest.json` (no network).
-- `dhis2 dev codegen oas-rebuild [--version vN]` — re-emit `generated/v{N}/oas/` from the committed `openapi.json`.
-- `dhis2 dev codegen diff <from> <to>` — structural diff between two committed manifests (e.g. `v42` vs `v43`). Surfaces schemas added, removed, and per-property type changes.
+- `d2w dev codegen generate --url <DHIS2> --username <u> --password <p>` — full flow against a live DHIS2. Discovers version from `/api/system/info`, fetches `/api/schemas`, emits into `generated/v{N}/`.
+- `d2w dev codegen rebuild` — regenerate from the committed `schemas_manifest.json` (no network).
+- `d2w dev codegen oas-rebuild [--version vN]` — re-emit `generated/v{N}/oas/` from the committed `openapi.json`.
+- `d2w dev codegen diff <from> <to>` — structural diff between two committed manifests (e.g. `v42` vs `v43`). Surfaces schemas added, removed, and per-property type changes.
 
 ## Convenience targets
 

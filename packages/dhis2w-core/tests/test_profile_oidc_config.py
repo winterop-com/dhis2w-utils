@@ -1,4 +1,4 @@
-"""Tests for `dhis2 profile oidc-config` — discovery + profile-upsert wiring."""
+"""Tests for `d2w profile oidc-config` — discovery + profile-upsert wiring."""
 
 from __future__ import annotations
 
@@ -100,7 +100,7 @@ async def test_discover_oidc_profile_builds_oauth2_profile() -> None:
 
 @respx.mock
 def test_cli_oidc_config_writes_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """`dhis2 profile oidc-config` round-trips: discovery → profile row in the global TOML."""
+    """`d2w profile oidc-config` round-trips: discovery → profile row in the global TOML."""
     respx.get("https://dhis2.example/.well-known/openid-configuration").mock(
         return_value=httpx.Response(200, json=_DISCOVERY_BODY),
     )

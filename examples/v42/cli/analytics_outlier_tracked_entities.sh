@@ -11,7 +11,7 @@ set -euo pipefail
 # at runtime, accepting `MODIFIED_Z_SCORE` instead. See BUGS.md.)
 
 echo "--- Z-score outliers in Kambia, last 12 months (threshold=2.0)"
-dhis2 analytics outlier-detection \
+d2w analytics outlier-detection \
     --data-set BfMAe6Itzgt \
     --org-unit PMa2VCrupOd \
     --period LAST_12_MONTHS \
@@ -19,7 +19,7 @@ dhis2 analytics outlier-detection \
 
 echo
 echo "--- Same query with modified Z-score (robust to existing outliers), descending"
-dhis2 analytics outlier-detection \
+d2w analytics outlier-detection \
     --data-set BfMAe6Itzgt --org-unit PMa2VCrupOd --period LAST_12_MONTHS \
     --algorithm MODIFIED_Z_SCORE --threshold 3.5 --max-results 3 --sort-order DESC
 
@@ -30,6 +30,6 @@ dhis2 analytics outlier-detection \
 
 echo
 echo "--- list tracked entities of type Person (Play) under Sierra Leone (descendants), first 3"
-dhis2 analytics tracked-entities query nEenWmSyUEp \
+d2w analytics tracked-entities query nEenWmSyUEp \
     --dimension ou:ImspTQPwCqd --ou-mode DESCENDANTS \
     --page-size 3 --asc created

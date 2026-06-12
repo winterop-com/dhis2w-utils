@@ -3,7 +3,7 @@
 Examples only execute live in the nightly e2e, so a renamed CLI command or a removed MCP tool
 hides until then. This validates statically (no DHIS2 stack):
 
-- CLI examples (*.sh): each `dhis2 <group> <subcommand> ...` path must resolve in the Typer tree.
+- CLI examples (*.sh): each `d2w <group> <subcommand> ...` path must resolve in the Typer tree.
   Leaf arguments are not flagged — only a command-like token under a *group* that has no such
   child counts as a broken reference.
 - MCP examples (*.py): each `call_tool("name", ...)` name must be a registered tool.
@@ -31,7 +31,7 @@ _GLOBAL_FLAGS = {"--json", "-q", "--quiet", "-y", "--yes"}
 
 
 def _command_tree() -> Any:
-    """The root click group for the `dhis2` CLI."""
+    """The root click group for the `d2w` CLI."""
     return typer.main.get_command(build_app())
 
 
@@ -41,7 +41,7 @@ def _strip_comments(text: str) -> str:
 
 
 def _bad_cli_refs(text: str, root: Any) -> set[str]:
-    """Return `dhis2 <path>` invocations whose command path doesn't resolve."""
+    """Return `d2w <path>` invocations whose command path doesn't resolve."""
     bad: set[str] = set()
     for raw in re.findall(r"\bdhis2\s+([^\n|;&<>]+)", _strip_comments(text)):
         try:
@@ -60,7 +60,7 @@ def _bad_cli_refs(text: str, root: Any) -> set[str]:
                 break  # reached a leaf; remaining tokens are arguments
             child = node.get_command(click.Context(node), token)
             if child is None:
-                bad.add(f"dhis2 {' '.join([*path, token])}")
+                bad.add(f"d2w {' '.join([*path, token])}")
                 break
             path.append(token)
             node = child

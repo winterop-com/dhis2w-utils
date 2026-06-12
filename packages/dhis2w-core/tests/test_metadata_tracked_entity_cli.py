@@ -1,4 +1,4 @@
-"""CliRunner + mock tests for `dhis2 metadata tracked-entity-attributes|tracked-entity-types ...`."""
+"""CliRunner + mock tests for `d2w metadata tracked-entity-attributes|tracked-entity-types ...`."""
 
 from __future__ import annotations
 

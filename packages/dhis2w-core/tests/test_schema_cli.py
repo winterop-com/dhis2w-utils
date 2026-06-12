@@ -1,4 +1,4 @@
-"""Verify `dhis2 schema <type>` introspects the generated models for the connected server's version."""
+"""Verify `d2w schema <type>` introspects the generated models for the connected server's version."""
 
 from __future__ import annotations
 

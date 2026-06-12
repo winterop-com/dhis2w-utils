@@ -50,16 +50,16 @@ Every `create` defaults `annualized=False`; flip to `True` for rate-per-year ind
 ## CLI
 
 ```bash
-dhis2 metadata list indicators
-dhis2 metadata indicators validate-expression "#{s46m5MS0hxu}"
-dhis2 metadata indicators create \
+d2w metadata list indicators
+d2w metadata indicators validate-expression "#{s46m5MS0hxu}"
+d2w metadata indicators create \
     --name "BCG coverage" --short-name "BCG cov" \
     --indicator-type JkWynlWMjJR \
     --numerator "#{s46m5MS0hxu}" --denominator "1"
-dhis2 metadata indicator-groups create --name "Immunization" --short-name "Immun"
-dhis2 metadata indicator-groups add-members <GROUP_UID> --indicator <IND_UID>
-dhis2 metadata indicator-group-sets create --name "ProgArea" --short-name "ProgArea"
-dhis2 metadata indicator-group-sets add-groups <SET_UID> --group <GROUP_UID>
+d2w metadata indicator-groups create --name "Immunization" --short-name "Immun"
+d2w metadata indicator-groups add-members <GROUP_UID> --indicator <IND_UID>
+d2w metadata indicator-group-sets create --name "ProgArea" --short-name "ProgArea"
+d2w metadata indicator-group-sets add-groups <SET_UID> --group <GROUP_UID>
 ```
 
 Every `list` has an `ls` alias; every destructive verb accepts `--yes` / `-y`.

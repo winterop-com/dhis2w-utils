@@ -56,7 +56,7 @@ REPO_DIR = "/Users/morteoh/dev/local/dhis2w-utils"
 
 #: System prompt that frames the single-tool agent loop.
 SYSTEM_PROMPT = (
-    "You are a DHIS2 operator with one tool, dhis2_cli, that runs the dhis2 CLI. "
+    "You are a DHIS2 operator with one tool, dhis2_cli, that runs the d2w CLI. "
     "Always use the tool to get real data; never answer from memory. When you have "
     "the answer, reply in plain text with no further tool calls."
 )

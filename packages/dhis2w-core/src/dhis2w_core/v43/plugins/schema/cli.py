@@ -1,4 +1,4 @@
-"""Root `dhis2 schema <type>` command — describe a generated type's fields."""
+"""Root `d2w schema <type>` command — describe a generated type's fields."""
 
 from __future__ import annotations
 

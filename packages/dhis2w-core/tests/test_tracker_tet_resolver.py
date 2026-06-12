@@ -74,7 +74,7 @@ async def test_no_match_raises(basic_profile: Profile) -> None:
 
     with pytest.raises(ValueError, match="no TrackedEntityType matches") as excinfo:
         await resolve_tracked_entity_type(basic_profile, "DefinitelyNotRealHere")
-    assert "dhis2 data tracker type" in str(excinfo.value)
+    assert "d2w data tracker type" in str(excinfo.value)
 
 
 @respx.mock

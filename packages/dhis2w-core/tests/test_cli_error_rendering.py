@@ -47,7 +47,7 @@ def test_renders_conflicts_and_import_count_on_409(
 ) -> None:
     """A Dhis2ApiError carrying an ImportSummary body renders per-row rejection detail."""
     app = _app_raising(Dhis2ApiError(status_code=409, message="Conflict", body=_IMPORT_SUMMARY_409))
-    monkeypatch.setattr(sys, "argv", ["dhis2"])
+    monkeypatch.setattr(sys, "argv", ["d2w"])
     with pytest.raises(SystemExit) as excinfo:
         run_app(app)
     assert excinfo.value.code == 1
@@ -68,7 +68,7 @@ def test_renders_message_only_when_body_is_plain(
 ) -> None:
     """A Dhis2ApiError whose body isn't a WebMessage dict still renders cleanly (no extras)."""
     app = _app_raising(Dhis2ApiError(status_code=500, message="Server error", body="Tomcat HTML"))
-    monkeypatch.setattr(sys, "argv", ["dhis2"])
+    monkeypatch.setattr(sys, "argv", ["d2w"])
     with pytest.raises(SystemExit) as excinfo:
         run_app(app)
     assert excinfo.value.code == 1
@@ -141,7 +141,7 @@ def test_renders_metadata_import_errors_as_conflict_table(
     conflict renderer normalises both shapes and shows a unified table.
     """
     app = _app_raising(Dhis2ApiError(status_code=409, message="Conflict", body=_METADATA_IMPORT_ERROR))
-    monkeypatch.setattr(sys, "argv", ["dhis2"])
+    monkeypatch.setattr(sys, "argv", ["d2w"])
     with pytest.raises(SystemExit) as excinfo:
         run_app(app)
     assert excinfo.value.code == 1

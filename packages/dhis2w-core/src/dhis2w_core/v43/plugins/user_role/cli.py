@@ -1,4 +1,4 @@
-"""Typer sub-app for the `user-role` plugin (mounted under `dhis2 user-role`)."""
+"""Typer sub-app for the `user-role` plugin (mounted under `d2w user-role`)."""
 
 from __future__ import annotations
 
@@ -77,7 +77,7 @@ def get_command(
     auths_cell = (
         preview
         + (
-            f" [dim]+{len(authorities) - 10} more (run `dhis2 user-role authority-list {role.id}` for all)[/dim]"
+            f" [dim]+{len(authorities) - 10} more (run `d2w user-role authority-list {role.id}` for all)[/dim]"
             if len(authorities) > 10
             else ""
         )
@@ -127,5 +127,5 @@ def remove_user_command(
 
 
 def register(root_app: Any) -> None:
-    """Mount this plugin's Typer sub-app under `dhis2 user-role`."""
+    """Mount this plugin's Typer sub-app under `d2w user-role`."""
     root_app.add_typer(app, name="user-role", help="DHIS2 user-role administration.")

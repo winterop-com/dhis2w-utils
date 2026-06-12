@@ -86,7 +86,7 @@ def build_auth_for_name(
 ) -> tuple[Profile, AuthProvider]:
     """Resolve a profile by name and return (profile, auth). Convenience for the CLI.
 
-    `open_browser=False` is plumbed through to OAuth2 auth so `dhis2 profile
+    `open_browser=False` is plumbed through to OAuth2 auth so `d2w profile
     login --no-browser` and its kin skip the `webbrowser.open()` call.
     """
     resolved = resolve(name)

@@ -1,4 +1,4 @@
-"""Typer sub-app for `dhis2 apps` — install / uninstall / update DHIS2 apps."""
+"""Typer sub-app for `d2w apps` — install / uninstall / update DHIS2 apps."""
 
 from __future__ import annotations
 
@@ -152,7 +152,7 @@ def restore_command(
     manifest: Annotated[
         Path,
         typer.Argument(
-            help="Path to a snapshot JSON file produced by `dhis2 apps snapshot`.",
+            help="Path to a snapshot JSON file produced by `d2w apps snapshot`.",
         ),
     ],
     dry_run: Annotated[
@@ -168,7 +168,7 @@ def restore_command(
 ) -> None:
     """Reinstall every hub-backed entry from a snapshot JSON.
 
-    The flip side of `dhis2 apps snapshot`. Reads the JSON produced by
+    The flip side of `d2w apps snapshot`. Reads the JSON produced by
     `snapshot`, walks each entry, and calls `/api/appHub/{versionId}`
     for every app whose `hub_version_id` is set and whose currently
     installed version differs from the snapshot's. Side-loaded entries
@@ -404,7 +404,7 @@ def _color_status(status: str) -> str:
 
 
 def register(parent_app: Any) -> None:
-    """Mount `dhis2 apps` on the root CLI."""
+    """Mount `d2w apps` on the root CLI."""
     parent_app.add_typer(app, name="apps", help="DHIS2 apps — /api/apps + /api/appHub.")
 
 

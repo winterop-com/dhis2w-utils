@@ -19,7 +19,7 @@ class _RoutePlugin(BaseModel):
     description: str = "DHIS2 Route API — register + run integration routes (proxies to external services)."
 
     def register_cli(self, app: Any) -> None:
-        """Mount under `dhis2 route`."""
+        """Mount under `d2w route`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

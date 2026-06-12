@@ -11,9 +11,9 @@ from dhis2w_client import NoProfileError, UnknownProfileError
 
 _PROFILE_HINT = (
     "hint: configure a profile first:\n"
-    "  dhis2 profile add local --url http://localhost:8080 --auth basic \\\n"
+    "  d2w profile add local --url http://localhost:8080 --auth basic \\\n"
     "      --username admin --password district --default\n"
-    "  dhis2 profile list\n"
+    "  d2w profile list\n"
     "Or set DHIS2_URL + DHIS2_PAT (or DHIS2_USERNAME + DHIS2_PASSWORD) directly."
 )
 

@@ -1,4 +1,4 @@
-"""Typer sub-app mounted as `dhis2 hello`."""
+"""Typer sub-app mounted as `d2w hello`."""
 
 from __future__ import annotations
 
@@ -23,5 +23,5 @@ def say_command(
 
 
 def register(root_app: Any) -> None:
-    """Mount under `dhis2 hello` — called by dhis2w-core's plugin loader."""
+    """Mount under `d2w hello` — called by dhis2w-core's plugin loader."""
     root_app.add_typer(app, name="hello", help="External plugin example.")

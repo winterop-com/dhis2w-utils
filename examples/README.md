@@ -9,7 +9,7 @@ examples/
   v43/   cli/  client/  mcp/      # DHIS2 v43 stack
 ```
 
-- `cli/` — `dhis2 ...` Typer CLI shell scripts (profile-resolved)
+- `cli/` — `d2w ...` Typer CLI shell scripts (profile-resolved)
 - `client/` — `dhis2w-client` Python library (low-level: you bring the auth)
 - `mcp/` — `dhis2w-mcp` FastMCP server, called in-process
 
@@ -26,7 +26,7 @@ The three trees are kept at parity wherever the DHIS2 surface allows; intentiona
 | Surface | Best for | Auth handling |
 | --- | --- | --- |
 | `dhis2w-client` (library) | Your own Python tooling; scripts in-process | You pass `AuthProvider` explicitly (Basic, PAT, OAuth2) — no profile layer |
-| `dhis2 <cmd>` (CLI) | Day-to-day dev, pipelines, human use | Reads `~/.config/dhis2/profiles.toml` + env; `dhis2 profile add/login` manages creds |
+| `d2w <cmd>` (CLI) | Day-to-day dev, pipelines, human use | Reads `~/.config/dhis2/profiles.toml` + env; `d2w profile add/login` manages creds |
 | `dhis2w-mcp` (MCP) | Agents, automation over the MCP protocol | Same profile layer as the CLI; both reads and mutations are exposed (every CLI command has a matching MCP tool) |
 
 All three hit DHIS2 via `Dhis2Client` under the hood. Pick the shape that fits your caller. See [Workspace layout](../docs/architecture/workspace.md) for the dependency arrows.
@@ -82,26 +82,26 @@ Swap the `v42` segment for `v41` or `v43` to target the matching stack. `make re
 
 | File | Commands |
 | --- | --- |
-| `whoami.sh` | `dhis2 system whoami`, `dhis2 system info` |
-| `profile_list_verify.sh` | `dhis2 profile list / verify / show` |
-| `metadata_list_get.sh` | `dhis2 metadata type list`, `dhis2 metadata list / get`, `dhis2 dev uid` |
-| `aggregate_data_values.sh` | `dhis2 data aggregate get / set / delete / push` |
-| `analytics_query.sh` | `dhis2 analytics query [--shape table\|raw\|dvs] / refresh` |
-| `tracker_reads.sh` | `dhis2 data tracker type`, `list <TET>`, `get <uid>`, `{enrollment,event,relationship} list`, `push` |
-| `tracker_register_and_followup.sh` | `dhis2 data tracker register / event create / outstanding` |
-| `tracker_event_program.sh` | `dhis2 data tracker event create --program EVTsupVis01` |
-| `metadata_search.sh` | `dhis2 metadata search` |
-| `profile_oidc_login.sh` | `dhis2 profile add --auth oauth2 --from-env`, `dhis2 profile login` |
-| `apps.sh` | `dhis2 apps {list, hub-list, hub-url, update --dry-run, update --all, reload}` |
-| `map_screenshot.sh` | `dhis2 browser map screenshot` (requires `[browser]` extra) |
-| `visualization_screenshot.sh` | `dhis2 browser viz screenshot` (requires `[browser]` extra) |
-| `route_register_and_run.sh` | `dhis2 route list / add / get / run / delete` (all 5 auth types) |
-| `profile_pat.sh` | `dhis2 profile pat create` (`-q` for capture) |
-| `dev_sample.sh` | `dhis2 dev sample route / data-value / pat / oauth2-client / all` |
-| `dev_codegen.sh` | `dhis2 dev codegen generate / rebuild / oas-rebuild` |
-| `maintenance.sh` | `dhis2 maintenance task types/list/status/watch`, `cache`, `cleanup`, `dataintegrity list/run/result` |
-| `user_administration.sh` | `dhis2 user list / get / me / invite / reinvite / reset-password` |
-| `user_groups_and_roles.sh` | `dhis2 user group {...}`, `dhis2 user role {...}` |
+| `whoami.sh` | `d2w system whoami`, `d2w system info` |
+| `profile_list_verify.sh` | `d2w profile list / verify / show` |
+| `metadata_list_get.sh` | `d2w metadata type list`, `d2w metadata list / get`, `d2w dev uid` |
+| `aggregate_data_values.sh` | `d2w data aggregate get / set / delete / push` |
+| `analytics_query.sh` | `d2w analytics query [--shape table\|raw\|dvs] / refresh` |
+| `tracker_reads.sh` | `d2w data tracker type`, `list <TET>`, `get <uid>`, `{enrollment,event,relationship} list`, `push` |
+| `tracker_register_and_followup.sh` | `d2w data tracker register / event create / outstanding` |
+| `tracker_event_program.sh` | `d2w data tracker event create --program EVTsupVis01` |
+| `metadata_search.sh` | `d2w metadata search` |
+| `profile_oidc_login.sh` | `d2w profile add --auth oauth2 --from-env`, `d2w profile login` |
+| `apps.sh` | `d2w apps {list, hub-list, hub-url, update --dry-run, update --all, reload}` |
+| `map_screenshot.sh` | `d2w browser map screenshot` (requires `[browser]` extra) |
+| `visualization_screenshot.sh` | `d2w browser viz screenshot` (requires `[browser]` extra) |
+| `route_register_and_run.sh` | `d2w route list / add / get / run / delete` (all 5 auth types) |
+| `profile_pat.sh` | `d2w profile pat create` (`-q` for capture) |
+| `dev_sample.sh` | `d2w dev sample route / data-value / pat / oauth2-client / all` |
+| `dev_codegen.sh` | `d2w dev codegen generate / rebuild / oas-rebuild` |
+| `maintenance.sh` | `d2w maintenance task types/list/status/watch`, `cache`, `cleanup`, `dataintegrity list/run/result` |
+| `user_administration.sh` | `d2w user list / get / me / invite / reinvite / reset-password` |
+| `user_groups_and_roles.sh` | `d2w user group {...}`, `d2w user role {...}` |
 
 ## v42 MCP examples ([`v42/mcp/`](v42/mcp/))
 

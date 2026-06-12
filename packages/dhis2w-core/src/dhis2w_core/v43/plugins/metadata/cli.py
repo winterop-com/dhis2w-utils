@@ -1,4 +1,4 @@
-"""Typer sub-app for the `metadata` plugin (mounted under `dhis2 metadata`)."""
+"""Typer sub-app for the `metadata` plugin (mounted under `d2w metadata`)."""
 
 from __future__ import annotations
 
@@ -677,7 +677,7 @@ def export_command(
             help=(
                 "Per-resource filter in the form `RESOURCE:property:operator:value`. Repeatable. "
                 "Example: `--filter dataElements:name:like:ANC`. "
-                "Same DSL as `dhis2 metadata list --filter`, prefixed with the resource name."
+                "Same DSL as `d2w metadata list --filter`, prefixed with the resource name."
             ),
         ),
     ] = None,
@@ -1360,7 +1360,7 @@ def share_command(
 
     Use `--dry-run` to preview the planned grants, then drop the flag to
     apply. UIDs come from positional args or stdin (`-`); pipe from
-    `dhis2 --json metadata list ... | jq -r '.[].id'` to filter-then-share without
+    `d2w --json metadata list ... | jq -r '.[].id'` to filter-then-share without
     leaving the shell.
     """
     resource_type = _share_type(resource_type)
@@ -1587,7 +1587,7 @@ def diff_profiles_command(
             help=(
                 "Per-resource filter in `resource:property:operator:value` form. Repeatable. "
                 "Example: `--filter dataElements:name:like:ANC` only compares data elements whose "
-                "name contains 'ANC'. Same DHIS2 filter DSL as `dhis2 metadata list --filter`."
+                "name contains 'ANC'. Same DHIS2 filter DSL as `d2w metadata list --filter`."
             ),
         ),
     ] = None,
@@ -1645,7 +1645,7 @@ def diff_profiles_command(
     from dhis2w_core.profile import UnknownProfileError, resolve_profile
 
     if not resources:
-        raise typer.BadParameter("pass at least one --resource (see `dhis2 metadata type ls`)")
+        raise typer.BadParameter("pass at least one --resource (see `d2w metadata type ls`)")
 
     try:
         resolved_a = resolve_profile(profile_a)
@@ -1704,7 +1704,7 @@ def merge_command(
             "--filter",
             help=(
                 "Per-resource filter in `resource:property:operator:value` form. Repeatable. "
-                "Same DSL as `dhis2 metadata list --filter` and `dhis2 metadata diff-profiles`."
+                "Same DSL as `d2w metadata list --filter` and `d2w metadata diff-profiles`."
             ),
         ),
     ] = None,
@@ -1749,7 +1749,7 @@ def merge_command(
 ) -> None:
     """Export resources from one profile and import them into another.
 
-    Pairs with `dhis2 metadata diff-profiles` (which reads the same shape
+    Pairs with `d2w metadata diff-profiles` (which reads the same shape
     of narrow resource slice + filters). Preview first with
     `diff-profiles`, then apply the same `--resource` + `--filter` args
     through `merge` to land the changes on the target.
@@ -1766,7 +1766,7 @@ def merge_command(
     from dhis2w_core.profile import UnknownProfileError, resolve_profile
 
     if not resources:
-        raise typer.BadParameter("pass at least one --resource (see `dhis2 metadata type ls`)")
+        raise typer.BadParameter("pass at least one --resource (see `d2w metadata type ls`)")
 
     try:
         resolved_source = resolve_profile(source_profile)
@@ -1886,7 +1886,7 @@ def merge_bundle_command(
 ) -> None:
     """Import a saved bundle file into a target profile.
 
-    The bundle-source variant of `dhis2 metadata merge`: instead of
+    The bundle-source variant of `d2w metadata merge`: instead of
     exporting from a source profile, read the bundle from disk. Useful
     when the bundle came from a saved `metadata export`, was hand-crafted
     by an operator, or was produced by a non-DHIS2 tool. All other
@@ -1975,12 +1975,12 @@ def _parse_per_resource_filters(specs: list[str]) -> dict[str, list[str]]:
 
 
 def register(root_app: Any) -> None:
-    """Mount this plugin's Typer sub-app under `dhis2 metadata`."""
+    """Mount this plugin's Typer sub-app under `d2w metadata`."""
     root_app.add_typer(app, name="metadata", help="DHIS2 metadata inspection.")
 
 
 # ---------------------------------------------------------------------------
-# `dhis2 metadata options ...` — OptionSet workflow commands
+# `d2w metadata options ...` — OptionSet workflow commands
 # ---------------------------------------------------------------------------
 
 
@@ -2163,7 +2163,7 @@ def options_sync_command(
 
 
 # ---------------------------------------------------------------------------
-# `dhis2 metadata options attribute ...` — external-system code mapping
+# `d2w metadata options attribute ...` — external-system code mapping
 # ---------------------------------------------------------------------------
 
 
@@ -2253,7 +2253,7 @@ def options_attribute_find_command(
 
 
 # ---------------------------------------------------------------------------
-# `dhis2 metadata attribute ...` — cross-resource AttributeValue workflows
+# `d2w metadata attribute ...` — cross-resource AttributeValue workflows
 # ---------------------------------------------------------------------------
 
 
@@ -2348,8 +2348,8 @@ def attribute_find_command(
     """Reverse lookup across any resource — list every UID whose attribute value matches.
 
     Returns UIDs only (one per line) to keep the helper generic across
-    resource types. Pipe into `dhis2 metadata get <resource> <uid>` or
-    `dhis2 metadata list <resource> --filter id:in:[...]` for typed
+    resource types. Pipe into `d2w metadata get <resource> <uid>` or
+    `d2w metadata list <resource> --filter id:in:[...]` for typed
     follow-ups.
     """
     uids = asyncio.run(
@@ -2373,7 +2373,7 @@ def attribute_find_command(
 
 
 # ---------------------------------------------------------------------------
-# `dhis2 metadata program-rule ...` — tracker business-logic workflows
+# `d2w metadata program-rule ...` — tracker business-logic workflows
 # ---------------------------------------------------------------------------
 
 
@@ -3097,7 +3097,7 @@ def map_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# LegendSet authoring — `dhis2 metadata legend-sets ...`
+# LegendSet authoring — `d2w metadata legend-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3263,7 +3263,7 @@ def legend_sets_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# DataElement workflows — `dhis2 metadata data-elements ...`
+# DataElement workflows — `d2w metadata data-elements ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3396,7 +3396,7 @@ def data_elements_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# DataElementGroup — `dhis2 metadata data-element-groups ...`
+# DataElementGroup — `d2w metadata data-element-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3523,7 +3523,7 @@ def data_element_groups_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# DataElementGroupSet — `dhis2 metadata data-element-group-sets ...`
+# DataElementGroupSet — `d2w metadata data-element-group-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3630,7 +3630,7 @@ def data_element_group_sets_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# Indicator workflows — `dhis2 metadata indicators ...`
+# Indicator workflows — `d2w metadata indicators ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3768,7 +3768,7 @@ def indicators_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# IndicatorGroup — `dhis2 metadata indicator-groups ...`
+# IndicatorGroup — `d2w metadata indicator-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3892,7 +3892,7 @@ def indicator_groups_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# IndicatorGroupSet — `dhis2 metadata indicator-group-sets ...`
+# IndicatorGroupSet — `d2w metadata indicator-group-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -3993,7 +3993,7 @@ def indicator_group_sets_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# ProgramIndicator workflows — `dhis2 metadata program-indicators ...`
+# ProgramIndicator workflows — `d2w metadata program-indicators ...`
 # ---------------------------------------------------------------------------
 
 
@@ -4131,7 +4131,7 @@ def program_indicators_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# ProgramIndicatorGroup — `dhis2 metadata program-indicator-groups ...`
+# ProgramIndicatorGroup — `d2w metadata program-indicator-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -4258,7 +4258,7 @@ def program_indicator_groups_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# CategoryOption workflows — `dhis2 metadata category-options ...`
+# CategoryOption workflows — `d2w metadata category-options ...`
 # ---------------------------------------------------------------------------
 
 
@@ -4383,7 +4383,7 @@ def category_options_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# Category workflows — `dhis2 metadata categories ...`
+# Category workflows — `d2w metadata categories ...`
 # ---------------------------------------------------------------------------
 
 
@@ -4504,7 +4504,7 @@ def categories_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# CategoryCombo workflows — `dhis2 metadata category-combos ...`
+# CategoryCombo workflows — `d2w metadata category-combos ...`
 # ---------------------------------------------------------------------------
 
 
@@ -4741,7 +4741,7 @@ def category_combos_build_command(
 
 
 # ---------------------------------------------------------------------------
-# CategoryOptionCombo read-only — `dhis2 metadata category-option-combos ...`
+# CategoryOptionCombo read-only — `d2w metadata category-option-combos ...`
 # ---------------------------------------------------------------------------
 
 
@@ -4784,7 +4784,7 @@ def category_option_combos_list_for_combo_command(
 
 
 # ---------------------------------------------------------------------------
-# CategoryOptionGroup — `dhis2 metadata category-option-groups ...`
+# CategoryOptionGroup — `d2w metadata category-option-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -4918,7 +4918,7 @@ def category_option_groups_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# CategoryOptionGroupSet — `dhis2 metadata category-option-group-sets ...`
+# CategoryOptionGroupSet — `d2w metadata category-option-group-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -5031,7 +5031,7 @@ def category_option_group_sets_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# OrganisationUnit workflows — `dhis2 metadata organisation-units ...`
+# OrganisationUnit workflows — `d2w metadata organisation-units ...`
 # ---------------------------------------------------------------------------
 
 
@@ -5162,7 +5162,7 @@ def organisation_units_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# OrganisationUnitGroup — `dhis2 metadata organisation-unit-groups ...`
+# OrganisationUnitGroup — `d2w metadata organisation-unit-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -5294,7 +5294,7 @@ def organisation_unit_groups_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# OrganisationUnitGroupSet — `dhis2 metadata organisation-unit-group-sets ...`
+# OrganisationUnitGroupSet — `d2w metadata organisation-unit-group-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -5415,7 +5415,7 @@ def organisation_unit_group_sets_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# OrganisationUnitLevel — `dhis2 metadata organisation-unit-levels ...`
+# OrganisationUnitLevel — `d2w metadata organisation-unit-levels ...`
 # ---------------------------------------------------------------------------
 
 
@@ -5489,7 +5489,7 @@ def organisation_unit_levels_rename_command(
 
 
 # ---------------------------------------------------------------------------
-# DataSet workflows — `dhis2 metadata data-sets ...`
+# DataSet workflows — `d2w metadata data-sets ...`
 # ---------------------------------------------------------------------------
 
 
@@ -5648,7 +5648,7 @@ def data_sets_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# Section workflows — `dhis2 metadata sections ...`
+# Section workflows — `d2w metadata sections ...`
 # ---------------------------------------------------------------------------
 
 
@@ -5822,7 +5822,7 @@ def sections_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# ValidationRule workflows — `dhis2 metadata validation-rules ...`
+# ValidationRule workflows — `d2w metadata validation-rules ...`
 # ---------------------------------------------------------------------------
 
 
@@ -5928,7 +5928,7 @@ def validation_rules_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# ValidationRuleGroup workflows — `dhis2 metadata validation-rule-groups ...`
+# ValidationRuleGroup workflows — `d2w metadata validation-rule-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -6064,7 +6064,7 @@ def validation_rule_groups_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# Predictor workflows — `dhis2 metadata predictors ...`
+# Predictor workflows — `d2w metadata predictors ...`
 # ---------------------------------------------------------------------------
 
 
@@ -6171,7 +6171,7 @@ def predictors_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# PredictorGroup workflows — `dhis2 metadata predictor-groups ...`
+# PredictorGroup workflows — `d2w metadata predictor-groups ...`
 # ---------------------------------------------------------------------------
 
 
@@ -6305,7 +6305,7 @@ def predictor_groups_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# TrackedEntityAttribute workflows — `dhis2 metadata tracked-entity-attributes ...`
+# TrackedEntityAttribute workflows — `d2w metadata tracked-entity-attributes ...`
 # ---------------------------------------------------------------------------
 
 
@@ -6435,7 +6435,7 @@ def tracked_entity_attributes_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# TrackedEntityType workflows — `dhis2 metadata tracked-entity-types ...`
+# TrackedEntityType workflows — `d2w metadata tracked-entity-types ...`
 # ---------------------------------------------------------------------------
 
 
@@ -6589,7 +6589,7 @@ def tracked_entity_types_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# Program workflows — `dhis2 metadata programs ...`
+# Program workflows — `d2w metadata programs ...`
 # ---------------------------------------------------------------------------
 
 
@@ -6828,7 +6828,7 @@ def programs_delete_command(
 
 
 # ---------------------------------------------------------------------------
-# ProgramStage workflows — `dhis2 metadata program-stages ...`
+# ProgramStage workflows — `d2w metadata program-stages ...`
 # ---------------------------------------------------------------------------
 
 

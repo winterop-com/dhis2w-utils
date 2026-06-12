@@ -28,7 +28,7 @@ async def main() -> None:
     """Push one data value and print the import summary."""
     value = sys.argv[1] if len(sys.argv) > 1 else _DEFAULT_VALUE
     # DataValue / DataValueSet are exported from dhis2w_client — same typed
-    # envelope used by `dhis2 data aggregate get` returns.
+    # envelope used by `d2w data aggregate get` returns.
     payload = DataValueSet(
         dataValues=[
             DataValue(

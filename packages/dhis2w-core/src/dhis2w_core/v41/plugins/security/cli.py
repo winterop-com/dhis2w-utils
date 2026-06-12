@@ -1,4 +1,4 @@
-"""Typer sub-app for the `security` plugin (mounted under `dhis2 security`)."""
+"""Typer sub-app for the `security` plugin (mounted under `d2w security`)."""
 
 from __future__ import annotations
 
@@ -56,5 +56,5 @@ def settings_command() -> None:
 
 
 def register(root_app: Any) -> None:
-    """Mount this plugin's Typer sub-app under `dhis2 security`."""
+    """Mount this plugin's Typer sub-app under `d2w security`."""
     root_app.add_typer(app, name="security", help="DHIS2 security posture (read-only).")

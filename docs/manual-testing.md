@@ -1,11 +1,11 @@
 # Manual testing guide — every CLI + MCP surface in one pass
 
-Purpose: a copy-pasteable sequence that exercises every `dhis2` CLI command and every MCP tool against a live stack. Use this when you want to sanity-check the surface after a refactor, or to track down a regression.
+Purpose: a copy-pasteable sequence that exercises every `d2w` CLI command and every MCP tool against a live stack. Use this when you want to sanity-check the surface after a refactor, or to track down a regression.
 
 Assumes:
 - `make dhis2-run` is up and `admin/district` works.
 - You've run `make dhis2-seed` at least once so `infra/home/credentials/.env.auth` is populated.
-- `uv sync --all-packages` has been run so `dhis2` is on `$PATH` (inside `.venv/bin`).
+- `uv sync --all-packages` has been run so `d2w` is on `$PATH` (inside `.venv/bin`).
 
 Secrets never go on argv. Every command that needs a PAT, password, or client secret reads from env vars or prompts. Load the seeded credentials into your shell once:
 
@@ -23,10 +23,10 @@ Report issues as you go — one line per red flag, file path + what went wrong.
 
 ---
 
-## 0. Baseline — `dhis2 --help` should show every first-party plugin
+## 0. Baseline — `d2w --help` should show every first-party plugin
 
 ```bash
-uv run dhis2 --help
+uv run d2w --help
 ```
 
 Expect 16 namespaces on a clean install:
@@ -46,45 +46,45 @@ Any additional namespace = an externally-installed plugin registered through `im
 
 ```bash
 # Offline commands first.
-uv run dhis2 profile list
-uv run dhis2 profile ls                      # hidden alias of `list`
-uv run dhis2 profile show local
-uv run dhis2 profile show local --secrets    # secrets visible
-uv run dhis2 profile default local --verify
-uv run dhis2 profile verify                  # verifies every profile
-uv run dhis2 profile verify local            # single profile
-uv run dhis2 --json profile verify local
+uv run d2w profile list
+uv run d2w profile ls                      # hidden alias of `list`
+uv run d2w profile show local
+uv run d2w profile show local --secrets    # secrets visible
+uv run d2w profile default local --verify
+uv run d2w profile verify                  # verifies every profile
+uv run d2w profile verify local            # single profile
+uv run d2w --json profile verify local
 
 # Add / rename / remove (idempotent — cleans up after itself).
 # `profile add --auth pat` reads DHIS2_PAT from env.
-uv run dhis2 profile add smoketest --url http://localhost:8080 --auth pat --verify
-uv run dhis2 profile rename smoketest smoketest2 --verify
-uv run dhis2 profile remove smoketest2
+uv run d2w profile add smoketest --url http://localhost:8080 --auth pat --verify
+uv run d2w profile rename smoketest smoketest2 --verify
+uv run d2w profile remove smoketest2
 
 # OAuth2 login flow (opens a browser).
-uv run dhis2 profile add local_oidc --auth oauth2 --from-env --default --verify
-uv run dhis2 profile login local_oidc        # browser pops, complete consent
-uv run dhis2 profile verify local_oidc
-uv run dhis2 profile logout local_oidc       # clears tokens.sqlite row
-uv run dhis2 profile verify local_oidc       # now fails until re-login
+uv run d2w profile add local_oidc --auth oauth2 --from-env --default --verify
+uv run d2w profile login local_oidc        # browser pops, complete consent
+uv run d2w profile verify local_oidc
+uv run d2w profile logout local_oidc       # clears tokens.sqlite row
+uv run d2w profile verify local_oidc       # now fails until re-login
 
 # Bootstrap — one-shot (provisions server-side credential + saves profile).
 # Admin creds + client_secret come from DHIS2_ADMIN_PASSWORD / DHIS2_ADMIN_PAT
 # / DHIS2_OAUTH_CLIENT_SECRET env vars; no argv secrets.
-uv run dhis2 profile bootstrap fresh_oidc \
+uv run d2w profile bootstrap fresh_oidc \
   --auth oauth2 \
   --url http://localhost:8080 \
   --admin-user admin \
   --client-id "smoketest-$(date +%s)" \
   --login
-uv run dhis2 profile remove fresh_oidc
+uv run d2w profile remove fresh_oidc
 
-uv run dhis2 profile bootstrap fresh_pat \
+uv run d2w profile bootstrap fresh_pat \
   --auth pat \
   --url http://localhost:8080 \
   --admin-user admin \
   --pat-description "smoke test PAT"
-uv run dhis2 profile remove fresh_pat
+uv run d2w profile remove fresh_pat
 ```
 
 ---
@@ -92,9 +92,9 @@ uv run dhis2 profile remove fresh_pat
 ## 2. `system` — remote introspection
 
 ```bash
-uv run dhis2 system whoami
-uv run dhis2 system info
-uv run dhis2 --profile local system whoami   # named-profile path
+uv run d2w system whoami
+uv run d2w system info
+uv run d2w --profile local system whoami   # named-profile path
 ```
 
 ---
@@ -103,34 +103,34 @@ uv run dhis2 --profile local system whoami   # named-profile path
 
 ```bash
 # The catalog.
-uv run dhis2 metadata type list
-uv run dhis2 metadata type ls                # hidden alias
+uv run d2w metadata type list
+uv run d2w metadata type ls                # hidden alias
 
 # Basic instance list + get.
-uv run dhis2 metadata list dataElements --page-size 5
-uv run dhis2 --json metadata list dataElements --page-size 5
-uv run dhis2 metadata ls dataElements --page-size 5          # alias
-uv run dhis2 metadata get dataElements fClA2Erf6IO
-uv run dhis2 metadata get organisationUnits ImspTQPwCqd
+uv run d2w metadata list dataElements --page-size 5
+uv run d2w --json metadata list dataElements --page-size 5
+uv run d2w metadata ls dataElements --page-size 5          # alias
+uv run d2w metadata get dataElements fClA2Erf6IO
+uv run d2w metadata get organisationUnits ImspTQPwCqd
 
 # Full filter/field surface (see docs/architecture/metadata-plugin.md).
-uv run dhis2 metadata list dataElements \
+uv run d2w metadata list dataElements \
   --filter 'name:like:Penta' --fields 'id,name,valueType'
 
 # Multi-filter, OR-joined.
-uv run dhis2 metadata list dataElements \
+uv run d2w metadata list dataElements \
   --filter 'name:like:Penta' --filter 'code:eq:DE_PENTA1' --root-junction OR \
   --fields 'id,name,code'
 
 # Ordered + paged.
-uv run dhis2 metadata list organisationUnits \
+uv run d2w metadata list organisationUnits \
   --order 'level:asc' --order 'name:asc' --page-size 5 --page 2
 
 # `--all` streams every page server-side (ignores --page/--page-size).
-uv run dhis2 --json metadata list dataElements --all --fields ':identifiable' | jq 'length'
+uv run d2w --json metadata list dataElements --all --fields ':identifiable' | jq 'length'
 
 # i18n fields.
-uv run dhis2 metadata list dataElements --translate --locale fr --page-size 3
+uv run d2w metadata list dataElements --translate --locale fr --page-size 3
 ```
 
 ---
@@ -138,10 +138,10 @@ uv run dhis2 metadata list dataElements --translate --locale fr --page-size 3
 ## 4. `data aggregate` — read/write aggregate data values
 
 ```bash
-uv run dhis2 data aggregate get --data-set BfMAe6Itzgt --org-unit PMa2VCrupOd --period 202601
-uv run dhis2 data aggregate set --de fClA2Erf6IO --pe 202603 --ou PMa2VCrupOd --value 88
-uv run dhis2 data aggregate get --data-set BfMAe6Itzgt --org-unit PMa2VCrupOd --period 202603
-uv run dhis2 data aggregate delete --de fClA2Erf6IO --pe 202603 --ou PMa2VCrupOd
+uv run d2w data aggregate get --data-set BfMAe6Itzgt --org-unit PMa2VCrupOd --period 202601
+uv run d2w data aggregate set --de fClA2Erf6IO --pe 202603 --ou PMa2VCrupOd --value 88
+uv run d2w data aggregate get --data-set BfMAe6Itzgt --org-unit PMa2VCrupOd --period 202603
+uv run d2w data aggregate delete --de fClA2Erf6IO --pe 202603 --ou PMa2VCrupOd
 
 # Bulk push from a file (create a one-value file on the fly).
 # Pick a period inside the open-future window for `BfMAe6Itzgt` — the seeded
@@ -149,9 +149,9 @@ uv run dhis2 data aggregate delete --de fClA2Erf6IO --pe 202603 --ou PMa2VCrupOd
 cat > /tmp/dv.json <<'JSON'
 {"dataValues": [{"dataElement":"fClA2Erf6IO","period":"202603","orgUnit":"PMa2VCrupOd","value":"77"}]}
 JSON
-uv run dhis2 data aggregate push /tmp/dv.json --strategy CREATE_AND_UPDATE --dry-run
-uv run dhis2 data aggregate push /tmp/dv.json --strategy CREATE_AND_UPDATE
-uv run dhis2 data aggregate delete --de fClA2Erf6IO --pe 202603 --ou PMa2VCrupOd
+uv run d2w data aggregate push /tmp/dv.json --strategy CREATE_AND_UPDATE --dry-run
+uv run d2w data aggregate push /tmp/dv.json --strategy CREATE_AND_UPDATE
+uv run d2w data aggregate delete --de fClA2Erf6IO --pe 202603 --ou PMa2VCrupOd
 ```
 
 ---
@@ -162,25 +162,25 @@ The seeded e2e fixture has no tracker programs, so most of these will return `20
 
 Against a tracker-populated instance the list calls return typed pydantic models from `dhis2w_client.generated.v42.tracker` (`TrackerEvent`, `TrackerEnrollment`, `TrackerTrackedEntity`, `TrackerRelationship`). Status fields are `StrEnum` (`EventStatus.COMPLETED`, `EnrollmentStatus.ACTIVE`, etc.). Tracker models are version-scoped because `/api/tracker/*` shapes drift across DHIS2 majors. See [Typed schemas](architecture/typed-schemas.md).
 
-`dhis2 data tracker --help` should list four top-level commands (`list`, `get`, `type`, `push`) plus three sub-typers (`enrollment`, `event`, `relationship`).
+`d2w data tracker --help` should list four top-level commands (`list`, `get`, `type`, `push`) plus three sub-typers (`enrollment`, `event`, `relationship`).
 
 ```bash
-uv run dhis2 data tracker --help
-uv run dhis2 data tracker list --help
-uv run dhis2 data tracker get --help
-uv run dhis2 data tracker type                  # empty list on seeded stack
-uv run dhis2 data tracker push --help
-uv run dhis2 data tracker enrollment list --help
-uv run dhis2 data tracker event list --help
-uv run dhis2 data tracker relationship list --help
+uv run d2w data tracker --help
+uv run d2w data tracker list --help
+uv run d2w data tracker get --help
+uv run d2w data tracker type                  # empty list on seeded stack
+uv run d2w data tracker push --help
+uv run d2w data tracker enrollment list --help
+uv run d2w data tracker event list --help
+uv run d2w data tracker relationship list --help
 ```
 
 Against a tracker-populated instance (e.g. `play.dhis2.org/dev`):
 
 ```bash
-uv run dhis2 --profile play data tracker type                                 # discover configured types
-uv run dhis2 --profile play data tracker list Person --program <PROG_UID> --page-size 5
-uv run dhis2 --profile play data tracker event list --program <PROG_UID> --updated-after 2024-01-01
+uv run d2w --profile play data tracker type                                 # discover configured types
+uv run d2w --profile play data tracker list Person --program <PROG_UID> --page-size 5
+uv run d2w --profile play data tracker event list --program <PROG_UID> --updated-after 2024-01-01
 ```
 
 ---
@@ -189,42 +189,42 @@ uv run dhis2 --profile play data tracker event list --program <PROG_UID> --updat
 
 ```bash
 # All three shapes.
-uv run dhis2 analytics query \
+uv run d2w analytics query \
   --dim dx:fClA2Erf6IO\;UOlfIjgN8X6 --dim pe:LAST_12_MONTHS --dim ou:ImspTQPwCqd\;LEVEL-2 --skip-meta
 
-uv run dhis2 analytics query --shape raw \
+uv run d2w analytics query --shape raw \
   --dim dx:fClA2Erf6IO --dim pe:LAST_12_MONTHS --dim ou:ImspTQPwCqd
 
-uv run dhis2 analytics query --shape dvs \
+uv run d2w analytics query --shape dvs \
   --dim dx:fClA2Erf6IO --dim pe:LAST_12_MONTHS --dim ou:ImspTQPwCqd
 
 # Kick off an analytics-table refresh (moved under `maintenance` alongside
 # the other resource-table refresh verbs).
-uv run dhis2 maintenance refresh analytics --last-years 2
+uv run d2w maintenance refresh analytics --last-years 2
 ```
 
 ---
 
 ## 7. `route` — integration routes
 
-`dhis2 route list` emits JSON, so use `jq` to pull fields out.
+`d2w route list` emits JSON, so use `jq` to pull fields out.
 
 ```bash
-uv run dhis2 route list
-uv run dhis2 route ls                      # alias
+uv run d2w route list
+uv run d2w route ls                      # alias
 
 # Create a trivial route pointing at httpbin. `route create` without --file is a
 # guided interactive wizard — for scripted/automated use pass a JSON spec.
 cat > /tmp/route.json <<'JSON'
 {"code":"SMOKETEST","name":"smoke test","url":"https://httpbin.org/get"}
 JSON
-uv run dhis2 route create --file /tmp/route.json
+uv run d2w route create --file /tmp/route.json
 
 # Grab the UID with jq and inspect. UID is a bash readonly; use ROUTE_UID.
-ROUTE_UID=$(uv run dhis2 route list | jq -r '.[] | select(.code=="SMOKETEST") | .id')
-uv run dhis2 route get "$ROUTE_UID"
-uv run dhis2 route run "$ROUTE_UID"
-uv run dhis2 route delete "$ROUTE_UID"
+ROUTE_UID=$(uv run d2w route list | jq -r '.[] | select(.code=="SMOKETEST") | .id')
+uv run d2w route get "$ROUTE_UID"
+uv run d2w route run "$ROUTE_UID"
+uv run d2w route delete "$ROUTE_UID"
 ```
 
 (If `route create` fails with 409 "route already exists", delete the old `SMOKETEST` code first.)
@@ -235,27 +235,27 @@ uv run dhis2 route delete "$ROUTE_UID"
 
 ```bash
 # UID generation.
-uv run dhis2 dev uid
-uv run dhis2 dev uid -n 5
+uv run d2w dev uid
+uv run d2w dev uid -n 5
 
 # Codegen — rebuilds committed schemas without touching the network.
-uv run dhis2 dev codegen rebuild
+uv run d2w dev codegen rebuild
 
 # PAT provisioning (reads DHIS2_ADMIN_PAT / DHIS2_ADMIN_PASSWORD from env).
-uv run dhis2 profile pat create --url http://localhost:8080 --admin-user admin \
+uv run d2w profile pat create --url http://localhost:8080 --admin-user admin \
   --description "smoke test PAT"
 
 # OAuth2 client registration (admin creds + client_secret via env only).
-uv run dhis2 profile oauth2 client register \
+uv run d2w profile oauth2 client register \
   --url http://localhost:8080 --admin-user admin \
   --client-id "standalone-$(date +%s)"
 
 # Sample fixtures — each creates, verifies, cleans up (unless --keep).
-uv run dhis2 dev sample route
-uv run dhis2 dev sample data-value
-uv run dhis2 dev sample pat
-uv run dhis2 dev sample oauth2-client
-uv run dhis2 dev sample all
+uv run d2w dev sample route
+uv run d2w dev sample data-value
+uv run d2w dev sample pat
+uv run d2w dev sample oauth2-client
+uv run d2w dev sample all
 ```
 
 ---
@@ -266,24 +266,24 @@ See [Maintenance plugin](architecture/maintenance-plugin.md) for the full surfac
 
 ```bash
 # Task polling (every async DHIS2 op feeds this — analytics refresh, metadata import, etc.).
-uv run dhis2 maintenance task types
-uv run dhis2 maintenance task list ANALYTICS_TABLE
-uv run dhis2 maintenance task status ANALYTICS_TABLE "$(uv run dhis2 maintenance task list ANALYTICS_TABLE | head -1)"
+uv run d2w maintenance task types
+uv run d2w maintenance task list ANALYTICS_TABLE
+uv run d2w maintenance task status ANALYTICS_TABLE "$(uv run d2w maintenance task list ANALYTICS_TABLE | head -1)"
 
 # Cache — Hibernate + app caches.
-uv run dhis2 maintenance cache
+uv run d2w maintenance cache
 
 # Soft-delete cleanup (unblocks parent-metadata removal; see BUGS.md #2).
-uv run dhis2 maintenance cleanup data-values
-uv run dhis2 maintenance cleanup events
-uv run dhis2 maintenance cleanup enrollments
-uv run dhis2 maintenance cleanup tracked-entities
+uv run d2w maintenance cleanup data-values
+uv run d2w maintenance cleanup events
+uv run d2w maintenance cleanup enrollments
+uv run d2w maintenance cleanup tracked-entities
 
 # Data-integrity checks.
-uv run dhis2 maintenance dataintegrity list | head
-TASK_UID="$(uv run dhis2 maintenance dataintegrity run orgunits_invalid_geometry | jq -r '.response.id')"
-uv run dhis2 maintenance task watch DATA_INTEGRITY "$TASK_UID" --interval 1 --timeout 60
-uv run dhis2 maintenance dataintegrity result orgunits_invalid_geometry
+uv run d2w maintenance dataintegrity list | head
+TASK_UID="$(uv run d2w maintenance dataintegrity run orgunits_invalid_geometry | jq -r '.response.id')"
+uv run d2w maintenance task watch DATA_INTEGRITY "$TASK_UID" --interval 1 --timeout 60
+uv run d2w maintenance dataintegrity result orgunits_invalid_geometry
 ```
 
 ---
@@ -330,16 +330,16 @@ A missing group = regression in plugin wiring. The `metadata` group is the large
 
 ```bash
 # Bad profile name.
-uv run dhis2 profile show does_not_exist                # expect non-zero, informative
+uv run d2w profile show does_not_exist                # expect non-zero, informative
 
 # login on a non-oauth2 profile.
-uv run dhis2 profile login local                        # expect "login only applies to oauth2"
+uv run d2w profile login local                        # expect "login only applies to oauth2"
 
 # Invalid analytics shape.
-uv run dhis2 analytics query --shape garbage --dim dx:x --dim pe:y --dim ou:z
+uv run d2w analytics query --shape garbage --dim dx:x --dim pe:y --dim ou:z
 
 # Route run against a non-existent UID.
-uv run dhis2 route run fake1234uid
+uv run d2w route run fake1234uid
 ```
 
 ---

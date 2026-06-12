@@ -1,17 +1,17 @@
 # Playwright PAT helper
 
-`dhis2w-browser` ships a small Playwright helper that logs into DHIS2 via the web UI and creates a Personal Access Token. Two invocation paths share the same library call: the `dhis2 browser pat` CLI subcommand (mounted via the `browser` plugin in `dhis2w-core`) and the `dhis2w_browser.create_pat` library function.
+`dhis2w-browser` ships a small Playwright helper that logs into DHIS2 via the web UI and creates a Personal Access Token. Two invocation paths share the same library call: the `d2w browser pat` CLI subcommand (mounted via the `browser` plugin in `dhis2w-core`) and the `dhis2w_browser.create_pat` library function.
 
 ## Why
 
 Basic auth works but is clumsy for automation: credentials in env vars, no scoping, no revocation story. PATs are a cleaner long-lived credential for background jobs, CI, and the MCP server.
 
-**Default PAT creation path is `dhis2 profile pat create`** — it hits `POST /api/apiToken` via plain Basic admin auth (no browser). The Playwright helper here exists for the edge case where Basic API auth is disabled server-side, or for existing browser flows that already have a session in hand. For the common case, prefer `dhis2 profile pat create` — faster, no Chromium.
+**Default PAT creation path is `d2w profile pat create`** — it hits `POST /api/apiToken` via plain Basic admin auth (no browser). The Playwright helper here exists for the edge case where Basic API auth is disabled server-side, or for existing browser flows that already have a session in hand. For the common case, prefer `d2w profile pat create` — faster, no Chromium.
 
 ## Usage
 
 ```bash
-dhis2 browser pat \
+d2w browser pat \
     --url http://localhost:8080 \
     --username admin \
     --password district

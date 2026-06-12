@@ -9,6 +9,6 @@ Typical flow:
 3. `client.apps.install_from_hub(version_id)` or `install_from_file(path)` to install.
 4. `client.apps.uninstall(key)` to remove.
 
-For update orchestration (compare installed version to hub latest, install newer), see `dhis2w_core.v42.plugins.apps.service.update_all` — also exposed as the `dhis2 apps update --all` CLI verb with a `--dry-run` preview mode.
+For update orchestration (compare installed version to hub latest, install newer), see `dhis2w_core.v42.plugins.apps.service.update_all` — also exposed as the `d2w apps update --all` CLI verb with a `--dry-run` preview mode.
 
 ::: dhis2w_client.v42.apps

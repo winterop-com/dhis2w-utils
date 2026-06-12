@@ -1,12 +1,12 @@
 # Files plugin
 
-`dhis2 files` covers the two DHIS2 file surfaces that were intentionally out
+`d2w files` covers the two DHIS2 file surfaces that were intentionally out
 of scope for `customize` (which is scoped to branding only): **documents**
 and **file resources**.
 
 ```
-dhis2 files documents {list,get,upload,upload-url,download,delete}
-dhis2 files resources {upload,get,download}
+d2w files documents {list,get,upload,upload-url,download,delete}
+d2w files resources {upload,get,download}
 ```
 
 MCP mirrors the metadata-only tools: `files_documents_list`,
@@ -30,17 +30,17 @@ CLI:
 
 ```bash
 # Create an external link (no binary upload):
-dhis2 files documents upload-url "Annual report" "https://example.org/report.pdf"
+d2w files documents upload-url "Annual report" "https://example.org/report.pdf"
 
 # Upload a binary document. Two-step under the hood (see BUGS.md #16):
-dhis2 files documents upload report.pdf --name "2025 annual report"
+d2w files documents upload report.pdf --name "2025 annual report"
 
 # Round-trip:
-dhis2 files documents download <uid> out.pdf
-dhis2 files documents delete <uid>
+d2w files documents download <uid> out.pdf
+d2w files documents delete <uid>
 
 # List + filter:
-dhis2 files documents list --filter "name:like:2025"
+d2w files documents list --filter "name:like:2025"
 ```
 
 **Why binary upload is two-step:** `POST /api/documents` only accepts
@@ -48,7 +48,7 @@ dhis2 files documents list --filter "name:like:2025"
 `BUGS.md #16` for the repro + why. `upload_document` handles the dance
 automatically: uploads the bytes as a `FileResource(domain=DOCUMENT)`, then
 posts the document JSON with `url=<fileResourceUid>`. Callers see a single
-`dhis2 files documents upload` CLI call / single `client.files.upload_document(...)`
+`d2w files documents upload` CLI call / single `client.files.upload_document(...)`
 method — the workaround is hidden.
 
 ### `/api/fileResources`
@@ -69,12 +69,12 @@ bytes are stored once and reference-counted by DHIS2.
 
 ```bash
 # Upload as DATA_VALUE (for a file-type DataElement capture):
-dhis2 files resources upload photo.jpg --domain DATA_VALUE
+d2w files resources upload photo.jpg --domain DATA_VALUE
 
 # Upload + round-trip (MESSAGE_ATTACHMENT passes bytes through unchanged):
-dhis2 files resources upload attachment.pdf --domain MESSAGE_ATTACHMENT
-dhis2 files resources get <uid>
-dhis2 files resources download <uid> attachment_roundtrip.pdf
+d2w files resources upload attachment.pdf --domain MESSAGE_ATTACHMENT
+d2w files resources get <uid>
+d2w files resources download <uid> attachment_roundtrip.pdf
 ```
 
 **Domain-specific access rules:**
@@ -130,6 +130,6 @@ callers).
   module) on a document UID. Not folded into the files accessor because
   it's a generic surface.
 - **File-resource cleanup** — DHIS2 reference-counts fileResources and
-  cleans unreferenced blobs on its own schedule (`dhis2 maintenance
+  cleans unreferenced blobs on its own schedule (`d2w maintenance
   dataintegrity` surfaces unreferenced rows). No `delete_file_resource`
   method here; removing the owning reference is the correct trigger.

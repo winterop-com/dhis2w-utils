@@ -2,7 +2,7 @@
 
 Reference of every schema change across the three supported DHIS2 majors (v41 = `2.41.8.1`, v42 = `2.42.4.1`, v43 = `2.43.0.0`) as seen by `dhis2w-client`'s codegen. Two sources of truth:
 
-- **`/api/schemas`** drives `dhis2w_client.generated.v{N}.schemas` (and the `client.resources.X` accessors). Run `dhis2 dev codegen diff v41 v42` or `dhis2 dev codegen diff v42 v43` to regenerate the schema-side diff.
+- **`/api/schemas`** drives `dhis2w_client.generated.v{N}.schemas` (and the `client.resources.X` accessors). Run `d2w dev codegen diff v41 v42` or `d2w dev codegen diff v42 v43` to regenerate the schema-side diff.
 - **`/api/openapi.json`** drives `dhis2w_client.generated.v{N}.oas` (the request/response shapes used by tracker, auth schemes, data-value imports, etc.). Diff is a plain `ls` comparison of the per-version `oas/` trees — there is no dedicated CLI command for it yet.
 
 If you only care about the workable patterns ("how do I read this v43 field"), jump to [Working with version-specific types](versioning.md#working-with-version-specific-types) in the versioning page. This page is the lookup index.
@@ -54,7 +54,7 @@ Three new top-level resources land in v42, all from the OAuth2 server-side metad
 
 ### Notable shape changes (selected)
 
-The full `dhis2 dev codegen diff v41 v42` output is in the appendix below; the high-signal items:
+The full `d2w dev codegen diff v41 v42` output is in the appendix below; the high-signal items:
 
 - **`displayDescription` / `displayShortName` added** to many surfaces: dashboard, indicatorGroup, indicatorGroupSet, optionSet, program, programStage, validationRule. v41-pinned models miss these at typed-access time but they survive on `model_extra`.
 - **Tracker resources moved to the `/api/tracker` endpoint**: enrollments, events, trackedEntities, relationships. Code that hit the `/api/programInstance` or `/api/programStageInstance` routes on v41 needs to switch to the tracker routes on v42+.
@@ -299,9 +299,9 @@ v43 adds eight new fields to `Program`. They cluster into three unrelated concer
 
 | Concern | Fields | Accessor | CLI | MCP tool |
 | --- | --- | --- | --- | --- |
-| UI label overrides | `enrollmentsLabel`, `eventsLabel`, `programStagesLabel` (+ matching `display*`) | `client.programs.set_labels(uid, ...)` | `dhis2 metadata program set-labels` | `metadata_program_set_labels` |
-| Server-side audit toggle | `enableChangeLog` | `client.programs.set_change_log_enabled(uid, enabled)` | `dhis2 metadata program set-change-log` | `metadata_program_set_change_log_enabled` |
-| Alt enrollment CategoryCombo | `enrollmentCategoryCombo` | `client.programs.set_enrollment_category_combo(uid, cc_uid)` | `dhis2 metadata program set-enrollment-category-combo` | `metadata_program_set_enrollment_category_combo` |
+| UI label overrides | `enrollmentsLabel`, `eventsLabel`, `programStagesLabel` (+ matching `display*`) | `client.programs.set_labels(uid, ...)` | `d2w metadata program set-labels` | `metadata_program_set_labels` |
+| Server-side audit toggle | `enableChangeLog` | `client.programs.set_change_log_enabled(uid, enabled)` | `d2w metadata program set-change-log` | `metadata_program_set_change_log_enabled` |
+| Alt enrollment CategoryCombo | `enrollmentCategoryCombo` | `client.programs.set_enrollment_category_combo(uid, cc_uid)` | `d2w metadata program set-enrollment-category-combo` | `metadata_program_set_enrollment_category_combo` |
 
 **Reading** the new fields on v43 — the v43 `ProgramsAccessor` requests them in its read fields, so they surface as typed attributes on the parsed `Program` when the active version is v43:
 
@@ -343,9 +343,9 @@ Worked examples (one per concern):
 CLI + MCP equivalents (v43-only):
 
 ```bash
-dhis2 metadata program set-labels PRG... --enrollments-label Visits --events-label Encounters
-dhis2 metadata program set-change-log PRG... --enable
-dhis2 metadata program set-enrollment-category-combo PRG... CC_ALT...
+d2w metadata program set-labels PRG... --enrollments-label Visits --events-label Encounters
+d2w metadata program set-change-log PRG... --enable
+d2w metadata program set-enrollment-category-combo PRG... CC_ALT...
 ```
 
 For v42-pinned typed reads of v43 wire data — e.g. parsing a raw response directly with the v42 model — the fields fall through to `model_extra`. Use the v43 `Program` import to get them typed:
@@ -415,7 +415,7 @@ description = (group.model_extra or {}).get("description") if client.version_key
 
 ```bash
 # Schemas-side
-uv run dhis2 dev codegen diff v42 v43
+uv run d2w dev codegen diff v42 v43
 
 # OAS-side (no CLI; plain ls comparison)
 diff \
@@ -425,7 +425,7 @@ diff \
 
 ## Appendix: complete v42 -> v43 schemas-side diff
 
-Raw output of `dhis2 dev codegen diff v42 v43`. Reproduced verbatim so the field-by-field bound shifts are searchable in the docs site.
+Raw output of `d2w dev codegen diff v42 v43`. Reproduced verbatim so the field-by-field bound shifts are searchable in the docs site.
 
 ```text
 Schema diff: v42 -> v43
@@ -653,7 +653,7 @@ Schema diff: v42 -> v43
 
 ## Appendix: complete v41 -> v42 schemas-side diff
 
-Raw output of `dhis2 dev codegen diff v41 v42`. Reproduced verbatim so the field-by-field bound shifts are searchable in the docs site.
+Raw output of `d2w dev codegen diff v41 v42`. Reproduced verbatim so the field-by-field bound shifts are searchable in the docs site.
 
 ```text
 Schema diff: v41 -> v42

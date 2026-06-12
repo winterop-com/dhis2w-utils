@@ -1,4 +1,4 @@
-"""Typer root for the `dhis2` CLI — discovers plugins and mounts them."""
+"""Typer root for the `d2w` CLI — discovers plugins and mounts them."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def _extract_profile_from_argv(argv: list[str]) -> str | None:
 
 
 def _version_banner() -> str:
-    """Multi-line banner shown for `dhis2 --version` — package version + active plugin tree.
+    """Multi-line banner shown for `d2w --version` — package version + active plugin tree.
 
     Surfaces which plugin tree (`v41` / `v42` / `v43`) the CLI booted with
     and where that came from in the resolution chain (`profile.version` →
@@ -70,7 +70,7 @@ def _version_banner() -> str:
         source = "default (no profile.version, no DHIS2_VERSION env)"
     else:
         source = "profile.version"
-    return f"dhis2 {pkg_version}  (plugin tree: {active} — {source})"
+    return f"d2w {pkg_version}  (plugin tree: {active} — {source})"
 
 
 def _version_callback(value: bool) -> None:
@@ -124,7 +124,7 @@ def build_app() -> typer.Typer:
     `main()` below) sees uncaught exceptions and can render them cleanly.
     """
     app = typer.Typer(
-        help="dhis2 — command-line interface for DHIS2 (discovers plugins from dhis2w-core).",
+        help="d2w — command-line interface for DHIS2 (discovers plugins from dhis2w-core).",
         no_args_is_help=True,
         add_completion=False,
         pretty_exceptions_enable=False,
@@ -187,7 +187,7 @@ def main() -> None:
 
     Resolves `--profile` from argv *before* mounting plugins so the
     correct `v{41,42,43}` plugin tree gets discovered. Without this
-    pre-pass, `dhis2 --profile v43p ...` would freeze the plugin tree
+    pre-pass, `d2w --profile v43p ...` would freeze the plugin tree
     at whatever the default profile pinned (typically v42), hiding
     v43-only commands and making `--version`'s banner disagree with
     the actual mounted command tree.

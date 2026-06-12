@@ -1,4 +1,4 @@
-"""Typer sub-app for the `user-group` plugin (mounted under `dhis2 user-group`)."""
+"""Typer sub-app for the `user-group` plugin (mounted under `d2w user-group`)."""
 
 from __future__ import annotations
 
@@ -213,5 +213,5 @@ def sharing_grant_user_command(
 
 
 def register(root_app: Any) -> None:
-    """Mount this plugin's Typer sub-app under `dhis2 user-group`."""
+    """Mount this plugin's Typer sub-app under `d2w user-group`."""
     root_app.add_typer(app, name="user-group", help="DHIS2 user-group administration.")

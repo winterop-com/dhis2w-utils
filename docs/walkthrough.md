@@ -1,6 +1,6 @@
 # Walkthrough
 
-> **Learning path · step 2 of 8** — Contributor / developer local-stack tour. Prev: [Home / README](https://github.com/winterop-com/dhis2w-utils/blob/main/README.md). Next: [`dhis2` CLI tutorial](guides/cli-tutorial.md). For end-user surface tutorials skip ahead to [Client tutorial](guides/client-tutorial.md) or [MCP tutorial](mcp/tutorial.md).
+> **Learning path · step 2 of 8** — Contributor / developer local-stack tour. Prev: [Home / README](https://github.com/winterop-com/dhis2w-utils/blob/main/README.md). Next: [`d2w` CLI tutorial](guides/cli-tutorial.md). For end-user surface tutorials skip ahead to [Client tutorial](guides/client-tutorial.md) or [MCP tutorial](mcp/tutorial.md).
 
 Step-by-step from a fresh clone to a fully working local DHIS2 development environment — docker stack, seeded profiles, codegen, and Playwright-minted PATs. Aimed at contributors who want to run the test suites + iterate on the workspace; end-user setup against an existing DHIS2 instance is shorter and lives in [Connecting to DHIS2](guides/connecting-to-dhis2.md).
 
@@ -72,7 +72,7 @@ Expect: `version: 2.43.x` (or `2.42.x` if you ran with `DHIS2_VERSION=42`).
 DHIS2 schemas differ by version. `dhis2w-codegen` hits `/api/schemas` and emits pydantic models + typed CRUD accessors into `packages/dhis2w-client/src/dhis2w_client/generated/v{NN}/`.
 
 ```bash
-uv run dhis2 dev codegen generate \
+uv run d2w dev codegen generate \
   --url http://localhost:8080 \
   --username admin \
   --password district
@@ -140,11 +140,11 @@ Expect: your username, first three authorities, a data-element count, and the fi
 
 Two paths; pick based on what creds you have:
 
-- **Plain API** — `dhis2 profile pat create` hits `POST /api/apiToken` with Basic admin auth. Fast, no Chromium, no browser. Default recommendation.
-- **Playwright** — `dhis2 browser pat` drives the React login form + mints the PAT inside the resulting session. Use when Basic API auth is disabled server-side, or when you're already in a browser workflow.
+- **Plain API** — `d2w profile pat create` hits `POST /api/apiToken` with Basic admin auth. Fast, no Chromium, no browser. Default recommendation.
+- **Playwright** — `d2w browser pat` drives the React login form + mints the PAT inside the resulting session. Use when Basic API auth is disabled server-side, or when you're already in a browser workflow.
 
 ```bash
-dhis2 browser pat \
+d2w browser pat \
     --url http://localhost:8080 \
     --username admin \
     --password district \
@@ -208,7 +208,7 @@ Profiles replace the ad-hoc env-var approach with something declarative and swit
 # Create a user-wide profile and make it the default. The PAT is prompted
 # interactively (no flag — secrets never go on the command line) or read
 # from DHIS2_PAT if set in the current shell.
-dhis2 profile add prod \
+d2w profile add prod \
   --global \
   --url https://dhis2.example.org \
   --auth pat \
@@ -216,50 +216,50 @@ dhis2 profile add prod \
 # Personal Access Token: ********
 
 # Verify it works
-dhis2 profile verify prod
+d2w profile verify prod
 # → OK prod  https://dhis2.example.org  auth=pat  version=2.42.4  user=admin  182 ms
 
 # List what you have
-dhis2 profile list
+d2w profile list
 ```
 
-After this, every CLI and MCP tool resolves the profile automatically. Override per-invocation with `dhis2 --profile NAME ...` or switch the default with `dhis2 profile default NAME`. See [Profiles](architecture/profiles.md) for the full resolution chain.
+After this, every CLI and MCP tool resolves the profile automatically. Override per-invocation with `d2w --profile NAME ...` or switch the default with `d2w profile default NAME`. See [Profiles](architecture/profiles.md) for the full resolution chain.
 
 ## Step 11 — use the CLI
 
 With a profile set (or the seeded `.env.auth` sourced for the old-school path), the CLI has a wide surface covering system / metadata / aggregate / tracker / analytics:
 
 ```bash
-dhis2 --help
+d2w --help
 # → 18 top-level domains on a fresh install:
 #   analytics, apps, browser, data, dev, doctor, files, maintenance, messaging,
 #   metadata, profile, route, schema, security, system, user, user-group, user-role
 # Plus any external plugins registered via entry_points (group="dhis2.plugins").
 
 # system — auth + version probe
-dhis2 system whoami
-dhis2 system info
+d2w system whoami
+d2w system info
 
 # metadata — wraps 119 generated CRUD resources
-dhis2 metadata type list
-dhis2 metadata list dataElements --limit 10
-dhis2 metadata get dataElements fbfJHSPpUQD
+d2w metadata type list
+d2w metadata list dataElements --limit 10
+d2w metadata get dataElements fbfJHSPpUQD
 
 # aggregate — data values
-dhis2 data aggregate get --data-set X --org-unit Y --start-date 2024-01-01 --end-date 2024-12-31 --children
-dhis2 data aggregate set --de X --pe 202401 --ou Y --value 42
-dhis2 data aggregate push values.json --dry-run
+d2w data aggregate get --data-set X --org-unit Y --start-date 2024-01-01 --end-date 2024-12-31 --children
+d2w data aggregate set --de X --pe 202401 --ou Y --value 42
+d2w data aggregate push values.json --dry-run
 
 # tracker — events, tracked entities, enrollments, bulk push
-dhis2 data tracker event list --program X --org-unit Y --status COMPLETED
-dhis2 data tracker push bundle.json --strategy CREATE_AND_UPDATE
+d2w data tracker event list --program X --org-unit Y --status COMPLETED
+d2w data tracker push bundle.json --strategy CREATE_AND_UPDATE
 
 # analytics — aggregated queries
-dhis2 analytics query \
+d2w analytics query \
   --dim dx:fbfJHSPpUQD --dim pe:LAST_12_MONTHS --dim ou:ImspTQPwCqd --agg SUM
 
 # target a different profile per call
-dhis2 --profile staging metadata list dataElements --limit 10
+d2w --profile staging metadata list dataElements --limit 10
 ```
 
 Plugin-specific docs: [metadata](architecture/metadata-plugin.md), [aggregate](architecture/aggregate.md), [tracker](architecture/tracker.md), [analytics](architecture/analytics.md).
@@ -343,11 +343,11 @@ Opens `http://127.0.0.1:8000` with the mkdocs-claude-theme site. Architecture, c
 | Codegen from `/api/schemas` → pydantic + CRUD | Done | `dhis2w-codegen`, output in `dhis2w-client/generated/` |
 | Filesystem-scan version discovery | Done | `dhis2w-client/generated/__init__.py` |
 | Playwright-minted PATs with options (name, expiry, IP/method/referrer allowlists) | Done | `dhis2w-browser/pat.py` |
-| `dhis2 browser pat` CLI (plugin under `dhis2w-core`) | Done | `dhis2w-core/v42/plugins/browser/cli.py` |
+| `d2w browser pat` CLI (plugin under `dhis2w-core`) | Done | `dhis2w-core/v42/plugins/browser/cli.py` |
 | Plugin runtime (Protocol + built-in + entry-point discovery) | Done | `dhis2w-core/plugin.py` |
 | Profile resolution from environment | Done | `dhis2w-core/profile.py` |
 | First-party `system` plugin (CLI + MCP surfaces) | Done | `dhis2w-core/v42/plugins/system/` |
-| `dhis2` CLI root with plugin mounting | Done | `dhis2w-cli/main.py` |
+| `d2w` CLI root with plugin mounting | Done | `dhis2w-cli/main.py` |
 | `dhis2w-mcp` FastMCP server with plugin mounting | Done | `dhis2w-mcp/server.py` |
 | Local Docker stack (DHIS2 + pgAdmin + Glowroot) | Done | `infra/` |
 | Seeded auth: 6 PAT variations + OAuth2 client | Done | `infra/scripts/seed_auth.py` |
@@ -355,13 +355,13 @@ Opens `http://127.0.0.1:8000` with the mkdocs-claude-theme site. Architecture, c
 | Unit tests (respx, CliRunner, in-process FastMCP Client) | Done | 42 passing |
 | Integration tests against play/dev + localhost | Done | 12 passing |
 | Destructive CRUD round-trip tests (constants) | Done | `test_integration_local_pat.py` |
-| CLI end-to-end tests (`dhis2 system whoami/info` live) | Done | `test_cli_integration.py` |
+| CLI end-to-end tests (`d2w system whoami/info` live) | Done | `test_cli_integration.py` |
 | MCP end-to-end tests (in-process client calls `whoami`/`system_info`) | Done | `test_mcp_integration.py` |
 | Tracker plugin (`/api/tracker/*` — tracked entities, enrollments, events, relationships) | Done | `dhis2w-core/v{N}/plugins/data/tracker_*`, `client.tracker` |
 | Data values plugin (`/api/dataValueSets`, `/api/dataValues`, streaming) | Done | `dhis2w-core/v{N}/plugins/data/aggregate_*`, `client.data_values` |
 | Analytics plugin (`/api/analytics*`, aggregate + events + enrollments + outlier + tracked-entity) | Done | `dhis2w-core/v{N}/plugins/analytics/`, `client.analytics` |
 | Bulk metadata import / export / diff / merge | Done | `dhis2w-core/v{N}/plugins/metadata/service.py`, `client.metadata` |
-| Profile system: `.dhis2/profiles.toml` + global + project-scoped + `dhis2 profile add/login/...` | Done | `dhis2w-core/profile.py`, `dhis2w-core/v{N}/plugins/profile/` |
+| Profile system: `.dhis2/profiles.toml` + global + project-scoped + `d2w profile add/login/...` | Done | `dhis2w-core/profile.py`, `dhis2w-core/v{N}/plugins/profile/` |
 | First-party metadata-domain plugins (orgUnits, dataElements, indicators, programIndicators, categoryOptions, legendSets, ...) | Done | `dhis2w-core/v{N}/plugins/metadata/` + matching `client.{resource}` accessors |
 | Docs site with mkdocs-material (indigo) | Done | `docs/`, nav in `mkdocs.yml` |
 

@@ -57,16 +57,16 @@ DHIS2 rejects DataSets without a `categoryCombo`. Omit `category_combo_uid` on `
 ## CLI
 
 ```bash
-dhis2 metadata list dataSets --period-type Monthly
-dhis2 metadata data-sets create \
+d2w metadata list dataSets --period-type Monthly
+d2w metadata data-sets create \
     --name "ANC Monthly" --short-name "ANCm" --period-type Monthly \
     --open-future-periods 2 --expiry-days 10
-dhis2 metadata data-sets add-element <DS_UID> <DE_UID>
-dhis2 metadata data-sets add-element <DS_UID> <DE_UID> --category-combo <CC_UID>
-dhis2 metadata sections create \
+d2w metadata data-sets add-element <DS_UID> <DE_UID>
+d2w metadata data-sets add-element <DS_UID> <DE_UID> --category-combo <CC_UID>
+d2w metadata sections create \
     --name "Vaccination" --data-set <DS_UID> --sort-order 1 \
     --data-element <DE_A> --data-element <DE_B>
-dhis2 metadata sections reorder <SECTION_UID> <DE_B> <DE_A>
+d2w metadata sections reorder <SECTION_UID> <DE_B> <DE_A>
 ```
 
 Every `list` has an `ls` alias; every destructive verb accepts `--yes` / `-y`.

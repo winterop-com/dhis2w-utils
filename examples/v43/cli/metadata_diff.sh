@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# `dhis2 metadata diff` — structural comparison between two bundles, or one
+# `d2w metadata diff` — structural comparison between two bundles, or one
 # bundle vs the live instance. Useful before a tricky `metadata import` to
 # preview exactly which objects get created / updated / deleted.
 set -euo pipefail
 
 # Export the live catalog (small slice for demo speed).
-uv run dhis2 metadata export \
+uv run d2w metadata export \
     --resource dataElements \
     --resource indicators \
     --output /tmp/baseline.json
@@ -20,16 +20,16 @@ jq '.dataElements[0].name = "RENAMED IN CANDIDATE"
     /tmp/baseline.json > /tmp/candidate.json
 
 echo "--- plain table diff"
-uv run dhis2 metadata diff /tmp/baseline.json /tmp/candidate.json
+uv run d2w metadata diff /tmp/baseline.json /tmp/candidate.json
 
 echo ""
 echo "--- with offending UIDs"
-uv run dhis2 metadata diff /tmp/baseline.json /tmp/candidate.json --show-uids
+uv run d2w metadata diff /tmp/baseline.json /tmp/candidate.json --show-uids
 
 echo ""
 echo "--- JSON envelope (pipe to jq for programmatic use)"
-uv run dhis2 --json metadata diff /tmp/baseline.json /tmp/candidate.json | jq '.resources[] | {resource, created: (.created | length), updated: (.updated | length), deleted: (.deleted | length)}'
+uv run d2w --json metadata diff /tmp/baseline.json /tmp/candidate.json | jq '.resources[] | {resource, created: (.created | length), updated: (.updated | length), deleted: (.deleted | length)}'
 
 echo ""
 echo "--- live: baseline.json vs the running instance (should be 0 changes)"
-uv run dhis2 metadata diff /tmp/baseline.json --live
+uv run d2w metadata diff /tmp/baseline.json --live

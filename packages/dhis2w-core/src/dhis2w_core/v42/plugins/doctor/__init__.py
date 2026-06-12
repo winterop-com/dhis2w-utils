@@ -11,7 +11,7 @@ from dhis2w_core.v42.plugins.doctor import mcp as mcp_module
 
 
 class _DoctorPlugin(BaseModel):
-    """Plugin descriptor for `dhis2 doctor`."""
+    """Plugin descriptor for `d2w doctor`."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -22,7 +22,7 @@ class _DoctorPlugin(BaseModel):
     )
 
     def register_cli(self, app: Any) -> None:
-        """Mount under `dhis2 doctor`."""
+        """Mount under `d2w doctor`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

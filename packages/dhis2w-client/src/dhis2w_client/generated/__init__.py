@@ -1,4 +1,4 @@
-"""Version-scoped generated clients. Populated by `dhis2 codegen`."""
+"""Version-scoped generated clients. Populated by `d2w codegen`."""
 
 from __future__ import annotations
 

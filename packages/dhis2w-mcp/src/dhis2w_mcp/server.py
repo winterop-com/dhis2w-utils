@@ -44,7 +44,7 @@ def _eager_rebuild_tool_return_types(server: FastMCP) -> None:
     raises `'MockValSer' object is not an instance of 'SchemaSerializer'`.
 
     Every OAS-emitted pydantic class uses `defer_build=True` to keep
-    `dhis2 --help` startup fast (skipping the eager rebuild loop saves
+    `d2w --help` startup fast (skipping the eager rebuild loop saves
     ~900 ms of CLI boot time). MCP server boot is the right place to
     pay that cost — this server is long-lived, the rebuild happens once,
     and skipping it leaves tool returns silently broken.

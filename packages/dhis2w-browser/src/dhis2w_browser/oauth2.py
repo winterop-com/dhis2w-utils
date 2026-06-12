@@ -18,7 +18,7 @@ _AUTH_URL_PATTERN = re.compile(r"https?://\S+")
 
 
 class OAuth2LoginResult(BaseModel):
-    """Outcome of a Playwright-driven `dhis2 profile login --no-browser` run."""
+    """Outcome of a Playwright-driven `d2w profile login --no-browser` run."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -39,7 +39,7 @@ async def drive_oauth2_login(
     env: dict[str, str] | None = None,
     cwd: Path | str | None = None,
 ) -> OAuth2LoginResult:
-    """Run `dhis2 profile login <name> --no-browser` end-to-end via Playwright.
+    """Run `d2w profile login <name> --no-browser` end-to-end via Playwright.
 
     Spawns the CLI as a subprocess, reads the DHIS2 authorize URL from its
     stderr, launches a Chromium instance, navigates to the URL, fills the
@@ -49,7 +49,7 @@ async def drive_oauth2_login(
     `tokens.sqlite`.
 
     The `--no-browser` path is what makes this automatable — the default
-    `dhis2 profile login` calls `webbrowser.open(url)` against the system
+    `d2w profile login` calls `webbrowser.open(url)` against the system
     browser, which Chromium can't see. See `docs/architecture/auth.md` for
     the flag's manual-use cases.
 
@@ -61,7 +61,7 @@ async def drive_oauth2_login(
     failure (login-form selector drift, network), subprocess timeout,
     or non-zero CLI exit.
     """
-    command = ["dhis2", "profile", "login", profile_name, "--no-browser"]
+    command = ["d2w", "profile", "login", profile_name, "--no-browser"]
     merged_env = {**os.environ, **(env or {})}
     proc = await asyncio.create_subprocess_exec(
         *command,
@@ -77,7 +77,7 @@ async def drive_oauth2_login(
         proc.kill()
         await proc.wait()
         raise RuntimeError(
-            f"timed out after {timeout}s waiting for `dhis2 profile login` to emit the authorize URL",
+            f"timed out after {timeout}s waiting for `d2w profile login` to emit the authorize URL",
         ) from exc
 
     try:
@@ -96,7 +96,7 @@ async def drive_oauth2_login(
         proc.kill()
         await proc.wait()
         raise RuntimeError(
-            f"`dhis2 profile login` did not exit within {timeout}s after the IdP form was submitted "
+            f"`d2w profile login` did not exit within {timeout}s after the IdP form was submitted "
             "— the redirect receiver may not have captured the code",
         ) from exc
 
@@ -104,7 +104,7 @@ async def drive_oauth2_login(
     stderr_text = "".join(stderr_buffer) + stderr_raw.decode(errors="replace")
     if proc.returncode != 0:
         raise RuntimeError(
-            f"`dhis2 profile login {profile_name} --no-browser` exited with code {proc.returncode}:\n{stderr_text}",
+            f"`d2w profile login {profile_name} --no-browser` exited with code {proc.returncode}:\n{stderr_text}",
         )
     return OAuth2LoginResult(
         profile=profile_name,
@@ -122,7 +122,7 @@ async def _read_auth_url(proc: asyncio.subprocess.Process, buffer: list[str]) ->
     while True:
         line_bytes = await proc.stderr.readline()
         if not line_bytes:
-            raise RuntimeError(f"`dhis2 profile login` exited before emitting an authorize URL:\n{''.join(buffer)}")
+            raise RuntimeError(f"`d2w profile login` exited before emitting an authorize URL:\n{''.join(buffer)}")
         line = line_bytes.decode(errors="replace")
         buffer.append(line)
         stripped = line.strip()

@@ -9,7 +9,7 @@ This page documents the verb vocabulary used across CLI commands, MCP tools, and
 ## Tool / command naming
 
 - **MCP tool functions**: `<plugin>_<resource>_<verb>` in snake_case, verb-last. Examples: `metadata_data_element_create`, `user_role_authority_list`, `system_calendar_get`.
-- **CLI sub-commands**: `dhis2 <plugin> <resource> <verb>` with hyphens for word boundaries. Examples: `dhis2 metadata data-element create`, `dhis2 user role authority-list`, `dhis2 system calendar`.
+- **CLI sub-commands**: `d2w <plugin> <resource> <verb>` with hyphens for word boundaries. Examples: `d2w metadata data-element create`, `d2w user role authority-list`, `d2w system calendar`.
 - **Service methods** (in `service.py`): verb-first is fine because the module name is the namespace — `service.create_data_element()`, `service.set_calendar()`. The verb-last rule applies only to the MCP-tool function name where there is no surrounding object.
 - **Client accessors** (`client.<resource>.<verb>()`): same as services. `client.data_elements.create()`, `client.system.set_calendar()`.
 
@@ -48,7 +48,7 @@ Mirror image of add/create:
 
 The 22 `_add_<thing>` tools have 22 matching `_remove_<thing>` tools — perfect symmetry across `metadata_*_group_*`, `user_group_*_member`, `metadata_data_set_*_element`, `metadata_program_*_attribute`, etc.
 
-The CLI exposes `rm` as a hidden alias for `delete` on most resources (`dhis2 metadata data-element delete` and `dhis2 metadata data-element rm` are the same).
+The CLI exposes `rm` as a hidden alias for `delete` on most resources (`d2w metadata data-element delete` and `d2w metadata data-element rm` are the same).
 
 ### `get` vs `show` vs `list`
 

@@ -1,6 +1,6 @@
 """Profile CRUD from Python — both in-memory and on-disk paths.
 
-Every `dhis2 profile ...` CLI command maps 1:1 onto a function in
+Every `d2w profile ...` CLI command maps 1:1 onto a function in
 `dhis2w_core.plugins.profile.service`. This example walks both paths:
 
 1. **In-memory** — construct a `Profile(...)` and hand it straight to
@@ -55,7 +55,7 @@ def demo_on_disk(start: Path) -> None:
 
     Scopes every write to `<start>/.dhis2/profiles.toml` so the real
     `~/.config/dhis2/profiles.toml` is untouched. `service.*_profile` calls
-    are what the `dhis2 profile` CLI commands wrap, so anything you can do
+    are what the `d2w profile` CLI commands wrap, so anything you can do
     from the shell you can do from Python.
     """
     print("\n--- 2. On-disk CRUD via dhis2w_core.plugins.profile.service ---")

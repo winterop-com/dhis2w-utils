@@ -1,4 +1,4 @@
-"""Tests for `dhis2 metadata merge-bundle` — bundle-from-disk import path."""
+"""Tests for `d2w metadata merge-bundle` — bundle-from-disk import path."""
 
 from __future__ import annotations
 

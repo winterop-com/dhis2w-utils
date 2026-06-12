@@ -19,7 +19,7 @@ class _MaintenancePlugin(BaseModel):
     description: str = "DHIS2 maintenance: task polling, cache clear, soft-delete cleanup, data-integrity checks."
 
     def register_cli(self, app: Any) -> None:
-        """Mount under `dhis2 maintenance`."""
+        """Mount under `d2w maintenance`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

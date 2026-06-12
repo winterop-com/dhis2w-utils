@@ -1,9 +1,9 @@
 """Browser plugin — Playwright-driven DHIS2 UI automation.
 
-Mounts `dhis2 browser ...` subcommands only when the optional
+Mounts `d2w browser ...` subcommands only when the optional
 `dhis2w-browser` library is importable. Installations that skip the
 `[browser]` extra get nothing — the command silently drops out of
-`dhis2 --help` rather than showing a broken entry.
+`d2w --help` rather than showing a broken entry.
 """
 
 from __future__ import annotations
@@ -21,13 +21,13 @@ class _BrowserPlugin(BaseModel):
 
     name: str = "browser"
     description: str = (
-        "Playwright-driven DHIS2 UI automation. Mounts `dhis2 browser ...` "
+        "Playwright-driven DHIS2 UI automation. Mounts `d2w browser ...` "
         "for workflows DHIS2 only exposes through the web UI (PAT minting "
         "today; dashboard screenshots + maintenance-app driving planned)."
     )
 
     def register_cli(self, app: Any) -> None:
-        """Mount `dhis2 browser` on the root CLI if the browser extra is installed."""
+        """Mount `d2w browser` on the root CLI if the browser extra is installed."""
         if find_spec("dhis2w_browser") is None:
             return
         from dhis2w_core.v41.plugins.browser import cli as cli_module  # noqa: PLC0415 — optional-extra guard

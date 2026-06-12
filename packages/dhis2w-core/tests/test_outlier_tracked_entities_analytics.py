@@ -164,7 +164,7 @@ async def test_query_tracked_entities_skip_flags_only_set_when_true(profile: Pro
 
 @respx.mock
 def test_cli_outlier_detection_forwards_flags() -> None:
-    """`dhis2 analytics outlier-detection` routes every flag to the service signature."""
+    """`d2w analytics outlier-detection` routes every flag to the service signature."""
     _mock_preamble()
     route = respx.get("https://dhis2.example/api/analytics/outlierDetection").mock(
         return_value=httpx.Response(200, json=_outlier_body()),
@@ -194,7 +194,7 @@ def test_cli_outlier_detection_forwards_flags() -> None:
 
 @respx.mock
 def test_cli_tracked_entities_query_routes_positional_tet() -> None:
-    """`dhis2 analytics tracked-entities query TET_UID` uses TET_UID as the URL path segment."""
+    """`d2w analytics tracked-entities query TET_UID` uses TET_UID as the URL path segment."""
     _mock_preamble()
     route = respx.get("https://dhis2.example/api/analytics/trackedEntities/query/FsgEX4d3Fc5").mock(
         return_value=httpx.Response(200, json=_tracked_entities_body())

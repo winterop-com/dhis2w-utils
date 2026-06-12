@@ -1,4 +1,4 @@
-"""Typer sub-app for aggregate data values (mounted under `dhis2 data aggregate`)."""
+"""Typer sub-app for aggregate data values (mounted under `d2w data aggregate`)."""
 
 from __future__ import annotations
 

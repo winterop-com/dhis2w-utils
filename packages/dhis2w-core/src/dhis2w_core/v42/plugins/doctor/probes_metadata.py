@@ -27,7 +27,7 @@ from dhis2w_core.v42.plugins.doctor._models import ProbeResult
 
 # Cap how many UIDs we list per probe in the result. The number is in the
 # message anyway; operators who want the full list should re-run with a
-# targeted `dhis2 metadata list` query.
+# targeted `d2w metadata list` query.
 _MAX_OFFENDING_UIDS = 50
 
 

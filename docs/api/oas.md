@@ -23,7 +23,7 @@ grid = Grid.model_validate(analytics_response)
 Regeneration (from the committed `openapi.json`, no network):
 
 ```bash
-uv run dhis2 dev codegen oas-rebuild --version v42
+uv run d2w dev codegen oas-rebuild --version v42
 ```
 
 See [Codegen](../codegen.md) for emitter specifics — every-field-optional rule, the `_MAX_CLOSED_ENUM_SIZE` threshold that demotes 488-member `ErrorCode` to a `str` alias, the `DHIS2Warning` builtin-shadow rename, the `_types_namespace` injection trick that resolves sibling references without cycles.

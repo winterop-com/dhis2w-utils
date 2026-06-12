@@ -1,6 +1,6 @@
 """Bulk metadata import via `service.import_metadata` — typed dry-run + real.
 
-Shows the `dhis2 metadata import` plumbing as a Python-level script: build
+Shows the `d2w metadata import` plumbing as a Python-level script: build
 a typed bundle, call `service.import_metadata` with full DHIS2 import flags
 (`import_strategy`, `atomic_mode`, `dry_run`, `identifier`, ...), inspect the
 parsed `WebMessageResponse`, then clean up via the typed CRUD accessors.

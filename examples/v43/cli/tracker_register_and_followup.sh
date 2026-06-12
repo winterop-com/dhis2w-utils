@@ -18,7 +18,7 @@ STAGE_BIRTH=A03MvHHogjR
 STAGE_POSTNATAL=ZzYYXq4fJie
 
 # Pick a level-4 facility OU to register against.
-OU=$(dhis2 --json metadata list organisationUnits --filter level:eq:4 --page-size 1 --fields id | jq -r '.[0].id')
+OU=$(d2w --json metadata list organisationUnits --filter level:eq:4 --page-size 1 --fields id | jq -r '.[0].id')
 echo ">>> registering against OU $OU"
 
 # --- 1. Register + enroll in one atomic call -------------------------------
@@ -26,7 +26,7 @@ echo ">>> registering against OU $OU"
 # /api/tracker. DHIS2 assigns the UIDs we pre-generated client-side so the
 # response carries them back for downstream reference.
 
-REGISTER=$(dhis2 --json data tracker register "$PROGRAM" \
+REGISTER=$(d2w --json data tracker register "$PROGRAM" \
     --ou "$OU" \
     --attr w75KJ2mc4zz=Aminata \
     --attr zDhUuAYrxNC=Kamara \
@@ -40,7 +40,7 @@ echo ">>> registered TE=$TE enrollment=$ENROLLMENT"
 # Stage-level event creation. --enrollment binds the event to the intake
 # timeline; --dv passes DataElement values.
 
-dhis2 data tracker event create \
+d2w data tracker event create \
     --enrollment "$ENROLLMENT" \
     --program "$PROGRAM" \
     --stage "$STAGE_BIRTH" \
@@ -53,11 +53,11 @@ dhis2 data tracker event create \
 # non-repeatable program stage. Our new enrollment should appear because
 # ZzYYXq4fJie (Baby Postnatal) isn't logged yet.
 
-dhis2 data tracker outstanding "$PROGRAM" --ou "$OU"
+d2w data tracker outstanding "$PROGRAM" --ou "$OU"
 
 # --- 4. Log the follow-up event -------------------------------------------
 
-dhis2 data tracker event create \
+d2w data tracker event create \
     --enrollment "$ENROLLMENT" \
     --program "$PROGRAM" \
     --stage "$STAGE_POSTNATAL" \
@@ -68,7 +68,7 @@ dhis2 data tracker event create \
 # --- 5. Verify it's no longer outstanding ---------------------------------
 # Exit status is still 0 even with no hits — "nothing due" is success.
 
-dhis2 data tracker outstanding "$PROGRAM" --ou "$OU"
+d2w data tracker outstanding "$PROGRAM" --ou "$OU"
 
 # --- 6. Enroll an existing TE in a second program -------------------------
 # For patients already in the system, `enrollment create` adds a new
@@ -76,4 +76,4 @@ dhis2 data tracker outstanding "$PROGRAM" --ou "$OU"
 # (e.g. a tracked child gets routed into a malaria-case-management flow).
 #
 # Example — if the instance has a second tracker program:
-#   dhis2 data tracker enrollment create "$TE" <other-program-uid> --at "$OU"
+#   d2w data tracker enrollment create "$TE" <other-program-uid> --at "$OU"

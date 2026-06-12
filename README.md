@@ -17,7 +17,7 @@ The repo lives at `winterop-com/dhis2w-utils`; PyPI ships the six publishable me
 DHIS2 already has a lightweight, official Python client that returns plain JSON dictionaries — ideal when you want a thin wrapper and a few lines in a notebook. `dhis2w` is built for a different need: a typed, multi-surface toolkit you can depend on across instances and versions.
 
 - **Typed, not stringly-typed.** Every response is a Pydantic model generated from DHIS2's own OpenAPI spec, so your editor autocompletes fields and the type checker catches a misspelled key before you run. No guessing dictionary keys against the docs.
-- **One core, four surfaces.** The same typed client powers a Python library, a `dhis2` CLI, an MCP server, and Playwright browser automation — all sharing one `service.py` per domain, so behaviour never drifts between them.
+- **One core, four surfaces.** The same typed client powers a Python library, a `d2w` CLI, an MCP server, and Playwright browser automation — all sharing one `service.py` per domain, so behaviour never drifts between them.
 - **Built for AI agents.** The MCP server exposes ~304 typed tools, one per CLI command, so any MCP host (Claude, Cursor) can drive a DHIS2 instance directly.
 - **Version-aware by design.** Detects v41 / v42 / v43 on connect and binds the matching hand-written tree, so one codebase works across instances instead of branching on the wire shape yourself.
 - **Real auth.** Basic, PAT, and OAuth2/OIDC with PKCE, behind a pluggable `AuthProvider` protocol, with a profile system for juggling multiple instances.
@@ -31,10 +31,10 @@ Reach for the official client when you want the smallest possible dependency and
 | --- | --- | --- |
 | [`dhis2w-client`](https://pypi.org/project/dhis2w-client/) | `uv add dhis2w-client` | Pure async httpx + pydantic DHIS2 client with pluggable auth (Basic, PAT, OAuth2/OIDC). Typed models from both `/api/schemas` and `/api/openapi.json` codegen. |
 | [`dhis2w-core`](https://pypi.org/project/dhis2w-core/) | `uv add dhis2w-core` | Shared runtime: profile discovery, plugin registry, auth factory, token store, first-party plugins. |
-| [`dhis2w-cli`](https://pypi.org/project/dhis2w-cli/) | `uv tool install dhis2w-cli` | Typer console script `dhis2`. |
+| [`dhis2w-cli`](https://pypi.org/project/dhis2w-cli/) | `uv tool install dhis2w-cli` | Typer console script `d2w`. |
 | [`dhis2w-mcp`](https://pypi.org/project/dhis2w-mcp/) | `uv tool install dhis2w-mcp` | FastMCP server `dhis2w-mcp`. |
-| [`dhis2w-mcp-bridge`](https://pypi.org/project/dhis2w-mcp-bridge/) | `uv tool install dhis2w-mcp-bridge` | FastMCP server `dhis2w-mcp-bridge` — exposes the whole `dhis2` CLI as a single `dhis2_cli` tool for small local models. |
-| [`dhis2w-browser`](https://pypi.org/project/dhis2w-browser/) | `uv add dhis2w-browser` | Playwright helpers for DHIS2 UI automation — PAT minting, Playwright-driven OIDC login + consent, dashboard / viz / map screenshot capture. Mounted under `dhis2 browser` when the `[browser]` extra is installed on `dhis2w-cli`. |
+| [`dhis2w-mcp-bridge`](https://pypi.org/project/dhis2w-mcp-bridge/) | `uv tool install dhis2w-mcp-bridge` | FastMCP server `dhis2w-mcp-bridge` — exposes the whole `d2w` CLI as a single `dhis2_cli` tool for small local models. |
+| [`dhis2w-browser`](https://pypi.org/project/dhis2w-browser/) | `uv add dhis2w-browser` | Playwright helpers for DHIS2 UI automation — PAT minting, Playwright-driven OIDC login + consent, dashboard / viz / map screenshot capture. Mounted under `d2w browser` when the `[browser]` extra is installed on `dhis2w-cli`. |
 | `dhis2w-codegen` | _workspace-only_ | Generator that emits pydantic models + `StrEnum`s + CRUD accessors into `dhis2w_client.generated.v{N}/`. Two source-of-truth paths: `/api/schemas` for metadata resources, `/api/openapi.json` for instance-side shapes (tracker writes, envelopes, auth schemes). |
 
 All six publishable packages release together (lockstep versioning); see [`docs/releasing.md`](docs/releasing.md).
@@ -43,10 +43,10 @@ All six publishable packages release together (lockstep versioning); see [`docs/
 
 ### Use the CLI
 
-The CLI command is named **`dhis2`** but the PyPI distribution is **`dhis2w-cli`** — that's why every install command spells out the package name explicitly.
+The CLI command is named **`d2w`** but the PyPI distribution is **`dhis2w-cli`** — that's why every install command spells out the package name explicitly.
 
 ```bash
-# Install once, run forever — drops `dhis2` on $PATH
+# Install once, run forever — drops `d2w` on $PATH
 uv tool install dhis2w-cli
 
 # With Playwright UI automation (browser screenshots, OIDC login, PAT minting)
@@ -69,12 +69,12 @@ uv tool uninstall dhis2w-cli
 After `uv tool install dhis2w-cli`, run the CLI directly:
 
 ```bash
-dhis2 --help
-dhis2 --version  # also: -V — shows package version + active plugin tree
-dhis2 system info --url https://play.im.dhis2.org/dev-2-43 --username admin --password district
+d2w --help
+d2w --version  # also: -V — shows package version + active plugin tree
+d2w system info --url https://play.im.dhis2.org/dev-2-43 --username admin --password district
 ```
 
-`dhis2 --version` surfaces which plugin tree (`v41` / `v42` / `v43`) the CLI booted with and where that came from in the resolution chain (`profile.version` → `DHIS2_VERSION` env → default `v42`). Helps debug "which DHIS2 major is this CLI talking to" without reading the profile by hand.
+`d2w --version` surfaces which plugin tree (`v41` / `v42` / `v43`) the CLI booted with and where that came from in the resolution chain (`profile.version` → `DHIS2_VERSION` env → default `v42`). Helps debug "which DHIS2 major is this CLI talking to" without reading the profile by hand.
 
 #### One-shot runs without installing — `uvx`
 
@@ -84,17 +84,17 @@ dhis2 system info --url https://play.im.dhis2.org/dev-2-43 --username admin --pa
 # uvx <command>           # works when the binary name == the package name
 # uvx --from <pkg> <cmd>  # required when they differ — that's our case
 
-uvx --from dhis2w-cli dhis2 --help
-uvx --from dhis2w-cli dhis2 system info --url https://play.im.dhis2.org/dev-2-43 --username admin --password district
+uvx --from dhis2w-cli d2w --help
+uvx --from dhis2w-cli d2w system info --url https://play.im.dhis2.org/dev-2-43 --username admin --password district
 
 # With the browser extra
-uvx --from 'dhis2w-cli[browser]' dhis2 browser pat --url ...
+uvx --from 'dhis2w-cli[browser]' d2w browser pat --url ...
 
 # Force a cache refresh — pulls the latest published version
-uvx --refresh --from dhis2w-cli dhis2 --help
+uvx --refresh --from dhis2w-cli d2w --help
 ```
 
-`uv tool install` keeps the install in its own dedicated venv (separate from any project venv), so the `dhis2` binary on your `$PATH` can't be perturbed by a `uv sync` somewhere else.
+`uv tool install` keeps the install in its own dedicated venv (separate from any project venv), so the `d2w` binary on your `$PATH` can't be perturbed by a `uv sync` somewhere else.
 
 ### Use the client library in your own project
 
@@ -159,7 +159,7 @@ Restart Claude Desktop. PAT auth works the same way — replace the username/pas
 **Claude Code** — register from any shell:
 
 ```bash
-claude mcp add dhis2 -s user \
+claude mcp add d2w -s user \
   -e DHIS2_URL=https://play.im.dhis2.org/dev-2-43 \
   -e DHIS2_PAT=d2p_... \
   -- uvx dhis2w-mcp
@@ -208,13 +208,13 @@ The `dhis2w-cli` and `dhis2w-mcp` packages share a profile system that walks `DH
 
 ```bash
 # One-shot bootstrap: prompts for URL + auth, saves a profile
-dhis2 profile bootstrap mywork
+d2w profile bootstrap mywork
 
 # List what's known
-dhis2 profile list
+d2w profile list
 
 # Switch the default
-dhis2 profile default mywork
+d2w profile default mywork
 ```
 
 ```python
@@ -234,23 +234,23 @@ Eighteen top-level domains; every plugin shares a `service.py` between the CLI a
 
 | Command | What it covers |
 | --- | --- |
-| `dhis2 profile` | Manage DHIS2 profiles (Basic / PAT / OAuth2) + the default precedence chain |
-| `dhis2 system` | `/api/system/info`, `/api/me`, minted UIDs |
-| `dhis2 metadata` | List / get / export / import any metadata resource, with DHIS2's full filter + fields selector |
-| `dhis2 data` | Aggregate data values + tracker reads + pushes |
-| `dhis2 analytics` | Aggregated, event, enrollment, outlier-detection, and tracked-entity analytics + table rebuild |
-| `dhis2 user` | List / get / me / invite / reinvite / reset-password |
-| `dhis2 user-group` / `dhis2 user-role` | Membership + authority administration |
-| `dhis2 route` | Integration routes (`/api/routes`) — register, run, inspect |
-| `dhis2 maintenance` | Background tasks, cache clear, data-integrity, soft-delete cleanup, validation-rule runs, predictor runs, analytics-table refresh |
-| `dhis2 files` | `/api/documents` + `/api/fileResources` — upload / download / list binary attachments |
-| `dhis2 messaging` | `/api/messageConversations` — send, reply, list, mark read/unread |
-| `dhis2 apps` | `/api/apps` + `/api/appHub` — install / uninstall / update installed apps, browse the App Hub catalog, point DHIS2 at a custom App Hub |
-| `dhis2 doctor` | One-command preflight — ~100 metadata-health + integrity checks against a live instance |
-| `dhis2 browser` | Playwright-driven UI automation (PAT minting, dashboard / viz / map screenshot capture, automated OIDC login) — only registers when the `[browser]` extra is installed |
-| `dhis2 dev` | Codegen, UID gen, PAT / OAuth2 seed helpers, branding (`dev customize`), sample data |
+| `d2w profile` | Manage DHIS2 profiles (Basic / PAT / OAuth2) + the default precedence chain |
+| `d2w system` | `/api/system/info`, `/api/me`, minted UIDs |
+| `d2w metadata` | List / get / export / import any metadata resource, with DHIS2's full filter + fields selector |
+| `d2w data` | Aggregate data values + tracker reads + pushes |
+| `d2w analytics` | Aggregated, event, enrollment, outlier-detection, and tracked-entity analytics + table rebuild |
+| `d2w user` | List / get / me / invite / reinvite / reset-password |
+| `d2w user-group` / `d2w user-role` | Membership + authority administration |
+| `d2w route` | Integration routes (`/api/routes`) — register, run, inspect |
+| `d2w maintenance` | Background tasks, cache clear, data-integrity, soft-delete cleanup, validation-rule runs, predictor runs, analytics-table refresh |
+| `d2w files` | `/api/documents` + `/api/fileResources` — upload / download / list binary attachments |
+| `d2w messaging` | `/api/messageConversations` — send, reply, list, mark read/unread |
+| `d2w apps` | `/api/apps` + `/api/appHub` — install / uninstall / update installed apps, browse the App Hub catalog, point DHIS2 at a custom App Hub |
+| `d2w doctor` | One-command preflight — ~100 metadata-health + integrity checks against a live instance |
+| `d2w browser` | Playwright-driven UI automation (PAT minting, dashboard / viz / map screenshot capture, automated OIDC login) — only registers when the `[browser]` extra is installed |
+| `d2w dev` | Codegen, UID gen, PAT / OAuth2 seed helpers, branding (`dev customize`), sample data |
 
-Full per-command reference: `dhis2 --help` (or `uvx --from dhis2w-cli dhis2 --help` — the package is `dhis2w-cli` but the binary is `dhis2`, so `uvx --from` is required).
+Full per-command reference: `d2w --help` (or `uvx --from dhis2w-cli d2w --help` — the package is `dhis2w-cli` but the binary is `d2w`, so `uvx --from` is required).
 
 ## Working on the workspace itself
 

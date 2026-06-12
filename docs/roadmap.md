@@ -19,18 +19,18 @@ A running inventory of what the workspace covers today, gaps surfaced during use
 
 Eighteen top-level domains: `analytics`, `apps`, `browser`, `data`, `dev`, `doctor`, `files`, `maintenance`, `messaging`, `metadata`, `profile`, `route`, `schema`, `security`, `system`, `user`, `user-group`, `user-role`. Each plugin shares a `service.py` between the CLI and MCP sides; the same typed call from both surfaces.
 
-`dhis2 metadata` has the full workflow surface:
+`d2w metadata` has the full workflow surface:
 
 - **Core CRUD**: `list` / `get` / `patch` (RFC 6902) / `rename` (bulk name/shortName/description add + strip prefix/suffix, `--dry-run`) / `retag` (bulk ref-field + enum rewrites: categoryCombo, optionSet, legendSets, aggregationType, domainType) / `share` (bulk apply one sharing block to many UIDs, with `--public-access` / `--user-access UID:access` / `--user-group-access UID:access`, stdin UID input via `-`, `--dry-run`) / `merge-bundle` (import a saved JSON bundle file into a target profile — sibling to the source-profile `merge` verb).
-- **Cross-resource search**: `dhis2 metadata search <query>` — fans out three concurrent `/api/metadata?filter=<field>:ilike:<q>` calls (`id`, `code`, `name`) and merges by UID. Full UID, partial UID, business code, or name fragment all flow through one verb.
+- **Cross-resource search**: `d2w metadata search <query>` — fans out three concurrent `/api/metadata?filter=<field>:ilike:<q>` calls (`id`, `code`, `name`) and merges by UID. Full UID, partial UID, business code, or name fragment all flow through one verb.
 - **Bundle operations**: `export` / `import` / `diff` (file-vs-file and file-vs-live) with per-resource filters + dangling-reference warning on export; `diff-profiles` for staging-vs-prod drift.
 - **Authoring sub-apps**: `options get / find / sync` for OptionSet sync; `attribute get / set / delete / find` for cross-resource AttributeValue workflows; `program-rule get / vars-for / validate-expression / where-de-is-used`; `sql-view list / get / execute / refresh / adhoc`; `viz list / get / create / clone / delete`; `dashboard list / get / add-item / remove-item`; `map list / get / create / clone / delete`; `legend-sets list / get / create / clone / delete`; four full `X / XGroup / XGroupSet` authoring triples with canonical DHIS2 naming — `organisation-units` / `organisation-unit-groups` / `organisation-unit-group-sets` (plus `organisation-unit-levels` for per-depth rename), `data-elements` / `data-element-groups` / `data-element-group-sets`, `indicators` / `indicator-groups` / `indicator-group-sets`, and `category-options` / `category-option-groups` / `category-option-group-sets`; plus the `program-indicators` + `program-indicator-groups` pair (DHIS2 has no `programIndicatorGroupSet`). Aggregate data-set surface: `data-sets list / get / create / add-element / remove-element / delete` + `sections list / get / create / add-element / remove-element / reorder / delete`. Authoring flip side of maintenance runs: `validation-rules {list,show,create,delete}` + `validation-rule-groups` + `predictors {list,show,create,delete}` + `predictor-groups`. Tracker-schema authoring complete end-to-end: `tracked-entity-attributes` + `tracked-entity-types` (with TETA linkage) + `programs {list,show,create,rename,add-attribute,remove-attribute,add-to-ou,remove-from-ou,delete}` + `program-stages {list,show,create,rename,add-element,remove-element,reorder,delete}`. Category-dimension authoring complete end-to-end: `categories {list,show,create,rename,add-option,remove-option,delete}` + `category-combos {list,show,create,rename,add-category,remove-category,wait-for-cocs,delete,build}` (the `build` verb is the one-pass create-or-reuse helper for the full stack, fed a JSON `CategoryComboBuildSpec`) + read-only `category-option-combos {list,show,list-for-combo}`.
 
-`dhis2 doctor` runs ~100 checks on a live instance (20 metadata-health probes + 81 DHIS2 integrity checks + BUGS tripwires).
+`d2w doctor` runs ~100 checks on a live instance (20 metadata-health probes + 81 DHIS2 integrity checks + BUGS tripwires).
 
 ### MCP surface
 
-Roughly 304 tools across 13 plugin groups (`analytics_*`, `apps_*`, `customize_*`, `data_*`, `doctor_*`, `files_*`, `maintenance_*`, `messaging_*`, `metadata_*` (~197), `profile_*`, `route_*`, `system_*`, `user_*`). Counts age with each release; the auto-regenerated [MCP reference](mcp-reference.md) is the source of truth. Most operational CLI commands have a matching MCP tool; `dhis2 dev`, `dhis2 browser`, and profile mutations are intentionally CLI-only (see the [capability matrix](index.md#capability-matrix)).
+Roughly 304 tools across 13 plugin groups (`analytics_*`, `apps_*`, `customize_*`, `data_*`, `doctor_*`, `files_*`, `maintenance_*`, `messaging_*`, `metadata_*` (~197), `profile_*`, `route_*`, `system_*`, `user_*`). Counts age with each release; the auto-regenerated [MCP reference](mcp-reference.md) is the source of truth. Most operational CLI commands have a matching MCP tool; `d2w dev`, `d2w browser`, and profile mutations are intentionally CLI-only (see the [capability matrix](index.md#capability-matrix)).
 
 ### Typed models shipped
 
@@ -44,7 +44,7 @@ Via `/api/openapi.json` codegen (`generated/v{N}/oas/`, currently populated on v
 
 - Every `components/schemas` entry — 562 classes + 260 StrEnums + 104 aliases on v42; 984 classes on v43.
 - Consumers in `dhis2w-client`: `envelopes.py`, `auth_schemes.py`, `aggregate.py`, `system.py`, `maintenance.py`, and `generated/v42/tracker.py` are all thin shims over the OAS output.
-- Emitter is deterministic + version-scoped; `dhis2 dev codegen oas-rebuild --version v{N}` regenerates from the committed `openapi.json` without network.
+- Emitter is deterministic + version-scoped; `d2w dev codegen oas-rebuild --version v{N}` regenerates from the committed `openapi.json` without network.
 - **Spec-patches framework** for known-upstream OAS gaps (`dhis2w_codegen.spec_patches`). Each patch is idempotent + carries a `bugs_ref` pointer; the rebuild log names which gap was worked around. Current patches: `*AuthScheme` discriminators (BUGS.md #14 — still unfixed in v43).
 
 Remaining hand-written in `dhis2w-client` (by design):
@@ -71,7 +71,7 @@ The four-PR typing sweep (#71-#74) plus the codegen discriminator synthesis (#76
 - **Library-level task awaiter** — `client.tasks.await_completion(task_ref)` blocks until DHIS2 reports `completed=True`; `iter_notifications` for streaming renderers.
 - **Connection-pool tuning** — `Dhis2Client(http_limits=httpx.Limits(...))` / `open_client(profile, http_limits=...)` for sizing against the real DHIS2 capacity.
 - **Data-integrity streaming iterator** — `client.maintenance.iter_integrity_issues(...)` yields `IntegrityIssueRow`s (issue + owning check's name / displayName / severity) as a flat stream.
-- **Files plugin** — `dhis2 files documents {list,get,upload,upload-url,download,delete}` + `dhis2 files resources {upload,get,download}`.
+- **Files plugin** — `d2w files documents {list,get,upload,upload-url,download,delete}` + `d2w files resources {upload,get,download}`.
 - **System metadata cache** — TTL-bounded per-client in-memory cache on `client.system` for `info()` / `default_category_combo_uid()` / `setting(key)`. 300 s default TTL.
 - **Bulk delete on `client.metadata`** — `delete_bulk(resource_type, [uids])` + `delete_bulk_multi({...})` wrap `POST /api/metadata?importStrategy=DELETE`.
 - **`client.metadata.search`** — cross-resource UID / code / name search; three concurrent `/api/metadata?filter=<field>:ilike:<q>` calls merged client-side with UID dedup. Typed `SearchResults(query, hits: {resource: [SearchHit, ...]}, total)`.
@@ -80,7 +80,7 @@ The four-PR typing sweep (#71-#74) plus the codegen discriminator synthesis (#76
 - **`client.dashboards`** — `DashboardSlot` + `add_item` / `remove_item` on the dashboards accessor, no round-trip of the whole dashboard.
 - **Streaming data-value-set import** — `client.data_values.stream(source, content_type=...)` feeds httpx's chunked transfer directly from a `Path`, `bytes`, sync / async iterable, or async generator. JSON / XML / CSV / ADX.
 - **Streaming analytics export** — `client.analytics.stream_to(destination, *, params, endpoint="/api/analytics.json")` pipes httpx's chunked response straight to disk via `aiter_bytes`.
-- **Multi-instance metadata diff** — `dhis2 metadata diff-profiles <a> <b> -r <resource>` exports two registered profiles concurrently and diffs them structurally.
+- **Multi-instance metadata diff** — `d2w metadata diff-profiles <a> <b> -r <resource>` exports two registered profiles concurrently and diffs them structurally.
 
 ### Seed fixture
 
@@ -121,17 +121,17 @@ Optional `ProgramStageSection` grouping (rarely used in practice) is still unaut
 
 ### Security plugin: read-surface build-out
 
-`dhis2 security` ships its first command — `settings` (the security slice of
+`d2w security` ships its first command — `settings` (the security slice of
 `/api/systemSettings`: password policy, credential expiry, registration, lockout).
 Deliberately small and read-only, built to grow one command at a time. The
 [security plugin page](architecture/security-plugin.md) carries a step-by-step
 extension recipe (service -> cli -> sweep v41/v43 -> example x3 -> docs -> test, plus
 how to add an MCP surface). Candidate next commands, read-only first:
 
-- `dhis2 security whoami` — authenticated user + roles + authority count (`/api/me`; typed `Me` exists).
-- `dhis2 security authorities` — effective authorities (`/api/me/authorities`).
-- `dhis2 security password-policy --lint` — pass/warn checks over `settings` against a baseline (sibling of the `doctor` probe model).
-- `dhis2 security sharing-defaults` — default public-access / authority-grant settings for new metadata.
+- `d2w security whoami` — authenticated user + roles + authority count (`/api/me`; typed `Me` exists).
+- `d2w security authorities` — effective authorities (`/api/me/authorities`).
+- `d2w security password-policy --lint` — pass/warn checks over `settings` against a baseline (sibling of the `doctor` probe model).
+- `d2w security sharing-defaults` — default public-access / authority-grant settings for new metadata.
 
 Writes (rotating credentials, toggling registration, editing security settings) stay
 out of scope until a concrete caller needs them.
@@ -187,18 +187,18 @@ Two independent directions — the right order depends on where the pain is. Eac
 
 `/api/dataApprovals` + `/api/dataApprovalLevels` + `/api/dataApprovalWorkflows` cover multi-level aggregate approval (district → zone → ministry sign-off). Common in humanitarian + government reporting pipelines. Surface:
 
-- `dhis2 dataapproval status <ds> <pe> <ou>` — which level is this cell at? `APPROVED_HERE / APPROVED_ABOVE / UNAPPROVED_READY / UNAPPROVED_WAITING`.
-- `dhis2 dataapproval approve / unapprove / accept / unaccept` — the four write verbs.
-- `dhis2 dataapproval bulk-status <ds> <pe>` — every org unit for one dataset-period, exit-on-incomplete mode for CI.
+- `d2w dataapproval status <ds> <pe> <ou>` — which level is this cell at? `APPROVED_HERE / APPROVED_ABOVE / UNAPPROVED_READY / UNAPPROVED_WAITING`.
+- `d2w dataapproval approve / unapprove / accept / unaccept` — the four write verbs.
+- `d2w dataapproval bulk-status <ds> <pe>` — every org unit for one dataset-period, exit-on-incomplete mode for CI.
 - Typed `DataApprovalStatus` enum + level-aware state machine.
 
 ### 2. Audit log reader
 
 DHIS2's `/api/audits/*` endpoints track every write by user / timestamp / entity-uid (for DE values, tracker payloads, metadata changes). No wrapper today; integrations that need a "who changed X and when" history have to hand-build URLs.
 
-- `dhis2 audit data-values --de <uid> [--ou <uid>] [--pe <pe>]` — stream every change for a cell.
-- `dhis2 audit metadata --klass DataElement --uid <uid>` — metadata edit history for one resource.
-- `dhis2 audit tracker-entity <uid>` — tracker write audit.
+- `d2w audit data-values --de <uid> [--ou <uid>] [--pe <pe>]` — stream every change for a cell.
+- `d2w audit metadata --klass DataElement --uid <uid>` — metadata edit history for one resource.
+- `d2w audit tracker-entity <uid>` — tracker write audit.
 - `client.audit.iter_data_values(...)` / `iter_metadata(...)` async iterators for library callers.
 
 Niche but valuable for compliance + forensics use cases.
@@ -206,14 +206,14 @@ Niche but valuable for compliance + forensics use cases.
 ## Medium-term
 
 - **Multi-version CI matrix** — shipped (#236). `e2e.yml` runs nightly across `dhis2_version: [41, 42, 43]` matrix.
-- **CLI startup latency** — `dhis2 --help` takes ~2s to render, which is noticeable on every shell invocation. An explicit attempt in a `perf/lazy-oas-init` branch proved where the cost sits + why a clean fix is harder than it looked: `python -X importtime` shows ~900 ms goes into pydantic `model_rebuild` across the 562 OAS-emitted classes, triggered by 16 callers in `dhis2w-client/*.py` doing `from dhis2w_client.generated.v42.oas import X` at module top. A lazy PEP 562 `__getattr__` on `oas/__init__.py` is correct in isolation but every caller that imports a class by the `from oas import X` form still triggers the full load. A templates-only change saves ~80 ms; converting every caller to `from oas.<submodule> import X` saves ~1 s but breaks FastMCP's `list[Model]` tool-return serialisation (`MockValSer` instead of `SchemaSerializer` — pydantic's forward-ref resolver can't find siblings when only one submodule has been loaded, and skipping the eager `model_rebuild()` loop leaves the schemas deferred). Branch was closed rather than merged. A proper fix needs: **(a)** per-class on-demand `model_rebuild()` when the class is first touched for validate/serialize, **(b)** a namespace provider pydantic can consult lazily (maybe via `_types_namespace` + a dict proxy that imports submodules on-demand), or **(c)** accept that OAS load is unavoidable on any real command and focus on lazy plugin discovery + the Typer app-construction cost instead. Target: `dhis2 --help` under 400 ms.
+- **CLI startup latency** — `d2w --help` takes ~2s to render, which is noticeable on every shell invocation. An explicit attempt in a `perf/lazy-oas-init` branch proved where the cost sits + why a clean fix is harder than it looked: `python -X importtime` shows ~900 ms goes into pydantic `model_rebuild` across the 562 OAS-emitted classes, triggered by 16 callers in `dhis2w-client/*.py` doing `from dhis2w_client.generated.v42.oas import X` at module top. A lazy PEP 562 `__getattr__` on `oas/__init__.py` is correct in isolation but every caller that imports a class by the `from oas import X` form still triggers the full load. A templates-only change saves ~80 ms; converting every caller to `from oas.<submodule> import X` saves ~1 s but breaks FastMCP's `list[Model]` tool-return serialisation (`MockValSer` instead of `SchemaSerializer` — pydantic's forward-ref resolver can't find siblings when only one submodule has been loaded, and skipping the eager `model_rebuild()` loop leaves the schemas deferred). Branch was closed rather than merged. A proper fix needs: **(a)** per-class on-demand `model_rebuild()` when the class is first touched for validate/serialize, **(b)** a namespace provider pydantic can consult lazily (maybe via `_types_namespace` + a dict proxy that imports submodules on-demand), or **(c)** accept that OAS load is unavoidable on any real command and focus on lazy plugin discovery + the Typer app-construction cost instead. Target: `d2w --help` under 400 ms.
 - **Property-based testing on filter / order DSL parsing.**
 
 ## Long-term / exploratory
 
 - **Further `dhis2w-browser` workflows**, layered on `authenticated_session`: Maintenance app driving (actions that don't have REST), Org-unit-tree drag-drop edits. Dashboard creation is covered by the REST `DashboardsAccessor.add_item`; layout drag-drop is UI-only but deferred until a concrete need appears.
 - **Scheduled jobs plugin (`/api/jobConfigurations`)** — blocked on BUGS.md #15 (undiscriminated `jobParameters` + `WebMessage.response` unions). Revisit when the OAS discriminator is fixed upstream, or when a concrete scheduling workflow forces us to hand-roll typed payloads for the common job types.
-- **Interactive aggregate-data-entry TUI** — `dhis2 data entry <ds> <pe> <ou>` launches a terminal spreadsheet bound to one data set × period × org unit. Questionary or textual for the UI; posts via `client.data_values.stream` on save. Powerful offline-capable data-entry fallback when the UI is down.
+- **Interactive aggregate-data-entry TUI** — `d2w data entry <ds> <pe> <ou>` launches a terminal spreadsheet bound to one data set × period × org unit. Questionary or textual for the UI; posts via `client.data_values.stream` on save. Powerful offline-capable data-entry fallback when the UI is down.
 
 ## Testing roadmap
 
@@ -297,7 +297,7 @@ Walk every tool registered by FastMCP, assert:
 Stops the MCP surface from quietly degrading (missing docstrings, untyped returns).
 
 **B5. Live-instance smoke tests against play, parallel matrix.**
-Beyond contract tests (A1) — actual `dhis2 system whoami`, `dhis2 metadata list dataElements --limit 5`, etc., run against `play.im.dhis2.org/dev-2-{42,43}` in parallel. Catches "we shipped a release that actually works against real DHIS2."
+Beyond contract tests (A1) — actual `d2w system whoami`, `d2w metadata list dataElements --limit 5`, etc., run against `play.im.dhis2.org/dev-2-{42,43}` in parallel. Catches "we shipped a release that actually works against real DHIS2."
 
 ### Tier C — exotic / specialty
 
@@ -305,7 +305,7 @@ Beyond contract tests (A1) — actual `dhis2 system whoami`, `dhis2 metadata lis
 `make verify-examples` reports PASS / FAIL but doesn't pin output. Add `--snapshot` mode that records stdout into `examples/.snapshots/`. CI fails when output drifts unexpectedly. Catches "still passes" examples that produce subtly different / wrong output.
 
 **C2. Schema drift watcher (weekly cron).**
-Cron job that runs `dhis2 dev codegen diff` against the live play instances. If the committed manifest no longer matches what live reports, post an issue. The "DHIS2 just shipped 2.43.2" early-warning system.
+Cron job that runs `d2w dev codegen diff` against the live play instances. If the committed manifest no longer matches what live reports, post an issue. The "DHIS2 just shipped 2.43.2" early-warning system.
 
 **C3. Performance benchmarks + regression detection.**
 `pytest-benchmark` for:
@@ -347,8 +347,8 @@ Apache-2.0 Java client maintained by the DHIS2 org ([dhis2/dhis2-java-client](ht
 ### Already covered here
 
 - Typed `/api/sharing` — `Sharing`, `SharingBuilder`, `ACCESS_*` constants, `apply_sharing` / `get_sharing` helpers. Full parity with the Java client's sharing builder.
-- User administration — `dhis2 user list / get / me / invite / reinvite / reset-password`. User-group + user-role plugins covering membership + authority-bundle flows.
-- Branding / theming — `dhis2 customize logo-front/banner/style/set/apply/show` + `Dhis2Client.customize` accessor. No equivalent in the Java client.
+- User administration — `d2w user list / get / me / invite / reinvite / reset-password`. User-group + user-role plugins covering membership + authority-bundle flows.
+- Branding / theming — `d2w customize logo-front/banner/style/set/apply/show` + `Dhis2Client.customize` accessor. No equivalent in the Java client.
 - Auth providers (Basic, PAT, OAuth2); ours is async-first with a typed `AuthProvider` Protocol.
 - Generated resource CRUD across v41, v42, v43 (Java is hand-maintained).
 - WebMessageResponse envelope parsing; `.import_count()`, `.conflicts()`, `.rejected_indexes()`, `.task_ref()`, `.created_uid()`.
@@ -382,34 +382,34 @@ Items that don't exist in the Java client and now exist here:
 - **Bulk metadata delete** — `client.metadata.delete_bulk(resource_type, uids)` + `delete_bulk_multi({...})`.
 - **Cross-resource metadata search** — `client.metadata.search(query)` returns typed `SearchResults` grouped by resource; handles UID / partial UID / code / name in one verb.
 - **Typed Visualization + Map + Dashboard builders** — `VisualizationSpec`, `MapSpec` + `MapLayerSpec`, `DashboardSlot`. Chart-type-aware dimension placement, typed data dimensions (DEs + indicators), `RelativePeriod` enum for rolling windows, legend-set support. CLI + MCP surfaces on top.
-- **Per-viz + per-dashboard PNG capture** — `dhis2 browser viz screenshot` + `dhis2 browser dashboard screenshot` + `dhis2 browser map screenshot`, Chromium-driven via Playwright session helpers.
+- **Per-viz + per-dashboard PNG capture** — `d2w browser viz screenshot` + `d2w browser dashboard screenshot` + `d2w browser map screenshot`, Chromium-driven via Playwright session helpers.
 - **Typed bulk-save on every generated resource** — `client.resources.<resource>.save_bulk(items)`. Supports `import_strategy` + `atomic_mode` + `dry_run`.
 - **`client.metadata.dry_run(by_resource)`** — cross-resource `importMode=VALIDATE` entry point.
 - **Streaming analytics export** — `client.analytics.stream_to(destination, *, params, endpoint="/api/analytics.json")`.
-- **Messaging plugin** — `dhis2 messaging {list,get,send,reply,mark-read,mark-unread,delete}` + `messaging_*` MCP tools + `client.messaging` accessor.
-- **Validation + predictors workflow** — `dhis2 maintenance validation {run,result,validate-expression,send-notifications}` + `dhis2 maintenance predictors run`.
+- **Messaging plugin** — `d2w messaging {list,get,send,reply,mark-read,mark-unread,delete}` + `messaging_*` MCP tools + `client.messaging` accessor.
+- **Validation + predictors workflow** — `d2w maintenance validation {run,result,validate-expression,send-notifications}` + `d2w maintenance predictors run`.
 - **Streaming dataValueSets import** — `client.data_values.stream(source, content_type=...)`.
-- **Multi-instance metadata diff** — `dhis2 metadata diff-profiles` exports two profiles concurrently + diffs them.
+- **Multi-instance metadata diff** — `d2w metadata diff-profiles` exports two profiles concurrently + diffs them.
 - **Files plugin** — CLI + MCP + `client.files` accessor over `/api/documents` + `/api/fileResources`.
-- **SQL views runner** — `client.sql_views` + `dhis2 metadata sql-views {list, get, execute, refresh, adhoc}`.
-- **Tracker authoring workflows** — `dhis2 tracker {register, enroll, add-event, outstanding}` verbs + the matching `client.tracker` helpers for operator flows beyond generic CRUD.
-- **Rich conflict renderer** — `dhis2 metadata import` / `dhis2 data aggregate import` render `/api/metadata` and `/api/dataValueSets` error envelopes as a normalised `ConflictRow` table (object UID → offending property → server message).
-- **Apps plugin** — `dhis2 apps {list, add, remove, update, update --all, reload, snapshot, restore, hub-list, hub-url}` + `apps_*` MCP tools + `client.apps` accessor over `/api/apps` and `/api/appHub`. `update --all --dry-run` previews available hub updates before installing; bundled core apps update in place. `hub-list --search` filters the catalog client-side. `hub-url` read/writes the `keyAppHubUrl` system setting so self-hosted hubs can be wired via CLI. `snapshot --output` pins an instance's app inventory to a portable JSON manifest; `restore <manifest>` reinstalls every hub-backed entry via `install_from_hub`, with a `--dry-run` preview that mirrors `update --all --dry-run`.
-- **Metadata cross-instance merge** — `dhis2 metadata merge <source-profile> <target-profile> --resource ... [--dry-run]` orchestrates export+import in one pass, returning typed per-resource export counts plus the target import's `WebMessageResponse`. Pairs with `diff-profiles` (same resource+filter shape): diff to preview, merge to apply. Sharing blocks are stripped by default to avoid false-positive conflicts from per-instance user/group UIDs. Conflicts on the dry-run and applied paths render through the shared `ConflictRow` Rich table used by `metadata import` (#177), so preview output is immediately actionable without reaching for `--json | jq`.
-- **Canonical `X / XGroup / XGroupSet` authoring triples** — sub-apps under `dhis2 metadata`, one client accessor per resource, following a single canonical-naming rule (lowercase + hyphenate the DHIS2 resource path). Shipped for `organisation-units` (#174), `data-elements` (#175), `indicators` (#176), and `category-options` (#181), plus the `program-indicators` pair (#180 — DHIS2 has no `programIndicatorGroupSet`). Each PR adds 15–19 MCP tools, full CLI verbs (`list` / `get` / `create` / rename-like / per-item membership), and hand-written accessors that return typed generated models. No `*Spec` builders — keyword args on the accessor (continues the spec-audit data point). The indicator accessor exposes `validate_expression(context="indicator")`, the program-indicator accessor `validate_expression(context="program-indicator")`, so callers can pre-flight numerator / denominator / expression references before a failed create. `category-options` additionally ships `set_validity_window(uid, start_date, end_date)` for the validity-window knob unique to that resource.
-- **Aggregate data-set authoring** — `dhis2 metadata data-sets` + `sections` sub-apps (#185). `DataSetElement` + `Section.dataElements[]` are handled as join tables with round-trip helpers: `add_element(ds_uid, de_uid, category_combo_uid=...)` carries the per-set CC override; `sections.reorder(section_uid, [de_uids])` replaces the ordered DE list in one PUT. Docstring calls out the DSE self-ref strip for DHIS2's read/write asymmetry.
-- **Validation-rule + predictor CRUD** — `dhis2 metadata validation-rules` + `predictors` + their groups (#186). Closes the author-then-run gap — `dhis2 maintenance validation run` / `predictors run` shipped long ago, but rules + predictors themselves couldn't be authored from CLI. Surface assembles `leftSide` / `rightSide` / `generator` Expression sub-objects from plain kwargs.
+- **SQL views runner** — `client.sql_views` + `d2w metadata sql-views {list, get, execute, refresh, adhoc}`.
+- **Tracker authoring workflows** — `d2w tracker {register, enroll, add-event, outstanding}` verbs + the matching `client.tracker` helpers for operator flows beyond generic CRUD.
+- **Rich conflict renderer** — `d2w metadata import` / `d2w data aggregate import` render `/api/metadata` and `/api/dataValueSets` error envelopes as a normalised `ConflictRow` table (object UID → offending property → server message).
+- **Apps plugin** — `d2w apps {list, add, remove, update, update --all, reload, snapshot, restore, hub-list, hub-url}` + `apps_*` MCP tools + `client.apps` accessor over `/api/apps` and `/api/appHub`. `update --all --dry-run` previews available hub updates before installing; bundled core apps update in place. `hub-list --search` filters the catalog client-side. `hub-url` read/writes the `keyAppHubUrl` system setting so self-hosted hubs can be wired via CLI. `snapshot --output` pins an instance's app inventory to a portable JSON manifest; `restore <manifest>` reinstalls every hub-backed entry via `install_from_hub`, with a `--dry-run` preview that mirrors `update --all --dry-run`.
+- **Metadata cross-instance merge** — `d2w metadata merge <source-profile> <target-profile> --resource ... [--dry-run]` orchestrates export+import in one pass, returning typed per-resource export counts plus the target import's `WebMessageResponse`. Pairs with `diff-profiles` (same resource+filter shape): diff to preview, merge to apply. Sharing blocks are stripped by default to avoid false-positive conflicts from per-instance user/group UIDs. Conflicts on the dry-run and applied paths render through the shared `ConflictRow` Rich table used by `metadata import` (#177), so preview output is immediately actionable without reaching for `--json | jq`.
+- **Canonical `X / XGroup / XGroupSet` authoring triples** — sub-apps under `d2w metadata`, one client accessor per resource, following a single canonical-naming rule (lowercase + hyphenate the DHIS2 resource path). Shipped for `organisation-units` (#174), `data-elements` (#175), `indicators` (#176), and `category-options` (#181), plus the `program-indicators` pair (#180 — DHIS2 has no `programIndicatorGroupSet`). Each PR adds 15–19 MCP tools, full CLI verbs (`list` / `get` / `create` / rename-like / per-item membership), and hand-written accessors that return typed generated models. No `*Spec` builders — keyword args on the accessor (continues the spec-audit data point). The indicator accessor exposes `validate_expression(context="indicator")`, the program-indicator accessor `validate_expression(context="program-indicator")`, so callers can pre-flight numerator / denominator / expression references before a failed create. `category-options` additionally ships `set_validity_window(uid, start_date, end_date)` for the validity-window knob unique to that resource.
+- **Aggregate data-set authoring** — `d2w metadata data-sets` + `sections` sub-apps (#185). `DataSetElement` + `Section.dataElements[]` are handled as join tables with round-trip helpers: `add_element(ds_uid, de_uid, category_combo_uid=...)` carries the per-set CC override; `sections.reorder(section_uid, [de_uids])` replaces the ordered DE list in one PUT. Docstring calls out the DSE self-ref strip for DHIS2's read/write asymmetry.
+- **Validation-rule + predictor CRUD** — `d2w metadata validation-rules` + `predictors` + their groups (#186). Closes the author-then-run gap — `d2w maintenance validation run` / `predictors run` shipped long ago, but rules + predictors themselves couldn't be authored from CLI. Surface assembles `leftSide` / `rightSide` / `generator` Expression sub-objects from plain kwargs.
 - **Bulk RFC 6902 patch** — `client.metadata.patch_bulk(resource, [(uid, ops), ...], concurrency=8)` + `patch_bulk_multi(...)` (#187). Client-side fan-out under a semaphore; per-UID failures land in `BulkPatchResult.failures` (with `uid` / `resource` / `status_code` / `message`) instead of raising. Building block for future CLI-level bulk verbs.
-- **Bulk sharing** — `client.metadata.apply_sharing_bulk(resource_type, uids, sharing)` + `apply_sharing_bulk_multi(by_resource, sharing)` fan out one `SharingBuilder` payload across many UIDs under a concurrency semaphore. CLI surface as `dhis2 metadata share <type> [UID...]` with `--public-access` / `--user-access UID:access` / `--user-group-access UID:access` (repeatable) + stdin UID input via `-` so `metadata list ... \| jq -r .id \| xargs metadata share` composes. Per-UID failures land in `BulkSharingResult.failures` with the same row-level table renderer used by `rename` / `retag`.
-- **Category dimension authoring (complete end-to-end)** — `dhis2 metadata categories` (#205) + `category-combos` + read-only `category-option-combos` (#208) + the one-pass `CategoryComboBuilder` helper (#209). Categories accept ordered `--option UID` flags on create + per-item `add-option` / `remove-option` shortcuts. CategoryCombos accept ordered `--category UID` flags + a `wait-for-cocs --expected N` matrix-poll barrier handling DHIS2's async COC regeneration (cold-start can take tens of seconds, especially under arm64 emulation). The `category-combos build --spec FILE` verb walks a declarative `CategoryComboBuildSpec` (JSON or stdin) and ensures every CategoryOption -> Category -> CategoryCombo exists; idempotent, returning a typed `CategoryComboBuildResult` with per-layer created-vs-reused breakdown.
-- **Bundle-source metadata merge** — `dhis2 metadata merge-bundle <target> <bundle.json>` (#206) imports a saved JSON bundle into a target profile. Sibling to the source-profile `merge` verb; same `--strategy` / `--atomic` / `--include-sharing` / `--dry-run` knobs. Useful when the bundle came from a saved `metadata export`, was hand-crafted, or was produced by a non-DHIS2 tool. `MergeResult.source_base_url` is `bundle:<path>` for traceability.
-- **Tracker-schema authoring (complete end-to-end)** — `dhis2 metadata tracked-entity-attributes` + `tracked-entity-types` (#188) covers the leaf resources; `tracked-entity-types add-attribute --mandatory --searchable` round-trips the TETA join table. `dhis2 metadata programs {list, get, create, rename, add-attribute, remove-attribute, add-to-ou, remove-from-ou, delete}` (#189) covers the middle layer — WITH_REGISTRATION / WITHOUT_REGISTRATION program flavours, PTEA enrollment form linkage, per-item OU shortcuts. `dhis2 metadata program-stages {list, get, create, rename, add-element, remove-element, reorder, delete}` (#194) covers the inner layer — each stage's ordered `programStageDataElements[]` join table with `compulsory` / `displayInReports` / `allowFutureDate` / `allowProvidedElsewhere` flags. Documents the DHIS2 `mergeMode=REPLACE` requirement on Program + ProgramStage PUT (nested-list removal is additive without it) as a typed client-side workaround.
+- **Bulk sharing** — `client.metadata.apply_sharing_bulk(resource_type, uids, sharing)` + `apply_sharing_bulk_multi(by_resource, sharing)` fan out one `SharingBuilder` payload across many UIDs under a concurrency semaphore. CLI surface as `d2w metadata share <type> [UID...]` with `--public-access` / `--user-access UID:access` / `--user-group-access UID:access` (repeatable) + stdin UID input via `-` so `metadata list ... \| jq -r .id \| xargs metadata share` composes. Per-UID failures land in `BulkSharingResult.failures` with the same row-level table renderer used by `rename` / `retag`.
+- **Category dimension authoring (complete end-to-end)** — `d2w metadata categories` (#205) + `category-combos` + read-only `category-option-combos` (#208) + the one-pass `CategoryComboBuilder` helper (#209). Categories accept ordered `--option UID` flags on create + per-item `add-option` / `remove-option` shortcuts. CategoryCombos accept ordered `--category UID` flags + a `wait-for-cocs --expected N` matrix-poll barrier handling DHIS2's async COC regeneration (cold-start can take tens of seconds, especially under arm64 emulation). The `category-combos build --spec FILE` verb walks a declarative `CategoryComboBuildSpec` (JSON or stdin) and ensures every CategoryOption -> Category -> CategoryCombo exists; idempotent, returning a typed `CategoryComboBuildResult` with per-layer created-vs-reused breakdown.
+- **Bundle-source metadata merge** — `d2w metadata merge-bundle <target> <bundle.json>` (#206) imports a saved JSON bundle into a target profile. Sibling to the source-profile `merge` verb; same `--strategy` / `--atomic` / `--include-sharing` / `--dry-run` knobs. Useful when the bundle came from a saved `metadata export`, was hand-crafted, or was produced by a non-DHIS2 tool. `MergeResult.source_base_url` is `bundle:<path>` for traceability.
+- **Tracker-schema authoring (complete end-to-end)** — `d2w metadata tracked-entity-attributes` + `tracked-entity-types` (#188) covers the leaf resources; `tracked-entity-types add-attribute --mandatory --searchable` round-trips the TETA join table. `d2w metadata programs {list, get, create, rename, add-attribute, remove-attribute, add-to-ou, remove-from-ou, delete}` (#189) covers the middle layer — WITH_REGISTRATION / WITHOUT_REGISTRATION program flavours, PTEA enrollment form linkage, per-item OU shortcuts. `d2w metadata program-stages {list, get, create, rename, add-element, remove-element, reorder, delete}` (#194) covers the inner layer — each stage's ordered `programStageDataElements[]` join table with `compulsory` / `displayInReports` / `allowFutureDate` / `allowProvidedElsewhere` flags. Documents the DHIS2 `mergeMode=REPLACE` requirement on Program + ProgramStage PUT (nested-list removal is additive without it) as a typed client-side workaround.
 - **Codegen + base-client gap closure** (#190–#192, #197). Generated `create(item, *, merge_mode, import_strategy, skip_sharing, skip_translation)` + `update(item, ...)` forward the write-flag query params. Every generated resource exposes `add_collection_item(parent_uid, collection, item_uid)` / `remove_collection_item(...)` for per-item POST/DELETE shortcuts. Base `Dhis2Client` ships typed `post(path, body, model=T)` + `put(path, body, model=T)` wrappers (parallels the existing typed `get`). Hand-written accessor sweep across 28+24+10 files replaced `_put_with_replace` / per-item loops / duplicated `_uid_from_webmessage` helpers / single-object `get_raw + model_validate` / paged `list_all` via `resources.X.list(...)` with the new surface. ~700 lines of duplication removed with no behavior change.
-- **`dhis2 metadata rename` + `metadata retag` verbs** — bulk CLI verbs on top of `client.metadata.patch_bulk` (#195, #199, #200). `rename` handles label-field add / strip prefix + suffix (idempotent both directions — won't double-apply, won't no-op-fail). `retag` handles ref-field rewrites (`categoryCombo`, `optionSet`, `legendSets`) + enum field rewrites (`aggregationType`, `domainType`). Both take `--filter` (repeatable, same DSL as `metadata list`) + `--dry-run` + `--concurrency`. Per-UID failures land in the shared `ConflictRow` renderer used by `metadata import`, so operators see row-level detail on partial failures.
+- **`d2w metadata rename` + `metadata retag` verbs** — bulk CLI verbs on top of `client.metadata.patch_bulk` (#195, #199, #200). `rename` handles label-field add / strip prefix + suffix (idempotent both directions — won't double-apply, won't no-op-fail). `retag` handles ref-field rewrites (`categoryCombo`, `optionSet`, `legendSets`) + enum field rewrites (`aggregationType`, `domainType`). Both take `--filter` (repeatable, same DSL as `metadata list`) + `--dry-run` + `--concurrency`. Per-UID failures land in the shared `ConflictRow` renderer used by `metadata import`, so operators see row-level detail on partial failures.
 - **CI coverage gate + failure threshold** (#196, #202). `make coverage` replaces `make test` in the CI test step; every run uploads `coverage.xml` as an artifact retained 14 days, and fails the build if coverage drops under 70%. Current baseline 73% (85k statements / 7.5k branches).
-- **Playwright-driven OIDC login** — `dhis2 profile login --no-browser` prints the auth URL for copy-paste; `dhis2w_browser.drive_oauth2_login(profile, user, pw)` drives the full flow via Chromium (React login → Spring AS consent → loopback redirect) for CI + headless use cases. `examples/v42/cli/profile_oidc_login.sh` + `examples/v42/client/oidc_login.py` auto-dispatch to the Playwright path when `DHIS2_USERNAME` / `DHIS2_PASSWORD` are in env.
-- **Predictor + validation seed fixtures** — the Sierra Leone play42 snapshot now ships 2 BCG predictors (`avg` + `sum` over 3-month windows) + a PredictorGroup + 2 output DEs, plus 2 BCG validation rules + a ValidationRuleGroup that reliably produce violations. `dhis2 maintenance predictors run --group` and `dhis2 maintenance validation run --group` have concrete targets out of the box.
-- **Interactive CLI pickers** — `dhis2 profile default` launches an arrow-key menu via `questionary`.
+- **Playwright-driven OIDC login** — `d2w profile login --no-browser` prints the auth URL for copy-paste; `dhis2w_browser.drive_oauth2_login(profile, user, pw)` drives the full flow via Chromium (React login → Spring AS consent → loopback redirect) for CI + headless use cases. `examples/v42/cli/profile_oidc_login.sh` + `examples/v42/client/oidc_login.py` auto-dispatch to the Playwright path when `DHIS2_USERNAME` / `DHIS2_PASSWORD` are in env.
+- **Predictor + validation seed fixtures** — the Sierra Leone play42 snapshot now ships 2 BCG predictors (`avg` + `sum` over 3-month windows) + a PredictorGroup + 2 output DEs, plus 2 BCG validation rules + a ValidationRuleGroup that reliably produce violations. `d2w maintenance predictors run --group` and `d2w maintenance validation run --group` have concrete targets out of the box.
+- **Interactive CLI pickers** — `d2w profile default` launches an arrow-key menu via `questionary`.
 
 ### Beyond Java parity (not yet)
 
@@ -423,7 +423,7 @@ Items that don't exist in the Java client and now exist here:
 - A second filter DSL layered on top of DHIS2's `property:operator:value` string syntax. See the dhis2-java-client comparison above for the rationale.
 - Synchronous client variant. `async` throughout is a hard requirement.
 - `dict[str, Any]` crossing module boundaries. CLAUDE.md hard rule; enforced workspace-wide as of the typing sweep (#71-#74, #76). New code that proposes dict-in-signature needs explicit justification referencing a specific HTTP-boundary carveout.
-- `dhis2 program-rule trace` / rule simulator — explicitly declined.
+- `d2w program-rule trace` / rule simulator — explicitly declined.
 
 ## How this file gets updated
 

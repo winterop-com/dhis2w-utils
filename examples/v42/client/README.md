@@ -11,7 +11,7 @@ make dhis2-run                                       # DHIS2 v42 + seeded auth
 set -a; source infra/home/credentials/.env.auth; set +a
 
 # Create a profile once — examples resolve it automatically via DHIS2_PROFILE / TOML discovery.
-dhis2 profile add local --url http://localhost:8080 --auth pat --default --verify
+d2w profile add local --url http://localhost:8080 --auth pat --default --verify
 ```
 
 ## Running one

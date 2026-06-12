@@ -45,7 +45,7 @@ def test_plugin_descriptor() -> None:
 
 
 def test_cli_help_lists_every_verb() -> None:
-    """`dhis2 messaging --help` shows the full verb surface."""
+    """`d2w messaging --help` shows the full verb surface."""
     result = CliRunner().invoke(messaging_app, ["--help"])
     assert result.exit_code == 0, result.output
     for verb in ("list", "get", "send", "reply", "mark-read", "mark-unread", "delete"):
@@ -53,7 +53,7 @@ def test_cli_help_lists_every_verb() -> None:
 
 
 def test_cli_mounted_on_root() -> None:
-    """`dhis2 messaging` resolves through the root app."""
+    """`d2w messaging` resolves through the root app."""
     result = CliRunner().invoke(build_app(), ["messaging", "--help"])
     assert result.exit_code == 0, result.output
 

@@ -57,10 +57,10 @@ The same envelope shape comes back from every tool, so an agent learns it once.
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | 401 with "User account is locked" | Account disabled in DHIS2 | Have an admin unlock; or use a different profile |
-| 401 with "Bad credentials" | PAT expired / password rotated | Re-run `dhis2 profile add NAME --auth pat` to update |
-| 403 on every tool | Profile has zero DHIS2 authorities | Profile is using the wrong user — `dhis2 profile verify` to confirm |
-| `NoProfileError: no DHIS2 profile is configured` | Server started before any profile was saved | Run `dhis2 profile add NAME --url ... --auth pat --default` once; restart the MCP host |
-| `UnknownProfileError` from a `profile=...` call | Profile name doesn't exist in TOML | `dhis2 profile list` to see real names |
+| 401 with "Bad credentials" | PAT expired / password rotated | Re-run `d2w profile add NAME --auth pat` to update |
+| 403 on every tool | Profile has zero DHIS2 authorities | Profile is using the wrong user — `d2w profile verify` to confirm |
+| `NoProfileError: no DHIS2 profile is configured` | Server started before any profile was saved | Run `d2w profile add NAME --url ... --auth pat --default` once; restart the MCP host |
+| `UnknownProfileError` from a `profile=...` call | Profile name doesn't exist in TOML | `d2w profile list` to see real names |
 
 ## 4. A real read-only workflow
 
@@ -86,7 +86,7 @@ The agent's default profile comes from `DHIS2_PROFILE` (set on the server's `env
 
 > Same lookup, but on staging: pass `profile="staging"` to both tools.
 
-Every MCP tool accepts an optional `profile: str | None` kwarg. One running MCP server can target multiple DHIS2 stacks (local + staging + a play instance) without restart. `dhis2 profile list` shows what's available.
+Every MCP tool accepts an optional `profile: str | None` kwarg. One running MCP server can target multiple DHIS2 stacks (local + staging + a play instance) without restart. `d2w profile list` shows what's available.
 
 ## 6. A controlled mutation + rollback
 

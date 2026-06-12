@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `dhis2 metadata legend-sets ...` — LegendSet authoring + application.
+# `d2w metadata legend-sets ...` — LegendSet authoring + application.
 #
 # A DHIS2 LegendSet is an ordered list of `Legend` entries, each a
 # colour (`#RRGGBB`) + display name assigned to a numeric range
@@ -15,8 +15,8 @@ set -euo pipefail
 # List + show
 # ---------------------------------------------------------------------------
 
-dhis2 metadata list legendSets | head -20
-dhis2 metadata legend-sets get LsDoseBand1
+d2w metadata list legendSets | head -20
+d2w metadata legend-sets get LsDoseBand1
 
 # ---------------------------------------------------------------------------
 # Create a fresh legend set + read it back
@@ -26,7 +26,7 @@ dhis2 metadata legend-sets get LsDoseBand1
 # `#RRGGBB` hex string; `name` is optional (auto-generated from the
 # numeric range when omitted).
 
-dhis2 metadata legend-sets create \
+d2w metadata legend-sets create \
     --name "Ad-hoc coverage" \
     --code "AD_HOC_COVERAGE_DEMO" \
     --legend '0:50:#d73027:Low coverage' \
@@ -35,7 +35,7 @@ dhis2 metadata legend-sets create \
 
 # Pick the UID out of the create output for the subsequent show/delete.
 NEW_UID=$(awk '/created legendSet/ { print $3 }' /tmp/legend-set-create.txt)
-dhis2 metadata legend-sets get "$NEW_UID"
+d2w metadata legend-sets get "$NEW_UID"
 
 # ---------------------------------------------------------------------------
 # Clone + delete
@@ -44,8 +44,8 @@ dhis2 metadata legend-sets get "$NEW_UID"
 # child. Useful for forking a base set into a monochrome /
 # alternate-palette variant without rebuilding the legends by hand.
 
-dhis2 metadata legend-sets clone "$NEW_UID" --new-name "Ad-hoc coverage (clone)" | tee /tmp/legend-set-clone.txt
+d2w metadata legend-sets clone "$NEW_UID" --new-name "Ad-hoc coverage (clone)" | tee /tmp/legend-set-clone.txt
 CLONE_UID=$(awk '/cloned/ { print $4 }' /tmp/legend-set-clone.txt)
 
-dhis2 metadata legend-sets delete "$CLONE_UID" --yes
-dhis2 metadata legend-sets delete "$NEW_UID" --yes
+d2w metadata legend-sets delete "$CLONE_UID" --yes
+d2w metadata legend-sets delete "$NEW_UID" --yes

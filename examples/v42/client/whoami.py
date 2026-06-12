@@ -8,7 +8,7 @@ helper the CLI + MCP use internally. It walks the profile precedence chain
 and builds the right `AuthProvider` based on `auth=` in the profile.
 
 Usage:
-    dhis2 profile add local --url http://localhost:8080 --auth basic \
+    d2w profile add local --url http://localhost:8080 --auth basic \
         --username admin --password district --default
     uv run python examples/v42/client/whoami.py
 

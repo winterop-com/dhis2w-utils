@@ -1,4 +1,4 @@
-"""Verify `dhis2 metadata list` flags reach `accessor.list()` with the right kwargs."""
+"""Verify `d2w metadata list` flags reach `accessor.list()` with the right kwargs."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def _invoke(
     accessor: _FakeAccessor,
     args: list[str],
 ) -> Any:
-    """Invoke `dhis2 metadata list ...` with the fake accessor injected.
+    """Invoke `d2w metadata list ...` with the fake accessor injected.
 
     Pulls any global flags (`--json`, `--debug`) out of `args` and prepends
     them — Typer requires root-callback options before the subcommand chain.

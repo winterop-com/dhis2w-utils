@@ -54,7 +54,7 @@ except UnsupportedVersionError as exc:
     # `exc.version` is the unsupported version key (e.g. 'v44');
     # `exc.available` is the list of trees the client does have.
     print(f"no generated module for {exc.version}; available: {exc.available}")
-    print("run `dhis2 codegen generate --url ...` to add one")
+    print("run `d2w codegen generate --url ...` to add one")
 ```
 
 Pass `allow_version_fallback=True` on the client constructor (or via `open_client(..., allow_version_fallback=True)`) to use the nearest-lower populated version instead of raising.

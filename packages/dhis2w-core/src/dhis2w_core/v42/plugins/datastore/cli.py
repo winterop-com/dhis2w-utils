@@ -1,4 +1,4 @@
-"""Typer sub-app for the `datastore` plugin (mounted under `dhis2 datastore`)."""
+"""Typer sub-app for the `datastore` plugin (mounted under `d2w datastore`)."""
 
 from __future__ import annotations
 
@@ -106,5 +106,5 @@ def delete_namespace_command(
 
 
 def register(root_app: Any) -> None:
-    """Mount this plugin's Typer sub-app under `dhis2 datastore`."""
+    """Mount this plugin's Typer sub-app under `d2w datastore`."""
     root_app.add_typer(app, name="datastore", help="DHIS2 key-value data store.")

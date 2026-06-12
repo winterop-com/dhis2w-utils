@@ -1,4 +1,4 @@
-"""Unit tests for `dhis2 profile rename` service behavior."""
+"""Unit tests for `d2w profile rename` service behavior."""
 
 from __future__ import annotations
 

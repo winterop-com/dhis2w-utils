@@ -1,6 +1,6 @@
 # Validation rules + predictors
 
-The CRUD flip side of `dhis2 maintenance validation run` + `dhis2 maintenance predictors run`. Both domains now expose authoring surfaces alongside the run endpoints:
+The CRUD flip side of `d2w maintenance validation run` + `d2w maintenance predictors run`. Both domains now expose authoring surfaces alongside the run endpoints:
 
 | Accessor | API path | Purpose |
 | --- | --- | --- |
@@ -55,20 +55,20 @@ Same call as every other authoring accessor: keyword args. Continues the spec-au
 
 ```bash
 # ValidationRule + group
-dhis2 metadata validation-rules create \
+d2w metadata validation-rules create \
     --name "BCG gt zero" --short-name BCGgt0 \
     --left "#{deBCG000001}" --operator greater_than --right "0" \
     --importance HIGH --ou-level 4
-dhis2 metadata validation-rule-groups create --name "BCG rules"
-dhis2 metadata validation-rule-groups add-members <GRP_UID> --rule <RULE_UID>
+d2w metadata validation-rule-groups create --name "BCG rules"
+d2w metadata validation-rule-groups add-members <GRP_UID> --rule <RULE_UID>
 
 # Predictor + group
-dhis2 metadata predictors create \
+d2w metadata predictors create \
     --name "BCG 3m avg" --short-name BCG3m \
     --expression "#{deBCG000001}" --output deOutput0001 \
     --sequential 3 --ou-level ouLvlFac001
-dhis2 metadata predictor-groups create --name "BCG predictors"
-dhis2 metadata predictor-groups add-members <PDG_UID> --predictor <PRD_UID>
+d2w metadata predictor-groups create --name "BCG predictors"
+d2w metadata predictor-groups add-members <PDG_UID> --predictor <PRD_UID>
 ```
 
 Every `list` has an `ls` alias; every destructive verb accepts `--yes` / `-y`.
@@ -81,8 +81,8 @@ Every `list` has an `ls` alias; every destructive verb accepts `--yes` / `-y`.
 
 Creating the rule or predictor is decoupled from running it:
 
-- `dhis2 maintenance validation run --group <GRP_UID> --ds <DATASET_UID> --start-date … --end-date …`
-- `dhis2 maintenance predictors run --group <PDG_UID> --start-date … --end-date …`
+- `d2w maintenance validation run --group <GRP_UID> --ds <DATASET_UID> --start-date … --end-date …`
+- `d2w maintenance predictors run --group <PDG_UID> --start-date … --end-date …`
 
 See the [maintenance plugin](../architecture/maintenance-plugin.md) for the run-side reference.
 

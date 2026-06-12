@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# `dhis2 metadata category-combos build` — one-pass create-or-reuse for the
+# `d2w metadata category-combos build` — one-pass create-or-reuse for the
 # full Category dimension stack. Idempotent; re-running the same spec is
 # a no-op modulo new options getting wired into existing categories.
-# Run via `uv run bash examples/v41/cli/category_combo_build.sh` so `dhis2` resolves.
+# Run via `uv run bash examples/v41/cli/category_combo_build.sh` so `d2w` resolves.
 set -euo pipefail
 
 TMP=$(mktemp -d)
@@ -39,13 +39,13 @@ cat >"$SPEC" <<'EOF'
 EOF
 
 # Build (or reuse) the stack, polling for the COC matrix.
-dhis2 metadata category-combos build --spec "$SPEC"
+d2w metadata category-combos build --spec "$SPEC"
 
 # Re-running the same spec should be idempotent — every entry reused, no creates.
-dhis2 metadata category-combos build --spec "$SPEC"
+d2w metadata category-combos build --spec "$SPEC"
 
 # JSON output carries every UID + a created-vs-reused breakdown for downstream tooling.
-dhis2 --json metadata category-combos build --spec "$SPEC" | jq '.combo_uid, .coc_count'
+d2w --json metadata category-combos build --spec "$SPEC" | jq '.combo_uid, .coc_count'
 
 # Stdin form — handy when generating the spec from another tool:
-# python tools/generate_dimension_spec.py | dhis2 metadata category-combos build --spec -
+# python tools/generate_dimension_spec.py | d2w metadata category-combos build --spec -

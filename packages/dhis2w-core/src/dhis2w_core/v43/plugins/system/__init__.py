@@ -19,7 +19,7 @@ class _SystemPlugin(BaseModel):
     description: str = "DHIS2 system info and current-user access."
 
     def register_cli(self, app: Any) -> None:
-        """Mount the system sub-app under `dhis2 system`."""
+        """Mount the system sub-app under `d2w system`."""
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

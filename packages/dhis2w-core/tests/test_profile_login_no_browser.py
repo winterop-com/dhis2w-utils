@@ -1,4 +1,4 @@
-"""Tests for `dhis2 profile login --no-browser` + DHIS2_OAUTH_NO_BROWSER env var."""
+"""Tests for `d2w profile login --no-browser` + DHIS2_OAUTH_NO_BROWSER env var."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ def test_login_no_browser_flag_flips_open_browser(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`dhis2 profile login --no-browser` calls build_auth with open_browser=False."""
+    """`d2w profile login --no-browser` calls build_auth with open_browser=False."""
     _write_oauth2_profile(tmp_path)
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(profile_cli, "build_auth", _stub_build_auth_capture(calls))

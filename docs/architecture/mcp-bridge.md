@@ -1,6 +1,6 @@
 # MCP bridge — design rationale (one tool, not many)
 
-`dhis2w-mcp-bridge` exposes the **entire `dhis2` CLI as a single MCP tool**, `dhis2_cli(args)`. This
+`dhis2w-mcp-bridge` exposes the **entire `d2w` CLI as a single MCP tool**, `dhis2_cli(args)`. This
 is a deliberate inversion of the usual MCP shape, and the reasoning is worth writing down because
 the pattern is unusual. For the *usage* (install, LM Studio wiring, read-only mode) see
 [the bridge guide](../mcp/bridge.md); this page is the *why*.
@@ -50,7 +50,7 @@ roughly one tool definition plus whatever help the model chooses to read.
 
 This works because we already invested in a genuinely good CLI — Typer sub-apps, one-line help on
 every command and option, did-you-mean suggestions on typos, a `metadata type list` catalogue, and
-a `dhis2 schema <type>` command that prints a type's fields. **The CLI is the API**; the bridge just
+a `d2w schema <type>` command that prints a type's fields. **The CLI is the API**; the bridge just
 re-uses that surface as the model's affordance.
 
 ## Why this is a deliberate inversion (the "kinda new" part)
@@ -75,7 +75,7 @@ surface, not the bridge plumbing:
 - bridge docstring rewritten for 3-4B models (output contract, top reads first, filter grammar),
 - `metadata type list` emits the exact camelCase resource names,
 - unknown-resource and unknown-`--fields` errors say *did you mean ...*,
-- `dhis2 schema <type>` lets a model learn a type's fields (and enum values) instead of guessing,
+- `d2w schema <type>` lets a model learn a type's fields (and enum values) instead of guessing,
 - mutating verbs are reachable only with `READONLY` unset.
 
 ## Local vs cloud — which server
@@ -91,7 +91,7 @@ this page is the *why* behind the bridge half.
 
 ## Safety and locality
 
-- **Nothing leaves the machine.** The bridge spawns the local `dhis2` subprocess and returns its
+- **Nothing leaves the machine.** The bridge spawns the local `d2w` subprocess and returns its
   output; no data is sent anywhere.
 - **Read-only mode is fail-closed.** The allowlist of read command paths is introspected from the
   Typer tree and verified by a drift test, so it can't silently drift; ambiguous verbs default to

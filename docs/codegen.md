@@ -4,8 +4,8 @@
 
 Two source-of-truth paths, both emitting into the same per-version directory:
 
-- **`/api/schemas`** → `generated/v{N}/schemas/` + `generated/v{N}/resources.py` + `generated/v{N}/enums.py`. Covers the 100+ metadata resources and their CONSTANT-property enums. Driven by `dhis2 dev codegen generate` / `rebuild`.
-- **`/api/openapi.json`** → `generated/v{N}/oas/`. Covers the instance-side shapes `/api/schemas` can't describe: `WebMessage` envelopes, tracker read/write models, `DataValue` / `DataValueSet`, auth-scheme leaves, data-integrity checks, `SystemInfo`. Driven by `dhis2 dev codegen oas-rebuild`.
+- **`/api/schemas`** → `generated/v{N}/schemas/` + `generated/v{N}/resources.py` + `generated/v{N}/enums.py`. Covers the 100+ metadata resources and their CONSTANT-property enums. Driven by `d2w dev codegen generate` / `rebuild`.
+- **`/api/openapi.json`** → `generated/v{N}/oas/`. Covers the instance-side shapes `/api/schemas` can't describe: `WebMessage` envelopes, tracker read/write models, `DataValue` / `DataValueSet`, auth-scheme leaves, data-integrity checks, `SystemInfo`. Driven by `d2w dev codegen oas-rebuild`.
 
 Generated code is **committed**, reviewable in diffs, and forms the typed surface of the client. PyPI consumers of `dhis2w-client` don't need to run codegen to install the library.
 
@@ -23,24 +23,24 @@ Four subcommands — `generate` and `rebuild` for the `/api/schemas` path, `oas-
 # /api/schemas — against a live instance (the canonical sources for codegen
 # are the play.im.dhis2.org/dev-2-{42,43} instances; `make dhis2-codegen-play`
 # wraps both)
-uv run dhis2 dev codegen generate --url https://play.im.dhis2.org/dev-2-43 \
+uv run d2w dev codegen generate --url https://play.im.dhis2.org/dev-2-43 \
                                   --username admin --password district
 
 # /api/schemas — regenerate from the committed schemas_manifest.json (no network)
-uv run dhis2 dev codegen rebuild                       # every committed version
-uv run dhis2 dev codegen rebuild --manifest path/to/schemas_manifest.json
+uv run d2w dev codegen rebuild                       # every committed version
+uv run d2w dev codegen rebuild --manifest path/to/schemas_manifest.json
 
 # /api/openapi.json — regenerate oas/ from the committed openapi.json (no network)
-uv run dhis2 dev codegen oas-rebuild                   # every committed version
-uv run dhis2 dev codegen oas-rebuild --version v42     # just one
+uv run d2w dev codegen oas-rebuild                   # every committed version
+uv run d2w dev codegen oas-rebuild --version v42     # just one
 
 # Cross-version diff — surfaces schemas added / removed and per-property
 # changes (type, klass, bounds, owner/required/etc) when bumping majors
-uv run dhis2 dev codegen diff v42 v43
-uv run dhis2 dev codegen diff v42 v43 --json    # machine-readable
+uv run d2w dev codegen diff v42 v43
+uv run d2w dev codegen diff v42 v43 --json    # machine-readable
 ```
 
-`dhis2 dev codegen generate` talks to a live instance because it pulls the `/api/schemas` response fresh; the rebuild variants are offline, reading the committed manifest / openapi.json from each `generated/v{N}/` directory. `diff` is also offline — it reads the two committed manifests and surfaces structural drift. The CLI subcommand is registered via `[project.entry-points."dhis2.plugins"]` in `dhis2w-codegen`'s `pyproject.toml`.
+`d2w dev codegen generate` talks to a live instance because it pulls the `/api/schemas` response fresh; the rebuild variants are offline, reading the committed manifest / openapi.json from each `generated/v{N}/` directory. `diff` is also offline — it reads the two committed manifests and surfaces structural drift. The CLI subcommand is registered via `[project.entry-points."dhis2.plugins"]` in `dhis2w-codegen`'s `pyproject.toml`.
 
 ## Pipeline
 

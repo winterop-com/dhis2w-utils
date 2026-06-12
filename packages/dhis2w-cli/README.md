@@ -1,11 +1,11 @@
 # dhis2w-cli
 
-Typer console script `dhis2` for working with DHIS2 instances from the shell. Discovers plugins from `dhis2w-core` — sixteen top-level domains covering metadata, data, analytics, tracker, users, routes, files, messaging, apps, doctor, and developer tools.
+Typer console script `d2w` for working with DHIS2 instances from the shell. Discovers plugins from `dhis2w-core` — sixteen top-level domains covering metadata, data, analytics, tracker, users, routes, files, messaging, apps, doctor, and developer tools.
 
 ## Install
 
 ```bash
-# Drops `dhis2` on $PATH
+# Drops `d2w` on $PATH
 uv tool install dhis2w-cli
 
 # With Playwright UI automation (browser screenshots, OIDC login, PAT minting)
@@ -19,7 +19,7 @@ uv tool upgrade dhis2w-cli
 Or run on demand without installing:
 
 ```bash
-uvx --from dhis2w-cli dhis2 --help
+uvx --from dhis2w-cli d2w --help
 ```
 
 ## Configure
@@ -27,7 +27,7 @@ uvx --from dhis2w-cli dhis2 --help
 The CLI reads a profile from `.dhis2/profiles.toml` (project) or `~/.config/dhis2/profiles.toml` (user). One-shot bootstrap:
 
 ```bash
-dhis2 profile bootstrap mywork
+d2w profile bootstrap mywork
 ```
 
 Or set env vars and skip the profile system entirely:
@@ -35,31 +35,31 @@ Or set env vars and skip the profile system entirely:
 ```bash
 export DHIS2_URL=https://dhis2.example.org
 export DHIS2_PAT=d2p_...
-dhis2 system info
+d2w system info
 ```
 
 ## Surface
 
 ```
-dhis2 analytics    DHIS2 analytics queries.
-dhis2 apps         DHIS2 apps — /api/apps + /api/appHub.
-dhis2 browser      Playwright UI automation (only with [browser] extra).
-dhis2 data         DHIS2 data values (aggregate + tracker).
-dhis2 dev          Developer/operator tools.
-dhis2 doctor       Probe a DHIS2 instance for known gotchas + requirements.
-dhis2 files        Manage DHIS2 documents + file resources.
-dhis2 maintenance  DHIS2 maintenance (tasks, cache, integrity, cleanup, refresh).
-dhis2 messaging    DHIS2 internal messaging.
-dhis2 metadata     DHIS2 metadata inspection.
-dhis2 profile      Manage DHIS2 profiles.
-dhis2 route        DHIS2 integration routes.
-dhis2 system       DHIS2 system info.
-dhis2 user         DHIS2 user administration.
-dhis2 user-group   DHIS2 user-group administration.
-dhis2 user-role    DHIS2 user-role administration.
+d2w analytics    DHIS2 analytics queries.
+d2w apps         DHIS2 apps — /api/apps + /api/appHub.
+d2w browser      Playwright UI automation (only with [browser] extra).
+d2w data         DHIS2 data values (aggregate + tracker).
+d2w dev          Developer/operator tools.
+d2w doctor       Probe a DHIS2 instance for known gotchas + requirements.
+d2w files        Manage DHIS2 documents + file resources.
+d2w maintenance  DHIS2 maintenance (tasks, cache, integrity, cleanup, refresh).
+d2w messaging    DHIS2 internal messaging.
+d2w metadata     DHIS2 metadata inspection.
+d2w profile      Manage DHIS2 profiles.
+d2w route        DHIS2 integration routes.
+d2w system       DHIS2 system info.
+d2w user         DHIS2 user administration.
+d2w user-group   DHIS2 user-group administration.
+d2w user-role    DHIS2 user-role administration.
 ```
 
-`dhis2 --help` for the full tree; `dhis2 <group> --help` for each.
+`d2w --help` for the full tree; `d2w <group> --help` for each.
 
 ## Documentation
 

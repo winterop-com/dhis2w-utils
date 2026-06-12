@@ -1,4 +1,4 @@
-"""Typer sub-app for the `profile` plugin (mounted under `dhis2 profile`)."""
+"""Typer sub-app for the `profile` plugin (mounted under `d2w profile`)."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def list_command(
         typer.echo(json.dumps([s.model_dump() for s in summaries], indent=2))
         return
     if not summaries:
-        typer.echo("no profiles found — run `dhis2 profile add <name>` to create one.")
+        typer.echo("no profiles found — run `d2w profile add <name>` to create one.")
         return
     table = Table(title=f"DHIS2 profiles ({len(summaries)})")
     table.add_column("name")
@@ -207,7 +207,7 @@ def _run_verify(name: str) -> None:
         typer.secho(line, fg=typer.colors.GREEN)
     else:
         typer.secho(f"  verify failed: {result.error}", err=True, fg=typer.colors.YELLOW)
-        typer.echo("  (profile was saved; run `dhis2 profile verify` later to re-check)")
+        typer.echo("  (profile was saved; run `d2w profile verify` later to re-check)")
 
 
 @app.command("default")
@@ -262,11 +262,11 @@ def _prompt_for_profile_name() -> str:
 
     summaries = service.list_profiles(include_shadowed=False)
     if not summaries:
-        typer.echo("no profiles found — run `dhis2 profile add <name>` to create one.", err=True)
+        typer.echo("no profiles found — run `d2w profile add <name>` to create one.", err=True)
         raise typer.Exit(1)
     if not sys.stdin.isatty():
         typer.echo(
-            "error: no profile name given and stdin is not a TTY — pass a name explicitly (see `dhis2 profile list`).",
+            "error: no profile name given and stdin is not a TTY — pass a name explicitly (see `d2w profile list`).",
             err=True,
         )
         raise typer.Exit(1)
@@ -698,7 +698,7 @@ def oidc_config_command(
     make_default: Annotated[bool, typer.Option("--default", help="Set as default after saving.")] = False,
     login_now: Annotated[
         bool,
-        typer.Option("--login", help="Trigger `dhis2 profile login <name>` immediately after saving."),
+        typer.Option("--login", help="Trigger `d2w profile login <name>` immediately after saving."),
     ] = False,
     version: Annotated[str | None, typer.Option("--version", help=_VERSION_HELP)] = None,
 ) -> None:
@@ -751,7 +751,7 @@ def oidc_config_command(
         )
 
     if login_now:
-        typer.echo("\n>>> running `dhis2 profile login` now...")
+        typer.echo("\n>>> running `d2w profile login` now...")
         # Reuse the login command in-process — mirrors what a second CLI invocation would do.
         login_command(name)
 
@@ -761,5 +761,5 @@ app.add_typer(oauth2_module.app, name="oauth2")
 
 
 def register(root_app: Any) -> None:
-    """Mount under `dhis2 profile`."""
+    """Mount under `d2w profile`."""
     root_app.add_typer(app, name="profile", help="Manage DHIS2 profiles.")

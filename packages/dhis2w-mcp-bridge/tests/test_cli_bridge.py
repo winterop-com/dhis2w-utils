@@ -1,4 +1,4 @@
-"""Tests for the dhis2 CLI bridge — fake-binary unit tests plus a live drift guard."""
+"""Tests for the d2w CLI bridge — fake-binary unit tests plus a live drift guard."""
 
 from __future__ import annotations
 
@@ -48,8 +48,8 @@ READ_ONLY_LEAVES = frozenset(
 
 @pytest.fixture
 def fake_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Install a fake `dhis2` that echoes its argv as JSON and honours FAKE_* env knobs."""
-    script = tmp_path / "dhis2"
+    """Install a fake `d2w` that echoes its argv as JSON and honours FAKE_* env knobs."""
+    script = tmp_path / "d2w"
     script.write_text(
         "#!/usr/bin/env python3\n"
         "import json, os, sys, time\n"
@@ -125,9 +125,9 @@ async def test_json_output_is_compacted(fake_cli: Path, monkeypatch: pytest.Monk
 
 async def test_non_json_output_passes_through(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Non-JSON success output (e.g. --help text) is left untouched."""
-    monkeypatch.setenv("FAKE_STDOUT", "Usage: dhis2 metadata ...\n")
+    monkeypatch.setenv("FAKE_STDOUT", "Usage: d2w metadata ...\n")
     result = await run_cli(["metadata", "--help"])
-    assert result.stdout == "Usage: dhis2 metadata ...\n"
+    assert result.stdout == "Usage: d2w metadata ...\n"
 
 
 async def test_surfaces_nonzero_exit_and_stderr(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:

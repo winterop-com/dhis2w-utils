@@ -137,7 +137,7 @@ async def test_whoami_tool_returns_admin_user(
 The system plugin's `service.whoami()` is called by both:
 
 ```
-dhis2 system whoami           → Typer command in dhis2w_core/plugins/system/cli.py
+d2w system whoami           → Typer command in dhis2w_core/plugins/system/cli.py
                                → service.whoami(profile_from_env())
                                → prints formatted line
 

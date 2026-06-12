@@ -163,7 +163,7 @@ def _mock_import(response: WebMessageResponse) -> AsyncMock:
 
 
 def test_cli_export_writes_output_file(runner: CliRunner, tmp_path: Path) -> None:
-    """`dhis2 metadata export --output FILE` writes bundle JSON to FILE + prints stderr summary."""
+    """`d2w metadata export --output FILE` writes bundle JSON to FILE + prints stderr summary."""
     out = tmp_path / "bundle.json"
     mock = _mock_export({"dataElements": [{"id": "x"}]})
     with patch("dhis2w_core.v42.plugins.metadata.service.export_metadata", mock):
@@ -210,7 +210,7 @@ def test_cli_export_forwards_flags(runner: CliRunner, tmp_path: Path) -> None:
 
 
 def test_cli_import_reads_file_and_forwards_flags(runner: CliRunner, tmp_path: Path) -> None:
-    """`dhis2 metadata import FILE` reads the bundle + forwards strategy/atomic/dry-run flags."""
+    """`d2w metadata import FILE` reads the bundle + forwards strategy/atomic/dry-run flags."""
     bundle_path = tmp_path / "in.json"
     bundle_path.write_text(json.dumps({"dataElements": [{"id": "a"}]}), encoding="utf-8")
     response = WebMessageResponse.model_validate({"status": "OK"})

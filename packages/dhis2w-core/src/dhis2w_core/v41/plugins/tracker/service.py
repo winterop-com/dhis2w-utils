@@ -74,7 +74,7 @@ async def resolve_tracked_entity_type(profile: Profile, name_or_uid: str) -> str
     matches = envelope.trackedEntityTypes
     if not matches:
         raise ValueError(
-            f"no TrackedEntityType matches name {name_or_uid!r} — run `dhis2 data tracker type` to see configured types"
+            f"no TrackedEntityType matches name {name_or_uid!r} — run `d2w data tracker type` to see configured types"
         )
     if len(matches) > 1:
         names = [m.name for m in matches]

@@ -1,4 +1,4 @@
-"""Schema plugin — describe a generated type's fields (`dhis2 schema <type>`)."""
+"""Schema plugin — describe a generated type's fields (`d2w schema <type>`)."""
 
 from __future__ import annotations
 

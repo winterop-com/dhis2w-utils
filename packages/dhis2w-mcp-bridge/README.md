@@ -1,10 +1,10 @@
 # dhis2w-mcp-bridge
 
-A FastMCP server that exposes the entire `dhis2` CLI as **one** MCP tool, `dhis2_cli`.
+A FastMCP server that exposes the entire `d2w` CLI as **one** MCP tool, `dhis2_cli`.
 
 Where `dhis2w-mcp` registers ~304 typed tools (≈50-65k tokens of schema loaded into the
 model's context up front), this server registers a single tool that shells out to the local
-`dhis2` binary. A small, context-limited **local model** discovers the command surface
+`d2w` binary. A small, context-limited **local model** discovers the command surface
 progressively with `--help` and runs commands with `--json` — and nothing leaves the host.
 
 ## Why this exists
@@ -40,7 +40,7 @@ message is on `stderr` (never JSON). `profile` is injected as `-p <profile>`.
 
 ## Install & run
 
-The bridge depends on `dhis2w-cli`, so installing it provides the `dhis2` binary.
+The bridge depends on `dhis2w-cli`, so installing it provides the `d2w` binary.
 
 ```bash
 # From a workspace checkout (development)
@@ -79,7 +79,7 @@ The server speaks MCP over stdio and reads its DHIS2 connection from a profile
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `DHIS2_MCP_READONLY` | unset | When truthy (`1`/`true`/`yes`/`on`), only read commands and `--help` are allowed; writes are refused (exit 126). |
-| `DHIS2_CLI_BIN` | auto | Path to the `dhis2` executable. Auto-discovered next to the running interpreter, then on `PATH`. |
+| `DHIS2_CLI_BIN` | auto | Path to the `d2w` executable. Auto-discovered next to the running interpreter, then on `PATH`. |
 | `DHIS2_MCP_CLI_TIMEOUT` | `120` | Per-command timeout in seconds (exit 124 on timeout). |
 | `DHIS2_PROFILE` | profile default | Selects the DHIS2 profile, passed through to the CLI. |
 
@@ -102,7 +102,7 @@ read-scoped PAT or user.
 ## How it works
 
 `build_server()` creates a `FastMCP` instance and registers the single `dhis2_cli` tool
-(`cli_bridge.register`). The tool runs `dhis2 --json [-p <profile>] <args>` via
+(`cli_bridge.register`). The tool runs `d2w --json [-p <profile>] <args>` via
 `asyncio.create_subprocess_exec` (exec form — no shell, no injection), bounded by a timeout,
 and returns a typed `CliResult`. There is no version resolution or plugin discovery: the CLI
 subprocess auto-detects the DHIS2 version itself on connect.

@@ -27,9 +27,9 @@ PROFILE_DEFAULT = "local_basic"
 
 
 def run_cli_json(profile: str, args: list[str]) -> str:
-    """Run `dhis2 --json -p <profile> <args>` and return stdout."""
+    """Run `d2w --json -p <profile> <args>` and return stdout."""
     completed = subprocess.run(
-        ["uv", "run", "dhis2", "--json", "-p", profile, *args],
+        ["uv", "run", "d2w", "--json", "-p", profile, *args],
         capture_output=True,
         text=True,
         check=False,
@@ -38,9 +38,9 @@ def run_cli_json(profile: str, args: list[str]) -> str:
 
 
 def run_cli(profile: str, args: list[str]) -> int:
-    """Run `dhis2 -p <profile> <args>` (no --json) and return the exit code."""
+    """Run `d2w -p <profile> <args>` (no --json) and return the exit code."""
     return subprocess.run(
-        ["uv", "run", "dhis2", "-p", profile, *args],
+        ["uv", "run", "d2w", "-p", profile, *args],
         capture_output=True,
         text=True,
         check=False,

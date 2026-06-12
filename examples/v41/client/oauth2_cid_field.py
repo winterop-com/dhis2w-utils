@@ -14,7 +14,7 @@ This example fetches the existing OAuth2 clients seeded by
 columns so the v41 wire shape is visible.
 
 For the corresponding write-side fix, see
-`dhis2w_core/v41/plugins/dev/sample.py` — the `dhis2 dev sample
+`dhis2w_core/v41/plugins/dev/sample.py` — the `d2w dev sample
 oauth2-client` smoke test on v41 reads `fetched.get("cid")` first
 and falls back to `clientId` for v42/v43 compatibility.
 

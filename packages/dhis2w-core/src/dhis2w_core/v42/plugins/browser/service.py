@@ -44,7 +44,7 @@ def require_browser() -> None:
     """Confirm `dhis2w_browser` is importable; otherwise raise an install hint."""
     if find_spec("dhis2w_browser") is None:
         raise BrowserExtraNotInstalled(
-            "The `dhis2 browser` commands need the Playwright extra. "
+            "The `d2w browser` commands need the Playwright extra. "
             "Install with `uv add 'dhis2w-cli[browser]'` "
             "(or `uv add dhis2w-browser`), then run "
             "`playwright install chromium` once to pull the driver.",

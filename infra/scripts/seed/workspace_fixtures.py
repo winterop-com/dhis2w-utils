@@ -10,11 +10,11 @@ model well (OUs, DEs, programs, dashboards) but is thin on:
   SQL over the DHIS2 data model without opening a Postgres connection.
 - Predictors — DHIS2's forecast-from-history mechanism. Upstream ships
   the endpoints (`/api/predictors/run`, `/api/predictorGroups/{id}/run`)
-  but no default predictor to run, so `dhis2 maintenance predictors run
+  but no default predictor to run, so `d2w maintenance predictors run
   --group ...` had no concrete target on fresh dumps.
 - Validation rules — DHIS2's data-integrity business-logic mechanism.
   Upstream ships the endpoints (`/api/validationRules`, `.../run`) but
-  no default rule to run, so `dhis2 maintenance validation run` and the
+  no default rule to run, so `d2w maintenance validation run` and the
   VR analysis commands had no concrete target on fresh dumps.
 
 Workflow examples for each of these surfaces were parked on
@@ -156,7 +156,7 @@ OU_LEVEL_FACILITY_UID = "OuLvlFacilt"
 # target. `VrBCGPos001` asserts BCG <1y > 0 (finds legitimate zero-dose
 # months); `VrBCGInf001` asserts BCG <1y == BCG >1y (almost always
 # violates since the two age buckets rarely match). A `VrGImmun001`
-# group wraps both for `dhis2 maintenance validation run --group`.
+# group wraps both for `d2w maintenance validation run --group`.
 COC_BCG_OVER_ONE_UID = "V6L425pT3A0"
 VALIDATION_RULE_BCG_POSITIVE_UID = "VrBCGPos001"
 VALIDATION_RULE_BCG_INF_EQ_UID = "VrBCGInf001"

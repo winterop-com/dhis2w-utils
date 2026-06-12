@@ -1,4 +1,4 @@
-"""CliRunner + mock tests for `dhis2 metadata program-rule ...`."""
+"""CliRunner + mock tests for `d2w metadata program-rule ...`."""
 
 from __future__ import annotations
 

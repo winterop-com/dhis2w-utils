@@ -1,8 +1,8 @@
 """Validate DHIS2 expressions, run validation analysis, browse results — `client.validation`.
 
 Covers the read + run surface of `dhis2w-core`'s validation plugin
-(`dhis2 maintenance validation ...`). CRUD on the rules themselves stays
-on the generic metadata surface (`dhis2 metadata list validationRules`).
+(`d2w maintenance validation ...`). CRUD on the rules themselves stays
+on the generic metadata surface (`d2w metadata list validationRules`).
 
 What this example exercises:
 
@@ -17,7 +17,7 @@ What this example exercises:
    table (populated by runs with `persist=True`).
 
 Predictor runs live in the sibling `predictors.py` example — same plugin
-namespace (`dhis2 maintenance ...`) but a different engine that generates
+namespace (`d2w maintenance ...`) but a different engine that generates
 data values, not violations.
 
 Usage:

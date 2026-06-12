@@ -102,7 +102,7 @@ class UnsupportedVersionError(Dhis2ClientError):
         super().__init__(
             f"DHIS2 instance reports version {version}; "
             f"no generated client available (have: {summary}). "
-            "Run `dhis2 codegen --url <instance>` to generate one."
+            "Run `d2w codegen --url <instance>` to generate one."
         )
         self.version = version
         self.available = available

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `dhis2 route` — register + run integration routes for every upstream auth type.
+# `d2w route` — register + run integration routes for every upstream auth type.
 #
 # DHIS2 routes proxy external URLs through DHIS2 so UI-side apps + agents can
 # call third-party services without CORS + without exposing upstream
@@ -17,7 +17,7 @@
 #                              caches the access token. For machine-to-machine
 #                              when upstream is another DHIS2 or any OAuth2 RS.
 #
-# For interactive use run `dhis2 route create` (no args) — a wizard walks through
+# For interactive use run `d2w route create` (no args) — a wizard walks through
 # code/name/url/auth-type + hidden-input prompts for secrets. This script
 # demonstrates each type non-interactively via `--file spec.json`.
 set -euo pipefail
@@ -38,7 +38,7 @@ add_route() {
   chmod 0600 "$spec_file"
   echo "  $label: creating..." >&2
   local response uid
-  response=$(dhis2 --json route create --file "$spec_file")
+  response=$(d2w --json route create --file "$spec_file")
   uid=$(printf '%s' "$response" | jq -r '.response.uid')
   echo "    uid=$uid" >&2
   printf '%s' "$uid"
@@ -48,10 +48,10 @@ add_route() {
 # of tracking UIDs through the script because the uid-capturing subshells
 # don't propagate to the parent array.
 purge_examples() {
-  dhis2 --json route list --fields id,code \
+  d2w --json route list --fields id,code \
     | jq -r '.[] | select(.code // "" | startswith("EX_")) | "\(.id)\t\(.code)"' \
     | while IFS=$'\t' read -r uid code; do
-        dhis2 route delete "$uid" >/dev/null
+        d2w route delete "$uid" >/dev/null
         echo "    deleted $code ($uid)" >&2
       done
 }
@@ -62,7 +62,7 @@ purge_examples
 # ---- none ---------------------------------------------------------------------
 echo ">>> none (no auth)"
 uid_none=$(add_route NONE '{"code":"EX_NONE","name":"ex none","url":"https://httpbin.org/get"}')
-dhis2 route run "$uid_none" | jq -r '"    response keys: \(keys | join(", "))"'
+d2w route run "$uid_none" | jq -r '"    response keys: \(keys | join(", "))"'
 
 # ---- http-basic ---------------------------------------------------------------
 # httpbin's /basic-auth/{user}/{pass} 200s when the Authorization header matches.
@@ -73,7 +73,7 @@ uid_basic=$(add_route HTTP_BASIC '{
   "url": "https://httpbin.org/basic-auth/foo/bar",
   "auth": {"type": "http-basic", "username": "foo", "password": "bar"}
 }')
-dhis2 route run "$uid_basic" | jq -r '"    authenticated: \(.authenticated // false)  user: \(.user // "-")"'
+d2w route run "$uid_basic" | jq -r '"    authenticated: \(.authenticated // false)  user: \(.user // "-")"'
 
 # ---- api-token ----------------------------------------------------------------
 # DHIS2 sends `Authorization: ApiToken <value>` upstream — a DHIS2-specific
@@ -87,7 +87,7 @@ uid_token=$(add_route API_TOKEN '{
   "url": "https://httpbin.org/headers",
   "auth": {"type": "api-token", "token": "example-token-not-a-real-secret"}
 }')
-dhis2 route run "$uid_token" | jq -r '"    Authorization header reaching upstream: \(.headers.Authorization)"'
+d2w route run "$uid_token" | jq -r '"    Authorization header reaching upstream: \(.headers.Authorization)"'
 
 # ---- api-headers --------------------------------------------------------------
 # httpbin's /headers echoes the upstream request headers — we can see our
@@ -99,7 +99,7 @@ uid_hdr=$(add_route API_HEADERS '{
   "url": "https://httpbin.org/headers",
   "auth": {"type": "api-headers", "headers": {"X-Api-Key": "deadbeef"}}
 }')
-dhis2 route run "$uid_hdr" | jq -r '"    X-Api-Key echoed: \(.headers["X-Api-Key"])"'
+d2w route run "$uid_hdr" | jq -r '"    X-Api-Key echoed: \(.headers["X-Api-Key"])"'
 
 # ---- api-query-params ---------------------------------------------------------
 # httpbin's /get echoes the query-string it received. DHIS2 appends our
@@ -111,7 +111,7 @@ uid_q=$(add_route API_QUERY '{
   "url": "https://httpbin.org/get",
   "auth": {"type": "api-query-params", "queryParams": {"api_key": "qparam-value"}}
 }')
-dhis2 route run "$uid_q" | jq -c '"    query-param echoed: \(.args)"'
+d2w route run "$uid_q" | jq -c '"    query-param echoed: \(.args)"'
 
 # ---- oauth2-client-credentials -----------------------------------------------
 # DHIS2 POSTs to tokenUri first, then uses the returned access_token on the

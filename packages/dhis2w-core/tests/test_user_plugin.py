@@ -119,7 +119,7 @@ async def test_reinvite_posts_to_invite_endpoint(basic_profile: Profile) -> None
 
 
 def test_plugin_registers_on_root_cli() -> None:
-    """Plugin discovery picks up `user` and mounts it under `dhis2 user`."""
+    """Plugin discovery picks up `user` and mounts it under `d2w user`."""
     from dhis2w_cli.main import build_app  # imported lazily to avoid circular plugin-import noise
     from typer.testing import CliRunner
 

@@ -189,7 +189,7 @@ async def test_get_dataintegrity_summary_parses_report(profile: Profile) -> None
 
 
 def test_cli_maintenance_is_mounted(runner: CliRunner) -> None:
-    """`dhis2 maintenance --help` should exist and enumerate task/cache/cleanup/dataintegrity."""
+    """`d2w maintenance --help` should exist and enumerate task/cache/cleanup/dataintegrity."""
     result = runner.invoke(build_app(), ["maintenance", "--help"])
     assert result.exit_code == 0
     for expected in ("task", "cache", "cleanup", "dataintegrity"):

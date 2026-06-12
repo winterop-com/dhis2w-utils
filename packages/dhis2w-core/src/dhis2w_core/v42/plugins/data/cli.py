@@ -1,4 +1,4 @@
-"""Typer sub-app for `dhis2 data` — mounts aggregate + tracker domain trees."""
+"""Typer sub-app for `d2w data` — mounts aggregate + tracker domain trees."""
 
 from __future__ import annotations
 
@@ -15,5 +15,5 @@ app.add_typer(tracker_cli.app, name="tracker", help="Tracker (entities, enrollme
 
 
 def register(root_app: Any) -> None:
-    """Mount under `dhis2 data`."""
+    """Mount under `d2w data`."""
     root_app.add_typer(app, name="data", help="DHIS2 data values (aggregate + tracker).")

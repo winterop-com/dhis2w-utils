@@ -1,4 +1,4 @@
-"""Typer sub-app for the `customize` plugin (mounted under `dhis2 dev customize`)."""
+"""Typer sub-app for the `customize` plugin (mounted under `d2w dev customize`)."""
 
 from __future__ import annotations
 
@@ -94,5 +94,5 @@ def show_command() -> None:
 
 
 def register(parent_app: Any) -> None:
-    """Mount under `dhis2 dev customize` (called from `plugins/dev/cli.py`)."""
+    """Mount under `d2w dev customize` (called from `plugins/dev/cli.py`)."""
     parent_app.add_typer(app, name="customize", help="Brand + theme a DHIS2 instance (logos, copy, CSS).")
