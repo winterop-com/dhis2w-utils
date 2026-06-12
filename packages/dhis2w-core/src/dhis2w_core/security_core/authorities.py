@@ -7,7 +7,7 @@ named categories so every security check reports on them consistently.
 
 Every string below is verified to exist in the live `/api/authorities`
 inventory of both v42 and v43 (the contract test
-`packages/dhis2w-core/tests/test_security_taxonomy_contract.py` enforces
+`packages/dhis2w-core/tests/security/test_security_taxonomy_contract.py` enforces
 this against the play instances). v41 cannot be verified the same way --
 its `/api/authorities` endpoint returns 500 (BUGS.md #45).
 

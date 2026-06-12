@@ -1,7 +1,7 @@
 """The security plugin's responsible-use contract, encoded as code.
 
 These constants are load-bearing. The guardrail test in
-`packages/dhis2w-core/tests/test_security_guardrails.py` enforces them against
+`packages/dhis2w-core/tests/security/test_security_guardrails.py` enforces them against
 every public security service function, so a future check cannot silently
 widen the plugin's read surface.
 
