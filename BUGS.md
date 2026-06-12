@@ -244,9 +244,36 @@ Targets:
 
 ## Bugs observed on v41
 
-No v41-specific entries yet. v41 was added back to the supported matrix in
-PR #243 — file new entries here as they surface during testing against
-`dhis2/core:2.41.8.1`.
+v41 was added back to the supported matrix in PR #243 — file new entries here
+as they surface during testing against `dhis2/core:2.41.8.1`.
+
+### 45. v41: `GET /api/authorities` returns 500
+
+The global authority inventory endpoint works on v42 and v43 (returns
+`{"systemAuthorities": [{"id", "name"}, ...]}`, ~250 entries) but 500s on v41.
+Anything that wants to validate authority strings against the live inventory
+(e.g. a security-audit taxonomy check) cannot do so on v41.
+
+**Observed on:** DHIS2 2.41 (`https://play.im.dhis2.org/dev-2-41`, 2026-06-12). Login as `admin/district`.
+
+**Repro:**
+
+```bash
+curl -s -o /dev/null -w '%{http_code}' -u admin:district \
+  'https://play.im.dhis2.org/dev-2-41/api/authorities'
+# 500
+curl -s -o /dev/null -w '%{http_code}' -u admin:district \
+  'https://play.im.dhis2.org/dev-2-42/api/authorities'
+# 200
+```
+
+**Expected:** 200 with the same `systemAuthorities` envelope v42/v43 return.
+
+**Actual:** HTTP 500 with an empty body.
+
+**Workaround:** none in this repo yet — no code reads `/api/authorities` today.
+If a live taxonomy-validation test lands (proposed in the PR #369 review), skip
+it on v41 and cite this entry.
 
 ---
 
