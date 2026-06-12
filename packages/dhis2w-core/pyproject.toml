@@ -1,12 +1,12 @@
 [project]
 name = "dhis2w-core"
-version = "0.20.0"
+version = "0.21.0"
 description = "Shared DHIS2 tooling runtime: profile discovery, plugin registry, auth factory, token store, first-party plugins."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 requires-python = ">=3.13"
 dependencies = [
-  "dhis2w-client>=0.20.0,<0.21",
+  "dhis2w-client>=0.21.0,<0.22",
   "pydantic>=2.13",
   "pydantic-settings>=2.13",
   "tomli-w>=1.2",

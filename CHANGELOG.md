@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.21.0 — 2026-06-12
+
+Minor release. The CLI console script is now `d2w`.
+
+### CLI
+
+- **The console script is `d2w`** (was `dhis2`): `uv tool install dhis2w-cli` drops `d2w` on `PATH`, and every command reads `d2w <group> <command> ...`. The rename reaches every surface that spoke the old name: the MCP bridge resolves the `d2w` binary (the `DHIS2_CLI_BIN` override is unchanged), `dhis2w-browser` spawns `d2w profile login` for the Playwright OAuth2 flow, codegen templates stamp `d2w codegen` into generated-file headers, the publish workflow smoke-tests `d2w --help`, and all docs, examples, and error hints (`NoProfileError` -> `d2w profile add`) use the new name.
+- Unchanged: the `dhis2` FastMCP server name, the `dhis2_cli` bridge tool name, profile config paths (`.dhis2/`, `~/.config/dhis2/`), and the `dhis2.plugins` entry-point group.
+
+### Workspace packages
+
+All six publishable members + `dhis2w-codegen` bumped 0.20.0 → 0.21.0. Inter-package pins shifted `>=0.20.0,<0.21` → `>=0.21.0,<0.22`.
+
 ## 0.20.0 — 2026-06-09
 
 Minor release. A far richer `system whoami`, a new read surface for `system settings`, and a cleaner datastore error path.
