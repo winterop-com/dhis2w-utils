@@ -41,7 +41,7 @@ Four orthogonal axes of extension — extending one never forces edits to anothe
 
 - **Workspace members** (`packages/`): each shippable unit. New surfaces (a future FastAPI web UI, another SDK) land as new members.
 - **Version subpackages** (`dhis2w_client.v{41,42,43}/`, `dhis2w_core.v{41,42,43}/plugins/`): each DHIS2 major has its own hand-written tree. The three trees start as mechanical copies of v42 (the canonical baseline) and diverge per-file as version-specific behaviour lands.
-- **Plugins** (`dhis2w-core/v{N}/plugins/<name>/`): each DHIS2 domain is a folder with `__init__.py`, `models.py`, `service.py`, `cli.py`, `mcp.py`, `tests/`. Discovered automatically by iterating `dhis2w_core.v{N}.plugins.*` (today: v42); external plugins register via `importlib.metadata.entry_points(group="dhis2.plugins")`.
+- **Plugins** (`dhis2w-core/v{N}/plugins/<name>/`): each DHIS2 domain is a folder with `__init__.py`, `models.py`, `service.py`, `cli.py`, `mcp.py`. Tests live outside the shipped package, grouped per domain at `packages/dhis2w-core/tests/<name>/` (one test tree parametrised over the three version trees — never per-tree test copies). Discovered automatically by iterating `dhis2w_core.v{N}.plugins.*` (today: v42); external plugins register via `importlib.metadata.entry_points(group="dhis2.plugins")`.
 - **Auth providers** (`dhis2w-client/v{N}/auth/`): `AuthProvider` Protocol. Ship Basic, PAT, OAuth2. Add more without touching `client.py`.
 
 Dependency arrows (no cycles):

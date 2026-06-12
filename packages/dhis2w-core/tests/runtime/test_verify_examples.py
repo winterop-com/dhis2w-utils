@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-_SCRIPTS = Path(__file__).resolve().parents[3] / "infra" / "scripts"
+_SCRIPTS = Path(__file__).resolve().parents[4] / "infra" / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
