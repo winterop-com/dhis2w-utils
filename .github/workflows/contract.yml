@@ -47,4 +47,4 @@ jobs:
         run: make install
 
       - name: Run contract tests
-        run: uv run pytest -v -m contract packages/dhis2w-client/tests/test_schema_contract_play.py
+        run: uv run pytest -v -m contract
