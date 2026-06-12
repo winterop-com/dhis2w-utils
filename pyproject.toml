@@ -12,19 +12,19 @@ dhis2w-codegen = { workspace = true }
 
 [dependency-groups]
 dev = [
-  "coverage[toml]>=7.14",
+  "coverage[toml]>=7.14.1",
   "mypy>=2",
   "pytest>=9",
   "pytest-asyncio>=1.4",
   "pytest-cov>=7",
   "respx>=0.23",
-  "ruff>=0.15",
+  "ruff>=0.15.17",
   "pyright>=1.1",
   "mkdocs>=1.6",
   "mkdocs-material>=9.7",
-  "mkdocstrings[python]>=1.0",
+  "mkdocstrings[python]>=1.0.4",
   "pillow>=12.2.0",
-  "hypothesis>=6.155",
+  "hypothesis>=6.155.2",
 ]
 
 [tool.ruff]
