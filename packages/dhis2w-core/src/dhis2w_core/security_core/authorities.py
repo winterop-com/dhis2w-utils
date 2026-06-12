@@ -1,22 +1,25 @@
 """Dangerous-authority taxonomy and account-level categorisation.
 
-DHIS2 ships ~250 ``F_*`` authority strings. Most are harmless data-entry
-flags; a few dozen unlock capabilities an attacker (or a misconfigured
-role) can chain into instance takeover. This module groups the riskiest
-ones into named categories so every security check reports on them
-consistently.
+DHIS2 ships ~250 authority strings. Most are harmless data-entry flags; a
+few dozen unlock capabilities an attacker (or a misconfigured role) can
+chain into instance takeover. This module groups the riskiest ones into
+named categories so every security check reports on them consistently.
 
-Categories are deliberately broad: better to over-flag than miss a sneak
-path. Each category lists the authorities we treat as belonging to it.
-The exact list is keyed to DHIS2 v41 to v43. ``categorise_authorities``
-returns every category that overlaps with a role's authority set, so a
-single matching member is enough to flag the category.
+Every string below is verified to exist in the live `/api/authorities`
+inventory of both v42 and v43 (the contract test
+`packages/dhis2w-core/tests/test_security_taxonomy_contract.py` enforces
+this against the play instances). v41 cannot be verified the same way --
+its `/api/authorities` endpoint returns 500 (BUGS.md #45).
+
+Note on matching: `/api/me/authorization` reports *granted* strings, which
+on long-lived databases can include residual names from older DHIS2
+versions that the running server no longer defines (and therefore no
+longer checks). The taxonomy deliberately keys on current-version names
+only, so matches always describe capabilities the server enforces today.
 
 References:
-- ``/api/schemas/authority`` on a live DHIS2 instance lists every known
-  authority string for that version.
-- The DHIS2 docs at docs.dhis2.org list the baseline set kept stable
-  across versions.
+- ``GET /api/authorities`` on a live DHIS2 instance lists every authority
+  string that version defines.
 """
 
 from __future__ import annotations
@@ -48,11 +51,15 @@ SUPERUSER = AuthorityCategory(
 )
 
 # Account / role provisioning. Anyone holding these can grant themselves
-# more authorities indirectly by editing roles and group memberships.
+# more authorities indirectly by editing roles and group memberships, or
+# directly by impersonating a more privileged account.
 USER_MANAGEMENT = AuthorityCategory(
     key="user_management",
     label="User & role management",
-    description="Provision accounts, edit user roles + groups. Privilege escalation by editing membership.",
+    description=(
+        "Provision accounts, edit user roles + groups, impersonate users. "
+        "Privilege escalation by editing membership or switching identity."
+    ),
     authorities=frozenset(
         {
             "F_USER_ADD",
@@ -61,59 +68,61 @@ USER_MANAGEMENT = AuthorityCategory(
             "F_USER_DELETE_WITHIN_MANAGED_GROUP",
             "F_USER_VIEW",
             "F_REPLICATE_USER",
+            "F_IMPERSONATE_USER",
             "F_USERROLE_PUBLIC_ADD",
             "F_USERROLE_PRIVATE_ADD",
             "F_USERROLE_DELETE",
             "F_USERGROUP_PUBLIC_ADD",
             "F_USERGROUP_PRIVATE_ADD",
             "F_USERGROUP_DELETE",
-            "F_USERGROUP_MANAGING_RELATIONSHIPS_ADD",
-            "F_USERGROUP_MANAGING_RELATIONSHIPS_VIEW",
         }
     ),
 )
 
-# App management lets you upload arbitrary frontend code that runs in
-# every operator's browser session: XSS / token theft via a malicious
-# app zip.
+# App management and custom JS/CSS both let you ship arbitrary frontend
+# code that runs in every operator's browser session: persistent XSS /
+# token theft via a malicious app zip or an injected script block.
 APP_MANAGEMENT = AuthorityCategory(
     key="app_management",
-    label="App management",
-    description="Install / remove DHIS2 apps. Upload of a malicious app zip yields persistent XSS for every operator.",
-    authorities=frozenset({"F_APP_MANAGEMENT", "M_dhis-web-app-management"}),
+    label="App management & custom scripts",
+    description=(
+        "Install / remove DHIS2 apps or inject custom JS/CSS. Either yields persistent XSS for every operator session."
+    ),
+    authorities=frozenset({"M_dhis-web-app-management", "F_INSERT_CUSTOM_JS_CSS"}),
 )
 
-# SQL views run as the DHIS2 server's database user; the right SELECTs
-# can read tracker data wholesale, and DELETE/UPDATE views (rare but
-# allowed) can mutate.
+# SQL views run as the DHIS2 server's database user; the right SELECTs can
+# read tracker data wholesale. Execution of an existing view is gated by
+# the view's sharing, so authoring a view is the dangerous step.
 SQL_VIEWS = AuthorityCategory(
     key="sql_views",
     label="SQL views",
-    description=(
-        "Create / execute SQL views. Direct SELECT on tracker/data tables; some servers allow UPDATE/DELETE views."
-    ),
+    description="Author SQL views that run as the server's database user. Direct SELECT on tracker/data tables.",
     authorities=frozenset(
         {
             "F_SQLVIEW_PUBLIC_ADD",
             "F_SQLVIEW_PRIVATE_ADD",
             "F_SQLVIEW_DELETE",
-            "F_SQLVIEW_EXECUTE",
-            "F_SQLVIEW_EXTERNAL",
         }
     ),
 )
 
-# System settings include credential-bearing strings (SMTP / SMS provider
-# keys, App Hub URL) and behavioural toggles (account self-registration).
+# System configuration includes credential-bearing strings (SMTP / SMS
+# provider keys, App Hub URL), behavioural toggles (account
+# self-registration), and OAuth2 client registration.
 SYSTEM_SETTINGS = AuthorityCategory(
     key="system_settings",
-    label="System settings",
-    description="Read / write system settings. Includes SMTP credentials, App Hub URL, self-registration toggles.",
+    label="System configuration",
+    description=(
+        "Read / write system settings and register OAuth2 clients. "
+        "Includes SMTP credentials, App Hub URL, self-registration toggles."
+    ),
     authorities=frozenset(
         {
             "F_SYSTEM_SETTING",
-            "F_VIEW_UNBLOCKED_EMAIL_CONFIG",
             "F_VIEW_SERVER_INFO",
+            "F_MOBILE_SETTINGS",
+            "F_OAUTH2_CLIENT_MANAGE",
         }
     ),
 )
@@ -121,56 +130,55 @@ SYSTEM_SETTINGS = AuthorityCategory(
 # Metadata import/export is the cleanest path to exfiltrating an
 # instance's data model (forms, programs, tracker config) and to
 # back-dooring it (re-imported metadata can carry malicious app refs,
-# scheduled jobs, etc.).
+# scheduled jobs, etc.). Skipping the import audit hides the trail.
 METADATA_IO = AuthorityCategory(
     key="metadata_io",
     label="Metadata import / export",
     description=(
-        "Bulk metadata import + export. Wholesale exfiltration of the data model; re-import can carry back-doors."
+        "Bulk metadata import + export. Wholesale exfiltration of the data model; "
+        "re-import can carry back-doors; the audit-skip flag hides the trail."
     ),
     authorities=frozenset(
         {
             "F_METADATA_IMPORT",
             "F_METADATA_EXPORT",
             "F_EXPORT_DATA",
-            "F_IMPORT_DATA",
-            "F_EXPORT_EVENTS",
-            "F_IMPORT_EVENTS",
+            "F_SKIP_DATA_IMPORT_AUDIT",
         }
     ),
 )
 
-# Tracker admin overrides the org-unit sharing model: a tracker admin
-# can read patient-level data outside their assigned units.
+# Tracker admin overrides the org-unit sharing model: cross-org-unit
+# search reads patient-level data outside the user's assigned units, and
+# merge destructively rewrites patient records.
 TRACKER_ADMIN = AuthorityCategory(
     key="tracker_admin",
     label="Tracker admin",
-    description="View / search tracked entities outside the user's assigned org units. Overrides the sharing model.",
+    description=(
+        "Search tracked entities across all org units (overrides the sharing model) "
+        "and merge / rewrite patient-level records."
+    ),
     authorities=frozenset(
         {
-            "F_TRACKED_ENTITY_INSTANCE_SEARCH",
-            "F_TRACKED_ENTITY_INSTANCE_SEARCH_IN_ALL_OU_GROUPS",
-            "F_TRACKED_ENTITY_INSTANCE_VIEW_ALL_OU_GROUPS",
-            "F_TRACKER_OWNERSHIP_OVERRIDE_NULL",
-            "F_TRACKED_ENTITY_INSTANCE_MANAGEMENT",
+            "F_TRACKED_ENTITY_INSTANCE_SEARCH_IN_ALL_ORGUNITS",
+            "F_TRACKED_ENTITY_MERGE",
         }
     ),
 )
 
-# Data administration covers maintenance jobs (analytics regen, db
-# integrity checks) that run as the server user and can hide load.
+# Data administration covers maintenance jobs (analytics regen, integrity
+# checks) and the job scheduler, which runs server-side tasks.
 DATA_ADMIN = AuthorityCategory(
     key="data_admin",
     label="Data administration",
-    description="Server-side maintenance: analytics regen, integrity checks, approval levels.",
+    description="Server-side maintenance and the job scheduler: analytics regen, integrity checks, scheduled tasks.",
     authorities=frozenset(
         {
-            "F_DATA_ADMINISTRATION",
             "F_PERFORM_MAINTENANCE",
             "F_DATA_APPROVAL_LEVEL",
-            "F_RUN_SQL",
             "F_GENERATE_MIN_MAX_VALUES",
             "F_PREDICTOR_RUN",
+            "F_SCHEDULING_ADMIN",
         }
     ),
 )

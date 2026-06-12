@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dhis2w_client.errors import Dhis2ClientError
+
 from dhis2w_core.profile import Profile
 from dhis2w_core.security_core import AccountAuthorities, build_account_authorities
 from dhis2w_core.v41.client_context import open_client
@@ -19,10 +21,14 @@ async def get_account_authorities(profile: Profile) -> AccountAuthorities:
 
     `/api/me/authorization` returns a bare JSON list of authority strings;
     the client wraps non-dict bodies under a `data` key, unwrapped here and
-    immediately re-typed into `AccountAuthorities`.
+    immediately re-typed into `AccountAuthorities`. Any other shape raises --
+    a security read must never present a parse surprise as "no authorities".
     """
     async with open_client(profile) as client:
         raw = await client.get_raw("/api/me/authorization")
     payload = raw.get("data")
-    names = [str(item) for item in payload] if isinstance(payload, list) else []
-    return build_account_authorities(names)
+    if not isinstance(payload, list):
+        raise Dhis2ClientError(
+            "unexpected /api/me/authorization payload shape (expected a JSON list of authority strings)"
+        )
+    return build_account_authorities([str(item) for item in payload])

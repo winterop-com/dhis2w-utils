@@ -23,7 +23,7 @@ def test_categorise_returns_superuser_for_all() -> None:
 
 def test_categorise_returns_every_overlapping_category() -> None:
     """A role with mixed admin auths should land in multiple categories."""
-    cats = categorise_authorities({"F_APP_MANAGEMENT", "F_SYSTEM_SETTING", "F_VIEW_UNRELATED"})
+    cats = categorise_authorities({"F_INSERT_CUSTOM_JS_CSS", "F_SYSTEM_SETTING", "F_VIEW_UNRELATED"})
     keys = {c.key for c in cats}
     assert "app_management" in keys
     assert "system_settings" in keys
@@ -33,7 +33,7 @@ def test_categorise_returns_every_overlapping_category() -> None:
 
 def test_categorise_preserves_severity_order() -> None:
     """Categories come back in AUTHORITY_CATEGORIES order so renderers can rely on it."""
-    auths = {"F_DATA_ADMINISTRATION", "ALL", "F_APP_MANAGEMENT"}
+    auths = {"F_SCHEDULING_ADMIN", "ALL", "F_INSERT_CUSTOM_JS_CSS"}
     keys = [c.key for c in categorise_authorities(auths)]
     assert keys == ["superuser", "app_management", "data_admin"]
 
@@ -54,8 +54,8 @@ def test_authority_categories_have_unique_keys() -> None:
 
 def test_build_account_authorities_sorts_and_dedupes() -> None:
     """Input order and duplicates never leak into the typed summary."""
-    account = build_account_authorities(["F_USER_ADD", "F_APP_MANAGEMENT", "F_USER_ADD"])
-    assert account.authorities == ["F_APP_MANAGEMENT", "F_USER_ADD"]
+    account = build_account_authorities(["F_USER_ADD", "F_INSERT_CUSTOM_JS_CSS", "F_USER_ADD"])
+    assert account.authorities == ["F_INSERT_CUSTOM_JS_CSS", "F_USER_ADD"]
     assert account.is_superuser is False
 
 
@@ -69,10 +69,10 @@ def test_build_account_authorities_flags_superuser() -> None:
 
 def test_build_account_authorities_matched_is_per_category_subset() -> None:
     """Each category match carries exactly the held authorities that triggered it."""
-    account = build_account_authorities(["F_USER_ADD", "F_USER_DELETE", "F_SQLVIEW_EXECUTE", "F_HARMLESS"])
+    account = build_account_authorities(["F_USER_ADD", "F_USER_DELETE", "F_SQLVIEW_PUBLIC_ADD", "F_HARMLESS"])
     by_key = {match.key: match for match in account.categories}
     assert by_key["user_management"].matched == ["F_USER_ADD", "F_USER_DELETE"]
-    assert by_key["sql_views"].matched == ["F_SQLVIEW_EXECUTE"]
+    assert by_key["sql_views"].matched == ["F_SQLVIEW_PUBLIC_ADD"]
     assert set(by_key) == {"user_management", "sql_views"}
 
 
