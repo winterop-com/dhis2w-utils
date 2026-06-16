@@ -292,7 +292,7 @@ $ d2w apps [OPTIONS] COMMAND [ARGS]...
 
 * `ls`: List every installed app (`GET /api/apps`).
 * `list`: List every installed app (`GET /api/apps`).
-* `add`: Install an app from a local zip or an App...
+* `add`: Install an app from a local zip, an App...
 * `rm`: Uninstall an app by key (`DELETE...
 * `remove`: Uninstall an app by key (`DELETE...
 * `update`: Update one app or every installed app to...
@@ -332,12 +332,14 @@ $ d2w apps list [OPTIONS]
 
 ### `d2w apps add`
 
-Install an app from a local zip or an App Hub version id.
+Install an app from a local zip, an App Hub version id, or an App Hub app id.
 
-Auto-dispatches based on whether `source` is an existing file on disk:
-file → multipart upload to `/api/apps`; otherwise → POST to
-`/api/appHub/{source}`. DHIS2 overwrites an existing install of the
-same app in both paths.
+Auto-dispatches on `source`: an existing file on disk → multipart upload to
+`/api/apps`; otherwise the id is resolved against the configured App Hub
+catalog and installed via `POST /api/appHub/{versionId}`. A version id
+installs directly; an app id resolves to that app&#x27;s latest version (App Hub
+app ids and version ids are both bare UUIDs and easy to confuse — see
+BUGS.md #46). DHIS2 overwrites an existing install of the same app.
 
 **Usage**:
 
@@ -347,7 +349,7 @@ $ d2w apps add [OPTIONS] SOURCE
 
 **Arguments**:
 
-* `SOURCE`: Either a path to a local `.zip` (installs via /api/apps) or an App Hub version id (installs via /api/appHub/{versionId}).  [required]
+* `SOURCE`: A path to a local `.zip` (installs via /api/apps), an App Hub version id, or an App Hub app id (the latest version is resolved).  [required]
 
 **Options**:
 

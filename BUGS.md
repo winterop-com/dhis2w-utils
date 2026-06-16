@@ -2821,7 +2821,7 @@ curl -s -u admin:district -X POST \
 
 **Impact:** `d2w apps add <app-id>` fails with an opaque proxied 404, with no hint that the id was an app id rather than a version id.
 
-**Workaround in this repo:** none yet — `d2w apps add` passes `source` straight to `POST /api/appHub/{source}` (`packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/apps/service.py` `install_from_hub`). Resolve a real version id first via `d2w apps hub-list`, or read the app's `versions[].id` from `apps.dhis2.org/api/v1/apps/{appId}`.
+**Workaround in this repo:** `d2w apps add` (and `apps_install_from_hub`) resolve the id against the configured catalog before installing — `_resolve_install_target` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/apps/service.py` accepts either a version id (installs as-is) or an app id (resolves to the app's latest version), and raises a clear `InstallTargetError` when the id matches neither. Manual fallback: `d2w apps hub-list` for a version id, or read the app's `versions[].id` from `apps.dhis2.org/api/v1/apps/{appId}`.
 
 **How to know it's fixed:** `POST /api/appHub/{appId}` (app id, not version id) returns a clear 400/404 naming the id-kind mismatch instead of a proxied apps.dhis2.org 404.
 

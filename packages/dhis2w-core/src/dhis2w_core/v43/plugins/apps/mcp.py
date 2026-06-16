@@ -8,7 +8,7 @@ from dhis2w_client.v43 import App, AppHubApp, AppsSnapshot, RestoreSummary
 
 from dhis2w_core.profile import resolve_profile
 from dhis2w_core.v43.plugins.apps import service
-from dhis2w_core.v43.plugins.apps.models import UpdateOutcome, UpdateSummary
+from dhis2w_core.v43.plugins.apps.models import InstallTarget, UpdateOutcome, UpdateSummary
 
 
 def register(mcp: Any) -> None:
@@ -30,9 +30,14 @@ def register(mcp: Any) -> None:
         await service.install_from_file(resolve_profile(profile), path)
 
     @mcp.tool()
-    async def apps_install_from_hub(version_id: str, profile: str | None = None) -> None:
-        """Install an App Hub version (`POST /api/appHub/{versionId}`)."""
-        await service.install_from_hub(resolve_profile(profile), version_id)
+    async def apps_install_from_hub(app_or_version_id: str, profile: str | None = None) -> InstallTarget:
+        """Install an App Hub app by version id or app id; returns the resolved install target.
+
+        A version id installs directly (`POST /api/appHub/{versionId}`); an app id
+        resolves to that app's latest version first (App Hub app ids and version
+        ids are both bare UUIDs - see BUGS.md #46).
+        """
+        return await service.install_from_hub(resolve_profile(profile), app_or_version_id)
 
     @mcp.tool()
     async def apps_uninstall(key: str, profile: str | None = None) -> None:

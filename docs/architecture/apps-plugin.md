@@ -32,8 +32,11 @@ d2w apps list
 # Install / replace from a local zip:
 d2w apps add ./path/to/app.zip
 
-# Install from the App Hub by version UUID:
-d2w apps add hub:<version-uuid>
+# Install from the App Hub. The id is resolved against the catalog: a
+# version id installs that exact version; an app id resolves to the app's
+# latest version (both are bare UUIDs and easy to confuse — BUGS.md #46):
+d2w apps add <version-uuid>
+d2w apps add <app-uuid>
 
 # Remove by app key (the folder name DHIS2 uses):
 d2w apps remove <key>

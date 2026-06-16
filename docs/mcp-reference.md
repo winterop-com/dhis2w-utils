@@ -166,11 +166,11 @@ Install / update an app from a local `.zip` at `path` (`POST /api/apps`).
 
 ### `apps_install_from_hub`
 
-Install an App Hub version (`POST /api/appHub/{versionId}`).
+Install an App Hub app by version id or app id; returns the resolved install target.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `version_id` | `string` | yes | — |
+| `app_or_version_id` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
 ### `apps_list`

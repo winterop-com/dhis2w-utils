@@ -22,10 +22,14 @@ from dhis2w_client.v43 import App, AppHubApp, AppsSnapshot, RestoreSummary
 
 from dhis2w_core.profile import Profile
 from dhis2w_core.v43.client_context import open_client
-from dhis2w_core.v43.plugins.apps.models import UpdateOutcome, UpdateSummary
+from dhis2w_core.v43.plugins.apps.models import InstallTarget, UpdateOutcome, UpdateSummary
 
 if TYPE_CHECKING:
     from dhis2w_client.v43 import Dhis2Client
+
+
+class InstallTargetError(LookupError):
+    """Raised when `apps add` cannot resolve an id to an App Hub version (handled cleanly by the CLI)."""
 
 
 async def list_apps(profile: Profile) -> list[App]:
@@ -46,10 +50,53 @@ async def install_from_file(profile: Profile, path: Path | str) -> None:
         await client.apps.install_from_file(path)
 
 
-async def install_from_hub(profile: Profile, version_id: str) -> None:
-    """Install an App Hub version by its UUID."""
+async def install_from_hub(profile: Profile, app_or_version_id: str) -> InstallTarget:
+    """Install an App Hub app by version id, or by app id (latest version is resolved).
+
+    DHIS2's `POST /api/appHub/{versionId}` only accepts a version id; handing it
+    an app id 404s through the server's App Hub proxy (BUGS.md #46). App ids and
+    version ids are both bare UUIDs, so this resolves the given id against the
+    configured catalog (`GET /api/appHub`): a version id installs directly; an
+    app id resolves to that app's latest version. Raises `InstallTargetError`
+    when the id matches neither.
+    """
     async with open_client(profile) as client:
-        await client.apps.install_from_hub(version_id)
+        catalog = await client.apps.hub_list()
+        target = _resolve_install_target(catalog, app_or_version_id)
+        await client.apps.install_from_hub(target.version_id)
+        return target
+
+
+def _resolve_install_target(catalog: list[AppHubApp], app_or_version_id: str) -> InstallTarget:
+    """Classify an id against the hub catalog: a version id installs as-is; an app id picks its latest version."""
+    for app in catalog:
+        for version in app.versions:
+            if version.id == app_or_version_id:
+                return InstallTarget(
+                    version_id=app_or_version_id,
+                    app_name=app.name,
+                    version=version.version,
+                    resolved_from="version-id",
+                )
+    for app in catalog:
+        if app.id == app_or_version_id:
+            if not app.versions:
+                raise InstallTargetError(f"App Hub app {app.name or app_or_version_id!r} has no published versions")
+            latest = max(app.versions, key=lambda v: _version_key(v.version))
+            if not latest.id:
+                raise InstallTargetError(
+                    f"App Hub app {app.name or app_or_version_id!r} latest version record is missing its id",
+                )
+            return InstallTarget(
+                version_id=latest.id,
+                app_name=app.name,
+                version=latest.version,
+                resolved_from="app-id",
+            )
+    raise InstallTargetError(
+        f"{app_or_version_id!r} is neither an App Hub version id nor an app id in the configured "
+        "catalog (GET /api/appHub) - run `d2w apps hub-list` to find a valid version id",
+    )
 
 
 async def uninstall(profile: Profile, key: str) -> None:
