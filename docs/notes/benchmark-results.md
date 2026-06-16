@@ -72,6 +72,22 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
   load context — so the bridge is still the right default for PII/local, but full MCP is viable.
 - `mn-violet-lotus` times out (300s) without calling a tool. Delete.
 
+## Context-window dimension (full MCP, `gemma-4-e4b`)
+
+The full-MCP payload is the gate, so loaded context decides what works (read tools ~16k tokens, the
+write round's full toolset ~49k):
+
+| loaded context | reads (119 tools) | write (311 tools) |
+| --- | --- | --- |
+| 8k (LM Studio default) | fail (HTTP 400 — payload > context) | fail |
+| 32k | **pass** | fail (loops; 49k payload doesn't fit) |
+| 64k | pass\* | **pass** |
+| 128k | pass | pass |
+
+So full-MCP **reads need roughly ≥32k** context and **writes need ≥64k**; 128k is comfortably safe
+(the default `BENCH_CONTEXT`). (\*the 64k read FAILs in one run were small-model answer-variance, not
+a context effect — they pass at 32k and 128k.) Vary `BENCH_CONTEXT` to test other models/levels.
+
 ## Findings (what the night taught us)
 
 1. **The oracle caught a real test bug.** The bridge write task hinted `dev customize set <key>
