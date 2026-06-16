@@ -8,11 +8,14 @@ from pathlib import Path
 
 import pytest
 from dhis2w_mcp_bridge.cli_bridge import (
+    DEFAULT_PROTECTED_HOSTS,
     EXIT_CLI_NOT_FOUND,
     EXIT_REFUSED,
     EXIT_TIMEOUT,
     READ_ONLY_COMMANDS,
+    _host_is_protected,
     is_read_only,
+    protected_hosts,
     run_cli,
 )
 from dhis2w_mcp_bridge.server import build_server
@@ -182,6 +185,70 @@ async def test_readonly_refuses_disk_write_flag(monkeypatch: pytest.MonkeyPatch)
         result = await run_cli(args, read_only=True)
         assert result.exit_code == EXIT_REFUSED, f"{args} should be refused"
         assert "read-only" in result.stderr
+
+
+# --- Host-level write guard (protected public hosts) ---------------------------------------
+
+#: Resolver attribute path monkeypatched to fix the active profile's base URL in guard tests.
+_RESOLVER = "dhis2w_mcp_bridge.cli_bridge._resolve_base_url"
+
+
+def test_host_is_protected_matches_host_and_subdomains() -> None:
+    """A host matches a protected pattern when equal (case-insensitive) or a subdomain."""
+    patterns = ("play.dhis2.org", "play.im.dhis2.org")
+    assert _host_is_protected("play.im.dhis2.org", patterns) is True
+    assert _host_is_protected("PLAY.IM.DHIS2.ORG", patterns) is True
+    assert _host_is_protected("foo.play.im.dhis2.org", patterns) is True
+    assert _host_is_protected("localhost", patterns) is False
+    assert _host_is_protected("notplay.im.dhis2.org", patterns) is False
+
+
+def test_protected_hosts_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The env var overrides the defaults; an empty value disables the guard."""
+    monkeypatch.delenv("DHIS2_MCP_PROTECTED_HOSTS", raising=False)
+    assert protected_hosts() == DEFAULT_PROTECTED_HOSTS
+    monkeypatch.setenv("DHIS2_MCP_PROTECTED_HOSTS", "example.org, foo.test")
+    assert protected_hosts() == ("example.org", "foo.test")
+    monkeypatch.setenv("DHIS2_MCP_PROTECTED_HOSTS", "")
+    assert protected_hosts() == ()
+
+
+async def test_write_refused_on_protected_host(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A mutating command is refused on a shared public host even with read-only off."""
+    monkeypatch.setattr(_RESOLVER, lambda profile: "https://play.im.dhis2.org/dev-2-42")
+    result = await run_cli(["metadata", "create", "dataElements", "x.json"])
+    assert result.exit_code == EXIT_REFUSED
+    assert "write-protected" in result.stderr
+    assert "play.im.dhis2.org" in result.stderr
+
+
+async def test_read_allowed_on_protected_host(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reads against a shared public host still run — the guard only blocks mutations."""
+    monkeypatch.setattr(_RESOLVER, lambda profile: "https://play.im.dhis2.org/dev-2-42")
+    result = await run_cli(["metadata", "list", "dataElements"])
+    assert result.exit_code == 0
+
+
+async def test_write_allowed_on_local_host(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A mutating command runs against a local (non-protected) host."""
+    monkeypatch.setattr(_RESOLVER, lambda profile: "http://localhost:8080")
+    result = await run_cli(["metadata", "create", "dataElements", "x.json"])
+    assert result.exit_code == 0
+
+
+async def test_write_guard_disabled_by_empty_env(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty DHIS2_MCP_PROTECTED_HOSTS disables the guard even on a play host."""
+    monkeypatch.setenv("DHIS2_MCP_PROTECTED_HOSTS", "")
+    monkeypatch.setattr(_RESOLVER, lambda profile: "https://play.im.dhis2.org/dev-2-42")
+    result = await run_cli(["metadata", "create", "dataElements", "x.json"])
+    assert result.exit_code == 0
+
+
+async def test_write_guard_fails_open_when_host_unresolved(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """If the host cannot be resolved, the guard fails open and the command runs."""
+    monkeypatch.setattr(_RESOLVER, lambda profile: None)
+    result = await run_cli(["metadata", "create", "dataElements", "x.json"])
+    assert result.exit_code == 0
 
 
 def _live_leaf_paths() -> set[tuple[str, ...]]:

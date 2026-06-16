@@ -22,7 +22,7 @@ import argparse
 import asyncio
 import json
 import shlex
-import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -32,15 +32,13 @@ from dhis2w_cli.main import build_app
 from fastmcp import Client
 from pydantic import BaseModel, ConfigDict
 
-ROSTER: tuple[str, ...] = (
-    "google/gemma-4-12b-qat",
-    "google/gemma-4-12b",
-    "google/gemma-4-26b-a4b-qat",
-    "google/gemma-4-e4b",
-    "qwen2.5-7b-instruct",
-    "qwen/qwen3.5-4b",
-)
-LM = "http://localhost:1234/v1/chat/completions"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _model_backend import get_backend  # noqa: E402 — sibling import needs the path-prepend above
+
+#: Local-inference backend (LM Studio by default; override with MODEL_BACKEND).
+BACKEND = get_backend()
+LM = BACKEND.chat_url
 REPO = "/Users/morteoh/dev/local/dhis2w-utils"
 RESULTS = "/tmp/cli_matrix.jsonl"
 OUT = "docs/notes/cli-matrix.md"
@@ -239,9 +237,8 @@ async def _run_cell(
 
 
 def _load_model(model: str) -> None:
-    """Load exactly one model instance in LM Studio."""
-    subprocess.run(["lms", "unload", "--all"], capture_output=True, check=False)
-    subprocess.run(["lms", "load", model, "--gpu", "max", "--ttl", "3600", "-y"], capture_output=True, check=False)
+    """Load exactly one model instance."""
+    BACKEND.load(model)
 
 
 def _done(results_path: Path) -> set[tuple[str, str]]:
@@ -316,7 +313,7 @@ async def main() -> None:
     """Parse args, run the requested slice of the matrix, and re-render the Markdown."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--group", default=None, help="Limit to one top-level command group (e.g. metadata).")
-    parser.add_argument("--models", nargs="*", default=list(ROSTER), help="Models to run (default: roster).")
+    parser.add_argument("--models", nargs="+", required=True, help="Models to run (no default; see `make bench-list`).")
     parser.add_argument("--max", type=int, default=None, help="Cap the number of commands (for a quick batch).")
     parser.add_argument("--results", default=RESULTS)
     parser.add_argument("--out", default=OUT)

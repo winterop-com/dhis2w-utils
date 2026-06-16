@@ -11,15 +11,15 @@ Working log for making the dhis2 toolkit usable by **small local models** (LM St
 
 ## How to run a round (the rig)
 
-The canonical harness is **`infra/scripts/bridge_round.py`**, wrapped by **`make bridge-round`**.
+The canonical harness is **`infra/scripts/bridge_round.py`**, wrapped by **`make bench-round`**.
 It drives the real bridge (FastMCP client, same config as `~/.lmstudio/mcp.json`) from LM Studio's
 OpenAI-compatible API — `lms chat` can't do this (it doesn't load MCP servers; only the GUI does).
 
 ```bash
-make bridge-round ROUND=read                                   # play42, readonly (default)
-make bridge-round ROUND=write                                  # local_basic, writes on; round-trips minPasswordLength
-make bridge-round ROUND=bench                                  # the timed table prompts below
-make bridge-round MODEL=qwen/qwen3.5-4b ROUND=read             # any LM Studio model key
+make bench-round ROUND=read                                   # play42, readonly (default)
+make bench-round ROUND=write                                  # local_basic, writes on; round-trips minPasswordLength
+make bench-round ROUND=bench                                  # the timed table prompts below
+make bench-round MODEL=qwen/qwen3.5-4b ROUND=read             # any LM Studio model key
 ```
 
 The target starts `lms server`, loads the model if not already loaded (idempotent — avoids the
@@ -266,7 +266,7 @@ Drove the **real bridge** (FastMCP client) from LM Studio's OpenAI-compatible AP
 
 Full read+write+perf sweep across a curated model roster, plus the capable cloud model as the
 correctness reference. Results + methodology + roster live in
-[`model-benchmark.md`](model-benchmark.md); re-run with `make bridge-bench`. Headline:
+[`model-benchmark.md`](model-benchmark.md); re-run with `make bench-bridge`. Headline:
 `gemma-4-12b-qat` is the only local model that passed both read and write, and it beats its bf16
 sibling on speed at equal correctness. qwens read fast but stall on the write (discoverability of
 `system settings set`). All five now use `d2w schema` for the "what fields" task.
@@ -283,7 +283,7 @@ exactly as intended.
 
 ## Round 5 — multi-purpose write (the real bar)
 
-The `bridge-bench` write is single-purpose and *hinted* (one `system settings set`). The honest test is
+The `bench-bridge` write is single-purpose and *hinted* (one `system settings set`). The honest test is
 a multi-object write. Drove the champion `gemma-4-26b-a4b-qat` (local_basic, READONLY off) on:
 "create a Monthly data set + three INTEGER data elements, attach all three, confirm 3 elements."
 
@@ -294,7 +294,7 @@ a multi-object write. Drove the champion `gemma-4-26b-a4b-qat` (local_basic, REA
 
 So multi-purpose writes are *partially* in reach of the strongest local model: it can build the
 structure, but can't reliably tell it's finished. Smaller models would stall earlier. This is the
-real write bar — far above the hinted single-key `bridge-bench` write.
+real write bar — far above the hinted single-key `bench-bridge` write.
 
 - **CLI usability finding**: `metadata get dataSets` uses the camelCase wire name, but the mutating
   sub-app is `metadata data-sets` (hyphenated). The model tripped on this (step 11), and so did the

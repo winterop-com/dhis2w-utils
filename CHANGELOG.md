@@ -152,7 +152,7 @@ Minor release. Two new surfaces — a single-tool MCP bridge for small local mod
 
 ### Tooling + tests
 
-- **`make bridge-round`** (+ `infra/scripts/bridge_round.py`) — repeatable rig that drives `dhis2w-mcp-bridge` with a local LM Studio model for read / write / benchmark rounds.
+- **`make bench-round`** (+ `infra/scripts/bridge_round.py`) — repeatable rig that drives `dhis2w-mcp-bridge` with a local LM Studio model for read / write / benchmark rounds.
 - **BUGS.md #42 tripwire** — paired mocked + live tests that fire when DHIS2 stops returning lowercase `keyAnalysisDisplayProperty`, signalling the `SecuritySettings` projection can collapse into the generated model.
 - Nightly E2E repointed at the local docker stack (#357); Material for MkDocs build notice silenced.
 

@@ -13,7 +13,7 @@ logs are linked at the bottom.
   command. This is the structural 100% baseline (`packages/dhis2w-cli/tests/test_cli_surface.py::test_every_command_renders_help`).
 - A **capable agent is the oracle**: Claude Code / Codex should form every command correctly. Any
   command a capable agent *can't* drive is a real CLI defect (bad help, undiscoverable) — not a model
-  limitation. Composite write workflows (`make composite-scenarios`) are proven oracle-first.
+  limitation. Composite write workflows (`make bench-composite`) are proven oracle-first.
 
 **2. Which local models can drive it, and how well?** — measured as a gradient (small local models
 will never be 100%). This is the privacy use case: a small model on-box, against data that can't
@@ -26,10 +26,10 @@ All runnable from the `Makefile`; the model roster lives in `infra/scripts/bench
 
 | Command | What it measures |
 | --- | --- |
-| `make bridge-bench` | The roster over **read + write + performance** — the primary capability benchmark. |
-| `make cli-matrix` | A **command × model grid**: does each model find and form each CLI command. |
-| `make composite-scenarios` | Multi-object **write workflows** (data set + elements, program + stages), oracle reference. |
-| `make bridge-round` | Drive one model through a read / write / benchmark round interactively. |
+| `make bench-bridge` | The roster over **read + write + performance** — the primary capability benchmark. |
+| `make bench-matrix` | A **command × model grid**: does each model find and form each CLI command. |
+| `make bench-composite` | Multi-object **write workflows** (data set + elements, program + stages), oracle reference. |
+| `make bench-round` | Drive one model through a read / write / benchmark round interactively. |
 
 ## Headline findings
 
@@ -42,10 +42,10 @@ All runnable from the `Makefile`; the model roster lives in `infra/scripts/bench
   (correlating many just-created UIDs) is the wall, and more turns don't help (it's a coherence
   limit, not a budget one). The capable-agent oracle does the same write 100%. That gap is the story:
   trivial for a capable agent, a wall for local models.
-- **The command×model grid is a stress-test, not a leaderboard.** On the 1,230-cell `cli-matrix`,
+- **The command×model grid is a stress-test, not a leaderboard.** On the 1,230-cell `bench-matrix`,
   "found the right command" sits at ~10% for everyone, and the best driver (`26b-a4b-qat`) scored
   *near the bottom* — because the metric is "pick the exact command among ~200 siblings from a vague
-  one-line goal", which is interpretation noise, not capability. Judge models with `bridge-bench`;
+  one-line goal", which is interpretation noise, not capability. Judge models with `bench-bridge`;
   read the grid as a discoverability stress-test of the help surface.
 
 ## Why this shapes the design

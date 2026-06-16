@@ -14,7 +14,7 @@ script wires the two together itself.
 
 1. LM Studio's local server is running: `lms server start` (default port 1234).
 2. The model is available/loaded: `lms load <model> --gpu max --ttl 3600`.
-   (The `make bridge-round` target loads it for you.)
+   (The `make bench-round` target loads it for you.)
 
 ## Profiles and read-only mode (testing policy — do not deviate)
 
@@ -41,16 +41,19 @@ import asyncio
 import json
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
 from fastmcp import Client
 from pydantic import BaseModel, ConfigDict
 
-#: Default model identifier (an LM Studio model key from `lms ls`).
-DEFAULT_MODEL = "google/gemma-4-12b-qat"
-#: LM Studio OpenAI-compatible chat-completions endpoint.
-LMSTUDIO_URL = "http://localhost:1234/v1/chat/completions"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _model_backend import get_backend  # noqa: E402 — sibling import needs the path-prepend above
+
+#: OpenAI-compatible chat-completions endpoint (LM Studio by default; override with MODEL_BACKEND).
+LMSTUDIO_URL = get_backend().chat_url
 #: Repo root used to spawn the bridge via `uv run --directory`.
 REPO_DIR = "/Users/morteoh/dev/local/dhis2w-utils"
 
@@ -279,7 +282,7 @@ async def _run(model: str, profile: str, readonly: str, round_name: str) -> int:
 def main() -> int:
     """Parse arguments and run a single bridge test round; return an exit code."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="LM Studio model key (see `lms ls`).")
+    parser.add_argument("--model", required=True, help="Model key to drive (no default; see `make bench-list`).")
     parser.add_argument("--profile", default="play42", help="DHIS2 profile (writes: local_basic only).")
     parser.add_argument("--round", default="read", choices=("read", "write", "bench"), help="Which round to run.")
     parser.add_argument("--readonly", default=None, choices=("0", "1"), help="Override DHIS2_MCP_READONLY.")
