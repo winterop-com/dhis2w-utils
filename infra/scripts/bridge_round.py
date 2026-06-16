@@ -76,7 +76,7 @@ READ_TASKS = (
 #: before and restores it after, so this is a reversible round-trip.
 WRITE_TASK = (
     "Set the system setting 'minPasswordLength' to 10 (a single system setting is written "
-    "with 'dev customize set <key> <value>'). After setting it, read the server's security "
+    "with 'system settings set <key> <value>'). After setting it, read the server's security "
     "settings and confirm minPasswordLength is now 10. Report the final value."
 )
 
@@ -250,7 +250,8 @@ async def _write_round(client: Client, http: httpx.AsyncClient, tools: list[dict
     print(f"\nFINAL ({calls} calls, {secs}s): {answer}")
 
     if baseline is not None:
-        restored = await _call_bridge(client, {"args": ["dev", "customize", "set", "minPasswordLength", str(baseline)]})
+        restore_args = ["system", "settings", "set", "minPasswordLength", str(baseline)]
+        restored = await _call_bridge(client, {"args": restore_args})
         print(f"\nrestore minPasswordLength -> {baseline}: exit {restored.exit_code}")
 
 

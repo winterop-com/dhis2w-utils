@@ -59,7 +59,7 @@ READ_TASKS: tuple[tuple[str, str], ...] = (
 )
 WRITE_TASK = (
     "Set the system setting minPasswordLength to 10 (a single system setting is written with "
-    "'dev customize set <key> <value>'), then read the security settings and confirm it is now 10."
+    "'system settings set <key> <value>'), then read the security settings and confirm it is now 10."
 )
 
 
@@ -309,13 +309,13 @@ async def _benchmark_model(model: str) -> ModelReport:
         baseline = json.loads(base_out).get("minPasswordLength") if base_out.strip().startswith("{") else None
         async with httpx.AsyncClient() as http:
             run = await _agent(client, http, tools, model, WRITE_TASK, max_steps=10)
-        found = _used(run.tool_args, ["dev", "customize", "set"])
+        found = _used(run.tool_args, ["system", "settings", "set"])
         write = TaskOutcome(
             key="write", ok=found and "10" in run.answer, calls=run.calls, secs=run.secs, tokens=run.tokens
         )
         print(f"  WRITE: ok={write.ok} found_cmd={found} calls={run.calls} {run.secs}s")
         if baseline is not None:
-            await _bridge_call(client, ["dev", "customize", "set", "minPasswordLength", str(baseline)])
+            await _bridge_call(client, ["system", "settings", "set", "minPasswordLength", str(baseline)])
 
     return ModelReport(model=model, read=read_outcomes, write=write, found_write_cmd=found)
 
