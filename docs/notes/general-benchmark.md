@@ -49,21 +49,20 @@ not; an oracle failure almost always means the **task** is mis-specified, not th
 task before trusting the other columns. With no `BENCH_CHAMPION` set there is no oracle check. Our
 strongest local model, `google/gemma-4-26b-a4b-qat`, is the natural choice.
 
-## Latest results — 2026-06-16
+## Latest results — 2026-06-17 (extended suite: 62 cases)
 
-| model | python | cli | tooling | total |
-| --- | --- | --- | --- | --- |
-| `google/gemma-4-26b-a4b-qat` (champion) | 23/23 | 3/3 | 3/3 | **29/29** |
-| `google/gemma-4-12b-qat` | 23/23 | 3/3 | 3/3 | **29/29** |
-| `google/gemma-4-12b` (bf16) | 23/23 | 3/3 | 3/3 | **29/29** |
-| `google/gemma-4-e4b` | 23/23 | 3/3 | 3/3 | **29/29** |
+| model | python | cli | tooling | total | time | tok/s |
+| --- | --- | --- | --- | --- | --- | --- |
+| `google/gemma-4-26b-a4b-qat` (oracle) | 52/52 | 3/3 | 7/7 | **62/62** | 612s | 60 |
+| `google/gemma-4-12b-qat` | 52/52 | 3/3 | 7/7 | **62/62** | 936s | 35 |
+| `google/gemma-4-e4b` | 48/49 | 3/3 | 7/7 | **58/59** | 346s | 52 |
+| `qwen/qwen3.5-4b` | 44/46 | 2/3 | 7/7 | **53/56** | 471s | 85 |
+| `mn-violet-lotus-12b` | 51/52 | 2/3 | **0/7** | **53/62** | 88s | 26 |
 
-Oracle clean (champion 29/29, no `SUSPECT` banner). **At the default 16384-token budget the gemmas
-are indistinguishable** — every model passes every task. To separate them, tighten `BENCH_MAX_TOKENS`
-(e.g. `BENCH_MAX_TOKENS=2048`) and watch which degrade first: the reasoning models truncate their
-code once the cap bites the chain-of-thought. (Calibration note: the first champion run flagged 5
-SUSPECT tasks — that caught two real harness bugs, a 2048-token truncation and a `create_file` prompt
-that sent the champion into a runaway reasoning loop; both fixed before recording the above.)
+Oracle clean. The two qats are perfect; `e4b` near-perfect and fast; `qwen3.5-4b` fast but drops the
+LRU-cache class and a `wc` command; **`mn-violet-lotus` scores 0/7 tooling** — a roleplay finetune
+that doesn't tool-call. Both 4B models pass all four multi-turn agentic tool chains, so chaining is
+not size-bound. Full write-up across all three benchmarks: [benchmark-results.md](benchmark-results.md).
 
 ## Re-running
 

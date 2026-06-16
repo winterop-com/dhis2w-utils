@@ -66,6 +66,7 @@ nav:
           - AI agent testing:
               - Overview: ai-agent-testing.md
               - Benchmark plan (1.0): notes/benchmark-plan.md
+              - Benchmark results (latest): notes/benchmark-results.md
               - Model benchmarks:
                   - General capability (axis 1): notes/general-benchmark.md
                   - Bridge read + write (axis 2): notes/model-benchmark.md

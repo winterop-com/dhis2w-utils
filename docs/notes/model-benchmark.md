@@ -27,17 +27,20 @@ installed. Set `BENCH_CHAMPION=<key>` to designate an oracle (see below).
   `minPasswordLength` to 10 with a command hint, then verify). Single representative runs; expect
   run-to-run variance, especially on the write (model nondeterminism).
 
-## Latest results — 2026-06-16 (play42 / local_basic)
+## Latest results — 2026-06-17 (play42 / local_basic)
 
 | model | count | schema | filter | write | read tok/s |
 | --- | --- | --- | --- | --- | --- |
-| **`google/gemma-4-26b-a4b-qat`** (oracle, MoE 26B/4B) | PASS 9.6s | PASS 10.4s | PASS 9.6s | **PASS** 65.5s/9c | ~21 |
-| `google/gemma-4-12b-qat` | PASS 10.9s | PASS 14.8s | PASS 10.5s | **PASS** 55.9s/9c | ~16 |
-| `google/gemma-4-12b` (bf16) | PASS 12.0s | PASS 19.9s | PASS 17.9s | **PASS** 112.8s/9c | ~14 |
-| `google/gemma-4-e4b` (4B) | PASS 10.9s | PASS 11.7s | PASS 12.8s | **PASS** 31.2s/1c | ~28 |
+| **`google/gemma-4-26b-a4b-qat`** (oracle) | PASS 8.9s | PASS 9.9s | PASS 9.0s | **PASS** 15.7s | ~21 |
+| `google/gemma-4-12b-qat` | PASS 10.5s | PASS 14.9s | PASS 10.7s | **PASS** 20.3s | ~17 |
+| `google/gemma-4-e4b` | PASS 10.4s | PASS 12.6s | PASS 13.5s | **PASS** 21.4s | ~30 |
+| `qwen/qwen3.5-4b` | PASS 8.2s | PASS 9.1s | PASS 25.8s | **PASS** 10.1s | ~33 |
+| `mn-violet-lotus-12b` | FAIL 6.0s | FAIL 6.3s | PASS 5.5s | cmd-not-found | ~20 |
 
-All four gemmas pass every read + the write round; the oracle check was clean. The write restores
-`minPasswordLength`. (`c` = tool-call count on the write; `e4b` nailed it in a single call.)
+All four serious candidates pass every read + the write round (oracle clean); `qwen3.5-4b` writes
+fastest. `mn-violet-lotus` (roleplay) fails discovery. Note: this run also caught + fixed a stale
+write-command in the task itself (`dev customize set` → `system settings set`) — see
+[benchmark-results.md](benchmark-results.md) for the full three-benchmark write-up.
 
 ## The oracle (opt-in)
 
