@@ -696,14 +696,24 @@ def _installed_models(requested: list[str]) -> list[str]:
 
 
 def _markdown_table(reports: Sequence[ModelReport]) -> str:
-    """Render the comparison as a Markdown table, one column per suite plus a total."""
-    lines = ["| model | python | cli | tooling | total |", "| --- | --- | --- | --- | --- |"]
+    """Render the comparison as a Markdown table: per-suite scores, total, and timing.
+
+    Timing matters because correctness often ties at a generous token budget — `time` (total
+    wall-clock across all tasks) and `tok/s` (completion throughput) are then the real separators.
+    """
+    lines = [
+        "| model | python | cli | tooling | total | time | tok/s |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
     for report in reports:
         passed = sum(result.passed for result in report.results)
         total = sum(result.total for result in report.results)
+        secs = sum(result.seconds for result in report.results)
+        tokens = sum(result.tokens for result in report.results)
+        rate = f"{tokens / secs:.0f}" if secs else "-"
         lines.append(
             f"| `{report.model}` | {report.suite_score('python')} | {report.suite_score('cli')} "
-            f"| {report.suite_score('tooling')} | **{passed}/{total}** |"
+            f"| {report.suite_score('tooling')} | **{passed}/{total}** | {secs:.0f}s | {rate} |"
         )
     return "\n".join(lines)
 
