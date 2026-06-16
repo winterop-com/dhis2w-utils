@@ -508,18 +508,29 @@ class ModelReport(BaseModel):
 # --- model calls ----------------------------------------------------------------------------
 
 
+async def _post_chat(http: httpx.AsyncClient, payload: dict[str, object]) -> httpx.Response:
+    """POST to the chat endpoint, retrying a few times on a transient disconnect (model still alive)."""
+    last: httpx.HTTPError | None = None
+    for attempt in range(3):
+        try:
+            return await http.post(LM, json=payload, timeout=300.0)
+        except httpx.HTTPError as exc:
+            last = exc
+            await asyncio.sleep(2.0 * (attempt + 1))
+    raise last if last is not None else RuntimeError("chat post exhausted retries")
+
+
 async def _chat(http: httpx.AsyncClient, model: str, system: str, prompt: str) -> tuple[str, float, int]:
     """One plain chat completion. Returns (content, seconds, completion_tokens)."""
     started = time.monotonic()
-    response = await http.post(
-        LM,
-        json={
+    response = await _post_chat(
+        http,
+        {
             "model": model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
             "temperature": 0.2,
             "max_tokens": MAX_TOKENS,
         },
-        timeout=300.0,
     )
     elapsed = time.monotonic() - started
     parsed = _ChatResponse.model_validate(response.json())
@@ -531,15 +542,14 @@ async def _chat_tools(
 ) -> tuple[ToolCall | None, float, int]:
     """One tool-calling chat completion. Returns (first tool call or None, seconds, tokens)."""
     started = time.monotonic()
-    response = await http.post(
-        LM,
-        json={
+    response = await _post_chat(
+        http,
+        {
             "model": model,
             "messages": [{"role": "system", "content": TOOL_SYSTEM}, {"role": "user", "content": goal}],
             "tools": tools,
             "temperature": 0.2,
         },
-        timeout=300.0,
     )
     elapsed = time.monotonic() - started
     parsed = _ChatResponse.model_validate(response.json())
@@ -738,17 +748,27 @@ async def main() -> None:
         print("none of the requested models are installed", file=sys.stderr)
         return
     reports: list[ModelReport] = []
+    failures: list[str] = []
     for model in models:
         print(f">>> {model}")
         _load_model(model)
-        reports.append(await _benchmark_model(model))
+        try:
+            report = await _benchmark_model(model)
+        except Exception as exc:  # noqa: BLE001 — isolate one model's failure so the run continues
+            print(f"!!! {model} FAILED ({type(exc).__name__}: {exc}); skipping to the next model")
+            failures.append(model)
+            continue
+        reports.append(report)
+        # Persist after each model so a later crash never loses completed results.
+        with open(RESULTS, "a") as handle:
+            handle.write(report.model_dump_json() + "\n")
     BACKEND.unload_all()
 
-    with open(RESULTS, "a") as handle:
-        for report in reports:
-            handle.write(report.model_dump_json() + "\n")
-    print("\n" + _markdown_table(reports))
+    if reports:
+        print("\n" + _markdown_table(reports))
     _check_oracle(reports)
+    if failures:
+        print(f"\n{len(failures)} model(s) failed and were skipped: {', '.join(failures)}")
 
 
 if __name__ == "__main__":

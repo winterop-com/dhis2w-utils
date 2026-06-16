@@ -418,16 +418,26 @@ async def main() -> None:
         sys.exit(1)
 
     reports: list[ModelReport] = []
+    failures: list[str] = []
     for model in models:
         print(f">>> {model}")
         _load_model(model)
-        reports.append(await _benchmark_model(model))
-
-    with open(RESULTS, "a") as handle:
-        for report in reports:
+        try:
+            report = await _benchmark_model(model)
+        except Exception as exc:  # noqa: BLE001 — isolate one model's failure so the run continues
+            print(f"!!! {model} FAILED ({type(exc).__name__}: {exc}); skipping to the next model")
+            failures.append(model)
+            continue
+        reports.append(report)
+        # Persist after each model so a later crash never loses completed results.
+        with open(RESULTS, "a") as handle:
             handle.write(report.model_dump_json() + "\n")
-    print("\n" + _markdown_table(reports))
+
+    if reports:
+        print("\n" + _markdown_table(reports))
     _check_oracle(reports)
+    if failures:
+        print(f"\n{len(failures)} model(s) failed and were skipped: {', '.join(failures)}")
 
 
 if __name__ == "__main__":
