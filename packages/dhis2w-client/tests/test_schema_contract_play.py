@@ -150,12 +150,12 @@ async def test_v43_schema_contract(
 # The Sierra Leone play fixture seeds the `IpHINAT79UW` Child Programme
 # (tracker, with-registration), so trackedEntities + enrollments always have
 # rows there. That program ships with zero events on the dev play instances,
-# so the events check falls back to the `fDd25txQckK` event program (which does
-# carry events) before skipping — see `_fetch_first_tracker_row`.
+# so the events check discovers a program that currently has events at runtime
+# rather than hard-coding one (the dev instances re-seed) — see
+# `_fetch_first_tracker_row`.
 # ---------------------------------------------------------------------------
 
 _TRACKER_PROGRAM_UID = "IpHINAT79UW"  # Child Programme, with-registration: trackedEntities + enrollments.
-_EVENT_PROGRAM_UID = "fDd25txQckK"  # Provider Follow-up, event program: carries event rows the Child Programme lacks.
 _TRACKER_ROOT_OU = "ImspTQPwCqd"  # Sierra Leone root.
 
 
@@ -204,30 +204,40 @@ TRACKER_ENDPOINTS: list[tuple[str, str]] = [
 ]
 
 
+async def _query_one_tracker_row(client: Dhis2Client, endpoint: str, program_uid: str) -> Any:
+    """GET one `/api/tracker/{endpoint}` row scoped to `program_uid`, or None."""
+    params = {"program": program_uid, "orgUnit": _TRACKER_ROOT_OU, "ouMode": "DESCENDANTS", "pageSize": "1"}
+    raw = await client.get_raw(f"/api/tracker/{endpoint}", params=params)
+    rows = raw.get(endpoint) or []
+    return rows[0] if rows else None
+
+
 async def _fetch_first_tracker_row(client: Dhis2Client, endpoint: str) -> Any:
     """Return one `/api/tracker/{endpoint}` row, or None if the instance has none.
 
-    Tries the with-registration Child Programme first, then falls back to the
-    event program `fDd25txQckK`. The `IpHINAT79UW` seed has trackedEntities +
-    enrollments but zero events on the dev play instances, while `fDd25txQckK`
-    carries event rows — so without the fallback the `TrackerEvent` contract
-    would skip every run and never exercise the generated model. The fallback
-    re-scopes to a program rather than dropping the filter because v43 rejects an
-    unscoped `/api/tracker/events` query with HTTP 400. (trackedEntities /
-    enrollments already return rows from the first pass, so only `events` falls
-    through to the second.)
+    The `IpHINAT79UW` Child Programme has trackedEntities + enrollments but zero
+    events on the dev play instances, so the events case needs a program that
+    actually carries events. Rather than hard-code one (the dev instances
+    re-seed, so any single program/event can vanish between runs and re-skip),
+    discover a program with data at runtime: try the Child Programme, then probe
+    every program (event programs first — they carry the seed's events) until one
+    returns a row. We must scope to a program because v43 rejects an unscoped
+    `/api/tracker/events` query with HTTP 400. trackedEntities / enrollments
+    return on the first pass, so only `events` reaches the discovery loop.
     """
-    for program_uid in (_TRACKER_PROGRAM_UID, _EVENT_PROGRAM_UID):
-        params = {
-            "program": program_uid,
-            "orgUnit": _TRACKER_ROOT_OU,
-            "ouMode": "DESCENDANTS",
-            "pageSize": "1",
-        }
-        raw = await client.get_raw(f"/api/tracker/{endpoint}", params=params)
-        rows = raw.get(endpoint) or []
-        if rows:
-            return rows[0]
+    row = await _query_one_tracker_row(client, endpoint, _TRACKER_PROGRAM_UID)
+    if row is not None:
+        return row
+    raw_programs = await client.get_raw("/api/programs", params={"fields": "id,programType", "paging": "false"})
+    programs = raw_programs.get("programs") or []
+    # Event programs (WITHOUT_REGISTRATION) are likeliest to carry event rows in
+    # the seed, so probe them before with-registration programs to minimise calls.
+    ordered_ids = [p["id"] for p in programs if p.get("programType") == "WITHOUT_REGISTRATION" and p.get("id")]
+    ordered_ids += [p["id"] for p in programs if p.get("programType") != "WITHOUT_REGISTRATION" and p.get("id")]
+    for program_uid in ordered_ids:
+        row = await _query_one_tracker_row(client, endpoint, program_uid)
+        if row is not None:
+            return row
     return None
 
 
