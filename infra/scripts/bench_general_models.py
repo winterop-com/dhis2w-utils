@@ -32,6 +32,7 @@ Usage:
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import json
 import os
@@ -103,8 +104,12 @@ class _ToolFunction(BaseModel):
 
 
 class _ToolCallRaw(BaseModel):
-    """One tool call in an OpenAI chat response."""
+    """One tool call in an OpenAI chat response. `id`/`type` are kept so the call can be echoed back."""
 
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = ""
+    type: str = "function"
     function: _ToolFunction = Field(default_factory=_ToolFunction)
 
 
@@ -180,15 +185,42 @@ class CliTask(BaseModel):
     check: Callable[[CliRun], list[bool]]
 
 
-class ToolTask(BaseModel):
-    """A tooling task: a goal, the offered tool specs, and a checker over the emitted call."""
+class ToolDef(BaseModel):
+    """A mock tool: its name/description/JSON-schema params plus a handler that returns a canned result.
+
+    The handler is what makes multi-turn possible — it feeds a realistic result back so the model can
+    chain a second call on data it could only have learned from the first.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    name: str
+    description: str
+    parameters: dict[str, object]
+    handler: Callable[[dict[str, object]], str]
+
+    def spec(self) -> dict[str, object]:
+        """Render this tool as an OpenAI function-tool spec."""
+        return {
+            "type": "function",
+            "function": {"name": self.name, "description": self.description, "parameters": self.parameters},
+        }
+
+
+class ToolScenario(BaseModel):
+    """A tooling scenario: a goal, the offered tools, and a checker over the FULL sequence of calls made.
+
+    Scoring over the whole transcript (not just the first call) is what tests real agentic behaviour:
+    strict multi-argument correctness, picking the right tool among confusable ones, and chaining.
+    """
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     key: str
     goal: str
-    tools: list[dict[str, object]]
-    check: Callable[[ToolCall | None], bool]
+    tools: list[ToolDef]
+    check: Callable[[list[ToolCall]], bool]
+    max_steps: int = 4
 
 
 # --- python suite checks --------------------------------------------------------------------
@@ -259,6 +291,100 @@ def _lcs_cases(fn: object) -> list[bool]:
         return [False]
 
 
+def _two_sum_cases(fn: object) -> list[bool]:
+    """Hidden cases for two_sum (return indices of the two values summing to target)."""
+    call = cast("Callable[[list[int], int], object]", fn)
+
+    def ok(nums: list[int], target: int) -> bool:
+        result = call(nums, target)
+        if not isinstance(result, list | tuple) or len(result) != 2:
+            return False
+        i, j = result
+        return i != j and nums[int(i)] + nums[int(j)] == target
+
+    try:
+        return [ok([2, 7, 11, 15], 9), ok([3, 2, 4], 6), ok([3, 3], 6)]
+    except Exception:
+        return [False]
+
+
+def _roman_to_int_cases(fn: object) -> list[bool]:
+    """Hidden cases for roman_to_int."""
+    call: Callable[[str], int] = fn  # type: ignore[assignment]
+    try:
+        return [call("IV") == 4, call("IX") == 9, call("LVIII") == 58, call("MCMXCIV") == 1994]
+    except Exception:
+        return [False]
+
+
+def _palindrome_cases(fn: object) -> list[bool]:
+    """Hidden cases for is_palindrome (alphanumeric only, case-insensitive)."""
+    call: Callable[[str], bool] = fn  # type: ignore[assignment]
+    try:
+        return [
+            call("A man, a plan, a canal: Panama") is True,
+            call("race a car") is False,
+            call(" ") is True,
+            call("0P") is False,
+        ]
+    except Exception:
+        return [False]
+
+
+def _longest_unique_cases(fn: object) -> list[bool]:
+    """Hidden cases for longest_unique (length of longest substring without repeating chars)."""
+    call: Callable[[str], int] = fn  # type: ignore[assignment]
+    try:
+        return [call("abcabcbb") == 3, call("bbbbb") == 1, call("pwwkew") == 3, call("") == 0]
+    except Exception:
+        return [False]
+
+
+def _rpn_cases(fn: object) -> list[bool]:
+    """Hidden cases for rpn_eval (evaluate reverse-polish notation tokens; only + - *)."""
+    call: Callable[[list[str]], int] = fn  # type: ignore[assignment]
+    try:
+        return [call(["2", "1", "+", "3", "*"]) == 9, call(["4", "5", "*"]) == 20, call(["7", "2", "-"]) == 5]
+    except Exception:
+        return [False]
+
+
+def _min_coins_cases(fn: object) -> list[bool]:
+    """Hidden cases for min_coins (fewest coins for amount, or -1 if impossible)."""
+    call: Callable[[list[int], int], int] = fn  # type: ignore[assignment]
+    try:
+        return [call([1, 2, 5], 11) == 3, call([2], 3) == -1, call([1], 0) == 0, call([1, 2, 5], 100) == 20]
+    except Exception:
+        return [False]
+
+
+def _word_break_cases(fn: object) -> list[bool]:
+    """Hidden cases for word_break (can s be segmented into dictionary words)."""
+    call: Callable[[str, list[str]], bool] = fn  # type: ignore[assignment]
+    try:
+        return [
+            call("leetcode", ["leet", "code"]) is True,
+            call("applepenapple", ["apple", "pen"]) is True,
+            call("catsandog", ["cats", "dog", "sand", "and", "cat"]) is False,
+        ]
+    except Exception:
+        return [False]
+
+
+def _edit_distance_cases(fn: object) -> list[bool]:
+    """Hidden cases for edit_distance (Levenshtein distance between two strings)."""
+    call: Callable[[str, str], int] = fn  # type: ignore[assignment]
+    try:
+        return [
+            call("horse", "ros") == 3,
+            call("intention", "execution") == 5,
+            call("", "abc") == 3,
+            call("abc", "abc") == 0,
+        ]
+    except Exception:
+        return [False]
+
+
 PYTHON_TASKS: tuple[PythonTask, ...] = (
     PythonTask(
         key="int_to_roman",
@@ -311,6 +437,75 @@ PYTHON_TASKS: tuple[PythonTask, ...] = (
         ),
         symbol="lcs_length",
         check=_lcs_cases,
+    ),
+    PythonTask(
+        key="two_sum",
+        prompt=(
+            "Write `def two_sum(nums: list[int], target: int) -> list[int]` returning the indices of the two "
+            "numbers that add up to target (exactly one solution; do not reuse an index)."
+        ),
+        symbol="two_sum",
+        check=_two_sum_cases,
+    ),
+    PythonTask(
+        key="roman_to_int",
+        prompt="Write `def roman_to_int(s: str) -> int` converting a Roman numeral string to its integer value.",
+        symbol="roman_to_int",
+        check=_roman_to_int_cases,
+    ),
+    PythonTask(
+        key="palindrome",
+        prompt=(
+            "Write `def is_palindrome(s: str) -> bool` returning True iff s is a palindrome considering only "
+            "alphanumeric characters and ignoring case."
+        ),
+        symbol="is_palindrome",
+        check=_palindrome_cases,
+    ),
+    PythonTask(
+        key="longest_unique",
+        prompt=(
+            "Write `def longest_unique(s: str) -> int` returning the length of the longest substring of s "
+            "without repeating characters."
+        ),
+        symbol="longest_unique",
+        check=_longest_unique_cases,
+    ),
+    PythonTask(
+        key="rpn_eval",
+        prompt=(
+            "Write `def rpn_eval(tokens: list[str]) -> int` evaluating a reverse-polish-notation expression. "
+            "Tokens are integers and the operators +, -, * (left operand pushed first)."
+        ),
+        symbol="rpn_eval",
+        check=_rpn_cases,
+    ),
+    PythonTask(
+        key="min_coins",
+        prompt=(
+            "Write `def min_coins(coins: list[int], amount: int) -> int` returning the fewest coins that sum to "
+            "amount, or -1 if it cannot be made. Each coin may be used unlimited times."
+        ),
+        symbol="min_coins",
+        check=_min_coins_cases,
+    ),
+    PythonTask(
+        key="word_break",
+        prompt=(
+            "Write `def word_break(s: str, words: list[str]) -> bool` returning True iff s can be segmented into "
+            "a space-separated sequence of one or more words from the list (words reusable)."
+        ),
+        symbol="word_break",
+        check=_word_break_cases,
+    ),
+    PythonTask(
+        key="edit_distance",
+        prompt=(
+            "Write `def edit_distance(a: str, b: str) -> int` returning the Levenshtein edit distance (min "
+            "single-character insert/delete/replace edits) to turn a into b."
+        ),
+        symbol="edit_distance",
+        check=_edit_distance_cases,
     ),
 )
 
@@ -390,82 +585,192 @@ CLI_TASKS: tuple[CliTask, ...] = (
 )
 
 
-# --- tooling suite --------------------------------------------------------------------------
-
-#: Mock tool specs offered to the model in the tooling suite (OpenAI function-tool shape).
-TOOLING_TOOLS: list[dict[str, object]] = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Get the current weather for a city.",
-            "parameters": {
-                "type": "object",
-                "properties": {"city": {"type": "string"}},
-                "required": ["city"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "send_email",
-            "description": "Send an email to a recipient.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "to": {"type": "string"},
-                    "subject": {"type": "string"},
-                    "body": {"type": "string"},
-                },
-                "required": ["to", "subject"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search",
-            "description": "Search the web for information.",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-                "required": ["query"],
-            },
-        },
-    },
-]
+# --- tooling suite (multi-turn agentic) -----------------------------------------------------
 
 
-def _arg_contains(call: ToolCall | None, name: str, key: str, needle: str) -> bool:
-    """True when `call` is to `name` and its `key` argument contains `needle` (case-insensitive)."""
-    if call is None or call.name != name:
-        return False
-    value = call.arguments.get(key)
-    return isinstance(value, str) and needle.lower() in value.lower()
+def _eval_arith(node: ast.AST) -> float:
+    """Evaluate a constant arithmetic expression AST (no names/calls), for the calculator tool."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
+        return float(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        return -_eval_arith(node.operand)
+    if isinstance(node, ast.BinOp):
+        left, right = _eval_arith(node.left), _eval_arith(node.right)
+        if isinstance(node.op, ast.Add):
+            return left + right
+        if isinstance(node.op, ast.Sub):
+            return left - right
+        if isinstance(node.op, ast.Mult):
+            return left * right
+        if isinstance(node.op, ast.Div):
+            return left / right
+    raise ValueError("unsupported expression")
 
 
-TOOL_TASKS: tuple[ToolTask, ...] = (
-    ToolTask(
-        key="weather",
-        goal="What is the weather in Paris right now?",
-        tools=TOOLING_TOOLS,
-        check=lambda call: _arg_contains(call, "get_weather", "city", "paris"),
+def _str_arg(args: dict[str, object], key: str) -> str:
+    """Read a string argument from a tool call's decoded arguments (empty string if absent)."""
+    value = args.get(key)
+    return value if isinstance(value, str) else ""
+
+
+# --- tool handlers (return a canned JSON result the model can chain on) ---------------------
+
+
+def _h_get_user(args: dict[str, object]) -> str:
+    """Look up a user; returns an email the model must then use downstream."""
+    name = _str_arg(args, "name").lower()
+    email = "alice@example.com" if "alice" in name else ("bob@example.com" if "bob" in name else "carol@example.com")
+    return json.dumps({"name": _str_arg(args, "name"), "email": email, "id": "u-42"})
+
+
+def _h_send_email(args: dict[str, object]) -> str:
+    """Pretend to send an email."""
+    return json.dumps({"status": "sent", "to": _str_arg(args, "to")})
+
+
+def _h_get_weather(args: dict[str, object]) -> str:
+    """Canned weather for a city."""
+    return json.dumps({"city": _str_arg(args, "city"), "temp_c": 18, "condition": "cloudy"})
+
+
+def _h_get_time(args: dict[str, object]) -> str:
+    """Canned local time for a timezone/city."""
+    return json.dumps({"zone": _str_arg(args, "timezone") or _str_arg(args, "city"), "time": "14:30"})
+
+
+def _h_search(args: dict[str, object]) -> str:
+    """Canned web-search hit list."""
+    return json.dumps([{"title": f"Result for {_str_arg(args, 'query')}", "url": "https://example.com/a"}])
+
+
+def _h_read_file(args: dict[str, object]) -> str:
+    """Return file contents — the word_count chain depends on the model passing this text on."""
+    content = "the quick brown fox jumps over the lazy dog" if "report" in _str_arg(args, "path").lower() else "hello"
+    return json.dumps({"path": _str_arg(args, "path"), "content": content})
+
+
+def _h_word_count(args: dict[str, object]) -> str:
+    """Count words in the supplied text (computed, so it actually works in a chain)."""
+    return json.dumps({"count": len(_str_arg(args, "text").split())})
+
+
+def _h_exchange_rate(args: dict[str, object]) -> str:
+    """Canned FX rate; the model must feed it into the calculator."""
+    return json.dumps({"base": _str_arg(args, "base"), "quote": _str_arg(args, "quote"), "rate": 0.92})
+
+
+def _h_calculator(args: dict[str, object]) -> str:
+    """Evaluate a constant arithmetic expression."""
+    try:
+        return json.dumps({"result": _eval_arith(ast.parse(_str_arg(args, "expression"), mode="eval").body)})
+    except (ValueError, SyntaxError, ZeroDivisionError):
+        return json.dumps({"error": "invalid expression"})
+
+
+def _h_create_ticket(args: dict[str, object]) -> str:
+    """Pretend to open a support ticket."""
+    return json.dumps({"id": "TICK-1", "title": _str_arg(args, "title"), "status": "open"})
+
+
+def _obj(props: dict[str, object], required: list[str]) -> dict[str, object]:
+    """Build a JSON-Schema object spec for a tool's parameters."""
+    return {"type": "object", "properties": props, "required": required}
+
+
+_STR: dict[str, object] = {"type": "string"}
+
+#: The mock toolbox offered across the tooling scenarios.
+TOOLBOX: tuple[ToolDef, ...] = (
+    ToolDef(name="get_user", description="Look up a user by name; returns their email address.",
+            parameters=_obj({"name": _STR}, ["name"]), handler=_h_get_user),
+    ToolDef(name="send_email", description="Send an email to a recipient.",
+            parameters=_obj({"to": _STR, "subject": _STR, "body": _STR}, ["to", "subject"]), handler=_h_send_email),
+    ToolDef(name="get_weather", description="Get the current weather for a city.",
+            parameters=_obj({"city": _STR}, ["city"]), handler=_h_get_weather),
+    ToolDef(name="get_time", description="Get the current local time for a timezone or city.",
+            parameters=_obj({"timezone": _STR}, ["timezone"]), handler=_h_get_time),
+    ToolDef(name="search", description="Search the web for information.",
+            parameters=_obj({"query": _STR}, ["query"]), handler=_h_search),
+    ToolDef(name="read_file", description="Read a text file and return its contents.",
+            parameters=_obj({"path": _STR}, ["path"]), handler=_h_read_file),
+    ToolDef(name="word_count", description="Count the number of words in a piece of text.",
+            parameters=_obj({"text": _STR}, ["text"]), handler=_h_word_count),
+    ToolDef(name="get_exchange_rate", description="Get the FX rate from one currency to another.",
+            parameters=_obj({"base": _STR, "quote": _STR}, ["base", "quote"]), handler=_h_exchange_rate),
+    ToolDef(name="calculator", description="Evaluate an arithmetic expression like '250 * 0.92'.",
+            parameters=_obj({"expression": _STR}, ["expression"]), handler=_h_calculator),
+    ToolDef(name="create_ticket", description="Open a support ticket assigned to an email address.",
+            parameters=_obj({"title": _STR, "assignee_email": _STR}, ["title", "assignee_email"]),
+            handler=_h_create_ticket),
+)  # fmt: skip
+
+
+def _called(calls: list[ToolCall], name: str, **needles: str) -> bool:
+    """True if some call to `name` has every named arg containing its needle (case-insensitive)."""
+    for call in calls:
+        if call.name != name:
+            continue
+        if all(needle.lower() in _str_arg(call.arguments, key).lower() for key, needle in needles.items()):
+            return True
+    return False
+
+
+def _not_called(calls: list[ToolCall], name: str) -> bool:
+    """True if `name` was never called (tests not reaching for the wrong tool)."""
+    return all(call.name != name for call in calls)
+
+
+TOOL_SCENARIOS: tuple[ToolScenario, ...] = (
+    # Single call, strict multi-argument correctness.
+    ToolScenario(
+        key="email_strict",
+        goal="Email bob@example.com with the subject 'Lunch' and the body 'noon at the cafe?'.",
+        tools=list(TOOLBOX),
+        check=lambda c: _called(c, "send_email", to="bob@example.com", subject="lunch", body="noon"),
     ),
-    ToolTask(
-        key="email",
-        goal="Send an email to alice@example.com with the subject Meeting telling her it is at 3pm.",
-        tools=TOOLING_TOOLS,
-        check=lambda call: (
-            _arg_contains(call, "send_email", "to", "alice@example.com")
-            and _arg_contains(call, "send_email", "subject", "meeting")
+    # Pick the right tool among confusable ones (time, not weather).
+    ToolScenario(
+        key="confusable_time",
+        goal="What time is it in Tokyo right now?",
+        tools=list(TOOLBOX),
+        check=lambda c: _called(c, "get_time", timezone="tokyo") and _not_called(c, "get_weather"),
+    ),
+    # Right tool, sensible query.
+    ToolScenario(
+        key="search_topic",
+        goal="Find recent news about the Mars rover.",
+        tools=list(TOOLBOX),
+        check=lambda c: _called(c, "search", query="mars"),
+    ),
+    # Multi-turn: look up an email, then use it. The email only exists in get_user's result.
+    ToolScenario(
+        key="lookup_then_email",
+        goal="Look up Alice's email address, then send her an email with the subject 'Hello'.",
+        tools=list(TOOLBOX),
+        check=lambda c: _called(c, "send_email", to="alice@example.com", subject="hello"),
+    ),
+    # Multi-turn: read a file, then count its words. The text only exists in read_file's result.
+    ToolScenario(
+        key="read_then_count",
+        goal="Read the file report.txt and tell me how many words it contains. Use the tools.",
+        tools=list(TOOLBOX),
+        check=lambda c: _called(c, "read_file", path="report") and _called(c, "word_count", text="fox"),
+    ),
+    # Multi-turn: fetch an FX rate, then compute with it.
+    ToolScenario(
+        key="rate_then_calc",
+        goal="How much is 250 USD in EUR? Fetch the exchange rate first, then calculate.",
+        tools=list(TOOLBOX),
+        check=lambda c: (
+            _called(c, "get_exchange_rate", base="usd", quote="eur") and _called(c, "calculator", expression="250")
         ),
     ),
-    ToolTask(
-        key="search",
-        goal="Find recent articles about quantum computing.",
-        tools=TOOLING_TOOLS,
-        check=lambda call: _arg_contains(call, "search", "query", "quantum"),
+    # Multi-turn: look up Bob's email, then open a ticket assigned to it.
+    ToolScenario(
+        key="lookup_then_ticket",
+        goal="Open a support ticket titled 'Login bug' assigned to Bob — look up his email first.",
+        tools=list(TOOLBOX),
+        check=lambda c: _called(c, "create_ticket", title="login", assignee_email="bob@example.com"),
     ),
 )
 
@@ -537,34 +842,60 @@ async def _chat(http: httpx.AsyncClient, model: str, system: str, prompt: str) -
     return (parsed.choices[0].message.content or "", elapsed, parsed.usage.completion_tokens)
 
 
-async def _chat_tools(
-    http: httpx.AsyncClient, model: str, goal: str, tools: list[dict[str, object]]
-) -> tuple[ToolCall | None, float, int]:
-    """One tool-calling chat completion. Returns (first tool call or None, seconds, tokens)."""
-    started = time.monotonic()
-    response = await _post_chat(
-        http,
-        {
-            "model": model,
-            "messages": [{"role": "system", "content": TOOL_SYSTEM}, {"role": "user", "content": goal}],
-            "tools": tools,
-            "temperature": 0.2,
-        },
-    )
-    elapsed = time.monotonic() - started
-    parsed = _ChatResponse.model_validate(response.json())
-    tokens = parsed.usage.completion_tokens
-    calls = parsed.choices[0].message.tool_calls
-    if not calls:
-        return (None, elapsed, tokens)
-    raw = calls[0].function
+def _parse_tool_call(raw: _ToolCallRaw) -> ToolCall:
+    """Decode a raw tool call's JSON arguments into a typed `ToolCall`."""
     try:
-        arguments = json.loads(raw.arguments or "{}")
+        arguments = json.loads(raw.function.arguments or "{}")
     except json.JSONDecodeError:
         arguments = {}
     if not isinstance(arguments, dict):
         arguments = {}
-    return (ToolCall(name=raw.name, arguments=arguments), elapsed, tokens)
+    return ToolCall(name=raw.function.name, arguments=arguments)
+
+
+async def _run_tool_scenario(
+    http: httpx.AsyncClient, model: str, scenario: ToolScenario
+) -> tuple[list[ToolCall], float, int]:
+    """Drive a multi-turn agent loop: call tools, feed back canned results, collect every call made.
+
+    Returns (all tool calls in order, seconds, total completion tokens). Each round echoes the
+    assistant's tool calls and appends each tool's handler result, so the model can chain.
+    """
+    specs = [tool.spec() for tool in scenario.tools]
+    handlers = {tool.name: tool.handler for tool in scenario.tools}
+    messages: list[dict[str, object]] = [
+        {"role": "system", "content": TOOL_SYSTEM},
+        {"role": "user", "content": scenario.goal},
+    ]
+    made: list[ToolCall] = []
+    tokens = 0
+    started = time.monotonic()
+    for _ in range(scenario.max_steps):
+        response = await _post_chat(http, {"model": model, "messages": messages, "tools": specs, "temperature": 0.2})
+        parsed = _ChatResponse.model_validate(response.json())
+        tokens += parsed.usage.completion_tokens
+        message = parsed.choices[0].message
+        if not message.tool_calls:
+            break
+        echoed: list[dict[str, object]] = []
+        results: list[dict[str, object]] = []
+        for index, raw in enumerate(message.tool_calls):
+            call_id = raw.id or f"call_{len(made)}_{index}"
+            call = _parse_tool_call(raw)
+            made.append(call)
+            echoed.append(
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {"name": raw.function.name, "arguments": raw.function.arguments or "{}"},
+                }
+            )
+            handler = handlers.get(call.name)
+            result = handler(call.arguments) if handler else json.dumps({"error": f"unknown tool {call.name}"})
+            results.append({"role": "tool", "tool_call_id": call_id, "content": result})
+        messages.append({"role": "assistant", "content": message.content or "", "tool_calls": echoed})
+        messages.extend(results)
+    return made, time.monotonic() - started, tokens
 
 
 # --- suite runners --------------------------------------------------------------------------
@@ -663,13 +994,13 @@ async def _benchmark_model(model: str) -> ModelReport:
                 TaskResult(suite="cli", key=cli_task.key, passed=passed, total=total, seconds=elapsed, tokens=tokens)
             )
             print(f"  cli {cli_task.key}: {passed}/{total} {elapsed:.1f}s")
-        for tool_task in TOOL_TASKS:
-            call, elapsed, tokens = await _chat_tools(http, model, tool_task.goal, tool_task.tools)
-            ok = tool_task.check(call)
+        for scenario in TOOL_SCENARIOS:
+            made, elapsed, tokens = await _run_tool_scenario(http, model, scenario)
+            ok = scenario.check(made)
             results.append(
-                TaskResult(suite="tooling", key=tool_task.key, passed=int(ok), total=1, seconds=elapsed, tokens=tokens)
+                TaskResult(suite="tooling", key=scenario.key, passed=int(ok), total=1, seconds=elapsed, tokens=tokens)
             )
-            print(f"  tooling {tool_task.key}: {int(ok)}/1 {elapsed:.1f}s")
+            print(f"  tooling {scenario.key}: {int(ok)}/1 {elapsed:.1f}s ({len(made)} calls)")
     return ModelReport(model=model, results=results)
 
 
