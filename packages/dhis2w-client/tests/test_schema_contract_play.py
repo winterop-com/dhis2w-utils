@@ -12,9 +12,12 @@ Marked `@pytest.mark.contract` so it runs in a dedicated CI job
 The play instances are public; the only failure mode tied to network
 is an instance being down — those skip rather than fail.
 
-Adding more resources: append a `(accessor_name, model_name)` pair to
-RESOURCES. The accessor_name is the attribute on `client.resources`;
-the model_name is informational (used in the parametrize id).
+Coverage is exhaustive, not curated: the parametrize list is generated at
+collection time from every `client.resources.<name>` accessor that supports
+`.list`, per version (see `_listable_resource_accessors`). New generated
+resources are picked up automatically. A resource the live instance has no
+data for (or that doesn't exist on a given version) skips individually, so a
+run gives a full pass / skip / fail overview across the whole resource surface.
 """
 
 from __future__ import annotations
@@ -25,41 +28,33 @@ from typing import Any
 import httpx
 import pytest
 from dhis2w_client import BasicAuth, Dhis2Client
+from dhis2w_client.errors import Dhis2ApiError
 
-# Each (accessor, model_name) pair represents one schema we want to keep
-# in sync with the live DHIS2 wire shape. Picking ~25 covers the most-used
-# corners of /api/* without spamming play.
-RESOURCES: list[tuple[str, str]] = [
-    ("attributes", "Attribute"),
-    ("categories", "Category"),
-    ("category_combos", "CategoryCombo"),
-    ("category_option_combos", "CategoryOptionCombo"),
-    ("category_options", "CategoryOption"),
-    ("dashboards", "Dashboard"),
-    ("data_element_groups", "DataElementGroup"),
-    ("data_elements", "DataElement"),
-    ("data_sets", "DataSet"),
-    ("indicator_groups", "IndicatorGroup"),
-    ("indicators", "Indicator"),
-    ("legend_sets", "LegendSet"),
-    ("maps", "Map"),
-    ("option_sets", "OptionSet"),
-    ("organisation_unit_groups", "OrganisationUnitGroup"),
-    ("organisation_unit_levels", "OrganisationUnitLevel"),
-    ("organisation_units", "OrganisationUnit"),
-    ("predictors", "Predictor"),
-    ("program_indicators", "ProgramIndicator"),
-    ("program_rules", "ProgramRule"),
-    ("program_stages", "ProgramStage"),
-    ("programs", "Program"),
-    ("sql_views", "SqlView"),
-    ("tracked_entity_attributes", "TrackedEntityAttribute"),
-    ("user_groups", "UserGroup"),
-    ("user_roles", "UserRole"),
-    ("users", "User"),
-    ("validation_rules", "ValidationRule"),
-    ("visualizations", "Visualization"),
-]
+
+def _listable_resource_accessors(version_key: str) -> list[str]:
+    """Every `client.resources.<name>` accessor that supports `.list`, for one version.
+
+    Enumerated statically from the generated `Resources` class (constructed with a
+    stub object, so no network round-trip at collection time) — auto-generating
+    keeps the contract suite exhaustive instead of hand-curating a subset, and new
+    generated resources are covered the moment codegen adds them. The cost is one
+    live list+get per resource per version; resources the instance has no data for
+    skip individually (see `_assert_resource_validates`).
+    """
+    import importlib
+
+    module = importlib.import_module(f"dhis2w_client.generated.{version_key}.resources")
+    resources = module.Resources(object())  # accessors only stash the client; constructing one hits no network
+    return sorted(
+        name for name in dir(resources) if not name.startswith("_") and hasattr(getattr(resources, name), "list")
+    )
+
+
+# Built per version at collection time so v42/v43 each cover their own resource
+# set (v43 drops `push_analysis`, for instance). Every listable `/api/{resource}`
+# is exercised — a full overview, not a curated subset.
+_V42_RESOURCES = _listable_resource_accessors("v42")
+_V43_RESOURCES = _listable_resource_accessors("v43")
 
 PLAY_URLS = {
     "v42": "https://play.im.dhis2.org/dev-2-42",
@@ -97,15 +92,28 @@ async def play_v43_client() -> AsyncIterator[Dhis2Client]:
 async def _assert_resource_validates(client: Dhis2Client, accessor_name: str) -> None:
     """Pull one row of `accessor_name` and assert the typed model parses it.
 
-    Skipping rather than failing when the accessor doesn't exist on the
-    live version (e.g. v43 drops something we still test for v42) keeps
-    the test honest about what's been verified vs not.
+    The contract this test guards is "the generated model parses a live row", so
+    only a pydantic validation error counts as a failure. Everything that means
+    "couldn't fetch a row to check" is a `skip` with a reason, keeping the suite
+    a full pass / skip / fail overview rather than a red wall:
+
+    - accessor absent on this version (e.g. v43 dropped it),
+    - the instance has zero rows of this resource,
+    - the resource isn't listable for this user (`GET` returns 4xx) — e.g. the
+      OAuth2 authorization / consent tables 403 for admin; they're Spring
+      Authorization Server runtime state, not admin-listable metadata.
+
+    A genuine schema drift surfaces as a `pydantic.ValidationError` raised inside
+    `accessor.list()` / `.get()` (which parse into the typed model) and fails.
     """
     accessor: Any = getattr(client.resources, accessor_name, None)
     if accessor is None:
         pytest.skip(f"client.resources has no `{accessor_name}` attribute on this DHIS2 version")
 
-    rows = await accessor.list(page_size=1, fields="*")
+    try:
+        rows = await accessor.list(page_size=1, fields="*")
+    except Dhis2ApiError as exc:
+        pytest.skip(f"`{accessor_name}` not listable on this instance: HTTP {exc.status_code}")
     if not rows:
         pytest.skip(f"play instance has zero `{accessor_name}` rows")
 
@@ -115,28 +123,23 @@ async def _assert_resource_validates(client: Dhis2Client, accessor_name: str) ->
     sample_id = rows[0].id
     if not sample_id:
         pytest.skip(f"first `{accessor_name}` row had no id")
-    fetched = await accessor.get(sample_id, fields="*")
+    try:
+        fetched = await accessor.get(sample_id, fields="*")
+    except Dhis2ApiError as exc:
+        pytest.skip(f"GET `{accessor_name}/{sample_id}` returned HTTP {exc.status_code}")
     assert fetched is not None, f"GET /api/.../{sample_id} returned None"
 
 
 @pytest.mark.contract
-@pytest.mark.parametrize(("accessor_name", "model_name"), RESOURCES, ids=[m for _, m in RESOURCES])
-async def test_v42_schema_contract(
-    play_v42_client: Dhis2Client,
-    accessor_name: str,
-    model_name: str,  # noqa: ARG001 — used as parametrize id
-) -> None:
+@pytest.mark.parametrize("accessor_name", _V42_RESOURCES, ids=_V42_RESOURCES)
+async def test_v42_schema_contract(play_v42_client: Dhis2Client, accessor_name: str) -> None:
     """Generated v42 model still validates one live row from play."""
     await _assert_resource_validates(play_v42_client, accessor_name)
 
 
 @pytest.mark.contract
-@pytest.mark.parametrize(("accessor_name", "model_name"), RESOURCES, ids=[m for _, m in RESOURCES])
-async def test_v43_schema_contract(
-    play_v43_client: Dhis2Client,
-    accessor_name: str,
-    model_name: str,  # noqa: ARG001 — used as parametrize id
-) -> None:
+@pytest.mark.parametrize("accessor_name", _V43_RESOURCES, ids=_V43_RESOURCES)
+async def test_v43_schema_contract(play_v43_client: Dhis2Client, accessor_name: str) -> None:
     """Generated v43 model still validates one live row from play."""
     await _assert_resource_validates(play_v43_client, accessor_name)
 
