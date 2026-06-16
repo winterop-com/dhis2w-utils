@@ -148,24 +148,38 @@ async def test_v43_schema_contract(
 # `dhis2w_client.generated.v{N}.oas.tracker_*` pydantic model.
 #
 # The Sierra Leone play fixture seeds the `IpHINAT79UW` Child Programme
-# (tracker, with-registration), so trackedEntities + enrollments should
-# always have rows. Events may be empty on dev-2-43 (the seed for that
-# program ships without event data); we skip rather than fail in that case.
+# (tracker, with-registration), so trackedEntities + enrollments always have
+# rows there. That program ships with zero events on the dev play instances,
+# so the events check falls back to the `fDd25txQckK` event program (which does
+# carry events) before skipping — see `_fetch_first_tracker_row`.
 # ---------------------------------------------------------------------------
 
-_TRACKER_PROGRAM_UID = "IpHINAT79UW"  # Child Programme, with-registration, on both v42 and v43 play.
+_TRACKER_PROGRAM_UID = "IpHINAT79UW"  # Child Programme, with-registration: trackedEntities + enrollments.
+_EVENT_PROGRAM_UID = "fDd25txQckK"  # Provider Follow-up, event program: carries event rows the Child Programme lacks.
 _TRACKER_ROOT_OU = "ImspTQPwCqd"  # Sierra Leone root.
+
+
+# v43 split the v42 `TrackerEvent` schema into `TrackerTrackerEvent`
+# (tracker-program events) and `TrackerSingleEvent` (event-program events).
+# `/api/tracker/events` maps to the tracker-event shape, so the parametrize id
+# stays `TrackerEvent` (stable across versions) while v43 validates the renamed
+# class. Keep this map keyed by the v42 name so new renames are one-liners.
+_TRACKER_MODEL_RENAMES: dict[str, dict[str, str]] = {
+    "v43": {"TrackerEvent": "TrackerTrackerEvent"},
+}
 
 
 def _import_tracker_model(version_key: str, model_name: str) -> Any:
     """Resolve `dhis2w_client.generated.v{N}.oas.<snake>.<ModelName>` dynamically.
 
     Versioned lookup avoids hard-coding both v42 and v43 import lines for
-    each parametrize id. Falls back to a `pytest.skip` when the model
-    isn't present on the requested version (e.g. v43 dropped a class).
+    each parametrize id. Applies `_TRACKER_MODEL_RENAMES` first so version-renamed
+    schemas resolve, then falls back to a `pytest.skip` when the model isn't
+    present on the requested version (e.g. v43 dropped a class).
     """
     import importlib
 
+    model_name = _TRACKER_MODEL_RENAMES.get(version_key, {}).get(model_name, model_name)
     snake = "".join("_" + c.lower() if c.isupper() else c for c in model_name).lstrip("_")
     module_path = f"dhis2w_client.generated.{version_key}.oas.{snake}"
     try:
@@ -190,21 +204,43 @@ TRACKER_ENDPOINTS: list[tuple[str, str]] = [
 ]
 
 
+async def _fetch_first_tracker_row(client: Dhis2Client, endpoint: str) -> Any:
+    """Return one `/api/tracker/{endpoint}` row, or None if the instance has none.
+
+    Tries the with-registration Child Programme first, then falls back to the
+    event program `fDd25txQckK`. The `IpHINAT79UW` seed has trackedEntities +
+    enrollments but zero events on the dev play instances, while `fDd25txQckK`
+    carries event rows — so without the fallback the `TrackerEvent` contract
+    would skip every run and never exercise the generated model. The fallback
+    re-scopes to a program rather than dropping the filter because v43 rejects an
+    unscoped `/api/tracker/events` query with HTTP 400. (trackedEntities /
+    enrollments already return rows from the first pass, so only `events` falls
+    through to the second.)
+    """
+    for program_uid in (_TRACKER_PROGRAM_UID, _EVENT_PROGRAM_UID):
+        params = {
+            "program": program_uid,
+            "orgUnit": _TRACKER_ROOT_OU,
+            "ouMode": "DESCENDANTS",
+            "pageSize": "1",
+        }
+        raw = await client.get_raw(f"/api/tracker/{endpoint}", params=params)
+        rows = raw.get(endpoint) or []
+        if rows:
+            return rows[0]
+    return None
+
+
 async def _assert_tracker_endpoint_validates(client: Dhis2Client, endpoint: str, model_name: str) -> None:
     """Pull one row of `/api/tracker/{endpoint}` and validate it through the matching pydantic model."""
-    params = {
-        "program": _TRACKER_PROGRAM_UID,
-        "orgUnit": _TRACKER_ROOT_OU,
-        "ouMode": "DESCENDANTS",
-        "pageSize": "1",
-    }
-    raw = await client.get_raw(f"/api/tracker/{endpoint}", params=params)
-    rows = raw.get(endpoint) or []
-    if not rows:
-        pytest.skip(f"play instance has zero `/api/tracker/{endpoint}` rows for program {_TRACKER_PROGRAM_UID}")
+    row = await _fetch_first_tracker_row(client, endpoint)
+    if row is None:
+        pytest.skip(
+            f"play instance has zero `/api/tracker/{endpoint}` rows (program {_TRACKER_PROGRAM_UID} + unscoped)"
+        )
     model_cls = _import_tracker_model(client.version_key, model_name)
     # `model_validate` raises on shape drift — that's the contract check.
-    instance = model_cls.model_validate(rows[0])
+    instance = model_cls.model_validate(row)
     assert instance is not None
 
 
