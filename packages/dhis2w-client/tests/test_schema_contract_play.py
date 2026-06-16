@@ -22,6 +22,7 @@ run gives a full pass / skip / fail overview across the whole resource surface.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -29,6 +30,10 @@ import httpx
 import pytest
 from dhis2w_client import BasicAuth, Dhis2Client
 from dhis2w_client.errors import Dhis2ApiError
+
+
+class UndeclaredFieldWarning(UserWarning):
+    """A live row carried fields the generated model doesn't declare (additive drift)."""
 
 
 def _listable_resource_accessors(version_key: str) -> list[str]:
@@ -89,6 +94,25 @@ async def play_v43_client() -> AsyncIterator[Dhis2Client]:
         yield client
 
 
+def _report_undeclared_fields(label: str, model: Any) -> None:
+    """Warn (never fail) when a parsed row carries fields the model doesn't declare.
+
+    The generated models are `extra="allow"`, so any field DHIS2 returns that the
+    model doesn't know about is captured in `.model_extra`. That is additive drift
+    — harmless for a forward-compatible client, but worth surfacing so codegen can
+    pick the field up deliberately. Emitted as an `UndeclaredFieldWarning` (shows
+    in pytest's warnings summary) rather than an assertion, so it never reds the
+    contract job; genuine *incompatible* drift still fails via `model_validate`.
+    """
+    undeclared = sorted((model.model_extra or {}).keys()) if hasattr(model, "model_extra") else []
+    if undeclared:
+        warnings.warn(
+            f"`{label}` returned fields not declared on the generated model: {undeclared}",
+            UndeclaredFieldWarning,
+            stacklevel=2,
+        )
+
+
 async def _assert_resource_validates(client: Dhis2Client, accessor_name: str) -> None:
     """Pull one row of `accessor_name` and assert the typed model parses it.
 
@@ -116,6 +140,8 @@ async def _assert_resource_validates(client: Dhis2Client, accessor_name: str) ->
         pytest.skip(f"`{accessor_name}` not listable on this instance: HTTP {exc.status_code}")
     if not rows:
         pytest.skip(f"play instance has zero `{accessor_name}` rows")
+
+    _report_undeclared_fields(accessor_name, rows[0])
 
     # `list(fields="*")` returned a typed model already — if it parsed cleanly
     # the contract holds. Hit `get()` too to exercise the single-instance path
@@ -248,13 +274,12 @@ async def _assert_tracker_endpoint_validates(client: Dhis2Client, endpoint: str,
     """Pull one row of `/api/tracker/{endpoint}` and validate it through the matching pydantic model."""
     row = await _fetch_first_tracker_row(client, endpoint)
     if row is None:
-        pytest.skip(
-            f"play instance has zero `/api/tracker/{endpoint}` rows (program {_TRACKER_PROGRAM_UID} + unscoped)"
-        )
+        pytest.skip(f"play instance has zero `/api/tracker/{endpoint}` rows in any program")
     model_cls = _import_tracker_model(client.version_key, model_name)
     # `model_validate` raises on shape drift — that's the contract check.
     instance = model_cls.model_validate(row)
     assert instance is not None
+    _report_undeclared_fields(f"/api/tracker/{endpoint}", instance)
 
 
 @pytest.mark.contract
