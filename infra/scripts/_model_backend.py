@@ -44,6 +44,10 @@ class ModelInfo(BaseModel):
     arch: str = ""
     kind: str = ""
     """The backend's model type, e.g. "llm" or "embedding". Only "llm" can be benchmarked."""
+    max_context: int = 0
+    """Maximum context window (tokens) — a key selector for the discovery-heavy mcp-bridge case."""
+    tool_use: bool = False
+    """Whether the backend reports the model was trained for tool use."""
 
 
 @runtime_checkable
@@ -117,6 +121,8 @@ class LmStudioBackend:
             params = entry.get("paramsString") or entry.get("params")
             arch = entry.get("architecture") or entry.get("arch")
             kind = entry.get("type")
+            context = entry.get("maxContextLength")
+            tool_use = entry.get("trainedForToolUse")
             models.append(
                 ModelInfo(
                     key=key,
@@ -124,6 +130,8 @@ class LmStudioBackend:
                     params=params if isinstance(params, str) else "",
                     arch=arch if isinstance(arch, str) else "",
                     kind=kind if isinstance(kind, str) else "",
+                    max_context=context if isinstance(context, int) else 0,
+                    tool_use=tool_use if isinstance(tool_use, bool) else False,
                 )
             )
         return models
@@ -162,9 +170,11 @@ if __name__ == "__main__":
         print("(no models found — is the backend running?)", file=sys.stderr)
         sys.exit(1)
     _key_width = max(len("MODEL"), max(len(_m.key) for _m in _models))
-    _header = f"{'MODEL':<{_key_width}}  {'SIZE':>9}  {'TYPE':<10} {'PARAMS':<8} ARCH"
+    _header = f"{'MODEL':<{_key_width}}  {'SIZE':>9}  {'CTX':>6}  {'TOOLS':<5}  {'TYPE':<10} {'PARAMS':<8} ARCH"
     print(_header)
     print("-" * len(_header))
     for _m in sorted(_models, key=lambda info: -info.size_bytes):
         _size = f"{_m.size_bytes / 1e9:6.2f} GB" if _m.size_bytes else "        ?"
-        print(f"{_m.key:<{_key_width}}  {_size}  {_m.kind:<10} {_m.params:<8} {_m.arch}")
+        _ctx = f"{_m.max_context // 1024}K" if _m.max_context else "?"
+        _tools = "yes" if _m.tool_use else "no"
+        print(f"{_m.key:<{_key_width}}  {_size}  {_ctx:>6}  {_tools:<5}  {_m.kind:<10} {_m.params:<8} {_m.arch}")
