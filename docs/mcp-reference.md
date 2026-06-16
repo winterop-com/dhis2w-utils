@@ -2,12 +2,12 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 313 across 14 plugin groups.
+**Total tools**: 314 across 14 plugin groups.
 
 ## Plugins
 
 - [`analytics_*`](#analytics) — 5 tools
-- [`apps_*`](#apps) — 13 tools
+- [`apps_*`](#apps) — 14 tools
 - [`customize_*`](#customize) — 5 tools
 - [`data_*`](#data) — 15 tools
 - [`datastore_*`](#datastore) — 5 tools
@@ -155,6 +155,15 @@ Point DHIS2 at a different App Hub by writing the `keyAppHubUrl` system setting.
 | `url` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
+### `apps_hub_versions`
+
+List every published version of one App Hub app by app id (newest first).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `app_id` | `string` | yes | — |
+| `profile` | `string` | no | — |
+
 ### `apps_install_from_file`
 
 Install / update an app from a local `.zip` at `path` (`POST /api/apps`).
@@ -166,11 +175,11 @@ Install / update an app from a local `.zip` at `path` (`POST /api/apps`).
 
 ### `apps_install_from_hub`
 
-Install an App Hub version (`POST /api/appHub/{versionId}`).
+Install an App Hub app by version id or app id; returns the resolved install target.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `version_id` | `string` | yes | — |
+| `app_or_version_id` | `string` | yes | — |
 | `profile` | `string` | no | — |
 
 ### `apps_list`

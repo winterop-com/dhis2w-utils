@@ -292,7 +292,7 @@ $ d2w apps [OPTIONS] COMMAND [ARGS]...
 
 * `ls`: List every installed app (`GET /api/apps`).
 * `list`: List every installed app (`GET /api/apps`).
-* `add`: Install an app from a local zip or an App...
+* `add`: Install an app from a local zip, an App...
 * `rm`: Uninstall an app by key (`DELETE...
 * `remove`: Uninstall an app by key (`DELETE...
 * `update`: Update one app or every installed app to...
@@ -300,6 +300,7 @@ $ d2w apps [OPTIONS] COMMAND [ARGS]...
 * `restore`: Reinstall every hub-backed entry from a...
 * `snapshot`: Capture every installed app into a...
 * `hub-list`: List apps available in the configured App...
+* `hub-versions`: List every published version of one App...
 * `hub-url`: Read or write DHIS2&#x27;s configured App Hub...
 
 ### `d2w apps ls`
@@ -332,12 +333,14 @@ $ d2w apps list [OPTIONS]
 
 ### `d2w apps add`
 
-Install an app from a local zip or an App Hub version id.
+Install an app from a local zip, an App Hub version id, or an App Hub app id.
 
-Auto-dispatches based on whether `source` is an existing file on disk:
-file → multipart upload to `/api/apps`; otherwise → POST to
-`/api/appHub/{source}`. DHIS2 overwrites an existing install of the
-same app in both paths.
+Auto-dispatches on `source`: an existing file on disk → multipart upload to
+`/api/apps`; otherwise the id is resolved against the configured App Hub
+catalog and installed via `POST /api/appHub/{versionId}`. A version id
+installs directly; an app id resolves to that app&#x27;s latest version (App Hub
+app ids and version ids are both bare UUIDs and easy to confuse — see
+BUGS.md #46). DHIS2 overwrites an existing install of the same app.
 
 **Usage**:
 
@@ -347,7 +350,7 @@ $ d2w apps add [OPTIONS] SOURCE
 
 **Arguments**:
 
-* `SOURCE`: Either a path to a local `.zip` (installs via /api/apps) or an App Hub version id (installs via /api/appHub/{versionId}).  [required]
+* `SOURCE`: A path to a local `.zip` (installs via /api/apps), an App Hub version id, or an App Hub app id (the latest version is resolved).  [required]
 
 **Options**:
 
@@ -503,6 +506,29 @@ $ d2w apps hub-list [OPTIONS]
 
 * `-s, --search TEXT`: Case-insensitive substring filter on name + description (client-side).
 * `--limit INTEGER`: Cap the number of rows shown.  [default: 50]
+* `--help`: Show this message and exit.
+
+### `d2w apps hub-versions`
+
+List every published version of one App Hub app (`GET /api/appHub`).
+
+Prints `version / id / channel / DHIS2 min-&gt;max` for each version, newest
+first. The `id` values are the version ids `d2w apps add &lt;id&gt;` installs
+directly (pinning that exact version) — use this to pick a version instead
+of letting `apps add &lt;app-id&gt;` resolve to the latest.
+
+**Usage**:
+
+```console
+$ d2w apps hub-versions [OPTIONS] APP_ID
+```
+
+**Arguments**:
+
+* `APP_ID`: App Hub app id (the `id` column from `apps hub-list`).  [required]
+
+**Options**:
+
 * `--help`: Show this message and exit.
 
 ### `d2w apps hub-url`

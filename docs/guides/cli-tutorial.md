@@ -314,7 +314,7 @@ Attachments take a `FileResource` UID from `d2w files resources upload` and atta
 
 Three plugins worth knowing by name even if you don't use them daily:
 
-- **`d2w apps`** — `/api/apps` + App Hub catalogue. `d2w apps list` enumerates installed apps; `d2w apps add <source>` installs (the `source` arg auto-dispatches between a local `.zip` path and an App Hub version id); `d2w apps update --all` refreshes every hub-managed install. Useful for keeping an instance's app footprint reproducible.
+- **`d2w apps`** — `/api/apps` + App Hub catalogue. `d2w apps list` enumerates installed apps; `d2w apps add <source>` installs (the `source` arg auto-dispatches between a local `.zip` path, an App Hub version id, and an App Hub app id — an app id resolves to the app's latest version); `d2w apps update --all` refreshes every hub-managed install. Useful for keeping an instance's app footprint reproducible.
 - **`d2w route`** — `/api/routes` integration proxies (DHIS2's outbound-HTTP feature for hitting other systems). CRUD over routes plus `d2w route run <uid>` to invoke one.
 - **`d2w browser`** — Playwright-driven UI automation. `d2w browser pat` mints a Personal Access Token via the DHIS2 UI as an admin (handy for bootstrapping CI); `d2w browser viz screenshot` + `d2w browser map screenshot` capture PNGs of dashboards. Requires the `[browser]` extra (`uv tool install 'dhis2w-cli[browser]'`).
 

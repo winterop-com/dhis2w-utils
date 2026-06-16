@@ -59,18 +59,20 @@ def add_command(
         str,
         typer.Argument(
             help=(
-                "Either a path to a local `.zip` (installs via /api/apps) "
-                "or an App Hub version id (installs via /api/appHub/{versionId})."
+                "A path to a local `.zip` (installs via /api/apps), an App Hub "
+                "version id, or an App Hub app id (the latest version is resolved)."
             ),
         ),
     ],
 ) -> None:
-    """Install an app from a local zip or an App Hub version id.
+    """Install an app from a local zip, an App Hub version id, or an App Hub app id.
 
-    Auto-dispatches based on whether `source` is an existing file on disk:
-    file → multipart upload to `/api/apps`; otherwise → POST to
-    `/api/appHub/{source}`. DHIS2 overwrites an existing install of the
-    same app in both paths.
+    Auto-dispatches on `source`: an existing file on disk → multipart upload to
+    `/api/apps`; otherwise the id is resolved against the configured App Hub
+    catalog and installed via `POST /api/appHub/{versionId}`. A version id
+    installs directly; an app id resolves to that app's latest version (App Hub
+    app ids and version ids are both bare UUIDs and easy to confuse — see
+    BUGS.md #46). DHIS2 overwrites an existing install of the same app.
     """
     candidate = Path(source)
     profile = profile_from_env()
@@ -78,8 +80,12 @@ def add_command(
         asyncio.run(service.install_from_file(profile, candidate))
         typer.echo(f"installed from file: {candidate.name}")
     else:
-        asyncio.run(service.install_from_hub(profile, source))
-        typer.echo(f"installed from App Hub version {source}")
+        target = asyncio.run(service.install_from_hub(profile, source))
+        label = f"{target.app_name or 'app'} {target.version or ''}".strip()
+        if target.resolved_from == "app-id":
+            typer.echo(f"installed {label} (resolved app id to App Hub version {target.version_id})")
+        else:
+            typer.echo(f"installed {label} (App Hub version {target.version_id})")
 
 
 @app.command("remove")
@@ -311,6 +317,32 @@ def hub_list_command(
             row.app_type or "-",
             str(len(row.versions)),
         )
+    _console.print(table)
+
+
+@app.command("hub-versions")
+def hub_versions_command(
+    app_id: Annotated[str, typer.Argument(help="App Hub app id (the `id` column from `apps hub-list`).")],
+) -> None:
+    """List every published version of one App Hub app (`GET /api/appHub`).
+
+    Prints `version / id / channel / DHIS2 min->max` for each version, newest
+    first. The `id` values are the version ids `d2w apps add <id>` installs
+    directly (pinning that exact version) — use this to pick a version instead
+    of letting `apps add <app-id>` resolve to the latest.
+    """
+    record = asyncio.run(service.hub_versions(profile_from_env(), app_id))
+    if is_json_output():
+        typer.echo(record.model_dump_json(exclude_none=True))
+        return
+    table = Table(title=f"{record.name or app_id} — {len(record.versions)} versions")
+    table.add_column("version", justify="right")
+    table.add_column("id", style="cyan", overflow="fold")
+    table.add_column("channel")
+    table.add_column("DHIS2", justify="center")
+    for version in record.versions:
+        span = f"{version.min_dhis2_version or '?'}->{version.max_dhis2_version or ''}"
+        table.add_row(version.version or "-", version.id or "-", version.channel or "-", span)
     _console.print(table)
 
 

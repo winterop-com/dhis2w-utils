@@ -49,3 +49,14 @@ class UpdateSummary(BaseModel):
     def failed(self) -> int:
         """Count of apps whose install call raised."""
         return sum(1 for o in self.outcomes if o.status == "FAILED")
+
+
+class InstallTarget(BaseModel):
+    """Resolved App Hub install target — the version `apps add` POSTs to `/api/appHub/{versionId}`."""
+
+    model_config = ConfigDict(frozen=True)
+
+    version_id: str
+    app_name: str | None = None
+    version: str | None = None
+    resolved_from: str  # "version-id" (id was a version id) | "app-id" (id was an app id, latest version picked)
