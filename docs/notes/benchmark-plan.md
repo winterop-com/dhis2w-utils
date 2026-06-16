@@ -22,7 +22,7 @@ Add candidates (`lms get ...`) as they come up — notably the agentic-coder MoE
 | --- | --- | --- | --- | --- |
 | 1 | **coding** | `make bench-general` | python (14) + cli (3) + **multi-turn tooling (7)**, no DHIS2 | **ready** (extended; discriminates) |
 | 2 | **mcp-bridge** | `make bench-bridge` (read+write), `bench-matrix` (discovery), `bench-composite` (hard writes) | single-tool `dhis2_cli`; the model must **discover** the ~200-command surface | **ready** |
-| 3 | **full mcp** | `make bench-mcp` | the full dhis2-mcp server, all ~337 typed tools loaded up front | **NOT BUILT** |
+| 3 | **full mcp** | `make bench-mcp` | the full dhis2-mcp server, all ~311 typed tools loaded up front | **ready** (loads at 128k; champion passes) |
 
 ## bench-mcp — to build (with a safety guard)
 
@@ -33,9 +33,12 @@ tool. Two design points:
   NOT pass through the bridge's host-guard. So the **read round on `play42` must expose only read-verb
   tools** (`*_get`/`*_list`/`*_count`/`*_find`/`*_search`/`system_*` info), never write tools — else a
   stray call could mutate the public demo. Writes run against `local_basic` only.
-- **Scale:** ~337 tools is a huge tool payload (~50-65k tokens of schema). Local models with big
-  context *can* ingest it; the open question is whether they can *select* reliably. Expect local
-  models to struggle here — that result is the point (it validates why the bridge exists for PII).
+- **Scale (measured):** read-only tools = 119 / ~16k tokens; all = 311 / ~49k tokens. That overflows
+  LM Studio's default 8192 load context (HTTP 400). So `bench-mcp` loads each model at `BENCH_CONTEXT`
+  (default **128k**) via `ModelBackend.load(model, context)`. Finding so far: the champion (26B MoE,
+  256k-capable) *passes* all reads + the write at 128k — a strong local model with a big context CAN
+  drive full MCP. Whether smaller models can is what the sweep settles. Context is now a test
+  dimension (vary `BENCH_CONTEXT`).
 
 ## Sequence (runs are inherently serial — one model loaded at a time)
 
