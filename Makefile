@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-validate bench-matrix bench-composite refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-validate bench-matrix bench-composite refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -47,6 +47,7 @@ help:
 	@echo "  bench-validate   Validate ONE model across both axes: general + bridge (MODEL= required)"
 	@echo "  bench-general    Axis 1 — general capability: python+cli+tooling, no DHIS2 (MODELS= required; BENCH_MAX_TOKENS=, BENCH_CHAMPION=)"
 	@echo "  bench-bridge     Axis 2 — benchmark named models over the bridge: read+write+perf (MODELS= required; BENCH_CHAMPION=)"
+	@echo "  bench-mcp        Full dhis2-mcp server (~311 tools), read+write (MODELS= required; BENCH_CONTEXT=128K)"
 	@echo "  bench-round      Drive dhis2w-mcp-bridge with one local model (MODEL= required; ROUND=read|write|bench, PROFILE=)"
 	@echo "  bench-matrix     Command x model matrix: how each model handles every CLI command (ARGS= to slice)"
 	@echo "  bench-composite  Run composite write workflows (data set+elements, program+stages) oracle-style"
@@ -220,6 +221,14 @@ bench-general:
 	@echo "    several = side-by-side comparison. BENCH_MAX_TOKENS= tightens the budget; BENCH_CHAMPION= sets an oracle."
 	@lms server start >/dev/null 2>&1 || true
 	@$(UV) run python -u infra/scripts/bench_general_models.py $(MODELS)
+
+bench-mcp:
+	@test -n "$(MODELS)" || { echo "usage: make bench-mcp MODELS=\"<key> [<key> ...]\"  (no default; see 'make bench-list')"; exit 2; }
+	@echo ">>> Full-MCP benchmark: the model drives the whole dhis2-mcp server (~311 tools) read + write."
+	@echo "    Loads each model at BENCH_CONTEXT (default 128K) — the tool payload is ~49k tokens."
+	@echo "    Read round = play42 with READ-ONLY tools only (the server has no readonly guard); write = local_basic."
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python -u infra/scripts/bench_mcp_models.py $(MODELS)
 
 bench-validate:
 	@test -n "$(MODEL)" || { echo "usage: make bench-validate MODEL=<key>   (e.g. google/gemma-4-12b-qat)"; exit 2; }

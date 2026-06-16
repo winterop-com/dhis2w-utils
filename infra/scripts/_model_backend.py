@@ -71,8 +71,8 @@ class ModelBackend(Protocol):
         """Return installed models with size/params/arch metadata."""
         ...
 
-    def load(self, model: str) -> None:
-        """Make `model` the single loaded model (unloading any others first)."""
+    def load(self, model: str, context: int | None = None) -> None:
+        """Make `model` the single loaded model (unloading others first); optional context-length override."""
         ...
 
     def unload_all(self) -> None:
@@ -136,10 +136,13 @@ class LmStudioBackend:
             )
         return models
 
-    def load(self, model: str) -> None:
-        """Unload everything, then load `model` (one instance — avoids ambiguous-id 400s)."""
+    def load(self, model: str, context: int | None = None) -> None:
+        """Unload everything, then load `model` (one instance). Optional `-c <context>` for large payloads."""
         self.unload_all()
-        subprocess.run(["lms", "load", model, "--gpu", "max", "--ttl", "3600", "-y"], capture_output=True, check=False)
+        command = ["lms", "load", model, "--gpu", "max", "--ttl", "3600", "-y"]
+        if context is not None:
+            command += ["-c", str(context)]
+        subprocess.run(command, capture_output=True, check=False)
 
     def unload_all(self) -> None:
         """Unload all loaded models."""

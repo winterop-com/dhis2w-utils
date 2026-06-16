@@ -43,6 +43,24 @@ BACKEND = get_backend()
 LM = BACKEND.chat_url
 REPO = "/Users/morteoh/dev/local/dhis2w-utils"
 RESULTS = "/tmp/bench_mcp_results.jsonl"
+
+
+def _env_int(name: str, default: int) -> int:
+    """Read a positive int from env `name`; fall back to `default` when unset or invalid."""
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+#: Context length to load each model at (env `BENCH_CONTEXT`). The full tool payload is ~49k tokens,
+#: so the default is generous (128k); lower it to test a model under tighter context, or to fit a
+#: model that can't hold 128k in memory. Loading at 8192 (LM Studio's default) cannot fit the tools.
+MCP_CONTEXT = _env_int("BENCH_CONTEXT", 131072)
 SYSTEM_PROMPT = (
     "You are a DHIS2 operator with many typed tools. Pick the single right tool for the task and call "
     "it with concrete arguments. Always use a tool to get real data; never answer from memory. When "
@@ -424,8 +442,8 @@ async def main() -> None:
     reports: list[ModelReport] = []
     failures: list[str] = []
     for model in models:
-        print(f">>> {model}")
-        BACKEND.load(model)
+        print(f">>> {model} (loading at {MCP_CONTEXT // 1024}K context)")
+        BACKEND.load(model, MCP_CONTEXT)
         try:
             report = await _benchmark_model(model)
         except Exception as exc:  # noqa: BLE001 — isolate one model's failure so the run continues
