@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.22.0 — 2026-06-16
+
+Minor release. A new `security` plugin, smarter App Hub installs, and a round of CI / dependency hardening.
+
+### Security (new)
+
+- **`d2w security authorities`** + `security_*` MCP tools across all three version trees — reads `/api/me/authorization` and reports the account's effective authorities, superuser flag, and risk-category matches (a dangerous-authority taxonomy of 8 risk categories), as a table or `--json`. Backed by a new version-invariant `dhis2w_core.security_core` (authority taxonomy, severity tiers + `AuditFinding`, and the responsible-use guardrail contract encoded as code: GET-only allowlist, no-lockout, egress, identifiable-traffic, version floor). A guardrail test enforces the contract against every public security service function in v41/v42/v43, with a completeness check that fails the suite when a service function ships without guardrail coverage.
+
+### Apps
+
+- **`d2w apps add` (and the `apps_install_from_hub` MCP tool) now accept an App Hub app id, not just a version id.** The id is resolved against the configured catalog (`GET /api/appHub`): a version id installs directly; an app id resolves to that app's latest version; an id matching neither raises a clean one-line error instead of an opaque proxied 404. App Hub app ids and version ids are both bare UUIDs and trivially confused (DHIS2 quirk recorded as BUGS.md #46). `service.install_from_hub` returns a typed `InstallTarget`, and the MCP tool's argument is renamed `version_id` -> `app_or_version_id`.
+
+### CI / tooling
+
+- Dependabot version updates enabled; GitHub Actions bumped to Node 24 and `setup-uv` v7; two rounds of `python-deps` updates.
+- `dhis2w-core` test tree regrouped into per-domain directories.
+
+### Docs
+
+- BUGS.md gains #45 (v41 `GET /api/authorities` returns 500) and #46 (App Hub install id-kind 404).
+- `dhis.conf` infra comment references `d2w route create`.
+
+### Workspace packages
+
+All six publishable members + `dhis2w-codegen` bumped 0.21.0 → 0.22.0. Inter-package pins shifted `>=0.21.0,<0.22` → `>=0.22.0,<0.23`. The `uv.lock` re-syncs the `dhis2w-core` sqlalchemy spec (`>=2.0`) with its `pyproject.toml`.
+
 ## 0.21.0 — 2026-06-12
 
 Minor release. The CLI console script is now `d2w`.

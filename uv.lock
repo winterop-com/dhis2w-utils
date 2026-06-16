@@ -541,7 +541,7 @@ wheels = [
 
 [[package]]
 name = "dhis2w-browser"
-version = "0.21.0"
+version = "0.22.0"
 source = { editable = "packages/dhis2w-browser" }
 dependencies = [
     { name = "dhis2w-client" },
@@ -560,7 +560,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-cli"
-version = "0.21.0"
+version = "0.22.0"
 source = { editable = "packages/dhis2w-cli" }
 dependencies = [
     { name = "dhis2w-core" },
@@ -584,7 +584,7 @@ provides-extras = ["browser"]
 
 [[package]]
 name = "dhis2w-client"
-version = "0.21.0"
+version = "0.22.0"
 source = { editable = "packages/dhis2w-client" }
 dependencies = [
     { name = "geojson-pydantic" },
@@ -601,7 +601,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-codegen"
-version = "0.21.0"
+version = "0.22.0"
 source = { editable = "packages/dhis2w-codegen" }
 dependencies = [
     { name = "dhis2w-client" },
@@ -624,7 +624,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-core"
-version = "0.21.0"
+version = "0.22.0"
 source = { editable = "packages/dhis2w-core" }
 dependencies = [
     { name = "aiosqlite" },
@@ -650,14 +650,14 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.13" },
     { name = "questionary", specifier = ">=2.1.1" },
     { name = "rich", specifier = ">=15" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.50" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "tomli-w", specifier = ">=1.2" },
     { name = "typer", specifier = ">=0.26" },
 ]
 
 [[package]]
 name = "dhis2w-mcp"
-version = "0.21.0"
+version = "0.22.0"
 source = { editable = "packages/dhis2w-mcp" }
 dependencies = [
     { name = "dhis2w-core" },
@@ -679,7 +679,7 @@ provides-extras = ["browser"]
 
 [[package]]
 name = "dhis2w-mcp-bridge"
-version = "0.21.0"
+version = "0.22.0"
 source = { editable = "packages/dhis2w-mcp-bridge" }
 dependencies = [
     { name = "dhis2w-cli" },
