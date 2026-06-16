@@ -61,6 +61,16 @@ def register(mcp: Any) -> None:
         return await service.hub_list(resolve_profile(profile), query=query)
 
     @mcp.tool()
+    async def apps_hub_versions(app_id: str, profile: str | None = None) -> AppHubApp:
+        """List every published version of one App Hub app by app id (newest first).
+
+        Returns the catalog `AppHubApp` with its `versions` sorted by descending
+        semver; each version's `id` is an `apps_install_from_hub` target that
+        pins that exact version.
+        """
+        return await service.hub_versions(resolve_profile(profile), app_id)
+
+    @mcp.tool()
     async def apps_restore(
         snapshot: AppsSnapshot,
         dry_run: bool = False,

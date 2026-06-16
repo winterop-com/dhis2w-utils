@@ -288,3 +288,26 @@ async def test_install_from_hub_unknown_id_raises_without_posting(profile: Profi
         await service.install_from_hub(profile, "not-a-real-id")
 
     assert not install_route.called
+
+
+@respx.mock
+async def test_hub_versions_returns_app_versions_newest_first(profile: Profile) -> None:
+    """hub_versions(app_id) returns the app with versions sorted by descending semver."""
+    _mock_preamble()
+    respx.get("https://dhis2.example/api/appHub").mock(return_value=httpx.Response(200, json=_HUB))
+
+    record = await service.hub_versions(profile, "hub-widget")
+
+    assert record.name == "Dashboard Widget"
+    assert [v.version for v in record.versions] == ["2.0.0", "1.0.0"]
+    assert [v.id for v in record.versions] == ["ver-200", "ver-100"]
+
+
+@respx.mock
+async def test_hub_versions_unknown_app_id_raises(profile: Profile) -> None:
+    """hub_versions on a non-app-id raises InstallTargetError pointing at hub-list."""
+    _mock_preamble()
+    respx.get("https://dhis2.example/api/appHub").mock(return_value=httpx.Response(200, json=_HUB))
+
+    with pytest.raises(InstallTargetError, match="not an App Hub app id"):
+        await service.hub_versions(profile, "ver-200")

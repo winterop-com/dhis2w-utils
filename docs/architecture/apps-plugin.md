@@ -6,13 +6,13 @@ has loaded — bundled core apps, custom uploads, hub-installed) and the
 remote `/api/appHub` proxy (DHIS2's catalog of community-published apps).
 
 ```
-d2w apps {list,add,remove,update,reload,restore,snapshot,hub-list,hub-url}
+d2w apps {list,add,remove,update,reload,restore,snapshot,hub-list,hub-versions,hub-url}
 ```
 
 MCP mirrors the read + state-changing tools as `apps_list`, `apps_get`,
 `apps_install_from_file`, `apps_install_from_hub`, `apps_uninstall`,
 `apps_update`, `apps_update_all`, `apps_reload`, `apps_snapshot`,
-`apps_restore`, `apps_hub_list`, `apps_hub_url_get`, `apps_hub_url_set`.
+`apps_restore`, `apps_hub_list`, `apps_hub_versions`, `apps_hub_url_get`, `apps_hub_url_set`.
 
 ## The two surfaces
 
@@ -53,8 +53,12 @@ public hub directly (corporate proxies, air-gapped fixtures pointed at a
 mirror via `keyAppHubUrl`).
 
 ```bash
-# List + filter the catalog:
+# List + filter the catalog (each row shows an app id + a version count):
 d2w apps hub-list --search dashboard
+
+# List every published version of one app (version / id / channel / DHIS2
+# min->max), newest first. The id values are `apps add <id>` targets:
+d2w apps hub-versions <app-id>
 
 # Read / write the keyAppHubUrl system setting (point at a self-hosted hub):
 d2w apps hub-url

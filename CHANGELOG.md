@@ -11,6 +11,7 @@ Minor release. A new `security` plugin, smarter App Hub installs, and a round of
 ### Apps
 
 - **`d2w apps add` (and the `apps_install_from_hub` MCP tool) now accept an App Hub app id, not just a version id.** The id is resolved against the configured catalog (`GET /api/appHub`): a version id installs directly; an app id resolves to that app's latest version; an id matching neither raises a clean one-line error instead of an opaque proxied 404. App Hub app ids and version ids are both bare UUIDs and trivially confused (DHIS2 quirk recorded as BUGS.md #46). `service.install_from_hub` returns a typed `InstallTarget`, and the MCP tool's argument is renamed `version_id` -> `app_or_version_id`.
+- **`d2w apps hub-versions <app-id>`** + the `apps_hub_versions` MCP tool — list every published version of one App Hub app (`version` / `id` / `channel` / DHIS2 `min->max`), newest first. Pairs with the app-id resolution above: list the versions, then `apps add <version-id>` to pin a specific one. `AppHubVersion` now maps the wire's `minDhisVersion` / `maxDhisVersion` compatibility fields.
 
 ### CI / tooling
 

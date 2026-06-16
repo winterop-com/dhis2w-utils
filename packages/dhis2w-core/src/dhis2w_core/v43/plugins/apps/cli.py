@@ -320,6 +320,32 @@ def hub_list_command(
     _console.print(table)
 
 
+@app.command("hub-versions")
+def hub_versions_command(
+    app_id: Annotated[str, typer.Argument(help="App Hub app id (the `id` column from `apps hub-list`).")],
+) -> None:
+    """List every published version of one App Hub app (`GET /api/appHub`).
+
+    Prints `version / id / channel / DHIS2 min->max` for each version, newest
+    first. The `id` values are the version ids `d2w apps add <id>` installs
+    directly (pinning that exact version) — use this to pick a version instead
+    of letting `apps add <app-id>` resolve to the latest.
+    """
+    record = asyncio.run(service.hub_versions(profile_from_env(), app_id))
+    if is_json_output():
+        typer.echo(record.model_dump_json(exclude_none=True))
+        return
+    table = Table(title=f"{record.name or app_id} — {len(record.versions)} versions")
+    table.add_column("version", justify="right")
+    table.add_column("id", style="cyan", overflow="fold")
+    table.add_column("channel")
+    table.add_column("DHIS2", justify="center")
+    for version in record.versions:
+        span = f"{version.min_dhis2_version or '?'}->{version.max_dhis2_version or ''}"
+        table.add_row(version.version or "-", version.id or "-", version.channel or "-", span)
+    _console.print(table)
+
+
 @app.command("hub-url")
 def hub_url_command(
     set_url: Annotated[

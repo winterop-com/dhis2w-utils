@@ -120,6 +120,27 @@ async def hub_list(profile: Profile, *, query: str | None = None) -> list[AppHub
         return await client.apps.hub_list(query=query)
 
 
+async def hub_versions(profile: Profile, app_id: str) -> AppHubApp:
+    """Return one App Hub app by its app id, versions sorted newest-first.
+
+    The catalog (`GET /api/appHub`) carries each app's full version list; this
+    finds the app by `app_id` and returns it with versions ordered by descending
+    semver. Each version's `id` is a `d2w apps add <id>` target (pins that exact
+    version). Raises `InstallTargetError` when `app_id` is not an app id in the
+    catalog.
+    """
+    async with open_client(profile) as client:
+        catalog = await client.apps.hub_list()
+    app = next((entry for entry in catalog if entry.id == app_id), None)
+    if app is None:
+        raise InstallTargetError(
+            f"{app_id!r} is not an App Hub app id in the configured catalog (GET /api/appHub) "
+            "- run `d2w apps hub-list` to find an app id",
+        )
+    ordered = sorted(app.versions, key=lambda version: _version_key(version.version), reverse=True)
+    return app.model_copy(update={"versions": ordered})
+
+
 async def snapshot(profile: Profile) -> AppsSnapshot:
     """Return a typed `AppsSnapshot` of every installed app (for backup / transfer)."""
     async with open_client(profile) as client:

@@ -300,6 +300,7 @@ $ d2w apps [OPTIONS] COMMAND [ARGS]...
 * `restore`: Reinstall every hub-backed entry from a...
 * `snapshot`: Capture every installed app into a...
 * `hub-list`: List apps available in the configured App...
+* `hub-versions`: List every published version of one App...
 * `hub-url`: Read or write DHIS2&#x27;s configured App Hub...
 
 ### `d2w apps ls`
@@ -505,6 +506,29 @@ $ d2w apps hub-list [OPTIONS]
 
 * `-s, --search TEXT`: Case-insensitive substring filter on name + description (client-side).
 * `--limit INTEGER`: Cap the number of rows shown.  [default: 50]
+* `--help`: Show this message and exit.
+
+### `d2w apps hub-versions`
+
+List every published version of one App Hub app (`GET /api/appHub`).
+
+Prints `version / id / channel / DHIS2 min-&gt;max` for each version, newest
+first. The `id` values are the version ids `d2w apps add &lt;id&gt;` installs
+directly (pinning that exact version) — use this to pick a version instead
+of letting `apps add &lt;app-id&gt;` resolve to the latest.
+
+**Usage**:
+
+```console
+$ d2w apps hub-versions [OPTIONS] APP_ID
+```
+
+**Arguments**:
+
+* `APP_ID`: App Hub app id (the `id` column from `apps hub-list`).  [required]
+
+**Options**:
+
 * `--help`: Show this message and exit.
 
 ### `d2w apps hub-url`
