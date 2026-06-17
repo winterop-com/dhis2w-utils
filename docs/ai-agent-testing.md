@@ -35,6 +35,7 @@ All runnable from the `Makefile`; the model roster lives in `packages/dhis2w-ben
 | `make bench-mcp` | The **full dhis2-mcp server** (~311 typed tools): read + write at a configurable load context. |
 | `make bench-longcontext` | **Effective context** (needle-in-a-haystack): how many tokens a model can actually use. |
 | `make bench-validate` | One model across **both** the coding and bridge axes in a single run. |
+| `make bench-claude-general` | **Cloud Claude** on the coding suite (python + cli + tooling) — the cloud peer of `bench-general`. |
 | `make bench-claude-mcp` | **Cloud Claude** over the full dhis2-mcp server via the Agent SDK (read + write + composite). |
 | `make bench-claude-bridge` | **Cloud Claude** over the single-tool bridge via the Agent SDK (read + write + composite). |
 
