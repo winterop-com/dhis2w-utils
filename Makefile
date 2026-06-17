@@ -194,7 +194,7 @@ verify-examples:
 bench-list:
 	@echo ">>> Installed models (the backend's view; MODEL_BACKEND= to switch)"
 	@lms server start >/dev/null 2>&1 || true
-	@$(UV) run python -u infra/scripts/_model_backend.py
+	@$(UV) run python -u -m dhis2w_bench.backend
 
 bench-round:
 	@test -n "$(MODEL)" || { echo "usage: make bench-round MODEL=<key> [ROUND=read|write|bench] [PROFILE=]  (see 'make bench-list')"; exit 2; }
@@ -202,7 +202,7 @@ bench-round:
 	@echo "    (reads -> play42 readonly; writes -> local_basic. See docs/notes/small-model-bridge.md)"
 	@lms server start >/dev/null 2>&1 || true
 	@lms ps 2>/dev/null | grep -qF "$(MODEL)" || lms load $(MODEL) --gpu max --ttl 3600 -y
-	@$(UV) run python -u infra/scripts/bridge_round.py \
+	@$(UV) run python -u -m dhis2w_bench.round \
 		--model $(MODEL) \
 		--round $(or $(ROUND),read) \
 		--profile $(or $(PROFILE),$(if $(filter write,$(ROUND)),local_basic,play42))
@@ -213,14 +213,14 @@ bench-bridge:
 	@echo "    The write round needs local_basic up — run 'make dhis2-run' first if it isn't."
 	@echo "    Name an oracle with BENCH_CHAMPION=<key> to enable the SUSPECT-task check."
 	@lms server start >/dev/null 2>&1 || true
-	@$(UV) run python -u infra/scripts/bench_bridge_models.py $(MODELS)
+	@$(UV) run python -u -m dhis2w_bench.bridge $(MODELS)
 
 bench-general:
 	@test -n "$(MODELS)" || { echo "usage: make bench-general MODELS=\"<key> [<key> ...]\"  (no default; see 'make bench-list')"; exit 2; }
 	@echo ">>> General-capability benchmark (axis 1: python + cli + tooling; no DHIS2). One model = single test;"
 	@echo "    several = side-by-side comparison. BENCH_MAX_TOKENS= tightens the budget; BENCH_CHAMPION= sets an oracle."
 	@lms server start >/dev/null 2>&1 || true
-	@$(UV) run python -u infra/scripts/bench_general_models.py $(MODELS)
+	@$(UV) run python -u -m dhis2w_bench.general $(MODELS)
 
 bench-mcp:
 	@test -n "$(MODELS)" || { echo "usage: make bench-mcp MODELS=\"<key> [<key> ...]\"  (no default; see 'make bench-list')"; exit 2; }
@@ -228,26 +228,26 @@ bench-mcp:
 	@echo "    Loads each model at BENCH_CONTEXT (default 128K) — the tool payload is ~49k tokens."
 	@echo "    Read round = play42 with READ-ONLY tools only (the server has no readonly guard); write = local_basic."
 	@lms server start >/dev/null 2>&1 || true
-	@$(UV) run python -u infra/scripts/bench_mcp_models.py $(MODELS)
+	@$(UV) run python -u -m dhis2w_bench.mcp $(MODELS)
 
 bench-validate:
 	@test -n "$(MODEL)" || { echo "usage: make bench-validate MODEL=<key>   (e.g. google/gemma-4-12b-qat)"; exit 2; }
 	@echo ">>> Validate $(MODEL) across both axes"
 	@echo ">>> Axis 1 — general (python + cli + tooling)"
 	@lms server start >/dev/null 2>&1 || true
-	@$(UV) run python -u infra/scripts/bench_general_models.py $(MODEL)
+	@$(UV) run python -u -m dhis2w_bench.general $(MODEL)
 	@echo ">>> Axis 2 — bridge (read + write); write round needs local_basic up (make dhis2-run)"
-	@$(UV) run python -u infra/scripts/bench_bridge_models.py $(MODEL)
+	@$(UV) run python -u -m dhis2w_bench.bridge $(MODEL)
 
 bench-composite:
 	@echo ">>> Composite write-workflow scenarios (oracle: create -> verify -> cleanup on local_basic)"
-	@$(UV) run python -u infra/scripts/composite_scenarios.py $(ARGS)
+	@$(UV) run python -u -m dhis2w_bench.composite $(ARGS)
 
 bench-matrix:
 	@echo ">>> CLI command x model matrix (how each roster model handles every command; read-only on play42)"
 	@echo "    Streaming + resumable. Slice it: make bench-matrix ARGS=\"--group metadata --models google/gemma-4-12b-qat\""
 	@lms server start >/dev/null 2>&1 || true
-	@$(UV) run python -u infra/scripts/cli_matrix.py $(ARGS)
+	@$(UV) run python -u -m dhis2w_bench.matrix $(ARGS)
 
 refresh-setup:
 	@echo ">>> [1/2] Rebuilding e2e dump (wipes + reseeds the stack)"

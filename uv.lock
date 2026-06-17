@@ -8,6 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "dhis2w-bench",
     "dhis2w-browser",
     "dhis2w-cli",
     "dhis2w-client",
@@ -537,6 +538,27 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/34/07/bf61d13de86d96a4c46aff00c9ca0eced44bcc8c3e16280605c1253e5720/cyclopts-4.16.1.tar.gz", hash = "sha256:8aa47bf92a5fb33abca5af05e576eecdb0d2f79893ad29238046df78370fc4a8", size = 181196, upload-time = "2026-05-25T15:29:08.518Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/00/8d/7f362c2fb8ef4decd2160bc24d4292c6ca658cc6d9a161b89ca5122bbdbf/cyclopts-4.16.1-py3-none-any.whl", hash = "sha256:617795392c4113a2c2cc7af716f20244900e87f23daa05442d1268d81472a592", size = 219020, upload-time = "2026-05-25T15:29:09.646Z" },
+]
+
+[[package]]
+name = "dhis2w-bench"
+version = "0.22.0"
+source = { editable = "packages/dhis2w-bench" }
+dependencies = [
+    { name = "dhis2w-cli" },
+    { name = "fastmcp" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dhis2w-cli", editable = "packages/dhis2w-cli" },
+    { name = "fastmcp", specifier = ">=3.4.2" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "typer", specifier = ">=0.26.7" },
 ]
 
 [[package]]

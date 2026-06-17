@@ -49,9 +49,7 @@ from typing import Any, cast
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from _model_backend import get_backend  # noqa: E402 — sibling import needs the path-prepend above
+from dhis2w_bench.backend import get_backend
 
 #: Optional oracle model key (env `BENCH_CHAMPION`). When set and present in a run, the harness
 #: asserts it passed every task and flags SUSPECT tasks otherwise. Unset -> no oracle check. There is

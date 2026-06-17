@@ -21,7 +21,7 @@ leave the machine, driving the bridge.
 
 ## The harnesses
 
-All runnable from the `Makefile`; the model roster lives in `infra/scripts/bench_bridge_models.py`
+All runnable from the `Makefile`; the model roster lives in `packages/dhis2w-bench/src/dhis2w_bench/bridge.py`
 (`ROSTER`). Reads run against `play42` (read-only); writes against `local_basic` (self-cleaning).
 
 | Command | What it measures |

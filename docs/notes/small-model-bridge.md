@@ -11,7 +11,7 @@ Working log for making the dhis2 toolkit usable by **small local models** (LM St
 
 ## How to run a round (the rig)
 
-The canonical harness is **`infra/scripts/bridge_round.py`**, wrapped by **`make bench-round`**.
+The canonical harness is **`packages/dhis2w-bench/src/dhis2w_bench/round.py`**, wrapped by **`make bench-round`**.
 It drives the real bridge (FastMCP client, same config as `~/.lmstudio/mcp.json`) from LM Studio's
 OpenAI-compatible API — `lms chat` can't do this (it doesn't load MCP servers; only the GUI does).
 

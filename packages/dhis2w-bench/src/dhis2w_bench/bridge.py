@@ -33,9 +33,7 @@ import httpx
 from fastmcp import Client
 from pydantic import BaseModel, ConfigDict
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from _model_backend import get_backend  # noqa: E402 — sibling import needs the path-prepend above
+from dhis2w_bench.backend import get_backend
 
 #: Optional oracle model key (env `BENCH_CHAMPION`). When set and present in a run, the harness asserts
 #: it passed every task and flags SUSPECT tasks otherwise (an oracle failure means the TASK is suspect,
@@ -45,7 +43,7 @@ CHAMPION = os.environ.get("BENCH_CHAMPION", "").strip()
 #: Local-inference backend (LM Studio by default; override with MODEL_BACKEND).
 BACKEND = get_backend()
 LM = BACKEND.chat_url
-REPO = "/Users/morteoh/dev/local/dhis2w-utils"
+REPO = str(Path(__file__).resolve().parents[4])
 RESULTS = "/tmp/bench_bridge_results.jsonl"
 SYSTEM_PROMPT = (
     "You are a DHIS2 operator with one tool, dhis2_cli, that runs the d2w CLI. Always use the "

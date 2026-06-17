@@ -48,14 +48,12 @@ import httpx
 from fastmcp import Client
 from pydantic import BaseModel, ConfigDict
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from _model_backend import get_backend  # noqa: E402 — sibling import needs the path-prepend above
+from dhis2w_bench.backend import get_backend
 
 #: OpenAI-compatible chat-completions endpoint (LM Studio by default; override with MODEL_BACKEND).
 LMSTUDIO_URL = get_backend().chat_url
 #: Repo root used to spawn the bridge via `uv run --directory`.
-REPO_DIR = "/Users/morteoh/dev/local/dhis2w-utils"
+REPO_DIR = str(Path(__file__).resolve().parents[4])
 
 #: System prompt that frames the single-tool agent loop.
 SYSTEM_PROMPT = (

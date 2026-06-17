@@ -1,7 +1,7 @@
 # Local-model bridge benchmark
 
 Living benchmark for the models we drive `dhis2w-mcp-bridge` with. Re-run with **`make bench-bridge`**
-(harness: `infra/scripts/bench_bridge_models.py`). Companion to the discovery notes in
+(harness: `packages/dhis2w-bench/src/dhis2w_bench/bridge.py`). Companion to the discovery notes in
 [`small-model-bridge.md`](small-model-bridge.md).
 
 This is **axis 2** of model validation (driving the bridge: read + write). **Axis 1** — general

@@ -22,7 +22,6 @@ import argparse
 import asyncio
 import json
 import shlex
-import sys
 import time
 from pathlib import Path
 
@@ -32,14 +31,12 @@ from dhis2w_cli.main import build_app
 from fastmcp import Client
 from pydantic import BaseModel, ConfigDict
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from _model_backend import get_backend  # noqa: E402 — sibling import needs the path-prepend above
+from dhis2w_bench.backend import get_backend
 
 #: Local-inference backend (LM Studio by default; override with MODEL_BACKEND).
 BACKEND = get_backend()
 LM = BACKEND.chat_url
-REPO = "/Users/morteoh/dev/local/dhis2w-utils"
+REPO = str(Path(__file__).resolve().parents[4])
 RESULTS = "/tmp/cli_matrix.jsonl"
 OUT = "docs/notes/cli-matrix.md"
 PROFILE = "play42"

@@ -215,11 +215,14 @@ def test_protected_hosts_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
 
 async def test_write_refused_on_protected_host(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A mutating command is refused on a shared public host even with read-only off."""
-    monkeypatch.setattr(_RESOLVER, lambda profile: "https://play.im.dhis2.org/dev-2-42")
+    protected_host = "play.im.dhis2.org"
+    monkeypatch.setattr(_RESOLVER, lambda profile: f"https://{protected_host}/dev-2-42")
     result = await run_cli(["metadata", "create", "dataElements", "x.json"])
     assert result.exit_code == EXIT_REFUSED
     assert "write-protected" in result.stderr
-    assert "play.im.dhis2.org" in result.stderr
+    # the refusal echoes the offending host (host in a variable so CodeQL doesn't read this
+    # error-message assertion as URL-substring sanitization — the guard itself parses the host)
+    assert protected_host in result.stderr
 
 
 async def test_read_allowed_on_protected_host(fake_cli: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -2,7 +2,7 @@
 
 Living benchmark for **general** model capability — independent of DHIS2. This is axis 1 of model
 validation; axis 2 (driving the bridge) lives in [`model-benchmark.md`](model-benchmark.md). Re-run
-with **`make bench-general`** (harness: `infra/scripts/bench_general_models.py`).
+with **`make bench-general`** (harness: `packages/dhis2w-bench/src/dhis2w_bench/general.py`).
 
 ## Choosing models
 
@@ -76,4 +76,4 @@ make bench-validate MODEL=google/gemma-4-12b-qat            # this axis + the br
 ```
 
 Needs a running backend (LM Studio by default; set `MODEL_BACKEND` to switch — see
-`infra/scripts/_model_backend.py`). The harness loads/unloads each model itself, one at a time.
+`packages/dhis2w-bench/src/dhis2w_bench/backend.py`). The harness loads/unloads each model itself, one at a time.

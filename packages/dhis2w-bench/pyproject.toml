@@ -1,0 +1,24 @@
+[project]
+name = "dhis2w-bench"
+version = "0.22.0"
+description = "Local-LLM benchmark harness for DHIS2 agents: coding, mcp-bridge, and full-mcp."
+readme = "README.md"
+authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
+requires-python = ">=3.13"
+dependencies = [
+    "dhis2w-cli",
+    "fastmcp>=3.4.2",
+    "httpx>=0.28.1",
+    "pydantic>=2.13.4",
+    "typer>=0.26.7",
+]
+
+# Workspace-only: not in the pypi-publish matrix (.github/workflows/pypi-publish.yml),
+# so it is never shipped to PyPI — same posture as dhis2w-codegen.
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+dhis2w-cli = { workspace = true }
