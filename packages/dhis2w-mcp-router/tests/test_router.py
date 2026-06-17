@@ -30,28 +30,28 @@ def test_upstream_client_config_merges_parent_env(monkeypatch: pytest.MonkeyPatc
     assert cfg["env"]["PATH"] == "/usr/bin"  # parent env merged, not replaced
 
 
-def test_search_ranks_by_term_hits_and_excludes_misses() -> None:
+async def test_search_ranks_by_term_hits_and_excludes_misses() -> None:
     """Search ranks tools by how many query terms hit, and drops tools with zero hits."""
     registry = _registry_with(
         _entry("dhis2__metadata_data_set_create", "dhis2", "metadata_data_set_create", "Create a data set"),
         _entry("dhis2__metadata_data_element_create", "dhis2", "metadata_data_element_create", "Create a data element"),
         _entry("dhis2__system_info", "dhis2", "system_info", "System information"),
     )
-    hits = registry.search("data set", limit=5)
+    hits = await registry.search("data set", limit=5)
     assert hits[0].name == "dhis2__metadata_data_set_create"  # matches both 'data' and 'set'
     assert all(hit.name != "dhis2__system_info" for hit in hits)  # no term hit -> excluded
 
 
-def test_search_empty_query_lists_alphabetically() -> None:
+async def test_search_empty_query_lists_alphabetically() -> None:
     """An empty query is a browse: every tool, name-sorted for determinism."""
     registry = _registry_with(_entry("b__t", "b", "t", "x"), _entry("a__t", "a", "t", "x"))
-    assert [hit.name for hit in registry.search("", limit=10)] == ["a__t", "b__t"]
+    assert [hit.name for hit in await registry.search("", limit=10)] == ["a__t", "b__t"]
 
 
-def test_search_honours_limit() -> None:
+async def test_search_honours_limit() -> None:
     """Search returns at most `limit` results."""
     registry = _registry_with(*[_entry(f"s__t{i}", "s", f"t{i}", "a tool") for i in range(5)])
-    assert len(registry.search("tool", limit=2)) == 2
+    assert len(await registry.search("tool", limit=2)) == 2
 
 
 async def test_call_unknown_tool_raises() -> None:
@@ -71,15 +71,12 @@ def test_tool_entry_summary_is_the_agent_facing_shape() -> None:
     }
 
 
-def test_readonly_registry_hides_and_refuses_writes() -> None:
+async def test_readonly_registry_hides_and_refuses_writes() -> None:
     """A read-only registry drops write tools from search and refuses them at dispatch."""
-    registry = Registry(
-        [],
-        readonly=True,
-    )
+    registry = Registry([], readonly=True)
     registry._entries["dhis2__metadata_count"] = _entry("dhis2__metadata_count", "dhis2", "metadata_count", "Count")  # noqa: SLF001
     registry._entries["dhis2__data_set_create"] = _entry("dhis2__data_set_create", "dhis2", "data_set_create", "Create")  # noqa: SLF001
-    names = [hit.name for hit in registry.search("", limit=10)]
+    names = [hit.name for hit in await registry.search("", limit=10)]
     assert "dhis2__metadata_count" in names  # read survives
     assert "dhis2__data_set_create" not in names  # write hidden
 
@@ -106,7 +103,7 @@ def test_is_read_honours_annotation_then_falls_back_to_verb() -> None:
     assert annotated_write.is_read(DEFAULT_READ_VERBS) is False  # annotation overrides the read-looking verb
 
 
-def test_per_server_readonly_denies_only_that_server() -> None:
+async def test_per_server_readonly_denies_only_that_server() -> None:
     """A server flagged readonly denies its writes; a non-flagged server still permits writes."""
     from dhis2w_mcp_router.core import UpstreamServer
 
@@ -114,6 +111,64 @@ def test_per_server_readonly_denies_only_that_server() -> None:
     registry = Registry(servers)
     registry._entries["play__data_set_create"] = _entry("play__data_set_create", "play", "data_set_create", "Create")  # noqa: SLF001
     registry._entries["local__data_set_create"] = _entry("local__data_set_create", "local", "data_set_create", "Create")  # noqa: SLF001
-    names = [hit.name for hit in registry.search("create", limit=10)]
+    names = [hit.name for hit in await registry.search("create", limit=10)]
     assert "local__data_set_create" in names  # writable server
     assert "play__data_set_create" not in names  # read-only server's write hidden
+
+
+def test_cosine_similarity() -> None:
+    """Cosine is 1 for identical vectors, 0 for orthogonal, and 0 for a degenerate (zero) vector."""
+    from dhis2w_mcp_router.ranking import _cosine
+
+    assert _cosine([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0)
+    assert _cosine([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)
+    assert _cosine([0.0, 0.0], [1.0, 1.0]) == 0.0
+
+
+async def test_embedding_ranker_orders_by_cosine() -> None:
+    """The embedding ranker ranks the tool whose vector is closest to the query first (mocked embeddings)."""
+    from dhis2w_mcp_router.core import ToolEntry
+    from dhis2w_mcp_router.ranking import EmbeddingRanker
+
+    table = {
+        "dhis2__metadata_count Count data elements": [1.0, 0.0],
+        "dhis2__analytics_query Query analytics data": [0.0, 1.0],
+        "how many data elements": [0.9, 0.1],  # closest to the count tool
+    }
+
+    class _FakeRanker(EmbeddingRanker):
+        async def _embed(self, inputs: list[str]) -> list[list[float]]:  # noqa: D102 — test override of the HTTP call
+            return [table[text] for text in inputs]
+
+    entries = [
+        ToolEntry(
+            name="dhis2__metadata_count",
+            server="dhis2",
+            bare="metadata_count",
+            description="Count data elements",
+            input_schema={},
+        ),  # noqa: E501
+        ToolEntry(
+            name="dhis2__analytics_query",
+            server="dhis2",
+            bare="analytics_query",
+            description="Query analytics data",
+            input_schema={},
+        ),  # noqa: E501
+    ]
+    ranker = _FakeRanker("http://x/v1/embeddings", "m")
+    await ranker.prepare(entries)
+    hits = await ranker.rank("how many data elements", entries, limit=2)
+    assert hits[0].name == "dhis2__metadata_count"  # cosine beats the keyword mis-rank
+
+
+def test_router_config_parses_optional_embeddings() -> None:
+    """The router config accepts an optional embeddings block; absent means keyword ranking."""
+    from dhis2w_mcp_router.config import RouterConfig
+
+    with_embed = RouterConfig.model_validate(
+        {"servers": [{"name": "d", "command": "x"}], "embeddings": {"url": "http://x", "model": "m"}}
+    )
+    assert with_embed.embeddings is not None
+    assert with_embed.embeddings.model == "m"
+    assert RouterConfig.model_validate({"servers": []}).embeddings is None

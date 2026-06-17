@@ -24,12 +24,22 @@ CONFIG_ENV = "MCP_ROUTER_CONFIG"
 DEFAULT_CONFIG = "mcp-router.json"
 
 
+class EmbeddingsConfig(BaseModel):
+    """Optional embedding-ranker config: an OpenAI-compatible `/v1/embeddings` endpoint + model."""
+
+    model_config = ConfigDict(frozen=True)
+
+    url: str
+    model: str
+
+
 class RouterConfig(BaseModel):
-    """The router config file: the list of upstream MCP servers to front."""
+    """The router config file: upstream MCP servers to front, plus an optional embedding ranker."""
 
     model_config = ConfigDict(frozen=True)
 
     servers: list[UpstreamServer]
+    embeddings: EmbeddingsConfig | None = None
 
 
 def config_path() -> Path:
@@ -37,9 +47,14 @@ def config_path() -> Path:
     return Path(os.environ.get(CONFIG_ENV, DEFAULT_CONFIG))
 
 
-def load_servers() -> list[UpstreamServer]:
-    """Read the configured upstream MCP servers; raise if the config file is missing."""
+def load_config() -> RouterConfig:
+    """Read the full router config; raise if the config file is missing."""
     path = config_path()
     if not path.is_file():
         raise FileNotFoundError(f"router config not found at {path} (set {CONFIG_ENV} to point at one)")
-    return RouterConfig.model_validate_json(path.read_text()).servers
+    return RouterConfig.model_validate_json(path.read_text())
+
+
+def load_servers() -> list[UpstreamServer]:
+    """Read the configured upstream MCP servers."""
+    return load_config().servers

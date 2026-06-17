@@ -107,7 +107,7 @@ def _make_registry() -> Registry:
 async def _dispatch(registry: Registry, name: str, arguments: dict) -> str:
     """Run one router meta-tool: search_tools returns matches; call_tool dispatches to the upstream."""
     if name == "search_tools":
-        hits = registry.search(arguments.get("query", ""), arguments.get("limit", 5))
+        hits = await registry.search(arguments.get("query", ""), arguments.get("limit", 5))
         return json.dumps([{"name": hit.name, "description": hit.description} for hit in hits])
     if name == "call_tool":
         try:
