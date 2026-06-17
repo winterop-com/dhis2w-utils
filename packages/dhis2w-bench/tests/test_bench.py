@@ -104,3 +104,52 @@ def test_longcontext_effective_context() -> None:
     assert report.all_passed is False
     miss = ModelReport(model="m", results=[LengthResult(tokens=2000, ok=False, seconds=1.0)])
     assert miss.effective_context == 0
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "allowed"),
+    [
+        ("ToolSearch", True),  # SDK discovery — always allowed
+        ("mcp__dhis2__metadata_count", True),
+        ("mcp__dhis2__system_whoami", True),
+        ("mcp__dhis2__metadata_data_element_create", False),  # write verb
+        ("mcp__dhis2__system_settings_set", False),  # write verb
+        ("Bash", False),  # built-in coding tool — never in an MCP bench
+        ("Read", False),
+    ],
+)
+async def test_claude_read_only_gate(tool_name: str, allowed: bool) -> None:
+    """The read-only gate permits tool discovery and dhis2 read tools only; everything else is denied."""
+    from claude_agent_sdk import PermissionResultAllow, PermissionResultDeny, ToolPermissionContext
+    from dhis2w_bench import claude_mcp
+
+    result = await claude_mcp._read_only_gate(tool_name, {}, ToolPermissionContext(suggestions=[]))
+    assert isinstance(result, PermissionResultAllow if allowed else PermissionResultDeny)
+
+
+def test_claude_model_report_aggregates() -> None:
+    """ModelReport rolls up passes and total subscription cost across the suite."""
+    from dhis2w_bench.claude_mcp import ModelReport, TaskOutcome
+
+    report = ModelReport(
+        model="opus",
+        outcomes=[
+            TaskOutcome(key="count", ok=True, turns=3, cost_usd=0.10, seconds=1.0, tools=["x"]),
+            TaskOutcome(key="filter", ok=False, turns=2, cost_usd=0.20, seconds=1.0, tools=[]),
+        ],
+    )
+    assert report.passed == 1
+    assert report.cost_usd == pytest.approx(0.30)
+
+
+def test_claude_markdown_table_has_model_and_totals() -> None:
+    """The table renders one row per model with the pass count and cost."""
+    from dhis2w_bench.claude_mcp import READ_TASKS, ModelReport, TaskOutcome, _markdown_table
+
+    report = ModelReport(
+        model="opus",
+        outcomes=[TaskOutcome(key=key, ok=True, turns=1, cost_usd=0.1, seconds=1.0, tools=[]) for key, _ in READ_TASKS],
+    )
+    table = _markdown_table([report])
+    assert "`opus`" in table
+    assert f"{len(READ_TASKS)}/{len(READ_TASKS)}" in table

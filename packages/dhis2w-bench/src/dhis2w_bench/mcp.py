@@ -301,14 +301,14 @@ async def _agent(
 # --- scoring --------------------------------------------------------------------------------
 
 
-def _score_read(key: str, run: _Run) -> bool:
+def _score_read(key: str, answer: str) -> bool:
     """Heuristic pass/fail for a read task (same play42 expectations as the bridge bench)."""
-    answer = run.answer.lower()
+    text = answer.lower()
     if key == "count":
-        return "1037" in answer
+        return "1037" in text
     if key == "filter":
-        return "anc" in answer
-    return "admin" in answer  # whoami
+        return "anc" in text
+    return "admin" in text  # whoami
 
 
 def _found_write(run: _Run) -> bool:
@@ -330,7 +330,7 @@ async def _benchmark_model(model: str) -> ModelReport:
         async with httpx.AsyncClient() as http:
             for key, task in READ_TASKS:
                 run = await _agent(client, http, read_tools, model, task, max_steps=8)
-                ok = _score_read(key, run)
+                ok = _score_read(key, run.answer)
                 read_outcomes.append(TaskOutcome(key=key, ok=ok, calls=run.calls, secs=run.secs, tokens=run.tokens))
                 print(f"  READ {key}: ok={ok} calls={run.calls} {run.secs}s {run.tokens}tok")
 

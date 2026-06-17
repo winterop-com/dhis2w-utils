@@ -23,6 +23,7 @@ Add candidates (`lms get ...`) as they come up — notably the agentic-coder MoE
 | 1 | **coding** | `make bench-general` | python (14) + cli (3) + **multi-turn tooling (7)**, no DHIS2 | **ready** (extended; discriminates) |
 | 2 | **mcp-bridge** | `make bench-bridge` (read+write), `bench-matrix` (discovery), `bench-composite` (hard writes) | single-tool `dhis2_cli`; the model must **discover** the ~200-command surface | **ready** |
 | 3 | **full mcp** | `make bench-mcp` | the full dhis2-mcp server, all ~311 typed tools loaded up front | **ready** (loads at 128k; oracle passes) |
+| 3c | **cloud claude over full mcp** | `make bench-claude-mcp` | the same full server, but driven by a cloud Claude model through the Agent SDK's native loop (not the local OpenAI loop) | **ready** (read suite on play42; ambient subscription auth; read-only gate) |
 
 ## bench-mcp — to build (with a safety guard)
 
