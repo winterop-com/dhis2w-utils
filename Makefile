@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -48,6 +48,7 @@ help:
 	@echo "  bench-general    Axis 1 — general capability: python+cli+tooling, no DHIS2 (MODELS= required; BENCH_MAX_TOKENS=, BENCH_ORACLE=)"
 	@echo "  bench-bridge     Axis 2 — benchmark named models over the bridge: read+write+perf (MODELS= required; BENCH_ORACLE=)"
 	@echo "  bench-mcp        Full dhis2-mcp server (~311 tools), read+write (MODELS= required; BENCH_CONTEXT=128K)"
+	@echo "  bench-router     Local models over the dhis2w-mcp-router (search+dispatch), read suite at small context (MODELS= required; BENCH_CONTEXT=16K)"
 	@echo "  bench-claude-mcp Cloud Claude over full dhis2-mcp via Agent SDK, read suite on play42 (MODELS= optional; ambient subscription auth)"
 	@echo "  bench-claude-bridge Cloud Claude over the dhis2_cli bridge: read+write+composite (MODELS= optional; RUNS= composite reps; needs make dhis2-run)"
 	@echo "  bench-round      Drive dhis2w-mcp-bridge with one local model (MODEL= required; ROUND=read|write|bench, PROFILE=)"
@@ -232,6 +233,14 @@ bench-mcp:
 	@echo "    Read round = play42 with READ-ONLY tools only (the server has no readonly guard); write = local_basic."
 	@lms server start >/dev/null 2>&1 || true
 	@$(UV) run python -u -m dhis2w_bench.mcp $(MODELS)
+
+bench-router:
+	@test -n "$(MODELS)" || { echo "usage: make bench-router MODELS=\"<key> [<key> ...]\"  (no default; see 'make bench-list')"; exit 2; }
+	@echo ">>> Router benchmark: local models drive the full dhis2-mcp surface via the router (search_tools + call_tool)."
+	@echo "    Loads each model at BENCH_CONTEXT (default 16K) — the router payload is 2 tools, not the ~49k full surface."
+	@echo "    Read suite on play42 with the router read-only. Compare against bench-mcp (full payload) and bench-bridge."
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python -u -m dhis2w_bench.router $(MODELS)
 
 bench-claude-mcp:
 	@echo ">>> Cloud Claude drives the full dhis2-mcp server via the Agent SDK (read suite on play42)."

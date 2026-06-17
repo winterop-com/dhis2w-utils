@@ -141,6 +141,32 @@ models are flaky there.)
   count its children) and cleaned up; the write round restores the baseline. Repeat the flaky round
   with `RUNS=3`.
 
+## Router lane (`bench-router`) — local models over search+dispatch at tiny context
+
+The router (`dhis2w-mcp-router`) fronts the full 311-tool surface behind two meta-tools
+(`search_tools` + `call_tool`), so a local model can drive it loaded at **16k** context — where the
+full-MCP payload (~49k tokens) won't even fit. Read suite, play42, router read-only:
+
+| model | context | count | filter | whoami | passed |
+| --- | --- | --- | --- | --- | --- |
+| `gemma-4-26b-a4b-qat` | 16K | PASS | PASS | PASS | **3/3** |
+| `gemma-4-e4b` | 16K | FAIL | FAIL | FAIL | 0/3 |
+| `qwen3.5-4b` | 16K | PASS | PASS | PASS | **3/3** |
+
+- **The router works — two small models drive the full surface at 16k**, which they cannot do over
+  full-MCP (the payload overflows that context). `gemma-4-26b-a4b-qat` and the 4B `qwen3.5-4b` both go
+  3/3; the win is real and matches the cloud-ToolSearch behaviour, portably.
+- **But the indirection has a capability floor.** `gemma-4-e4b` scores **0/3, one turn each** — it
+  answers without ever calling `search_tools`. It *can* drive *direct* typed tools (it passes the
+  full-MCP read round), but the two-step search→dispatch indirection is a step too far for the weakest
+  model. So the router is not a free win for *every* local model — it asks the model to grasp "search,
+  then call," and the floor sits above e4b.
+- **Implication for "router as the universal default"** (see roadmap): it's the right default for
+  *capable* small models and growing surfaces, but the weakest models still want direct tools. Feeding
+  a failed `call_tool` back as model feedback matters — gemma recovered a bad `metadata_list` call
+  (filter: 8 turns) instead of dead-ending, which is why the harness surfaces tool errors rather than
+  raising.
+
 ## Context-window dimension (full MCP, `gemma-4-e4b`)
 
 The full-MCP payload is the gate, so loaded context decides what works (read tools ~16k tokens, the
