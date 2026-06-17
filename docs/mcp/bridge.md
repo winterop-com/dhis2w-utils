@@ -133,11 +133,23 @@ tree by the test suite, so it cannot silently drift, and ambiguous verbs default
 This is a convenience guard — the authoritative control is the DHIS2 authorities of the
 profile's credentials, so use a read-scoped PAT/user for a hard guarantee.
 
+## Write protection against shared hosts
+
+Independently of read-only mode, the bridge **refuses mutating commands** when the active
+profile resolves to a shared public DHIS2 host — `play.dhis2.org`, `play.im.dhis2.org`,
+`debug.dhis2.org` by default. Reads against those hosts still pass; only writes are refused
+(exit 126), regardless of whether `DHIS2_MCP_READONLY` is set. This is a structural guard so a
+harness or agent can never accidentally write to a shared demo, however the profile is wired.
+Override the host list with `DHIS2_MCP_PROTECTED_HOSTS` (comma-separated patterns; an empty
+value disables the guard). As with read-only mode, the authoritative control remains the DHIS2
+authorities of the profile's credentials.
+
 ## Environment variables
 
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `DHIS2_MCP_READONLY` | unset | Truthy (`1`/`true`/`yes`/`on`) restricts to read commands + `--help`; writes refused (exit 126). |
+| `DHIS2_MCP_PROTECTED_HOSTS` | `play.dhis2.org,play.im.dhis2.org,debug.dhis2.org` | Comma-separated host patterns whose profiles refuse mutating commands (exit 126), independent of read-only mode. An empty value disables the guard. |
 | `DHIS2_CLI_BIN` | auto | Path to the `d2w` executable (auto-discovered next to the interpreter, then on `PATH`). |
 | `DHIS2_MCP_CLI_TIMEOUT` | `120` | Per-command timeout in seconds (exit 124 on timeout). |
 

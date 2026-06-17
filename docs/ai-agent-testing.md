@@ -26,10 +26,21 @@ All runnable from the `Makefile`; the model roster lives in `packages/dhis2w-ben
 
 | Command | What it measures |
 | --- | --- |
-| `make bench-bridge` | The roster over **read + write + performance** — the primary capability benchmark. |
+| `make bench-list` | List the installed models (with context window + tool-use flag) available to benchmark. |
+| `make bench-bridge` | The roster over the single-tool bridge — **read + write + performance**, the primary capability benchmark. |
 | `make bench-matrix` | A **command × model grid**: does each model find and form each CLI command. |
 | `make bench-composite` | Multi-object **write workflows** (data set + elements, program + stages), oracle reference. |
 | `make bench-round` | Drive one model through a read / write / benchmark round interactively. |
+| `make bench-general` | **Coding axis** (python + cli + multi-turn tooling, no DHIS2) — predicts tool competence. |
+| `make bench-mcp` | The **full dhis2-mcp server** (~311 typed tools): read + write at a configurable load context. |
+| `make bench-longcontext` | **Effective context** (needle-in-a-haystack): how many tokens a model can actually use. |
+| `make bench-validate` | One model across **both** the coding and bridge axes in a single run. |
+| `make bench-claude-mcp` | **Cloud Claude** over the full dhis2-mcp server via the Agent SDK (read + write + composite). |
+| `make bench-claude-bridge` | **Cloud Claude** over the single-tool bridge via the Agent SDK (read + write + composite). |
+
+The cloud `bench-claude-*` lanes use ambient Claude Code subscription auth (no API key) and exist so
+local-vs-cloud is directly comparable on the same tasks. See `docs/notes/benchmark-plan.md` and
+`docs/notes/benchmark-results.md` for the full methodology and latest numbers.
 
 ## Headline findings
 
