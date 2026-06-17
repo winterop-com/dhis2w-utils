@@ -13,12 +13,16 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
   `qwen3.5-4b` — passed all three benchmarks**, including the *full* MCP server (~311 tools) at 128k
   context. The assumption that "only cloud frontier models can drive full MCP" does **not** hold for
   these read+write tasks: capable local models handle it, given enough context.
-- **`gemma-4-e4b` (4B, 6.9 GB) is the standout** — near-perfect everywhere, and the *fastest* on the
-  MCP write. Best capability-per-GB by a wide margin.
-- **`gemma-4-12b-qat` is dominated** — same correctness as the champion but the slowest model on
-  every axis (coding 936s; MCP write 222s). Prime delete candidate.
+- **`gemma-4-e4b` (4B, 6.9 GB) wins reads, easy writes, and speed** — near-perfect everywhere cheap,
+  fastest on the easy/MCP writes. But it **cannot do the hard composite writes** (0/2 — see below).
+- **`gemma-4-12b-qat` is the authoring winner.** It looks "dominated" on speed/easy tasks, but it is
+  the **only** model that reliably completes the hard multi-object writes (2/2 composite) — the test
+  that actually matters for a DHIS2 authoring agent. So **do not delete it.**
+- **Easy writes don't rank models; the composite (hard) writes do** — and they invert the ranking
+  (the champion fails the dataset composite; the speed winners score 0/2).
 - **Two real bugs were caught by the oracle and fixed mid-run** (see Findings): a stale bridge
-  write-command, and the full-MCP context-window requirement.
+  write-command, and the full-MCP context-window requirement. A third (the composite oracle itself)
+  was caught when its deterministic run failed.
 
 ## Coding (`bench-general`) — 62 objective cases (python 52, cli 3, tooling 7)
 
@@ -62,6 +66,32 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
   the night: full MCP is *not* exclusively a cloud-frontier capability.
 - It is **much slower** than the bridge (e.g. champion MCP write 80s vs bridge 16s) and needs a big
   load context — so the bridge is still the right default for PII/local, but full MCP is viable.
+
+## Composite writes (`bench-composite`) — the HARD, multi-object authoring test
+
+The reads and the single-setting writes above are easy (everyone passes), so they don't rank models.
+The real test is a **multi-object authoring** workflow driven through the bridge: "create a Monthly
+data set with two new data elements attached", and "create an event program with two stages". Each
+run is verified (find the named object, count its children) and cleaned up.
+
+| model | dataset + elements | program + stages | hard-write score |
+| --- | --- | --- | --- |
+| `gemma-4-26b-a4b-qat` (champion) | **FAIL** (never created it; 11 calls, 393s) | PASS (6 calls, 48s) | 1/2 |
+| `gemma-4-12b-qat` | **PASS** (2/2, 70s) | **PASS** (2/2, 88s) | **2/2** |
+| `gemma-4-e4b` | **FAIL** (never created; 226s) | **FAIL** (0/2, looped to limit) | 0/2 |
+| `qwen3.5-4b` | **FAIL** (set created, 0 elements attached) | **FAIL** (0/2 stages) | 0/2 |
+
+**This inverts the rest of the results.** On easy + full-MCP writes all four pass; on hard writes
+**only `gemma-4-12b-qat` succeeds on both**, and the models that win elsewhere are the worst here:
+
+- The **champion *fails* the dataset composite** — 6.5 min, 11 calls, never built it. Best at
+  reads/easy-writes is not best at authoring.
+- **`e4b` and `qwen3.5-4b` (the efficiency/speed winners) score 0/2** — they stall (e4b looped to the
+  20-call limit) or give up after a partial build (qwen made the set but attached nothing).
+- **`gemma-4-12b-qat` — earlier flagged "dominated, prime delete" — is the only reliable author.**
+
+So for the **PII-write path** (the whole reason local exists), the pick is **`gemma-4-12b-qat`**, not
+`e4b`. Caveat: 2 scenarios, single runs, model nondeterminism — but the pattern is strong.
 
 ## Context-window dimension (full MCP, `gemma-4-e4b`)
 
@@ -119,14 +149,15 @@ generous budget; deliberately handicapping the champion is expected to break it.
 
 | Use case | Pick | Why |
 | --- | --- | --- |
-| **PII / local bridge** (the critical path) | **`gemma-4-e4b`** | Passes everything, smallest (6.9 GB), fastest writes. `gemma-4-26b-a4b-qat` if you want max headroom. |
-| **Full MCP, if going local** | `gemma-4-e4b` or champion | All candidates work at 128k; `e4b` is fastest, champion most reliable. |
-| **Coding** | champion or `e4b` | 62/62 and 58/59; `qwen3.5-4b` if you want speed and can tolerate weaker class/edge-case coding. |
-| **Fastest tool driver** | `qwen3.5-4b` | 85 tok/s, passes bridge + MCP, strong tooling. |
+| **PII authoring** (multi-object writes — the real local job) | **`gemma-4-12b-qat`** | The **only** model that reliably completes the hard composite writes (2/2). `e4b`/`qwen` score 0/2; the champion 1/2. |
+| **PII reads + easy writes, fast** | `gemma-4-e4b` | Passes reads + the easy/MCP writes, smallest (6.9 GB), fastest — but **not** for composite authoring. |
+| **Full MCP, if going local** | `gemma-4-e4b` or champion | All candidates handle reads + the easy write at 128k; `e4b` fastest. (Hard writes not tested through full MCP yet.) |
+| **Coding** | champion or `e4b` | 62/62 and 58/59; `qwen3.5-4b` for speed with weaker class/edge-case coding. |
 
 ## Prune decision (2026-06-17)
 
-- **Keep:** `gemma-4-26b-a4b-qat` (oracle / max capability), `gemma-4-e4b` (efficiency winner),
-  `qwen3.5-4b` (fast tool driver).
-- **Delete (optional):** `gemma-4-12b-qat` — passes everything but is the slowest on every axis at
-  equal correctness (fully dominated by champion + e4b; frees 7 GB).
+- **Keep all four serious candidates** — the composite results show they are *not* redundant: each
+  wins a different axis. `gemma-4-12b-qat` (authoring), `gemma-4-e4b` (efficiency/reads),
+  `gemma-4-26b-a4b-qat` (oracle / max headroom), `qwen3.5-4b` (fastest tool driver).
+- **Reversal:** the earlier "delete `gemma-4-12b-qat`" call was **wrong** — it's the only reliable
+  composite author, which is the capability that matters most for a local PII-write agent.
