@@ -88,6 +88,27 @@ So full-MCP **reads need roughly ≥32k** context and **writes need ≥64k**; 12
 (the default `BENCH_CONTEXT`). (\*the 64k read FAILs in one run were small-model answer-variance, not
 a context effect — they pass at 32k and 128k.) Vary `BENCH_CONTEXT` to test other models/levels.
 
+## Token-budget dimension (coding at `BENCH_MAX_TOKENS=2048`)
+
+Tightening the generation budget from 16384 to 2048 **inverts the ranking**:
+
+| model | full (16384) | tight (2048) | behaviour |
+| --- | --- | --- | --- |
+| `gemma-4-26b-a4b-qat` | 62/62 | **47/51** | collapses |
+| `gemma-4-12b-qat` | 62/62 | **42/48** | collapses |
+| `gemma-4-e4b` | 58/59 | **54/56** | holds |
+| `qwen3.5-4b` | 53/56 | **52/56** | holds (140s — fastest) |
+
+The reasoning models (`champion`, `12b-qat`) spend the budget on chain-of-thought and **truncate the
+actual code** on the hard tasks (`lru_cache`, `rpn_eval`, `word_break`, `edit_distance`), so under
+token pressure the **small models win** — `e4b` and `qwen3.5-4b` barely move, and `qwen` is ~3x faster
+(140s vs 471s). Practical rule: **pick the model for the budget** — generous budget favours the qats
+(perfect but slow); tight budget / low latency favours `e4b` or `qwen`.
+
+Note on the oracle: the SUSPECT banner *did* fire at 2048 (champion failed 4 tasks). That is a **true**
+signal here, not a task bug — the oracle's "champion passes everything" assumption only holds at a
+generous budget; deliberately handicapping the champion is expected to break it.
+
 ## Findings (what the night taught us)
 
 1. **The oracle caught a real test bug.** The bridge write task hinted `dev customize set <key>
