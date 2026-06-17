@@ -74,19 +74,20 @@ class ToolEntry(BaseModel):
         return self.bare.rsplit("_", 1)[-1] in read_verbs
 
 
-def _score(entry: ToolEntry, terms: list[str]) -> int:
-    """Keyword score: how many query terms appear in the tool's name or description (case-insensitive)."""
-    haystack = f"{entry.name} {entry.description}".lower()
-    return sum(1 for term in terms if term in haystack)
-
-
 class Registry:
     """Holds upstream tool metadata + open clients; lazily built, then searched and dispatched against."""
 
     def __init__(
-        self, servers: list[UpstreamServer], *, readonly: bool = False, read_verbs: frozenset[str] = DEFAULT_READ_VERBS
+        self,
+        servers: list[UpstreamServer],
+        *,
+        readonly: bool = False,
+        read_verbs: frozenset[str] = DEFAULT_READ_VERBS,
+        ranker: object | None = None,
     ) -> None:
-        """Take the upstream servers to front; `readonly` (global) denies dispatch to write tools."""
+        """Take the upstream servers to front; `readonly` denies writes, `ranker` decides search order."""
+        from dhis2w_mcp_router.ranking import KeywordRanker, Ranker
+
         self._servers = list(servers)
         self._entries: dict[str, ToolEntry] = {}
         self._clients: dict[str, Client] = {}
@@ -95,6 +96,7 @@ class Registry:
         self._readonly = readonly
         self._read_verbs = read_verbs
         self._readonly_servers = {server.name for server in servers if server.readonly}
+        self._ranker: Ranker = ranker if isinstance(ranker, Ranker) else KeywordRanker()
 
     def _permits(self, entry: ToolEntry) -> bool:
         """Whether the entry is dispatchable: always for reads; for writes only when not in a read-only context."""
@@ -128,17 +130,13 @@ class Registry:
                     input_schema=getattr(tool, "inputSchema", {}) or {},
                     read_only_hint=getattr(annotations, "readOnlyHint", None) if annotations else None,
                 )
+        await self._ranker.prepare(list(self._entries.values()))
         self._built = True
 
-    def search(self, query: str, limit: int = 10) -> list[ToolEntry]:
-        """Rank permitted tools by query-term hits (read-only context hides write tools); empty query lists all."""
+    async def search(self, query: str, limit: int = 10) -> list[ToolEntry]:
+        """Rank the permitted tools (read-only context hides write tools) via the configured ranker."""
         candidates = [entry for entry in self._entries.values() if self._permits(entry)]
-        terms = [term for term in query.lower().split() if term]
-        if not terms:
-            return sorted(candidates, key=lambda entry: entry.name)[:limit]
-        scored = [(score, entry) for entry in candidates if (score := _score(entry, terms)) > 0]
-        scored.sort(key=lambda pair: (-pair[0], pair[1].name))
-        return [entry for _, entry in scored[:limit]]
+        return await self._ranker.rank(query, candidates, limit)
 
     async def call(self, name: str, arguments: dict[str, Any]) -> str:
         """Dispatch a namespaced tool to its upstream and return the result text; refuse writes when read-only."""

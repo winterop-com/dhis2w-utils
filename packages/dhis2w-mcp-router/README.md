@@ -50,7 +50,15 @@ Point it at any MCP servers via a JSON config (env `MCP_ROUTER_CONFIG`, default 
 
 Run it as a stdio MCP server: `uv run dhis2w-mcp-router`.
 
+## Ranking
+
+`search_tools` ranking is pluggable. The default `KeywordRanker` scores by query-term hits (no deps).
+Add an `embeddings` block (`url` + `model`, an OpenAI-compatible `/v1/embeddings` endpoint — e.g. a
+local embedder in LM Studio / Ollama) to rank by semantic similarity instead, which fixes keyword
+mis-ranks (e.g. "data element count" → `metadata_count` first). It is not a silver bullet on terse
+queries with a small local embedder; a larger embedder or a hybrid is the further upgrade.
+
 ## Status
 
-Experimental — not yet published. The core (`core.py`) is domain-neutral (FastMCP only, no `dhis2w-*`
+Experimental — not yet published. The core (`core.py`) is domain-neutral (FastMCP + httpx only, no `dhis2w-*`
 imports), so it can graduate to PyPI or extract to a standalone repo without a rewrite.

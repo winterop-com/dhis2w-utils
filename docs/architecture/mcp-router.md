@@ -33,7 +33,7 @@ A typical agent turn: `search_tools("data element count") → call_tool("dhis2__
 
 ## Domain-neutral core
 
-The core (`core.py`) depends only on FastMCP — **zero `dhis2w-*` imports**. It knows nothing about DHIS2;
+The core depends only on FastMCP + httpx (the latter for the optional embedding ranker) — **zero `dhis2w-*` imports**. It knows nothing about DHIS2;
 it fronts whatever MCP servers the config names. That is deliberate: the router is infrastructure, not a
 DHIS2 feature, so it can graduate to PyPI or extract to a standalone `mcp-router` repo without a rewrite.
 It lives in this workspace for now (same posture as `dhis2w-bench` / `dhis2w-codegen`) and is **not in
@@ -68,12 +68,23 @@ search_tools / call_tool
 
 ## Search ranking
 
-Keyword for now: tokenize the query, score each tool by how many terms appear in its `name +
-description`, return the top `limit`, ties broken by name for determinism. An empty query browses all
-(alphabetical). This is crude — e.g. "data element count" can rank `analytics_query` above
-`metadata_count` because "data" hits the analytics description — but the right tool is reliably in the
-top results, and program-stage-style exact matches rank first. **Embeddings are the planned upgrade**
-(rank by semantic similarity instead of substring hits).
+Ranking is **pluggable** (`ranking.py`, the `Ranker` protocol). Two implementations:
+
+- **`KeywordRanker`** (default, no deps, no IO) — tokenize the query, score each tool by how many terms
+  appear in its `name + description`, top `limit`, ties broken by name. An empty query browses all
+  (alphabetical). Crude: "data element count" ranks `analytics_query` above `metadata_count` because
+  "data" hits the analytics description.
+- **`EmbeddingRanker`** (optional) — ranks by cosine similarity against an OpenAI-compatible
+  `/v1/embeddings` endpoint (e.g. a local embedder served by LM Studio / Ollama). It embeds every tool's
+  `name + description` once at build time and the query per search. Enabled by an `embeddings` block in
+  the config (`url` + `model`); absent ⇒ keyword.
+
+Measured against a local `nomic-embed-text` embedder: embeddings **fix** the keyword mis-rank ("data
+element count" → `metadata_count` first, vs `analytics_query` under keyword), but are not a silver
+bullet — terse queries like "who am i" still rank `system_whoami` only mid-list, because the small
+local embedder is weak on short tool-name-ish text. A larger embedder or a keyword+embedding hybrid is
+the further upgrade. Note: better ranking helps models that *engage* search; it does **not** fix a model
+that never calls `search_tools` (the e4b capability-floor case — that needs a more capable model).
 
 ## Read-only guard
 
@@ -102,11 +113,13 @@ Upstreams come from a JSON file (env `MCP_ROUTER_CONFIG`, default `mcp-router.js
   "servers": [
     {"name": "dhis2", "command": "uv", "args": ["run", "--directory", "/repo", "dhis2w-mcp"],
      "env": {"DHIS2_PROFILE": "play42"}, "readonly": true}
-  ]
+  ],
+  "embeddings": {"url": "http://localhost:1234/v1/embeddings", "model": "text-embedding-nomic-embed-text-v1.5"}
 }
 ```
 
-Run it as a stdio MCP server: `uv run dhis2w-mcp-router`.
+The `embeddings` block is optional (omit it for keyword ranking). Run it as a stdio MCP server:
+`uv run dhis2w-mcp-router`.
 
 ## Federation
 
@@ -117,10 +130,13 @@ avoids DHIS2 coupling.
 
 ## Limitations and roadmap
 
-- **Ranking** is keyword, not semantic — embeddings are the obvious upgrade.
-- **A benchmark lane** comparing local models over the router vs the string-bridge vs the full server is
-  the measurement that quantifies the win (a small experiment already shows it works — see Validation).
+- **Ranking quality** — embeddings (shipped) fix the worst keyword mis-ranks but a small local embedder
+  is weak on terse queries; a larger embedder or a keyword+embedding hybrid is the next step.
+- **Capability floor** — the search→dispatch indirection is a step the weakest models don't take
+  (`bench-router` shows `gemma-4-e4b` never calls `search_tools`); better ranking does not fix that.
 - **Per-tool allow/deny lists** beyond read-only could layer on the same `call_tool` chokepoint.
+- **Federation in anger** — the multi-upstream case (DHIS2 + non-DHIS2 servers) is built but not yet
+  exercised end to end.
 
 ## Validation
 

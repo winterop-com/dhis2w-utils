@@ -12,8 +12,9 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from dhis2w_mcp_router.config import load_servers
+from dhis2w_mcp_router.config import load_config
 from dhis2w_mcp_router.core import Registry
+from dhis2w_mcp_router.ranking import EmbeddingRanker
 
 #: Truthy env values that enable global read-only mode (write tools are hidden + refused at dispatch).
 _TRUTHY = {"1", "true", "yes", "on"}
@@ -38,19 +39,21 @@ _registry: Registry | None = None
 
 
 def _get_registry() -> Registry:
-    """Return the process registry, constructing it from the config on first use."""
+    """Return the process registry, constructing it from the config (incl. optional embedding ranker) on first use."""
     global _registry
     if _registry is None:
-        _registry = Registry(load_servers(), readonly=_readonly_enabled())
+        config = load_config()
+        ranker = EmbeddingRanker(config.embeddings.url, config.embeddings.model) if config.embeddings else None
+        _registry = Registry(config.servers, readonly=_readonly_enabled(), ranker=ranker)
     return _registry
 
 
 @mcp.tool
 async def search_tools(query: str, limit: int = 10) -> list[dict[str, Any]]:
-    """Search the federated tool surface by keyword; returns matching tools with their input schemas."""
+    """Search the federated tool surface; returns matching tools with their input schemas."""
     registry = _get_registry()
     await registry.ensure_built()
-    return [entry.summary() for entry in registry.search(query, limit)]
+    return [entry.summary() for entry in await registry.search(query, limit)]
 
 
 @mcp.tool

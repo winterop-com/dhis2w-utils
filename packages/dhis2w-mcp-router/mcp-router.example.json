@@ -4,7 +4,12 @@
       "name": "dhis2",
       "command": "uv",
       "args": ["run", "--directory", "/absolute/path/to/dhis2w-utils", "dhis2w-mcp"],
-      "env": { "DHIS2_PROFILE": "play42" }
+      "env": { "DHIS2_PROFILE": "play42" },
+      "readonly": true
     }
-  ]
+  ],
+  "embeddings": {
+    "url": "http://localhost:1234/v1/embeddings",
+    "model": "text-embedding-nomic-embed-text-v1.5"
+  }
 }

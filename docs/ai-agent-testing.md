@@ -65,7 +65,7 @@ The findings drive the [bridge design](architecture/mcp-bridge.md): because a sm
 ~304 tool schemas or pick among hundreds of tools, the bridge gives it **one** tool and a
 self-describing CLI to discover progressively — which is only as good as the help/errors, hence the
 read-surface hardening (did-you-mean, `metadata type list`, `d2w schema <type>`, `--fields`
-warnings). See [MCP servers — which one?](mcp/index.md#two-servers-which-one).
+warnings). See [MCP servers — which one?](mcp/index.md#three-surfaces-which-one).
 
 ## Detailed logs
 
