@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import json
 import os
 import shlex
@@ -22,6 +23,7 @@ import shutil
 import sys
 from pathlib import Path
 from typing import Any, Final
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict
 
@@ -29,6 +31,13 @@ from pydantic import BaseModel, ConfigDict
 DHIS2_CLI_BIN_ENV: Final = "DHIS2_CLI_BIN"
 #: Environment variable that, when truthy, restricts the bridge to read-only commands.
 READONLY_ENV: Final = "DHIS2_MCP_READONLY"
+#: Environment variable overriding the comma-separated protected-host patterns. An empty value
+#: disables the guard; an unset value falls back to `DEFAULT_PROTECTED_HOSTS`.
+PROTECTED_HOSTS_ENV: Final = "DHIS2_MCP_PROTECTED_HOSTS"
+#: Hosts on which mutating commands are refused regardless of `DHIS2_MCP_READONLY` — the shared
+#: public DHIS2 demo/play instances. A host matches when it equals a pattern or is a subdomain of
+#: one. This is a structural backstop so no harness wiring can write to the public demo.
+DEFAULT_PROTECTED_HOSTS: Final[tuple[str, ...]] = ("play.dhis2.org", "play.im.dhis2.org", "debug.dhis2.org")
 #: Environment variable overriding the per-command timeout, in seconds.
 TIMEOUT_ENV: Final = "DHIS2_MCP_CLI_TIMEOUT"
 #: Default per-command timeout when `TIMEOUT_ENV` is unset or invalid.
@@ -256,6 +265,56 @@ def readonly_from_env() -> bool:
     return os.environ.get(READONLY_ENV, "").strip().lower() in _READONLY_TRUTHY
 
 
+def protected_hosts() -> tuple[str, ...]:
+    """Return the write-protected host patterns (`DHIS2_MCP_PROTECTED_HOSTS` override, else defaults)."""
+    raw = os.environ.get(PROTECTED_HOSTS_ENV)
+    if raw is None:
+        return DEFAULT_PROTECTED_HOSTS
+    return tuple(host.strip().lower() for host in raw.split(",") if host.strip())
+
+
+def _host_is_protected(host: str, patterns: tuple[str, ...]) -> bool:
+    """Return True when `host` equals or is a subdomain of any protected pattern."""
+    host = host.lower()
+    return any(host == pattern or host.endswith(f".{pattern}") for pattern in patterns)
+
+
+@functools.cache
+def _resolve_base_url(profile: str | None) -> str | None:
+    """Resolve the active profile's base URL in-process; None if it cannot be resolved.
+
+    Uses the same precedence chain as the `d2w` CLI (`resolve_profile`). Fails open — a resolution
+    error returns None so the underlying command runs and reports its own error, rather than the
+    guard blocking on a transient lookup failure.
+    """
+    from dhis2w_core.profile import resolve_profile  # lazy: only when a mutating command runs
+
+    try:
+        return resolve_profile(profile).base_url
+    except Exception:  # noqa: BLE001 — fail open: never block a command on a host-resolution hiccup
+        return None
+
+
+def _protected_host_refusal(args: list[str], profile: str | None) -> CliResult | None:
+    """Return a refusal when `args` mutates against a protected host, else None."""
+    base_url = _resolve_base_url(profile)
+    if base_url is None:
+        return None
+    host = urlsplit(base_url).hostname or ""
+    if not _host_is_protected(host, protected_hosts()):
+        return None
+    blocked = " ".join(args) or "<empty>"
+    return CliResult(
+        exit_code=EXIT_REFUSED,
+        stdout="",
+        stderr=(
+            f"refused: {host!r} is a write-protected host; mutating command blocked: {blocked!r}. "
+            f"Reads are allowed. Point the profile at a local instance to write, or override "
+            f"{PROTECTED_HOSTS_ENV} (empty value disables the guard)."
+        ),
+    )
+
+
 def timeout_from_env() -> float:
     """Return the per-command timeout from `DHIS2_MCP_CLI_TIMEOUT`, or the default."""
     raw = os.environ.get(TIMEOUT_ENV)
@@ -299,7 +358,8 @@ async def run_cli(
     if args and " " in args[0]:
         with contextlib.suppress(ValueError):
             args = [*shlex.split(args[0]), *args[1:]]
-    if read_only and not is_read_only(args):
+    read = is_read_only(args)
+    if read_only and not read:
         blocked = " ".join(args) or "<empty>"
         reason = "writes a local file (--output/-o)" if _writes_to_disk(args) else "non-read commands"
         return CliResult(
@@ -311,6 +371,12 @@ async def run_cli(
                 f"reads (without --output), or any `--help`. Unset {READONLY_ENV} for full access."
             ),
         )
+    # Structural backstop: refuse mutating commands against a shared public host regardless of
+    # read-only mode, so no harness can write to the public demo by mis-wiring env vars.
+    if not read:
+        refusal = _protected_host_refusal(args, profile)
+        if refusal is not None:
+            return refusal
     binary = _resolve_binary()
     if binary is None:
         return CliResult(

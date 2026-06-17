@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bridge-round bridge-bench cli-matrix composite-scenarios refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -9,7 +9,7 @@ export NO_MKDOCS_2_WARNING := 1
 help:
 	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Targets:"
+	@echo "Development:"
 	@echo "  install          Sync workspace deps (all members, dev group included)"
 	@echo "  lint             Run ruff format + ruff check + mypy + pyright"
 	@echo "  test             Run tests (excludes slow)"
@@ -17,32 +17,43 @@ help:
 	@echo "  test-contract    Run live-schema contract tests against play.im.dhis2.org"
 	@echo "  test-durations   Show 20 slowest tests"
 	@echo "  coverage         Run tests with coverage reporting"
+	@echo "  build            Build all workspace wheels"
+	@echo "  publish-client   Upload dhis2w-client wheel to PyPI (requires UV_PUBLISH_TOKEN env)"
+	@echo "  deps-upgrade     Re-resolve uv.lock to pick up newer versions"
+	@echo "  clean            Remove caches, build artifacts, coverage output"
+	@echo ""
+	@echo "Docs:"
 	@echo "  docs             Alias for docs-serve"
 	@echo "  docs-serve       Serve mkdocs site locally at http://127.0.0.1:8000 (regens CLI ref first)"
 	@echo "  docs-build       Build mkdocs site to ./site (regens CLI ref first)"
 	@echo "  docs-cli         Regenerate docs/cli-reference.md from the Typer app"
 	@echo "  docs-mcp         Regenerate docs/mcp-reference.md from the FastMCP server"
-	@echo "  build            Build all workspace wheels"
-	@echo "  publish-client   Upload dhis2w-client wheel to PyPI (requires UV_PUBLISH_TOKEN env)"
-	@echo "  deps-upgrade     Re-resolve uv.lock to pick up newer versions"
 	@echo ""
+	@echo "DHIS2 local stack:"
 	@echo "  dhis2-run        Start the stack, seed auth, stream logs (Ctrl+C tears it down)"
 	@echo "  dhis2-seed       (re-)seed PATs + OAuth2 client against an already-running stack"
 	@echo "  dhis2-down       Stop the local DHIS2 stack"
 	@echo "  dhis2-build-e2e-dump  Wipe + populate a fresh DHIS2 with test data, regenerate infra/v\$$(DHIS2_VERSION)/dump.sql.gz"
-	@echo "  dhis2-codegen-all     Spin up DHIS2 41/42/43 in turn and regenerate each v{N}/ (~40 min; pass VERSIONS=\"41 42 43\" to narrow)"
-	@echo "  dhis2-codegen-play    Refresh v42 + v43 generated/ trees against play.im.dhis2.org (no docker)"
-	@echo "  verify-examples       Run every non-interactive example + print PASS/FAIL summary"
-	@echo "  bridge-round          Drive dhis2w-mcp-bridge with a local LM Studio model (MODEL=, ROUND=read|write|bench, PROFILE=)"
-	@echo "  bridge-bench          Benchmark the model roster over the bridge: read+write+perf (MODELS= to override)"
-	@echo "  cli-matrix            Command x model matrix: how each roster model handles every CLI command (ARGS= to slice)"
-	@echo "  composite-scenarios   Run composite write workflows (data set+elements, program+stages) oracle-style"
 	@echo "  refresh-setup         Wipe + rebuild e2e dump + seed (no example verify — fast iteration on setup)"
 	@echo "  refresh-and-verify    Rebuild dump + seed + run every example (turns the PR #125 ritual into one command)"
 	@echo ""
-	@echo "  For niche targets (versions, wait, status, logs, pat) use 'make -C infra help'."
+	@echo "Code generation + examples:"
+	@echo "  dhis2-codegen-all     Spin up DHIS2 41/42/43 in turn and regenerate each v{N}/ (~40 min; pass VERSIONS=\"41 42 43\" to narrow)"
+	@echo "  dhis2-codegen-play    Refresh v42 + v43 generated/ trees against play.im.dhis2.org (no docker)"
+	@echo "  verify-examples       Run every non-interactive example + print PASS/FAIL summary"
 	@echo ""
-	@echo "  clean            Remove caches, build artifacts, coverage output"
+	@echo "Model testing (local LLMs; reads -> play42, writes -> local_basic; no model defaults):"
+	@echo "  bench-list       List the models the backend has installed (pick from these)"
+	@echo "  bench-validate   Validate ONE model across both axes: general + bridge (MODEL= required)"
+	@echo "  bench-general    Axis 1 — general capability: python+cli+tooling, no DHIS2 (MODELS= required; BENCH_MAX_TOKENS=, BENCH_CHAMPION=)"
+	@echo "  bench-bridge     Axis 2 — benchmark named models over the bridge: read+write+perf (MODELS= required; BENCH_CHAMPION=)"
+	@echo "  bench-mcp        Full dhis2-mcp server (~311 tools), read+write (MODELS= required; BENCH_CONTEXT=128K)"
+	@echo "  bench-round      Drive dhis2w-mcp-bridge with one local model (MODEL= required; ROUND=read|write|bench, PROFILE=)"
+	@echo "  bench-matrix     Command x model matrix: how each model handles every CLI command (ARGS= to slice)"
+	@echo "  bench-composite  Hard multi-object writes (data set+elements, program+stages): no MODELS = oracle; MODELS= drives models (RUNS=3, pass-rate)"
+	@echo "  bench-longcontext Needle-in-a-haystack retrieval at increasing lengths (MODELS= required; BENCH_CONTEXT=128K)"
+	@echo ""
+	@echo "  For niche targets (versions, wait, status, logs, pat) use 'make -C infra help'."
 
 install:
 	@echo ">>> Syncing workspace"
@@ -58,9 +69,9 @@ lint:
 
 check-examples:
 	@echo ">>> Checking per-version example sync (v42 baseline -> v41 + v43)"
-	@$(UV) run python infra/scripts/check_examples_sync.py
+	@$(UV) run python -u infra/scripts/check_examples_sync.py
 	@echo ">>> Checking example CLI commands + MCP tool references resolve"
-	@$(UV) run python infra/scripts/check_example_refs.py
+	@$(UV) run python -u infra/scripts/check_example_refs.py
 
 test:
 	@echo ">>> Running tests (excluding slow + contract)"
@@ -101,7 +112,7 @@ docs-cli:
 
 docs-mcp:
 	@echo ">>> Regenerating MCP tool reference from the FastMCP server"
-	@$(UV) run python infra/scripts/gen_mcp_reference.py
+	@$(UV) run python -u infra/scripts/gen_mcp_reference.py
 
 docs-serve: docs-cli docs-mcp
 	@echo ">>> Serving docs at http://127.0.0.1:8000"
@@ -175,39 +186,77 @@ verify-examples:
 	@echo ">>> Running every non-interactive example against profile $${DHIS2_PROFILE:-local_basic} (DHIS2 v$(or $(DHIS2_VERSION),42))"
 	@if [ -f infra/home/credentials/.env.auth ]; then \
 		set -a; . infra/home/credentials/.env.auth; set +a; \
-		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python infra/scripts/verify_examples.py; \
+		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python -u infra/scripts/verify_examples.py; \
 	else \
 		echo "    note: infra/home/credentials/.env.auth missing — env-dependent examples (profile_crud.py) will fail"; \
-		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python infra/scripts/verify_examples.py; \
+		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python -u infra/scripts/verify_examples.py; \
 	fi
 
-bridge-round:
-	@echo ">>> Bridge test round: MODEL=$(or $(MODEL),google/gemma-4-12b-qat) ROUND=$(or $(ROUND),read) PROFILE=$(or $(PROFILE),play42)"
+bench-list:
+	@echo ">>> Installed models (the backend's view; MODEL_BACKEND= to switch)"
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python -u -m dhis2w_bench.backend
+
+bench-round:
+	@test -n "$(MODEL)" || { echo "usage: make bench-round MODEL=<key> [ROUND=read|write|bench] [PROFILE=]  (see 'make bench-list')"; exit 2; }
+	@echo ">>> Bridge test round: MODEL=$(MODEL) ROUND=$(or $(ROUND),read) PROFILE=$(or $(PROFILE),play42)"
 	@echo "    (reads -> play42 readonly; writes -> local_basic. See docs/notes/small-model-bridge.md)"
 	@lms server start >/dev/null 2>&1 || true
-	@lms ps 2>/dev/null | grep -qF "$(or $(MODEL),google/gemma-4-12b-qat)" \
-		|| lms load $(or $(MODEL),google/gemma-4-12b-qat) --gpu max --ttl 3600 -y
-	@$(UV) run python infra/scripts/bridge_round.py \
-		--model $(or $(MODEL),google/gemma-4-12b-qat) \
+	@lms ps 2>/dev/null | grep -qF "$(MODEL)" || lms load $(MODEL) --gpu max --ttl 3600 -y
+	@$(UV) run python -u -m dhis2w_bench.round \
+		--model $(MODEL) \
 		--round $(or $(ROUND),read) \
 		--profile $(or $(PROFILE),$(if $(filter write,$(ROUND)),local_basic,play42))
 
-bridge-bench:
-	@echo ">>> Bridge model benchmark (roster in infra/scripts/bench_bridge_models.py)"
-	@echo "    reads -> play42 (read-only), writes -> local_basic; loads/unloads each model itself."
-	@echo "    Override the roster: make bridge-bench MODELS=\"qwen2.5-7b-instruct google/gemma-4-e4b\""
+bench-bridge:
+	@test -n "$(MODELS)" || { echo "usage: make bench-bridge MODELS=\"<key> [<key> ...]\"  (no default; see 'make bench-list')"; exit 2; }
+	@echo ">>> Bridge model benchmark: read -> play42 (read-only), write -> local_basic; one model at a time."
+	@echo "    The write round needs local_basic up — run 'make dhis2-run' first if it isn't."
+	@echo "    Name an oracle with BENCH_CHAMPION=<key> to enable the SUSPECT-task check."
 	@lms server start >/dev/null 2>&1 || true
-	@$(UV) run python infra/scripts/bench_bridge_models.py $(MODELS)
+	@$(UV) run python -u -m dhis2w_bench.bridge $(MODELS)
 
-composite-scenarios:
-	@echo ">>> Composite write-workflow scenarios (oracle: create -> verify -> cleanup on local_basic)"
-	@$(UV) run python infra/scripts/composite_scenarios.py $(ARGS)
+bench-general:
+	@test -n "$(MODELS)" || { echo "usage: make bench-general MODELS=\"<key> [<key> ...]\"  (no default; see 'make bench-list')"; exit 2; }
+	@echo ">>> General-capability benchmark (axis 1: python + cli + tooling; no DHIS2). One model = single test;"
+	@echo "    several = side-by-side comparison. BENCH_MAX_TOKENS= tightens the budget; BENCH_CHAMPION= sets an oracle."
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python -u -m dhis2w_bench.general $(MODELS)
 
-cli-matrix:
+bench-mcp:
+	@test -n "$(MODELS)" || { echo "usage: make bench-mcp MODELS=\"<key> [<key> ...]\"  (no default; see 'make bench-list')"; exit 2; }
+	@echo ">>> Full-MCP benchmark: the model drives the whole dhis2-mcp server (~311 tools) read + write."
+	@echo "    Loads each model at BENCH_CONTEXT (default 128K) — the tool payload is ~49k tokens."
+	@echo "    Read round = play42 with READ-ONLY tools only (the server has no readonly guard); write = local_basic."
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python -u -m dhis2w_bench.mcp $(MODELS)
+
+bench-validate:
+	@test -n "$(MODEL)" || { echo "usage: make bench-validate MODEL=<key>   (e.g. google/gemma-4-12b-qat)"; exit 2; }
+	@echo ">>> Validate $(MODEL) across both axes"
+	@echo ">>> Axis 1 — general (python + cli + tooling)"
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python -u -m dhis2w_bench.general $(MODEL)
+	@echo ">>> Axis 2 — bridge (read + write); write round needs local_basic up (make dhis2-run)"
+	@$(UV) run python -u -m dhis2w_bench.bridge $(MODEL)
+
+bench-composite:
+	@echo ">>> Composite write-workflow scenarios on local_basic (data set+elements, program+stages)."
+	@echo "    No MODELS: run the deterministic oracle. MODELS=\"<key> ...\": drive each model via the bridge."
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python -u -m dhis2w_bench.composite $(if $(MODELS),--models $(MODELS)) $(if $(RUNS),--runs $(RUNS)) $(ARGS)
+
+bench-longcontext:
+	@test -n "$(MODELS)" || { echo "usage: make bench-longcontext MODELS=\"<key> ...\"  (no default; see 'make bench-list')"; exit 2; }
+	@echo ">>> Long-context retrieval (needle-in-a-haystack) at increasing lengths; loads each model at BENCH_CONTEXT (128k)."
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python -u -m dhis2w_bench.longcontext $(MODELS)
+
+bench-matrix:
 	@echo ">>> CLI command x model matrix (how each roster model handles every command; read-only on play42)"
-	@echo "    Streaming + resumable. Slice it: make cli-matrix ARGS=\"--group metadata --models google/gemma-4-12b-qat\""
+	@echo "    Streaming + resumable. Slice it: make bench-matrix ARGS=\"--group metadata --models google/gemma-4-12b-qat\""
 	@lms server start >/dev/null 2>&1 || true
-	@$(UV) run python infra/scripts/cli_matrix.py $(ARGS)
+	@$(UV) run python -u -m dhis2w_bench.matrix $(ARGS)
 
 refresh-setup:
 	@echo ">>> [1/2] Rebuilding e2e dump (wipes + reseeds the stack)"
@@ -223,7 +272,7 @@ refresh-and-verify:
 	@$(MAKE) -C infra seed
 	@echo ">>> [3/3] Verifying every non-interactive example (DHIS2 v$(or $(DHIS2_VERSION),42))"
 	@set -a; . infra/home/credentials/.env.auth; set +a; \
-		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python infra/scripts/verify_examples.py
+		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python -u infra/scripts/verify_examples.py
 
 clean:
 	@echo ">>> Cleaning"
