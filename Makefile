@@ -45,13 +45,13 @@ help:
 	@echo "Model testing (local LLMs; reads -> play42, writes -> local_basic; no model defaults):"
 	@echo "  bench-list       List the models the backend has installed (pick from these)"
 	@echo "  bench-validate   Validate ONE model across both axes: general + bridge (MODEL= required)"
-	@echo "  bench-general    Axis 1 — general capability: python+cli+tooling, no DHIS2 (MODELS= required; BENCH_MAX_TOKENS=, BENCH_CHAMPION=)"
-	@echo "  bench-bridge     Axis 2 — benchmark named models over the bridge: read+write+perf (MODELS= required; BENCH_CHAMPION=)"
+	@echo "  bench-general    Axis 1 — general capability: python+cli+tooling, no DHIS2 (MODELS= required; BENCH_MAX_TOKENS=, BENCH_ORACLE=)"
+	@echo "  bench-bridge     Axis 2 — benchmark named models over the bridge: read+write+perf (MODELS= required; BENCH_ORACLE=)"
 	@echo "  bench-mcp        Full dhis2-mcp server (~311 tools), read+write (MODELS= required; BENCH_CONTEXT=128K)"
 	@echo "  bench-round      Drive dhis2w-mcp-bridge with one local model (MODEL= required; ROUND=read|write|bench, PROFILE=)"
 	@echo "  bench-matrix     Command x model matrix: how each model handles every CLI command (ARGS= to slice)"
 	@echo "  bench-composite  Hard multi-object writes (data set+elements, program+stages): no MODELS = oracle; MODELS= drives models (RUNS=3, pass-rate)"
-	@echo "  bench-longcontext Needle-in-a-haystack retrieval at increasing lengths (MODELS= required; BENCH_CONTEXT=128K)"
+	@echo "  bench-longcontext Needle-in-a-haystack retrieval at increasing lengths (MODELS= required; BENCH_CONTEXT= target, default 256K capped per model)"
 	@echo ""
 	@echo "  For niche targets (versions, wait, status, logs, pat) use 'make -C infra help'."
 
@@ -212,14 +212,14 @@ bench-bridge:
 	@test -n "$(MODELS)" || { echo "usage: make bench-bridge MODELS=\"<key> [<key> ...]\"  (no default; see 'make bench-list')"; exit 2; }
 	@echo ">>> Bridge model benchmark: read -> play42 (read-only), write -> local_basic; one model at a time."
 	@echo "    The write round needs local_basic up — run 'make dhis2-run' first if it isn't."
-	@echo "    Name an oracle with BENCH_CHAMPION=<key> to enable the SUSPECT-task check."
+	@echo "    Name an oracle with BENCH_ORACLE=<key> to enable the SUSPECT-task check."
 	@lms server start >/dev/null 2>&1 || true
 	@$(UV) run python -u -m dhis2w_bench.bridge $(MODELS)
 
 bench-general:
 	@test -n "$(MODELS)" || { echo "usage: make bench-general MODELS=\"<key> [<key> ...]\"  (no default; see 'make bench-list')"; exit 2; }
 	@echo ">>> General-capability benchmark (axis 1: python + cli + tooling; no DHIS2). One model = single test;"
-	@echo "    several = side-by-side comparison. BENCH_MAX_TOKENS= tightens the budget; BENCH_CHAMPION= sets an oracle."
+	@echo "    several = side-by-side comparison. BENCH_MAX_TOKENS= tightens the budget; BENCH_ORACLE= sets an oracle."
 	@lms server start >/dev/null 2>&1 || true
 	@$(UV) run python -u -m dhis2w_bench.general $(MODELS)
 
@@ -248,7 +248,7 @@ bench-composite:
 
 bench-longcontext:
 	@test -n "$(MODELS)" || { echo "usage: make bench-longcontext MODELS=\"<key> ...\"  (no default; see 'make bench-list')"; exit 2; }
-	@echo ">>> Long-context retrieval (needle-in-a-haystack) at increasing lengths; loads each model at BENCH_CONTEXT (128k)."
+	@echo ">>> Long-context retrieval (needle-in-a-haystack) at increasing lengths; each model loads at min(BENCH_CONTEXT, its max), default target 256k."
 	@lms server start >/dev/null 2>&1 || true
 	@$(UV) run python -u -m dhis2w_bench.longcontext $(MODELS)
 

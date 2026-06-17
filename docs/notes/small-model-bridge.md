@@ -283,7 +283,7 @@ exactly as intended.
 ## Round 5 — multi-purpose write (the real bar)
 
 The `bench-bridge` write is single-purpose and *hinted* (one `system settings set`). The honest test is
-a multi-object write. Drove the champion `gemma-4-26b-a4b-qat` (local_basic, READONLY off) on:
+a multi-object write. Drove the oracle `gemma-4-26b-a4b-qat` (local_basic, READONLY off) on:
 "create a Monthly data set + three INTEGER data elements, attach all three, confirm 3 elements."
 
 - **Construction succeeded.** ~10 steps: created the data set, created 3 data elements, attached all
@@ -321,13 +321,13 @@ step requires holding the data set UID and each just-created element UID togethe
 many freshly-created objects is the cognitive wall, not the creates.
 
 Caveat: max 30 turns is barely above the ~22-call ideal (1 create + 10 elements + 10 attach +
-verify), so on-pace models are under-tested — see the higher-budget champion re-run below. Bottom
+verify), so on-pace models are under-tested — see the higher-budget oracle re-run below. Bottom
 line: a 10-object *wired* write is beyond all current local models; the capable-agent oracle does it
 100%. This is the real write ceiling, far above the hinted single-key bench write.
 
 ### Round 6 follow-ups: budget vs ceiling, and the oracle baseline
 
-- **Higher turn budget doesn't rescue it.** Re-ran the champion `gemma-4-26b-a4b-qat` at **50 turns**
+- **Higher turn budget doesn't rescue it.** Re-ran the oracle `gemma-4-26b-a4b-qat` at **50 turns**
   (vs 30): it did *worse* — data set + only 2/10 elements, 0 attached (vs 6/10 before). Run-to-run it
   swings (6/10 then 2/10) but never attaches. So this is a **coherence ceiling**, not a step-budget
   one: the model loses the thread holding 10 object UIDs and wiring them over a long sequence.

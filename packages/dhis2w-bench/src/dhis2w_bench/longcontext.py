@@ -1,11 +1,12 @@
 """Long-context comprehension benchmark — needle-in-a-haystack retrieval at increasing lengths.
 
 Measures a model's EFFECTIVE context: how many tokens of filler it can hold while still retrieving one
-planted fact. The model is loaded at `BENCH_CONTEXT` (default 128k); for each target length we fill a
-haystack to ~that many tokens, plant the needle in the middle, ask for it, and score retrieval. A
-model's advertised max context (e.g. 256k) is the *capability*; this measures what it can actually use.
+planted fact. Each model is loaded at min(`BENCH_CONTEXT`, its own max context) — default target 256k —
+so a model that caps lower is tested at its ceiling; for each target length we fill a haystack to ~that
+many tokens, plant the needle in the middle, ask for it, and score retrieval. A model's advertised max
+context (e.g. 256k) is the *capability*; this measures what it can actually use.
 
-There is no hardcoded roster — name the model(s) explicitly. Set `BENCH_CHAMPION=<key>` for the oracle
+There is no hardcoded roster — name the model(s) explicitly. Set `BENCH_ORACLE=<key>` for the oracle
 check. Prereqs: a running backend (LM Studio by default).
 
 Usage:
@@ -42,14 +43,19 @@ def _env_int(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
-#: Context length to load each model at (env `BENCH_CONTEXT`). Must exceed the largest haystack.
-CONTEXT = _env_int("BENCH_CONTEXT", 131072)
+#: Target load context (env `BENCH_CONTEXT`). Each model loads at min(this, its own max context),
+#: so a model that caps lower (e.g. `e4b` at 128k) is tested honestly at its ceiling rather than
+#: failing a call it never had the context for.
+CONTEXT = _env_int("BENCH_CONTEXT", 262144)
+#: The filler tokenizes denser than the ~4 chars/token sizing, so a nominal length needs more real
+#: context than its label. This factor sizes the fit check (and the per-model skip) conservatively.
+_TOKEN_DENSITY = 1.3
 #: Answer generation cap (env `BENCH_MAX_TOKENS`). Reasoning models think before answering, so this
 #: must leave room for the chain-of-thought before the (short) code — too low reads as a retrieval
 #: failure (truncation), not a real miss.
 ANSWER_TOKENS = _env_int("BENCH_MAX_TOKENS", 4096)
-#: Optional oracle (env `BENCH_CHAMPION`): when present in a run, must retrieve at every length.
-CHAMPION = os.environ.get("BENCH_CHAMPION", "").strip()
+#: Optional oracle (env `BENCH_ORACLE`): when present in a run, must retrieve at every length.
+ORACLE = os.environ.get("BENCH_ORACLE", "").strip()
 #: Approximate haystack sizes in tokens (~4 chars/token). Lengths beyond CONTEXT are skipped.
 LENGTHS: tuple[int, ...] = (2000, 16000, 64000, 100000)
 
@@ -156,13 +162,13 @@ async def _ask(http: httpx.AsyncClient, model: str, prompt: str) -> tuple[str, f
     return (parsed.choices[0].message.content or "", elapsed, "")
 
 
-async def _benchmark_model(http: httpx.AsyncClient, model: str) -> ModelReport:
-    """Run the length sweep (needle at mid-depth) against one loaded model."""
+async def _benchmark_model(http: httpx.AsyncClient, model: str, load_context: int) -> ModelReport:
+    """Run the length sweep (needle at mid-depth) against one model loaded at `load_context`."""
     results: list[LengthResult] = []
     for tokens in LENGTHS:
-        if tokens > CONTEXT - 2000:
+        if int(tokens * _TOKEN_DENSITY) + ANSWER_TOKENS > load_context:
             results.append(LengthResult(tokens=tokens, ok=False, seconds=0.0, note="exceeds load context"))
-            print(f"  {tokens // 1000}k: SKIP (exceeds {CONTEXT // 1000}k load context)")
+            print(f"  {tokens // 1000}k: SKIP (needs more than the {load_context // 1024}K load context)")
             continue
         prompt = _haystack(tokens, depth=0.5) + "\n\n" + _QUESTION
         answer, seconds, note = await _ask(http, model, prompt)
@@ -185,17 +191,17 @@ def _markdown_table(reports: list[ModelReport]) -> str:
 
 
 def _check_oracle(reports: list[ModelReport]) -> None:
-    """If an oracle (`BENCH_CHAMPION`) ran, it should retrieve at every length; warn loudly if not."""
-    if not CHAMPION:
+    """If an oracle (`BENCH_ORACLE`) ran, it should retrieve at every length; warn loudly if not."""
+    if not ORACLE:
         return
-    champion = next((report for report in reports if report.model == CHAMPION), None)
-    if champion is None:
+    oracle = next((report for report in reports if report.model == ORACLE), None)
+    if oracle is None:
         return
-    if champion.all_passed:
-        print(f"\nOracle OK: {CHAMPION} retrieved at every length.")
+    if oracle.all_passed:
+        print(f"\nOracle OK: {ORACLE} retrieved at every length.")
     else:
-        failed = [f"{result.tokens // 1000}k" for result in champion.results if not result.ok]
-        print(f"\n!!! Oracle {CHAMPION} failed retrieval at {failed} — effective context below the sweep top.")
+        failed = [f"{result.tokens // 1000}k" for result in oracle.results if not result.ok]
+        print(f"\n!!! Oracle {ORACLE} failed retrieval at {failed} — effective context below the sweep top.")
 
 
 def _require_models() -> list[str]:
@@ -216,12 +222,16 @@ async def main() -> None:
     if not models:
         print("none of the requested models are installed", file=sys.stderr)
         return
+    details = {info.key: info for info in BACKEND.list_installed_details()}
     reports: list[ModelReport] = []
     async with httpx.AsyncClient() as http:
         for model in models:
-            print(f">>> {model} (loaded at {CONTEXT // 1024}K context)")
-            BACKEND.load(model, CONTEXT)
-            reports.append(await _benchmark_model(http, model))
+            info = details.get(model)
+            load_context = min(info.max_context, CONTEXT) if info and info.max_context else CONTEXT
+            cap = f", model max {info.max_context // 1024}K" if info and info.max_context else ""
+            print(f">>> {model} (loaded at {load_context // 1024}K context{cap})")
+            BACKEND.load(model, load_context)
+            reports.append(await _benchmark_model(http, model, load_context))
     BACKEND.unload_all()
     with open(RESULTS, "a") as handle:
         for report in reports:

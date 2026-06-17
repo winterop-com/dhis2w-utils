@@ -10,12 +10,12 @@ bridge's host-guard. So the READ round (against `play42`, the public demo) is gi
 tools — a write tool is never even offered, so the model cannot mutate the public instance. The WRITE
 round runs against `local_basic` (a throwaway local stack) and is best-effort self-restoring.
 
-There is no hardcoded roster — name the model(s) explicitly. Set `BENCH_CHAMPION=<key>` for the oracle
+There is no hardcoded roster — name the model(s) explicitly. Set `BENCH_ORACLE=<key>` for the oracle
 SUSPECT-task check. Prereqs: a backend running; `local_basic` up (`make dhis2-run`) for the write round.
 
 Usage:
     uv run python infra/scripts/bench_mcp_models.py google/gemma-4-26b-a4b-qat
-    BENCH_CHAMPION=<key> uv run python infra/scripts/bench_mcp_models.py <model> ...
+    BENCH_ORACLE=<key> uv run python infra/scripts/bench_mcp_models.py <model> ...
 """
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_bench.backend import get_backend
 
-#: Optional oracle model key (env `BENCH_CHAMPION`); unset -> no oracle check. No hardcoded roster.
-CHAMPION = os.environ.get("BENCH_CHAMPION", "").strip()
+#: Optional oracle model key (env `BENCH_ORACLE`); unset -> no oracle check. No hardcoded roster.
+ORACLE = os.environ.get("BENCH_ORACLE", "").strip()
 
 BACKEND = get_backend()
 LM = BACKEND.chat_url
@@ -399,18 +399,18 @@ def _installed_models(requested: list[str]) -> list[str]:
 
 
 def _check_oracle(reports: list[ModelReport]) -> None:
-    """If an oracle (`BENCH_CHAMPION`) is set and ran, assert it passed; a failure flags a suspect task."""
-    if not CHAMPION:
+    """If an oracle (`BENCH_ORACLE`) is set and ran, assert it passed; a failure flags a suspect task."""
+    if not ORACLE:
         return
-    champion = next((report for report in reports if report.model == CHAMPION), None)
-    if champion is None:
+    oracle = next((report for report in reports if report.model == ORACLE), None)
+    if oracle is None:
         return
-    if champion.all_passed:
-        print(f"\nOracle OK: {CHAMPION} passed every task.")
+    if oracle.all_passed:
+        print(f"\nOracle OK: {ORACLE} passed every task.")
         return
-    failed = [outcome.key for outcome in champion.read if not outcome.ok] + ([] if champion.write.ok else ["write"])
+    failed = [outcome.key for outcome in oracle.read if not outcome.ok] + ([] if oracle.write.ok else ["write"])
     print(
-        f"\n!!! SUSPECT TASK(S): oracle {CHAMPION} FAILED {failed}. Fix the task(s) before trusting the "
+        f"\n!!! SUSPECT TASK(S): oracle {ORACLE} FAILED {failed}. Fix the task(s) before trusting the "
         "weaker-model columns; an oracle failure usually means the task is mis-specified, not the model."
     )
 

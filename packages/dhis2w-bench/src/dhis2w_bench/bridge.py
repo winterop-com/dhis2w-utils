@@ -4,7 +4,7 @@ The recurring model benchmark for `dhis2w-mcp-bridge`. For each model named on t
 loads the model, runs a fixed read round (play42, read-only) and a write round-trip (local_basic,
 self-restoring), scores correctness, and records timing + token throughput. Prints a Markdown table
 and appends per-model JSON to `RESULTS`. There is no hardcoded roster — name the model(s) explicitly;
-set `BENCH_CHAMPION=<key>` to designate an oracle (SUSPECT-task check when it's in the run).
+set `BENCH_ORACLE=<key>` to designate an oracle (SUSPECT-task check when it's in the run).
 
 Prereqs: a running backend (LM Studio by default; `MODEL_BACKEND` to switch). The script
 loads/unloads models itself. The write round needs `local_basic` up (`make dhis2-run`).
@@ -12,7 +12,7 @@ loads/unloads models itself. The write round needs `local_basic` up (`make dhis2
 Usage:
     uv run python infra/scripts/bench_bridge_models.py google/gemma-4-12b-qat            # one model
     uv run python infra/scripts/bench_bridge_models.py gemma-4-12b-qat gemma-4-e4b        # several
-    BENCH_CHAMPION=<key> uv run python infra/scripts/bench_bridge_models.py <model> ...   # with an oracle
+    BENCH_ORACLE=<key> uv run python infra/scripts/bench_bridge_models.py <model> ...   # with an oracle
 
 Results worth keeping live in docs/notes/model-benchmark.md. Testing policy: reads -> play42,
 writes -> local_basic (never the shared public demo).
@@ -35,10 +35,10 @@ from pydantic import BaseModel, ConfigDict
 
 from dhis2w_bench.backend import get_backend
 
-#: Optional oracle model key (env `BENCH_CHAMPION`). When set and present in a run, the harness asserts
+#: Optional oracle model key (env `BENCH_ORACLE`). When set and present in a run, the harness asserts
 #: it passed every task and flags SUSPECT tasks otherwise (an oracle failure means the TASK is suspect,
 #: not the model). Unset -> no oracle check. There is no hardcoded roster: name the models explicitly.
-CHAMPION = os.environ.get("BENCH_CHAMPION", "").strip()
+ORACLE = os.environ.get("BENCH_ORACLE", "").strip()
 
 #: Local-inference backend (LM Studio by default; override with MODEL_BACKEND).
 BACKEND = get_backend()
@@ -366,20 +366,20 @@ def _installed_models(requested: list[str]) -> list[str]:
 
 
 def _check_oracle(reports: list[ModelReport]) -> None:
-    """If an oracle (`BENCH_CHAMPION`) is set and ran, assert it passed; a failure flags a suspect task."""
-    if not CHAMPION:
+    """If an oracle (`BENCH_ORACLE`) is set and ran, assert it passed; a failure flags a suspect task."""
+    if not ORACLE:
         return
-    champion = next((report for report in reports if report.model == CHAMPION), None)
-    if champion is None:
+    oracle = next((report for report in reports if report.model == ORACLE), None)
+    if oracle is None:
         return  # the named oracle wasn't part of this run — nothing to check
-    if champion.all_passed:
-        print(f"\nOracle OK: {CHAMPION} passed every task.")
+    if oracle.all_passed:
+        print(f"\nOracle OK: {ORACLE} passed every task.")
         return
-    failed = [outcome.key for outcome in champion.read if not outcome.ok]
-    if not champion.write.ok:
+    failed = [outcome.key for outcome in oracle.read if not outcome.ok]
+    if not oracle.write.ok:
         failed.append("write")
     print(
-        f"\n!!! SUSPECT TASK(S): oracle {CHAMPION} FAILED {failed}. The oracle is the should-pass "
+        f"\n!!! SUSPECT TASK(S): oracle {ORACLE} FAILED {failed}. The oracle is the should-pass "
         "bar — fix the task(s) before trusting the weaker-model columns above; an oracle failure "
         "usually means the task is mis-specified, not the model."
     )
