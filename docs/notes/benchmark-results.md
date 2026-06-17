@@ -21,6 +21,9 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
   (it ties the 12B on composites and is faster + more general); the 12B is the half-the-RAM equivalent.
 - **Authoring is flaky (~2/3) even for the strong models** — a real 1.0 caveat; a local PII-author
   needs retries + verification. (Single composite runs are misleading — always run N times.)
+- **Long-context retrieval is not size-bound:** the 4B `qwen3.5-4b` and the 26B oracle both retrieve a
+  planted fact cleanly at **100k** tokens; the 12B is too slow past 16k and `e4b` caps at its 128k max
+  (effective 64k). See the long-context section.
 - **Two real bugs were caught by the oracle and fixed mid-run** (see Findings): a stale bridge
   write-command, and the full-MCP context-window requirement. A third (the composite oracle itself)
   was caught when its deterministic run failed.
@@ -65,7 +68,7 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
 - **All four candidates drive the full MCP server end-to-end** — selecting the right tool among 119
   read tools (and ~311 on the write round) and completing a write. This is the surprising result of
   the night: full MCP is *not* exclusively a cloud-frontier capability.
-- It is **much slower** than the bridge (e.g. champion MCP write 80s vs bridge 16s) and needs a big
+- It is **much slower** than the bridge (e.g. oracle MCP write 80s vs bridge 16s) and needs a big
   load context — so the bridge is still the right default for PII/local, but full MCP is viable.
 
 ## Composite writes (`bench-composite`) — the HARD, multi-object authoring test
@@ -89,7 +92,7 @@ Three things this says — and a methodology warning:
   the two strong models author reliably-ish; `e4b` and `qwen3.5-4b` **cannot** (0/3 on the dataset).
 - **`26b-a4b-qat` and `12b-qat` are a tie** — both 2/3 dataset, 3/3 program. So the 26B is the better
   pick for authoring too (it's faster + more general); the 12B is the half-the-RAM equivalent. (An
-  earlier *single-run* version of this table showed the champion failing and the 12B winning — that
+  earlier *single-run* version of this table showed the oracle failing and the 12B winning — that
   was **noise**; the 3× run corrects it.)
 - **The dataset composite is flaky even for the strong models (~2/3).** Multi-object authoring is
   *doable but not yet dependable* on local models — a real 1.0 caveat: a local PII-authoring agent
@@ -113,6 +116,31 @@ So full-MCP **reads need roughly ≥32k** context and **writes need ≥64k**; 12
 (the default `BENCH_CONTEXT`). (\*the 64k read FAILs in one run were small-model answer-variance, not
 a context effect — they pass at 32k and 128k.) Vary `BENCH_CONTEXT` to test other models/levels.
 
+## Long-context retrieval (`bench-longcontext`) — effective context
+
+Needle-in-a-haystack: plant one fact in a filler log at increasing lengths, ask for it, score exact
+retrieval. Each model loads at min(`BENCH_CONTEXT`, its own max), 256k target. This measures the
+*effective* context — what a model can actually use, vs its advertised max.
+
+| model | 2k | 16k | 64k | 100k | effective |
+| --- | --- | --- | --- | --- | --- |
+| `gemma-4-26b-a4b-qat` (oracle) | PASS | PASS | PASS | PASS\* | **100k** |
+| `gemma-4-12b-qat` | PASS | PASS | timeout | timeout | 16k |
+| `gemma-4-e4b` | PASS | PASS | PASS | n/a (128k cap) | 64k |
+| `qwen3.5-4b` | PASS | PASS | PASS | PASS | **100k** |
+
+- **`qwen3.5-4b` and the 26B oracle both retrieve cleanly at 100k** — the two long-context leaders, and
+  `qwen` (a 4B) does it fastest. Long-context retrieval is *not* size-bound.
+- **`e4b` genuinely caps at 128k** (its model max), so 100k can't fit alongside the answer — reported as
+  a **skip**, not a failure. Its real ceiling here is 64k.
+- **`gemma-4-12b-qat` is too slow past 16k** — 64k/100k hit the 600s timeout (not a retrieval miss, a
+  latency wall). Effective 16k *in practice* on this hardware.
+- **\*Methodology — a transient cold-allocation 400.** In the batched sweep the 26B's 100k first
+  returned an HTTP 400 (not a context-overflow message); an isolated retry retrieved correctly in ~15s
+  (warm KV cache). So a large cold prompt can 400 on first allocation then succeed — `bench-longcontext`
+  now **retries once on a fast non-200** (but never on a timeout, which means the model is simply slow).
+  The 26B's true effective context is **100k**, not the 64k the raw sweep first showed.
+
 ## Token-budget dimension (coding at `BENCH_MAX_TOKENS=2048`)
 
 Tightening the generation budget from 16384 to 2048 **inverts the ranking**:
@@ -124,22 +152,22 @@ Tightening the generation budget from 16384 to 2048 **inverts the ranking**:
 | `gemma-4-e4b` | 58/59 | **54/56** | holds |
 | `qwen3.5-4b` | 53/56 | **52/56** | holds (140s — fastest) |
 
-The reasoning models (`champion`, `12b-qat`) spend the budget on chain-of-thought and **truncate the
+The reasoning models (`oracle`, `12b-qat`) spend the budget on chain-of-thought and **truncate the
 actual code** on the hard tasks (`lru_cache`, `rpn_eval`, `word_break`, `edit_distance`), so under
 token pressure the **small models win** — `e4b` and `qwen3.5-4b` barely move, and `qwen` is ~3x faster
 (140s vs 471s). Practical rule: **pick the model for the budget** — generous budget favours the qats
 (perfect but slow); tight budget / low latency favours `e4b` or `qwen`.
 
-Note on the oracle: the SUSPECT banner *did* fire at 2048 (champion failed 4 tasks). That is a **true**
-signal here, not a task bug — the oracle's "champion passes everything" assumption only holds at a
-generous budget; deliberately handicapping the champion is expected to break it.
+Note on the oracle: the SUSPECT banner *did* fire at 2048 (the oracle failed 4 tasks). That is a
+**true** signal here, not a task bug — the oracle's pass-everything assumption only holds at a
+generous budget; deliberately handicapping the oracle is expected to break it.
 
 ## Findings (what the night taught us)
 
 1. **The oracle caught a real test bug.** The bridge write task hinted `dev customize set <key>
    <value>` — a command the CLI **removed** (it moved to the discoverable `system settings set`).
-   Every model parroted the dead command and looped to the step limit, and the *champion* failed too
-   → SUSPECT banner. Fixed the task; the champion now passes the write in 3 calls. This is exactly
+   Every model parroted the dead command and looped to the step limit, and the *oracle* failed too
+   → SUSPECT banner. Fixed the task; the oracle now passes the write in 3 calls. This is exactly
    what the oracle is for: catching benchmark drift against an evolving CLI.
 2. **Context window is the gate for full MCP, not raw capability.** The tool payload is ~49k tokens
    (311 tools); LM Studio's default 8192 load context rejects it outright (HTTP 400). Loading at
@@ -156,7 +184,7 @@ generous budget; deliberately handicapping the champion is expected to break it.
 | **PII authoring** (multi-object writes — the real local job) | **`gemma-4-26b-a4b-qat`** (or `12b-qat`) | The two strong models tie at 2/3 dataset, 3/3 program over 3 runs; the 26B is faster + more general, the 12B is the half-the-RAM equal. `e4b`/`qwen` can't author (0/3). |
 | **PII reads + easy writes, fast** | `gemma-4-e4b` | Passes reads + the easy/MCP writes, smallest (6.9 GB), fastest — but **not** for composite authoring. |
 | **Full MCP, if going local** | `gemma-4-26b-a4b-qat` | Passes reads + write at 128k and is ~2.8× faster than the 12B; `e4b` if RAM is tight. |
-| **Coding** | champion or `e4b` | 62/62 and 58/59; `qwen3.5-4b` for speed with weaker class/edge-case coding. |
+| **Coding** | oracle or `e4b` | 62/62 and 58/59; `qwen3.5-4b` for speed with weaker class/edge-case coding. |
 
 ## Prune decision (2026-06-17)
 
@@ -164,5 +192,5 @@ generous budget; deliberately handicapping the champion is expected to break it.
   the qats author (and the 26B is the faster all-rounder), `e4b` is efficiency/reads, `qwen3.5-4b` is
   the fastest tool driver.
 - **The 12B is not redundant** despite being slower: it ties the 26B on composite authoring at half
-  the RAM. (An earlier single-run table over-claimed the 12B as the *unique* author and the champion
+  the RAM. (An earlier single-run table over-claimed the 12B as the *unique* author and the oracle
   as failing — the 3× confidence run corrected both to a tie.)

@@ -12,7 +12,7 @@ There is **no hardcoded roster** — you name the model(s) to benchmark. List wh
 - one model -> a single-model run
 - several -> a side-by-side comparison table (they run one at a time through the same suites)
 
-Optionally set `BENCH_CHAMPION=<key>` to mark one of them as the oracle (see below). The harness skips
+Optionally set `BENCH_ORACLE=<key>` to mark one of them as the oracle (see below). The harness skips
 and logs any named model that isn't installed.
 
 ## Method
@@ -43,10 +43,10 @@ gracefully and which break first.
 
 ## The oracle (opt-in)
 
-Set `BENCH_CHAMPION=<key>` to designate one model in the run as the oracle — the should-pass bar.
+Set `BENCH_ORACLE=<key>` to designate one model in the run as the oracle — the should-pass bar.
 The harness then asserts that model passed every task and prints a loud `SUSPECT TASK(S)` banner if
 not; an oracle failure almost always means the **task** is mis-specified, not the model, so fix the
-task before trusting the other columns. With no `BENCH_CHAMPION` set there is no oracle check. Our
+task before trusting the other columns. With no `BENCH_ORACLE` set there is no oracle check. Our
 strongest local model, `google/gemma-4-26b-a4b-qat`, is the natural choice.
 
 ## Latest results — 2026-06-17 (extended suite: 62 cases)
@@ -70,7 +70,7 @@ make bench-list                                              # what's installed
 make bench-general MODELS="google/gemma-4-12b-qat"           # one model
 make bench-general MODELS="gemma-4-12b-qat gemma-4-e4b"      # compare several
 BENCH_MAX_TOKENS=2048 make bench-general MODELS="..."        # tighter token budget
-BENCH_CHAMPION=google/gemma-4-26b-a4b-qat make bench-general MODELS="..."   # with an oracle
+BENCH_ORACLE=google/gemma-4-26b-a4b-qat make bench-general MODELS="..."   # with an oracle
 make bench-validate MODEL=google/gemma-4-12b-qat            # this axis + the bridge axis together
 ```
 

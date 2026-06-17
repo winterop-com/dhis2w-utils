@@ -8,7 +8,7 @@ MCP; PII -> local + bridge), so all three benchmarks must be in place and trustw
 
 The installed LLMs (`make bench-list`) — embeddings and roleplay models excluded:
 
-- `google/gemma-4-26b-a4b-qat` — champion / **oracle** (256K ctx, tool-trained)
+- `google/gemma-4-26b-a4b-qat` — the **oracle** (256K ctx, tool-trained)
 - `google/gemma-4-12b-qat` (256K ctx)
 - `google/gemma-4-e4b` (128K ctx)
 - `qwen/qwen3.5-4b` (256K ctx, tool-trained — strong tool *format*, weak discovery)
@@ -22,7 +22,7 @@ Add candidates (`lms get ...`) as they come up — notably the agentic-coder MoE
 | --- | --- | --- | --- | --- |
 | 1 | **coding** | `make bench-general` | python (14) + cli (3) + **multi-turn tooling (7)**, no DHIS2 | **ready** (extended; discriminates) |
 | 2 | **mcp-bridge** | `make bench-bridge` (read+write), `bench-matrix` (discovery), `bench-composite` (hard writes) | single-tool `dhis2_cli`; the model must **discover** the ~200-command surface | **ready** |
-| 3 | **full mcp** | `make bench-mcp` | the full dhis2-mcp server, all ~311 typed tools loaded up front | **ready** (loads at 128k; champion passes) |
+| 3 | **full mcp** | `make bench-mcp` | the full dhis2-mcp server, all ~311 typed tools loaded up front | **ready** (loads at 128k; oracle passes) |
 
 ## bench-mcp — to build (with a safety guard)
 
@@ -35,19 +35,19 @@ tool. Two design points:
   stray call could mutate the public demo. Writes run against `local_basic` only.
 - **Scale (measured):** read-only tools = 119 / ~16k tokens; all = 311 / ~49k tokens. That overflows
   LM Studio's default 8192 load context (HTTP 400). So `bench-mcp` loads each model at `BENCH_CONTEXT`
-  (default **128k**) via `ModelBackend.load(model, context)`. Finding so far: the champion (26B MoE,
+  (default **128k**) via `ModelBackend.load(model, context)`. Finding so far: the oracle (26B MoE,
   256k-capable) *passes* all reads + the write at 128k — a strong local model with a big context CAN
   drive full MCP. Whether smaller models can is what the sweep settles. Context is now a test
   dimension (vary `BENCH_CONTEXT`).
 
 ## Sequence (runs are inherently serial — one model loaded at a time)
 
-1. **Coding** across all models — *in progress*. Champion 62/62 (oracle clean); qwen3.5-4b 54/58.
+1. **Coding** across all models — *in progress*. Oracle 62/62 (clean); qwen3.5-4b 54/58.
 2. **mcp-bridge** across all models (read + write) — **next** (start with the bridge).
 3. **Build bench-mcp** (safe), then **full mcp** across all models.
 
-Each run sets `BENCH_CHAMPION=google/gemma-4-26b-a4b-qat` so the oracle flags any mis-specified task
-(a champion failure = fix the task, not the model).
+Each run sets `BENCH_ORACLE=google/gemma-4-26b-a4b-qat` so the oracle flags any mis-specified task
+(a oracle failure = fix the task, not the model).
 
 ## Safety (all benchmarks)
 

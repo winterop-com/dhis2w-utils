@@ -13,7 +13,7 @@ Validate one model across both axes at once with `make bench-validate MODEL=<key
 There is **no hardcoded roster** — you name the model(s) to benchmark. List what's installed with
 `make bench-list`, then pass one or more keys via `MODELS=` (one model = a single run; several = a
 side-by-side comparison, run one at a time). The harness skips and logs any named model that isn't
-installed. Set `BENCH_CHAMPION=<key>` to designate an oracle (see below).
+installed. Set `BENCH_ORACLE=<key>` to designate an oracle (see below).
 
 ## Method
 
@@ -43,10 +43,10 @@ fastest. Note: this run also caught + fixed a stale write-command in the task it
 
 ## The oracle (opt-in)
 
-Set `BENCH_CHAMPION=<key>` to designate one model in the run as the correctness reference — the
+Set `BENCH_ORACLE=<key>` to designate one model in the run as the correctness reference — the
 should-pass bar. The harness then asserts that model passed every task and prints a loud
 `SUSPECT TASK(S)` banner if it didn't, because an oracle failure almost always means the **task** is
-mis-specified, not the model. With no `BENCH_CHAMPION` set there is no oracle check. The natural
+mis-specified, not the model. With no `BENCH_ORACLE` set there is no oracle check. The natural
 choice is the strongest local model, `google/gemma-4-26b-a4b-qat`. This is a local, reproducible
 oracle (no cloud agent in the loop).
 
@@ -92,7 +92,7 @@ them — to do that, tighten `BENCH_MAX_TOKENS` (see `general-benchmark.md`).
 make bench-list                                                       # what's installed
 make bench-bridge MODELS="google/gemma-4-12b-qat"                     # one model
 make bench-bridge MODELS="gemma-4-12b-qat gemma-4-e4b"                # compare several
-BENCH_CHAMPION=google/gemma-4-26b-a4b-qat make bench-bridge MODELS="..."   # with an oracle
+BENCH_ORACLE=google/gemma-4-26b-a4b-qat make bench-bridge MODELS="..."   # with an oracle
 ```
 
 Needs the backend running and `local_basic` up for the write round (`make dhis2-run`). The harness
@@ -103,7 +103,7 @@ Per-model JSON is appended to `/tmp/bench_bridge_results.jsonl`.
 
 The full metadata×roster grid (`docs/notes/cli-matrix.md`, 1230 cells) finished. The "found the right
 command" rates: bf16-12b **12%**, 12b-qat 10%, qwen3.5-4b 8%, **26b-a4b-qat 4%**, qwen2.5-7b 4%,
-e4b 2%. The champion on read+write+perf (`26b-a4b-qat`) scored near the **bottom** — proof the grid
+e4b 2%. The oracle on read+write+perf (`26b-a4b-qat`) scored near the **bottom** — proof the grid
 measures *vague-goal disambiguation* (pick the exact command among ~200 siblings from a one-line
 goal), which is interpretation-noise-dominated, not capability. **Use `bench-bridge` (read+write+perf)
 to judge models; the matrix is a discoverability stress-test of the help surface, not a leaderboard.**

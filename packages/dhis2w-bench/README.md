@@ -29,5 +29,5 @@ make bench-bridge  MODELS="<key> ..."   # needs make dhis2-run (local_basic)
 make bench-mcp     MODELS="<key> ..."   # loads at BENCH_CONTEXT (default 128k)
 ```
 
-Knobs: `BENCH_CHAMPION` (oracle), `BENCH_MAX_TOKENS` (generation cap), `BENCH_CONTEXT` (load context),
+Knobs: `BENCH_ORACLE` (oracle), `BENCH_MAX_TOKENS` (generation cap), `BENCH_CONTEXT` (load context),
 `MODEL_BACKEND` (backend).

@@ -11,7 +11,7 @@ all scored by execution or structural match, never by an AI judge:
               the right args — the function-calling foundation the bridge depends on.
 
 There is no hardcoded roster — name the model(s) to benchmark explicitly on the command line. Set
-`BENCH_CHAMPION=<key>` to designate an oracle: when that model is in the run, the harness asserts it
+`BENCH_ORACLE=<key>` to designate an oracle: when that model is in the run, the harness asserts it
 passed every task and flags SUSPECT tasks otherwise (an oracle failure means the TASK is mis-specified,
 not the model). Per-model JSON is appended to `RESULTS`; a Markdown table is printed at the end.
 
@@ -27,7 +27,7 @@ Usage:
     uv run python infra/scripts/bench_general_models.py google/gemma-4-12b-qat            # one model
     uv run python infra/scripts/bench_general_models.py gemma-4-12b-qat gemma-4-e4b        # several
     BENCH_MAX_TOKENS=2048 uv run python infra/scripts/bench_general_models.py <model>      # tighter budget
-    BENCH_CHAMPION=<key>  uv run python infra/scripts/bench_general_models.py <model> ...  # with an oracle
+    BENCH_ORACLE=<key>  uv run python infra/scripts/bench_general_models.py <model> ...  # with an oracle
 """
 
 from __future__ import annotations
@@ -51,10 +51,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_bench.backend import get_backend
 
-#: Optional oracle model key (env `BENCH_CHAMPION`). When set and present in a run, the harness
+#: Optional oracle model key (env `BENCH_ORACLE`). When set and present in a run, the harness
 #: asserts it passed every task and flags SUSPECT tasks otherwise. Unset -> no oracle check. There is
 #: no hardcoded roster: the models to benchmark are named explicitly on the command line.
-CHAMPION = os.environ.get("BENCH_CHAMPION", "").strip()
+ORACLE = os.environ.get("BENCH_ORACLE", "").strip()
 
 #: Local-inference backend (LM Studio by default; override with MODEL_BACKEND).
 BACKEND = get_backend()
@@ -76,7 +76,7 @@ def _env_int(name: str, default: int) -> int:
 
 #: Generation cap. Reasoning models spend a long chain-of-thought before the answer, so the cap must
 #: leave room for the actual code/command after the thinking — too low truncates the closing fence.
-#: The champion occasionally over-reasons on trivial tasks, so the default is deliberately generous.
+#: The oracle occasionally over-reasons on trivial tasks, so the default is deliberately generous.
 #: Override with `BENCH_MAX_TOKENS` to probe how models degrade under a tighter token budget.
 MAX_TOKENS = _env_int("BENCH_MAX_TOKENS", 16384)
 
@@ -1048,18 +1048,18 @@ def _markdown_table(reports: Sequence[ModelReport]) -> str:
 
 
 def _check_oracle(reports: Sequence[ModelReport]) -> None:
-    """If an oracle (`BENCH_CHAMPION`) is set and ran, assert it passed; a failure flags a suspect task."""
-    if not CHAMPION:
+    """If an oracle (`BENCH_ORACLE`) is set and ran, assert it passed; a failure flags a suspect task."""
+    if not ORACLE:
         return
-    champion = next((report for report in reports if report.model == CHAMPION), None)
-    if champion is None:
+    oracle = next((report for report in reports if report.model == ORACLE), None)
+    if oracle is None:
         return  # the named oracle wasn't part of this run — nothing to check
-    if champion.all_passed:
-        print(f"\nOracle OK: {CHAMPION} passed every task.")
+    if oracle.all_passed:
+        print(f"\nOracle OK: {ORACLE} passed every task.")
         return
-    failed = [f"{result.suite}:{result.key}" for result in champion.results if result.passed != result.total]
+    failed = [f"{result.suite}:{result.key}" for result in oracle.results if result.passed != result.total]
     print(
-        f"\n!!! SUSPECT TASK(S): oracle {CHAMPION} FAILED {failed}. The oracle is the should-pass "
+        f"\n!!! SUSPECT TASK(S): oracle {ORACLE} FAILED {failed}. The oracle is the should-pass "
         "bar — fix the task(s) before trusting the weaker-model columns; an oracle failure usually "
         "means the task is mis-specified, not the model."
     )
