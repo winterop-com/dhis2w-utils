@@ -6,7 +6,8 @@ Claude Agent SDK drive its own loop. Three rounds, reusing the existing tasks + 
 cloud are directly comparable:
 
 - read      (play42, bridge readonly): the shared read tasks.
-- write     (local_basic): the single system-setting round-trip, then restore the baseline.
+- write     (local_basic): a single-setting round-trip, then restore — a SMOKE test (plumbing/auth
+  canary), not a ranking signal; everyone passes it.
 - composite (local_basic): the HARD multi-object authoring scenarios — the real local/cloud
   discriminator (local 4B models score 0/3 on the dataset; the strong locals only ~2/3).
 

@@ -26,7 +26,7 @@ Add candidates (`lms get ...`) as they come up — notably the agentic-coder MoE
 | 2c | **cloud claude over the bridge** | `make bench-claude-bridge` | the single `dhis2_cli` bridge, but driven by a cloud Claude model through the Agent SDK's native loop | **ready** (read+write+composite; ambient subscription auth) |
 | 3c | **cloud claude over full mcp** | `make bench-claude-mcp` | the full server, but driven by a cloud Claude model through the Agent SDK's native loop (not the local OpenAI loop) | **ready** (read+write+composite; ambient subscription auth) |
 
-The cloud lanes (2c, 3c) reuse the local tasks + scoring, so cloud-vs-local is directly comparable. They run a read round (play42, read-only gate), a write round (local_basic, restored), and the hard composite authoring round (local_basic) — the discriminator that separates capable from weak agents.
+The cloud lanes (2c, 3c) reuse the local tasks + scoring, so cloud-vs-local is directly comparable. They run a read round (play42, read-only gate), a single-setting write round (local_basic, restored) that is a **smoke test** — a plumbing/auth canary that ranks nothing because everyone passes — and the hard composite authoring round (local_basic), which is the **discriminator** that actually separates capable from weak agents.
 
 ## bench-mcp — to build (with a safety guard)
 

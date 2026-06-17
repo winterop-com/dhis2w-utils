@@ -73,9 +73,17 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
 
 ## Composite writes (`bench-composite`) — the HARD, multi-object authoring test
 
-The reads and the single-setting writes above are easy (everyone passes), so they don't rank models.
-The real test is a **multi-object authoring** workflow driven through the bridge: "create a Monthly
-data set with two new data elements attached", and "create an event program with two stages". Each
+The single-setting write round above is **not a benchmark — it's a smoke test.** Everyone passes it,
+so it ranks nothing. Its job is diagnostic: it confirms the write *path* works (the agent can call a
+write tool, the profile has write authority, the round-trip read confirms it landed), and it
+decomposes a composite failure into "can't write at all" vs "can write but can't orchestrate". (It
+earned that keep once — when the task hinted a removed command, every model failed including the
+oracle, which fired the SUSPECT-task flag and caught benchmark drift; see Findings.) Read the
+single-write PASS as a sanity light, not a result.
+
+The real write test is a **multi-object authoring** workflow driven through the bridge: "create a
+Monthly data set with two new data elements attached", and "create an event program with two stages".
+This is the round that actually ranks models. Each
 run is verified (find the named object, count its children) and cleaned up. **Run 3× per model**,
 because a single run is misleading (see below):
 
@@ -112,9 +120,12 @@ subscription); the read round is read-only-gated on play42, write/composite run 
 | **bridge** (`dhis2_cli`) | 3/3 | PASS | **1/1** | **1/1** | $1.81 |
 | **full mcp** (typed tools) | 3/3 | PASS | **1/1** | **1/1** | $1.56 |
 
-Cloud Claude scored **100% on both surfaces** — every read, the write, and both composite authoring
-scenarios, first try (at `RUNS=1`; the local composite bench runs N times because local models are
-flaky there, which is the point).
+The column that matters here is **composite** — reads and the single write are the easy floor (every
+serious agent passes them, cloud or local). Cloud Claude cleared both composite authoring scenarios
+first try (`RUNS=1`), which is the round where local 4B models score 0/3 and the strong local qats
+only manage ~2/3. So the headline isn't "100%", it's "**Claude reliably authors multi-object metadata
+where local models are flaky**". (The local composite bench runs N times precisely because local
+models are flaky there.)
 
 - **The composite (hard authoring) round is where this matters, and cloud Claude clears it cleanly.**
   Over the bridge, Claude built the Monthly data set with two new data elements and the event program
