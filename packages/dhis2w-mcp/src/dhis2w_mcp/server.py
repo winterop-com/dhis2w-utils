@@ -9,6 +9,8 @@ from dhis2w_core.profile import bind_version_tree
 from fastmcp import FastMCP
 from pydantic import BaseModel
 
+from dhis2w_mcp.readonly import ReadOnlyMiddleware, readonly_enabled
+
 
 def build_server() -> FastMCP:
     """Create the FastMCP instance with every discovered plugin registered.
@@ -25,6 +27,8 @@ def build_server() -> FastMCP:
     for plugin in discover_plugins(bound_tree):
         plugin.register_mcp(server)
     _eager_rebuild_tool_return_types(server)
+    if readonly_enabled():
+        server.add_middleware(ReadOnlyMiddleware())
     return server
 
 
