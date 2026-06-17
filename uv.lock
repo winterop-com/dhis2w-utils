@@ -566,6 +566,7 @@ source = { editable = "packages/dhis2w-bench" }
 dependencies = [
     { name = "claude-agent-sdk" },
     { name = "dhis2w-cli" },
+    { name = "dhis2w-mcp-router" },
     { name = "fastmcp" },
     { name = "httpx" },
     { name = "pydantic" },
@@ -576,6 +577,7 @@ dependencies = [
 requires-dist = [
     { name = "claude-agent-sdk", specifier = ">=0.2.103" },
     { name = "dhis2w-cli", editable = "packages/dhis2w-cli" },
+    { name = "dhis2w-mcp-router", editable = "packages/dhis2w-mcp-router" },
     { name = "fastmcp", specifier = ">=3.4.2" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.13.4" },

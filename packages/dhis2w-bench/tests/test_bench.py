@@ -190,3 +190,16 @@ def test_claude_markdown_table_has_model_and_rounds() -> None:
     table = _markdown_table([report], runs=1)
     assert "`opus`" in table
     assert "1/1" in table
+
+
+def test_router_bench_report_and_table() -> None:
+    """The router lane rolls up passes and renders the load context (the headline metric)."""
+    from dhis2w_bench.mcp import READ_TASKS
+    from dhis2w_bench.router import ModelReport, TaskOutcome, _markdown_table
+
+    outcomes = [TaskOutcome(key=key, ok=(key == "count"), turns=3, seconds=1.0) for key, _ in READ_TASKS]
+    report = ModelReport(model="m", context=16384, outcomes=outcomes)
+    assert report.passed == 1  # only "count" passed
+    table = _markdown_table([report])
+    assert "`m`" in table
+    assert "16K" in table
