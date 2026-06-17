@@ -240,8 +240,10 @@ bench-validate:
 	@$(UV) run python -u -m dhis2w_bench.bridge $(MODEL)
 
 bench-composite:
-	@echo ">>> Composite write-workflow scenarios (oracle: create -> verify -> cleanup on local_basic)"
-	@$(UV) run python -u -m dhis2w_bench.composite $(ARGS)
+	@echo ">>> Composite write-workflow scenarios on local_basic (data set+elements, program+stages)."
+	@echo "    No MODELS: run the deterministic oracle. MODELS=\"<key> ...\": drive each model via the bridge."
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python -u -m dhis2w_bench.composite $(if $(MODELS),--models $(MODELS)) $(ARGS)
 
 bench-matrix:
 	@echo ">>> CLI command x model matrix (how each roster model handles every command; read-only on play42)"
