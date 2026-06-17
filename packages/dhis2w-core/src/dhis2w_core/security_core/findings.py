@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from enum import StrEnum
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -42,14 +41,16 @@ HIGH_RISK_ROLE_CATEGORIES: frozenset[str] = frozenset(
 
 
 class AuditFinding(BaseModel):
-    """One security audit finding; a single row in audit output."""
+    """One security audit finding: a single row in a check's result."""
 
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["instance", "role", "user", "app", "guest"]
-    subject: str
+    check: str
     severity: Severity
-    details: str
+    title: str
+    detail: str
+    subject: str | None = None
+    evidence: dict[str, str] | None = None
 
 
 def severity_rank(severity: Severity) -> int:
@@ -65,3 +66,8 @@ def role_severity(categories: Iterable[str], *, has_all: bool) -> Severity:
     if keys & HIGH_RISK_ROLE_CATEGORIES:
         return Severity.HIGH
     return Severity.MEDIUM
+
+
+def finding_sort_key(finding: AuditFinding) -> tuple[int, str]:
+    """Sort findings most-urgent first, then by title, for stable output."""
+    return (severity_rank(finding.severity), finding.title.lower())

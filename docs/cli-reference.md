@@ -8927,6 +8927,8 @@ $ d2w security [OPTIONS] COMMAND [ARGS]...
 
 * `settings`: Show the server&#x27;s security-relevant system...
 * `authorities`: Show my effective authorities, categorised...
+* `audit`: Run the security checks step by step and...
+* `report`: Re-render an existing run&#x27;s report files...
 
 ### `d2w security settings`
 
@@ -8954,6 +8956,45 @@ $ d2w security authorities [OPTIONS]
 
 **Options**:
 
+* `--help`: Show this message and exit.
+
+### `d2w security audit`
+
+Run the security checks step by step and stream a report to a folder. `--json` prints the report.
+
+**Usage**:
+
+```console
+$ d2w security audit [OPTIONS]
+```
+
+**Options**:
+
+* `--output-dir DIRECTORY`: Parent directory for the run folder (default: current dir).
+* `--format TEXT`: Comma-separated formats: md,txt,csv,html (default: all).
+* `--checks TEXT`: Comma-separated check keys to run (default: all).
+* `--skip TEXT`: Comma-separated check keys to skip.
+* `--progress / --no-progress`: Animate step-by-step progress on a TTY.  [default: progress]
+* `--resume DIRECTORY`: Resume an interrupted run folder.
+* `--help`: Show this message and exit.
+
+### `d2w security report`
+
+Re-render an existing run&#x27;s report files from its JSONL spine, without re-scanning.
+
+**Usage**:
+
+```console
+$ d2w security report [OPTIONS] FOLDER
+```
+
+**Arguments**:
+
+* `FOLDER`: An existing run folder to re-render.  [required]
+
+**Options**:
+
+* `--format TEXT`: Comma-separated formats (default: all).
 * `--help`: Show this message and exit.
 
 ## `d2w system`

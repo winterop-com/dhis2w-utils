@@ -59,3 +59,12 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
 # (canonical base-URL probe + version detection). Kept separate so
 # `GET_ALLOWLIST` stays exactly the documented plugin read surface.
 CONNECT_PATHS: frozenset[str] = frozenset({"/", "/api/system/info"})
+
+# One-line statement of the audit's footprint, embedded in every rendered
+# report so a reader can see exactly what the scan did and did not touch.
+# Update this in lock-step with the contract above when the credential probe
+# lands and the posture gains its one default-credential login attempt.
+REPORT_GUARDRAIL_NOTE = (
+    "This audit issues only read-only GET requests against a fixed allowlist. It never attempts "
+    "a login, and never reads data values, tracked entities, events, files, or audit logs."
+)

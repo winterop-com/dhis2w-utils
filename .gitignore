@@ -81,6 +81,12 @@ dmypy.json
 # Jupyter
 .ipynb_checkpoints
 
+# oh-my-claudecode session state
+.omc/
+
+# Security audit scanner report bundles (timestamped output directories)
+dhis2-security-*/
+
 # Playwright MCP session artefacts (per-run console logs + page snapshots)
 .playwright-mcp/
 .claude/

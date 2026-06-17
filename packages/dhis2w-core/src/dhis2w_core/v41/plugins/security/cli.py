@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+import os
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Annotated, Any
 
 import typer
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v41.cli_output import ColumnSpec, DetailRow, format_bool, is_json_output, render_detail, render_list
-from dhis2w_core.v41.plugins.security import service
+from dhis2w_core.v41.plugins.security import audit, service
 
 app = typer.Typer(
     help="Inspect DHIS2 security posture (settings, account authorities).",
@@ -85,6 +89,97 @@ def authorities_command() -> None:
                 ColumnSpec("Why it matters", "description"),
             ],
         )
+
+
+def _parse_csv(value: str | None) -> list[str] | None:
+    """Split a comma-separated option into a list of keys, or None when unset."""
+    if value is None:
+        return None
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _run_folder(output_dir: Path | None, profile_name: str, timestamp: str) -> Path:
+    """Build the per-run output folder under `output_dir` (default: current directory)."""
+    parent = output_dir or Path.cwd()
+    return parent / f"dhis2-security-{profile_name}-{timestamp}"
+
+
+@app.command("audit")
+def audit_command(
+    output_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-dir", file_okay=False, help="Parent directory for the run folder (default: current dir)."
+        ),
+    ] = None,
+    output_format: Annotated[
+        str | None, typer.Option("--format", help="Comma-separated formats: md,txt,csv,html (default: all).")
+    ] = None,
+    checks: Annotated[
+        str | None, typer.Option("--checks", help="Comma-separated check keys to run (default: all).")
+    ] = None,
+    skip: Annotated[str | None, typer.Option("--skip", help="Comma-separated check keys to skip.")] = None,
+    progress: Annotated[
+        bool, typer.Option("--progress/--no-progress", help="Animate step-by-step progress on a TTY.")
+    ] = True,
+    resume: Annotated[
+        Path | None, typer.Option("--resume", file_okay=False, exists=True, help="Resume an interrupted run folder.")
+    ] = None,
+) -> None:
+    """Run the security checks step by step and stream a report to a folder. `--json` prints the report."""
+    profile = profile_from_env()
+    profile_name = os.environ.get("DHIS2_PROFILE") or "default"
+    formats = _parse_csv(output_format) or list(audit.DEFAULT_FORMATS)
+    animated = progress and sys.stderr.isatty() and not is_json_output()
+
+    try:
+        if resume is not None:
+            report = asyncio.run(
+                audit.resume_security_audit(
+                    profile, folder=resume, profile_name=profile_name, formats=formats, animated=animated
+                )
+            )
+            folder = resume
+        else:
+            now = datetime.now(UTC)
+            folder = _run_folder(output_dir, profile_name, now.strftime("%Y%m%dT%H%M%S%fZ"))
+            report = asyncio.run(
+                audit.run_security_audit(
+                    profile,
+                    output_dir=folder,
+                    profile_name=profile_name,
+                    started_at=now.isoformat(),
+                    only=_parse_csv(checks),
+                    skip=_parse_csv(skip),
+                    formats=formats,
+                    animated=animated,
+                )
+            )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2, exclude_none=True))
+        return
+    worst = report.summary.worst
+    typer.echo(f"report written to {folder}")
+    typer.echo(f"{report.summary.total_findings} finding(s); worst severity: {worst.value if worst else 'none'}")
+
+
+@app.command("report")
+def report_command(
+    folder: Annotated[Path, typer.Argument(exists=True, file_okay=False, help="An existing run folder to re-render.")],
+    output_format: Annotated[
+        str | None, typer.Option("--format", help="Comma-separated formats (default: all).")
+    ] = None,
+) -> None:
+    """Re-render an existing run's report files from its JSONL spine, without re-scanning."""
+    formats = _parse_csv(output_format) or list(audit.DEFAULT_FORMATS)
+    try:
+        audit.rerender_report(folder, formats=formats)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"re-rendered {', '.join(formats)} in {folder}")
 
 
 def register(root_app: Any) -> None:

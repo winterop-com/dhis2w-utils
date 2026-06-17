@@ -28,6 +28,7 @@ from collections.abc import Iterable
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.findings import AuditFinding, Severity
 from dhis2w_core.security_core.models import AccountAuthorities, CategoryMatch
 
 
@@ -226,3 +227,35 @@ def build_account_authorities(authorities: Iterable[str]) -> AccountAuthorities:
         is_superuser="ALL" in name_set,
         categories=matches,
     )
+
+
+def evaluate_account_authorities(account: AccountAuthorities) -> list[AuditFinding]:
+    """Report the audited account's own privileged reach as informational findings.
+
+    These describe the reach of the credential running the audit, not an
+    instance-wide weakness, so they are INFO. The CRITICAL/HIGH role and user
+    findings come from the instance-wide `roles` and `hygiene` checks.
+    """
+    findings: list[AuditFinding] = []
+    if account.is_superuser:
+        findings.append(
+            AuditFinding(
+                check="authorities",
+                severity=Severity.INFO,
+                title="Audited account is a superuser (ALL)",
+                detail="The credential used for this audit holds the ALL authority.",
+            )
+        )
+    for match in account.categories:
+        if match.key == "superuser":
+            continue
+        findings.append(
+            AuditFinding(
+                check="authorities",
+                severity=Severity.INFO,
+                title=f"Audited account holds {match.label} authorities",
+                detail=match.description,
+                evidence={"matched": ", ".join(match.matched)} if match.matched else None,
+            )
+        )
+    return findings
