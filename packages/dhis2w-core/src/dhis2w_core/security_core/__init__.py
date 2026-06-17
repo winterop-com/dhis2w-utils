@@ -40,6 +40,16 @@ from dhis2w_core.security_core.guardrails import (
     MAX_PROBE_ATTEMPTS,
     REPORT_GUARDRAIL_NOTE,
 )
+from dhis2w_core.security_core.hygiene import (
+    SEED_USERNAME,
+    TwoFactorSource,
+    TwoFactorSummary,
+    UserHygiene,
+    build_user_hygiene,
+    evaluate_hygiene,
+    evaluate_two_factor_from_endpoint,
+    evaluate_two_factor_from_user_field,
+)
 from dhis2w_core.security_core.models import AccountAuthorities, CategoryMatch
 from dhis2w_core.security_core.orchestrator import run_audit
 from dhis2w_core.security_core.registry import (
@@ -82,6 +92,7 @@ __all__ = [
     "MAX_PROBE_ATTEMPTS",
     "MIN_RECOMMENDED_PASSWORD_LENGTH",
     "REPORT_GUARDRAIL_NOTE",
+    "SEED_USERNAME",
     "SEVERITY_ORDER",
     "AccountAuthorities",
     "AuditFinding",
@@ -109,15 +120,22 @@ __all__ = [
     "SettingsLike",
     "StreamingRenderer",
     "TextRenderer",
+    "TwoFactorSource",
+    "TwoFactorSummary",
+    "UserHygiene",
     "build_account_authorities",
     "build_role_audit",
+    "build_user_hygiene",
     "canonical_keys",
     "categorise_authorities",
     "classify_probe_status",
     "evaluate_account_authorities",
     "evaluate_credential_probe",
+    "evaluate_hygiene",
     "evaluate_roles",
     "evaluate_settings",
+    "evaluate_two_factor_from_endpoint",
+    "evaluate_two_factor_from_user_field",
     "finding_sort_key",
     "label_for",
     "make_reporter",

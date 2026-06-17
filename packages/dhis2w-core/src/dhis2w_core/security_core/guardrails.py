@@ -44,6 +44,9 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
         "/api/me/authorization",
         "/api/userRoles",
         "/api/users",
+        # Superuser-only 2FA audit endpoints (dhis2-core#23925, v42/v43, master-pending-backport).
+        "/api/users/twoFactor",
+        "/api/users/twoFactor/summary",
         "/api/dataSets",
         "/api/programs",
         "/api/dataElements",

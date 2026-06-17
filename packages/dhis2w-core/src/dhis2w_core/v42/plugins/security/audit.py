@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import httpx
 from dhis2w_client.errors import Dhis2ApiError
@@ -29,19 +31,27 @@ from dhis2w_core.security_core import (
     RoleAudit,
     RunManifest,
     TextRenderer,
+    TwoFactorSource,
+    TwoFactorSummary,
+    UserHygiene,
     build_account_authorities,
     build_role_audit,
+    build_user_hygiene,
     classify_probe_status,
     evaluate_account_authorities,
     evaluate_credential_probe,
+    evaluate_hygiene,
     evaluate_roles,
     evaluate_settings,
+    evaluate_two_factor_from_endpoint,
+    evaluate_two_factor_from_user_field,
     label_for,
     make_reporter,
     resolve_check_keys,
     run_audit,
 )
 from dhis2w_core.v42.client_context import open_client
+from dhis2w_core.v42.plugins.security import _wire
 from dhis2w_core.v42.plugins.security.models import SecuritySettings
 
 DEFAULT_FORMATS: tuple[str, ...] = ("md", "txt", "csv", "html")
@@ -129,6 +139,120 @@ async def _run_roles(client: Dhis2Client) -> CheckResult:
     return CheckResult(check="roles", label=label, status=CheckStatus.OK, findings=evaluate_roles(roles))
 
 
+def _coerce_int(value: Any) -> int:
+    """Coerce a JSON value to int, defaulting to 0 for anything non-integer."""
+    return value if isinstance(value, int) else 0
+
+
+def _coerce_float(value: Any) -> float:
+    """Coerce a JSON value to float, defaulting to 0.0 for anything non-numeric."""
+    return float(value) if isinstance(value, int | float) else 0.0
+
+
+def _role_id_sets(roles_raw: dict[str, Any]) -> tuple[set[str], set[str]]:
+    """Build (ALL-role ids, dangerous-role ids) from a /api/userRoles payload."""
+    all_ids: set[str] = set()
+    dangerous_ids: set[str] = set()
+    items = roles_raw.get("userRoles")
+    if not isinstance(items, list):
+        return all_ids, dangerous_ids
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        role = build_role_audit(
+            role_id=str(item.get("id", "")),
+            name=str(item.get("name", "")),
+            authorities=[str(authority) for authority in (item.get("authorities") or [])],
+            member_count=0,
+        )
+        if role.is_all:
+            all_ids.add(role.id)
+        if role.is_all or role.categories:
+            dangerous_ids.add(role.id)
+    return all_ids, dangerous_ids
+
+
+def _build_users(items: list[Any], all_role_ids: set[str], dangerous_role_ids: set[str]) -> list[UserHygiene]:
+    """Wrap raw /api/users records into typed hygiene views via the per-tree wire extractors."""
+    users: list[UserHygiene] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        role_ids = [str(role.get("id", "")) for role in (item.get("userRoles") or []) if isinstance(role, dict)]
+        email = item.get("email")
+        users.append(
+            build_user_hygiene(
+                user_id=str(item.get("id", "")),
+                username=str(item.get("username", "")),
+                disabled=bool(item.get("disabled", False)),
+                email=email if isinstance(email, str) else None,
+                last_login=_wire.last_login(item),
+                two_factor=_wire.two_factor_enabled(item),
+                role_ids=role_ids,
+                all_role_ids=all_role_ids,
+                dangerous_role_ids=dangerous_role_ids,
+            )
+        )
+    return users
+
+
+async def _fetch_two_factor_summary(client: Dhis2Client) -> tuple[TwoFactorSummary | None, str | None]:
+    """Read the superuser-only 2FA summary; degrade with a note when absent (404) or forbidden (403)."""
+    try:
+        raw = await client.get_raw("/api/users/twoFactor/summary")
+    except Dhis2ApiError as exc:
+        return None, f"2FA audit endpoint unavailable ({exc}); superuser-2FA coverage not checked"
+    privileged = raw.get("privileged")
+    privileged = privileged if isinstance(privileged, dict) else {}
+    summary = TwoFactorSummary(
+        total_users=_coerce_int(raw.get("totalUsers")),
+        enabled=_coerce_int(raw.get("enabled")),
+        disabled=_coerce_int(raw.get("disabled")),
+        coverage_percent=_coerce_float(raw.get("coveragePercent")),
+        privileged_with_all=_coerce_int(privileged.get("withAllAuthority")),
+        privileged_missing_2fa=_coerce_int(privileged.get("withAllAuthorityMissing2FA")),
+    )
+    return summary, None
+
+
+async def _fetch_disabled_2fa_ids(client: Dhis2Client) -> set[str] | None:
+    """Read the per-user list of accounts with 2FA disabled (ids only); None on error."""
+    try:
+        raw = await client.get_raw("/api/users/twoFactor", params={"status": "DISABLED", "paging": "false"})
+    except Dhis2ApiError:
+        return None
+    items = raw.get("users")
+    if not isinstance(items, list):
+        return None
+    return {str(item.get("id", "")) for item in items if isinstance(item, dict)}
+
+
+async def _run_hygiene(client: Dhis2Client, *, stale_days: int, now: datetime, two_factor_detail: bool) -> CheckResult:
+    """Audit per-user hygiene over privileged accounts, joined to login and 2FA posture."""
+    label = label_for("hygiene")
+    try:
+        roles_raw = await client.get_raw("/api/userRoles", params={"fields": "id,authorities", "paging": "false"})
+        users_raw = await client.get_raw("/api/users", params={"fields": _wire.USER_FIELDS, "paging": "false"})
+    except Dhis2ApiError as exc:
+        return CheckResult(check="hygiene", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
+    user_items = users_raw.get("users")
+    if not isinstance(user_items, list):
+        return CheckResult(
+            check="hygiene", label=label, status=CheckStatus.DEGRADED, note="unexpected /api/users payload shape"
+        )
+    all_role_ids, dangerous_role_ids = _role_id_sets(roles_raw)
+    users = _build_users(user_items, all_role_ids, dangerous_role_ids)
+    findings = evaluate_hygiene(users, stale_days=stale_days, now=now)
+    note: str | None = None
+    if _wire.TWO_FACTOR_SOURCE == TwoFactorSource.USER_FIELD:
+        findings.extend(evaluate_two_factor_from_user_field(users))
+    else:
+        summary, note = await _fetch_two_factor_summary(client)
+        disabled_ids = await _fetch_disabled_2fa_ids(client) if (two_factor_detail and summary is not None) else None
+        findings.extend(evaluate_two_factor_from_endpoint(summary=summary, users=users, disabled_2fa_ids=disabled_ids))
+    return CheckResult(check="hygiene", label=label, status=CheckStatus.OK, findings=findings, note=note)
+
+
 _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "settings": _run_settings,
     "authorities": _run_authorities,
@@ -212,11 +336,35 @@ def _bind_probe(client: Dhis2Client, console: Console) -> Callable[[], Awaitable
     return _run
 
 
-def _bound_checks(client: Dhis2Client, keys: Sequence[str], console: Console) -> list[BoundCheck]:
+def _bind_hygiene(
+    client: Dhis2Client, *, stale_days: int, now: datetime, two_factor_detail: bool
+) -> Callable[[], Awaitable[CheckResult]]:
+    """Bind the hygiene check to the open client and its run-time options."""
+
+    async def _run() -> CheckResult:
+        return await _run_hygiene(client, stale_days=stale_days, now=now, two_factor_detail=two_factor_detail)
+
+    return _run
+
+
+def _bound_checks(
+    client: Dhis2Client,
+    keys: Sequence[str],
+    console: Console,
+    *,
+    stale_days: int,
+    now: datetime,
+    two_factor_detail: bool,
+) -> list[BoundCheck]:
     """Build the ordered bound checks for `keys` against the open client."""
     checks: list[BoundCheck] = []
     for key in keys:
-        run = _bind_probe(client, console) if key == "credential-probe" else _bind(_RUNNERS[key], client)
+        if key == "credential-probe":
+            run = _bind_probe(client, console)
+        elif key == "hygiene":
+            run = _bind_hygiene(client, stale_days=stale_days, now=now, two_factor_detail=two_factor_detail)
+        else:
+            run = _bind(_RUNNERS[key], client)
         checks.append(BoundCheck(key=key, label=label_for(key), run=run))
     return checks
 
@@ -242,6 +390,14 @@ def _safe_raw_version(client: Dhis2Client) -> str | None:
         return None
 
 
+def _started_at_to_now(started_at: str) -> datetime:
+    """Parse the run's started_at stamp into the reference time for staleness math."""
+    try:
+        return datetime.fromisoformat(started_at)
+    except ValueError:
+        return datetime.now()
+
+
 async def run_security_audit(
     profile: Profile,
     *,
@@ -251,6 +407,8 @@ async def run_security_audit(
     only: list[str] | None = None,
     skip: list[str] | None = None,
     formats: Sequence[str] = DEFAULT_FORMATS,
+    stale_days: int = 90,
+    two_factor_detail: bool = False,
     animated: bool = True,
     console: Console | None = None,
 ) -> AuditReport:
@@ -276,7 +434,14 @@ async def run_security_audit(
         )
         return await run_audit(
             manifest=manifest,
-            checks=_bound_checks(client, keys, con),
+            checks=_bound_checks(
+                client,
+                keys,
+                con,
+                stale_days=stale_days,
+                now=_started_at_to_now(started_at),
+                two_factor_detail=two_factor_detail,
+            ),
             writer=writer,
             reporter=reporter,
         )
@@ -288,6 +453,8 @@ async def resume_security_audit(
     folder: Path,
     profile_name: str,
     formats: Sequence[str] = DEFAULT_FORMATS,
+    stale_days: int = 90,
+    two_factor_detail: bool = False,
     animated: bool = True,
     console: Console | None = None,
 ) -> AuditReport:
@@ -318,7 +485,14 @@ async def resume_security_audit(
         )
         return await run_audit(
             manifest=manifest,
-            checks=_bound_checks(client, manifest.check_order, con),
+            checks=_bound_checks(
+                client,
+                manifest.check_order,
+                con,
+                stale_days=stale_days,
+                now=_started_at_to_now(manifest.started_at),
+                two_factor_detail=two_factor_detail,
+            ),
             writer=writer,
             reporter=reporter,
             prior=prior,

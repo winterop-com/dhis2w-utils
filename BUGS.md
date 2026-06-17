@@ -2829,6 +2829,38 @@ curl -s -u admin:district -X POST \
 
 ---
 
+### 47. v42/v43: `/api/users` exposes no 2FA state for other users (admin 2FA audit moved to `/api/users/twoFactor`, master-only)
+
+**Observed on:** DHIS2 `2.42.6-SNAPSHOT` (`play.im.dhis2.org/dev-2-42`) and `2.43.1-SNAPSHOT` (`play.im.dhis2.org/dev-2-43`), 2026-06-18. v41 (`2.41.9-SNAPSHOT`) is unaffected.
+
+**Repro:**
+
+```bash
+# v41 exposes per-user 2FA state on the User resource:
+curl -s -u admin:district \
+  'https://play.im.dhis2.org/dev-2-41/api/users/xE7jOejl9FI.json?fields=username,twoFactorEnabled'
+# {"username":"admin","twoFactorEnabled":false}
+
+# v42/v43 silently drop every 2FA field, even fields=* on a single user:
+curl -s -u admin:district \
+  'https://play.im.dhis2.org/dev-2-42/api/users/xE7jOejl9FI.json?fields=username,twoFactorEnabled,twoFactorType'
+# {"username":"admin","id":"xE7jOejl9FI"}   <- no 2FA field at all
+```
+
+**Expected:** an admin-readable per-user 2FA state on `/api/users`, so an operator can audit which privileged accounts lack 2FA.
+
+**Actual:** v42 removed every admin-readable surface for another user's 2FA state (the User resource ACL was too coarse — anyone who could read users would have seen every user's 2FA enrolment). `/api/me.twoFactorType` still works for the calling user only. Replacement superuser-only audit endpoints (`GET /api/users/twoFactor/summary`, `GET /api/users/twoFactor`) were added on master via [dhis2-core#23925](https://github.com/dhis2/dhis2-core/pull/23925) (DHIS2-20097) but are **not backported** to released 2.42 / 2.43 yet.
+
+**Impact:** the security audit's headline hygiene signal — "superuser without 2FA" — is computable from `/api/users` only on v41. On v42/v43 it requires the new `/api/users/twoFactor` endpoints, which 404 until the backport lands and 403 unless the auditing account holds ALL.
+
+**Workaround in this repo:** per-tree `_wire.py` selects the 2FA source — v41 reads `twoFactorEnabled` (falling back to `userCredentials.twoFA`) from `/api/users`; v42/v43 read `GET /api/users/twoFactor/summary` (`privileged.withAllAuthorityMissing2FA`). The hygiene check (`packages/dhis2w-core/src/dhis2w_core/security_core/hygiene.py`) degrades to a clear note on v42/v43 when the endpoint returns 404 (not backported) or 403 (auditing account is not a superuser), instead of a false all-clear.
+
+**How to know it's fixed:** `GET /api/users/twoFactor/summary` returns 200 on a released 2.42 / 2.43 patch (backport of #23925).
+
+**Verifier:** none yet.
+
+---
+
 ## Bugs observed on v43
 
 Entries below were first observed against `dhis2/core:2.43.0.0`. They surface

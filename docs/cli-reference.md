@@ -9002,6 +9002,8 @@ $ d2w security audit [OPTIONS]
 * `--skip TEXT`: Comma-separated check keys to skip.
 * `--progress / --no-progress`: Animate step-by-step progress on a TTY.  [default: progress]
 * `--credential-probe / --no-credential-probe`: Actively test the default admin/district login against /api/me (on by default).  [default: credential-probe]
+* `--stale-days INTEGER RANGE`: Days without login before a privileged account is stale.  [default: 90; x&gt;=1]
+* `--two-factor-detail / --no-two-factor-detail`: On v42+, also list each superuser lacking 2FA (per-user /api/users/twoFactor read).  [default: no-two-factor-detail]
 * `--resume DIRECTORY`: Resume an interrupted run folder.
 * `--help`: Show this message and exit.
 

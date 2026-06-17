@@ -129,6 +129,16 @@ def audit_command(
             help="Actively test the default admin/district login against /api/me (on by default).",
         ),
     ] = True,
+    stale_days: Annotated[
+        int, typer.Option("--stale-days", min=1, help="Days without login before a privileged account is stale.")
+    ] = 90,
+    two_factor_detail: Annotated[
+        bool,
+        typer.Option(
+            "--two-factor-detail/--no-two-factor-detail",
+            help="On v43+, also list each superuser lacking 2FA (per-user /api/users/twoFactor read).",
+        ),
+    ] = False,
     resume: Annotated[
         Path | None, typer.Option("--resume", file_okay=False, exists=True, help="Resume an interrupted run folder.")
     ] = None,
@@ -143,7 +153,13 @@ def audit_command(
         if resume is not None:
             report = asyncio.run(
                 audit.resume_security_audit(
-                    profile, folder=resume, profile_name=profile_name, formats=formats, animated=animated
+                    profile,
+                    folder=resume,
+                    profile_name=profile_name,
+                    formats=formats,
+                    stale_days=stale_days,
+                    two_factor_detail=two_factor_detail,
+                    animated=animated,
                 )
             )
             folder = resume
@@ -162,6 +178,8 @@ def audit_command(
                     only=_parse_csv(checks),
                     skip=skip_keys or None,
                     formats=formats,
+                    stale_days=stale_days,
+                    two_factor_detail=two_factor_detail,
                     animated=animated,
                 )
             )

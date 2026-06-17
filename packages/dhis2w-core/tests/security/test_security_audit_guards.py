@@ -39,7 +39,7 @@ def _ok(check: str) -> CheckResult:
 
 
 def test_resolve_check_keys_defaults_to_all_implemented() -> None:
-    assert resolve_check_keys() == ["settings", "authorities", "roles", "credential-probe"]
+    assert resolve_check_keys() == ["settings", "authorities", "roles", "hygiene", "credential-probe"]
 
 
 def test_resolve_check_keys_only_filters_to_named_checks() -> None:
@@ -53,12 +53,12 @@ def test_resolve_check_keys_rejects_unknown_key() -> None:
 
 def test_resolve_check_keys_rejects_not_yet_implemented_key() -> None:
     with pytest.raises(ValueError, match="not implemented"):
-        resolve_check_keys(only=["hygiene"])
+        resolve_check_keys(only=["version"])
 
 
 def test_resolve_check_keys_rejects_empty_selection() -> None:
     with pytest.raises(ValueError, match="no checks selected"):
-        resolve_check_keys(skip=["settings", "authorities", "credential-probe", "roles"])
+        resolve_check_keys(skip=["settings", "authorities", "credential-probe", "roles", "hygiene"])
 
 
 def test_report_writer_refuses_to_clobber_existing_run(tmp_path: Path) -> None:

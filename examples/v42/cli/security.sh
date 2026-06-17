@@ -38,6 +38,15 @@ d2w security audit --checks credential-probe
 # Run only the instance role audit (ALL-granting and dangerous-authority roles):
 d2w security audit --checks roles
 
+# Run only the per-user account hygiene check (stale / never-logged-in / 2FA on privileged accounts):
+d2w security audit --checks hygiene
+
+# Treat privileged accounts idle for 180 days (instead of the default 90) as stale:
+d2w security audit --checks hygiene --stale-days 180
+
+# On v42+, also name each superuser missing 2FA (per-user /api/users/twoFactor read):
+d2w security audit --two-factor-detail
+
 # The full typed report as JSON on stdout; progress events go to stderr.
 d2w --json security audit | jq '.summary'
 
