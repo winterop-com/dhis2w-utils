@@ -278,16 +278,16 @@ def _used(tool_args: list[list[str]], prefix: list[str]) -> bool:
     return any(args[: len(prefix)] == prefix for args in tool_args)
 
 
-def _score_read(key: str, run: _Run) -> bool:
-    """Correctness heuristic per read task."""
-    answer = run.answer.lower()
+def _score_read(key: str, answer: str, tool_args: list[list[str]]) -> bool:
+    """Correctness heuristic per read task (works for any driver: local loop or the Claude SDK)."""
+    text = answer.lower()
     if key == "count":
-        return "1037" in run.answer
+        return "1037" in answer
     if key == "schema":
-        return _used(run.tool_args, ["schema"]) and any(
-            field in answer for field in ("valuetype", "domaintype", "aggregation", "code")
+        return _used(tool_args, ["schema"]) and any(
+            field in text for field in ("valuetype", "domaintype", "aggregation", "code")
         )
-    return "anc" in answer  # filter
+    return "anc" in text  # filter
 
 
 async def _benchmark_model(model: str) -> ModelReport:
@@ -298,7 +298,7 @@ async def _benchmark_model(model: str) -> ModelReport:
         async with httpx.AsyncClient() as http:
             for key, task in READ_TASKS:
                 run = await _agent(client, http, tools, model, task, max_steps=8)
-                ok = _score_read(key, run)
+                ok = _score_read(key, run.answer, run.tool_args)
                 read_outcomes.append(TaskOutcome(key=key, ok=ok, calls=run.calls, secs=run.secs, tokens=run.tokens))
                 print(f"  READ {key}: ok={ok} calls={run.calls} {run.secs}s {run.tokens}tok")
 

@@ -127,29 +127,66 @@ async def test_claude_read_only_gate(tool_name: str, allowed: bool) -> None:
     assert isinstance(result, PermissionResultAllow if allowed else PermissionResultDeny)
 
 
+@pytest.mark.parametrize(
+    ("tool_name", "allowed"),
+    [
+        ("ToolSearch", True),
+        ("mcp__dhis2__metadata_data_element_create", True),  # write IS allowed on the local_basic round
+        ("mcp__dhis2__metadata_count", True),
+        ("Bash", False),  # built-in tools never permitted — Claude must use dhis2
+        ("Write", False),
+    ],
+)
+async def test_claude_write_gate(tool_name: str, allowed: bool) -> None:
+    """The write gate permits any dhis2 tool (read or write) but still denies every built-in tool."""
+    from claude_agent_sdk import PermissionResultAllow, PermissionResultDeny, ToolPermissionContext
+    from dhis2w_bench import claude_mcp
+
+    result = await claude_mcp._write_gate(tool_name, {}, ToolPermissionContext(suggestions=[]))
+    assert isinstance(result, PermissionResultAllow if allowed else PermissionResultDeny)
+
+
+async def test_claude_bridge_gate_single_tool() -> None:
+    """The bridge gate permits only discovery + the single dhis2_cli tool; everything else is denied."""
+    from claude_agent_sdk import PermissionResultAllow, PermissionResultDeny, ToolPermissionContext
+    from dhis2w_bench import claude_bridge
+
+    ctx = ToolPermissionContext(suggestions=[])
+    allow = await claude_bridge._bridge_gate("mcp__dhis2__dhis2_cli", {}, ctx)
+    deny = await claude_bridge._bridge_gate("mcp__dhis2__metadata_count", {}, ctx)
+    assert isinstance(allow, PermissionResultAllow)
+    assert isinstance(deny, PermissionResultDeny)
+
+
 def test_claude_model_report_aggregates() -> None:
-    """ModelReport rolls up passes and total subscription cost across the suite."""
+    """ModelReport rolls up per-round passes and total subscription cost."""
     from dhis2w_bench.claude_mcp import ModelReport, TaskOutcome
 
     report = ModelReport(
         model="opus",
         outcomes=[
-            TaskOutcome(key="count", ok=True, turns=3, cost_usd=0.10, seconds=1.0, tools=["x"]),
-            TaskOutcome(key="filter", ok=False, turns=2, cost_usd=0.20, seconds=1.0, tools=[]),
+            TaskOutcome(round="read", key="count", ok=True, turns=3, cost_usd=0.10, seconds=1.0),
+            TaskOutcome(round="read", key="filter", ok=False, turns=2, cost_usd=0.20, seconds=1.0),
+            TaskOutcome(round="write", key="minPasswordLength", ok=True, turns=4, cost_usd=0.30, seconds=1.0),
         ],
     )
-    assert report.passed == 1
-    assert report.cost_usd == pytest.approx(0.30)
+    assert report.passed("read") == (1, 2)
+    assert report.passed("write") == (1, 1)
+    assert report.cost_usd == pytest.approx(0.60)
 
 
-def test_claude_markdown_table_has_model_and_totals() -> None:
-    """The table renders one row per model with the pass count and cost."""
-    from dhis2w_bench.claude_mcp import READ_TASKS, ModelReport, TaskOutcome, _markdown_table
+def test_claude_markdown_table_has_model_and_rounds() -> None:
+    """The table renders one row per model with read/write counts and per-scenario composite pass-rate."""
+    from dhis2w_bench.claude_mcp import ModelReport, TaskOutcome, _markdown_table
 
     report = ModelReport(
         model="opus",
-        outcomes=[TaskOutcome(key=key, ok=True, turns=1, cost_usd=0.1, seconds=1.0, tools=[]) for key, _ in READ_TASKS],
+        outcomes=[
+            TaskOutcome(round="read", key="count", ok=True, turns=1, cost_usd=0.1, seconds=1.0),
+            TaskOutcome(round="write", key="minPasswordLength", ok=True, turns=1, cost_usd=0.1, seconds=1.0),
+            TaskOutcome(round="composite", key="dataset_with_elements#1", ok=True, turns=1, cost_usd=0.1, seconds=1.0),
+        ],
     )
-    table = _markdown_table([report])
+    table = _markdown_table([report], runs=1)
     assert "`opus`" in table
-    assert f"{len(READ_TASKS)}/{len(READ_TASKS)}" in table
+    assert "1/1" in table
