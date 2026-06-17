@@ -7,9 +7,14 @@ widen the plugin's read surface.
 
 The contract:
 
-- Read-only: the plugin issues ONLY GET requests, and only against
-  `GET_ALLOWLIST`. It never reads data values, tracked entities, events,
-  files, or audit logs.
+- Read-only: every check issues ONLY GET requests against `GET_ALLOWLIST`.
+  The one exception is the default-credential probe (see below). The plugin
+  never reads data values, tracked entities, events, files, or audit logs.
+- Credential probe: the probe may make at most one HTTP Basic login attempt,
+  for the single well-known default pair `admin`/`district`, against the
+  identity endpoint only (`GET /api/me`, in `CREDENTIAL_PROBE_PATHS`). It is
+  never retried (`MAX_PROBE_ATTEMPTS == 1`) and is the only place the scanner
+  authenticates as anything other than the operator's own profile.
 - No-lockout: 401/403 responses are never retried; retries (when enabled at
   all) cover only 429/5xx on idempotent calls, and the default is no retry.
 - Egress: the only direct external egress is the public release feed
@@ -60,11 +65,25 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
 # `GET_ALLOWLIST` stays exactly the documented plugin read surface.
 CONNECT_PATHS: frozenset[str] = frozenset({"/", "/api/system/info"})
 
+# The single default-credential pair the probe tests. admin/district is by far
+# the most common live DHIS2 default (DefaultAdminUserPopulator seeds it on a
+# fresh install), so no other pairs are seeded.
+DEFAULT_PROBE_USERNAME = "admin"
+DEFAULT_PROBE_PASSWORD = "district"
+
+# The credential probe's footprint, bounded as tightly as the contract allows:
+# at most one authentication attempt, against the identity endpoint only, never
+# retried. The guardrail test asserts the probe touches no other path and makes
+# no more than this many attempts.
+CREDENTIAL_PROBE_PATHS: frozenset[str] = frozenset({"/api/me"})
+MAX_PROBE_ATTEMPTS = 1
+
 # One-line statement of the audit's footprint, embedded in every rendered
-# report so a reader can see exactly what the scan did and did not touch.
-# Update this in lock-step with the contract above when the credential probe
-# lands and the posture gains its one default-credential login attempt.
+# report so a reader can see exactly what the scan did and did not touch. Kept
+# in lock-step with the contract above and the credential-probe posture.
 REPORT_GUARDRAIL_NOTE = (
-    "This audit issues only read-only GET requests against a fixed allowlist. It never attempts "
-    "a login, and never reads data values, tracked entities, events, files, or audit logs."
+    "This audit issues only read-only GET requests against a fixed allowlist. The single exception "
+    "is the optional default-credential probe, which makes at most one HTTP Basic login attempt for "
+    "the well-known admin/district pair against /api/me, never retried. The audit never reads data "
+    "values, tracked entities, events, files, or audit logs."
 )

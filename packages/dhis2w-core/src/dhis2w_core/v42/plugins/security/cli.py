@@ -122,6 +122,13 @@ def audit_command(
     progress: Annotated[
         bool, typer.Option("--progress/--no-progress", help="Animate step-by-step progress on a TTY.")
     ] = True,
+    credential_probe: Annotated[
+        bool,
+        typer.Option(
+            "--credential-probe/--no-credential-probe",
+            help="Actively test the default admin/district login against /api/me (on by default).",
+        ),
+    ] = True,
     resume: Annotated[
         Path | None, typer.Option("--resume", file_okay=False, exists=True, help="Resume an interrupted run folder.")
     ] = None,
@@ -141,6 +148,9 @@ def audit_command(
             )
             folder = resume
         else:
+            skip_keys = _parse_csv(skip) or []
+            if not credential_probe:
+                skip_keys = [*skip_keys, "credential-probe"]
             now = datetime.now(UTC)
             folder = _run_folder(output_dir, profile_name, now.strftime("%Y%m%dT%H%M%S%fZ"))
             report = asyncio.run(
@@ -150,7 +160,7 @@ def audit_command(
                     profile_name=profile_name,
                     started_at=now.isoformat(),
                     only=_parse_csv(checks),
-                    skip=_parse_csv(skip),
+                    skip=skip_keys or None,
                     formats=formats,
                     animated=animated,
                 )

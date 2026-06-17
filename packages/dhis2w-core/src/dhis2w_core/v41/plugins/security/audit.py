@@ -5,17 +5,22 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 
+import httpx
 from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_client.v41 import Dhis2Client
+from dhis2w_client.v41.auth.basic import BasicAuth
 from rich.console import Console
 
 from dhis2w_core.profile import Profile
 from dhis2w_core.security_core import (
+    DEFAULT_PROBE_PASSWORD,
+    DEFAULT_PROBE_USERNAME,
     AuditReport,
     AuditSummary,
     BoundCheck,
     CheckResult,
     CheckStatus,
+    CredentialProbeResult,
     CsvRenderer,
     HtmlRenderer,
     MarkdownRenderer,
@@ -24,7 +29,9 @@ from dhis2w_core.security_core import (
     RunManifest,
     TextRenderer,
     build_account_authorities,
+    classify_probe_status,
     evaluate_account_authorities,
+    evaluate_credential_probe,
     evaluate_settings,
     label_for,
     make_reporter,
@@ -95,6 +102,62 @@ _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
 }
 
 
+async def _lockout_active(client: Dhis2Client) -> bool:
+    """Read keyLockMultipleFailedLogins so the probe can warn before it tries a wrong password."""
+    try:
+        settings = await client.get("/api/systemSettings", SecuritySettings)
+    except Dhis2ApiError:
+        return False
+    return settings.keyLockMultipleFailedLogins is True
+
+
+async def _probe_default_credentials(base_url: str, *, lockout_active: bool) -> CredentialProbeResult:
+    """Issue exactly one HTTP Basic GET /api/me as admin/district and classify the status."""
+    auth = BasicAuth(username=DEFAULT_PROBE_USERNAME, password=DEFAULT_PROBE_PASSWORD)
+    headers = {**await auth.headers(), "Accept": "application/json"}
+    async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=10.0), follow_redirects=False) as http:
+        response = await http.get(f"{base_url}/api/me", headers=headers)
+    return CredentialProbeResult(
+        outcome=classify_probe_status(response.status_code),
+        status_code=response.status_code,
+        lockout_active=lockout_active,
+    )
+
+
+async def _run_credential_probe(client: Dhis2Client, console: Console) -> CheckResult:
+    """Make one HTTP Basic login attempt for admin/district, warning first when lockout is active."""
+    label = label_for("credential-probe")
+    lockout_active = await _lockout_active(client)
+    if lockout_active:
+        console.print(
+            f"WARNING: failed-login lockout is enabled; the single default-credential probe attempt "
+            f"counts toward locking the real '{DEFAULT_PROBE_USERNAME}' account.",
+            style="bold yellow",
+            highlight=False,
+        )
+    try:
+        result = await _probe_default_credentials(client.base_url, lockout_active=lockout_active)
+    except httpx.HTTPError as exc:
+        return CheckResult(
+            check="credential-probe",
+            label=label,
+            status=CheckStatus.DEGRADED,
+            note=f"probe transport error: {exc}",
+        )
+    note = (
+        "failed-login lockout is enabled; the single probe attempt counts toward the lockout counter"
+        if lockout_active
+        else None
+    )
+    return CheckResult(
+        check="credential-probe",
+        label=label,
+        status=CheckStatus.OK,
+        findings=evaluate_credential_probe(result),
+        note=note,
+    )
+
+
 def _bind(
     runner: Callable[[Dhis2Client], Awaitable[CheckResult]], client: Dhis2Client
 ) -> Callable[[], Awaitable[CheckResult]]:
@@ -106,9 +169,22 @@ def _bind(
     return _run
 
 
-def _bound_checks(client: Dhis2Client, keys: Sequence[str]) -> list[BoundCheck]:
+def _bind_probe(client: Dhis2Client, console: Console) -> Callable[[], Awaitable[CheckResult]]:
+    """Bind the credential probe to the open client plus a console for the lockout warning."""
+
+    async def _run() -> CheckResult:
+        return await _run_credential_probe(client, console)
+
+    return _run
+
+
+def _bound_checks(client: Dhis2Client, keys: Sequence[str], console: Console) -> list[BoundCheck]:
     """Build the ordered bound checks for `keys` against the open client."""
-    return [BoundCheck(key=key, label=label_for(key), run=_bind(_RUNNERS[key], client)) for key in keys]
+    checks: list[BoundCheck] = []
+    for key in keys:
+        run = _bind_probe(client, console) if key == "credential-probe" else _bind(_RUNNERS[key], client)
+        checks.append(BoundCheck(key=key, label=label_for(key), run=run))
+    return checks
 
 
 def _validate_formats(formats: Sequence[str]) -> None:
@@ -147,7 +223,8 @@ async def run_security_audit(
     """Open one client, run the selected checks in order, and stream the report to `output_dir`."""
     _validate_formats(formats)
     keys = resolve_check_keys(only, skip)
-    reporter = make_reporter(console or Console(stderr=True), animated=animated)
+    con = console or Console(stderr=True)
+    reporter = make_reporter(con, animated=animated)
     async with open_client(profile, profile_name=profile_name) as client:
         manifest = RunManifest(
             target=client.base_url,
@@ -165,7 +242,7 @@ async def run_security_audit(
         )
         return await run_audit(
             manifest=manifest,
-            checks=_bound_checks(client, keys),
+            checks=_bound_checks(client, keys, con),
             writer=writer,
             reporter=reporter,
         )
@@ -190,7 +267,8 @@ async def resume_security_audit(
     if manifest.completed:
         # Nothing left to scan; just re-render so we never append a second footer.
         return rerender_report(folder, formats=formats)
-    reporter = make_reporter(console or Console(stderr=True), animated=animated)
+    con = console or Console(stderr=True)
+    reporter = make_reporter(con, animated=animated)
     async with open_client(profile, profile_name=profile_name) as client:
         if client.base_url != manifest.target:
             raise ValueError(
@@ -206,7 +284,7 @@ async def resume_security_audit(
         )
         return await run_audit(
             manifest=manifest,
-            checks=_bound_checks(client, manifest.check_order),
+            checks=_bound_checks(client, manifest.check_order, con),
             writer=writer,
             reporter=reporter,
             prior=prior,

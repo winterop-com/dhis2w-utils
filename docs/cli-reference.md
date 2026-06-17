@@ -2165,7 +2165,7 @@ $ d2w files resources upload [OPTIONS] FILE
 
 **Options**:
 
-* `--domain [data_value|document|message_attachment|user_avatar|org_unit|icon|job_data]`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
+* `--domain [data_value|push_analysis|document|message_attachment|user_avatar|org_unit|icon|job_data]`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
 * `--help`: Show this message and exit.
 
 #### `d2w files resources get`
@@ -9001,6 +9001,7 @@ $ d2w security audit [OPTIONS]
 * `--checks TEXT`: Comma-separated check keys to run (default: all).
 * `--skip TEXT`: Comma-separated check keys to skip.
 * `--progress / --no-progress`: Animate step-by-step progress on a TTY.  [default: progress]
+* `--credential-probe / --no-credential-probe`: Actively test the default admin/district login against /api/me (on by default).  [default: credential-probe]
 * `--resume DIRECTORY`: Resume an interrupted run folder.
 * `--help`: Show this message and exit.
 

@@ -16,6 +16,12 @@ from dhis2w_core.security_core.authorities import (
     categorise_authorities,
     evaluate_account_authorities,
 )
+from dhis2w_core.security_core.credentials import (
+    CredentialProbeResult,
+    ProbeOutcome,
+    classify_probe_status,
+    evaluate_credential_probe,
+)
 from dhis2w_core.security_core.findings import (
     HIGH_RISK_ROLE_CATEGORIES,
     SEVERITY_ORDER,
@@ -25,7 +31,15 @@ from dhis2w_core.security_core.findings import (
     role_severity,
     severity_rank,
 )
-from dhis2w_core.security_core.guardrails import CONNECT_PATHS, GET_ALLOWLIST
+from dhis2w_core.security_core.guardrails import (
+    CONNECT_PATHS,
+    CREDENTIAL_PROBE_PATHS,
+    DEFAULT_PROBE_PASSWORD,
+    DEFAULT_PROBE_USERNAME,
+    GET_ALLOWLIST,
+    MAX_PROBE_ATTEMPTS,
+    REPORT_GUARDRAIL_NOTE,
+)
 from dhis2w_core.security_core.models import AccountAuthorities, CategoryMatch
 from dhis2w_core.security_core.orchestrator import run_audit
 from dhis2w_core.security_core.registry import (
@@ -58,10 +72,15 @@ __all__ = [
     "AUTHORITY_CATEGORIES",
     "CANONICAL_CHECKS",
     "CONNECT_PATHS",
+    "CREDENTIAL_PROBE_PATHS",
+    "DEFAULT_PROBE_PASSWORD",
+    "DEFAULT_PROBE_USERNAME",
     "GET_ALLOWLIST",
     "HIGH_RISK_ROLE_CATEGORIES",
     "IMPLEMENTED_CHECK_KEYS",
+    "MAX_PROBE_ATTEMPTS",
     "MIN_RECOMMENDED_PASSWORD_LENGTH",
+    "REPORT_GUARDRAIL_NOTE",
     "SEVERITY_ORDER",
     "AccountAuthorities",
     "AuditFinding",
@@ -73,10 +92,12 @@ __all__ = [
     "CheckResult",
     "CheckSpec",
     "CheckStatus",
+    "CredentialProbeResult",
     "CsvRenderer",
     "HtmlRenderer",
     "MarkdownRenderer",
     "PlainLogReporter",
+    "ProbeOutcome",
     "ProgressReporter",
     "ReportRenderer",
     "ReportWriter",
@@ -89,7 +110,9 @@ __all__ = [
     "build_account_authorities",
     "canonical_keys",
     "categorise_authorities",
+    "classify_probe_status",
     "evaluate_account_authorities",
+    "evaluate_credential_probe",
     "evaluate_settings",
     "finding_sort_key",
     "label_for",

@@ -70,7 +70,9 @@ def test_audit_creates_run_folder_and_report_files(runner: CliRunner, tmp_path: 
     """security audit writes md, jsonl, and html into a dhis2-security-* folder."""
     ctx = _make_fake_ctx()
     with patch("dhis2w_core.v42.plugins.security.audit.open_client", lambda *args, **kwargs: ctx):
-        result = runner.invoke(build_app(), ["security", "audit", "--output-dir", str(tmp_path), "--no-progress"])
+        result = runner.invoke(
+            build_app(), ["security", "audit", "--output-dir", str(tmp_path), "--no-progress", "--no-credential-probe"]
+        )
 
     assert result.exit_code == 0, result.output
 
@@ -87,7 +89,9 @@ def test_audit_report_md_contains_a_finding(runner: CliRunner, tmp_path: Path) -
     """report.md produced by security audit contains the weak-password finding title."""
     ctx = _make_fake_ctx()
     with patch("dhis2w_core.v42.plugins.security.audit.open_client", lambda *args, **kwargs: ctx):
-        result = runner.invoke(build_app(), ["security", "audit", "--output-dir", str(tmp_path), "--no-progress"])
+        result = runner.invoke(
+            build_app(), ["security", "audit", "--output-dir", str(tmp_path), "--no-progress", "--no-credential-probe"]
+        )
 
     assert result.exit_code == 0, result.output
 
@@ -106,7 +110,8 @@ def test_audit_json_output_has_summary_with_total_findings(runner: CliRunner, tm
     ctx = _make_fake_ctx()
     with patch("dhis2w_core.v42.plugins.security.audit.open_client", lambda *args, **kwargs: ctx):
         result = runner.invoke(
-            build_app(), ["--json", "security", "audit", "--output-dir", str(tmp_path), "--no-progress"]
+            build_app(),
+            ["--json", "security", "audit", "--output-dir", str(tmp_path), "--no-progress", "--no-credential-probe"],
         )
 
     assert result.exit_code == 0, result.output
@@ -129,7 +134,9 @@ def test_audit_succeeds_on_every_version_tree(
 
     ctx = _make_fake_ctx()
     with patch(f"dhis2w_core.{tree}.plugins.security.audit.open_client", lambda *args, **kwargs: ctx):
-        result = runner.invoke(build_app(), ["security", "audit", "--output-dir", str(tmp_path), "--no-progress"])
+        result = runner.invoke(
+            build_app(), ["security", "audit", "--output-dir", str(tmp_path), "--no-progress", "--no-credential-probe"]
+        )
 
     assert result.exit_code == 0, result.output
 

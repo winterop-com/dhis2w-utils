@@ -25,6 +25,16 @@ d2w security audit
 # Choose where the run folder goes and which report formats to write.
 d2w security audit --output-dir ./reports --format md,html
 
+# The audit actively tests the well-known default login (admin/district) against
+# /api/me by default; a success is a CRITICAL finding. It is a single HTTP Basic
+# attempt, never retried. When failed-login lockout is enabled, the audit prints a
+# warning first, since one wrong guess counts toward locking the real admin account.
+# Disable the active probe to keep the audit strictly read-only:
+d2w security audit --no-credential-probe
+
+# Run only the probe (skips every other check):
+d2w security audit --checks credential-probe
+
 # The full typed report as JSON on stdout; progress events go to stderr.
 d2w --json security audit | jq '.summary'
 
