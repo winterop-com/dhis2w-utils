@@ -44,6 +44,10 @@ def _env_int(name: str, default: int) -> int:
 
 #: Context length to load each model at (env `BENCH_CONTEXT`). Must exceed the largest haystack.
 CONTEXT = _env_int("BENCH_CONTEXT", 131072)
+#: Answer generation cap (env `BENCH_MAX_TOKENS`). Reasoning models think before answering, so this
+#: must leave room for the chain-of-thought before the (short) code — too low reads as a retrieval
+#: failure (truncation), not a real miss.
+ANSWER_TOKENS = _env_int("BENCH_MAX_TOKENS", 4096)
 #: Optional oracle (env `BENCH_CHAMPION`): when present in a run, must retrieve at every length.
 CHAMPION = os.environ.get("BENCH_CHAMPION", "").strip()
 #: Approximate haystack sizes in tokens (~4 chars/token). Lengths beyond CONTEXT are skipped.
@@ -137,7 +141,7 @@ async def _ask(http: httpx.AsyncClient, model: str, prompt: str) -> tuple[str, f
                 "model": model,
                 "messages": [{"role": "system", "content": _SYSTEM}, {"role": "user", "content": prompt}],
                 "temperature": 0.0,
-                "max_tokens": 64,
+                "max_tokens": ANSWER_TOKENS,
             },
             timeout=600.0,
         )
