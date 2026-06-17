@@ -40,7 +40,7 @@ CANONICAL_CHECKS: tuple[CheckSpec, ...] = (
 )
 
 # Checks with a runnable implementation right now.
-IMPLEMENTED_CHECK_KEYS: frozenset[str] = frozenset({"settings", "authorities", "credential-probe"})
+IMPLEMENTED_CHECK_KEYS: frozenset[str] = frozenset({"settings", "authorities", "credential-probe", "roles"})
 
 _LABEL_BY_KEY: dict[str, str] = {spec.key: spec.label for spec in CANONICAL_CHECKS}
 

@@ -35,6 +35,9 @@ d2w security audit --no-credential-probe
 # Run only the probe (skips every other check):
 d2w security audit --checks credential-probe
 
+# Run only the instance role audit (ALL-granting and dangerous-authority roles):
+d2w security audit --checks roles
+
 # The full typed report as JSON on stdout; progress events go to stderr.
 d2w --json security audit | jq '.summary'
 

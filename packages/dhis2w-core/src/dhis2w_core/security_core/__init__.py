@@ -65,6 +65,7 @@ from dhis2w_core.security_core.report.model import (
 )
 from dhis2w_core.security_core.report.progress import PlainLogReporter, RichProgressReporter, make_reporter
 from dhis2w_core.security_core.report.text import TextRenderer
+from dhis2w_core.security_core.roles import RoleAudit, build_role_audit, evaluate_roles
 from dhis2w_core.security_core.settings_audit import MIN_RECOMMENDED_PASSWORD_LENGTH, SettingsLike, evaluate_settings
 from dhis2w_core.security_core.streaming import ReportWriter
 
@@ -102,17 +103,20 @@ __all__ = [
     "ReportRenderer",
     "ReportWriter",
     "RichProgressReporter",
+    "RoleAudit",
     "RunManifest",
     "Severity",
     "SettingsLike",
     "StreamingRenderer",
     "TextRenderer",
     "build_account_authorities",
+    "build_role_audit",
     "canonical_keys",
     "categorise_authorities",
     "classify_probe_status",
     "evaluate_account_authorities",
     "evaluate_credential_probe",
+    "evaluate_roles",
     "evaluate_settings",
     "finding_sort_key",
     "label_for",

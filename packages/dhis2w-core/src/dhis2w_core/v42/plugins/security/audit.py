@@ -26,12 +26,15 @@ from dhis2w_core.security_core import (
     MarkdownRenderer,
     ReportRenderer,
     ReportWriter,
+    RoleAudit,
     RunManifest,
     TextRenderer,
     build_account_authorities,
+    build_role_audit,
     classify_probe_status,
     evaluate_account_authorities,
     evaluate_credential_probe,
+    evaluate_roles,
     evaluate_settings,
     label_for,
     make_reporter,
@@ -96,9 +99,40 @@ async def _run_authorities(client: Dhis2Client) -> CheckResult:
     )
 
 
+async def _run_roles(client: Dhis2Client) -> CheckResult:
+    """Fetch the instance's user roles with member counts and classify their authority reach."""
+    label = label_for("roles")
+    try:
+        raw = await client.get_raw(
+            "/api/userRoles", params={"fields": "id,name,authorities,users~size", "paging": "false"}
+        )
+    except Dhis2ApiError as exc:
+        return CheckResult(check="roles", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
+    items = raw.get("userRoles")
+    if not isinstance(items, list):
+        return CheckResult(
+            check="roles", label=label, status=CheckStatus.DEGRADED, note="unexpected /api/userRoles payload shape"
+        )
+    roles: list[RoleAudit] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        members = item.get("users")
+        roles.append(
+            build_role_audit(
+                role_id=str(item.get("id", "")),
+                name=str(item.get("name", "")),
+                authorities=[str(authority) for authority in (item.get("authorities") or [])],
+                member_count=members if isinstance(members, int) else 0,
+            )
+        )
+    return CheckResult(check="roles", label=label, status=CheckStatus.OK, findings=evaluate_roles(roles))
+
+
 _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "settings": _run_settings,
     "authorities": _run_authorities,
+    "roles": _run_roles,
 }
 
 
