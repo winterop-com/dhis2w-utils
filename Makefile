@@ -50,7 +50,7 @@ help:
 	@echo "  bench-mcp        Full dhis2-mcp server (~311 tools), read+write (MODELS= required; BENCH_CONTEXT=128K)"
 	@echo "  bench-round      Drive dhis2w-mcp-bridge with one local model (MODEL= required; ROUND=read|write|bench, PROFILE=)"
 	@echo "  bench-matrix     Command x model matrix: how each model handles every CLI command (ARGS= to slice)"
-	@echo "  bench-composite  Run composite write workflows (data set+elements, program+stages) oracle-style"
+	@echo "  bench-composite  Hard multi-object writes (data set+elements, program+stages): no MODELS = oracle; MODELS= drives models (RUNS=3, pass-rate)"
 	@echo ""
 	@echo "  For niche targets (versions, wait, status, logs, pat) use 'make -C infra help'."
 
@@ -243,7 +243,7 @@ bench-composite:
 	@echo ">>> Composite write-workflow scenarios on local_basic (data set+elements, program+stages)."
 	@echo "    No MODELS: run the deterministic oracle. MODELS=\"<key> ...\": drive each model via the bridge."
 	@lms server start >/dev/null 2>&1 || true
-	@$(UV) run python -u -m dhis2w_bench.composite $(if $(MODELS),--models $(MODELS)) $(ARGS)
+	@$(UV) run python -u -m dhis2w_bench.composite $(if $(MODELS),--models $(MODELS)) $(if $(RUNS),--runs $(RUNS)) $(ARGS)
 
 bench-matrix:
 	@echo ">>> CLI command x model matrix (how each roster model handles every command; read-only on play42)"

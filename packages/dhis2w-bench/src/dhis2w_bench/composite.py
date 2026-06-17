@@ -288,19 +288,29 @@ async def _run_model(model: str, scenario: Scenario, profile: str) -> ScenarioRe
     return ScenarioResult(key=scenario.key, ok=ok, detail=f"{detail} ({run.calls} calls, {run.secs}s)")
 
 
-async def _run_models(models: list[str], profile: str) -> None:
-    """Run every scenario against every model (one loaded at a time); print a PASS/FAIL line each."""
+async def _run_models(models: list[str], profile: str, runs: int) -> None:
+    """Run every scenario against every model `runs` times; print per-run results + an aggregate pass-rate.
+
+    Composite authoring is nondeterministic, so a single run is misleading — the aggregate (e.g.
+    `dataset_with_elements 2/3`) is the trustworthy number.
+    """
     for model in models:
-        print(f"\n>>> {model}")
+        print(f"\n>>> {model} ({runs} run{'s' if runs != 1 else ''})")
         BACKEND.load(model)
-        for scenario in SCENARIOS:
-            try:
-                result = await _run_model(model, scenario, profile)
-            except Exception as exc:  # noqa: BLE001 — isolate one model/scenario so the sweep continues
-                print(f"  [FAIL] {scenario.key}: errored ({type(exc).__name__}: {exc})")
-                _cleanup_model(profile, scenario.key)
-                continue
-            print(f"  [{'PASS' if result.ok else 'FAIL'}] {result.key}: {result.detail}")
+        tally: dict[str, list[int]] = {scenario.key: [0, 0] for scenario in SCENARIOS}
+        for run_index in range(1, runs + 1):
+            for scenario in SCENARIOS:
+                try:
+                    result = await _run_model(model, scenario, profile)
+                    ok, detail = result.ok, result.detail
+                except Exception as exc:  # noqa: BLE001 — isolate one run so the sweep continues
+                    ok, detail = False, f"errored ({type(exc).__name__}: {exc})"
+                    _cleanup_model(profile, scenario.key)
+                tally[scenario.key][0] += int(ok)
+                tally[scenario.key][1] += 1
+                print(f"  run {run_index} {scenario.key}: {'PASS' if ok else 'FAIL'} — {detail}")
+        rate = ", ".join(f"{key} {passed}/{total}" for key, (passed, total) in tally.items())
+        print(f"  == {model} pass-rate: {rate}")
     BACKEND.unload_all()
 
 
@@ -309,10 +319,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default=PROFILE_DEFAULT, help="Write profile (local_basic only).")
     parser.add_argument("--models", nargs="+", help="Drive these models through the goals via the bridge.")
+    parser.add_argument("--runs", type=int, default=3, help="Runs per scenario for the model path (default 3).")
     args = parser.parse_args()
     if args.models:
         print(f"composite scenarios (model-driven via bridge) against profile {args.profile}")
-        asyncio.run(_run_models(args.models, args.profile))
+        asyncio.run(_run_models(args.models, args.profile, max(1, args.runs)))
         return
     print(f"composite scenarios (oracle) against profile {args.profile}\n")
     for scenario in SCENARIOS:
