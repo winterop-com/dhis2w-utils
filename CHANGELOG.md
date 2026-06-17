@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.23.0 — 2026-06-17
+
+Minor release. A bridge write-guard for shared hosts, a local-model validation harness, and broader contract tests.
+
+### Bridge safety (new)
+
+- **The MCP bridge refuses mutating commands against shared public DHIS2 hosts**, independent of `DHIS2_MCP_READONLY`. When the active profile resolves to a protected host (`play.dhis2.org`, `play.im.dhis2.org`, `debug.dhis2.org` by default), any non-read-only `dhis2_cli` invocation is refused with a clear message; reads still pass. The host set is overridable via `DHIS2_MCP_PROTECTED_HOSTS` (comma-separated; empty disables). This is a structural guard so no benchmark or agent can accidentally write to the shared demo, regardless of how the profile is wired.
+
+### Testing / tooling
+
+- **New `dhis2w-bench` workspace member (unpublished)** — a backend-agnostic harness for validating local LLMs across the surfaces that matter for the local/PII path: coding (python + cli + multi-turn agentic tooling), the mcp-bridge (single-tool discovery, read + write), the full MCP server (~311 tools at 128k context), composite multi-object writes, and long-context needle-in-a-haystack retrieval. Model lifecycle sits behind a `ModelBackend` Protocol (LM Studio today; Ollama / llama.cpp are documented extension points). The strongest local model runs first as the oracle: if it fails a task, the harness flags the task as suspect rather than counting it against weaker models. Make targets: `bench-general`, `bench-bridge`, `bench-mcp`, `bench-composite`, `bench-longcontext`, `bench-list`.
+- **Contract tests cover every listable resource** (not a curated subset), exercise `TrackerEvent` on v42 + v43 instead of skipping it, and discover an event program at runtime so the suite can't flake on seed data.
+
+### Workspace packages
+
+All six publishable members + `dhis2w-bench` and `dhis2w-codegen` bumped 0.22.0 -> 0.23.0. Inter-package pins shifted `>=0.22.0,<0.23` -> `>=0.23.0,<0.24`.
+
 ## 0.22.0 — 2026-06-16
 
 Minor release. A new `security` plugin, smarter App Hub installs, and a round of CI / dependency hardening.
