@@ -14,12 +14,13 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
   context. The assumption that "only cloud frontier models can drive full MCP" does **not** hold for
   these read+write tasks: capable local models handle it, given enough context.
 - **`gemma-4-e4b` (4B, 6.9 GB) wins reads, easy writes, and speed** — near-perfect everywhere cheap,
-  fastest on the easy/MCP writes. But it **cannot do the hard composite writes** (0/2 — see below).
-- **`gemma-4-12b-qat` is the authoring winner.** It looks "dominated" on speed/easy tasks, but it is
-  the **only** model that reliably completes the hard multi-object writes (2/2 composite) — the test
-  that actually matters for a DHIS2 authoring agent. So **do not delete it.**
-- **Easy writes don't rank models; the composite (hard) writes do** — and they invert the ranking
-  (the champion fails the dataset composite; the speed winners score 0/2).
+  fastest on the easy/MCP writes. But it **cannot do the hard composite writes** (0/3 — see below).
+- **Easy writes don't rank models; the composite (hard) writes do.** Over 3 runs, the two strong
+  models (`26b-a4b-qat`, `12b-qat`) author reliably-ish (2/3 dataset, 3/3 program) while `e4b` and
+  `qwen3.5-4b` cannot (0/3 dataset). So for **authoring (the PII-write job), the 26B is the pick**
+  (it ties the 12B on composites and is faster + more general); the 12B is the half-the-RAM equivalent.
+- **Authoring is flaky (~2/3) even for the strong models** — a real 1.0 caveat; a local PII-author
+  needs retries + verification. (Single composite runs are misleading — always run N times.)
 - **Two real bugs were caught by the oracle and fixed mid-run** (see Findings): a stale bridge
   write-command, and the full-MCP context-window requirement. A third (the composite oracle itself)
   was caught when its deterministic run failed.
@@ -72,26 +73,29 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
 The reads and the single-setting writes above are easy (everyone passes), so they don't rank models.
 The real test is a **multi-object authoring** workflow driven through the bridge: "create a Monthly
 data set with two new data elements attached", and "create an event program with two stages". Each
-run is verified (find the named object, count its children) and cleaned up.
+run is verified (find the named object, count its children) and cleaned up. **Run 3× per model**,
+because a single run is misleading (see below):
 
-| model | dataset + elements | program + stages | hard-write score |
-| --- | --- | --- | --- |
-| `gemma-4-26b-a4b-qat` (champion) | **FAIL** (never created it; 11 calls, 393s) | PASS (6 calls, 48s) | 1/2 |
-| `gemma-4-12b-qat` | **PASS** (2/2, 70s) | **PASS** (2/2, 88s) | **2/2** |
-| `gemma-4-e4b` | **FAIL** (never created; 226s) | **FAIL** (0/2, looped to limit) | 0/2 |
-| `qwen3.5-4b` | **FAIL** (set created, 0 elements attached) | **FAIL** (0/2 stages) | 0/2 |
+| model | dataset + elements (3 runs) | program + stages (3 runs) |
+| --- | --- | --- |
+| `gemma-4-26b-a4b-qat` | **2/3** | **3/3** |
+| `gemma-4-12b-qat` | **2/3** | **3/3** |
+| `gemma-4-e4b` | 0/3 | 1/3 |
+| `qwen3.5-4b` | 0/3 | 1/3 |
 
-**This inverts the rest of the results.** On easy + full-MCP writes all four pass; on hard writes
-**only `gemma-4-12b-qat` succeeds on both**, and the models that win elsewhere are the worst here:
+Three things this says — and a methodology warning:
 
-- The **champion *fails* the dataset composite** — 6.5 min, 11 calls, never built it. Best at
-  reads/easy-writes is not best at authoring.
-- **`e4b` and `qwen3.5-4b` (the efficiency/speed winners) score 0/2** — they stall (e4b looped to the
-  20-call limit) or give up after a partial build (qwen made the set but attached nothing).
-- **`gemma-4-12b-qat` — earlier flagged "dominated, prime delete" — is the only reliable author.**
-
-So for the **PII-write path** (the whole reason local exists), the pick is **`gemma-4-12b-qat`**, not
-`e4b`. Caveat: 2 scenarios, single runs, model nondeterminism — but the pattern is strong.
+- **Composite authoring genuinely separates the models** (unlike easy writes, where all four pass):
+  the two strong models author reliably-ish; `e4b` and `qwen3.5-4b` **cannot** (0/3 on the dataset).
+- **`26b-a4b-qat` and `12b-qat` are a tie** — both 2/3 dataset, 3/3 program. So the 26B is the better
+  pick for authoring too (it's faster + more general); the 12B is the half-the-RAM equivalent. (An
+  earlier *single-run* version of this table showed the champion failing and the 12B winning — that
+  was **noise**; the 3× run corrects it.)
+- **The dataset composite is flaky even for the strong models (~2/3).** Multi-object authoring is
+  *doable but not yet dependable* on local models — a real 1.0 caveat: a local PII-authoring agent
+  needs retries + verification (which this harness models).
+- **Methodology:** single-run composite results are not trustworthy — always run the hard-write
+  dimension N times.
 
 ## Context-window dimension (full MCP, `gemma-4-e4b`)
 
@@ -149,15 +153,16 @@ generous budget; deliberately handicapping the champion is expected to break it.
 
 | Use case | Pick | Why |
 | --- | --- | --- |
-| **PII authoring** (multi-object writes — the real local job) | **`gemma-4-12b-qat`** | The **only** model that reliably completes the hard composite writes (2/2). `e4b`/`qwen` score 0/2; the champion 1/2. |
+| **PII authoring** (multi-object writes — the real local job) | **`gemma-4-26b-a4b-qat`** (or `12b-qat`) | The two strong models tie at 2/3 dataset, 3/3 program over 3 runs; the 26B is faster + more general, the 12B is the half-the-RAM equal. `e4b`/`qwen` can't author (0/3). |
 | **PII reads + easy writes, fast** | `gemma-4-e4b` | Passes reads + the easy/MCP writes, smallest (6.9 GB), fastest — but **not** for composite authoring. |
-| **Full MCP, if going local** | `gemma-4-e4b` or champion | All candidates handle reads + the easy write at 128k; `e4b` fastest. (Hard writes not tested through full MCP yet.) |
+| **Full MCP, if going local** | `gemma-4-26b-a4b-qat` | Passes reads + write at 128k and is ~2.8× faster than the 12B; `e4b` if RAM is tight. |
 | **Coding** | champion or `e4b` | 62/62 and 58/59; `qwen3.5-4b` for speed with weaker class/edge-case coding. |
 
 ## Prune decision (2026-06-17)
 
-- **Keep all four serious candidates** — the composite results show they are *not* redundant: each
-  wins a different axis. `gemma-4-12b-qat` (authoring), `gemma-4-e4b` (efficiency/reads),
-  `gemma-4-26b-a4b-qat` (oracle / max headroom), `qwen3.5-4b` (fastest tool driver).
-- **Reversal:** the earlier "delete `gemma-4-12b-qat`" call was **wrong** — it's the only reliable
-  composite author, which is the capability that matters most for a local PII-write agent.
+- **Keep `gemma-4-26b-a4b-qat`, `gemma-4-12b-qat`, `gemma-4-e4b`, `qwen3.5-4b`** — each wins an axis:
+  the qats author (and the 26B is the faster all-rounder), `e4b` is efficiency/reads, `qwen3.5-4b` is
+  the fastest tool driver.
+- **The 12B is not redundant** despite being slower: it ties the 26B on composite authoring at half
+  the RAM. (An earlier single-run table over-claimed the 12B as the *unique* author and the champion
+  as failing — the 3× confidence run corrected both to a tie.)
