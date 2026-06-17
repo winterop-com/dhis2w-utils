@@ -6,7 +6,8 @@ spawns dhis2-mcp, Claude discovers and calls tools. Three rounds, reusing bench-
 tasks + scoring so local and cloud are directly comparable:
 
 - read      (play42): the shared read tasks, behind a fail-closed read-only gate (nothing mutates).
-- write     (local_basic): the single system-setting round-trip via typed tools, then restore.
+- write     (local_basic): a single-setting round-trip via typed tools, then restore — a SMOKE test
+  (plumbing/auth canary), not a ranking signal; everyone passes it.
 - composite (local_basic): the HARD multi-object authoring scenarios — the real local/cloud discriminator.
 
 Auth is AMBIENT — the logged-in Claude Code subscription. No API key is read, passed, or stored. The
