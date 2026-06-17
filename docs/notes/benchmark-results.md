@@ -42,6 +42,12 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
 - **All four pass 7/7 tooling** — including the four multi-turn agentic chains (look-up-then-email,
   read-then-count, fetch-rate-then-calc, look-up-then-ticket). So a 4B model (`qwen3.5-4b`, `e4b`)
   handles multi-turn tool *chaining* fine; size is not the bottleneck there.
+- **Cloud Claude (`bench-claude-general`) scores a perfect 62/62** (python 52/52, cli 3/3, tooling
+  7/7; ~$1.58, session-default) — **matching the local oracle** (`gemma-4-26b-a4b-qat`, also 62/62).
+  So coding is **not** where cloud's edge shows: the strong models, local or cloud, all ace it; the 4B
+  locals drop a few. Cloud's real advantage is the **composite authoring** round (below), where the
+  local 4B models fail — not the coding suite. (The tooling suite runs Claude over an in-process SDK
+  mock toolbox, scored by the same full-transcript checker as the local lane.)
 
 ## mcp-bridge (`bench-bridge`) — single-tool discovery, read + write
 
