@@ -2,18 +2,25 @@
 
 dhis2w ships **two** MCP servers. Which one to use depends entirely on the model driving it.
 
-## Two servers, which one?
+## Three surfaces, which one?
 
-| | `dhis2w-mcp` — full server | `dhis2w-mcp-bridge` — bridge |
-| --- | --- | --- |
-| Exposes | ~304 typed tools (one per CLI command) | one tool, `dhis2_cli`, that runs the `d2w` CLI |
-| Best for | capable **cloud/hosted** models (Claude, GPT, Gemini) | small models running **on-box** (LM Studio, Ollama, llama.cpp) |
-| Why | the host streams every schema; the model selects among them and grounds on typed params, with a typed result/error per call | ~304 schemas cost ≈50-65k tokens a small model can't spare — it discovers commands via `--help` instead |
+There are three ways an agent reaches DHIS2 over MCP — same client + profiles underneath, different
+tool surface on top:
 
-**Rule of thumb: capable cloud model → full server; small on-box model (or data that can't leave the machine) → the bridge.**
+| | `dhis2w-mcp` — full server | `dhis2w-mcp-bridge` — bridge | `dhis2w-mcp-router` — router |
+| --- | --- | --- | --- |
+| Exposes | ~311 typed tools | one tool, `dhis2_cli` (runs `d2w`) | two meta-tools (`search_tools` + `call_tool`) |
+| Up-front payload | huge (~49k tokens) | tiny | tiny |
+| Discovery | none (all schemas present) | high (learn a CLI via `--help`) | low (search returns typed schemas) |
+| Best for | capable **cloud** models | small **on-box** models, PII/local | small models **and** multi-server federation |
+
+**Rule of thumb: capable cloud model → full server; small on-box model (or data that can't leave the
+machine) → the bridge, or the router if you want typed discovery / to federate several MCP servers.**
 
 - **Full server** — set up below, then the [tutorial](tutorial.md), [architecture](../architecture/mcp.md), and [tool reference](../mcp-reference.md).
 - **Bridge** — see its [usage guide](bridge.md) and [design rationale](../architecture/mcp-bridge.md).
+- **Router** — see its [design](../architecture/mcp-router.md).
+- **Compare all three** — the [MCP surfaces map](../architecture/mcp-surfaces.md) shows how they relate, how a call flows end to end (`mcp ⇒ router ⇒ DHIS2`), the shared security model, and how to choose.
 
 The rest of this page sets up the full server (the common path).
 
