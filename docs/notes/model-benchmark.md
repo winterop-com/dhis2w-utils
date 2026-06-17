@@ -35,11 +35,10 @@ installed. Set `BENCH_CHAMPION=<key>` to designate an oracle (see below).
 | `google/gemma-4-12b-qat` | PASS 10.5s | PASS 14.9s | PASS 10.7s | **PASS** 20.3s | ~17 |
 | `google/gemma-4-e4b` | PASS 10.4s | PASS 12.6s | PASS 13.5s | **PASS** 21.4s | ~30 |
 | `qwen/qwen3.5-4b` | PASS 8.2s | PASS 9.1s | PASS 25.8s | **PASS** 10.1s | ~33 |
-| `mn-violet-lotus-12b` | FAIL 6.0s | FAIL 6.3s | PASS 5.5s | cmd-not-found | ~20 |
 
 All four serious candidates pass every read + the write round (oracle clean); `qwen3.5-4b` writes
-fastest. `mn-violet-lotus` (roleplay) fails discovery. Note: this run also caught + fixed a stale
-write-command in the task itself (`dev customize set` → `system settings set`) — see
+fastest. Note: this run also caught + fixed a stale write-command in the task itself
+(`dev customize set` → `system settings set`) — see
 [benchmark-results.md](benchmark-results.md) for the full three-benchmark write-up.
 
 ## The oracle (opt-in)

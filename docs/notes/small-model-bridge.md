@@ -57,11 +57,10 @@ Ranked by primary-prompt wall-clock; `ok` = correct.
 | qwen2.5-coder-1.5b | — | **no** | 1 | 6 | 3.4 | 19 | hallucinated "359" on the bulk dump |
 | qwen2.5-coder-14b | — | **no** | 6 | — | 6.6 | 61 | loops on the bulk dump |
 | llama-3.2-3b | — | **no** | 6 | — | fail | 18 | re-calls instead of answering |
-| mn-violet-lotus-12b | — | **no** | 0 | — | fail | fail | won't call tools (prose only) |
 | llama-3.2-1b | — | **no** | 1 | — | fail | fail | emits the schema as args |
 | gemma-4-31b-jang | — | — | — | — | — | — | won't load |
 
-- **Daily driver: `gemma-4-e4b` or `qwen2.5-coder-3b`.** Avoid llama-3.2-1b/3b, mn-violet-lotus,
+- **Daily driver: `gemma-4-e4b` or `qwen2.5-coder-3b`.** Avoid llama-3.2-1b/3b,
   qwen2.5-coder-14b. gemma-4-12b works but is the slowest.
 - **Context window doesn't affect decode speed**: qwen2.5-coder-3b at 8k/32k/128k → 72/57/70s,
   identical output tokens. 32k is the sweet spot. (KV-cache toggle not automatable via `lms`.)

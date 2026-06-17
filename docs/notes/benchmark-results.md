@@ -17,8 +17,6 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
   MCP write. Best capability-per-GB by a wide margin.
 - **`gemma-4-12b-qat` is dominated** — same correctness as the champion but the slowest model on
   every axis (coding 936s; MCP write 222s). Prime delete candidate.
-- **`mn-violet-lotus-12b` (roleplay) is not a tool model** — **0/7** on tooling, fails the bridge and
-  MCP. Delete.
 - **Two real bugs were caught by the oracle and fixed mid-run** (see Findings): a stale bridge
   write-command, and the full-MCP context-window requirement.
 
@@ -30,15 +28,12 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
 | `gemma-4-12b-qat` | 52/52 | 3/3 | 7/7 | **62/62** | 936s | 35 |
 | `gemma-4-e4b` | 48/49 | 3/3 | 7/7 | **58/59** | 346s | 52 |
 | `qwen3.5-4b` | 44/46 | 2/3 | 7/7 | **53/56** | 471s | 85 |
-| `mn-violet-lotus-12b` | 51/52 | 2/3 | **0/7** | **53/62** | 88s | 26 |
 
 - The two qats are perfect; `e4b` drops one python case; `qwen3.5-4b` drops a couple of python cases
   (the LRU-cache class) plus a `wc` command.
-- **Every model that can tool-call scored 7/7 tooling** — including the four multi-turn agentic chains
-  (look-up-then-email, read-then-count, fetch-rate-then-calc, look-up-then-ticket). So a 4B model
-  (`qwen3.5-4b`, `e4b`) handles multi-turn tool *chaining* fine; size is not the bottleneck there.
-- **`mn-violet-lotus` scored 0/7 tooling** — it's a roleplay finetune that doesn't emit tool calls at
-  all, even though it codes acceptably (51/52 python). It is unusable as an agent.
+- **All four pass 7/7 tooling** — including the four multi-turn agentic chains (look-up-then-email,
+  read-then-count, fetch-rate-then-calc, look-up-then-ticket). So a 4B model (`qwen3.5-4b`, `e4b`)
+  handles multi-turn tool *chaining* fine; size is not the bottleneck there.
 
 ## mcp-bridge (`bench-bridge`) — single-tool discovery, read + write
 
@@ -48,12 +43,10 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
 | `gemma-4-12b-qat` | PASS | PASS | PASS | **PASS** 20.3s | ~17 |
 | `gemma-4-e4b` | PASS | PASS | PASS | **PASS** 21.4s | ~30 |
 | `qwen3.5-4b` | PASS | PASS | PASS | **PASS** 10.1s | ~33 |
-| `mn-violet-lotus-12b` | FAIL | FAIL | PASS | cmd-not-found | ~20 |
 
 - **All four candidates pass every read and the write** (after the write-command fix below). Notably
   `qwen3.5-4b` passes the write *fastest* (10.1s) — earlier in the session it "couldn't find" the
   command, but that was the *stale-command* bug, not the model.
-- `mn-violet-lotus` fails discovery on most tasks — confirms it again.
 
 ## Full MCP (`bench-mcp`) — the whole dhis2-mcp server, read-only-filtered reads, 128k context
 
@@ -63,14 +56,12 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
 | `gemma-4-12b-qat` | PASS | PASS | PASS | **PASS** 222.1s | 119 | ~7 |
 | `gemma-4-e4b` | PASS | PASS | PASS | **PASS** 54.1s | 119 | ~33 |
 | `qwen3.5-4b` | PASS | PASS | PASS | **PASS** 122.8s | 119 | ~13 |
-| `mn-violet-lotus-12b` | FAIL | PASS | FAIL | no-tool (timeout) | 119 | ~2 |
 
 - **All four candidates drive the full MCP server end-to-end** — selecting the right tool among 119
   read tools (and ~311 on the write round) and completing a write. This is the surprising result of
   the night: full MCP is *not* exclusively a cloud-frontier capability.
 - It is **much slower** than the bridge (e.g. champion MCP write 80s vs bridge 16s) and needs a big
   load context — so the bridge is still the right default for PII/local, but full MCP is viable.
-- `mn-violet-lotus` times out (300s) without calling a tool. Delete.
 
 ## Context-window dimension (full MCP, `gemma-4-e4b`)
 
@@ -137,6 +128,5 @@ generous budget; deliberately handicapping the champion is expected to break it.
 
 - **Keep:** `gemma-4-26b-a4b-qat` (oracle / max capability), `gemma-4-e4b` (efficiency winner),
   `qwen3.5-4b` (fast tool driver).
-- **Delete:** `mn-violet-lotus-12b` (0/7 tooling — not an agent model, 13 GB) and **optionally**
-  `gemma-4-12b-qat` (passes everything but is the slowest on every axis at equal correctness — fully
-  dominated by champion + e4b; frees 7 GB).
+- **Delete (optional):** `gemma-4-12b-qat` — passes everything but is the slowest on every axis at
+  equal correctness (fully dominated by champion + e4b; frees 7 GB).
