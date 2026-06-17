@@ -7,12 +7,22 @@ it calls `search_tools(query)` to discover the handful it needs (with their sche
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from fastmcp import FastMCP
 
 from dhis2w_mcp_router.config import load_servers
 from dhis2w_mcp_router.core import Registry
+
+#: Truthy env values that enable global read-only mode (write tools are hidden + refused at dispatch).
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _readonly_enabled() -> bool:
+    """Global read-only mode for the router, from env `MCP_ROUTER_READONLY` (per-server `readonly` also applies)."""
+    return os.environ.get("MCP_ROUTER_READONLY", "").strip().lower() in _TRUTHY
+
 
 mcp: FastMCP = FastMCP(
     "dhis2w-mcp-router",
@@ -31,7 +41,7 @@ def _get_registry() -> Registry:
     """Return the process registry, constructing it from the config on first use."""
     global _registry
     if _registry is None:
-        _registry = Registry(load_servers())
+        _registry = Registry(load_servers(), readonly=_readonly_enabled())
     return _registry
 
 

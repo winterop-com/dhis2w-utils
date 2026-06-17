@@ -24,8 +24,16 @@ bridge avoids that by collapsing everything behind one tool, but then the agent 
 - `search_tools(query, limit)` — matching tools with their **namespaced** names (`server__tool`) and input schemas.
 - `call_tool(name, arguments)` — dispatch one tool to its upstream and return the result.
 
-`call_tool` is a single chokepoint, so a policy guard (read-only, host-protection) can sit there — the
-same security property as the bridge, with typed discovery on top.
+`call_tool` is a single chokepoint, so a policy guard sits there — the same security property as the
+bridge, with typed discovery on top.
+
+## Read-only mode
+
+Set `MCP_ROUTER_READONLY=1` (global) or mark a single upstream `"readonly": true` in the config to run
+read-only: write tools are **hidden from `search_tools`** and **refused by `call_tool`** (a
+`PermissionError`). Tools are classified by their `readOnlyHint` annotation when present, else by a
+read-verb heuristic on the tool name (fail-closed). This is how a local model safely drives the surface
+on a shared host — front `play` read-only and `local` read-write in the same config.
 
 ## Config
 
