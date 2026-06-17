@@ -75,3 +75,32 @@ def test_extract_code_handles_fenced_and_unclosed() -> None:
 def test_is_safe_command(command: str, safe: bool) -> None:
     """The cli sandbox refuses absolute paths, escapes, and dangerous tools before running."""
     assert general._is_safe_command(command) is safe
+
+
+def test_haystack_plants_needle_at_depth() -> None:
+    """The haystack hits ~the target size and plants the needle near the requested depth, not in filler."""
+    from dhis2w_bench import longcontext as lc
+
+    hay = lc._haystack(2000, depth=0.5)
+    assert lc._NEEDLE in hay
+    assert 7000 < len(hay) < 9000  # ~2000 tokens * 4 chars/token + the needle line
+    assert 0.4 < hay.index(lc._NEEDLE) / len(hay) < 0.6
+    assert lc._NEEDLE_SECRET not in hay.replace(lc._NEEDLE, "")  # the secret lives only in the needle
+
+
+def test_longcontext_effective_context() -> None:
+    """`effective_context` is the largest length that retrieved; 0 if none did."""
+    from dhis2w_bench.longcontext import LengthResult, ModelReport
+
+    report = ModelReport(
+        model="m",
+        results=[
+            LengthResult(tokens=2000, ok=True, seconds=1.0),
+            LengthResult(tokens=16000, ok=True, seconds=2.0),
+            LengthResult(tokens=64000, ok=False, seconds=3.0),
+        ],
+    )
+    assert report.effective_context == 16000
+    assert report.all_passed is False
+    miss = ModelReport(model="m", results=[LengthResult(tokens=2000, ok=False, seconds=1.0)])
+    assert miss.effective_context == 0

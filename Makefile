@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-validate bench-matrix bench-composite refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -51,6 +51,7 @@ help:
 	@echo "  bench-round      Drive dhis2w-mcp-bridge with one local model (MODEL= required; ROUND=read|write|bench, PROFILE=)"
 	@echo "  bench-matrix     Command x model matrix: how each model handles every CLI command (ARGS= to slice)"
 	@echo "  bench-composite  Hard multi-object writes (data set+elements, program+stages): no MODELS = oracle; MODELS= drives models (RUNS=3, pass-rate)"
+	@echo "  bench-longcontext Needle-in-a-haystack retrieval at increasing lengths (MODELS= required; BENCH_CONTEXT=128K)"
 	@echo ""
 	@echo "  For niche targets (versions, wait, status, logs, pat) use 'make -C infra help'."
 
@@ -244,6 +245,12 @@ bench-composite:
 	@echo "    No MODELS: run the deterministic oracle. MODELS=\"<key> ...\": drive each model via the bridge."
 	@lms server start >/dev/null 2>&1 || true
 	@$(UV) run python -u -m dhis2w_bench.composite $(if $(MODELS),--models $(MODELS)) $(if $(RUNS),--runs $(RUNS)) $(ARGS)
+
+bench-longcontext:
+	@test -n "$(MODELS)" || { echo "usage: make bench-longcontext MODELS=\"<key> ...\"  (no default; see 'make bench-list')"; exit 2; }
+	@echo ">>> Long-context retrieval (needle-in-a-haystack) at increasing lengths; loads each model at BENCH_CONTEXT (128k)."
+	@lms server start >/dev/null 2>&1 || true
+	@$(UV) run python -u -m dhis2w_bench.longcontext $(MODELS)
 
 bench-matrix:
 	@echo ">>> CLI command x model matrix (how each roster model handles every command; read-only on play42)"
