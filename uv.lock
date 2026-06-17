@@ -16,6 +16,7 @@ members = [
     "dhis2w-core",
     "dhis2w-mcp",
     "dhis2w-mcp-bridge",
+    "dhis2w-mcp-router",
 ]
 
 [manifest.dependency-groups]
@@ -732,6 +733,21 @@ dependencies = [
 requires-dist = [
     { name = "dhis2w-cli", editable = "packages/dhis2w-cli" },
     { name = "fastmcp", specifier = ">=3.4" },
+]
+
+[[package]]
+name = "dhis2w-mcp-router"
+version = "0.23.0"
+source = { editable = "packages/dhis2w-mcp-router" }
+dependencies = [
+    { name = "fastmcp" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastmcp", specifier = ">=3.4.2" },
+    { name = "pydantic", specifier = ">=2.13.4" },
 ]
 
 [[package]]
