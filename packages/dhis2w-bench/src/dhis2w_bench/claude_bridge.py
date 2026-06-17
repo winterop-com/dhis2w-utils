@@ -1,23 +1,23 @@
-"""Drive a cloud Claude model over the full dhis2-mcp server via the Agent SDK — the cloud peer of bench-mcp.
+"""Drive a cloud Claude model over the single-tool dhis2_cli bridge via the Agent SDK.
 
-Where `bench-mcp` benchmarks LOCAL models over a hand-rolled OpenAI tool loop, this hands the whole
-dhis2-mcp tool surface to a cloud Claude model and lets the Claude Agent SDK drive its own loop: the SDK
-spawns dhis2-mcp, Claude discovers and calls tools. Three rounds, reusing bench-mcp / bench-composite
-tasks + scoring so local and cloud are directly comparable:
+Cloud peer of `bench-bridge` + `bench-composite`: where those drive LOCAL models over the bridge with a
+hand-rolled OpenAI loop, this hands the single `dhis2_cli` tool to a cloud Claude model and lets the
+Claude Agent SDK drive its own loop. Three rounds, reusing the existing tasks + scoring so local and
+cloud are directly comparable:
 
-- read      (play42): the shared read tasks, behind a fail-closed read-only gate (nothing mutates).
-- write     (local_basic): the single system-setting round-trip via typed tools, then restore.
-- composite (local_basic): the HARD multi-object authoring scenarios — the real local/cloud discriminator.
+- read      (play42, bridge readonly): the shared read tasks.
+- write     (local_basic): the single system-setting round-trip, then restore the baseline.
+- composite (local_basic): the HARD multi-object authoring scenarios — the real local/cloud
+  discriminator (local 4B models score 0/3 on the dataset; the strong locals only ~2/3).
 
-Auth is AMBIENT — the logged-in Claude Code subscription. No API key is read, passed, or stored. The
-read round is gated read-only; the write/composite rounds run against `local_basic` ONLY (the full
-server has no readonly guard, so the gate plus the local-only profile are the safety boundary). Each
-task costs real subscription budget.
+Auth is AMBIENT — the logged-in Claude Code subscription. No API key is read, passed, or stored. Writes
+target `local_basic` ONLY; the bridge's host-guard refuses writes to public hosts regardless of this
+harness. Each task costs real subscription budget.
 
 Usage:
-    uv run python -m dhis2w_bench.claude_mcp                 # session-default model, all rounds
-    uv run python -m dhis2w_bench.claude_mcp opus sonnet     # compare named models
-    uv run python -m dhis2w_bench.claude_mcp --runs 3        # repeat the flaky composite round
+    uv run python -m dhis2w_bench.claude_bridge                 # session-default model, all rounds
+    uv run python -m dhis2w_bench.claude_bridge opus sonnet     # compare models
+    uv run python -m dhis2w_bench.claude_bridge --runs 3        # repeat the flaky composite round
 """
 
 from __future__ import annotations
@@ -42,19 +42,18 @@ from claude_agent_sdk import (
 )
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_bench.bridge import READ_TASKS, REPO, WRITE_TASK, _normalize_args, _score_read, _used
 from dhis2w_bench.composite import SCENARIOS, _cleanup_model, _verify_model, run_cli, run_cli_json
-from dhis2w_bench.mcp import READ_TASKS, REPO, WRITE_TASK, _is_read_tool, _score_read
 
-#: Discovery tool the SDK exposes to find deferred MCP tools; harmless and needed, so always allowed.
+#: The SDK's discovery tool and the bridge's single tool (server key "dhis2"); only these are permitted.
 _TOOL_SEARCH = "ToolSearch"
-#: Prefix the SDK gives dhis2-mcp tools (server key "dhis2").
-_MCP_PREFIX = "mcp__dhis2__"
+_BRIDGE_TOOL = "mcp__dhis2__dhis2_cli"
 #: Per-round turn caps — composite authoring needs many steps; reads are quick.
-_TURNS_READ = 16
-_TURNS_WRITE = 18
-_TURNS_COMPOSITE = 40
-_READ_PROFILE = "play42"
+_TURNS_READ = 10
+_TURNS_WRITE = 14
+_TURNS_COMPOSITE = 36
 _WRITE_PROFILE = "local_basic"
+_READ_PROFILE = "play42"
 
 
 class TaskOutcome(BaseModel):
@@ -72,7 +71,7 @@ class TaskOutcome(BaseModel):
 
 
 class ModelReport(BaseModel):
-    """A model's results over the full dhis2-mcp server across all three rounds."""
+    """A model's results over the bridge across all three rounds."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -91,52 +90,41 @@ class ModelReport(BaseModel):
 
 
 class _Run(BaseModel):
-    """Raw capture of one agent run: the final answer plus the tool names it called."""
+    """Raw capture of one agent run: the final answer plus the dhis2_cli arg-lists it issued."""
 
     model_config = ConfigDict(frozen=True)
 
     answer: str
-    tool_names: list[str]
+    tool_args: list[list[str]]
     turns: int
     cost_usd: float
     seconds: float
 
 
-async def _read_only_gate(
+async def _bridge_gate(
     tool_name: str, _input: dict[str, Any], _context: ToolPermissionContext
 ) -> PermissionResultAllow | PermissionResultDeny:
-    """Allow tool discovery and read-verb dhis2 tools only; deny writes and every built-in tool (fail-closed)."""
-    if tool_name == _TOOL_SEARCH:
+    """Permit only tool discovery and the single dhis2_cli tool; deny built-ins (fail-closed)."""
+    if tool_name in (_TOOL_SEARCH, _BRIDGE_TOOL):
         return PermissionResultAllow()
-    if tool_name.startswith(_MCP_PREFIX) and _is_read_tool(tool_name[len(_MCP_PREFIX) :]):
-        return PermissionResultAllow()
-    return PermissionResultDeny(message="read-only round: only dhis2 read tools are permitted")
+    return PermissionResultDeny(message="bridge benchmark: only the dhis2_cli tool is permitted")
 
 
-async def _write_gate(
-    tool_name: str, _input: dict[str, Any], _context: ToolPermissionContext
-) -> PermissionResultAllow | PermissionResultDeny:
-    """Allow tool discovery and ANY dhis2 tool (read or write); deny every built-in tool (fail-closed)."""
-    if tool_name == _TOOL_SEARCH or tool_name.startswith(_MCP_PREFIX):
-        return PermissionResultAllow()
-    return PermissionResultDeny(message="dhis2-only round: built-in tools are not permitted")
-
-
-def _options(model: str | None, profile: str, gate: Any, max_turns: int) -> ClaudeAgentOptions:
-    """Agent options: spawn dhis2-mcp on `profile`, apply `gate`, isolate from local settings."""
+def _options(profile: str, readonly: str, model: str | None, max_turns: int) -> ClaudeAgentOptions:
+    """Agent options spawning the dhis2_cli bridge for `profile` (readonly "1"/"0"), gated to that one tool."""
     return ClaudeAgentOptions(
         mcp_servers={
             "dhis2": {
                 "type": "stdio",
                 "command": "uv",
-                "args": ["run", "--directory", REPO, "dhis2w-mcp"],
-                # The SDK REPLACES the child env, so merge os.environ or the server dies with "Stream closed".
-                "env": {**os.environ, "DHIS2_PROFILE": profile},
+                "args": ["run", "--directory", REPO, "dhis2w-mcp-bridge"],
+                # The SDK REPLACES the child env; merge os.environ or the bridge dies with "Stream closed".
+                "env": {**os.environ, "DHIS2_PROFILE": profile, "DHIS2_MCP_READONLY": readonly},
             }
         },
         strict_mcp_config=True,
         setting_sources=[],
-        can_use_tool=gate,
+        can_use_tool=_bridge_gate,
         permission_mode="default",
         max_turns=max_turns,
         model=model,
@@ -144,20 +132,20 @@ def _options(model: str | None, profile: str, gate: Any, max_turns: int) -> Clau
     )
 
 
-async def _drive(goal: str, model: str | None, profile: str, gate: Any, max_turns: int) -> _Run:
-    """Run one goal through Claude + the full MCP server; capture answer, tool names, turns, cost, time."""
-    tool_names: list[str] = []
+async def _drive(goal: str, profile: str, readonly: str, model: str | None, max_turns: int) -> _Run:
+    """Run one goal through Claude + the bridge; capture answer, every dhis2_cli arg-list, turns, cost, time."""
+    tool_args: list[list[str]] = []
     answer = ""
     turns = 0
     cost_usd = 0.0
     started = time.monotonic()
-    async with ClaudeSDKClient(options=_options(model, profile, gate, max_turns)) as client:
+    async with ClaudeSDKClient(options=_options(profile, readonly, model, max_turns)) as client:
         await client.query(goal)
         async for message in client.receive_response():
             if isinstance(message, AssistantMessage):
                 for block in message.content:
-                    if isinstance(block, ToolUseBlock):
-                        tool_names.append(block.name)
+                    if isinstance(block, ToolUseBlock) and block.name == _BRIDGE_TOOL:
+                        tool_args.append(_normalize_args(block.input))
                     elif isinstance(block, TextBlock) and block.text.strip():
                         answer = block.text.strip()
             elif isinstance(message, ResultMessage):
@@ -165,8 +153,7 @@ async def _drive(goal: str, model: str | None, profile: str, gate: Any, max_turn
                 cost_usd = message.total_cost_usd or 0.0
                 if message.result:
                     answer = message.result
-    elapsed = time.monotonic() - started
-    return _Run(answer=answer, tool_names=tool_names, turns=turns, cost_usd=cost_usd, seconds=elapsed)
+    return _Run(answer=answer, tool_args=tool_args, turns=turns, cost_usd=cost_usd, seconds=time.monotonic() - started)
 
 
 def _baseline_min_password() -> int:
@@ -180,11 +167,11 @@ def _baseline_min_password() -> int:
 
 
 async def _read_round(model: str | None) -> list[TaskOutcome]:
-    """The shared read tasks against play42 behind the read-only gate."""
+    """The shared read tasks against play42 with the bridge in readonly mode."""
     outcomes: list[TaskOutcome] = []
-    for key, goal in READ_TASKS:
-        run = await _drive(goal, model, _READ_PROFILE, _read_only_gate, _TURNS_READ)
-        ok = _score_read(key, run.answer)
+    for key, task in READ_TASKS:
+        run = await _drive(task, _READ_PROFILE, "1", model, _TURNS_READ)
+        ok = _score_read(key, run.answer, run.tool_args)
         outcomes.append(
             TaskOutcome(round="read", key=key, ok=ok, turns=run.turns, cost_usd=run.cost_usd, seconds=run.seconds)
         )
@@ -193,12 +180,11 @@ async def _read_round(model: str | None) -> list[TaskOutcome]:
 
 
 async def _write_round(model: str | None) -> TaskOutcome:
-    """The single system-setting round-trip on local_basic via typed tools, restoring the baseline afterwards."""
+    """The single system-setting round-trip on local_basic, restoring the baseline afterwards."""
     baseline = _baseline_min_password()
     try:
-        run = await _drive(WRITE_TASK, model, _WRITE_PROFILE, _write_gate, _TURNS_WRITE)
-        wrote = any("settings_set" in name or name.endswith("_set") for name in run.tool_names)
-        ok = wrote and "10" in run.answer
+        run = await _drive(WRITE_TASK, _WRITE_PROFILE, "0", model, _TURNS_WRITE)
+        ok = _used(run.tool_args, ["system", "settings", "set"]) and "10" in run.answer
         print(f"  write minPasswordLength: {'PASS' if ok else 'FAIL'} {run.seconds:.1f}s ${run.cost_usd:.3f}")
         return TaskOutcome(
             round="write", key="minPasswordLength", ok=ok, turns=run.turns, cost_usd=run.cost_usd, seconds=run.seconds
@@ -214,7 +200,7 @@ async def _composite_round(model: str | None, runs: int) -> list[TaskOutcome]:
         passes = 0
         for run_index in range(1, runs + 1):
             try:
-                run = await _drive(scenario.goal, model, _WRITE_PROFILE, _write_gate, _TURNS_COMPOSITE)
+                run = await _drive(scenario.goal, _WRITE_PROFILE, "0", model, _TURNS_COMPOSITE)
                 ok, detail = _verify_model(_WRITE_PROFILE, scenario.key)
                 cost, secs, turns = run.cost_usd, run.seconds, run.turns
             except Exception as exc:  # noqa: BLE001 — isolate one run so the sweep continues
@@ -239,7 +225,7 @@ async def _composite_round(model: str | None, runs: int) -> list[TaskOutcome]:
 
 
 async def _benchmark_model(model: str | None, runs: int) -> ModelReport:
-    """Run all three rounds against one Claude model over the full MCP server."""
+    """Run all three rounds against one Claude model over the bridge."""
     label = model or "session-default"
     print(f">>> {label}")
     outcomes = await _read_round(model)
@@ -276,7 +262,7 @@ async def _run(models: list[str | None], runs: int) -> None:
 
 
 def main() -> None:
-    """CLI entry: drive named Claude models (or the session default) over the full dhis2-mcp across all rounds."""
+    """CLI entry: drive named Claude models (or the session default) over the bridge across all rounds."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("models", nargs="*", help="Model ids/aliases (e.g. opus sonnet); empty = session default.")
     parser.add_argument("--runs", type=int, default=1, help="Composite runs per scenario (it is flaky; default 1).")

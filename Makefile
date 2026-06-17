@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-claude-mcp bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -49,6 +49,7 @@ help:
 	@echo "  bench-bridge     Axis 2 — benchmark named models over the bridge: read+write+perf (MODELS= required; BENCH_ORACLE=)"
 	@echo "  bench-mcp        Full dhis2-mcp server (~311 tools), read+write (MODELS= required; BENCH_CONTEXT=128K)"
 	@echo "  bench-claude-mcp Cloud Claude over full dhis2-mcp via Agent SDK, read suite on play42 (MODELS= optional; ambient subscription auth)"
+	@echo "  bench-claude-bridge Cloud Claude over the dhis2_cli bridge: read+write+composite (MODELS= optional; RUNS= composite reps; needs make dhis2-run)"
 	@echo "  bench-round      Drive dhis2w-mcp-bridge with one local model (MODEL= required; ROUND=read|write|bench, PROFILE=)"
 	@echo "  bench-matrix     Command x model matrix: how each model handles every CLI command (ARGS= to slice)"
 	@echo "  bench-composite  Hard multi-object writes (data set+elements, program+stages): no MODELS = oracle; MODELS= drives models (RUNS=3, pass-rate)"
@@ -237,6 +238,12 @@ bench-claude-mcp:
 	@echo "    Auth is AMBIENT (logged-in Claude Code subscription) — no API key read or stored; costs subscription budget."
 	@echo "    MODELS optional: 'make bench-claude-mcp MODELS=\"opus sonnet\"' compares; empty = session-default model."
 	@$(UV) run python -u -m dhis2w_bench.claude_mcp $(MODELS)
+
+bench-claude-bridge:
+	@echo ">>> Cloud Claude drives the dhis2_cli bridge via the Agent SDK: read (play42) + write + composite (local_basic)."
+	@echo "    Auth is AMBIENT (logged-in Claude Code subscription) — no API key read or stored; costs subscription budget."
+	@echo "    Write + composite rounds need local_basic up (make dhis2-run). MODELS optional; RUNS= repeats the flaky composite."
+	@$(UV) run python -u -m dhis2w_bench.claude_bridge $(MODELS) $(if $(RUNS),--runs $(RUNS))
 
 bench-validate:
 	@test -n "$(MODEL)" || { echo "usage: make bench-validate MODEL=<key>   (e.g. google/gemma-4-12b-qat)"; exit 2; }

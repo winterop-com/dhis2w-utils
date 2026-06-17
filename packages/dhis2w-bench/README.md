@@ -11,12 +11,18 @@ PII -> local + bridge), so all three matter:
   the command surface. The PII-safe path.
 - **full mcp** (`make bench-mcp`) — the whole dhis2-mcp server (~311 tools) loaded up front.
 
-The local benchmarks have a **cloud peer** for the full-MCP surface:
+The local benchmarks have **cloud peers** that drive the same surfaces with a cloud Claude model
+through the Claude Agent SDK's native loop (not the local OpenAI loop). Auth is ambient (the
+logged-in Claude Code subscription) — no API key is read or stored; costs subscription budget.
 
-- **cloud claude over full mcp** (`make bench-claude-mcp`) — a cloud Claude model drives the whole
-  dhis2-mcp server through the Claude Agent SDK's native loop (not the local OpenAI loop). Auth is
-  ambient (the logged-in Claude Code subscription) — no API key is read or stored. Read suite on
-  `play42`, kept safe by a fail-closed read-only permission gate. Costs subscription budget.
+- **cloud claude over full mcp** (`make bench-claude-mcp`) — the whole dhis2-mcp server (typed tools).
+- **cloud claude over the bridge** (`make bench-claude-bridge`) — the single `dhis2_cli` tool.
+
+Both run three rounds (reusing the local tasks + scoring, so cloud and local are comparable): **read**
+(`play42`, behind a fail-closed read-only gate), **write** (`local_basic`, restored after), and the
+hard **composite** multi-object authoring scenarios (`local_basic`) — the real local/cloud
+discriminator. Writes go to `local_basic` only (the bridge host-guard + the gate + the local-only
+profile are the safety boundary). The write/composite rounds need `make dhis2-run`.
 
 Plus `make bench-list` (installed models), `bench-validate`, `bench-round`, `bench-matrix`,
 `bench-composite`, `bench-longcontext`. See `docs/notes/benchmark-plan.md` and
@@ -35,12 +41,13 @@ make bench-list
 make bench-general MODELS="<key> ..."
 make bench-bridge  MODELS="<key> ..."   # needs make dhis2-run (local_basic)
 make bench-mcp     MODELS="<key> ..."   # loads at BENCH_CONTEXT (default 128k)
-make bench-claude-mcp                   # cloud Claude (session default); or MODELS="opus sonnet"
+make bench-claude-mcp                   # cloud Claude over full mcp (session default); MODELS="opus sonnet"
+make bench-claude-bridge                # cloud Claude over the bridge; RUNS=3 repeats the composite
 ```
 
-`bench-claude-mcp` needs no local model server — just a logged-in Claude Code subscription
-(`claude setup-token` or `/login`). Make sure `ANTHROPIC_API_KEY` is **unset** so it uses the
-subscription rather than billing API credits.
+The `bench-claude-*` lanes need no local model server — just a logged-in Claude Code subscription
+(`claude setup-token` or `/login`). Make sure `ANTHROPIC_API_KEY` is **unset** so they use the
+subscription rather than billing API credits. Their write/composite rounds need `make dhis2-run`.
 
 Knobs: `BENCH_ORACLE` (oracle), `BENCH_MAX_TOKENS` (generation cap), `BENCH_CONTEXT` (load context),
 `MODEL_BACKEND` (backend).

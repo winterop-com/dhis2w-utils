@@ -100,6 +100,36 @@ Three things this says — and a methodology warning:
 - **Methodology:** single-run composite results are not trustworthy — always run the hard-write
   dimension N times.
 
+## Cloud Claude vs local (`bench-claude-mcp` / `bench-claude-bridge`)
+
+Since we have Claude access (most deployments won't), we ran a cloud Claude model (session default =
+Opus) over **both** surfaces through the Claude Agent SDK's native loop — reusing the same tasks +
+scoring, so it's directly comparable to the local rows. Auth is ambient (the logged-in Claude Code
+subscription); the read round is read-only-gated on play42, write/composite run on local_basic.
+
+| surface | read | write | dataset+elements | program+stages | cost |
+| --- | --- | --- | --- | --- | --- |
+| **bridge** (`dhis2_cli`) | 3/3 | PASS | **1/1** | **1/1** | $1.81 |
+| **full mcp** (typed tools) | 3/3 | PASS | **1/1** | **1/1** | $1.56 |
+
+Cloud Claude scored **100% on both surfaces** — every read, the write, and both composite authoring
+scenarios, first try (at `RUNS=1`; the local composite bench runs N times because local models are
+flaky there, which is the point).
+
+- **The composite (hard authoring) round is where this matters, and cloud Claude clears it cleanly.**
+  Over the bridge, Claude built the Monthly data set with two new data elements and the event program
+  with two stages — both verified 2/2 children — first try. That is exactly the round where the local
+  4B models score **0/3** and even the strong local qats only manage **~2/3** (flaky). So the
+  local/cloud gap is real and lands precisely on **multi-object authoring**, not on reads or easy
+  writes (where local models already pass).
+- **Cost is the trade**: ~$1.81 for the whole bridge suite (read+write+2 composites) of subscription
+  budget — versus free-but-flaky local. This is the quantified case for the data-sensitivity split:
+  aggregate/non-PII -> cloud (reliable authoring); PII -> local + bridge (free, private, needs
+  retry+verify on composites).
+- Methodology mirrors the local composite bench: each scenario is verified (find the named object,
+  count its children) and cleaned up; the write round restores the baseline. Repeat the flaky round
+  with `RUNS=3`.
+
 ## Context-window dimension (full MCP, `gemma-4-e4b`)
 
 The full-MCP payload is the gate, so loaded context decides what works (read tools ~16k tokens, the
