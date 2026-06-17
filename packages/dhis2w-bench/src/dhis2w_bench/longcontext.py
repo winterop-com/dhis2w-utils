@@ -138,28 +138,33 @@ class ModelReport(BaseModel):
 
 
 async def _ask(http: httpx.AsyncClient, model: str, prompt: str) -> tuple[str, float, str]:
-    """One retrieval query. Returns (answer, seconds, note) — note flags a context overflow."""
-    started = time.monotonic()
-    try:
-        response = await http.post(
-            LM,
-            json={
-                "model": model,
-                "messages": [{"role": "system", "content": _SYSTEM}, {"role": "user", "content": prompt}],
-                "temperature": 0.0,
-                "max_tokens": ANSWER_TOKENS,
-            },
-            timeout=600.0,
-        )
-    except httpx.HTTPError as exc:
-        return ("", time.monotonic() - started, f"request error: {type(exc).__name__}")
-    elapsed = time.monotonic() - started
-    if response.status_code != 200:
-        body = response.text.lower()
-        note = "context overflow" if "context" in body else f"http {response.status_code}"
-        return ("", elapsed, note)
-    parsed = _ChatResponse.model_validate(response.json())
-    return (parsed.choices[0].message.content or "", elapsed, "")
+    """One retrieval query (retries once on a fast non-200). Returns (answer, seconds, note).
+
+    A large cold prompt sometimes 400s on the first KV-cache allocation, then succeeds once warm — so a
+    non-200 gets one retry. A timeout is the opposite (the model is just slow), so it is not retried.
+    """
+    body = {
+        "model": model,
+        "messages": [{"role": "system", "content": _SYSTEM}, {"role": "user", "content": prompt}],
+        "temperature": 0.0,
+        "max_tokens": ANSWER_TOKENS,
+    }
+    note = ""
+    for attempt in (1, 2):
+        started = time.monotonic()
+        try:
+            response = await http.post(LM, json=body, timeout=600.0)
+        except httpx.HTTPError as exc:
+            return ("", time.monotonic() - started, f"request error: {type(exc).__name__}")
+        elapsed = time.monotonic() - started
+        if response.status_code == 200:
+            parsed = _ChatResponse.model_validate(response.json())
+            return (parsed.choices[0].message.content or "", elapsed, "")
+        detail = " ".join(response.text.split())[:160]
+        note = f"http {response.status_code}: {detail}" if detail else f"http {response.status_code}"
+        if attempt == 1:
+            print(f"     (retrying once after {note})")
+    return ("", elapsed, note)
 
 
 async def _benchmark_model(http: httpx.AsyncClient, model: str, load_context: int) -> ModelReport:

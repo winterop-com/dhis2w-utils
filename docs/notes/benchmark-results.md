@@ -21,6 +21,9 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
   (it ties the 12B on composites and is faster + more general); the 12B is the half-the-RAM equivalent.
 - **Authoring is flaky (~2/3) even for the strong models** — a real 1.0 caveat; a local PII-author
   needs retries + verification. (Single composite runs are misleading — always run N times.)
+- **Long-context retrieval is not size-bound:** the 4B `qwen3.5-4b` and the 26B oracle both retrieve a
+  planted fact cleanly at **100k** tokens; the 12B is too slow past 16k and `e4b` caps at its 128k max
+  (effective 64k). See the long-context section.
 - **Two real bugs were caught by the oracle and fixed mid-run** (see Findings): a stale bridge
   write-command, and the full-MCP context-window requirement. A third (the composite oracle itself)
   was caught when its deterministic run failed.
@@ -112,6 +115,31 @@ write round's full toolset ~49k):
 So full-MCP **reads need roughly ≥32k** context and **writes need ≥64k**; 128k is comfortably safe
 (the default `BENCH_CONTEXT`). (\*the 64k read FAILs in one run were small-model answer-variance, not
 a context effect — they pass at 32k and 128k.) Vary `BENCH_CONTEXT` to test other models/levels.
+
+## Long-context retrieval (`bench-longcontext`) — effective context
+
+Needle-in-a-haystack: plant one fact in a filler log at increasing lengths, ask for it, score exact
+retrieval. Each model loads at min(`BENCH_CONTEXT`, its own max), 256k target. This measures the
+*effective* context — what a model can actually use, vs its advertised max.
+
+| model | 2k | 16k | 64k | 100k | effective |
+| --- | --- | --- | --- | --- | --- |
+| `gemma-4-26b-a4b-qat` (oracle) | PASS | PASS | PASS | PASS\* | **100k** |
+| `gemma-4-12b-qat` | PASS | PASS | timeout | timeout | 16k |
+| `gemma-4-e4b` | PASS | PASS | PASS | n/a (128k cap) | 64k |
+| `qwen3.5-4b` | PASS | PASS | PASS | PASS | **100k** |
+
+- **`qwen3.5-4b` and the 26B oracle both retrieve cleanly at 100k** — the two long-context leaders, and
+  `qwen` (a 4B) does it fastest. Long-context retrieval is *not* size-bound.
+- **`e4b` genuinely caps at 128k** (its model max), so 100k can't fit alongside the answer — reported as
+  a **skip**, not a failure. Its real ceiling here is 64k.
+- **`gemma-4-12b-qat` is too slow past 16k** — 64k/100k hit the 600s timeout (not a retrieval miss, a
+  latency wall). Effective 16k *in practice* on this hardware.
+- **\*Methodology — a transient cold-allocation 400.** In the batched sweep the 26B's 100k first
+  returned an HTTP 400 (not a context-overflow message); an isolated retry retrieved correctly in ~15s
+  (warm KV cache). So a large cold prompt can 400 on first allocation then succeed — `bench-longcontext`
+  now **retries once on a fast non-200** (but never on a timeout, which means the model is simply slow).
+  The 26B's true effective context is **100k**, not the 64k the raw sweep first showed.
 
 ## Token-budget dimension (coding at `BENCH_MAX_TOKENS=2048`)
 
