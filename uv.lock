@@ -8,6 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "dhis2w-bench",
     "dhis2w-browser",
     "dhis2w-cli",
     "dhis2w-client",
@@ -27,7 +28,7 @@ dev = [
     { name = "mypy", specifier = ">=2" },
     { name = "pillow", specifier = ">=12.2.0" },
     { name = "pyright", specifier = ">=1.1" },
-    { name = "pytest", specifier = ">=9" },
+    { name = "pytest", specifier = ">=9.1.0" },
     { name = "pytest-asyncio", specifier = ">=1.4" },
     { name = "pytest-cov", specifier = ">=7" },
     { name = "respx", specifier = ">=0.23" },
@@ -382,6 +383,24 @@ wheels = [
 ]
 
 [[package]]
+name = "claude-agent-sdk"
+version = "0.2.103"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "mcp" },
+    { name = "sniffio" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7a/fc/fb817a177ffa11e2ce073bcf21c1a24d92fc59c5ccf2a20a2a4cfc7de534/claude_agent_sdk-0.2.103.tar.gz", hash = "sha256:58c89a28c481b65e68855a717137a7b2822f1e829cc2368f438116f7ea8687b2", size = 255630, upload-time = "2026-06-16T20:35:35.284Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5b/89/06ac07346d50375fee6f862f896ee749454702cbe71be081cdd57c3b05de/claude_agent_sdk-0.2.103-py3-none-macosx_11_0_arm64.whl", hash = "sha256:ccf1a1b480da1799ce7b718f72879bd58466049249da161f2990af82a60eda49", size = 66449533, upload-time = "2026-06-16T20:35:38.536Z" },
+    { url = "https://files.pythonhosted.org/packages/28/31/7380b0d27bd2fcbe704063a195b9255bbac385e3db93c49a18af0257cfb2/claude_agent_sdk-0.2.103-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:dc35aae6faefcb9422493372ec19b62e1379f8b94d01c2ce9c4c7e3bc0c39667", size = 68515361, upload-time = "2026-06-16T20:35:41.555Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/21/f3247e25d475ca878b6801755b44183be975c28d7ffc16fa0aabab663f83/claude_agent_sdk-0.2.103-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:c665d0e2d8e4867ccb9cfd50595540142bc78d3d65e91e796a40d0b8ebbeb049", size = 76023666, upload-time = "2026-06-16T20:35:45.232Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/41/af7c48a743b8b01b45ffa215455fa4665b7459315197c3936da484830387/claude_agent_sdk-0.2.103-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:fdf4fae0974090924f38090914b58d82bfad8709bab33514eaaf7fce837521e4", size = 76209944, upload-time = "2026-06-16T20:35:49.801Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/5e/5930a283a5aa392352482283da7416b589dddb4ef49b71b58bce8feaf923/claude_agent_sdk-0.2.103-py3-none-win_amd64.whl", hash = "sha256:2b1b57f73ebd9d9436d43354968543e84c164fa637591809da7d4bacf406d7a8", size = 76826039, upload-time = "2026-06-16T20:35:53.254Z" },
+]
+
+[[package]]
 name = "click"
 version = "8.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -540,8 +559,31 @@ wheels = [
 ]
 
 [[package]]
+name = "dhis2w-bench"
+version = "0.23.0"
+source = { editable = "packages/dhis2w-bench" }
+dependencies = [
+    { name = "claude-agent-sdk" },
+    { name = "dhis2w-cli" },
+    { name = "fastmcp" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "claude-agent-sdk", specifier = ">=0.2.103" },
+    { name = "dhis2w-cli", editable = "packages/dhis2w-cli" },
+    { name = "fastmcp", specifier = ">=3.4.2" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "typer", specifier = ">=0.26.7" },
+]
+
+[[package]]
 name = "dhis2w-browser"
-version = "0.21.0"
+version = "0.23.0"
 source = { editable = "packages/dhis2w-browser" }
 dependencies = [
     { name = "dhis2w-client" },
@@ -560,7 +602,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-cli"
-version = "0.21.0"
+version = "0.23.0"
 source = { editable = "packages/dhis2w-cli" }
 dependencies = [
     { name = "dhis2w-core" },
@@ -584,7 +626,7 @@ provides-extras = ["browser"]
 
 [[package]]
 name = "dhis2w-client"
-version = "0.21.0"
+version = "0.23.0"
 source = { editable = "packages/dhis2w-client" }
 dependencies = [
     { name = "geojson-pydantic" },
@@ -601,7 +643,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-codegen"
-version = "0.21.0"
+version = "0.23.0"
 source = { editable = "packages/dhis2w-codegen" }
 dependencies = [
     { name = "dhis2w-client" },
@@ -624,7 +666,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-core"
-version = "0.21.0"
+version = "0.23.0"
 source = { editable = "packages/dhis2w-core" }
 dependencies = [
     { name = "aiosqlite" },
@@ -657,7 +699,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-mcp"
-version = "0.21.0"
+version = "0.23.0"
 source = { editable = "packages/dhis2w-mcp" }
 dependencies = [
     { name = "dhis2w-core" },
@@ -679,7 +721,7 @@ provides-extras = ["browser"]
 
 [[package]]
 name = "dhis2w-mcp-bridge"
-version = "0.21.0"
+version = "0.23.0"
 source = { editable = "packages/dhis2w-mcp-bridge" }
 dependencies = [
     { name = "dhis2w-cli" },
@@ -1804,7 +1846,7 @@ wheels = [
 
 [[package]]
 name = "pytest"
-version = "9.0.3"
+version = "9.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
@@ -1813,9 +1855,9 @@ dependencies = [
     { name = "pluggy" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/0d/549bd94f1a0a402dc8cf64563a117c0f3765662e2e668477624baeec44d5/pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c", size = 1572165, upload-time = "2026-04-07T17:16:18.027Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/0e/b5858858d74958632c49b72cb25a3976ff9f632397626715be71c89d3971/pytest-9.1.0.tar.gz", hash = "sha256:41dd9148c08072446394cefd3d79701701335a9f4cae69ba92e39f6c7f5c061c", size = 1634181, upload-time = "2026-06-13T18:52:45.983Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9", size = 375249, upload-time = "2026-04-07T17:16:16.13Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/5a/ba30a81239b909821b3153e303e7def45178bf353da4f72380e6c5e8793b/pytest-9.1.0-py3-none-any.whl", hash = "sha256:8ebb0e7888bdf2bdfc602ec51f8f62d50200af37356c74e503c79a94f5c81f32", size = 386453, upload-time = "2026-06-13T18:52:44.045Z" },
 ]
 
 [[package]]
@@ -2174,6 +2216,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
+name = "sniffio"
+version = "1.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/87/a6771e1546d97e7e041b6ae58d80074f81b7d5121207425c964ddf5cfdbd/sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc", size = 20372, upload-time = "2024-02-25T23:20:04.057Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/44/75a9c9421471a6c4805dbf2356f7c181a29c1879239abab1ea2cc8f38b40/sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2", size = 10235, upload-time = "2024-02-25T23:20:01.196Z" },
 ]
 
 [[package]]

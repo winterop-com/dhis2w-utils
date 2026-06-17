@@ -12,6 +12,7 @@ from dhis2w_core.profile import Profile
 from dhis2w_core.v42.plugins.apps import plugin, service
 from dhis2w_core.v42.plugins.apps.cli import app as apps_app
 from dhis2w_core.v42.plugins.apps.models import UpdateSummary
+from dhis2w_core.v42.plugins.apps.service import InstallTargetError
 from typer.testing import CliRunner
 
 _runner = CliRunner()
@@ -241,3 +242,72 @@ async def test_update_one_unknown_key_fails_cleanly(profile: Profile) -> None:
     assert outcome.status == "FAILED"
     assert outcome.reason is not None
     assert "missing" in outcome.reason
+
+
+@respx.mock
+async def test_install_from_hub_with_version_id_installs_directly(profile: Profile) -> None:
+    """A real App Hub version id is POSTed straight to /api/appHub/{versionId}; resolved_from='version-id'."""
+    _mock_preamble()
+    respx.get("https://dhis2.example/api/appHub").mock(return_value=httpx.Response(200, json=_HUB))
+    install_route = respx.post("https://dhis2.example/api/appHub/ver-200").mock(return_value=httpx.Response(201))
+
+    target = await service.install_from_hub(profile, "ver-200")
+
+    assert install_route.called
+    assert target.version_id == "ver-200"
+    assert target.version == "2.0.0"
+    assert target.app_name == "Dashboard Widget"
+    assert target.resolved_from == "version-id"
+
+
+@respx.mock
+async def test_install_from_hub_with_app_id_resolves_latest_version(profile: Profile) -> None:
+    """An App Hub *app* id resolves to that app's latest version (BUGS.md #46); resolved_from='app-id'."""
+    _mock_preamble()
+    respx.get("https://dhis2.example/api/appHub").mock(return_value=httpx.Response(200, json=_HUB))
+    install_route = respx.post("https://dhis2.example/api/appHub/ver-200").mock(return_value=httpx.Response(201))
+
+    target = await service.install_from_hub(profile, "hub-widget")
+
+    assert install_route.called
+    assert target.version_id == "ver-200"
+    assert target.version == "2.0.0"
+    assert target.resolved_from == "app-id"
+
+
+@respx.mock
+async def test_install_from_hub_unknown_id_raises_without_posting(profile: Profile) -> None:
+    """An id matching neither a version nor an app id raises InstallTargetError and POSTs nothing."""
+    _mock_preamble()
+    respx.get("https://dhis2.example/api/appHub").mock(return_value=httpx.Response(200, json=_HUB))
+    install_route = respx.post(url__regex=r"https://dhis2\.example/api/appHub/.+").mock(
+        return_value=httpx.Response(201),
+    )
+
+    with pytest.raises(InstallTargetError, match="neither an App Hub version id nor an app id"):
+        await service.install_from_hub(profile, "not-a-real-id")
+
+    assert not install_route.called
+
+
+@respx.mock
+async def test_hub_versions_returns_app_versions_newest_first(profile: Profile) -> None:
+    """hub_versions(app_id) returns the app with versions sorted by descending semver."""
+    _mock_preamble()
+    respx.get("https://dhis2.example/api/appHub").mock(return_value=httpx.Response(200, json=_HUB))
+
+    record = await service.hub_versions(profile, "hub-widget")
+
+    assert record.name == "Dashboard Widget"
+    assert [v.version for v in record.versions] == ["2.0.0", "1.0.0"]
+    assert [v.id for v in record.versions] == ["ver-200", "ver-100"]
+
+
+@respx.mock
+async def test_hub_versions_unknown_app_id_raises(profile: Profile) -> None:
+    """hub_versions on a non-app-id raises InstallTargetError pointing at hub-list."""
+    _mock_preamble()
+    respx.get("https://dhis2.example/api/appHub").mock(return_value=httpx.Response(200, json=_HUB))
+
+    with pytest.raises(InstallTargetError, match="not an App Hub app id"):
+        await service.hub_versions(profile, "ver-200")

@@ -65,10 +65,15 @@ nav:
           - Lessons learned: lessons.md
           - AI agent testing:
               - Overview: ai-agent-testing.md
-              - Model benchmark: notes/model-benchmark.md
-              - Design log + rounds: notes/small-model-bridge.md
-              - Command x model matrix: notes/cli-matrix.md
-              - Bridge verification: notes/bridge-verification.md
+              - Benchmark plan (1.0): notes/benchmark-plan.md
+              - Benchmark results (latest): notes/benchmark-results.md
+              - Model benchmarks:
+                  - General capability (axis 1): notes/general-benchmark.md
+                  - Bridge read + write (axis 2): notes/model-benchmark.md
+              - Bridge design + verification:
+                  - Design log + rounds: notes/small-model-bridge.md
+                  - Command x model matrix: notes/cli-matrix.md
+                  - Bridge verification: notes/bridge-verification.md
   - Architecture:
       - Overview: architecture/overview.md
       - Core:

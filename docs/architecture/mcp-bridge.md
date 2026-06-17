@@ -107,11 +107,11 @@ backed by a deliberate test apparatus (all runnable from the `Makefile`):
   commands (exit 0). No broken or unregistered command. This is the 100% baseline.
 - **Capable-agent oracle** — a capable agent (Claude Code / Codex) should form every command
   correctly; any command it *can't* is a real CLI defect (bad help, undiscoverable), not a model
-  limitation. Composite write workflows (`make composite-scenarios`) are proven oracle-first.
+  limitation. Composite write workflows (`make bench-composite`) are proven oracle-first.
 - **Local-model gradient** — the models will never be 100%; we measure where they land:
-  - `make bridge-bench` — the model roster over read + write + performance.
-  - `make cli-matrix` — a command x model matrix: does each model find and form each command.
-  - `make bridge-round` — drive one model through a round interactively.
+  - `make bench-bridge` — the model roster over read + write + performance.
+  - `make bench-matrix` — a command x model matrix: does each model find and form each command.
+  - `make bench-round` — drive one model through a round interactively.
 
 The full methodology, headline findings, and links to every run log are consolidated in
 [AI agent testing](../ai-agent-testing.md).

@@ -14,7 +14,7 @@ script wires the two together itself.
 
 1. LM Studio's local server is running: `lms server start` (default port 1234).
 2. The model is available/loaded: `lms load <model> --gpu max --ttl 3600`.
-   (The `make bridge-round` target loads it for you.)
+   (The `make bench-round` target loads it for you.)
 
 ## Profiles and read-only mode (testing policy — do not deviate)
 
@@ -41,18 +41,19 @@ import asyncio
 import json
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
 from fastmcp import Client
 from pydantic import BaseModel, ConfigDict
 
-#: Default model identifier (an LM Studio model key from `lms ls`).
-DEFAULT_MODEL = "google/gemma-4-12b-qat"
-#: LM Studio OpenAI-compatible chat-completions endpoint.
-LMSTUDIO_URL = "http://localhost:1234/v1/chat/completions"
+from dhis2w_bench.backend import get_backend
+
+#: OpenAI-compatible chat-completions endpoint (LM Studio by default; override with MODEL_BACKEND).
+LMSTUDIO_URL = get_backend().chat_url
 #: Repo root used to spawn the bridge via `uv run --directory`.
-REPO_DIR = "/Users/morteoh/dev/local/dhis2w-utils"
+REPO_DIR = str(Path(__file__).resolve().parents[4])
 
 #: System prompt that frames the single-tool agent loop.
 SYSTEM_PROMPT = (
@@ -73,7 +74,7 @@ READ_TASKS = (
 #: before and restores it after, so this is a reversible round-trip.
 WRITE_TASK = (
     "Set the system setting 'minPasswordLength' to 10 (a single system setting is written "
-    "with 'dev customize set <key> <value>'). After setting it, read the server's security "
+    "with 'system settings set <key> <value>'). After setting it, read the server's security "
     "settings and confirm minPasswordLength is now 10. Report the final value."
 )
 
@@ -247,7 +248,8 @@ async def _write_round(client: Client, http: httpx.AsyncClient, tools: list[dict
     print(f"\nFINAL ({calls} calls, {secs}s): {answer}")
 
     if baseline is not None:
-        restored = await _call_bridge(client, {"args": ["dev", "customize", "set", "minPasswordLength", str(baseline)]})
+        restore_args = ["system", "settings", "set", "minPasswordLength", str(baseline)]
+        restored = await _call_bridge(client, {"args": restore_args})
         print(f"\nrestore minPasswordLength -> {baseline}: exit {restored.exit_code}")
 
 
@@ -279,7 +281,7 @@ async def _run(model: str, profile: str, readonly: str, round_name: str) -> int:
 def main() -> int:
     """Parse arguments and run a single bridge test round; return an exit code."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="LM Studio model key (see `lms ls`).")
+    parser.add_argument("--model", required=True, help="Model key to drive (no default; see `make bench-list`).")
     parser.add_argument("--profile", default="play42", help="DHIS2 profile (writes: local_basic only).")
     parser.add_argument("--round", default="read", choices=("read", "write", "bench"), help="Which round to run.")
     parser.add_argument("--readonly", default=None, choices=("0", "1"), help="Override DHIS2_MCP_READONLY.")

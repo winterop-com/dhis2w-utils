@@ -23,7 +23,7 @@ below.
 
 ## Index
 
-52 entries grouped by area. **Status tags** carry the result of the most recent
+53 entries grouped by area. **Status tags** carry the result of the most recent
 re-verification against `dhis2/core` docker images on 2026-05-12: **[FIXED]**
 upstream on all of v41/v42/v43, **[FIXED v43]** on v43 only (still present on
 older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -51,6 +51,7 @@ filing.
 - [#28](#28-openapi-relativeperiods-schema-exposes-45-boolean-fields-instead-of-an-enum) — OpenAPI `RelativePeriods` schema = 45 boolean fields, not an enum
 - [#29](#29-apimetadatafilterrootjunctionor-silently-ignores-rootjunction-and-ands-multiple-filters) — `/api/metadata?...&rootJunction=OR` silently ANDs filters
 - [#30](#30-apiapphub-returns-versions-created--last_updated-as-epoch-millis-integers) — `/api/appHub` returns `created` / `last_updated` as epoch-millis
+- [#46](#46-post-apiapphubversionid-returns-an-opaque-proxied-app-hub-404-when-given-an-app-id-instead-of-a-version-id) — `POST /api/appHub/{versionId}` with an app id → opaque proxied App Hub 404
 
 ### Auth / OAuth2 / OIDC
 
@@ -2786,6 +2787,43 @@ curl -s -u admin:district 'https://play.im.dhis2.org/dev-2-42/api/dataElements/a
 **Workaround in this repo:** pre-validate UID shape (`^[A-Za-z][A-Za-z0-9]{10}$`) in `d2w metadata get` (mirror across v41/v43) and fail locally with "not a valid DHIS2 UID" before the request — not yet implemented (tracked in `docs/roadmap.md`).
 
 **How to know it's fixed:** `GET /api/dataElements/abc` returns `404`/`E1005` (or a `400` invalid-UID) instead of `405`.
+
+**Verifier:** none yet.
+
+---
+
+### 46. `POST /api/appHub/{versionId}` returns an opaque proxied App Hub 404 when given an app id instead of a version id
+
+**Observed on:** DHIS2 `2.42.5` (local `http://localhost:8080`, 2026-06-16). Login as `admin/district`.
+
+**Repro:**
+
+```bash
+# An App Hub *app* id resolves on the hub's apps endpoint:
+curl -s -o /dev/null -w '%{http_code}\n' \
+  'https://apps.dhis2.org/api/v1/apps/a29851f9-82a7-4ecd-8b2c-58e0f220bc75'   # 200
+
+# Hand that same app id to the DHIS2 server's install endpoint:
+curl -s -u admin:district -X POST \
+  'http://localhost:8080/api/appHub/a29851f9-82a7-4ecd-8b2c-58e0f220bc75'
+# 404 — DHIS2 proxies a server-side GET to apps.dhis2.org/api/v2/appVersions/{id}, which 404s:
+#   "404 Not Found on GET request for
+#    \"https://apps.dhis2.org/api/v2/appVersions/a29851f9-82a7-4ecd-8b2c-58e0f220bc75\""
+
+# The correct install target is a *version* id (one of the app's versions):
+curl -s -u admin:district -X POST \
+  'http://localhost:8080/api/appHub/4916b8e4-0bab-4deb-a684-9fd6a0511088'     # installs "Modeling" v6.2.0
+```
+
+**Expected:** a 400 / 404 that names the problem ("not an App Hub version id" / "no such appVersion") so the caller knows they passed the wrong *kind* of id.
+
+**Actual:** DHIS2 forwards the id verbatim into a server-side GET to `apps.dhis2.org/api/v2/appVersions/{id}` and surfaces the upstream's bare 404. The error text points at an `apps.dhis2.org` URL the caller never typed — it reads as "our client is hitting App Hub directly" rather than "you passed an app id where a version id was required". App ids and version ids are both bare UUIDs, so they are trivially confused.
+
+**Impact:** `d2w apps add <app-id>` fails with an opaque proxied 404, with no hint that the id was an app id rather than a version id.
+
+**Workaround in this repo:** `d2w apps add` (and `apps_install_from_hub`) resolve the id against the configured catalog before installing — `_resolve_install_target` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/apps/service.py` accepts either a version id (installs as-is) or an app id (resolves to the app's latest version), and raises a clear `InstallTargetError` when the id matches neither. Manual fallback: `d2w apps hub-list` for a version id, or read the app's `versions[].id` from `apps.dhis2.org/api/v1/apps/{appId}`.
+
+**How to know it's fixed:** `POST /api/appHub/{appId}` (app id, not version id) returns a clear 400/404 naming the id-kind mismatch instead of a proxied apps.dhis2.org 404.
 
 **Verifier:** none yet.
 

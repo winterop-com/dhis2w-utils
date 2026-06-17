@@ -1,16 +1,18 @@
-"""Benchmark a roster of local LM Studio models driving the dhis2 bridge: read + write + perf.
+"""Benchmark named local models driving the dhis2 bridge: read + write + perf.
 
-The recurring model benchmark for `dhis2w-mcp-bridge`. For each model in `ROSTER` it loads the
-model in LM Studio, runs a fixed read round (play42, read-only) and a write round-trip
-(local_basic, self-restoring), scores correctness, and records timing + token throughput. Prints a
-Markdown table and appends per-model JSON to `--results`. Pass model keys as args to override the
-roster for a one-off.
+The recurring model benchmark for `dhis2w-mcp-bridge`. For each model named on the command line it
+loads the model, runs a fixed read round (play42, read-only) and a write round-trip (local_basic,
+self-restoring), scores correctness, and records timing + token throughput. Prints a Markdown table
+and appends per-model JSON to `RESULTS`. There is no hardcoded roster — name the model(s) explicitly;
+set `BENCH_ORACLE=<key>` to designate an oracle (SUSPECT-task check when it's in the run).
 
-Prereqs: `lms server start` (port 1234) running. The script loads/unloads models itself.
+Prereqs: a running backend (LM Studio by default; `MODEL_BACKEND` to switch). The script
+loads/unloads models itself. The write round needs `local_basic` up (`make dhis2-run`).
 
 Usage:
-    uv run python infra/scripts/bench_bridge_models.py            # the full roster
-    uv run python infra/scripts/bench_bridge_models.py qwen2.5-7b-instruct   # one model
+    uv run python infra/scripts/bench_bridge_models.py google/gemma-4-12b-qat            # one model
+    uv run python infra/scripts/bench_bridge_models.py gemma-4-12b-qat gemma-4-e4b        # several
+    BENCH_ORACLE=<key> uv run python infra/scripts/bench_bridge_models.py <model> ...   # with an oracle
 
 Results worth keeping live in docs/notes/model-benchmark.md. Testing policy: reads -> play42,
 writes -> local_basic (never the shared public demo).
@@ -20,28 +22,28 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shlex
-import subprocess
 import sys
 import time
 from collections.abc import Sequence
+from pathlib import Path
 
 import httpx
 from fastmcp import Client
 from pydantic import BaseModel, ConfigDict
 
-#: The benchmark roster — the curated set we track. Add models on request, not by default.
-ROSTER: tuple[str, ...] = (
-    "google/gemma-4-12b-qat",
-    "google/gemma-4-12b",
-    "google/gemma-4-26b-a4b-qat",
-    "google/gemma-4-e4b",
-    "qwen2.5-7b-instruct",
-    "qwen/qwen3.5-4b",
-)
+from dhis2w_bench.backend import get_backend
 
-LM = "http://localhost:1234/v1/chat/completions"
-REPO = "/Users/morteoh/dev/local/dhis2w-utils"
+#: Optional oracle model key (env `BENCH_ORACLE`). When set and present in a run, the harness asserts
+#: it passed every task and flags SUSPECT tasks otherwise (an oracle failure means the TASK is suspect,
+#: not the model). Unset -> no oracle check. There is no hardcoded roster: name the models explicitly.
+ORACLE = os.environ.get("BENCH_ORACLE", "").strip()
+
+#: Local-inference backend (LM Studio by default; override with MODEL_BACKEND).
+BACKEND = get_backend()
+LM = BACKEND.chat_url
+REPO = str(Path(__file__).resolve().parents[4])
 RESULTS = "/tmp/bench_bridge_results.jsonl"
 SYSTEM_PROMPT = (
     "You are a DHIS2 operator with one tool, dhis2_cli, that runs the d2w CLI. Always use the "
@@ -55,7 +57,7 @@ READ_TASKS: tuple[tuple[str, str], ...] = (
 )
 WRITE_TASK = (
     "Set the system setting minPasswordLength to 10 (a single system setting is written with "
-    "'dev customize set <key> <value>'), then read the security settings and confirm it is now 10."
+    "'system settings set <key> <value>'), then read the security settings and confirm it is now 10."
 )
 
 
@@ -137,6 +139,11 @@ class ModelReport(BaseModel):
     read: list[TaskOutcome]
     write: TaskOutcome
     found_write_cmd: bool
+
+    @property
+    def all_passed(self) -> bool:
+        """True when every read task and the write task passed (the oracle bar)."""
+        return all(outcome.ok for outcome in self.read) and self.write.ok
 
 
 class _Run(BaseModel):
@@ -271,16 +278,16 @@ def _used(tool_args: list[list[str]], prefix: list[str]) -> bool:
     return any(args[: len(prefix)] == prefix for args in tool_args)
 
 
-def _score_read(key: str, run: _Run) -> bool:
-    """Correctness heuristic per read task."""
-    answer = run.answer.lower()
+def _score_read(key: str, answer: str, tool_args: list[list[str]]) -> bool:
+    """Correctness heuristic per read task (works for any driver: local loop or the Claude SDK)."""
+    text = answer.lower()
     if key == "count":
-        return "1037" in run.answer
+        return "1037" in answer
     if key == "schema":
-        return _used(run.tool_args, ["schema"]) and any(
-            field in answer for field in ("valuetype", "domaintype", "aggregation", "code")
+        return _used(tool_args, ["schema"]) and any(
+            field in text for field in ("valuetype", "domaintype", "aggregation", "code")
         )
-    return "anc" in answer  # filter
+    return "anc" in text  # filter
 
 
 async def _benchmark_model(model: str) -> ModelReport:
@@ -291,7 +298,7 @@ async def _benchmark_model(model: str) -> ModelReport:
         async with httpx.AsyncClient() as http:
             for key, task in READ_TASKS:
                 run = await _agent(client, http, tools, model, task, max_steps=8)
-                ok = _score_read(key, run)
+                ok = _score_read(key, run.answer, run.tool_args)
                 read_outcomes.append(TaskOutcome(key=key, ok=ok, calls=run.calls, secs=run.secs, tokens=run.tokens))
                 print(f"  READ {key}: ok={ok} calls={run.calls} {run.secs}s {run.tokens}tok")
 
@@ -300,21 +307,20 @@ async def _benchmark_model(model: str) -> ModelReport:
         baseline = json.loads(base_out).get("minPasswordLength") if base_out.strip().startswith("{") else None
         async with httpx.AsyncClient() as http:
             run = await _agent(client, http, tools, model, WRITE_TASK, max_steps=10)
-        found = _used(run.tool_args, ["dev", "customize", "set"])
+        found = _used(run.tool_args, ["system", "settings", "set"])
         write = TaskOutcome(
             key="write", ok=found and "10" in run.answer, calls=run.calls, secs=run.secs, tokens=run.tokens
         )
         print(f"  WRITE: ok={write.ok} found_cmd={found} calls={run.calls} {run.secs}s")
         if baseline is not None:
-            await _bridge_call(client, ["dev", "customize", "set", "minPasswordLength", str(baseline)])
+            await _bridge_call(client, ["system", "settings", "set", "minPasswordLength", str(baseline)])
 
     return ModelReport(model=model, read=read_outcomes, write=write, found_write_cmd=found)
 
 
 def _load_model(model: str) -> None:
     """Unload everything, then load `model` (one instance — avoids ambiguous-id 400s)."""
-    subprocess.run(["lms", "unload", "--all"], capture_output=True, check=False)
-    subprocess.run(["lms", "load", model, "--gpu", "max", "--ttl", "3600", "-y"], capture_output=True, check=False)
+    BACKEND.load(model)
 
 
 def _markdown_table(reports: list[ModelReport]) -> str:
@@ -338,19 +344,98 @@ def _markdown_table(reports: list[ModelReport]) -> str:
     return "\n".join(lines)
 
 
+async def _local_infra_reachable() -> bool:
+    """Return True if the local_basic write target answers a cheap read (probe is read-only)."""
+    async with Client(_bridge_config("local_basic", "1")) as client:
+        code, _ = await _bridge_call(client, ["system", "info"])
+    return code == 0
+
+
+def _installed_models(requested: list[str]) -> list[str]:
+    """Filter `requested` to models the backend has installed; log (don't fail on) the rest."""
+    installed = set(BACKEND.list_installed())
+    if not installed:  # backend listing failed — don't silently skip everything
+        return requested
+    models: list[str] = []
+    for model in requested:
+        if model in installed:
+            models.append(model)
+        else:
+            print(f"!!! skip {model}: not installed (run `lms get {model}` to add it)")
+    return models
+
+
+def _check_oracle(reports: list[ModelReport]) -> None:
+    """If an oracle (`BENCH_ORACLE`) is set and ran, assert it passed; a failure flags a suspect task."""
+    if not ORACLE:
+        return
+    oracle = next((report for report in reports if report.model == ORACLE), None)
+    if oracle is None:
+        return  # the named oracle wasn't part of this run — nothing to check
+    if oracle.all_passed:
+        print(f"\nOracle OK: {ORACLE} passed every task.")
+        return
+    failed = [outcome.key for outcome in oracle.read if not outcome.ok]
+    if not oracle.write.ok:
+        failed.append("write")
+    print(
+        f"\n!!! SUSPECT TASK(S): oracle {ORACLE} FAILED {failed}. The oracle is the should-pass "
+        "bar — fix the task(s) before trusting the weaker-model columns above; an oracle failure "
+        "usually means the task is mis-specified, not the model."
+    )
+
+
+def _require_models() -> list[str]:
+    """Return the model keys to benchmark from argv; exit with the installed list when none given."""
+    requested = sys.argv[1:]
+    if not requested:
+        installed = BACKEND.list_installed()
+        listing = "\n  ".join(installed) if installed else "(none found)"
+        print(
+            "usage: bench_bridge_models.py <model-key> [<model-key> ...]\n"
+            "no model defaults — name the model(s) explicitly. Installed:\n  " + listing,
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return requested
+
+
 async def main() -> None:
-    """Benchmark every model (roster or argv override) and print the Markdown table."""
-    models = sys.argv[1:] or list(ROSTER)
+    """Benchmark the models named on the command line and print the Markdown table."""
+    models = _installed_models(_require_models())
+    if not models:
+        print("none of the requested models are installed", file=sys.stderr)
+        return
+    if not await _local_infra_reachable():
+        print(
+            "!!! local_basic is unreachable — the write round needs it up.\n"
+            "    Start the local stack first:  make dhis2-run\n"
+            "    (reads use play42 and would work, but this benchmark includes the write round.)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     reports: list[ModelReport] = []
+    failures: list[str] = []
     for model in models:
         print(f">>> {model}")
         _load_model(model)
-        reports.append(await _benchmark_model(model))
-
-    with open(RESULTS, "a") as handle:
-        for report in reports:
+        try:
+            report = await _benchmark_model(model)
+        except Exception as exc:  # noqa: BLE001 — isolate one model's failure so the run continues
+            print(f"!!! {model} FAILED ({type(exc).__name__}: {exc}); skipping to the next model")
+            failures.append(model)
+            continue
+        reports.append(report)
+        # Persist after each model so a later crash never loses completed results.
+        with open(RESULTS, "a") as handle:
             handle.write(report.model_dump_json() + "\n")
-    print("\n" + _markdown_table(reports))
+
+    if reports:
+        print("\n" + _markdown_table(reports))
+    _check_oracle(reports)
+    if failures:
+        print(f"\n{len(failures)} model(s) failed and were skipped: {', '.join(failures)}")
 
 
 if __name__ == "__main__":

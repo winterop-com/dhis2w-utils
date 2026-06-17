@@ -17,11 +17,17 @@ Writes go to `local_basic` only (never the shared demo). Run the oracle for ever
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import subprocess
 from collections.abc import Callable
 
+import httpx
+from fastmcp import Client
 from pydantic import BaseModel, ConfigDict
+
+from dhis2w_bench.backend import get_backend
+from dhis2w_bench.bridge import _agent, _bridge_config, _tools
 
 PROFILE_DEFAULT = "local_basic"
 
@@ -142,7 +148,7 @@ def _dataset_with_elements(profile: str) -> ScenarioResult:
         run_cli(profile, ["metadata", "data-sets", "add-element", data_set, de_a])
         run_cli(profile, ["metadata", "data-sets", "add-element", data_set, de_b])
         fetched = run_cli_json(
-            profile, ["metadata", "get", "data-sets", data_set, "--fields", "dataSetElements[dataElement]"]
+            profile, ["metadata", "get", "dataSets", data_set, "--fields", "dataSetElements[dataElement]"]
         )
         count = _count(fetched, "dataSetElements")
         return ScenarioResult(key="dataset_with_elements", ok=count == 2, detail=f"data set has {count} elements")
@@ -217,11 +223,108 @@ SCENARIOS: tuple[Scenario, ...] = (
 )
 
 
+#: Backend used to load models for the model-driven path.
+BACKEND = get_backend()
+
+#: Per-scenario model verification: (list/get resource [camelCase], object name in the goal,
+#: child field, expected count, delete sub-app [kebab]).
+_VERIFY: dict[str, tuple[str, str, str, int, str]] = {
+    "dataset_with_elements": ("dataSets", "Demo Intake", "dataSetElements", 2, "data-sets"),
+    "program_with_stages": ("programs", "Demo Visits", "programStages", 2, "programs"),
+}
+
+
+def _find_uid(profile: str, resource: str, name: str) -> str:
+    """Return the UID of the `resource` object named `name`, or '' if not found."""
+    stdout = run_cli_json(profile, ["metadata", "list", resource, "--filter", f"name:eq:{name}", "--fields", "id"])
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError:
+        return ""
+    items = payload if isinstance(payload, list) else next((v for v in payload.values() if isinstance(v, list)), [])
+    return str(items[0]["id"]) if items and isinstance(items[0], dict) and items[0].get("id") else ""
+
+
+def _verify_model(profile: str, scenario_key: str) -> tuple[bool, str]:
+    """Check the model actually built the composite object (found by name) with the expected child count."""
+    resource, name, child_field, expected, _ = _VERIFY[scenario_key]
+    uid = _find_uid(profile, resource, name)
+    if not uid:
+        return (False, f"no {resource} named {name!r} was created")
+    fetched = run_cli_json(profile, ["metadata", "get", resource, uid, "--fields", f"{child_field}[id]"])
+    count = _count(fetched, child_field)
+    return (count == expected, f"{name!r} has {count}/{expected} {child_field}")
+
+
+def _cleanup_model(profile: str, scenario_key: str) -> None:
+    """Best-effort teardown of what the model created (the named object + any child data elements)."""
+    resource, name, _, _, delete_app = _VERIFY[scenario_key]
+    uid = _find_uid(profile, resource, name)
+    if not uid:
+        return
+    child_des: list[str] = []
+    if resource == "dataSets":
+        fetched = run_cli_json(profile, ["metadata", "get", resource, uid, "--fields", "dataSetElements[dataElement]"])
+        try:
+            for dse in json.loads(fetched).get("dataSetElements", []):
+                de_id = dse.get("dataElement", {}).get("id")
+                if de_id:
+                    child_des.append(str(de_id))
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    run_cli(profile, ["metadata", delete_app, "delete", uid, "-y"])
+    for de in child_des:
+        run_cli(profile, ["metadata", "data-elements", "delete", de, "-y"])
+
+
+async def _run_model(model: str, scenario: Scenario, profile: str) -> ScenarioResult:
+    """Drive one model through a composite goal via the bridge (write mode), verify, then clean up."""
+    async with Client(_bridge_config(profile, "0")) as client:
+        tools = _tools(await client.list_tools())
+        async with httpx.AsyncClient() as http:
+            run = await _agent(client, http, tools, model, scenario.goal, max_steps=20)
+    ok, detail = _verify_model(profile, scenario.key)
+    _cleanup_model(profile, scenario.key)
+    return ScenarioResult(key=scenario.key, ok=ok, detail=f"{detail} ({run.calls} calls, {run.secs}s)")
+
+
+async def _run_models(models: list[str], profile: str, runs: int) -> None:
+    """Run every scenario against every model `runs` times; print per-run results + an aggregate pass-rate.
+
+    Composite authoring is nondeterministic, so a single run is misleading — the aggregate (e.g.
+    `dataset_with_elements 2/3`) is the trustworthy number.
+    """
+    for model in models:
+        print(f"\n>>> {model} ({runs} run{'s' if runs != 1 else ''})")
+        BACKEND.load(model)
+        tally: dict[str, list[int]] = {scenario.key: [0, 0] for scenario in SCENARIOS}
+        for run_index in range(1, runs + 1):
+            for scenario in SCENARIOS:
+                try:
+                    result = await _run_model(model, scenario, profile)
+                    ok, detail = result.ok, result.detail
+                except Exception as exc:  # noqa: BLE001 — isolate one run so the sweep continues
+                    ok, detail = False, f"errored ({type(exc).__name__}: {exc})"
+                    _cleanup_model(profile, scenario.key)
+                tally[scenario.key][0] += int(ok)
+                tally[scenario.key][1] += 1
+                print(f"  run {run_index} {scenario.key}: {'PASS' if ok else 'FAIL'} — {detail}")
+        rate = ", ".join(f"{key} {passed}/{total}" for key, (passed, total) in tally.items())
+        print(f"  == {model} pass-rate: {rate}")
+    BACKEND.unload_all()
+
+
 def main() -> None:
-    """Run the reference (oracle) workflow for every scenario and report PASS/FAIL + cleanup."""
+    """Run composite scenarios: the deterministic oracle by default, or model-driven with --models."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default=PROFILE_DEFAULT, help="Write profile (local_basic only).")
+    parser.add_argument("--models", nargs="+", help="Drive these models through the goals via the bridge.")
+    parser.add_argument("--runs", type=int, default=3, help="Runs per scenario for the model path (default 3).")
     args = parser.parse_args()
+    if args.models:
+        print(f"composite scenarios (model-driven via bridge) against profile {args.profile}")
+        asyncio.run(_run_models(args.models, args.profile, max(1, args.runs)))
+        return
     print(f"composite scenarios (oracle) against profile {args.profile}\n")
     for scenario in SCENARIOS:
         result = scenario.reference(args.profile)

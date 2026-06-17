@@ -20,7 +20,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from dhis2w_client.generated.v43.oas import App
 from dhis2w_client.generated.v43.oas._enums import AppStatus, AppType
@@ -37,8 +37,13 @@ class AppHubVersion(BaseModel):
 
     id: str | None = None
     version: str | None = None
-    min_dhis2_version: str | None = None
-    max_dhis2_version: str | None = None
+    # Wire keys are camelCase `minDhisVersion` / `maxDhisVersion` (note: "Dhis", not "Dhis2").
+    min_dhis2_version: str | None = Field(
+        default=None, validation_alias=AliasChoices("min_dhis2_version", "minDhisVersion")
+    )
+    max_dhis2_version: str | None = Field(
+        default=None, validation_alias=AliasChoices("max_dhis2_version", "maxDhisVersion")
+    )
     # DHIS2's App Hub returns epoch-millis integers here (e.g. 1747820526374);
     # the type is lax to absorb both shapes without a custom validator.
     created: int | str | None = None

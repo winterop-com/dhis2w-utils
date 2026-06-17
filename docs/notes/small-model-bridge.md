@@ -11,15 +11,15 @@ Working log for making the dhis2 toolkit usable by **small local models** (LM St
 
 ## How to run a round (the rig)
 
-The canonical harness is **`infra/scripts/bridge_round.py`**, wrapped by **`make bridge-round`**.
+The canonical harness is **`packages/dhis2w-bench/src/dhis2w_bench/round.py`**, wrapped by **`make bench-round`**.
 It drives the real bridge (FastMCP client, same config as `~/.lmstudio/mcp.json`) from LM Studio's
 OpenAI-compatible API — `lms chat` can't do this (it doesn't load MCP servers; only the GUI does).
 
 ```bash
-make bridge-round ROUND=read                                   # play42, readonly (default)
-make bridge-round ROUND=write                                  # local_basic, writes on; round-trips minPasswordLength
-make bridge-round ROUND=bench                                  # the timed table prompts below
-make bridge-round MODEL=qwen/qwen3.5-4b ROUND=read             # any LM Studio model key
+make bench-round ROUND=read                                   # play42, readonly (default)
+make bench-round ROUND=write                                  # local_basic, writes on; round-trips minPasswordLength
+make bench-round ROUND=bench                                  # the timed table prompts below
+make bench-round MODEL=qwen/qwen3.5-4b ROUND=read             # any LM Studio model key
 ```
 
 The target starts `lms server`, loads the model if not already loaded (idempotent — avoids the
@@ -57,11 +57,10 @@ Ranked by primary-prompt wall-clock; `ok` = correct.
 | qwen2.5-coder-1.5b | — | **no** | 1 | 6 | 3.4 | 19 | hallucinated "359" on the bulk dump |
 | qwen2.5-coder-14b | — | **no** | 6 | — | 6.6 | 61 | loops on the bulk dump |
 | llama-3.2-3b | — | **no** | 6 | — | fail | 18 | re-calls instead of answering |
-| mn-violet-lotus-12b | — | **no** | 0 | — | fail | fail | won't call tools (prose only) |
 | llama-3.2-1b | — | **no** | 1 | — | fail | fail | emits the schema as args |
 | gemma-4-31b-jang | — | — | — | — | — | — | won't load |
 
-- **Daily driver: `gemma-4-e4b` or `qwen2.5-coder-3b`.** Avoid llama-3.2-1b/3b, mn-violet-lotus,
+- **Daily driver: `gemma-4-e4b` or `qwen2.5-coder-3b`.** Avoid llama-3.2-1b/3b,
   qwen2.5-coder-14b. gemma-4-12b works but is the slowest.
 - **Context window doesn't affect decode speed**: qwen2.5-coder-3b at 8k/32k/128k → 72/57/70s,
   identical output tokens. 32k is the sweet spot. (KV-cache toggle not automatable via `lms`.)
@@ -266,7 +265,7 @@ Drove the **real bridge** (FastMCP client) from LM Studio's OpenAI-compatible AP
 
 Full read+write+perf sweep across a curated model roster, plus the capable cloud model as the
 correctness reference. Results + methodology + roster live in
-[`model-benchmark.md`](model-benchmark.md); re-run with `make bridge-bench`. Headline:
+[`model-benchmark.md`](model-benchmark.md); re-run with `make bench-bridge`. Headline:
 `gemma-4-12b-qat` is the only local model that passed both read and write, and it beats its bf16
 sibling on speed at equal correctness. qwens read fast but stall on the write (discoverability of
 `system settings set`). All five now use `d2w schema` for the "what fields" task.
@@ -283,8 +282,8 @@ exactly as intended.
 
 ## Round 5 — multi-purpose write (the real bar)
 
-The `bridge-bench` write is single-purpose and *hinted* (one `system settings set`). The honest test is
-a multi-object write. Drove the champion `gemma-4-26b-a4b-qat` (local_basic, READONLY off) on:
+The `bench-bridge` write is single-purpose and *hinted* (one `system settings set`). The honest test is
+a multi-object write. Drove the oracle `gemma-4-26b-a4b-qat` (local_basic, READONLY off) on:
 "create a Monthly data set + three INTEGER data elements, attach all three, confirm 3 elements."
 
 - **Construction succeeded.** ~10 steps: created the data set, created 3 data elements, attached all
@@ -294,7 +293,7 @@ a multi-object write. Drove the champion `gemma-4-26b-a4b-qat` (local_basic, REA
 
 So multi-purpose writes are *partially* in reach of the strongest local model: it can build the
 structure, but can't reliably tell it's finished. Smaller models would stall earlier. This is the
-real write bar — far above the hinted single-key `bridge-bench` write.
+real write bar — far above the hinted single-key `bench-bridge` write.
 
 - **CLI usability finding**: `metadata get dataSets` uses the camelCase wire name, but the mutating
   sub-app is `metadata data-sets` (hyphenated). The model tripped on this (step 11), and so did the
@@ -322,13 +321,13 @@ step requires holding the data set UID and each just-created element UID togethe
 many freshly-created objects is the cognitive wall, not the creates.
 
 Caveat: max 30 turns is barely above the ~22-call ideal (1 create + 10 elements + 10 attach +
-verify), so on-pace models are under-tested — see the higher-budget champion re-run below. Bottom
+verify), so on-pace models are under-tested — see the higher-budget oracle re-run below. Bottom
 line: a 10-object *wired* write is beyond all current local models; the capable-agent oracle does it
 100%. This is the real write ceiling, far above the hinted single-key bench write.
 
 ### Round 6 follow-ups: budget vs ceiling, and the oracle baseline
 
-- **Higher turn budget doesn't rescue it.** Re-ran the champion `gemma-4-26b-a4b-qat` at **50 turns**
+- **Higher turn budget doesn't rescue it.** Re-ran the oracle `gemma-4-26b-a4b-qat` at **50 turns**
   (vs 30): it did *worse* — data set + only 2/10 elements, 0 attached (vs 6/10 before). Run-to-run it
   swings (6/10 then 2/10) but never attaches. So this is a **coherence ceiling**, not a step-budget
   one: the model loses the thread holding 10 object UIDs and wiring them over a long sequence.
