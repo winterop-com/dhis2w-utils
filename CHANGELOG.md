@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.0.dev0 (in development)
+
+Development snapshot on the road to 1.0.0. Not a published release — no tag, no PyPI upload. The version
+is stamped to mark the surface as feature-frozen for 1.0; the remaining work is hardening, not new features.
+
+### Coverage parity across v41 / v42 / v43
+
+- **The v41 and v43 core plugin trees are now backed by counted coverage, not just import smoke tests.**
+  Parametrized parity tests exercise every plugin service, CLI command, and MCP registration against all
+  three version trees, so "v41 / v42 / v43 equally supported" is measured rather than asserted. The
+  `metadata` plugin — the one tree with a genuine wire divergence — carries per-version expectations.
+- The two broad `v41/*` / `v43/*` coverage omit globs are replaced by a narrow, documented per-module list
+  (interactive/Playwright command surfaces and pure data models only).
+
+### CI hardening
+
+- Every workflow runs with an explicit least-privilege `permissions:` block (`contents: read` by default;
+  the publish job keeps only the `id-token: write` it needs for PyPI Trusted Publishing).
+
 ## 0.23.0 — 2026-06-17
 
 Minor release. A bridge write-guard for shared hosts, a local-model validation harness, and broader contract tests.

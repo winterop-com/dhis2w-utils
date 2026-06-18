@@ -26,6 +26,10 @@ concurrency:
   group: contract-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege token: the job only reads the checkout to hit the live API.
+permissions:
+  contents: read
+
 jobs:
   contract:
     name: Contract tests

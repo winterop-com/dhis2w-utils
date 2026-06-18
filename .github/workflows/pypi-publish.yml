@@ -21,6 +21,11 @@ on:
         required: true
         type: string
 
+# Least-privilege default for every job; the publish job overrides with the
+# id-token: write it needs for PyPI Trusted Publishing.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build ${{ matrix.package }}
