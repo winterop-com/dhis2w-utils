@@ -143,7 +143,7 @@ def sample_data_value_command(
     `fClA2Erf6IO` ("Penta1 doses given") at `Rp268JB6Ne4`
     (Adonkia CHP, facility level) for `202406` (within the seeded 2024
     data window). The DE is in the seeded `BfMAe6Itzgt` ("Child
-    Health") dataset, so v43's stricter dataset-detection on import
+    Health") dataset, so DHIS2's dataset-detection on import
     accepts the write. Override with `--de` / `--ou` / `--pe` for
     other scopes.
     """
