@@ -9,6 +9,10 @@ on:
   # you just want confirmation against the latest main.
   workflow_dispatch:
 
+# Least-privilege token: the job only reads the checkout to run the slow suite.
+permissions:
+  contents: read
+
 jobs:
   slow-tests:
     name: stack + make test-slow (v${{ matrix.dhis2_version }})
