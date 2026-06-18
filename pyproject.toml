@@ -75,14 +75,24 @@ branch = true
 relative_files = true
 source = ["packages"]
 omit = [
-  # The v41 / v43 hand-written CLIENT trees are now measured: their accessor tests run
-  # against all three trees via the `server_version` parametrization (conftest), so the
-  # v41/v43 accessor code is exercised and counted. The v41 / v43 CORE plugin trees still
-  # have only the per-version smoke matrix (`tests/test_v{41,43}_plugin_smoke.py`) —
-  # imports resolve + plugin set intact — so they stay omitted until their plugin tests
-  # fill in. Drop each core entry once its plugin tests land.
-  "packages/dhis2w-core/src/dhis2w_core/v41/*",
-  "packages/dhis2w-core/src/dhis2w_core/v43/*",
+  # The v41/v43 CLIENT trees are measured (server_version parametrization). For the v41/v43 CORE
+  # trees, every plugin SERVICE is now exercised across all three trees by parametrized parity tests
+  # (`tests/runtime/test_<plugin>_parity.py` via the core_version / plugin_service fixtures), so the
+  # service modules are measured + counted — NOT omitted below. What remains omitted, with reasons:
+  #   - per-plugin CLI/MCP wrappers + view-models: thin copies, behavior-tested on v42; per-version
+  #     line coverage tracked as a follow-up (parametrized --help / register() smoke).
+  #   - non-plugin core modules (auth / token store / cli infra): mechanical copies, deferred.
+  #   - browser service: Playwright orchestration, tested live in `packages/dhis2w-browser/tests/`.
+  "packages/dhis2w-core/src/dhis2w_core/v41/*.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/*.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/*/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/*/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/*/mcp.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/*/mcp.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/*/models.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/*/models.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/browser/service.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/browser/service.py",
 ]
 
 [tool.coverage.report]
