@@ -76,6 +76,15 @@ from dhis2w_core.security_core.report.model import (
 )
 from dhis2w_core.security_core.report.progress import PlainLogReporter, RichProgressReporter, make_reporter
 from dhis2w_core.security_core.report.text import TextRenderer
+from dhis2w_core.security_core.report.view import (
+    GroupView,
+    ItemView,
+    ReportMeta,
+    ReportView,
+    Scorecard,
+    SectionView,
+    build_report_view,
+)
 from dhis2w_core.security_core.roles import RoleAudit, build_role_audit, evaluate_roles
 from dhis2w_core.security_core.settings_audit import MIN_RECOMMENDED_PASSWORD_LENGTH, SettingsLike, evaluate_settings
 from dhis2w_core.security_core.streaming import ReportWriter
@@ -121,7 +130,9 @@ __all__ = [
     "CheckStatus",
     "CredentialProbeResult",
     "CsvRenderer",
+    "GroupView",
     "HtmlRenderer",
+    "ItemView",
     "MarkdownRenderer",
     "ParsedVersion",
     "PlainLogReporter",
@@ -129,11 +140,15 @@ __all__ = [
     "ProgressReporter",
     "ReleaseFeed",
     "ReleaseLine",
+    "ReportMeta",
     "ReportRenderer",
+    "ReportView",
     "ReportWriter",
     "RichProgressReporter",
     "RoleAudit",
     "RunManifest",
+    "Scorecard",
+    "SectionView",
     "Severity",
     "SettingsLike",
     "StreamingRenderer",
@@ -142,6 +157,7 @@ __all__ = [
     "TwoFactorSummary",
     "UserHygiene",
     "build_account_authorities",
+    "build_report_view",
     "build_role_audit",
     "build_user_hygiene",
     "canonical_keys",

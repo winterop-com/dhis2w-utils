@@ -67,7 +67,7 @@ def _make_fake_ctx() -> AsyncMock:
 
 
 def test_audit_creates_run_folder_and_report_files(runner: CliRunner, tmp_path: Path) -> None:
-    """security audit writes md, jsonl, and html into a dhis2-security-* folder."""
+    """security audit writes md, jsonl, and the HTML bundle into a dhis2-security-* folder."""
     ctx = _make_fake_ctx()
     with patch("dhis2w_core.v42.plugins.security.audit.open_client", lambda *args, **kwargs: ctx):
         result = runner.invoke(
@@ -92,7 +92,10 @@ def test_audit_creates_run_folder_and_report_files(runner: CliRunner, tmp_path: 
 
     assert (folder / "report.md").exists()
     assert (folder / "report.jsonl").exists()
-    assert (folder / "report.html").exists()
+    assert (folder / "report.dc.html").exists()
+    assert (folder / "report-data.js").exists()
+    assert (folder / "support.js").exists()
+    assert (folder / "dhis2-logo.png").exists()
 
 
 def test_audit_report_md_contains_a_finding(runner: CliRunner, tmp_path: Path) -> None:

@@ -38,6 +38,14 @@ BASE = "https://mock.example"
 TREES = ("v41", "v42", "v43")
 
 
+@pytest.fixture(autouse=True)
+def _isolated_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin a raw-env profile so the end-to-end probe resolves without ambient or leaked DHIS2_PROFILE."""
+    monkeypatch.delenv("DHIS2_PROFILE", raising=False)
+    monkeypatch.setenv("DHIS2_URL", BASE)
+    monkeypatch.setenv("DHIS2_PAT", "test-token")
+
+
 def _audit_module(tree: str) -> ModuleType:
     """Import the per-tree security audit module under test."""
     return import_module(f"dhis2w_core.{tree}.plugins.security.audit")

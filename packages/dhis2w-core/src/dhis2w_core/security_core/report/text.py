@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dhis2w_core.security_core.findings import finding_sort_key
+from dhis2w_core.security_core.report.base import SingleFileRenderer
 from dhis2w_core.security_core.report.model import AuditReport
 
 
-class TextRenderer:
+class TextRenderer(SingleFileRenderer):
     """Renders an audit report as plain text for terminals and pipes."""
 
     name = "text"

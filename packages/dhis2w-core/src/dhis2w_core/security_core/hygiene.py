@@ -92,6 +92,7 @@ def evaluate_hygiene(users: list[UserHygiene], *, stale_days: int, now: datetime
                     "Disabled account holds privileged roles",
                     f"Disabled account '{user.username}' still holds privileged roles; "
                     "re-enabling the account restores that access.",
+                    group_key="disabled-privileged",
                 )
             )
             continue
@@ -103,6 +104,7 @@ def evaluate_hygiene(users: list[UserHygiene], *, stale_days: int, now: datetime
                     "Privileged account never logged in",
                     f"Privileged account '{user.username}' has never logged in; "
                     "a dormant admin account is a takeover target.",
+                    group_key="never-logged-in",
                 )
             )
         elif _is_stale(user.last_login, now, stale_days):
@@ -113,6 +115,8 @@ def evaluate_hygiene(users: list[UserHygiene], *, stale_days: int, now: datetime
                     "Stale privileged account",
                     f"Privileged account '{user.username}' has not logged in for over "
                     f"{stale_days} days (last: {user.last_login}).",
+                    group_key="stale",
+                    last=user.last_login,
                 )
             )
         if not user.email:
@@ -123,6 +127,7 @@ def evaluate_hygiene(users: list[UserHygiene], *, stale_days: int, now: datetime
                     "Privileged account has no email",
                     f"Privileged account '{user.username}' has no email; "
                     "password recovery and security alerts cannot reach it.",
+                    group_key="no-email",
                 )
             )
     findings.extend(_seed_admin_findings(users))
@@ -138,6 +143,7 @@ def evaluate_two_factor_from_user_field(users: list[UserHygiene]) -> list[AuditF
             Severity.CRITICAL,
             "Superuser without 2FA",
             f"Superuser '{user.username}' does not have two-factor authentication enabled.",
+            group_key="superuser-no-2fa",
         )
         for user in users
         if user.is_superuser and not user.disabled and user.two_factor is False
@@ -160,6 +166,7 @@ def evaluate_two_factor_from_endpoint(
                 Severity.CRITICAL,
                 "Superuser without 2FA",
                 f"Superuser '{user.username}' (ALL authority) does not have two-factor authentication enabled.",
+                group_key="superuser-no-2fa",
             )
             for user in users
             if user.is_superuser and not user.disabled and user.id in disabled_2fa_ids
@@ -183,9 +190,26 @@ def evaluate_two_factor_from_endpoint(
     return []
 
 
-def _finding(user: UserHygiene, severity: Severity, title: str, detail: str) -> AuditFinding:
-    """Build a per-user hygiene finding keyed to the account."""
-    return AuditFinding(check=_CHECK, severity=severity, title=title, detail=detail, subject=user.username)
+def _finding(
+    user: UserHygiene,
+    severity: Severity,
+    title: str,
+    detail: str,
+    *,
+    group_key: str,
+    last: str | None = None,
+) -> AuditFinding:
+    """Build a per-user hygiene finding keyed to the account and folded by `group_key`."""
+    evidence = {"last": last} if last is not None else None
+    return AuditFinding(
+        check=_CHECK,
+        severity=severity,
+        title=title,
+        detail=detail,
+        subject=user.username,
+        evidence=evidence,
+        group_key=group_key,
+    )
 
 
 def _seed_admin_findings(users: list[UserHygiene]) -> list[AuditFinding]:
@@ -199,6 +223,7 @@ def _seed_admin_findings(users: list[UserHygiene]) -> list[AuditFinding]:
                     "Default seed account 'admin' is enabled",
                     "The well-known seed account 'admin' exists and is enabled; "
                     "rename or disable it once real admins exist.",
+                    group_key="seed-admin",
                 )
             ]
     return []

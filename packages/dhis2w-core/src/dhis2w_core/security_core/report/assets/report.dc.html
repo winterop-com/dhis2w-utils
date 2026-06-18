@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="report-data.js"></script>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:#f4f2ec;}
+  ::selection{background:#0080ff;color:#fff;}
+  a{color:inherit;}
+  @media (max-width: 900px){
+    #layout{grid-template-columns:1fr !important;}
+    #toc{position:static !important; top:auto !important; margin-bottom:14px;}
+    #scorecard-grid{grid-template-columns:repeat(2,1fr) !important;}
+  }
+</style>
+</helmet>
+<div style="min-height:100vh; background:#f4f2ec; color:#1b1a17; font-family:'Hanken Grotesk',-apple-system,sans-serif; -webkit-font-smoothing:antialiased;">
+  <div style="height:4px; background:linear-gradient(90deg,#0080ff 0%,#0064c8 100%);"></div>
+
+  <header style="position:sticky; top:0; z-index:50; background:rgba(244,242,236,0.86); backdrop-filter:blur(10px); border-bottom:1px solid #e3ded2;">
+    <div style="max-width:1180px; margin:0 auto; padding:13px 32px; display:flex; align-items:center; justify-content:space-between; gap:24px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <img src="dhis2-logo.png" alt="DHIS2" style="height:24px; width:auto; display:block;">
+        <span style="width:1px; height:20px; background:#d8d2c4; display:block;"></span>
+        <span style="font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:#6b675c;">Security&nbsp;Audit</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:9px; font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#1b1a17;">
+        <span style="width:7px; height:7px; border-radius:50%; background:#1b9c5d; box-shadow:0 0 0 3px rgba(27,156,93,0.16);"></span>
+        Scan&nbsp;complete
+      </div>
+    </div>
+  </header>
+
+  <section style="max-width:1180px; margin:0 auto; padding:62px 32px 38px;">
+    <div style="display:flex; align-items:center; gap:9px; font-family:'Space Mono',monospace; font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:#0064c8;">
+      <span style="width:7px; height:7px; border-radius:50%; background:#0080ff;"></span>
+      DHIS2 Security Audit · Read-only scan
+    </div>
+    <h1 style="font-size:clamp(40px,6.4vw,74px); line-height:1.0; letter-spacing:-0.025em; font-weight:800; margin:20px 0 0; max-width:15ch;">Security <span style="font-family:'Newsreader',serif; font-weight:400; font-style:italic; letter-spacing:-0.01em;">posture</span>, in full view.</h1>
+    <div style="font-family:'Newsreader',serif; font-style:italic; font-size:clamp(18px,2.2vw,23px); line-height:1.45; color:#3a372f; max-width:34ch; margin:24px 0 0;">{{ heroLead }}<sc-if value="{{ hasCritical }}" hint-placeholder-val="{{ true }}"> — <span style="color:#b51223;">{{ heroEmphasis }}</span></sc-if><sc-if value="{{ noCritical }}" hint-placeholder-val="{{ false }}"> — <span style="color:#1b9c5d;">{{ heroEmphasis }}</span></sc-if></div>
+
+    <div style="display:flex; flex-wrap:wrap; margin-top:40px; border-top:1px solid #e3ded2; border-left:1px solid #e3ded2;">
+      <div style="flex:1 1 180px; padding:14px 18px; border-right:1px solid #e3ded2; border-bottom:1px solid #e3ded2;">
+        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:#9a958a;">Target</div>
+        <a href="{{ meta.targetHref }}" style="display:block; margin-top:5px; font-family:'Space Mono',monospace; font-size:12.5px; color:#0064c8; text-decoration:none; word-break:break-all;">{{ meta.targetDisplay }}</a>
+      </div>
+      <div style="flex:1 1 120px; padding:14px 18px; border-right:1px solid #e3ded2; border-bottom:1px solid #e3ded2;">
+        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:#9a958a;">Profile</div>
+        <div style="margin-top:5px; font-family:'Space Mono',monospace; font-size:12.5px; color:#1b1a17;">{{ meta.profile }}</div>
+      </div>
+      <div style="flex:1 1 140px; padding:14px 18px; border-right:1px solid #e3ded2; border-bottom:1px solid #e3ded2;">
+        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:#9a958a;">Version</div>
+        <div style="margin-top:5px; font-family:'Space Mono',monospace; font-size:12.5px; color:#1b1a17;">{{ meta.version }}</div>
+      </div>
+      <div style="flex:1 1 120px; padding:14px 18px; border-right:1px solid #e3ded2; border-bottom:1px solid #e3ded2;">
+        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:#9a958a;">Scanner</div>
+        <div style="margin-top:5px; font-family:'Space Mono',monospace; font-size:12.5px; color:#1b1a17;">{{ meta.scannerDisplay }}</div>
+      </div>
+      <div style="flex:1 1 160px; padding:14px 18px; border-right:1px solid #e3ded2; border-bottom:1px solid #e3ded2;">
+        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:#9a958a;">Started</div>
+        <div style="margin-top:5px; font-family:'Space Mono',monospace; font-size:12.5px; color:#1b1a17;">{{ meta.startedDisplay }}</div>
+      </div>
+    </div>
+  </section>
+
+  <section style="max-width:1180px; margin:0 auto; padding:4px 32px 16px;">
+    <div id="scorecard-grid" style="display:grid; grid-template-columns:repeat(5,1fr); gap:14px;">
+      <div style="background:#fbfaf6; border:1px solid #e3ded2; border-radius:5px; padding:17px 18px 15px; position:relative; overflow:hidden;">
+        <div style="position:absolute; top:0; left:0; right:0; height:3px; background:#b51223;"></div>
+        <div style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:#8a8578;">Critical</div>
+        <div style="font-size:46px; font-weight:800; letter-spacing:-0.03em; line-height:1; margin-top:8px; color:#b51223;">{{ scorecard.critical }}</div>
+      </div>
+      <div style="background:#fbfaf6; border:1px solid #e3ded2; border-radius:5px; padding:17px 18px 15px; position:relative; overflow:hidden;">
+        <div style="position:absolute; top:0; left:0; right:0; height:3px; background:#d2611a;"></div>
+        <div style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:#8a8578;">High</div>
+        <div style="font-size:46px; font-weight:800; letter-spacing:-0.03em; line-height:1; margin-top:8px; color:#d2611a;">{{ scorecard.high }}</div>
+      </div>
+      <div style="background:#fbfaf6; border:1px solid #e3ded2; border-radius:5px; padding:17px 18px 15px; position:relative; overflow:hidden;">
+        <div style="position:absolute; top:0; left:0; right:0; height:3px; background:#c79a16;"></div>
+        <div style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:#8a8578;">Medium</div>
+        <div style="font-size:46px; font-weight:800; letter-spacing:-0.03em; line-height:1; margin-top:8px; color:#c79a16;">{{ scorecard.medium }}</div>
+      </div>
+      <div style="background:#fbfaf6; border:1px solid #e3ded2; border-radius:5px; padding:17px 18px 15px; position:relative; overflow:hidden;">
+        <div style="position:absolute; top:0; left:0; right:0; height:3px; background:#9a8c4e;"></div>
+        <div style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:#8a8578;">Warn</div>
+        <div style="font-size:46px; font-weight:800; letter-spacing:-0.03em; line-height:1; margin-top:8px; color:#9a8c4e;">{{ scorecard.warn }}</div>
+      </div>
+      <div style="background:#fbfaf6; border:1px solid #e3ded2; border-radius:5px; padding:17px 18px 15px; position:relative; overflow:hidden;">
+        <div style="position:absolute; top:0; left:0; right:0; height:3px; background:#0080ff;"></div>
+        <div style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:#8a8578;">Info</div>
+        <div style="font-size:46px; font-weight:800; letter-spacing:-0.03em; line-height:1; margin-top:8px; color:#0080ff;">{{ scorecard.info }}</div>
+      </div>
+    </div>
+  </section>
+
+  <div id="layout" style="max-width:1180px; margin:0 auto; padding:24px 32px 40px; display:grid; grid-template-columns:236px minmax(0,1fr); gap:46px; align-items:start;">
+
+    <aside id="toc" style="position:sticky; top:84px; align-self:start;">
+      <div style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.18em; text-transform:uppercase; color:#9a958a; padding:0 11px 0; margin-bottom:12px;">Contents</div>
+      <nav style="display:flex; flex-direction:column; gap:2px;">
+        <sc-for list="{{ toc }}" as="item" hint-placeholder-count="5">
+          <a href="{{ item.href }}" onClick="{{ item.onClick }}" style="{{ item.style }}" style-hover="background:#efece3;">
+            <span style="{{ item.barStyle }}"></span>
+            <span style="{{ item.numStyle }}">{{ item.num }}</span>
+            <span style="{{ item.titleStyle }}">{{ item.title }}</span>
+            <span style="{{ item.countStyle }}">{{ item.total }}</span>
+          </a>
+        </sc-for>
+      </nav>
+      <div style="margin-top:18px; padding:13px 12px; border:1px solid #e3ded2; border-radius:6px; background:#fbfaf6;">
+        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:#9a958a;">Total findings</div>
+        <div style="font-size:30px; font-weight:800; letter-spacing:-0.02em; margin-top:4px;">{{ totalFindings }}</div>
+        <div style="font-size:12px; color:#6b675c; margin-top:2px; line-height:1.4;">across {{ areaCount }} control areas</div>
+      </div>
+    </aside>
+
+    <main style="min-width:0;">
+      <sc-for list="{{ sectionsVM }}" as="sec" hint-placeholder-count="5">
+        <section id="{{ sec.anchor }}" data-secidx="{{ sec.idx }}" style="scroll-margin-top:90px; margin-bottom:26px;">
+          <div style="{{ sec.cardStyle }}">
+            <div style="padding:22px 24px 20px; border-bottom:1px solid #e8e3d7; display:flex; flex-wrap:wrap; gap:18px; align-items:flex-start; justify-content:space-between;">
+              <div style="flex:1 1 280px; min-width:0;">
+                <div style="display:flex; align-items:center; gap:10px; font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:#9a958a;">
+                  <span>Section {{ sec.num }}</span>
+                  <span style="width:5px; height:5px; border-radius:50%; background:#1b9c5d; display:inline-block;"></span>
+                  <span style="color:#1b9c5d;">{{ sec.statusLabel }}</span>
+                </div>
+                <h2 style="font-size:24px; font-weight:700; letter-spacing:-0.02em; margin:9px 0 0; line-height:1.15;">{{ sec.title }}</h2>
+                <sc-if value="{{ sec.statusNote }}" hint-placeholder-val="">
+                  <div style="font-size:12.5px; color:#8a8578; margin-top:8px; line-height:1.45; max-width:60ch; font-style:italic;">{{ sec.statusNote }}</div>
+                </sc-if>
+                <sc-if value="{{ sec.hasExpand }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ sec.expandAll }}" style="margin-top:14px; font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; color:#0064c8; background:transparent; border:1px solid #bcd9f6; border-radius:4px; padding:6px 11px; cursor:pointer;" style-hover="background:#e1eefb;">{{ sec.expandLabel }}</button>
+                </sc-if>
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:flex-end;">
+                <sc-for list="{{ sec.tallyChips }}" as="c" hint-placeholder-count="3">
+                  <span style="{{ c.style }}">{{ c.count }} {{ c.label }}</span>
+                </sc-for>
+              </div>
+            </div>
+
+            <div>
+              <sc-for list="{{ sec.groups }}" as="g" hint-placeholder-count="3">
+                <div style="border-top:1px solid #efeadd;">
+                  <sc-if value="{{ g.single }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:grid; grid-template-columns:84px minmax(0,1fr); gap:18px; padding:16px 24px; align-items:start;">
+                      <div><span style="{{ g.sevTag.style }}">{{ g.sevTag.label }}</span></div>
+                      <div>
+                        <div style="font-weight:600; font-size:15px; letter-spacing:-0.01em;">{{ g.finding }}</div>
+                        <div style="color:#5f5b50; margin-top:5px; font-size:14px; line-height:1.5; max-width:80ch;">{{ g.detail }}</div>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ g.collapsible }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ g.toggle }}" style="width:100%; display:grid; grid-template-columns:84px minmax(0,1fr) auto; gap:18px; align-items:center; padding:16px 24px; background:transparent; border:0; cursor:pointer; text-align:left; font-family:inherit; color:inherit;" style-hover="background:#f3f0e7;">
+                      <div><span style="{{ g.sevTag.style }}">{{ g.sevTag.label }}</span></div>
+                      <div style="min-width:0;">
+                        <div style="font-weight:600; font-size:15px; letter-spacing:-0.01em;">{{ g.finding }}</div>
+                        <div style="color:#5f5b50; margin-top:5px; font-size:14px; line-height:1.5; max-width:80ch;">{{ g.detail }}</div>
+                      </div>
+                      <div style="display:flex; align-items:center; gap:14px; white-space:nowrap;">
+                        <span style="font-family:'Space Mono',monospace; font-size:11px; font-weight:700; color:#6b675c; background:#efece3; border:1px solid #e3ded2; padding:4px 9px; border-radius:20px;">{{ g.countLabel }}</span>
+                        <span style="{{ g.chevStyle }}">›</span>
+                      </div>
+                    </button>
+                    <sc-if value="{{ g.open }}" hint-placeholder-val="{{ false }}">
+                      <div style="padding:2px 24px 22px;">
+                        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:8px;">
+                          <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="8">
+                            <div style="display:flex; flex-direction:column; gap:2px; padding:8px 11px; background:#ffffff; border:1px solid #e8e3d7; border-radius:4px;">
+                              <span style="font-family:'Space Mono',monospace; font-size:12.5px; color:#1b1a17; word-break:break-all;">{{ it.name }}</span>
+                              <sc-if value="{{ it.hasLast }}" hint-placeholder-val="{{ false }}">
+                                <span style="font-family:'Space Mono',monospace; font-size:10px; color:#a39e92; letter-spacing:0.02em;">{{ it.sub }}</span>
+                              </sc-if>
+                            </div>
+                          </sc-for>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+      </sc-for>
+
+      <footer style="margin-top:6px; padding:22px 24px; border:1px solid #e3ded2; border-radius:6px; background:#fbfaf6;">
+        <div style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:#9a958a; margin-bottom:10px;">Scope &amp; method</div>
+        <p style="margin:0; font-size:13px; line-height:1.6; color:#5f5b50; max-width:90ch;">{{ guardrail }}</p>
+        <div style="display:flex; align-items:center; gap:12px; margin-top:18px; padding-top:16px; border-top:1px solid #e8e3d7;">
+          <img src="dhis2-logo.png" alt="DHIS2" style="height:18px; width:auto; opacity:0.7;">
+          <span style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:#a39e92;">{{ footerMeta }}</span>
+        </div>
+      </footer>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { open: {}, active: 0 };
+
+  componentDidMount() {
+    const wait = () => {
+      if (typeof window !== 'undefined' && window.__REPORT__) {
+        this.forceUpdate();
+        setTimeout(() => this.setupSpy(), 120);
+      } else {
+        setTimeout(wait, 30);
+      }
+    };
+    wait();
+  }
+
+  componentWillUnmount() {
+    if (this._io) this._io.disconnect();
+  }
+
+  setupSpy() {
+    if (this._io) this._io.disconnect();
+    const secs = [...document.querySelectorAll('[data-secidx]')];
+    if (!secs.length) return;
+    this._io = new IntersectionObserver((entries) => {
+      const vis = entries.filter(e => e.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (vis.length) {
+        const idx = +vis[0].target.dataset.secidx;
+        if (idx !== this.state.active) this.setState({ active: idx });
+      }
+    }, { rootMargin: '-18% 0px -72% 0px', threshold: 0 });
+    secs.forEach(s => this._io.observe(s));
+  }
+
+  toggle(id) {
+    this.setState(s => ({ open: { ...s.open, [id]: !s.open[id] } }));
+  }
+
+  toggleAll(idx) {
+    const data = window.__REPORT__;
+    const sec = data.sections[idx];
+    const ids = sec.groups.map((g, gi) => g.count > 1 ? `s${idx}-g${gi}` : null).filter(Boolean);
+    const anyOpen = ids.some(id => this.state.open[id]);
+    const next = { ...this.state.open };
+    ids.forEach(id => { next[id] = !anyOpen; });
+    this.setState({ open: next });
+  }
+
+  renderVals() {
+    const SEV = {
+      CRITICAL: { fg: '#ffffff', bg: '#b51223', bd: '#b51223', solid: true,  dot: '#b51223', rank: 0 },
+      HIGH:     { fg: '#a8420c', bg: '#fbe6d7', bd: '#f0c4a3', solid: false, dot: '#d2611a', rank: 1 },
+      MEDIUM:   { fg: '#8a6300', bg: '#f7ecc9', bd: '#e9d49a', solid: false, dot: '#c79a16', rank: 2 },
+      WARN:     { fg: '#6f6a3c', bg: '#eeeac9', bd: '#ddd6ae', solid: false, dot: '#9a8c4e', rank: 3 },
+      INFO:     { fg: '#0064c8', bg: '#e1eefb', bd: '#bcd9f6', solid: false, dot: '#0080ff', rank: 4 },
+    };
+    const ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'WARN', 'INFO'];
+    const data = (typeof window !== 'undefined') && window.__REPORT__;
+    if (!data) return {
+      ready: false, toc: [], sectionsVM: [],
+      meta: { targetHref: '', targetDisplay: '', profile: '', version: '', scannerDisplay: '', startedDisplay: '' },
+      scorecard: { critical: 0, high: 0, medium: 0, warn: 0, info: 0 },
+      totalFindings: 0, areaCount: 0, heroLead: '', heroEmphasis: '',
+      hasCritical: false, noCritical: false, guardrail: '', footerMeta: '',
+    };
+
+    const open = this.state.open;
+    const active = this.state.active;
+
+    const tagStyle = (k) => {
+      const s = SEV[k];
+      return {
+        display: 'inline-block', fontFamily: "'Space Mono',monospace", fontSize: '10px', fontWeight: 700,
+        letterSpacing: '0.09em', textTransform: 'uppercase', padding: '3px 7px', borderRadius: '3px',
+        color: s.fg, background: s.bg, border: `1px solid ${s.solid ? s.bg : s.bd}`, whiteSpace: 'nowrap',
+      };
+    };
+
+    const sectionsVM = data.sections.map((sec, idx) => {
+      const tally = {};
+      sec.groups.forEach(g => { tally[g.sev] = (tally[g.sev] || 0) + g.count; });
+      const present = ORDER.filter(k => tally[k]);
+      const tallyChips = present.map(k => ({
+        count: tally[k], label: k,
+        style: {
+          fontFamily: "'Space Mono',monospace", fontSize: '10px', fontWeight: 700, letterSpacing: '0.07em',
+          padding: '4px 8px', borderRadius: '3px', color: SEV[k].fg, background: SEV[k].bg,
+          border: `1px solid ${SEV[k].solid ? SEV[k].bg : SEV[k].bd}`, whiteSpace: 'nowrap',
+        },
+      }));
+      const accent = present.length ? SEV[present[0]].dot : '#0080ff';
+      const total = sec.groups.reduce((a, g) => a + g.count, 0);
+
+      const groups = sec.groups.map((g, gi) => {
+        const id = `s${idx}-g${gi}`;
+        const collapsible = g.count > 1;
+        const isOpen = !!open[id];
+        return {
+          id, single: !collapsible, collapsible, open: isOpen,
+          finding: g.finding, detail: g.sampleDetail,
+          countLabel: g.count + ' ' + (g.count === 1 ? 'account' : 'accounts'),
+          sevTag: { label: g.sev, style: tagStyle(g.sev) },
+          chevStyle: {
+            display: 'inline-block', transition: 'transform .18s ease',
+            transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+            color: '#9a958a', fontSize: '18px', fontWeight: 700, lineHeight: 1,
+          },
+          toggle: () => this.toggle(id),
+          items: g.items.map(it => ({
+            name: it.name,
+            hasLast: !!it.last,
+            sub: it.last ? ('last ' + String(it.last).slice(0, 10)) : '',
+          })),
+        };
+      });
+
+      const collIds = groups.filter(g => g.collapsible).map(g => g.id);
+      const anyOpen = collIds.some(id => open[id]);
+      const noteRaw = sec.status.find(s => s.startsWith('(')) || '';
+      const statusNote = noteRaw.replace(/^\(|\)$/g, '').trim();
+
+      return {
+        idx, num: String(idx + 1).padStart(2, '0'), anchor: `sec-${idx}`,
+        title: sec.title, total, statusLabel: 'OK', statusNote, accent, tallyChips,
+        cardStyle: {
+          background: '#fbfaf6', border: '1px solid #e3ded2', borderLeft: `3px solid ${accent}`,
+          borderRadius: '6px', overflow: 'hidden',
+        },
+        groups,
+        hasExpand: collIds.length > 1,
+        expandLabel: anyOpen ? 'Collapse all' : 'Expand all',
+        expandAll: () => this.toggleAll(idx),
+      };
+    });
+
+    const toc = sectionsVM.map(s => {
+      const isA = s.idx === active;
+      return {
+        idx: s.idx, num: s.num, title: s.title, total: s.total, href: `#${s.anchor}`,
+        onClick: () => this.setState({ active: s.idx }),
+        style: {
+          display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 11px 9px 8px',
+          borderRadius: '6px', textDecoration: 'none',
+          background: isA ? '#ffffff' : 'transparent',
+          border: `1px solid ${isA ? '#e3ded2' : 'transparent'}`,
+          boxShadow: isA ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+          color: '#1b1a17', cursor: 'pointer',
+        },
+        barStyle: { width: '3px', height: '26px', borderRadius: '2px', background: isA ? s.accent : 'transparent', flex: 'none' },
+        numStyle: { fontFamily: "'Space Mono',monospace", fontSize: '11px', fontWeight: 700, color: isA ? '#0064c8' : '#a39e92', flex: 'none' },
+        titleStyle: { flex: 1, fontSize: '13px', fontWeight: isA ? 600 : 500, lineHeight: 1.2, letterSpacing: '-0.01em' },
+        countStyle: { fontFamily: "'Space Mono',monospace", fontSize: '10.5px', color: '#a39e92', flex: 'none' },
+      };
+    });
+
+    const sc = data.scorecard || {};
+    const meta = data.meta || {};
+    const totalFindings = ORDER.reduce((sum, k) => sum + (sc[k] || 0), 0);
+    const areaCount = data.sections.length;
+    const criticalCount = sc.CRITICAL || 0;
+    const hasCritical = criticalCount > 0;
+    const heroLead = totalFindings + ' findings across ' + areaCount + ' control area' + (areaCount === 1 ? '' : 's');
+    const heroEmphasis = hasCritical
+      ? 'including ' + criticalCount + ' critical' + (criticalCount === 1 ? '' : 's') + ' that demand immediate attention.'
+      : 'no critical findings — review the items below.';
+    const targetRaw = meta.target || '';
+    const startedRaw = meta.started || '';
+    const startedMatch = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(startedRaw);
+    const startedDisplay = startedMatch ? (startedMatch[1] + ' · ' + startedMatch[2] + ' UTC') : startedRaw;
+    const scannerDisplay = meta.scanner ? ('v' + meta.scanner) : '';
+    const dateOnly = startedMatch ? startedMatch[1] : startedRaw;
+    const footerMeta = ('Scanner ' + scannerDisplay + ' · ' + dateOnly).trim();
+    const metaVM = {
+      targetHref: targetRaw,
+      targetDisplay: targetRaw.replace(/^https?:\/\//, ''),
+      profile: meta.profile || '',
+      version: meta.version || 'unknown',
+      scannerDisplay,
+      startedDisplay,
+    };
+    const scorecardVM = {
+      critical: sc.CRITICAL || 0, high: sc.HIGH || 0, medium: sc.MEDIUM || 0, warn: sc.WARN || 0, info: sc.INFO || 0,
+    };
+
+    return {
+      ready: true, toc, sectionsVM,
+      meta: metaVM, scorecard: scorecardVM,
+      totalFindings, areaCount, heroLead, heroEmphasis,
+      hasCritical, noCritical: !hasCritical,
+      guardrail: data.guardrail || '', footerMeta,
+    };
+  }
+}
+</script>
+</body>
+</html>

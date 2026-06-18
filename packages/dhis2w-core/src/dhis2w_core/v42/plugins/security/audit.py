@@ -530,6 +530,5 @@ def rerender_report(folder: Path, *, formats: Sequence[str] = DEFAULT_FORMATS) -
     chosen = set(formats)
     for fmt, factory in _ALL_RENDERERS.items():
         if fmt in chosen:
-            renderer = factory()
-            (folder / f"report.{renderer.suffix}").write_text(renderer.render(report), encoding="utf-8")
+            factory().emit(folder, report)
     return report

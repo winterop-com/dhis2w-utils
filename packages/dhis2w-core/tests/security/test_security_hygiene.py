@@ -11,10 +11,15 @@ from unittest.mock import MagicMock
 import pytest
 from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_core.security_core import (
+    AuditReport,
+    AuditSummary,
+    CheckResult,
     CheckStatus,
+    RunManifest,
     Severity,
     TwoFactorSummary,
     UserHygiene,
+    build_report_view,
     build_user_hygiene,
     evaluate_hygiene,
     evaluate_two_factor_from_endpoint,
@@ -97,18 +102,22 @@ def test_build_user_hygiene_derives_superuser_and_privileged() -> None:
 
 
 def test_privileged_never_logged_in_is_high() -> None:
-    """A privileged account that has never logged in is HIGH."""
+    """A privileged account that has never logged in is HIGH and folds under the never-logged-in key."""
     findings = evaluate_hygiene([_user(username="ghost", last_login=None, privileged=True)], stale_days=90, now=NOW)
     high = [f for f in findings if f.title == "Privileged account never logged in"]
     assert high and high[0].severity is Severity.HIGH
+    assert high[0].group_key == "never-logged-in"
 
 
 def test_privileged_stale_is_medium() -> None:
-    """A privileged account past the stale threshold is MEDIUM."""
+    """A privileged account past the stale threshold is MEDIUM and carries its last-login in evidence."""
     findings = evaluate_hygiene(
         [_user(username="rusty", last_login="2026-01-01T00:00:00", privileged=True)], stale_days=90, now=NOW
     )
-    assert any(f.title == "Stale privileged account" and f.severity is Severity.MEDIUM for f in findings)
+    stale = [f for f in findings if f.title == "Stale privileged account"]
+    assert stale and stale[0].severity is Severity.MEDIUM
+    assert stale[0].group_key == "stale"
+    assert (stale[0].evidence or {}).get("last") == "2026-01-01T00:00:00"
 
 
 def test_disabled_privileged_is_medium_and_skips_other_user_flags() -> None:
@@ -119,18 +128,23 @@ def test_disabled_privileged_is_medium_and_skips_other_user_flags() -> None:
     titles = _titles(findings)
     assert "Disabled account holds privileged roles" in titles
     assert "Privileged account never logged in" not in titles
+    disabled = next(f for f in findings if f.title == "Disabled account holds privileged roles")
+    assert disabled.group_key == "disabled-privileged"
 
 
 def test_privileged_missing_email_is_warn() -> None:
-    """A privileged account with no email is WARN (the catalog's low tier)."""
+    """A privileged account with no email is WARN (the catalog's low tier) under the no-email key."""
     findings = evaluate_hygiene([_user(username="noemail", email=None, privileged=True)], stale_days=90, now=NOW)
-    assert any(f.title == "Privileged account has no email" and f.severity is Severity.WARN for f in findings)
+    no_email = [f for f in findings if f.title == "Privileged account has no email"]
+    assert no_email and no_email[0].severity is Severity.WARN
+    assert no_email[0].group_key == "no-email"
 
 
 def test_seed_admin_enabled_is_flagged() -> None:
-    """The well-known enabled 'admin' account is flagged regardless of privilege."""
+    """The well-known enabled 'admin' account is flagged regardless of privilege, under the seed-admin key."""
     findings = evaluate_hygiene([_user(username="admin")], stale_days=90, now=NOW)
-    assert "Default seed account 'admin' is enabled" in _titles(findings)
+    seed = [f for f in findings if f.title == "Default seed account 'admin' is enabled"]
+    assert seed and seed[0].group_key == "seed-admin"
 
 
 def test_non_privileged_user_yields_only_inventory() -> None:
@@ -140,6 +154,42 @@ def test_non_privileged_user_yields_only_inventory() -> None:
     inventory = findings[0]
     assert inventory.severity is Severity.INFO
     assert (inventory.evidence or {}).get("total") == "1"
+
+
+def test_hygiene_findings_fold_into_groups_through_the_view() -> None:
+    """Real evaluate_hygiene output folds per-account findings into one collapsible group via the view."""
+    users = [
+        _user(username="ghostA", email=None, last_login=None, privileged=True),
+        _user(username="ghostB", email=None, last_login=None, privileged=True),
+        _user(username="ghostC", email=None, last_login=None, privileged=True),
+        _user(username="rusty", email=None, last_login="2026-01-01T00:00:00", privileged=True),
+    ]
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    result = CheckResult(check="hygiene", label="User account hygiene", status=CheckStatus.OK, findings=findings)
+    report = AuditReport(
+        manifest=RunManifest(
+            target="https://test.example",
+            profile="default",
+            scanner_version="0.0.1-test",
+            started_at="2026-06-18T00:00:00+00:00",
+            check_order=["hygiene"],
+        ),
+        results=[result],
+        summary=AuditSummary.from_results([result]),
+    )
+    section = build_report_view(report).sections[0]
+    by_finding = {group.finding: group for group in section.groups}
+
+    never = by_finding["Privileged account never logged in"]
+    assert never.count == 3
+    assert {item.name for item in never.items} == {"ghostA", "ghostB", "ghostC"}
+
+    stale = by_finding["Stale privileged account"]
+    assert stale.count == 1  # one stale account -> single row, no item list
+    assert stale.items == []
+
+    no_email = by_finding["Privileged account has no email"]
+    assert no_email.count == 4  # every account lacks an email -> all fold together
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +206,7 @@ def test_two_factor_user_field_flags_superuser_without_2fa() -> None:
     findings = evaluate_two_factor_from_user_field(users)
     assert [f.subject for f in findings] == ["root"]
     assert findings[0].severity is Severity.CRITICAL
+    assert findings[0].group_key == "superuser-no-2fa"
 
 
 def test_two_factor_endpoint_summary_reports_count() -> None:
@@ -175,6 +226,7 @@ def test_two_factor_endpoint_detail_names_superusers() -> None:
     )
     # Only the superuser is named, even though both are in the disabled-2FA set.
     assert [f.subject for f in findings] == ["root"]
+    assert findings[0].group_key == "superuser-no-2fa"
 
 
 def test_two_factor_endpoint_missing_summary_is_silent() -> None:

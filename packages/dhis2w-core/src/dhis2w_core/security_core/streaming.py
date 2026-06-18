@@ -76,10 +76,7 @@ class ReportWriter:
         self._markdown.write(self._streaming.footer(report.summary))
         _fsync(self._markdown)
         for renderer in self._finalize:
-            path = self._folder / f"report.{renderer.suffix}"
-            with path.open("w", encoding="utf-8") as handle:
-                handle.write(renderer.render(report))
-                _fsync(handle)
+            renderer.emit(self._folder, report)
         self._write_manifest(report.manifest)
 
     def close(self) -> None:

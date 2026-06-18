@@ -28,6 +28,7 @@ from dhis2w_core.security_core import (
     make_reporter,
     run_audit,
 )
+from dhis2w_core.v42.plugins.security.audit import rerender_report
 from rich.console import Console
 
 # ---------------------------------------------------------------------------
@@ -246,23 +247,19 @@ def test_html_renderer_contains_guardrail_note() -> None:
     assert "read-only GET requests" in output
 
 
-def test_html_renderer_escapes_angle_bracket_in_title() -> None:
-    """HtmlRenderer HTML-escapes a < character that appears in a finding title."""
-    finding = AuditFinding(
-        check="settings",
-        severity=Severity.WARN,
-        title="Value <8 is too low",
-        detail="Some detail.",
-    )
-    result = CheckResult(check="settings", label="Settings", status=CheckStatus.OK, findings=[finding])
-    report = AuditReport(
-        manifest=_MANIFEST,
-        results=[result],
-        summary=AuditSummary.from_results([result]),
-    )
-    output = HtmlRenderer().render(report)
-    assert "<8" not in output
-    assert "&lt;8" in output
+def test_html_renderer_emits_bundle(tmp_path: Path) -> None:
+    """HtmlRenderer.emit writes report-data.js plus the fixed template, runtime, and logo."""
+    folder = tmp_path / "bundle"
+    folder.mkdir()
+    HtmlRenderer().emit(folder, _sample_report())
+    assert (folder / "report-data.js").exists()
+    assert (folder / "report.dc.html").exists()
+    assert (folder / "support.js").exists()
+    assert (folder / "dhis2-logo.png").exists()
+    data = (folder / "report-data.js").read_text(encoding="utf-8")
+    assert data.startswith("window.__REPORT__ = ")
+    payload = json.loads(data.removeprefix("window.__REPORT__ = ").rstrip().removesuffix(";"))
+    assert payload["meta"]["target"] == "https://test.example"
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +296,7 @@ def _two_bound_checks() -> list[BoundCheck]:
 
 
 async def test_run_audit_creates_all_output_files(tmp_path: Path) -> None:
-    """run_audit writes manifest.json, report.jsonl, report.md, report.txt, report.csv, report.html."""
+    """run_audit writes the manifest, spine, and md/txt/csv plus the HTML bundle files."""
     folder = tmp_path / "run"
     writer = ReportWriter(
         folder,
@@ -320,7 +317,12 @@ async def test_run_audit_creates_all_output_files(tmp_path: Path) -> None:
     assert (folder / "report.md").exists()
     assert (folder / "report.txt").exists()
     assert (folder / "report.csv").exists()
-    assert (folder / "report.html").exists()
+    # The html format is a multi-file bundle opened via report.dc.html, not a single report.html.
+    assert not (folder / "report.html").exists()
+    assert (folder / "report.dc.html").exists()
+    assert (folder / "report-data.js").exists()
+    assert (folder / "support.js").exists()
+    assert (folder / "dhis2-logo.png").exists()
 
     spine_lines = [line for line in (folder / "report.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(spine_lines) == 2
@@ -380,6 +382,44 @@ async def test_resume_skips_already_completed_checks(tmp_path: Path) -> None:
     spine_lines = [line for line in spine_text.splitlines() if line.strip()]
     assert len(spine_lines) == 2, "spine must have exactly 2 lines (no duplicate)"
     assert report.summary.checks_run == 2
+
+    # Finalize on the resumed run emits the HTML bundle, not a single report.html.
+    assert not (folder / "report.html").exists()
+    assert (folder / "report.dc.html").exists()
+    assert (folder / "report-data.js").exists()
+    assert (folder / "support.js").exists()
+    assert (folder / "dhis2-logo.png").exists()
+
+
+# ---------------------------------------------------------------------------
+# 4b. Re-render: rerender_report rebuilds selected formats from the spine
+# ---------------------------------------------------------------------------
+
+
+async def test_rerender_report_writes_only_requested_formats(tmp_path: Path) -> None:
+    """rerender_report rebuilds the HTML bundle from the spine and writes only the requested formats."""
+    folder = tmp_path / "rerender-run"
+
+    # Build a run folder with a manifest + spine but no finalized formats.
+    writer = ReportWriter(folder, _MANIFEST, streaming_renderer=MarkdownRenderer())
+    writer.write_result(await _settings_result())
+    writer.write_result(await _authorities_result())
+    writer.close()
+
+    rerender_report(folder, formats=["html"])
+
+    # The html bundle is written from the spine...
+    assert (folder / "report.dc.html").exists()
+    assert (folder / "report-data.js").exists()
+    assert (folder / "support.js").exists()
+    assert (folder / "dhis2-logo.png").exists()
+    # ...and formats that were not requested are not emitted.
+    assert not (folder / "report.csv").exists()
+    assert not (folder / "report.txt").exists()
+
+    data = (folder / "report-data.js").read_text(encoding="utf-8")
+    assert data.startswith("window.__REPORT__ = ")
+    assert "Weak minimum password length" in data
 
 
 # ---------------------------------------------------------------------------

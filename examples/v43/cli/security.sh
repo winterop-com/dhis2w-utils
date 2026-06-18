@@ -18,8 +18,9 @@ d2w security authorities
 # JSON for scripting; e.g. fail a CI check when the integration account holds ALL:
 d2w --json security authorities | jq '.is_superuser'
 
-# Run every check step by step; streams a Markdown/plaintext/CSV/HTML report to
-# a timestamped folder (dhis2-security-<profile>-<timestamp>Z) in the current directory.
+# Run every check step by step; streams Markdown/plaintext/CSV plus a self-rendering
+# HTML bundle (open report.dc.html) to a timestamped folder
+# (dhis2-security-<profile>-<timestamp>Z) in the current directory.
 d2w security audit
 
 # Choose where the run folder goes and which report formats to write.

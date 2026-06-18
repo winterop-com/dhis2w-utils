@@ -6,6 +6,7 @@ import csv
 import io
 
 from dhis2w_core.security_core.findings import finding_sort_key
+from dhis2w_core.security_core.report.base import SingleFileRenderer
 from dhis2w_core.security_core.report.model import AuditReport
 
 _COLUMNS = ("check", "severity", "title", "detail", "subject", "evidence", "status")
@@ -18,7 +19,7 @@ def _flatten_evidence(evidence: dict[str, str] | None) -> str:
     return "; ".join(f"{key}={value}" for key, value in evidence.items())
 
 
-class CsvRenderer:
+class CsvRenderer(SingleFileRenderer):
     """Renders an audit report as CSV, one row per finding plus a row for clean checks."""
 
     name = "csv"

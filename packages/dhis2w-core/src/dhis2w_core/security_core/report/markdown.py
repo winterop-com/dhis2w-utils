@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from dhis2w_core.security_core.findings import finding_sort_key
 from dhis2w_core.security_core.guardrails import REPORT_GUARDRAIL_NOTE
+from dhis2w_core.security_core.report.base import SingleFileRenderer
 from dhis2w_core.security_core.report.model import AuditReport, AuditSummary, CheckResult, CheckStatus, RunManifest
 
 
-class MarkdownRenderer:
+class MarkdownRenderer(SingleFileRenderer):
     """Renders an audit report as GitHub-flavoured Markdown."""
 
     name = "markdown"

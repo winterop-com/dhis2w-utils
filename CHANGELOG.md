@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Data-driven HTML report bundle for `d2w security audit`** (2026-06-19). The `html` output is a
+  bundle: a fixed template (`report.dc.html`), runtime (`support.js`), and logo are copied into the
+  run folder beside a per-scan `report-data.js` (`window.__REPORT__`). Per-account findings fold into
+  collapsible groups via a `group_key` on `AuditFinding`; role findings render as separate rows. Plan
+  in `DHIS2_Security_Report_Redesign_PLAN.md`.
+
 ## 0.23.0 — 2026-06-17
 
 Minor release. A bridge write-guard for shared hosts, a local-model validation harness, and broader contract tests.
