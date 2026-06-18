@@ -6,8 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v43.plugins.schema import cli as cli_module
-
 
 class _SchemaPlugin(BaseModel):
     """Plugin descriptor for the offline, read-only `schema` command."""
@@ -19,6 +17,10 @@ class _SchemaPlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount the `schema` command on the root CLI."""
+        from dhis2w_core.v43.plugins.schema import (
+            cli as cli_module,
+        )
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

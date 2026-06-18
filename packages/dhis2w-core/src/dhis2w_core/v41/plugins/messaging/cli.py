@@ -11,7 +11,6 @@ from rich.table import Table
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v41.cli_output import DetailRow, is_json_output, render_detail
-from dhis2w_core.v41.plugins.messaging import service
 
 app = typer.Typer(
     help="DHIS2 internal messaging — /api/messageConversations.",
@@ -34,6 +33,8 @@ def list_command(
     page_size: Annotated[int | None, typer.Option("--page-size", help="Rows per page (default 50).")] = None,
 ) -> None:
     """List conversations the authenticated user is part of."""
+    from dhis2w_core.v41.plugins.messaging import service
+
     conversations = asyncio.run(
         service.list_conversations(profile_from_env(), filter=filter_expr, page=page, page_size=page_size),
     )
@@ -85,6 +86,8 @@ def _colorize_message_type(message_type: str | None) -> str:
 @app.command("get")
 def get_command(uid: Annotated[str, typer.Argument(help="Conversation UID.")]) -> None:
     """Show one conversation's metadata + message thread."""
+    from dhis2w_core.v41.plugins.messaging import service
+
     conv = asyncio.run(service.get_conversation(profile_from_env(), uid))
     rows = [
         DetailRow("id", conv.id or "-"),
@@ -150,6 +153,8 @@ def send_command(
     ] = None,
 ) -> None:
     """Create a new conversation with an initial message."""
+    from dhis2w_core.v41.plugins.messaging import service
+
     conv = asyncio.run(
         service.send(
             profile_from_env(),
@@ -171,9 +176,11 @@ def reply_command(
 ) -> None:
     """Reply to an existing conversation with a plain-text message.
 
-    DHIS2's reply endpoint takes text/plain only on v42 — attachments +
+    DHIS2's reply endpoint takes text/plain only on v41 — attachments +
     internal-note flag only work on the initial `send` call.
     """
+    from dhis2w_core.v41.plugins.messaging import service
+
     asyncio.run(service.reply(profile_from_env(), uid, text=text))
     typer.echo(f"replied to {uid}")
 
@@ -183,6 +190,8 @@ def mark_read_command(
     uid: Annotated[list[str], typer.Argument(help="Conversation UID(s). One or more.")],
 ) -> None:
     """Mark one or more conversations as read."""
+    from dhis2w_core.v41.plugins.messaging import service
+
     asyncio.run(service.mark_read(profile_from_env(), uid))
     typer.echo(f"marked read: {', '.join(uid)}")
 
@@ -192,6 +201,8 @@ def mark_unread_command(
     uid: Annotated[list[str], typer.Argument(help="Conversation UID(s). One or more.")],
 ) -> None:
     """Mark one or more conversations as unread."""
+    from dhis2w_core.v41.plugins.messaging import service
+
     asyncio.run(service.mark_unread(profile_from_env(), uid))
     typer.echo(f"marked unread: {', '.join(uid)}")
 
@@ -199,6 +210,8 @@ def mark_unread_command(
 @app.command("delete")
 def delete_command(uid: Annotated[str, typer.Argument(help="Conversation UID.")]) -> None:
     """Delete a conversation (soft-delete for the calling user; other participants keep it)."""
+    from dhis2w_core.v41.plugins.messaging import service
+
     asyncio.run(service.delete_conversation(profile_from_env(), uid))
     typer.echo(f"deleted {uid}")
 
@@ -216,6 +229,8 @@ def set_priority_command(
     Values: NONE / LOW / MEDIUM / HIGH. Applies to any messageType — most
     meaningful on TICKET conversations, stored on PRIVATE threads too.
     """
+    from dhis2w_core.v41.plugins.messaging import service
+
     asyncio.run(service.set_priority(profile_from_env(), uid, priority.upper()))
     typer.echo(f"priority={priority.upper()}  conversation={uid}")
 
@@ -234,6 +249,8 @@ def set_status_command(
     initial `send` — DHIS2's API requires a separate POST on the
     `/status` sub-resource.
     """
+    from dhis2w_core.v41.plugins.messaging import service
+
     asyncio.run(service.set_status(profile_from_env(), uid, status.upper()))
     typer.echo(f"status={status.upper()}  conversation={uid}")
 
@@ -244,6 +261,8 @@ def assign_command(
     user: Annotated[str, typer.Argument(help="User UID to assign the conversation to.")],
 ) -> None:
     """Assign a conversation to a user (ticket workflows)."""
+    from dhis2w_core.v41.plugins.messaging import service
+
     asyncio.run(service.assign(profile_from_env(), uid, user))
     typer.echo(f"assigned {uid} to {user}")
 
@@ -251,6 +270,8 @@ def assign_command(
 @app.command("unassign")
 def unassign_command(uid: Annotated[str, typer.Argument(help="Conversation UID.")]) -> None:
     """Remove the assignee from a conversation."""
+    from dhis2w_core.v41.plugins.messaging import service
+
     asyncio.run(service.unassign(profile_from_env(), uid))
     typer.echo(f"unassigned {uid}")
 

@@ -6,8 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v41.plugins.user_role import mcp as mcp_module
-
 
 class _UserRolePlugin(BaseModel):
     """Plugin descriptor for the DHIS2 user-role administration surface."""
@@ -23,6 +21,8 @@ class _UserRolePlugin(BaseModel):
 
     def register_mcp(self, mcp: Any) -> None:
         """Register user-role tools on the MCP server."""
+        from dhis2w_core.v41.plugins.user_role import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
-from dhis2w_client.v42 import RestoreSummary
 from rich.console import Console
 from rich.table import Table
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import is_json_output
-from dhis2w_core.v42.plugins.apps import service
 from dhis2w_core.v42.plugins.apps.models import UpdateOutcome, UpdateSummary
+
+if TYPE_CHECKING:
+    from dhis2w_client.v42 import RestoreSummary
 
 app = typer.Typer(
     help="DHIS2 apps — install / uninstall / update via /api/apps + /api/appHub.",
@@ -27,6 +28,8 @@ _console = Console()
 @app.command("ls", hidden=True)
 def list_command() -> None:
     """List every installed app (`GET /api/apps`)."""
+    from dhis2w_core.v42.plugins.apps import service
+
     apps = asyncio.run(service.list_apps(profile_from_env()))
     if is_json_output():
         typer.echo("[" + ",".join(a.model_dump_json(exclude_none=True) for a in apps) + "]")
@@ -74,6 +77,8 @@ def add_command(
     app ids and version ids are both bare UUIDs and easy to confuse — see
     BUGS.md #46). DHIS2 overwrites an existing install of the same app.
     """
+    from dhis2w_core.v42.plugins.apps import service
+
     candidate = Path(source)
     profile = profile_from_env()
     if candidate.is_file():
@@ -95,6 +100,8 @@ def remove_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Uninstall an app by key (`DELETE /api/apps/{key}`)."""
+    from dhis2w_core.v42.plugins.apps import service
+
     if not yes and not typer.confirm(f"remove installed app {key!r}?", default=False):
         raise typer.Exit(0)
     asyncio.run(service.uninstall(profile_from_env(), key))
@@ -126,6 +133,8 @@ def update_command(
     `AVAILABLE` and no install call is made, so you can preview the delta
     first.
     """
+    from dhis2w_core.v42.plugins.apps import service
+
     profile = profile_from_env()
     if all_apps and key:
         raise typer.BadParameter("pass either a key or --all, not both")
@@ -149,6 +158,8 @@ def update_command(
 @app.command("reload")
 def reload_command() -> None:
     """Ask DHIS2 to re-read every app from disk (`PUT /api/apps`)."""
+    from dhis2w_core.v42.plugins.apps import service
+
     asyncio.run(service.reload_apps(profile_from_env()))
     typer.echo("apps reloaded from disk")
 
@@ -182,6 +193,8 @@ def restore_command(
     carry their zips.
     """
     from dhis2w_client.v42 import AppsSnapshot
+
+    from dhis2w_core.v42.plugins.apps import service
 
     if not manifest.is_file():
         raise typer.BadParameter(f"no such manifest: {manifest}")
@@ -264,6 +277,8 @@ def snapshot_command(
     diff two snapshots to see drift, or re-apply on staging after a
     bulk-install on production.
     """
+    from dhis2w_core.v42.plugins.apps import service
+
     result = asyncio.run(service.snapshot(profile_from_env()))
     payload = result.model_dump_json(indent=2, exclude_none=True)
     if output is not None:
@@ -295,6 +310,8 @@ def hub_list_command(
     `/api/appHub` proxy doesn't expose a server-side query parameter
     on v42, so the full catalog is fetched and filtered after.
     """
+    from dhis2w_core.v42.plugins.apps import service
+
     hub = asyncio.run(service.hub_list(profile_from_env(), query=search))
     hub = hub[:limit]
     if is_json_output():
@@ -331,6 +348,8 @@ def hub_versions_command(
     directly (pinning that exact version) — use this to pick a version instead
     of letting `apps add <app-id>` resolve to the latest.
     """
+    from dhis2w_core.v42.plugins.apps import service
+
     record = asyncio.run(service.hub_versions(profile_from_env(), app_id))
     if is_json_output():
         typer.echo(record.model_dump_json(exclude_none=True))
@@ -370,6 +389,8 @@ def hub_url_command(
     Pass `--set <url>` to update, `--clear` to revert to DHIS2's
     hard-coded default (typically `https://apps.dhis2.org/api`).
     """
+    from dhis2w_core.v42.plugins.apps import service
+
     if set_url and clear:
         raise typer.BadParameter("--set and --clear are mutually exclusive")
     profile = profile_from_env()

@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v42.plugins.messaging import cli as cli_module
-from dhis2w_core.v42.plugins.messaging import mcp as mcp_module
-
 
 class _MessagingPlugin(BaseModel):
     """Plugin descriptor for DHIS2 internal messaging (conversations + attachments)."""
@@ -24,10 +21,14 @@ class _MessagingPlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount `d2w messaging` on the root CLI."""
+        from dhis2w_core.v42.plugins.messaging import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register `messaging_*` tools on the MCP server."""
+        from dhis2w_core.v42.plugins.messaging import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

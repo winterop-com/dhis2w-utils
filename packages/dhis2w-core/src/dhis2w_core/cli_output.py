@@ -26,13 +26,18 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from contextvars import ContextVar
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import typer
-from dhis2w_client import ConflictRow, WebMessageResponse
 from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
+
+if TYPE_CHECKING:
+    # Annotation-only — these render helpers receive already-parsed instances,
+    # so the classes are needed for typing, not at runtime. Keeping them out of
+    # the runtime import graph keeps `main.py` off the heavy generated OAS tree.
+    from dhis2w_client import ConflictRow, WebMessageResponse
 
 _console = Console()
 

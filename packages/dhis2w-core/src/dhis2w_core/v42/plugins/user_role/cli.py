@@ -17,7 +17,6 @@ from dhis2w_core.v42.cli_output import (
     render_detail,
     render_list,
 )
-from dhis2w_core.v42.plugins.user_role import service
 
 app = typer.Typer(
     help="Inspect + administer DHIS2 user roles (list, authority-list, grant/revoke users).",
@@ -36,6 +35,8 @@ def list_command(
     page_size: Annotated[int | None, typer.Option("--page-size", help="Server-side page size.")] = None,
 ) -> None:
     """List user roles."""
+    from dhis2w_core.v42.plugins.user_role import service
+
     roles = asyncio.run(
         service.list_user_roles(
             profile_from_env(),
@@ -67,6 +68,8 @@ def get_command(
     fields: Annotated[str | None, typer.Option("--fields", help="DHIS2 field selector.")] = None,
 ) -> None:
     """Fetch one user role by UID. Prints a concise summary; `--json` for full payload."""
+    from dhis2w_core.v42.plugins.user_role import service
+
     role = asyncio.run(service.get_user_role(profile_from_env(), uid, fields=fields))
     if is_json_output():
         typer.echo(role.model_dump_json(indent=2, exclude_none=True, by_alias=True))
@@ -101,6 +104,8 @@ def authority_list_command(
     uid: Annotated[str, typer.Argument(help="User-role UID.")],
 ) -> None:
     """Print the sorted authorities carried by one role, one per line."""
+    from dhis2w_core.v42.plugins.user_role import service
+
     auths = asyncio.run(service.list_authorities(profile_from_env(), uid))
     for auth in auths:
         typer.echo(auth)
@@ -112,6 +117,8 @@ def add_user_command(
     user_uid: Annotated[str, typer.Argument(help="User UID to grant the role to.")],
 ) -> None:
     """Grant a user a role (POST /api/userRoles/<rid>/users/<uid>)."""
+    from dhis2w_core.v42.plugins.user_role import service
+
     envelope = asyncio.run(service.add_user(profile_from_env(), role_uid, user_uid))
     typer.echo(f"granted role {role_uid} to {user_uid}: {envelope.httpStatus or envelope.status or 'OK'}")
 
@@ -122,6 +129,8 @@ def remove_user_command(
     user_uid: Annotated[str, typer.Argument(help="User UID to revoke the role from.")],
 ) -> None:
     """Revoke a role from a user (DELETE /api/userRoles/<rid>/users/<uid>)."""
+    from dhis2w_core.v42.plugins.user_role import service
+
     envelope = asyncio.run(service.remove_user(profile_from_env(), role_uid, user_uid))
     typer.echo(f"revoked role {role_uid} from {user_uid}: {envelope.httpStatus or envelope.status or 'OK'}")
 

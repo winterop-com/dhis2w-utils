@@ -71,6 +71,10 @@ class ProfileVersionMismatchError(RuntimeError):
     """Raised when a per-call profile pins a different DHIS2 major than the bound tree."""
 
 
+class ProfileAlreadyExistsError(ValueError):
+    """Raised when a rename / create would clobber an existing profile name."""
+
+
 _bound_version_key: str | None = None
 
 

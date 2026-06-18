@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v43.plugins.analytics import cli as cli_module
-from dhis2w_core.v43.plugins.analytics import mcp as mcp_module
-
 
 class _AnalyticsPlugin(BaseModel):
     """Plugin descriptor for DHIS2 analytics queries."""
@@ -20,10 +17,14 @@ class _AnalyticsPlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount under `d2w analytics`."""
+        from dhis2w_core.v43.plugins.analytics import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register analytics tools on the MCP server."""
+        from dhis2w_core.v43.plugins.analytics import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

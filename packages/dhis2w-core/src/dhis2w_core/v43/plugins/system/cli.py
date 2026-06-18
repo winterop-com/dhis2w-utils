@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+
+# DhisCalendar stays at module scope: a Typer enum param annotation on the calendar
+# command, which Typer resolves at command-registration time (import) — not deferrable.
 from dhis2w_client.v43 import DhisCalendar
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v43.cli_output import DetailRow, is_json_output, render_detail
-from dhis2w_core.v43.plugins.system import service
 
 app = typer.Typer(help="DHIS2 system info and current-user access.", no_args_is_help=True)
 
@@ -67,6 +69,8 @@ def _whoami_value(value: Any) -> str:
 @app.command("whoami")
 def whoami_command() -> None:
     """Expose everything DHIS2 reports about the authenticated user. `--json` for the raw object."""
+    from dhis2w_core.v43.plugins.system import service
+
     me = asyncio.run(service.whoami(profile_from_env()))
     if is_json_output():
         typer.echo(me.model_dump_json(indent=2, exclude_none=True, by_alias=True))
@@ -89,6 +93,8 @@ def whoami_command() -> None:
 @app.command("info")
 def info_command() -> None:
     """Print DHIS2 system info (version, build, analytics state, env)."""
+    from dhis2w_core.v43.plugins.system import service
+
     info = asyncio.run(service.system_info(profile_from_env()))
     if is_json_output():
         typer.echo(info.model_dump_json(indent=2, exclude_none=True, by_alias=True))
@@ -141,6 +147,8 @@ def calendar_command(
     unreadable and break analytics, so this command requires interactive
     confirmation (or `--yes`).
     """
+    from dhis2w_core.v43.plugins.system import service
+
     profile = profile_from_env()
     if value is None:
         current = asyncio.run(service.get_calendar(profile))
@@ -176,6 +184,8 @@ def settings_set_command(
     value: Annotated[str, typer.Argument(help="New value.")],
 ) -> None:
     """Set a single system setting."""
+    from dhis2w_core.v43.plugins.system import service
+
     asyncio.run(service.set_system_setting(profile_from_env(), key, value))
     typer.echo(f"set {key}")
 
@@ -185,6 +195,8 @@ def settings_set_many_command(
     file: Annotated[Path, typer.Argument(help="JSON file containing a {key: value} object.")],
 ) -> None:
     """Bulk-set system settings from a JSON file."""
+    from dhis2w_core.v43.plugins.system import service
+
     loaded: Any = json.loads(file.read_text(encoding="utf-8"))
     if not isinstance(loaded, dict):
         raise typer.BadParameter(f"{file} must contain a {{key: value}} object")
@@ -198,6 +210,8 @@ def settings_get_command(
     key: Annotated[str, typer.Argument(help="System setting key (e.g. applicationTitle).")],
 ) -> None:
     """Print one system setting's value; exit 1 if it is unset."""
+    from dhis2w_core.v43.plugins.system import service
+
     value = asyncio.run(service.get_setting(profile_from_env(), key))
     if value is None:
         typer.echo(f"{key} is not set", err=True)
@@ -209,6 +223,8 @@ def settings_get_command(
 @settings_app.command("ls", hidden=True)
 def settings_list_command() -> None:
     """List every system setting (key = value)."""
+    from dhis2w_core.v43.plugins.system import service
+
     snapshot = asyncio.run(service.list_settings(profile_from_env()))
     if is_json_output():
         typer.echo(snapshot.model_dump_json(indent=2))

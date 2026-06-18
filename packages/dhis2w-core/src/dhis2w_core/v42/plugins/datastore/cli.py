@@ -10,7 +10,6 @@ import typer
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import is_json_output
-from dhis2w_core.v42.plugins.datastore import service
 
 app = typer.Typer(
     help="DHIS2 key-value data store (/api/dataStore + per-user /api/userDataStore).",
@@ -27,6 +26,8 @@ _YesOpt = Annotated[bool, typer.Option("--yes", "-y", help="Skip the interactive
 @app.command("namespaces")
 def namespaces_command(user: _UserOpt = False) -> None:
     """List every namespace in the store."""
+    from dhis2w_core.v42.plugins.datastore import service
+
     names = asyncio.run(service.list_namespaces(profile_from_env(), user=user))
     if is_json_output():
         typer.echo(json.dumps(names, indent=2))
@@ -41,6 +42,8 @@ def keys_command(
     user: _UserOpt = False,
 ) -> None:
     """List every key in a namespace."""
+    from dhis2w_core.v42.plugins.datastore import service
+
     keys = asyncio.run(service.list_keys(profile_from_env(), namespace, user=user))
     if is_json_output():
         typer.echo(json.dumps(keys, indent=2))
@@ -56,6 +59,8 @@ def get_command(
     user: _UserOpt = False,
 ) -> None:
     """Print the value stored at `namespace/key` (JSON)."""
+    from dhis2w_core.v42.plugins.datastore import service
+
     value = asyncio.run(service.get_value(profile_from_env(), namespace, key, user=user))
     typer.echo(json.dumps(value, indent=2))
 
@@ -68,6 +73,8 @@ def set_command(
     user: _UserOpt = False,
 ) -> None:
     """Create or update `namespace/key`."""
+    from dhis2w_core.v42.plugins.datastore import service
+
     try:
         parsed: Any = json.loads(value)
     except json.JSONDecodeError:
@@ -84,6 +91,8 @@ def delete_command(
     yes: _YesOpt = False,
 ) -> None:
     """Delete `namespace/key`."""
+    from dhis2w_core.v42.plugins.datastore import service
+
     if not yes and not typer.confirm(f"Delete {namespace}/{key}?", default=False):
         typer.echo("Aborted.")
         raise typer.Exit(code=1)
@@ -98,6 +107,8 @@ def delete_namespace_command(
     yes: _YesOpt = False,
 ) -> None:
     """Delete an entire namespace and every key in it."""
+    from dhis2w_core.v42.plugins.datastore import service
+
     if not yes and not typer.confirm(f"Delete the whole {namespace!r} namespace?", default=False):
         typer.echo("Aborted.")
         raise typer.Exit(code=1)

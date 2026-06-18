@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v42.plugins.datastore import cli as cli_module
-from dhis2w_core.v42.plugins.datastore import mcp as mcp_module
-
 
 class _DatastorePlugin(BaseModel):
     """Plugin descriptor for the DHIS2 key-value data store."""
@@ -23,10 +20,14 @@ class _DatastorePlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount the datastore sub-app under `d2w datastore`."""
+        from dhis2w_core.v42.plugins.datastore import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register the `datastore_*` MCP tools."""
+        from dhis2w_core.v42.plugins.datastore import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

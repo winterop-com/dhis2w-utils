@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v43.plugins.profile import cli as cli_module
-from dhis2w_core.v43.plugins.profile import mcp as mcp_module
-
 
 class _ProfilePlugin(BaseModel):
     """Plugin descriptor for DHIS2 profile management."""
@@ -20,10 +17,14 @@ class _ProfilePlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount under `d2w profile`."""
+        from dhis2w_core.v43.plugins.profile import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register read-only profile tools on the MCP server."""
+        from dhis2w_core.v43.plugins.profile import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

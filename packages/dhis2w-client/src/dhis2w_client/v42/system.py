@@ -8,35 +8,16 @@ the OpenAPI spec under that name.
 
 from __future__ import annotations
 
-from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_client.generated.v42.oas import SystemInfo
+from dhis2w_client.v42.calendars import DhisCalendar
 
 if TYPE_CHECKING:
     from dhis2w_client.v42.client import Dhis2Client
-
-
-class DhisCalendar(StrEnum):
-    """Canonical DHIS2 calendar names (the values DHIS2 accepts on `keyCalendar`).
-
-    Matches the `@Component` `name()` of every calendar implementation under
-    `org.hisp.dhis.calendar.impl` on `dhis2/dhis2w-core` 2.42 — `iso8601` is
-    the server default. Pass any of these to `SystemModule.set_calendar()`.
-    """
-
-    COPTIC = "coptic"
-    ETHIOPIAN = "ethiopian"
-    GREGORIAN = "gregorian"
-    ISLAMIC = "islamic"
-    ISO8601 = "iso8601"
-    JULIAN = "julian"
-    NEPALI = "nepali"
-    PERSIAN = "persian"
-    THAI = "thai"
 
 
 class DisplayRef(BaseModel):

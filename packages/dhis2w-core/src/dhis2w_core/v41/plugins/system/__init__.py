@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v41.plugins.system import cli as cli_module
-from dhis2w_core.v41.plugins.system import mcp as mcp_module
-
 
 class _SystemPlugin(BaseModel):
     """Plugin descriptor for the system capability."""
@@ -20,10 +17,14 @@ class _SystemPlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount the system sub-app under `d2w system`."""
+        from dhis2w_core.v41.plugins.system import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register `whoami` and `system_info` as MCP tools."""
+        from dhis2w_core.v41.plugins.system import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

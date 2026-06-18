@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v42.plugins.user import cli as cli_module
-from dhis2w_core.v42.plugins.user import mcp as mcp_module
-
 
 class _UserPlugin(BaseModel):
     """Plugin descriptor for the DHIS2 user administration surface."""
@@ -20,10 +17,14 @@ class _UserPlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount the user sub-app under `d2w user`."""
+        from dhis2w_core.v42.plugins.user import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register user tools on the MCP server."""
+        from dhis2w_core.v42.plugins.user import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

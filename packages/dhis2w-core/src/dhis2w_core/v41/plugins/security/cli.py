@@ -9,7 +9,6 @@ import typer
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v41.cli_output import ColumnSpec, DetailRow, format_bool, is_json_output, render_detail, render_list
-from dhis2w_core.v41.plugins.security import service
 
 app = typer.Typer(
     help="Inspect DHIS2 security posture (settings, account authorities).",
@@ -37,6 +36,8 @@ def _flag(value: bool | None) -> str:
 @app.command("settings")
 def settings_command() -> None:
     """Show the server's security-relevant system settings. `--json` for the full payload."""
+    from dhis2w_core.v41.plugins.security import service
+
     settings = asyncio.run(service.get_security_settings(profile_from_env()))
     if is_json_output():
         typer.echo(settings.model_dump_json(indent=2, exclude_none=True))
@@ -58,6 +59,8 @@ def settings_command() -> None:
 @app.command("authorities")
 def authorities_command() -> None:
     """Show my effective authorities, categorised by security risk. `--json` for the full payload."""
+    from dhis2w_core.v41.plugins.security import service
+
     account = asyncio.run(service.get_account_authorities(profile_from_env()))
     if is_json_output():
         typer.echo(account.model_dump_json(indent=2))

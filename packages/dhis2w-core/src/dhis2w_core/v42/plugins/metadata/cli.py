@@ -7,10 +7,9 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
-from dhis2w_client.v42 import JsonPatchOpAdapter
 from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
@@ -18,9 +17,10 @@ from rich.table import Table
 from dhis2w_core.plugin import resolve_startup_version
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import is_json_output, render_conflicts, render_webmessage
-from dhis2w_core.v42.plugins.metadata import service
 from dhis2w_core.v42.plugins.metadata.models import MetadataBundle, MetadataCount, MetadataWriteResult
-from dhis2w_core.v42.plugins.schema import service as schema_service
+
+if TYPE_CHECKING:
+    from dhis2w_core.v42.plugins.metadata import service
 
 app = typer.Typer(help="Inspect and list DHIS2 metadata (wraps generated CRUD resources).", no_args_is_help=True)
 type_app = typer.Typer(help="Metadata resource types (the catalog).", no_args_is_help=True)
@@ -229,6 +229,8 @@ def _emit_mutation(*parts: str) -> None:
 @type_app.command("ls", hidden=True)
 def type_list_command() -> None:
     """List the metadata resource types exposed by the connected DHIS2 instance."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     names = asyncio.run(service.list_resource_types(profile_from_env()))
     if is_json_output():
         typer.echo(json.dumps(names, indent=2))
@@ -328,6 +330,8 @@ def list_command(
     ] = None,
 ) -> None:
     """List instances of a metadata resource."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     rj = root_junction if filters and len(filters) > 1 else None
     if count:
         total = asyncio.run(service.count_metadata(profile_from_env(), resource, filters=filters, root_junction=rj))
@@ -388,6 +392,8 @@ def _warn_unknown_fields(resource: str, fields: str) -> None:
     so a model that guessed a field name gets a corrective signal the DHIS2 API never gives (it
     silently drops unknown fields). Only plain comma-lists are checked (see `schema` service).
     """
+    from dhis2w_core.v42.plugins.schema import service as schema_service
+
     version = resolve_startup_version()
     missing = schema_service.unknown_fields(version, resource, fields)
     if missing:
@@ -426,6 +432,8 @@ async def _collect_all(
     locale: str | None,
 ) -> list[BaseModel]:
     """Drain `iter_metadata` into a list for table/JSON rendering."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     collected: list[BaseModel] = []
     async for item in service.iter_metadata(
         profile_from_env(),
@@ -477,6 +485,8 @@ def search_command(
     to `eq` strict match — useful when a partial UID would otherwise
     match too many siblings.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     result = asyncio.run(
         service.search_metadata(
             profile_from_env(),
@@ -517,6 +527,8 @@ def usage_command(
     `/api/<target>?filter=<path>:eq:<uid>` calls over every known
     reference-shape for that owning type.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     result = asyncio.run(service.usage_metadata(profile_from_env(), uid, page_size=page_size))
     if is_json_output():
         typer.echo(result.model_dump_json(indent=2))
@@ -529,7 +541,7 @@ def usage_command(
 
 def _render_hits_table(title: str, result: object, *, extra_fields: str | None = None) -> None:
     """Render a `SearchResults` as a Rich table — used by `search` + `usage`."""
-    from dhis2w_client.v42 import SearchResults  # noqa: PLC0415 — local import avoids circular
+    from dhis2w_client.v42 import SearchResults
 
     if not isinstance(result, SearchResults):
         return
@@ -566,6 +578,8 @@ def get_command(
     notable extras). Use `--json` for the full payload when debugging or
     piping into jq. Pass `--fields` to narrow what DHIS2 returns.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]{10}", uid):
         typer.secho(
             f"error: {uid!r} is not a valid DHIS2 UID (11 chars: a letter then 10 letters/digits)",
@@ -732,6 +746,8 @@ def export_command(
     bundle that won't round-trip because categoryCombos / optionSets / ...
     are missing.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     per_resource_filters = _parse_prefixed_multi(resource_filter or [], flag_name="--filter")
     per_resource_fields_map = _parse_prefixed_single(resource_fields or [], flag_name="--resource-fields")
     bundle = asyncio.run(
@@ -867,6 +883,8 @@ def import_command(
     ] = None,
 ) -> None:
     """Upload a metadata bundle via `POST /api/metadata` and print the import report."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     raw = json.loads(file.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise typer.BadParameter(f"{file} must contain a metadata bundle object (got {type(raw).__name__})")
@@ -934,6 +952,10 @@ def patch_command(
       (so `--set /valueType=INTEGER` sends a string, `--set /disabled=true`
       sends a boolean).
     """
+    from dhis2w_client.v42 import JsonPatchOpAdapter
+
+    from dhis2w_core.v42.plugins.metadata import service
+
     if (file is None) == (not set_ops and not remove_ops):
         raise typer.BadParameter("pass either --file OR --set/--remove inline ops (not both, not neither)")
 
@@ -1049,6 +1071,8 @@ def rename_command(
     Use `--dry-run` to preview which objects match + what the
     before/after labels would be, then drop the flag to apply.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     mutations = [
         name_prefix,
         name_suffix,
@@ -1198,6 +1222,8 @@ def retag_command(
     — e.g. `--domain-type TRACKER` against an Indicator surfaces as
     409s instead of raising.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not any(
         [
             category_combo,
@@ -1363,6 +1389,8 @@ def share_command(
     `d2w --json metadata list ... | jq -r '.[].id'` to filter-then-share without
     leaving the shell.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     resource_type = _share_type(resource_type)
     if not user_access and not user_group_access and public_access is None:
         raise typer.BadParameter(
@@ -1481,6 +1509,8 @@ def diff_command(
     DHIS2's per-instance noise (lastUpdated, createdBy, etc.) are treated as
     unchanged by default — `--ignore` extends that list.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     if (right is None) == (not live):
         raise typer.BadParameter("provide exactly one of a second positional bundle or --live")
 
@@ -1643,6 +1673,7 @@ def diff_profiles_command(
     `--exit-on-drift` for the CI shape.
     """
     from dhis2w_core.profile import UnknownProfileError, resolve_profile
+    from dhis2w_core.v42.plugins.metadata import service
 
     if not resources:
         raise typer.BadParameter("pass at least one --resource (see `d2w metadata type ls`)")
@@ -1764,6 +1795,7 @@ def merge_command(
     doesn't exist on the target" before the real run.
     """
     from dhis2w_core.profile import UnknownProfileError, resolve_profile
+    from dhis2w_core.v42.plugins.metadata import service
 
     if not resources:
         raise typer.BadParameter("pass at least one --resource (see `d2w metadata type ls`)")
@@ -1894,6 +1926,7 @@ def merge_bundle_command(
     `--dry-run` flips to `importMode=VALIDATE`.
     """
     from dhis2w_core.profile import UnknownProfileError, resolve_profile
+    from dhis2w_core.v42.plugins.metadata import service
 
     try:
         resolved_target = resolve_profile(target_profile)
@@ -1989,6 +2022,8 @@ def options_get_command(
     uid_or_code: Annotated[str, typer.Argument(help="OptionSet UID (11 chars) or business code.")],
 ) -> None:
     """Show one OptionSet with its options resolved inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     option_set = asyncio.run(service.show_option_set(profile_from_env(), uid_or_code))
     if option_set is None:
         typer.secho(f"no OptionSet with code/uid {uid_or_code!r}", err=True, fg=typer.colors.YELLOW)
@@ -2040,6 +2075,8 @@ def options_find_command(
     ] = None,
 ) -> None:
     """Locate a single option inside a set by code or name; exit 1 if no match."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if (option_code is None) == (option_name is None):
         raise typer.BadParameter("exactly one of --code / --name is required")
     option = asyncio.run(
@@ -2071,7 +2108,8 @@ def options_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create an OptionSet (then add its options with `options sync`)."""
-    from dhis2w_core.v42.cli_output import render_webmessage  # noqa: PLC0415
+    from dhis2w_core.v42.cli_output import render_webmessage
+    from dhis2w_core.v42.plugins.metadata import service
 
     response = asyncio.run(
         service.create_option_set(profile_from_env(), name=name, value_type=value_type, code=code, uid=uid)
@@ -2085,6 +2123,8 @@ def options_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Delete an OptionSet by UID."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes and not typer.confirm(f"Delete optionSet {uid}?"):
         raise typer.Abort()
     asyncio.run(service.delete_option_set(profile_from_env(), uid))
@@ -2124,7 +2164,9 @@ def options_sync_command(
     Pass `--remove-missing` to also drop options whose code isn't in the
     spec. `--dry-run` previews the diff without writing.
     """
-    from dhis2w_client.v42 import OptionSpec  # noqa: PLC0415 — avoid top-level import for CLI fast-path
+    from dhis2w_client.v42 import OptionSpec
+
+    from dhis2w_core.v42.plugins.metadata import service
 
     raw = json.loads(spec_file.read_text(encoding="utf-8"))
     if not isinstance(raw, list):
@@ -2176,6 +2218,8 @@ def options_attribute_get_command(
     ],
 ) -> None:
     """Read one attribute value off an Option; exit 1 if unset."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     value = asyncio.run(
         service.get_option_attribute_value(
             profile_from_env(),
@@ -2205,6 +2249,8 @@ def options_attribute_set_command(
     attribute-value list is identity-keyed by attribute UID, so this is
     idempotent — calling twice with the same value is a no-op.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     asyncio.run(
         service.set_option_attribute_value(
             profile_from_env(),
@@ -2231,6 +2277,8 @@ def options_attribute_find_command(
     LOINC code; this command returns the DHIS2 Option it maps to. Exits 1
     on miss with a stderr hint.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     option = asyncio.run(
         service.find_option_by_attribute(
             profile_from_env(),
@@ -2270,6 +2318,8 @@ def attribute_get_command(
     ],
 ) -> None:
     """Read one attribute value off any resource; exit 1 if unset."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     value = asyncio.run(
         service.get_attribute_value(
             profile_from_env(),
@@ -2296,6 +2346,8 @@ def attribute_set_command(
     value: Annotated[str, typer.Argument(help="New attribute value.")],
 ) -> None:
     """Set / replace one attribute value on any resource (read-merge-write)."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     asyncio.run(
         service.set_attribute_value(
             profile_from_env(),
@@ -2315,6 +2367,8 @@ def attribute_delete_command(
     attribute: Annotated[str, typer.Argument(help="Attribute UID or business code.")],
 ) -> None:
     """Remove one attribute value from any resource; exit 0 regardless of whether it existed."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     removed = asyncio.run(
         service.delete_attribute_value(
             profile_from_env(),
@@ -2352,6 +2406,8 @@ def attribute_find_command(
     `d2w metadata list <resource> --filter id:in:[...]` for typed
     follow-ups.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     uids = asyncio.run(
         service.find_resources_by_attribute(
             profile_from_env(),
@@ -2382,6 +2438,8 @@ def program_rule_get_command(
     rule_uid: Annotated[str, typer.Argument(help="ProgramRule UID.")],
 ) -> None:
     """Show one ProgramRule with its condition, priority, and every action."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     rule = asyncio.run(service.show_program_rule(profile_from_env(), rule_uid))
     if is_json_output():
         typer.echo(rule.model_dump_json(indent=2, exclude_none=True))
@@ -2426,6 +2484,8 @@ def program_rule_vars_for_command(
     program_uid: Annotated[str, typer.Argument(help="Program UID.")],
 ) -> None:
     """List every `ProgramRuleVariable` in scope for a program, sorted by name."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     variables = asyncio.run(service.list_program_rule_variables(profile_from_env(), program_uid))
     if is_json_output():
         typer.echo("[" + ",".join(v.model_dump_json(exclude_none=True) for v in variables) + "]")
@@ -2477,6 +2537,8 @@ def program_rule_validate_expression_command(
     OK as definitely valid; read the specific message on ERROR to
     distinguish parser mismatches from real syntax problems.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     result = asyncio.run(
         service.validate_program_rule_expression(profile_from_env(), expression, context=context),
     )
@@ -2500,6 +2562,8 @@ def program_rule_where_de_is_used_command(
     firing once the reference breaks. Exit 1 if nothing matches (safe
     shorthand for `grep -q` pipelines).
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     rules = asyncio.run(
         service.program_rules_using_data_element(profile_from_env(), data_element_uid),
     )
@@ -2543,8 +2607,8 @@ def _parse_key_value_pairs(values: list[str] | None, *, flag_name: str) -> dict[
 
 def _render_sql_view_result(result: Any, *, fmt: str) -> None:
     """Render a SqlViewResult to stdout — Rich table, JSON array of dicts, or CSV."""
-    import csv as _csv  # noqa: PLC0415
-    import io as _io  # noqa: PLC0415
+    import csv as _csv
+    import io as _io
 
     columns = [column.name for column in result.columns]
     if fmt == "json":
@@ -2573,6 +2637,8 @@ def sql_view_get_command(
     view_uid: Annotated[str, typer.Argument(help="SqlView UID.")],
 ) -> None:
     """Show one SqlView's metadata + its stored SQL body."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     view = asyncio.run(service.show_sql_view(profile_from_env(), view_uid))
     if is_json_output():
         typer.echo(view.model_dump_json(indent=2, exclude_none=True))
@@ -2614,6 +2680,8 @@ def sql_view_execute_command(
     ] = "table",
 ) -> None:
     """Run a SqlView and render its rows as a table, JSON array, or CSV."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if fmt not in {"table", "json", "csv"}:
         typer.secho(f"unknown --format {fmt!r}: expected table, json, or csv", err=True, fg=typer.colors.RED)
         raise typer.Exit(2)
@@ -2640,6 +2708,8 @@ def sql_view_refresh_command(
     first call creates the Postgres view; subsequent calls are no-ops.
     MATERIALIZED_VIEW types re-run the underlying SQL each call.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     response = asyncio.run(service.refresh_sql_view(profile_from_env(), view_uid))
     render_webmessage(response, as_json=False, action="refreshed")
 
@@ -2671,6 +2741,8 @@ def sql_view_adhoc_command(
     Subject to DHIS2's SQL allowlist — for fully free-form queries, see
     the Postgres injector example.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not sql_path.is_file():
         typer.secho(f"SQL file not found: {sql_path}", err=True, fg=typer.colors.RED)
         raise typer.Exit(2)
@@ -2716,6 +2788,8 @@ def viz_get_command(
     viz_uid: Annotated[str, typer.Argument(help="Visualization UID.")],
 ) -> None:
     """Show one Visualization with axes + data dimensions + period / ou selection."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     viz = asyncio.run(service.show_visualization(profile_from_env(), viz_uid))
     if is_json_output():
         typer.echo(viz.model_dump_json(indent=2, exclude_none=True))
@@ -2787,6 +2861,8 @@ def viz_create_command(
     collapses to columns=[dx] / filters=[pe, ou]. Override any slot with
     --category-dim / --series-dim / --filter-dim.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     viz = asyncio.run(
         service.create_visualization(
             profile_from_env(),
@@ -2827,6 +2903,8 @@ def viz_clone_command(
     ] = None,
 ) -> None:
     """Clone an existing Visualization with a fresh UID + new name."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     clone = asyncio.run(
         service.clone_visualization(
             profile_from_env(),
@@ -2848,6 +2926,8 @@ def viz_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Delete a Visualization."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete visualization {viz_uid}?", abort=True)
     asyncio.run(service.delete_visualization(profile_from_env(), viz_uid))
@@ -2859,6 +2939,8 @@ def dashboard_get_command(
     dashboard_uid: Annotated[str, typer.Argument(help="Dashboard UID.")],
 ) -> None:
     """Show one Dashboard with every dashboardItem resolved inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     dashboard = asyncio.run(service.show_dashboard(profile_from_env(), dashboard_uid))
     if is_json_output():
         typer.echo(dashboard.model_dump_json(indent=2, exclude_none=True))
@@ -2919,6 +3001,8 @@ def dashboard_add_item_command(
     auto-stack below existing items (full width); supply them when
     you want side-by-side tiling.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     if (visualization_uid is None) == (map_uid is None):
         typer.secho("pass exactly one of --viz or --map", err=True, fg=typer.colors.RED)
         raise typer.Exit(2)
@@ -2949,6 +3033,8 @@ def dashboard_remove_item_command(
     item_uid: Annotated[str, typer.Argument(help="DashboardItem UID to remove.")],
 ) -> None:
     """Remove one dashboardItem by its UID."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     dashboard = asyncio.run(
         service.dashboard_remove_item(profile_from_env(), dashboard_uid, item_uid),
     )
@@ -2963,6 +3049,8 @@ def map_get_command(
     map_uid: Annotated[str, typer.Argument(help="Map UID.")],
 ) -> None:
     """Show one Map with its viewport + every mapViews layer."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     m = asyncio.run(service.show_map(profile_from_env(), map_uid))
     if is_json_output():
         typer.echo(m.model_dump_json(indent=2, exclude_none=True))
@@ -3034,6 +3122,8 @@ def map_create_command(
     library side and extend the spec to include boundary / facility
     / event layers.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     m = asyncio.run(
         service.create_map(
             profile_from_env(),
@@ -3069,6 +3159,8 @@ def map_clone_command(
     new_description: Annotated[str | None, typer.Option("--new-description")] = None,
 ) -> None:
     """Clone an existing Map with a fresh UID + new name."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     clone = asyncio.run(
         service.clone_map(
             profile_from_env(),
@@ -3090,6 +3182,8 @@ def map_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Delete a Map."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete map {map_uid}?", abort=True)
     asyncio.run(service.delete_map(profile_from_env(), map_uid))
@@ -3125,6 +3219,8 @@ def legend_sets_get_command(
     uid: Annotated[str, typer.Argument(help="LegendSet UID.")],
 ) -> None:
     """Show one LegendSet with its ordered legends (colour ranges)."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     legend_set = asyncio.run(service.show_legend_set(profile_from_env(), uid))
     if is_json_output():
         typer.echo(legend_set.model_dump_json(indent=2, exclude_none=True))
@@ -3196,6 +3292,8 @@ def legend_sets_create_command(
     land atomically. Returns the freshly-fetched record so DHIS2's
     computed fields are populated.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not legends:
         raise typer.BadParameter("pass at least one --legend (e.g. `--legend 0:100:#d73027:Low`)")
     parsed_legends = [_parse_legend_spec(spec) for spec in legends]
@@ -3235,6 +3333,8 @@ def legend_sets_clone_command(
     Useful for forking a base set ("Coverage 0-100") into a variant
     without rebuilding the bands by hand.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     result = asyncio.run(
         service.clone_legend_set(
             profile_from_env(),
@@ -3256,6 +3356,8 @@ def legend_sets_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Delete a LegendSet."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete legendSet {uid}?", abort=True)
     asyncio.run(service.delete_legend_set(profile_from_env(), uid))
@@ -3272,6 +3374,8 @@ def data_elements_get_command(
     uid: Annotated[str, typer.Argument(help="DataElement UID.")],
 ) -> None:
     """Show one DataElement with its references resolved inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     de = asyncio.run(service.show_data_element(profile_from_env(), uid))
     if is_json_output():
         typer.echo(de.model_dump_json(indent=2, exclude_none=True))
@@ -3317,6 +3421,8 @@ def data_elements_create_command(
     ] = False,
 ) -> None:
     """Create a DataElement (defaults aggregate + SUM + instance default categoryCombo)."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     de = asyncio.run(
         service.create_data_element(
             profile_from_env(),
@@ -3350,6 +3456,8 @@ def data_elements_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update the label fields on a DataElement (read, mutate, PUT)."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     de = asyncio.run(
         service.rename_data_element(
             profile_from_env(),
@@ -3375,6 +3483,8 @@ def data_elements_set_legend_sets_command(
     ],
 ) -> None:
     """Replace the legend-set refs on one DataElement."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     de = asyncio.run(
         service.set_data_element_legend_sets(profile_from_env(), uid, legend_set_uids=legend_set_uids),
     )
@@ -3389,6 +3499,8 @@ def data_elements_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a DataElement — DHIS2 rejects deletes on DEs with saved values."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete dataElement {uid}?", abort=True)
     asyncio.run(service.delete_data_element(profile_from_env(), uid))
@@ -3405,6 +3517,8 @@ def data_element_groups_get_command(
     uid: Annotated[str, typer.Argument(help="DataElementGroup UID.")],
 ) -> None:
     """Show one group with its member refs and group-sets it belongs to."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(service.show_data_element_group(profile_from_env(), uid))
     if is_json_output():
         typer.echo(group.model_dump_json(indent=2, exclude_none=True))
@@ -3423,6 +3537,8 @@ def data_element_groups_members_command(
     page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
 ) -> None:
     """Page through DataElements inside one group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     members = asyncio.run(
         service.list_data_element_group_members(profile_from_env(), uid, page=page, page_size=page_size),
     )
@@ -3458,6 +3574,8 @@ def data_element_groups_create_command(
     description: Annotated[str | None, typer.Option("--description", help="Free text.")] = None,
 ) -> None:
     """Create an empty DataElementGroup."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.create_data_element_group(
             profile_from_env(),
@@ -3483,6 +3601,8 @@ def data_element_groups_add_members_command(
     ],
 ) -> None:
     """Add `--data-element` members via the per-item POST shortcut."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.add_data_element_group_members(profile_from_env(), uid, data_element_uids=data_element_uids),
     )
@@ -3499,6 +3619,8 @@ def data_element_groups_remove_members_command(
     ],
 ) -> None:
     """Drop `--data-element` members via the per-item DELETE shortcut."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.remove_data_element_group_members(
             profile_from_env(),
@@ -3516,6 +3638,8 @@ def data_element_groups_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete the grouping row — member DEs stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete dataElementGroup {uid}?", abort=True)
     asyncio.run(service.delete_data_element_group(profile_from_env(), uid))
@@ -3532,6 +3656,8 @@ def data_element_group_sets_get_command(
     uid: Annotated[str, typer.Argument(help="DataElementGroupSet UID.")],
 ) -> None:
     """Show one group set with its groups."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group_set = asyncio.run(service.show_data_element_group_set(profile_from_env(), uid))
     if is_json_output():
         typer.echo(group_set.model_dump_json(indent=2, exclude_none=True))
@@ -3575,6 +3701,8 @@ def data_element_group_sets_create_command(
     ] = True,
 ) -> None:
     """Create an empty DataElementGroupSet."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     gs = asyncio.run(
         service.create_data_element_group_set(
             profile_from_env(),
@@ -3599,6 +3727,8 @@ def data_element_group_sets_add_groups_command(
     group_uids: Annotated[list[str], typer.Option("--group", help="DataElementGroup UID to add. Repeat for multiple.")],
 ) -> None:
     """Add `--group` members to a group set."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     gs = asyncio.run(service.add_data_element_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.dataElementGroups or [])
     _emit_mutation(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total groups={total}")
@@ -3612,6 +3742,8 @@ def data_element_group_sets_remove_groups_command(
     ],
 ) -> None:
     """Drop `--group` members from a group set."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     gs = asyncio.run(service.remove_data_element_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.dataElementGroups or [])
     _emit_mutation(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total groups={total}")
@@ -3623,6 +3755,8 @@ def data_element_group_sets_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a DataElementGroupSet — member groups stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete dataElementGroupSet {uid}?", abort=True)
     asyncio.run(service.delete_data_element_group_set(profile_from_env(), uid))
@@ -3639,6 +3773,8 @@ def indicators_get_command(
     uid: Annotated[str, typer.Argument(help="Indicator UID.")],
 ) -> None:
     """Show one Indicator with expression pair + indicatorType resolved inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     ind = asyncio.run(service.show_indicator(profile_from_env(), uid))
     if is_json_output():
         typer.echo(ind.model_dump_json(indent=2, exclude_none=True))
@@ -3682,6 +3818,8 @@ def indicators_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create an Indicator from a numerator / denominator expression pair."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     ind = asyncio.run(
         service.create_indicator(
             profile_from_env(),
@@ -3714,6 +3852,8 @@ def indicators_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update label fields on an Indicator."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     ind = asyncio.run(
         service.rename_indicator(profile_from_env(), uid, name=name, short_name=short_name, description=description),
     )
@@ -3728,6 +3868,8 @@ def indicators_validate_expression_command(
     expression: Annotated[str, typer.Argument(help="Numerator / denominator expression to validate.")],
 ) -> None:
     """Parse-check one indicator expression — fast pre-flight before create."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     desc = asyncio.run(service.validate_indicator_expression(profile_from_env(), expression))
     if is_json_output():
         typer.echo(desc.model_dump_json(indent=2, exclude_none=True))
@@ -3747,6 +3889,8 @@ def indicators_set_legend_sets_command(
     ],
 ) -> None:
     """Replace the legend-set refs on one Indicator."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     ind = asyncio.run(
         service.set_indicator_legend_sets(profile_from_env(), uid, legend_set_uids=legend_set_uids),
     )
@@ -3761,6 +3905,8 @@ def indicators_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete an Indicator — DHIS2 rejects deletes on indicators used in viz/dashboards."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete indicator {uid}?", abort=True)
     asyncio.run(service.delete_indicator(profile_from_env(), uid))
@@ -3777,6 +3923,8 @@ def indicator_groups_get_command(
     uid: Annotated[str, typer.Argument(help="IndicatorGroup UID.")],
 ) -> None:
     """Show one group with its member refs."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(service.show_indicator_group(profile_from_env(), uid))
     if is_json_output():
         typer.echo(group.model_dump_json(indent=2, exclude_none=True))
@@ -3795,6 +3943,8 @@ def indicator_groups_members_command(
     page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
 ) -> None:
     """Page through Indicators inside one group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     members = asyncio.run(
         service.list_indicator_group_members(profile_from_env(), uid, page=page, page_size=page_size),
     )
@@ -3831,6 +3981,8 @@ def indicator_groups_create_command(
     description: Annotated[str | None, typer.Option("--description", help="Free text.")] = None,
 ) -> None:
     """Create an empty IndicatorGroup."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.create_indicator_group(
             profile_from_env(),
@@ -3856,6 +4008,8 @@ def indicator_groups_add_members_command(
     ],
 ) -> None:
     """Add `--indicator` members via the per-item POST shortcut."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.add_indicator_group_members(profile_from_env(), uid, indicator_uids=indicator_uids),
     )
@@ -3872,6 +4026,8 @@ def indicator_groups_remove_members_command(
     ],
 ) -> None:
     """Drop `--indicator` members via the per-item DELETE shortcut."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.remove_indicator_group_members(profile_from_env(), uid, indicator_uids=indicator_uids),
     )
@@ -3885,6 +4041,8 @@ def indicator_groups_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete the grouping row — member indicators stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete indicatorGroup {uid}?", abort=True)
     asyncio.run(service.delete_indicator_group(profile_from_env(), uid))
@@ -3901,6 +4059,8 @@ def indicator_group_sets_get_command(
     uid: Annotated[str, typer.Argument(help="IndicatorGroupSet UID.")],
 ) -> None:
     """Show one group set with its groups."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group_set = asyncio.run(service.show_indicator_group_set(profile_from_env(), uid))
     if is_json_output():
         typer.echo(group_set.model_dump_json(indent=2, exclude_none=True))
@@ -3941,6 +4101,8 @@ def indicator_group_sets_create_command(
     ] = False,
 ) -> None:
     """Create an empty IndicatorGroupSet."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     gs = asyncio.run(
         service.create_indicator_group_set(
             profile_from_env(),
@@ -3964,6 +4126,8 @@ def indicator_group_sets_add_groups_command(
     group_uids: Annotated[list[str], typer.Option("--group", help="IndicatorGroup UID to add. Repeat for multiple.")],
 ) -> None:
     """Add `--group` members to a group set."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     gs = asyncio.run(service.add_indicator_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.indicatorGroups or [])
     _emit_mutation(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total={total}")
@@ -3975,6 +4139,8 @@ def indicator_group_sets_remove_groups_command(
     group_uids: Annotated[list[str], typer.Option("--group", help="IndicatorGroup UID to drop. Repeat for multiple.")],
 ) -> None:
     """Drop `--group` members from a group set."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     gs = asyncio.run(service.remove_indicator_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.indicatorGroups or [])
     _emit_mutation(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total={total}")
@@ -3986,6 +4152,8 @@ def indicator_group_sets_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete an IndicatorGroupSet — member groups stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete indicatorGroupSet {uid}?", abort=True)
     asyncio.run(service.delete_indicator_group_set(profile_from_env(), uid))
@@ -4002,6 +4170,8 @@ def program_indicators_get_command(
     uid: Annotated[str, typer.Argument(help="ProgramIndicator UID.")],
 ) -> None:
     """Show one ProgramIndicator with its expression + filter resolved inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     pi = asyncio.run(service.show_program_indicator(profile_from_env(), uid))
     if is_json_output():
         typer.echo(pi.model_dump_json(indent=2, exclude_none=True))
@@ -4044,6 +4214,8 @@ def program_indicators_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a ProgramIndicator for a given program."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     pi = asyncio.run(
         service.create_program_indicator(
             profile_from_env(),
@@ -4075,6 +4247,8 @@ def program_indicators_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update label fields on a ProgramIndicator."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     pi = asyncio.run(
         service.rename_program_indicator(
             profile_from_env(), uid, name=name, short_name=short_name, description=description
@@ -4091,6 +4265,8 @@ def program_indicators_validate_expression_command(
     expression: Annotated[str, typer.Argument(help="Program-indicator expression to validate.")],
 ) -> None:
     """Parse-check one program-indicator expression — fast pre-flight before create."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     desc = asyncio.run(service.validate_program_indicator_expression(profile_from_env(), expression))
     if is_json_output():
         typer.echo(desc.model_dump_json(indent=2, exclude_none=True))
@@ -4110,6 +4286,8 @@ def program_indicators_set_legend_sets_command(
     ],
 ) -> None:
     """Replace the legend-set refs on one ProgramIndicator."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     pi = asyncio.run(
         service.set_program_indicator_legend_sets(profile_from_env(), uid, legend_set_uids=legend_set_uids),
     )
@@ -4124,6 +4302,8 @@ def program_indicators_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a ProgramIndicator — DHIS2 rejects deletes on PIs used in viz / dashboards."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete programIndicator {uid}?", abort=True)
     asyncio.run(service.delete_program_indicator(profile_from_env(), uid))
@@ -4140,6 +4320,8 @@ def program_indicator_groups_get_command(
     uid: Annotated[str, typer.Argument(help="ProgramIndicatorGroup UID.")],
 ) -> None:
     """Show one group with its member refs."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(service.show_program_indicator_group(profile_from_env(), uid))
     if is_json_output():
         typer.echo(group.model_dump_json(indent=2, exclude_none=True))
@@ -4157,6 +4339,8 @@ def program_indicator_groups_members_command(
     page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
 ) -> None:
     """Page through ProgramIndicators inside one group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     members = asyncio.run(
         service.list_program_indicator_group_members(profile_from_env(), uid, page=page, page_size=page_size),
     )
@@ -4193,6 +4377,8 @@ def program_indicator_groups_create_command(
     description: Annotated[str | None, typer.Option("--description", help="Free text.")] = None,
 ) -> None:
     """Create an empty ProgramIndicatorGroup."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.create_program_indicator_group(
             profile_from_env(),
@@ -4218,6 +4404,8 @@ def program_indicator_groups_add_members_command(
     ],
 ) -> None:
     """Add `--program-indicator` members via the per-item POST shortcut."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.add_program_indicator_group_members(
             profile_from_env(), uid, program_indicator_uids=program_indicator_uids
@@ -4236,6 +4424,8 @@ def program_indicator_groups_remove_members_command(
     ],
 ) -> None:
     """Drop `--program-indicator` members via the per-item DELETE shortcut."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.remove_program_indicator_group_members(
             profile_from_env(), uid, program_indicator_uids=program_indicator_uids
@@ -4251,6 +4441,8 @@ def program_indicator_groups_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete the grouping row — member program indicators stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete programIndicatorGroup {uid}?", abort=True)
     asyncio.run(service.delete_program_indicator_group(profile_from_env(), uid))
@@ -4267,6 +4459,8 @@ def category_options_get_command(
     uid: Annotated[str, typer.Argument(help="CategoryOption UID.")],
 ) -> None:
     """Show one CategoryOption with its categories + groups inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     co = asyncio.run(service.show_category_option(profile_from_env(), uid))
     if is_json_output():
         typer.echo(co.model_dump_json(indent=2, exclude_none=True))
@@ -4299,6 +4493,8 @@ def category_options_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a CategoryOption. Omit `--start-date`/`--end-date` for an always-valid option."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     co = asyncio.run(
         service.create_category_option(
             profile_from_env(),
@@ -4327,6 +4523,8 @@ def category_options_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update the label fields on a CategoryOption."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     co = asyncio.run(
         service.rename_category_option(
             profile_from_env(),
@@ -4356,6 +4554,8 @@ def category_options_set_validity_command(
     ] = None,
 ) -> None:
     """Set the `startDate` / `endDate` validity window on a CategoryOption."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     co = asyncio.run(
         service.set_category_option_validity(
             profile_from_env(),
@@ -4376,6 +4576,8 @@ def category_options_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a CategoryOption — DHIS2 rejects deletes on options in use."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete categoryOption {uid}?", abort=True)
     asyncio.run(service.delete_category_option(profile_from_env(), uid))
@@ -4392,6 +4594,8 @@ def categories_get_command(
     uid: Annotated[str, typer.Argument(help="Category UID.")],
 ) -> None:
     """Show one Category with its options inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     cat = asyncio.run(service.show_category(profile_from_env(), uid))
     if is_json_output():
         typer.echo(cat.model_dump_json(indent=2, exclude_none=True))
@@ -4427,6 +4631,8 @@ def categories_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a Category, optionally wiring CategoryOption members on create."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     cat = asyncio.run(
         service.create_category(
             profile_from_env(),
@@ -4456,6 +4662,8 @@ def categories_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update the label fields on a Category."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     cat = asyncio.run(
         service.rename_category(
             profile_from_env(),
@@ -4477,6 +4685,8 @@ def categories_add_option_command(
     option_uid: Annotated[str, typer.Argument(help="CategoryOption UID to append.")],
 ) -> None:
     """Append a CategoryOption to this Category's ordered membership."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     asyncio.run(service.add_category_option(profile_from_env(), uid, option_uid))
     _emit_mutation(f"[green]added[/green] option [cyan]{option_uid}[/cyan] to category [cyan]{uid}[/cyan]")
 
@@ -4487,6 +4697,8 @@ def categories_remove_option_command(
     option_uid: Annotated[str, typer.Argument(help="CategoryOption UID to remove.")],
 ) -> None:
     """Remove a CategoryOption from this Category's membership."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     asyncio.run(service.remove_category_option(profile_from_env(), uid, option_uid))
     _emit_mutation(f"[green]removed[/green] option [cyan]{option_uid}[/cyan] from category [cyan]{uid}[/cyan]")
 
@@ -4497,6 +4709,8 @@ def categories_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a Category — DHIS2 rejects deletes on categories referenced by a CategoryCombo."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete category {uid}?", abort=True)
     asyncio.run(service.delete_category(profile_from_env(), uid))
@@ -4513,6 +4727,8 @@ def category_combos_get_command(
     uid: Annotated[str, typer.Argument(help="CategoryCombo UID.")],
 ) -> None:
     """Show one CategoryCombo with its category + COC refs inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     cc = asyncio.run(service.show_category_combo(profile_from_env(), uid))
     if is_json_output():
         typer.echo(cc.model_dump_json(indent=2, exclude_none=True))
@@ -4550,6 +4766,8 @@ def category_combos_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a CategoryCombo with an ordered list of Category UIDs."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not categories:
         raise typer.BadParameter("pass at least one --category UID")
     cc = asyncio.run(
@@ -4583,6 +4801,8 @@ def category_combos_rename_command(
     code: Annotated[str | None, typer.Option("--code", help="New code.")] = None,
 ) -> None:
     """Partial-update label fields on a CategoryCombo."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     cc = asyncio.run(service.rename_category_combo(profile_from_env(), uid, name=name, code=code))
     if is_json_output():
         typer.echo(cc.model_dump_json(indent=2, exclude_none=True))
@@ -4600,6 +4820,8 @@ def category_combos_add_category_command(
     DHIS2 regenerates the COC matrix server-side. Re-fetch the combo + use
     `wait-for-cocs` if you need to block until the new matrix lands.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     asyncio.run(service.add_category_to_combo(profile_from_env(), uid, category_uid))
     _emit_mutation(f"[green]added[/green] category [cyan]{category_uid}[/cyan] to combo [cyan]{uid}[/cyan]")
 
@@ -4610,6 +4832,8 @@ def category_combos_remove_category_command(
     category_uid: Annotated[str, typer.Argument(help="Category UID to remove.")],
 ) -> None:
     """Remove a Category from this combo's membership."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     asyncio.run(service.remove_category_from_combo(profile_from_env(), uid, category_uid))
     _emit_mutation(
         f"[green]removed[/green] category [cyan]{category_uid}[/cyan] from combo [cyan]{uid}[/cyan]",
@@ -4638,6 +4862,8 @@ def category_combos_wait_for_cocs_command(
     under arm64 emulation. Use after `create` or `add-category` when the
     next step depends on the matrix being ready.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     landed = asyncio.run(
         service.wait_for_coc_generation(
             profile_from_env(),
@@ -4658,6 +4884,8 @@ def category_combos_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a CategoryCombo — DHIS2 rejects the default combo + combos in use."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete categoryCombo {uid}?", abort=True)
     asyncio.run(service.delete_category_combo(profile_from_env(), uid))
@@ -4696,6 +4924,8 @@ def category_combos_build_command(
     Lookup is by `name` (DHIS2 enforces unique names on each layer).
     Existing entries are reused; only missing entries get created.
     """
+    from dhis2w_core.v42.plugins.metadata import service
+
     spec_text = sys.stdin.read() if spec_file == "-" else Path(spec_file).read_text(encoding="utf-8")
     try:
         from dhis2w_client.v42 import CategoryComboBuildSpec
@@ -4750,6 +4980,8 @@ def category_option_combos_get_command(
     uid: Annotated[str, typer.Argument(help="CategoryOptionCombo UID.")],
 ) -> None:
     """Show one CategoryOptionCombo with its parent combo + option refs."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     coc = asyncio.run(service.show_category_option_combo(profile_from_env(), uid))
     if is_json_output():
         typer.echo(coc.model_dump_json(indent=2, exclude_none=True))
@@ -4765,6 +4997,8 @@ def category_option_combos_list_for_combo_command(
     combo_uid: Annotated[str, typer.Argument(help="CategoryCombo UID.")],
 ) -> None:
     """List every CategoryOptionCombo materialised by one CategoryCombo."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     rows = asyncio.run(service.list_category_option_combos_for_combo(profile_from_env(), combo_uid))
     if is_json_output():
         typer.echo(
@@ -4793,6 +5027,8 @@ def category_option_groups_get_command(
     uid: Annotated[str, typer.Argument(help="CategoryOptionGroup UID.")],
 ) -> None:
     """Show one group with its member + group-set refs."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(service.show_category_option_group(profile_from_env(), uid))
     if is_json_output():
         typer.echo(group.model_dump_json(indent=2, exclude_none=True))
@@ -4811,6 +5047,8 @@ def category_option_groups_members_command(
     page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
 ) -> None:
     """Page through CategoryOptions inside one group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     members = asyncio.run(
         service.list_category_option_group_members(profile_from_env(), uid, page=page, page_size=page_size),
     )
@@ -4848,6 +5086,8 @@ def category_option_groups_create_command(
     description: Annotated[str | None, typer.Option("--description", help="Free text.")] = None,
 ) -> None:
     """Create an empty CategoryOptionGroup."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.create_category_option_group(
             profile_from_env(),
@@ -4874,6 +5114,8 @@ def category_option_groups_add_members_command(
     ],
 ) -> None:
     """Add `--category-option` members via the per-item POST shortcut."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.add_category_option_group_members(
             profile_from_env(),
@@ -4894,6 +5136,8 @@ def category_option_groups_remove_members_command(
     ],
 ) -> None:
     """Drop `--category-option` members via the per-item DELETE shortcut."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.remove_category_option_group_members(
             profile_from_env(),
@@ -4911,6 +5155,8 @@ def category_option_groups_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete the grouping row — member category options stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete categoryOptionGroup {uid}?", abort=True)
     asyncio.run(service.delete_category_option_group(profile_from_env(), uid))
@@ -4927,6 +5173,8 @@ def category_option_group_sets_get_command(
     uid: Annotated[str, typer.Argument(help="CategoryOptionGroupSet UID.")],
 ) -> None:
     """Show one group set with its groups."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     gs = asyncio.run(service.show_category_option_group_set(profile_from_env(), uid))
     if is_json_output():
         typer.echo(gs.model_dump_json(indent=2, exclude_none=True))
@@ -4972,6 +5220,8 @@ def category_option_group_sets_create_command(
     description: Annotated[str | None, typer.Option("--description", help="Free text.")] = None,
 ) -> None:
     """Create an empty CategoryOptionGroupSet."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     gs = asyncio.run(
         service.create_category_option_group_set(
             profile_from_env(),
@@ -4999,6 +5249,8 @@ def category_option_group_sets_add_groups_command(
     ],
 ) -> None:
     """Add `--group` members to a group set."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     gs = asyncio.run(service.add_category_option_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.categoryOptionGroups or [])
     _emit_mutation(f"[green]added[/green] {len(group_uids)} group(s) to {uid}  total={total}")
@@ -5013,6 +5265,8 @@ def category_option_group_sets_remove_groups_command(
     ],
 ) -> None:
     """Drop `--group` members from a group set."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     gs = asyncio.run(service.remove_category_option_group_set_groups(profile_from_env(), uid, group_uids=group_uids))
     total = len(gs.categoryOptionGroups or [])
     _emit_mutation(f"[green]removed[/green] {len(group_uids)} group(s) from {uid}  total={total}")
@@ -5024,6 +5278,8 @@ def category_option_group_sets_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a CategoryOptionGroupSet — member groups stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete categoryOptionGroupSet {uid}?", abort=True)
     asyncio.run(service.delete_category_option_group_set(profile_from_env(), uid))
@@ -5054,6 +5310,8 @@ def organisation_units_get_command(
     uid: Annotated[str, typer.Argument(help="OrganisationUnit UID.")],
 ) -> None:
     """Show one OU with parent + core hierarchy fields."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     unit = asyncio.run(service.show_organisation_unit(profile_from_env(), uid))
     if is_json_output():
         typer.echo(unit.model_dump_json(indent=2, exclude_none=True))
@@ -5080,6 +5338,8 @@ def organisation_units_tree_command(
     ] = 3,
 ) -> None:
     """Render a bounded-depth subtree indented by hierarchy level."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     units = asyncio.run(
         service.tree_organisation_units(profile_from_env(), root_uid=root_uid, max_depth=max_depth),
     )
@@ -5112,6 +5372,8 @@ def organisation_units_create_command(
     description: Annotated[str | None, typer.Option("--description", help="Free-text description.")] = None,
 ) -> None:
     """Create a child OU under `parent_uid`."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     unit = asyncio.run(
         service.create_organisation_unit(
             profile_from_env(),
@@ -5138,6 +5400,8 @@ def organisation_units_move_command(
     new_parent_uid: Annotated[str, typer.Argument(help="New parent OU UID.")],
 ) -> None:
     """Reparent an OU. DHIS2 recomputes `path` + `hierarchyLevel`."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     unit = asyncio.run(
         service.move_organisation_unit(profile_from_env(), uid=uid, new_parent_uid=new_parent_uid),
     )
@@ -5155,6 +5419,8 @@ def organisation_units_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Delete an OU. DHIS2 rejects deletes on units with children or data."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete organisationUnit {uid}?", abort=True)
     asyncio.run(service.delete_organisation_unit(profile_from_env(), uid))
@@ -5171,6 +5437,8 @@ def organisation_unit_groups_get_command(
     uid: Annotated[str, typer.Argument(help="OrganisationUnitGroup UID.")],
 ) -> None:
     """Show one group with its member refs and the group-sets it belongs to."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(service.show_organisation_unit_group(profile_from_env(), uid))
     if is_json_output():
         typer.echo(group.model_dump_json(indent=2, exclude_none=True))
@@ -5195,6 +5463,8 @@ def organisation_unit_groups_members_command(
     page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
 ) -> None:
     """Page through the OUs inside one group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     members = asyncio.run(
         service.list_organisation_unit_group_members(
             profile_from_env(),
@@ -5234,6 +5504,8 @@ def organisation_unit_groups_create_command(
     color: Annotated[str | None, typer.Option("--color", help="Hex colour (#RRGGBB).")] = None,
 ) -> None:
     """Create an empty OrganisationUnitGroup."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.create_organisation_unit_group(
             profile_from_env(),
@@ -5257,6 +5529,8 @@ def organisation_unit_groups_add_members_command(
     ou_uids: Annotated[list[str], typer.Option("--ou", help="OU UID to add. Repeat for multiple.")],
 ) -> None:
     """Add `--ou` members to a group via the per-item POST shortcut."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.add_organisation_unit_group_members(profile_from_env(), uid, ou_uids=ou_uids),
     )
@@ -5272,6 +5546,8 @@ def organisation_unit_groups_remove_members_command(
     ou_uids: Annotated[list[str], typer.Option("--ou", help="OU UID to remove. Repeat for multiple.")],
 ) -> None:
     """Drop `--ou` members from a group via the per-item DELETE shortcut."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.remove_organisation_unit_group_members(profile_from_env(), uid, ou_uids=ou_uids),
     )
@@ -5287,6 +5563,8 @@ def organisation_unit_groups_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Delete an OrganisationUnitGroup — members stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete organisationUnitGroup {uid}?", abort=True)
     asyncio.run(service.delete_organisation_unit_group(profile_from_env(), uid))
@@ -5303,6 +5581,8 @@ def organisation_unit_group_sets_get_command(
     uid: Annotated[str, typer.Argument(help="OrganisationUnitGroupSet UID.")],
 ) -> None:
     """Show one group set with its groups + per-group member counts."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group_set, group_member_counts = asyncio.run(
         service.show_organisation_unit_group_set(profile_from_env(), uid),
     )
@@ -5352,6 +5632,8 @@ def organisation_unit_group_sets_create_command(
     ] = True,
 ) -> None:
     """Create an empty OrganisationUnitGroupSet."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group_set = asyncio.run(
         service.create_organisation_unit_group_set(
             profile_from_env(),
@@ -5380,6 +5662,8 @@ def organisation_unit_group_sets_add_groups_command(
     ],
 ) -> None:
     """Add `--group` members to a group set."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group_set = asyncio.run(
         service.add_organisation_unit_group_set_groups(profile_from_env(), uid, group_uids=group_uids),
     )
@@ -5395,6 +5679,8 @@ def organisation_unit_group_sets_remove_groups_command(
     ],
 ) -> None:
     """Drop `--group` members from a group set."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group_set = asyncio.run(
         service.remove_organisation_unit_group_set_groups(profile_from_env(), uid, group_uids=group_uids),
     )
@@ -5408,6 +5694,8 @@ def organisation_unit_group_sets_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Delete an OrganisationUnitGroupSet — groups stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete organisationUnitGroupSet {uid}?", abort=True)
     asyncio.run(service.delete_organisation_unit_group_set(profile_from_env(), uid))
@@ -5425,6 +5713,8 @@ def organisation_unit_levels_get_command(
     by_level: Annotated[bool, typer.Option("--by-level", help="Treat UID as the numeric level (1 = roots).")] = False,
 ) -> None:
     """Show one level row — by UID (default) or by numeric depth."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if by_level:
         try:
             numeric = int(uid)
@@ -5455,6 +5745,8 @@ def organisation_unit_levels_rename_command(
     ] = None,
 ) -> None:
     """Give a level a human label — turns 'level 2' into 'Province'."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if by_level:
         try:
             numeric = int(uid)
@@ -5498,6 +5790,8 @@ def data_sets_get_command(
     uid: Annotated[str, typer.Argument(help="DataSet UID.")],
 ) -> None:
     """Show one DataSet with its DSE + section + OU counts inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     ds = asyncio.run(service.show_data_set(profile_from_env(), uid))
     if is_json_output():
         typer.echo(ds.model_dump_json(indent=2, exclude_none=True))
@@ -5545,6 +5839,8 @@ def data_sets_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a DataSet."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     ds = asyncio.run(
         service.create_data_set(
             profile_from_env(),
@@ -5576,6 +5872,8 @@ def data_sets_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update the label fields on a DataSet."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     ds = asyncio.run(
         service.rename_data_set(
             profile_from_env(),
@@ -5602,6 +5900,8 @@ def data_sets_add_element_command(
     ] = None,
 ) -> None:
     """Attach a DataElement to the DataSet (optionally with a per-set CategoryCombo override)."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     ds = asyncio.run(
         service.add_data_set_element(
             profile_from_env(),
@@ -5622,6 +5922,8 @@ def data_sets_remove_element_command(
     data_element_uid: Annotated[str, typer.Argument(help="DataElement UID to detach.")],
 ) -> None:
     """Detach a DataElement from the DataSet."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     ds = asyncio.run(
         service.remove_data_set_element(
             profile_from_env(),
@@ -5641,6 +5943,8 @@ def data_sets_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a DataSet — DHIS2 rejects deletes on DataSets with saved values."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete dataSet {uid}?", abort=True)
     asyncio.run(service.delete_data_set(profile_from_env(), uid))
@@ -5657,6 +5961,8 @@ def sections_get_command(
     uid: Annotated[str, typer.Argument(help="Section UID.")],
 ) -> None:
     """Show one Section with its ordered DE list inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     section = asyncio.run(service.show_section(profile_from_env(), uid))
     if is_json_output():
         typer.echo(section.model_dump_json(indent=2, exclude_none=True))
@@ -5699,6 +6005,8 @@ def sections_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a Section attached to a DataSet. Repeat `--data-element` to seed the ordered DE list."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     section = asyncio.run(
         service.create_section(
             profile_from_env(),
@@ -5730,6 +6038,8 @@ def sections_rename_command(
     sort_order: Annotated[int | None, typer.Option("--sort-order", help="New sort order.")] = None,
 ) -> None:
     """Partial-update the label / sort-order fields on a Section."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     section = asyncio.run(
         service.rename_section(
             profile_from_env(),
@@ -5755,6 +6065,8 @@ def sections_add_element_command(
     ] = None,
 ) -> None:
     """Append (or insert at `--position`) a DataElement to the Section."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     section = asyncio.run(
         service.add_section_element(
             profile_from_env(),
@@ -5775,6 +6087,8 @@ def sections_remove_element_command(
     data_element_uid: Annotated[str, typer.Argument(help="DataElement UID.")],
 ) -> None:
     """Remove a DataElement from the Section (stays on the parent DataSet)."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     section = asyncio.run(
         service.remove_section_element(
             profile_from_env(),
@@ -5797,6 +6111,8 @@ def sections_reorder_command(
     ],
 ) -> None:
     """Replace the Section's `dataElements` with exactly the given UIDs in order."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     section = asyncio.run(
         service.reorder_section_elements(
             profile_from_env(),
@@ -5815,6 +6131,8 @@ def sections_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a Section — DEs stay on the parent DataSet."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete section {uid}?", abort=True)
     asyncio.run(service.delete_section(profile_from_env(), uid))
@@ -5831,6 +6149,8 @@ def validation_rules_get_command(
     uid: Annotated[str, typer.Argument(help="ValidationRule UID.")],
 ) -> None:
     """Show one ValidationRule with both expression sides inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     rule = asyncio.run(service.show_validation_rule(profile_from_env(), uid))
     if is_json_output():
         typer.echo(rule.model_dump_json(indent=2, exclude_none=True))
@@ -5869,6 +6189,8 @@ def validation_rules_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a ValidationRule."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     rule = asyncio.run(
         service.create_validation_rule(
             profile_from_env(),
@@ -5900,6 +6222,8 @@ def validation_rules_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update the label fields on a ValidationRule."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     rule = asyncio.run(
         service.rename_validation_rule(
             profile_from_env(),
@@ -5921,6 +6245,8 @@ def validation_rules_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a ValidationRule — any outstanding results are purged."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete validationRule {uid}?", abort=True)
     asyncio.run(service.delete_validation_rule(profile_from_env(), uid))
@@ -5937,6 +6263,8 @@ def validation_rule_groups_get_command(
     uid: Annotated[str, typer.Argument(help="ValidationRuleGroup UID.")],
 ) -> None:
     """Show one group with its rule refs."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(service.show_validation_rule_group(profile_from_env(), uid))
     if is_json_output():
         typer.echo(group.model_dump_json(indent=2, exclude_none=True))
@@ -5955,6 +6283,8 @@ def validation_rule_groups_members_command(
     page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
 ) -> None:
     """Page through ValidationRules inside a group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     rows = asyncio.run(
         service.list_validation_rule_group_members(
             profile_from_env(),
@@ -5991,6 +6321,8 @@ def validation_rule_groups_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create an empty ValidationRuleGroup."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.create_validation_rule_group(
             profile_from_env(),
@@ -6016,6 +6348,8 @@ def validation_rule_groups_add_members_command(
     ],
 ) -> None:
     """Attach ValidationRules to a group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.add_validation_rule_group_members(
             profile_from_env(),
@@ -6038,6 +6372,8 @@ def validation_rule_groups_remove_members_command(
     ],
 ) -> None:
     """Detach ValidationRules from a group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.remove_validation_rule_group_members(
             profile_from_env(),
@@ -6057,6 +6393,8 @@ def validation_rule_groups_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a ValidationRuleGroup — member rules stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete validationRuleGroup {uid}?", abort=True)
     asyncio.run(service.delete_validation_rule_group(profile_from_env(), uid))
@@ -6073,6 +6411,8 @@ def predictors_get_command(
     uid: Annotated[str, typer.Argument(help="Predictor UID.")],
 ) -> None:
     """Show one Predictor with generator + output inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     predictor = asyncio.run(service.show_predictor(profile_from_env(), uid))
     if is_json_output():
         typer.echo(predictor.model_dump_json(indent=2, exclude_none=True))
@@ -6112,6 +6452,8 @@ def predictors_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a Predictor."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     predictor = asyncio.run(
         service.create_predictor(
             profile_from_env(),
@@ -6143,6 +6485,8 @@ def predictors_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update the label fields on a Predictor."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     predictor = asyncio.run(
         service.rename_predictor(
             profile_from_env(),
@@ -6164,6 +6508,8 @@ def predictors_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a Predictor. DHIS2 keeps any data values it has already written."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete predictor {uid}?", abort=True)
     asyncio.run(service.delete_predictor(profile_from_env(), uid))
@@ -6180,6 +6526,8 @@ def predictor_groups_get_command(
     uid: Annotated[str, typer.Argument(help="PredictorGroup UID.")],
 ) -> None:
     """Show one group with its predictor refs."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(service.show_predictor_group(profile_from_env(), uid))
     if is_json_output():
         typer.echo(group.model_dump_json(indent=2, exclude_none=True))
@@ -6198,6 +6546,8 @@ def predictor_groups_members_command(
     page_size: Annotated[int, typer.Option("--page-size", help="Rows per page.")] = 50,
 ) -> None:
     """Page through Predictors in a group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     rows = asyncio.run(
         service.list_predictor_group_members(
             profile_from_env(),
@@ -6234,6 +6584,8 @@ def predictor_groups_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create an empty PredictorGroup."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.create_predictor_group(
             profile_from_env(),
@@ -6259,6 +6611,8 @@ def predictor_groups_add_members_command(
     ],
 ) -> None:
     """Attach Predictors to a group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.add_predictor_group_members(
             profile_from_env(),
@@ -6280,6 +6634,8 @@ def predictor_groups_remove_members_command(
     ],
 ) -> None:
     """Detach Predictors from a group."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     group = asyncio.run(
         service.remove_predictor_group_members(
             profile_from_env(),
@@ -6298,6 +6654,8 @@ def predictor_groups_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a PredictorGroup — member predictors stay."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete predictorGroup {uid}?", abort=True)
     asyncio.run(service.delete_predictor_group(profile_from_env(), uid))
@@ -6314,6 +6672,8 @@ def tracked_entity_attributes_get_command(
     uid: Annotated[str, typer.Argument(help="TrackedEntityAttribute UID.")],
 ) -> None:
     """Show one TrackedEntityAttribute with its toggles inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     tea = asyncio.run(service.show_tracked_entity_attribute(profile_from_env(), uid))
     if is_json_output():
         typer.echo(tea.model_dump_json(indent=2, exclude_none=True))
@@ -6368,6 +6728,8 @@ def tracked_entity_attributes_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a TrackedEntityAttribute."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     tea = asyncio.run(
         service.create_tracked_entity_attribute(
             profile_from_env(),
@@ -6406,6 +6768,8 @@ def tracked_entity_attributes_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update the label fields on a TrackedEntityAttribute."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     tea = asyncio.run(
         service.rename_tracked_entity_attribute(
             profile_from_env(),
@@ -6428,6 +6792,8 @@ def tracked_entity_attributes_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a TrackedEntityAttribute — DHIS2 rejects deletes on TEAs wired into a TET or program."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete trackedEntityAttribute {uid}?", abort=True)
     asyncio.run(service.delete_tracked_entity_attribute(profile_from_env(), uid))
@@ -6444,6 +6810,8 @@ def tracked_entity_types_get_command(
     uid: Annotated[str, typer.Argument(help="TrackedEntityType UID.")],
 ) -> None:
     """Show one TrackedEntityType with its attribute link-table counts."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     tet = asyncio.run(service.show_tracked_entity_type(profile_from_env(), uid))
     if is_json_output():
         typer.echo(tet.model_dump_json(indent=2, exclude_none=True))
@@ -6483,6 +6851,8 @@ def tracked_entity_types_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a TrackedEntityType."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     tet = asyncio.run(
         service.create_tracked_entity_type(
             profile_from_env(),
@@ -6513,6 +6883,8 @@ def tracked_entity_types_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update the label fields on a TrackedEntityType."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     tet = asyncio.run(
         service.rename_tracked_entity_type(
             profile_from_env(),
@@ -6541,6 +6913,8 @@ def tracked_entity_types_add_attribute_command(
     ] = True,
 ) -> None:
     """Attach a TrackedEntityAttribute to a TrackedEntityType."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     tet = asyncio.run(
         service.add_tracked_entity_type_attribute(
             profile_from_env(),
@@ -6563,6 +6937,8 @@ def tracked_entity_types_remove_attribute_command(
     attribute_uid: Annotated[str, typer.Argument(help="TrackedEntityAttribute UID to detach.")],
 ) -> None:
     """Detach a TrackedEntityAttribute from a TrackedEntityType."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     tet = asyncio.run(
         service.remove_tracked_entity_type_attribute(
             profile_from_env(),
@@ -6582,6 +6958,8 @@ def tracked_entity_types_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a TrackedEntityType — DHIS2 rejects deletes on TETs in use by enrolled TEIs."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete trackedEntityType {uid}?", abort=True)
     asyncio.run(service.delete_tracked_entity_type(profile_from_env(), uid))
@@ -6598,6 +6976,8 @@ def programs_get_command(
     uid: Annotated[str, typer.Argument(help="Program UID.")],
 ) -> None:
     """Show one Program with counts inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     program = asyncio.run(service.show_program(profile_from_env(), uid))
     if is_json_output():
         typer.echo(program.model_dump_json(indent=2, exclude_none=True))
@@ -6673,6 +7053,8 @@ def programs_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a Program. `--program-type WITH_REGISTRATION` requires `--tracked-entity-type`."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     program = asyncio.run(
         service.create_program(
             profile_from_env(),
@@ -6711,6 +7093,8 @@ def programs_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update the label fields on a Program."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     program = asyncio.run(
         service.rename_program(
             profile_from_env(),
@@ -6751,6 +7135,8 @@ def programs_add_attribute_command(
     ] = False,
 ) -> None:
     """Attach a TrackedEntityAttribute to the Program's enrollment form."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     program = asyncio.run(
         service.add_program_attribute(
             profile_from_env(),
@@ -6776,6 +7162,8 @@ def programs_remove_attribute_command(
     attribute_uid: Annotated[str, typer.Argument(help="TrackedEntityAttribute UID.")],
 ) -> None:
     """Detach a TrackedEntityAttribute from the Program's enrollment form."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     program = asyncio.run(
         service.remove_program_attribute(profile_from_env(), program_uid, attribute_uid),
     )
@@ -6791,6 +7179,8 @@ def programs_add_to_ou_command(
     organisation_unit_uid: Annotated[str, typer.Argument(help="OrganisationUnit UID.")],
 ) -> None:
     """Scope the Program to another OrganisationUnit."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     program = asyncio.run(
         service.add_program_organisation_unit(profile_from_env(), program_uid, organisation_unit_uid),
     )
@@ -6806,6 +7196,8 @@ def programs_remove_from_ou_command(
     organisation_unit_uid: Annotated[str, typer.Argument(help="OrganisationUnit UID.")],
 ) -> None:
     """Drop an OrganisationUnit from the Program's scope."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     program = asyncio.run(
         service.remove_program_organisation_unit(profile_from_env(), program_uid, organisation_unit_uid),
     )
@@ -6821,6 +7213,8 @@ def programs_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a Program — DHIS2 rejects deletes on programs with enrollments or events."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete program {uid}?", abort=True)
     asyncio.run(service.delete_program(profile_from_env(), uid))
@@ -6837,6 +7231,8 @@ def program_stages_get_command(
     uid: Annotated[str, typer.Argument(help="ProgramStage UID.")],
 ) -> None:
     """Show one ProgramStage with its PSDE list summary inline."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     stage = asyncio.run(service.show_program_stage(profile_from_env(), uid))
     if is_json_output():
         typer.echo(stage.model_dump_json(indent=2, exclude_none=True))
@@ -6897,6 +7293,8 @@ def program_stages_create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a ProgramStage under `--program`."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     stage = asyncio.run(
         service.create_program_stage(
             profile_from_env(),
@@ -6932,6 +7330,8 @@ def program_stages_rename_command(
     description: Annotated[str | None, typer.Option("--description", help="New description.")] = None,
 ) -> None:
     """Partial-update the label fields on a ProgramStage."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     stage = asyncio.run(
         service.rename_program_stage(
             profile_from_env(),
@@ -6981,6 +7381,8 @@ def program_stages_add_element_command(
     ] = None,
 ) -> None:
     """Attach a DataElement to the ProgramStage."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     stage = asyncio.run(
         service.add_program_stage_element(
             profile_from_env(),
@@ -7006,6 +7408,8 @@ def program_stages_remove_element_command(
     data_element_uid: Annotated[str, typer.Argument(help="DataElement UID.")],
 ) -> None:
     """Detach a DataElement from the ProgramStage."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     stage = asyncio.run(
         service.remove_program_stage_element(profile_from_env(), stage_uid, data_element_uid),
     )
@@ -7021,6 +7425,8 @@ def program_stages_reorder_command(
     data_element_uids: Annotated[list[str], typer.Argument(help="DataElement UIDs in the desired order.")],
 ) -> None:
     """Replace the ProgramStage's PSDE list with exactly the given DE UIDs in order."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     stage = asyncio.run(
         service.reorder_program_stage_elements(
             profile_from_env(),
@@ -7040,6 +7446,8 @@ def program_stages_delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete a ProgramStage — DHIS2 rejects deletes on stages with recorded events."""
+    from dhis2w_core.v42.plugins.metadata import service
+
     if not yes:
         typer.confirm(f"really delete programStage {uid}?", abort=True)
     asyncio.run(service.delete_program_stage(profile_from_env(), uid))

@@ -11,7 +11,6 @@ import typer
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v43.cli_output import is_json_output, render_webmessage
-from dhis2w_core.v43.plugins.aggregate import service
 
 app = typer.Typer(
     help="Aggregate data values — DHIS2 /api/dataValueSets and /api/dataValues.",
@@ -50,6 +49,8 @@ def get_command(
 
     Example: data aggregate get --ds <dataSetUID> --pe 202401 --ou <ouUID> --children
     """
+    from dhis2w_core.v43.plugins.aggregate import service
+
     envelope = asyncio.run(
         service.get_data_values(
             profile_from_env(),
@@ -94,6 +95,8 @@ def push_command(
     ] = None,
 ) -> None:
     """Bulk push data values from a JSON file."""
+    from dhis2w_core.v43.plugins.aggregate import service
+
     loaded: Any = json.loads(file.read_text(encoding="utf-8"))
     if isinstance(loaded, list):
         data_values = loaded
@@ -136,6 +139,8 @@ def set_command(
     comment: Annotated[str | None, typer.Option("--comment")] = None,
 ) -> None:
     """Set a single data value."""
+    from dhis2w_core.v43.plugins.aggregate import service
+
     response = asyncio.run(
         service.set_data_value(
             profile_from_env(),
@@ -163,6 +168,8 @@ def delete_command(
     attribute_option_combo: Annotated[str | None, typer.Option("--aoc")] = None,
 ) -> None:
     """Delete a single data value."""
+    from dhis2w_core.v43.plugins.aggregate import service
+
     response = asyncio.run(
         service.delete_data_value(
             profile_from_env(),
