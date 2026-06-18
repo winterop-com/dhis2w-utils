@@ -35,6 +35,9 @@ d2w security audit --no-credential-probe
 # Run only the probe (skips every other check):
 d2w security audit --checks credential-probe
 
+# Run only the version check (EOL line, patch/hotfix currency, security-advisory patch floor):
+d2w security audit --checks version
+
 # Run only the instance role audit (ALL-granting and dangerous-authority roles):
 d2w security audit --checks roles
 

@@ -62,6 +62,7 @@ from dhis2w_core.security_core.registry import (
     resolve_check_keys,
     select_keys,
 )
+from dhis2w_core.security_core.releases import RELEASES_FEED_URL, ReleaseFeed, ReleaseLine, fetch_release_feed
 from dhis2w_core.security_core.report.base import ProgressReporter, ReportRenderer, StreamingRenderer
 from dhis2w_core.security_core.report.csv import CsvRenderer
 from dhis2w_core.security_core.report.html import HtmlRenderer
@@ -78,8 +79,19 @@ from dhis2w_core.security_core.report.text import TextRenderer
 from dhis2w_core.security_core.roles import RoleAudit, build_role_audit, evaluate_roles
 from dhis2w_core.security_core.settings_audit import MIN_RECOMMENDED_PASSWORD_LENGTH, SettingsLike, evaluate_settings
 from dhis2w_core.security_core.streaming import ReportWriter
+from dhis2w_core.security_core.versions import (
+    ADVISORY_PATCH_FLOOR,
+    ADVISORY_PATCH_FLOOR_REVIEWED,
+    MIN_SUPPORTED_LINE,
+    AdvisoryFloor,
+    ParsedVersion,
+    evaluate_version,
+    parse_dhis2_version,
+)
 
 __all__ = [
+    "ADVISORY_PATCH_FLOOR",
+    "ADVISORY_PATCH_FLOOR_REVIEWED",
     "AUTHORITY_CATEGORIES",
     "CANONICAL_CHECKS",
     "CONNECT_PATHS",
@@ -91,10 +103,13 @@ __all__ = [
     "IMPLEMENTED_CHECK_KEYS",
     "MAX_PROBE_ATTEMPTS",
     "MIN_RECOMMENDED_PASSWORD_LENGTH",
+    "MIN_SUPPORTED_LINE",
+    "RELEASES_FEED_URL",
     "REPORT_GUARDRAIL_NOTE",
     "SEED_USERNAME",
     "SEVERITY_ORDER",
     "AccountAuthorities",
+    "AdvisoryFloor",
     "AuditFinding",
     "AuditReport",
     "AuditSummary",
@@ -108,9 +123,12 @@ __all__ = [
     "CsvRenderer",
     "HtmlRenderer",
     "MarkdownRenderer",
+    "ParsedVersion",
     "PlainLogReporter",
     "ProbeOutcome",
     "ProgressReporter",
+    "ReleaseFeed",
+    "ReleaseLine",
     "ReportRenderer",
     "ReportWriter",
     "RichProgressReporter",
@@ -136,9 +154,12 @@ __all__ = [
     "evaluate_settings",
     "evaluate_two_factor_from_endpoint",
     "evaluate_two_factor_from_user_field",
+    "evaluate_version",
+    "fetch_release_feed",
     "finding_sort_key",
     "label_for",
     "make_reporter",
+    "parse_dhis2_version",
     "resolve_check_keys",
     "role_severity",
     "run_audit",

@@ -26,6 +26,7 @@ from dhis2w_core.security_core import (
     CsvRenderer,
     HtmlRenderer,
     MarkdownRenderer,
+    ReleaseFeed,
     ReportRenderer,
     ReportWriter,
     RoleAudit,
@@ -45,8 +46,11 @@ from dhis2w_core.security_core import (
     evaluate_settings,
     evaluate_two_factor_from_endpoint,
     evaluate_two_factor_from_user_field,
+    evaluate_version,
+    fetch_release_feed,
     label_for,
     make_reporter,
+    parse_dhis2_version,
     resolve_check_keys,
     run_audit,
 )
@@ -73,6 +77,22 @@ def scanner_version() -> str:
         return _version("dhis2w-core")
     except PackageNotFoundError:
         return "unknown"
+
+
+async def _run_version(client: Dhis2Client) -> CheckResult:
+    """Classify the running DHIS2 version against EOL/outdated lines and the advisory patch floor."""
+    label = label_for("version")
+    parsed = parse_dhis2_version(_safe_raw_version(client))
+    note: str | None = None
+    feed: ReleaseFeed | None
+    try:
+        feed = await fetch_release_feed()
+    except httpx.HTTPError as exc:
+        feed = None
+        note = f"release feed unavailable ({exc}); EOL and upgrade checks limited to the static advisory floor"
+    return CheckResult(
+        check="version", label=label, status=CheckStatus.OK, findings=evaluate_version(parsed, feed), note=note
+    )
 
 
 async def _run_settings(client: Dhis2Client) -> CheckResult:
@@ -254,6 +274,7 @@ async def _run_hygiene(client: Dhis2Client, *, stale_days: int, now: datetime, t
 
 
 _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
+    "version": _run_version,
     "settings": _run_settings,
     "authorities": _run_authorities,
     "roles": _run_roles,

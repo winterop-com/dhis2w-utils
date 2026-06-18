@@ -179,7 +179,8 @@ def test_audit_runs_credential_probe_by_default(tmp_path: Path) -> None:
     ):
         mock.get(f"{BASE}/api/me").mock(return_value=httpx.Response(200, json={"username": "admin"}))
         result = CliRunner().invoke(
-            build_app(), ["--json", "security", "audit", "--output-dir", str(tmp_path), "--no-progress"]
+            build_app(),
+            ["--json", "security", "audit", "--output-dir", str(tmp_path), "--no-progress", "--skip", "version"],
         )
 
     assert result.exit_code == 0, result.output
