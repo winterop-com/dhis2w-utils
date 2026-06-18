@@ -1069,9 +1069,7 @@ async def test_metadata_add_organisation_unit_group_members_parity(
         return_value=httpx.Response(200, json={"id": "OUG0000001", "name": "Urban"}),
     )
 
-    await service.add_organisation_unit_group_members(
-        resolve_profile("probe"), "OUG0000001", ou_uids=["OUchild0001"]
-    )
+    await service.add_organisation_unit_group_members(resolve_profile("probe"), "OUG0000001", ou_uids=["OUchild0001"])
 
     assert add.called
 
@@ -1586,9 +1584,7 @@ async def test_metadata_create_category_parity(
         return_value=httpx.Response(200, json={"id": "CAT0000001", "name": "Sex"}),
     )
 
-    category = await service.create_category(
-        resolve_profile("probe"), name="Sex", short_name="Sex", uid="CAT0000001"
-    )
+    category = await service.create_category(resolve_profile("probe"), name="Sex", short_name="Sex", uid="CAT0000001")
 
     assert category.id == "CAT0000001"
 
@@ -1993,9 +1989,7 @@ async def test_metadata_add_category_option_group_set_groups_parity(
         return_value=httpx.Response(200, json={"id": "COGS00001", "name": "Ownership"}),
     )
 
-    await service.add_category_option_group_set_groups(
-        resolve_profile("probe"), "COGS00001", group_uids=["COG0000001"]
-    )
+    await service.add_category_option_group_set_groups(resolve_profile("probe"), "COGS00001", group_uids=["COG0000001"])
 
     assert add.called
 
@@ -2134,9 +2128,7 @@ async def test_metadata_create_validation_rule_group_parity(
         return_value=httpx.Response(200, json={"id": "VRG0000001", "name": "ANC checks"}),
     )
 
-    group = await service.create_validation_rule_group(
-        resolve_profile("probe"), name="ANC checks", uid="VRG0000001"
-    )
+    group = await service.create_validation_rule_group(resolve_profile("probe"), name="ANC checks", uid="VRG0000001")
 
     assert group.id == "VRG0000001"
 
@@ -2771,9 +2763,7 @@ async def test_metadata_add_program_stage_element_parity(
     mock_system_info(core_version)
     service = plugin_service("metadata")
     respx.get(f"{_HOST}/api/programStages/PS00000001").mock(
-        return_value=httpx.Response(
-            200, json={"id": "PS00000001", "name": "Visit", "programStageDataElements": []}
-        ),
+        return_value=httpx.Response(200, json={"id": "PS00000001", "name": "Visit", "programStageDataElements": []}),
     )
     put = respx.put(f"{_HOST}/api/programStages/PS00000001").mock(return_value=httpx.Response(200, json={}))
 
@@ -3082,9 +3072,7 @@ async def test_metadata_diff_bundles_parity(
     service = plugin_service("metadata")
     metadata_bundle = import_module(f"dhis2w_core.{core_version}.plugins.metadata.models").MetadataBundle
     left = metadata_bundle.from_raw({"dataElements": [{"id": "DE_A", "name": "Old"}]})
-    right = metadata_bundle.from_raw(
-        {"dataElements": [{"id": "DE_A", "name": "New"}, {"id": "DE_B", "name": "Added"}]}
-    )
+    right = metadata_bundle.from_raw({"dataElements": [{"id": "DE_A", "name": "New"}, {"id": "DE_B", "name": "Added"}]})
 
     diff = service.diff_bundles(left, right)
 
@@ -3525,9 +3513,7 @@ async def test_metadata_list_program_rule_variables_parity(
     mock_system_info(core_version)
     service = plugin_service("metadata")
     respx.get(f"{_HOST}/api/programRuleVariables").mock(
-        return_value=httpx.Response(
-            200, json={"programRuleVariables": [{"id": "PRV0000001", "name": "currentValue"}]}
-        ),
+        return_value=httpx.Response(200, json={"programRuleVariables": [{"id": "PRV0000001", "name": "currentValue"}]}),
     )
 
     variables = await service.list_program_rule_variables(resolve_profile("probe"), "PRGanc0001")

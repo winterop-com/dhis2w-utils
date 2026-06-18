@@ -12,10 +12,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from dhis2w_cli.main import build_app
+from typer import Typer
 from typer.testing import CliRunner
 
 
-def _build_versioned_app(core_version: str, monkeypatch: pytest.MonkeyPatch) -> object:
+def _build_versioned_app(core_version: str, monkeypatch: pytest.MonkeyPatch) -> Typer:
     """Build the CLI app pinned to `core_version` (so it discovers that tree's plugins)."""
     monkeypatch.setenv("DHIS2_VERSION", core_version.removeprefix("v"))
     return build_app()
@@ -24,7 +25,9 @@ def _build_versioned_app(core_version: str, monkeypatch: pytest.MonkeyPatch) -> 
 def test_route_list_cli_parity(core_version: str, core_profile: None, monkeypatch: pytest.MonkeyPatch) -> None:
     """`d2w route list` renders the routes on every version tree."""
     route_cls = import_module(f"dhis2w_client.generated.{core_version}.schemas").Route
-    routes = [route_cls.model_validate({"id": "E8OPcc45A22", "code": "chap", "name": "chap", "url": "http://up.example"})]
+    routes = [
+        route_cls.model_validate({"id": "E8OPcc45A22", "code": "chap", "name": "chap", "url": "http://up.example"})
+    ]
     with patch(f"dhis2w_core.{core_version}.plugins.route.service.list_routes", new=AsyncMock(return_value=routes)):
         result = CliRunner().invoke(_build_versioned_app(core_version, monkeypatch), ["-p", "probe", "route", "list"])
     assert result.exit_code == 0, result.output

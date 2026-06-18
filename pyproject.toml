@@ -75,22 +75,24 @@ branch = true
 relative_files = true
 source = ["packages"]
 omit = [
-  # The v41/v43 CLIENT trees are measured (server_version parametrization). For the v41/v43 CORE
-  # trees, every plugin SERVICE is now exercised across all three trees by parametrized parity tests
-  # (`tests/runtime/test_<plugin>_parity.py` via the core_version / plugin_service fixtures), so the
-  # service modules are measured + counted — NOT omitted below. What remains omitted, with reasons:
-  #   - per-plugin CLI/MCP wrappers + view-models: thin copies, behavior-tested on v42; per-version
-  #     line coverage tracked as a follow-up (parametrized --help / register() smoke).
+  # v41/v43 CORE trees: every plugin SERVICE is exercised across all three trees by parametrized
+  # parity tests (`tests/runtime/test_<plugin>_parity.py`), every plugin CLI by invoke tests
+  # (`test_<plugin>_cli_parity.py`), and every plugin MCP registration by `test_mcp_register_parity.py`
+  # — so service/cli/mcp modules are measured + counted, NOT omitted. What stays omitted, with reasons:
+  #   - metadata/browser/dev CLI: huge / interactive / Playwright command surfaces not invoke-tested.
+  #   - per-plugin view-models (models.py): pure pydantic data classes.
   #   - non-plugin core modules (auth / token store / cli infra): mechanical copies, deferred.
   #   - browser service: Playwright orchestration, tested live in `packages/dhis2w-browser/tests/`.
   "packages/dhis2w-core/src/dhis2w_core/v41/*.py",
   "packages/dhis2w-core/src/dhis2w_core/v43/*.py",
-  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/*/cli.py",
-  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/*/cli.py",
-  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/*/mcp.py",
-  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/*/mcp.py",
   "packages/dhis2w-core/src/dhis2w_core/v41/plugins/*/models.py",
   "packages/dhis2w-core/src/dhis2w_core/v43/plugins/*/models.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/metadata/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/metadata/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/browser/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/browser/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/dev/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/dev/cli.py",
   "packages/dhis2w-core/src/dhis2w_core/v41/plugins/browser/service.py",
   "packages/dhis2w-core/src/dhis2w_core/v43/plugins/browser/service.py",
 ]
