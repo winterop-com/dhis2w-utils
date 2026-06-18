@@ -192,4 +192,5 @@ def test_apps_hub_url_cli_parity(core_version: str, core_profile: None, monkeypa
         app = _build_versioned_app(core_version, monkeypatch)
         result = CliRunner().invoke(app, ["-p", "probe", "apps", "hub-url"])
     assert result.exit_code == 0, result.output
-    assert "apps.dhis2.org" in result.output
+    expected_host = "apps.dhis2.org"
+    assert expected_host in result.output

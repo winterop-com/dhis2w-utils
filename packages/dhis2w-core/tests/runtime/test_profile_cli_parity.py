@@ -52,7 +52,8 @@ def test_profile_show_cli_parity(core_version: str, core_profile: None, monkeypa
     app = _build_versioned_app(core_version, monkeypatch)
     result = CliRunner().invoke(app, ["profile", "show", "probe"])
     assert result.exit_code == 0, result.output
-    assert "dhis2.example" in result.output
+    expected_host = "dhis2.example"
+    assert expected_host in result.output
 
 
 def test_profile_verify_one_cli_parity(core_version: str, core_profile: None, monkeypatch: pytest.MonkeyPatch) -> None:
