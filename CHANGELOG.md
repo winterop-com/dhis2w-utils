@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Sharing explorer: force graph + matrix heatmap (PR 7c)** (2026-06-20). Two advanced visual modes
+  added to the explorer runtime (`sharing-runtime.js`), no Python change. A d3 force-directed graph of
+  the sharing topology (objects + groups + optional users + public/external pseudo-nodes, edges from
+  shares and memberships) with zoom, pan, drag, an "exposed only" / "show users" filter, and a node
+  cap so it stays legible instead of a hairball -- clicking a node opens its detail without restarting
+  the simulation. An access-matrix heatmap (object type x group, plus public/external columns) coloring
+  each cell by the strongest access that group holds, so "this group can write everything" jumps out.
+  The viewer's truncation banner now states "showing N objects; up to M exist across the scanned types".
+  Browser-verified against the 2.42.5.1 play server (force graph and matrix render, node-click detail,
+  no console errors, fully offline). Compact columnar payload encoding is deferred until the
+  full-inventory scan mode lands -- it is premature while the default scan is a bounded slice.
+
 - **Interactive d3 sharing explorer (PR 7b)** (2026-06-20). `d2w security audit --sharing-graph`
   (alias `--visualize`) now writes a self-contained, offline explorer bundle into the run folder:
   `sharing-explorer.html` + `sharing-runtime.js` + a vendored `d3.min.js` + a per-scan

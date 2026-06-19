@@ -104,13 +104,25 @@
   }
 
   // ---- state + routing ---------------------------------------------------------
-  var state = { mode: "tree", selected: null, query: "", open: {}, theme: initialTheme() };
+  var state = {
+    mode: "tree", selected: null, query: "", open: {}, theme: initialTheme(),
+    graph: { exposedOnly: true, showUsers: false, cap: 600 },
+  };
+  var graphSim = null; // the live d3-force simulation, stopped before any re-render
+  var graphHighlight = null; // hook set by the graph mode to restyle nodes on selection
   var MODES = [
     { key: "tree", label: "Object tree" },
     { key: "triage", label: "Exposure triage" },
     { key: "principals", label: "By principal" },
     { key: "roles", label: "By role" },
+    { key: "graph", label: "Force graph" },
+    { key: "matrix", label: "Matrix" },
   ];
+
+  function stopSim() {
+    if (graphSim) { graphSim.stop(); graphSim = null; }
+    graphHighlight = null;
+  }
 
   function initialTheme() {
     try {
@@ -144,14 +156,18 @@
 
   // ---- render ------------------------------------------------------------------
   function render() {
+    stopSim();
     document.documentElement.setAttribute("data-theme", state.theme);
     clear(ROOT);
     ROOT.appendChild(renderHeader());
     var layout = h("div", { class: "layout" });
     var main = h("div", {});
     if (G.truncated) {
+      var shown = G.objects.length;
+      var total = (G.type_summary || []).reduce(function (a, t) { return a + (t.total || 0); }, 0);
       main.appendChild(h("div", { class: "banner" },
-        "Showing a capped slice of the access graph. " + (G.truncation_note || "")));
+        h("strong", {}, "Truncated view "),
+        "— showing " + shown + " objects; up to " + total + " exist across the scanned types. " + (G.truncation_note || "")));
     }
     main.appendChild(renderToolbar());
     main.appendChild(renderMode());
@@ -201,11 +217,23 @@
 
   // Re-render only the mode panel + detail (keeps the search box focused while typing).
   function renderInto() {
+    stopSim();
     var main = ROOT.querySelector(".layout > div");
     var panel = main.querySelector(".mode-panel");
     if (panel) { var fresh = renderMode(); panel.replaceWith(fresh); }
     var dw = ROOT.querySelector(".detail-wrap");
     if (dw) { clear(dw); dw.appendChild(renderDetail()); }
+  }
+
+  // Update only the detail panel (used inside graph/matrix so a click never restarts the sim).
+  function selectDetailOnly(kind, uid) {
+    state.selected = { kind: kind, uid: uid };
+    suppressHash = true;
+    location.hash = "#" + kind + "/" + uid;
+    suppressHash = false;
+    var dw = ROOT.querySelector(".detail-wrap");
+    if (dw) { clear(dw); dw.appendChild(renderDetail()); }
+    if (graphHighlight) graphHighlight();
   }
 
   function matches(text) {
@@ -216,6 +244,8 @@
     if (state.mode === "tree") return renderTree();
     if (state.mode === "triage") return renderTriage();
     if (state.mode === "principals") return renderPrincipals();
+    if (state.mode === "graph") return renderGraph();
+    if (state.mode === "matrix") return renderMatrix();
     return renderRoles();
   }
 
@@ -545,6 +575,198 @@
     }
     box.appendChild(body);
     return box;
+  }
+
+  // ---- mode: force-directed graph ----------------------------------------------
+  function anyAccess(a) { return !!(a && (a.meta_read || a.meta_write || a.data_read || a.data_write)); }
+
+  function renderGraph() {
+    var panel = h("div", { class: "panel mode-panel" });
+    var model = buildGraphModel();
+    panel.appendChild(h("div", { class: "panel-head" },
+      h("div", { class: "panel-title" }, "Force-directed graph"),
+      h("div", { class: "panel-sub" }, model.note),
+      h("div", { class: "grow" }),
+      graphControls()));
+    panel.appendChild(graphLegend());
+    var wrap = h("div", { class: "graph-wrap" });
+    panel.appendChild(wrap);
+    drawForceGraph(wrap, model);
+    return panel;
+  }
+
+  function graphControls() {
+    function toggle(lbl, key) {
+      return h("label", { class: "gctl" + (state.graph[key] ? " on" : "") },
+        h("input", {
+          type: "checkbox", checked: state.graph[key] ? "checked" : null,
+          onchange: function (e) { state.graph[key] = e.target.checked; renderInto(); },
+        }), lbl);
+    }
+    return h("div", { class: "gctls" }, toggle("Exposed only", "exposedOnly"), toggle("Show users", "showUsers"));
+  }
+  function graphLegend() {
+    function item(color, lbl) { return h("span", {}, h("i", { style: "background:" + color + ";border-radius:50%;" }), lbl); }
+    return h("div", { class: "chart-row legend" },
+      item("var(--high)", "object (exposed)"), item("var(--none)", "object"),
+      item("var(--brand)", "group"), item("var(--muted)", "user"),
+      item("var(--crit)", "external / superuser"));
+  }
+
+  function buildGraphModel() {
+    var cap = state.graph.cap;
+    var objs = G.objects.filter(function (o) {
+      return (!state.graph.exposedOnly || exposure(o).sev !== "none") && matches(o.name);
+    });
+    var extra = objs.length > cap ? " (showing first " + cap + " of " + objs.length + " objects)" : "";
+    objs = objs.slice(0, cap);
+    var nodes = [], links = [], added = {};
+    function add(n) { if (!added[n.id]) { added[n.id] = 1; nodes.push(n); } }
+    var groupIds = {}, anyPublic = false, anyExternal = false;
+    objs.forEach(function (o) {
+      var ex = exposure(o);
+      add({ id: "o:" + o.uid, uid: o.uid, kind: "object", detailKind: "object", label: name(o), color: "var(--" + ex.sev + ")", r: 5 });
+      (sharesByObj[o.uid] || []).forEach(function (s) {
+        if (s.principal_kind === "group") { groupIds[s.principal_uid] = 1; links.push({ source: "o:" + o.uid, target: "g:" + s.principal_uid }); }
+        else if (state.graph.showUsers) { links.push({ source: "o:" + o.uid, target: "u:" + s.principal_uid }); }
+      });
+      if (anyAccess(o.public)) { anyPublic = true; links.push({ source: "o:" + o.uid, target: "p:PUBLIC" }); }
+      if (o.external) { anyExternal = true; links.push({ source: "o:" + o.uid, target: "p:EXTERNAL" }); }
+    });
+    Object.keys(groupIds).forEach(function (gid) {
+      var grp = groupByUid[gid];
+      add({ id: "g:" + gid, uid: gid, kind: "group", detailKind: "group", label: grp ? name(grp) : gid, color: "var(--brand)", r: 6 + Math.min(9, Math.sqrt((grp && grp.member_count) || 0)) });
+    });
+    if (anyPublic) add({ id: "p:PUBLIC", kind: "public", label: "PUBLIC", color: "var(--high)", r: 9 });
+    if (anyExternal) add({ id: "p:EXTERNAL", kind: "external", label: "EXTERNAL", color: "var(--crit)", r: 9 });
+    if (state.graph.showUsers) {
+      var userIds = {};
+      objs.forEach(function (o) { (sharesByObj[o.uid] || []).forEach(function (s) { if (s.principal_kind === "user") userIds[s.principal_uid] = 1; }); });
+      Object.keys(groupIds).forEach(function (gid) { (membersByGroup[gid] || []).forEach(function (uid) { userIds[uid] = 1; }); });
+      Object.keys(userIds).slice(0, cap).forEach(function (uid) {
+        var u = userByUid[uid];
+        add({ id: "u:" + uid, uid: uid, kind: "user", detailKind: "user", label: u ? name(u) : uid, color: (u && u.superuser) ? "var(--crit)" : "var(--muted)", r: 3.5 });
+      });
+      Object.keys(groupIds).forEach(function (gid) {
+        (membersByGroup[gid] || []).forEach(function (uid) { if (added["u:" + uid]) links.push({ source: "u:" + uid, target: "g:" + gid }); });
+      });
+    }
+    links = links.filter(function (l) { return added[l.source] && added[l.target]; });
+    return { nodes: nodes, links: links, note: nodes.length + " nodes, " + links.length + " edges" + extra + " - drag to move, scroll to zoom" };
+  }
+
+  function drawForceGraph(container, model) {
+    clear(container);
+    if (!model.nodes.length) { container.appendChild(h("div", { class: "empty" }, "No nodes match the current filters.")); return; }
+    var W = 960, H = 600;
+    var svg = d3.create("svg").attr("viewBox", "0 0 " + W + " " + H).attr("width", "100%").attr("height", 600).style("display", "block");
+    var root = svg.append("g");
+    svg.call(d3.zoom().scaleExtent([0.2, 6]).on("zoom", function (ev) { root.attr("transform", ev.transform); }));
+    var link = root.append("g").attr("stroke", "var(--hairline)").attr("stroke-opacity", 0.55)
+      .selectAll("line").data(model.links).join("line").attr("stroke-width", 1);
+    var node = root.append("g").selectAll("g").data(model.nodes).join("g").style("cursor", "pointer");
+    node.append("circle").attr("r", function (d) { return d.r; }).attr("fill", function (d) { return d.color; })
+      .attr("stroke", "var(--surface)").attr("stroke-width", 1.5);
+    node.filter(function (d) { return d.kind !== "object" && d.kind !== "user"; }).append("text")
+      .text(function (d) { return d.label.slice(0, 22); }).attr("x", function (d) { return d.r + 3; }).attr("y", 4)
+      .attr("font-size", 10).attr("fill", "var(--text2)").attr("font-family", "'Space Mono',monospace");
+    node.append("title").text(function (d) { return d.kind + ": " + d.label; });
+    node.on("click", function (ev, d) { if (d.detailKind) selectDetailOnly(d.detailKind, d.uid); });
+    node.call(d3.drag()
+      .on("start", function (ev, d) { if (!ev.active && graphSim) graphSim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on("drag", function (ev, d) { d.fx = ev.x; d.fy = ev.y; })
+      .on("end", function (ev, d) { if (!ev.active && graphSim) graphSim.alphaTarget(0); d.fx = null; d.fy = null; }));
+    graphSim = d3.forceSimulation(model.nodes)
+      .force("link", d3.forceLink(model.links).id(function (d) { return d.id; }).distance(55).strength(0.35))
+      .force("charge", d3.forceManyBody().strength(-95))
+      .force("center", d3.forceCenter(W / 2, H / 2))
+      .force("collide", d3.forceCollide().radius(function (d) { return d.r + 2.5; }))
+      .on("tick", function () {
+        link.attr("x1", function (d) { return d.source.x; }).attr("y1", function (d) { return d.source.y; })
+          .attr("x2", function (d) { return d.target.x; }).attr("y2", function (d) { return d.target.y; });
+        node.attr("transform", function (d) { return "translate(" + d.x + "," + d.y + ")"; });
+      });
+    graphHighlight = function () {
+      node.select("circle")
+        .attr("stroke", function (d) { return state.selected && state.selected.uid === d.uid ? "var(--brand)" : "var(--surface)"; })
+        .attr("stroke-width", function (d) { return state.selected && state.selected.uid === d.uid ? 3 : 1.5; });
+    };
+    graphHighlight();
+    container.appendChild(svg.node());
+  }
+
+  // ---- mode: access matrix -----------------------------------------------------
+  function accessLevel(a) {
+    if (!a) return 0;
+    if (a.data_write) return 4;
+    if (a.meta_write) return 3;
+    if (a.data_read) return 2;
+    if (a.meta_read) return 1;
+    return 0;
+  }
+  var LEVEL_COLOR = ["var(--chip)", "var(--low)", "var(--med)", "var(--high)", "var(--crit)"];
+  var LEVEL_LABEL = ["none", "meta read", "data read", "meta write", "data write"];
+
+  function renderMatrix() {
+    var panel = h("div", { class: "panel mode-panel" });
+    var types = Object.keys(objsByType).filter(function (t) {
+      return objsByType[t].some(function (o) { return matches(o.name); });
+    }).sort();
+    // precompute strongest (type x group) access, plus per-type public/external
+    var cellLevel = {}, pubLevel = {}, extByType = {};
+    G.objects.forEach(function (o) {
+      pubLevel[o.type] = Math.max(pubLevel[o.type] || 0, accessLevel(o.public));
+      if (o.external) extByType[o.type] = 1;
+    });
+    var activeGroupIds = {};
+    G.shares.forEach(function (s) {
+      if (s.principal_kind !== "group") return;
+      var o = objByUid[s.object_uid];
+      if (!o) return;
+      cellLevel[o.type + "|" + s.principal_uid] = Math.max(cellLevel[o.type + "|" + s.principal_uid] || 0, accessLevel(s.access));
+      activeGroupIds[s.principal_uid] = 1;
+    });
+    var groups = G.groups.filter(function (g) { return activeGroupIds[g.uid] && matches(g.name) !== false; })
+      .sort(function (a, b) { return name(a).localeCompare(name(b)); });
+    var cols = [{ key: "__public", label: "PUBLIC" }, { key: "__external", label: "EXTERNAL" }]
+      .concat(groups.map(function (g) { return { key: g.uid, label: name(g), uid: g.uid }; }));
+
+    panel.appendChild(h("div", { class: "panel-head" },
+      h("div", { class: "panel-title" }, "Access matrix"),
+      h("div", { class: "panel-sub" }, types.length + " types x " + groups.length + " groups - strongest access per cell")));
+    panel.appendChild(matrixLegend());
+
+    var cell = 20, left = 160, top = 132;
+    var width = left + cols.length * cell + 12, height = top + types.length * cell + 12;
+    var svg = d3.create("svg").attr("viewBox", "0 0 " + width + " " + height).attr("width", width).attr("height", height);
+    cols.forEach(function (c, ci) {
+      var x = left + ci * cell + cell * 0.7;
+      var t = svg.append("text").attr("x", x).attr("y", top - 6).attr("transform", "rotate(-45 " + x + " " + (top - 6) + ")")
+        .attr("font-size", 9).attr("fill", "var(--text3)").attr("font-family", "'Space Mono',monospace").text(c.label.slice(0, 24));
+      if (c.uid) t.style("cursor", "pointer").on("click", function () { selectDetailOnly("group", c.uid); });
+    });
+    types.forEach(function (type, ri) {
+      var y = top + ri * cell;
+      svg.append("text").attr("x", left - 8).attr("y", y + cell / 2 + 3).attr("text-anchor", "end")
+        .attr("font-size", 11).attr("fill", "var(--text2)").text(type);
+      cols.forEach(function (c, ci) {
+        var lvl = c.key === "__public" ? (pubLevel[type] || 0)
+          : c.key === "__external" ? (extByType[type] ? 4 : 0)
+            : (cellLevel[type + "|" + c.key] || 0);
+        svg.append("rect").attr("x", left + ci * cell + 1).attr("y", y + 1).attr("width", cell - 2).attr("height", cell - 2)
+          .attr("rx", 2).attr("fill", LEVEL_COLOR[lvl])
+          .append("title").text(type + " / " + c.label + ": " + LEVEL_LABEL[lvl]);
+      });
+    });
+    var scroll = h("div", { class: "scroll matrix-scroll" });
+    scroll.appendChild(svg.node());
+    panel.appendChild(scroll);
+    return panel;
+  }
+  function matrixLegend() {
+    return h("div", { class: "chart-row legend" }, LEVEL_LABEL.map(function (lbl, i) {
+      return h("span", {}, h("i", { style: "background:" + LEVEL_COLOR[i] + ";" }), lbl);
+    }));
   }
 
   // ---- caveats -----------------------------------------------------------------
