@@ -28,6 +28,9 @@ cleanup() {
   echo
   echo ">>> Stopping DHIS2 stack ..."
   (cd "$INFRA_DIR" && DHIS2_VERSION="$DHIS2_VERSION" DHIS2_IMAGE_TAG="$DHIS2_IMAGE_TAG" "${COMPOSE[@]}" down)
+  # Ctrl+C (SIGINT) is the normal "I'm done, tear it down" gesture — exit clean
+  # so `make dhis2-run` doesn't report `Error 130` after a tidy teardown.
+  exit 0
 }
 trap cleanup INT TERM
 
