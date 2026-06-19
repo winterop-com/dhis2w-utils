@@ -79,7 +79,7 @@ check-examples:
 
 test:
 	@echo ">>> Running tests (excluding slow + contract)"
-	@$(UV) run pytest -q -m "not slow and not contract" packages
+	@$(UV) run pytest -n auto -q -m "not slow and not contract" packages
 
 test-contract:
 	@echo ">>> Running live-schema contract tests against play.im.dhis2.org"
@@ -105,9 +105,8 @@ test-durations:
 
 coverage:
 	@echo ">>> Running tests with coverage"
-	@$(UV) run coverage run -m pytest -q -m "not slow and not contract" packages
-	@$(UV) run coverage report --fail-under=70
-	@$(UV) run coverage xml
+	@$(UV) run pytest -n auto -q -m "not slow and not contract" \
+		--cov --cov-report=term-missing --cov-report=xml --cov-fail-under=70 packages
 
 docs-cli:
 	@echo ">>> Regenerating CLI reference from the Typer app"
