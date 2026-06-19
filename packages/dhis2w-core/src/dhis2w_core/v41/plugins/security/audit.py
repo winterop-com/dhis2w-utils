@@ -25,6 +25,8 @@ from dhis2w_core.security_core import (
     CredentialProbeResult,
     CsvRenderer,
     HtmlRenderer,
+    HubApp,
+    InstalledApp,
     MarkdownRenderer,
     ReleaseFeed,
     ReportRenderer,
@@ -40,6 +42,7 @@ from dhis2w_core.security_core import (
     build_user_hygiene,
     classify_probe_status,
     evaluate_account_authorities,
+    evaluate_apps,
     evaluate_credential_probe,
     evaluate_hygiene,
     evaluate_roles,
@@ -273,11 +276,62 @@ async def _run_hygiene(client: Dhis2Client, *, stale_days: int, now: datetime, t
     return CheckResult(check="hygiene", label=label, status=CheckStatus.OK, findings=findings, note=note)
 
 
+async def _custom_code_flags(client: Dhis2Client) -> tuple[bool, bool]:
+    """Read keyCustomJs / keyCustomCss; True for each when set to a non-empty value."""
+    try:
+        raw = await client.get_raw("/api/systemSettings", params={"key": ["keyCustomJs", "keyCustomCss"]})
+    except Dhis2ApiError:
+        return False, False
+    custom_js = raw.get("keyCustomJs")
+    custom_css = raw.get("keyCustomCss")
+    return (
+        isinstance(custom_js, str) and bool(custom_js.strip()),
+        isinstance(custom_css, str) and bool(custom_css.strip()),
+    )
+
+
+async def _run_apps(client: Dhis2Client) -> CheckResult:
+    """Inventory installed apps for side-loaded code, available hub updates, and custom JS/CSS."""
+    label = label_for("apps")
+    try:
+        installed_apps = await client.apps.list_apps()
+    except Dhis2ApiError as exc:
+        return CheckResult(check="apps", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
+    installed = [
+        InstalledApp(
+            name=app.name or app.key or "unknown",
+            version=app.version,
+            app_hub_id=app.app_hub_id,
+            bundled=bool(app.bundled),
+            core_app=bool(app.core_app),
+        )
+        for app in installed_apps
+    ]
+    hub: list[HubApp] | None
+    note: str | None = None
+    try:
+        catalog = await client.apps.hub_list()
+    except (Dhis2ApiError, httpx.HTTPError) as exc:
+        hub = None
+        note = f"App Hub unreachable ({exc}); update-available checks skipped"
+    else:
+        hub = []
+        for entry in catalog:
+            hub_id = entry.id
+            if hub_id is None:
+                continue
+            hub.append(HubApp(app_hub_id=hub_id, versions=[ver for ver in (v.version for v in entry.versions) if ver]))
+    custom_js, custom_css = await _custom_code_flags(client)
+    findings = evaluate_apps(installed=installed, hub=hub, custom_js=custom_js, custom_css=custom_css)
+    return CheckResult(check="apps", label=label, status=CheckStatus.OK, findings=findings, note=note)
+
+
 _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "version": _run_version,
     "settings": _run_settings,
     "authorities": _run_authorities,
     "roles": _run_roles,
+    "apps": _run_apps,
 }
 
 

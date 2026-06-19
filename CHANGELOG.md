@@ -9,6 +9,13 @@
   `prefers-color-scheme`. All data bindings and the `window.__REPORT__` contract are unchanged, so no
   Python or `report-data.js` changes were needed.
 
+- **Installed-apps security check (PR 5)** (2026-06-19). `d2w security audit` now runs an `apps`
+  check: side-loaded apps installed outside the App Hub are HIGH, hub-backed apps behind the App
+  Hub's latest version are MEDIUM, and configured custom JavaScript/CSS (`keyCustomJs` /
+  `keyCustomCss`) are HIGH. Update checks degrade to a note when the App Hub is unreachable, so an
+  outage never reads as "every app is untrusted". New `security_core/apps.py`; runs by default
+  across v41/v42/v43.
+
 - **Data-driven HTML report bundle for `d2w security audit`** (2026-06-19). The `html` output is a
   bundle: a fixed template (`report.dc.html`), runtime (`support.js`), and logo are copied into the
   run folder beside a per-scan `report-data.js` (`window.__REPORT__`). Per-account findings fold into

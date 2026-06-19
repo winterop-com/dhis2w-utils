@@ -175,6 +175,8 @@ def test_audit_runs_credential_probe_by_default(tmp_path: Path) -> None:
     fake_client = MagicMock()
     fake_client.get = AsyncMock(return_value=SecuritySettings(keyLockMultipleFailedLogins=False))
     fake_client.get_raw = AsyncMock(return_value={"data": ["F_USER_ADD"]})
+    fake_client.apps.list_apps = AsyncMock(return_value=[])
+    fake_client.apps.hub_list = AsyncMock(return_value=[])
     fake_client.base_url = BASE
     fake_client.raw_version = "2.42.0"
     ctx = AsyncMock()

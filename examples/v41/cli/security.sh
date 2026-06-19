@@ -51,6 +51,9 @@ d2w security audit --checks hygiene --stale-days 180
 # On v42+, also name each superuser missing 2FA (per-user /api/users/twoFactor read):
 d2w security audit --two-factor-detail
 
+# Run only the installed-apps check (side-loaded apps, available App Hub updates, custom JS/CSS injection):
+d2w security audit --checks apps
+
 # The full typed report as JSON on stdout; progress events go to stderr.
 d2w --json security audit | jq '.summary'
 

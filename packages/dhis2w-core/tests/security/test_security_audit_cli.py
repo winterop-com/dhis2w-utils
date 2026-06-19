@@ -52,6 +52,8 @@ def _make_fake_ctx() -> AsyncMock:
     fake_client = MagicMock()
     fake_client.get = AsyncMock(return_value=_WEAK_SETTINGS)
     fake_client.get_raw = AsyncMock(return_value={"data": ["ALL", "F_USER_ADD"]})
+    fake_client.apps.list_apps = AsyncMock(return_value=[])
+    fake_client.apps.hub_list = AsyncMock(return_value=[])
     fake_client.base_url = "https://mock.example"
     fake_client.raw_version = "2.42.0"
 

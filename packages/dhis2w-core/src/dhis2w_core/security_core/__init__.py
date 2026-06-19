@@ -9,6 +9,7 @@ extraction lives per tree.
 
 from __future__ import annotations
 
+from dhis2w_core.security_core.apps import HubApp, InstalledApp, evaluate_apps
 from dhis2w_core.security_core.authorities import (
     AUTHORITY_CATEGORIES,
     AuthorityCategory,
@@ -132,6 +133,8 @@ __all__ = [
     "CsvRenderer",
     "GroupView",
     "HtmlRenderer",
+    "HubApp",
+    "InstalledApp",
     "ItemView",
     "MarkdownRenderer",
     "ParsedVersion",
@@ -164,6 +167,7 @@ __all__ = [
     "categorise_authorities",
     "classify_probe_status",
     "evaluate_account_authorities",
+    "evaluate_apps",
     "evaluate_credential_probe",
     "evaluate_hygiene",
     "evaluate_roles",
