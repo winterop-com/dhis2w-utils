@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Dark mode for the HTML audit report** (2026-06-19). The report template
+  (`report.dc.html`) now carries a light/dark theme. Colors move to CSS custom properties under
+  `[data-theme]` / `[data-theme="dark"]`, a sun/moon toggle in the header switches themes, and the
+  choice persists in `localStorage` (`dhis2_audit_theme`), defaulting to the OS
+  `prefers-color-scheme`. All data bindings and the `window.__REPORT__` contract are unchanged, so no
+  Python or `report-data.js` changes were needed.
+
 - **Data-driven HTML report bundle for `d2w security audit`** (2026-06-19). The `html` output is a
   bundle: a fixed template (`report.dc.html`), runtime (`support.js`), and logo are copied into the
   run folder beside a per-scan `report-data.js` (`window.__REPORT__`). Per-account findings fold into
