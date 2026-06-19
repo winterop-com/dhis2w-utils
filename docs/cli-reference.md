@@ -1826,7 +1826,7 @@ Uses the Sierra Leone seed fixture by default:
 `fClA2Erf6IO` (&quot;Penta1 doses given&quot;) at `Rp268JB6Ne4`
 (Adonkia CHP, facility level) for `202406` (within the seeded 2024
 data window). The DE is in the seeded `BfMAe6Itzgt` (&quot;Child
-Health&quot;) dataset, so v43&#x27;s stricter dataset-detection on import
+Health&quot;) dataset, so DHIS2&#x27;s dataset-detection on import
 accepts the write. Override with `--de` / `--ou` / `--pe` for
 other scopes.
 
@@ -2165,7 +2165,7 @@ $ d2w files resources upload [OPTIONS] FILE
 
 **Options**:
 
-* `--domain [data_value|document|message_attachment|user_avatar|org_unit|icon|job_data]`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
+* `--domain [data_value|push_analysis|document|message_attachment|user_avatar|org_unit|icon|job_data]`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
 * `--help`: Show this message and exit.
 
 #### `d2w files resources get`
