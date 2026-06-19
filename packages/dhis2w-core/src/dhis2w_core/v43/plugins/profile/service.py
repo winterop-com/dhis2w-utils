@@ -15,6 +15,7 @@ from dhis2w_core.oauth2_preflight import check_oauth2_server
 from dhis2w_core.profile import (
     NoProfileError,
     Profile,
+    ProfileAlreadyExistsError,
     ProfileSource,
     UnknownProfileError,
     find_project_profiles_file,
@@ -310,10 +311,6 @@ def remove_profile(name: str, *, scope: str | None = None, start: Path | None = 
         data.default = next(iter(data.profiles), None)
     write_profiles_file(target, data)
     return target
-
-
-class ProfileAlreadyExistsError(ValueError):
-    """Raised when a rename / create would clobber an existing profile name."""
 
 
 def rename_profile(old_name: str, new_name: str, *, start: Path | None = None) -> Path:

@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
-from dhis2w_client.v42 import DataValueSet, Grid
 from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import is_json_output
-from dhis2w_core.v42.plugins.analytics import service
+
+if TYPE_CHECKING:
+    from dhis2w_client.v42 import Grid
 
 app = typer.Typer(help="DHIS2 analytics — aggregated queries over the analytics tables.", no_args_is_help=True)
 _console = Console()
@@ -26,6 +27,8 @@ def _render(response: BaseModel, *, title: str) -> None:
     Rich table from the `Grid` envelope. `DataValueSet` always falls back to
     JSON — its shape is meant for re-import, not display.
     """
+    from dhis2w_client.v42 import DataValueSet, Grid
+
     if is_json_output():
         typer.echo(response.model_dump_json(indent=2, exclude_none=True))
         return
@@ -102,6 +105,8 @@ def query_command(
 
     Use `--shape` to pick `table`, `raw`, or `dvs`.
     """
+    from dhis2w_core.v42.plugins.analytics import service
+
     try:
         response = asyncio.run(
             service.query_analytics(
@@ -169,6 +174,8 @@ def events_query_command(
 
     PROGRAM is a program UID; --mode is query (line list) or aggregate.
     """
+    from dhis2w_core.v42.plugins.analytics import service
+
     try:
         response = asyncio.run(
             service.query_events(
@@ -213,6 +220,8 @@ def enrollments_query_command(
     page_size: Annotated[int | None, typer.Option("--page-size")] = None,
 ) -> None:
     """Run an enrollment analytics query (`/api/analytics/enrollments/query/{program}`)."""
+    from dhis2w_core.v42.plugins.analytics import service
+
     response = asyncio.run(
         service.query_enrollments(
             profile_from_env(),
@@ -275,6 +284,8 @@ def outlier_detection_command(
     ] = None,
 ) -> None:
     """Run `/api/analytics/outlierDetection` — flag statistical anomalies in data values."""
+    from dhis2w_core.v42.plugins.analytics import service
+
     response = asyncio.run(
         service.query_outlier_detection(
             profile_from_env(),
@@ -350,6 +361,8 @@ def tracked_entities_query_command(
     ] = None,
 ) -> None:
     """Line-list tracked entities via `/api/analytics/trackedEntities/query/{TET_UID}`."""
+    from dhis2w_core.v42.plugins.analytics import service
+
     response = asyncio.run(
         service.query_tracked_entities(
             profile_from_env(),

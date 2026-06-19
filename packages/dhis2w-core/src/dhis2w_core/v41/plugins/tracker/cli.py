@@ -27,7 +27,6 @@ from dhis2w_core.v41.cli_output import (
     render_detail,
     render_list,
 )
-from dhis2w_core.v41.plugins.tracker import service
 
 app = typer.Typer(
     help="DHIS2 tracker — tracked entities by type, enrollments, events, relationships.",
@@ -109,6 +108,8 @@ def list_command(
 
     Example: d2w data tracker list Person --ou ImspTQPwCqd
     """
+    from dhis2w_core.v41.plugins.tracker import service
+
     if (type is None) == (program is None):
         typer.secho(
             "error: give either a TrackedEntityType (TYPE) or --program, not both", err=True, fg=typer.colors.RED
@@ -162,6 +163,8 @@ def get_command(
     ] = None,
 ) -> None:
     """Fetch one tracked entity by UID (TrackedEntityType inferred from the entity)."""
+    from dhis2w_core.v41.plugins.tracker import service
+
     entity = asyncio.run(service.get_tracked_entity(profile_from_env(), uid, program=program, fields=fields))
     if is_json_output():
         _as_json(entity)
@@ -207,6 +210,8 @@ def enrollment_list_command(
     updated_after: Annotated[str | None, typer.Option("--updated-after")] = None,
 ) -> None:
     """List enrollments (tracker programs only)."""
+    from dhis2w_core.v41.plugins.tracker import service
+
     enrollments = asyncio.run(
         service.list_enrollments(
             profile_from_env(),
@@ -277,6 +282,8 @@ def event_list_command(
 
     Example: data tracker event list --program <programUID> --ou <ouUID>
     """
+    from dhis2w_core.v41.plugins.tracker import service
+
     events = asyncio.run(
         service.list_events(
             profile_from_env(),
@@ -325,6 +332,8 @@ def relationship_list_command(
     page_size: Annotated[int, typer.Option("--page-size")] = 50,
 ) -> None:
     """List relationships (one of --te/--enrollment/--event required)."""
+    from dhis2w_core.v41.plugins.tracker import service
+
     relationships = asyncio.run(
         service.list_relationships(
             profile_from_env(),
@@ -401,6 +410,7 @@ def push_command(
 ) -> None:
     """Bulk import via POST /api/tracker."""
     from dhis2w_core.v41.cli_output import render_webmessage
+    from dhis2w_core.v41.plugins.tracker import service
 
     bundle = json.loads(file.read_text(encoding="utf-8"))
     response = asyncio.run(
@@ -425,6 +435,7 @@ def delete_command(
 ) -> None:
     """Delete tracked entities by UID (cascades to their enrollments + events)."""
     from dhis2w_core.v41.cli_output import render_webmessage
+    from dhis2w_core.v41.plugins.tracker import service
 
     response = asyncio.run(
         service.delete_tracker_objects(profile_from_env(), kind="trackedEntities", uids=uids, async_mode=async_mode)
@@ -441,6 +452,7 @@ def event_delete_command(
 ) -> None:
     """Delete events by UID."""
     from dhis2w_core.v41.cli_output import render_webmessage
+    from dhis2w_core.v41.plugins.tracker import service
 
     response = asyncio.run(
         service.delete_tracker_objects(profile_from_env(), kind="events", uids=uids, async_mode=async_mode)
@@ -457,6 +469,7 @@ def enrollment_delete_command(
 ) -> None:
     """Delete enrollments by UID."""
     from dhis2w_core.v41.cli_output import render_webmessage
+    from dhis2w_core.v41.plugins.tracker import service
 
     response = asyncio.run(
         service.delete_tracker_objects(profile_from_env(), kind="enrollments", uids=uids, async_mode=async_mode)
@@ -511,10 +524,12 @@ def register_command(
     Prints the new tracked-entity + enrollment UIDs so the caller can
     reference them downstream.
     """
+    from dhis2w_core.v41.plugins.tracker import service
+
     attrs = _parse_kv(attributes or [], flag_name="--attr")
     tet = tracked_entity_type
     if tet is None:
-        from dhis2w_core.v41.client_context import open_client  # noqa: PLC0415 — scoped to fallback path
+        from dhis2w_core.v41.client_context import open_client
 
         async def _resolve() -> str:
             async with open_client(profile_from_env()) as client:
@@ -565,6 +580,8 @@ def enrollment_create_command(
     ] = None,
 ) -> None:
     """Enroll an existing tracked entity in a program."""
+    from dhis2w_core.v41.plugins.tracker import service
+
     result = asyncio.run(
         service.enroll_tracked_entity(
             profile_from_env(),
@@ -632,6 +649,8 @@ def event_create_command(
     community surveys, case-investigation forms), omit --enrollment; the
     event stands alone, scoped by program + stage + org unit.
     """
+    from dhis2w_core.v41.plugins.tracker import service
+
     dvs = _parse_kv(data_values or [], flag_name="--dv")
     result = asyncio.run(
         service.add_tracker_event(
@@ -689,6 +708,7 @@ def outstanding_command(
     a single outstanding semantic and are skipped.
     """
     from dhis2w_core.v41.cli_output import ColumnSpec, render_list
+    from dhis2w_core.v41.plugins.tracker import service
 
     rows = asyncio.run(
         service.outstanding_enrollments(

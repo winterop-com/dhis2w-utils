@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v41.plugins.metadata import cli as cli_module
-from dhis2w_core.v41.plugins.metadata import mcp as mcp_module
-
 
 class _MetadataPlugin(BaseModel):
     """Plugin descriptor for DHIS2 metadata inspection."""
@@ -20,10 +17,14 @@ class _MetadataPlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount the metadata sub-app under `d2w metadata`."""
+        from dhis2w_core.v41.plugins.metadata import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register metadata listing tools on the MCP server."""
+        from dhis2w_core.v41.plugins.metadata import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

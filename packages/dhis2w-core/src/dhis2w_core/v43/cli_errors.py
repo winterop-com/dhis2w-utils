@@ -18,9 +18,9 @@ from dhis2w_client.v43.envelopes import WebMessageResponse
 from dhis2w_core.profile import (
     InvalidProfileNameError,
     NoProfileError,
+    ProfileAlreadyExistsError,
     UnknownProfileError,
 )
-from dhis2w_core.v43.plugins.profile.service import ProfileAlreadyExistsError
 
 _NO_PROFILE_HINT = [
     "run `d2w profile --help` for setup options, or try:",
@@ -97,7 +97,7 @@ def _render_api_error(exc: Dhis2ApiError) -> NoReturn:
     if envelope:
         rows = envelope.conflict_rows()
         if rows:
-            from dhis2w_core.v43.cli_output import render_conflicts  # noqa: PLC0415 — lazy for the cheap-happy-path
+            from dhis2w_core.v43.cli_output import render_conflicts
 
             render_conflicts(rows)
     _render(f"DHIS2 API error ({exc.status_code})", detail or "(no further detail)", extras=extras)

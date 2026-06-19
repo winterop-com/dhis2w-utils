@@ -5,17 +5,17 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Callable, Coroutine
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
-from dhis2w_client.v41 import NotificationLevel, WebMessageResponse
 from rich.console import Console
 from rich.table import Table
 
 from dhis2w_core.profile import Profile, profile_from_env
 from dhis2w_core.v41.cli_output import is_json_output
-from dhis2w_core.v41.plugins.maintenance import service
-from dhis2w_core.v41.plugins.maintenance.service import SoftDeleteTarget
+
+if TYPE_CHECKING:
+    from dhis2w_client.v41 import NotificationLevel, WebMessageResponse
 
 app = typer.Typer(
     help="DHIS2 maintenance — tasks, cache, cleanup, data-integrity, resource-table refreshes.",
@@ -85,6 +85,8 @@ def _colorize_severity(severity: str | None) -> str:
 @task_app.command("types")
 def task_types_command() -> None:
     """List every background-job type DHIS2 tracks (ANALYTICS_TABLE, DATA_INTEGRITY, ...)."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     names = asyncio.run(service.list_task_types(profile_from_env()))
     if not names:
         typer.echo("no task types reported by this instance")
@@ -102,6 +104,8 @@ def task_list_command(
     task_type: Annotated[str, typer.Argument(help="Task type, e.g. ANALYTICS_TABLE.")],
 ) -> None:
     """List every task UID recorded for a given job type."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     uids = asyncio.run(service.list_task_ids(profile_from_env(), task_type))
     if not uids:
         typer.echo(f"no {task_type} tasks recorded on this instance")
@@ -119,6 +123,8 @@ def task_status_command(
     task_uid: Annotated[str, typer.Argument(help="Task UID returned by the async POST.")],
 ) -> None:
     """Print every notification emitted by a task, oldest first."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     notifications = asyncio.run(service.get_task_notifications(profile_from_env(), task_type, task_uid))
     if is_json_output():
         typer.echo(json.dumps([n.model_dump(exclude_none=True) for n in notifications], indent=2))
@@ -154,6 +160,8 @@ def task_watch_command(
 @app.command("cache")
 def cache_command() -> None:
     """Clear every server-side cache (Hibernate + app caches)."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     asyncio.run(service.clear_cache(profile_from_env()))
     typer.echo("caches cleared")
 
@@ -161,6 +169,9 @@ def cache_command() -> None:
 @cleanup_app.command("data-values")
 def cleanup_data_values_command() -> None:
     """Hard-remove soft-deleted data values from `/api/dataValueSets` imports."""
+    from dhis2w_core.v41.plugins.maintenance import service
+    from dhis2w_core.v41.plugins.maintenance.service import SoftDeleteTarget
+
     asyncio.run(service.remove_soft_deleted(profile_from_env(), SoftDeleteTarget.DATA_VALUES))
     typer.echo("soft-deleted data values removed")
 
@@ -168,6 +179,9 @@ def cleanup_data_values_command() -> None:
 @cleanup_app.command("events")
 def cleanup_events_command() -> None:
     """Hard-remove soft-deleted tracker events."""
+    from dhis2w_core.v41.plugins.maintenance import service
+    from dhis2w_core.v41.plugins.maintenance.service import SoftDeleteTarget
+
     asyncio.run(service.remove_soft_deleted(profile_from_env(), SoftDeleteTarget.EVENTS))
     typer.echo("soft-deleted events removed")
 
@@ -175,6 +189,9 @@ def cleanup_events_command() -> None:
 @cleanup_app.command("enrollments")
 def cleanup_enrollments_command() -> None:
     """Hard-remove soft-deleted tracker enrollments."""
+    from dhis2w_core.v41.plugins.maintenance import service
+    from dhis2w_core.v41.plugins.maintenance.service import SoftDeleteTarget
+
     asyncio.run(service.remove_soft_deleted(profile_from_env(), SoftDeleteTarget.ENROLLMENTS))
     typer.echo("soft-deleted enrollments removed")
 
@@ -182,6 +199,9 @@ def cleanup_enrollments_command() -> None:
 @cleanup_app.command("tracked-entities")
 def cleanup_tracked_entities_command() -> None:
     """Hard-remove soft-deleted tracked entities."""
+    from dhis2w_core.v41.plugins.maintenance import service
+    from dhis2w_core.v41.plugins.maintenance.service import SoftDeleteTarget
+
     asyncio.run(service.remove_soft_deleted(profile_from_env(), SoftDeleteTarget.TRACKED_ENTITIES))
     typer.echo("soft-deleted tracked entities removed")
 
@@ -190,6 +210,8 @@ def cleanup_tracked_entities_command() -> None:
 @dataintegrity_app.command("ls", hidden=True)
 def dataintegrity_list_command() -> None:
     """List every built-in data-integrity check (name, section, severity)."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     checks = asyncio.run(service.list_dataintegrity_checks(profile_from_env()))
     if is_json_output():
         typer.echo(json.dumps([c.model_dump(exclude_none=True) for c in checks], indent=2))
@@ -240,6 +262,7 @@ def dataintegrity_run_command(
     """Kick off a data-integrity run; with --watch, stream progress to completion."""
     from dhis2w_core.v41.cli_output import render_webmessage
     from dhis2w_core.v41.cli_task_watch import stream_task_to_stdout
+    from dhis2w_core.v41.plugins.maintenance import service
 
     profile = profile_from_env()
     checks_to_run: list[str] | None = list(check) if check else None
@@ -282,6 +305,8 @@ def dataintegrity_result_command(
     ] = False,
 ) -> None:
     """Read the stored result of a completed data-integrity run (summary or details mode)."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     coro = (
         service.get_dataintegrity_details(profile_from_env(), checks=check)
         if details
@@ -360,6 +385,8 @@ def refresh_analytics_command(
     read from these tables, so they must be rebuilt for fresh data to show up.
     Also refreshes resource tables unless `--skip-resource-tables` is set.
     """
+    from dhis2w_core.v41.plugins.maintenance import service
+
     _kick_off_and_maybe_watch(
         lambda profile: service.refresh_analytics(
             profile, skip_resource_tables=skip_resource_tables, last_years=last_years
@@ -391,6 +418,8 @@ def refresh_resource_tables_command(
     the analytics star schema. Use when OU / category metadata changed but
     no new data values landed — faster than a full `refresh analytics` run.
     """
+    from dhis2w_core.v41.plugins.maintenance import service
+
     _kick_off_and_maybe_watch(
         service.refresh_resource_tables,
         watch=watch,
@@ -419,6 +448,8 @@ def refresh_monitoring_command(
     Rebuilds the tables backing DHIS2's data-quality / validation-rule
     monitoring. Independent of the analytics + resource tables.
     """
+    from dhis2w_core.v41.plugins.maintenance import service
+
     _kick_off_and_maybe_watch(
         service.refresh_monitoring,
         watch=watch,
@@ -484,6 +515,8 @@ def validation_run_command(
     ] = False,
 ) -> None:
     """Run a validation-rule analysis + render the violations."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     violations = asyncio.run(
         service.run_validation_analysis(
             profile_from_env(),
@@ -586,6 +619,8 @@ def _rule_inline(rule: Any) -> tuple[str, str, str]:
 @validation_app.command("send-notifications")
 def validation_send_notifications_command() -> None:
     """Fire configured notification templates for every current validation violation."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     envelope = asyncio.run(service.send_validation_notifications(profile_from_env()))
     typer.echo(f"status={envelope.status or envelope.httpStatus}  message={envelope.message or '-'}")
 
@@ -602,7 +637,9 @@ def validation_validate_expression_command(
     ] = "generic",
 ) -> None:
     """Parse-check an expression + render a human description."""
-    from dhis2w_client.v41 import ExpressionContext  # noqa: PLC0415 — local import for Literal narrowing
+    from dhis2w_client.v41 import ExpressionContext
+
+    from dhis2w_core.v41.plugins.maintenance import service
 
     if context not in _EXPRESSION_CONTEXT_CHOICES:
         raise typer.BadParameter(f"--context {context!r}: valid values are {', '.join(_EXPRESSION_CONTEXT_CHOICES)}")
@@ -626,6 +663,8 @@ def validation_result_list_command(
     page_size: Annotated[int | None, typer.Option("--page-size")] = None,
 ) -> None:
     """List persisted validation results."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     results = asyncio.run(
         service.list_validation_results(
             profile_from_env(),
@@ -673,6 +712,8 @@ def validation_result_get_command(
     result_id: Annotated[int, typer.Argument(help="Numeric validation-result id.")],
 ) -> None:
     """Show one persisted validation result by id."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     result = asyncio.run(service.get_validation_result(profile_from_env(), result_id))
     typer.echo(result.model_dump_json(indent=2, exclude_none=True))
 
@@ -690,6 +731,8 @@ def validation_result_delete_command(
     ] = None,
 ) -> None:
     """Bulk-delete validation results by filter. At least one filter is required."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     try:
         asyncio.run(
             service.delete_validation_results(
@@ -718,6 +761,8 @@ def predictors_run_command(
     ] = None,
 ) -> None:
     """Run predictor expressions + emit data values for the given date range."""
+    from dhis2w_core.v41.plugins.maintenance import service
+
     try:
         envelope = asyncio.run(
             service.run_predictors(

@@ -6,8 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v42.plugins.dev import cli as cli_module
-
 
 class _DevPlugin(BaseModel):
     """Plugin descriptor for developer + operator tools."""
@@ -19,6 +17,10 @@ class _DevPlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount under `d2w dev`."""
+        from dhis2w_core.v42.plugins.dev import (
+            cli as cli_module,
+        )
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:

@@ -8,13 +8,12 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from dhis2w_client.v42 import FileResourceDomain
+from dhis2w_client.generated.v42.enums import FileResourceDomain
 from rich.console import Console
 from rich.table import Table
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import is_json_output
-from dhis2w_core.v42.plugins.files import service
 
 _console = Console()
 
@@ -66,6 +65,8 @@ def documents_list_command(
     are only available where a document's `url` is itself an 11-char UID (older data); for
     filename-style `url`s the detail columns show `-`.
     """
+    from dhis2w_core.v42.plugins.files import service
+
     docs = asyncio.run(
         service.list_documents(profile_from_env(), filter=filter_expr, page=page, page_size=page_size),
     )
@@ -142,6 +143,8 @@ def _colorize_storage(status: str | None) -> str:
 @documents_app.command("get")
 def documents_get_command(uid: Annotated[str, typer.Argument(help="Document UID.")]) -> None:
     """Show metadata for one document."""
+    from dhis2w_core.v42.plugins.files import service
+
     doc = asyncio.run(service.get_document(profile_from_env(), uid))
     typer.echo(doc.model_dump_json(indent=2, exclude_none=True))
 
@@ -155,6 +158,8 @@ def documents_upload_command(
     ] = None,
 ) -> None:
     """Upload a binary document — prints the new UID."""
+    from dhis2w_core.v42.plugins.files import service
+
     if not file.is_file():
         raise typer.BadParameter(f"{file} is not a file")
     doc = asyncio.run(service.upload_document(profile_from_env(), file, name=name))
@@ -167,6 +172,8 @@ def documents_upload_url_command(
     url: Annotated[str, typer.Argument(help="External URL DHIS2 will link to.")],
 ) -> None:
     """Create an EXTERNAL_URL document — no bytes uploaded; DHIS2 links out to `url`."""
+    from dhis2w_core.v42.plugins.files import service
+
     doc = asyncio.run(service.create_external_document(profile_from_env(), name=name, url=url))
     typer.echo(f"created {doc.id}  {doc.name}  -> {url}")
 
@@ -177,6 +184,8 @@ def documents_download_command(
     destination: Annotated[Path, typer.Argument(help="Output file path.")],
 ) -> None:
     """Download the binary payload to `destination`."""
+    from dhis2w_core.v42.plugins.files import service
+
     written = asyncio.run(service.download_document(profile_from_env(), uid, destination))
     typer.echo(f"wrote {written} bytes to {destination}")
 
@@ -184,6 +193,8 @@ def documents_download_command(
 @documents_app.command("delete")
 def documents_delete_command(uid: Annotated[str, typer.Argument(help="Document UID.")]) -> None:
     """Delete one document."""
+    from dhis2w_core.v42.plugins.files import service
+
     asyncio.run(service.delete_document(profile_from_env(), uid))
     typer.echo(f"deleted {uid}")
 
@@ -204,6 +215,8 @@ def resources_upload_command(
     ] = FileResourceDomain.DATA_VALUE,
 ) -> None:
     """Upload a file resource; prints the new UID (reference it from the owning metadata object)."""
+    from dhis2w_core.v42.plugins.files import service
+
     if not file.is_file():
         raise typer.BadParameter(f"{file} is not a file")
     fr = asyncio.run(service.upload_file_resource(profile_from_env(), file, domain=domain))
@@ -213,6 +226,8 @@ def resources_upload_command(
 @resources_app.command("get")
 def resources_get_command(uid: Annotated[str, typer.Argument(help="FileResource UID.")]) -> None:
     """Show metadata for one file resource."""
+    from dhis2w_core.v42.plugins.files import service
+
     fr = asyncio.run(service.get_file_resource(profile_from_env(), uid))
     typer.echo(fr.model_dump_json(indent=2, exclude_none=True))
 
@@ -223,6 +238,8 @@ def resources_download_command(
     destination: Annotated[Path, typer.Argument(help="Output file path.")],
 ) -> None:
     """Download the file-resource payload to `destination`."""
+    from dhis2w_core.v42.plugins.files import service
+
     written = asyncio.run(service.download_file_resource(profile_from_env(), uid, destination))
     typer.echo(f"wrote {written} bytes to {destination}")
 

@@ -18,10 +18,6 @@ from dhis2w_core.v41.cli_output import (
     render_detail,
     render_list,
 )
-from dhis2w_core.v41.plugins.user import service
-from dhis2w_core.v41.plugins.user.service import UserInvite, UserNotFoundError
-from dhis2w_core.v41.plugins.user_group import cli as user_group_cli
-from dhis2w_core.v41.plugins.user_role import cli as user_role_cli
 
 app = typer.Typer(help="Inspect + administer DHIS2 users (list, get, invite, reset-password).", no_args_is_help=True)
 
@@ -63,6 +59,8 @@ def list_command(
       d2w user list --filter 'disabled:eq:true' --order 'username:asc'
       d2w user list --filter 'username:like:admin'
     """
+    from dhis2w_core.v41.plugins.user import service
+
     rj = root_junction if filters and len(filters) > 1 else None
     users = asyncio.run(
         service.list_users(
@@ -99,6 +97,9 @@ def get_command(
     fields: Annotated[str | None, typer.Option("--fields", help="DHIS2 field selector.")] = None,
 ) -> None:
     """Fetch one user by UID or username. Prints a concise summary; `--json` for full payload."""
+    from dhis2w_core.v41.plugins.user import service
+    from dhis2w_core.v41.plugins.user.service import UserNotFoundError
+
     try:
         user = asyncio.run(service.get_user(profile_from_env(), uid_or_username, fields=fields))
     except UserNotFoundError as exc:
@@ -158,6 +159,9 @@ def invite_command(
     Hits POST /api/users/invite. DHIS2's configured mailer sends the link;
     the new user sets their password on accept. Prints the new user's UID.
     """
+    from dhis2w_core.v41.plugins.user import service
+    from dhis2w_core.v41.plugins.user.service import UserInvite
+
     invite = UserInvite(
         email=email,
         firstName=first_name,
@@ -179,6 +183,8 @@ def reinvite_command(
     uid: Annotated[str, typer.Argument(help="UID of a user who hasn't yet completed their invite.")],
 ) -> None:
     """Re-send the invitation email for a pending user (POST /api/users/{uid}/invite)."""
+    from dhis2w_core.v41.plugins.user import service
+
     envelope = asyncio.run(service.reinvite_user(profile_from_env(), uid))
     status = envelope.httpStatus or envelope.status or "OK"
     typer.echo(f"reinvite queued for {uid}: {status}")
@@ -189,6 +195,8 @@ def reset_password_command(
     uid: Annotated[str, typer.Argument(help="UID of the user to reset.")],
 ) -> None:
     """Trigger DHIS2's password-reset email (POST /api/users/{uid}/reset)."""
+    from dhis2w_core.v41.plugins.user import service
+
     envelope = asyncio.run(service.reset_password(profile_from_env(), uid))
     status = envelope.httpStatus or envelope.status or "OK"
     typer.echo(f"reset link mailed for {uid}: {status}")
@@ -205,10 +213,11 @@ def _authorities_preview(authorities: list[str], *, hint_cmd: str, limit: int = 
     return preview
 
 
-app.add_typer(user_group_cli.app, name="group", help="Manage DHIS2 user groups.")
-app.add_typer(user_role_cli.app, name="role", help="Manage DHIS2 user roles.")
-
-
 def register(root_app: Any) -> None:
     """Mount this plugin's Typer sub-app under `d2w user`."""
+    from dhis2w_core.v41.plugins.user_group import cli as user_group_cli
+    from dhis2w_core.v41.plugins.user_role import cli as user_role_cli
+
+    app.add_typer(user_group_cli.app, name="group", help="Manage DHIS2 user groups.")
+    app.add_typer(user_role_cli.app, name="role", help="Manage DHIS2 user roles.")
     root_app.add_typer(app, name="user", help="DHIS2 user administration.")

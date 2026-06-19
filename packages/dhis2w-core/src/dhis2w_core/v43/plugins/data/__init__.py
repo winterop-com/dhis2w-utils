@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v43.plugins.data import cli as cli_module
-from dhis2w_core.v43.plugins.data import mcp as mcp_module
-
 
 class _DataPlugin(BaseModel):
     """Plugin descriptor for DHIS2 data values (aggregate + tracker)."""
@@ -20,10 +17,14 @@ class _DataPlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount under `d2w data`."""
+        from dhis2w_core.v43.plugins.data import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register `data_aggregate_*` and `data_tracker_*` tools on the MCP server."""
+        from dhis2w_core.v43.plugins.data import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

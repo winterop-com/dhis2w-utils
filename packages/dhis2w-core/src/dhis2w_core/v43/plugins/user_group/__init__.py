@@ -6,8 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v43.plugins.user_group import mcp as mcp_module
-
 
 class _UserGroupPlugin(BaseModel):
     """Plugin descriptor for the DHIS2 user-group administration surface."""
@@ -23,6 +21,8 @@ class _UserGroupPlugin(BaseModel):
 
     def register_mcp(self, mcp: Any) -> None:
         """Register user-group tools on the MCP server."""
+        from dhis2w_core.v43.plugins.user_group import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

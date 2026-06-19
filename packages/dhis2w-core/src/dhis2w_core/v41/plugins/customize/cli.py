@@ -10,7 +10,6 @@ import typer
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v41.cli_output import is_json_output
-from dhis2w_core.v41.plugins.customize import service
 
 app = typer.Typer(
     help="DHIS2 branding — login-page logos, copy, theme.",
@@ -23,6 +22,8 @@ def logo_front_command(
     file: Annotated[Path, typer.Argument(help="PNG/JPG/SVG to upload as the login splash logo.")],
 ) -> None:
     """Upload the login-page splash / upper-right logo."""
+    from dhis2w_core.v41.plugins.customize import service
+
     asyncio.run(service.upload_logo_front(profile_from_env(), file))
     typer.echo(f"uploaded {file.name} as logo_front (keyUseCustomLogoFront=true)")
 
@@ -32,6 +33,8 @@ def logo_banner_command(
     file: Annotated[Path, typer.Argument(help="PNG/JPG/SVG to upload as the top-menu banner.")],
 ) -> None:
     """Upload the top-menu banner logo (appears on every authenticated page)."""
+    from dhis2w_core.v41.plugins.customize import service
+
     asyncio.run(service.upload_logo_banner(profile_from_env(), file))
     typer.echo(f"uploaded {file.name} as logo_banner (keyUseCustomLogoBanner=true)")
 
@@ -45,6 +48,8 @@ def style_command(
     NOTE: DHIS2's standalone login app (`/dhis-web-login/`) does NOT include this
     stylesheet. Post-auth pages do.
     """
+    from dhis2w_core.v41.plugins.customize import service
+
     asyncio.run(service.upload_style(profile_from_env(), file))
     typer.echo(f"uploaded {file.name} as /api/files/style (keyStyle=style)")
 
@@ -59,6 +64,8 @@ def apply_command(
     ],
 ) -> None:
     """Apply a committed preset directory in one call (skips files that don't exist)."""
+    from dhis2w_core.v41.plugins.customize import service
+
     if not directory.is_dir():
         raise typer.BadParameter(f"{directory} is not a directory")
     result = asyncio.run(service.apply_preset_dir(profile_from_env(), directory))
@@ -75,6 +82,8 @@ def apply_command(
 @app.command("show")
 def show_command() -> None:
     """Show DHIS2's current `/api/loginConfig` snapshot (what the login app sees)."""
+    from dhis2w_core.v41.plugins.customize import service
+
     config = asyncio.run(service.get_login_config(profile_from_env()))
     if is_json_output():
         typer.echo(config.model_dump_json(indent=2, exclude_none=True))

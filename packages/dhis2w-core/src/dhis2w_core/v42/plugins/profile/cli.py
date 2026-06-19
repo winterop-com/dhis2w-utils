@@ -6,10 +6,13 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
-from dhis2w_client.v42 import Dhis2
+
+# DEFAULT_REDIRECT_URI stays at module scope: it is a Typer option default on the add /
+# bootstrap / oidc-config commands, evaluated at command-registration time (import). Its
+# source module (auth.oauth2) is light — it does not pull the generated OAS tree.
 from dhis2w_client.v42.auth.oauth2 import DEFAULT_REDIRECT_URI
 from rich.console import Console
 from rich.table import Table
@@ -17,12 +20,18 @@ from rich.table import Table
 from dhis2w_core.oauth2_preflight import check_oauth2_server
 from dhis2w_core.profile import Profile, UnknownProfileError, resolve
 from dhis2w_core.v42.cli_output import is_json_output
-from dhis2w_core.v42.client_context import build_auth, scope_from_resolved
-from dhis2w_core.v42.oauth2_registration import build_admin_auth, register_oauth2_client
-from dhis2w_core.v42.pat_registration import register_pat
+
+# oauth2_module / pat_module stay at module scope: they are mounted via app.add_typer(...)
+# at import time, so they cannot be deferred here. They keep their own heavy imports
+# (admin_auth / registration → generated OAS) deferred into command bodies, so importing
+# them here stays light.
 from dhis2w_core.v42.plugins.profile import oauth2 as oauth2_module
 from dhis2w_core.v42.plugins.profile import pat as pat_module
-from dhis2w_core.v42.plugins.profile import service
+
+if TYPE_CHECKING:
+    from dhis2w_client.v42 import Dhis2
+
+    from dhis2w_core.v42.plugins.profile import service
 
 _VERSION_HELP = (
     "Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP "
@@ -33,6 +42,8 @@ _VERSION_HELP = (
 
 def _validate_version(value: str | None) -> Dhis2 | None:
     """Normalize a `--version` flag value into a `Dhis2` enum member or None."""
+    from dhis2w_client.v42 import Dhis2
+
     if value is None:
         return None
     candidate = value.strip().lower()
@@ -59,6 +70,8 @@ def list_command(
     ] = False,
 ) -> None:
     """List every known profile with its source and default status."""
+    from dhis2w_core.v42.plugins.profile import service
+
     summaries = service.list_profiles(include_shadowed=all_)
     if is_json_output():
         typer.echo(json.dumps([s.model_dump() for s in summaries], indent=2))
@@ -123,6 +136,8 @@ def verify_command(
     ] = None,
 ) -> None:
     """Verify one profile or all profiles by hitting /api/system/info + /api/me."""
+    from dhis2w_core.v42.plugins.profile import service
+
     if name:
         result = asyncio.run(service.verify_profile(name))
         if is_json_output():
@@ -172,6 +187,7 @@ def show_command(
 ) -> None:
     """Print one profile (secrets redacted by default)."""
     from dhis2w_core.v42.cli_output import DetailRow, render_detail
+    from dhis2w_core.v42.plugins.profile import service
 
     view = service.show_profile(name, include_secrets=secrets)
     dumped = view.model_dump(exclude_none=True)
@@ -201,6 +217,8 @@ def _resolve_scope(*, is_global: bool, is_local: bool, default: str = "global") 
 
 def _run_verify(name: str) -> None:
     """Probe a profile and print a one-line OK/FAIL line; never raises."""
+    from dhis2w_core.v42.plugins.profile import service
+
     result = asyncio.run(service.verify_profile(name))
     if result.ok:
         line = f"  verified: version={result.version} user={result.username} ({result.latency_ms} ms)"
@@ -236,6 +254,8 @@ def default_command(
     `--local` to pick the profiles.toml to write (`--global` is the
     default).
     """
+    from dhis2w_core.v42.plugins.profile import service
+
     scope = _resolve_scope(is_global=global_scope, is_local=local_scope)
     if name is None:
         name = _prompt_for_profile_name()
@@ -259,6 +279,8 @@ def _prompt_for_profile_name() -> str:
     import sys
 
     import questionary
+
+    from dhis2w_core.v42.plugins.profile import service
 
     summaries = service.list_profiles(include_shadowed=False)
     if not summaries:
@@ -345,6 +367,8 @@ def add_command(
     Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`) or
     prompted interactively when missing.
     """
+    from dhis2w_core.v42.plugins.profile import service
+
     scope = _resolve_scope(is_global=global_scope, is_local=local_scope)
     pinned_version = _validate_version(version)
     if from_env and auth == "oauth2":
@@ -428,6 +452,8 @@ def remove_command(
     ] = False,
 ) -> None:
     """Remove a profile. Without --global/--local, removes from whichever file holds it."""
+    from dhis2w_core.v42.plugins.profile import service
+
     if global_scope and local_scope:
         raise typer.BadParameter("--global and --local are mutually exclusive")
     scope: str | None = None
@@ -453,6 +479,8 @@ def rename_command(
     ] = False,
 ) -> None:
     """Rename a profile in-place. Preserves scope and updates default if needed."""
+    from dhis2w_core.v42.plugins.profile import service
+
     path = service.rename_profile(old_name, new_name)
     typer.echo(f"renamed {old_name!r} -> {new_name!r} in {path}")
     if verify:
@@ -483,6 +511,8 @@ def login_command(
     Pass `--no-browser` (or `DHIS2_OAUTH_NO_BROWSER=1`) to print the URL to
     stderr instead of launching the system browser.
     """
+    from dhis2w_core.v42.client_context import build_auth, scope_from_resolved
+
     resolved = resolve(name)
     if resolved.profile.auth != "oauth2":
         typer.secho(
@@ -530,6 +560,7 @@ def logout_command(
     Removes the row from the scope-appropriate `tokens.sqlite`. Next API call
     triggers a fresh `profile login` flow. OAuth2 profiles only.
     """
+    from dhis2w_core.v42.client_context import scope_from_resolved
     from dhis2w_core.v42.token_store import token_store_for_scope
 
     resolved = resolve(name)
@@ -554,6 +585,8 @@ def logout_command(
 
 def _resolve_admin_auth(admin_user: str | None) -> Any:
     """Pick admin-auth creds — env first, then interactive prompt. Never argv secrets."""
+    from dhis2w_core.v42.oauth2_registration import build_admin_auth
+
     admin_pat = os.environ.get("DHIS2_ADMIN_PAT")
     admin_pass = os.environ.get("DHIS2_ADMIN_PASSWORD")
     if not admin_pat and not admin_pass:
@@ -609,6 +642,10 @@ def bootstrap_command(
     taken — pass a different `--client-id` in that case. PAT bootstraps never
     collide (DHIS2 mints a fresh server-side UID).
     """
+    from dhis2w_core.v42.oauth2_registration import register_oauth2_client
+    from dhis2w_core.v42.pat_registration import register_pat
+    from dhis2w_core.v42.plugins.profile import service
+
     if global_scope and local_scope:
         raise typer.BadParameter("--global and --local are mutually exclusive")
     profile_scope = "project" if local_scope else "global"
@@ -713,6 +750,7 @@ def oidc_config_command(
     automatically) or the full discovery URL.
     """
     from dhis2w_core.oauth2_preflight import OidcDiscoveryError
+    from dhis2w_core.v42.plugins.profile import service
 
     scope = _resolve_scope(is_global=global_scope, is_local=local_scope)
     pinned_version = _validate_version(version)

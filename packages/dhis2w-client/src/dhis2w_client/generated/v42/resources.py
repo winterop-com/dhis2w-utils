@@ -4,12 +4,17 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from dhis2w_client.v42.client import Dhis2Client
 from dhis2w_client.v42.json_patch import JsonPatchOp, JsonPatchOpAdapter
+
+if TYPE_CHECKING:
+    # Accessor `__init__` annotations only. Importing the client at runtime would
+    # form a cycle: client -> generated.v42.oas -> resources -> client.
+    # With `from __future__ import annotations`, the annotation stays a string.
+    from dhis2w_client.v42.client import Dhis2Client
 
 from .schemas.aggregate_data_exchange import AggregateDataExchange
 from .schemas.analytics_table_hook import AnalyticsTableHook

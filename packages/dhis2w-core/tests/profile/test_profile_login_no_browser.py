@@ -64,7 +64,7 @@ def test_login_no_browser_flag_flips_open_browser(
     """`d2w profile login --no-browser` calls build_auth with open_browser=False."""
     _write_oauth2_profile(tmp_path)
     calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(profile_cli, "build_auth", _stub_build_auth_capture(calls))
+    monkeypatch.setattr("dhis2w_core.v42.client_context.build_auth", _stub_build_auth_capture(calls))
     # Skip preflight (we're not reaching a real DHIS2 here).
     monkeypatch.setattr(profile_cli, "check_oauth2_server", _stub_preflight_ok)
     # Skip the post-login verify round-trip.
@@ -83,7 +83,7 @@ def test_login_env_var_flips_open_browser(
     """`DHIS2_OAUTH_NO_BROWSER=1` flips open_browser without a CLI flag."""
     _write_oauth2_profile(tmp_path)
     calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(profile_cli, "build_auth", _stub_build_auth_capture(calls))
+    monkeypatch.setattr("dhis2w_core.v42.client_context.build_auth", _stub_build_auth_capture(calls))
     monkeypatch.setattr(profile_cli, "check_oauth2_server", _stub_preflight_ok)
     monkeypatch.setattr(profile_cli, "_run_verify", lambda _name: None)
     monkeypatch.setenv("DHIS2_OAUTH_NO_BROWSER", "1")
@@ -100,7 +100,7 @@ def test_login_default_opens_browser(
     """No flag, no env var → open_browser=True (the existing behaviour)."""
     _write_oauth2_profile(tmp_path)
     calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(profile_cli, "build_auth", _stub_build_auth_capture(calls))
+    monkeypatch.setattr("dhis2w_core.v42.client_context.build_auth", _stub_build_auth_capture(calls))
     monkeypatch.setattr(profile_cli, "check_oauth2_server", _stub_preflight_ok)
     monkeypatch.setattr(profile_cli, "_run_verify", lambda _name: None)
     monkeypatch.delenv("DHIS2_OAUTH_NO_BROWSER", raising=False)

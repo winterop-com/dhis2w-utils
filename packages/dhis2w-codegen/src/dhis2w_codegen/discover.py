@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from dhis2w_client import AuthProvider
-from dhis2w_client.v42.client import Dhis2Client
 from pydantic import BaseModel, Field, model_validator
+
+if TYPE_CHECKING:
+    # Annotation-only at module scope; the runtime import is deferred into
+    # `discover()` so importing this module (e.g. via `d2w dev codegen`'s
+    # registration) doesn't pull the heavy v42 client + generated OAS tree.
+    from dhis2w_client.v42.client import Dhis2Client
 
 _VERSION_RE = re.compile(r"^(\d+)\.(\d+)")
 
@@ -91,6 +96,8 @@ class SchemasManifest(BaseModel):
 
 async def discover(url: str, auth: AuthProvider) -> SchemasManifest:
     """Fetch system info and schemas from a live DHIS2 instance."""
+    from dhis2w_client.v42.client import Dhis2Client
+
     client = Dhis2Client(base_url=url, auth=auth, allow_version_fallback=True)
     try:
         info = await _system_info_without_version_gate(client)

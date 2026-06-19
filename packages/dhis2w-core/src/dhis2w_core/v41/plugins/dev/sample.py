@@ -14,16 +14,8 @@ import time
 from typing import Annotated
 
 import typer
-from dhis2w_client.v41 import Dhis2Client, PatAuth, WebMessageResponse
-from dhis2w_client.v41.auth.oauth2 import DEFAULT_REDIRECT_URI
 
 from dhis2w_core.profile import profile_from_env
-from dhis2w_core.v41.admin_auth import resolve_admin_auth
-from dhis2w_core.v41.client_context import open_client
-from dhis2w_core.v41.oauth2_registration import register_oauth2_client
-from dhis2w_core.v41.pat_registration import register_pat
-from dhis2w_core.v41.plugins.route import service as route_service
-from dhis2w_core.v41.plugins.route.service import RoutePayload
 
 app = typer.Typer(
     help="Inject known-good fixtures to verify the stack end-to-end (route, data, pat, oauth2-client).",
@@ -65,6 +57,9 @@ def sample_route_command(
     Verifies the full /api/routes lifecycle end-to-end: create -> run (proxy
     to target URL) -> delete.
     """
+    from dhis2w_core.v41.plugins.route import service as route_service
+    from dhis2w_core.v41.plugins.route.service import RoutePayload
+
     started = time.perf_counter()
     profile = profile_from_env()
     _step(f"create route code={code!r} -> {target_url}")
@@ -102,6 +97,11 @@ def sample_pat_command(
     keep: Annotated[bool, typer.Option("--keep", help="Don't delete the sample PAT afterwards.")] = False,
 ) -> None:
     """Create a sample PAT, use it to call /api/me, then (unless --keep) delete it."""
+    from dhis2w_client.v41 import Dhis2Client, PatAuth
+
+    from dhis2w_core.v41.admin_auth import resolve_admin_auth
+    from dhis2w_core.v41.pat_registration import register_pat
+
     started = time.perf_counter()
     resolved_url = _resolve_url(url)
     admin_auth = resolve_admin_auth(admin_user)
@@ -143,10 +143,14 @@ def sample_data_value_command(
     `fClA2Erf6IO` ("Penta1 doses given") at `Rp268JB6Ne4`
     (Adonkia CHP, facility level) for `202406` (within the seeded 2024
     data window). The DE is in the seeded `BfMAe6Itzgt` ("Child
-    Health") dataset, so v43's stricter dataset-detection on import
+    Health") dataset, so DHIS2's dataset-detection on import
     accepts the write. Override with `--de` / `--ou` / `--pe` for
     other scopes.
     """
+    from dhis2w_client.v41 import WebMessageResponse
+
+    from dhis2w_core.v41.client_context import open_client
+
     started = time.perf_counter()
     profile = profile_from_env()
 
@@ -199,6 +203,12 @@ def sample_oauth2_client_command(
     -> DELETE /api/oAuth2Clients/{uid}. The admin user is the owner DHIS2
     records on the client; no user-impersonation happens.
     """
+    from dhis2w_client.v41 import Dhis2Client
+    from dhis2w_client.v41.auth.oauth2 import DEFAULT_REDIRECT_URI
+
+    from dhis2w_core.v41.admin_auth import resolve_admin_auth
+    from dhis2w_core.v41.oauth2_registration import register_oauth2_client
+
     started = time.perf_counter()
     resolved_url = _resolve_url(url)
     admin_auth = resolve_admin_auth(admin_user)

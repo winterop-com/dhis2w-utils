@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v43.plugins.apps import cli as cli_module
-from dhis2w_core.v43.plugins.apps import mcp as mcp_module
-
 
 class _AppsPlugin(BaseModel):
     """Plugin descriptor for DHIS2 apps — install / uninstall / update / App Hub queries."""
@@ -23,10 +20,14 @@ class _AppsPlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount `d2w apps` on the root CLI."""
+        from dhis2w_core.v43.plugins.apps import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register `apps_*` tools on the MCP server."""
+        from dhis2w_core.v43.plugins.apps import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

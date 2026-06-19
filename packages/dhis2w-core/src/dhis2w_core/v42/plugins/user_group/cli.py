@@ -7,7 +7,6 @@ import json
 from typing import Annotated, Any
 
 import typer
-from dhis2w_client.v42 import ACCESS_READ_METADATA, ACCESS_READ_WRITE_METADATA, SharingBuilder
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import (
@@ -21,7 +20,6 @@ from dhis2w_core.v42.cli_output import (
     render_detail,
     render_list,
 )
-from dhis2w_core.v42.plugins.user_group import service
 
 app = typer.Typer(
     help="Inspect + administer DHIS2 user groups (list, members, sharing).",
@@ -54,6 +52,8 @@ def list_command(
     page_size: Annotated[int | None, typer.Option("--page-size", help="Server-side page size.")] = None,
 ) -> None:
     """List user groups."""
+    from dhis2w_core.v42.plugins.user_group import service
+
     groups = asyncio.run(
         service.list_user_groups(
             profile_from_env(),
@@ -84,6 +84,8 @@ def get_command(
     fields: Annotated[str | None, typer.Option("--fields", help="DHIS2 field selector.")] = None,
 ) -> None:
     """Fetch one user group by UID. Prints a concise summary; `--json` for full payload."""
+    from dhis2w_core.v42.plugins.user_group import service
+
     group = asyncio.run(service.get_user_group(profile_from_env(), uid, fields=fields))
     if is_json_output():
         typer.echo(group.model_dump_json(indent=2, exclude_none=True, by_alias=True))
@@ -114,7 +116,8 @@ def create_command(
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
     """Create a user group (then add members with `add-member`)."""
-    from dhis2w_core.v42.cli_output import render_webmessage  # noqa: PLC0415
+    from dhis2w_core.v42.cli_output import render_webmessage
+    from dhis2w_core.v42.plugins.user_group import service
 
     response = asyncio.run(service.create_user_group(profile_from_env(), name=name, code=code, uid=uid))
     render_webmessage(response, action="created")
@@ -126,6 +129,8 @@ def delete_command(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Delete a user group by UID."""
+    from dhis2w_core.v42.plugins.user_group import service
+
     if not yes and not typer.confirm(f"Delete userGroup {uid}?"):
         raise typer.Abort()
     asyncio.run(service.delete_user_group(profile_from_env(), uid))
@@ -138,6 +143,8 @@ def add_member_command(
     user_uid: Annotated[str, typer.Argument(help="User UID to add.")],
 ) -> None:
     """Add a user to a group (POST /api/userGroups/<gid>/users/<uid>)."""
+    from dhis2w_core.v42.plugins.user_group import service
+
     envelope = asyncio.run(service.add_member(profile_from_env(), group_uid, user_uid))
     _emit_mutation(f"added {user_uid} -> {group_uid}: {envelope.httpStatus or envelope.status or 'OK'}")
 
@@ -148,6 +155,8 @@ def remove_member_command(
     user_uid: Annotated[str, typer.Argument(help="User UID to remove.")],
 ) -> None:
     """Remove a user from a group (DELETE /api/userGroups/<gid>/users/<uid>)."""
+    from dhis2w_core.v42.plugins.user_group import service
+
     envelope = asyncio.run(service.remove_member(profile_from_env(), group_uid, user_uid))
     _emit_mutation(f"removed {user_uid} from {group_uid}: {envelope.httpStatus or envelope.status or 'OK'}")
 
@@ -157,6 +166,8 @@ def sharing_get_command(
     uid: Annotated[str, typer.Argument(help="User-group UID.")],
 ) -> None:
     """Print the current sharing block for one user group. `--json` for full payload."""
+    from dhis2w_core.v42.plugins.user_group import service
+
     sharing = asyncio.run(service.get_group_sharing(profile_from_env(), uid))
     if is_json_output():
         typer.echo(sharing.model_dump_json(indent=2, exclude_none=True, by_alias=True))
@@ -194,6 +205,10 @@ def sharing_grant_user_command(
     Preserves existing userAccesses/userGroupAccesses by fetching the current
     sharing block first, then appending the new grant.
     """
+    from dhis2w_client.v42 import ACCESS_READ_METADATA, ACCESS_READ_WRITE_METADATA, SharingBuilder
+
+    from dhis2w_core.v42.plugins.user_group import service
+
     profile = profile_from_env()
     current = asyncio.run(service.get_group_sharing(profile, group_uid))
     builder = SharingBuilder(
