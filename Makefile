@@ -108,14 +108,21 @@ coverage:
 	@$(UV) run pytest -n auto -q -m "not slow and not contract" \
 		--cov --cov-report=term-missing --cov-report=xml --cov-fail-under=70 packages
 
+# The reference docs render the canonical v42 surface (CLAUDE.md baseline). Pin the
+# version so the output is reproducible everywhere — CI (no profile) and local dev
+# (any active profile) alike. The sentinel DHIS2_PROFILE makes profile resolution
+# miss, so DHIS2_VERSION wins instead of whatever .dhis2 profile happens to be active.
+DOCS_DHIS2_VERSION ?= 42
+DOCS_PIN := DHIS2_PROFILE=__docs_no_profile__ DHIS2_VERSION=$(DOCS_DHIS2_VERSION)
+
 docs-cli:
-	@echo ">>> Regenerating CLI reference from the Typer app"
-	@$(UV) run typer dhis2w_cli.main utils docs --name d2w --title "CLI reference" --output docs/cli-reference.md
+	@echo ">>> Regenerating CLI reference from the Typer app (pinned to v$(DOCS_DHIS2_VERSION))"
+	@$(DOCS_PIN) $(UV) run typer dhis2w_cli.main utils docs --name d2w --title "CLI reference" --output docs/cli-reference.md
 	@echo "    wrote docs/cli-reference.md"
 
 docs-mcp:
-	@echo ">>> Regenerating MCP tool reference from the FastMCP server"
-	@$(UV) run python -u infra/scripts/gen_mcp_reference.py
+	@echo ">>> Regenerating MCP tool reference from the FastMCP server (pinned to v$(DOCS_DHIS2_VERSION))"
+	@$(DOCS_PIN) $(UV) run python -u infra/scripts/gen_mcp_reference.py
 
 docs-serve: docs-cli docs-mcp
 	@echo ">>> Serving docs at http://127.0.0.1:8000"
