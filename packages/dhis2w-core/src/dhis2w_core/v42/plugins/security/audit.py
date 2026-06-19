@@ -15,8 +15,10 @@ from rich.console import Console
 
 from dhis2w_core.profile import Profile
 from dhis2w_core.security_core import (
+    ANONYMOUS_PROBE_TARGETS,
     DEFAULT_PROBE_PASSWORD,
     DEFAULT_PROBE_USERNAME,
+    AnonymousResult,
     AuditReport,
     AuditSummary,
     BoundCheck,
@@ -44,6 +46,7 @@ from dhis2w_core.security_core import (
     evaluate_account_authorities,
     evaluate_apps,
     evaluate_credential_probe,
+    evaluate_guest,
     evaluate_hygiene,
     evaluate_roles,
     evaluate_settings,
@@ -326,12 +329,61 @@ async def _run_apps(client: Dhis2Client) -> CheckResult:
     return CheckResult(check="apps", label=label, status=CheckStatus.OK, findings=findings, note=note)
 
 
+async def _probe_anonymous(base_url: str) -> list[AnonymousResult]:
+    """GET each login-required endpoint with no credentials, recording the status (None on transport error)."""
+    results: list[AnonymousResult] = []
+    headers = {"Accept": "application/json"}
+    async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=10.0), follow_redirects=False) as http:
+        for target in ANONYMOUS_PROBE_TARGETS:
+            try:
+                response = await http.get(f"{base_url}{target.path}", headers=headers)
+            except httpx.HTTPError:
+                results.append(AnonymousResult(path=target.path))
+            else:
+                results.append(
+                    AnonymousResult(
+                        path=target.path,
+                        status_code=response.status_code,
+                        content_type=response.headers.get("content-type"),
+                    )
+                )
+    return results
+
+
+async def _self_registration_role(client: Dhis2Client) -> str | None:
+    """Return the self-registration role name when self-registration is enabled, else None."""
+    try:
+        raw = await client.get_raw("/api/configuration/selfRegistrationRole")
+    except Dhis2ApiError:
+        return None
+    name = raw.get("name") or raw.get("displayName") or raw.get("id")
+    return name if isinstance(name, str) else None
+
+
+async def _run_guest(client: Dhis2Client) -> CheckResult:
+    """Probe anonymous read access and report self-registration and account-recovery posture."""
+    label = label_for("guest")
+    anonymous = await _probe_anonymous(client.base_url)
+    role = await _self_registration_role(client)
+    account_recovery = False
+    note: str | None = None
+    try:
+        settings = await client.get("/api/systemSettings", SecuritySettings)
+    except Dhis2ApiError as exc:
+        note = f"system settings unavailable ({exc}); account-recovery state not checked"
+    else:
+        account_recovery = settings.keyAccountRecovery is True
+    findings = evaluate_guest(anonymous=anonymous, self_registration_role=role, account_recovery=account_recovery)
+    return CheckResult(check="guest", label=label, status=CheckStatus.OK, findings=findings, note=note)
+
+
 _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "version": _run_version,
     "settings": _run_settings,
     "authorities": _run_authorities,
     "roles": _run_roles,
     "apps": _run_apps,
+    "guest": _run_guest,
 }
 
 

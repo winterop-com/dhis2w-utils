@@ -46,6 +46,7 @@ def test_resolve_check_keys_defaults_to_all_implemented() -> None:
         "roles",
         "hygiene",
         "credential-probe",
+        "guest",
         "apps",
     ]
 
@@ -66,7 +67,9 @@ def test_resolve_check_keys_rejects_not_yet_implemented_key() -> None:
 
 def test_resolve_check_keys_rejects_empty_selection() -> None:
     with pytest.raises(ValueError, match="no checks selected"):
-        resolve_check_keys(skip=["version", "settings", "authorities", "credential-probe", "roles", "hygiene", "apps"])
+        resolve_check_keys(
+            skip=["version", "settings", "authorities", "credential-probe", "roles", "hygiene", "apps", "guest"]
+        )
 
 
 def test_report_writer_refuses_to_clobber_existing_run(tmp_path: Path) -> None:

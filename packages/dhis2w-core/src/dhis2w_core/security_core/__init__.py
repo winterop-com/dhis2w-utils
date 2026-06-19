@@ -41,6 +41,12 @@ from dhis2w_core.security_core.guardrails import (
     MAX_PROBE_ATTEMPTS,
     REPORT_GUARDRAIL_NOTE,
 )
+from dhis2w_core.security_core.guest import (
+    ANONYMOUS_PROBE_TARGETS,
+    AnonymousResult,
+    GuestProbeTarget,
+    evaluate_guest,
+)
 from dhis2w_core.security_core.hygiene import (
     SEED_USERNAME,
     TwoFactorSource,
@@ -102,6 +108,7 @@ from dhis2w_core.security_core.versions import (
 __all__ = [
     "ADVISORY_PATCH_FLOOR",
     "ADVISORY_PATCH_FLOOR_REVIEWED",
+    "ANONYMOUS_PROBE_TARGETS",
     "AUTHORITY_CATEGORIES",
     "CANONICAL_CHECKS",
     "CONNECT_PATHS",
@@ -120,6 +127,7 @@ __all__ = [
     "SEVERITY_ORDER",
     "AccountAuthorities",
     "AdvisoryFloor",
+    "AnonymousResult",
     "AuditFinding",
     "AuditReport",
     "AuditSummary",
@@ -132,6 +140,7 @@ __all__ = [
     "CredentialProbeResult",
     "CsvRenderer",
     "GroupView",
+    "GuestProbeTarget",
     "HtmlRenderer",
     "HubApp",
     "InstalledApp",
@@ -169,6 +178,7 @@ __all__ = [
     "evaluate_account_authorities",
     "evaluate_apps",
     "evaluate_credential_probe",
+    "evaluate_guest",
     "evaluate_hygiene",
     "evaluate_roles",
     "evaluate_settings",

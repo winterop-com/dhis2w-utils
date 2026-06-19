@@ -13,8 +13,14 @@ The contract:
 - Credential probe: the probe may make at most one HTTP Basic login attempt,
   for the single well-known default pair `admin`/`district`, against the
   identity endpoint only (`GET /api/me`, in `CREDENTIAL_PROBE_PATHS`). It is
-  never retried (`MAX_PROBE_ATTEMPTS == 1`) and is the only place the scanner
-  authenticates as anything other than the operator's own profile.
+  never retried (`MAX_PROBE_ATTEMPTS == 1`); together with the guest check's
+  anonymous probe it is one of only two places the scanner sends a request as
+  something other than the operator's own profile.
+- Anonymous probe: the guest check issues unauthenticated GETs (no credentials)
+  to login-required allowlist paths (`/api/users`, `/api/userRoles`, `/api/me`)
+  solely to detect whether they are readable without a login. These stay
+  read-only GETs against `GET_ALLOWLIST`; an unauthenticated read is not a login
+  attempt, so it carries no lockout risk.
 - No-lockout: 401/403 responses are never retried; retries (when enabled at
   all) cover only 429/5xx on idempotent calls, and the default is no retry.
 - Egress: the only direct external egress is the public release feed

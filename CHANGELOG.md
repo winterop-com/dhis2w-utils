@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Anonymous-access security check (PR 6)** (2026-06-19). `d2w security audit` now runs a `guest`
+  check: an unauthenticated probe flags `/api/users` (CRITICAL), `/api/userRoles`, and `/api/me` (HIGH)
+  when they are readable without a login; a non-null self-registration role is HIGH; account recovery
+  is an INFO note. `/api/systemSettings` is intentionally not probed (DHIS2 serves its non-confidential
+  settings anonymously by design). The probe issues unauthenticated read-only GETs (no lockout risk).
+  New `security_core/guest.py`; runs by default across v41/v42/v43.
+
 - **Dark mode for the HTML audit report** (2026-06-19). The report template
   (`report.dc.html`) now carries a light/dark theme. Colors move to CSS custom properties under
   `[data-theme]` / `[data-theme="dark"]`, a sun/moon toggle in the header switches themes, and the

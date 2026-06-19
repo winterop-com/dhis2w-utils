@@ -82,7 +82,7 @@ def test_audit_creates_run_folder_and_report_files(runner: CliRunner, tmp_path: 
                 "--no-progress",
                 "--no-credential-probe",
                 "--skip",
-                "version",
+                "version,guest",
             ],
         )
 
@@ -114,7 +114,7 @@ def test_audit_report_md_contains_a_finding(runner: CliRunner, tmp_path: Path) -
                 "--no-progress",
                 "--no-credential-probe",
                 "--skip",
-                "version",
+                "version,guest",
             ],
         )
 
@@ -145,7 +145,7 @@ def test_audit_json_output_has_summary_with_total_findings(runner: CliRunner, tm
                 "--no-progress",
                 "--no-credential-probe",
                 "--skip",
-                "version",
+                "version,guest",
             ],
         )
 
@@ -179,7 +179,7 @@ def test_audit_succeeds_on_every_version_tree(
                 "--no-progress",
                 "--no-credential-probe",
                 "--skip",
-                "version",
+                "version,guest",
             ],
         )
 
