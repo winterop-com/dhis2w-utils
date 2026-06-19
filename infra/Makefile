@@ -32,11 +32,13 @@ up: ## start the base stack in the background (keeps volumes)
 	@echo ">>> Starting DHIS2 $(DHIS2_VERSION) + pgAdmin"
 	@$(COMPOSE) up -d --remove-orphans
 
-up-fresh: ## wipe volumes + logs, then start the base stack
+up-fresh: ## wipe volumes + logs, then start the base stack (always pulls the pinned image fresh)
 	@echo ">>> Fresh start for DHIS2 $(DHIS2_VERSION)"
 	@rm -rf home/logs/*
 	@$(COMPOSE) down -v
-	@$(COMPOSE) up -d --remove-orphans
+	# `--pull always` so codegen + e2e-dump builds always regenerate against the
+	# exact registry image for the pin, never a stale local cache.
+	@$(COMPOSE) up -d --pull always --remove-orphans
 
 down: ## stop the stack (keeps volumes)
 	@echo ">>> Stopping stack"
