@@ -19,7 +19,7 @@ oauth2-client` smoke test on v41 reads `fetched.get("cid")` first
 and falls back to `clientId` for v42/v43 compatibility.
 
 Usage:
-    uv run python examples/v41/client/v41_oauth2_cid_field.py
+    uv run python examples/v41/client/oauth2_cid_field.py
 """
 
 from __future__ import annotations

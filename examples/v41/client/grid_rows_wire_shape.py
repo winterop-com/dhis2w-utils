@@ -16,7 +16,7 @@ against the v41-pinned client, so readers can see scalar cells coming
 back where the OAS would suggest dicts.
 
 Usage:
-    uv run python examples/v41/client/v41_grid_rows_wire_shape.py
+    uv run python examples/v41/client/grid_rows_wire_shape.py
 """
 
 from __future__ import annotations
