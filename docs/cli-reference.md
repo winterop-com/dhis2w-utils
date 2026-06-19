@@ -9004,6 +9004,8 @@ $ d2w security audit [OPTIONS]
 * `--credential-probe / --no-credential-probe`: Actively test the default admin/district login against /api/me (on by default).  [default: credential-probe]
 * `--stale-days INTEGER RANGE`: Days without login before a privileged account is stale.  [default: 90; x&gt;=1]
 * `--two-factor-detail / --no-two-factor-detail`: On v42+, also list each superuser lacking 2FA (per-user /api/users/twoFactor read).  [default: no-two-factor-detail]
+* `--max-objects INTEGER RANGE`: Max objects the sharing scan inspects across all types before stopping (truncation is loud).  [default: 5000; x&gt;=1]
+* `--sharing-graph, --visualize`: Also write the interactive d3 sharing explorer (sharing-explorer.html) into the run folder.
 * `--resume DIRECTORY`: Resume an interrupted run folder.
 * `--help`: Show this message and exit.
 

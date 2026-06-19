@@ -57,6 +57,18 @@ d2w security audit --checks apps
 # Run only the anonymous-access (guest) check (endpoints readable without a login, self-registration state):
 d2w security audit --checks guest
 
+# Run only the public-metadata sharing check (public-write and externally-accessible objects across the
+# data-bearing and exposure-prone metadata types, paged and capped, decoded from each object's sharing block):
+d2w security audit --checks sharing
+
+# Bound how many objects the sharing scan inspects before stopping; truncation is reported in the run, not silent:
+d2w security audit --checks sharing --max-objects 2000
+
+# Also build the interactive d3 sharing explorer (sharing-explorer.html) into the run folder: an
+# offline, self-contained "who can read/write this object, and by what path" reasoning engine over the
+# unified access graph (objects + users/roles/groups). --visualize is an alias for --sharing-graph.
+d2w security audit --checks sharing --sharing-graph
+
 # The full typed report as JSON on stdout; progress events go to stderr.
 d2w --json security audit | jq '.summary'
 

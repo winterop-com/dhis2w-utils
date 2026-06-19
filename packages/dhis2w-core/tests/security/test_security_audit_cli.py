@@ -187,3 +187,33 @@ def test_audit_succeeds_on_every_version_tree(
 
     run_folders = list(tmp_path.glob("dhis2-security-*"))
     assert len(run_folders) == 1, f"tree={tree}: expected one run folder, got: {run_folders}"
+
+
+# ---------------------------------------------------------------------------
+# Test D: --sharing-graph emits the interactive explorer bundle
+# ---------------------------------------------------------------------------
+
+
+def test_audit_sharing_graph_emits_explorer_bundle(runner: CliRunner, tmp_path: Path) -> None:
+    """`security audit --checks sharing --sharing-graph` writes the self-contained explorer bundle."""
+    ctx = _make_fake_ctx()
+    with patch("dhis2w_core.v42.plugins.security.audit.open_client", lambda *args, **kwargs: ctx):
+        result = runner.invoke(
+            build_app(),
+            [
+                "security",
+                "audit",
+                "--output-dir",
+                str(tmp_path),
+                "--no-progress",
+                "--checks",
+                "sharing",
+                "--sharing-graph",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    folder = next(tmp_path.glob("dhis2-security-*"))
+    for name in ("sharing-explorer.html", "sharing-data.js", "sharing-runtime.js", "d3.min.js"):
+        assert (folder / name).exists(), f"missing {name}"
+    assert "window.__SHARING__" in (folder / "sharing-data.js").read_text(encoding="utf-8")

@@ -48,6 +48,7 @@ def test_resolve_check_keys_defaults_to_all_implemented() -> None:
         "credential-probe",
         "guest",
         "apps",
+        "sharing",
     ]
 
 
@@ -68,7 +69,17 @@ def test_resolve_check_keys_rejects_not_yet_implemented_key() -> None:
 def test_resolve_check_keys_rejects_empty_selection() -> None:
     with pytest.raises(ValueError, match="no checks selected"):
         resolve_check_keys(
-            skip=["version", "settings", "authorities", "credential-probe", "roles", "hygiene", "apps", "guest"]
+            skip=[
+                "version",
+                "settings",
+                "authorities",
+                "credential-probe",
+                "roles",
+                "hygiene",
+                "apps",
+                "guest",
+                "sharing",
+            ]
         )
 
 

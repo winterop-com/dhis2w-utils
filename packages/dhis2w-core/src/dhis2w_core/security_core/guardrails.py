@@ -62,6 +62,19 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
         "/api/eventReports",
         "/api/maps",
         "/api/sqlViews",
+        # Sharing graph reads: the schema endpoint is the authoritative shareable-type list; the
+        # focus-set object collections and the userGroups principal endpoint are paged GET-only. The
+        # other principal endpoints (/api/users, /api/userRoles) are already allowlisted above.
+        "/api/schemas",
+        "/api/userGroups",
+        "/api/programStages",
+        "/api/trackedEntityTypes",
+        "/api/categoryOptions",
+        "/api/relationshipTypes",
+        "/api/aggregateDataExchanges",
+        "/api/documents",
+        "/api/eventVisualizations",
+        "/api/reports",
         "/api/apps",
         "/api/appHub",
         "/api/configuration/selfRegistrationRole",

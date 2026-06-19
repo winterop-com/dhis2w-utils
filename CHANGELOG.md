@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+- **Interactive d3 sharing explorer (PR 7b)** (2026-06-20). `d2w security audit --sharing-graph`
+  (alias `--visualize`) now writes a self-contained, offline explorer bundle into the run folder:
+  `sharing-explorer.html` + `sharing-runtime.js` + a vendored `d3.min.js` + a per-scan
+  `sharing-data.js` (`window.__SHARING__`). New `security_core/sharing/effective.py` computes the
+  effective-access closure (`compute_effective_access`): per object, the grant paths (owner, direct,
+  group, public, superuser, external) and the distinct enabled-user count holding each access axis,
+  kept principal-level so it stays bounded on instances with large groups; superusers bypass sharing
+  and are counted everywhere. `view.py` projects the graph into the payload and `explorer.py` emits
+  the bundle, both mirroring the report bundle pattern. The graph is built once -- the findings and the
+  explorer are projections; the closure is computed only when the explorer is requested. The viewer
+  (vanilla JS + d3, names via textContent, no network) has an object tree, exposure triage, and
+  by-principal / by-role pivots, with a detail panel that answers "who can read/write this, and by what
+  path" plus light/dark theme and deep-link hashes. Browser-verified against the 2.42.5.1 play server
+  (641 objects / 131 users / 31 groups; no console errors, fully offline). Force-directed graph and
+  matrix heatmap are PR 7c. Also fixes a v43 wiring slip from 7a (the v43 security audit imported the
+  v42 client tree). Across v41/v42/v43.
+
+- **Public-metadata sharing check (PR 7a)** (2026-06-20). `d2w security audit` now runs a `sharing`
+  check, the first slice of the sharing-explorer split. A new version-invariant
+  `security_core/sharing/` subpackage builds one `SharingGraph` (objects with their decoded public
+  access and external flag, plus users/roles/groups as first-class nodes and the
+  share/membership/role-grant/manage edges between them) and reduces it to findings: externally
+  accessible objects and public-write data-bearing objects HIGH; public-write metadata, broadly
+  readable SQL views, and public data-read on data-bearing objects MEDIUM. The scan resolves the
+  shareable types from `/api/schemas` (data-bearing from `dataShareable`), pages a curated focus set
+  of exposure-prone types, and decodes each object's sharing block client-side because no reliable
+  server-side non-default-sharing filter exists (BUGS.md #48); it is capped by `--max-objects` with a
+  loud truncation note. The findings and the graph are both projections of the one graph, built once.
+  Allowlist gains `/api/schemas`, `/api/userGroups`, and the focus-type collections. Across
+  v41/v42/v43; the interactive explorer (effective-access closure, viewer bundle) is PR 7b/7c.
+
+- **Sharing explorer plan (PR 7 expansion)** (2026-06-20). Advanced plan for an opt-in,
+  static, interactive visualization of the DHIS2 access graph, extending the PR 7 `sharing`
+  check into an effective-access reasoning engine over the unified metadata + identity graph
+  (users/roles/groups modeled as first-class nodes, the User node joining the RBAC and ACL
+  graphs). Locked: effective access + provenance, full multi-view viewer, vendored d3, split
+  delivery as PR 7a (data layer) / 7b (core explorer) / 7c (advanced visual modes). Plan in
+  `SHARING-EXPLORER-PLAN.md`.
+
 - **Anonymous-access security check (PR 6)** (2026-06-19). `d2w security audit` now runs a `guest`
   check: an unauthenticated probe flags `/api/users` (CRITICAL), `/api/userRoles`, and `/api/me` (HIGH)
   when they are readable without a login; a non-null self-registration role is HIGH; account recovery

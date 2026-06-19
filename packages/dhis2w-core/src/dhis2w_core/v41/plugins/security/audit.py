@@ -26,6 +26,12 @@ from dhis2w_core.security_core import (
     CheckStatus,
     CredentialProbeResult,
     CsvRenderer,
+    ExplorerRenderer,
+    FetchedGroup,
+    FetchedObject,
+    FetchedRole,
+    FetchedShare,
+    FetchedUser,
     HtmlRenderer,
     HubApp,
     InstalledApp,
@@ -33,16 +39,23 @@ from dhis2w_core.security_core import (
     ReleaseFeed,
     ReportRenderer,
     ReportWriter,
+    ResolvedFocusType,
     RoleAudit,
     RunManifest,
+    SchemaShareability,
+    SharingGraph,
     TextRenderer,
     TwoFactorSource,
     TwoFactorSummary,
+    TypeInventory,
     UserHygiene,
     build_account_authorities,
     build_role_audit,
+    build_sharing_graph,
+    build_sharing_view,
     build_user_hygiene,
     classify_probe_status,
+    compute_effective_access,
     evaluate_account_authorities,
     evaluate_apps,
     evaluate_credential_probe,
@@ -50,6 +63,7 @@ from dhis2w_core.security_core import (
     evaluate_hygiene,
     evaluate_roles,
     evaluate_settings,
+    evaluate_sharing,
     evaluate_two_factor_from_endpoint,
     evaluate_two_factor_from_user_field,
     evaluate_version,
@@ -58,6 +72,7 @@ from dhis2w_core.security_core import (
     make_reporter,
     parse_dhis2_version,
     resolve_check_keys,
+    resolve_focus_types,
     run_audit,
 )
 from dhis2w_core.v41.client_context import open_client
@@ -386,6 +401,258 @@ _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "guest": _run_guest,
 }
 
+# How many objects the sharing scan pages at a time, and the default scan budget (max objects
+# inspected across all focus types) when the CLI does not override --max-objects.
+SHARING_PAGE_SIZE = 200
+DEFAULT_SHARING_MAX_OBJECTS = 5000
+
+# Object fields and principal fields the sharing scan reads. Objects carry only their identity plus
+# the sharing block; principals carry the membership/role edges and the counts the graph needs.
+_SHARING_OBJECT_FIELDS = "id,name,code,sharing"
+_SHARING_USER_FIELDS = "id,username,displayName,disabled,lastLogin,userRoles[id],userGroups[id]"
+
+
+def _id_list(value: Any) -> list[str]:
+    """Extract the non-empty `id` values from a list of `{id: ...}` records."""
+    if not isinstance(value, list):
+        return []
+    return [str(entry["id"]) for entry in value if isinstance(entry, dict) and entry.get("id")]
+
+
+def _shares_from_block(block: Any) -> list[FetchedShare]:
+    """Map a sharing `users` / `userGroups` block (uid -> {access}) into typed share records."""
+    shares: list[FetchedShare] = []
+    if isinstance(block, dict):
+        for uid, value in block.items():
+            access = value.get("access") if isinstance(value, dict) else None
+            shares.append(FetchedShare(principal_uid=str(uid), access=access if isinstance(access, str) else ""))
+    return shares
+
+
+def _fetched_object(item: dict[str, Any], focus: ResolvedFocusType) -> FetchedObject:
+    """Map one raw object record and its sharing block into a typed FetchedObject."""
+    sharing = item.get("sharing")
+    sharing = sharing if isinstance(sharing, dict) else {}
+    owner = sharing.get("owner")
+    public = sharing.get("public")
+    code = item.get("code")
+    return FetchedObject(
+        uid=str(item.get("id", "")),
+        type=focus.name,
+        name=str(item.get("name") or item.get("id") or ""),
+        code=code if isinstance(code, str) else None,
+        data_bearing=focus.data_bearing,
+        owner=owner if isinstance(owner, str) else None,
+        public_access=public if isinstance(public, str) else None,
+        external=bool(sharing.get("external", False)),
+        user_shares=_shares_from_block(sharing.get("users")),
+        group_shares=_shares_from_block(sharing.get("userGroups")),
+    )
+
+
+async def _fetch_shareable_focus(client: Dhis2Client) -> list[ResolvedFocusType]:
+    """Read /api/schemas and resolve the curated focus set to the types this server reports shareable."""
+    raw = await client.get_raw("/api/schemas", params={"fields": "name,plural,shareable,dataShareable"})
+    items = raw.get("schemas")
+    schemas: list[SchemaShareability] = []
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            schemas.append(
+                SchemaShareability(
+                    name=str(item.get("name", "")),
+                    plural=str(item.get("plural", "")),
+                    shareable=bool(item.get("shareable", False)),
+                    data_shareable=bool(item.get("dataShareable", False)),
+                )
+            )
+    return resolve_focus_types(schemas)
+
+
+async def _scan_focus_type(
+    client: Dhis2Client, focus: ResolvedFocusType, *, budget: int
+) -> tuple[int, list[FetchedObject], int, bool]:
+    """Page one focus type, returning (server total, retained objects, scanned count, capped flag).
+
+    Pages `/api/<plural>` keeping only objects with non-default sharing. Stops once `budget` objects
+    have been scanned for this type, flagging that this type's scan was capped before exhausting it.
+    """
+    page = 1
+    server_total = 0
+    scanned = 0
+    kept: list[FetchedObject] = []
+    while True:
+        raw = await client.get_raw(
+            f"/api/{focus.plural}",
+            params={
+                "fields": _SHARING_OBJECT_FIELDS,
+                "paging": "true",
+                "pageSize": str(SHARING_PAGE_SIZE),
+                "page": str(page),
+            },
+        )
+        pager = raw.get("pager")
+        pager = pager if isinstance(pager, dict) else {}
+        if page == 1:
+            total = pager.get("total")
+            server_total = total if isinstance(total, int) else 0
+        items = raw.get(focus.plural)
+        if not isinstance(items, list) or not items:
+            break
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            obj = _fetched_object(item, focus)
+            scanned += 1
+            if obj.has_non_default_sharing:
+                kept.append(obj)
+            if scanned >= budget:
+                return server_total, kept, scanned, True
+        page_count = pager.get("pageCount")
+        if not isinstance(page_count, int) or page >= page_count:
+            break
+        page += 1
+    return server_total, kept, scanned, False
+
+
+def _parse_sharing_users(raw: dict[str, Any]) -> list[FetchedUser]:
+    """Map a /api/users payload into typed user records with their role and group memberships."""
+    items = raw.get("users")
+    users: list[FetchedUser] = []
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            display = item.get("displayName")
+            last_login = item.get("lastLogin")
+            users.append(
+                FetchedUser(
+                    uid=str(item.get("id", "")),
+                    username=str(item.get("username", "")),
+                    display_name=display if isinstance(display, str) else None,
+                    disabled=bool(item.get("disabled", False)),
+                    last_login=last_login if isinstance(last_login, str) else None,
+                    role_uids=_id_list(item.get("userRoles")),
+                    group_uids=_id_list(item.get("userGroups")),
+                )
+            )
+    return users
+
+
+def _parse_sharing_roles(raw: dict[str, Any]) -> list[FetchedRole]:
+    """Map a /api/userRoles payload (with users~size) into typed role records."""
+    items = raw.get("userRoles")
+    roles: list[FetchedRole] = []
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            members = item.get("users")
+            roles.append(
+                FetchedRole(
+                    uid=str(item.get("id", "")),
+                    name=str(item.get("name", "")),
+                    authorities=[str(authority) for authority in (item.get("authorities") or [])],
+                    member_count=members if isinstance(members, int) else 0,
+                )
+            )
+    return roles
+
+
+def _parse_sharing_groups(raw: dict[str, Any]) -> list[FetchedGroup]:
+    """Map a /api/userGroups payload (with users~size and managedGroups) into typed group records."""
+    items = raw.get("userGroups")
+    groups: list[FetchedGroup] = []
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            members = item.get("users")
+            groups.append(
+                FetchedGroup(
+                    uid=str(item.get("id", "")),
+                    name=str(item.get("name", "")),
+                    member_count=members if isinstance(members, int) else 0,
+                    managed_group_uids=_id_list(item.get("managedGroups")),
+                )
+            )
+    return groups
+
+
+async def _fetch_sharing_principals(
+    client: Dhis2Client,
+) -> tuple[list[FetchedUser], list[FetchedRole], list[FetchedGroup]]:
+    """Read the bounded principal subgraph: users, roles, and groups in full (paging disabled)."""
+    users_raw = await client.get_raw("/api/users", params={"fields": _SHARING_USER_FIELDS, "paging": "false"})
+    roles_raw = await client.get_raw(
+        "/api/userRoles", params={"fields": "id,name,authorities,users~size", "paging": "false"}
+    )
+    groups_raw = await client.get_raw(
+        "/api/userGroups", params={"fields": "id,name,users~size,managedGroups[id]", "paging": "false"}
+    )
+    return _parse_sharing_users(users_raw), _parse_sharing_roles(roles_raw), _parse_sharing_groups(groups_raw)
+
+
+async def _run_sharing(
+    client: Dhis2Client, *, max_objects: int, generated_at: str, graph_sink: list[SharingGraph] | None = None
+) -> CheckResult:
+    """Build the sharing access graph once (focus types, capped) and reduce it into exposure findings.
+
+    When `graph_sink` is provided (the `--sharing-graph` explorer is requested) the effective-access
+    closure is computed and the graph is stashed for the explorer emitter; otherwise only the findings
+    are derived. The graph is built once either way -- the findings and the explorer are projections.
+    """
+    label = label_for("sharing")
+    objects: list[FetchedObject] = []
+    inventory: list[TypeInventory] = []
+    remaining = max_objects
+    truncated = False
+    capped_at: str | None = None
+    try:
+        focus_types = await _fetch_shareable_focus(client)
+        for focus in focus_types:
+            if remaining <= 0:
+                truncated = True
+                capped_at = focus.name
+                break
+            total, kept, scanned, capped = await _scan_focus_type(client, focus, budget=remaining)
+            inventory.append(TypeInventory(type=focus.name, data_bearing=focus.data_bearing, total=total))
+            objects.extend(kept)
+            remaining -= scanned
+            if capped:
+                truncated = True
+                capped_at = focus.name
+                break
+        users, roles, groups = await _fetch_sharing_principals(client)
+    except Dhis2ApiError as exc:
+        return CheckResult(check="sharing", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
+    truncation_note = (
+        f"Scanning stopped at the --max-objects budget ({max_objects}); objects from '{capped_at}' "
+        "onward were not inspected, so the findings below are a lower bound."
+        if truncated
+        else None
+    )
+    graph = build_sharing_graph(
+        target=client.base_url,
+        generated_at=generated_at,
+        objects=objects,
+        users=users,
+        roles=roles,
+        groups=groups,
+        type_inventory=inventory,
+        truncated=truncated,
+        truncation_note=truncation_note,
+    )
+    findings = evaluate_sharing(graph)
+    note = truncation_note
+    if graph_sink is not None:
+        graph = graph.model_copy(update={"effective": compute_effective_access(graph)})
+        graph_sink.append(graph)
+        explorer_note = "Interactive explorer generated: open sharing-explorer.html for the effective-access graph."
+        note = f"{truncation_note} {explorer_note}" if truncation_note else explorer_note
+    return CheckResult(check="sharing", label=label, status=CheckStatus.OK, findings=findings, note=note)
+
 
 async def _lockout_active(client: Dhis2Client) -> bool:
     """Read keyLockMultipleFailedLogins so the probe can warn before it tries a wrong password."""
@@ -474,6 +741,17 @@ def _bind_hygiene(
     return _run
 
 
+def _bind_sharing(
+    client: Dhis2Client, *, max_objects: int, generated_at: str, graph_sink: list[SharingGraph] | None
+) -> Callable[[], Awaitable[CheckResult]]:
+    """Bind the sharing check to the open client, its scan budget, the run's timestamp, and the sink."""
+
+    async def _run() -> CheckResult:
+        return await _run_sharing(client, max_objects=max_objects, generated_at=generated_at, graph_sink=graph_sink)
+
+    return _run
+
+
 def _bound_checks(
     client: Dhis2Client,
     keys: Sequence[str],
@@ -482,6 +760,9 @@ def _bound_checks(
     stale_days: int,
     now: datetime,
     two_factor_detail: bool,
+    max_objects: int,
+    generated_at: str,
+    graph_sink: list[SharingGraph] | None = None,
 ) -> list[BoundCheck]:
     """Build the ordered bound checks for `keys` against the open client."""
     checks: list[BoundCheck] = []
@@ -490,6 +771,8 @@ def _bound_checks(
             run = _bind_probe(client, console)
         elif key == "hygiene":
             run = _bind_hygiene(client, stale_days=stale_days, now=now, two_factor_detail=two_factor_detail)
+        elif key == "sharing":
+            run = _bind_sharing(client, max_objects=max_objects, generated_at=generated_at, graph_sink=graph_sink)
         else:
             run = _bind(_RUNNERS[key], client)
         checks.append(BoundCheck(key=key, label=label_for(key), run=run))
@@ -507,6 +790,21 @@ def _finalize_renderers(formats: Sequence[str]) -> list[ReportRenderer]:
     """Instantiate the non-streaming renderers selected by `formats` (Markdown streams live)."""
     chosen = set(formats)
     return [factory() for fmt, factory in _FINALIZE_RENDERERS.items() if fmt in chosen]
+
+
+def _emit_explorer_if_requested(
+    folder: Path, graph_sink: list[SharingGraph], manifest: RunManifest, *, visualize: bool
+) -> None:
+    """Write the interactive explorer bundle into the run folder when the graph was captured for it."""
+    if not (visualize and graph_sink):
+        return
+    view = build_sharing_view(
+        graph_sink[0],
+        profile=manifest.profile,
+        version=manifest.dhis2_version or "unknown",
+        scanner=manifest.scanner_version,
+    )
+    ExplorerRenderer().emit(folder, view)
 
 
 def _safe_raw_version(client: Dhis2Client) -> str | None:
@@ -536,6 +834,8 @@ async def run_security_audit(
     formats: Sequence[str] = DEFAULT_FORMATS,
     stale_days: int = 90,
     two_factor_detail: bool = False,
+    max_objects: int = DEFAULT_SHARING_MAX_OBJECTS,
+    visualize: bool = False,
     animated: bool = True,
     console: Console | None = None,
 ) -> AuditReport:
@@ -544,6 +844,7 @@ async def run_security_audit(
     keys = resolve_check_keys(only, skip)
     con = console or Console(stderr=True)
     reporter = make_reporter(con, animated=animated)
+    graph_sink: list[SharingGraph] = []
     async with open_client(profile, profile_name=profile_name) as client:
         manifest = RunManifest(
             target=client.base_url,
@@ -559,7 +860,7 @@ async def run_security_audit(
             streaming_renderer=MarkdownRenderer(),
             finalize_renderers=_finalize_renderers(formats),
         )
-        return await run_audit(
+        report = await run_audit(
             manifest=manifest,
             checks=_bound_checks(
                 client,
@@ -568,10 +869,15 @@ async def run_security_audit(
                 stale_days=stale_days,
                 now=_started_at_to_now(started_at),
                 two_factor_detail=two_factor_detail,
+                max_objects=max_objects,
+                generated_at=started_at,
+                graph_sink=graph_sink if visualize else None,
             ),
             writer=writer,
             reporter=reporter,
         )
+        _emit_explorer_if_requested(output_dir, graph_sink, manifest, visualize=visualize)
+        return report
 
 
 async def resume_security_audit(
@@ -582,6 +888,8 @@ async def resume_security_audit(
     formats: Sequence[str] = DEFAULT_FORMATS,
     stale_days: int = 90,
     two_factor_detail: bool = False,
+    max_objects: int = DEFAULT_SHARING_MAX_OBJECTS,
+    visualize: bool = False,
     animated: bool = True,
     console: Console | None = None,
 ) -> AuditReport:
@@ -597,6 +905,7 @@ async def resume_security_audit(
         return rerender_report(folder, formats=formats)
     con = console or Console(stderr=True)
     reporter = make_reporter(con, animated=animated)
+    graph_sink: list[SharingGraph] = []
     async with open_client(profile, profile_name=profile_name) as client:
         if client.base_url != manifest.target:
             raise ValueError(
@@ -610,7 +919,7 @@ async def resume_security_audit(
             finalize_renderers=_finalize_renderers(formats),
             resume=True,
         )
-        return await run_audit(
+        report = await run_audit(
             manifest=manifest,
             checks=_bound_checks(
                 client,
@@ -619,11 +928,16 @@ async def resume_security_audit(
                 stale_days=stale_days,
                 now=_started_at_to_now(manifest.started_at),
                 two_factor_detail=two_factor_detail,
+                max_objects=max_objects,
+                generated_at=manifest.started_at,
+                graph_sink=graph_sink if visualize else None,
             ),
             writer=writer,
             reporter=reporter,
             prior=prior,
         )
+        _emit_explorer_if_requested(folder, graph_sink, manifest, visualize=visualize)
+        return report
 
 
 def rerender_report(folder: Path, *, formats: Sequence[str] = DEFAULT_FORMATS) -> AuditReport:

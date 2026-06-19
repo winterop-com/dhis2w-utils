@@ -139,6 +139,22 @@ def audit_command(
             help="On v43+, also list each superuser lacking 2FA (per-user /api/users/twoFactor read).",
         ),
     ] = False,
+    max_objects: Annotated[
+        int,
+        typer.Option(
+            "--max-objects",
+            min=1,
+            help="Max objects the sharing scan inspects across all types before stopping (truncation is loud).",
+        ),
+    ] = audit.DEFAULT_SHARING_MAX_OBJECTS,
+    sharing_graph: Annotated[
+        bool,
+        typer.Option(
+            "--sharing-graph",
+            "--visualize",
+            help="Also write the interactive d3 sharing explorer (sharing-explorer.html) into the run folder.",
+        ),
+    ] = False,
     resume: Annotated[
         Path | None, typer.Option("--resume", file_okay=False, exists=True, help="Resume an interrupted run folder.")
     ] = None,
@@ -159,6 +175,8 @@ def audit_command(
                     formats=formats,
                     stale_days=stale_days,
                     two_factor_detail=two_factor_detail,
+                    max_objects=max_objects,
+                    visualize=sharing_graph,
                     animated=animated,
                 )
             )
@@ -180,6 +198,8 @@ def audit_command(
                     formats=formats,
                     stale_days=stale_days,
                     two_factor_detail=two_factor_detail,
+                    max_objects=max_objects,
+                    visualize=sharing_graph,
                     animated=animated,
                 )
             )
@@ -192,6 +212,8 @@ def audit_command(
     worst = report.summary.worst
     typer.echo(f"report written to {folder}")
     typer.echo(f"{report.summary.total_findings} finding(s); worst severity: {worst.value if worst else 'none'}")
+    if sharing_graph and (folder / "sharing-explorer.html").exists():
+        typer.echo(f"sharing explorer: {folder / 'sharing-explorer.html'}")
 
 
 @app.command("report")
