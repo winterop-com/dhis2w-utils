@@ -24,11 +24,11 @@ def resolve_startup_version() -> str:
 
     1. `profile.version` from the active profile (set via
        `d2w profile add NAME ... --version v43` or hand-edited in
-       `profiles.toml`).
+       `profiles.toml`). A pin here wins over `DHIS2_VERSION`.
     2. `DHIS2_VERSION` env var, mapped `41` / `42` / `43` -> `v41` / `v42` / `v43`.
-       This lets `make verify-examples DHIS2_VERSION=41` exercise the v41
-       plugin tree against a v41 stack without users having to hand-edit
-       every profile.
+       Applies only when the active profile has no `version` pin — it lets
+       `make verify-examples DHIS2_VERSION=41` target the v41 tree against an
+       unpinned profile without hand-editing it.
     3. `DEFAULT_VERSION_KEY` (`"v42"`) — the canonical baseline.
 
     Falls back to `DEFAULT_VERSION_KEY` on any resolution failure (no profile

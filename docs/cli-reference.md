@@ -8341,6 +8341,7 @@ $ d2w profile [OPTIONS] COMMAND [ARGS]...
 * `list`: List every known profile with its source...
 * `verify`: Verify one profile or all profiles by...
 * `show`: Print one profile (secrets redacted by...
+* `env`: Print `export DHIS2_*` lines for a...
 * `default`: Set `default = &lt;name&gt;` in the global...
 * `add`: Add (or upsert) a profile.
 * `remove`: Remove a profile.
@@ -8417,6 +8418,30 @@ $ d2w profile show [OPTIONS] NAME
 **Options**:
 
 * `--secrets`: Include sensitive values.
+* `--help`: Show this message and exit.
+
+### `d2w profile env`
+
+Print `export DHIS2_*` lines for a profile, for `eval`.
+
+Offline read — no instance probe; the wire client auto-detects the version on connect.
+Values are printed as-is (the password / token is already plaintext in `profiles.toml`),
+so the output is directly usable: `eval &quot;$(d2w profile env local_basic)&quot;`. The command
+only prints to stdout — it cannot mutate the caller&#x27;s shell. For a redacted view (e.g.
+screen-sharing) use `d2w profile show` instead.
+
+**Usage**:
+
+```console
+$ d2w profile env [OPTIONS] [NAME]
+```
+
+**Arguments**:
+
+* `[NAME]`: Profile name; defaults to the active profile.
+
+**Options**:
+
 * `--help`: Show this message and exit.
 
 ### `d2w profile default`

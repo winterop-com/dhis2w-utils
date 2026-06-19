@@ -193,13 +193,13 @@ refresh-analytics:
 	fi
 
 verify-examples:
-	@echo ">>> Running every non-interactive example against profile $${DHIS2_PROFILE:-local_basic} (DHIS2 v$(or $(DHIS2_VERSION),42))"
+	@echo ">>> Running every non-interactive example against profile $${DHIS2_PROFILE:-local_basic} (version resolved from the profile)"
 	@if [ -f infra/home/credentials/.env.auth ]; then \
 		set -a; . infra/home/credentials/.env.auth; set +a; \
-		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python -u infra/scripts/verify_examples.py; \
+		DHIS2_VERSION=$(DHIS2_VERSION) $(UV) run python -u infra/scripts/verify_examples.py; \
 	else \
 		echo "    note: infra/home/credentials/.env.auth missing — env-dependent examples (profile_crud.py) will fail"; \
-		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python -u infra/scripts/verify_examples.py; \
+		DHIS2_VERSION=$(DHIS2_VERSION) $(UV) run python -u infra/scripts/verify_examples.py; \
 	fi
 
 bench-list:

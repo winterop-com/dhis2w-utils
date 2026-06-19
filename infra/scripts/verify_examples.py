@@ -1,7 +1,11 @@
 """Run every non-interactive example + summarise PASS / FAIL / TIMEOUT / SKIP.
 
 Targets every script under `examples/v{N}/{cli,client,mcp}/` for the active
-DHIS2 major (selected from the `DHIS2_VERSION` env var; defaults to `42`).
+DHIS2 major. The major is resolved exactly like the CLI / MCP runtime resolve
+their plugin tree — `dhis2w_core.plugin.resolve_startup_version()`: the active
+profile's `version` pin first, then the `DHIS2_VERSION` env var, then `v42`.
+This keeps the example tree in lock-step with the plugin tree the example
+subprocesses actually load, so a v41-pinned profile runs `examples/v41/...`.
 Files starting with `_` are skipped (helper modules like `_runner.py`).
 Each example runs via `bash <path>` for `.sh` and `uv run python <path>`
 for `.py`, inheriting the parent environment plus `DHIS2_PROFILE` so
@@ -20,7 +24,8 @@ they apply; cross-version examples are duplicated, accepted as a
 trade-off for in-tree discoverability.
 
 Usage:
-    DHIS2_VERSION=43 uv run python infra/scripts/verify_examples.py
+    uv run python infra/scripts/verify_examples.py            # follows the active profile
+    DHIS2_VERSION=43 uv run python infra/scripts/verify_examples.py   # only when no profile pin
 """
 
 from __future__ import annotations
@@ -120,21 +125,43 @@ class ExampleResult(BaseModel):
     stderr_tail: str = ""
 
 
-def _active_version_dir() -> Path:
-    """Return `examples/v{N}/` for the active DHIS2 major (defaults to v42)."""
-    version = os.environ.get("DHIS2_VERSION", "42")
-    return REPO_ROOT / "examples" / f"v{version}"
+def _resolve_version_key() -> tuple[str, str]:
+    """Return the active DHIS2 major (`v41|v42|v43`) and a human label for its source.
+
+    Uses `dhis2w_core.plugin.resolve_startup_version()` so the example tree matches
+    the plugin tree the example subprocesses load: profile pin first, then
+    `DHIS2_VERSION` env, then the `v42` default.
+    """
+    from dhis2w_core.plugin import resolve_startup_version
+
+    version_key = resolve_startup_version()
+    try:
+        from dhis2w_core.profile import resolve
+
+        resolved = resolve()
+    except Exception:  # noqa: BLE001 — source labelling must not crash the suite
+        resolved = None
+    if resolved is not None and resolved.profile.version is not None:
+        return version_key, f"profile {resolved.name!r} pin"
+    env_version = os.environ.get("DHIS2_VERSION", "").strip()
+    if env_version:
+        return version_key, f"DHIS2_VERSION={env_version!r} env"
+    return version_key, "default"
 
 
-def discover_examples() -> list[Path]:
-    """Return every example file under `examples/v{N}/{cli,client,mcp}/`, sorted by path.
+def _version_dir(version_key: str) -> Path:
+    """Return `examples/{version_key}/` for the given DHIS2 major."""
+    return REPO_ROOT / "examples" / version_key
 
-    `N` comes from the `DHIS2_VERSION` env var so the v41 / v42 / v43 trees
-    each get their own discovery pass — keeps version-specific imports +
-    examples isolated from each other.
+
+def discover_examples(version_key: str) -> list[Path]:
+    """Return every example file under `examples/{version_key}/{cli,client,mcp}/`, sorted by path.
+
+    Each major has its own discovery pass so version-specific imports + examples
+    stay isolated from each other.
     """
     paths: list[Path] = []
-    base = _active_version_dir()
+    base = _version_dir(version_key)
     if not base.exists():
         return paths
     for subdir in ("cli", "client", "mcp"):
@@ -185,17 +212,21 @@ def run_suite(
     console: Console | None = None,
 ) -> list[ExampleResult]:
     """Run every discovered example, stream per-example status lines, return results."""
-    version_key = f"v{os.environ.get('DHIS2_VERSION', '42')}"
+    # Resolve version against the chosen profile (matches the DHIS2_PROFILE each
+    # subprocess gets in `_run_one`), so the example tree tracks the profile pin.
+    os.environ["DHIS2_PROFILE"] = profile
+    version_key, version_source = _resolve_version_key()
     per_version_skip = SKIP_BY_VERSION.get(version_key, frozenset())
     skip = extra_skip | per_version_skip if include_browser else SKIP_BY_DEFAULT | extra_skip | per_version_skip
     console = console or Console()
-    examples = discover_examples()
+    examples = discover_examples(version_key)
     console.print(
         f"running [bold]{len(examples)}[/bold] examples "
-        f"(profile=[cyan]{profile}[/cyan], timeout={int(timeout_seconds)}s, "
+        f"([bold]{version_key}[/bold] from {version_source}, "
+        f"profile=[cyan]{profile}[/cyan], timeout={int(timeout_seconds)}s, "
         f"skip-default={'on' if not include_browser else 'off'})",
     )
-    version_dir = _active_version_dir()
+    version_dir = _version_dir(version_key)
     results: list[ExampleResult] = []
     for path in examples:
         rel = path.relative_to(REPO_ROOT).as_posix()

@@ -204,6 +204,62 @@ def show_command(
     render_detail(f"profile {name}", rows)
 
 
+@app.command("env")
+def env_command(
+    name: Annotated[str | None, typer.Argument(help="Profile name; defaults to the active profile.")] = None,
+) -> None:
+    """Print `export DHIS2_*` lines for a profile, for `eval`.
+
+    Offline read — no instance probe; the wire client auto-detects the version on connect.
+    Values are printed as-is (the password / token is already plaintext in `profiles.toml`),
+    so the output is directly usable: `eval "$(d2w profile env local_basic)"`. The command
+    only prints to stdout — it cannot mutate the caller's shell. For a redacted view (e.g.
+    screen-sharing) use `d2w profile show` instead.
+    """
+    import shlex
+
+    from dhis2w_core.plugin import DEFAULT_VERSION_KEY
+
+    resolved = resolve(name)
+    profile = resolved.profile
+
+    def _export(key: str, value: str) -> None:
+        typer.echo(f"export {key}={shlex.quote(value)}")
+
+    def _export_if(key: str, value: str | None) -> None:
+        if value:
+            _export(key, value)
+
+    # DHIS2_PROFILE alone reproduces the whole profile via the TOML.
+    _export("DHIS2_PROFILE", resolved.name)
+    _export("DHIS2_URL", profile.base_url)
+    if profile.version is not None:
+        version_digits = profile.version.value.removeprefix("v")
+    else:
+        env_version = os.environ.get("DHIS2_VERSION", "").strip().lstrip("v")
+        version_digits = env_version if env_version in {"41", "42", "43"} else DEFAULT_VERSION_KEY.removeprefix("v")
+        typer.echo(
+            f"note: profile {resolved.name!r} has no version pin; emitting v{version_digits}. "
+            "Pin it with `d2w profile add ... --version vNN`.",
+            err=True,
+        )
+    _export("DHIS2_VERSION", version_digits)
+
+    if profile.auth == "basic":
+        _export_if("DHIS2_USERNAME", profile.username)
+        _export_if("DHIS2_PASSWORD", profile.password)
+    elif profile.auth == "pat":
+        _export_if("DHIS2_PAT", profile.token)
+    elif profile.auth == "oauth2":
+        _export_if("DHIS2_OAUTH_CLIENT_ID", profile.client_id)
+        _export_if("DHIS2_OAUTH_CLIENT_SECRET", profile.client_secret)
+        typer.echo(
+            "note: oauth2 has no full raw-env path; the access token comes from the profile's "
+            "token store. The exported DHIS2_PROFILE makes `d2w` use this TOML profile.",
+            err=True,
+        )
+
+
 def _resolve_scope(*, is_global: bool, is_local: bool, default: str = "global") -> str:
     """Translate the --global/--local flag pair into a 'global' | 'project' string."""
     if is_global and is_local:
