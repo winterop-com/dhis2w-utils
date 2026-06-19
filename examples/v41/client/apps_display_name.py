@@ -17,7 +17,7 @@ return type. v42 + v43 don't need the override — their OAS lists
 `displayName` natively.
 
 Usage:
-    uv run python examples/v41/client/v41_apps_display_name.py
+    uv run python examples/v41/client/apps_display_name.py
 """
 
 from __future__ import annotations
