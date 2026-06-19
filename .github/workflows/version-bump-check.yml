@@ -33,7 +33,7 @@ jobs:
       - run: uv python install 3.13
       - run: make install
       - id: detect
-        run: uv run python infra/scripts/check_version_bumps.py
+        run: make dhis2-versions-check
 
   bump:
     name: bump ${{ matrix.bump.tree }} -> ${{ matrix.bump.latest }}

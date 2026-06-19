@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -33,12 +33,13 @@ help:
 	@echo "  dhis2-run        Start the stack, seed auth, stream logs (Ctrl+C tears it down)"
 	@echo "  dhis2-seed       (re-)seed PATs + OAuth2 client against an already-running stack"
 	@echo "  dhis2-down       Stop the local DHIS2 stack"
+	@echo "  dhis2-versions-check  Show whether any pinned DHIS2 minor is behind the latest Docker Hub patch"
 	@echo "  dhis2-build-e2e-dump  Wipe + populate a fresh DHIS2 with test data, regenerate infra/\$$(DHIS2_VERSION)/dump.sql.gz"
 	@echo "  refresh-setup         Wipe + rebuild e2e dump + seed (no example verify — fast iteration on setup)"
 	@echo "  refresh-and-verify    Rebuild dump + seed + run every example (turns the PR #125 ritual into one command)"
 	@echo ""
 	@echo "Code generation + examples:"
-	@echo "  dhis2-codegen-all     Spin up DHIS2 41/42/43 in turn and regenerate each v{N}/ (~40 min; pass VERSIONS=\"41 42 43\" to narrow)"
+	@echo "  dhis2-codegen-all     Spin up DHIS2 v41/v42/v43 in turn and regenerate each v{N}/ (~40 min; pass VERSIONS=\"v41 v42 v43\" to narrow)"
 	@echo "  dhis2-codegen-play    Refresh v42 + v43 generated/ trees against play.im.dhis2.org (no docker)"
 	@echo "  verify-examples       Run every non-interactive example + print PASS/FAIL summary"
 	@echo ""
@@ -169,6 +170,9 @@ dhis2-down:
 
 dhis2-build-e2e-dump:
 	@$(MAKE) -C infra build-e2e-dump DHIS2_VERSION=$(or $(DHIS2_VERSION),v43)
+
+dhis2-versions-check:
+	@$(UV) run python infra/scripts/check_version_bumps.py
 
 dhis2-codegen-all:
 	@infra/scripts/codegen_all_versions.sh $(VERSIONS)
