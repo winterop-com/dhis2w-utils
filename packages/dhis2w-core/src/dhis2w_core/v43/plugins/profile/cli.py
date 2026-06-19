@@ -234,16 +234,16 @@ def env_command(
     _export("DHIS2_PROFILE", resolved.name)
     _export("DHIS2_URL", profile.base_url)
     if profile.version is not None:
-        version_digits = profile.version.value.removeprefix("v")
+        version_key = profile.version.value
     else:
-        env_version = os.environ.get("DHIS2_VERSION", "").strip().lstrip("v")
-        version_digits = env_version if env_version in {"41", "42", "43"} else DEFAULT_VERSION_KEY.removeprefix("v")
+        env_version = os.environ.get("DHIS2_VERSION", "").strip()
+        version_key = env_version if env_version in {"v41", "v42", "v43"} else DEFAULT_VERSION_KEY
         typer.echo(
-            f"note: profile {resolved.name!r} has no version pin; emitting v{version_digits}. "
+            f"note: profile {resolved.name!r} has no version pin; emitting {version_key}. "
             "Pin it with `d2w profile add ... --version vNN`.",
             err=True,
         )
-    _export("DHIS2_VERSION", version_digits)
+    _export("DHIS2_VERSION", version_key)
 
     if profile.auth == "basic":
         _export_if("DHIS2_USERNAME", profile.username)

@@ -67,14 +67,14 @@ from dhis2w_client.generated.v42 import DataElement, OrganisationUnit
 The CLI (`d2w ...`) and MCP server (`dhis2w-mcp`) pick a single plugin tree at bootstrap from `dhis2w_core.v{41,42,43}.plugins.*`. The selection chain (`dhis2w_core.plugin.resolve_startup_version`):
 
 1. **`profile.version`** — if the active profile carries `version = "v41" | "v42" | "v43"` in `profiles.toml`, that tree is loaded.
-2. **`DHIS2_VERSION` env var** — `41` / `42` / `43` map to `v41` / `v42` / `v43`. Lets `make verify-examples DHIS2_VERSION=43` exercise the v43 plugin tree against a v43 stack without hand-editing every profile.
+2. **`DHIS2_VERSION` env var** — the vXX key (`v41` / `v42` / `v43`). Lets `make verify-examples DHIS2_VERSION=v43` exercise the v43 plugin tree against a v43 stack without hand-editing every profile. A bare digit (`43`) is not accepted.
 3. **Default `v42`** — the canonical baseline.
 
 This selection is independent of the wire client's actual version detection (`Dhis2Client.connect()` — see below). A profile pinned to v43 plugin tree against a v42 stack would load v43-specific plugin overrides + the v42 wire client; runtime dispatch swaps accessors after `connect()` so the wire chain remains correct regardless.
 
 ```bash
 # Force the v43 plugin tree for a one-off run (overrides profile.version)
-DHIS2_VERSION=43 d2w metadata list dataElements
+DHIS2_VERSION=v43 d2w metadata list dataElements
 ```
 
 Library callers using `from dhis2w_client.v43 import Dhis2Client` skip the resolution chain entirely — the import path pins the version.

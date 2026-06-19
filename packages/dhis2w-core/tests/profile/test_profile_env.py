@@ -51,7 +51,7 @@ def test_env_emits_exports_with_real_values(app: Typer, tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "export DHIS2_PROFILE=local_basic" in result.output
     assert "export DHIS2_URL=http://localhost:8080" in result.output
-    assert "export DHIS2_VERSION=41" in result.output
+    assert "export DHIS2_VERSION=v41" in result.output
     assert "export DHIS2_USERNAME=admin" in result.output
     assert "export DHIS2_PASSWORD=district" in result.output
     assert "*****" not in result.output
@@ -63,7 +63,7 @@ def test_env_version_pin_wins_over_tree(app: Typer, tmp_path: Path) -> None:
     _write_basic_profile(tmp_path, version_line='version = "v43"\n')
     result = CliRunner().invoke(app, ["env"])
     assert result.exit_code == 0, result.output
-    assert "export DHIS2_VERSION=43" in result.output
+    assert "export DHIS2_VERSION=v43" in result.output
 
 
 @TREES
@@ -72,7 +72,7 @@ def test_env_unpinned_falls_back_to_default(app: Typer, tmp_path: Path) -> None:
     _write_basic_profile(tmp_path, version_line="")
     result = CliRunner().invoke(app, ["env"])
     assert result.exit_code == 0, result.output
-    assert "export DHIS2_VERSION=42" in result.output
+    assert "export DHIS2_VERSION=v42" in result.output
 
 
 @TREES

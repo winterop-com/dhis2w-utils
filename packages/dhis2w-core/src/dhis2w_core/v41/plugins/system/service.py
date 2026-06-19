@@ -60,8 +60,6 @@ def _package_version(name: str) -> str | None:
 def _active_plugin_tree_source(active: str) -> str:
     """Describe which step of the resolution chain picked the active plugin tree."""
     env_version = os.environ.get("DHIS2_VERSION", "").strip()
-    if env_version in {"41", "42", "43"} and f"v{env_version}" == active:
-        return f"DHIS2_VERSION={env_version!r} env"
     if env_version in {"v41", "v42", "v43"} and env_version == active:
         return f"DHIS2_VERSION={env_version!r} env"
     if active == DEFAULT_VERSION_KEY:

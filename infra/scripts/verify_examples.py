@@ -25,7 +25,7 @@ trade-off for in-tree discoverability.
 
 Usage:
     uv run python infra/scripts/verify_examples.py            # follows the active profile
-    DHIS2_VERSION=43 uv run python infra/scripts/verify_examples.py   # only when no profile pin
+    DHIS2_VERSION=v43 uv run python infra/scripts/verify_examples.py   # only when no profile pin
 """
 
 from __future__ import annotations

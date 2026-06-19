@@ -37,7 +37,7 @@ Every entry in `BUGS.md` (top-level) describing a real DHIS2-side bug we've work
 
 **Live (slow, opt-in)**
 
-3. **Bug-still-present (live)** — `@pytest.mark.slow` test that hits the local docker DHIS2 stack via `make dhis2-run DHIS2_VERSION=N`. POSTs / GETs the actual wire and asserts the bug is observable. When DHIS2 ships an upstream fix and the wire shape changes, this test fails — the loud signal to drop the workaround. Skips when the stack isn't reachable or when the server version doesn't match the bug's target major (so the v43 bug tests only run against a v43 stack).
+3. **Bug-still-present (live)** — `@pytest.mark.slow` test that hits the local docker DHIS2 stack via `make dhis2-run DHIS2_VERSION=vN`. POSTs / GETs the actual wire and asserts the bug is observable. When DHIS2 ships an upstream fix and the wire shape changes, this test fails — the loud signal to drop the workaround. Skips when the stack isn't reachable or when the server version doesn't match the bug's target major (so the v43 bug tests only run against a v43 stack).
 
 All flavours carry `@pytest.mark.upstream_bug`. `make test-upstream-bugs` filters to just this marker (`pytest -m upstream_bug`), useful for "show me every workaround we depend on". The respx-mocked halves are fast and run as part of the default `make test` too. The live halves run via `make test-slow` when a stack is up.
 
@@ -54,7 +54,7 @@ The pattern is illustrated in the file with BUGS.md #33 (v43 CategoryCombo COC a
 
 ## Test connection details
 
-The `@pytest.mark.slow` E2E suite targets the local docker stack — `make -C infra up-seeded DHIS2_VERSION=N` brings up the matching DHIS2 major and writes `infra/home/credentials/.env.auth` with `DHIS2_URL` and `DHIS2_PAT`. Each member's `tests/conftest.py` auto-sources that file and exposes the fixtures below.
+The `@pytest.mark.slow` E2E suite targets the local docker stack — `make -C infra up-seeded DHIS2_VERSION=vN` brings up the matching DHIS2 major and writes `infra/home/credentials/.env.auth` with `DHIS2_URL` and `DHIS2_PAT`. Each member's `tests/conftest.py` auto-sources that file and exposes the fixtures below.
 
 Defaults:
 

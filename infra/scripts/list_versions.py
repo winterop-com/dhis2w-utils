@@ -57,8 +57,8 @@ def main() -> int:
         print(f"  {tag.name:12}  (major={tag.major} minor={tag.minor})")
     print()
     print("Run a specific version:")
-    print("  make up DHIS2_VERSION=42")
-    print("  make up DHIS2_VERSION=43")
+    print("  make up DHIS2_VERSION=v42")
+    print("  make up DHIS2_VERSION=v43")
     print()
     print("Full tag list: https://hub.docker.com/r/dhis2/core/tags")
     return 0

@@ -276,7 +276,7 @@ def _live_leaf_paths() -> set[tuple[str, ...]]:
 
 def test_readonly_set_matches_live_tree(monkeypatch: pytest.MonkeyPatch) -> None:
     """READ_ONLY_COMMANDS must equal what the live command tree yields (no drift)."""
-    monkeypatch.setenv("DHIS2_VERSION", "42")
+    monkeypatch.setenv("DHIS2_VERSION", "v42")
     leaves = _live_leaf_paths()
     derived = {path for path in leaves if path[-1] in READ_ONLY_VERBS or path in READ_ONLY_LEAVES}
     assert derived == set(READ_ONLY_COMMANDS), "regenerate READ_ONLY_COMMANDS — CLI tree changed"
@@ -297,7 +297,7 @@ def test_settings_verb_is_read_under_security_but_write_under_customize() -> Non
 
 def test_guard_allows_exactly_read_only_leaves(monkeypatch: pytest.MonkeyPatch) -> None:
     """Across the whole live tree, is_read_only() allows exactly the committed read-only leaves."""
-    monkeypatch.setenv("DHIS2_VERSION", "42")
+    monkeypatch.setenv("DHIS2_VERSION", "v42")
     leaves = _live_leaf_paths()
     allowed = {path for path in leaves if is_read_only(list(path))}
     assert allowed == set(READ_ONLY_COMMANDS)

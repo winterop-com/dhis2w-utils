@@ -7,7 +7,7 @@ Python library usage — `dhis2w-client` + `dhis2w-core.client_context.open_clie
 ## Prerequisites
 
 ```bash
-make dhis2-run                                       # DHIS2 + seeded auth (v42 by default — for v41 launch with `DHIS2_VERSION=41 make dhis2-run`)
+make dhis2-run                                       # DHIS2 + seeded auth (v42 by default — for v41 launch with `DHIS2_VERSION=v41 make dhis2-run`)
 set -a; source infra/home/credentials/.env.auth; set +a
 
 # Create a profile once — examples resolve it automatically via DHIS2_PROFILE / TOML discovery.

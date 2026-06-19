@@ -303,7 +303,7 @@ Hardening release driven by a multi-pass audit. Eleven PRs landed across CLI beh
 
 ### MCP
 
-- **Per-call profile guarded against bound plugin tree.** A v42-booted server invoked with a v43-pinned profile used to parse v43 server payloads through v42 schemas silently. `dhis2w_core.profile.bind_version_tree()` is called once at `build_server()` time; `resolve_profile()` now raises `ProfileVersionMismatchError` with a restart hint (`Restart with DHIS2_VERSION=43 dhis2w-mcp ...`) on any mismatched per-call profile (#338).
+- **Per-call profile guarded against bound plugin tree.** A v42-booted server invoked with a v43-pinned profile used to parse v43 server payloads through v42 schemas silently. `dhis2w_core.profile.bind_version_tree()` is called once at `build_server()` time; `resolve_profile()` now raises `ProfileVersionMismatchError` with a restart hint (`Restart with DHIS2_VERSION=v43 dhis2w-mcp ...`) on any mismatched per-call profile (#338).
 
 ### Workspace + packaging
 
@@ -416,7 +416,7 @@ Big architectural jump: per-version split of the entire workspace (v41 / v42 / v
 - **Per-version subpackages everywhere.** `dhis2w_client.v{41,42,43}` and `dhis2w_core.v{41,42,43}.plugins.*` are now hermetic — a v43-specific quirk lands in `v43/plugins/...` alone without touching v41/v42. Three trees seeded from the v42 baseline (#253-#272).
 - **Per-version `__init__.py` re-export surfaces.** `from dhis2w_client.v41 import X` now works directly, parallel to `from dhis2w_client.v42 import X` and `from dhis2w_client.v43 import X`. The top-level `dhis2w_client` shim still routes to v42 for backwards compat with PyPI consumers (#280-#282).
 - **Per-version `dhis2w-core` helpers.** `cli_errors`, `cli_output`, `cli_task_watch`, `client_context`, `oauth2_registration`, `pat_registration`, and `token_store` all have v41 / v42 / v43 copies under `dhis2w_core/v{N}/`. Shared runtime state (`JSON_OUTPUT` ContextVar, `_console` Rich singleton) stays single-source via re-exports — only the type-signature surface diverges per version (#283-#285, #289).
-- **Plugin discovery resolves the version from `DHIS2_VERSION` env when `profile.version` is unset.** Lets `make verify-examples DHIS2_VERSION=41` correctly drive the v41 plugin tree without hand-editing every profile (#292).
+- **Plugin discovery resolves the version from `DHIS2_VERSION` env when `profile.version` is unset.** Lets `make verify-examples DHIS2_VERSION=v41` correctly drive the v41 plugin tree without hand-editing every profile (#292).
 - **Plugin retarget — all 47 plugin files per version-tree now import from their matching client subpackage** (`dhis2w_client.v{N}.*` + `dhis2w_core.v{N}.*` helpers + `dhis2w_client.generated.v{N}.*`). One hand-fix per version for genuine wire-shape divergence (#286-#288).
 - **Top-level shim dropped from `dhis2w-core`-internal call paths.** Canonical imports go through `v{N}/`; the top-level remains as a PyPI-stable surface only (#271).
 
@@ -442,7 +442,7 @@ Big architectural jump: per-version split of the entire workspace (v41 / v42 / v
 ### Examples
 
 - **`examples/` split into per-version directories (`examples/v{41,42,43}/{cli,client,mcp}/`).** Each version tree's examples target its matching DHIS2 major. New examples land in the version(s) where they apply (#247-#248, #272).
-- **`make verify-examples DHIS2_VERSION=N`** runs every non-interactive example for major `N` and prints a PASS / FAIL / TIMEOUT / SKIP table. Currently green across all three: v41 153/0/12, v42 153/0/12, v43 158/0/12.
+- **`make verify-examples DHIS2_VERSION=vN`** runs every non-interactive example for major `N` and prints a PASS / FAIL / TIMEOUT / SKIP table. Currently green across all three: v41 153/0/12, v42 153/0/12, v43 158/0/12.
 
 ### Infrastructure
 

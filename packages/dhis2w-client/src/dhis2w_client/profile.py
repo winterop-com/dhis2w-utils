@@ -113,17 +113,15 @@ def profile_from_env_raw() -> Profile | None:
 
 
 def _env_version() -> Dhis2 | None:
-    """Read `DHIS2_VERSION` env (`"43"` or `"v43"`) into a `Dhis2` enum member.
+    """Read `DHIS2_VERSION` env (`"v43"`) into a `Dhis2` enum member.
 
-    Returns None when unset or malformed — `open_client` then falls back to
-    auto-detect via `/api/system/info`.
+    Returns None when unset or malformed (a bare digit like `"43"` is not
+    accepted) — `open_client` then falls back to auto-detect via
+    `/api/system/info`.
     """
     raw = os.environ.get("DHIS2_VERSION", "").strip().lower()
-    if not raw:
-        return None
-    candidate = raw if raw.startswith("v") else f"v{raw}"
-    match candidate:
+    match raw:
         case "v41" | "v42" | "v43":
-            return Dhis2(candidate)
+            return Dhis2(raw)
         case _:
             return None

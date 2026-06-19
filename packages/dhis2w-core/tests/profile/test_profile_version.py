@@ -67,19 +67,19 @@ def test_version_omitted_when_none_on_toml_write(tmp_path: Path) -> None:
     assert "version" not in text
 
 
-def test_env_raw_picks_up_dhis2_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """DHIS2_VERSION env (no `v` prefix) populates `Profile.version` in raw-env mode."""
+def test_env_raw_rejects_bare_digit_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A bare-digit DHIS2_VERSION is not accepted — only the vXX form is valid."""
     _clear_env(monkeypatch)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
     monkeypatch.setenv("DHIS2_URL", "http://localhost:8080")
     monkeypatch.setenv("DHIS2_PAT", "d2p_env")
     monkeypatch.setenv("DHIS2_VERSION", "43")
     resolved = resolve(start=tmp_path)
-    assert resolved.profile.version is Dhis2.V43
+    assert resolved.profile.version is None
 
 
-def test_env_raw_accepts_v_prefixed_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """DHIS2_VERSION already prefixed with `v` works too."""
+def test_env_raw_picks_up_v_prefixed_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The canonical vXX DHIS2_VERSION populates `Profile.version` in raw-env mode."""
     _clear_env(monkeypatch)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
     monkeypatch.setenv("DHIS2_URL", "http://localhost:8080")

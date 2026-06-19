@@ -123,7 +123,7 @@ To pass extra env vars (e.g. pin the plugin tree or active profile):
     "dhis2": {
       "command": "dhis2w-mcp",
       "env": {
-        "DHIS2_VERSION": "43",
+        "DHIS2_VERSION": "v43",
         "DHIS2_PROFILE": "staging"
       }
     }
@@ -214,14 +214,14 @@ Two layers enforce the boundary so silent `v42-parses-v43-payload` bugs aren't p
 1. **Profile-level**: if the resolved profile's `.version` pins a different major than the bound tree, `resolve_profile()` raises `ProfileVersionMismatchError` before any wire call.
 2. **Wire-level** (covers profiles without a `version` pin, which is the common case): the bound tree is threaded into the wire client as `Dhis2Client(version=...)`, so the on-connect `/api/system/info` check raises `VersionPinMismatchError` whenever the server's reported major doesn't match the bound tree.
 
-To target a different major, restart the server with `DHIS2_VERSION=43 dhis2w-mcp` (see [Active plugin tree](#active-plugin-tree) below). Call `system_server_info` to confirm the bound tree before issuing version-sensitive tools.
+To target a different major, restart the server with `DHIS2_VERSION=v43 dhis2w-mcp` (see [Active plugin tree](#active-plugin-tree) below). Call `system_server_info` to confirm the bound tree before issuing version-sensitive tools.
 
 ## Active plugin tree
 
 `dhis2w-mcp` selects a plugin tree (v41 / v42 / v43) at startup. Override per-launch with the `DHIS2_VERSION` env var:
 
 ```bash
-DHIS2_VERSION=43 dhis2w-mcp
+DHIS2_VERSION=v43 dhis2w-mcp
 ```
 
 In a host config, set it under the `env:` block (see Claude Desktop example above). Call `system_server_info` from the agent to see which tree is bound + which `dhis2w-*` package versions are installed.
