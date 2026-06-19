@@ -15,7 +15,6 @@ if TYPE_CHECKING:
     # form a cycle: client -> generated.v41.oas -> resources -> client.
     # With `from __future__ import annotations`, the annotation stays a string.
     from dhis2w_client.v41.client import Dhis2Client
-
 from .schemas.aggregate_data_exchange import AggregateDataExchange
 from .schemas.analytics_table_hook import AnalyticsTableHook
 from .schemas.api_token import ApiToken
