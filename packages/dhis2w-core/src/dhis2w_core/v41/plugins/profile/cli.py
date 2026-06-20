@@ -48,10 +48,10 @@ def _validate_version(value: str | None) -> Dhis2 | None:
         return None
     candidate = value.strip().lower()
     match candidate:
-        case "v41" | "v41" | "v43":
+        case "v41" | "v42" | "v43":
             return Dhis2(candidate)
         case _:
-            raise typer.BadParameter(f"unsupported --version {value!r}; use one of v41, v41, v43")
+            raise typer.BadParameter(f"unsupported --version {value!r}; use one of v41, v42, v43")
 
 
 app = typer.Typer(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,9 @@ from dhis2w_core.profile import (
     resolve,
     write_profiles_file,
 )
+from dhis2w_core.v41.plugins.profile.cli import _validate_version as _validate_v41
+from dhis2w_core.v42.plugins.profile.cli import _validate_version as _validate_v42
+from dhis2w_core.v43.plugins.profile.cli import _validate_version as _validate_v43
 
 
 def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -108,3 +112,16 @@ def test_env_raw_no_version_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("DHIS2_PAT", "d2p_env")
     resolved = resolve(start=tmp_path)
     assert resolved.profile.version is None
+
+
+@pytest.mark.parametrize("validate", [_validate_v41, _validate_v42, _validate_v43], ids=["v41", "v42", "v43"])
+@pytest.mark.parametrize("value,expected", [("v41", Dhis2.V41), ("v42", Dhis2.V42), ("v43", Dhis2.V43)])
+def test_validate_version_accepts_all_three_in_every_tree(
+    validate: Callable[[str | None], Dhis2 | None], value: str, expected: Dhis2
+) -> None:
+    """`d2w profile add --version` accepts all three majors regardless of active tree.
+
+    Guards against tree-copy sed drift corrupting the allow-list (the v41/v43 trees
+    once held `v41 | v41 | v43` / `v41 | v43 | v43`, rejecting `--version v42`).
+    """
+    assert validate(value) == expected
