@@ -101,6 +101,16 @@ When you hit a DHIS2 behaviour that looks like a genuine bug or design surprise 
 
 The goal is to make it easy for the user to raise these upstream later without having to re-investigate. Don't pre-filter — if something surprised you enough to spend time on it, it's worth recording even if it turns out to be WAI on closer reading.
 
+## DHIS2 backend source available locally
+
+The full DHIS2 backend monorepo (Java/Maven) is checked out at:
+
+```
+/Users/netromsb/develop/dhis2/GARAGE/SLOT3/dhis-2
+```
+
+Whenever you need ground truth about how DHIS2 actually behaves — exact API response shapes, the real name of a system setting key, controller routes, default values, version-specific divergence, authority constants, etc. — read the source there instead of guessing or relying on docs alone. Useful entry points: `dhis-api` (interfaces and constants), `dhis-services` (business logic), `dhis-web-api` / `dhis-web-server` (controllers and endpoints). It is read-only reference; never build, modify, or run it from this repo's workflow.
+
 ## Greenfield language — don't narrate history this repo doesn't have
 
 This repo is pre-1.0 and has no deployed users. Nothing is being "fixed" or "migrated" or "deprecated" — every change is just the first working version of the thing. Write commit messages, PR descriptions, code comments, and docs in that voice:
