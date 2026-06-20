@@ -231,7 +231,7 @@ Targets:
 
 Targets:
 
-- local `dhis2/core:2.41.8.1` stack booted via `make -C infra up-seeded DHIS2_VERSION=41`, dump-seeded from `infra/v41/dump.sql.gz`.
+- local `dhis2/core:2.41.8.1` stack booted via `make -C infra up-seeded DHIS2_VERSION=v41`, dump-seeded from `infra/v41/dump.sql.gz`.
 
 | #   | v41                                | Notes                                                                                                                                                                                                                                                                                                                |
 | --- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2842,7 +2842,7 @@ that no longer runs at save time and now needs an explicit maintenance trigger.
 
 **RE-VERIFIED 2026-06-09 — no longer reproduces on pinned `dhis2/core:2.43.0.0`.** The documented repro yields a populated COC matrix on save: POST over a 1-category (2-option) combo returns 2 COCs immediately, and PUT adding a second category regenerates to 4 — no `categoryOptionComboUpdate` call needed. The empty-matrix behaviour is gone on the final `2.43.0.0` release (originally observed via the floating `:43` tag, likely a pre-release build). The v43 workaround (`category_combos.wait_for_coc_generation` firing the maintenance trigger) is now unnecessary-but-harmless on 2.43.0.0 — keep it until `2.43.1` is confirmed to regenerate too, then it can go. NOTE: the live verifier `test_bug_33_v43_live_save_returns_empty_coc_matrix` would now FAIL against 2.43.0.0.
 
-**Observed on:** DHIS2 `2.43.0` (`dhis2/core:43` from Docker Hub, observed against `make dhis2-run DHIS2_VERSION=43`). Login as `admin/district`.
+**Observed on:** DHIS2 `2.43.0` (`dhis2/core:43` from Docker Hub, observed against `make dhis2-run DHIS2_VERSION=v43`). Login as `admin/district`.
 
 **Repro (against any v43 instance):**
 
@@ -2892,7 +2892,7 @@ A combo created against v43 is functionally broken until that maintenance trigge
 
 ### 34. v43: `CategoryCombo.categorys` legacy alias dropped — wire writes silently no-op without categories
 
-**Observed on:** DHIS2 `2.43.0` (`dhis2/core:43` from Docker Hub, `make dhis2-run DHIS2_VERSION=43`). Login as `admin/district`.
+**Observed on:** DHIS2 `2.43.0` (`dhis2/core:43` from Docker Hub, `make dhis2-run DHIS2_VERSION=v43`). Login as `admin/district`.
 
 **Repro (against any v43 instance):**
 
@@ -2933,7 +2933,7 @@ curl -sf -u admin:district "http://localhost:8080/api/categoryCombos/<NEWUID>?fi
 
 **STATUS:** STILL PRESENT (verified 2026-05-12 on v43 docker image `dhis2/core:2.43.0.0`) — error code observed in conflicts is `E8002` (not `E7144` as the original repro reported). Live verifier `test_bug_35_live_verifier` creates the bug condition (probe DataSet referencing an existing DE) and asserts the 409 conflict. Workaround in `infra/scripts/seed/loader.py::import_data_values` remains active.
 
-**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub, `make dhis2-run DHIS2_VERSION=43`). Login as `admin/district`.
+**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub, `make dhis2-run DHIS2_VERSION=v43`). Login as `admin/district`.
 
 **Repro (against any v43 instance with the Sierra Leone seed):**
 
@@ -2980,7 +2980,7 @@ curl -sf -u admin:district -X POST 'http://localhost:8080/api/dataValueSets' \
 
 **STATUS:** STILL PRESENT (workaround active in `infra/compose.yml` analytics-trigger sidecar via `skipPrograms=lxAQ7Zs9VYR`). Live verifier `test_bug_36_live_verifier` is skipped — reproducing requires a full analytics rebuild against seeded 2024 event data, which is too slow + side-effect-heavy for the regression-suite shape. No client-side fix possible — bug is in DHIS2's analytics table builder.
 
-**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub, `make dhis2-run DHIS2_VERSION=43`). Login as `admin/district`. Triggered by running `POST /api/resourceTables/analytics` against the seeded play stack with at least one event-program-with-2024-data (`lxAQ7Zs9VYR` Antenatal Care in the Sierra Leone fixture).
+**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub, `make dhis2-run DHIS2_VERSION=v43`). Login as `admin/district`. Triggered by running `POST /api/resourceTables/analytics` against the seeded play stack with at least one event-program-with-2024-data (`lxAQ7Zs9VYR` Antenatal Care in the Sierra Leone fixture).
 
 **Repro (against any v43 instance with seeded event data):**
 
@@ -3007,7 +3007,7 @@ curl -sf -u admin:district "http://localhost:8080/api/system/tasks/ANALYTICS_TAB
 
 The compose-time analytics-trigger sidecar (which runs once just after DHIS2 boots, before any aggregate data is seeded) doesn't trigger the bug — there's no 2024 event data yet so the year-partition isn't created. The bug surfaces on the *post-seed* rebuild called by `infra/scripts/build_e2e_dump.py::run_analytics()` (and any subsequent `d2w maintenance refresh analytics`).
 
-**Impact:** Any v43 stack that imports event data for one or more event programs and then runs an analytics rebuild. Affects: this repo's `make refresh-and-verify DHIS2_VERSION=43` flow (the post-seed rebuild hangs / fails), and any production v43 deployment with event programs and a periodic analytics refresh.
+**Impact:** Any v43 stack that imports event data for one or more event programs and then runs an analytics rebuild. Affects: this repo's `make refresh-and-verify DHIS2_VERSION=v43` flow (the post-seed rebuild hangs / fails), and any production v43 deployment with event programs and a periodic analytics refresh.
 
 **Workaround in this repo:** `infra/compose.yml`'s analytics-trigger entrypoint posts to `POST /api/resourceTables/analytics?skipPrograms=lxAQ7Zs9VYR`. **This is insufficient (re-verified 2026-06-09 on `2.43.0.0` + `2.43.1-SNAPSHOT`):** v43 ignores `skipPrograms` (the job runs with `skipPrograms: []`), and even if honoured the `yearly` error *also* fires on Child Programme `iphinat79uw` (2025 partition) — so the analytics job aborts regardless and `lastAnalyticsTableSuccess` stays epoch-`1970` on a fresh v43 stack (aggregate analytics never swaps in either, because the job aborts first). The earlier note that "other programs build normally" was wrong. See `infra/compose.yml`.
 
@@ -3019,7 +3019,7 @@ The compose-time analytics-trigger sidecar (which runs once just after DHIS2 boo
 
 **STATUS:** STILL PRESENT (workaround active: `_DATA_VALUE_CHUNK = 1_000` in `infra/scripts/seed/loader.py` keeps chunks inside the httpx 300 s read timeout). Live verifier `test_bug_37_live_verifier` is skipped — this is a perf bug, not binary verifiable; a reliable check would require wiping the `datavalue` table and timing per-row CREATE latency, too destructive for a regression suite. No client-side fix possible — slowdown is in DHIS2's category-combo cross-check CTE that runs per-row on CREATE.
 
-**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub, `make dhis2-run DHIS2_VERSION=43`). Login as `admin/district`.
+**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub, `make dhis2-run DHIS2_VERSION=v43`). Login as `admin/district`.
 
 **Repro:** the standard chunked import flow this repo's seed pipeline runs against an empty `datavalue` table.
 
@@ -3052,7 +3052,7 @@ This is v43's category-combo cross-check that came in alongside BUGS.md #35. It 
 
 **Impact:** Any caller that bulk-imports fresh `dataValueSets` against a v43 instance. Affects: this repo's first-time `infra/scripts/seed/loader.py::import_data_values` cold-build of the v43 dump (90 min); any production v43 deployment running first-time large aggregate-data ingest. Subsequent imports against a populated DB are unaffected — the fast UPDATE path applies.
 
-**Workaround in this repo:** Drop the chunk size to 1 k (`infra/scripts/seed/loader.py::_DATA_VALUE_CHUNK = 1_000`) so individual chunks finish inside the 300 s httpx read timeout. Total wall-clock for the *cold build* is unchanged (one-time 90-minute cost) but the import doesn't crash with `ReadTimeout`. The committed v43 dump (`infra/v43/dump.sql.gz`) captures the post-import state, so every subsequent `make dhis2-up DHIS2_VERSION=43` and the seed's UPDATE pass on top of it run at v41 / v42 speeds.
+**Workaround in this repo:** Drop the chunk size to 1 k (`infra/scripts/seed/loader.py::_DATA_VALUE_CHUNK = 1_000`) so individual chunks finish inside the 300 s httpx read timeout. Total wall-clock for the *cold build* is unchanged (one-time 90-minute cost) but the import doesn't crash with `ReadTimeout`. The committed v43 dump (`infra/v43/dump.sql.gz`) captures the post-import state, so every subsequent `make dhis2-up DHIS2_VERSION=v43` and the seed's UPDATE pass on top of it run at v41 / v42 speeds.
 
 **How to know it's fixed:** A first-time CREATE of a 1 k-row `/api/dataValueSets` chunk against an empty v43 DB lands in <1 s (matching v43's UPDATE path on the same chunk). Or DHIS2 ships a documented bypass that bulk-import tooling can opt into for trusted CREATE flows.
 
@@ -3087,7 +3087,7 @@ curl -sf -u admin:district -X PUT 'http://localhost:8080/api/sharing?type=dataEl
 
 ### 39. v41: OAuth2 client wire shape — `cid` (not `clientId`) + strict array-typed multi-valued fields
 
-**Observed on:** DHIS2 `2.41.8.1` (`dhis2/core:41` from Docker Hub, `make dhis2-run DHIS2_VERSION=41`). Login as `admin/district`.
+**Observed on:** DHIS2 `2.41.8.1` (`dhis2/core:41` from Docker Hub, `make dhis2-run DHIS2_VERSION=v41`). Login as `admin/district`.
 
 **Repro (against any v41 instance):**
 
@@ -3140,7 +3140,7 @@ curl -sf -u admin:district -X POST 'http://localhost:8080/api/oAuth2Clients' \
 
 ### 40. v43: `E1055` enrollment error message says `categoryCombo` but actually fires on `enrollmentCategoryCombo`
 
-**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub, `make dhis2-run DHIS2_VERSION=43`). Login as `admin/district`. Discovered while bisecting nightly E2E failures where `tracker_clinic_intake.py` failed after `program_set_enrollment_category_combo.py` mutated the seeded Child Programme.
+**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub, `make dhis2-run DHIS2_VERSION=v43`). Login as `admin/district`. Discovered while bisecting nightly E2E failures where `tracker_clinic_intake.py` failed after `program_set_enrollment_category_combo.py` mutated the seeded Child Programme.
 
 **Repro (against a v43 instance whose `Child Programme` (`IpHINAT79UW`) has `enrollmentCategoryCombo` set to a non-default CC):**
 
@@ -3227,7 +3227,7 @@ curl -sf -u admin:district -X POST 'http://localhost:8080/api/dataValueSets?forc
 
 **How to know it's fixed:** `POST /api/dataValueSets?force=true` (or with `strictCategoryOptionCombos=false`/`strictAttributeOptionCombos=false`) against a v43 stack accepts `HllvX50cXC0` for a DE whose CC is non-default — matching v41 + v42 behaviour.
 
-**Verifier:** None — covered indirectly by `examples/v{N}/client/aggregate_bulk_grouped.py` passing on `make verify-examples DHIS2_VERSION=43`.
+**Verifier:** None — covered indirectly by `examples/v{N}/client/aggregate_bulk_grouped.py` passing on `make verify-examples DHIS2_VERSION=v43`.
 
 ### 42. `GET /api/systemSettings` returns `keyAnalysisDisplayProperty: "name"` (lowercase) — generated `SystemSettings` enum rejects it
 
@@ -3286,9 +3286,9 @@ curl -sf -u admin:district 'https://play.im.dhis2.org/dev-2-42/api/schemas/mapVi
 
 ### 44. v42 `2.42.5`: `POST /api/apiToken` returns 500 (`NotSerializableException: MethodAllowedList`)
 
-**Observed on:** `dhis2/core:2.42.5.0`. Not present on `2.42.4.1` (PAT creation works there). Hit by `make dhis2-run DHIS2_VERSION=42` after bumping the pin to `2.42.5.0` — `infra/scripts/seed_auth.py` mints PATs via `POST /api/apiToken` and every create 500s, so the seed aborts.
+**Observed on:** `dhis2/core:2.42.5.0`. Not present on `2.42.4.1` (PAT creation works there). Hit by `make dhis2-run DHIS2_VERSION=v42` after bumping the pin to `2.42.5.0` — `infra/scripts/seed_auth.py` mints PATs via `POST /api/apiToken` and every create 500s, so the seed aborts.
 
-**Repro:** pin v42 to `2.42.5.0` and `make dhis2-run DHIS2_VERSION=42` — the stack boots healthy but the seed fails on the first PAT create. Equivalently, `POST /api/apiToken` with any valid token-create body (see `infra/scripts/seed_auth.py` for the payload) against a 2.42.5 instance returns 500 (empty body); the server log carries the stacktrace below.
+**Repro:** pin v42 to `2.42.5.0` and `make dhis2-run DHIS2_VERSION=v42` — the stack boots healthy but the seed fails on the first PAT create. Equivalently, `POST /api/apiToken` with any valid token-create body (see `infra/scripts/seed_auth.py` for the payload) against a 2.42.5 instance returns 500 (empty body); the server log carries the stacktrace below.
 
 **Expected:** the token is created and `201` returned with the generated `key` (the 2.42.4.1 behaviour).
 
@@ -3304,7 +3304,7 @@ ApiTokenController.postJsonObject
 
 `org.hisp.dhis.security.apikey.MethodAllowedList` (held by `ApiToken`) is not `Serializable`, so writing the entity into the Hibernate L2 / ehcache cache throws on transaction completion.
 
-**Impact:** any 2.42.5 instance with the L2 cache enabled (the default) cannot create personal access tokens through `/api/apiToken`. In this repo it breaks PAT seeding (`seed_auth.py`), so `make dhis2-run DHIS2_VERSION=42` can't write the `local_basic` profile and live verify-examples / e2e can't run on 2.42.5.
+**Impact:** any 2.42.5 instance with the L2 cache enabled (the default) cannot create personal access tokens through `/api/apiToken`. In this repo it breaks PAT seeding (`seed_auth.py`), so `make dhis2-run DHIS2_VERSION=v42` can't write the `local_basic` profile and live verify-examples / e2e can't run on 2.42.5.
 
 **Workaround in this repo:** v42 pin **held at `2.42.4.1`** in `infra/versions.env` (PAT creation works there). This also parks the `2.42.5` mapView bump (#43): the mapView hand-write was implemented + verified green (lint + unit tests) on a branch, then reverted, because 2.42.5 can't seed. Re-apply both once DHIS2 fixes the serialization (a later 2.42 patch).
 

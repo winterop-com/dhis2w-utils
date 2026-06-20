@@ -103,7 +103,7 @@ def test_profile_from_env_raw_picks_up_version(monkeypatch: pytest.MonkeyPatch, 
     _clear_env(monkeypatch, tmp_path)
     monkeypatch.setenv("DHIS2_URL", "http://localhost:8080")
     monkeypatch.setenv("DHIS2_PAT", "t")
-    monkeypatch.setenv("DHIS2_VERSION", "43")
+    monkeypatch.setenv("DHIS2_VERSION", "v43")
     profile = profile_from_env_raw()
     assert profile is not None
     assert profile.version == Dhis2.V43

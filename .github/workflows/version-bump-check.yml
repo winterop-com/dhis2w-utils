@@ -1,0 +1,85 @@
+name: DHIS2 version bump check
+
+# Weekly check for newer stable `dhis2/core` patch releases. For every non-held
+# minor whose `infra/versions.env` pin is behind, this bumps the pin, regenerates
+# the matching `generated/v{N}` tree against the new image, and opens a PR. The
+# codegen snapshot + e2e suites then gate the schema diff — a mapView-style schema
+# removal (BUGS.md #43) shows up as a red PR instead of a silent breakage.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: version-bump-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    name: detect newer patches
+    runs-on: ubuntu-latest
+    outputs:
+      bumps: ${{ steps.detect.outputs.bumps }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv python install 3.13
+      - run: make install
+      - id: detect
+        run: make dhis2-versions-check
+
+  bump:
+    name: bump ${{ matrix.bump.tree }} -> ${{ matrix.bump.latest }}
+    needs: detect
+    if: needs.detect.outputs.bumps != '' && needs.detect.outputs.bumps != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        bump: ${{ fromJSON(needs.detect.outputs.bumps) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv python install 3.13
+      - run: make install
+      - name: Make infra/home writeable by container users
+        run: chmod -R a+rwX infra/home
+      - name: Bump the pin in versions.env
+        run: |
+          sed -i "s|^DHIS2_V${{ matrix.bump.minor }}=.*|DHIS2_V${{ matrix.bump.minor }}=${{ matrix.bump.latest }}|" infra/versions.env
+          grep "^DHIS2_V${{ matrix.bump.minor }}=" infra/versions.env
+      - name: Regenerate codegen against the new image
+        # Boots a fresh dhis2/core:${{ matrix.bump.latest }} stack, runs codegen for
+        # this version only, restores the committed dumps on exit.
+        run: infra/scripts/codegen_all_versions.sh ${{ matrix.bump.tree }}
+      - name: Open the bump PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/bump-${{ matrix.bump.tree }}-${{ matrix.bump.latest }}
+          title: "chore(deps): bump DHIS2 ${{ matrix.bump.tree }} image to ${{ matrix.bump.latest }}"
+          commit-message: "chore(deps): bump DHIS2 ${{ matrix.bump.tree }} image to ${{ matrix.bump.latest }}"
+          add-paths: |
+            infra/versions.env
+            packages/dhis2w-client/src/dhis2w_client/generated/${{ matrix.bump.tree }}
+          body: |
+            Automated by `version-bump-check.yml`: Docker Hub has a newer stable
+            `${{ matrix.bump.tree }}` patch.
+
+            - `infra/versions.env`: `${{ matrix.bump.current }}` -> `${{ matrix.bump.latest }}`
+            - Regenerated `generated/${{ matrix.bump.tree }}` against the new image.
+
+            The codegen snapshot + e2e suites gate the schema diff. If the
+            regenerated tree drops a symbol that hand-written code imports (the
+            mapView class, etc.), CI goes red here rather than breaking `import
+            dhis2w_client` for everyone — review the generated diff before merging.

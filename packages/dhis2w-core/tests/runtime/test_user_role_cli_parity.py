@@ -18,7 +18,7 @@ from typer.testing import CliRunner
 
 def _build_versioned_app(core_version: str, monkeypatch: pytest.MonkeyPatch) -> Typer:
     """Build the CLI app pinned to `core_version` (so it discovers that tree's plugins)."""
-    monkeypatch.setenv("DHIS2_VERSION", core_version.removeprefix("v"))
+    monkeypatch.setenv("DHIS2_VERSION", core_version)
     return build_app()
 
 

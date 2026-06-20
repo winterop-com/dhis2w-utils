@@ -22,7 +22,8 @@ from verify_examples import (  # noqa: E402 — path-prepend intentional
 
 def test_discover_examples_returns_cli_client_mcp() -> None:
     """Discovery yields files under every existing surface."""
-    paths = discover_examples()
+    # v42 is the canonical baseline tree and is always present in the checkout.
+    paths = discover_examples("v42")
     assert paths, "expected at least one example in the repo"
     surfaces = {p.parent.name for p in paths}
     # The workspace always ships all three surfaces; make the test tolerant

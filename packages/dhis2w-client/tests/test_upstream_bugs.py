@@ -7,7 +7,7 @@ Every test here is marked `@pytest.mark.upstream_bug` and comes in two flavours:
   via `make test`. These document the bug pattern but don't auto-detect
   upstream fixes.
 - **Live (slow, opt-in)** — `@pytest.mark.slow` tests that hit the local
-  docker DHIS2 stack (`make dhis2-run DHIS2_VERSION=N`) and verify the
+  docker DHIS2 stack (`make dhis2-run DHIS2_VERSION=vN`) and verify the
   bug is still present on the actual wire. When DHIS2 ships an upstream
   fix, these fail loudly — the signal to drop the workaround. Each live
   test skips unless `client.version_key` matches the bug's target major,
@@ -345,7 +345,7 @@ async def test_bug_39_workaround_v41_register_emits_cid_not_clientid() -> None:
 # Live bug re-verification — opt-in via @pytest.mark.slow.
 #
 # These tests hit the local docker DHIS2 stack (`make dhis2-run
-# DHIS2_VERSION=N`). Each one skips unless the connected server matches
+# DHIS2_VERSION=vN`). Each one skips unless the connected server matches
 # the bug's target major, so you don't need all three stacks running at
 # once. When DHIS2 ships an upstream fix, the bug-still-present assertion
 # starts failing — that's the loud signal to drop the workaround.
@@ -377,7 +377,7 @@ def _skip_unless_version(client: Dhis2Client, targets: str | frozenset[str]) -> 
 async def test_bug_33_v43_live_save_returns_empty_coc_matrix(local_url: str) -> None:
     """BUGS.md #33 — bug-still-present (LIVE v43): real save leaves COC matrix empty.
 
-    Requires `make dhis2-run DHIS2_VERSION=43`. Creates a CategoryCombo over
+    Requires `make dhis2-run DHIS2_VERSION=v43`. Creates a CategoryCombo over
     an existing seeded Category, GETs the just-created combo, asserts the
     `categoryOptionCombos` list is empty (the bug). Cleans up afterwards.
     If DHIS2 fixes the bug upstream, the assertion fails — verify upstream,
@@ -422,7 +422,7 @@ async def test_bug_33_v43_live_save_returns_empty_coc_matrix(local_url: str) -> 
 async def test_bug_34_v43_live_categorys_alias_silently_dropped(local_url: str) -> None:
     """BUGS.md #34 — bug-still-present (LIVE v43): POST with `categorys` persists no categories.
 
-    Requires `make dhis2-run DHIS2_VERSION=43`. POSTs a CategoryCombo using
+    Requires `make dhis2-run DHIS2_VERSION=v43`. POSTs a CategoryCombo using
     the misspelled `categorys` field. Reads back; asserts `categories: []`.
     If DHIS2 re-adds the alias (or starts 4xx-ing on unknown fields), the
     assertion fails.
@@ -466,7 +466,7 @@ async def test_bug_34_v43_live_categorys_alias_silently_dropped(local_url: str) 
 async def test_bug_38_v43_live_sharing_schema_lacks_external_access(local_url: str) -> None:
     """BUGS.md #38 — bug-still-present (LIVE v43): `/api/schemas/sharingObject` does not list `externalAccess`.
 
-    Requires `make dhis2-run DHIS2_VERSION=43`. Reads the schema directly
+    Requires `make dhis2-run DHIS2_VERSION=v43`. Reads the schema directly
     from DHIS2 (no mutation needed) and asserts the field is absent.
     Note: v43 itself 404s on `/api/schemas/sharingObject` (the endpoint
     was removed entirely) — that's a stronger form of "externalAccess
@@ -495,7 +495,7 @@ async def test_bug_38_v43_live_sharing_schema_lacks_external_access(local_url: s
 async def test_bug_39_v41_live_oauth2_rejects_v42_shape(local_url: str) -> None:
     """BUGS.md #39 — bug-still-present (LIVE v41): v41 doesn't accept the v42 `clientId` shape.
 
-    Requires `make dhis2-run DHIS2_VERSION=41`. POSTs a v42-shape OAuth2 client
+    Requires `make dhis2-run DHIS2_VERSION=v41`. POSTs a v42-shape OAuth2 client
     (using `clientId`, not `cid`) directly via raw POST. On the originally-observed
     v41 build the server silently persisted with empty `cid`; on `2.41.8.1` it
     rejects loudly with 409 `Missing required property cid` (E4000). Either

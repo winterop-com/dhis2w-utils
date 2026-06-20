@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -33,12 +33,14 @@ help:
 	@echo "  dhis2-run        Start the stack, seed auth, stream logs (Ctrl+C tears it down)"
 	@echo "  dhis2-seed       (re-)seed PATs + OAuth2 client against an already-running stack"
 	@echo "  dhis2-down       Stop the local DHIS2 stack"
-	@echo "  dhis2-build-e2e-dump  Wipe + populate a fresh DHIS2 with test data, regenerate infra/v\$$(DHIS2_VERSION)/dump.sql.gz"
+	@echo "  dhis2-versions-check  Show whether any pinned DHIS2 minor is behind the latest Docker Hub patch"
+	@echo "  dhis2-versions-bump   Rewrite versions.env to the latest patch for each non-held minor (then regenerate codegen)"
+	@echo "  dhis2-build-e2e-dump  Wipe + populate a fresh DHIS2 with test data, regenerate infra/\$$(DHIS2_VERSION)/dump.sql.gz"
 	@echo "  refresh-setup         Wipe + rebuild e2e dump + seed (no example verify — fast iteration on setup)"
 	@echo "  refresh-and-verify    Rebuild dump + seed + run every example (turns the PR #125 ritual into one command)"
 	@echo ""
 	@echo "Code generation + examples:"
-	@echo "  dhis2-codegen-all     Spin up DHIS2 41/42/43 in turn and regenerate each v{N}/ (~40 min; pass VERSIONS=\"41 42 43\" to narrow)"
+	@echo "  dhis2-codegen-all     Spin up DHIS2 v41/v42/v43 in turn and regenerate each v{N}/ (~40 min; pass VERSIONS=\"v41 v42 v43\" to narrow)"
 	@echo "  dhis2-codegen-play    Refresh v42 + v43 generated/ trees against play.im.dhis2.org (no docker)"
 	@echo "  verify-examples       Run every non-interactive example + print PASS/FAIL summary"
 	@echo ""
@@ -112,16 +114,16 @@ coverage:
 # version so the output is reproducible everywhere — CI (no profile) and local dev
 # (any active profile) alike. The sentinel DHIS2_PROFILE makes profile resolution
 # miss, so DHIS2_VERSION wins instead of whatever .dhis2 profile happens to be active.
-DOCS_DHIS2_VERSION ?= 42
+DOCS_DHIS2_VERSION ?= v42
 DOCS_PIN := DHIS2_PROFILE=__docs_no_profile__ DHIS2_VERSION=$(DOCS_DHIS2_VERSION)
 
 docs-cli:
-	@echo ">>> Regenerating CLI reference from the Typer app (pinned to v$(DOCS_DHIS2_VERSION))"
+	@echo ">>> Regenerating CLI reference from the Typer app (pinned to $(DOCS_DHIS2_VERSION))"
 	@$(DOCS_PIN) $(UV) run typer dhis2w_cli.main utils docs --name d2w --title "CLI reference" --output docs/cli-reference.md
 	@echo "    wrote docs/cli-reference.md"
 
 docs-mcp:
-	@echo ">>> Regenerating MCP tool reference from the FastMCP server (pinned to v$(DOCS_DHIS2_VERSION))"
+	@echo ">>> Regenerating MCP tool reference from the FastMCP server (pinned to $(DOCS_DHIS2_VERSION))"
 	@$(DOCS_PIN) $(UV) run python -u infra/scripts/gen_mcp_reference.py
 
 docs-serve: docs-cli docs-mcp
@@ -159,7 +161,7 @@ deps-upgrade:
 	@$(UV) sync --all-packages --all-extras
 
 dhis2-run:
-	@DHIS2_VERSION=$(or $(DHIS2_VERSION),43) infra/scripts/dhis2_run.sh
+	@DHIS2_VERSION=$(or $(DHIS2_VERSION),v43) infra/scripts/dhis2_run.sh
 
 dhis2-seed:
 	@$(MAKE) -C infra seed
@@ -168,7 +170,13 @@ dhis2-down:
 	@$(MAKE) -C infra down
 
 dhis2-build-e2e-dump:
-	@$(MAKE) -C infra build-e2e-dump DHIS2_VERSION=$(or $(DHIS2_VERSION),43)
+	@$(MAKE) -C infra build-e2e-dump DHIS2_VERSION=$(or $(DHIS2_VERSION),v43)
+
+dhis2-versions-check:
+	@$(UV) run python infra/scripts/check_version_bumps.py
+
+dhis2-versions-bump:
+	@$(UV) run python infra/scripts/check_version_bumps.py --apply
 
 dhis2-codegen-all:
 	@infra/scripts/codegen_all_versions.sh $(VERSIONS)
@@ -193,13 +201,13 @@ refresh-analytics:
 	fi
 
 verify-examples:
-	@echo ">>> Running every non-interactive example against profile $${DHIS2_PROFILE:-local_basic} (DHIS2 v$(or $(DHIS2_VERSION),42))"
+	@echo ">>> Running every non-interactive example against profile $${DHIS2_PROFILE:-local_basic} (version resolved from the profile)"
 	@if [ -f infra/home/credentials/.env.auth ]; then \
 		set -a; . infra/home/credentials/.env.auth; set +a; \
-		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python -u infra/scripts/verify_examples.py; \
+		DHIS2_VERSION=$(DHIS2_VERSION) $(UV) run python -u infra/scripts/verify_examples.py; \
 	else \
 		echo "    note: infra/home/credentials/.env.auth missing — env-dependent examples (profile_crud.py) will fail"; \
-		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python -u infra/scripts/verify_examples.py; \
+		DHIS2_VERSION=$(DHIS2_VERSION) $(UV) run python -u infra/scripts/verify_examples.py; \
 	fi
 
 bench-list:
@@ -306,9 +314,9 @@ refresh-and-verify:
 	@$(MAKE) dhis2-build-e2e-dump
 	@echo ">>> [2/3] Seeding PATs + OAuth2 client (writes .env.auth)"
 	@$(MAKE) -C infra seed
-	@echo ">>> [3/3] Verifying every non-interactive example (DHIS2 v$(or $(DHIS2_VERSION),42))"
+	@echo ">>> [3/3] Verifying every non-interactive example (DHIS2 $(or $(DHIS2_VERSION),v42))"
 	@set -a; . infra/home/credentials/.env.auth; set +a; \
-		DHIS2_VERSION=$(or $(DHIS2_VERSION),42) $(UV) run python -u infra/scripts/verify_examples.py
+		DHIS2_VERSION=$(or $(DHIS2_VERSION),v42) $(UV) run python -u infra/scripts/verify_examples.py
 
 clean:
 	@echo ">>> Cleaning"

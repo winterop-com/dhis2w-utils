@@ -95,6 +95,17 @@ d2w system info
 
 The `d2w --version` (or `-V`) flag prints the bound `dhis2w-cli` / `dhis2w-core` versions plus the active plugin tree — useful when debugging mismatch between the CLI and the DHIS2 server's reported version.
 
+### Exporting a profile into the shell
+
+`d2w profile env [NAME]` prints `export DHIS2_*` lines for a profile so you can load its connection settings into the current shell (or a CI job) without a TOML file. It is an offline read — the wire client still auto-detects the DHIS2 version on connect; the emitted `DHIS2_VERSION` is the profile's version pin (which major's plugin tree the CLI/MCP binds).
+
+```bash
+d2w profile env local_basic              # print the export lines
+eval "$(d2w profile env local_basic)"    # load them into the current shell
+```
+
+The command only writes to stdout — it cannot mutate your shell, so wrap it in `eval "$(...)"` (or copy-paste). Values are printed as-is, including the password / token (already plaintext in `.dhis2/profiles.toml`), so the output is directly usable. For a redacted view (e.g. screen-sharing) use `d2w profile show` instead.
+
 ## Verifying the install
 
 ```bash

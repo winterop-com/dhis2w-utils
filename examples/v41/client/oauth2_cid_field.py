@@ -10,7 +10,7 @@ get `None`. The fix is to consult both fields (or specifically the
 v41-correct `cid`) and prefer it when present.
 
 This example fetches the existing OAuth2 clients seeded by
-`make dhis2-run DHIS2_VERSION=41` and prints both `id` and `cid`
+`make dhis2-run DHIS2_VERSION=v41` and prints both `id` and `cid`
 columns so the v41 wire shape is visible.
 
 For the corresponding write-side fix, see

@@ -38,7 +38,7 @@ from dhis2w_core.v43.plugins.system.service import server_info
 
 info = await server_info()
 # -> ServerInfo(active_plugin_tree="v43",
-#               active_plugin_tree_source="DHIS2_VERSION='43' env",
+#               active_plugin_tree_source="DHIS2_VERSION='v43' env",
 #               dhis2w_core_version="0.10.0",
 #               dhis2w_mcp_version="0.10.0",
 #               dhis2w_cli_version=None)

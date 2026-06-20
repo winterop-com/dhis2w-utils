@@ -4,7 +4,7 @@ Usage (from repo root): `make dhis2-build-e2e-dump` — brings up an empty
 DHIS2, loads the typed metadata / geometry / data-value / tracker fixtures
 under `infra/fixtures/play/` via the client's pydantic validators, triggers
 analytics, seeds OAuth2 + admin openId mapping + login-page branding, and
-pg_dump's the result into `infra/v{DHIS2_VERSION}/dump.sql.gz`.
+pg_dump's the result into `infra/{DHIS2_VERSION}/dump.sql.gz`.
 
 The actual metadata + data is pulled once from play.dhis2.org (Sierra
 Leone) by `infra/scripts/pull_play_fixtures.py` and committed to
@@ -50,8 +50,8 @@ def _log(message: str) -> None:
 
 
 def default_dump_path(dhis2_version: str) -> Path:
-    """Return the canonical committed-dump path for a given DHIS2 major."""
-    return Path(__file__).resolve().parents[1] / f"v{dhis2_version}" / "dump.sql.gz"
+    """Return the canonical committed-dump path for a given DHIS2 major (vXX)."""
+    return Path(__file__).resolve().parents[1] / dhis2_version / "dump.sql.gz"
 
 
 def run_analytics(analytics_container: str = "analytics-trigger") -> None:
@@ -188,7 +188,7 @@ async def build(url: str, username: str, password: str, output: Path, container:
 
 def main() -> int:
     """Parse args and run the build."""
-    default_version = os.environ.get("DHIS2_VERSION", "42")
+    default_version = os.environ.get("DHIS2_VERSION", "v42")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://localhost:8080")
     parser.add_argument("--username", default="admin")
@@ -196,12 +196,12 @@ def main() -> int:
     parser.add_argument(
         "--dhis2-version",
         default=default_version,
-        help="DHIS2 major version used to name the dump (default: env DHIS2_VERSION or '42')",
+        help="DHIS2 major in vXX form, used to name the dump (default: env DHIS2_VERSION or 'v42')",
     )
     parser.add_argument(
         "--output",
         default=None,
-        help="where to write the gzipped dump (default: infra/v{dhis2-version}/dump.sql.gz)",
+        help="where to write the gzipped dump (default: infra/{dhis2-version}/dump.sql.gz)",
     )
     parser.add_argument(
         "--container",

@@ -1,13 +1,17 @@
 .PHONY: help versions pull build up up-fresh up-seeded down clean status logs ps pat seed profile wait build-e2e-dump
 .DEFAULT_GOAL := help
 
-DHIS2_VERSION  ?= 43
+DHIS2_VERSION  ?= v43
 DHIS2_URL      ?= http://localhost:8080
 DHIS2_USER     ?= admin
 DHIS2_PASS     ?= district
 # Resolve the pinned Docker tag from versions.env (`DHIS2_V41=2.41.8.1` etc.).
-# A dotted DHIS2_VERSION (e.g. "2.43.0.0") bypasses the lookup.
+# DHIS2_VERSION is the vXX key (v41 | v42 | v43); a dotted tag (e.g. "2.43.0.0")
+# bypasses the lookup. An invalid value yields an empty tag and a hard error.
 DHIS2_IMAGE_TAG := $(shell scripts/_resolve_image_tag.sh $(DHIS2_VERSION))
+ifeq ($(strip $(DHIS2_IMAGE_TAG)),)
+$(error DHIS2_VERSION '$(DHIS2_VERSION)' is invalid — use the vXX form (e.g. v43) or a full dotted tag; see scripts/_resolve_image_tag.sh)
+endif
 COMPOSE        := DHIS2_VERSION=$(DHIS2_VERSION) DHIS2_IMAGE_TAG=$(DHIS2_IMAGE_TAG) docker compose -f compose.yml -f compose.pgadmin.yml
 
 help: ## show this help
@@ -17,7 +21,7 @@ versions: ## list DHIS2 images available on Docker Hub (pick one for `make up DH
 	@cd .. && uv run python infra/scripts/list_versions.py
 
 pull: ## pull the selected DHIS2 version (default: 43)
-	@echo ">>> Pulling dhis2/core:$(DHIS2_VERSION)"
+	@echo ">>> Pulling dhis2/core:$(DHIS2_IMAGE_TAG)"
 	@$(COMPOSE) pull
 
 build: ## build supporting images (postgres + glowroot-installer)
@@ -28,11 +32,13 @@ up: ## start the base stack in the background (keeps volumes)
 	@echo ">>> Starting DHIS2 $(DHIS2_VERSION) + pgAdmin"
 	@$(COMPOSE) up -d --remove-orphans
 
-up-fresh: ## wipe volumes + logs, then start the base stack
+up-fresh: ## wipe volumes + logs, then start the base stack (always pulls the pinned image fresh)
 	@echo ">>> Fresh start for DHIS2 $(DHIS2_VERSION)"
 	@rm -rf home/logs/*
 	@$(COMPOSE) down -v
-	@$(COMPOSE) up -d --remove-orphans
+	# `--pull always` so codegen + e2e-dump builds always regenerate against the
+	# exact registry image for the pin, never a stale local cache.
+	@$(COMPOSE) up -d --pull always --remove-orphans
 
 down: ## stop the stack (keeps volumes)
 	@echo ">>> Stopping stack"
@@ -64,8 +70,8 @@ seed: ## seed standard PAT variations + OAuth2 client into the running stack
 	@cd .. && uv run --with bcrypt python infra/scripts/seed_auth.py --url $(DHIS2_URL) --username $(DHIS2_USER) --password $(DHIS2_PASS)
 
 profile: ## write project-scoped `local_basic` Basic-auth profile to <repo>/.dhis2/profiles.toml
-	@echo ">>> Writing local_basic profile (DHIS2 v$(DHIS2_VERSION))"
-	@cd .. && DHIS2_PASSWORD=$(DHIS2_PASS) uv run d2w profile add local_basic --local --auth basic --url $(DHIS2_URL) --username $(DHIS2_USER) --version v$(DHIS2_VERSION) --default
+	@echo ">>> Writing local_basic profile (DHIS2 $(DHIS2_VERSION))"
+	@cd .. && DHIS2_PASSWORD=$(DHIS2_PASS) uv run d2w profile add local_basic --local --auth basic --url $(DHIS2_URL) --username $(DHIS2_USER) --version $(DHIS2_VERSION) --default
 
 up-seeded: ## up + wait + seed + profile — one-shot "I want a DHIS2 with auth ready"
 	@$(MAKE) up
@@ -73,7 +79,7 @@ up-seeded: ## up + wait + seed + profile — one-shot "I want a DHIS2 with auth 
 	@$(MAKE) seed
 	@$(MAKE) profile
 
-build-e2e-dump: ## populate a fresh DHIS2 with test metadata + data + analytics, then dump to infra/v$(DHIS2_VERSION)/dump.sql.gz
+build-e2e-dump: ## populate a fresh DHIS2 with test metadata + data + analytics, then dump to infra/$(DHIS2_VERSION)/dump.sql.gz
 	@echo ">>> Building e2e dump for DHIS2 $(DHIS2_VERSION) — this WIPES any existing volume state"
 	@$(MAKE) up-fresh
 	@$(MAKE) wait
