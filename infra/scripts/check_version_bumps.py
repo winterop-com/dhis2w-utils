@@ -10,6 +10,7 @@ can fan out a bump + codegen-regen PR per version.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -99,8 +100,29 @@ def find_bumps(pins: list[Pin], latest: dict[int, str]) -> list[Bump]:
     return bumps
 
 
+def apply_bumps(versions_env: Path, bumps: list[Bump]) -> None:
+    """Rewrite each bumped pin in versions.env in place, preserving any trailing comment."""
+    text = versions_env.read_text(encoding="utf-8")
+    for bump in bumps:
+        text = re.sub(
+            rf"^(DHIS2_V{bump.minor}=){re.escape(bump.current)}\b",
+            rf"\g<1>{bump.latest}",
+            text,
+            flags=re.MULTILINE,
+        )
+    versions_env.write_text(text, encoding="utf-8")
+
+
 def main() -> int:
-    """Print a human summary and, under GitHub Actions, emit the `bumps` JSON output."""
+    """Print a summary; with --apply rewrite versions.env; under GitHub Actions emit `bumps` JSON."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Rewrite versions.env to the latest patch for each non-held minor that is behind.",
+    )
+    args = parser.parse_args()
+
     versions_env = Path(__file__).resolve().parent.parent / "versions.env"
     pins = read_pins(versions_env)
     try:
@@ -118,6 +140,16 @@ def main() -> int:
             print(f"  v{pin.minor}: {pin.tag} -> {newest}  BUMP AVAILABLE")
         else:
             print(f"  v{pin.minor}: {pin.tag} (current)")
+
+    if args.apply:
+        if bumps:
+            apply_bumps(versions_env, bumps)
+            trees = " ".join(bump.tree for bump in bumps)
+            print(
+                f'\nApplied {len(bumps)} bump(s) to versions.env. Regenerate: make dhis2-codegen-all VERSIONS="{trees}"'
+            )
+        else:
+            print("\nNothing to apply — every non-held pin is current.")
 
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
