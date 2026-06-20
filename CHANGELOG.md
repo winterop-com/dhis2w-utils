@@ -1,6 +1,38 @@
 # Changelog
 
-## 1.0.0.dev0 (in development)
+## 1.0.0.dev1 (in development)
+
+Development snapshot. Not a published release — no tag, no PyPI upload.
+
+### Profiles + version selection
+
+- **`d2w profile env [NAME]`** prints `export DHIS2_*` lines for a profile, so its connection settings load
+  into a shell or CI via `eval "$(d2w profile env NAME)"`. Offline read; values printed as-is (already
+  plaintext in `profiles.toml`) — `d2w profile show` remains the redacted view.
+- **`verify-examples` follows the active profile's version.** The harness resolves the example tree via the
+  same `resolve_startup_version()` chain the CLI/MCP use, so a v41-pinned profile runs `examples/v41/...`.
+
+### DHIS2_VERSION standardized on the vXX form (strict)
+
+- `DHIS2_VERSION` now uses the `vXX` key (`v41` | `v42` | `v43`) everywhere — matching the profile `version`,
+  the plugin trees, `examples/`, and the `infra/` dump dirs. A bare digit is rejected; infra hard-errors with
+  a "use vXX" message.
+
+### DHIS2 image pins + bump tooling
+
+- `make dhis2-versions-check` reports whether any pinned minor is behind the latest Docker Hub patch;
+  `make dhis2-versions-bump` rewrites `versions.env` to the latest non-held patches. A weekly
+  `version-bump-check` workflow opens reviewed bump + codegen-regen PRs.
+- Bumped v41 to `2.41.8.2` and v43 to `2.43.0.1` (pure-bugfix patches, no schema change); v42 held at
+  `2.42.4.1` (mapView, BUGS.md #43). `--pull always` on the codegen boot uses the exact registry image.
+
+### Fixes
+
+- `make dhis2-run` exits cleanly on Ctrl+C instead of `Error 130`.
+- The v41 and v43 plugin trees now accept `d2w profile add --version v42` (a tree-copy sed had corrupted the
+  validator allow-list).
+
+## 1.0.0.dev0
 
 Development snapshot on the road to 1.0.0. Not a published release — no tag, no PyPI upload. The version
 is stamped to mark the surface as feature-frozen for 1.0; the remaining work is hardening, not new features.
