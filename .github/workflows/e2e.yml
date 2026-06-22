@@ -33,7 +33,7 @@ jobs:
       matrix:
         dhis2_version: ["v41", "v42", "v43"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Check DHIS2 dump is present
         run: |
