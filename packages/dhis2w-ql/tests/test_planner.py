@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dhis2w_ql import SourceCapabilities, parse_pipeline, plan_pipeline
+from dhis2w_ql import QueryPlan, SourceCapabilities, parse_pipeline, plan_pipeline
 
 _CAPABLE = SourceCapabilities(filter=True, order=True, paging=True)
 _INCAPABLE = SourceCapabilities()
 
 
-def _plan(text: str, capabilities: SourceCapabilities = _CAPABLE):
+def _plan(text: str, capabilities: SourceCapabilities = _CAPABLE) -> QueryPlan:
     pipeline = parse_pipeline(text)
     return plan_pipeline("dataElements", capabilities, pipeline.stages)
 

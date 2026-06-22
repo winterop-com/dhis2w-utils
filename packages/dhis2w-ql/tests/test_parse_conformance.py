@@ -8,6 +8,7 @@ from dhis2w_ql import (
     Evaluator,
     LexError,
     ParseError,
+    Sample,
     generate,
     parse,
     parse_expression,
@@ -26,7 +27,7 @@ _PATIENT = {
 
 
 @pytest.mark.parametrize("sample", SAMPLES, ids=[s.id for s in SAMPLES])
-def test_every_curated_sample_parses(sample) -> None:
+def test_every_curated_sample_parses(sample: Sample) -> None:
     if sample.language == "d2path":
         parse_expression(sample.source)
     else:

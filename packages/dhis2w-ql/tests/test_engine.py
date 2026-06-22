@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from dhis2w_ql import InMemoryBinder, QueryEngine, parse
 
@@ -80,7 +81,7 @@ async def test_run_define_directly() -> None:
     assert [r["id"] for r in result.rows] == ["a1", "b2"]
 
 
-async def test_csv_sink(tmp_path) -> None:
+async def test_csv_sink(tmp_path: Path) -> None:
     path = tmp_path / "out.csv"
     text = f'dataElements | transform {{ code: id, label: name }} >> "{path}"'
     result = await _engine(text).run_terminal()
@@ -90,7 +91,7 @@ async def test_csv_sink(tmp_path) -> None:
     assert "a1,ANC 1st visit" in body
 
 
-async def test_json_sink(tmp_path) -> None:
+async def test_json_sink(tmp_path: Path) -> None:
     path = tmp_path / "out.json"
     text = f'dataElements | select id >> "{path}"'
     await _engine(text).run_terminal()
