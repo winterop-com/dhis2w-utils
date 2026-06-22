@@ -1,0 +1,18 @@
+[project]
+name = "dhis2w-ql"
+version = "1.0.0.dev2"
+description = "d2ql: a pipeline query + transform language with a FHIRPath-compatible expression core. Pure engine (tokenizer, parser, evaluator, planner) with no DHIS2 or FHIR runtime dependency."
+readme = "README.md"
+authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.13",
+]
+
+# Domain-neutral: depends only on pydantic, no dhis2w-* or FHIR imports. The DHIS2 binding
+# (DataSource, pushdown compiler, CLI, MCP) lives in the `query` plugin in dhis2w-core; FHIR is
+# a consumer of the engine, never a dependency. This member can graduate to publish on its own.
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
