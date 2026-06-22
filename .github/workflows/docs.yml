@@ -38,7 +38,7 @@ jobs:
     name: Build mkdocs site
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # mkdocs-material's git-revision-date plugin needs full history
           # if we ever enable it; cheap to fetch and future-proof.
