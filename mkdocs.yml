@@ -170,6 +170,7 @@ nav:
       - Reference: cli-reference.md
   - MCP:
       - Overview: mcp/index.md
+      - Surfaces compared: architecture/mcp-surfaces.md
       - Full server:
           - Tutorial: mcp/tutorial.md
           - Architecture: architecture/mcp.md
@@ -177,6 +178,8 @@ nav:
       - Bridge:
           - Usage: mcp/bridge.md
           - Design: architecture/mcp-bridge.md
+      - Router:
+          - Design: architecture/mcp-router.md
   - Project:
       - Overview: project/index.md
       - Feature catalog: project/features.md

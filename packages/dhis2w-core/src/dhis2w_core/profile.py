@@ -71,6 +71,10 @@ class ProfileVersionMismatchError(RuntimeError):
     """Raised when a per-call profile pins a different DHIS2 major than the bound tree."""
 
 
+class ProfileAlreadyExistsError(ValueError):
+    """Raised when a rename / create would clobber an existing profile name."""
+
+
 _bound_version_key: str | None = None
 
 
@@ -115,7 +119,7 @@ def _check_bound_tree(resolved: ResolvedProfile) -> None:
         f"with the {_bound_version_key!r} plugin tree. Tools dispatched against this "
         f"profile would parse a v{target_major} DHIS2 server's payloads through "
         f"{_bound_version_key} schemas, silently round-tripping renamed or added fields wrong. "
-        f"Restart with `DHIS2_VERSION={target_major} dhis2w-mcp` to target this profile."
+        f"Restart with `DHIS2_VERSION={profile_key} dhis2w-mcp` to target this profile."
     )
 
 

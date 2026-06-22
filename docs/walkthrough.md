@@ -47,7 +47,7 @@ make dhis2-run
 
 For niche targets (image discovery, readiness probe, log tail, PAT helper) `make -C infra help`.
 
-Defaults to DHIS2 43, admin / district, http://localhost:8080. Use `DHIS2_VERSION=42` for the seeded v42 stack.
+Defaults to DHIS2 43, admin / district, http://localhost:8080. Use `DHIS2_VERSION=v42` for the seeded v42 stack.
 
 Verify with an authenticated call from `dhis2w-client` itself — no curl:
 
@@ -63,7 +63,7 @@ asyncio.run(main())
 "
 ```
 
-Expect: `version: 2.43.x` (or `2.42.x` if you ran with `DHIS2_VERSION=42`).
+Expect: `version: 2.43.x` (or `2.42.x` if you ran with `DHIS2_VERSION=v42`).
 
 ---
 

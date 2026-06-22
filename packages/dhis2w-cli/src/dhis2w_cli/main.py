@@ -59,12 +59,7 @@ def _version_banner() -> str:
         pkg_version = "unknown"
     active = resolve_startup_version()
     env_version = os.environ.get("DHIS2_VERSION", "").strip()
-    if (
-        env_version in {"41", "42", "43"}
-        and f"v{env_version}" == active
-        or env_version in {"v41", "v42", "v43"}
-        and env_version == active
-    ):
+    if env_version in {"v41", "v42", "v43"} and env_version == active:
         source = f"DHIS2_VERSION={env_version!r} env"
     elif active == DEFAULT_VERSION_KEY:
         source = "default (no profile.version, no DHIS2_VERSION env)"

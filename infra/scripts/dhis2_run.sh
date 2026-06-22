@@ -9,13 +9,13 @@
 
 set -euo pipefail
 
-DHIS2_VERSION="${DHIS2_VERSION:-43}"
+DHIS2_VERSION="${DHIS2_VERSION:-v43}"
 DHIS2_URL="${DHIS2_URL:-http://localhost:8080}"
 DHIS2_USER="${DHIS2_USER:-admin}"
 DHIS2_PASS="${DHIS2_PASS:-district}"
 
 # Resolve `DHIS2_IMAGE_TAG` (the actual Docker tag) from `DHIS2_VERSION` (the
-# minor key) via `infra/versions.env`. Compose reads `DHIS2_IMAGE_TAG` for the
+# vXX key) via `infra/versions.env`. Compose reads `DHIS2_IMAGE_TAG` for the
 # image and `DHIS2_VERSION` for the dump-path lookup.
 # shellcheck source=_resolve_image_tag.sh
 . "$(dirname "$0")/_resolve_image_tag.sh"
@@ -28,15 +28,18 @@ cleanup() {
   echo
   echo ">>> Stopping DHIS2 stack ..."
   (cd "$INFRA_DIR" && DHIS2_VERSION="$DHIS2_VERSION" DHIS2_IMAGE_TAG="$DHIS2_IMAGE_TAG" "${COMPOSE[@]}" down)
+  # Ctrl+C (SIGINT) is the normal "I'm done, tear it down" gesture — exit clean
+  # so `make dhis2-run` doesn't report `Error 130` after a tidy teardown.
+  exit 0
 }
 trap cleanup INT TERM
 
 # Wipe any prior volume first: a version switch must not boot a different major's DB (Flyway
 # rejects the unknown migrations). The seeded dump reloads on the fresh volume — this is the
 # documented "data resets on every make dhis2-run" behaviour.
-echo ">>> Resetting volumes for a clean v$DHIS2_VERSION boot ..."
+echo ">>> Resetting volumes for a clean $DHIS2_VERSION boot ..."
 DHIS2_VERSION="$DHIS2_VERSION" DHIS2_IMAGE_TAG="$DHIS2_IMAGE_TAG" "${COMPOSE[@]}" down -v --remove-orphans
-echo ">>> Starting DHIS2 v$DHIS2_VERSION (image dhis2/core:$DHIS2_IMAGE_TAG) — detached ..."
+echo ">>> Starting DHIS2 $DHIS2_VERSION (image dhis2/core:$DHIS2_IMAGE_TAG) — detached ..."
 DHIS2_VERSION="$DHIS2_VERSION" DHIS2_IMAGE_TAG="$DHIS2_IMAGE_TAG" "${COMPOSE[@]}" up -d --remove-orphans
 
 echo ">>> Waiting for DHIS2 readiness ..."

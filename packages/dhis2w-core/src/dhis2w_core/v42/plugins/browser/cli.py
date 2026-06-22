@@ -11,7 +11,6 @@ import typer
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import is_json_output
-from dhis2w_core.v42.plugins.browser import service
 
 
 def register(app: Any) -> None:
@@ -81,8 +80,10 @@ def pat_command(
     persistent immediately. Subsequent `GET /api/apiToken/{id}` calls return
     metadata but not the secret.
     """
+    from dhis2w_core.v42.plugins.browser import service
+
     service.require_browser()
-    from dhis2w_browser import PatOptions  # noqa: PLC0415 — optional-extra guard
+    from dhis2w_browser import PatOptions
 
     options = PatOptions(
         name=name,
@@ -145,6 +146,8 @@ def dashboard_screenshot_command(
     content (canvas / svg / leaflet / highcharts / img / long text) with
     a plateau detector so one stuck item doesn't stall the batch.
     """
+    from dhis2w_core.v42.plugins.browser import service
+
     profile = profile_from_env()
     resolved_output_dir = output_dir if output_dir is not None else Path.cwd() / "screenshots"
     results = asyncio.run(
@@ -223,6 +226,8 @@ def viz_screenshot_command(
     `uv add 'dhis2w-cli[browser]'` + `playwright install
     chromium` first.
     """
+    from dhis2w_core.v42.plugins.browser import service
+
     service.require_browser()
     profile = profile_from_env()
     resolved_output_dir = output_dir if output_dir is not None else Path.cwd() / "screenshots"
@@ -294,6 +299,8 @@ def map_screenshot_command(
     snapping. Requires the `[browser]` extra (install with
     `uv add 'dhis2w-cli[browser]'` + `playwright install chromium`).
     """
+    from dhis2w_core.v42.plugins.browser import service
+
     service.require_browser()
     profile = profile_from_env()
     resolved_output_dir = output_dir if output_dir is not None else Path.cwd() / "screenshots"

@@ -42,6 +42,12 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
 - **All four pass 7/7 tooling** — including the four multi-turn agentic chains (look-up-then-email,
   read-then-count, fetch-rate-then-calc, look-up-then-ticket). So a 4B model (`qwen3.5-4b`, `e4b`)
   handles multi-turn tool *chaining* fine; size is not the bottleneck there.
+- **Cloud Claude (`bench-claude-general`) scores a perfect 62/62** (python 52/52, cli 3/3, tooling
+  7/7; ~$1.58, session-default) — **matching the local oracle** (`gemma-4-26b-a4b-qat`, also 62/62).
+  So coding is **not** where cloud's edge shows: the strong models, local or cloud, all ace it; the 4B
+  locals drop a few. Cloud's real advantage is the **composite authoring** round (below), where the
+  local 4B models fail — not the coding suite. (The tooling suite runs Claude over an in-process SDK
+  mock toolbox, scored by the same full-transcript checker as the local lane.)
 
 ## mcp-bridge (`bench-bridge`) — single-tool discovery, read + write
 
@@ -73,9 +79,17 @@ tables are in `/tmp/sweep_{coding,bridge,mcp}.out`.
 
 ## Composite writes (`bench-composite`) — the HARD, multi-object authoring test
 
-The reads and the single-setting writes above are easy (everyone passes), so they don't rank models.
-The real test is a **multi-object authoring** workflow driven through the bridge: "create a Monthly
-data set with two new data elements attached", and "create an event program with two stages". Each
+The single-setting write round above is **not a benchmark — it's a smoke test.** Everyone passes it,
+so it ranks nothing. Its job is diagnostic: it confirms the write *path* works (the agent can call a
+write tool, the profile has write authority, the round-trip read confirms it landed), and it
+decomposes a composite failure into "can't write at all" vs "can write but can't orchestrate". (It
+earned that keep once — when the task hinted a removed command, every model failed including the
+oracle, which fired the SUSPECT-task flag and caught benchmark drift; see Findings.) Read the
+single-write PASS as a sanity light, not a result.
+
+The real write test is a **multi-object authoring** workflow driven through the bridge: "create a
+Monthly data set with two new data elements attached", and "create an event program with two stages".
+This is the round that actually ranks models. Each
 run is verified (find the named object, count its children) and cleaned up. **Run 3× per model**,
 because a single run is misleading (see below):
 
@@ -112,9 +126,12 @@ subscription); the read round is read-only-gated on play42, write/composite run 
 | **bridge** (`dhis2_cli`) | 3/3 | PASS | **1/1** | **1/1** | $1.81 |
 | **full mcp** (typed tools) | 3/3 | PASS | **1/1** | **1/1** | $1.56 |
 
-Cloud Claude scored **100% on both surfaces** — every read, the write, and both composite authoring
-scenarios, first try (at `RUNS=1`; the local composite bench runs N times because local models are
-flaky there, which is the point).
+The column that matters here is **composite** — reads and the single write are the easy floor (every
+serious agent passes them, cloud or local). Cloud Claude cleared both composite authoring scenarios
+first try (`RUNS=1`), which is the round where local 4B models score 0/3 and the strong local qats
+only manage ~2/3. So the headline isn't "100%", it's "**Claude reliably authors multi-object metadata
+where local models are flaky**". (The local composite bench runs N times precisely because local
+models are flaky there.)
 
 - **The composite (hard authoring) round is where this matters, and cloud Claude clears it cleanly.**
   Over the bridge, Claude built the Monthly data set with two new data elements and the event program
@@ -129,6 +146,32 @@ flaky there, which is the point).
 - Methodology mirrors the local composite bench: each scenario is verified (find the named object,
   count its children) and cleaned up; the write round restores the baseline. Repeat the flaky round
   with `RUNS=3`.
+
+## Router lane (`bench-router`) — local models over search+dispatch at tiny context
+
+The router (`dhis2w-mcp-router`) fronts the full 311-tool surface behind two meta-tools
+(`search_tools` + `call_tool`), so a local model can drive it loaded at **16k** context — where the
+full-MCP payload (~49k tokens) won't even fit. Read suite, play42, router read-only:
+
+| model | context | count | filter | whoami | passed |
+| --- | --- | --- | --- | --- | --- |
+| `gemma-4-26b-a4b-qat` | 16K | PASS | PASS | PASS | **3/3** |
+| `gemma-4-e4b` | 16K | FAIL | FAIL | FAIL | 0/3 |
+| `qwen3.5-4b` | 16K | PASS | PASS | PASS | **3/3** |
+
+- **The router works — two small models drive the full surface at 16k**, which they cannot do over
+  full-MCP (the payload overflows that context). `gemma-4-26b-a4b-qat` and the 4B `qwen3.5-4b` both go
+  3/3; the win is real and matches the cloud-ToolSearch behaviour, portably.
+- **But the indirection has a capability floor.** `gemma-4-e4b` scores **0/3, one turn each** — it
+  answers without ever calling `search_tools`. It *can* drive *direct* typed tools (it passes the
+  full-MCP read round), but the two-step search→dispatch indirection is a step too far for the weakest
+  model. So the router is not a free win for *every* local model — it asks the model to grasp "search,
+  then call," and the floor sits above e4b.
+- **Implication for "router as the universal default"** (see roadmap): it's the right default for
+  *capable* small models and growing surfaces, but the weakest models still want direct tools. Feeding
+  a failed `call_tool` back as model feedback matters — gemma recovered a bad `metadata_list` call
+  (filter: 8 turns) instead of dead-ending, which is why the harness surfaces tool errors rather than
+  raising.
 
 ## Context-window dimension (full MCP, `gemma-4-e4b`)
 

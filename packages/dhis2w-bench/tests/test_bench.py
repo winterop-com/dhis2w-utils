@@ -190,3 +190,47 @@ def test_claude_markdown_table_has_model_and_rounds() -> None:
     table = _markdown_table([report], runs=1)
     assert "`opus`" in table
     assert "1/1" in table
+
+
+def test_router_bench_report_and_table() -> None:
+    """The router lane rolls up passes and renders the load context (the headline metric)."""
+    from dhis2w_bench.mcp import READ_TASKS
+    from dhis2w_bench.router import ModelReport, TaskOutcome, _markdown_table
+
+    outcomes = [TaskOutcome(key=key, ok=(key == "count"), turns=3, seconds=1.0) for key, _ in READ_TASKS]
+    report = ModelReport(model="m", context=16384, outcomes=outcomes)
+    assert report.passed == 1  # only "count" passed
+    table = _markdown_table([report])
+    assert "`m`" in table
+    assert "16K" in table
+
+
+async def test_claude_general_gates() -> None:
+    """Code-gen denies all tools; the tooling round allows only discovery + mock tools, denies built-ins."""
+    from claude_agent_sdk import PermissionResultAllow, PermissionResultDeny, ToolPermissionContext
+    from dhis2w_bench import claude_general as cg
+
+    ctx = ToolPermissionContext(suggestions=[])
+    assert isinstance(await cg._deny_all_gate("anything", {}, ctx), PermissionResultDeny)
+    assert isinstance(await cg._mock_only_gate("mcp__tools__send_email", {}, ctx), PermissionResultAllow)
+    assert isinstance(await cg._mock_only_gate("ToolSearch", {}, ctx), PermissionResultAllow)
+    assert isinstance(await cg._mock_only_gate("Bash", {}, ctx), PermissionResultDeny)
+
+
+def test_claude_general_table() -> None:
+    """The table renders per-suite scores, the total, and the cost."""
+    from dhis2w_bench.claude_general import _markdown_table, _ModelRun
+    from dhis2w_bench.general import ModelReport, TaskResult
+
+    report = ModelReport(
+        model="opus",
+        results=[
+            TaskResult(suite="python", key="a", passed=4, total=4, seconds=1.0, tokens=0),
+            TaskResult(suite="cli", key="b", passed=1, total=1, seconds=1.0, tokens=0),
+            TaskResult(suite="tooling", key="c", passed=1, total=1, seconds=1.0, tokens=0),
+        ],
+    )
+    table = _markdown_table([_ModelRun(report=report, cost_usd=2.5)])
+    assert "`opus`" in table
+    assert "6/6" in table
+    assert "$2.50" in table

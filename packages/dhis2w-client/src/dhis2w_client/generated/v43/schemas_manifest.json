@@ -1,5 +1,5 @@
 {
-  "raw_version": "2.43.0",
+  "raw_version": "2.43.0.1",
   "schemas": [
     {
       "apiEndpoint": "/api/analyticsTableHooks",

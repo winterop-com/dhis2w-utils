@@ -9,7 +9,6 @@ import typer
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v43.cli_output import ColumnSpec, is_json_output, render_list
-from dhis2w_core.v43.plugins.schema import service
 
 _SOURCES = ("auto", "oas", "schemas")
 
@@ -29,6 +28,8 @@ def schema_command(
     Only the DHIS2 major is read live (auto-detected via /api/system/info, SNAPSHOT-safe); the field
     shapes come from the generated trees, so the output reflects what this client parses/accepts.
     """
+    from dhis2w_core.v43.plugins.schema import service
+
     if source not in _SOURCES:
         raise typer.BadParameter(f"source must be one of {', '.join(_SOURCES)}")
     version = asyncio.run(service.detect_version(profile_from_env()))

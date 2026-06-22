@@ -25,10 +25,15 @@ Convention across all plugins:
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import typer
-from dhis2w_client.v41 import ConflictRow, WebMessageResponse
+
+if TYPE_CHECKING:
+    # Annotation-only — render helpers receive already-parsed instances, so
+    # these stay out of the runtime import graph (keeps plugin CLI registration
+    # off the heavy generated OAS tree).
+    from dhis2w_client.v41 import ConflictRow, WebMessageResponse
 from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table

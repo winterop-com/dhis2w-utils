@@ -13,7 +13,7 @@ is the usage guide.
 
 !!! tip "Which server?"
     Pick by the model driving it — the full decision table lives in
-    [MCP servers — which one?](index.md#two-servers-which-one). Short version: **small on-box local
+    [MCP servers — which one?](index.md#three-surfaces-which-one). Short version: **small on-box local
     models** (LM Studio, Ollama, llama.cpp) → this bridge; **capable cloud models** → the full
     [`dhis2w-mcp`](index.md) server.
 

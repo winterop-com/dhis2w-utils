@@ -7,10 +7,11 @@ import os
 from typing import Annotated
 
 import typer
-from dhis2w_client.v43.auth.oauth2 import DEFAULT_REDIRECT_URI
 
-from dhis2w_core.v43.admin_auth import resolve_admin_auth
-from dhis2w_core.v43.oauth2_registration import register_oauth2_client
+# DEFAULT_REDIRECT_URI stays at module scope: it is a Typer option default evaluated at
+# command-registration time (import). Its source module (auth.oauth2) is light — it does
+# not pull the generated OAS tree.
+from dhis2w_client.v43.auth.oauth2 import DEFAULT_REDIRECT_URI
 
 app = typer.Typer(help="Manage DHIS2 OAuth2 clients on the server (admin ops).", no_args_is_help=True)
 client_app = typer.Typer(help="OAuth2 client registrations at /api/oAuth2Clients.", no_args_is_help=True)
@@ -35,6 +36,9 @@ def oauth2_client_register_command(
     `d2w profile add --auth oauth2 ...`. For a one-shot bootstrap (register
     + save profile + log in) use `d2w profile bootstrap` instead.
     """
+    from dhis2w_core.v43.admin_auth import resolve_admin_auth
+    from dhis2w_core.v43.oauth2_registration import register_oauth2_client
+
     resolved_url: str = url or os.environ.get("DHIS2_URL") or typer.prompt("DHIS2 base URL")
     admin_auth = resolve_admin_auth(admin_user)
     client_secret = os.environ.get("DHIS2_OAUTH_CLIENT_SECRET") or typer.prompt(

@@ -25,7 +25,6 @@ from rich.table import Table
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v42.cli_output import is_json_output
-from dhis2w_core.v42.plugins.doctor import service
 from dhis2w_core.v42.plugins.doctor._models import DoctorReport, ProbeCategory
 
 app = typer.Typer(
@@ -84,6 +83,8 @@ def _render(report: DoctorReport) -> int:
 
 def _run(categories: tuple[ProbeCategory, ...]) -> None:
     """Run the requested probe categories and render the report (table or JSON)."""
+    from dhis2w_core.v42.plugins.doctor import service
+
     report = asyncio.run(service.run_doctor(profile_from_env(), categories=categories))
     exit_code = _render(report)
     if exit_code:

@@ -7,19 +7,13 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
-from dhis2w_client.v43 import JsonPatchOpAdapter
-from dhis2w_client.v43.auth_schemes import (
-    ApiHeadersAuthScheme,
-    ApiQueryParamsAuthScheme,
-    ApiTokenAuthScheme,
-    AuthScheme,
-    HttpBasicAuthScheme,
-    OAuth2ClientCredentialsAuthScheme,
-)
 from pydantic import ValidationError
+
+if TYPE_CHECKING:
+    from dhis2w_client.v43.auth_schemes import AuthScheme
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v43.cli_output import (
@@ -31,8 +25,6 @@ from dhis2w_core.v43.cli_output import (
     render_list,
     render_webmessage,
 )
-from dhis2w_core.v43.plugins.route import service
-from dhis2w_core.v43.plugins.route.service import RoutePayload
 
 app = typer.Typer(
     help="DHIS2 Route API — register + run integration routes (proxies to external services).",
@@ -76,6 +68,8 @@ def list_command(
     fields: Annotated[str, typer.Option("--fields")] = "id,code,name,url,disabled,auth",
 ) -> None:
     """List registered routes."""
+    from dhis2w_core.v43.plugins.route import service
+
     routes = asyncio.run(service.list_routes(profile_from_env(), fields=fields))
     dumped = [r.model_dump(exclude_none=True, mode="json") for r in routes]
     if is_json_output():
@@ -107,6 +101,8 @@ def get_command(
     fields: Annotated[str | None, typer.Option("--fields")] = None,
 ) -> None:
     """Fetch one route by UID or code."""
+    from dhis2w_core.v43.plugins.route import service
+
     fetched = asyncio.run(service.get_route(profile_from_env(), route, fields=fields))
     if is_json_output():
         _print(fetched.model_dump(exclude_none=True, mode="json"))
@@ -138,6 +134,14 @@ def _auth_label(value: Any) -> str:
 
 def _prompt_auth() -> AuthScheme | None:
     """Interactively build the `auth` block for a route. Returns None for no auth."""
+    from dhis2w_client.v43.auth_schemes import (
+        ApiHeadersAuthScheme,
+        ApiQueryParamsAuthScheme,
+        ApiTokenAuthScheme,
+        HttpBasicAuthScheme,
+        OAuth2ClientCredentialsAuthScheme,
+    )
+
     typer.echo("")
     typer.secho("Upstream authentication — how DHIS2 talks to the target:", bold=True)
     for name, description in _AUTH_TYPES.items():
@@ -233,6 +237,9 @@ def create_command(
     when not running in a TTY — the auth wizard needs interactive input). Secrets never come via
     argv — they're read from env (`DHIS2_ROUTE_UPSTREAM_*`) or hidden prompts in the wizard.
     """
+    from dhis2w_core.v43.plugins.route import service
+    from dhis2w_core.v43.plugins.route.service import RoutePayload
+
     if file is not None:
         raw = json.loads(file.read_text(encoding="utf-8"))
         if isinstance(raw, dict) and isinstance(raw.get("auth"), dict) and raw["auth"].get("type") in (None, "none"):
@@ -294,6 +301,9 @@ def update_command(
 
     DHIS2 PUT expects the complete object. For partial updates use `patch`.
     """
+    from dhis2w_core.v43.plugins.route import service
+    from dhis2w_core.v43.plugins.route.service import RoutePayload
+
     payload = RoutePayload.model_validate(json.loads(file.read_text(encoding="utf-8")))
     response = asyncio.run(service.update_route(profile_from_env(), route, payload))
     render_webmessage(response, action=f"updated {route}")
@@ -305,6 +315,10 @@ def patch_command(
     file: Annotated[Path, typer.Option("--file", help="JSON Patch array (RFC 6902).")],
 ) -> None:
     """Apply a JSON Patch to a route via PATCH /api/routes/{uid}."""
+    from dhis2w_client.v43 import JsonPatchOpAdapter
+
+    from dhis2w_core.v43.plugins.route import service
+
     raw_ops = json.loads(file.read_text(encoding="utf-8"))
     if not isinstance(raw_ops, list):
         raise typer.BadParameter(f"{file} must contain a JSON Patch array (got {type(raw_ops).__name__})")
@@ -318,6 +332,8 @@ def delete_command(
     route: Annotated[str, typer.Argument(help=_ROUTE_REF_HELP)],
 ) -> None:
     """Delete a route."""
+    from dhis2w_core.v43.plugins.route import service
+
     response = asyncio.run(service.delete_route(profile_from_env(), route))
     render_webmessage(response, action=f"deleted {route}")
 
@@ -341,6 +357,8 @@ def run_command(
     URL ends in a wildcard (`/**`), `--path SEGMENT` is required: it is
     what DHIS2 substitutes into the wildcard before calling upstream.
     """
+    from dhis2w_core.v43.plugins.route import service
+
     body = json.loads(body_file.read_text(encoding="utf-8")) if body_file is not None else None
     _print(asyncio.run(service.run_route(profile_from_env(), route, method=method, body=body, sub_path=sub_path)))
 

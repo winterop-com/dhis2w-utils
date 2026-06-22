@@ -43,7 +43,7 @@ def _strip_comments(text: str) -> str:
 def _bad_cli_refs(text: str, root: Any) -> set[str]:
     """Return `d2w <path>` invocations whose command path doesn't resolve."""
     bad: set[str] = set()
-    for raw in re.findall(r"\bdhis2\s+([^\n|;&<>]+)", _strip_comments(text)):
+    for raw in re.findall(r"\bd2w\s+([^\n|;&<>]+)", _strip_comments(text)):
         try:
             tokens = shlex.split(raw)
         except ValueError:

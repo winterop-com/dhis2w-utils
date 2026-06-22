@@ -8,12 +8,13 @@ import pytest
 from dhis2w_core.profile import (
     InvalidProfileNameError,
     Profile,
+    ProfileAlreadyExistsError,
     ProfilesFile,
     UnknownProfileError,
     load_profiles_file,
     write_profiles_file,
 )
-from dhis2w_core.v42.plugins.profile.service import ProfileAlreadyExistsError, rename_profile
+from dhis2w_core.v42.plugins.profile.service import rename_profile
 
 
 def _clear_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

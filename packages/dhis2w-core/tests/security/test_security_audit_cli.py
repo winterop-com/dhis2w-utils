@@ -165,7 +165,7 @@ def test_audit_succeeds_on_every_version_tree(
     runner: CliRunner, tmp_path: Path, tree: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """security audit exits 0 and creates a run folder against every supported version tree."""
-    monkeypatch.setenv("DHIS2_VERSION", tree.removeprefix("v"))
+    monkeypatch.setenv("DHIS2_VERSION", tree)
 
     ctx = _make_fake_ctx()
     with patch(f"dhis2w_core.{tree}.plugins.security.audit.open_client", lambda *args, **kwargs: ctx):

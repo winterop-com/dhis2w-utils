@@ -13,7 +13,6 @@ import typer
 
 from dhis2w_core.profile import profile_from_env
 from dhis2w_core.v41.cli_output import ColumnSpec, DetailRow, format_bool, is_json_output, render_detail, render_list
-from dhis2w_core.v41.plugins.security import audit, service
 
 app = typer.Typer(
     help="Inspect DHIS2 security posture (settings, account authorities).",
@@ -41,6 +40,8 @@ def _flag(value: bool | None) -> str:
 @app.command("settings")
 def settings_command() -> None:
     """Show the server's security-relevant system settings. `--json` for the full payload."""
+    from dhis2w_core.v41.plugins.security import service
+
     settings = asyncio.run(service.get_security_settings(profile_from_env()))
     if is_json_output():
         typer.echo(settings.model_dump_json(indent=2, exclude_none=True))
@@ -62,6 +63,8 @@ def settings_command() -> None:
 @app.command("authorities")
 def authorities_command() -> None:
     """Show my effective authorities, categorised by security risk. `--json` for the full payload."""
+    from dhis2w_core.v41.plugins.security import service
+
     account = asyncio.run(service.get_account_authorities(profile_from_env()))
     if is_json_output():
         typer.echo(account.model_dump_json(indent=2))
@@ -140,13 +143,15 @@ def audit_command(
         ),
     ] = False,
     max_objects: Annotated[
-        int,
+        int | None,
         typer.Option(
             "--max-objects",
             min=1,
-            help="Max objects the sharing scan inspects across all types before stopping (truncation is loud).",
+            show_default=False,
+            help="Max objects the sharing scan inspects across all types before stopping "
+            "(default 5000; truncation is loud).",
         ),
-    ] = audit.DEFAULT_SHARING_MAX_OBJECTS,
+    ] = None,
     sharing_graph: Annotated[
         bool,
         typer.Option(
@@ -160,9 +165,12 @@ def audit_command(
     ] = None,
 ) -> None:
     """Run the security checks step by step and stream a report to a folder. `--json` prints the report."""
+    from dhis2w_core.v41.plugins.security import audit
+
     profile = profile_from_env()
     profile_name = os.environ.get("DHIS2_PROFILE") or "default"
     formats = _parse_csv(output_format) or list(audit.DEFAULT_FORMATS)
+    resolved_max_objects = max_objects if max_objects is not None else audit.DEFAULT_SHARING_MAX_OBJECTS
     animated = progress and sys.stderr.isatty() and not is_json_output()
 
     try:
@@ -175,7 +183,7 @@ def audit_command(
                     formats=formats,
                     stale_days=stale_days,
                     two_factor_detail=two_factor_detail,
-                    max_objects=max_objects,
+                    max_objects=resolved_max_objects,
                     visualize=sharing_graph,
                     animated=animated,
                 )
@@ -198,7 +206,7 @@ def audit_command(
                     formats=formats,
                     stale_days=stale_days,
                     two_factor_detail=two_factor_detail,
-                    max_objects=max_objects,
+                    max_objects=resolved_max_objects,
                     visualize=sharing_graph,
                     animated=animated,
                 )
@@ -224,6 +232,8 @@ def report_command(
     ] = None,
 ) -> None:
     """Re-render an existing run's report files from its JSONL spine, without re-scanning."""
+    from dhis2w_core.v41.plugins.security import audit
+
     formats = _parse_csv(output_format) or list(audit.DEFAULT_FORMATS)
     try:
         audit.rerender_report(folder, formats=formats)

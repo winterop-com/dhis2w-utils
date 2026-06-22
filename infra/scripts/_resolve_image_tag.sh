@@ -9,7 +9,7 @@
 #     DHIS2_IMAGE_TAG := $(shell scripts/_resolve_image_tag.sh $(DHIS2_VERSION))
 #
 # Inputs (in priority order):
-#   $1                      — minor version key (43)
+#   $1                      — version key in vXX form (v43)
 #   $DHIS2_VERSION env var  — same, used when no positional arg
 #
 # A fully-qualified tag passed directly (anything containing a dot, e.g.
@@ -32,25 +32,31 @@ fi
 _resolve_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 _versions_env="$_resolve_dir/versions.env"
 
-# Bypass the lookup when the input already looks like a full tag.
+# A full dotted tag is used as-is; a vXX key resolves through versions.env
+# (whose keys are digit-suffixed: `DHIS2_V43`). A bare digit is rejected.
 case "$_input" in
   *.*)
     _tag="$_input"
     ;;
-  *)
+  v[0-9]*)
     if [ ! -f "$_versions_env" ]; then
       echo "_resolve_image_tag.sh: $_versions_env missing" >&2
       exit 1
     fi
     # shellcheck disable=SC1090
     . "$_versions_env"
-    _pin_var="DHIS2_V${_input}"
+    _n="${_input#v}"
+    _pin_var="DHIS2_V${_n}"
     if [ -z "${!_pin_var:-}" ]; then
-      echo "_resolve_image_tag.sh: no pin for DHIS2_V${_input} in $_versions_env" >&2
-      echo "  add 'DHIS2_V${_input}=2.${_input}.0' to fix" >&2
+      echo "_resolve_image_tag.sh: no pin for DHIS2_V${_n} in $_versions_env" >&2
+      echo "  add 'DHIS2_V${_n}=2.${_n}.0' to fix" >&2
       exit 1
     fi
     _tag="${!_pin_var}"
+    ;;
+  *)
+    echo "_resolve_image_tag.sh: invalid DHIS2_VERSION '$_input' — use the vXX form (e.g. v43) or a full dotted tag (e.g. 2.43.0.0)" >&2
+    exit 1
     ;;
 esac
 

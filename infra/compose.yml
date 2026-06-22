@@ -24,7 +24,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./initdb.sh:/docker-entrypoint-initdb.d/initdb.sh:ro
-      - ./v${DHIS2_VERSION:-43}/dump.sql.gz:/docker-entrypoint-initdb.d/dhis-backup.gz:ro
+      - ./${DHIS2_VERSION:-v43}/dump.sql.gz:/docker-entrypoint-initdb.d/dhis-backup.gz:ro
     healthcheck:
       test: [ "CMD-SHELL", "[ -f /var/lib/postgresql/data/.init-complete ] && psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} -c 'SELECT 1' > /dev/null 2>&1" ]
       interval: 30s

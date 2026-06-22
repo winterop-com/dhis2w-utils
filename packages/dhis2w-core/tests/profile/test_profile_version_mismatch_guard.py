@@ -96,4 +96,4 @@ def test_resolve_raises_when_profile_version_mismatches_bound_tree(
     assert "v42" in msg
     assert "v43" in msg
     # Restart hint surfaces in the message so the operator can act on it.
-    assert "DHIS2_VERSION=43 dhis2w-mcp" in msg
+    assert "DHIS2_VERSION=v43 dhis2w-mcp" in msg

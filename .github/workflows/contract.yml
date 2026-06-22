@@ -26,13 +26,17 @@ concurrency:
   group: contract-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege token: the job only reads the checkout to hit the live API.
+permissions:
+  contents: read
+
 jobs:
   contract:
     name: Contract tests
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7

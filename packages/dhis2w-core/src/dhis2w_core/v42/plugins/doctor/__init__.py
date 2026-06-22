@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v42.plugins.doctor import cli as cli_module
-from dhis2w_core.v42.plugins.doctor import mcp as mcp_module
-
 
 class _DoctorPlugin(BaseModel):
     """Plugin descriptor for `d2w doctor`."""
@@ -23,10 +20,14 @@ class _DoctorPlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount under `d2w doctor`."""
+        from dhis2w_core.v42.plugins.doctor import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register `doctor_run` MCP tool."""
+        from dhis2w_core.v42.plugins.doctor import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

@@ -53,7 +53,7 @@ else
 fi
 
 # Step 3: Import the database if a non-empty dump is mounted.
-# An empty or near-empty v{DHIS2_VERSION}/dump.sql.gz is intentionally
+# An empty or near-empty ${DHIS2_VERSION}/dump.sql.gz is intentionally
 # supported — it lets a fresh clone run `make dhis2-up` without a pre-existing
 # dump and have DHIS2 bootstrap its own schema via Flyway on first start.
 # Populate the dump afterwards with `make dhis2-build-e2e-dump`.

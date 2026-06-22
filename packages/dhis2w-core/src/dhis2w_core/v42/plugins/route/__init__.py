@@ -6,9 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_core.v42.plugins.route import cli as cli_module
-from dhis2w_core.v42.plugins.route import mcp as mcp_module
-
 
 class _RoutePlugin(BaseModel):
     """Plugin descriptor for the DHIS2 Route API."""
@@ -20,10 +17,14 @@ class _RoutePlugin(BaseModel):
 
     def register_cli(self, app: Any) -> None:
         """Mount under `d2w route`."""
+        from dhis2w_core.v42.plugins.route import cli as cli_module
+
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
         """Register `route_*` tools on the MCP server."""
+        from dhis2w_core.v42.plugins.route import mcp as mcp_module
+
         mcp_module.register(mcp)
 
 

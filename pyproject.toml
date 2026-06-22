@@ -12,19 +12,20 @@ dhis2w-codegen = { workspace = true }
 
 [dependency-groups]
 dev = [
-  "coverage[toml]>=7.14.1",
+  "coverage[toml]>=7.14.2",
   "mypy>=2",
-  "pytest>=9.1.0",
+  "pytest>=9.1.1",
   "pytest-asyncio>=1.4",
   "pytest-cov>=7",
   "respx>=0.23",
-  "ruff>=0.15.17",
+  "ruff>=0.15.18",
   "pyright>=1.1",
   "mkdocs>=1.6",
   "mkdocs-material>=9.7",
   "mkdocstrings[python]>=1.0.4",
   "pillow>=12.2.0",
-  "hypothesis>=6.155.2",
+  "hypothesis>=6.155.6",
+  "pytest-xdist>=3.8.0",
 ]
 
 [tool.ruff]
@@ -75,14 +76,26 @@ branch = true
 relative_files = true
 source = ["packages"]
 omit = [
-  # The v41 / v43 hand-written CLIENT trees are now measured: their accessor tests run
-  # against all three trees via the `server_version` parametrization (conftest), so the
-  # v41/v43 accessor code is exercised and counted. The v41 / v43 CORE plugin trees still
-  # have only the per-version smoke matrix (`tests/test_v{41,43}_plugin_smoke.py`) —
-  # imports resolve + plugin set intact — so they stay omitted until their plugin tests
-  # fill in. Drop each core entry once its plugin tests land.
-  "packages/dhis2w-core/src/dhis2w_core/v41/*",
-  "packages/dhis2w-core/src/dhis2w_core/v43/*",
+  # v41/v43 CORE trees: every plugin SERVICE is exercised across all three trees by parametrized
+  # parity tests (`tests/runtime/test_<plugin>_parity.py`), every plugin CLI by invoke tests
+  # (`test_<plugin>_cli_parity.py`), and every plugin MCP registration by `test_mcp_register_parity.py`
+  # — so service/cli/mcp modules are measured + counted, NOT omitted. What stays omitted, with reasons:
+  #   - metadata/browser/dev CLI: huge / interactive / Playwright command surfaces not invoke-tested.
+  #   - per-plugin view-models (models.py): pure pydantic data classes.
+  #   - non-plugin core modules (auth / token store / cli infra): mechanical copies, deferred.
+  #   - browser service: Playwright orchestration, tested live in `packages/dhis2w-browser/tests/`.
+  "packages/dhis2w-core/src/dhis2w_core/v41/*.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/*.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/*/models.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/*/models.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/metadata/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/metadata/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/browser/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/browser/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/dev/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/dev/cli.py",
+  "packages/dhis2w-core/src/dhis2w_core/v41/plugins/browser/service.py",
+  "packages/dhis2w-core/src/dhis2w_core/v43/plugins/browser/service.py",
 ]
 
 [tool.coverage.report]

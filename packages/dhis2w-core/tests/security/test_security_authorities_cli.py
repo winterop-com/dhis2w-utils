@@ -44,7 +44,7 @@ def _invoke(
 ) -> Any:
     """Invoke `d2w security authorities ...` against `tree` with a fake client returning `payload`."""
     if monkeypatch is not None:
-        monkeypatch.setenv("DHIS2_VERSION", tree.removeprefix("v"))
+        monkeypatch.setenv("DHIS2_VERSION", tree)
 
     fake_client = MagicMock()
     fake_client.get_raw = AsyncMock(return_value=payload)

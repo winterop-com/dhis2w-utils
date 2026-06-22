@@ -50,7 +50,7 @@ The file is written with `0600` perms when created by `d2w profile add`. Gitigno
 
 `version = "v41" | "v42" | "v43"` selects which **plugin tree** (`dhis2w_core.v{N}.plugins.*`) the CLI/MCP loads at startup. It's a hint, not a wire-client pin — the wire `Dhis2Client` always auto-detects the server's version on `connect()` and rebinds accessors via `_dispatch.py`. See `docs/architecture/versioning.md` for the full chain.
 
-When the field is omitted, the CLI consults the `DHIS2_VERSION` env var (`41` / `42` / `43` → `v41` / `v42` / `v43`); when that's also unset, it defaults to the canonical v42 tree. This is how `make verify-examples DHIS2_VERSION=43` correctly drives the v43 plugin tree without editing your profile.
+When the field is omitted, the CLI consults the `DHIS2_VERSION` env var (the vXX key: `v41` / `v42` / `v43`); when that's also unset, it defaults to the canonical v42 tree. A `version` pin wins over `DHIS2_VERSION`. `make verify-examples` follows the same `resolve_startup_version()` chain, so a v41-pinned profile runs the `examples/v41/...` tree automatically; on an unpinned profile, `make verify-examples DHIS2_VERSION=v43` drives the v43 tree without editing the profile.
 
 ## Resolution precedence
 
@@ -87,6 +87,8 @@ d2w profile verify                      # hit /api/system/info + /api/me on ever
 d2w profile verify prod                 # verify just one — exit code 0 if ok, 1 if not
 d2w profile show prod                   # pretty-print one profile (secrets redacted)
 d2w profile show prod --secrets         # including secrets (for copy-paste debugging)
+d2w profile env prod                    # print `export DHIS2_*` lines (values as-is)
+eval "$(d2w profile env prod)"          # load them into the current shell
 
 # Add a PAT-based profile (goes to ~/.config/dhis2/profiles.toml by default).
 # `d2w profile add` doesn't accept secrets as flags (they'd leak into shell

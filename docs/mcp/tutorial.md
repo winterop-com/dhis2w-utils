@@ -29,7 +29,7 @@ The tool takes no arguments. Expected response (your version numbers will differ
 ```json
 {
   "active_plugin_tree": "v43",
-  "active_plugin_tree_source": "DHIS2_VERSION='43' env",
+  "active_plugin_tree_source": "DHIS2_VERSION='v43' env",
   "dhis2w_core_version": "0.10.0",
   "dhis2w_mcp_version": "0.10.0",
   "dhis2w_cli_version": null
@@ -124,7 +124,7 @@ Some tools only register when the active plugin tree matches the DHIS2 server. T
 - `metadata_program_set_change_log_enabled(uid, enabled)`
 - `metadata_program_set_enrollment_category_combo(uid, category_combo_uid)`
 
-These are absent from the tool list on a v42-bound server. If the agent says "I don't see a `metadata_program_set_labels` tool", call `system_server_info` to confirm the active plugin tree, then either point the server at a v43 DHIS2 (with `DHIS2_VERSION=43` in the host's `env:` block) or use the v42 alternatives.
+These are absent from the tool list on a v42-bound server. If the agent says "I don't see a `metadata_program_set_labels` tool", call `system_server_info` to confirm the active plugin tree, then either point the server at a v43 DHIS2 (with `DHIS2_VERSION=v43` in the host's `env:` block) or use the v42 alternatives.
 
 ## 8. Watching long-running jobs
 

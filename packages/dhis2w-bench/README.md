@@ -15,6 +15,7 @@ The local benchmarks have **cloud peers** that drive the same surfaces with a cl
 through the Claude Agent SDK's native loop (not the local OpenAI loop). Auth is ambient (the
 logged-in Claude Code subscription) — no API key is read or stored; costs subscription budget.
 
+- **cloud claude on the coding suite** (`make bench-claude-general`) — python + cli + tooling, the cloud peer of `bench-general` (one-shot code-gen + an in-process SDK mock toolbox for the agentic tooling suite).
 - **cloud claude over full mcp** (`make bench-claude-mcp`) — the whole dhis2-mcp server (typed tools).
 - **cloud claude over the bridge** (`make bench-claude-bridge`) — the single `dhis2_cli` tool.
 
@@ -41,6 +42,7 @@ make bench-list
 make bench-general MODELS="<key> ..."
 make bench-bridge  MODELS="<key> ..."   # needs make dhis2-run (local_basic)
 make bench-mcp     MODELS="<key> ..."   # loads at BENCH_CONTEXT (default 128k)
+make bench-claude-general               # cloud Claude on the coding suite (python+cli+tooling)
 make bench-claude-mcp                   # cloud Claude over full mcp (session default); MODELS="opus sonnet"
 make bench-claude-bridge                # cloud Claude over the bridge; RUNS=3 repeats the composite
 ```

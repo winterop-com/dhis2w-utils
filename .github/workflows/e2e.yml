@@ -9,9 +9,13 @@ on:
   # you just want confirmation against the latest main.
   workflow_dispatch:
 
+# Least-privilege token: the job only reads the checkout to run the slow suite.
+permissions:
+  contents: read
+
 jobs:
   slow-tests:
-    name: stack + make test-slow (v${{ matrix.dhis2_version }})
+    name: stack + make test-slow (${{ matrix.dhis2_version }})
     runs-on: ubuntu-latest
     # Stack-up + test-slow + verify-examples (full 100+ example sweep) needs
     # ~40 min on ubuntu-latest; 60 leaves headroom for the slowest CLI examples
@@ -21,19 +25,19 @@ jobs:
     # concurrency (not workflow-level) so the v42 and v43 matrix jobs
     # don't cancel each other.
     concurrency:
-      group: e2e-${{ github.ref }}-v${{ matrix.dhis2_version }}
+      group: e2e-${{ github.ref }}-${{ matrix.dhis2_version }}
       cancel-in-progress: true
     strategy:
       # Each version is independent; one failure shouldn't cancel the other.
       fail-fast: false
       matrix:
-        dhis2_version: ["41", "42", "43"]
+        dhis2_version: ["v41", "v42", "v43"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Check DHIS2 dump is present
         run: |
-          DUMP=infra/v${{ matrix.dhis2_version }}/dump.sql.gz
+          DUMP=infra/${{ matrix.dhis2_version }}/dump.sql.gz
           if [ ! -f "$DUMP" ]; then
             echo "::error::$DUMP is missing — commit a small test dump to enable e2e tests."
             exit 1
@@ -85,7 +89,7 @@ jobs:
           DHIS2_VERSION: ${{ matrix.dhis2_version }}
 
       - name: Verify every non-interactive example
-        # Walk examples/v${{ matrix.dhis2_version }}/{cli,client,mcp}/ via
+        # Walk examples/${{ matrix.dhis2_version }}/{cli,client,mcp}/ via
         # infra/scripts/verify_examples.py, running each against the live
         # stack seeded above. Skips browser / OIDC / fixture-gap entries
         # per the script's built-in SKIP_BY_DEFAULT list. Fails the job if

@@ -198,12 +198,12 @@ Copy-pasteable patterns for the most common cases. Read-side examples (showing h
 
 Read-side (v42-pinned reads of v43 wire data):
 
-- [`dashboard_item_users.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/dashboard_item_users.py)
-- [`tracked_entity_attribute_favorites.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/tracked_entity_attribute_favorites.py)
-- [`event_visualization_fix_headers.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/event_visualization_fix_headers.py)
-- [`map_basemaps.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/map_basemaps.py)
-- [`section_user_removed.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/section_user_removed.py)
-- [`removed_resources.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/removed_resources.py)
+- [`dashboard_item_users.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v43/client/dashboard_item_users.py)
+- [`tracked_entity_attribute_favorites.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v43/client/tracked_entity_attribute_favorites.py)
+- [`event_visualization_fix_headers.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v43/client/event_visualization_fix_headers.py)
+- [`map_basemaps.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v43/client/map_basemaps.py)
+- [`section_user_removed.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v43/client/section_user_removed.py)
+- [`removed_resources.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v43/client/removed_resources.py)
 
 Write-side (v43-only setters via the v43 accessor):
 

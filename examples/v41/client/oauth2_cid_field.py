@@ -10,7 +10,7 @@ get `None`. The fix is to consult both fields (or specifically the
 v41-correct `cid`) and prefer it when present.
 
 This example fetches the existing OAuth2 clients seeded by
-`make dhis2-run DHIS2_VERSION=41` and prints both `id` and `cid`
+`make dhis2-run DHIS2_VERSION=v41` and prints both `id` and `cid`
 columns so the v41 wire shape is visible.
 
 For the corresponding write-side fix, see
@@ -19,7 +19,7 @@ oauth2-client` smoke test on v41 reads `fetched.get("cid")` first
 and falls back to `clientId` for v42/v43 compatibility.
 
 Usage:
-    uv run python examples/v41/client/v41_oauth2_cid_field.py
+    uv run python examples/v41/client/oauth2_cid_field.py
 """
 
 from __future__ import annotations

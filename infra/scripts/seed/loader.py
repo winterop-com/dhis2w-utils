@@ -65,8 +65,8 @@ def _fixture_dir() -> Path:
     seed loader. The `DHIS2_VERSION` env var picks the major; defaults
     to v42 to match the historical baseline.
     """
-    version = os.environ.get("DHIS2_VERSION", "42")
-    return Path(__file__).resolve().parents[2] / "fixtures" / f"v{version}" / "play"
+    version = os.environ.get("DHIS2_VERSION", "v42")
+    return Path(__file__).resolve().parents[2] / "fixtures" / version / "play"
 
 
 FIXTURE_DIR = _fixture_dir()

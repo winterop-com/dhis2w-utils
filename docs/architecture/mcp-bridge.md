@@ -86,7 +86,7 @@ surface, not the bridge plumbing:
 | Why | can't afford schema tokens; can't pick among hundreds | does its own tool selection; benefits from typed schemas + errors |
 
 Rule of thumb: **local model → bridge, cloud model → full server.** The canonical decision table
-(and the surface picker) lives in [MCP servers — which one?](../mcp/index.md#two-servers-which-one);
+(and the surface picker) lives in [MCP servers — which one?](../mcp/index.md#three-surfaces-which-one);
 this page is the *why* behind the bridge half.
 
 ## Safety and locality

@@ -13,7 +13,7 @@ examples/
 - `client/` — `dhis2w-client` Python library (low-level: you bring the auth)
 - `mcp/` — `dhis2w-mcp` FastMCP server, called in-process
 
-Every example targets the committed e2e fixture for that major — `make dhis2-run DHIS2_VERSION=42` (or `=41` / `=43`) ships with it out of the box, seeds auth, streams logs. Source `infra/home/credentials/.env.auth` in your shell and the examples pick it up automatically.
+Every example targets the committed e2e fixture for that major — `make dhis2-run DHIS2_VERSION=v42` (or `=41` / `=43`) ships with it out of the box, seeds auth, streams logs. Source `infra/home/credentials/.env.auth` in your shell and the examples pick it up automatically.
 
 Filenames describe what each example shows — no sequential numbering. Every domain has a script per surface where possible (e.g. `tracker_reads.*`, `analytics_query.*`, `user_administration.*`).
 
@@ -34,7 +34,7 @@ All three hit DHIS2 via `Dhis2Client` under the hood. Pick the shape that fits y
 ## Running
 
 ```bash
-make dhis2-run DHIS2_VERSION=42        # foreground DHIS2 + seeded auth (Ctrl+C stops)
+make dhis2-run DHIS2_VERSION=v42        # foreground DHIS2 + seeded auth (Ctrl+C stops)
 # second terminal:
 set -a; source infra/home/credentials/.env.auth; set +a
 
@@ -43,7 +43,7 @@ bash examples/v42/cli/whoami.sh
 uv run python examples/v42/mcp/whoami.py
 ```
 
-Swap the `v42` segment for `v41` or `v43` to target the matching stack. `make refresh-and-verify DHIS2_VERSION=43` runs every example in `examples/v43/{cli,client,mcp}/` against a seeded v43 instance.
+Swap the `v42` segment for `v41` or `v43` to target the matching stack. `make refresh-and-verify DHIS2_VERSION=v43` runs every example in `examples/v43/{cli,client,mcp}/` against a seeded v43 instance.
 
 ## v42 client examples ([`v42/client/`](v42/client/))
 
@@ -141,4 +141,4 @@ Swap the `v42` segment for `v41` or `v43` to target the matching stack. `make re
 - `DHIS2_USERNAME`, `DHIS2_PASSWORD` — Basic auth fallback
 - `DHIS2_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` / `_SCOPES` — for the OIDC example
 - `DHIS2_PROFILE` — pick a named profile from `profiles.toml` without hardcoding creds
-- `DHIS2_VERSION` — `41`, `42`, or `43` — picks which stack `make dhis2-run` boots and which example tree `verify_examples` walks
+- `DHIS2_VERSION` — `v41`, `v42`, or `v43` — picks which stack `make dhis2-run` boots and which example tree `verify_examples` walks
