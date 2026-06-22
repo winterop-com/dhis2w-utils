@@ -1,8 +1,9 @@
 """Explorer bundle emitter: writes sharing-data.js and copies the fixed explorer assets.
 
-Mirrors `security_core/report/html.py`: the template, runtime, and vendored d3 ship as package data
-and are copied verbatim into the run folder beside a per-scan `sharing-data.js` (`window.__SHARING__`).
-The bundle is self-contained and offline -- d3 is vendored, no CDN, no external assets.
+Mirrors `security_core/report/html.py`: the template, runtime, vendored d3, and logo ship as package
+data and are copied verbatim into the run folder beside a per-scan `sharing-data.js`
+(`window.__SHARING__`). The data, runtime, and d3 are local, so the explorer works offline; the
+template links webfonts from Google with a system-font fallback, matching the HTML report bundle.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from pathlib import Path
 from dhis2w_core.security_core.sharing.view import SharingView
 
 # Fixed assets copied verbatim into every run folder. Only sharing-data.js is regenerated per scan.
-_ASSET_NAMES = ("sharing-explorer.html", "sharing-runtime.js", "d3.min.js")
+_ASSET_NAMES = ("sharing-explorer.html", "sharing-runtime.js", "d3.min.js", "dhis2-logo.png")
 _ASSET_PACKAGE = "dhis2w_core.security_core.sharing"
 _ASSET_DIR = "assets"
 

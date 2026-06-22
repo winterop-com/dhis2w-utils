@@ -4,16 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DHIS2 Sharing Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;}
   :root, [data-theme="light"]{
-    --bg:#f4f2ec; --header:rgba(244,242,236,0.92); --surface:#fbfaf6; --surface2:#ffffff;
-    --border:#e3ded2; --border-soft:#e8e3d7; --divider:#efeadd; --hover:#efece3; --hover2:#f3f0e7;
-    --text:#1b1a17; --text2:#3a372f; --text3:#5f5b50; --muted:#6b675c; --faint:#8a8578; --faint2:#9a958a; --faint3:#a39e92;
-    --brand:#0080ff; --brand-deep:#0064c8; --chip:#efece3; --hairline:#d8d2c4; --ok:#1b9c5d;
-    --crit:#b51223; --high:#d2611a; --med:#c79a16; --low:#1b9c5d; --none:#9a958a;
-    --shadow:0 1px 2px rgba(0,0,0,0.06);
+    --bg:#eef3f8; --header:rgba(238,243,248,0.9); --surface:#ffffff; --surface2:#f6f9fc;
+    --border:#dbe3ec; --border-soft:#e6ecf3; --divider:#eef2f7; --hover:#f1f6fb; --hover2:#eaf1f9;
+    --text:#0f1f2c; --text2:#293947; --text3:#51616f; --muted:#6a7886; --faint:#8895a2; --faint2:#9aa6b2; --faint3:#abb5c0;
+    --brand:#0080ff; --brand-deep:#0064c8; --chip:#eaf1f8; --hairline:#d3dde7; --ok:#1b9c5d;
+    --crit:#b51223; --high:#d2611a; --med:#c79a16; --low:#1b9c5d; --none:#9aa6b2;
+    --shadow:0 1px 2px rgba(15,31,44,0.06);
   }
   [data-theme="dark"]{
     --bg:#0d1117; --header:rgba(13,17,23,0.9); --surface:#151b24; --surface2:#1c232e;
@@ -34,9 +37,14 @@
   .accent-bar{height:4px; background:linear-gradient(90deg,#0080ff 0%,#0064c8 100%);}
 
   header.top{position:sticky; top:0; z-index:40; background:var(--header); backdrop-filter:blur(10px); border-bottom:1px solid var(--border);}
-  .top-inner{max-width:1320px; margin:0 auto; padding:12px 26px; display:flex; align-items:center; gap:18px; flex-wrap:wrap;}
+  .top-inner{margin:0; padding:14px 34px; display:flex; align-items:center; gap:20px; flex-wrap:wrap;}
   .wordmark{font-weight:800; letter-spacing:-0.02em; font-size:16px;}
   .wordmark em{font-weight:400; font-style:normal; color:var(--brand-deep);}
+  .brand{display:flex; align-items:center; gap:13px;}
+  .brand-logo{height:22px; width:auto; display:block;}
+  [data-theme="dark"] .brand-logo{filter:brightness(0) invert(1);}
+  .brand-sep{width:1px; height:20px; background:var(--hairline);}
+  .brand-title{font-weight:700; font-size:15px; letter-spacing:-0.01em; color:var(--text); white-space:nowrap;}
   .kicker{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.2em; text-transform:uppercase; color:var(--muted);}
   .grow{flex:1 1 auto;}
   .meta-strip{display:flex; gap:16px; flex-wrap:wrap; font-size:11.5px; color:var(--text3);}
@@ -45,7 +53,7 @@
   .theme-toggle button{display:flex; align-items:center; justify-content:center; width:30px; height:24px; border:0; border-radius:14px; cursor:pointer; background:transparent; color:var(--faint2);}
   .theme-toggle button.active{background:var(--surface2); color:var(--text); box-shadow:var(--shadow);}
 
-  .layout{max-width:1320px; margin:0 auto; padding:18px 26px 60px; display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:24px; align-items:start;}
+  .layout{margin:0; padding:22px 34px 64px; display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:28px; align-items:start;}
   @media (max-width:1040px){ .layout{grid-template-columns:1fr;} .detail-wrap{position:static !important;} }
 
   .toolbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
@@ -118,8 +126,8 @@
   .gctl input{accent-color:var(--brand); cursor:pointer; margin:0;}
   .graph-wrap{border-top:1px solid var(--divider); background:var(--surface2); min-height:600px;}
   .graph-wrap .empty{padding:80px 18px;}
-  .matrix-scroll{overflow:auto; padding:10px 14px 16px; max-height:74vh;}
-  .matrix-scroll svg{max-width:none;}
+  .matrix-scroll{overflow:auto; padding:12px 18px 18px; max-height:74vh;}
+  .matrix-scroll svg{max-width:none; display:block;}
   .banner strong{color:var(--high); letter-spacing:0.02em;}
 </style>
 </head>

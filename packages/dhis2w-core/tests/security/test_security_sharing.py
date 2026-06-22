@@ -535,15 +535,17 @@ def test_sharing_view_payload_is_assignable_js() -> None:
 
 
 def test_explorer_emit_writes_self_contained_bundle(tmp_path: Path) -> None:
-    """ExplorerRenderer.emit writes sharing-data.js and copies the fixed template, runtime, and d3."""
+    """ExplorerRenderer.emit writes sharing-data.js and copies the fixed template, runtime, d3, and logo."""
     view = build_sharing_view(_effective_graph(), profile="p", version="v", scanner="s")
     ExplorerRenderer().emit(tmp_path, view)
-    for name in ("sharing-data.js", "sharing-explorer.html", "sharing-runtime.js", "d3.min.js"):
+    for name in ("sharing-data.js", "sharing-explorer.html", "sharing-runtime.js", "d3.min.js", "dhis2-logo.png"):
         assert (tmp_path / name).exists(), f"missing {name}"
     assert "window.__SHARING__" in (tmp_path / "sharing-data.js").read_text(encoding="utf-8")
-    # the vendored d3 is non-trivial and offline (no CDN reference in the template)
+    # the vendored d3 is non-trivial; the executable code and images all load from the local bundle
+    # (only the cosmetic webfont stylesheet is remote, matching the HTML report), so the explorer runs offline
     assert (tmp_path / "d3.min.js").stat().st_size > 100_000
-    assert "http" not in (tmp_path / "sharing-explorer.html").read_text(encoding="utf-8").split("<style")[0].lower()
+    html = (tmp_path / "sharing-explorer.html").read_text(encoding="utf-8").lower()
+    assert 'src="http' not in html, "scripts and images must load from the local bundle, not a CDN"
 
 
 # ---------------------------------------------------------------------------

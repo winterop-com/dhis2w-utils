@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Sharing explorer design refresh** (2026-06-23). Adopt the updated explorer design: a DHIS2 logo
+  wordmark in the header, a cooler light-mode palette, a full-width layout with a wider (400px) detail
+  panel, and an access matrix that scales to fill the available width. The template now links the
+  Hanken Grotesk / Space Mono webfonts from Google with a system-font fallback (matching the HTML
+  report bundle), so the explorer still renders offline while d3, the runtime, and the data stay local
+  and vendored. The `window.__SHARING__` data contract is unchanged; the only Python change is shipping
+  `dhis2-logo.png` in the bundle (added to the explorer asset list). Browser-verified against the
+  2.42.5.1 play server (logo, palette, both themes, all six modes, no console errors).
+
 - **Sharing explorer: force graph + matrix heatmap (PR 7c)** (2026-06-20). Two advanced visual modes
   added to the explorer runtime (`sharing-runtime.js`), no Python change. A d3 force-directed graph of
   the sharing topology (objects + groups + optional users + public/external pseudo-nodes, edges from

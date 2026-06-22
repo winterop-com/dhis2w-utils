@@ -5,7 +5,8 @@
  * offline explorer: object tree, exposure triage, by-principal and by-role pivots, and a detail
  * panel that answers "who can concretely read or write this object, and by what path" from the
  * server-computed effective-access closure. Vanilla DOM (names rendered via textContent, never
- * innerHTML) plus d3 for the severity-distribution bar. No network, no framework.
+ * innerHTML) plus d3 for the severity-distribution bar. No framework; webfonts load from Google
+ * with a system-font fallback, so the explorer still renders fully offline.
  */
 (function () {
   "use strict";
@@ -183,7 +184,10 @@
     return h("header", { class: "top" },
       h("div", { class: "top-inner" },
         h("div", {},
-          h("div", { class: "wordmark" }, "DHIS2 ", h("em", {}, "Sharing Explorer")),
+          h("div", { class: "brand" },
+            h("img", { class: "brand-logo", src: "dhis2-logo.png", alt: "DHIS2" }),
+            h("span", { class: "brand-sep" }),
+            h("span", { class: "brand-title" }, "Sharing Explorer")),
           h("div", { class: "kicker" }, "Effective-access reasoning · read-only")),
         h("div", { class: "grow" }),
         h("div", { class: "meta-strip" },
@@ -761,6 +765,18 @@
     var scroll = h("div", { class: "scroll matrix-scroll" });
     scroll.appendChild(svg.node());
     panel.appendChild(scroll);
+    // Fill available width by scaling the matrix up, but cap the cell size so a small
+    // (e.g. searched-down) matrix stays at its natural size instead of stretching.
+    var MAX_K = 1.8;
+    function fitMatrix() {
+      var avail = scroll.clientWidth - 36; // minus horizontal padding
+      if (avail <= 0) return;
+      var k = Math.max(1, Math.min(avail / width, MAX_K));
+      svg.attr("width", Math.round(width * k)).attr("height", Math.round(height * k));
+    }
+    if (window.ResizeObserver) { new ResizeObserver(fitMatrix).observe(scroll); }
+    requestAnimationFrame(fitMatrix);
+    setTimeout(fitMatrix, 0);
     return panel;
   }
   function matrixLegend() {
