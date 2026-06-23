@@ -200,7 +200,7 @@ class _Parser:
             return ReadSource(path=path)
         if self._at(TokenKind.IDENT):
             following = self._peek(1)
-            if following.kind is TokenKind.LPAREN:
+            if following.kind is TokenKind.LPAREN and self._looks_like_call_source():
                 return self._parse_call_source()
             if following.kind is TokenKind.LBRACKET:
                 name = self._advance().value
@@ -216,9 +216,22 @@ class _Parser:
         return ExprSource(expr=self.parse_expr())
 
     def _continues_expression(self, token: Token) -> bool:
-        if token.kind in (TokenKind.DOT, TokenKind.OP):
+        # `(` after a bare identifier starts a function call (`today()`, `iif(...)`) — an expression,
+        # never a named source — once `_looks_like_call_source` has ruled out a named-arg call source.
+        if token.kind in (TokenKind.DOT, TokenKind.OP, TokenKind.LPAREN):
             return True
         return token.kind is TokenKind.KEYWORD and token.value in _INFIX_KEYWORDS
+
+    def _looks_like_call_source(self) -> bool:
+        """A source-position `IDENT(...)` is a call source only when it uses named args (`key: …`).
+
+        Call sources (`analytics(dx: …)`, `dataValues(dataSet: …)`) pass named arguments; a bare
+        `IDENT(` with positional args or none is a d2path function call (`today()`, `iif(a, b, c)`)
+        and is parsed as an expression source instead.
+        """
+        return self._peek(2).kind in (TokenKind.IDENT, TokenKind.KEYWORD, TokenKind.STRING) and (
+            self._peek(3).kind is TokenKind.COLON
+        )
 
     def _parse_call_source(self) -> CallSource:
         name = self._advance().value

@@ -82,8 +82,8 @@ dataElements | select name, categoryCombo.name as combo, valueType | limit 3
 ]
 ```
 
-The expressions inside `select`/`where` are written in **[d2path](d2path.md)**, a small
-FHIRPath/JSONPath-style language — `categoryCombo.name`, `name.upper()`, `code.coding.first()`, etc.
+The expressions inside `select`/`where` are written in **[d2path](d2path.md)** — dotted path
+navigation plus operators and functions, e.g. `categoryCombo.name`, `name.upper()`, `code.coding.first()`.
 
 ## 4. Reshape with `transform`
 
