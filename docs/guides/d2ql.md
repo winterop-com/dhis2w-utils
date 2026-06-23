@@ -37,10 +37,11 @@ The same engine is available as MCP tools (`query_eval`, `query_explain`, `query
 
 `d2w query repl` opens an interactive prompt. With the **`tui` extra** installed
 (`uv add 'dhis2w-cli[tui]'`) it's a full-screen [Textual](https://textual.textualize.io/) editor:
-**Enter runs** the program, **Shift+Enter** / **Ctrl+J** insert a newline, pasting a multi-line
-pipeline drops it in cleanly, and Ctrl+↑/↓ recall history (Ctrl+L clears, **Ctrl+Q** quits). The
-editor has full readline-style keys (Ctrl+A/E/W/K/U, word nav, undo/redo). Without the extra it falls
-back to a line-mode prompt that runs on a blank line or a trailing `;`.
+**Enter runs** the program, **Shift+Enter** / **Ctrl+J** insert a newline, and pasting a multi-line
+pipeline drops it in cleanly. **Up/Down** recall history at the buffer edges (or Ctrl+P/Ctrl+N), and
+move the cursor within a multi-line program otherwise; **Ctrl+L** clears, **Ctrl+Q** quits. The editor
+has full readline-style keys (Ctrl+A/E/W/K/U, word nav, undo/redo). Without the extra it falls back to
+a line-mode prompt that runs on a blank line or a trailing `;`.
 
 A library of runnable, commented programs lives in
 [`examples/d2ql/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/d2ql) — run any

@@ -16,7 +16,7 @@ RunProgram = Callable[[str], Awaitable[QueryResult]]
 
 
 class _ProgramArea(TextArea):
-    """Input editor: Enter submits the program; Ctrl+J / Shift+Enter / Alt+Enter insert a newline."""
+    """Input editor: Enter submits; Ctrl+J/Shift+Enter newline; Up/Down recall history at the edges."""
 
     class Submit(Message):
         """Posted when the user runs the buffer."""
@@ -26,8 +26,16 @@ class _ProgramArea(TextArea):
             self.text = text
             super().__init__()
 
+    class History(Message):
+        """Posted to recall the previous (-1) or next (+1) program."""
+
+        def __init__(self, delta: int) -> None:
+            """Carry the history direction."""
+            self.delta = delta
+            super().__init__()
+
     async def _on_key(self, event: events.Key) -> None:
-        """Run on Enter; insert a newline on the newline chords; delegate everything else to TextArea."""
+        """Run on Enter; newline on the chords; Up/Down recall history at the buffer edges, else move."""
         if event.key == "enter":
             event.stop()
             event.prevent_default()
@@ -37,6 +45,18 @@ class _ProgramArea(TextArea):
             event.stop()
             event.prevent_default()
             self.insert("\n")
+            return
+        # Plain arrows move the cursor inside a multi-line program, but recall history at the edges —
+        # Up on the first line, Down on the last — so a one-liner gets shell-style history for free.
+        if event.key == "up" and self.cursor_location[0] == 0:
+            event.stop()
+            event.prevent_default()
+            self.post_message(self.History(-1))
+            return
+        if event.key == "down" and self.cursor_location[0] == self.document.line_count - 1:
+            event.stop()
+            event.prevent_default()
+            self.post_message(self.History(1))
             return
         await super()._on_key(event)
 
@@ -49,11 +69,12 @@ class D2qlReplApp(App[None]):
     #program { height: auto; min-height: 3; max-height: 12; border: round $accent; }
     """
     # The editor owns Ctrl+C (copy), Ctrl+A/E/W/K/U/D etc. (readline-style editing), so quit is Ctrl+Q.
+    # History is the Up/Down arrows (at the buffer edges); Ctrl+P/N are always-recall readline aliases.
     BINDINGS = [
         ("ctrl+q", "quit", "Quit"),
         ("ctrl+l", "clear", "Clear"),
-        ("ctrl+up", "history(-1)", "Prev"),
-        ("ctrl+down", "history(1)", "Next"),
+        ("ctrl+p", "history(-1)", "Prev"),
+        ("ctrl+n", "history(1)", "Next"),
     ]
 
     def __init__(self, *, run_program: RunProgram, title: str) -> None:
@@ -75,7 +96,7 @@ class D2qlReplApp(App[None]):
         """Focus the editor and print the key hints."""
         self.query_one("#program", _ProgramArea).focus()
         self.query_one("#results", RichLog).write(
-            "[dim]Enter runs · Shift+Enter / Ctrl+J newline · Ctrl+up/down history · Ctrl+L clear · Ctrl+Q quit[/dim]"
+            "[dim]Enter runs · Shift+Enter / Ctrl+J newline · Up/Down history · Ctrl+L clear · Ctrl+Q quit[/dim]"
         )
 
     @on(_ProgramArea.Submit)
@@ -103,6 +124,11 @@ class D2qlReplApp(App[None]):
             log.write(f"[red]{type(error).__name__}: {error}[/red]")
             return
         log.write(build_result_renderable(result))
+
+    @on(_ProgramArea.History)
+    def _on_history(self, message: _ProgramArea.History) -> None:
+        """Recall history when the editor's Up/Down hits an edge."""
+        self.action_history(message.delta)
 
     def action_clear(self) -> None:
         """Clear the results pane."""

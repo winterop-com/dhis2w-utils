@@ -32,6 +32,23 @@ async def test_enter_runs_the_program() -> None:
     assert calls == ["dataElements | limit 1"]
 
 
+async def test_up_arrow_recalls_history_at_top_line() -> None:
+    async def fake(program: str) -> QueryResult:
+        return _result([])
+
+    app = D2qlReplApp(run_program=fake, title="test")
+    async with app.run_test() as pilot:
+        area = app.query_one("#program", _ProgramArea)
+        area.text = "dataElements | count"
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert area.text == ""  # cleared; cursor on the (only) line
+        await pilot.press("up")  # at the top line → recall previous program
+        await pilot.pause()
+        assert area.text == "dataElements | count"
+
+
 async def test_ctrl_j_inserts_newline_and_does_not_run() -> None:
     calls: list[str] = []
 
