@@ -1,9 +1,9 @@
 # d2path
 
 **d2path** is the expression language used inside every d2ql stage (`where`, `select`, `transform`,
-`order`, `group by`, `fold`). It is a compatible subset of [FHIRPath](https://hl7.org/fhirpath/) /
-JSONPath, so the same expressions work over DHIS2 wire models and over plain JSON (FHIR resources,
-fixtures). It has no FHIR runtime dependency — it's pure path navigation, operators, and functions.
+`order`, `group by`, `fold`). It navigates and computes over data with dotted path navigation,
+operators, and functions, and works the same whether the data is a DHIS2 wire model or any plain
+JSON document (so it can read and emit JSON like FHIR resources too).
 
 Try any expression standalone against a JSON file:
 
@@ -21,6 +21,21 @@ every `items` element and collects each `qty`.
 This is why comparisons are *existential*: `items.qty > 2` is true if **any** collected `qty` exceeds
 2. The CLI/engine `collapse`s a one-item list to that item when building output, so `name.upper()`
 shows as `"ANC"`, not `["ANC"]`, in a `select`.
+
+## Presence and absence — there is no `= null`
+
+A missing field and an explicit JSON `null` both evaluate to the **empty collection** `[]`. There is
+therefore no useful `field = null`: comparing against the empty collection yields
+empty (treated as false), so `where deleted = null` matches nothing and is never pushed down. Test
+presence and absence with functions instead:
+
+```text
+where field.exists()    # keep rows where the field is present (non-null)
+where field.empty()     # keep rows where the field is absent or null
+```
+
+`null` is still a writable literal (e.g. `transform { note: null }`); it just isn't something you
+compare with `=`/`!=`.
 
 ## Literals
 

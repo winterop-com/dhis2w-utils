@@ -20,8 +20,8 @@ It is two languages working together:
   feeding **stages** (`where`, `select`, `transform`, `order`, `limit`, `count`, `group by`, `fold`)
   and optionally a **sink** (`>>`). `define` / `define function` make a `.d2ql` file a reusable
   library.
-- **[d2path](../guides/d2path.md)** — the small FHIRPath/JSONPath-compatible expression language used
-  inside every stage (`categoryCombo.name`, `name.upper()`, `value > 100`, `name.given.first()`).
+- **[d2path](../guides/d2path.md)** — the small expression language used inside every stage:
+  path navigation, operators, and functions (`categoryCombo.name`, `name.upper()`, `value > 100`).
 
 ## Why
 

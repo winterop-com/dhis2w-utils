@@ -166,6 +166,10 @@ local stages: transform
 A predicate the server cannot express (for example `where name.substring(0, 3) = "ANC"`) simply
 stays local — the result is identical, only the work moves.
 
+One predicate is not just local but meaningless: `where field = null`. A missing or null field is the
+empty collection, so `= null` matches nothing and is never pushed. Use `where field.exists()` /
+`where field.empty()` to test presence and absence — see [d2path](d2path.md#presence-and-absence-there-is-no--null).
+
 ## See also
 
 - [d2ql tutorial](d2ql-tutorial.md) — learn the language step by step.

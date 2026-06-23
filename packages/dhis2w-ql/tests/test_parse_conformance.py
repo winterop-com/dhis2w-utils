@@ -47,6 +47,26 @@ def test_source_only_define_is_a_named_query() -> None:
     assert library.terminal.source.name == "All"
 
 
+def test_source_position_function_calls_are_expressions() -> None:
+    from dhis2w_ql.ast import CallSource, Define, ExprSource
+
+    # A scalar `define` calling a d2path function is an expression, not a call source.
+    today = parse("define Today: today()\ndataElements | limit 1").definitions[0]
+    assert isinstance(today, Define)
+    assert isinstance(today.body.source, ExprSource)
+
+    # A free function (`iif(...)`) at source position parses as an expression.
+    iif = parse('iif(true, "a", "b")')
+    assert iif.terminal is not None
+    assert isinstance(iif.terminal.source, ExprSource)
+
+    # Named-argument calls remain call sources.
+    for program in ['analytics(dx: "x", pe: "y", ou: "z") | limit 5', 'dataValues(dataSet: "d", period: "p")']:
+        library = parse(program)
+        assert library.terminal is not None
+        assert isinstance(library.terminal.source, CallSource)
+
+
 def test_committed_example_programs_parse() -> None:
     from pathlib import Path
 
