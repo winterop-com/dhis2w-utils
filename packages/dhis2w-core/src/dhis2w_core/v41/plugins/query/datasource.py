@@ -76,11 +76,30 @@ class Dhis2DataSource:
         return list(rows[page.drop :]) if page.drop else list(rows)
 
 
+# Analytics option args carried as named call args, mapped to `query_analytics` kwargs. Anything not
+# listed here (and not `filter`) is an analytics dimension (`dx`/`pe`/`ou`/`co`/UID), rendered `key:value`.
+_ANALYTICS_STR_OPTIONS = {
+    "aggregationType": "aggregation_type",
+    "measureCriteria": "measure_criteria",
+    "outputIdScheme": "output_id_scheme",
+    "displayProperty": "display_property",
+    "startDate": "start_date",
+    "endDate": "end_date",
+    "relativePeriodDate": "relative_period_date",
+}
+_ANALYTICS_BOOL_OPTIONS = {"skipMeta": "skip_meta", "skipData": "skip_data", "includeNumDen": "include_num_den"}
+
+
+def _as_bool(value: Any) -> bool:
+    """Coerce a call-arg value to bool, accepting the d2ql `true`/`false` literal or string forms."""
+    return value if isinstance(value, bool) else str(value).strip().lower() in {"true", "1", "yes"}
+
+
 class AnalyticsDataSource:
     """A d2ql call source backed by `/api/analytics`; rows are dicts keyed by dimension (dx/pe/ou/value)."""
 
     def __init__(self, profile: Profile, args: dict[str, Any]) -> None:
-        """Hold the profile and the call arguments (analytics dimensions plus an optional filter)."""
+        """Hold the profile and the call arguments (analytics dimensions, options, and an optional filter)."""
         self._profile = profile
         self._args = args
 
@@ -89,11 +108,24 @@ class AnalyticsDataSource:
         return SourceCapabilities()
 
     async def fetch(self, native: NativeQuery) -> list[Any]:
-        """Run the analytics query and return one dict per Grid row, keyed by dimension header."""
-        dimensions = [f"{key}:{value}" for key, value in self._args.items() if key != "filter"]
-        raw_filter = self._args.get("filter")
-        filters = [str(raw_filter)] if raw_filter is not None else None
-        grid = await analytics_service.query_analytics(self._profile, dimensions=dimensions, filters=filters)
+        """Run the analytics query and return one dict per Grid row, keyed by dimension header.
+
+        Named call args split into analytics options (a known set, routed to the matching query
+        params) and dimensions (everything else, rendered `key:value`); `filter` stays a filter.
+        """
+        dimensions: list[str] = []
+        filters: list[str] | None = None
+        options: dict[str, Any] = {}
+        for key, value in self._args.items():
+            if key == "filter":
+                filters = [str(value)]
+            elif key in _ANALYTICS_STR_OPTIONS:
+                options[_ANALYTICS_STR_OPTIONS[key]] = str(value)
+            elif key in _ANALYTICS_BOOL_OPTIONS:
+                options[_ANALYTICS_BOOL_OPTIONS[key]] = _as_bool(value)
+            else:
+                dimensions.append(f"{key}:{value}")
+        grid = await analytics_service.query_analytics(self._profile, dimensions=dimensions, filters=filters, **options)
         if not isinstance(grid, Grid):
             return []
         headers = [header.name for header in grid.headers or []]

@@ -1,0 +1,5 @@
+// Roll up monthly ANC 1 totals and write them to a CSV file (the sink format follows the extension).
+analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", outputIdScheme: "NAME")
+  | transform { month: pe, anc1: value }
+  | order month asc
+  >> "/tmp/anc1-monthly.csv"

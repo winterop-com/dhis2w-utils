@@ -1,0 +1,4 @@
+// outputIdScheme: NAME returns dx/pe/ou as human-readable names instead of UIDs.
+analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU;Jtf34kNZhzP", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", outputIdScheme: "NAME")
+  | transform { element: dx, month: pe, orgUnit: ou, value: value }
+  | order month asc

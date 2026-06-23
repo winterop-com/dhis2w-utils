@@ -1,0 +1,4 @@
+// Multiple explicit periods and data elements; one row per (element, month).
+analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "202507;202508;202509", ou: "ImspTQPwCqd", outputIdScheme: "NAME")
+  | transform { element: dx, month: pe, value: value }
+  | order month asc

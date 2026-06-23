@@ -1,0 +1,4 @@
+// includeNumDen: true exposes an indicator's numerator, denominator, and factor next to the value.
+analytics(dx: "Uvn6LCg7dVU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", includeNumDen: true)
+  | transform { month: pe, coverage: value, numerator: numerator, denominator: denominator, factor: factor }
+  | order month asc

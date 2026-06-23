@@ -81,6 +81,22 @@ analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd"
   | order total desc
 ```
 
+**Readable output + indicator numerator/denominator** — `analytics(...)` takes analytics options
+(not just dimensions): `outputIdScheme: "NAME"` returns names instead of UIDs, and `includeNumDen:
+true` exposes an indicator's `numerator`/`denominator`/`factor` (`analytics-named-output.d2ql`,
+`analytics-indicator-numden.d2ql`):
+
+```
+analytics(dx: "Uvn6LCg7dVU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", includeNumDen: true, outputIdScheme: "NAME")
+  | transform { month: pe, coverage: value, numerator: numerator, denominator: denominator }
+  | order month asc
+```
+
+Other options route the same way: `aggregationType`, `measureCriteria`, `displayProperty`,
+`startDate`/`endDate`, `relativePeriodDate`, `skipMeta`, `skipData`. Any other arg (e.g. `co`) is a
+dimension. The `analytics-*` examples cover COC breakdowns, org-unit-level rollups, multi-period and
+multi-org-unit comparisons, and a CSV export.
+
 **Raw data values** from a dataset/period/org unit (`datavalues-by-dataset.d2ql`):
 
 ```

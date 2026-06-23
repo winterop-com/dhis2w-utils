@@ -92,6 +92,50 @@ async def test_explain_unknown_call_source() -> None:
     assert explain.note is not None and "not a known call source" in explain.note
 
 
+def _mock_analytics() -> respx.Route:
+    return respx.get(f"{_BASE}/api/analytics").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "headers": [{"name": "dx"}, {"name": "pe"}, {"name": "ou"}, {"name": "value"}],
+                "rows": [["fbfJHSPpUQD", "202401", "ImspTQPwCqd", "100"]],
+            },
+        )
+    )
+
+
+@respx.mock
+async def test_analytics_call_source_routes_options_vs_dimensions() -> None:
+    _mock_connect()
+    route = _mock_analytics()
+    await service.run_query(
+        _PROFILE,
+        'analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", '
+        'aggregationType: "AVERAGE", outputIdScheme: "NAME", includeNumDen: true) | limit 5',
+    )
+    params = route.calls.last.request.url.params
+    # Options become their own query params, not dimensions.
+    assert params.get("aggregationType") == "AVERAGE"
+    assert params.get("outputIdScheme") == "NAME"
+    assert params.get("includeNumDen") == "true"
+    # Dimensions are exactly dx/pe/ou — no option leaked in as a dimension.
+    dimensions = [value for key, value in params.multi_items() if key == "dimension"]
+    assert dimensions == ["dx:fbfJHSPpUQD", "pe:LAST_12_MONTHS", "ou:ImspTQPwCqd"]
+
+
+@respx.mock
+async def test_analytics_bool_option_accepts_literal_and_string() -> None:
+    # The d2ql boolean literal `true` and the quoted string `"true"` both coerce to includeNumDen=true.
+    _mock_connect()
+    for program in (
+        'analytics(dx: "x", pe: "y", ou: "z", includeNumDen: true) | limit 1',
+        'analytics(dx: "x", pe: "y", ou: "z", includeNumDen: "true") | limit 1',
+    ):
+        route = _mock_analytics()
+        await service.run_query(_PROFILE, program)
+        assert route.calls.last.request.url.params.get("includeNumDen") == "true"
+
+
 @respx.mock
 async def test_explain_resolves_named_query_pushdown() -> None:
     _mock_connect()

@@ -1,0 +1,12 @@
+// Analytics values -> a FHIR Bundle of Observations, one Observation per analytics row.
+define function observation(row): {
+  resourceType: "Observation",
+  status: "final",
+  code: { text: $row.dx },
+  effectiveDateTime: $row.pe,
+  valueQuantity: { value: $row.value }
+}
+
+analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU;Jtf34kNZhzP", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", outputIdScheme: "NAME")
+  | transform { resource: observation($this) }
+  | fold { resourceType: "Bundle", type: "collection", entry: $rows }

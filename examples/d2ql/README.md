@@ -65,6 +65,15 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 | `analytics-time-series.d2ql` | `analytics(...)` reshaped per month |
 | `analytics-rollup.d2ql` | `analytics(...)` + filter + `group by` |
 | `analytics-anc-coverage.d2ql` | multi-`dx` analytics line listing |
+| `analytics-named-output.d2ql` | `outputIdScheme: "NAME"` → readable dx/pe/ou names |
+| `analytics-indicator-numden.d2ql` | indicator with `includeNumDen: true` (numerator/denominator/factor) |
+| `analytics-aggregation-override.d2ql` | `aggregationType: "AVERAGE"` over the year |
+| `analytics-coc-breakdown.d2ql` | category-option-combo (`co`) breakdown |
+| `analytics-orgunit-level.d2ql` | `ou: "LEVEL-2;…"` rolled up per district |
+| `analytics-date-window.d2ql` | `startDate`/`endDate` window instead of a relative period |
+| `analytics-multi-period.d2ql` | multiple explicit periods × multiple `dx` |
+| `analytics-multi-orgunit.d2ql` | several districts compared with `group by` |
+| `analytics-export-csv.d2ql` | analytics rollup written to a CSV sink |
 | `datavalues-by-dataset.d2ql` | `dataValues(...)` source (`/api/dataValueSets`) |
 
 **`fhir-*`** — map DHIS2 metadata to FHIR (named `fhir-<source>-<resource>`)
@@ -79,6 +88,7 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 | `fhir-bundle-optionset.d2ql` | many option sets → a Bundle of CodeSystems |
 | `fhir-dataset-questionnaire.d2ql` | one data set → a Questionnaire (elements → items) |
 | `fhir-bundle-dataset.d2ql` | many data sets → a Bundle of Questionnaires |
+| `fhir-bundle-analytics.d2ql` | analytics values → a Bundle of Observations |
 
 **`geojson-*` / `library-*`**
 

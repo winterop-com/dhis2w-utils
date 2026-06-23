@@ -1,0 +1,3 @@
+// A fixed date window via startDate/endDate instead of a relative period token.
+analytics(dx: "fbfJHSPpUQD", ou: "ImspTQPwCqd", startDate: "2025-01-01", endDate: "2025-06-30", outputIdScheme: "NAME")
+  | transform { element: dx, value: value }

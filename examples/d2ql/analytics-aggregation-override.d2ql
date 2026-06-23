@@ -1,0 +1,3 @@
+// aggregationType: AVERAGE overrides the data element's default (sum), averaging across the year.
+analytics(dx: "fbfJHSPpUQD", pe: "LAST_YEAR", ou: "ImspTQPwCqd", aggregationType: "AVERAGE", outputIdScheme: "NAME")
+  | transform { element: dx, period: pe, average: value }
