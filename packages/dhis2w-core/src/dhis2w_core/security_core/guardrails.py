@@ -90,6 +90,15 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
         # the collection, ACL-filtered to the audited account's own tokens unless it holds ALL. The token
         # secret (key) is @JsonIgnore upstream and never returned on the wire, so nothing secret is read.
         "/api/apiToken",
+        # External login-surface reads for the auth-methods verdict. /api/loginConfig is the pre-auth
+        # login-page config (permitAll by design); the OIDC providers offered to anonymous visitors are
+        # read from it. A read-only GET; no credentials and no login attempt are involved.
+        "/api/loginConfig",
+        # OAuth2-client inventory read for the auth-methods verdict: /api/oAuth2Clients lists the clients
+        # DHIS2 acts as an authorization server for, to flag broad grant types and loose redirect URIs.
+        # The list requires F_OAUTH2_CLIENT_MANAGE on v42/v43; a 401/403 degrades the check (never retried)
+        # rather than failing it. The client secret is never read or carried into a finding.
+        "/api/oAuth2Clients",
         "/api/systemSettings",
     }
 )

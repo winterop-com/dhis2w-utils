@@ -50,6 +50,7 @@ def test_resolve_check_keys_defaults_to_all_implemented() -> None:
         "guest",
         "apps",
         "sharing",
+        "auth-methods",
         "tokens",
         "routes",
     ]
@@ -66,7 +67,7 @@ def test_resolve_check_keys_rejects_unknown_key() -> None:
 
 def test_resolve_check_keys_rejects_not_yet_implemented_key() -> None:
     with pytest.raises(ValueError, match="not implemented"):
-        resolve_check_keys(only=["auth-methods"])
+        resolve_check_keys(only=["audit-config"])
 
 
 def test_resolve_check_keys_rejects_empty_selection() -> None:
@@ -83,6 +84,7 @@ def test_resolve_check_keys_rejects_empty_selection() -> None:
                 "apps",
                 "guest",
                 "sharing",
+                "auth-methods",
                 "tokens",
                 "routes",
             ]

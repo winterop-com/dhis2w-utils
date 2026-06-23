@@ -10,6 +10,7 @@ extraction lives per tree.
 from __future__ import annotations
 
 from dhis2w_core.security_core.apps import HubApp, InstalledApp, evaluate_apps
+from dhis2w_core.security_core.auth_methods import LoginProviderView, OAuth2ClientView, evaluate_auth_methods
 from dhis2w_core.security_core.authorities import (
     AUTHORITY_CATEGORIES,
     AuthorityCategory,
@@ -203,9 +204,11 @@ __all__ = [
     "HubApp",
     "InstalledApp",
     "ItemView",
+    "LoginProviderView",
     "ManageEdge",
     "MarkdownRenderer",
     "MembershipEdge",
+    "OAuth2ClientView",
     "ObjectNode",
     "ParsedVersion",
     "PlainLogReporter",
@@ -261,6 +264,7 @@ __all__ = [
     "compute_effective_access",
     "evaluate_account_authorities",
     "evaluate_apps",
+    "evaluate_auth_methods",
     "evaluate_credential_probe",
     "evaluate_guest",
     "evaluate_hygiene",

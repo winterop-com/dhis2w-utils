@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from dhis2w_client.errors import Dhis2ApiError
-from dhis2w_client.generated.v41.oas import Route
+from dhis2w_client.generated.v41.oas import LoginConfigResponse, Route
 from dhis2w_client.v41 import Dhis2Client
 from dhis2w_client.v41.auth.basic import BasicAuth
 from pydantic import ValidationError
@@ -39,7 +39,9 @@ from dhis2w_core.security_core import (
     HtmlRenderer,
     HubApp,
     InstalledApp,
+    LoginProviderView,
     MarkdownRenderer,
+    OAuth2ClientView,
     ReleaseFeed,
     ReportRenderer,
     ReportWriter,
@@ -65,6 +67,7 @@ from dhis2w_core.security_core import (
     compute_effective_access,
     evaluate_account_authorities,
     evaluate_apps,
+    evaluate_auth_methods,
     evaluate_credential_probe,
     evaluate_guest,
     evaluate_hygiene,
@@ -568,6 +571,50 @@ async def _run_tokens(client: Dhis2Client) -> CheckResult:
     return CheckResult(check="tokens", label=label, status=CheckStatus.OK, findings=findings)
 
 
+async def _run_auth_methods(client: Dhis2Client) -> CheckResult:
+    """Inventory the external login surface: pre-auth OIDC providers and registered OAuth2 clients.
+
+    The OIDC half (GET /api/loginConfig, pre-auth by design) is mandatory; if it fails the whole check
+    degrades. The OAuth2-client half (GET /api/oAuth2Clients) requires F_OAUTH2_CLIENT_MANAGE on v42/v43, so
+    a 401/403/404 (or transport error) does not fail the check: the loginConfig OIDC findings still run and
+    the check degrades with a note. The client secret is never read or carried into a finding.
+    """
+    label = label_for("auth-methods")
+    try:
+        login_raw = await client.get_raw("/api/loginConfig")
+    except (Dhis2ApiError, httpx.HTTPError) as exc:
+        return CheckResult(check="auth-methods", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
+    try:
+        login_config = LoginConfigResponse.model_validate(login_raw)
+    except ValidationError:
+        return CheckResult(
+            check="auth-methods",
+            label=label,
+            status=CheckStatus.DEGRADED,
+            note="unexpected /api/loginConfig payload shape",
+        )
+    oidc_providers = [
+        LoginProviderView(provider_id=provider.id or "", login_text=provider.loginText)
+        for provider in login_config.oidcProviders or []
+    ]
+    clients: list[OAuth2ClientView] | None
+    note: str | None = None
+    status = CheckStatus.OK
+    try:
+        clients_raw = await client.get_raw("/api/oAuth2Clients", params={"fields": _wire.OAUTH2_CLIENT_FIELDS})
+    except (Dhis2ApiError, httpx.HTTPError) as exc:
+        clients = None
+        status = CheckStatus.DEGRADED
+        if getattr(exc, "status_code", None) in (401, 403):
+            note = f"OAuth2 clients unreadable (requires F_OAUTH2_CLIENT_MANAGE): {exc}"
+        else:
+            note = f"OAuth2 clients unreadable: {exc}"
+    else:
+        clients = _wire.oauth2_clients(clients_raw)
+    findings = evaluate_auth_methods(oidc_providers=oidc_providers, oauth2_clients=clients)
+    return CheckResult(check="auth-methods", label=label, status=status, findings=findings, note=note)
+
+
 _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "version": _run_version,
     "transport": _run_transport,
@@ -576,6 +623,7 @@ _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "roles": _run_roles,
     "apps": _run_apps,
     "guest": _run_guest,
+    "auth-methods": _run_auth_methods,
     "tokens": _run_tokens,
     "routes": _run_routes,
 }

@@ -23,7 +23,7 @@ below.
 
 ## Index
 
-57 entries grouped by area. **Status tags** carry the result of the most recent
+58 entries grouped by area. **Status tags** carry the result of the most recent
 re-verification against `dhis2/core` docker images on 2026-05-12: **[FIXED]**
 upstream on all of v41/v42/v43, **[FIXED v43]** on v43 only (still present on
 older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -69,6 +69,7 @@ filing.
 - [#9](#9-dhis2s-strict-oidc-property-parser-rejects-entire-provider-config-on-typos) — OIDC property parser rejects entire provider config on typos
 - [#49](#49-hsts-is-suppressed-behind-a-tls-terminating-proxy-and-csp-state-is-observable-only-on-the-wire-there-is-no-keycspenabled-setting) — HSTS suppressed behind a TLS-terminating proxy; CSP state is wire-only (no `keyCspEnabled` setting)
 - [#50](#50-keycorswhitelist-was-removed-from-systemsettings-the-cors-origin-list-is-only-readable-from-apiconfigurationcorswhitelist) — `keyCorsWhitelist` removed from systemSettings; CORS origins only readable from `/api/configuration/corsWhitelist`
+- [#52](#52-no-version-invariant-generated-oauth2-client-schema-v41-emits-only-the-array-typed-oauth2client-v42v43-only-the-comma-string-dhis2oauth2client) — No version-invariant generated OAuth2-client schema (v41 array-typed `OAuth2Client` vs v42/v43 comma-string `Dhis2OAuth2Client`; cross-references #39)
 
 ### Analytics / Aggregate / Data Values
 
@@ -3003,6 +3004,36 @@ curl -s "$BASE/api/apiToken?fields=id,expire" -u admin:district | jq '.apiToken[
 **Workaround in this repo:** `evaluate_tokens` treats `expire_epoch_millis is None` (or an epoch already in the past) as non-expiring and raises a HIGH finding. See `packages/dhis2w-core/src/dhis2w_core/security_core/tokens.py` and the per-tree `tokens_from_raw` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py`.
 
 **Verifier:** none yet.
+
+---
+
+### 52. No version-invariant generated OAuth2-client schema: v41 emits only the array-typed `OAuth2Client`, v42/v43 only the comma-string `Dhis2OAuth2Client`
+
+**Observed on:** the generated OpenAPI trees for DHIS2 `2.41` / `2.42` / `2.43` (`dhis2w_client.generated.v{41,42,43}.oas`). Root cause is the v42 wire rename documented in BUGS.md #39 (`cid` + arrays on v41 vs `clientId` + comma-strings on v42+).
+
+**Repro (read the generated trees):**
+
+```bash
+# v41 has only the array-typed OAuth2Client (cid, grantTypes: list[str], redirectUris: list[str]):
+grep -n "class OAuth2Client\b" packages/dhis2w-client/src/dhis2w_client/generated/v41/oas/o_auth2_client.py
+ls packages/dhis2w-client/src/dhis2w_client/generated/v41/oas/dhis2_o_auth2_client.py  # absent
+
+# v42/v43 have only the comma-string Dhis2OAuth2Client (clientId, authorizationGrantTypes: str, redirectUris: str):
+grep -n "class Dhis2OAuth2Client\b" packages/dhis2w-client/src/dhis2w_client/generated/v42/oas/dhis2_o_auth2_client.py
+ls packages/dhis2w-client/src/dhis2w_client/generated/v42/oas/o_auth2_client.py  # absent
+```
+
+**Expected:** one OAuth2-client schema usable across majors, or at least matching field types so a single reader can validate `/api/oAuth2Clients` on every version.
+
+**Actual:** the v42 `cid` -> `clientId` rename plus the array -> comma-string field-type change (BUGS.md #39) means each major emits a differently-named class with differently-typed multi-valued fields, and neither class exists in the other tree. There is no version-invariant generated OAuth2-client model: code that reads the client list must branch on version for the class name, the identifier field, the grant/redirect field types, AND the list envelope key (`data` on v41, `oAuth2Clients` on v42/v43).
+
+**Impact:** the auth-methods security check reads `/api/oAuth2Clients` on all three majors. The version-invariant reducer cannot consume the generated classes directly because they share neither a name nor a field shape.
+
+**Workaround in this repo:** the auth-methods check defines a single hand-rolled version-invariant view-model `OAuth2ClientView` (`identifier`, `display_name`, `grant_types: frozenset[str]` normalised lowercase, `redirect_uris: tuple[str, ...]`; deliberately no secret field). Each per-tree `_wire.oauth2_clients` projects its own generated class into it: v41 validates `data[]` through `OAuth2Client` and reads `cid` + the array fields; v42/v43 validate `oAuth2Clients[]` through `Dhis2OAuth2Client`, read `clientId`, and split the comma-string grant/redirect fields into lists. v41 never imports `Dhis2OAuth2Client` and v42/v43 never import `OAuth2Client`. See `packages/dhis2w-core/src/dhis2w_core/security_core/auth_methods.py` and the per-tree `oauth2_clients` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py`.
+
+**How to know it's fixed:** the generated trees emit one OAuth2-client schema (same class name, same identifier field, same multi-valued field types) across v41/v42/v43, at which point `OAuth2ClientView` and the per-tree `oauth2_clients` extractors collapse into one. Tied to BUGS.md #39 being fixed upstream.
+
+**Verifier:** none yet (covered by `packages/dhis2w-core/tests/security/test_auth_methods.py`, which exercises both wire shapes through the per-tree extractors).
 
 ---
 

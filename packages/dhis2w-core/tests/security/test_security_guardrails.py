@@ -95,6 +95,16 @@ def test_api_token_path_is_allowlisted() -> None:
     assert "/api/apiToken" in GET_ALLOWLIST
 
 
+def test_login_config_path_is_allowlisted() -> None:
+    """The auth-methods check's pre-auth OIDC-provider read targets an allowlisted GET path."""
+    assert "/api/loginConfig" in GET_ALLOWLIST
+
+
+def test_oauth2_clients_path_is_allowlisted() -> None:
+    """The auth-methods check's OAuth2-client inventory read targets an allowlisted GET path."""
+    assert "/api/oAuth2Clients" in GET_ALLOWLIST
+
+
 def test_retry_policy_default_never_retries_auth_failures() -> None:
     """No-lockout: 401/403 are never retried; only 429/5xx are retry candidates."""
     from dhis2w_client.v41 import RetryPolicy as RetryPolicyV41

@@ -7,13 +7,21 @@ v42 removed every admin-readable per-user 2FA field from the User resource
 The generated v42 `ApiToken` carries `type` as the `ApiTokenType` enum and `createdBy` as a `UserDto`
 (v41 differs on both); `tokens_from_raw` normalises `type` to a plain str and reads only the owner id, so
 `security_core.tokens` stays version-neutral and never imports `ApiTokenType`.
+
+The OAuth2 client wire shape diverges from v41 (BUGS.md #52, cross-referencing #39): v42/v43 have only the
+comma-string `Dhis2OAuth2Client` with the `clientId` identifier and the `oAuth2Clients` list envelope, while
+v41 has only the array-typed `OAuth2Client` with `cid` and the `data` envelope, and there is no
+version-invariant generated schema. `oauth2_clients` validates each `oAuth2Clients[]` record through the v42
+`Dhis2OAuth2Client`, splits the comma-string grant types and redirect URIs into lists, normalises grant types
+to lowercase, and projects into the version-invariant `OAuth2ClientView`; v42 deliberately never imports
+`OAuth2Client`. The secret `clientSecret` field is never read, so no secret reaches a finding.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from dhis2w_client.generated.v42.oas import ApiToken
+from dhis2w_client.generated.v42.oas import ApiToken, Dhis2OAuth2Client
 from dhis2w_client.v42.auth_schemes import (
     ApiHeadersAuthScheme,
     ApiQueryParamsAuthScheme,
@@ -24,10 +32,14 @@ from dhis2w_client.v42.auth_schemes import (
 )
 from pydantic import ValidationError
 
-from dhis2w_core.security_core import TokenAllowlists, TokenView, TwoFactorSource
+from dhis2w_core.security_core import OAuth2ClientView, TokenAllowlists, TokenView, TwoFactorSource
 
 USER_FIELDS = "id,username,disabled,email,lastLogin,userRoles[id]"
 TWO_FACTOR_SOURCE: TwoFactorSource = TwoFactorSource.AUDIT_ENDPOINT
+
+# OAuth2 client fields the auth-methods check reads on v42: the `clientId` identifier, display name, and the
+# comma-string grant types and redirect URIs. The secret is never requested, so it never reaches a finding.
+OAUTH2_CLIENT_FIELDS = "clientId,displayName,authorizationGrantTypes,redirectUris"
 
 
 def two_factor_enabled(user: dict[str, Any]) -> bool | None:
@@ -126,3 +138,52 @@ def _token_allowlists(token: ApiToken) -> TokenAllowlists:
         elif kind == "RefererAllowedList":
             referrers = tuple(getattr(attribute, "allowedReferrers", None) or ())
     return TokenAllowlists(ips=ips, methods=methods, referrers=referrers)
+
+
+def oauth2_clients(raw: dict[str, Any]) -> list[OAuth2ClientView]:
+    """Project each v42 `/api/oAuth2Clients` record from the `oAuth2Clients` envelope into an OAuth2ClientView.
+
+    v42 returns the clients under the `oAuth2Clients` key, each with the `clientId` identifier and the
+    comma-string `authorizationGrantTypes` / `redirectUris`. The comma-strings are split into lists and grant
+    types normalised to lowercase so the version-invariant reducer compares against the canonical OAuth2 grant
+    tokens. The secret `clientSecret` field is never read, so no secret is ever carried. A record that fails
+    validation is skipped rather than aborting the whole inventory.
+    """
+    records = raw.get("oAuth2Clients")
+    if not isinstance(records, list):
+        return []
+    views: list[OAuth2ClientView] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        try:
+            client = Dhis2OAuth2Client.model_validate(record)
+        except (ValidationError, ValueError, TypeError):
+            continue
+        views.append(
+            OAuth2ClientView(
+                identifier=client.clientId or "",
+                display_name=client.displayName,
+                grant_types=_grant_types(client),
+                redirect_uris=_redirect_uris(client),
+            )
+        )
+    return views
+
+
+def _grant_types(client: Dhis2OAuth2Client) -> frozenset[str]:
+    """Split the v42 comma-string `authorizationGrantTypes` into a lowercase frozenset."""
+    return frozenset(_split_comma(client.authorizationGrantTypes, lower=True))
+
+
+def _redirect_uris(client: Dhis2OAuth2Client) -> tuple[str, ...]:
+    """Split the v42 comma-string `redirectUris` into a tuple, preserving case."""
+    return tuple(_split_comma(client.redirectUris, lower=False))
+
+
+def _split_comma(value: str | None, *, lower: bool) -> list[str]:
+    """Split a comma-string into trimmed non-empty tokens, optionally lowercased."""
+    if not value:
+        return []
+    tokens = (token.strip() for token in value.split(","))
+    return [token.lower() if lower else token for token in tokens if token]
