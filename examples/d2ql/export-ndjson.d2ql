@@ -1,0 +1,6 @@
+// Same rows as newline-delimited JSON (.ndjson) — one object per line, for streaming / jq / bulk load.
+dataElements
+  | where domainType = "AGGREGATE"
+  | select id, name, valueType
+  | order name asc | limit 20
+  >> "/tmp/data-elements.ndjson"
