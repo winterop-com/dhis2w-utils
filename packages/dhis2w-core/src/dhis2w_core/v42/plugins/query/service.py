@@ -152,9 +152,8 @@ def _binds_metadata_resource(library: Library, entry: Pipeline) -> bool:
 def _select_pipeline(library: Library, define: str | None) -> Pipeline:
     if define is not None:
         for definition in library.definitions:
-            body = getattr(definition, "body", None)
-            if getattr(definition, "name", None) == define and isinstance(body, Pipeline):
-                return body
+            if isinstance(definition, Define) and definition.name == define:
+                return definition.body
         raise SemanticError(f"no query definition named {define!r}")
     if library.terminal is None:
         raise SemanticError("this program has no terminal pipeline; pass --define to run a named query")

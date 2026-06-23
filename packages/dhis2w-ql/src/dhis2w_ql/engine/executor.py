@@ -210,6 +210,8 @@ class QueryEngine:
             case FoldStage():
                 scope = EvalContext().child(rows=rows)
                 return _StageOutcome(rows=[self._evaluator.build_object(stage.template, rows, scope)], scalar=True)
+            case _:
+                raise EvaluationError(f"unhandled stage {stage.kind!r}")
 
     def _per_item(self, expr: Expr, item: Any, index: int) -> list[Any]:
         return self._evaluator.per_item(expr, item, index, EvalContext())
@@ -239,6 +241,8 @@ class QueryEngine:
         return result
 
     def _order(self, stage: OrderStage, rows: list[Any]) -> list[Any]:
+        # Sort keys are per-row field/value expressions; `$index` has no meaning in a comparator and
+        # is intentionally fixed to 0 (it would compare equal for every row anyway).
         def comparator(left: Any, right: Any) -> int:
             for key in stage.keys:
                 left_value = collapse(self._per_item(key.expr, left, 0))

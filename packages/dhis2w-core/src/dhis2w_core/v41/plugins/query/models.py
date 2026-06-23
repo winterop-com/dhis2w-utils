@@ -14,7 +14,7 @@ class QueryExplain(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     source: str
-    source_kind: Literal["resource", "definition", "read", "expression", "call"]
+    source_kind: Literal["resource", "read", "expression", "call"]
     pushed_down: NativeQuery | None = None
     residual_stages: list[str] = []
     note: str | None = None
