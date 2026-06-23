@@ -1,0 +1,2 @@
+// Constants and their values.
+constants | select id, name, value | order name asc | limit 25

@@ -1,0 +1,9 @@
+// One data set -> a FHIR Questionnaire (its data elements become items).
+dataSets
+  | limit 1
+  | fold {
+      resourceType: "Questionnaire",
+      status: "active",
+      title: $rows.name.first(),
+      item: $rows.dataSetElements.dataElement.select({ linkId: id, text: name, type: "string" })
+    }

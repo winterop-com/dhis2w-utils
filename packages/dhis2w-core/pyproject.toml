@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-core"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 description = "Shared DHIS2 tooling runtime: profile discovery, plugin registry, auth factory, token store, first-party plugins."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
@@ -17,6 +17,7 @@ dependencies = [
   "aiosqlite>=0.22",
   "bcrypt>=5.0.0",
   "questionary>=2.1.1",
+  "dhis2w-ql>=1.0.0.dev1,<1.1",
 ]
 
 [build-system]

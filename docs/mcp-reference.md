@@ -2,7 +2,7 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 311 across 14 plugin groups.
+**Total tools**: 314 across 15 plugin groups.
 
 ## Plugins
 
@@ -17,6 +17,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 - [`messaging_*`](#messaging) — 11 tools
 - [`metadata_*`](#metadata) — 197 tools
 - [`profile_*`](#profile) — 4 tools
+- [`query_*`](#query) — 3 tools
 - [`route_*`](#route) — 7 tools
 - [`system_*`](#system) — 9 tools
 - [`user_*`](#user) — 15 tools
@@ -3202,6 +3203,37 @@ Verify one profile by calling /api/system/info and /api/me.
 Verify every known profile. Returns one result per profile.
 
 No parameters.
+
+## `query`
+
+### `query_d2path`
+
+Evaluate a bare d2path (FHIRPath/JSONPath-compatible) expression over the given JSON data.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `expression` | `string` | yes | — |
+| `data` | `-` | yes | — |
+
+### `query_eval`
+
+Run a d2ql program against DHIS2 metadata and return the produced rows.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `query` | `string` | yes | — |
+| `define` | `string` | no | — |
+| `profile` | `string` | no | — |
+
+### `query_explain`
+
+Show how a d2ql pipeline splits between DHIS2-native pushdown and local evaluation.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `query` | `string` | yes | — |
+| `define` | `string` | no | — |
+| `profile` | `string` | no | — |
 
 ## `route`
 

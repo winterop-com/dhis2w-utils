@@ -1,0 +1,4 @@
+// ANC 1st visit as a tidy monthly time series, from /api/analytics.
+analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")
+  | transform { month: pe, anc1: value }
+  | order month asc

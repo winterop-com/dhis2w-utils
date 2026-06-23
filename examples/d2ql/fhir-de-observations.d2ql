@@ -1,0 +1,9 @@
+// Emit a FHIR Observation shape per aggregate data element (transform is generic).
+dataElements
+  | where domainType = "AGGREGATE"
+  | transform {
+      resourceType: "Observation",
+      status: "final",
+      code: { coding: [ { system: "dhis2", code: id, display: name } ] }
+    }
+  | limit 25

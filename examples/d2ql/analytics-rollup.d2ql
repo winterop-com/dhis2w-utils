@@ -1,0 +1,5 @@
+// Roll analytics up per data element, biggest first.
+analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")
+  | where value > 1000
+  | group by dx { total: sum(value), periods: count() }
+  | order total desc

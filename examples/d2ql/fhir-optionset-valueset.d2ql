@@ -1,0 +1,9 @@
+// One option set -> a FHIR ValueSet (its options become the included concepts).
+optionSets
+  | where name like "Age"
+  | limit 1
+  | fold {
+      resourceType: "ValueSet",
+      status: "active",
+      compose: { include: [ { system: "dhis2", concept: options.select({ code: code, display: name }) } ] }
+    }

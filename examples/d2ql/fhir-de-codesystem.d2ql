@@ -1,0 +1,11 @@
+// Data elements -> a single FHIR CodeSystem (each element becomes a concept).
+dataElements
+  | where domainType = "AGGREGATE"
+  | limit 50
+  | fold {
+      resourceType: "CodeSystem",
+      url: "https://example.org/dhis2/dataElements",
+      status: "active",
+      content: "complete",
+      concept: $rows.select({ code: id, display: name })
+    }

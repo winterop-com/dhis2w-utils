@@ -1,0 +1,12 @@
+// Many data sets -> a FHIR Bundle, one Questionnaire resource per data set.
+define function questionnaire(ds): {
+  resourceType: "Questionnaire",
+  status: "active",
+  title: $ds.name,
+  item: $ds.dataSetElements.dataElement.select({ linkId: id, text: name, type: "string" })
+}
+
+dataSets
+  | limit 10
+  | transform { resource: questionnaire($this) }
+  | fold { resourceType: "Bundle", type: "collection", entry: $rows }

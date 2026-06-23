@@ -1,0 +1,6 @@
+// All aggregate data elements whose name mentions ANC.
+dataElements
+  | where domainType = "AGGREGATE" and name like "ANC"
+  | select id, name, valueType
+  | order name asc
+  | limit 25

@@ -1,0 +1,5 @@
+// Level-2 org units (districts) with their parent's name.
+organisationUnits
+  | where level = 2
+  | select id, name, parent.name as parent
+  | order name asc

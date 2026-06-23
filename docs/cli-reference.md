@@ -32,6 +32,7 @@ $ d2w [OPTIONS] COMMAND [ARGS]...
 * `messaging`: DHIS2 internal messaging.
 * `metadata`: DHIS2 metadata inspection.
 * `profile`: Manage DHIS2 profiles.
+* `query`: d2ql query + transform language.
 * `route`: DHIS2 integration routes.
 * `security`: DHIS2 security posture (read-only).
 * `system`: DHIS2 system info.
@@ -8775,6 +8776,139 @@ $ d2w profile oauth2 client register [OPTIONS]
 * `--redirect-uri TEXT`: [default: http://localhost:8765]
 * `--scope TEXT`: [default: ALL]
 * `--name TEXT`
+* `--help`: Show this message and exit.
+
+## `d2w query`
+
+d2ql query + transform language.
+
+**Usage**:
+
+```console
+$ d2w query [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `eval`: Run a d2ql program against the active...
+* `run`: Run a d2ql program read from a file.
+* `explain`: Show how a d2ql pipeline splits between...
+* `ast`: Print the parsed d2ql AST (no profile...
+* `d2path`: Evaluate a bare d2path expression over a...
+* `repl`: Start an interactive d2ql prompt against...
+
+### `d2w query eval`
+
+Run a d2ql program against the active profile and render the rows.
+
+**Usage**:
+
+```console
+$ d2w query eval [OPTIONS] TEXT
+```
+
+**Arguments**:
+
+* `TEXT`: A d2ql program (quote it).  [required]
+
+**Options**:
+
+* `-d, --define TEXT`: Run/explain this named definition.
+* `-o, --out TEXT`: Write rows to this file (json/ndjson/csv).
+* `--help`: Show this message and exit.
+
+### `d2w query run`
+
+Run a d2ql program read from a file.
+
+**Usage**:
+
+```console
+$ d2w query run [OPTIONS] FILE
+```
+
+**Arguments**:
+
+* `FILE`: Path to a .d2ql program file.  [required]
+
+**Options**:
+
+* `-d, --define TEXT`: Run/explain this named definition.
+* `-o, --out TEXT`: Write rows to this file (json/ndjson/csv).
+* `--help`: Show this message and exit.
+
+### `d2w query explain`
+
+Show how a d2ql pipeline splits between DHIS2 pushdown and local evaluation.
+
+**Usage**:
+
+```console
+$ d2w query explain [OPTIONS] TEXT
+```
+
+**Arguments**:
+
+* `TEXT`: A d2ql program (quote it).  [required]
+
+**Options**:
+
+* `-d, --define TEXT`: Run/explain this named definition.
+* `--help`: Show this message and exit.
+
+### `d2w query ast`
+
+Print the parsed d2ql AST (no profile needed).
+
+**Usage**:
+
+```console
+$ d2w query ast [OPTIONS] TEXT
+```
+
+**Arguments**:
+
+* `TEXT`: A d2ql program (quote it).  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `d2w query d2path`
+
+Evaluate a bare d2path expression over a local JSON document (no profile needed).
+
+**Usage**:
+
+```console
+$ d2w query d2path [OPTIONS] EXPRESSION
+```
+
+**Arguments**:
+
+* `EXPRESSION`: A d2path expression (quote it).  [required]
+
+**Options**:
+
+* `-i, --input PATH`: JSON file to evaluate against.  [required]
+* `--help`: Show this message and exit.
+
+### `d2w query repl`
+
+Start an interactive d2ql prompt against the active profile.
+
+**Usage**:
+
+```console
+$ d2w query repl [OPTIONS]
+```
+
+**Options**:
+
 * `--help`: Show this message and exit.
 
 ## `d2w route`

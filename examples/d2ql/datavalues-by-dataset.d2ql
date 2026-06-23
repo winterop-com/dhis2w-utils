@@ -1,0 +1,4 @@
+// Raw aggregate data values from /api/dataValueSets for one dataset/period/org unit.
+dataValues(dataSet: "BfMAe6Itzgt", period: "202401", orgUnit: "ImspTQPwCqd")
+  | transform { de: dataElement, ou: orgUnit, value: value }
+  | limit 25

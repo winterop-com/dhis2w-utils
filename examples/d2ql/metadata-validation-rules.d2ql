@@ -1,0 +1,2 @@
+// Validation rules with importance and operator.
+validationRules | select id, name, importance, operator | order name asc | limit 25

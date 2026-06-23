@@ -1,0 +1,2 @@
+// Indicator groups with their member indicator names.
+indicatorGroups | select id, name, indicators.name as indicators | limit 15

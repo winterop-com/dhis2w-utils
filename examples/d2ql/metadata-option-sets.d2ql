@@ -1,0 +1,4 @@
+// Each option set with its option names collected into a list.
+optionSets
+  | select id, name, options.name as options
+  | limit 25

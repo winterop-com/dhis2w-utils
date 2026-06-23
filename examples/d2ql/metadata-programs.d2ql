@@ -1,0 +1,2 @@
+// Programs with their type (with/without registration).
+programs | select id, name, programType | order name asc | limit 25
