@@ -47,7 +47,11 @@ from Python via `parse(open(<file>).read())`.
 - A **call source** for aggregate data:
     - `analytics(dx: "...", pe: "LAST_12_MONTHS", ou: "...")` — rows from `/api/analytics`, one dict
       per row keyed by dimension (`dx`, `pe`, `ou`, `value`, ...). An optional `filter: "..."` arg
-      maps to an analytics filter.
+      maps to an analytics filter. Beyond dimensions, `analytics(...)` also takes analytics **option**
+      args, routed to the matching query params: `aggregationType`, `measureCriteria`,
+      `outputIdScheme`, `displayProperty`, `startDate`, `endDate`, `relativePeriodDate`, `skipMeta`,
+      `skipData`, and `includeNumDen` (adds `numerator`/`denominator`/`factor`). Any arg that isn't a
+      known option or `filter` is treated as a dimension.
     - `dataValues(dataSet: "...", period: "...", orgUnit: "...")` — raw aggregate values from
       `/api/dataValueSets` (navigate `dataElement`, `period`, `orgUnit`, `value`).
 

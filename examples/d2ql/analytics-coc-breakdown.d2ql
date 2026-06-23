@@ -1,0 +1,4 @@
+// Break a data element down by category option combo (co) — e.g. Fixed vs Outreach.
+analytics(dx: "Jtf34kNZhzP", co: "", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", outputIdScheme: "NAME")
+  | group by co { total: sum(value) }
+  | order total desc

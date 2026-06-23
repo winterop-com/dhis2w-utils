@@ -1,0 +1,4 @@
+// Roll up to org-unit level 2 (districts) under Sierra Leone and total per district.
+analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "LEVEL-2;ImspTQPwCqd", outputIdScheme: "NAME")
+  | group by ou { total: sum(value) }
+  | order total desc

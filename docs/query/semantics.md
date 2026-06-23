@@ -54,7 +54,10 @@ your defines distinctly. An identifier that matches neither is an error.
 `name(...)` is disambiguated by its arguments, not a reserved list:
 
 - **Named arguments** (`key: value`) → a **call source**: `analytics(dx: "…", pe: "…", ou: "…")`,
-  `dataValues(dataSet: "…", period: "…", orgUnit: "…")`.
+  `dataValues(dataSet: "…", period: "…", orgUnit: "…")`. For `analytics(...)`, args split into a
+  known analytics-**option** set (`aggregationType`, `outputIdScheme`, `includeNumDen`, `skipMeta`,
+  `startDate`/`endDate`, …, plus `filter`) routed to query params, and **dimensions** (everything
+  else: `dx`/`pe`/`ou`/`co`/UIDs) — the camelCase option names never collide with dimension keys.
 - **Positional arguments or none** → a **d2path function call** (an expression source):
   `today()`, `iif(active, 1, 0)`, a user `define function`.
 

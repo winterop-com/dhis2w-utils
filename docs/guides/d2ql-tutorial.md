@@ -171,6 +171,14 @@ analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd"
 ]
 ```
 
+Besides dimensions, `analytics(...)` takes analytics **options** — e.g. `outputIdScheme: "NAME"` for
+readable names, or `includeNumDen: true` to get an indicator's numerator/denominator:
+
+```
+analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", outputIdScheme: "NAME")
+  | transform { element: dx, month: pe, value: value }
+```
+
 `dataValues(dataSet: "…", period: "…", orgUnit: "…")` reads raw aggregate values from
 `/api/dataValueSets`.
 
