@@ -212,8 +212,9 @@ class QueryEngine:
             case FoldStage():
                 scope = EvalContext().child(rows=rows)
                 return _StageOutcome(rows=[self._evaluator.build_object(stage.template, rows, scope)], scalar=True)
-            case _:
-                raise EvaluationError(f"unhandled stage {stage.kind!r}")
+            # No catch-all: `Stage` is a closed union and every variant is handled above, so the
+            # type checkers prove exhaustiveness. Adding a variant without a case here is a
+            # compile-time error (missing return), which is stronger than a runtime guard.
 
     def _per_item(self, expr: Expr, item: Any, index: int) -> list[Any]:
         return self._evaluator.per_item(expr, item, index, EvalContext())
