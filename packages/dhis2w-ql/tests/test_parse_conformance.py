@@ -89,3 +89,20 @@ def test_lex_error_has_position() -> None:
 def test_parse_error_on_missing_stage() -> None:
     with pytest.raises(ParseError):
         parse("dataElements | ")
+
+
+def test_parse_call_source() -> None:
+    library = parse('analytics(dx: "abc", pe: "LAST_12_MONTHS", ou: "xyz") | limit 5')
+    assert library.terminal is not None
+    source = library.terminal.source
+    assert source.kind == "call"
+    assert source.name == "analytics"
+    assert [arg.name for arg in source.args] == ["dx", "pe", "ou"]
+
+
+def test_parse_aggregate_stage() -> None:
+    library = parse("dataElements | aggregate by domainType { total: sum(value), n: count() }")
+    assert library.terminal is not None
+    stage = library.terminal.stages[0]
+    assert stage.kind == "aggregate"
+    assert [field.name for field in stage.aggregations.fields] == ["total", "n"]

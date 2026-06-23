@@ -7,7 +7,7 @@
   to the source and evaluating the rest locally.
 """
 
-from dhis2w_ql.ast import Define, DefineFunction, Library, Pipeline
+from dhis2w_ql.ast import AggregateStage, CallSource, Define, DefineFunction, Library, Pipeline
 from dhis2w_ql.d2path import EvalContext, Evaluator, Resolver
 from dhis2w_ql.engine import (
     DataSource,
@@ -33,6 +33,8 @@ from dhis2w_ql.tokenizer import Token, TokenKind, tokenize
 
 __all__ = [
     "DEFAULT_SCHEMA",
+    "AggregateStage",
+    "CallSource",
     "D2qlError",
     "DataSource",
     "Define",

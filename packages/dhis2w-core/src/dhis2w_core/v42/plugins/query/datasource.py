@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from dhis2w_client.v42 import Grid
 from dhis2w_ql import Library, NativeQuery, Pipeline, SourceCapabilities
 from dhis2w_ql.ast import (
     ArrayExpr,
@@ -26,6 +27,8 @@ from dhis2w_ql.ast import (
 from pydantic import BaseModel
 
 from dhis2w_core.profile import Profile
+from dhis2w_core.v42.plugins.aggregate import service as aggregate_service
+from dhis2w_core.v42.plugins.analytics import service as analytics_service
 from dhis2w_core.v42.plugins.metadata import service as metadata_service
 from dhis2w_core.v42.plugins.query.compiler import compile_filters, compile_order, resolve_paging
 
@@ -72,8 +75,55 @@ class Dhis2DataSource:
         return list(rows[page.drop :]) if page.drop else list(rows)
 
 
+class AnalyticsDataSource:
+    """A d2ql call source backed by `/api/analytics`; rows are dicts keyed by dimension (dx/pe/ou/value)."""
+
+    def __init__(self, profile: Profile, args: dict[str, Any]) -> None:
+        """Hold the profile and the call arguments (analytics dimensions plus an optional filter)."""
+        self._profile = profile
+        self._args = args
+
+    def capabilities(self) -> SourceCapabilities:
+        """Analytics dimensions are supplied as call args, so no pipeline stage pushes down here."""
+        return SourceCapabilities()
+
+    async def fetch(self, native: NativeQuery) -> list[Any]:
+        """Run the analytics query and return one dict per Grid row, keyed by dimension header."""
+        dimensions = [f"{key}:{value}" for key, value in self._args.items() if key != "filter"]
+        raw_filter = self._args.get("filter")
+        filters = [str(raw_filter)] if raw_filter is not None else None
+        grid = await analytics_service.query_analytics(self._profile, dimensions=dimensions, filters=filters)
+        if not isinstance(grid, Grid):
+            return []
+        headers = [header.name for header in grid.headers or []]
+        return [dict(zip(headers, row, strict=False)) for row in (grid.rows or [])]
+
+
+class AggregateDataSource:
+    """A d2ql call source backed by `/api/dataValueSets`; rows are typed `DataValue` models."""
+
+    def __init__(self, profile: Profile, args: dict[str, Any]) -> None:
+        """Hold the profile and the call arguments (dataSet / period / orgUnit)."""
+        self._profile = profile
+        self._args = args
+
+    def capabilities(self) -> SourceCapabilities:
+        """Data-value-set selection is supplied as call args, so no pipeline stage pushes down here."""
+        return SourceCapabilities()
+
+    async def fetch(self, native: NativeQuery) -> list[Any]:
+        """Fetch the data value set and return its `DataValue` rows."""
+        value_set = await aggregate_service.get_data_values(
+            self._profile,
+            data_set=self._args.get("dataSet"),
+            period=self._args.get("period"),
+            org_unit=self._args.get("orgUnit"),
+        )
+        return list(value_set.dataValues or [])
+
+
 class Dhis2Binder:
-    """Binds d2ql source names to DHIS2 resources (anything in the instance's resource catalog)."""
+    """Binds d2ql source names to DHIS2 resources and call sources (analytics, dataValues)."""
 
     def __init__(self, profile: Profile, resource_names: set[str], fields: str | None) -> None:
         """Hold the profile, the set of bindable resource names, and the shared field selector."""
@@ -86,6 +136,14 @@ class Dhis2Binder:
         if name not in self._resource_names:
             return None
         return Dhis2DataSource(self._profile, name, self._fields)
+
+    def bind_call(self, name: str, args: dict[str, Any]) -> AnalyticsDataSource | AggregateDataSource | None:
+        """Bind a call source: `analytics(...)` and `dataValues(...)`; None for anything else."""
+        if name == "analytics":
+            return AnalyticsDataSource(self._profile, args)
+        if name == "dataValues":
+            return AggregateDataSource(self._profile, args)
+        return None
 
 
 def collect_fields(library: Library) -> str | None:
@@ -112,15 +170,16 @@ def _collect_pipeline(pipeline: Pipeline, paths: set[str]) -> None:
     elif isinstance(source, ExprSource):
         _collect_expr(source.expr, paths)
     for stage in pipeline.stages:
-        for attribute in ("predicate",):
+        for attribute in ("predicate", "group"):
             expr = getattr(stage, attribute, None)
             if expr is not None:
                 _collect_expr(expr, paths)
         for select_item in getattr(stage, "items", []) or []:
             _collect_expr(select_item.expr, paths)
-        template = getattr(stage, "template", None)
-        if template is not None:
-            _collect_expr(template, paths)
+        for container in ("template", "aggregations"):
+            built = getattr(stage, container, None)
+            if built is not None:
+                _collect_expr(built, paths)
         for order_key in getattr(stage, "keys", []) or []:
             _collect_expr(order_key.expr, paths)
 

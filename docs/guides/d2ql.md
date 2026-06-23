@@ -36,6 +36,12 @@ The same engine is available as MCP tools (`query_eval`, `query_explain`, `query
   output of an earlier query).
 - A **definition** — reference a named query as a source (see [Definitions](#definitions)).
 - A scalar **expression** — `define Total: 1 + 2` (used by definitions, not usually run directly).
+- A **call source** for aggregate data:
+    - `analytics(dx: "...", pe: "LAST_12_MONTHS", ou: "...")` — rows from `/api/analytics`, one dict
+      per row keyed by dimension (`dx`, `pe`, `ou`, `value`, ...). An optional `filter: "..."` arg
+      maps to an analytics filter.
+    - `dataValues(dataSet: "...", period: "...", orgUnit: "...")` — raw aggregate values from
+      `/api/dataValueSets` (navigate `dataElement`, `period`, `orgUnit`, `value`).
 
 ## Stages
 
@@ -47,6 +53,21 @@ The same engine is available as MCP tools (`query_eval`, `query_explain`, `query
 | `order <expr> [asc\|desc], …` | Sort by one or more keys. |
 | `limit <n>` / `skip <n>` | Take / drop rows. |
 | `count` | Replace the stream with its length (a scalar result). |
+| `aggregate by <expr> { name: agg, … }` | Group rows by a key and reduce each group. |
+
+### aggregate
+
+`aggregate by <group> { total: sum(value), n: count() }` groups rows by the group expression and
+emits one object per group: the group key (named like a `select` column) plus each aggregation.
+Aggregation expressions are evaluated against the group's rows, so `sum(value)` gathers `value`
+across the group. Works over any source — metadata, analytics, or data values:
+
+```
+analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")
+  | where value > 1000
+  | aggregate by dx { total: sum(value), periods: count() }
+  | order total desc
+```
 
 ### transform
 

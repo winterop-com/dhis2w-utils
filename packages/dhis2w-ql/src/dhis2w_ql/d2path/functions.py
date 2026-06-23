@@ -149,8 +149,9 @@ def _take(ev: Evaluator, focus: list[Any], args: list[Expr], context: EvalContex
 
 @_register("count")
 def _count(ev: Evaluator, focus: list[Any], args: list[Expr], context: EvalContext) -> list[Any]:
-    _expect_argc("count", args, 0)
-    return [len(focus)]
+    _expect_argc("count", args, 0, 1)
+    target = ev.evaluate(args[0], focus, context) if args else focus
+    return [len(target)]
 
 
 @_register("distinct")
@@ -292,8 +293,9 @@ def _numbers(focus: list[Any]) -> list[float]:
 def _aggregate(name: str, reducer: Callable[[list[float]], float]) -> None:
     @_register(name)
     def _impl(ev: Evaluator, focus: list[Any], args: list[Expr], context: EvalContext) -> list[Any]:
-        _expect_argc(name, args, 0)
-        numbers = _numbers(focus)
+        _expect_argc(name, args, 0, 1)
+        target = ev.evaluate(args[0], focus, context) if args else focus
+        numbers = _numbers(target)
         return [] if not numbers else [reducer(numbers)]
 
 

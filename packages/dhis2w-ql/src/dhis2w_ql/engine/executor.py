@@ -18,6 +18,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_ql.ast import (
+    AggregateStage,
+    CallSource,
     CountStage,
     Define,
     DefineFunction,
@@ -166,6 +168,14 @@ class QueryEngine:
                 raise SemanticError(f"unknown source {source.name!r}: not a bound resource or definition")
             inner = await self._execute(define.body)
             return _SourceResolution(rows=inner.rows, residual=list(stages))
+        if isinstance(source, CallSource):
+            args = {field.name: collapse(self._evaluator.evaluate(field.value, [])) for field in source.args}
+            data_source = self._binder.bind_call(source.name, args)
+            if data_source is None:
+                raise SemanticError(f"unknown source {source.name!r}(...): no call binding for it")
+            plan = plan_pipeline(source.name, data_source.capabilities(), stages)
+            rows = await data_source.fetch(plan.native)
+            return _SourceResolution(rows=rows, residual=list(plan.residual))
         if isinstance(source, ReadSource):
             return _SourceResolution(rows=_read_rows(source.path), residual=list(stages))
         return _SourceResolution(rows=self._evaluator.evaluate(source.expr, []), residual=list(stages))
@@ -197,6 +207,8 @@ class QueryEngine:
                 return _StageOutcome(rows=rows[stage.count :], scalar=False)
             case CountStage():
                 return _StageOutcome(rows=[len(rows)], scalar=True)
+            case AggregateStage():
+                return _StageOutcome(rows=self._aggregate(stage, rows), scalar=False)
 
     def _per_item(self, expr: Expr, item: Any, index: int) -> list[Any]:
         return self._evaluator.per_item(expr, item, index, EvalContext())
@@ -207,6 +219,23 @@ class QueryEngine:
             key = select_item.alias or _derive_name(select_item.expr, position)
             row[key] = collapse(self._per_item(select_item.expr, item, index))
         return row
+
+    def _aggregate(self, stage: AggregateStage, rows: list[Any]) -> list[Any]:
+        key_name = _derive_name(stage.group, 0)
+        buckets: list[tuple[Any, list[Any]]] = []
+        for index, row in enumerate(rows):
+            key = collapse(self._per_item(stage.group, row, index))
+            for existing_key, bucket in buckets:
+                if existing_key == key:
+                    bucket.append(row)
+                    break
+            else:
+                buckets.append((key, [row]))
+        result: list[dict[str, Any]] = []
+        for key, bucket in buckets:
+            aggregated = self._evaluator.build_object(stage.aggregations, bucket, EvalContext())
+            result.append({key_name: key, **aggregated})
+        return result
 
     def _order(self, stage: OrderStage, rows: list[Any]) -> list[Any]:
         def comparator(left: Any, right: Any) -> int:

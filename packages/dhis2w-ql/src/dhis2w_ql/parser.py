@@ -25,9 +25,11 @@ from __future__ import annotations
 from typing import Literal
 
 from dhis2w_ql.ast import (
+    AggregateStage,
     ArrayExpr,
     BinaryExpr,
     CallExpr,
+    CallSource,
     Define,
     DefineFunction,
     Definition,
@@ -128,6 +130,11 @@ class _Parser:
             raise self._error(f"expected {label}, found {self._peek().value or self._peek().kind.value!r}")
         return self._advance()
 
+    def _expect_keyword(self, word: str) -> None:
+        if not self._at_keyword(word):
+            raise self._error(f"expected {word!r}")
+        self._advance()
+
     def expect_eof(self) -> None:
         """Raise unless the cursor is at the end of the token stream."""
         if not self._at(TokenKind.EOF):
@@ -191,6 +198,8 @@ class _Parser:
             return ReadSource(path=path)
         if self._at(TokenKind.IDENT):
             following = self._peek(1).kind
+            if following is TokenKind.LPAREN:
+                return self._parse_call_source()
             if following is TokenKind.LBRACKET:
                 name = self._advance().value
                 self._advance()  # [
@@ -200,6 +209,20 @@ class _Parser:
             if following in (TokenKind.PIPE, TokenKind.SINK, TokenKind.EOF) or self._peek(1).value == "define":
                 return NameSource(name=self._advance().value)
         return ExprSource(expr=self.parse_expr())
+
+    def _parse_call_source(self) -> CallSource:
+        name = self._advance().value
+        self._expect(TokenKind.LPAREN, "'('")
+        args: list[ObjectField] = []
+        if not self._at(TokenKind.RPAREN):
+            args.append(self._parse_object_field())
+            while self._at(TokenKind.COMMA):
+                self._advance()
+                if self._at(TokenKind.RPAREN):
+                    break
+                args.append(self._parse_object_field())
+        self._expect(TokenKind.RPAREN, "')'")
+        return CallSource(name=name, args=args)
 
     def _parse_stage(self) -> Stage:
         if self._at_keyword("where"):
@@ -225,7 +248,12 @@ class _Parser:
             from dhis2w_ql.ast import CountStage  # noqa: PLC0415 — local import avoids a long top import line
 
             return CountStage()
-        raise self._error("expected a stage keyword (where/select/transform/order/limit/skip/count)")
+        if self._at_keyword("aggregate"):
+            self._advance()
+            self._expect_keyword("by")
+            group = self.parse_expr()
+            return AggregateStage(group=group, aggregations=self._parse_object())
+        raise self._error("expected a stage keyword (where/select/transform/order/limit/skip/count/aggregate)")
 
     def _parse_select_items(self) -> list[SelectItem]:
         items = [self._parse_select_item()]
@@ -397,6 +425,10 @@ class _Parser:
         if token.kind is TokenKind.KEYWORD and token.value == "null":
             self._advance()
             return LiteralExpr(value=None, literal_type="null")
+        if token.kind is TokenKind.KEYWORD and self._peek(1).kind is TokenKind.LPAREN:
+            # A reserved word that doubles as a function (e.g. `count()`, `exists()`) in expression position.
+            name = self._advance().value
+            return CallExpr(target=None, name=name, args=self._parse_call_args())
         if token.kind is TokenKind.IDENT:
             name = self._advance().value
             if self._at(TokenKind.LPAREN):

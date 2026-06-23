@@ -6,37 +6,18 @@ CLI and MCP surfaces. This roadmap covers the next phases. The engine seam stays
 adds **new source kinds** and, where needed, **new stages** — the parser AST, evaluator, planner,
 and sinks are reused, not rewritten.
 
-## Phase 2 — aggregate data
+## Phase 2 — aggregate data (DONE)
 
-Goal: query aggregate data values and analytics through the same pipeline language.
+Shipped: a `CallSource` node (`analytics(...)`, `dataValues(...)`) and an `AggregateStage`
+(`aggregate by <expr> { total: sum(value), n: count() }`) in the parser/AST/executor; aggregate
+d2path functions (`sum`/`avg`/`min`/`max`/`count`) take an optional field argument. The `query`
+plugin binds `analytics(...)` to `analytics/service.query_analytics` (columnar `Grid` → row dicts
+keyed by dimension) and `dataValues(...)` to `aggregate/service.get_data_values` (typed `DataValue`
+rows) via `Dhis2Binder.bind_call`, across all three version trees. Verified live against play42, e.g.
+`analytics(dx: "...", pe: "LAST_12_MONTHS", ou: "...") | where value > 1000 | aggregate by dx { total: sum(value), periods: count() } | order total desc`.
 
-New source kinds (parser + AST):
-
-- `CallSource` — a source written as a function call with named arguments, e.g.
-  `analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")` and
-  `dataValues(dataSet: "BfMAe6Itzgt", period: "202401", orgUnit: "ImspTQPwCqd")`.
-  Add a `CallSource(name, args: list[ObjectField])` node and a parser branch (an identifier
-  followed by `(` in source position). This is the only grammar addition Phase 2 needs.
-
-New stage:
-
-- `aggregate by <expr> { total: sum(value), n: count() }` — group rows by a key expression and
-  reduce each group with d2path aggregate functions (`sum`/`avg`/`min`/`max`/`count`). Add an
-  `AggregateStage` node, parser rule, and an executor branch that groups then builds one object per
-  group. (The existing `count` stage is its degenerate case.)
-
-DHIS2 binding (in the `query` plugin, three trees):
-
-- `AnalyticsDataSource` — resolves `analytics(...)` by calling the existing
-  `analytics/service.query_analytics`; converts the columnar `Grid` (headers + rows) into row
-  dicts keyed by header name (`dx`, `pe`, `ou`, `value`, ...) so d2path navigates them naturally.
-  Capabilities: dimensions/filters are the natural pushdown (the planner maps `where dx = ...`
-  and friends to analytics dimensions).
-- `AggregateDataSource` — resolves `dataValues(...)` by calling `aggregate/service.get_data_values`;
-  rows are `DataValue` models (navigable as `dataElement`, `period`, `orgUnit`, `value`).
-- `Dhis2Binder` gains a registry of these virtual sources alongside the metadata resource catalog.
-
-Result: `analytics(dx: "...", pe: "LAST_12_MONTHS", ou: "...") | where value > 100 | transform { de: dx, period: pe, v: value } | order v desc`.
+Follow-ups: push analytics dimensions/filters down (currently fetched whole, reduced locally), and a
+fast-path that maps a metadata `... | count` to `count_metadata` instead of fetching all rows.
 
 ## Phase 3 — event and tracker data
 

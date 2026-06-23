@@ -32,6 +32,10 @@ class ResourceBinder(Protocol):
         """Return a data source for `name`, or None when the name is not a bindable resource."""
         ...
 
+    def bind_call(self, name: str, args: dict[str, Any]) -> DataSource | None:
+        """Return a data source for a call source `name(args)` (e.g. analytics), or None when unknown."""
+        ...
+
 
 class InMemoryDataSource:
     """A data source backed by an in-memory list; declares no native capabilities (all-local)."""
@@ -61,3 +65,7 @@ class InMemoryBinder:
         if name not in self._resources:
             return None
         return InMemoryDataSource(self._resources[name])
+
+    def bind_call(self, name: str, args: dict[str, Any]) -> DataSource | None:
+        """In-memory binding has no call sources; bind a name with no args, else None."""
+        return self.bind(name) if not args else None

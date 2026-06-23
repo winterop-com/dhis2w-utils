@@ -147,7 +147,15 @@ class ExprSource(_Node):
     expr: Expr
 
 
-Source = Annotated[NameSource | ReadSource | ExprSource, Field(discriminator="kind")]
+class CallSource(_Node):
+    """A source written as a named call with keyword arguments (e.g. `analytics(dx: "...", pe: "...")`)."""
+
+    kind: Literal["call"] = "call"
+    name: str
+    args: list[ObjectField] = Field(default_factory=list)
+
+
+Source = Annotated[NameSource | ReadSource | ExprSource | CallSource, Field(discriminator="kind")]
 
 
 class SelectItem(_Node):
@@ -212,8 +220,20 @@ class CountStage(_Node):
     kind: Literal["count"] = "count"
 
 
+class AggregateStage(_Node):
+    """Group rows by a key expression and reduce each group with aggregate expressions.
+
+    `aggregate by <group> { total: sum(value), n: count() }` — each aggregation expression is
+    evaluated against the group's rows, so `value` gathers that field across the group.
+    """
+
+    kind: Literal["aggregate"] = "aggregate"
+    group: Expr
+    aggregations: ObjectExpr
+
+
 Stage = Annotated[
-    WhereStage | SelectStage | TransformStage | OrderStage | LimitStage | SkipStage | CountStage,
+    WhereStage | SelectStage | TransformStage | OrderStage | LimitStage | SkipStage | CountStage | AggregateStage,
     Field(discriminator="kind"),
 ]
 
@@ -284,12 +304,14 @@ for _model in (
     ArrayExpr,
     NameSource,
     ExprSource,
+    CallSource,
     SelectItem,
     OrderKey,
     WhereStage,
     SelectStage,
     TransformStage,
     OrderStage,
+    AggregateStage,
     Pipeline,
     Define,
     DefineFunction,

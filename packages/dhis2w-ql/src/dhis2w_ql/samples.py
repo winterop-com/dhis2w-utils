@@ -289,6 +289,35 @@ SAMPLES: list[Sample] = [
         'define Aggregates: dataElements | where domainType = "AGGREGATE"\ndefine function big(n): $n > 0\nAggregates | select id, name | limit 5',  # noqa: E501
         "Several definitions in one program.",
     ),
+    # ---------------------------------------------------------------- aggregate data
+    _q(
+        "agg-metadata-count",
+        "Group + count metadata",
+        "aggregate",
+        "dataElements | aggregate by domainType { n: count() } | order n desc",
+        "Group rows by a key and reduce each group (works over any source).",
+    ),
+    _q(
+        "agg-analytics-source",
+        "Analytics source",
+        "aggregate",
+        'analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd") | select dx, pe, value | limit 12',  # noqa: E501
+        "Read aggregated values from /api/analytics; rows are keyed by dimension (dx/pe/ou/value).",
+    ),
+    _q(
+        "agg-analytics-rollup",
+        "Roll up analytics by dimension",
+        "aggregate",
+        'analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd") | where value > 1000 | aggregate by dx { total: sum(value), periods: count() } | order total desc',  # noqa: E501
+        "Filter then sum analytics values per data element.",
+    ),
+    _q(
+        "agg-datavalues-source",
+        "Aggregate data values",
+        "aggregate",
+        'dataValues(dataSet: "BfMAe6Itzgt", period: "202401", orgUnit: "ImspTQPwCqd") | transform { de: dataElement, ou: orgUnit, v: value } | limit 10',  # noqa: E501
+        "Read raw aggregate data values from /api/dataValueSets.",
+    ),
     # ---------------------------------------------------------------- sinks
     _q(
         "sink-csv",

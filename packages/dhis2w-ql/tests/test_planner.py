@@ -76,6 +76,12 @@ def test_non_pushable_path_stays_local() -> None:
     assert [s.kind for s in plan.residual] == ["where"]
 
 
+def test_aggregate_stage_stays_local() -> None:
+    plan = _plan('dataElements | where domainType = "AGGREGATE" | aggregate by valueType { n: count() }')
+    assert len(plan.native.filters) == 1
+    assert [s.kind for s in plan.residual] == ["aggregate"]
+
+
 def test_non_pushable_path_blocks_whole_and_clause() -> None:
     caps = SourceCapabilities(filter=True, order=True, paging=True, non_pushable_paths=("geometry",))
     plan = _plan('organisationUnits | where level >= 2 and geometry.type = "Point"', caps)

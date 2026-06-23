@@ -45,6 +45,8 @@ KEYWORDS: frozenset[str] = frozenset(
         "limit",
         "skip",
         "count",
+        "aggregate",
+        "by",
         "read",
         "as",
         "asc",
