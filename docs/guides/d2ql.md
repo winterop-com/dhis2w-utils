@@ -16,6 +16,9 @@ dataElements
 Expressions inside `where`, `select`, `order`, and `transform` are written in
 [d2path](d2path.md), the embedded path/expression language.
 
+This page is the reference. New to d2ql? Start with the **[tutorial](d2ql-tutorial.md)**, then come
+back here to look things up; the **[cookbook](../query/cookbook.md)** has ready-to-run recipes.
+
 ## Running a program
 
 ```bash
@@ -163,85 +166,9 @@ local stages: transform
 A predicate the server cannot express (for example `where name.substring(0, 3) = "ANC"`) simply
 stays local — the result is identical, only the work moves.
 
-## Cookbook
-
-Real queries (run against the DHIS2 demo `play` instance), to show the shape of day-to-day use.
-
-**Profile the data dictionary — data elements by value type:**
-
-```
-dataElements | group by valueType { n: count() } | order n desc
-```
-```
-NUMBER 506 · TEXT 160 · TRUE_ONLY 135 · BOOLEAN 91 · INTEGER_ZERO_OR_POSITIVE 48 · …
-```
-
-**Shape of the org hierarchy — facilities per level:**
-
-```
-organisationUnits | group by level { facilities: count() } | order level asc
-```
-```
-level 1 → 1 · level 2 → 13 · level 3 → 152 · level 4 → 1166
-```
-
-**Find immunisation elements with a small reusable library:**
-
-```
-define Aggregates: dataElements | where domainType = "AGGREGATE"
-define function isImmunisation(de): $de.name ~ "BCG" or $de.name ~ "measles" or $de.name ~ "Penta"
-
-Aggregates | where isImmunisation($this) | select id, name | limit 20
-```
-
-**Pull an indicator's monthly series and tidy it up:**
-
-```
-analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")
-  | transform { month: pe, anc1: value }
-  | order month asc
-```
-
-**Roll analytics up per data element, biggest first:**
-
-```
-analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")
-  | where value > 1000
-  | group by dx { total: sum(value), periods: count() }
-  | order total desc
-```
-
-**Export districts as GeoJSON Features:**
-
-```
-organisationUnits
-  | where level = 2 and geometry.type = "Polygon"
-  | transform { type: "Feature", properties: { name: name, level: level }, geometry: geometry }
-  >> "districts.json"
-```
-
-**Emit FHIR Observation shapes from aggregate elements** (an array of resources):
-
-```
-dataElements
-  | where domainType = "AGGREGATE"
-  | transform { resourceType: "Observation", status: "final",
-                code: { coding: [ { system: "dhis2", code: id, display: name } ] } }
-```
-
-**A proper FHIR Bundle** (one envelope object) — `define function` builds each resource, `fold` wraps them:
-
-```
-define function observation(de): { resourceType: "Observation", status: "final",
-                                    code: { coding: [ { system: "dhis2", code: $de.id, display: $de.name } ] } }
-
-dataElements | where domainType = "AGGREGATE"
-  | transform { resource: observation($this) }
-  | fold { resourceType: "Bundle", type: "collection", entry: $rows }
-  >> "bundle.json"
-```
-
 ## See also
 
+- [d2ql tutorial](d2ql-tutorial.md) — learn the language step by step.
 - [d2path](d2path.md) — the expression language used inside every stage.
+- [Cookbook](../query/cookbook.md) — ready-to-run recipes (FHIR, GeoJSON, reports).
 - API reference: [`dhis2w_ql`](../api/query.md).
