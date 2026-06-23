@@ -92,6 +92,18 @@ async def test_explain_unknown_call_source() -> None:
     assert explain.note is not None and "not a known call source" in explain.note
 
 
+def test_collect_fields_includes_function_param_paths() -> None:
+    from dhis2w_core.v42.plugins.query.datasource import collect_fields
+    from dhis2w_ql import parse
+
+    direct = collect_fields(parse('dataElements | where valueType = "NUMBER" | select id'))
+    via_function = collect_fields(
+        parse('define function isNum(de): $de.valueType = "NUMBER"\ndataElements | where isNum($this) | select id')
+    )
+    assert direct is not None and "valueType" in direct
+    assert via_function == direct
+
+
 def test_evaluate_path_over_local_json() -> None:
     patient = {"name": [{"use": "official", "family": "King"}]}
     assert service.evaluate_path('name.where(use = "official").family', patient) == ["King"]

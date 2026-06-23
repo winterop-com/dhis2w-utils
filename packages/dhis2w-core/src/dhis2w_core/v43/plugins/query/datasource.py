@@ -23,6 +23,7 @@ from dhis2w_ql.ast import (
     NameSource,
     ObjectExpr,
     UnaryExpr,
+    VariableExpr,
 )
 from pydantic import BaseModel
 
@@ -157,70 +158,82 @@ def collect_fields(library: Library) -> str | None:
         if isinstance(definition, Define):
             _collect_pipeline(definition.body, paths)
         else:
-            _collect_expr(definition.body, paths)
+            # A function's parameters bind to rows at call time, so `$param.field` is a row field path.
+            _collect_expr(definition.body, paths, {"this", *definition.params})
     if library.terminal is not None:
         _collect_pipeline(library.terminal, paths)
     return _render_fields(paths) or None
 
 
 def _collect_pipeline(pipeline: Pipeline, paths: set[str]) -> None:
+    row_vars = {"this"}
     source = pipeline.source
     if isinstance(source, NameSource) and source.inline_filter is not None:
-        _collect_expr(source.inline_filter, paths)
+        _collect_expr(source.inline_filter, paths, row_vars)
     elif isinstance(source, ExprSource):
-        _collect_expr(source.expr, paths)
+        _collect_expr(source.expr, paths, row_vars)
     for stage in pipeline.stages:
         for attribute in ("predicate", "group"):
             expr = getattr(stage, attribute, None)
             if expr is not None:
-                _collect_expr(expr, paths)
+                _collect_expr(expr, paths, row_vars)
         for select_item in getattr(stage, "items", []) or []:
-            _collect_expr(select_item.expr, paths)
+            _collect_expr(select_item.expr, paths, row_vars)
         for container in ("template", "aggregations"):
             built = getattr(stage, container, None)
             if built is not None:
-                _collect_expr(built, paths)
+                _collect_expr(built, paths, row_vars)
         for order_key in getattr(stage, "keys", []) or []:
-            _collect_expr(order_key.expr, paths)
+            _collect_expr(order_key.expr, paths, row_vars)
 
 
-def _collect_expr(expr: Any, paths: set[str]) -> None:
-    path = _path_of(expr)
+def _collect_expr(expr: Any, paths: set[str], row_vars: set[str]) -> None:
+    path = _path_of(expr, row_vars)
     if path is not None:
-        paths.add(path)
+        if path:
+            paths.add(path)
         return
     match expr:
         case MemberExpr():
-            _collect_expr(expr.target, paths)
+            _collect_expr(expr.target, paths, row_vars)
         case IndexExpr():
-            _collect_expr(expr.target, paths)
-            _collect_expr(expr.index, paths)
+            _collect_expr(expr.target, paths, row_vars)
+            _collect_expr(expr.index, paths, row_vars)
         case CallExpr():
             if expr.target is not None:
-                _collect_expr(expr.target, paths)
+                _collect_expr(expr.target, paths, row_vars)
             for argument in expr.args:
-                _collect_expr(argument, paths)
+                _collect_expr(argument, paths, row_vars)
         case UnaryExpr():
-            _collect_expr(expr.operand, paths)
+            _collect_expr(expr.operand, paths, row_vars)
         case BinaryExpr():
-            _collect_expr(expr.left, paths)
-            _collect_expr(expr.right, paths)
+            _collect_expr(expr.left, paths, row_vars)
+            _collect_expr(expr.right, paths, row_vars)
         case ObjectExpr():
             for field in expr.fields:
-                _collect_expr(field.value, paths)
+                _collect_expr(field.value, paths, row_vars)
         case ArrayExpr():
             for item in expr.items:
-                _collect_expr(item, paths)
+                _collect_expr(item, paths, row_vars)
         case _:
             return
 
 
-def _path_of(expr: Any) -> str | None:
+def _path_of(expr: Any, row_vars: set[str]) -> str | None:
+    """Return the dotted field path for an expression, or None when it is not a field path.
+
+    A row-bound variable (`$this`, a function parameter) resolves to the row root (empty string),
+    so `$this.categoryCombo.name` and `$de.valueType` yield the same paths as bare navigation.
+    """
     if isinstance(expr, NameExpr):
         return expr.name
+    if isinstance(expr, VariableExpr):
+        return "" if expr.name in row_vars else None
     if isinstance(expr, MemberExpr):
-        base = _path_of(expr.target)
-        return f"{base}.{expr.name}" if base is not None else None
+        base = _path_of(expr.target, row_vars)
+        if base is None:
+            return None
+        return expr.name if base == "" else f"{base}.{expr.name}"
     return None
 
 

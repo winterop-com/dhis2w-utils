@@ -80,6 +80,18 @@ def test_navigating_a_missing_field_is_empty() -> None:
     assert Evaluator().evaluate(parse_expression("doesNotExist"), [_PATIENT]) == []
 
 
+def test_logical_operators_short_circuit() -> None:
+    ev = Evaluator()
+    # `and` does not evaluate the right side when the left is false (no division-by-zero raise).
+    assert ev.evaluate(parse_expression("1 = 2 and (1 div 0) > 0"), [{}]) == [False]
+    # `or` does not evaluate the right side when the left is true.
+    assert ev.evaluate(parse_expression("1 = 1 or (1 div 0) > 0"), [{}]) == [True]
+    # a guarded predicate excludes the bad row instead of raising.
+    rows = [{"value": 0}, {"value": 50}]
+    kept = [r for r in rows if ev.evaluate(parse_expression("value != 0 and (100 div value) > 1"), [r]) == [True]]
+    assert kept == [{"value": 50}]
+
+
 def test_lex_error_has_position() -> None:
     with pytest.raises(LexError) as info:
         parse("dataElements | where name = 'unterminated")

@@ -171,17 +171,18 @@ class Evaluator:
         return self._eval_scalar_binary(expr.op, left[0], right[0])
 
     def _eval_logical(self, expr: BinaryExpr, focus: list[Any], context: EvalContext) -> list[Any]:
+        # `and`/`or`/`implies` short-circuit so guarded predicates (`value != 0 and 1 / value > 0`)
+        # exclude rows rather than raising; `xor` needs both sides.
         left = truthy(self._eval(expr.left, focus, context))
-        right = truthy(self._eval(expr.right, focus, context))
         match expr.op:
             case "and":
-                return [left and right]
+                return [False] if not left else [truthy(self._eval(expr.right, focus, context))]
             case "or":
-                return [left or right]
-            case "xor":
-                return [left != right]
-            case _:  # implies
-                return [(not left) or right]
+                return [True] if left else [truthy(self._eval(expr.right, focus, context))]
+            case "implies":
+                return [True] if not left else [truthy(self._eval(expr.right, focus, context))]
+            case _:  # xor
+                return [left != truthy(self._eval(expr.right, focus, context))]
 
     def _eval_contains(self, left: list[Any], right: list[Any]) -> list[Any]:
         if len(left) == 1 and isinstance(left[0], str) and right and isinstance(right[0], str):
