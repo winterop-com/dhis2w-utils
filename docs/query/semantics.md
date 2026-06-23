@@ -100,7 +100,7 @@ Precedence, lowest to highest:
 | additive | `+`, `-` |
 | multiplicative | `*`, `/`, `div` (integer divide), `mod` |
 | unary | prefix `-`, `+` |
-| postfix | `.member`, `[index]`, `.method(...)` |
+| postfix | `.member`, `[index]`, `["key"]`, `.method(...)` |
 
 Notes:
 
@@ -126,15 +126,20 @@ matches nothing. Test presence with `field.exists()` and absence with `field.emp
 
 - **At a source**, `resource[predicate]` is an inline filter: `dataElements[domainType =
   "AGGREGATE"]` is shorthand for `dataElements | where domainType = "AGGREGATE"`.
-- **In an expression**, `collection[n]` is integer indexing: `coding[0]`.
+- **In an expression**, `collection[n]` is integer indexing (`coding[0]`) and `node["key"]` is
+  member access by key (see below).
 
 ## Field names that aren't identifiers
 
-Member access (`a.b`) accepts identifiers and reserved words only, and `[...]` is integer indexing —
-so a field whose name has hyphens, spaces, or a leading digit (e.g. a FHIR extension key) cannot be
-navigated directly today. DHIS2 wire fields are camelCase identifiers, so this rarely arises for
-DHIS2 data; for arbitrary JSON it is a current limitation (string/bracket member access may be added
-if needed).
+Member access (`a.b`) accepts identifiers and reserved words only. To reach a field whose name has
+hyphens, spaces, or a leading digit (e.g. a FHIR extension key), use a **string subscript** — `[...]`
+is integer indexing when given a number and member-access-by-key when given a string:
+
+```text
+extension["us-core-race"]      # nested awkward key
+items["bad name"].v            # then keep navigating
+$this["code-x"]                # a top-level awkward key on the current row
+```
 
 ## Pushdown — the equivalence it does and doesn't promise
 

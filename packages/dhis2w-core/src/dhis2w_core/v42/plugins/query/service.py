@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from dhis2w_ql import (
+    EvalContext,
     Evaluator,
     Library,
     Pipeline,
@@ -102,7 +103,8 @@ async def explain_query(profile: Profile, text: str, *, define: str | None = Non
 def evaluate_path(expression: str, data: Any) -> list[Any]:
     """Evaluate a bare d2path expression over local JSON data (a single node or a list of nodes)."""
     focus = data if isinstance(data, list) else [data]
-    result = Evaluator().evaluate(parse_expression(expression), focus)
+    # Bind `$this` to the data so `$this["awkward-key"]` reaches a top-level non-identifier field.
+    result = Evaluator().evaluate(parse_expression(expression), focus, EvalContext(variables={"this": focus}))
     return [to_jsonable(value) for value in result]
 
 

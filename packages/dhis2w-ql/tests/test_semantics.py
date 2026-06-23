@@ -152,11 +152,22 @@ async def test_bracket_at_source_is_an_inline_filter() -> None:
     assert [r["id"] for r in rows] == ["a1", "b2"]
 
 
-def test_bracket_in_expression_is_integer_index() -> None:
+def test_bracket_integer_index() -> None:
     assert _p("coding[0]", {"coding": [{"x": 1}, {"x": 2}]}) == [{"x": 1}]
 
 
-def test_non_identifier_field_names_are_not_navigable() -> None:
-    # `[...]` is integer indexing only; awkward keys can't be reached (documented limitation).
-    with pytest.raises(EvaluationError, match="index must be an integer"):
-        _p('this["weird-key"]', {"weird-key": 7})
+def test_bracket_string_subscript_reaches_non_identifier_fields() -> None:
+    # A string subscript is member access by key, so hyphen/space keys are navigable.
+    assert _p('extension["us-core-race"]', {"extension": {"us-core-race": "x"}}) == ["x"]
+    assert _p('items["bad name"].v', {"items": {"bad name": {"v": 9}}}) == [9]
+
+
+async def test_bracket_string_subscript_with_this_in_a_pipeline() -> None:
+    binder = InMemoryBinder({"res": [{"id": "a", "code-x": "P"}]})
+    rows = (await QueryEngine(parse('res | transform { id: id, cx: $this["code-x"] }'), binder).run_terminal()).rows
+    assert rows == [{"id": "a", "cx": "P"}]
+
+
+def test_bracket_non_integer_non_string_is_rejected() -> None:
+    with pytest.raises(EvaluationError, match="integer or a string key"):
+        _p("value[true]", {"value": [1, 2]})
