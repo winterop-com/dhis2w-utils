@@ -182,9 +182,12 @@ nav:
       - Router:
           - Design: architecture/mcp-router.md
   - Query language:
-      - d2ql (queries + transforms): guides/d2ql.md
-      - d2path (path expressions): guides/d2path.md
-      - API (dhis2w_ql): api/query.md
+      - Introduction: query/index.md
+      - d2ql tutorial: guides/d2ql-tutorial.md
+      - d2ql reference: guides/d2ql.md
+      - d2path: guides/d2path.md
+      - Cookbook: query/cookbook.md
+      - API reference: api/query.md
 
 markdown_extensions:
   - admonition
