@@ -8799,7 +8799,7 @@ $ d2w query [OPTIONS] COMMAND [ARGS]...
 * `explain`: Show how a d2ql pipeline (inline or...
 * `ast`: Print the parsed d2ql AST (no profile...
 * `d2path`: Evaluate a bare d2path expression over a...
-* `repl`: Start an interactive d2ql prompt; build a...
+* `repl`: Interactive d2ql REPL.
 
 ### `d2w query eval`
 
@@ -8902,7 +8902,7 @@ $ d2w query d2path [OPTIONS] EXPRESSION
 
 ### `d2w query repl`
 
-Start an interactive d2ql prompt; build a program over lines, run it on a blank line or `;`.
+Interactive d2ql REPL. Uses the Textual TUI when the `tui` extra is installed, else line mode.
 
 **Usage**:
 

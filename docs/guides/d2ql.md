@@ -23,12 +23,23 @@ back here to look things up; the **[cookbook](../query/cookbook.md)** has ready-
 
 ```bash
 d2w query eval 'dataElements | where domainType = "AGGREGATE" | select id, name | limit 20'
-d2w query run report.d2ql                 # run a program from a file
+d2w query run report.d2ql                 # run a program from a file (or `eval --file`)
 d2w query explain 'dataElements | ...'    # show what is pushed to DHIS2 vs. run locally
 d2w query ast 'dataElements | ...'        # print the parsed AST (offline)
+d2w query repl                            # interactive REPL
 ```
 
+`eval`, `explain`, and `ast` also accept `--file/-f <path>` to read a program from a file.
+
 The same engine is available as MCP tools (`query_eval`, `query_explain`, `query_d2path`).
+
+### Interactive REPL
+
+`d2w query repl` opens an interactive prompt. With the **`tui` extra** installed
+(`uv add 'dhis2w-cli[tui]'`) it's a full-screen [Textual](https://textual.textualize.io/) editor:
+**Enter runs** the program, **Shift+Enter** / **Ctrl+J** insert a newline, pasting a multi-line
+pipeline drops it in cleanly, and Ctrl+↑/↓ recall history (Ctrl+L clears, Ctrl+C quits). Without the
+extra it falls back to a line-mode prompt that runs on a blank line or a trailing `;`.
 
 A library of runnable, commented programs lives in
 [`examples/d2ql/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/d2ql) — run any
