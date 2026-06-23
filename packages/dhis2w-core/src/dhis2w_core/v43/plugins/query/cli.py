@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from dhis2w_ql import D2qlError, parse, to_jsonable
+from dhis2w_ql import D2qlError, QueryResult, parse, to_jsonable
 from rich.console import Console
 from rich.table import Table
 
-from dhis2w_core.profile import profile_from_env
+from dhis2w_core.profile import Profile, profile_from_env
 from dhis2w_core.v43.cli_output import is_json_output
 from dhis2w_core.v43.plugins.query import service
 from dhis2w_core.v43.plugins.query.models import QueryExplain
@@ -95,9 +96,23 @@ def _repl_step(buffer: list[str], line: str) -> tuple[list[str], str | None]:
 
 @app.command("repl")
 def repl_command() -> None:
-    """Start an interactive d2ql prompt; build a program over lines, run it on a blank line or `;`."""
+    """Interactive d2ql REPL. Uses the Textual TUI when the `tui` extra is installed, else line mode."""
     profile = profile_from_env()
-    _console.print("[dim]d2ql REPL — enter a program; a blank line or trailing `;` runs it. Ctrl-D to exit.[/dim]")
+    if find_spec("textual") is not None:
+        from dhis2w_core.tui.repl import run_repl  # noqa: PLC0415 — optional [tui] extra
+
+        async def execute(program: str) -> QueryResult:
+            return await service.run_query(profile, program)
+
+        run_repl(run_program=execute, title=f"d2ql REPL — {profile.base_url}")
+        return
+    _line_repl(profile)
+
+
+def _line_repl(profile: Profile) -> None:
+    """Line-mode REPL fallback (no `tui` extra): build a program over lines; blank line or `;` runs it."""
+    _console.print("[dim]d2ql REPL — enter a program; a blank line or trailing `;` runs it. Ctrl-D to exit.")
+    _console.print("Install the `tui` extra (`uv add 'dhis2w-cli[tui]'`) for the full-screen editor.[/dim]")
     buffer: list[str] = []
     while True:
         prompt = "[bold cyan]d2ql>[/bold cyan] " if not buffer else "[bold cyan]  ...>[/bold cyan] "

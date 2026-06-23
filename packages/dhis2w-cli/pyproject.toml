@@ -13,6 +13,9 @@ dependencies = [
 
 [project.optional-dependencies]
 browser = ["dhis2w-browser>=1.0.0.dev1,<1.1"]
+tui = [
+    "textual>=8.2.7",
+]
 
 [project.scripts]
 d2w = "dhis2w_cli.main:main"
