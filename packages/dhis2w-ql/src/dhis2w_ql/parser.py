@@ -177,6 +177,11 @@ class _Parser:
                 self._advance()
                 params.append(self._expect(TokenKind.IDENT, "parameter name").value)
         self._expect(TokenKind.RPAREN, "')'")
+        seen: set[str] = set()
+        for param in params:
+            if param in seen:
+                raise self._error(f"duplicate parameter {param!r}")
+            seen.add(param)
         self._expect(TokenKind.COLON, "':'")
         return DefineFunction(name=name, params=params, body=self.parse_expr())
 
