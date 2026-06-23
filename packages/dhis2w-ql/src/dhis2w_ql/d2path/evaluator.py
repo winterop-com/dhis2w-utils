@@ -1,4 +1,4 @@
-"""The FHIRPath-compatible expression evaluator: walks the AST with collection semantics.
+"""The d2path expression evaluator: walks the AST with collection semantics.
 
 Every expression evaluates to a Python list (a "collection"); a scalar is a length-1 list and the
 empty collection models "no value". The evaluator is source-agnostic — nodes may be pydantic

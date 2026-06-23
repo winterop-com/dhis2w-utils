@@ -35,6 +35,7 @@ from dhis2w_ql.ast import (
     OrderStage,
     Pipeline,
     ReadSource,
+    SelectItem,
     SelectStage,
     SkipStage,
     Stage,
@@ -193,6 +194,7 @@ class QueryEngine:
                 kept = [row for index, row in enumerate(rows) if truthy(self._per_item(stage.predicate, row, index))]
                 return _StageOutcome(rows=kept, scalar=False)
             case SelectStage():
+                _ensure_unique([_select_key(item, i) for i, item in enumerate(stage.items)], "select")
                 return _StageOutcome(rows=[self._project(stage, row, index) for index, row in enumerate(rows)])
             case TransformStage():
                 built = [collapse(self._per_item(stage.template, row, index)) for index, row in enumerate(rows)]
@@ -217,14 +219,14 @@ class QueryEngine:
         return self._evaluator.per_item(expr, item, index, EvalContext())
 
     def _project(self, stage: SelectStage, item: Any, index: int) -> dict[str, Any]:
-        row: dict[str, Any] = {}
-        for position, select_item in enumerate(stage.items):
-            key = select_item.alias or _derive_name(select_item.expr, position)
-            row[key] = collapse(self._per_item(select_item.expr, item, index))
-        return row
+        return {
+            _select_key(select_item, position): collapse(self._per_item(select_item.expr, item, index))
+            for position, select_item in enumerate(stage.items)
+        }
 
     def _aggregate(self, stage: AggregateStage, rows: list[Any]) -> list[Any]:
         key_name = _derive_name(stage.group, 0)
+        _ensure_unique([key_name, *(field.name for field in stage.aggregations.fields)], "group by")
         buckets: list[tuple[Any, list[Any]]] = []
         for index, row in enumerate(rows):
             key = collapse(self._per_item(stage.group, row, index))
@@ -266,6 +268,21 @@ def _derive_name(expr: Expr, position: int) -> str:
     if isinstance(expr, MemberExpr):
         return expr.name
     return f"column{position + 1}"
+
+
+def _select_key(item: SelectItem, position: int) -> str:
+    return item.alias or _derive_name(item.expr, position)
+
+
+def _ensure_unique(names: list[str], context: str) -> None:
+    """Reject duplicate output column names so a projection never silently overwrites a column."""
+    seen: set[str] = set()
+    for name in names:
+        if name in seen:
+            raise SemanticError(
+                f"{context} produces two columns named {name!r}; disambiguate with an alias, e.g. `… as {name}2`"
+            )
+        seen.add(name)
 
 
 def _compare_nullable(left: Any, right: Any) -> int:

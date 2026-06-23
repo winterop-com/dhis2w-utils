@@ -2,7 +2,8 @@
 
 - `d2ql` is the pipeline language (`source | where | select | transform | order | limit >> sink`),
   with `define` / `define function` library definitions.
-- `d2path` (in `dhis2w_ql.d2path`) is the embedded FHIRPath/JSONPath-compatible expression language.
+- `d2path` (in `dhis2w_ql.d2path`) is the embedded expression language: path navigation, operators,
+  and functions with collection semantics.
 - `dhis2w_ql.engine` runs a parsed library against a `ResourceBinder`, pushing supported work down
   to the source and evaluating the rest locally.
 """

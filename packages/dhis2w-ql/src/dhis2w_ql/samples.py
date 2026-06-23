@@ -420,7 +420,7 @@ SAMPLES: list[Sample] = [
         "path-first-coordinate",
         "First coordinate pair",
         "geometry.coordinates.first()",
-        "Drill into a GeoJSON coordinate array (navigation flattens one level, FHIRPath-style).",
+        "Drill into a GeoJSON coordinate array (navigation flattens one level).",
     ),
 ]
 

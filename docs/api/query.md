@@ -1,8 +1,9 @@
 # Query language (`dhis2w_ql`)
 
 `dhis2w_ql` is the engine behind [d2ql](../guides/d2ql.md) and [d2path](../guides/d2path.md): a
-pipeline query/transform language with an embedded FHIRPath/JSONPath-compatible expression
-language. It is a pure, dependency-light package (pydantic only) — the DHIS2 binding (data sources,
+pipeline query/transform language with an embedded expression language (d2path) that navigates and
+computes over data with collection semantics. It is a pure, dependency-light package (pydantic only)
+— the DHIS2 binding (data sources,
 pushdown compiler, CLI, MCP) lives in the `query` plugin in `dhis2w-core`.
 
 ## When to reach for it

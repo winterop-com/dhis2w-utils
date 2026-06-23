@@ -3208,7 +3208,7 @@ No parameters.
 
 ### `query_d2path`
 
-Evaluate a bare d2path (FHIRPath/JSONPath-compatible) expression over the given JSON data.
+Evaluate a bare d2path expression over the given JSON data.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
