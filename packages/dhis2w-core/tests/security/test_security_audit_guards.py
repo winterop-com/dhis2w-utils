@@ -50,6 +50,7 @@ def test_resolve_check_keys_defaults_to_all_implemented() -> None:
         "guest",
         "apps",
         "sharing",
+        "routes",
     ]
 
 
@@ -81,6 +82,7 @@ def test_resolve_check_keys_rejects_empty_selection() -> None:
                 "apps",
                 "guest",
                 "sharing",
+                "routes",
             ]
         )
 

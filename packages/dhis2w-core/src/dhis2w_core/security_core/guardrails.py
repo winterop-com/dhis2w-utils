@@ -81,6 +81,10 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
         # CORS-whitelist read for the permissive-CORS verdict: keyCorsWhitelist was removed from
         # systemSettings in v2.31, so the wildcard origin can only be read from configuration.
         "/api/configuration/corsWhitelist",
+        # Route inventory read for the SSRF-target verdict: the routes check lists /api/routes to flag
+        # destinations on private/internal or cloud-metadata hosts. A read-only GET of the collection;
+        # the check never executes a route (never /api/routes/{id}/run). Secrets are WRITE_ONLY upstream.
+        "/api/routes",
         "/api/systemSettings",
     }
 )

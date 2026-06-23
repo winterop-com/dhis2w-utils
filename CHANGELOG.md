@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Security audit: routes check + adversarial hardening** (2026-06-24). New `routes` check inventories DHIS2 Route API objects and flags destinations on private/internal or cloud-metadata hosts (SSRF primitives). Includes two-pass route validation so unrecognized/future auth `type` values produce `auth_type="unknown"` findings instead of silently dropping the route; non-canonical IP encoding bypasses (decimal, hex, octal-packed, octal-dotted, trailing FQDN dot) are normalized before classification. 18 new tests, all three version trees covered. See `packages/dhis2w-core/src/dhis2w_core/security_core/routes.py`.
 - **Security audit: transport and settings-posture checks (PR 8a)** (2026-06-24). New `transport`
   check inspects TLS posture and security headers, read from the response headers of a single
   `/api/system/info` GET (non-TLS base URL HIGH, missing HSTS / CSP MEDIUM, missing anti-framing /

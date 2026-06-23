@@ -9,6 +9,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from dhis2w_client.v43.auth_schemes import (
+    ApiHeadersAuthScheme,
+    ApiQueryParamsAuthScheme,
+    ApiTokenAuthScheme,
+    HttpBasicAuthScheme,
+    OAuth2ClientCredentialsAuthScheme,
+    auth_scheme_from_route,
+)
+from pydantic import ValidationError
+
 from dhis2w_core.security_core import TwoFactorSource
 
 USER_FIELDS = "id,username,disabled,email,lastLogin,userRoles[id]"
@@ -24,3 +34,36 @@ def last_login(user: dict[str, Any]) -> str | None:
     """Read the last-login timestamp from the /api/users record."""
     value = user.get("lastLogin")
     return value if isinstance(value, str) else None
+
+
+def route_auth(route: Any) -> tuple[str | None, str | None]:
+    """Extract (auth_type, non-secret identity) from a v43 Route's discriminated 5-variant auth union.
+
+    The identity is the non-secret field of each scheme (username / clientId / tokenUri); the secret
+    is WRITE_ONLY upstream and never serialized, so it is never read here. A route with auth present but
+    an unrecognizable or missing `type` (e.g. a future 6th variant) returns ("unknown", None) so the
+    route-carries-auth INFO finding still fires -- credentials are present even when we cannot classify the
+    scheme. ValidationError from the adapter is caught; it never propagates. Returns (None, None) only when
+    the route has no auth block at all.
+    """
+    raw_auth = getattr(route, "auth", None)
+    if raw_auth is None:
+        return None, None
+    try:
+        scheme = auth_scheme_from_route(route)
+    except (ValidationError, Exception):
+        scheme = None
+    if scheme is None:
+        return "unknown", None
+    match scheme:
+        case HttpBasicAuthScheme(username=username):
+            return "http-basic", username
+        case OAuth2ClientCredentialsAuthScheme(clientId=client_id, tokenUri=token_uri):
+            return "oauth2-client-credentials", client_id or token_uri
+        case ApiTokenAuthScheme():
+            return "api-token", None
+        case ApiHeadersAuthScheme():
+            return "api-headers", None
+        case ApiQueryParamsAuthScheme():
+            return "api-query-params", None
+    return "unknown", None

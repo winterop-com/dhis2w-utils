@@ -10,8 +10,10 @@ from urllib.parse import urlsplit
 
 import httpx
 from dhis2w_client.errors import Dhis2ApiError
+from dhis2w_client.generated.v41.oas import Route
 from dhis2w_client.v41 import Dhis2Client
 from dhis2w_client.v41.auth.basic import BasicAuth
+from pydantic import ValidationError
 from rich.console import Console
 
 from dhis2w_core.profile import Profile
@@ -43,6 +45,7 @@ from dhis2w_core.security_core import (
     ReportWriter,
     ResolvedFocusType,
     RoleAudit,
+    RouteTarget,
     RunManifest,
     SchemaShareability,
     SharingGraph,
@@ -65,6 +68,7 @@ from dhis2w_core.security_core import (
     evaluate_guest,
     evaluate_hygiene,
     evaluate_roles,
+    evaluate_routes,
     evaluate_settings,
     evaluate_sharing,
     evaluate_transport,
@@ -79,6 +83,7 @@ from dhis2w_core.security_core import (
     resolve_focus_types,
     run_audit,
 )
+from dhis2w_core.security_core.routes import host_from_url
 from dhis2w_core.v41.client_context import open_client
 from dhis2w_core.v41.plugins.security import _wire
 from dhis2w_core.v41.plugins.security.models import SecuritySettings
@@ -436,6 +441,83 @@ async def _run_guest(client: Dhis2Client) -> CheckResult:
     return CheckResult(check="guest", label=label, status=CheckStatus.OK, findings=findings, note=note)
 
 
+# Route fields the check reads: identity, destination, run gating, and the auth block.
+_ROUTE_FIELDS = "id,code,name,url,disabled,authorities,auth,headers,responseTimeoutSeconds"
+
+
+def _route_target(route: Route) -> RouteTarget:
+    """Wrap one typed oas.Route into a RouteTarget, pulling non-secret auth identity via the wire extractor."""
+    url = route.url or ""
+    auth_type, auth_identity = _wire.route_auth(route)
+    return RouteTarget(
+        uid=route.id,
+        code=route.code,
+        name=route.name or route.id or "unknown",
+        url=url,
+        host=host_from_url(url),
+        disabled=bool(route.disabled),
+        allows_subpaths=url.endswith("/**"),
+        auth_type=auth_type,
+        auth_identity=auth_identity,
+        required_authorities=tuple(route.authorities or ()),
+    )
+
+
+async def _run_routes(client: Dhis2Client) -> CheckResult:
+    """Inventory /api/routes and flag destinations on private/internal or cloud-metadata hosts (never runs a route).
+
+    Each route is validated individually so a malformed auth block on one route (e.g. an unknown `type`
+    that triggers a pydantic ValidationError) skips that route with a counted note rather than aborting
+    the entire check and losing all other routes' findings.
+    """
+    label = label_for("routes")
+    try:
+        raw = await client.get_raw("/api/routes", params={"fields": _ROUTE_FIELDS, "paging": "false"})
+    except (Dhis2ApiError, httpx.HTTPError) as exc:
+        return CheckResult(check="routes", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
+    raw_routes = raw.get("routes")
+    if not isinstance(raw_routes, list):
+        raw_routes = []
+    targets: list[RouteTarget] = []
+    skipped = 0
+    for raw_route in raw_routes:
+        if not isinstance(raw_route, dict):
+            skipped += 1
+            continue
+        try:
+            route = Route.model_validate(raw_route)
+            targets.append(_route_target(route))
+        except (ValidationError, Exception):
+            # Full validation failed -- try again without the auth block. An unrecognized or
+            # missing auth `type` causes pydantic's discriminated union to reject the whole route.
+            # Stripping auth and re-validating lets us include the route with auth_type="unknown"
+            # so the carries-auth finding still fires when credentials are present on the wire.
+            if not isinstance(raw_route.get("auth"), dict):
+                skipped += 1
+                continue
+            try:
+                route_no_auth = Route.model_validate({k: v for k, v in raw_route.items() if k != "auth"})
+                url = route_no_auth.url or ""
+                targets.append(
+                    RouteTarget(
+                        uid=route_no_auth.id,
+                        code=route_no_auth.code,
+                        name=route_no_auth.name or route_no_auth.id or "unknown",
+                        url=url,
+                        host=host_from_url(url),
+                        disabled=bool(route_no_auth.disabled),
+                        allows_subpaths=url.endswith("/**"),
+                        auth_type="unknown",
+                        auth_identity=None,
+                        required_authorities=tuple(route_no_auth.authorities or ()),
+                    )
+                )
+            except (ValidationError, Exception):
+                skipped += 1
+    note = f"{skipped} route(s) could not be parsed and were skipped" if skipped else None
+    return CheckResult(check="routes", label=label, status=CheckStatus.OK, findings=evaluate_routes(targets), note=note)
+
+
 _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "version": _run_version,
     "transport": _run_transport,
@@ -444,6 +526,7 @@ _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "roles": _run_roles,
     "apps": _run_apps,
     "guest": _run_guest,
+    "routes": _run_routes,
 }
 
 # How many objects the sharing scan pages at a time, and the default scan budget (max objects

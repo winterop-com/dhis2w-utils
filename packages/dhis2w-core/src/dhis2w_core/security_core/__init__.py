@@ -93,6 +93,7 @@ from dhis2w_core.security_core.report.view import (
     build_report_view,
 )
 from dhis2w_core.security_core.roles import RoleAudit, build_role_audit, evaluate_roles
+from dhis2w_core.security_core.routes import RouteTarget, evaluate_routes
 from dhis2w_core.security_core.settings_audit import (
     MIN_RECOMMENDED_PASSWORD_LENGTH,
     CorsWhitelist,
@@ -222,6 +223,7 @@ __all__ = [
     "RoleAudit",
     "RoleGrantEdge",
     "RoleNode",
+    "RouteTarget",
     "RunManifest",
     "SchemaShareability",
     "Scorecard",
@@ -259,6 +261,7 @@ __all__ = [
     "evaluate_guest",
     "evaluate_hygiene",
     "evaluate_roles",
+    "evaluate_routes",
     "evaluate_settings",
     "evaluate_sharing",
     "evaluate_transport",

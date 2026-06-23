@@ -52,6 +52,7 @@ IMPLEMENTED_CHECK_KEYS: frozenset[str] = frozenset(
         "apps",
         "guest",
         "sharing",
+        "routes",
     }
 )
 
