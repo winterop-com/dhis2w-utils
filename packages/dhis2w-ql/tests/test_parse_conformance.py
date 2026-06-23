@@ -34,6 +34,31 @@ def test_every_curated_sample_parses(sample: Sample) -> None:
         parse(sample.source)
 
 
+def test_source_only_define_is_a_named_query() -> None:
+    from dhis2w_ql.ast import Define, NameSource
+
+    library = parse("define All: dataElements\nAll | limit 5")
+    define = library.definitions[0]
+    assert isinstance(define, Define)
+    assert isinstance(define.body.source, NameSource)
+    assert define.body.source.name == "dataElements"
+    assert library.terminal is not None
+    assert isinstance(library.terminal.source, NameSource)
+    assert library.terminal.source.name == "All"
+
+
+def test_committed_example_programs_parse() -> None:
+    from pathlib import Path
+
+    examples = Path(__file__).resolve().parents[3] / "examples" / "d2ql"
+    if not examples.exists():  # not present when the package is built/used standalone
+        pytest.skip("examples/d2ql is not available")
+    files = sorted(examples.glob("*.d2ql"))
+    assert files, "expected committed .d2ql example programs"
+    for path in files:
+        parse(path.read_text(encoding="utf-8"))
+
+
 def test_generated_corpus_parses() -> None:
     corpus = generate()
     assert len(corpus) > 500

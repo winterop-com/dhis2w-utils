@@ -67,6 +67,7 @@ from dhis2w_ql.tokenizer import Token, TokenKind, tokenize
 
 _EQUALITY_OPS = frozenset({"=", "!=", "~", "!~"})
 _COMPARISON_OPS = frozenset({"<", "<=", ">", ">="})
+_INFIX_KEYWORDS = frozenset({"and", "or", "xor", "implies", "in", "contains", "is", "div", "mod", "like"})
 _FORMAT_BY_EXT: dict[str, Literal["json", "ndjson", "csv"]] = {"json": "json", "ndjson": "ndjson", "csv": "csv"}
 
 
@@ -198,18 +199,26 @@ class _Parser:
             self._expect(TokenKind.RPAREN, "')'")
             return ReadSource(path=path)
         if self._at(TokenKind.IDENT):
-            following = self._peek(1).kind
-            if following is TokenKind.LPAREN:
+            following = self._peek(1)
+            if following.kind is TokenKind.LPAREN:
                 return self._parse_call_source()
-            if following is TokenKind.LBRACKET:
+            if following.kind is TokenKind.LBRACKET:
                 name = self._advance().value
                 self._advance()  # [
                 predicate = self.parse_expr()
                 self._expect(TokenKind.RBRACKET, "']'")
                 return NameSource(name=name, inline_filter=predicate)
-            if following in (TokenKind.PIPE, TokenKind.SINK, TokenKind.EOF) or self._peek(1).value == "define":
+            # A bare identifier is a named source unless the next token continues it into an
+            # expression (member `.`, an operator, or an infix keyword) — so `define All: dataElements`
+            # is a named query even when the next line starts with another identifier.
+            if not self._continues_expression(following):
                 return NameSource(name=self._advance().value)
         return ExprSource(expr=self.parse_expr())
+
+    def _continues_expression(self, token: Token) -> bool:
+        if token.kind in (TokenKind.DOT, TokenKind.OP):
+            return True
+        return token.kind is TokenKind.KEYWORD and token.value in _INFIX_KEYWORDS
 
     def _parse_call_source(self) -> CallSource:
         name = self._advance().value

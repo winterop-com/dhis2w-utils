@@ -203,7 +203,10 @@ def collect_fields(library: Library, entry: Pipeline) -> str | None:
                 shaped = False
         return shaped
 
-    visit_pipeline(entry, set())
+    if visit_pipeline(entry, set()):
+        # The output stays resource-shaped (no select/transform/group/fold/count narrows it), so the
+        # consumer sees whole rows — fetch every field, not just the navigated ones.
+        paths.add("*")
     return _render_fields(paths) or None
 
 
@@ -264,6 +267,8 @@ def _collect_expr(expr: Any, paths: set[str], row_vars: set[str]) -> None:
     if path is not None:
         if path:
             paths.add(path)
+        else:
+            paths.add("*")  # a bare whole-row reference ($this/$rows/$param) needs every field
         return
     match expr:
         case MemberExpr():
@@ -286,6 +291,10 @@ def _collect_expr(expr: Any, paths: set[str], row_vars: set[str]) -> None:
                     if nested:
                         paths.update(f"{target_path}.{path}" if target_path else path for path in nested)
                         narrowed = True
+                elif isinstance(argument, VariableExpr) and argument.name in row_vars:
+                    # A whole row passed to a function (`isNum($this)`) — the function body, walked
+                    # separately, determines the fields it needs; don't treat it as whole-row output.
+                    continue
                 else:
                     _collect_expr(argument, paths, row_vars)
             if target_path and not narrowed:
@@ -337,12 +346,21 @@ def _nav_path(expr: Any, paths: set[str], row_vars: set[str]) -> str | None:
 
 
 def _render_fields(paths: set[str]) -> str:
+    # `*` (whole row) subsumes every top-level field; keep only explicit nested expansions beside it.
+    if "*" in paths:
+        nested = {path for path in paths if "." in path}
+        groups = _render_tree(_build_tree(nested), "", nested)
+        return "*" + (f",{groups}" if groups else "")
+    return _render_tree(_build_tree(paths), "", paths)
+
+
+def _build_tree(paths: set[str]) -> dict[str, dict[str, Any]]:
     tree: dict[str, dict[str, Any]] = {}
     for path in sorted(paths):
         node = tree
         for segment in path.split("."):
             node = node.setdefault(segment, {})
-    return _render_tree(tree, "", paths)
+    return tree
 
 
 def _render_tree(tree: dict[str, dict[str, Any]], prefix: str, whole: set[str]) -> str:

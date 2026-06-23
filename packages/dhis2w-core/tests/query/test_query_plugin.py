@@ -185,6 +185,15 @@ def test_collect_fields_through_element_preserving_method() -> None:
     assert "options[code,name]" in fields
 
 
+def test_collect_fields_fetches_all_for_whole_row_output() -> None:
+    # No projection, or a whole-row passthrough, means the consumer sees full rows -> fetch `*`.
+    assert _fields("dataElements | limit 25") == "*"
+    assert _fields("dataElements | transform { raw: $this }") == "*"
+    assert _fields('dataElements | where categoryCombo.name = "default" | limit 5') == "*,categoryCombo[name]"
+    # An explicit projection still narrows.
+    assert _fields("dataElements | select id, name") == "id,name"
+
+
 def test_collect_fields_keeps_whole_object_when_requested() -> None:
     # A whole `geometry` must not be narrowed to `geometry[type]` by the filter on geometry.type.
     fields = _fields('organisationUnits | where geometry.type = "Polygon" | transform { id: id, geometry: geometry }')
