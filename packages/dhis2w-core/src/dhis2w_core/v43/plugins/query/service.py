@@ -20,7 +20,7 @@ from dhis2w_ql import (
     to_jsonable,
     write_rows,
 )
-from dhis2w_ql.ast import ExprSource, NameSource, ReadSource, WhereStage
+from dhis2w_ql.ast import CallSource, ExprSource, NameSource, ReadSource, WhereStage
 from dhis2w_ql.engine import QueryEngine
 
 from dhis2w_core.profile import Profile
@@ -51,6 +51,14 @@ async def explain_query(profile: Profile, text: str, *, define: str | None = Non
         return QueryExplain(source=source.path, source_kind="read", residual_stages=_stage_kinds(stages))
     if isinstance(source, ExprSource):
         return QueryExplain(source="<expression>", source_kind="expression", residual_stages=_stage_kinds(stages))
+    if isinstance(source, CallSource):
+        known = Dhis2Binder(profile, set(), None).bind_call(source.name, {}) is not None
+        note = (
+            f"fetched via {source.name}(...); all stages run locally"
+            if known
+            else f"{source.name!r}(...) is not a known call source"
+        )
+        return QueryExplain(source=source.name, source_kind="call", residual_stages=_stage_kinds(stages), note=note)
     binder = await _build_binder(profile, library)
     data_source = binder.bind(source.name)
     if data_source is None:

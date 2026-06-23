@@ -78,6 +78,20 @@ async def test_explain_reports_pushdown() -> None:
     assert explain.residual_stages == ["transform"]
 
 
+async def test_explain_call_source() -> None:
+    explain = await service.explain_query(_PROFILE, 'analytics(dx: "x", pe: "y", ou: "z") | limit 5')
+    assert explain.source == "analytics"
+    assert explain.source_kind == "call"
+    assert explain.pushed_down is None
+    assert "limit" in explain.residual_stages
+
+
+async def test_explain_unknown_call_source() -> None:
+    explain = await service.explain_query(_PROFILE, "wat(a: 1) | limit 5")
+    assert explain.source_kind == "call"
+    assert explain.note is not None and "not a known call source" in explain.note
+
+
 def test_evaluate_path_over_local_json() -> None:
     patient = {"name": [{"use": "official", "family": "King"}]}
     assert service.evaluate_path('name.where(use = "official").family', patient) == ["King"]
