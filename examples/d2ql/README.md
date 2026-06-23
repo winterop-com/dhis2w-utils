@@ -5,7 +5,7 @@ A d2ql program is the same text regardless of the DHIS2 major, so these live her
 `examples/v41|v42|v43`), and the per-version `cli/query_run.sh` runners execute them.
 
 Files are grouped by a name prefix: `metadata-*`, `orgunits-*`, `analytics-*`, `datavalues-*`,
-`fhir-*`, `geojson-*`, `library-*`.
+`fhir-*`, `geojson-*`, `export-*`, `library-*`.
 
 ## Run one
 
@@ -73,7 +73,6 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 | `analytics-date-window.d2ql` | `startDate`/`endDate` window instead of a relative period |
 | `analytics-multi-period.d2ql` | multiple explicit periods × multiple `dx` |
 | `analytics-multi-orgunit.d2ql` | several districts compared with `group by` |
-| `analytics-export-csv.d2ql` | analytics rollup written to a CSV sink |
 | `datavalues-by-dataset.d2ql` | `dataValues(...)` source (`/api/dataValueSets`) |
 
 **`fhir-*`** — map DHIS2 metadata to FHIR (named `fhir-<source>-<resource>`)
@@ -89,6 +88,18 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 | `fhir-dataset-questionnaire.d2ql` | one data set → a Questionnaire (elements → items) |
 | `fhir-bundle-dataset.d2ql` | many data sets → a Bundle of Questionnaires |
 | `fhir-bundle-analytics.d2ql` | analytics values → a Bundle of Observations |
+
+**`export-*`** — write results to a file with a `>>` sink (format follows the extension)
+
+| File | Shows |
+|------|-------|
+| `export-json.d2ql` | rows → a JSON array file (`.json`) |
+| `export-ndjson.d2ql` | rows → newline-delimited JSON (`.ndjson`), one object per line |
+| `export-csv.d2ql` | an analytics rollup → CSV (`.csv`) |
+| `export-fhir-bundle.d2ql` | a FHIR Observation Bundle → a JSON file |
+| `export-stdout.d2ql` | the explicit `>> stdout` print sink (same as omitting the sink) |
+
+(`geojson-*` and `fhir-bundle-*` also write files when they end in a `>>` sink.)
 
 **`geojson-*` / `library-*`**
 

@@ -94,8 +94,8 @@ analytics(dx: "Uvn6LCg7dVU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", includeNum
 
 Other options route the same way: `aggregationType`, `measureCriteria`, `displayProperty`,
 `startDate`/`endDate`, `relativePeriodDate`, `skipMeta`, `skipData`. Any other arg (e.g. `co`) is a
-dimension. The `analytics-*` examples cover COC breakdowns, org-unit-level rollups, multi-period and
-multi-org-unit comparisons, and a CSV export.
+dimension. The `analytics-*` examples cover COC breakdowns, org-unit-level rollups, and multi-period
+and multi-org-unit comparisons; the `export-*` examples show writing results to CSV/JSON/ndjson files.
 
 **Raw data values** from a dataset/period/org unit (`datavalues-by-dataset.d2ql`):
 

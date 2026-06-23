@@ -1,0 +1,2 @@
+// `>> stdout` is the explicit print sink — the same as omitting the sink entirely.
+dataElements | select id, name | limit 5 >> stdout

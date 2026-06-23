@@ -1,0 +1,11 @@
+// Build a FHIR Bundle of Observations and write it to a JSON file (the fold result is one object).
+define function observation(de): {
+  resourceType: "Observation",
+  status: "final",
+  code: { coding: [ { system: "dhis2", code: $de.id, display: $de.name } ] }
+}
+
+dataElements | where domainType = "AGGREGATE" | limit 25
+  | transform { resource: observation($this) }
+  | fold { resourceType: "Bundle", type: "collection", entry: $rows }
+  >> "/tmp/observations-bundle.json"
