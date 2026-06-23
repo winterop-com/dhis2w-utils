@@ -45,7 +45,7 @@ from dhis2w_ql.ast import (
 from dhis2w_ql.d2path.evaluator import EvalContext, Evaluator
 from dhis2w_ql.d2path.functions import lookup as builtin_function
 from dhis2w_ql.d2path.values import collapse, compare, truthy
-from dhis2w_ql.engine.datasource import ResourceBinder
+from dhis2w_ql.engine.datasource import CountableSource, ResourceBinder
 from dhis2w_ql.engine.planner import plan_pipeline
 from dhis2w_ql.errors import EvaluationError, SemanticError
 
@@ -162,8 +162,28 @@ class QueryEngine:
 
     async def _execute(self, pipeline: Pipeline) -> _StageOutcome:
         stages = self._effective_stages(pipeline)
+        total = await self._try_count_fast_path(pipeline, stages)
+        if total is not None:
+            return _StageOutcome(rows=[total], scalar=True)
         resolved = await self._resolve_source(pipeline, stages)
         return self._run_local(resolved.residual, resolved.rows)
+
+    async def _try_count_fast_path(self, pipeline: Pipeline, stages: list[Stage]) -> int | None:
+        """Count via the source's native total when the pipeline is a pushable-filtered resource + `count`.
+
+        Applies only when every stage before `count` pushes down (so the residual is exactly the count)
+        and the source can count natively; otherwise returns None and the rows are fetched and counted.
+        """
+        source = pipeline.source
+        if not isinstance(source, NameSource):
+            return None
+        data_source = self._binder.bind(source.name)
+        if not isinstance(data_source, CountableSource):
+            return None
+        plan = plan_pipeline(source.name, data_source.capabilities(), stages)
+        if len(plan.residual) != 1 or not isinstance(plan.residual[0], CountStage):
+            return None
+        return await data_source.count(plan.native)
 
     def _effective_stages(self, pipeline: Pipeline) -> list[Stage]:
         source = pipeline.source

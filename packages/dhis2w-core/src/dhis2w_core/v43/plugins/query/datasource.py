@@ -75,6 +75,13 @@ class Dhis2DataSource:
         )
         return list(rows[page.drop :]) if page.drop else list(rows)
 
+    async def count(self, native: NativeQuery) -> int:
+        """Count matching rows via DHIS2's pager total — no rows fetched (the `count` fast-path)."""
+        filters = compile_filters(native) or None
+        return await metadata_service.count_metadata(
+            self._profile, self._resource, filters=filters, root_junction=native.root_junction
+        )
+
 
 # Analytics option args carried as named call args, mapped to `query_analytics` kwargs. Anything not
 # listed here (and not `filter`) is an analytics dimension (`dx`/`pe`/`ou`/`co`/UID), rendered `key:value`.
