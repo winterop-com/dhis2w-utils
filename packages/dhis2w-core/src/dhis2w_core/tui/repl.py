@@ -48,8 +48,8 @@ class D2qlReplApp(App[None]):
     #results { height: 1fr; }
     #program { height: auto; min-height: 3; max-height: 12; border: round $accent; }
     """
+    # The editor owns Ctrl+C (copy), Ctrl+A/E/W/K/U/D etc. (readline-style editing), so quit is Ctrl+Q.
     BINDINGS = [
-        ("ctrl+c", "quit", "Quit"),
         ("ctrl+q", "quit", "Quit"),
         ("ctrl+l", "clear", "Clear"),
         ("ctrl+up", "history(-1)", "Prev"),
@@ -75,7 +75,7 @@ class D2qlReplApp(App[None]):
         """Focus the editor and print the key hints."""
         self.query_one("#program", _ProgramArea).focus()
         self.query_one("#results", RichLog).write(
-            "[dim]Enter runs · Shift+Enter / Ctrl+J newline · Ctrl+L clear · Ctrl+C quit[/dim]"
+            "[dim]Enter runs · Shift+Enter / Ctrl+J newline · Ctrl+up/down history · Ctrl+L clear · Ctrl+Q quit[/dim]"
         )
 
     @on(_ProgramArea.Submit)
