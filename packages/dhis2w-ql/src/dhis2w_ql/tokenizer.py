@@ -47,6 +47,7 @@ KEYWORDS: frozenset[str] = frozenset(
         "count",
         "group",
         "by",
+        "fold",
         "like",
         "read",
         "as",

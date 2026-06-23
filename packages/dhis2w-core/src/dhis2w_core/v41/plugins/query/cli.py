@@ -110,7 +110,10 @@ def _render_result(result: Any) -> None:
         _console.print(f"[green]wrote {result.count} row(s) to {result.written_to}[/green]")
         return
     if result.scalar:
-        typer.echo(str(result.rows[0] if result.rows else 0))
+        value = to_jsonable(result.rows[0]) if result.rows else None
+        typer.echo(
+            json.dumps(value, indent=2, ensure_ascii=False) if isinstance(value, (dict, list)) else json.dumps(value)
+        )
         return
     payload = [to_jsonable(row) for row in result.rows]
     if is_json_output() or not _all_objects(payload):

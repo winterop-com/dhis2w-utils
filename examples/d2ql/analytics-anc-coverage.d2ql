@@ -1,0 +1,4 @@
+// ANC 1/2/3 coverage as a small wide-ish table per month (analytics + transform).
+analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU;Jtf34kNZhzP", pe: "LAST_6_MONTHS", ou: "ImspTQPwCqd")
+  | transform { dataElement: dx, month: pe, value: value }
+  | order month asc

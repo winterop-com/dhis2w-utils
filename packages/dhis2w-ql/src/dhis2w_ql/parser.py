@@ -36,6 +36,7 @@ from dhis2w_ql.ast import (
     Expr,
     ExprSource,
     FileSink,
+    FoldStage,
     IndexExpr,
     Library,
     LimitStage,
@@ -233,7 +234,7 @@ class _Parser:
             return SelectStage(items=self._parse_select_items())
         if self._at_keyword("transform"):
             self._advance()
-            return TransformStage(template=self._parse_object())
+            return TransformStage(template=self.parse_expr())
         if self._at_keyword("order"):
             self._advance()
             return OrderStage(keys=self._parse_order_keys())
@@ -253,7 +254,10 @@ class _Parser:
             self._expect_keyword("by")
             group = self.parse_expr()
             return AggregateStage(group=group, aggregations=self._parse_object())
-        raise self._error("expected a stage keyword (where/select/transform/order/limit/skip/count/group)")
+        if self._at_keyword("fold"):
+            self._advance()
+            return FoldStage(template=self._parse_object())
+        raise self._error("expected a stage keyword (where/select/transform/order/limit/skip/count/group/fold)")
 
     def _parse_select_items(self) -> list[SelectItem]:
         items = [self._parse_select_item()]

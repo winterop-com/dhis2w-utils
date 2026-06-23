@@ -7,7 +7,7 @@
   to the source and evaluating the rest locally.
 """
 
-from dhis2w_ql.ast import AggregateStage, CallSource, Define, DefineFunction, Library, Pipeline
+from dhis2w_ql.ast import AggregateStage, CallSource, Define, DefineFunction, FoldStage, Library, Pipeline
 from dhis2w_ql.d2path import EvalContext, Evaluator, Resolver
 from dhis2w_ql.engine import (
     DataSource,
@@ -42,6 +42,7 @@ __all__ = [
     "EvalContext",
     "EvaluationError",
     "Evaluator",
+    "FoldStage",
     "GeneratedExample",
     "SchemaSpec",
     "generate",

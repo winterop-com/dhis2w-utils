@@ -13,5 +13,5 @@ for program in examples/d2ql/*.d2ql; do
 done
 
 # Inspect a program without running it (offline):
-d2w query ast "$(cat examples/d2ql/immunisation-library.d2ql)"
+d2w query ast "$(cat examples/d2ql/library-immunisation.d2ql)"
 d2w query explain "$(cat examples/d2ql/analytics-rollup.d2ql)"

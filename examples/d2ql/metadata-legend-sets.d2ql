@@ -1,0 +1,2 @@
+// Legend sets with their legend names.
+legendSets | select id, name, legends.name as legends | limit 25

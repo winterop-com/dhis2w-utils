@@ -187,10 +187,10 @@ class SelectStage(_Node):
 
 
 class TransformStage(_Node):
-    """Reshape each item into a new object built from the template (native, FHIR-agnostic)."""
+    """Reshape each item via the template — an object literal `{ … }` or an expression yielding one."""
 
     kind: Literal["transform"] = "transform"
-    template: ObjectExpr
+    template: Expr
 
 
 class OrderStage(_Node):
@@ -232,8 +232,27 @@ class AggregateStage(_Node):
     aggregations: ObjectExpr
 
 
+class FoldStage(_Node):
+    """Collapse the whole stream into a single object (e.g. a FHIR Bundle or GeoJSON FeatureCollection).
+
+    `fold { resourceType: "Bundle", entry: $rows }` — the template is built once with the entire
+    stream in focus; `$rows` is the stream as a list, and aggregate/`select` functions see all rows.
+    """
+
+    kind: Literal["fold"] = "fold"
+    template: ObjectExpr
+
+
 Stage = Annotated[
-    WhereStage | SelectStage | TransformStage | OrderStage | LimitStage | SkipStage | CountStage | AggregateStage,
+    WhereStage
+    | SelectStage
+    | TransformStage
+    | OrderStage
+    | LimitStage
+    | SkipStage
+    | CountStage
+    | AggregateStage
+    | FoldStage,
     Field(discriminator="kind"),
 ]
 
@@ -312,6 +331,7 @@ for _model in (
     TransformStage,
     OrderStage,
     AggregateStage,
+    FoldStage,
     Pipeline,
     Define,
     DefineFunction,

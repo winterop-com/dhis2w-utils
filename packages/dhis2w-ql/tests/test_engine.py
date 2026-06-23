@@ -114,3 +114,32 @@ async def test_aggregate_groups_and_reduces() -> None:
 async def test_aggregate_count_with_no_value_field() -> None:
     rows = await _rows("dataElements | group by categoryCombo.name { n: count() } | order n desc")
     assert {row["n"] for row in rows} == {2, 1}
+
+
+async def test_fold_collapses_stream_to_one_object() -> None:
+    result = await _engine(
+        'dataElements | where domainType = "AGGREGATE" | transform { resource: { id: id } } '
+        '| fold { resourceType: "Bundle", entry: $rows }'
+    ).run_terminal()
+    assert result.scalar is True
+    assert result.rows == [
+        {"resourceType": "Bundle", "entry": [{"resource": {"id": "a1"}}, {"resource": {"id": "b2"}}]}
+    ]
+
+
+async def test_transform_accepts_a_function_call() -> None:
+    text = (
+        "define function entry(de): { resource: { code: $de.id, label: $de.name } }\n"
+        'dataElements | where domainType = "TRACKER" | transform entry($this)'
+    )
+    rows = await _rows(text)
+    assert rows == [{"resource": {"code": "c3", "label": "ANC 2nd visit"}}]
+
+
+async def test_fold_to_json_file_writes_object_not_array(tmp_path: Path) -> None:
+    path = tmp_path / "bundle.json"
+    text = f'dataElements | transform {{ id: id }} | fold {{ resourceType: "Bundle", entry: $rows }} >> "{path}"'
+    await _engine(text).run_terminal()
+    document = json.loads(path.read_text())
+    assert document["resourceType"] == "Bundle"
+    assert [e["id"] for e in document["entry"]] == ["a1", "b2", "c3"]

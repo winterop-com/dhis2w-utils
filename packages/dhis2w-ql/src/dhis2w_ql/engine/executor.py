@@ -26,6 +26,7 @@ from dhis2w_ql.ast import (
     Expr,
     ExprSource,
     FileSink,
+    FoldStage,
     Library,
     LimitStage,
     MemberExpr,
@@ -132,7 +133,7 @@ class QueryEngine:
         """Execute a pipeline and apply its sink, returning the rows and sink metadata."""
         outcome = await self._execute(pipeline)
         if isinstance(pipeline.sink, FileSink):
-            written = _write_file(pipeline.sink, outcome.rows)
+            written = _write_file(pipeline.sink, outcome.rows, scalar=outcome.scalar)
             return QueryResult(
                 rows=outcome.rows,
                 count=len(outcome.rows),
@@ -194,10 +195,7 @@ class QueryEngine:
             case SelectStage():
                 return _StageOutcome(rows=[self._project(stage, row, index) for index, row in enumerate(rows)])
             case TransformStage():
-                built = [
-                    self._evaluator.build_object(stage.template, [row], _scope(row, index))
-                    for index, row in enumerate(rows)
-                ]
+                built = [collapse(self._per_item(stage.template, row, index)) for index, row in enumerate(rows)]
                 return _StageOutcome(rows=built, scalar=False)
             case OrderStage():
                 return _StageOutcome(rows=self._order(stage, rows), scalar=False)
@@ -209,6 +207,9 @@ class QueryEngine:
                 return _StageOutcome(rows=[len(rows)], scalar=True)
             case AggregateStage():
                 return _StageOutcome(rows=self._aggregate(stage, rows), scalar=False)
+            case FoldStage():
+                scope = EvalContext().child(rows=rows)
+                return _StageOutcome(rows=[self._evaluator.build_object(stage.template, rows, scope)], scalar=True)
 
     def _per_item(self, expr: Expr, item: Any, index: int) -> list[Any]:
         return self._evaluator.per_item(expr, item, index, EvalContext())
@@ -248,10 +249,6 @@ class QueryEngine:
             return 0
 
         return sorted(rows, key=cmp_to_key(comparator))
-
-
-def _scope(item: Any, index: int) -> EvalContext:
-    return EvalContext().child(this=[item], index=[index])
 
 
 def _is_scalar_define(define: Define) -> bool:
@@ -297,7 +294,7 @@ class _WriteOutcome(BaseModel):
     format: str
 
 
-def _write_file(sink: FileSink, rows: list[Any]) -> _WriteOutcome:
+def _write_file(sink: FileSink, rows: list[Any], *, scalar: bool = False) -> _WriteOutcome:
     fmt = sink.format or "json"
     payload = [_jsonable(row) for row in rows]
     if fmt == "csv":
@@ -305,7 +302,9 @@ def _write_file(sink: FileSink, rows: list[Any]) -> _WriteOutcome:
     elif fmt == "ndjson":
         text = "\n".join(json.dumps(row, ensure_ascii=False) for row in payload) + "\n"
     else:
-        text = json.dumps(payload, indent=2, ensure_ascii=False)
+        # A scalar result (fold/count) writes the single value, not a one-element array.
+        document: Any = payload[0] if scalar and len(payload) == 1 else payload
+        text = json.dumps(document, indent=2, ensure_ascii=False)
     Path(sink.path).write_text(text, encoding="utf-8")
     return _WriteOutcome(path=sink.path, format=fmt)
 
@@ -354,9 +353,11 @@ def to_jsonable(value: Any) -> Any:
 _EXT_FORMAT: dict[str, Literal["json", "ndjson", "csv"]] = {"json": "json", "ndjson": "ndjson", "csv": "csv"}
 
 
-def write_rows(path: str, rows: list[Any], fmt: Literal["json", "ndjson", "csv"] | None = None) -> str:
+def write_rows(
+    path: str, rows: list[Any], fmt: Literal["json", "ndjson", "csv"] | None = None, *, scalar: bool = False
+) -> str:
     """Write rows to `path` as json/ndjson/csv (inferring the format from the extension when None)."""
     if fmt is None:
         extension = path.rsplit(".", 1)[-1].lower() if "." in path else ""
         fmt = _EXT_FORMAT.get(extension, "json")
-    return _write_file(FileSink(path=path, format=fmt), rows).path
+    return _write_file(FileSink(path=path, format=fmt), rows, scalar=scalar).path

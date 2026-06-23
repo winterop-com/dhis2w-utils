@@ -1,0 +1,2 @@
+// Data sets with their reporting frequency.
+dataSets | select id, name, periodType | order name asc | limit 25

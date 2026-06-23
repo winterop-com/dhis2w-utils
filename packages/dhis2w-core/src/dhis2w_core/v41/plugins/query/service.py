@@ -36,7 +36,7 @@ async def run_query(profile: Profile, text: str, *, define: str | None = None, o
     engine = QueryEngine(library, binder)
     result = await (engine.run_define(define) if define is not None else engine.run_terminal())
     if out is not None and result.written_to is None:
-        written = write_rows(out, result.rows)
+        written = write_rows(out, result.rows, scalar=result.scalar)
         return result.model_copy(update={"written_to": written})
     return result
 

@@ -1,0 +1,13 @@
+// A proper GeoJSON FeatureCollection: `transform` makes each district a Feature,
+// `fold` wraps them all into one FeatureCollection object, written to a file.
+define function feature(ou): {
+  type: "Feature",
+  properties: { id: $ou.id, name: $ou.name, level: $ou.level },
+  geometry: $ou.geometry
+}
+
+organisationUnits
+  | where level = 2 and geometry.type = "Polygon"
+  | transform feature($this)
+  | fold { type: "FeatureCollection", features: $rows }
+  >> "/tmp/d2ql-districts.geojson"

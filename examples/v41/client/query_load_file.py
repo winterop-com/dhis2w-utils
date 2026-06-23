@@ -10,7 +10,7 @@ from dhis2w_ql import parse
 
 async def main() -> None:
     """Load a committed d2ql program from disk and print its definitions and terminal stages."""
-    path = Path("examples/d2ql/immunisation-library.d2ql")
+    path = Path("examples/d2ql/library-immunisation.d2ql")
     library = parse(path.read_text(encoding="utf-8"))
 
     print(f"loaded {path.name}: {len(library.definitions)} definition(s)")

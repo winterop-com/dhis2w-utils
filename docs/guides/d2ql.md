@@ -59,6 +59,7 @@ from Python via `parse(open(<file>).read())`.
 | `limit <n>` / `skip <n>` | Take / drop rows. |
 | `count` | Replace the stream with its length (a scalar result). |
 | `group by <expr> { name: agg, … }` | Group rows by a key and reduce each group. |
+| `fold { … }` | Collapse the whole stream into one object (FHIR Bundle, GeoJSON FeatureCollection). |
 
 ### group by
 
@@ -74,9 +75,29 @@ analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd"
   | order total desc
 ```
 
+### fold
+
+`group by`/`count` reduce per group; `fold { … }` reduces the **whole stream into one object** —
+an envelope like a FHIR `Bundle` or a GeoJSON `FeatureCollection`. The template is built once with
+the entire stream in focus: `$rows` is the rows as a list, and `select(...)` / aggregate functions
+see all rows. Pair it with `define function`s to keep the per-item shape readable:
+
+```
+define function observation(de): { resourceType: "Observation", status: "final",
+                                    code: { coding: [ { system: "dhis2", code: $de.id, display: $de.name } ] } }
+
+dataElements | where domainType = "AGGREGATE"
+  | transform { resource: observation($this) }
+  | fold { resourceType: "Bundle", type: "collection", entry: $rows }
+```
+
+`fold` (like `count`) yields a single value, so `--json` / a `.json` sink emit the object itself,
+not a one-element array.
+
 ### transform
 
-`transform` builds an arbitrary object per row from d2path expressions — nested objects, arrays,
+`transform` builds a new value per row — an object literal `{ … }` **or** any expression that
+evaluates to one, e.g. a `define function` call `transform feature($this)`. Nested objects, arrays,
 and computed values are all allowed. It depends on nothing FHIR-specific, but it is exactly what you
 use to emit FHIR-shaped output:
 
@@ -199,13 +220,25 @@ organisationUnits
   >> "districts.json"
 ```
 
-**Emit FHIR Observation shapes from aggregate elements:**
+**Emit FHIR Observation shapes from aggregate elements** (an array of resources):
 
 ```
 dataElements
   | where domainType = "AGGREGATE"
   | transform { resourceType: "Observation", status: "final",
                 code: { coding: [ { system: "dhis2", code: id, display: name } ] } }
+```
+
+**A proper FHIR Bundle** (one envelope object) — `define function` builds each resource, `fold` wraps them:
+
+```
+define function observation(de): { resourceType: "Observation", status: "final",
+                                    code: { coding: [ { system: "dhis2", code: $de.id, display: $de.name } ] } }
+
+dataElements | where domainType = "AGGREGATE"
+  | transform { resource: observation($this) }
+  | fold { resourceType: "Bundle", type: "collection", entry: $rows }
+  >> "bundle.json"
 ```
 
 ## See also

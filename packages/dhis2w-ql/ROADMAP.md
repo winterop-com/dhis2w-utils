@@ -41,6 +41,16 @@ predicates over `dataValues` stay local.
 
 ## Cross-cutting workstreams
 
+- **Streaming execution for large result sets.** Today the engine is fully materialized: a
+  `DataSource.fetch` returns `list[Any]`, the metadata source uses `list_metadata` (whole response;
+  `limit` caps it via `pageSize`), and the analytics source returns the entire `Grid` in one
+  response — so a huge analytics query is memory-bound. The seam to fix it is small: make
+  `DataSource.fetch` return an async iterator (the metadata service already has the paginated
+  `iter_metadata` generator), and have the executor stream rows through the non-blocking stages
+  (`where`/`select`/`transform`/`skip`/`limit`) while only the blocking ones (`order`/`group by`/
+  `fold`) materialize. Combined with the NDJSON sink, that gives constant-memory export. Until then,
+  bound large queries with `limit` (metadata) and dimension narrowing (analytics). Analytics has no
+  server-side paging for aggregate data; events/enrollments analytics do and can page when wired.
 - **Thousands of examples from live instances.** Extend `generate.py` to build a `SchemaSpec` from a
   live instance's resource catalog and a sampling of real field names / option values (scraped via
   the metadata service against the public dev instances at `im.dhis2.org`, v41/v42/v43). The full
