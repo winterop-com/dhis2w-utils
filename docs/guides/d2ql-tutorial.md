@@ -202,7 +202,7 @@ dataElements | where domainType = "AGGREGATE"
 ```
 
 The same pattern emits a GeoJSON FeatureCollection from org units (geometry passes through whole) —
-see `fhir-de-bundle.d2ql` and `geojson-featurecollection.d2ql` in the example library.
+see `fhir-bundle-de.d2ql` and `geojson-featurecollection.d2ql` in the example library.
 
 ## 10. Write the result to a file
 

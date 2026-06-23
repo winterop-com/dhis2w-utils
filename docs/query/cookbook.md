@@ -142,7 +142,7 @@ dataElements | transform summary($this)
 The recipe is always the same: a `define function` builds the resource, `transform` wraps each row,
 `fold` builds the Bundle envelope.
 
-**Data elements → a Bundle of Observations** (`fhir-de-bundle.d2ql`):
+**Data elements → a Bundle of Observations** (`fhir-bundle-de.d2ql`):
 
 ```
 define function observation(de): {
@@ -166,8 +166,8 @@ optionSets | where name like "Age" | limit 1
 ```
 
 **Option set → a ValueSet** (`fhir-optionset-valueset.d2ql`); **option sets → a Bundle of
-CodeSystems** (`fhir-optionset-bundle.d2ql`); **data set → a Questionnaire** and **data sets → a
-Bundle of Questionnaires** (`fhir-dataset-questionnaire.d2ql`, `fhir-dataset-bundle.d2ql`) all follow
+CodeSystems** (`fhir-bundle-optionset.d2ql`); **data set → a Questionnaire** and **data sets → a
+Bundle of Questionnaires** (`fhir-dataset-questionnaire.d2ql`, `fhir-bundle-dataset.d2ql`) all follow
 the same `transform` + `fold` shape.
 
 ## Reusable libraries

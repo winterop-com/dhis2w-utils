@@ -8794,29 +8794,30 @@ $ d2w query [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `eval`: Run a d2ql program against the active...
+* `eval`: Run a d2ql program (inline or `--file`)...
 * `run`: Run a d2ql program read from a file.
-* `explain`: Show how a d2ql pipeline splits between...
+* `explain`: Show how a d2ql pipeline (inline or...
 * `ast`: Print the parsed d2ql AST (no profile...
 * `d2path`: Evaluate a bare d2path expression over a...
 * `repl`: Start an interactive d2ql prompt against...
 
 ### `d2w query eval`
 
-Run a d2ql program against the active profile and render the rows.
+Run a d2ql program (inline or `--file`) against the active profile and render the rows.
 
 **Usage**:
 
 ```console
-$ d2w query eval [OPTIONS] TEXT
+$ d2w query eval [OPTIONS] [TEXT]
 ```
 
 **Arguments**:
 
-* `TEXT`: A d2ql program (quote it).  [required]
+* `[TEXT]`: A d2ql program (quote it); or read one with --file.
 
 **Options**:
 
+* `-f, --file PATH`: Read the d2ql program from this file.
 * `-d, --define TEXT`: Run/explain this named definition.
 * `-o, --out TEXT`: Write rows to this file (json/ndjson/csv).
 * `--help`: Show this message and exit.
@@ -8843,39 +8844,41 @@ $ d2w query run [OPTIONS] FILE
 
 ### `d2w query explain`
 
-Show how a d2ql pipeline splits between DHIS2 pushdown and local evaluation.
+Show how a d2ql pipeline (inline or `--file`) splits between DHIS2 pushdown and local evaluation.
 
 **Usage**:
 
 ```console
-$ d2w query explain [OPTIONS] TEXT
+$ d2w query explain [OPTIONS] [TEXT]
 ```
 
 **Arguments**:
 
-* `TEXT`: A d2ql program (quote it).  [required]
+* `[TEXT]`: A d2ql program (quote it); or read one with --file.
 
 **Options**:
 
+* `-f, --file PATH`: Read the d2ql program from this file.
 * `-d, --define TEXT`: Run/explain this named definition.
 * `--help`: Show this message and exit.
 
 ### `d2w query ast`
 
-Print the parsed d2ql AST (no profile needed).
+Print the parsed d2ql AST (no profile needed; inline program or `--file`).
 
 **Usage**:
 
 ```console
-$ d2w query ast [OPTIONS] TEXT
+$ d2w query ast [OPTIONS] [TEXT]
 ```
 
 **Arguments**:
 
-* `TEXT`: A d2ql program (quote it).  [required]
+* `[TEXT]`: A d2ql program (quote it); or read one with --file.
 
 **Options**:
 
+* `-f, --file PATH`: Read the d2ql program from this file.
 * `--help`: Show this message and exit.
 
 ### `d2w query d2path`
