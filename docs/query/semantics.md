@@ -144,18 +144,26 @@ $this["code-x"]                # a top-level awkward key on the current row
 ## Pushdown — the equivalence it does and doesn't promise
 
 d2ql pushes a leading run of `where` filters, then `order`, then paging, to DHIS2's list endpoint and
-runs the rest locally; `d2w query explain` shows the split. The intent is that a pushed filter and
-the same filter evaluated locally select the same rows — but **DHIS2's server-side semantics are the
-source of truth for pushed work**, and can differ from local d2path evaluation at the edges:
+runs the rest locally; `d2w query explain` shows the split. The operators are mapped so a pushed
+filter selects the same rows as the same filter evaluated locally: `=`→`eq`, `!=`→`ne`,
+`~`→`ilike` (both case-insensitive substring), `<`/`<=`/`>`/`>=`→`lt`/`le`/`gt`/`ge`, `in`→`in`. An
+audit against the demo server confirmed pushed and local agree for literal values across these
+operators (including `!=` over rows where the field is absent).
 
-- **String case / collation:** DHIS2 operators and local matching may treat case or accents
-  differently.
-- **null / missing:** handled per the rules above locally; the server may differ.
-- **Ordering & paging:** sort stability and tie-breaking come from DHIS2 for pushed `order`/paging.
+Three corners are handled or called out explicitly:
 
-These are edge cases, not everyday behaviour, but they mean pushdown is a performance optimisation
-with server-defined semantics for the pushed part — not a guarantee of byte-identical results in
-every corner. `explain` tells you exactly what ran where.
+- **`~` with `%` or `_`:** DHIS2 `ilike` treats these as SQL wildcards, but d2path `~` is a *literal*
+  case-insensitive substring. A `~` value containing `%`/`_` is therefore **kept local** (not pushed)
+  so the result matches the literal meaning. `explain` shows it as a local `where`.
+- **Server-side value validation:** DHIS2 validates a pushed filter's value, so an invalid value
+  (e.g. an enum in the wrong case like `domainType = "aggregate"`) raises a `400` where local
+  evaluation would simply return no rows. Use the exact value DHIS2 expects.
+- **Date / datetime comparisons:** when pushed, DHIS2's date semantics apply (correct). The local
+  fallback compares values as-is, and a date/datetime field does not compare against a bare string
+  literal — so a date comparison that is *not* pushed can under-match. Pin date handling is tracked
+  with date-literal support (`@2026-06-23`).
+
+`explain` always tells you exactly what ran where.
 
 ## Libraries
 
