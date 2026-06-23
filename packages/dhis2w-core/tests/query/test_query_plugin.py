@@ -229,6 +229,34 @@ def test_cli_ast_is_offline(runner: CliRunner) -> None:
     assert '"kind": "select"' in result.stdout
 
 
+def test_cli_reads_program_from_file(runner: CliRunner, tmp_path: Path) -> None:
+    program = tmp_path / "p.d2ql"
+    program.write_text("dataElements | select id, name | limit 5")
+    result = runner.invoke(build_app(), ["query", "ast", "--file", str(program)])
+    assert result.exit_code == 0
+    assert '"kind": "select"' in result.stdout
+
+
+def _flat(output: str) -> str:
+    # Rich wraps error-panel text across lines with `│` borders; flatten so messages match regardless.
+    return " ".join(output.replace("│", " ").split())
+
+
+def test_cli_rejects_a_bare_file_path(runner: CliRunner, tmp_path: Path) -> None:
+    # A file path passed as the program would otherwise parse as a meaningless expression.
+    program = tmp_path / "p.d2ql"
+    program.write_text("dataElements | select id")
+    result = runner.invoke(build_app(), ["query", "ast", str(program)])
+    assert result.exit_code != 0
+    assert "looks like a file path" in _flat(result.output)
+
+
+def test_cli_requires_a_program_or_file(runner: CliRunner) -> None:
+    result = runner.invoke(build_app(), ["query", "ast"])
+    assert result.exit_code != 0
+    assert "provide a d2ql program" in _flat(result.output)
+
+
 def test_cli_d2path_over_input_file(runner: CliRunner, tmp_path: Path) -> None:
     data = tmp_path / "patient.json"
     data.write_text(json.dumps({"name": [{"given": ["Ada", "Lovelace"]}]}))

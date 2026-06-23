@@ -72,13 +72,13 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 | File | Shows |
 |------|-------|
 | `fhir-de-observations.d2ql` | data elements → Observation resources (an array) |
-| `fhir-de-bundle.d2ql` | data elements → a proper FHIR Bundle (`define function` + `transform` + `fold`) |
+| `fhir-bundle-de.d2ql` | data elements → a proper FHIR Bundle (`define function` + `transform` + `fold`) |
 | `fhir-de-codesystem.d2ql` | data elements → one CodeSystem of concepts |
 | `fhir-optionset-codesystem.d2ql` | one option set → a CodeSystem |
 | `fhir-optionset-valueset.d2ql` | one option set → a ValueSet |
-| `fhir-optionset-bundle.d2ql` | many option sets → a Bundle of CodeSystems |
+| `fhir-bundle-optionset.d2ql` | many option sets → a Bundle of CodeSystems |
 | `fhir-dataset-questionnaire.d2ql` | one data set → a Questionnaire (elements → items) |
-| `fhir-dataset-bundle.d2ql` | many data sets → a Bundle of Questionnaires |
+| `fhir-bundle-dataset.d2ql` | many data sets → a Bundle of Questionnaires |
 
 **`geojson-*` / `library-*`**
 
