@@ -1,4 +1,6 @@
-// Data elements -> a single FHIR CodeSystem (each element becomes a concept).
+// Many data elements -> ONE FHIR CodeSystem. This uses `fold`, which runs once over
+// the WHOLE stream (`$rows` is every data element) and emits a single object — unlike
+// `transform`, which emits one object per row. The concepts are the projected stream.
 dataElements
   | where domainType = "AGGREGATE"
   | limit 50
