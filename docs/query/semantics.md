@@ -69,6 +69,12 @@ today()`). The parser decides by the body's first tokens: a bare identifier / na
 operator, an infix keyword, or a positional call) is a scalar expression. Use a query define as a
 source; reference a scalar define as `$NAME`.
 
+**Definition rules.** Names must be unique — a duplicate `define`/`define function` name is rejected,
+not silently overwritten. A `define function` may not reuse a built-in function name (`upper`, `sum`,
+…), since the built-in would shadow it. A definition that references itself, directly or through a
+cycle (`define A: B` / `define B: A`), is rejected as a recursive definition rather than recursing
+until it crashes.
+
 ## `select` vs `transform`
 
 Both project each row, but differ in output shape and naming:
@@ -79,7 +85,8 @@ Both project each row, but differ in output shape and naming:
   the program is rejected** — add an alias. Use `select` for tabular output.
 - **`transform { … }`** produces an arbitrary object you spell out in full — nested objects, arrays,
   computed fields. Keys are exactly what you write. Use `transform` to build foreign shapes (FHIR,
-  GeoJSON) or anything non-tabular.
+  GeoJSON) or anything non-tabular. A duplicate key in any object literal (`{ id: id, id: name }`) is
+  rejected at parse time, so a repeated key never silently overwrites.
 
 `group by key { … }` names the key column with the same derivation rule (`group by
 categoryCombo.name` → key column `name`; a computed key → `column1`); alias by grouping on a
@@ -107,6 +114,8 @@ Notes:
 - **`like` and `~` are the same operator** — `like` is the readable spelling, normalised to `~` in
   the AST. There is no symbolic operator for `not`; use the `not()` function or `!=` / `!~`.
 - **`contains` is both** an infix operator (`tags contains "x"`) and a method (`name.contains("x")`).
+- **`implies` is right-associative:** `a implies b implies c` is `a implies (b implies c)`. Every
+  other binary operator is left-associative.
 - Comparisons are **existential** over collections (see d2path): `items.qty > 2` is true if any
   collected `qty` exceeds 2.
 

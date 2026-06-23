@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 from dhis2w_ql import Evaluator, InMemoryBinder, QueryEngine, parse, parse_expression
-from dhis2w_ql.errors import EvaluationError, SemanticError
+from dhis2w_ql.errors import EvaluationError, ParseError, SemanticError
 
 _ROWS = [
     {"id": "a1", "name": "ANC 1st visit", "domainType": "AGGREGATE", "categoryCombo": {"name": "default"}, "value": 12},
@@ -171,3 +171,36 @@ async def test_bracket_string_subscript_with_this_in_a_pipeline() -> None:
 def test_bracket_non_integer_non_string_is_rejected() -> None:
     with pytest.raises(EvaluationError, match="integer or a string key"):
         _p("value[true]", {"value": [1, 2]})
+
+
+# ---------------------------------------------------------------- Definition safety
+
+
+async def test_recursive_definitions_are_rejected() -> None:
+    for program in (
+        "define A: $A\ndataElements | transform { x: $A }",  # scalar self-reference
+        "define A: A\nA",  # query self-reference
+        "define A: B\ndefine B: A\nA",  # mutual cycle
+    ):
+        with pytest.raises(SemanticError, match="recursive definition"):
+            await _rows(program)
+
+
+async def test_duplicate_definition_names_are_rejected() -> None:
+    with pytest.raises(SemanticError, match="duplicate definition"):
+        await _rows("define A: dataElements\ndefine A: dataElements\nA | count")
+
+
+async def test_function_cannot_shadow_a_builtin() -> None:
+    with pytest.raises(SemanticError, match="shadows a built-in"):
+        await _rows("define function upper(x): 1\ndataElements | select id")
+
+
+def test_implies_is_right_associative() -> None:
+    # `a implies b implies c` parses as `a implies (b implies c)`.
+    assert _p("false implies false implies false", {}) == [True]
+
+
+def test_duplicate_object_keys_are_rejected() -> None:
+    with pytest.raises(ParseError, match="duplicate object key"):
+        parse_expression("{ a: 1, a: 2 }")

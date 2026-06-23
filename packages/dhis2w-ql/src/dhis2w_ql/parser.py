@@ -7,13 +7,16 @@ Grammar (informal):
                              |  IDENT ":" pipeline )
     pipeline     := source ("|" stage)* ( ">>" sink )?
     source       := "read" "(" STRING ")"
+                 |  IDENT "(" objectField ("," objectField)* ")"   # call source (named args)
                  |  IDENT ( "[" expr "]" )?        # name source, optional inline filter
-                 |  expr                            # scalar expression source
+                 |  expr                            # scalar expression source (incl. fn() calls)
     stage        := "where" expr
                  |  "select" selectItem ("," selectItem)*
-                 |  "transform" object
+                 |  "transform" expr                # any expression, often an object literal
                  |  "order" orderKey ("," orderKey)*
                  |  "limit" INTEGER | "skip" INTEGER | "count"
+                 |  "group" "by" expr object        # aggregate: group key + aggregation object
+                 |  "fold" object                   # collapse the whole stream into one object
     sink         := STRING | "stdout"
 
 The pipeline `|` is the stage separator; collection union is the `union()` function, so `|` is
@@ -334,9 +337,10 @@ class _Parser:
 
     def _parse_implies(self) -> Expr:
         left = self._parse_or()
-        while self._at_keyword("implies"):
+        if self._at_keyword("implies"):
+            # `implies` is right-associative: `a implies b implies c` is `a implies (b implies c)`.
             self._advance()
-            left = BinaryExpr(op="implies", left=left, right=self._parse_or())
+            return BinaryExpr(op="implies", left=left, right=self._parse_implies())
         return left
 
     def _parse_or(self) -> Expr:
@@ -475,6 +479,11 @@ class _Parser:
                     break
                 fields.append(self._parse_object_field())
         self._expect(TokenKind.RBRACE, "'}'")
+        seen: set[str] = set()
+        for field in fields:
+            if field.name in seen:
+                raise self._error(f"duplicate object key {field.name!r}")
+            seen.add(field.name)
         return ObjectExpr(fields=fields)
 
     def _parse_object_field(self) -> ObjectField:
