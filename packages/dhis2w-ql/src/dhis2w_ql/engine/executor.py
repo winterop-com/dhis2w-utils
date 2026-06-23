@@ -43,6 +43,7 @@ from dhis2w_ql.ast import (
     WhereStage,
 )
 from dhis2w_ql.d2path.evaluator import EvalContext, Evaluator
+from dhis2w_ql.d2path.functions import lookup as builtin_function
 from dhis2w_ql.d2path.values import collapse, compare, truthy
 from dhis2w_ql.engine.datasource import ResourceBinder
 from dhis2w_ql.engine.planner import plan_pipeline
@@ -90,10 +91,17 @@ class QueryEngine:
         self._defines: dict[str, Define] = {}
         self._functions: dict[str, DefineFunction] = {}
         self._scalar_cache: dict[str, list[Any]] = {}
+        self._resolving: set[str] = set()
+        seen: set[str] = set()
         for definition in library.definitions:
+            if definition.name in seen:
+                raise SemanticError(f"duplicate definition {definition.name!r}")
+            seen.add(definition.name)
             if isinstance(definition, Define):
                 self._defines[definition.name] = definition
             else:
+                if builtin_function(definition.name) is not None:
+                    raise SemanticError(f"cannot define function {definition.name!r}: it shadows a built-in function")
                 self._functions[definition.name] = definition
 
     # ------------------------------------------------------------------ Resolver protocol
@@ -105,9 +113,15 @@ class QueryEngine:
         define = self._defines.get(name)
         if define is None or not _is_scalar_define(define):
             return None
+        if name in self._resolving:
+            raise SemanticError(f"recursive definition {name!r}")
         source = define.body.source
         assert isinstance(source, ExprSource)  # guaranteed by _is_scalar_define
-        value = self._evaluator.evaluate(source.expr, [])
+        self._resolving.add(name)
+        try:
+            value = self._evaluator.evaluate(source.expr, [])
+        finally:
+            self._resolving.discard(name)
         self._scalar_cache[name] = value
         return value
 
@@ -168,7 +182,13 @@ class QueryEngine:
             define = self._defines.get(source.name)
             if define is None:
                 raise SemanticError(f"unknown source {source.name!r}: not a bound resource or definition")
-            inner = await self._execute(define.body)
+            if source.name in self._resolving:
+                raise SemanticError(f"recursive definition {source.name!r}")
+            self._resolving.add(source.name)
+            try:
+                inner = await self._execute(define.body)
+            finally:
+                self._resolving.discard(source.name)
             return _SourceResolution(rows=inner.rows, residual=list(stages))
         if isinstance(source, CallSource):
             args = {field.name: collapse(self._evaluator.evaluate(field.value, [])) for field in source.args}
