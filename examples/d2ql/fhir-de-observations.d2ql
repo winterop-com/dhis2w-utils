@@ -1,4 +1,6 @@
-// Emit a FHIR Observation shape per aggregate data element (transform is generic).
+// `transform` runs once PER ROW, so this yields an ARRAY of Observation objects
+// (one per data element) — not a single Bundle. For one Bundle envelope wrapping
+// them, see fhir-bundle-de.d2ql, which adds a `fold` over the whole stream.
 dataElements
   | where domainType = "AGGREGATE"
   | transform {

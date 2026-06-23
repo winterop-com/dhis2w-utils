@@ -48,6 +48,8 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 | `metadata-data-sets.d2ql`, `metadata-programs.d2ql`, `metadata-constants.d2ql` | simple projections |
 | `metadata-categories.d2ql`, `metadata-category-combos.d2ql` | repeating association → list |
 | `metadata-option-sets.d2ql`, `metadata-legend-sets.d2ql`, `metadata-indicator-groups.d2ql` | nested association lists |
+| `metadata-group-members.d2ql` | "join": group → its member data elements (nested association) |
+| `metadata-dataset-elements.d2ql` | "join": data set → elements via `dataSetElements.dataElement` |
 | `metadata-validation-rules.d2ql`, `metadata-tracked-entity-attributes.d2ql` | more resources |
 
 **`orgunits-*`** — the org hierarchy
@@ -56,6 +58,7 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 |------|-------|
 | `orgunits-per-level.d2ql` | hierarchy rollup with `group by` |
 | `orgunits-with-parent.d2ql` | nested association navigation (`parent.name`) |
+| `orgunits-with-children.d2ql` | "join": org unit → parent + immediate children |
 | `orgunits-groups.d2ql` | organisation unit groups |
 
 **`analytics-*` / `datavalues-*`** — aggregate data

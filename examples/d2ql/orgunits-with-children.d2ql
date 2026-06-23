@@ -1,0 +1,6 @@
+// An org unit with its parent name and its immediate children — self-referential
+// hierarchy traversed by nested fields (`parent`, `children`), no join needed.
+organisationUnits
+  | where level = 2
+  | transform { id: id, name: name, parent: parent.name, children: children.name }
+  | order name asc

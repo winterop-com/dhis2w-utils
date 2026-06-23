@@ -31,6 +31,35 @@ indicators | select id, name, indicatorType.name as type | order name asc | limi
 optionSets | select id, name, options.name as options | limit 25
 ```
 
+## Joins (nested relationships)
+
+d2ql has one source per pipeline — there's no `join`/`from a, b`. But you rarely need one: DHIS2
+metadata **embeds** relationships, so you traverse the nested association on a single source. The
+field collector requests the right `fields=` expansion automatically.
+
+**A group with its member elements** (`metadata-group-members.d2ql`):
+
+```
+dataElementGroups | transform { id: id, name: name, items: dataElements.select({ id: id, name: name }) }
+```
+
+**A data set with its elements** — through the `dataSetElements.dataElement` join entity
+(`metadata-dataset-elements.d2ql`):
+
+```
+dataSets | transform { id: id, name: name, elements: dataSetElements.dataElement.select({ id: id, name: name }) }
+```
+
+**An org unit with its parent and children** — the self-referential hierarchy
+(`orgunits-with-children.d2ql`):
+
+```
+organisationUnits | where level = 2 | transform { id: id, name: name, parent: parent.name, children: children.name }
+```
+
+The same pattern covers dataSet→elements, optionSet→options, indicator→indicatorType, category→options,
+etc. A *true* cross-source join (correlating unrelated sources) isn't supported.
+
 ## Organisation units & GeoJSON
 
 **Facilities per level** (`orgunits-per-level.d2ql`):
