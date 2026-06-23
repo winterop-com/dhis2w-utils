@@ -14,6 +14,7 @@ from dhis2w_ql import (
     Library,
     Pipeline,
     QueryResult,
+    SemanticError,
     parse,
     parse_expression,
     plan_pipeline,
@@ -32,7 +33,8 @@ from dhis2w_core.v43.plugins.query.models import QueryExplain
 async def run_query(profile: Profile, text: str, *, define: str | None = None, out: str | None = None) -> QueryResult:
     """Parse and execute a d2ql program against the profile, optionally writing rows to `out`."""
     library = parse(text)
-    binder = await _build_binder(profile, library)
+    entry = _select_pipeline(library, define)
+    binder = await _build_binder(profile, library, entry)
     engine = QueryEngine(library, binder)
     result = await (engine.run_define(define) if define is not None else engine.run_terminal())
     if out is not None and result.written_to is None:
@@ -59,7 +61,7 @@ async def explain_query(profile: Profile, text: str, *, define: str | None = Non
             else f"{source.name!r}(...) is not a known call source"
         )
         return QueryExplain(source=source.name, source_kind="call", residual_stages=_stage_kinds(stages), note=note)
-    binder = await _build_binder(profile, library)
+    binder = await _build_binder(profile, library, pipeline)
     data_source = binder.bind(source.name)
     if data_source is None:
         if _is_defined(library, source.name):
@@ -86,9 +88,9 @@ def evaluate_path(expression: str, data: Any) -> list[Any]:
     return [to_jsonable(value) for value in result]
 
 
-async def _build_binder(profile: Profile, library: Library) -> Dhis2Binder:
+async def _build_binder(profile: Profile, library: Library, entry: Pipeline) -> Dhis2Binder:
     resource_names = set(await metadata_service.list_resource_types(profile))
-    return Dhis2Binder(profile, resource_names, collect_fields(library))
+    return Dhis2Binder(profile, resource_names, collect_fields(library, entry))
 
 
 def _select_pipeline(library: Library, define: str | None) -> Pipeline:
@@ -97,9 +99,9 @@ def _select_pipeline(library: Library, define: str | None) -> Pipeline:
             body = getattr(definition, "body", None)
             if getattr(definition, "name", None) == define and isinstance(body, Pipeline):
                 return body
-        raise ValueError(f"no query definition named {define!r}")
+        raise SemanticError(f"no query definition named {define!r}")
     if library.terminal is None:
-        raise ValueError("this program has no terminal pipeline; pass --define to explain a named query")
+        raise SemanticError("this program has no terminal pipeline; pass --define to run a named query")
     return library.terminal
 
 

@@ -92,16 +92,43 @@ async def test_explain_unknown_call_source() -> None:
     assert explain.note is not None and "not a known call source" in explain.note
 
 
-def test_collect_fields_includes_function_param_paths() -> None:
+def _fields(text: str, define: str | None = None) -> str | None:
     from dhis2w_core.v42.plugins.query.datasource import collect_fields
+    from dhis2w_core.v42.plugins.query.service import _select_pipeline
     from dhis2w_ql import parse
 
-    direct = collect_fields(parse('dataElements | where valueType = "NUMBER" | select id'))
-    via_function = collect_fields(
-        parse('define function isNum(de): $de.valueType = "NUMBER"\ndataElements | where isNum($this) | select id')
+    library = parse(text)
+    return collect_fields(library, _select_pipeline(library, define))
+
+
+def test_collect_fields_includes_function_param_paths() -> None:
+    direct = _fields('dataElements | where valueType = "NUMBER" | select id')
+    via_function = _fields(
+        'define function isNum(de): $de.valueType = "NUMBER"\ndataElements | where isNum($this) | select id'
     )
     assert direct is not None and "valueType" in direct
     assert via_function == direct
+
+
+def test_collect_fields_is_scoped_to_the_entry_pipeline() -> None:
+    # An unused definition for another resource must not contaminate the terminal's selector.
+    fields = _fields("define A: dataElements | select categoryCombo.name\norganisationUnits | select level")
+    assert fields is not None
+    assert "categoryCombo" not in fields
+    assert "level" in fields
+
+
+def test_collect_fields_skips_is_type_names() -> None:
+    fields = _fields("dataElements | where value is Integer | select id")
+    assert fields is not None
+    assert "Integer" not in fields
+    assert "value" in fields
+
+
+def test_collect_fields_attributes_method_args_to_their_target() -> None:
+    fields = _fields("optionSets | fold { c: options.select({ code: code, display: name }) }")
+    assert fields is not None
+    assert "options[code,name]" in fields
 
 
 def test_evaluate_path_over_local_json() -> None:

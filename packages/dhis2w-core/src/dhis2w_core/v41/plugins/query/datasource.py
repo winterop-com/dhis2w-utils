@@ -15,7 +15,9 @@ from dhis2w_ql.ast import (
     ArrayExpr,
     BinaryExpr,
     CallExpr,
+    CallSource,
     Define,
+    DefineFunction,
     ExprSource,
     IndexExpr,
     MemberExpr,
@@ -147,22 +149,105 @@ class Dhis2Binder:
         return None
 
 
-def collect_fields(library: Library) -> str | None:
-    """Extract a DHIS2 `fields` selector covering every path the program navigates.
+def collect_fields(library: Library, entry: Pipeline) -> str | None:
+    """Extract the DHIS2 `fields` selector for the resource the `entry` pipeline binds.
 
-    Returns a comma-separated selector (e.g. `id,name,categoryCombo[name]`) so residual local
-    stages can read nested values, or None to let the accessor use its default when no path is found.
+    Walks only the definitions reachable from `entry` — its source `define` chain and the
+    `define function`s it calls — so unused definitions and unrelated resources never contaminate
+    the selector. A single execution binds one metadata resource, so the reachable navigations all
+    apply to it. Returns a comma-separated selector (e.g. `id,name,categoryCombo[name]`), or None.
     """
+    defines = {d.name: d for d in library.definitions if isinstance(d, Define)}
+    functions = {f.name: f for f in library.definitions if isinstance(f, DefineFunction)}
+    known = set(functions)
     paths: set[str] = {"id", "name"}
-    for definition in library.definitions:
-        if isinstance(definition, Define):
-            _collect_pipeline(definition.body, paths)
-        else:
-            # A function's parameters bind to rows at call time, so `$param.field` is a row field path.
-            _collect_expr(definition.body, paths, {"this", *definition.params})
-    if library.terminal is not None:
-        _collect_pipeline(library.terminal, paths)
+    seen_pipelines: set[int] = set()
+    seen_functions: set[str] = set()
+
+    def visit_function(name: str) -> None:
+        if name in seen_functions or name not in functions:
+            return
+        seen_functions.add(name)
+        function = functions[name]
+        # A function's parameters bind to rows at call time, so `$param.field` is a row field path.
+        _collect_expr(function.body, paths, {"this", *function.params})
+        for called in _called_functions(function.body, known):
+            visit_function(called)
+
+    def visit_pipeline(pipeline: Pipeline) -> None:
+        if id(pipeline) in seen_pipelines:
+            return
+        seen_pipelines.add(id(pipeline))
+        _collect_pipeline(pipeline, paths)
+        for name in _called_functions_in_pipeline(pipeline, known):
+            visit_function(name)
+        source = pipeline.source
+        if isinstance(source, NameSource) and source.name in defines:
+            visit_pipeline(defines[source.name].body)
+
+    visit_pipeline(entry)
     return _render_fields(paths) or None
+
+
+def _scan_calls(expr: Any, known: set[str], found: set[str]) -> None:
+    match expr:
+        case CallExpr():
+            if expr.name in known:
+                found.add(expr.name)
+            if expr.target is not None:
+                _scan_calls(expr.target, known, found)
+            for argument in expr.args:
+                _scan_calls(argument, known, found)
+        case MemberExpr():
+            _scan_calls(expr.target, known, found)
+        case IndexExpr():
+            _scan_calls(expr.target, known, found)
+            _scan_calls(expr.index, known, found)
+        case UnaryExpr():
+            _scan_calls(expr.operand, known, found)
+        case BinaryExpr():
+            _scan_calls(expr.left, known, found)
+            _scan_calls(expr.right, known, found)
+        case ObjectExpr():
+            for field in expr.fields:
+                _scan_calls(field.value, known, found)
+        case ArrayExpr():
+            for item in expr.items:
+                _scan_calls(item, known, found)
+        case _:
+            return
+
+
+def _called_functions(expr: Any, known: set[str]) -> set[str]:
+    found: set[str] = set()
+    _scan_calls(expr, known, found)
+    return found
+
+
+def _called_functions_in_pipeline(pipeline: Pipeline, known: set[str]) -> set[str]:
+    found: set[str] = set()
+    source = pipeline.source
+    if isinstance(source, NameSource) and source.inline_filter is not None:
+        _scan_calls(source.inline_filter, known, found)
+    elif isinstance(source, ExprSource):
+        _scan_calls(source.expr, known, found)
+    elif isinstance(source, CallSource):
+        for argument in source.args:
+            _scan_calls(argument.value, known, found)
+    for stage in pipeline.stages:
+        for attribute in ("predicate", "group"):
+            expr = getattr(stage, attribute, None)
+            if expr is not None:
+                _scan_calls(expr, known, found)
+        for select_item in getattr(stage, "items", []) or []:
+            _scan_calls(select_item.expr, known, found)
+        for container in ("template", "aggregations"):
+            built = getattr(stage, container, None)
+            if built is not None:
+                _scan_calls(built, known, found)
+        for order_key in getattr(stage, "keys", []) or []:
+            _scan_calls(order_key.expr, known, found)
+    return found
 
 
 def _collect_pipeline(pipeline: Pipeline, paths: set[str]) -> None:
@@ -200,15 +285,27 @@ def _collect_expr(expr: Any, paths: set[str], row_vars: set[str]) -> None:
             _collect_expr(expr.target, paths, row_vars)
             _collect_expr(expr.index, paths, row_vars)
         case CallExpr():
-            if expr.target is not None:
-                _collect_expr(expr.target, paths, row_vars)
+            # A method on a field path (e.g. `options.select({ code: code })`, `options.where(...)`)
+            # navigates the element, so its argument field paths belong under the target path.
+            target = expr.target
+            target_path = _path_of(target, row_vars) if target is not None else None
+            if target is not None and target_path is None:
+                _collect_expr(target, paths, row_vars)
+            elif target_path:
+                paths.add(target_path)
             for argument in expr.args:
-                _collect_expr(argument, paths, row_vars)
+                if target_path:
+                    nested: set[str] = set()
+                    _collect_expr(argument, nested, {"this"})
+                    paths.update(f"{target_path}.{path}" for path in nested)
+                else:
+                    _collect_expr(argument, paths, row_vars)
         case UnaryExpr():
             _collect_expr(expr.operand, paths, row_vars)
         case BinaryExpr():
             _collect_expr(expr.left, paths, row_vars)
-            _collect_expr(expr.right, paths, row_vars)
+            if expr.op != "is":  # the right side of `is` is a type name, not a field path
+                _collect_expr(expr.right, paths, row_vars)
         case ObjectExpr():
             for field in expr.fields:
                 _collect_expr(field.value, paths, row_vars)
