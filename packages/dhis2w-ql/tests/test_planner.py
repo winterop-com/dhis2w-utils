@@ -67,3 +67,17 @@ def test_skip_then_limit_push_down_in_order() -> None:
     assert plan.native.skip == 10
     assert plan.native.limit == 5
     assert plan.residual == []
+
+
+def test_non_pushable_path_stays_local() -> None:
+    caps = SourceCapabilities(filter=True, order=True, paging=True, non_pushable_paths=("geometry",))
+    plan = _plan('organisationUnits | where geometry.type = "Point"', caps)
+    assert plan.native.filters == []
+    assert [s.kind for s in plan.residual] == ["where"]
+
+
+def test_non_pushable_path_blocks_whole_and_clause() -> None:
+    caps = SourceCapabilities(filter=True, order=True, paging=True, non_pushable_paths=("geometry",))
+    plan = _plan('organisationUnits | where level >= 2 and geometry.type = "Point"', caps)
+    assert plan.native.filters == []
+    assert [s.kind for s in plan.residual] == ["where"]

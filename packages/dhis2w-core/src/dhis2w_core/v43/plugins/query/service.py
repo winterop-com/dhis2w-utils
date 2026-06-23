@@ -14,7 +14,6 @@ from dhis2w_ql import (
     Library,
     Pipeline,
     QueryResult,
-    SourceCapabilities,
     parse,
     parse_expression,
     plan_pipeline,
@@ -52,8 +51,9 @@ async def explain_query(profile: Profile, text: str, *, define: str | None = Non
         return QueryExplain(source=source.path, source_kind="read", residual_stages=_stage_kinds(stages))
     if isinstance(source, ExprSource):
         return QueryExplain(source="<expression>", source_kind="expression", residual_stages=_stage_kinds(stages))
-    resource_names = set(await metadata_service.list_resource_types(profile))
-    if source.name not in resource_names:
+    binder = await _build_binder(profile, library)
+    data_source = binder.bind(source.name)
+    if data_source is None:
         if _is_defined(library, source.name):
             return QueryExplain(source=source.name, source_kind="definition", residual_stages=_stage_kinds(stages))
         return QueryExplain(
@@ -62,7 +62,7 @@ async def explain_query(profile: Profile, text: str, *, define: str | None = Non
             residual_stages=_stage_kinds(stages),
             note=f"{source.name!r} is not a resource on this instance",
         )
-    plan = plan_pipeline(source.name, SourceCapabilities(filter=True, order=True, paging=True), stages)
+    plan = plan_pipeline(source.name, data_source.capabilities(), stages)
     return QueryExplain(
         source=source.name,
         source_kind="resource",

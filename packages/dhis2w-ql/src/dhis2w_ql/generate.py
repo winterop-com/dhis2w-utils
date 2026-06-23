@@ -92,6 +92,8 @@ DEFAULT_SCHEMA = SchemaSpec(
                 _f("code", "text", ["OU_001"]),
                 _f("level", "number", ["1", "2", "3", "4"]),
                 _f("path", "text", ["/ImspTQPwCqd"]),
+                _f("parent.name", "text", ["Bo", "Bombali"]),
+                _f("geometry.type", "enum", ["Point", "Polygon", "MultiPolygon"]),
             ],
         ),
         ResourceSpec(

@@ -66,11 +66,12 @@ def plan_pipeline(resource: str, capabilities: SourceCapabilities, stages: list[
     root_junction: Literal["AND", "OR"] = "AND"
     index = 0
 
+    blocked = frozenset(capabilities.non_pushable_paths)
     while index < len(stages) and capabilities.filter:
         stage = stages[index]
         if not isinstance(stage, WhereStage):
             break
-        compiled = _compile_predicate(stage.predicate)
+        compiled = _compile_predicate(stage.predicate, blocked)
         if compiled is None:
             break
         if compiled.junction == "OR" and len(compiled.filters) > 1:
@@ -82,7 +83,7 @@ def plan_pipeline(resource: str, capabilities: SourceCapabilities, stages: list[
         filters.extend(compiled.filters)
         index += 1
 
-    paging = _consume_paging(stages, index, capabilities)
+    paging = _consume_paging(stages, index, capabilities, blocked)
     native = NativeQuery(
         resource=resource,
         filters=filters,
@@ -94,7 +95,9 @@ def plan_pipeline(resource: str, capabilities: SourceCapabilities, stages: list[
     return QueryPlan(native=native, residual=list(stages[paging.next_index :]))
 
 
-def _consume_paging(stages: list[Stage], start: int, capabilities: SourceCapabilities) -> _PagingPushdown:
+def _consume_paging(
+    stages: list[Stage], start: int, capabilities: SourceCapabilities, blocked: frozenset[str]
+) -> _PagingPushdown:
     order: list[NativeOrder] = []
     skip: int | None = None
     limit: int | None = None
@@ -103,7 +106,7 @@ def _consume_paging(stages: list[Stage], start: int, capabilities: SourceCapabil
     while index < len(stages):
         stage = stages[index]
         if isinstance(stage, OrderStage) and capabilities.order and not (seen_order or seen_skip or seen_limit):
-            keys = _compile_order(stage.keys)
+            keys = _compile_order(stage.keys, blocked)
             if keys is None:
                 break
             order, seen_order = keys, True
@@ -117,20 +120,20 @@ def _consume_paging(stages: list[Stage], start: int, capabilities: SourceCapabil
     return _PagingPushdown(order=order, skip=skip, limit=limit, next_index=index)
 
 
-def _compile_order(keys: list[OrderKey]) -> list[NativeOrder] | None:
+def _compile_order(keys: list[OrderKey], blocked: frozenset[str]) -> list[NativeOrder] | None:
     compiled: list[NativeOrder] = []
     for key in keys:
         path = _field_path(key.expr)
-        if path is None:
+        if path is None or _is_blocked(path, blocked):
             return None
         compiled.append(NativeOrder(property=path, descending=key.descending))
     return compiled
 
 
-def _compile_predicate(expr: Expr) -> _CompiledClause | None:
+def _compile_predicate(expr: Expr, blocked: frozenset[str]) -> _CompiledClause | None:
     if isinstance(expr, BinaryExpr) and expr.op in ("and", "or"):
-        left = _compile_predicate(expr.left)
-        right = _compile_predicate(expr.right)
+        left = _compile_predicate(expr.left, blocked)
+        right = _compile_predicate(expr.right, blocked)
         if left is None or right is None:
             return None
         junction: Literal["AND", "OR"] = "AND" if expr.op == "and" else "OR"
@@ -138,15 +141,15 @@ def _compile_predicate(expr: Expr) -> _CompiledClause | None:
             if side.junction != junction and len(side.filters) > 1:
                 return None  # mixed AND/OR cannot be a flat native filter list
         return _CompiledClause(filters=left.filters + right.filters, junction=junction)
-    single = _compile_comparison(expr)
+    single = _compile_comparison(expr, blocked)
     return _CompiledClause(filters=[single], junction="AND") if single is not None else None
 
 
-def _compile_comparison(expr: Expr) -> NativeFilter | None:
+def _compile_comparison(expr: Expr, blocked: frozenset[str]) -> NativeFilter | None:
     if not isinstance(expr, BinaryExpr):
         return None
     path = _field_path(expr.left)
-    if path is None:
+    if path is None or _is_blocked(path, blocked):
         return None
     if expr.op == "in":
         values = _array_literal(expr.right)
@@ -155,6 +158,11 @@ def _compile_comparison(expr: Expr) -> NativeFilter | None:
     if operator is None or not isinstance(expr.right, LiteralExpr) or expr.right.literal_type == "null":
         return None
     return NativeFilter(property=path, operator=operator, value=expr.right.value)
+
+
+def _is_blocked(path: str, blocked: frozenset[str]) -> bool:
+    """A path is non-pushable when its root segment is one the source cannot filter/order on."""
+    return path.split(".", 1)[0] in blocked
 
 
 def _field_path(expr: Expr) -> str | None:

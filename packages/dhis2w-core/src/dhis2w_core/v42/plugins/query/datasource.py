@@ -40,8 +40,18 @@ class Dhis2DataSource:
         self._fields = fields
 
     def capabilities(self) -> SourceCapabilities:
-        """DHIS2 list endpoints support field filters, ordering, and paging."""
-        return SourceCapabilities(filter=True, order=True, paging=True)
+        """DHIS2 list endpoints support field filters, ordering, and paging.
+
+        Embedded structures (GeoJSON `geometry`, `attributeValues`, `translations`) are not
+        filterable paths — DHIS2 answers `geometry.type` with `400 Unknown path property` (BUGS.md)
+        — so predicates touching them stay local instead of pushing down.
+        """
+        return SourceCapabilities(
+            filter=True,
+            order=True,
+            paging=True,
+            non_pushable_paths=("geometry", "attributeValues", "translations"),
+        )
 
     async def fetch(self, native: NativeQuery) -> list[Any]:
         """Fetch rows for the native query, dropping the leading `skip` rows locally."""

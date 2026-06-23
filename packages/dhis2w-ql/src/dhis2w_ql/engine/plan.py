@@ -16,13 +16,19 @@ from dhis2w_ql.ast import Stage
 
 
 class SourceCapabilities(BaseModel):
-    """Declares which pushdown operations a source can satisfy natively."""
+    """Declares which pushdown operations a source can satisfy natively.
+
+    `non_pushable_paths` lists field roots the source cannot filter or order on natively (e.g. a
+    DHIS2 embedded GeoJSON `geometry` object): predicates touching them stay local instead of being
+    pushed down to an endpoint that would reject them.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     filter: bool = False
     order: bool = False
     paging: bool = False
+    non_pushable_paths: tuple[str, ...] = ()
 
 
 class NativeFilter(BaseModel):

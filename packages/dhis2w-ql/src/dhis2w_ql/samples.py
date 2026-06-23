@@ -159,6 +159,63 @@ SAMPLES: list[Sample] = [
         "dataElements | order domainType asc, name desc | limit 10",
         "Multi-key ordering, pushed down.",
     ),
+    # ---------------------------------------------------------------- organisation units
+    _q(
+        "ou-by-level",
+        "Org units at a level",
+        "orgunits",
+        "organisationUnits | where level = 2 | select id, name, level | order name asc | limit 20",
+        "Filter the hierarchy by level (pushed down).",
+    ),
+    _q(
+        "ou-parent",
+        "Parent name",
+        "orgunits",
+        "organisationUnits | where level = 3 | select id, name, parent.name as district | limit 20",
+        "Navigate the parent association.",
+    ),
+    _q(
+        "ou-path-filter",
+        "Subtree by path",
+        "orgunits",
+        'organisationUnits | where path ~ "/ImspTQPwCqd" | select id, name, level | limit 20',
+        "Everything under a root org unit (path contains its UID).",
+    ),
+    _q(
+        "ou-leaf-facilities",
+        "Leaf facilities",
+        "orgunits",
+        "organisationUnits | where level = 4 | count",
+        "Count facilities at the leaf level.",
+    ),
+    _q(
+        "ou-geometry-passthrough",
+        "Keep GeoJSON geometry",
+        "orgunits",
+        "organisationUnits | where level = 2 | transform { id: id, name: name, geometry: geometry } | limit 10",
+        "Pass the whole GeoJSON geometry object through unchanged (treat it as opaque).",
+    ),
+    _q(
+        "ou-geometry-type",
+        "Filter by geometry type",
+        "orgunits",
+        'organisationUnits | where geometry.type = "Point" | select id, name | limit 20',
+        "A nested geometry path is not a DHIS2 filter property (BUGS.md #45), so this predicate runs locally over fetched rows, not pushed down.",  # noqa: E501
+    ),
+    _q(
+        "ou-as-feature",
+        "Emit a GeoJSON Feature",
+        "orgunits",
+        'organisationUnits | where geometry.type = "Polygon" | transform { type: "Feature", geometry: geometry, properties: { id: id, name: name, level: level } } | limit 10',  # noqa: E501
+        "Reshape org units into GeoJSON Features (geometry passed through, attributes lifted to properties).",
+    ),
+    _q(
+        "ou-with-groups",
+        "Org units with group refs",
+        "orgunits",
+        "organisationUnits | where level = 4 | select id, name, organisationUnitGroups.name as groups | limit 10",
+        "Collect a repeating association into a list.",
+    ),
     # ---------------------------------------------------------------- transform
     _q(
         "transform-reshape",
@@ -279,6 +336,13 @@ SAMPLES: list[Sample] = [
     _p("path-in", "Status membership", 'status in ["active", "completed"]', "Membership operator."),
     _p("path-exists", "Existence check", 'name.where(use = "official").exists()', "Does any match exist?"),
     _p("path-iif", "Conditional value", 'iif(gender = "male", "M", "F")', "Inline conditional."),
+    _p("path-geometry-type", "GeoJSON geometry type", "geometry.type", "Read the type of a GeoJSON geometry."),
+    _p(
+        "path-first-coordinate",
+        "First coordinate pair",
+        "geometry.coordinates.first()",
+        "Drill into a GeoJSON coordinate array (navigation flattens one level, FHIRPath-style).",
+    ),
 ]
 
 
