@@ -301,6 +301,22 @@ def test_cli_requires_a_program_or_file(runner: CliRunner) -> None:
     assert "provide a d2ql program" in _flat(result.output)
 
 
+def test_repl_step_accumulates_until_blank_or_semicolon() -> None:
+    from dhis2w_core.v42.plugins.query.cli import _repl_step
+
+    # A leading-`|` multi-line program accumulates; a blank line submits the whole thing.
+    buffer: list[str] = []
+    program: str | None = None
+    for line in ["dataElements", '  | where domainType = "AGGREGATE"', "  | select id", ""]:
+        buffer, program = _repl_step(buffer, line)
+    assert program == 'dataElements\n  | where domainType = "AGGREGATE"\n  | select id'
+    assert buffer == []
+    # A trailing `;` submits immediately and is stripped off.
+    assert _repl_step([], "dataElements | count;") == ([], "dataElements | count")
+    # A blank line with an empty buffer is a no-op.
+    assert _repl_step([], "") == ([], None)
+
+
 def test_cli_d2path_over_input_file(runner: CliRunner, tmp_path: Path) -> None:
     data = tmp_path / "patient.json"
     data.write_text(json.dumps({"name": [{"given": ["Ada", "Lovelace"]}]}))

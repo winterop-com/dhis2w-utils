@@ -75,21 +75,42 @@ def d2path_command(
     typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
 
 
+def _repl_step(buffer: list[str], line: str) -> tuple[list[str], str | None]:
+    """Feed one input line into the REPL buffer; return (new buffer, program to run or None).
+
+    A program accumulates over lines so multi-line pipelines can be typed or pasted; a blank line or
+    a trailing `;` submits it. Other lines accumulate (the caller shows a continuation prompt).
+    """
+    stripped = line.strip()
+    submit = stripped == "" or stripped.endswith(";")
+    if stripped.endswith(";"):
+        line = line.rstrip()[:-1]
+    if line.strip():
+        buffer = [*buffer, line]
+    if not submit:
+        return buffer, None
+    program = "\n".join(buffer).strip()
+    return [], (program or None)
+
+
 @app.command("repl")
 def repl_command() -> None:
-    """Start an interactive d2ql prompt against the active profile."""
+    """Start an interactive d2ql prompt; build a program over lines, run it on a blank line or `;`."""
     profile = profile_from_env()
-    _console.print("[dim]d2ql REPL — one program per line, Ctrl-D to exit.[/dim]")
+    _console.print("[dim]d2ql REPL — enter a program; a blank line or trailing `;` runs it. Ctrl-D to exit.[/dim]")
+    buffer: list[str] = []
     while True:
+        prompt = "[bold cyan]d2ql>[/bold cyan] " if not buffer else "[bold cyan]  ...>[/bold cyan] "
         try:
-            line = _console.input("[bold cyan]d2ql>[/bold cyan] ").strip()
+            line = _console.input(prompt)
         except (EOFError, KeyboardInterrupt):
             _console.print()
             return
-        if not line:
+        buffer, program = _repl_step(buffer, line)
+        if program is None:
             continue
         try:
-            _render_result(_run(service.run_query(profile, line)))
+            _render_result(_run(service.run_query(profile, program)))
         except D2qlError as error:
             _console.print(f"[red]{error}[/red]")
 
