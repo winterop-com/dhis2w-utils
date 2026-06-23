@@ -47,7 +47,17 @@ def test_transform_stays_local() -> None:
 def test_function_predicate_stays_local() -> None:
     plan = _plan('dataElements | where name.substring(0, 3) = "ANC"')
     assert plan.native.filters == []
-    assert [s.kind for s in plan.residual] == ["where"]
+
+
+def test_plain_ilike_pushes_but_wildcard_value_stays_local() -> None:
+    # `~` maps to DHIS2 ilike (case-insensitive substring) — pushable when the value is literal.
+    assert [f.operator for f in _plan('dataElements | where name ~ "anc"').native.filters] == ["ilike"]
+    # But DHIS2 ilike treats `%`/`_` as wildcards, so a value containing them stays local (literal
+    # substring) to keep pushed and local results equal.
+    pct = _plan('dataElements | where name ~ "%anc%"')
+    assert pct.native.filters == []
+    assert [s.kind for s in pct.residual] == ["where"]
+    assert _plan('dataElements | where name ~ "an_"').native.filters == []
 
 
 def test_in_operator_pushes_down() -> None:

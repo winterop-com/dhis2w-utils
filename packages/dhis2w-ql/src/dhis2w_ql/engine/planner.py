@@ -157,7 +157,12 @@ def _compile_comparison(expr: Expr, blocked: frozenset[str]) -> NativeFilter | N
     operator = _COMPARISON_OPS.get(expr.op)
     if operator is None or not isinstance(expr.right, LiteralExpr) or expr.right.literal_type == "null":
         return None
-    return NativeFilter(property=path, operator=operator, value=expr.right.value)
+    value = expr.right.value
+    if operator == "ilike" and isinstance(value, str) and ("%" in value or "_" in value):
+        # DHIS2 `ilike` treats `%`/`_` as SQL wildcards, but d2path `~` is a literal case-insensitive
+        # substring match. Keep this filter local so the pushed and local results agree.
+        return None
+    return NativeFilter(property=path, operator=operator, value=value)
 
 
 def _is_blocked(path: str, blocked: frozenset[str]) -> bool:
