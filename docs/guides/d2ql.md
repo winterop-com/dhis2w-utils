@@ -53,11 +53,11 @@ The same engine is available as MCP tools (`query_eval`, `query_explain`, `query
 | `order <expr> [asc\|desc], …` | Sort by one or more keys. |
 | `limit <n>` / `skip <n>` | Take / drop rows. |
 | `count` | Replace the stream with its length (a scalar result). |
-| `aggregate by <expr> { name: agg, … }` | Group rows by a key and reduce each group. |
+| `group by <expr> { name: agg, … }` | Group rows by a key and reduce each group. |
 
-### aggregate
+### group by
 
-`aggregate by <group> { total: sum(value), n: count() }` groups rows by the group expression and
+`group by <group> { total: sum(value), n: count() }` groups rows by the group expression and
 emits one object per group: the group key (named like a `select` column) plus each aggregation.
 Aggregation expressions are evaluated against the group's rows, so `sum(value)` gathers `value`
 across the group. Works over any source — metadata, analytics, or data values:
@@ -65,7 +65,7 @@ across the group. Works over any source — metadata, analytics, or data values:
 ```
 analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")
   | where value > 1000
-  | aggregate by dx { total: sum(value), periods: count() }
+  | group by dx { total: sum(value), periods: count() }
   | order total desc
 ```
 
@@ -144,7 +144,7 @@ Real queries (run against the DHIS2 demo `play` instance), to show the shape of 
 **Profile the data dictionary — data elements by value type:**
 
 ```
-dataElements | aggregate by valueType { n: count() } | order n desc
+dataElements | group by valueType { n: count() } | order n desc
 ```
 ```
 NUMBER 506 · TEXT 160 · TRUE_ONLY 135 · BOOLEAN 91 · INTEGER_ZERO_OR_POSITIVE 48 · …
@@ -153,7 +153,7 @@ NUMBER 506 · TEXT 160 · TRUE_ONLY 135 · BOOLEAN 91 · INTEGER_ZERO_OR_POSITIV
 **Shape of the org hierarchy — facilities per level:**
 
 ```
-organisationUnits | aggregate by level { facilities: count() } | order level asc
+organisationUnits | group by level { facilities: count() } | order level asc
 ```
 ```
 level 1 → 1 · level 2 → 13 · level 3 → 152 · level 4 → 1166
@@ -181,7 +181,7 @@ analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")
 ```
 analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")
   | where value > 1000
-  | aggregate by dx { total: sum(value), periods: count() }
+  | group by dx { total: sum(value), periods: count() }
   | order total desc
 ```
 

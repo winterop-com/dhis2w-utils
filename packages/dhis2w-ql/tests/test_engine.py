@@ -104,9 +104,7 @@ async def test_inline_filter_source() -> None:
 
 
 async def test_aggregate_groups_and_reduces() -> None:
-    rows = await _rows(
-        "dataElements | aggregate by domainType { total: sum(value), n: count() } | order domainType asc"
-    )
+    rows = await _rows("dataElements | group by domainType { total: sum(value), n: count() } | order domainType asc")
     assert rows == [
         {"domainType": "AGGREGATE", "total": 19.0, "n": 2},
         {"domainType": "TRACKER", "total": 30.0, "n": 1},
@@ -114,5 +112,5 @@ async def test_aggregate_groups_and_reduces() -> None:
 
 
 async def test_aggregate_count_with_no_value_field() -> None:
-    rows = await _rows("dataElements | aggregate by categoryCombo.name { n: count() } | order n desc")
+    rows = await _rows("dataElements | group by categoryCombo.name { n: count() } | order n desc")
     assert {row["n"] for row in rows} == {2, 1}

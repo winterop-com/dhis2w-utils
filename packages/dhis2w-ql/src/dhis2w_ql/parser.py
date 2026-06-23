@@ -248,12 +248,12 @@ class _Parser:
             from dhis2w_ql.ast import CountStage  # noqa: PLC0415 — local import avoids a long top import line
 
             return CountStage()
-        if self._at_keyword("aggregate"):
+        if self._at_keyword("group"):
             self._advance()
             self._expect_keyword("by")
             group = self.parse_expr()
             return AggregateStage(group=group, aggregations=self._parse_object())
-        raise self._error("expected a stage keyword (where/select/transform/order/limit/skip/count/aggregate)")
+        raise self._error("expected a stage keyword (where/select/transform/order/limit/skip/count/group)")
 
     def _parse_select_items(self) -> list[SelectItem]:
         items = [self._parse_select_item()]
@@ -329,8 +329,10 @@ class _Parser:
 
     def _parse_equality(self) -> Expr:
         left = self._parse_relational()
-        while self._at_op(*_EQUALITY_OPS):
-            op = self._advance().value
+        while self._at_op(*_EQUALITY_OPS) or self._at_keyword("like"):
+            # `like` is a readable alias for `~` (case-insensitive match), normalised to `~` in the AST.
+            op = "~" if self._at_keyword("like") else self._peek().value
+            self._advance()
             left = BinaryExpr(op=op, left=left, right=self._parse_relational())
         return left
 

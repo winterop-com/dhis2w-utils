@@ -223,7 +223,7 @@ class CountStage(_Node):
 class AggregateStage(_Node):
     """Group rows by a key expression and reduce each group with aggregate expressions.
 
-    `aggregate by <group> { total: sum(value), n: count() }` — each aggregation expression is
+    `group by <group> { total: sum(value), n: count() }` — each aggregation expression is
     evaluated against the group's rows, so `value` gathers that field across the group.
     """
 

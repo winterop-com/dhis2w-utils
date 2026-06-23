@@ -77,7 +77,7 @@ def test_non_pushable_path_stays_local() -> None:
 
 
 def test_aggregate_stage_stays_local() -> None:
-    plan = _plan('dataElements | where domainType = "AGGREGATE" | aggregate by valueType { n: count() }')
+    plan = _plan('dataElements | where domainType = "AGGREGATE" | group by valueType { n: count() }')
     assert len(plan.native.filters) == 1
     assert [s.kind for s in plan.residual] == ["aggregate"]
 

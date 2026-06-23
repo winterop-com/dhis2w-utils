@@ -101,7 +101,7 @@ def test_parse_call_source() -> None:
 
 
 def test_parse_aggregate_stage() -> None:
-    library = parse("dataElements | aggregate by domainType { total: sum(value), n: count() }")
+    library = parse("dataElements | group by domainType { total: sum(value), n: count() }")
     assert library.terminal is not None
     stage = library.terminal.stages[0]
     assert stage.kind == "aggregate"

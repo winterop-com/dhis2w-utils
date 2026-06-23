@@ -294,7 +294,7 @@ SAMPLES: list[Sample] = [
         "agg-metadata-count",
         "Group + count metadata",
         "aggregate",
-        "dataElements | aggregate by domainType { n: count() } | order n desc",
+        "dataElements | group by domainType { n: count() } | order n desc",
         "Group rows by a key and reduce each group (works over any source).",
     ),
     _q(
@@ -308,7 +308,7 @@ SAMPLES: list[Sample] = [
         "agg-analytics-rollup",
         "Roll up analytics by dimension",
         "aggregate",
-        'analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd") | where value > 1000 | aggregate by dx { total: sum(value), periods: count() } | order total desc',  # noqa: E501
+        'analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd") | where value > 1000 | group by dx { total: sum(value), periods: count() } | order total desc',  # noqa: E501
         "Filter then sum analytics values per data element.",
     ),
     _q(
@@ -337,14 +337,14 @@ SAMPLES: list[Sample] = [
         "explore-programs",
         "Programs by type",
         "explore",
-        "programs | aggregate by programType { n: count() } | order n desc",
+        "programs | group by programType { n: count() } | order n desc",
         "How many programs are with vs. without registration.",
     ),
     _q(
         "explore-datasets",
         "Data sets by period type",
         "explore",
-        "dataSets | aggregate by periodType { n: count() } | order n desc",
+        "dataSets | group by periodType { n: count() } | order n desc",
         "Group data sets by reporting frequency.",
     ),
     _q(
@@ -358,7 +358,7 @@ SAMPLES: list[Sample] = [
         "explore-analytics-by-period",
         "Analytics summed by period",
         "explore",
-        'analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd") | aggregate by pe { total: sum(value) } | order pe asc',  # noqa: E501
+        'analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd") | group by pe { total: sum(value) } | order pe asc',  # noqa: E501
         "Total an indicator across org units, per month.",
     ),
     _q(

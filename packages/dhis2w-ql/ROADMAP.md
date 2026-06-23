@@ -9,12 +9,12 @@ and sinks are reused, not rewritten.
 ## Phase 2 — aggregate data (DONE)
 
 Shipped: a `CallSource` node (`analytics(...)`, `dataValues(...)`) and an `AggregateStage`
-(`aggregate by <expr> { total: sum(value), n: count() }`) in the parser/AST/executor; aggregate
+(`group by <expr> { total: sum(value), n: count() }`) in the parser/AST/executor; aggregate
 d2path functions (`sum`/`avg`/`min`/`max`/`count`) take an optional field argument. The `query`
 plugin binds `analytics(...)` to `analytics/service.query_analytics` (columnar `Grid` → row dicts
 keyed by dimension) and `dataValues(...)` to `aggregate/service.get_data_values` (typed `DataValue`
 rows) via `Dhis2Binder.bind_call`, across all three version trees. Verified live against play42, e.g.
-`analytics(dx: "...", pe: "LAST_12_MONTHS", ou: "...") | where value > 1000 | aggregate by dx { total: sum(value), periods: count() } | order total desc`.
+`analytics(dx: "...", pe: "LAST_12_MONTHS", ou: "...") | where value > 1000 | group by dx { total: sum(value), periods: count() } | order total desc`.
 
 Follow-ups: push analytics dimensions/filters down (currently fetched whole, reduced locally), and a
 fast-path that maps a metadata `... | count` to `count_metadata` instead of fetching all rows.

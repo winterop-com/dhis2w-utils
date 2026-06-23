@@ -19,4 +19,4 @@ d2w query explain 'dataElements | where name ~ "ANC" | transform { code: id } | 
 d2w query eval 'dataElements | transform { code: id, label: name } | limit 5 >> "/tmp/d2ql-elements.csv"'
 
 # --- Aggregate: roll up analytics values per data element ------------------
-d2w query eval 'analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd") | aggregate by dx { total: sum(value) } | order total desc'
+d2w query eval 'analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd") | group by dx { total: sum(value) } | order total desc'
