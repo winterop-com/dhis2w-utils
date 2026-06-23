@@ -1,0 +1,5 @@
+// Indicators with their indicator type (a nested association).
+indicators
+  | select id, name, indicatorType.name as type
+  | order name asc
+  | limit 25

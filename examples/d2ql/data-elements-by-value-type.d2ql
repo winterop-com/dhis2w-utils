@@ -1,0 +1,4 @@
+// Profile the data dictionary: how many data elements of each value type.
+dataElements
+  | group by valueType { n: count() }
+  | order n desc

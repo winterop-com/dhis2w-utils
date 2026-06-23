@@ -27,6 +27,11 @@ d2w query ast 'dataElements | ...'        # print the parsed AST (offline)
 
 The same engine is available as MCP tools (`query_eval`, `query_explain`, `query_d2path`).
 
+A library of runnable, commented programs lives in
+[`examples/d2ql/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/d2ql) — run any
+with `d2w query run examples/d2ql/<name>.d2ql`, inspect with `d2w query ast "$(cat <file>)"`, or load
+from Python via `parse(open(<file>).read())`.
+
 ## Sources
 
 - A **resource** name — any DHIS2 metadata resource: `dataElements`, `indicators`,

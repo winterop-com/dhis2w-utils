@@ -1,0 +1,11 @@
+// A reusable library: a scalar define, a function, and a named query.
+define MinLevel: 2
+define function isImmunisation(de): $de.name like "BCG" or $de.name like "measles" or $de.name like "Penta"
+define Aggregates: dataElements | where domainType = "AGGREGATE"
+
+// Terminal pipeline: immunisation elements, alphabetised.
+Aggregates
+  | where isImmunisation($this)
+  | select id, name, valueType
+  | order name asc
+  | limit 25
