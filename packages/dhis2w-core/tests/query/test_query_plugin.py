@@ -65,6 +65,31 @@ async def test_run_query_count_is_scalar() -> None:
 
 
 @respx.mock
+async def test_count_uses_pager_total_not_a_full_fetch() -> None:
+    # `dataElements | count` reads DHIS2's pager total via a pageSize=1 request — it does not fetch
+    # every row (the total here differs from the single returned row to prove it).
+    _mock_connect()
+    route = respx.get(f"{_BASE}/api/dataElements").mock(
+        return_value=httpx.Response(
+            200, json={"pager": {"page": 1, "pageSize": 1, "total": 42}, "dataElements": [{"id": "x"}]}
+        )
+    )
+    result = await service.run_query(_PROFILE, "dataElements | count")
+    assert result.scalar is True
+    assert result.rows == [42]
+    assert dict(route.calls.last.request.url.params).get("pageSize") == "1"
+
+
+@respx.mock
+async def test_count_after_local_predicate_counts_locally() -> None:
+    # A local (non-pushable) predicate before `count` forces fetch + count, not the pager fast-path.
+    _mock_connect()
+    _mock_data_elements()  # 2 rows (ANC, BCG), pager total 2
+    result = await service.run_query(_PROFILE, 'dataElements | where name.upper() = "ANC" | count')
+    assert result.rows == [1]
+
+
+@respx.mock
 async def test_explain_reports_pushdown() -> None:
     _mock_connect()
     explain = await service.explain_query(

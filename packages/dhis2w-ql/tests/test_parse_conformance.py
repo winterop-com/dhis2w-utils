@@ -67,6 +67,13 @@ def test_source_position_function_calls_are_expressions() -> None:
         assert isinstance(library.terminal.source, CallSource)
 
 
+def test_count_stage_takes_no_parentheses() -> None:
+    # `count` is a plain keyword stage (like `limit`/`where`), not a function call.
+    parse("dataElements | count")
+    with pytest.raises(ParseError):
+        parse("dataElements | count()")
+
+
 def test_committed_example_programs_parse() -> None:
     from pathlib import Path
 
