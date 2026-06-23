@@ -1,0 +1,5 @@
+// Export districts as GeoJSON Features (geometry passed through as-is) to a file.
+organisationUnits
+  | where level = 2 and geometry.type = "Polygon"
+  | transform { type: "Feature", properties: { name: name, level: level }, geometry: geometry }
+  >> "/tmp/d2ql-districts.json"

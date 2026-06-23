@@ -1,0 +1,12 @@
+// Fold an option set's options into a single FHIR CodeSystem resource.
+// In `fold`, focus is the option set rows; `options` flattens to all their options,
+// and `.select({...})` maps each option into a concept.
+optionSets
+  | where name like "Age"
+  | limit 1
+  | fold {
+      resourceType: "CodeSystem",
+      status: "active",
+      content: "complete",
+      concept: options.select({ code: code, display: name })
+    }

@@ -17,6 +17,7 @@ members = [
     "dhis2w-mcp",
     "dhis2w-mcp-bridge",
     "dhis2w-mcp-router",
+    "dhis2w-ql",
 ]
 
 [manifest.dependency-groups]
@@ -547,7 +548,7 @@ wheels = [
 
 [[package]]
 name = "dhis2w-bench"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 source = { editable = "packages/dhis2w-bench" }
 dependencies = [
     { name = "claude-agent-sdk" },
@@ -572,7 +573,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-browser"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 source = { editable = "packages/dhis2w-browser" }
 dependencies = [
     { name = "dhis2w-client" },
@@ -591,7 +592,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-cli"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 source = { editable = "packages/dhis2w-cli" }
 dependencies = [
     { name = "dhis2w-core" },
@@ -615,7 +616,7 @@ provides-extras = ["browser"]
 
 [[package]]
 name = "dhis2w-client"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 source = { editable = "packages/dhis2w-client" }
 dependencies = [
     { name = "geojson-pydantic" },
@@ -632,7 +633,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-codegen"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 source = { editable = "packages/dhis2w-codegen" }
 dependencies = [
     { name = "dhis2w-client" },
@@ -655,12 +656,13 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-core"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 source = { editable = "packages/dhis2w-core" }
 dependencies = [
     { name = "aiosqlite" },
     { name = "bcrypt" },
     { name = "dhis2w-client" },
+    { name = "dhis2w-ql" },
     { name = "fastmcp" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -676,6 +678,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.22" },
     { name = "bcrypt", specifier = ">=5.0.0" },
     { name = "dhis2w-client", editable = "packages/dhis2w-client" },
+    { name = "dhis2w-ql", editable = "packages/dhis2w-ql" },
     { name = "fastmcp", specifier = ">=3.4" },
     { name = "pydantic", specifier = ">=2.13" },
     { name = "pydantic-settings", specifier = ">=2.13" },
@@ -688,7 +691,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-mcp"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 source = { editable = "packages/dhis2w-mcp" }
 dependencies = [
     { name = "dhis2w-core" },
@@ -710,7 +713,7 @@ provides-extras = ["browser"]
 
 [[package]]
 name = "dhis2w-mcp-bridge"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 source = { editable = "packages/dhis2w-mcp-bridge" }
 dependencies = [
     { name = "dhis2w-cli" },
@@ -725,7 +728,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-mcp-router"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 source = { editable = "packages/dhis2w-mcp-router" }
 dependencies = [
     { name = "fastmcp" },
@@ -739,6 +742,17 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.13.4" },
 ]
+
+[[package]]
+name = "dhis2w-ql"
+version = "1.0.0.dev2"
+source = { editable = "packages/dhis2w-ql" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.13" }]
 
 [[package]]
 name = "dnspython"

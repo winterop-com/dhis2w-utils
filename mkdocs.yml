@@ -180,6 +180,14 @@ nav:
           - Design: architecture/mcp-bridge.md
       - Router:
           - Design: architecture/mcp-router.md
+  - Query language:
+      - Introduction: query/index.md
+      - d2ql tutorial: guides/d2ql-tutorial.md
+      - d2ql reference: guides/d2ql.md
+      - d2path: guides/d2path.md
+      - Language semantics: query/semantics.md
+      - Cookbook: query/cookbook.md
+      - API reference: api/query.md
   - Project:
       - Overview: project/index.md
       - Feature catalog: project/features.md

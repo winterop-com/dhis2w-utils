@@ -3378,3 +3378,23 @@ ApiTokenController.postJsonObject
 **FIXED in `2.42.6-SNAPSHOT` (dev, verified 2026-06-09):** `make dhis2-run` against `dhis2/core-dev:2.42` seeds PATs successfully — `POST /api/apiToken` no longer 500s. A released `2.42.6` will resolve this and unblock the v42 mapView bump (#43). Still present on the released `2.42.5.0`.
 
 **How to know it's fixed:** `POST /api/apiToken` returns `201` on a `2.42.5+` instance with no `NotSerializableException` in the server log.
+
+### 45. Filtering on a nested `geometry` path (`geometry.type`) returns `400 Unknown path property`
+
+**Observed on:** v42 (`https://play.im.dhis2.org/dev-2-42`), 2026-06-23. Almost certainly cross-major.
+
+**Repro:**
+```
+curl -s -u admin:district \
+  'https://play.im.dhis2.org/dev-2-42/api/organisationUnits?filter=geometry.type:eq:Point&fields=id,name&pageSize=3'
+```
+
+**Expected:** either the filter is honoured (return org units whose GeoJSON geometry is a `Point`), or it is ignored — consistent with how object-association paths like `categoryCombo.name` filter.
+
+**Actual:** `400` — `Unknown path property: geometry.type`. The embedded GeoJSON `geometry` object is not a queryable property path, unlike association references (`categoryCombo.name`, `parent.name`) which do filter. `attributeValues.*` and `translations.*` behave the same way.
+
+**Impact:** any caller that compiles a field path to a DHIS2 `filter=` clause must know that some dotted paths are filterable (associations) and some are not (embedded value objects), or the request 400s. There is no obvious signal in `/api/schemas` distinguishing the two.
+
+**Workaround in this repo:** the d2ql planner treats a configurable set of field roots as non-pushable (`geometry`, `attributeValues`, `translations`) — predicates touching them stay local and run in the engine over the fetched rows instead of being pushed to `filter=`. See `SourceCapabilities.non_pushable_paths` (`packages/dhis2w-ql/src/dhis2w_ql/engine/plan.py`) and `Dhis2DataSource.capabilities` (`packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/query/datasource.py`).
+
+**How to know it's fixed:** the repro returns `200` (filter honoured or ignored), at which point `geometry` can be removed from `non_pushable_paths`.

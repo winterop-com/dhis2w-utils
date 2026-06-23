@@ -1,0 +1,4 @@
+// Shape of the org hierarchy: how many org units at each level.
+organisationUnits
+  | group by level { facilities: count() }
+  | order level asc
