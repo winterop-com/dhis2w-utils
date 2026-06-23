@@ -39,5 +39,5 @@ def register(mcp: Any) -> None:
 
     @mcp.tool()
     async def query_d2path(expression: str, data: Any) -> list[Any]:
-        """Evaluate a bare d2path (FHIRPath/JSONPath-compatible) expression over the given JSON data."""
+        """Evaluate a bare d2path expression over the given JSON data."""
         return service.evaluate_path(expression, data)

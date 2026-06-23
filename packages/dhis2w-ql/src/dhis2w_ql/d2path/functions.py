@@ -1,4 +1,4 @@
-"""Built-in function registry for the d2ql expression layer (a FHIRPath-compatible subset).
+"""Built-in function registry for the d2path expression layer.
 
 Each implementation receives the evaluator, the call's focus collection, the unevaluated argument
 expressions, and the active scope, so functions like `where`/`select` can rebind `$this` per item.

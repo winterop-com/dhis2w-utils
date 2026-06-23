@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from dhis2w_ql import InMemoryBinder, QueryEngine, parse
+from dhis2w_ql.errors import SemanticError
 
 _ROWS = [
     {"id": "a1", "name": "ANC 1st visit", "domainType": "AGGREGATE", "categoryCombo": {"name": "default"}, "value": 12},
@@ -35,6 +37,17 @@ async def test_where_like_is_case_insensitive() -> None:
 async def test_select_projects_and_aliases() -> None:
     rows = await _rows("dataElements | select id, categoryCombo.name as combo | limit 1")
     assert rows == [{"id": "a1", "combo": "default"}]
+
+
+async def test_select_duplicate_derived_names_error() -> None:
+    # `name` and `categoryCombo.name` both derive the column `name` — fail loudly, never overwrite.
+    with pytest.raises(SemanticError, match="two columns named 'name'"):
+        await _rows("dataElements | select name, categoryCombo.name")
+
+
+async def test_group_by_key_collides_with_aggregation() -> None:
+    with pytest.raises(SemanticError, match="two columns named 'domainType'"):
+        await _rows("dataElements | group by domainType { domainType: count() }")
 
 
 async def test_transform_builds_objects() -> None:

@@ -16,8 +16,8 @@ Grammar (informal):
                  |  "limit" INTEGER | "skip" INTEGER | "count"
     sink         := STRING | "stdout"
 
-The pipeline `|` is the stage separator; FHIRPath collection union is the `union()` function,
-so `|` is never ambiguous between the two layers.
+The pipeline `|` is the stage separator; collection union is the `union()` function, so `|` is
+never ambiguous between the two layers.
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ def parse_pipeline(source: str) -> Pipeline:
 
 
 def parse_expression(source: str) -> Expr:
-    """Parse a single bare expression (the FHIRPath-compatible expression surface)."""
+    """Parse a single bare expression (the d2path expression surface)."""
     parser = _Parser(tokenize(source))
     expr = parser.parse_expr()
     parser.expect_eof()

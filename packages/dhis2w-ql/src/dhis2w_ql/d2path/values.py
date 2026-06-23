@@ -23,7 +23,7 @@ def collapse(items: list[Any]) -> Any:
 
 
 def truthy(items: list[Any]) -> bool:
-    """FHIRPath-style truthiness: empty is false, a singleton boolean is itself, else non-empty is true."""
+    """Collection truthiness: empty is false, a singleton boolean is itself, else non-empty is true."""
     if not items:
         return False
     if len(items) == 1 and isinstance(items[0], bool):
