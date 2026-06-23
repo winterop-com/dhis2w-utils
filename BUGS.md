@@ -23,7 +23,7 @@ below.
 
 ## Index
 
-54 entries grouped by area. **Status tags** carry the result of the most recent
+56 entries grouped by area. **Status tags** carry the result of the most recent
 re-verification against `dhis2/core` docker images on 2026-05-12: **[FIXED]**
 upstream on all of v41/v42/v43, **[FIXED v43]** on v43 only (still present on
 older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -66,6 +66,8 @@ filing.
 - [#4g](#4g-dhis2-accepts-whitespace-abusive-values-for-name-shortname-and-code-on-metadata-create) — DHIS2 accepts whitespace-abusive `name` / `shortName` / `code`
 - [#4h](#4h-dhis2-rejects-its-own-oauth2-jwts-when-the-resolved-user-has-an-empty-openid) — DHIS2 rejects its own JWTs when the user has empty `openId`
 - [#9](#9-dhis2s-strict-oidc-property-parser-rejects-entire-provider-config-on-typos) — OIDC property parser rejects entire provider config on typos
+- [#49](#49-hsts-is-suppressed-behind-a-tls-terminating-proxy-and-csp-state-is-observable-only-on-the-wire-there-is-no-keycspenabled-setting) — HSTS suppressed behind a TLS-terminating proxy; CSP state is wire-only (no `keyCspEnabled` setting)
+- [#50](#50-keycorswhitelist-was-removed-from-systemsettings-the-cors-origin-list-is-only-readable-from-apiconfigurationcorswhitelist) — `keyCorsWhitelist` removed from systemSettings; CORS origins only readable from `/api/configuration/corsWhitelist`
 
 ### Analytics / Aggregate / Data Values
 
@@ -2891,6 +2893,85 @@ curl -sg -u admin:district "$BASE/api/dataElements?filter=sharing.public:eq:----
 **Actual:** the legacy `publicAccess` / `externalAccess` properties are rejected with `E1003`; the nested `sharing.public` filter works but (a) catches only the public axis, so objects with default public access plus an explicit user/group share are missed, and (b) is useless as a volume reducer on instances whose default object sharing is public-readable.
 
 **Workaround in this repo:** the security `sharing` check pages each focus type and decodes the sharing block client-side rather than relying on a server-side filter, bounded by `--max-objects` with a loud truncation note. See `_run_sharing` / `_scan_focus_type` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/audit.py` and the non-default-sharing predicate `FetchedObject.has_non_default_sharing` in `packages/dhis2w-core/src/dhis2w_core/security_core/sharing/builder.py`.
+
+**Verifier:** none yet.
+
+---
+
+### 49. HSTS is suppressed behind a TLS-terminating proxy, and CSP state is observable only on the wire (there is no `keyCspEnabled` setting)
+
+**Observed on:** DHIS2 v41 / v42 / v43 (header-setting code is version-uniform). Confirmed against the backend source at `dhis-2/dhis-web-api`.
+
+**Repro (against any instance):**
+
+```bash
+BASE=https://your-dhis2.example
+
+# Inspect the security headers DHIS2 (or its proxy) returns:
+curl -sI -u admin:district "$BASE/api/system/info" | grep -iE 'strict-transport-security|content-security-policy|x-frame-options|x-content-type-options|server'
+# A default DHIS2 reached as secure emits:
+#   content-security-policy: frame-ancestors 'self';
+#   x-content-type-options: nosniff
+# strict-transport-security is OFTEN ABSENT when a TLS-terminating proxy forwards plain HTTP to DHIS2.
+
+# There is no system setting that reports CSP state — grep confirms no such key exists:
+curl -sg -u admin:district "$BASE/api/systemSettings" | grep -io 'keyCspEnabled'   # (no output)
+```
+
+**Expected:** (a) an HTTPS endpoint always advertises Strict-Transport-Security; (b) a queryable signal for whether CSP is enabled.
+
+**Actual:** (a) `DhisWebApiWebSecurityConfig.setHttpHeaders` wires HSTS through Spring Security's `httpStrictTransportSecurity()`, which by default emits the header only on requests Spring considers secure. A proxy that terminates TLS and forwards plain HTTP makes DHIS2 see an insecure request, so HSTS is silently dropped even though the public endpoint is HTTPS. (b) CSP is governed by the confidential `dhis.conf` key `csp.enabled` (default ON); `CspFilter` emits `Content-Security-Policy: frame-ancestors 'self';` when on and `X-Frame-Options: SAMEORIGIN` when off. `DefaultDhisConfigurationProvider.getConfigurationsAsMap` masks every confidential key to `""`, so `csp.enabled` is never observable via any exposed config, and no `keyCspEnabled` system setting exists. The response header on the wire is the SOLE evidence of CSP state.
+
+**Impact:** a security audit cannot read CSP/HSTS posture from settings — it must read the live response headers. A missing HSTS header behind a proxy is a real downgrade window but reads as a false positive if attributed to DHIS2 itself; the cause is proxy configuration.
+
+**Workaround in this repo:** the security `transport` check reads the scheme from the resolved base URL and the security headers off one `get_response("/api/system/info")` response, never from settings. It softens the HSTS finding to MEDIUM with a note that a TLS-terminating proxy commonly suppresses it, and treats the wire CSP header as the only CSP evidence. It suppresses the anti-framing finding when a CSP `frame-ancestors` directive is present, to avoid a guaranteed false positive on default instances. See `evaluate_transport` in `packages/dhis2w-core/src/dhis2w_core/security_core/transport.py` and `_run_transport` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/audit.py`.
+
+**Verifier:** none yet.
+
+---
+
+### 50. `keyCorsWhitelist` was removed from systemSettings; the CORS origin list is only readable from `/api/configuration/corsWhitelist`
+
+A security audit that wants to flag a permissive `*` CORS origin cannot read it
+from `/api/systemSettings`: the `keyCorsWhitelist` key was deleted from
+`systemsetting` in migration `V2_31_1`. The origin set now lives in
+`Configuration.corsWhitelist`, served by `ConfigurationController`
+(`@RequestMapping("/api/configuration")`, GET `{"/corsWhitelist","/corsAllowlist"}`)
+as a bare JSON array of strings, with no `@RequiresAuthority` on the GET.
+
+**Observed on:** DHIS2 2.42 (`dhis2/core:2.42.4`, 2026-06-24); the migration
+predates v41, so the same split holds on v41 and v43.
+
+**Repro:**
+
+```bash
+# CORS is absent from systemSettings:
+curl -s -u admin:district 'https://play.im.dhis2.org/dev/api/systemSettings' | grep -i cors
+# (no output)
+# CORS lives under configuration, returned as a bare array:
+curl -s -u admin:district 'https://play.im.dhis2.org/dev/api/configuration/corsWhitelist'
+# ["https://app.example.org"]
+```
+
+**Expected:** one settings read answers the full security-settings posture,
+including CORS, the way it does for password policy and registration.
+
+**Actual:** CORS is split onto a separate `/api/configuration` endpoint that
+returns a bare JSON array, so a settings-only read silently misses it.
+
+**Impact:** a settings audit must issue a second GET against
+`/api/configuration/corsWhitelist` to see the wildcard origin, and the response
+is a bare array (the client wraps it under a `data` key) rather than the keyed
+object `/api/systemSettings` returns.
+
+**Workaround in this repo:** `_run_settings` fetches
+`/api/configuration/corsWhitelist` separately, unwraps the bare array, and wraps
+it in `CorsWhitelist` before passing it to `evaluate_settings`. When the read
+fails the CORS verdict is skipped (degraded with a note) while the rest of the
+settings verdicts still run. See `_fetch_cors_whitelist` in
+`packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/audit.py` and
+`evaluate_settings` in
+`packages/dhis2w-core/src/dhis2w_core/security_core/settings_audit.py`.
 
 **Verifier:** none yet.
 

@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from dhis2w_client.errors import Dhis2ApiError
@@ -24,6 +25,7 @@ from dhis2w_core.security_core import (
     BoundCheck,
     CheckResult,
     CheckStatus,
+    CorsWhitelist,
     CredentialProbeResult,
     CsvRenderer,
     ExplorerRenderer,
@@ -45,6 +47,7 @@ from dhis2w_core.security_core import (
     SchemaShareability,
     SharingGraph,
     TextRenderer,
+    TransportHeaders,
     TwoFactorSource,
     TwoFactorSummary,
     TypeInventory,
@@ -64,6 +67,7 @@ from dhis2w_core.security_core import (
     evaluate_roles,
     evaluate_settings,
     evaluate_sharing,
+    evaluate_transport,
     evaluate_two_factor_from_endpoint,
     evaluate_two_factor_from_user_field,
     evaluate_version,
@@ -116,14 +120,54 @@ async def _run_version(client: Dhis2Client) -> CheckResult:
     )
 
 
+async def _run_transport(client: Dhis2Client) -> CheckResult:
+    """Read the TLS scheme and security headers off one /api/system/info response and evaluate them."""
+    label = label_for("transport")
+    scheme = urlsplit(client.base_url).scheme or "http"
+    try:
+        response = await client.get_response("/api/system/info")
+    except (Dhis2ApiError, httpx.HTTPError) as exc:
+        return CheckResult(check="transport", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
+    headers = TransportHeaders(
+        base_url=client.base_url,
+        scheme=scheme,
+        strict_transport_security=response.headers.get("strict-transport-security"),
+        content_security_policy=response.headers.get("content-security-policy"),
+        x_frame_options=response.headers.get("x-frame-options"),
+        x_content_type_options=response.headers.get("x-content-type-options"),
+        server=response.headers.get("server"),
+    )
+    return CheckResult(check="transport", label=label, status=CheckStatus.OK, findings=evaluate_transport(headers))
+
+
 async def _run_settings(client: Dhis2Client) -> CheckResult:
-    """Fetch the security settings slice and evaluate it into findings."""
+    """Fetch the security settings slice plus the CORS whitelist and evaluate them into findings."""
     label = label_for("settings")
     try:
         settings = await client.get("/api/systemSettings", SecuritySettings)
-    except Dhis2ApiError as exc:
+    except (Dhis2ApiError, httpx.HTTPError) as exc:
         return CheckResult(check="settings", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
-    return CheckResult(check="settings", label=label, status=CheckStatus.OK, findings=evaluate_settings(settings))
+    cors = await _fetch_cors_whitelist(client)
+    note = None if cors is not None else "CORS whitelist unreadable; wildcard-origin verdict skipped"
+    return CheckResult(
+        check="settings",
+        label=label,
+        status=CheckStatus.OK,
+        findings=evaluate_settings(settings, cors=cors),
+        note=note,
+    )
+
+
+async def _fetch_cors_whitelist(client: Dhis2Client) -> CorsWhitelist | None:
+    """Read `/api/configuration/corsWhitelist` into a CorsWhitelist, or None when unreadable."""
+    try:
+        raw = await client.get_raw("/api/configuration/corsWhitelist")
+    except (Dhis2ApiError, httpx.HTTPError):
+        return None
+    payload = raw.get("data", raw)
+    if not isinstance(payload, list):
+        return None
+    return CorsWhitelist(origins=tuple(str(origin) for origin in payload))
 
 
 async def _run_authorities(client: Dhis2Client) -> CheckResult:
@@ -394,6 +438,7 @@ async def _run_guest(client: Dhis2Client) -> CheckResult:
 
 _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "version": _run_version,
+    "transport": _run_transport,
     "settings": _run_settings,
     "authorities": _run_authorities,
     "roles": _run_roles,

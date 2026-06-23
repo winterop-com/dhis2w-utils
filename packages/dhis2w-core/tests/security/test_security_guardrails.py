@@ -80,6 +80,11 @@ def test_every_public_service_function_is_guardrail_covered(tree: str, service: 
     assert public == set(SERVICE_CALLS), f"{tree}: register new service functions in SERVICE_CALLS"
 
 
+def test_cors_whitelist_path_is_allowlisted() -> None:
+    """The settings check's CORS read targets an allowlisted GET path."""
+    assert "/api/configuration/corsWhitelist" in GET_ALLOWLIST
+
+
 def test_retry_policy_default_never_retries_auth_failures() -> None:
     """No-lockout: 401/403 are never retried; only 429/5xx are retry candidates."""
     from dhis2w_client.v41 import RetryPolicy as RetryPolicyV41

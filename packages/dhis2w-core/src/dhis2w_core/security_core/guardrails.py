@@ -78,6 +78,9 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
         "/api/apps",
         "/api/appHub",
         "/api/configuration/selfRegistrationRole",
+        # CORS-whitelist read for the permissive-CORS verdict: keyCorsWhitelist was removed from
+        # systemSettings in v2.31, so the wildcard origin can only be read from configuration.
+        "/api/configuration/corsWhitelist",
         "/api/systemSettings",
     }
 )

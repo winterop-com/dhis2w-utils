@@ -1,8 +1,10 @@
-"""Verdicts over the security-relevant system settings slice."""
+"""Verdicts over the security-relevant system settings slice plus the CORS whitelist."""
 
 from __future__ import annotations
 
 from typing import Protocol
+
+from pydantic import BaseModel, ConfigDict
 
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 
@@ -23,10 +25,35 @@ class SettingsLike(Protocol):
     credentialsExpires: int | None
     keyLockMultipleFailedLogins: bool | None
     keySelfRegistrationNoRecaptcha: bool | None
+    keyCanGrantOwnUserAuthorityGroups: bool | None
+    keyAccountRecovery: bool | None
+    enforceVerifiedEmail: bool | None
+    keyEmailHostName: str | None
+    keyEmailUsername: str | None
 
 
-def evaluate_settings(settings: SettingsLike) -> list[AuditFinding]:
-    """Turn the security settings slice into audit findings."""
+class CorsWhitelist(BaseModel):
+    """The instance's CORS origin whitelist read from `/api/configuration/corsWhitelist`."""
+
+    model_config = ConfigDict(frozen=True)
+
+    origins: tuple[str, ...]
+
+    @property
+    def has_wildcard(self) -> bool:
+        """True when a `*` origin lets any site make credentialed cross-origin calls."""
+        return "*" in self.origins
+
+
+def _is_email_configured(settings: SettingsLike) -> bool:
+    """SMTP counts as configured only when both host and username are non-blank."""
+    host = (settings.keyEmailHostName or "").strip()
+    username = (settings.keyEmailUsername or "").strip()
+    return bool(host) and bool(username)
+
+
+def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = None) -> list[AuditFinding]:
+    """Turn the security settings slice (and optional CORS whitelist) into audit findings."""
     findings: list[AuditFinding] = []
 
     minimum = settings.minPasswordLength
@@ -68,6 +95,58 @@ def evaluate_settings(settings: SettingsLike) -> list[AuditFinding]:
                 severity=Severity.MEDIUM,
                 title="Self-registration captcha disabled",
                 detail="keySelfRegistrationNoRecaptcha is on; self-registration is not protected by a captcha.",
+            )
+        )
+
+    if settings.keyCanGrantOwnUserAuthorityGroups is True:
+        findings.append(
+            AuditFinding(
+                check=_CHECK,
+                severity=Severity.HIGH,
+                title="Users can grant themselves their own authorities",
+                detail=(
+                    "keyCanGrantOwnUserAuthorityGroups is on; users can grant themselves authorities they "
+                    "already hold, a direct privilege-escalation path."
+                ),
+            )
+        )
+
+    if cors is not None and cors.has_wildcard:
+        findings.append(
+            AuditFinding(
+                check=_CHECK,
+                severity=Severity.MEDIUM,
+                title="Permissive CORS wildcard origin",
+                detail=(
+                    "The CORS whitelist contains a `*` origin; any site can make credentialed cross-origin API calls."
+                ),
+            )
+        )
+
+    findings.append(
+        AuditFinding(
+            check=_CHECK,
+            severity=Severity.INFO,
+            title="Two-factor authentication is not globally enforced",
+            detail=(
+                "DHIS2 has no global enforce-2FA setting; 2FA is enforced per-user or per-role only via the "
+                "TWO_FACTOR_AUTH_REQUIRED restriction. This is a property of DHIS2, not of this instance, so it "
+                "is reported as INFO. See the hygiene check for the actual per-account 2FA enrolment gaps."
+            ),
+        )
+    )
+
+    recovery_or_verification_on = settings.keyAccountRecovery is True or settings.enforceVerifiedEmail is True
+    if recovery_or_verification_on and not _is_email_configured(settings):
+        findings.append(
+            AuditFinding(
+                check=_CHECK,
+                severity=Severity.WARN,
+                title="Email-dependent feature on while SMTP is unconfigured",
+                detail=(
+                    "Account recovery or email verification is on but keyEmailHostName / keyEmailUsername is "
+                    "blank; recovery and verification silently fail without configured SMTP."
+                ),
             )
         )
 

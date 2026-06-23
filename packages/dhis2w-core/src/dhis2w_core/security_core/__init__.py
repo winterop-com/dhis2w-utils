@@ -93,7 +93,12 @@ from dhis2w_core.security_core.report.view import (
     build_report_view,
 )
 from dhis2w_core.security_core.roles import RoleAudit, build_role_audit, evaluate_roles
-from dhis2w_core.security_core.settings_audit import MIN_RECOMMENDED_PASSWORD_LENGTH, SettingsLike, evaluate_settings
+from dhis2w_core.security_core.settings_audit import (
+    MIN_RECOMMENDED_PASSWORD_LENGTH,
+    CorsWhitelist,
+    SettingsLike,
+    evaluate_settings,
+)
 from dhis2w_core.security_core.sharing import (
     SHARING_CAVEATS,
     SHARING_FOCUS_TYPES,
@@ -132,6 +137,7 @@ from dhis2w_core.security_core.sharing import (
     resolve_focus_types,
 )
 from dhis2w_core.security_core.streaming import ReportWriter
+from dhis2w_core.security_core.transport import TransportHeaders, evaluate_transport
 from dhis2w_core.security_core.versions import (
     ADVISORY_PATCH_FLOOR,
     ADVISORY_PATCH_FLOOR_REVIEWED,
@@ -178,6 +184,7 @@ __all__ = [
     "CheckResult",
     "CheckSpec",
     "CheckStatus",
+    "CorsWhitelist",
     "CredentialProbeResult",
     "CsvRenderer",
     "EffectiveAccess",
@@ -228,6 +235,7 @@ __all__ = [
     "SharingView",
     "StreamingRenderer",
     "TextRenderer",
+    "TransportHeaders",
     "TwoFactorSource",
     "TwoFactorSummary",
     "TypeInventory",
@@ -253,6 +261,7 @@ __all__ = [
     "evaluate_roles",
     "evaluate_settings",
     "evaluate_sharing",
+    "evaluate_transport",
     "evaluate_two_factor_from_endpoint",
     "evaluate_two_factor_from_user_field",
     "evaluate_version",

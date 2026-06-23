@@ -41,6 +41,7 @@ def _ok(check: str) -> CheckResult:
 def test_resolve_check_keys_defaults_to_all_implemented() -> None:
     assert resolve_check_keys() == [
         "version",
+        "transport",
         "settings",
         "authorities",
         "roles",
@@ -63,7 +64,7 @@ def test_resolve_check_keys_rejects_unknown_key() -> None:
 
 def test_resolve_check_keys_rejects_not_yet_implemented_key() -> None:
     with pytest.raises(ValueError, match="not implemented"):
-        resolve_check_keys(only=["transport"])
+        resolve_check_keys(only=["auth-methods"])
 
 
 def test_resolve_check_keys_rejects_empty_selection() -> None:
@@ -71,6 +72,7 @@ def test_resolve_check_keys_rejects_empty_selection() -> None:
         resolve_check_keys(
             skip=[
                 "version",
+                "transport",
                 "settings",
                 "authorities",
                 "credential-probe",

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Security audit: transport and settings-posture checks (PR 8a)** (2026-06-24). New `transport`
+  check inspects TLS posture and security headers, read from the response headers of a single
+  `/api/system/info` GET (non-TLS base URL HIGH, missing HSTS / CSP MEDIUM, missing anti-framing /
+  nosniff WARN, server-version disclosure WARN); no new allowlist path. The `settings` check gains
+  four verdicts: users-can-grant-own-authorities HIGH, permissive CORS wildcard MEDIUM (read from the
+  new `/api/configuration/corsWhitelist` allowlist entry), email-unconfigured-while-recovery-or-
+  verification-on WARN, and a global-2FA-not-enforced INFO note. Both run by default across
+  v41/v42/v43. Full PR 8 plan in `SECURITY-POSTURE-EXTRAS-PLAN.md` (8a here; 8b auth-methods/tokens/
+  routes and 8c audit-config to follow). BUGS.md #49 (HSTS behind a proxy, wire-only CSP state) and
+  #50 (keyCorsWhitelist removed in v2.31; CORS now only at /api/configuration/corsWhitelist).
+
 - **Sharing explorer design refresh** (2026-06-23). Adopt the updated explorer design: a DHIS2 logo
   wordmark in the header, a cooler light-mode palette, a full-width layout with a wider (400px) detail
   panel, and an access matrix that scales to fill the available width. The template now links the
