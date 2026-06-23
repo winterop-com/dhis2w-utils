@@ -21,7 +21,7 @@ from dhis2w_ql import (
     to_jsonable,
     write_rows,
 )
-from dhis2w_ql.ast import CallSource, ExprSource, NameSource, ReadSource, WhereStage
+from dhis2w_ql.ast import CallSource, ExprSource, FileSink, NameSource, ReadSource, WhereStage
 from dhis2w_ql.engine import QueryEngine
 
 from dhis2w_core.profile import Profile
@@ -30,9 +30,23 @@ from dhis2w_core.v43.plugins.query.datasource import Dhis2Binder, collect_fields
 from dhis2w_core.v43.plugins.query.models import QueryExplain
 
 
-async def run_query(profile: Profile, text: str, *, define: str | None = None, out: str | None = None) -> QueryResult:
-    """Parse and execute a d2ql program against the profile, optionally writing rows to `out`."""
+async def run_query(
+    profile: Profile,
+    text: str,
+    *,
+    define: str | None = None,
+    out: str | None = None,
+    allow_local_files: bool = True,
+) -> QueryResult:
+    """Parse and execute a d2ql program against the profile, optionally writing rows to `out`.
+
+    `allow_local_files` gates local filesystem access: trusted surfaces (the CLI) allow `read(...)`
+    sources and `>> "..."` sinks; untrusted ones (MCP) set it False so a caller cannot read or write
+    arbitrary host files through a query.
+    """
     library = parse(text)
+    if not allow_local_files and (out is not None or _uses_local_files(library)):
+        raise SemanticError("local file access (read(...) / >> sinks) is not permitted here")
     entry = _select_pipeline(library, define)
     binder = await _build_binder(profile, library, entry)
     engine = QueryEngine(library, binder)
@@ -118,3 +132,10 @@ def _stage_kinds(stages: list[Any]) -> list[str]:
 
 def _is_defined(library: Library, name: str) -> bool:
     return any(getattr(definition, "name", None) == name for definition in library.definitions)
+
+
+def _uses_local_files(library: Library) -> bool:
+    pipelines = [definition.body for definition in library.definitions if isinstance(definition.body, Pipeline)]
+    if library.terminal is not None:
+        pipelines.append(library.terminal)
+    return any(isinstance(p.source, ReadSource) or isinstance(p.sink, FileSink) for p in pipelines)

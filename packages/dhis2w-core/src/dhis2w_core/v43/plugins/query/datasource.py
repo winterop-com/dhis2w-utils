@@ -278,15 +278,19 @@ def _collect_expr(expr: Any, paths: set[str], row_vars: set[str]) -> None:
             target_path = _nav_path(target, paths, row_vars) if target is not None else None
             if target is not None and target_path is None:
                 _collect_expr(target, paths, row_vars)
-            elif target_path:
-                paths.add(target_path)
+            narrowed = False
             for argument in expr.args:
-                if target_path:
+                if target_path is not None:
                     nested: set[str] = set()
                     _collect_expr(argument, nested, {"this"})
-                    paths.update(f"{target_path}.{path}" for path in nested)
+                    if nested:
+                        paths.update(f"{target_path}.{path}" if target_path else path for path in nested)
+                        narrowed = True
                 else:
                     _collect_expr(argument, paths, row_vars)
+            if target_path and not narrowed:
+                # The method does not narrow to specific subfields, so the whole element is needed.
+                paths.add(target_path)
         case UnaryExpr():
             _collect_expr(expr.operand, paths, row_vars)
         case BinaryExpr():
@@ -338,11 +342,17 @@ def _render_fields(paths: set[str]) -> str:
         node = tree
         for segment in path.split("."):
             node = node.setdefault(segment, {})
-    return _render_tree(tree)
+    return _render_tree(tree, "", paths)
 
 
-def _render_tree(tree: dict[str, dict[str, Any]]) -> str:
+def _render_tree(tree: dict[str, dict[str, Any]], prefix: str, whole: set[str]) -> str:
     parts: list[str] = []
     for name, children in tree.items():
-        parts.append(f"{name}[{_render_tree(children)}]" if children else name)
+        full = f"{prefix}.{name}" if prefix else name
+        # If the whole object was navigated (its exact path was collected), fetch all of it — a
+        # descendant like `geometry.type` must not narrow a whole `geometry` (which needs coordinates).
+        if not children or full in whole:
+            parts.append(name)
+        else:
+            parts.append(f"{name}[{_render_tree(children, full, whole)}]")
     return ",".join(parts)

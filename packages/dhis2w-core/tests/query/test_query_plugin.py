@@ -152,6 +152,30 @@ def test_collect_fields_through_element_preserving_method() -> None:
     assert "options[code,name]" in fields
 
 
+def test_collect_fields_keeps_whole_object_when_requested() -> None:
+    # A whole `geometry` must not be narrowed to `geometry[type]` by the filter on geometry.type.
+    fields = _fields('organisationUnits | where geometry.type = "Polygon" | transform { id: id, geometry: geometry }')
+    assert fields is not None
+    assert "geometry[" not in fields
+    assert "geometry" in fields.split(",")
+
+
+async def test_mcp_query_eval_rejects_file_access() -> None:
+    for program in ['dataElements | select id >> "/tmp/evil.json"', 'read("/etc/hosts") | select id']:
+        with pytest.raises(Exception, match="local file access"):
+            await service.run_query(_PROFILE, program, allow_local_files=False)
+
+
+@respx.mock
+async def test_cli_run_query_still_allows_file_sink(tmp_path: Path) -> None:
+    _mock_connect()
+    _mock_data_elements()
+    out = tmp_path / "elements.csv"
+    result = await service.run_query(_PROFILE, f'dataElements | select id, name >> "{out}"')
+    assert result.written_to == str(out)
+    assert out.exists()
+
+
 def test_evaluate_path_over_local_json() -> None:
     patient = {"name": [{"use": "official", "family": "King"}]}
     assert service.evaluate_path('name.where(use = "official").family', patient) == ["King"]

@@ -21,8 +21,10 @@ def register(mcp: Any) -> None:
         `query` is a d2ql program, e.g.
         `dataElements | where domainType = "AGGREGATE" | select id, name | limit 20`.
         Use `define` to run a named `define` from a multi-definition program.
+
+        Local file access (`read("...")` sources and `>> "..."` sinks) is rejected on this surface.
         """
-        result = await service.run_query(resolve_profile(profile), query, define=define)
+        result = await service.run_query(resolve_profile(profile), query, define=define, allow_local_files=False)
         return {
             "count": result.count,
             "scalar": result.scalar,
