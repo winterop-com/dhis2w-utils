@@ -234,9 +234,19 @@ TRACKER_ENDPOINTS: list[tuple[str, str]] = [
 
 
 async def _query_one_tracker_row(client: Dhis2Client, endpoint: str, program_uid: str) -> Any:
-    """GET one `/api/tracker/{endpoint}` row scoped to `program_uid`, or None."""
+    """GET one `/api/tracker/{endpoint}` row scoped to `program_uid`, or None.
+
+    A program whose tracker data the play user cannot read answers 403 (program-level data sharing,
+    e.g. the v43 `Antenatal care visit` event program); that program simply yields no sample row, so
+    the discovery loop skips it and keeps probing rather than failing the contract.
+    """
     params = {"program": program_uid, "orgUnit": _TRACKER_ROOT_OU, "ouMode": "DESCENDANTS", "pageSize": "1"}
-    raw = await client.get_raw(f"/api/tracker/{endpoint}", params=params)
+    try:
+        raw = await client.get_raw(f"/api/tracker/{endpoint}", params=params)
+    except Dhis2ApiError as error:
+        if error.status_code == 403:
+            return None
+        raise
     rows = raw.get(endpoint) or []
     return rows[0] if rows else None
 
