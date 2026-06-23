@@ -63,13 +63,23 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 | `analytics-anc-coverage.d2ql` | multi-`dx` analytics line listing |
 | `datavalues-by-dataset.d2ql` | `dataValues(...)` source (`/api/dataValueSets`) |
 
-**`fhir-*` / `geojson-*` / `library-*`** — transform + fold
+**`fhir-*`** — map DHIS2 metadata to FHIR (named `fhir-<source>-<resource>`)
 
 | File | Shows |
 |------|-------|
-| `library-immunisation.d2ql` | a full library: scalar define + function + named query |
-| `fhir-observations.d2ql` | FHIR Observation emit via `transform` (array of resources) |
-| `fhir-bundle.d2ql` | a *proper* FHIR Bundle: `define function` + `transform` + `fold` |
-| `fhir-codesystem.d2ql` | `fold` an option set's options into a FHIR CodeSystem |
+| `fhir-de-observations.d2ql` | data elements → Observation resources (an array) |
+| `fhir-de-bundle.d2ql` | data elements → a proper FHIR Bundle (`define function` + `transform` + `fold`) |
+| `fhir-de-codesystem.d2ql` | data elements → one CodeSystem of concepts |
+| `fhir-optionset-codesystem.d2ql` | one option set → a CodeSystem |
+| `fhir-optionset-valueset.d2ql` | one option set → a ValueSet |
+| `fhir-optionset-bundle.d2ql` | many option sets → a Bundle of CodeSystems |
+| `fhir-dataset-questionnaire.d2ql` | one data set → a Questionnaire (elements → items) |
+| `fhir-dataset-bundle.d2ql` | many data sets → a Bundle of Questionnaires |
+
+**`geojson-*` / `library-*`**
+
+| File | Shows |
+|------|-------|
 | `geojson-districts.d2ql` | per-row GeoJSON Feature, file sink |
 | `geojson-featurecollection.d2ql` | `transform` + `fold` into one FeatureCollection |
+| `library-immunisation.d2ql` | a full library: scalar define + function + named query |

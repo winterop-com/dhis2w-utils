@@ -251,7 +251,9 @@ def _called_functions_in_pipeline(pipeline: Pipeline, known: set[str]) -> set[st
 
 
 def _collect_pipeline(pipeline: Pipeline, paths: set[str]) -> None:
-    row_vars = {"this"}
+    # `$this` is the current row in per-row stages; `$rows` is the stream inside `fold`. Both are
+    # row-bound, so `$rows.dataSetElements.dataElement` collects the same field paths as bare navigation.
+    row_vars = {"this", "rows"}
     source = pipeline.source
     if isinstance(source, NameSource) and source.inline_filter is not None:
         _collect_expr(source.inline_filter, paths, row_vars)

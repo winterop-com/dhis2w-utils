@@ -131,6 +131,12 @@ def test_collect_fields_attributes_method_args_to_their_target() -> None:
     assert "options[code,name]" in fields
 
 
+def test_collect_fields_resolves_rows_navigation_in_fold() -> None:
+    fields = _fields("dataSets | fold { item: $rows.dataSetElements.dataElement.select({ id: id, name: name }) }")
+    assert fields is not None
+    assert "dataSetElements[dataElement[id,name]]" in fields
+
+
 def test_evaluate_path_over_local_json() -> None:
     patient = {"name": [{"use": "official", "family": "King"}]}
     assert service.evaluate_path('name.where(use = "official").family', patient) == ["King"]

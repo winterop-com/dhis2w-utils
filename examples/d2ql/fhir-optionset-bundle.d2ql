@@ -1,0 +1,13 @@
+// Many option sets -> a FHIR Bundle, one CodeSystem resource per option set.
+define function codesystem(os): {
+  resourceType: "CodeSystem",
+  status: "active",
+  content: "complete",
+  name: $os.name,
+  concept: $os.options.select({ code: code, display: name })
+}
+
+optionSets
+  | limit 10
+  | transform { resource: codesystem($this) }
+  | fold { resourceType: "Bundle", type: "collection", entry: $rows }
