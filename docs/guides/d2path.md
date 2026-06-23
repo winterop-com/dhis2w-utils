@@ -63,6 +63,7 @@ compare with `=`/`!=`.
 |--------|---------|---------|
 | `a.b` | Member access (flattens over collections) | `categoryCombo.name` |
 | `a[0]` | Index into a collection | `coding[0]` |
+| `a["key"]` | Member access by key, for non-identifier field names | `extension["us-core-race"]` |
 | `a.b.c` | Chained navigation | `name.given.first()` |
 
 ```text

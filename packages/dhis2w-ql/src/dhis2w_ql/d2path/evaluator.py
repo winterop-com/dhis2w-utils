@@ -132,9 +132,15 @@ class Evaluator:
         if not index_values:
             return []
         index = index_values[0]
-        if not isinstance(index, int) or isinstance(index, bool):
-            raise EvaluationError("index must be an integer")
-        return [target[index]] if -len(target) <= index < len(target) else []
+        if isinstance(index, bool):
+            raise EvaluationError("index must be an integer or a string key")
+        if isinstance(index, int):
+            return [target[index]] if -len(target) <= index < len(target) else []
+        if isinstance(index, str):
+            # A string subscript is member access by key, mirroring `.name` — this reaches fields
+            # whose names aren't identifiers (hyphens, spaces, leading digits).
+            return flatten_member(target, index)
+        raise EvaluationError("index must be an integer or a string key")
 
     def _eval_call(self, expr: CallExpr, focus: list[Any], context: EvalContext) -> list[Any]:
         target_focus = self._eval(expr.target, focus, context) if expr.target is not None else focus
