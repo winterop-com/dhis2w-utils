@@ -138,6 +138,7 @@ from dhis2w_core.security_core.sharing import (
     resolve_focus_types,
 )
 from dhis2w_core.security_core.streaming import ReportWriter
+from dhis2w_core.security_core.tokens import TokenAllowlists, TokensInventory, TokenView, evaluate_tokens
 from dhis2w_core.security_core.transport import TransportHeaders, evaluate_transport
 from dhis2w_core.security_core.versions import (
     ADVISORY_PATCH_FLOOR,
@@ -237,6 +238,9 @@ __all__ = [
     "SharingView",
     "StreamingRenderer",
     "TextRenderer",
+    "TokenAllowlists",
+    "TokenView",
+    "TokensInventory",
     "TransportHeaders",
     "TwoFactorSource",
     "TwoFactorSummary",
@@ -264,6 +268,7 @@ __all__ = [
     "evaluate_routes",
     "evaluate_settings",
     "evaluate_sharing",
+    "evaluate_tokens",
     "evaluate_transport",
     "evaluate_two_factor_from_endpoint",
     "evaluate_two_factor_from_user_field",

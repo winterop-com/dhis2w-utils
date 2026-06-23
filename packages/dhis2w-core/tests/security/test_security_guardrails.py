@@ -90,6 +90,11 @@ def test_routes_path_is_allowlisted() -> None:
     assert "/api/routes" in GET_ALLOWLIST
 
 
+def test_api_token_path_is_allowlisted() -> None:
+    """The tokens check's PAT-inventory read targets an allowlisted GET path."""
+    assert "/api/apiToken" in GET_ALLOWLIST
+
+
 def test_retry_policy_default_never_retries_auth_failures() -> None:
     """No-lockout: 401/403 are never retried; only 429/5xx are retry candidates."""
     from dhis2w_client.v41 import RetryPolicy as RetryPolicyV41

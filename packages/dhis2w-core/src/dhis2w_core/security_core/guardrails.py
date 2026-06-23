@@ -85,6 +85,11 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
         # destinations on private/internal or cloud-metadata hosts. A read-only GET of the collection;
         # the check never executes a route (never /api/routes/{id}/run). Secrets are WRITE_ONLY upstream.
         "/api/routes",
+        # Personal access token inventory read for the weak-PAT verdict: the tokens check lists
+        # /api/apiToken to flag non-expiring tokens and tokens with no IP allowlist. A read-only GET of
+        # the collection, ACL-filtered to the audited account's own tokens unless it holds ALL. The token
+        # secret (key) is @JsonIgnore upstream and never returned on the wire, so nothing secret is read.
+        "/api/apiToken",
         "/api/systemSettings",
     }
 )

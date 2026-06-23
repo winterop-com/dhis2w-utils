@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -50,6 +50,7 @@ from dhis2w_core.security_core import (
     SchemaShareability,
     SharingGraph,
     TextRenderer,
+    TokensInventory,
     TransportHeaders,
     TwoFactorSource,
     TwoFactorSummary,
@@ -71,6 +72,7 @@ from dhis2w_core.security_core import (
     evaluate_routes,
     evaluate_settings,
     evaluate_sharing,
+    evaluate_tokens,
     evaluate_transport,
     evaluate_two_factor_from_endpoint,
     evaluate_two_factor_from_user_field,
@@ -487,7 +489,7 @@ async def _run_routes(client: Dhis2Client) -> CheckResult:
         try:
             route = Route.model_validate(raw_route)
             targets.append(_route_target(route))
-        except (ValidationError, Exception):
+        except (ValidationError, ValueError, TypeError):
             # Full validation failed -- try again without the auth block. An unrecognized or
             # missing auth `type` causes pydantic's discriminated union to reject the whole route.
             # Stripping auth and re-validating lets us include the route with auth_type="unknown"
@@ -512,10 +514,58 @@ async def _run_routes(client: Dhis2Client) -> CheckResult:
                         required_authorities=tuple(route_no_auth.authorities or ()),
                     )
                 )
-            except (ValidationError, Exception):
+            except (ValidationError, ValueError, TypeError):
                 skipped += 1
     note = f"{skipped} route(s) could not be parsed and were skipped" if skipped else None
     return CheckResult(check="routes", label=label, status=CheckStatus.OK, findings=evaluate_routes(targets), note=note)
+
+
+# Token fields the check reads: identity, type, expiry, created timestamp, owner id, and the polymorphic
+# allowlist attributes. An explicit fields= projection guarantees attributes and expire are returned. The
+# secret `key` is @JsonIgnore upstream and never on the wire, so it is never requested or read.
+# paging=false is required so the full inventory is returned on instances with >50 tokens; without it
+# the response silently truncates to the first page and the inventory is incomplete.
+_TOKEN_FIELDS = "id,name,type,expire,created,createdBy[id],attributes[type,allowedIps,allowedMethods,allowedReferrers]"
+
+
+async def _account_is_superuser(client: Dhis2Client) -> bool:
+    """Read /api/me/authorization and report whether the audited account holds the ALL authority.
+
+    Reuses the same identity read the authorities check uses. The ALL authority bypasses the ACL, so an
+    account with it sees the system-wide token inventory; without it the /api/apiToken list is filtered to
+    the account's own tokens. A read error is treated as not-superuser so the scope caveat still fires.
+    """
+    try:
+        raw = await client.get_raw("/api/me/authorization")
+    except (Dhis2ApiError, httpx.HTTPError):
+        return False
+    payload = raw.get("data")
+    if not isinstance(payload, list):
+        return False
+    return "ALL" in {str(item) for item in payload}
+
+
+async def _run_tokens(client: Dhis2Client) -> CheckResult:
+    """Inventory the PATs readable by the audited account and flag non-expiring / no-IP-allowlist posture.
+
+    `now` is captured here at the I/O edge (epoch millis, UTC) and threaded into the deterministic
+    `evaluate_tokens` reducer as `now_epoch_millis`, which uses it to detect expired-but-not-deleted tokens;
+    the reducer itself never reads the clock. A non-superuser account sees only its own tokens, so the
+    reducer adds an INFO scope caveat when `account_is_superuser` is False.
+    """
+    label = label_for("tokens")
+    superuser = await _account_is_superuser(client)
+    try:
+        raw = await client.get_raw("/api/apiToken", params={"fields": _TOKEN_FIELDS, "paging": "false"})
+    except (Dhis2ApiError, httpx.HTTPError) as exc:
+        return CheckResult(check="tokens", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
+    records = raw.get("apiToken")
+    if not isinstance(records, list):
+        records = []
+    inventory = TokensInventory(tokens=tuple(_wire.tokens_from_raw(records)), account_is_superuser=superuser)
+    now_epoch_millis = int(datetime.now(tz=UTC).timestamp() * 1000)
+    findings = evaluate_tokens(inventory, now_epoch_millis=now_epoch_millis)
+    return CheckResult(check="tokens", label=label, status=CheckStatus.OK, findings=findings)
 
 
 _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
@@ -526,6 +576,7 @@ _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "roles": _run_roles,
     "apps": _run_apps,
     "guest": _run_guest,
+    "tokens": _run_tokens,
     "routes": _run_routes,
 }
 

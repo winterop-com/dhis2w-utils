@@ -23,7 +23,7 @@ below.
 
 ## Index
 
-56 entries grouped by area. **Status tags** carry the result of the most recent
+57 entries grouped by area. **Status tags** carry the result of the most recent
 re-verification against `dhis2/core` docker images on 2026-05-12: **[FIXED]**
 upstream on all of v41/v42/v43, **[FIXED v43]** on v43 only (still present on
 older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -53,6 +53,7 @@ filing.
 - [#30](#30-apiapphub-returns-versions-created--last_updated-as-epoch-millis-integers) — `/api/appHub` returns `created` / `last_updated` as epoch-millis
 - [#46](#46-post-apiapphubversionid-returns-an-opaque-proxied-app-hub-404-when-given-an-app-id-instead-of-a-version-id) — `POST /api/appHub/{versionId}` with an app id → opaque proxied App Hub 404
 - [#48](#48-no-reliable-server-side-filter-for-non-default-sharing-publicaccessexternalaccess-are-unfilterable-sharingpublic-is-an-ineffective-volume-reducer) — No reliable server-side filter for non-default sharing (`publicAccess`/`externalAccess` unfilterable)
+- [#51](#51-apitokenexpire-is-a-nullable-long-on-the-model-so-a-non-expiring-pat-is-representable-despite-the-controllers-30-day-create-default) - `ApiToken.expire` nullable on the model; a non-expiring PAT is representable despite the 30-day create default
 
 ### Auth / OAuth2 / OIDC
 
@@ -2972,6 +2973,34 @@ settings verdicts still run. See `_fetch_cors_whitelist` in
 `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/audit.py` and
 `evaluate_settings` in
 `packages/dhis2w-core/src/dhis2w_core/security_core/settings_audit.py`.
+
+**Verifier:** none yet.
+
+---
+
+### 51. `ApiToken.expire` is a nullable `Long` on the model, so a non-expiring PAT is representable despite the controller's 30-day create default
+
+**Observed on:** v42 / v43 (model shape; cross-major, the field is `int | None` on all of v41/v42/v43). Surfaced while building the security scanner's `tokens` check.
+
+**Repro:**
+
+```
+# create a PAT through the normal path -- the server fills expire if omitted
+curl -s -X POST "$BASE/api/apiToken" -H "Content-Type: application/json" \
+  -u admin:district -d '{"type":"PERSONAL_ACCESS_TOKEN_V2"}' | jq '.response.expire'
+# -> a non-null epoch-millis ~30 days out (DEFAULT_TOKEN_EXPIRE)
+
+# read it back
+curl -s "$BASE/api/apiToken?fields=id,expire" -u admin:district | jq '.apiToken[].expire'
+```
+
+**Expected:** if the server always assigns a 30-day default at create when `expire` is omitted, a token can never have a null/absent expiry, so "non-expiring token" would be unrepresentable.
+
+**Actual:** `ApiToken.expire` is a nullable `Long` (epoch millis) on the entity (and on the generated OAS model: `expire: int | None`). `DEFAULT_TOKEN_EXPIRE = 30 days` is applied server-side only on the normal `POST /api/apiToken` create path when `expire` is null. A token written through metadata import or a direct DB insert can therefore carry a null/absent `expire` -- a permanent credential -- even though the interactive create path always fills it. The wire read of such a token returns `expire: null`.
+
+**Impact:** the tokens security check cannot assume every PAT has an expiry. A null (or past) `expire` is a standing credential that bypasses interactive login and 2FA until manually revoked, so the non-expiring-token finding is valid and necessary despite the create-time default.
+
+**Workaround in this repo:** `evaluate_tokens` treats `expire_epoch_millis is None` (or an epoch already in the past) as non-expiring and raises a HIGH finding. See `packages/dhis2w-core/src/dhis2w_core/security_core/tokens.py` and the per-tree `tokens_from_raw` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py`.
 
 **Verifier:** none yet.
 
