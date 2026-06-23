@@ -160,6 +160,8 @@ class Evaluator:
     def _eval_binary(self, expr: BinaryExpr, focus: list[Any], context: EvalContext) -> list[Any]:
         if expr.op in ("and", "or", "xor", "implies"):
             return self._eval_logical(expr, focus, context)
+        if expr.op == "is":
+            return self._eval_is(expr, focus, context)
         left = self._eval(expr.left, focus, context)
         right = self._eval(expr.right, focus, context)
         if expr.op == "in":
@@ -168,7 +170,24 @@ class Evaluator:
             return self._eval_contains(left, right)
         if not left or not right:
             return []
+        # Comparison/equality/match operators are existential over collections: a repeated field
+        # like `name.given` matches if ANY of its values satisfies the operator (use `contains`/`in`
+        # for explicit membership). Arithmetic stays scalar (operates on the first value).
+        if expr.op in _EXISTENTIAL and (len(left) > 1 or len(right) > 1):
+            return [_existential(expr.op, left, right)]
         return self._eval_scalar_binary(expr.op, left[0], right[0])
+
+    def _eval_is(self, expr: BinaryExpr, focus: list[Any], context: EvalContext) -> list[Any]:
+        # `is` takes a type name on the right — a bare identifier (`x is Integer`) or a string.
+        left = self._eval(expr.left, focus, context)
+        if not left:
+            return []
+        if isinstance(expr.right, NameExpr):
+            type_name: Any = expr.right.name
+        else:
+            resolved = self._eval(expr.right, focus, context)
+            type_name = resolved[0] if resolved else None
+        return [_type_name(left[0]) == type_name]
 
     def _eval_logical(self, expr: BinaryExpr, focus: list[Any], context: EvalContext) -> list[Any]:
         # `and`/`or`/`implies` short-circuit so guarded predicates (`value != 0 and 1 / value > 0`)
@@ -249,6 +268,32 @@ class Evaluator:
                 return [order > 0]
             case _:  # >=
                 return [order >= 0]
+
+
+_EXISTENTIAL = frozenset({"=", "!=", "~", "!~", "<", "<=", ">", ">="})
+
+
+def _existential(op: str, left: list[Any], right: list[Any]) -> bool:
+    """Apply a comparison/equality/match operator existentially across two collections.
+
+    `=`/`~`/`<`/… are true when any left-right pair satisfies them; `!=`/`!~` are the negation
+    ("no pair is equal/matches"), which is the intuitive reading for a `where` over a repeated field.
+    """
+    pairs = [(item_left, item_right) for item_left in left for item_right in right]
+    if op in ("=", "!="):
+        matched = any(loose_equal(item_left, item_right) for item_left, item_right in pairs)
+        return matched if op == "=" else not matched
+    if op in ("~", "!~"):
+        matched = any(like(item_left, item_right) for item_left, item_right in pairs)
+        return matched if op == "~" else not matched
+    return any(_relation_holds(op, item_left, item_right) for item_left, item_right in pairs)
+
+
+def _relation_holds(op: str, left: Any, right: Any) -> bool:
+    order = compare(left, right)
+    if order is None:
+        return False
+    return {"<": order < 0, "<=": order <= 0, ">": order > 0, ">=": order >= 0}[op]
 
 
 def _as_membership(values: list[Any]) -> list[Any]:

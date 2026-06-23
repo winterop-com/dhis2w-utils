@@ -42,10 +42,16 @@ doesNotExist                  -> []           (missing navigates to empty)
 | Membership | `in [a, b]`, `contains` |
 | Boolean | `and` `or` `xor` `implies` |
 | Arithmetic | `+` `-` `*` `/` `div` `mod` (and `+` concatenates strings) |
-| Type test | `is` |
+| Type test | `is Integer` / `is String` / `is Boolean` / `is Decimal` |
 
 `~` is the case-insensitive "like" operator (`name ~ "anc"`); in d2ql it pushes down to DHIS2
-`ilike`. Membership uses array-literal syntax: `valueType in ["NUMBER", "INTEGER"]`.
+`ilike`. Membership uses array-literal syntax: `valueType in ["NUMBER", "INTEGER"]`. `is` takes a
+type name (a bare identifier, e.g. `value is Integer`).
+
+**Comparisons over collections are existential.** Because navigation flattens, a comparison or
+match operator against a repeated field is true when **any** value matches — `name.given =
+"Lovelace"` is true when `given` is `["Ada", "Lovelace"]`. `!=`/`!~` are the negation ("no value
+matches"). Use `contains` / `in` when you want explicit membership semantics.
 
 ## Functions
 

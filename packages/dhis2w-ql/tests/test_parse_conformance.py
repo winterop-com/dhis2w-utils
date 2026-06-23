@@ -80,6 +80,24 @@ def test_navigating_a_missing_field_is_empty() -> None:
     assert Evaluator().evaluate(parse_expression("doesNotExist"), [_PATIENT]) == []
 
 
+def test_collection_comparisons_are_existential() -> None:
+    ev = Evaluator()
+    person = {"given": ["Ada", "Lovelace"]}
+    assert ev.evaluate(parse_expression('given = "Lovelace"'), [person]) == [True]
+    assert ev.evaluate(parse_expression('given = "Nope"'), [person]) == [False]
+    assert ev.evaluate(parse_expression('given != "Lovelace"'), [person]) == [False]
+    assert ev.evaluate(parse_expression('given ~ "lov"'), [person]) == [True]
+    # singletons keep scalar behaviour
+    assert ev.evaluate(parse_expression('given = "Ada"'), [{"given": "Ada"}]) == [True]
+
+
+def test_is_type_test_takes_a_type_name() -> None:
+    ev = Evaluator()
+    assert ev.evaluate(parse_expression("value is Integer"), [{"value": 5}]) == [True]
+    assert ev.evaluate(parse_expression('value is "Integer"'), [{"value": 5}]) == [True]
+    assert ev.evaluate(parse_expression("value is String"), [{"value": 5}]) == [False]
+
+
 def test_logical_operators_short_circuit() -> None:
     ev = Evaluator()
     # `and` does not evaluate the right side when the left is false (no division-by-zero raise).
