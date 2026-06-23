@@ -318,6 +318,56 @@ SAMPLES: list[Sample] = [
         'dataValues(dataSet: "BfMAe6Itzgt", period: "202401", orgUnit: "ImspTQPwCqd") | transform { de: dataElement, ou: orgUnit, v: value } | limit 10',  # noqa: E501
         "Read raw aggregate data values from /api/dataValueSets.",
     ),
+    # ---------------------------------------------------------------- explore (cross-resource)
+    _q(
+        "explore-indicators",
+        "Indicators with type",
+        "explore",
+        "indicators | select id, name, indicatorType.name as type | order name asc | limit 20",
+        "List indicators with their indicator type (nested ref).",
+    ),
+    _q(
+        "explore-indicator-expr",
+        "Indicator numerators",
+        "explore",
+        "indicators | select name, numerator, denominator | limit 10",
+        "Inspect raw indicator expressions.",
+    ),
+    _q(
+        "explore-programs",
+        "Programs by type",
+        "explore",
+        "programs | aggregate by programType { n: count() } | order n desc",
+        "How many programs are with vs. without registration.",
+    ),
+    _q(
+        "explore-datasets",
+        "Data sets by period type",
+        "explore",
+        "dataSets | aggregate by periodType { n: count() } | order n desc",
+        "Group data sets by reporting frequency.",
+    ),
+    _q(
+        "explore-optionsets",
+        "Option sets with options",
+        "explore",
+        "optionSets | select id, name, options.name as options | limit 10",
+        "Collect each option set's option names into a list.",
+    ),
+    _q(
+        "explore-analytics-by-period",
+        "Analytics summed by period",
+        "explore",
+        'analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd") | aggregate by pe { total: sum(value) } | order pe asc',  # noqa: E501
+        "Total an indicator across org units, per month.",
+    ),
+    _q(
+        "explore-de-groups",
+        "Data element group sizes",
+        "explore",
+        "dataElementGroups | select name, dataElements.name as members | limit 10",
+        "List each group's member data elements.",
+    ),
     # ---------------------------------------------------------------- sinks
     _q(
         "sink-csv",
