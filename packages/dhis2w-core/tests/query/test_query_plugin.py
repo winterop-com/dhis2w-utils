@@ -137,6 +137,21 @@ def test_collect_fields_resolves_rows_navigation_in_fold() -> None:
     assert "dataSetElements[dataElement[id,name]]" in fields
 
 
+def test_collect_fields_ignores_post_reshape_aliases() -> None:
+    # `label` is a select alias, not a DHIS2 field — it must not reach fields=.
+    fields = _fields("dataElements | select id, name as label | order label asc")
+    assert fields is not None
+    assert "label" not in fields
+    assert fields == "id,name"
+
+
+def test_collect_fields_through_element_preserving_method() -> None:
+    # `options.where(code = "A").name` needs both code (the filter) and name (the trailing member).
+    fields = _fields('optionSets | select options.where(code = "A").name as picked')
+    assert fields is not None
+    assert "options[code,name]" in fields
+
+
 def test_evaluate_path_over_local_json() -> None:
     patient = {"name": [{"use": "official", "family": "King"}]}
     assert service.evaluate_path('name.where(use = "official").family', patient) == ["King"]

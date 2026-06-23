@@ -14,11 +14,15 @@ d2w query run examples/d2ql/orgunits-per-level.d2ql
 d2w --profile play42 --json query run examples/d2ql/analytics-rollup.d2ql
 ```
 
-## Inspect one (no server needed)
+## Inspect one
 
 ```bash
-d2w query ast "$(cat examples/d2ql/library-immunisation.d2ql)"   # parse tree
-d2w query explain "$(cat examples/d2ql/metadata-anc-elements.d2ql)" # pushdown vs local
+# Parse tree — offline, no profile or server needed.
+d2w query ast "$(cat examples/d2ql/library-immunisation.d2ql)"
+
+# Pushdown vs. local split — needs the active profile (it checks the instance's
+# resource catalog), so it connects to DHIS2.
+d2w --profile play42 query explain "$(cat examples/d2ql/metadata-anc-elements.d2ql)"
 ```
 
 ## Load one from Python

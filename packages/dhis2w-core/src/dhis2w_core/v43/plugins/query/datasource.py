@@ -15,10 +15,8 @@ from dhis2w_ql.ast import (
     ArrayExpr,
     BinaryExpr,
     CallExpr,
-    CallSource,
     Define,
     DefineFunction,
-    ExprSource,
     IndexExpr,
     MemberExpr,
     NameExpr,
@@ -149,19 +147,23 @@ class Dhis2Binder:
         return None
 
 
+_RESHAPING_STAGES = frozenset({"select", "transform", "aggregate", "fold", "count"})
+_ELEMENT_PRESERVING = frozenset({"where", "first", "last", "tail", "skip", "take", "distinct", "single"})
+
+
 def collect_fields(library: Library, entry: Pipeline) -> str | None:
     """Extract the DHIS2 `fields` selector for the resource the `entry` pipeline binds.
 
-    Walks only the definitions reachable from `entry` — its source `define` chain and the
-    `define function`s it calls — so unused definitions and unrelated resources never contaminate
-    the selector. A single execution binds one metadata resource, so the reachable navigations all
-    apply to it. Returns a comma-separated selector (e.g. `id,name,categoryCombo[name]`), or None.
+    Walks only the definitions reachable from `entry` (its source `define` chain + the functions it
+    calls), and only while rows are still resource-shaped — collection stops after the first
+    reshaping stage (`select`/`transform`/`group by`/`fold`/`count`), because later stages reference
+    the new shape (aliases), not DHIS2 fields. A single execution binds one resource, so the
+    reachable navigations all apply to it. Returns e.g. `id,name,categoryCombo[name]`, or None.
     """
     defines = {d.name: d for d in library.definitions if isinstance(d, Define)}
     functions = {f.name: f for f in library.definitions if isinstance(f, DefineFunction)}
     known = set(functions)
     paths: set[str] = {"id", "name"}
-    seen_pipelines: set[int] = set()
     seen_functions: set[str] = set()
 
     def visit_function(name: str) -> None:
@@ -174,19 +176,50 @@ def collect_fields(library: Library, entry: Pipeline) -> str | None:
         for called in _called_functions(function.body, known):
             visit_function(called)
 
-    def visit_pipeline(pipeline: Pipeline) -> None:
-        if id(pipeline) in seen_pipelines:
-            return
-        seen_pipelines.add(id(pipeline))
-        _collect_pipeline(pipeline, paths)
-        for name in _called_functions_in_pipeline(pipeline, known):
+    def collect_from(expr: Any) -> None:
+        _collect_expr(expr, paths, {"this", "rows"})
+        for name in _called_functions(expr, known):
             visit_function(name)
+
+    def visit_pipeline(pipeline: Pipeline, seen: set[int]) -> bool:
+        """Collect resource-shaped navigations; return whether the pipeline's output stays resource-shaped."""
+        if id(pipeline) in seen:
+            return False
+        seen.add(id(pipeline))
         source = pipeline.source
         if isinstance(source, NameSource) and source.name in defines:
-            visit_pipeline(defines[source.name].body)
+            shaped = visit_pipeline(defines[source.name].body, seen)
+        elif isinstance(source, NameSource):  # a DHIS2 resource — rows start resource-shaped
+            shaped = True
+            if source.inline_filter is not None:
+                collect_from(source.inline_filter)
+        else:  # read / expr / call source — not a DHIS2 metadata resource
+            shaped = False
+        for stage in pipeline.stages:
+            if shaped:
+                for expr in _stage_exprs(stage):
+                    collect_from(expr)
+            if stage.kind in _RESHAPING_STAGES:
+                shaped = False
+        return shaped
 
-    visit_pipeline(entry)
+    visit_pipeline(entry, set())
     return _render_fields(paths) or None
+
+
+def _stage_exprs(stage: Any) -> list[Any]:
+    exprs: list[Any] = []
+    for attribute in ("predicate", "group"):
+        expr = getattr(stage, attribute, None)
+        if expr is not None:
+            exprs.append(expr)
+    exprs.extend(item.expr for item in getattr(stage, "items", []) or [])
+    for container in ("template", "aggregations"):
+        built = getattr(stage, container, None)
+        if built is not None:
+            exprs.append(built)
+    exprs.extend(key.expr for key in getattr(stage, "keys", []) or [])
+    return exprs
 
 
 def _scan_calls(expr: Any, known: set[str], found: set[str]) -> None:
@@ -224,58 +257,10 @@ def _called_functions(expr: Any, known: set[str]) -> set[str]:
     return found
 
 
-def _called_functions_in_pipeline(pipeline: Pipeline, known: set[str]) -> set[str]:
-    found: set[str] = set()
-    source = pipeline.source
-    if isinstance(source, NameSource) and source.inline_filter is not None:
-        _scan_calls(source.inline_filter, known, found)
-    elif isinstance(source, ExprSource):
-        _scan_calls(source.expr, known, found)
-    elif isinstance(source, CallSource):
-        for argument in source.args:
-            _scan_calls(argument.value, known, found)
-    for stage in pipeline.stages:
-        for attribute in ("predicate", "group"):
-            expr = getattr(stage, attribute, None)
-            if expr is not None:
-                _scan_calls(expr, known, found)
-        for select_item in getattr(stage, "items", []) or []:
-            _scan_calls(select_item.expr, known, found)
-        for container in ("template", "aggregations"):
-            built = getattr(stage, container, None)
-            if built is not None:
-                _scan_calls(built, known, found)
-        for order_key in getattr(stage, "keys", []) or []:
-            _scan_calls(order_key.expr, known, found)
-    return found
-
-
-def _collect_pipeline(pipeline: Pipeline, paths: set[str]) -> None:
-    # `$this` is the current row in per-row stages; `$rows` is the stream inside `fold`. Both are
-    # row-bound, so `$rows.dataSetElements.dataElement` collects the same field paths as bare navigation.
-    row_vars = {"this", "rows"}
-    source = pipeline.source
-    if isinstance(source, NameSource) and source.inline_filter is not None:
-        _collect_expr(source.inline_filter, paths, row_vars)
-    elif isinstance(source, ExprSource):
-        _collect_expr(source.expr, paths, row_vars)
-    for stage in pipeline.stages:
-        for attribute in ("predicate", "group"):
-            expr = getattr(stage, attribute, None)
-            if expr is not None:
-                _collect_expr(expr, paths, row_vars)
-        for select_item in getattr(stage, "items", []) or []:
-            _collect_expr(select_item.expr, paths, row_vars)
-        for container in ("template", "aggregations"):
-            built = getattr(stage, container, None)
-            if built is not None:
-                _collect_expr(built, paths, row_vars)
-        for order_key in getattr(stage, "keys", []) or []:
-            _collect_expr(order_key.expr, paths, row_vars)
-
-
 def _collect_expr(expr: Any, paths: set[str], row_vars: set[str]) -> None:
-    path = _path_of(expr, row_vars)
+    # A navigation chain (members + element-preserving methods like `where`/`first`) resolves to a
+    # single field path; `_nav_path` returns it and collects any method arguments along the way.
+    path = _nav_path(expr, paths, row_vars)
     if path is not None:
         if path:
             paths.add(path)
@@ -287,10 +272,10 @@ def _collect_expr(expr: Any, paths: set[str], row_vars: set[str]) -> None:
             _collect_expr(expr.target, paths, row_vars)
             _collect_expr(expr.index, paths, row_vars)
         case CallExpr():
-            # A method on a field path (e.g. `options.select({ code: code })`, `options.where(...)`)
-            # navigates the element, so its argument field paths belong under the target path.
+            # A type-changing method on a field path (e.g. `options.select({ code: code })`):
+            # its argument field paths describe the projected element, so they live under the target.
             target = expr.target
-            target_path = _path_of(target, row_vars) if target is not None else None
+            target_path = _nav_path(target, paths, row_vars) if target is not None else None
             if target is not None and target_path is None:
                 _collect_expr(target, paths, row_vars)
             elif target_path:
@@ -318,21 +303,32 @@ def _collect_expr(expr: Any, paths: set[str], row_vars: set[str]) -> None:
             return
 
 
-def _path_of(expr: Any, row_vars: set[str]) -> str | None:
-    """Return the dotted field path for an expression, or None when it is not a field path.
+def _nav_path(expr: Any, paths: set[str], row_vars: set[str]) -> str | None:
+    """Resolve a navigation chain to its field path, collecting any method arguments as nested paths.
 
-    A row-bound variable (`$this`, a function parameter) resolves to the row root (empty string),
-    so `$this.categoryCombo.name` and `$de.valueType` yield the same paths as bare navigation.
+    A row-bound variable (`$this`, `$rows`, a function parameter) is the row root (empty string).
+    Element-preserving methods (`where`/`first`/`last`/…) keep the element type, so a member after
+    them belongs to the same path and their arguments (e.g. `where(code = "A")`) collect under it.
+    Returns None when the expression is not a pure navigation (e.g. a `select`, a free function).
     """
     if isinstance(expr, NameExpr):
         return expr.name
     if isinstance(expr, VariableExpr):
         return "" if expr.name in row_vars else None
     if isinstance(expr, MemberExpr):
-        base = _path_of(expr.target, row_vars)
+        base = _nav_path(expr.target, paths, row_vars)
         if base is None:
             return None
         return expr.name if base == "" else f"{base}.{expr.name}"
+    if isinstance(expr, CallExpr) and expr.target is not None and expr.name in _ELEMENT_PRESERVING:
+        base = _nav_path(expr.target, paths, row_vars)
+        if base is None:
+            return None
+        for argument in expr.args:
+            nested: set[str] = set()
+            _collect_expr(argument, nested, {"this"})
+            paths.update(f"{base}.{path}" if base else path for path in nested)
+        return base
     return None
 
 
