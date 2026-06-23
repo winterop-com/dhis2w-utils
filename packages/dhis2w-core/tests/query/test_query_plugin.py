@@ -92,6 +92,39 @@ async def test_explain_unknown_call_source() -> None:
     assert explain.note is not None and "not a known call source" in explain.note
 
 
+@respx.mock
+async def test_explain_resolves_named_query_pushdown() -> None:
+    _mock_connect()
+    explain = await service.explain_query(
+        _PROFILE,
+        'define Aggregates: dataElements | where domainType = "AGGREGATE"\nAggregates | select id, name | limit 10',
+    )
+    # The reusable-library wrapper resolves to the real resource + pushed-down filter.
+    assert explain.source == "dataElements"
+    assert explain.source_kind == "resource"
+    assert explain.pushed_down is not None
+    assert [f.property for f in explain.pushed_down.filters] == ["domainType"]
+    assert explain.residual_stages == ["select", "limit"]
+    assert explain.note is not None and "Aggregates" in explain.note
+
+
+def test_non_metadata_sources_need_no_catalog() -> None:
+    from dhis2w_core.v42.plugins.query.service import _binds_metadata_resource
+    from dhis2w_ql import parse
+
+    def binds(text: str) -> bool:
+        library = parse(text)
+        assert library.terminal is not None
+        return _binds_metadata_resource(library, library.terminal)
+
+    assert binds("dataElements | select id") is True
+    assert binds('define A: dataElements | where domainType = "AGGREGATE"\nA | select id') is True
+    assert binds('analytics(dx: "x", pe: "y", ou: "z") | limit 5') is False
+    assert binds('dataValues(dataSet: "d", period: "p", orgUnit: "o") | limit 5') is False
+    assert binds('read("x.json") | select id') is False
+    assert binds("1 + 2") is False
+
+
 def _fields(text: str, define: str | None = None) -> str | None:
     from dhis2w_core.v42.plugins.query.datasource import collect_fields
     from dhis2w_core.v42.plugins.query.service import _select_pipeline

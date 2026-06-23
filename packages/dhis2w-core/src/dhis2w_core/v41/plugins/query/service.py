@@ -21,7 +21,7 @@ from dhis2w_ql import (
     to_jsonable,
     write_rows,
 )
-from dhis2w_ql.ast import CallSource, ExprSource, FileSink, NameSource, ReadSource, WhereStage
+from dhis2w_ql.ast import CallSource, Define, ExprSource, FileSink, NameSource, ReadSource, WhereStage
 from dhis2w_ql.engine import QueryEngine
 
 from dhis2w_core.profile import Profile
@@ -58,40 +58,44 @@ async def run_query(
 
 
 async def explain_query(profile: Profile, text: str, *, define: str | None = None) -> QueryExplain:
-    """Show how a d2ql pipeline splits between DHIS2 pushdown and local evaluation."""
+    """Show how a d2ql pipeline splits between DHIS2 pushdown and local evaluation.
+
+    Resolves the source `define` chain so the pushdown reported for `A | select ...` (where A is a
+    named query over a resource) reflects what execution actually pushes down, not just the wrapper.
+    """
     library = parse(text)
-    pipeline = _select_pipeline(library, define)
-    stages = _effective_stages(pipeline)
-    source = pipeline.source
-    if isinstance(source, ReadSource):
-        return QueryExplain(source=source.path, source_kind="read", residual_stages=_stage_kinds(stages))
-    if isinstance(source, ExprSource):
+    root_source, stages, followed = _resolve_chain(library, _select_pipeline(library, define))
+    via = f" (via {' -> '.join(followed)})" if followed else ""
+    if isinstance(root_source, ReadSource):
+        return QueryExplain(source=root_source.path, source_kind="read", residual_stages=_stage_kinds(stages))
+    if isinstance(root_source, ExprSource):
         return QueryExplain(source="<expression>", source_kind="expression", residual_stages=_stage_kinds(stages))
-    if isinstance(source, CallSource):
-        known = Dhis2Binder(profile, set(), None).bind_call(source.name, {}) is not None
-        note = (
-            f"fetched via {source.name}(...); all stages run locally"
+    if isinstance(root_source, CallSource):
+        known = Dhis2Binder(profile, set(), None).bind_call(root_source.name, {}) is not None
+        head = (
+            f"fetched via {root_source.name}(...); all stages run locally"
             if known
-            else f"{source.name!r}(...) is not a known call source"
+            else f"{root_source.name!r}(...) is not a known call source"
         )
-        return QueryExplain(source=source.name, source_kind="call", residual_stages=_stage_kinds(stages), note=note)
-    binder = await _build_binder(profile, library, pipeline)
-    data_source = binder.bind(source.name)
-    if data_source is None:
-        if _is_defined(library, source.name):
-            return QueryExplain(source=source.name, source_kind="definition", residual_stages=_stage_kinds(stages))
         return QueryExplain(
-            source=source.name,
+            source=root_source.name, source_kind="call", residual_stages=_stage_kinds(stages), note=head + via
+        )
+    binder = await _build_binder(profile, library, _select_pipeline(library, define))
+    data_source = binder.bind(root_source.name)
+    if data_source is None:
+        return QueryExplain(
+            source=root_source.name,
             source_kind="resource",
             residual_stages=_stage_kinds(stages),
-            note=f"{source.name!r} is not a resource on this instance",
+            note=f"{root_source.name!r} is not a resource on this instance" + via,
         )
-    plan = plan_pipeline(source.name, data_source.capabilities(), stages)
+    plan = plan_pipeline(root_source.name, data_source.capabilities(), stages)
     return QueryExplain(
-        source=source.name,
+        source=root_source.name,
         source_kind="resource",
         pushed_down=plan.native,
         residual_stages=_stage_kinds(plan.residual),
+        note=via.strip() or None,
     )
 
 
@@ -103,8 +107,46 @@ def evaluate_path(expression: str, data: Any) -> list[Any]:
 
 
 async def _build_binder(profile: Profile, library: Library, entry: Pipeline) -> Dhis2Binder:
-    resource_names = set(await metadata_service.list_resource_types(profile))
-    return Dhis2Binder(profile, resource_names, collect_fields(library, entry))
+    # Only fetch the resource catalog when the program actually binds a metadata resource — an
+    # analytics(...)/dataValues(...)/read(...)/expression program needs no catalog round-trip.
+    fields = collect_fields(library, entry)
+    if _binds_metadata_resource(library, entry):
+        return Dhis2Binder(profile, set(await metadata_service.list_resource_types(profile)), fields)
+    return Dhis2Binder(profile, set(), fields)
+
+
+def _defines(library: Library) -> dict[str, Pipeline]:
+    return {d.name: d.body for d in library.definitions if isinstance(d, Define)}
+
+
+def _resolve_chain(library: Library, entry: Pipeline) -> tuple[Any, list[Any], list[str]]:
+    """Follow the source `define` chain to its root source, returning (root source, effective stages, names).
+
+    Effective stages are concatenated innermost-first (the root's stages run before the wrappers'),
+    matching execution, so a plan over them reflects the real pushdown.
+    """
+    defines = _defines(library)
+    chain: list[Pipeline] = []
+    seen: set[int] = set()
+    pipeline = entry
+    while id(pipeline) not in seen:
+        seen.add(id(pipeline))
+        chain.append(pipeline)
+        source = pipeline.source
+        if isinstance(source, NameSource) and source.name in defines:
+            pipeline = defines[source.name]
+        else:
+            break
+    stages: list[Any] = []
+    for pipe in reversed(chain):
+        stages.extend(_effective_stages(pipe))
+    followed = [p.source.name for p in chain[:-1] if isinstance(p.source, NameSource)]
+    return chain[-1].source, stages, followed
+
+
+def _binds_metadata_resource(library: Library, entry: Pipeline) -> bool:
+    root_source, _, _ = _resolve_chain(library, entry)
+    return isinstance(root_source, NameSource)
 
 
 def _select_pipeline(library: Library, define: str | None) -> Pipeline:
@@ -128,10 +170,6 @@ def _effective_stages(pipeline: Pipeline) -> list[Any]:
 
 def _stage_kinds(stages: list[Any]) -> list[str]:
     return [stage.kind for stage in stages]
-
-
-def _is_defined(library: Library, name: str) -> bool:
-    return any(getattr(definition, "name", None) == name for definition in library.definitions)
 
 
 def _uses_local_files(library: Library) -> bool:

@@ -13,7 +13,7 @@ and FHIR is a consumer of the engine (the expression layer evaluates over FHIR J
 
 ```
 define ActiveAggregates:
-  dataElements | where domainType = AGGREGATE
+  dataElements | where domainType = "AGGREGATE"
 
 ActiveAggregates
   | where name ~ "ANC"
@@ -21,7 +21,7 @@ ActiveAggregates
   | transform { code: id, label: name }
   | order name asc
   | limit 20
-  >> elements.csv
+  >> "elements.csv"
 ```
 
 - **Expression layer** (FHIRPath-compatible): path navigation, operators, and functions with
