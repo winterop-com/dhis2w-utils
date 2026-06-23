@@ -186,6 +186,7 @@ nav:
       - d2ql tutorial: guides/d2ql-tutorial.md
       - d2ql reference: guides/d2ql.md
       - d2path: guides/d2path.md
+      - Language semantics: query/semantics.md
       - Cookbook: query/cookbook.md
       - API reference: api/query.md
 
