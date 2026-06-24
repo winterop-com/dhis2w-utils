@@ -43,8 +43,9 @@ move the cursor within a multi-line program otherwise; **Ctrl+L** clears, **Ctrl
 has full readline-style keys (Ctrl+A/E/W/K/U, word nav, undo/redo). **Ctrl+F** cycles the output
 format (table / json / ndjson / csv) for wide results, and **Ctrl+T** toggles **tree mode** — the
 result pane becomes a collapsible **JSON tree** that each new query repopulates (so you see the tree,
-not JSON, first). Tab into it to navigate (arrows move, Enter expands/collapses); **Escape** or
-**Ctrl+T** returns to the log. The tree is structural, so it renders json and ndjson results alike.
+not JSON, first). It takes focus on toggle so you can navigate immediately (arrows move, Enter
+expands/collapses); Tab back to the editor to run another query; **Escape** or **Ctrl+T** returns to
+the log. The tree is structural, so it renders json and ndjson results alike.
 Without the extra, `repl` falls back to a line-mode prompt that runs on a blank line or a trailing `;`.
 
 A library of runnable, commented programs lives in

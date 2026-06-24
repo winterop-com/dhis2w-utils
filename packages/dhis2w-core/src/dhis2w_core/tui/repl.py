@@ -110,7 +110,7 @@ class D2qlReplApp(App[None]):
         self.query_one("#program", _ProgramArea).focus()
         log = self.query_one("#results", RichLog)
         log.write("[dim]Enter runs · Ctrl+J newline · Up/Down history[/dim]")
-        log.write("[dim]Ctrl+F format · Ctrl+T tree (Tab to navigate) · Ctrl+L clear · Ctrl+Q quit[/dim]")
+        log.write("[dim]Ctrl+F format · Ctrl+T tree · Ctrl+L clear · Ctrl+Q quit[/dim]")
 
     @on(_ProgramArea.Submit)
     def _on_submit(self, message: _ProgramArea.Submit) -> None:
@@ -153,16 +153,20 @@ class D2qlReplApp(App[None]):
     def action_toggle_tree(self) -> None:
         """Toggle tree mode: while on, the result pane is a collapsible JSON tree (not the log).
 
-        Keeps focus on the editor so you can keep running queries and watch the tree update — Tab into
-        the tree to expand/collapse, Escape or Ctrl+T to return to the log.
+        Entering focuses the tree so you can navigate it immediately (arrows move, Enter
+        expands/collapses); Escape or Ctrl+T returns to the log and the editor. Each new query
+        repopulates the tree, so Tab back to the editor to run one.
         """
         self._tree_visible = not self._tree_visible
         tree = self.query_one("#tree", JSONTree)
         tree.display = self._tree_visible
         self.query_one("#results", RichLog).display = not self._tree_visible
-        if self._tree_visible and self._last_result is not None:
-            tree.show(self._last_result)
-        self.query_one("#program", _ProgramArea).focus()
+        if self._tree_visible:
+            if self._last_result is not None:
+                tree.show(self._last_result)
+            tree.focus()
+        else:
+            self.query_one("#program", _ProgramArea).focus()
 
     def action_hide_tree(self) -> None:
         """Escape leaves tree mode for the log; a no-op when the tree is hidden."""

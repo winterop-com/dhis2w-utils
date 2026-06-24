@@ -93,9 +93,11 @@ async def test_ctrl_t_toggles_the_json_tree_view() -> None:
         await pilot.pause()
         assert tree.display is True and log.display is False
         assert len(tree.root.children) == 2  # one node per result row
+        assert app.focused is tree  # tree mode focuses the tree so you can navigate immediately
         await pilot.press("ctrl+t")  # back to the log
         await pilot.pause()
         assert tree.display is False and log.display is True
+        assert app.focused is app.query_one("#program", _ProgramArea)  # focus returns to the editor
 
 
 async def test_tree_mode_renders_new_results_into_the_tree() -> None:
@@ -107,9 +109,11 @@ async def test_tree_mode_renders_new_results_into_the_tree() -> None:
 
     app = D2qlReplApp(run_program=fake, title="test")
     async with app.run_test() as pilot:
-        await pilot.press("ctrl+t")  # enable tree mode before running (empty tree), editor keeps focus
+        await pilot.press("ctrl+t")  # enter tree mode (focuses the tree)
         await pilot.pause()
-        app.query_one("#program", _ProgramArea).text = "dataElements | limit 3"
+        editor = app.query_one("#program", _ProgramArea)
+        editor.focus()  # Tab back to the editor to run a query
+        editor.text = "dataElements | limit 3"
         await pilot.press("enter")
         await app.workers.wait_for_complete()
         await pilot.pause()
