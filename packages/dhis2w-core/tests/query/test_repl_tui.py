@@ -71,6 +71,8 @@ async def test_ctrl_f_cycles_the_default_output_format() -> None:
         await pilot.press("ctrl+f")
         await pilot.pause()
         assert app._default_format == "json"
+        # the change shows as a transient toast, not a line in the results log
+        assert any(note.title == "Output format" and note.message == "json" for note in app._notifications)
         await pilot.press("ctrl+f")
         await pilot.pause()
         assert app._default_format == "ndjson"
