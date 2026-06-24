@@ -10,6 +10,11 @@ d2w data aggregate get --data-set BfMAe6Itzgt --org-unit DiszpKrYNg8 --period 20
 # Narrow by data element group if you have one configured.
 # d2w data aggregate get --deg SOME_DEG_UID --period 202601
 
+# Extra read filters: an org-unit group instead of --ou, only values modified since a
+# date/duration (--last-updated), and include soft-deleted values (--include-deleted).
+# d2w data aggregate get --ds BfMAe6Itzgt --oug SOME_OUG_UID --period 202601
+# d2w data aggregate get --ds BfMAe6Itzgt --ou DiszpKrYNg8 --period 202601 --last-updated 7d --include-deleted
+
 # Write a single value (facility-level OU — district-level OUs aren't assigned
 # to the dataset, which DHIS2 enforces with E8022).
 d2w data aggregate set --de fClA2Erf6IO --pe 202603 --ou DiszpKrYNg8 --value 88

@@ -73,6 +73,28 @@ async def test_get_data_values_returns_typed_envelope(profile: Profile) -> None:
 
 
 @respx.mock
+async def test_get_data_values_threads_filters(profile: Profile) -> None:
+    """`get_data_values` forwards orgUnitGroup / includeDeleted / lastUpdated as query params."""
+    _mock_preamble()
+    route = respx.get("https://dhis2.example/api/dataValueSets").mock(
+        return_value=httpx.Response(200, json={"dataValues": []})
+    )
+
+    await service.get_data_values(
+        profile,
+        data_set="lyLU2wR22tC",
+        org_unit_group="OU_GRP",
+        include_deleted=True,
+        last_updated="2024-01-01",
+    )
+
+    params = route.calls.last.request.url.params
+    assert params["orgUnitGroup"] == "OU_GRP"
+    assert params["includeDeleted"] == "true"
+    assert params["lastUpdated"] == "2024-01-01"
+
+
+@respx.mock
 async def test_get_data_values_truncates_with_limit(profile: Profile) -> None:
     """`limit=N` truncates the parsed `dataValues` list client-side."""
     _mock_preamble()

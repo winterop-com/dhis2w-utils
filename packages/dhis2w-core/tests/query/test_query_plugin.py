@@ -157,15 +157,19 @@ async def test_datavalues_call_source_threads_all_selection_args() -> None:
     await service.run_query(
         _PROFILE,
         'dataValues(dataSet: "BfMAe6Itzgt", startDate: "2024-01-01", endDate: "2024-03-31", '
-        'orgUnit: "ImspTQPwCqd", children: true, dataElementGroup: "oDkJh5Ddh7d", limit: 5) | limit 5',
+        'orgUnit: "ImspTQPwCqd", orgUnitGroup: "OU_GRP", children: true, dataElementGroup: "oDkJh5Ddh7d", '
+        'includeDeleted: true, lastUpdated: "2024-01-01", limit: 5) | limit 5',
     )
     params = route.calls.last.request.url.params
     assert params.get("dataSet") == "BfMAe6Itzgt"
     assert params.get("startDate") == "2024-01-01"
     assert params.get("endDate") == "2024-03-31"
     assert params.get("orgUnit") == "ImspTQPwCqd"
+    assert params.get("orgUnitGroup") == "OU_GRP"
     assert params.get("children") == "true"
     assert params.get("dataElementGroup") == "oDkJh5Ddh7d"
+    assert params.get("includeDeleted") == "true"
+    assert params.get("lastUpdated") == "2024-01-01"
 
 
 @respx.mock

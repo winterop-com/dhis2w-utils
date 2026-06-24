@@ -906,8 +906,11 @@ $ d2w data aggregate get [OPTIONS]
 * `--start-date TEXT`: ISO date (YYYY-MM-DD).
 * `--end-date TEXT`: ISO date (YYYY-MM-DD).
 * `--org-unit, --ou TEXT`: OrganisationUnit UID.
+* `--org-unit-group, --oug TEXT`: OrganisationUnitGroup UID (alternative to --ou).
 * `--children`: Include descendant org units (values usually live at facility level).
 * `--data-element-group, --deg TEXT`: DataElementGroup UID (narrows to its member DEs).
+* `--include-deleted`: Also return soft-deleted values.
+* `--last-updated TEXT`: Only values modified since a date (YYYY-MM-DD) or duration (e.g. 7d).
 * `--limit INTEGER`: Max rows to include in output.
 * `--help`: Show this message and exit.
 

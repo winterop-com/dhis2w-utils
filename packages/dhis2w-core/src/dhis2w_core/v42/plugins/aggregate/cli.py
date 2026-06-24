@@ -32,6 +32,10 @@ def get_command(
     start_date: Annotated[str | None, typer.Option("--start-date", help="ISO date (YYYY-MM-DD).")] = None,
     end_date: Annotated[str | None, typer.Option("--end-date", help="ISO date (YYYY-MM-DD).")] = None,
     org_unit: Annotated[str | None, typer.Option("--org-unit", "--ou", help="OrganisationUnit UID.")] = None,
+    org_unit_group: Annotated[
+        str | None,
+        typer.Option("--org-unit-group", "--oug", help="OrganisationUnitGroup UID (alternative to --ou)."),
+    ] = None,
     children: Annotated[
         bool,
         typer.Option(
@@ -42,6 +46,13 @@ def get_command(
     data_element_group: Annotated[
         str | None,
         typer.Option("--data-element-group", "--deg", help="DataElementGroup UID (narrows to its member DEs)."),
+    ] = None,
+    include_deleted: Annotated[
+        bool, typer.Option("--include-deleted", help="Also return soft-deleted values.")
+    ] = False,
+    last_updated: Annotated[
+        str | None,
+        typer.Option("--last-updated", help="Only values modified since a date (YYYY-MM-DD) or duration (e.g. 7d)."),
     ] = None,
     limit: Annotated[int | None, typer.Option("--limit", help="Max rows to include in output.")] = None,
 ) -> None:
@@ -59,8 +70,11 @@ def get_command(
             start_date=start_date,
             end_date=end_date,
             org_unit=org_unit,
+            org_unit_group=org_unit_group,
             children=children,
             data_element_group=data_element_group,
+            include_deleted=include_deleted,
+            last_updated=last_updated,
             limit=limit,
         )
     )

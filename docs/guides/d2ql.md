@@ -73,7 +73,8 @@ from Python via `parse(open(<file>).read())`.
     - `dataValues(dataSet: "...", period: "...", orgUnit: "...")` — raw aggregate values from
       `/api/dataValueSets` (navigate `dataElement`, `period`, `orgUnit`, `value`). Accepts the full
       selection: `dataSet` **or** `dataElementGroup`, a single `period` **or** a `startDate`/`endDate`
-      window, `orgUnit` with optional `children: true` for its subtree, and `limit`.
+      window, `orgUnit` **or** `orgUnitGroup` with optional `children: true` for its subtree,
+      `includeDeleted: true`, `lastUpdated` (modified-since date/duration), and `limit`.
 
 ## Stages
 

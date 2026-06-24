@@ -1,0 +1,6 @@
+// Values modified since a date (`lastUpdated`) — a date `2014-01-01` or a duration like `7d`.
+// Combine with `includeDeleted: true` to also see soft-deleted values. Newest first.
+dataValues(dataSet: "BfMAe6Itzgt", period: "202401", orgUnit: "ImspTQPwCqd", children: true, lastUpdated: "2014-01-01")
+  | select dataElement, orgUnit, value, lastUpdated
+  | order lastUpdated desc
+  | limit 25

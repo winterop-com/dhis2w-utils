@@ -26,6 +26,21 @@ async def main() -> None:
         rows = envelope.get("dataValues", [])
         print(f"before: {len(rows)} data values for 202603")
 
+        # Extra read filters: only values modified recently (last_updated), including
+        # soft-deleted ones (include_deleted). org_unit_group selects by OU group instead of org_unit.
+        recent = await client.call_tool(
+            "data_aggregate_get",
+            {
+                "data_set": "BfMAe6Itzgt",
+                "period": "202603",
+                "org_unit": "DiszpKrYNg8",
+                "last_updated": "7d",
+                "include_deleted": True,
+            },
+        )
+        env = recent.structured_content or recent.data or {}
+        print(f"recent: {len(env.get('dataValues', []))} values modified in the last 7 days")
+
         await client.call_tool(
             "data_aggregate_set",
             {
