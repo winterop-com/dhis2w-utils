@@ -143,7 +143,7 @@ class AggregateDataSource:
     """A d2ql call source backed by `/api/dataValueSets`; rows are typed `DataValue` models."""
 
     def __init__(self, profile: Profile, args: dict[str, Any]) -> None:
-        """Hold the profile and the call arguments (dataSet / period / orgUnit)."""
+        """Hold the profile and the call arguments (dataSet/period/orgUnit/startDate/endDate/...)."""
         self._profile = profile
         self._args = args
 
@@ -152,14 +152,25 @@ class AggregateDataSource:
         return SourceCapabilities()
 
     async def fetch(self, native: NativeQuery) -> list[Any]:
-        """Fetch the data value set and return its `DataValue` rows."""
+        """Fetch the data value set (honouring every selection arg) and return its `DataValue` rows."""
+        limit = self._args.get("limit")
         value_set = await aggregate_service.get_data_values(
             self._profile,
-            data_set=self._args.get("dataSet"),
-            period=self._args.get("period"),
-            org_unit=self._args.get("orgUnit"),
+            data_set=self._str("dataSet"),
+            period=self._str("period"),
+            org_unit=self._str("orgUnit"),
+            start_date=self._str("startDate"),
+            end_date=self._str("endDate"),
+            children=_as_bool(self._args.get("children", False)),
+            data_element_group=self._str("dataElementGroup"),
+            limit=int(limit) if limit is not None else None,
         )
         return list(value_set.dataValues or [])
+
+    def _str(self, key: str) -> str | None:
+        """Return a call argument as a string, or None when it was not supplied."""
+        value = self._args.get(key)
+        return str(value) if value is not None else None
 
 
 class Dhis2Binder:

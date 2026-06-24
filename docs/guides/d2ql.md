@@ -71,7 +71,9 @@ from Python via `parse(open(<file>).read())`.
       `skipData`, and `includeNumDen` (adds `numerator`/`denominator`/`factor`). Any arg that isn't a
       known option or `filter` is treated as a dimension.
     - `dataValues(dataSet: "...", period: "...", orgUnit: "...")` — raw aggregate values from
-      `/api/dataValueSets` (navigate `dataElement`, `period`, `orgUnit`, `value`).
+      `/api/dataValueSets` (navigate `dataElement`, `period`, `orgUnit`, `value`). Accepts the full
+      selection: `dataSet` **or** `dataElementGroup`, a single `period` **or** a `startDate`/`endDate`
+      window, `orgUnit` with optional `children: true` for its subtree, and `limit`.
 
 ## Stages
 

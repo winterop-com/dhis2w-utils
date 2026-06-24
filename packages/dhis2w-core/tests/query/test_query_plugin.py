@@ -149,6 +149,26 @@ async def test_analytics_call_source_routes_options_vs_dimensions() -> None:
 
 
 @respx.mock
+async def test_datavalues_call_source_threads_all_selection_args() -> None:
+    _mock_connect()
+    route = respx.get(f"{_BASE}/api/dataValueSets").mock(
+        return_value=httpx.Response(200, json={"dataValues": [{"dataElement": "d", "period": "202401", "value": "1"}]})
+    )
+    await service.run_query(
+        _PROFILE,
+        'dataValues(dataSet: "BfMAe6Itzgt", startDate: "2024-01-01", endDate: "2024-03-31", '
+        'orgUnit: "ImspTQPwCqd", children: true, dataElementGroup: "oDkJh5Ddh7d", limit: 5) | limit 5',
+    )
+    params = route.calls.last.request.url.params
+    assert params.get("dataSet") == "BfMAe6Itzgt"
+    assert params.get("startDate") == "2024-01-01"
+    assert params.get("endDate") == "2024-03-31"
+    assert params.get("orgUnit") == "ImspTQPwCqd"
+    assert params.get("children") == "true"
+    assert params.get("dataElementGroup") == "oDkJh5Ddh7d"
+
+
+@respx.mock
 async def test_analytics_bool_option_accepts_literal_and_string() -> None:
     # The d2ql boolean literal `true` and the quoted string `"true"` both coerce to includeNumDen=true.
     _mock_connect()
