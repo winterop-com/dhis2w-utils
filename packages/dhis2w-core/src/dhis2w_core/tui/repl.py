@@ -70,6 +70,7 @@ class D2qlReplApp(App[None]):
     #results { height: 1fr; }
     #tree { height: 1fr; display: none; }
     #program { height: auto; min-height: 3; max-height: 12; border: round $accent; }
+    ToastRack { dock: top; align: right top; margin-top: 1; margin-bottom: 0; }
     """
     # The editor owns Ctrl+C (copy), Ctrl+A/E/W/K/U/D etc. (readline-style editing), so quit is Ctrl+Q.
     # History is the Up/Down arrows (at the buffer edges); Ctrl+P/N are always-recall readline aliases.
@@ -176,11 +177,11 @@ class D2qlReplApp(App[None]):
             self.action_toggle_tree()
 
     def action_cycle_format(self) -> None:
-        """Cycle the default output format (table -> json -> ndjson -> csv) for wide results."""
+        """Cycle the default output format (table -> json -> ndjson -> csv); show it as a brief toast."""
         index = self._FORMAT_CYCLE.index(self._default_format)
         self._default_format = self._FORMAT_CYCLE[(index + 1) % len(self._FORMAT_CYCLE)]
         shown = self._default_format or "table"
-        self.query_one("#results", RichLog).write(f"[dim]output format: {shown}[/dim]")
+        self.notify(shown, title="Output format", timeout=2)
 
     def action_history(self, delta: int) -> None:
         """Recall a previous (or next) submitted program into the editor."""
