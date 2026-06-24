@@ -1,0 +1,5 @@
+// Raw data values over a date window (startDate/endDate) instead of a single `period`,
+// across an org unit and its descendants (`children: true`). Both are dataValues(...) call args.
+dataValues(dataSet: "BfMAe6Itzgt", startDate: "2024-01-01", endDate: "2024-03-31", orgUnit: "ImspTQPwCqd", children: true)
+  | transform { de: dataElement, pe: period, ou: orgUnit, value: value }
+  | limit 25

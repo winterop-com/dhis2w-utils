@@ -133,6 +133,16 @@ dataValues(dataSet: "BfMAe6Itzgt", period: "202401", orgUnit: "ImspTQPwCqd")
   | transform { de: dataElement, ou: orgUnit, value: value }
 ```
 
+`dataValues(...)` accepts the full `/api/dataValueSets` selection: `dataSet` **or**
+`dataElementGroup`, a single `period` **or** a `startDate`/`endDate` window, `orgUnit` with optional
+`children: true` to include its subtree, and `limit`
+(`datavalues-date-window.d2ql`, `datavalues-with-children.d2ql`, `datavalues-by-group.d2ql`):
+
+```
+dataValues(dataSet: "BfMAe6Itzgt", startDate: "2024-01-01", endDate: "2024-03-31", orgUnit: "ImspTQPwCqd", children: true)
+  | transform { de: dataElement, pe: period, ou: orgUnit, value: value }
+```
+
 ## Reshape with `transform`
 
 `transform { … }` builds one object per row from d2path expressions — flat renames, computed fields,

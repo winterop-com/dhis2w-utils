@@ -77,6 +77,12 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 | `analytics-multi-period.d2ql` | multiple explicit periods × multiple `dx` |
 | `analytics-multi-orgunit.d2ql` | several districts compared with `group by` |
 | `datavalues-by-dataset.d2ql` | `dataValues(...)` source (`/api/dataValueSets`) |
+| `datavalues-date-window.d2ql` | `dataValues(...)` with `startDate`/`endDate` + `children` |
+| `datavalues-with-children.d2ql` | `dataValues(...)` over an org unit subtree (`children: true`) |
+| `datavalues-by-group.d2ql` | `dataValues(...)` selected by `dataElementGroup` instead of dataset |
+| `datavalues-count-by-orgunit.d2ql` | `dataValues(...)` + `group by` + `count` (reporting volume per facility) |
+| `datavalues-export-csv.d2ql` | `dataValues(...)` date window → CSV file sink |
+| `datavalues-recent.d2ql` | `dataValues(...)` ordered by the `lastUpdated` audit field |
 
 **`fhir-*`** — map DHIS2 metadata to FHIR (named `fhir-<source>-<resource>`)
 

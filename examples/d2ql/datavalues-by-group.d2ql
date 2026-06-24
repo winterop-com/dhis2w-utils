@@ -1,0 +1,5 @@
+// Select data values by a data element group instead of a dataset (`dataElementGroup`), over an
+// org unit subtree. dataSet and dataElementGroup are alternative ways to pick the elements.
+dataValues(dataElementGroup: "qfxEYY9xAl6", period: "202401", orgUnit: "ImspTQPwCqd", children: true)
+  | transform { de: dataElement, ou: orgUnit, value: value }
+  | limit 25
