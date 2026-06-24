@@ -7,9 +7,11 @@ from collections.abc import Awaitable, Callable
 from dhis2w_ql import D2qlError, QueryResult
 from textual import events, on, work
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.message import Message
 from textual.widgets import Footer, Header, RichLog, TextArea
 
+from dhis2w_core.tui.json_tree import JSONTree
 from dhis2w_core.tui.render import Format, build_result_renderable
 
 RunProgram = Callable[[str], Awaitable[QueryResult]]
@@ -66,6 +68,7 @@ class D2qlReplApp(App[None]):
 
     CSS = """
     #results { height: 1fr; }
+    #tree { height: 1fr; display: none; }
     #program { height: auto; min-height: 3; max-height: 12; border: round $accent; }
     """
     # The editor owns Ctrl+C (copy), Ctrl+A/E/W/K/U/D etc. (readline-style editing), so quit is Ctrl+Q.
@@ -73,11 +76,13 @@ class D2qlReplApp(App[None]):
     BINDINGS = [
         ("ctrl+q", "quit", "Quit"),
         ("ctrl+l", "clear", "Clear"),
-        ("ctrl+t", "cycle_format", "Output"),
+        ("ctrl+f", "cycle_format", "Format"),
+        ("ctrl+t", "toggle_tree", "Tree"),
+        Binding("escape", "hide_tree", "Back", show=False),
         ("ctrl+p", "history(-1)", "Prev"),
         ("ctrl+n", "history(1)", "Next"),
     ]
-    # Default output format cycled by Ctrl+T (None = the table/JSON auto-render). An explicit `as
+    # Default output format cycled by Ctrl+F (None = the table/JSON auto-render). An explicit `as
     # <format>` sink on a program always wins over this; the toggle helps when tables are too wide.
     _FORMAT_CYCLE: tuple[Format | None, ...] = (None, "json", "ndjson", "csv")
 
@@ -89,20 +94,25 @@ class D2qlReplApp(App[None]):
         self._history: list[str] = []
         self._history_index = 0
         self._default_format: Format | None = None
+        self._last_result: QueryResult | None = None
+        self._tree_visible = False
 
     def compose(self) -> ComposeResult:
-        """A results log above a multi-line program editor, framed by header/footer."""
+        """A results log (with a swappable JSON tree) above a program editor, framed by header/footer."""
         yield Header()
         yield RichLog(id="results", markup=True, highlight=True)
+        yield JSONTree("result", id="tree")
         yield _ProgramArea(id="program")
         yield Footer()
 
     def on_mount(self) -> None:
-        """Focus the editor and print the key hints."""
-        self.query_one("#program", _ProgramArea).focus()
-        self.query_one("#results", RichLog).write(
-            "[dim]Enter runs · Ctrl+J newline · Up/Down history · Ctrl+T output · Ctrl+L clear · Ctrl+Q quit[/dim]"
-        )
+        """Focus the editor; the persistent shortcuts live on the editor border + the Footer."""
+        editor = self.query_one("#program", _ProgramArea)
+        # Border title/subtitle stay visible no matter how large the results grow; app-level keys
+        # (Ctrl+F/T/L/Q, history) are always shown in the Footer.
+        editor.border_title = "d2ql"
+        editor.border_subtitle = "Enter run · Ctrl+J newline · Up/Down history"
+        editor.focus()
 
     @on(_ProgramArea.Submit)
     def _on_submit(self, message: _ProgramArea.Submit) -> None:
@@ -128,7 +138,10 @@ class D2qlReplApp(App[None]):
         except Exception as error:  # noqa: BLE001 — surface any failure in the pane, never crash the TUI
             log.write(f"[red]{type(error).__name__}: {error}[/red]")
             return
+        self._last_result = result
         log.write(build_result_renderable(result, default_format=self._default_format))
+        if self._tree_visible:  # tree mode: show the result as a tree (the log stays hidden, no JSON first)
+            self.query_one("#tree", JSONTree).show(result)
 
     @on(_ProgramArea.History)
     def _on_history(self, message: _ProgramArea.History) -> None:
@@ -138,6 +151,29 @@ class D2qlReplApp(App[None]):
     def action_clear(self) -> None:
         """Clear the results pane."""
         self.query_one("#results", RichLog).clear()
+
+    def action_toggle_tree(self) -> None:
+        """Toggle tree mode: while on, the result pane is a collapsible JSON tree (not the log).
+
+        Entering focuses the tree so you can navigate it immediately (arrows move, Enter
+        expands/collapses); Escape or Ctrl+T returns to the log and the editor. Each new query
+        repopulates the tree, so Tab back to the editor to run one.
+        """
+        self._tree_visible = not self._tree_visible
+        tree = self.query_one("#tree", JSONTree)
+        tree.display = self._tree_visible
+        self.query_one("#results", RichLog).display = not self._tree_visible
+        if self._tree_visible:
+            if self._last_result is not None:
+                tree.show(self._last_result)
+            tree.focus()
+        else:
+            self.query_one("#program", _ProgramArea).focus()
+
+    def action_hide_tree(self) -> None:
+        """Escape leaves tree mode for the log; a no-op when the tree is hidden."""
+        if self._tree_visible:
+            self.action_toggle_tree()
 
     def action_cycle_format(self) -> None:
         """Cycle the default output format (table -> json -> ndjson -> csv) for wide results."""
