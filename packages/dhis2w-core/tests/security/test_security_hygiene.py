@@ -193,6 +193,120 @@ def test_hygiene_findings_fold_into_groups_through_the_view() -> None:
 
 
 # ---------------------------------------------------------------------------
+# All-active-account aggregates (non-privileged, never-logged-in / stale)
+# ---------------------------------------------------------------------------
+
+
+def test_non_privileged_never_logged_in_aggregates_to_one_warn() -> None:
+    """Many non-privileged never-logged-in accounts collapse into one WARN with a capped sample."""
+    users = [_user(username=f"clerk{n:02d}", last_login=None) for n in range(15)]
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    rows = [f for f in findings if f.title == "Active accounts that never logged in"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.severity is Severity.WARN
+    assert row.group_key == "active-never-logged-in"
+    assert (row.evidence or {}).get("count") == "15"
+    sample = (row.evidence or {}).get("sample", "")
+    assert len(sample.split(", ")) == 10  # sample capped at SAMPLE_LIMIT, not 15
+    assert "and 5 more" in row.detail
+
+
+def test_non_privileged_stale_aggregates_to_one_warn() -> None:
+    """Many non-privileged stale accounts collapse into one WARN aggregate with the right count."""
+    users = [_user(username=f"old{n:02d}", last_login="2026-01-01T00:00:00") for n in range(12)]
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    rows = [f for f in findings if f.title == "Stale active accounts"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.severity is Severity.WARN
+    assert row.group_key == "active-stale"
+    assert (row.evidence or {}).get("count") == "12"
+    assert len((row.evidence or {}).get("sample", "").split(", ")) == 10
+    assert "and 2 more" in row.detail
+
+
+def test_aggregate_under_sample_limit_names_all_with_no_more_suffix() -> None:
+    """A handful of non-privileged accounts name every username with no truncation suffix."""
+    users = [_user(username=f"clerk{n}", last_login=None) for n in range(3)]
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    row = next(f for f in findings if f.title == "Active accounts that never logged in")
+    assert (row.evidence or {}).get("count") == "3"
+    assert (row.evidence or {}).get("sample") == "clerk0, clerk1, clerk2"
+    assert "more" not in row.detail
+
+
+def test_aggregate_excludes_disabled_non_privileged_accounts() -> None:
+    """Disabled non-privileged accounts never feed the aggregate; only active ones count."""
+    users = [
+        _user(username="active", last_login=None),
+        _user(username="gone", disabled=True, last_login=None),
+    ]
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    row = next(f for f in findings if f.title == "Active accounts that never logged in")
+    assert (row.evidence or {}).get("count") == "1"
+    assert (row.evidence or {}).get("sample") == "active"
+
+
+def test_privileged_per_user_rows_and_aggregates_coexist_without_double_count() -> None:
+    """Privileged accounts stay per-user; a privileged never-logged-in is NOT in the non-privileged aggregate."""
+    users = [
+        _user(username="adminGhost", last_login=None, privileged=True),
+        _user(username="adminRusty", last_login="2026-01-01T00:00:00", privileged=True),
+        *[_user(username=f"clerk{n:02d}", last_login=None) for n in range(15)],
+        *[_user(username=f"old{n:02d}", last_login="2026-01-01T00:00:00") for n in range(5)],
+    ]
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+
+    # Privileged per-user rows still present and severity-correct.
+    priv_never = [f for f in findings if f.title == "Privileged account never logged in"]
+    assert [f.subject for f in priv_never] == ["adminGhost"]
+    assert priv_never[0].severity is Severity.HIGH
+    priv_stale = [f for f in findings if f.title == "Stale privileged account"]
+    assert [f.subject for f in priv_stale] == ["adminRusty"]
+    assert priv_stale[0].severity is Severity.MEDIUM
+
+    # Non-privileged aggregates count only non-privileged accounts (no double-count of adminGhost).
+    never = next(f for f in findings if f.title == "Active accounts that never logged in")
+    assert (never.evidence or {}).get("count") == "15"
+    assert "adminGhost" not in (never.evidence or {}).get("sample", "")
+    stale = next(f for f in findings if f.title == "Stale active accounts")
+    assert (stale.evidence or {}).get("count") == "5"
+    assert "adminRusty" not in (stale.evidence or {}).get("sample", "")
+
+
+def test_aggregates_absent_when_no_non_privileged_offenders() -> None:
+    """A clean instance emits neither aggregate WARN row."""
+    users = [_user(username="clerk", last_login="2026-06-17T00:00:00")]
+    titles = _titles(evaluate_hygiene(users, stale_days=90, now=NOW))
+    assert "Active accounts that never logged in" not in titles
+    assert "Stale active accounts" not in titles
+
+
+def test_non_privileged_aggregates_render_as_single_rows_through_the_view() -> None:
+    """The aggregate WARN findings each render as one static row, never a per-account item list."""
+    users = [_user(username=f"clerk{n:02d}", last_login=None) for n in range(15)]
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    result = CheckResult(check="hygiene", label="User account hygiene", status=CheckStatus.OK, findings=findings)
+    report = AuditReport(
+        manifest=RunManifest(
+            target="https://test.example",
+            profile="default",
+            scanner_version="0.0.1-test",
+            started_at="2026-06-18T00:00:00+00:00",
+            check_order=["hygiene"],
+        ),
+        results=[result],
+        summary=AuditSummary.from_results([result]),
+    )
+    section = build_report_view(report).sections[0]
+    by_finding = {group.finding: group for group in section.groups}
+    never = by_finding["Active accounts that never logged in"]
+    assert never.count == 1  # one aggregate row, not 15
+    assert never.items == []  # never expands into a per-account list
+
+
+# ---------------------------------------------------------------------------
 # 2FA verdict shaping (the per-version source split)
 # ---------------------------------------------------------------------------
 

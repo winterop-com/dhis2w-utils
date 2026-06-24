@@ -14,6 +14,10 @@ _CHECK = "hygiene"
 # The well-known seed account DHIS2 installs on a fresh database.
 SEED_USERNAME = "admin"
 
+# How many usernames an aggregate non-privileged finding names before truncating to a count.
+# Mirrors the auditor app's SAMPLE_LIMIT so a 5000-user instance emits one row, not thousands.
+SAMPLE_LIMIT = 10
+
 
 class TwoFactorSource(StrEnum):
     """Where a version tree reads per-user 2FA state from."""
@@ -79,10 +83,22 @@ def build_user_hygiene(
 
 
 def evaluate_hygiene(users: list[UserHygiene], *, stale_days: int, now: datetime) -> list[AuditFinding]:
-    """Per-user hygiene findings over privileged accounts, plus seed-account and inventory signals."""
+    """Per-user hygiene over privileged accounts plus aggregate never-logged-in / stale signals for the rest.
+
+    Privileged accounts keep their high-signal per-user rows (privileged sets are small). Active
+    non-privileged accounts that never logged in or have gone stale are rolled up into at most two
+    aggregate WARN findings so a large instance never emits a row per account.
+    """
     findings: list[AuditFinding] = []
+    never_logged_in: list[str] = []
+    stale_accounts: list[str] = []
     for user in users:
         if not user.is_privileged:
+            if not user.disabled:
+                if user.last_login is None:
+                    never_logged_in.append(user.username)
+                elif _is_stale(user.last_login, now, stale_days):
+                    stale_accounts.append(user.username)
             continue
         if user.disabled:
             findings.append(
@@ -130,9 +146,48 @@ def evaluate_hygiene(users: list[UserHygiene], *, stale_days: int, now: datetime
                     group_key="no-email",
                 )
             )
+    findings.extend(
+        _aggregate_finding(
+            never_logged_in,
+            title="Active accounts that never logged in",
+            detail_lead="non-privileged active account(s) have never logged in",
+            group_key="active-never-logged-in",
+        )
+    )
+    findings.extend(
+        _aggregate_finding(
+            stale_accounts,
+            title="Stale active accounts",
+            detail_lead=f"non-privileged active account(s) have not logged in for over {stale_days} days",
+            group_key="active-stale",
+        )
+    )
     findings.extend(_seed_admin_findings(users))
     findings.append(_inventory_finding(users))
     return findings
+
+
+def _aggregate_finding(usernames: list[str], *, title: str, detail_lead: str, group_key: str) -> list[AuditFinding]:
+    """Roll up non-privileged accounts into one WARN finding with a count and a capped username sample."""
+    count = len(usernames)
+    if count == 0:
+        return []
+    sample = usernames[:SAMPLE_LIMIT]
+    more = count - len(sample)
+    detail = f"{count} {detail_lead}: {', '.join(sample)}"
+    if more > 0:
+        detail += f" and {more} more"
+    detail += "."
+    return [
+        AuditFinding(
+            check=_CHECK,
+            severity=Severity.WARN,
+            title=title,
+            detail=detail,
+            evidence={"count": str(count), "sample": ", ".join(sample)},
+            group_key=group_key,
+        )
+    ]
 
 
 def evaluate_two_factor_from_user_field(users: list[UserHygiene]) -> list[AuditFinding]:
