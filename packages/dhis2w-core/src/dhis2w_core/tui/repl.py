@@ -10,7 +10,7 @@ from textual.app import App, ComposeResult
 from textual.message import Message
 from textual.widgets import Footer, Header, RichLog, TextArea
 
-from dhis2w_core.tui.render import build_result_renderable
+from dhis2w_core.tui.render import Format, build_result_renderable
 
 RunProgram = Callable[[str], Awaitable[QueryResult]]
 
@@ -73,9 +73,13 @@ class D2qlReplApp(App[None]):
     BINDINGS = [
         ("ctrl+q", "quit", "Quit"),
         ("ctrl+l", "clear", "Clear"),
+        ("ctrl+t", "cycle_format", "Output"),
         ("ctrl+p", "history(-1)", "Prev"),
         ("ctrl+n", "history(1)", "Next"),
     ]
+    # Default output format cycled by Ctrl+T (None = the table/JSON auto-render). An explicit `as
+    # <format>` sink on a program always wins over this; the toggle helps when tables are too wide.
+    _FORMAT_CYCLE: tuple[Format | None, ...] = (None, "json", "ndjson", "csv")
 
     def __init__(self, *, run_program: RunProgram, title: str) -> None:
         """Bind the (text -> QueryResult) runner and the window title."""
@@ -84,6 +88,7 @@ class D2qlReplApp(App[None]):
         self.title = title
         self._history: list[str] = []
         self._history_index = 0
+        self._default_format: Format | None = None
 
     def compose(self) -> ComposeResult:
         """A results log above a multi-line program editor, framed by header/footer."""
@@ -96,7 +101,7 @@ class D2qlReplApp(App[None]):
         """Focus the editor and print the key hints."""
         self.query_one("#program", _ProgramArea).focus()
         self.query_one("#results", RichLog).write(
-            "[dim]Enter runs · Shift+Enter / Ctrl+J newline · Up/Down history · Ctrl+L clear · Ctrl+Q quit[/dim]"
+            "[dim]Enter runs · Ctrl+J newline · Up/Down history · Ctrl+T output · Ctrl+L clear · Ctrl+Q quit[/dim]"
         )
 
     @on(_ProgramArea.Submit)
@@ -123,7 +128,7 @@ class D2qlReplApp(App[None]):
         except Exception as error:  # noqa: BLE001 — surface any failure in the pane, never crash the TUI
             log.write(f"[red]{type(error).__name__}: {error}[/red]")
             return
-        log.write(build_result_renderable(result))
+        log.write(build_result_renderable(result, default_format=self._default_format))
 
     @on(_ProgramArea.History)
     def _on_history(self, message: _ProgramArea.History) -> None:
@@ -133,6 +138,13 @@ class D2qlReplApp(App[None]):
     def action_clear(self) -> None:
         """Clear the results pane."""
         self.query_one("#results", RichLog).clear()
+
+    def action_cycle_format(self) -> None:
+        """Cycle the default output format (table -> json -> ndjson -> csv) for wide results."""
+        index = self._FORMAT_CYCLE.index(self._default_format)
+        self._default_format = self._FORMAT_CYCLE[(index + 1) % len(self._FORMAT_CYCLE)]
+        shown = self._default_format or "table"
+        self.query_one("#results", RichLog).write(f"[dim]output format: {shown}[/dim]")
 
     def action_history(self, delta: int) -> None:
         """Recall a previous (or next) submitted program into the editor."""

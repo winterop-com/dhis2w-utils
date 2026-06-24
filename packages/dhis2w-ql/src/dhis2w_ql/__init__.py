@@ -23,6 +23,7 @@ from dhis2w_ql.engine import (
     ResourceBinder,
     SourceCapabilities,
     plan_pipeline,
+    serialize_rows,
     to_jsonable,
     write_rows,
 )
@@ -66,6 +67,7 @@ __all__ = [
     "SemanticError",
     "SourceCapabilities",
     "Token",
+    "serialize_rows",
     "TokenKind",
     "parse",
     "parse_expression",

@@ -1,0 +1,7 @@
+// `as <format>` overrides the file extension: write CSV to a `.txt` path the extension
+// wouldn't otherwise format. Without `as`, an unknown extension defaults to JSON.
+dataElements
+  | where domainType = "AGGREGATE"
+  | select id, name, valueType
+  | order name asc | limit 20
+  >> "/tmp/data-elements.txt" as csv

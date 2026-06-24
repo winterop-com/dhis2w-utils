@@ -10,8 +10,8 @@ from dhis2w_core.tui.repl import D2qlReplApp, _ProgramArea  # noqa: E402 — aft
 from dhis2w_ql import QueryResult  # noqa: E402
 
 
-def _result(rows: list[dict[str, str]]) -> QueryResult:
-    return QueryResult(rows=rows, count=len(rows), scalar=False)
+def _result(rows: list[dict[str, str]], format: str | None = None) -> QueryResult:
+    return QueryResult(rows=rows, count=len(rows), scalar=False, format=format)
 
 
 async def test_enter_runs_the_program() -> None:
@@ -47,6 +47,31 @@ async def test_up_arrow_recalls_history_at_top_line() -> None:
         await pilot.press("up")  # at the top line → recall previous program
         await pilot.pause()
         assert area.text == "dataElements | count"
+
+
+def test_explicit_sink_format_renders_as_text() -> None:
+    # A result carrying a sink format (e.g. `>> ndjson`) renders serialized, not as a table.
+    from dhis2w_core.tui.render import build_result_renderable
+    from rich.text import Text
+
+    renderable = build_result_renderable(_result([{"id": "a1"}, {"id": "b2"}], format="ndjson"))
+    assert isinstance(renderable, Text)
+    assert renderable.plain == '{"id": "a1"}\n{"id": "b2"}'
+
+
+async def test_ctrl_t_cycles_the_default_output_format() -> None:
+    async def fake(program: str) -> QueryResult:
+        return _result([])
+
+    app = D2qlReplApp(run_program=fake, title="test")
+    async with app.run_test() as pilot:
+        assert app._default_format is None
+        await pilot.press("ctrl+t")
+        await pilot.pause()
+        assert app._default_format == "json"
+        await pilot.press("ctrl+t")
+        await pilot.pause()
+        assert app._default_format == "ndjson"
 
 
 async def test_ctrl_j_inserts_newline_and_does_not_run() -> None:

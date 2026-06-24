@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from dhis2w_ql import D2qlError, QueryResult, parse, to_jsonable
+from dhis2w_ql import D2qlError, QueryResult, parse, serialize_rows, to_jsonable
 from rich.console import Console
 from rich.table import Table
 
@@ -162,6 +162,9 @@ def _run(coroutine: Any) -> Any:
 def _render_result(result: Any) -> None:
     if result.written_to is not None:
         _console.print(f"[green]wrote {result.count} row(s) to {result.written_to}[/green]")
+        return
+    if result.format is not None:  # an explicit `as <format>` / bare-format stdout sink
+        typer.echo(serialize_rows(result.rows, result.format, scalar=result.scalar).rstrip("\n"))
         return
     if result.scalar:
         value = to_jsonable(result.rows[0]) if result.rows else None

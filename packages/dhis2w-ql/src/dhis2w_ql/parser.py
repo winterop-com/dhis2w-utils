@@ -17,7 +17,10 @@ Grammar (informal):
                  |  "limit" INTEGER | "skip" INTEGER | "count"
                  |  "group" "by" expr object        # aggregate: group key + aggregation object
                  |  "fold" object                   # collapse the whole stream into one object
-    sink         := STRING | "stdout"
+    sink         := "stdout" ( "as" format )?   # to stdout; `as` picks json/ndjson/csv, else default render
+                 |  format                       # bare `json`/`ndjson`/`csv` = that format to stdout
+                 |  STRING ( "as" format )?       # to a file; `as` overrides the extension-inferred format
+    format       := "json" | "ndjson" | "csv"
 
 The pipeline `|` is the stage separator; collection union is the `union()` function, so `|` is
 never ambiguous between the two layers.
@@ -328,11 +331,28 @@ class _Parser:
         if self._at(TokenKind.STRING):
             path = self._advance().value
             extension = path.rsplit(".", 1)[-1].lower() if "." in path else ""
-            return FileSink(path=path, format=_FORMAT_BY_EXT.get(extension))
-        if self._at(TokenKind.IDENT) and self._peek().value == "stdout":
-            self._advance()
-            return StdoutSink()
-        raise self._error("expected a quoted file path or 'stdout' after '>>'")
+            return FileSink(path=path, format=self._parse_as_format() or _FORMAT_BY_EXT.get(extension))
+        if self._at(TokenKind.IDENT):
+            word = self._peek().value
+            if word == "stdout":  # `stdout` (default render) or `stdout as <format>`
+                self._advance()
+                return StdoutSink(format=self._parse_as_format())
+            bare = _FORMAT_BY_EXT.get(word)  # `>> ndjson` / `>> json` / `>> csv` = that format to stdout
+            if bare is not None:
+                self._advance()
+                return StdoutSink(format=bare)
+        raise self._error("expected 'stdout', a format (json/ndjson/csv), or a quoted file path after '>>'")
+
+    def _parse_as_format(self) -> Literal["json", "ndjson", "csv"] | None:
+        """Parse an optional `as <format>` clause on a sink, overriding the destination's default."""
+        if not self._at_keyword("as"):
+            return None
+        self._advance()
+        word = self._expect(TokenKind.IDENT, "an output format (json, ndjson, csv) after 'as'").value
+        fmt = _FORMAT_BY_EXT.get(word)
+        if fmt is None:
+            raise self._error(f"unknown output format {word!r}; use json, ndjson, or csv")
+        return fmt
 
     # ------------------------------------------------------------------ expressions
 

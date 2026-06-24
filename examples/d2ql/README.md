@@ -5,7 +5,7 @@ A d2ql program is the same text regardless of the DHIS2 major, so these live her
 `examples/v41|v42|v43`), and the per-version `cli/query_run.sh` runners execute them.
 
 Files are grouped by a name prefix: `metadata-*`, `orgunits-*`, `analytics-*`, `datavalues-*`,
-`fhir-*`, `geojson-*`, `export-*`, `library-*`.
+`fhir-*`, `geojson-*`, `export-*`, `sink-*`, `library-*`.
 
 ## Run one
 
@@ -103,6 +103,16 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 | `export-stdout.d2ql` | the explicit `>> stdout` print sink (same as omitting the sink) |
 
 (`geojson-*` and `fhir-bundle-*` also write files when they end in a `>>` sink.)
+
+**`sink-*`** — control output format independently of destination (`as <format>` / bare-format shorthand)
+
+| File | Shows |
+|------|-------|
+| `sink-stdout-json.d2ql` | `>> json` — JSON array to stdout (bare-keyword shorthand) |
+| `sink-stdout-ndjson.d2ql` | `>> ndjson` — newline-delimited JSON to stdout |
+| `sink-stdout-csv.d2ql` | `>> csv` — CSV to stdout (escapes wide tables) |
+| `sink-stdout-as.d2ql` | `>> stdout as ndjson` — the explicit long form |
+| `sink-file-as-override.d2ql` | `>> "file.txt" as csv` — `as` overrides the extension |
 
 **`geojson-*` / `library-*`**
 

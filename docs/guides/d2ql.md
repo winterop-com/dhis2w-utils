@@ -133,16 +133,28 @@ dataElements
 
 ## Sinks
 
-End a pipeline with `>>` to write the result instead of returning it. The format is inferred from
-the file extension:
+End a pipeline with `>>` to choose where the result goes and in which format. **Destination** is
+`stdout` or a quoted file path; **format** is `json` / `ndjson` / `csv`, set explicitly with
+`as <format>` or, for files, inferred from the extension. Format and destination are independent:
+
+| Sink | Destination | Format |
+|------|-------------|--------|
+| *(no sink)* / `>> stdout` | stdout | table (or JSON under `--json`) — the default renderer |
+| `>> json` / `>> ndjson` / `>> csv` | stdout | that format (bare-keyword shorthand) |
+| `>> stdout as ndjson` | stdout | ndjson (explicit; identical to `>> ndjson`) |
+| `>> "out.csv"` / `>> "out.json"` / `>> "out.ndjson"` | file | from the extension |
+| `>> "out.txt" as csv` | file | csv (`as` overrides the extension) |
 
 ```
-dataElements | select id, name >> "elements.csv"      # csv
-dataElements | transform { … }   >> "out.json"        # json
-dataElements | select id, name >> "elements.ndjson"   # ndjson
+dataElements | select id, name >> ndjson                # ndjson to stdout (pipe to jq; escapes wide tables)
+dataElements | select id, name >> csv                   # csv to stdout
+dataElements | select id, name >> "elements.csv"        # csv file (extension)
+dataElements | select id, name >> "elements.txt" as csv # csv file, extension overridden
 ```
 
-On the CLI, `--out FILE` is the equivalent of an in-program sink.
+A `json`/`ndjson`/`csv` format applies in the **REPL** too; or toggle the REPL's default render with
+**Ctrl+T** when tables are too wide. On the CLI, `--out FILE` is the equivalent of an in-program file
+sink.
 
 ## Definitions
 
