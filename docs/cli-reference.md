@@ -886,6 +886,7 @@ $ d2w data aggregate [OPTIONS] COMMAND [ARGS]...
 * `push`: Bulk push data values from a JSON file.
 * `set`: Set a single data value.
 * `delete`: Delete a single data value.
+* `followup`: Set or clear the follow-up flag on a...
 
 #### `d2w data aggregate get`
 
@@ -973,6 +974,26 @@ $ d2w data aggregate delete [OPTIONS]
 * `--data-element, --de TEXT`: [required]
 * `--period, --pe TEXT`: [required]
 * `--org-unit, --ou TEXT`: [required]
+* `--coc TEXT`
+* `--aoc TEXT`
+* `--help`: Show this message and exit.
+
+#### `d2w data aggregate followup`
+
+Set or clear the follow-up flag on a single data value.
+
+**Usage**:
+
+```console
+$ d2w data aggregate followup [OPTIONS]
+```
+
+**Options**:
+
+* `--data-element, --de TEXT`: [required]
+* `--period, --pe TEXT`: [required]
+* `--org-unit, --ou TEXT`: [required]
+* `--on / --off`: Set (--on) or clear (--off) the follow-up flag.  [default: on]
 * `--coc TEXT`
 * `--aoc TEXT`
 * `--help`: Show this message and exit.

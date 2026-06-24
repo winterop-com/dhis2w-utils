@@ -8,6 +8,7 @@ from dhis2w_client.v42 import DataValueSet, WebMessageResponse
 
 from dhis2w_core.profile import resolve_profile
 from dhis2w_core.v42.plugins.aggregate import service
+from dhis2w_core.v42.plugins.aggregate.models import FollowUpResult
 
 
 def register(mcp: Any) -> None:
@@ -120,6 +121,27 @@ def register(mcp: Any) -> None:
             data_element=data_element,
             period=period,
             org_unit=org_unit,
+            category_option_combo=category_option_combo,
+            attribute_option_combo=attribute_option_combo,
+        )
+
+    @mcp.tool()
+    async def data_aggregate_followup(
+        data_element: str,
+        period: str,
+        org_unit: str,
+        followup: bool = True,
+        category_option_combo: str | None = None,
+        attribute_option_combo: str | None = None,
+        profile: str | None = None,
+    ) -> FollowUpResult:
+        """Set or clear the follow-up flag on a single aggregate data value (PUT /api/dataValues/followup)."""
+        return await service.set_data_value_followup(
+            resolve_profile(profile),
+            data_element=data_element,
+            period=period,
+            org_unit=org_unit,
+            followup=followup,
             category_option_combo=category_option_combo,
             attribute_option_combo=attribute_option_combo,
         )

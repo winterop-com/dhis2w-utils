@@ -97,8 +97,7 @@ Envelope-level `dataSet`, `period`, `orgUnit` fields become POST-body fields and
 
 ## Not yet exposed
 
-- **Follow-up flags** (`followup=true` on data values).
 - **Attribute option combos** via UIDs (params are threaded but not exposed in CLI for every command).
-- **Audit trail endpoints** (`/api/dataValueSets/audit`).
+- **Audit trail endpoints** (`/api/audits/dataValue`).
 
 Add any of these to the plugin's `service.py` when the need arises; the CLI and MCP surfaces pick up new service functions by adding one decorator each.

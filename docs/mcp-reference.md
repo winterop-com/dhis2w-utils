@@ -2,14 +2,14 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 314 across 15 plugin groups.
+**Total tools**: 315 across 15 plugin groups.
 
 ## Plugins
 
 - [`analytics_*`](#analytics) — 5 tools
 - [`apps_*`](#apps) — 14 tools
 - [`customize_*`](#customize) — 5 tools
-- [`data_*`](#data) — 15 tools
+- [`data_*`](#data) — 16 tools
 - [`datastore_*`](#datastore) — 5 tools
 - [`doctor_*`](#doctor) — 4 tools
 - [`files_*`](#files) — 5 tools
@@ -302,6 +302,20 @@ Delete a single aggregate data value via DELETE /api/dataValues.
 | `data_element` | `string` | yes | — |
 | `period` | `string` | yes | — |
 | `org_unit` | `string` | yes | — |
+| `category_option_combo` | `string` | no | — |
+| `attribute_option_combo` | `string` | no | — |
+| `profile` | `string` | no | — |
+
+### `data_aggregate_followup`
+
+Set or clear the follow-up flag on a single aggregate data value (PUT /api/dataValues/followup).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `data_element` | `string` | yes | — |
+| `period` | `string` | yes | — |
+| `org_unit` | `string` | yes | — |
+| `followup` | `boolean` | no | — |
 | `category_option_combo` | `string` | no | — |
 | `attribute_option_combo` | `string` | no | — |
 | `profile` | `string` | no | — |

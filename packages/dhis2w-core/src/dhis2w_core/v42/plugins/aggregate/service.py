@@ -12,6 +12,7 @@ from dhis2w_client.v42 import DataValueSet, WebMessageResponse
 
 from dhis2w_core.profile import Profile
 from dhis2w_core.v42.client_context import open_client
+from dhis2w_core.v42.plugins.aggregate.models import FollowUpResult
 
 
 async def get_data_values(
@@ -151,3 +152,34 @@ async def delete_data_value(
 
     async with open_client(profile) as client:
         return await client.delete("/api/dataValues", params=params, model=WebMessageResponse)
+
+
+async def set_data_value_followup(
+    profile: Profile,
+    *,
+    data_element: str,
+    period: str,
+    org_unit: str,
+    followup: bool,
+    category_option_combo: str | None = None,
+    attribute_option_combo: str | None = None,
+) -> FollowUpResult:
+    """Set or clear the follow-up flag on a single data value via PUT /api/dataValues/followup.
+
+    DHIS2 returns an empty 200; a non-2xx raises. Returns a small typed summary. The body is built
+    as a dict at the HTTP boundary rather than via the generated `DataValueFollowUpRequest`, whose
+    v43 schema types `period` as an object the live wire doesn't require (BUGS.md #46).
+    """
+    body: dict[str, Any] = {
+        "dataElement": data_element,
+        "period": period,
+        "orgUnit": org_unit,
+        "followup": followup,
+    }
+    if category_option_combo is not None:
+        body["categoryOptionCombo"] = category_option_combo
+    if attribute_option_combo is not None:
+        body["attributeOptionCombo"] = attribute_option_combo
+    async with open_client(profile) as client:
+        await client.put_raw("/api/dataValues/followup", body)
+    return FollowUpResult(count=1, followup=followup)
