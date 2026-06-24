@@ -66,6 +66,7 @@ from dhis2w_core.security_core.hygiene import (
     evaluate_two_factor_from_user_field,
 )
 from dhis2w_core.security_core.models import AccountAuthorities, CategoryMatch
+from dhis2w_core.security_core.options import AuditOptions
 from dhis2w_core.security_core.orchestrator import run_audit
 from dhis2w_core.security_core.registry import (
     CANONICAL_CHECKS,
@@ -186,6 +187,7 @@ __all__ = [
     "AdvisoryFloor",
     "AnonymousResult",
     "AuditFinding",
+    "AuditOptions",
     "AuditPosture",
     "AuditReport",
     "AuditScopeMatrix",

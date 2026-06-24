@@ -526,7 +526,7 @@ def test_numeric_encoded_private_host_is_classified(host: str, label: str) -> No
 )
 def test_trailing_fqdn_dot_normalizes_before_classification(url: str, expected_private: bool) -> None:
     """Trailing FQDN dot is stripped before host classification so localhost. and 10.0.0.1. are caught."""
-    from dhis2w_core.security_core.routes import _is_private_host, host_from_url
+    from dhis2w_core.security_core.net import host_from_url, is_private_host
 
     host = host_from_url(url)
-    assert _is_private_host(host) == expected_private, f"url={url!r} host={host!r}"
+    assert is_private_host(host) == expected_private, f"url={url!r} host={host!r}"

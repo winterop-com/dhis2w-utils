@@ -13,7 +13,7 @@ from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_client.generated.v42.oas import LoginConfigResponse, Route
 from dhis2w_client.v42 import Dhis2Client
 from dhis2w_client.v42.auth.basic import BasicAuth
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 from rich.console import Console
 
 from dhis2w_core.profile import Profile
@@ -22,6 +22,7 @@ from dhis2w_core.security_core import (
     DEFAULT_PROBE_PASSWORD,
     DEFAULT_PROBE_USERNAME,
     AnonymousResult,
+    AuditOptions,
     AuditPosture,
     AuditReport,
     AuditSummary,
@@ -91,7 +92,7 @@ from dhis2w_core.security_core import (
     resolve_focus_types,
     run_audit,
 )
-from dhis2w_core.security_core.routes import host_from_url
+from dhis2w_core.security_core.net import host_from_url
 from dhis2w_core.v42.client_context import open_client
 from dhis2w_core.v42.plugins.security import _wire
 from dhis2w_core.v42.plugins.security.models import SecuritySettings
@@ -970,84 +971,115 @@ async def _run_credential_probe(client: Dhis2Client, console: Console) -> CheckR
     )
 
 
-def _bind(
-    runner: Callable[[Dhis2Client], Awaitable[CheckResult]], client: Dhis2Client
+class RunContext(BaseModel):
+    """Runtime context the binders read: the console plus the run's deterministic clock.
+
+    Separate from AuditOptions: these are run-time values (clock, console), not user options, so the core
+    stays deterministic with `now`/`generated_at` supplied by the caller. The mutable sharing-graph sink is
+    passed separately by reference (a pydantic field would be copied on validation, breaking the sink).
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    console: Console
+    now: datetime
+    generated_at: str
+
+
+# A binder turns the open client plus run-time inputs into a zero-argument check coroutine. Every binder
+# takes the same arguments so the dispatch table needs no per-check special-casing; binders ignore what
+# they do not use.
+Binder = Callable[
+    [Dhis2Client, AuditOptions, RunContext, "list[SharingGraph] | None"],
+    Callable[[], Awaitable[CheckResult]],
+]
+
+
+def _bind_default(key: str) -> Binder:
+    """Build a binder for a runner that needs only the open client (other inputs ignored)."""
+    runner = _RUNNERS[key]
+
+    def _binder(
+        client: Dhis2Client, options: AuditOptions, runtime: RunContext, graph_sink: list[SharingGraph] | None
+    ) -> Callable[[], Awaitable[CheckResult]]:
+        async def _run() -> CheckResult:
+            return await runner(client)
+
+        return _run
+
+    return _binder
+
+
+def _bind_probe(
+    client: Dhis2Client, options: AuditOptions, runtime: RunContext, graph_sink: list[SharingGraph] | None
 ) -> Callable[[], Awaitable[CheckResult]]:
-    """Bind a check runner to an open client, yielding a zero-argument coroutine."""
-
-    async def _run() -> CheckResult:
-        return await runner(client)
-
-    return _run
-
-
-def _bind_probe(client: Dhis2Client, console: Console) -> Callable[[], Awaitable[CheckResult]]:
     """Bind the credential probe to the open client plus a console for the lockout warning."""
 
     async def _run() -> CheckResult:
-        return await _run_credential_probe(client, console)
+        return await _run_credential_probe(client, runtime.console)
 
     return _run
 
 
 def _bind_hygiene(
-    client: Dhis2Client, *, stale_days: int, now: datetime, two_factor_detail: bool
+    client: Dhis2Client, options: AuditOptions, runtime: RunContext, graph_sink: list[SharingGraph] | None
 ) -> Callable[[], Awaitable[CheckResult]]:
     """Bind the hygiene check to the open client and its run-time options."""
 
     async def _run() -> CheckResult:
-        return await _run_hygiene(client, stale_days=stale_days, now=now, two_factor_detail=two_factor_detail)
+        return await _run_hygiene(
+            client, stale_days=options.stale_days, now=runtime.now, two_factor_detail=options.two_factor_detail
+        )
 
     return _run
 
 
 def _bind_sharing(
-    client: Dhis2Client, *, max_objects: int, generated_at: str, graph_sink: list[SharingGraph] | None
+    client: Dhis2Client, options: AuditOptions, runtime: RunContext, graph_sink: list[SharingGraph] | None
 ) -> Callable[[], Awaitable[CheckResult]]:
     """Bind the sharing check to the open client, its scan budget, the run's timestamp, and the sink."""
 
     async def _run() -> CheckResult:
-        return await _run_sharing(client, max_objects=max_objects, generated_at=generated_at, graph_sink=graph_sink)
+        return await _run_sharing(
+            client, max_objects=options.max_objects, generated_at=runtime.generated_at, graph_sink=graph_sink
+        )
 
     return _run
 
 
-def _bind_audit_config(client: Dhis2Client, *, dhis_conf_path: Path | None) -> Callable[[], Awaitable[CheckResult]]:
+def _bind_audit_config(
+    client: Dhis2Client, options: AuditOptions, runtime: RunContext, graph_sink: list[SharingGraph] | None
+) -> Callable[[], Awaitable[CheckResult]]:
     """Bind the audit-config check to the open client and the optional local dhis.conf path."""
 
     async def _run() -> CheckResult:
-        return await _run_audit_config(client, dhis_conf_path)
+        return await _run_audit_config(client, options.dhis_conf_path)
 
     return _run
+
+
+# Checks that need tunables or runtime: each maps to a uniform-signature binder. Every other check falls
+# through to `_bind_default`, so adding a tunable-bearing check is one table entry, not a new dispatch arm.
+_BINDERS: dict[str, Binder] = {
+    "credential-probe": _bind_probe,
+    "hygiene": _bind_hygiene,
+    "sharing": _bind_sharing,
+    "audit-config": _bind_audit_config,
+}
 
 
 def _bound_checks(
     client: Dhis2Client,
     keys: Sequence[str],
-    console: Console,
-    *,
-    stale_days: int,
-    now: datetime,
-    two_factor_detail: bool,
-    max_objects: int,
-    generated_at: str,
-    dhis_conf_path: Path | None = None,
+    options: AuditOptions,
+    runtime: RunContext,
     graph_sink: list[SharingGraph] | None = None,
 ) -> list[BoundCheck]:
-    """Build the ordered bound checks for `keys` against the open client."""
+    """Build the ordered bound checks for `keys` against the open client via the binder dispatch table."""
     checks: list[BoundCheck] = []
     for key in keys:
-        if key == "credential-probe":
-            run = _bind_probe(client, console)
-        elif key == "hygiene":
-            run = _bind_hygiene(client, stale_days=stale_days, now=now, two_factor_detail=two_factor_detail)
-        elif key == "sharing":
-            run = _bind_sharing(client, max_objects=max_objects, generated_at=generated_at, graph_sink=graph_sink)
-        elif key == "audit-config":
-            run = _bind_audit_config(client, dhis_conf_path=dhis_conf_path)
-        else:
-            run = _bind(_RUNNERS[key], client)
-        checks.append(BoundCheck(key=key, label=label_for(key), run=run))
+        binder = _BINDERS.get(key) or _bind_default(key)
+        checks.append(BoundCheck(key=key, label=label_for(key), run=binder(client, options, runtime, graph_sink)))
     return checks
 
 
@@ -1101,13 +1133,10 @@ async def run_security_audit(
     output_dir: Path,
     profile_name: str,
     started_at: str,
+    options: AuditOptions,
     only: list[str] | None = None,
     skip: list[str] | None = None,
     formats: Sequence[str] = DEFAULT_FORMATS,
-    stale_days: int = 90,
-    two_factor_detail: bool = False,
-    max_objects: int = DEFAULT_SHARING_MAX_OBJECTS,
-    dhis_conf_path: Path | None = None,
     visualize: bool = False,
     animated: bool = True,
     console: Console | None = None,
@@ -1133,20 +1162,10 @@ async def run_security_audit(
             streaming_renderer=MarkdownRenderer(),
             finalize_renderers=_finalize_renderers(formats),
         )
+        runtime = RunContext(console=con, now=_started_at_to_now(started_at), generated_at=started_at)
         report = await run_audit(
             manifest=manifest,
-            checks=_bound_checks(
-                client,
-                keys,
-                con,
-                stale_days=stale_days,
-                now=_started_at_to_now(started_at),
-                two_factor_detail=two_factor_detail,
-                max_objects=max_objects,
-                generated_at=started_at,
-                dhis_conf_path=dhis_conf_path,
-                graph_sink=graph_sink if visualize else None,
-            ),
+            checks=_bound_checks(client, keys, options, runtime, graph_sink if visualize else None),
             writer=writer,
             reporter=reporter,
         )
@@ -1159,11 +1178,8 @@ async def resume_security_audit(
     *,
     folder: Path,
     profile_name: str,
+    options: AuditOptions,
     formats: Sequence[str] = DEFAULT_FORMATS,
-    stale_days: int = 90,
-    two_factor_detail: bool = False,
-    max_objects: int = DEFAULT_SHARING_MAX_OBJECTS,
-    dhis_conf_path: Path | None = None,
     visualize: bool = False,
     animated: bool = True,
     console: Console | None = None,
@@ -1194,20 +1210,10 @@ async def resume_security_audit(
             finalize_renderers=_finalize_renderers(formats),
             resume=True,
         )
+        runtime = RunContext(console=con, now=_started_at_to_now(manifest.started_at), generated_at=manifest.started_at)
         report = await run_audit(
             manifest=manifest,
-            checks=_bound_checks(
-                client,
-                manifest.check_order,
-                con,
-                stale_days=stale_days,
-                now=_started_at_to_now(manifest.started_at),
-                two_factor_detail=two_factor_detail,
-                max_objects=max_objects,
-                generated_at=manifest.started_at,
-                dhis_conf_path=dhis_conf_path,
-                graph_sink=graph_sink if visualize else None,
-            ),
+            checks=_bound_checks(client, manifest.check_order, options, runtime, graph_sink if visualize else None),
             writer=writer,
             reporter=reporter,
             prior=prior,

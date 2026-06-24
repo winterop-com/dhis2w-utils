@@ -33,6 +33,7 @@ from dhis2w_client.v43.auth_schemes import (
 from pydantic import ValidationError
 
 from dhis2w_core.security_core import OAuth2ClientView, TokenAllowlists, TokenView, TwoFactorSource
+from dhis2w_core.security_core.text import split_delimited
 
 USER_FIELDS = "id,username,disabled,email,lastLogin,userRoles[id]"
 TWO_FACTOR_SOURCE: TwoFactorSource = TwoFactorSource.AUDIT_ENDPOINT
@@ -173,17 +174,9 @@ def oauth2_clients(raw: dict[str, Any]) -> list[OAuth2ClientView]:
 
 def _grant_types(client: Dhis2OAuth2Client) -> frozenset[str]:
     """Split the v43 comma-string `authorizationGrantTypes` into a lowercase frozenset."""
-    return frozenset(_split_comma(client.authorizationGrantTypes, lower=True))
+    return frozenset(split_delimited(client.authorizationGrantTypes, lower=True))
 
 
 def _redirect_uris(client: Dhis2OAuth2Client) -> tuple[str, ...]:
     """Split the v43 comma-string `redirectUris` into a tuple, preserving case."""
-    return tuple(_split_comma(client.redirectUris, lower=False))
-
-
-def _split_comma(value: str | None, *, lower: bool) -> list[str]:
-    """Split a comma-string into trimmed non-empty tokens, optionally lowercased."""
-    if not value:
-        return []
-    tokens = (token.strip() for token in value.split(","))
-    return [token.lower() if lower else token for token in tokens if token]
+    return tuple(split_delimited(client.redirectUris, lower=False))

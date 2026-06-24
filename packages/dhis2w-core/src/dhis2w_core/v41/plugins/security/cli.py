@@ -179,13 +179,19 @@ def audit_command(
     ] = None,
 ) -> None:
     """Run the security checks step by step and stream a report to a folder. `--json` prints the report."""
+    from dhis2w_core.security_core import AuditOptions
     from dhis2w_core.v41.plugins.security import audit
 
     profile = profile_from_env()
     profile_name = os.environ.get("DHIS2_PROFILE") or "default"
     formats = _parse_csv(output_format) or list(audit.DEFAULT_FORMATS)
-    resolved_max_objects = max_objects if max_objects is not None else audit.DEFAULT_SHARING_MAX_OBJECTS
     animated = progress and sys.stderr.isatty() and not is_json_output()
+    options = AuditOptions(
+        stale_days=stale_days,
+        two_factor_detail=two_factor_detail,
+        max_objects=max_objects if max_objects is not None else audit.DEFAULT_SHARING_MAX_OBJECTS,
+        dhis_conf_path=dhis_conf,
+    )
 
     try:
         if resume is not None:
@@ -194,11 +200,8 @@ def audit_command(
                     profile,
                     folder=resume,
                     profile_name=profile_name,
+                    options=options,
                     formats=formats,
-                    stale_days=stale_days,
-                    two_factor_detail=two_factor_detail,
-                    max_objects=resolved_max_objects,
-                    dhis_conf_path=dhis_conf,
                     visualize=sharing_graph,
                     animated=animated,
                 )
@@ -216,13 +219,10 @@ def audit_command(
                     output_dir=folder,
                     profile_name=profile_name,
                     started_at=now.isoformat(),
+                    options=options,
                     only=_parse_csv(checks),
                     skip=skip_keys or None,
                     formats=formats,
-                    stale_days=stale_days,
-                    two_factor_detail=two_factor_detail,
-                    max_objects=resolved_max_objects,
-                    dhis_conf_path=dhis_conf,
                     visualize=sharing_graph,
                     animated=animated,
                 )

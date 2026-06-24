@@ -18,11 +18,10 @@ extractor never reads `secret` / `clientSecret`.
 
 from __future__ import annotations
 
-from urllib.parse import urlsplit
-
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_core.security_core.findings import AuditFinding, Severity
+from dhis2w_core.security_core.net import LOOPBACK_REDIRECT_HOSTS, redirect_scheme_and_host
 
 _CHECK = "auth-methods"
 
@@ -38,10 +37,6 @@ _BROAD_GRANT_TYPES: frozenset[str] = frozenset(
         "urn:ietf:params:oauth:grant-type:device_code",
     }
 )
-
-# Loopback hosts a cleartext http:// redirect URI is allowed to use without being a finding (RFC 8252:
-# a native app may use http://127.0.0.1 / http://localhost as a loopback redirect during the auth flow).
-_LOOPBACK_HOSTS: frozenset[str] = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
 class LoginProviderView(BaseModel):
@@ -187,10 +182,9 @@ def _is_loose_redirect(uri: str) -> bool:
     if "*" in uri:
         return True
     try:
-        parsed = urlsplit(uri)
+        scheme, host = redirect_scheme_and_host(uri)
     except ValueError:
         return False
-    if parsed.scheme != "http":
+    if scheme != "http":
         return False
-    host = (parsed.hostname or "").lower()
-    return host not in _LOOPBACK_HOSTS
+    return host not in LOOPBACK_REDIRECT_HOSTS
