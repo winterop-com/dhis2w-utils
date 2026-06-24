@@ -35,13 +35,40 @@ def test_readonly_enabled_reads_env(monkeypatch: pytest.MonkeyPatch, value: str,
     assert readonly_enabled() is enabled
 
 
+_SECURITY_READ_TOOLS = frozenset({"security_settings", "security_authorities", "security_version"})
+
+
+async def test_security_read_tools_visible_under_readonly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The three security read tools are visible under DHIS2_MCP_READONLY via readOnlyHint annotation.
+
+    Their trailing verbs (settings/authorities/version) are not in READ_VERBS, so the verb
+    heuristic alone would fail-close them. The readOnlyHint=True annotation on each tool
+    bypasses the heuristic and keeps them visible under read-only mode.
+    """
+    monkeypatch.setenv("DHIS2_MCP_READONLY", "1")
+    async with Client(build_server()) as client:
+        names = {tool.name for tool in await client.list_tools()}
+    missing = _SECURITY_READ_TOOLS - names
+    assert not missing, f"security read tools hidden under read-only mode: {missing}"
+
+
+def _client_tool_is_read(tool: object) -> bool:
+    """Classify a client-side mcp.types.Tool as read-only: readOnlyHint annotation takes priority."""
+    annotations = getattr(tool, "annotations", None)
+    hint = getattr(annotations, "readOnlyHint", None) if annotations else None
+    if hint is not None:
+        return bool(hint)
+    return is_read_tool(getattr(tool, "name", ""))
+
+
 async def test_readonly_server_hides_write_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     """With DHIS2_MCP_READONLY set, list_tools exposes only read tools; without it, writes are present."""
     monkeypatch.setenv("DHIS2_MCP_READONLY", "1")
     async with Client(build_server()) as client:
-        names = [tool.name for tool in await client.list_tools()]
+        tools = await client.list_tools()
+    names = [tool.name for tool in tools]
     assert names, "expected some read tools"
-    assert all(is_read_tool(name) for name in names)
+    assert all(_client_tool_is_read(tool) for tool in tools)
     assert not any(name.endswith(("_create", "_set", "_delete", "_update", "_push", "_import")) for name in names)
 
     monkeypatch.delenv("DHIS2_MCP_READONLY", raising=False)

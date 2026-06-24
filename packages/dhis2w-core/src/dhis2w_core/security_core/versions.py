@@ -47,6 +47,34 @@ class AdvisoryFloor(BaseModel):
     note: str = ""
 
 
+class VersionPosture(BaseModel):
+    """The running DHIS2 version, its parsed parts, and the version findings.
+
+    The single-request version read shared by the CLI and the MCP `security_version`
+    tool: the raw version string, its decomposed parts (None when unparseable), and
+    the findings from classifying it against the static advisory floor and EOL line
+    rules. `findings` carries the EOL/below-floor verdicts without the external
+    release-feed refinement, so this posture is derivable from one DHIS2 request.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    version: str | None
+    parsed: ParsedVersion | None
+    findings: tuple[AuditFinding, ...]
+
+
+def build_version_posture(raw: str | None) -> VersionPosture:
+    """Parse a DHIS2 version string and classify it with no external release feed (feed=None).
+
+    Passing `feed=None` keeps the posture a pure function of the single version
+    read: the EOL-line and advisory-floor verdicts still fire, but the
+    behind-latest-patch refinement (which needs releases.dhis2.org) is omitted.
+    """
+    parsed = parse_dhis2_version(raw)
+    return VersionPosture(version=raw, parsed=parsed, findings=tuple(evaluate_version(parsed, feed=None)))
+
+
 # Curated from the DHIS2 GitHub security advisories
 # (https://github.com/dhis2/dhis2-core/security/advisories). Each entry is the
 # lowest patch.hotfix on that line that clears every advisory published so far.

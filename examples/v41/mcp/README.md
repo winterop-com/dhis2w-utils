@@ -42,3 +42,4 @@ The MCP tools read the same `DHIS2_URL` / `DHIS2_PAT` / `DHIS2_PROFILE` env cont
 | `apps.py` | `apps_list`, `apps_hub_list` (+ `apps_install_from_file / install_from_hub / uninstall / update / update_all / hub_url_{get,set}`) |
 | `customize_login.py` | `customize_*` — branding + login-page settings |
 | `doctor.py` | `doctor_run`, `doctor_bugs`, `doctor_integrity`, `doctor_metadata` |
+| `security.py` | `security_settings`, `security_authorities`, `security_version` (read-only; audit stays CLI-only) |

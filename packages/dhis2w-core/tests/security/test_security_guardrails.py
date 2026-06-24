@@ -38,6 +38,7 @@ TREES: tuple[tuple[str, ModuleType, str], ...] = (
 SERVICE_CALLS: dict[str, Callable[[ModuleType, Profile], Awaitable[Any]]] = {
     "get_security_settings": lambda service, profile: service.get_security_settings(profile),
     "get_account_authorities": lambda service, profile: service.get_account_authorities(profile),
+    "get_version_posture": lambda service, profile: service.get_version_posture(profile),
 }
 
 
