@@ -75,12 +75,38 @@ class Dhis2DataSource:
         )
         return list(rows[page.drop :]) if page.drop else list(rows)
 
+    async def count(self, native: NativeQuery) -> int:
+        """Count matching rows via DHIS2's pager total — no rows fetched (the `count` fast-path)."""
+        filters = compile_filters(native) or None
+        return await metadata_service.count_metadata(
+            self._profile, self._resource, filters=filters, root_junction=native.root_junction
+        )
+
+
+# Analytics option args carried as named call args, mapped to `query_analytics` kwargs. Anything not
+# listed here (and not `filter`) is an analytics dimension (`dx`/`pe`/`ou`/`co`/UID), rendered `key:value`.
+_ANALYTICS_STR_OPTIONS = {
+    "aggregationType": "aggregation_type",
+    "measureCriteria": "measure_criteria",
+    "outputIdScheme": "output_id_scheme",
+    "displayProperty": "display_property",
+    "startDate": "start_date",
+    "endDate": "end_date",
+    "relativePeriodDate": "relative_period_date",
+}
+_ANALYTICS_BOOL_OPTIONS = {"skipMeta": "skip_meta", "skipData": "skip_data", "includeNumDen": "include_num_den"}
+
+
+def _as_bool(value: Any) -> bool:
+    """Coerce a call-arg value to bool, accepting the d2ql `true`/`false` literal or string forms."""
+    return value if isinstance(value, bool) else str(value).strip().lower() in {"true", "1", "yes"}
+
 
 class AnalyticsDataSource:
     """A d2ql call source backed by `/api/analytics`; rows are dicts keyed by dimension (dx/pe/ou/value)."""
 
     def __init__(self, profile: Profile, args: dict[str, Any]) -> None:
-        """Hold the profile and the call arguments (analytics dimensions plus an optional filter)."""
+        """Hold the profile and the call arguments (analytics dimensions, options, and an optional filter)."""
         self._profile = profile
         self._args = args
 
@@ -89,11 +115,24 @@ class AnalyticsDataSource:
         return SourceCapabilities()
 
     async def fetch(self, native: NativeQuery) -> list[Any]:
-        """Run the analytics query and return one dict per Grid row, keyed by dimension header."""
-        dimensions = [f"{key}:{value}" for key, value in self._args.items() if key != "filter"]
-        raw_filter = self._args.get("filter")
-        filters = [str(raw_filter)] if raw_filter is not None else None
-        grid = await analytics_service.query_analytics(self._profile, dimensions=dimensions, filters=filters)
+        """Run the analytics query and return one dict per Grid row, keyed by dimension header.
+
+        Named call args split into analytics options (a known set, routed to the matching query
+        params) and dimensions (everything else, rendered `key:value`); `filter` stays a filter.
+        """
+        dimensions: list[str] = []
+        filters: list[str] | None = None
+        options: dict[str, Any] = {}
+        for key, value in self._args.items():
+            if key == "filter":
+                filters = [str(value)]
+            elif key in _ANALYTICS_STR_OPTIONS:
+                options[_ANALYTICS_STR_OPTIONS[key]] = str(value)
+            elif key in _ANALYTICS_BOOL_OPTIONS:
+                options[_ANALYTICS_BOOL_OPTIONS[key]] = _as_bool(value)
+            else:
+                dimensions.append(f"{key}:{value}")
+        grid = await analytics_service.query_analytics(self._profile, dimensions=dimensions, filters=filters, **options)
         if not isinstance(grid, Grid):
             return []
         headers = [header.name for header in grid.headers or []]
@@ -104,7 +143,7 @@ class AggregateDataSource:
     """A d2ql call source backed by `/api/dataValueSets`; rows are typed `DataValue` models."""
 
     def __init__(self, profile: Profile, args: dict[str, Any]) -> None:
-        """Hold the profile and the call arguments (dataSet / period / orgUnit)."""
+        """Hold the profile and the call arguments (dataSet/period/orgUnit/startDate/endDate/...)."""
         self._profile = profile
         self._args = args
 
@@ -113,14 +152,28 @@ class AggregateDataSource:
         return SourceCapabilities()
 
     async def fetch(self, native: NativeQuery) -> list[Any]:
-        """Fetch the data value set and return its `DataValue` rows."""
+        """Fetch the data value set (honouring every selection arg) and return its `DataValue` rows."""
+        limit = self._args.get("limit")
         value_set = await aggregate_service.get_data_values(
             self._profile,
-            data_set=self._args.get("dataSet"),
-            period=self._args.get("period"),
-            org_unit=self._args.get("orgUnit"),
+            data_set=self._str("dataSet"),
+            period=self._str("period"),
+            org_unit=self._str("orgUnit"),
+            org_unit_group=self._str("orgUnitGroup"),
+            start_date=self._str("startDate"),
+            end_date=self._str("endDate"),
+            children=_as_bool(self._args.get("children", False)),
+            data_element_group=self._str("dataElementGroup"),
+            include_deleted=_as_bool(self._args.get("includeDeleted", False)),
+            last_updated=self._str("lastUpdated"),
+            limit=int(limit) if limit is not None else None,
         )
         return list(value_set.dataValues or [])
+
+    def _str(self, key: str) -> str | None:
+        """Return a call argument as a string, or None when it was not supplied."""
+        value = self._args.get(key)
+        return str(value) if value is not None else None
 
 
 class Dhis2Binder:

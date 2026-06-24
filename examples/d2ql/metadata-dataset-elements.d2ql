@@ -1,0 +1,8 @@
+// Data set -> its data elements, via the nested `dataSetElements.dataElement` link.
+//
+// A dataSet relates to data elements through a join entity (dataSetElements), each
+// holding a `dataElement`. Chained navigation walks straight through it — another
+// "join" expressed as nested field access on a single source.
+dataSets
+  | transform { id: id, name: name, elements: dataSetElements.dataElement.select({ id: id, name: name }) }
+  | limit 10

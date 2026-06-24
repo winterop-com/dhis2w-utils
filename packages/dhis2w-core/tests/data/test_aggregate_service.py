@@ -8,6 +8,7 @@ typed envelopes. Covers the four public functions:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 
 import httpx
@@ -70,6 +71,28 @@ async def test_get_data_values_returns_typed_envelope(profile: Profile) -> None:
     assert params["dataSet"] == "lyLU2wR22tC"
     assert params["period"] == "202403"
     assert params["orgUnit"] == "ImspTQPwCqd"
+
+
+@respx.mock
+async def test_get_data_values_threads_filters(profile: Profile) -> None:
+    """`get_data_values` forwards orgUnitGroup / includeDeleted / lastUpdated as query params."""
+    _mock_preamble()
+    route = respx.get("https://dhis2.example/api/dataValueSets").mock(
+        return_value=httpx.Response(200, json={"dataValues": []})
+    )
+
+    await service.get_data_values(
+        profile,
+        data_set="lyLU2wR22tC",
+        org_unit_group="OU_GRP",
+        include_deleted=True,
+        last_updated="2024-01-01",
+    )
+
+    params = route.calls.last.request.url.params
+    assert params["orgUnitGroup"] == "OU_GRP"
+    assert params["includeDeleted"] == "true"
+    assert params["lastUpdated"] == "2024-01-01"
 
 
 @respx.mock
@@ -174,3 +197,28 @@ async def test_delete_data_value_threads_optional_combos(profile: Profile) -> No
     assert request.url.params["de"] == "fbfJHSPpUQD"
     assert request.url.params["co"] == "HllvX50cXC0"
     assert request.url.params["cc"] == "bRowv6yZOF2"
+
+
+@respx.mock
+async def test_set_data_value_followup_puts_typed_body(profile: Profile) -> None:
+    """`set_data_value_followup` PUTs the follow-up flag (empty 200) and returns a typed summary."""
+    _mock_preamble()
+    route = respx.put("https://dhis2.example/api/dataValues/followup").mock(return_value=httpx.Response(200))
+
+    result = await service.set_data_value_followup(
+        profile,
+        data_element="fbfJHSPpUQD",
+        period="202403",
+        org_unit="ImspTQPwCqd",
+        followup=True,
+        category_option_combo="HllvX50cXC0",
+    )
+
+    assert result.count == 1
+    assert result.followup is True
+    body = json.loads(route.calls.last.request.read())
+    assert body["dataElement"] == "fbfJHSPpUQD"
+    assert body["period"] == "202403"
+    assert body["orgUnit"] == "ImspTQPwCqd"
+    assert body["followup"] is True
+    assert body["categoryOptionCombo"] == "HllvX50cXC0"

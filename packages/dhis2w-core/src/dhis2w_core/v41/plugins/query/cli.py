@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from dhis2w_ql import D2qlError, parse, to_jsonable
+from dhis2w_ql import D2qlError, QueryResult, parse, serialize_rows, to_jsonable
 from rich.console import Console
 from rich.table import Table
 
-from dhis2w_core.profile import profile_from_env
+from dhis2w_core.profile import Profile, profile_from_env
 from dhis2w_core.v41.cli_output import is_json_output
 from dhis2w_core.v41.plugins.query import service
 from dhis2w_core.v41.plugins.query.models import QueryExplain
@@ -20,15 +21,16 @@ from dhis2w_core.v41.plugins.query.models import QueryExplain
 app = typer.Typer(help="d2ql query + transform language over DHIS2 metadata.", no_args_is_help=True)
 _console = Console()
 
-_TextArg = Annotated[str, typer.Argument(help="A d2ql program (quote it).")]
+_ProgArg = Annotated[str | None, typer.Argument(help="A d2ql program (quote it); or read one with --file.")]
+_FileOpt = Annotated[Path | None, typer.Option("--file", "-f", help="Read the d2ql program from this file.")]
 _DefineOpt = Annotated[str | None, typer.Option("--define", "-d", help="Run/explain this named definition.")]
 _OutOpt = Annotated[str | None, typer.Option("--out", "-o", help="Write rows to this file (json/ndjson/csv).")]
 
 
 @app.command("eval")
-def eval_command(text: _TextArg, define: _DefineOpt = None, out: _OutOpt = None) -> None:
-    """Run a d2ql program against the active profile and render the rows."""
-    result = _run(service.run_query(profile_from_env(), text, define=define, out=out))
+def eval_command(text: _ProgArg = None, file: _FileOpt = None, define: _DefineOpt = None, out: _OutOpt = None) -> None:
+    """Run a d2ql program (inline or `--file`) against the active profile and render the rows."""
+    result = _run(service.run_query(profile_from_env(), _program_source(text, file), define=define, out=out))
     _render_result(result)
 
 
@@ -44,17 +46,17 @@ def run_command(
 
 
 @app.command("explain")
-def explain_command(text: _TextArg, define: _DefineOpt = None) -> None:
-    """Show how a d2ql pipeline splits between DHIS2 pushdown and local evaluation."""
-    explain = _run(service.explain_query(profile_from_env(), text, define=define))
+def explain_command(text: _ProgArg = None, file: _FileOpt = None, define: _DefineOpt = None) -> None:
+    """Show how a d2ql pipeline (inline or `--file`) splits between DHIS2 pushdown and local evaluation."""
+    explain = _run(service.explain_query(profile_from_env(), _program_source(text, file), define=define))
     _render_explain(explain)
 
 
 @app.command("ast")
-def ast_command(text: _TextArg) -> None:
-    """Print the parsed d2ql AST (no profile needed)."""
+def ast_command(text: _ProgArg = None, file: _FileOpt = None) -> None:
+    """Print the parsed d2ql AST (no profile needed; inline program or `--file`)."""
     try:
-        library = parse(text)
+        library = parse(_program_source(text, file))
     except D2qlError as error:
         raise typer.BadParameter(str(error)) from error
     typer.echo(library.model_dump_json(indent=2, exclude_none=True))
@@ -74,21 +76,56 @@ def d2path_command(
     typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
 
 
+def _repl_step(buffer: list[str], line: str) -> tuple[list[str], str | None]:
+    """Feed one input line into the REPL buffer; return (new buffer, program to run or None).
+
+    A program accumulates over lines so multi-line pipelines can be typed or pasted; a blank line or
+    a trailing `;` submits it. Other lines accumulate (the caller shows a continuation prompt).
+    """
+    stripped = line.strip()
+    submit = stripped == "" or stripped.endswith(";")
+    if stripped.endswith(";"):
+        line = line.rstrip()[:-1]
+    if line.strip():
+        buffer = [*buffer, line]
+    if not submit:
+        return buffer, None
+    program = "\n".join(buffer).strip()
+    return [], (program or None)
+
+
 @app.command("repl")
 def repl_command() -> None:
-    """Start an interactive d2ql prompt against the active profile."""
+    """Interactive d2ql REPL. Uses the Textual TUI when the `tui` extra is installed, else line mode."""
     profile = profile_from_env()
-    _console.print("[dim]d2ql REPL — one program per line, Ctrl-D to exit.[/dim]")
+    if find_spec("textual") is not None:
+        from dhis2w_core.tui.repl import run_repl  # noqa: PLC0415 — optional [tui] extra
+
+        async def execute(program: str) -> QueryResult:
+            return await service.run_query(profile, program)
+
+        run_repl(run_program=execute, title=f"d2ql REPL — {profile.base_url}")
+        return
+    _line_repl(profile)
+
+
+def _line_repl(profile: Profile) -> None:
+    """Line-mode REPL fallback (no `tui` extra): build a program over lines; blank line or `;` runs it."""
+    _console.print("[dim]d2ql REPL — enter a program; a blank line or trailing `;` runs it. Ctrl-D to exit.")
+    _console.print("Install the `tui` extra (`uv add 'dhis2w-cli[tui]'`) for the full-screen editor.[/dim]")
+    buffer: list[str] = []
     while True:
+        prompt = "[bold cyan]d2ql>[/bold cyan] " if not buffer else "[bold cyan]  ...>[/bold cyan] "
         try:
-            line = _console.input("[bold cyan]d2ql>[/bold cyan] ").strip()
+            line = _console.input(prompt)
         except (EOFError, KeyboardInterrupt):
             _console.print()
             return
-        if not line:
+        buffer, program = _repl_step(buffer, line)
+        if program is None:
             continue
         try:
-            _render_result(_run(service.run_query(profile, line)))
+            _render_result(_run(service.run_query(profile, program)))
         except D2qlError as error:
             _console.print(f"[red]{error}[/red]")
 
@@ -96,6 +133,23 @@ def repl_command() -> None:
 def register(root_app: Any) -> None:
     """Mount under `d2w query`."""
     root_app.add_typer(app, name="query", help="d2ql query + transform language.")
+
+
+def _program_source(text: str | None, file: Path | None) -> str:
+    """Resolve the d2ql program from an inline argument or `--file`, rejecting a bare file path.
+
+    Without this, a file path passed as the program is parsed as a (meaningless) d2path expression
+    rather than read — so a path argument is rejected with a hint instead of silently misbehaving.
+    """
+    if file is not None:
+        if text is not None:
+            raise typer.BadParameter("pass a d2ql program or --file, not both")
+        return file.read_text(encoding="utf-8")
+    if text is None:
+        raise typer.BadParameter("provide a d2ql program (quote it) or --file <path>")
+    if text.endswith(".d2ql") or Path(text).is_file():
+        raise typer.BadParameter(f"{text!r} looks like a file path; pass it with --file/-f")
+    return text
 
 
 def _run(coroutine: Any) -> Any:
@@ -108,6 +162,9 @@ def _run(coroutine: Any) -> Any:
 def _render_result(result: Any) -> None:
     if result.written_to is not None:
         _console.print(f"[green]wrote {result.count} row(s) to {result.written_to}[/green]")
+        return
+    if result.format is not None:  # an explicit `as <format>` / bare-format stdout sink
+        typer.echo(serialize_rows(result.rows, result.format, scalar=result.scalar).rstrip("\n"))
         return
     if result.scalar:
         value = to_jsonable(result.rows[0]) if result.rows else None

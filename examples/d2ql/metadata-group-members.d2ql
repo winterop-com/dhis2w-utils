@@ -1,0 +1,9 @@
+// "Join" by traversing a nested association — no join keyword needed.
+//
+// DHIS2 metadata embeds relationships: a dataElementGroup carries its member
+// `dataElements`. So one source + nested navigation gives a group with its items.
+// `dataElements.select({...})` projects each member; the field collector requests
+// `dataElementGroups?fields=id,name,dataElements[id,name]` for you.
+dataElementGroups
+  | transform { id: id, name: name, items: dataElements.select({ id: id, name: name }) }
+  | limit 10

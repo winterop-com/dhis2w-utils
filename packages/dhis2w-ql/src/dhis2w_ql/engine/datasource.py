@@ -25,6 +25,15 @@ class DataSource(Protocol):
 
 
 @runtime_checkable
+class CountableSource(Protocol):
+    """A source that can return a total row count natively (e.g. via a pager total) without fetching."""
+
+    async def count(self, native: NativeQuery) -> int:
+        """Return how many rows the native query would yield, without fetching them."""
+        ...
+
+
+@runtime_checkable
 class ResourceBinder(Protocol):
     """Resolves a pipeline source name to a `DataSource`, or None when it is not a known resource."""
 

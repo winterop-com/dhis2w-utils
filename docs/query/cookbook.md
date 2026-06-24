@@ -31,6 +31,35 @@ indicators | select id, name, indicatorType.name as type | order name asc | limi
 optionSets | select id, name, options.name as options | limit 25
 ```
 
+## Joins (nested relationships)
+
+d2ql has one source per pipeline — there's no `join`/`from a, b`. But you rarely need one: DHIS2
+metadata **embeds** relationships, so you traverse the nested association on a single source. The
+field collector requests the right `fields=` expansion automatically.
+
+**A group with its member elements** (`metadata-group-members.d2ql`):
+
+```
+dataElementGroups | transform { id: id, name: name, items: dataElements.select({ id: id, name: name }) }
+```
+
+**A data set with its elements** — through the `dataSetElements.dataElement` join entity
+(`metadata-dataset-elements.d2ql`):
+
+```
+dataSets | transform { id: id, name: name, elements: dataSetElements.dataElement.select({ id: id, name: name }) }
+```
+
+**An org unit with its parent and children** — the self-referential hierarchy
+(`orgunits-with-children.d2ql`):
+
+```
+organisationUnits | where level = 2 | transform { id: id, name: name, parent: parent.name, children: children.name }
+```
+
+The same pattern covers dataSet→elements, optionSet→options, indicator→indicatorType, category→options,
+etc. A *true* cross-source join (correlating unrelated sources) isn't supported.
+
 ## Organisation units & GeoJSON
 
 **Facilities per level** (`orgunits-per-level.d2ql`):
@@ -81,11 +110,39 @@ analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd"
   | order total desc
 ```
 
+**Readable output + indicator numerator/denominator** — `analytics(...)` takes analytics options
+(not just dimensions): `outputIdScheme: "NAME"` returns names instead of UIDs, and `includeNumDen:
+true` exposes an indicator's `numerator`/`denominator`/`factor` (`analytics-named-output.d2ql`,
+`analytics-indicator-numden.d2ql`):
+
+```
+analytics(dx: "Uvn6LCg7dVU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", includeNumDen: true, outputIdScheme: "NAME")
+  | transform { month: pe, coverage: value, numerator: numerator, denominator: denominator }
+  | order month asc
+```
+
+Other options route the same way: `aggregationType`, `measureCriteria`, `displayProperty`,
+`startDate`/`endDate`, `relativePeriodDate`, `skipMeta`, `skipData`. Any other arg (e.g. `co`) is a
+dimension. The `analytics-*` examples cover COC breakdowns, org-unit-level rollups, and multi-period
+and multi-org-unit comparisons; the `export-*` examples show writing results to CSV/JSON/ndjson files.
+
 **Raw data values** from a dataset/period/org unit (`datavalues-by-dataset.d2ql`):
 
 ```
 dataValues(dataSet: "BfMAe6Itzgt", period: "202401", orgUnit: "ImspTQPwCqd")
   | transform { de: dataElement, ou: orgUnit, value: value }
+```
+
+`dataValues(...)` accepts the full `/api/dataValueSets` selection: `dataSet` **or**
+`dataElementGroup`, a single `period` **or** a `startDate`/`endDate` window, `orgUnit` **or**
+`orgUnitGroup` with optional `children: true` to include its subtree, `includeDeleted: true`,
+`lastUpdated` (modified-since date/duration), and `limit`
+(`datavalues-date-window.d2ql`, `datavalues-with-children.d2ql`, `datavalues-by-group.d2ql`,
+`datavalues-recently-updated.d2ql`):
+
+```
+dataValues(dataSet: "BfMAe6Itzgt", startDate: "2024-01-01", endDate: "2024-03-31", orgUnit: "ImspTQPwCqd", children: true)
+  | transform { de: dataElement, pe: period, ou: orgUnit, value: value }
 ```
 
 ## Reshape with `transform`
@@ -142,7 +199,7 @@ dataElements | transform summary($this)
 The recipe is always the same: a `define function` builds the resource, `transform` wraps each row,
 `fold` builds the Bundle envelope.
 
-**Data elements → a Bundle of Observations** (`fhir-de-bundle.d2ql`):
+**Data elements → a Bundle of Observations** (`fhir-bundle-de.d2ql`):
 
 ```
 define function observation(de): {
@@ -166,8 +223,8 @@ optionSets | where name like "Age" | limit 1
 ```
 
 **Option set → a ValueSet** (`fhir-optionset-valueset.d2ql`); **option sets → a Bundle of
-CodeSystems** (`fhir-optionset-bundle.d2ql`); **data set → a Questionnaire** and **data sets → a
-Bundle of Questionnaires** (`fhir-dataset-questionnaire.d2ql`, `fhir-dataset-bundle.d2ql`) all follow
+CodeSystems** (`fhir-bundle-optionset.d2ql`); **data set → a Questionnaire** and **data sets → a
+Bundle of Questionnaires** (`fhir-dataset-questionnaire.d2ql`, `fhir-bundle-dataset.d2ql`) all follow
 the same `transform` + `fold` shape.
 
 ## Reusable libraries
@@ -185,6 +242,25 @@ Aggregates | where isImmunisation($this) | select id, name, valueType | order na
 
 Run it with `d2w query run examples/d2ql/library-immunisation.d2ql`, or run a specific definition with
 `--define <name>`.
+
+## Output formats & sinks
+
+A `>>` sink picks **destination** (stdout or a file) and **format** (json/ndjson/csv) independently.
+Format comes from `as <format>`, a bare format keyword (stdout), or a file's extension.
+
+```
+dataElements | select id, name >> ndjson                 # ndjson to stdout (sink-stdout-ndjson.d2ql)
+dataElements | select id, name >> csv                    # csv to stdout — escapes wide tables (sink-stdout-csv.d2ql)
+dataElements | select id, name >> json                   # JSON array to stdout (sink-stdout-json.d2ql)
+dataElements | select id, name >> stdout as ndjson       # explicit long form of `>> ndjson` (sink-stdout-as.d2ql)
+dataElements | select id, name >> "elements.csv"         # csv file from the extension (export-csv.d2ql)
+dataElements | select id, name >> "elements.txt" as csv  # `as` overrides the extension (sink-file-as-override.d2ql)
+```
+
+In the [REPL](../guides/d2ql.md#interactive-repl) the same formats apply, **Ctrl+F** cycles the
+default render (table -> json -> ndjson -> csv) when a result is too wide for a table, and **Ctrl+T**
+toggles a collapsible **JSON tree** that each query repopulates and focuses (arrows to navigate, Enter
+to expand/collapse) — ideal for deeply nested rows.
 
 ## See also
 

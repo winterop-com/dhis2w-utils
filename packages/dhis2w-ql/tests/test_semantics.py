@@ -204,3 +204,21 @@ def test_implies_is_right_associative() -> None:
 def test_duplicate_object_keys_are_rejected() -> None:
     with pytest.raises(ParseError, match="duplicate object key"):
         parse_expression("{ a: 1, a: 2 }")
+
+
+async def test_user_functions_see_caller_this_and_index() -> None:
+    # An extracted helper still sees the caller's `$this`/`$index`.
+    rows = await _rows(
+        "define function here(): { rid: $this.id, pos: $index }\ndataElements | transform here() | limit 2"
+    )
+    assert rows == [{"rid": "a1", "pos": 0}, {"rid": "b2", "pos": 1}]
+
+
+async def test_recursive_function_is_rejected() -> None:
+    with pytest.raises(SemanticError, match="recursive function"):
+        await _rows("define function f(x): f($x)\ndataElements | transform { y: f(id) }")
+
+
+def test_duplicate_function_parameters_are_rejected() -> None:
+    with pytest.raises(ParseError, match="duplicate parameter"):
+        parse("define function f(x, x): $x\ndataElements")

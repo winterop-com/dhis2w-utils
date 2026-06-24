@@ -1,0 +1,4 @@
+// Compare several districts side by side, totalled per org unit.
+analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "O6uvpzGd5pu;fdc6uOvgoji;lc3eMKXaEfw", outputIdScheme: "NAME")
+  | group by ou { total: sum(value) }
+  | order total desc

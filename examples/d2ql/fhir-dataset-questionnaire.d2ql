@@ -1,4 +1,6 @@
-// One data set -> a FHIR Questionnaire (its data elements become items).
+// One data set -> ONE FHIR Questionnaire via `fold` (collapses the stream into a single
+// object; `$rows` is the dataSet stream). Its items come from the nested
+// dataSetElements.dataElement. Rule of thumb: transform = per row, fold = whole stream.
 dataSets
   | limit 1
   | fold {

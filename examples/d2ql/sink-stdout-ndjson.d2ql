@@ -1,0 +1,3 @@
+// `>> ndjson` streams newline-delimited JSON to stdout — one object per line, ideal for
+// piping into jq or a bulk loader. Equivalent long form: `>> stdout as ndjson`.
+dataElements | select id, name | order name asc | limit 10 >> ndjson

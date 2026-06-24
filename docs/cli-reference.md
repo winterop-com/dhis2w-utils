@@ -886,6 +886,7 @@ $ d2w data aggregate [OPTIONS] COMMAND [ARGS]...
 * `push`: Bulk push data values from a JSON file.
 * `set`: Set a single data value.
 * `delete`: Delete a single data value.
+* `followup`: Set or clear the follow-up flag on a...
 
 #### `d2w data aggregate get`
 
@@ -906,8 +907,11 @@ $ d2w data aggregate get [OPTIONS]
 * `--start-date TEXT`: ISO date (YYYY-MM-DD).
 * `--end-date TEXT`: ISO date (YYYY-MM-DD).
 * `--org-unit, --ou TEXT`: OrganisationUnit UID.
+* `--org-unit-group, --oug TEXT`: OrganisationUnitGroup UID (alternative to --ou).
 * `--children`: Include descendant org units (values usually live at facility level).
 * `--data-element-group, --deg TEXT`: DataElementGroup UID (narrows to its member DEs).
+* `--include-deleted`: Also return soft-deleted values.
+* `--last-updated TEXT`: Only values modified since a date (YYYY-MM-DD) or duration (e.g. 7d).
 * `--limit INTEGER`: Max rows to include in output.
 * `--help`: Show this message and exit.
 
@@ -970,6 +974,26 @@ $ d2w data aggregate delete [OPTIONS]
 * `--data-element, --de TEXT`: [required]
 * `--period, --pe TEXT`: [required]
 * `--org-unit, --ou TEXT`: [required]
+* `--coc TEXT`
+* `--aoc TEXT`
+* `--help`: Show this message and exit.
+
+#### `d2w data aggregate followup`
+
+Set or clear the follow-up flag on a single data value.
+
+**Usage**:
+
+```console
+$ d2w data aggregate followup [OPTIONS]
+```
+
+**Options**:
+
+* `--data-element, --de TEXT`: [required]
+* `--period, --pe TEXT`: [required]
+* `--org-unit, --ou TEXT`: [required]
+* `--on / --off`: Set (--on) or clear (--off) the follow-up flag.  [default: on]
 * `--coc TEXT`
 * `--aoc TEXT`
 * `--help`: Show this message and exit.
@@ -8794,29 +8818,30 @@ $ d2w query [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `eval`: Run a d2ql program against the active...
+* `eval`: Run a d2ql program (inline or `--file`)...
 * `run`: Run a d2ql program read from a file.
-* `explain`: Show how a d2ql pipeline splits between...
+* `explain`: Show how a d2ql pipeline (inline or...
 * `ast`: Print the parsed d2ql AST (no profile...
 * `d2path`: Evaluate a bare d2path expression over a...
-* `repl`: Start an interactive d2ql prompt against...
+* `repl`: Interactive d2ql REPL.
 
 ### `d2w query eval`
 
-Run a d2ql program against the active profile and render the rows.
+Run a d2ql program (inline or `--file`) against the active profile and render the rows.
 
 **Usage**:
 
 ```console
-$ d2w query eval [OPTIONS] TEXT
+$ d2w query eval [OPTIONS] [TEXT]
 ```
 
 **Arguments**:
 
-* `TEXT`: A d2ql program (quote it).  [required]
+* `[TEXT]`: A d2ql program (quote it); or read one with --file.
 
 **Options**:
 
+* `-f, --file PATH`: Read the d2ql program from this file.
 * `-d, --define TEXT`: Run/explain this named definition.
 * `-o, --out TEXT`: Write rows to this file (json/ndjson/csv).
 * `--help`: Show this message and exit.
@@ -8843,39 +8868,41 @@ $ d2w query run [OPTIONS] FILE
 
 ### `d2w query explain`
 
-Show how a d2ql pipeline splits between DHIS2 pushdown and local evaluation.
+Show how a d2ql pipeline (inline or `--file`) splits between DHIS2 pushdown and local evaluation.
 
 **Usage**:
 
 ```console
-$ d2w query explain [OPTIONS] TEXT
+$ d2w query explain [OPTIONS] [TEXT]
 ```
 
 **Arguments**:
 
-* `TEXT`: A d2ql program (quote it).  [required]
+* `[TEXT]`: A d2ql program (quote it); or read one with --file.
 
 **Options**:
 
+* `-f, --file PATH`: Read the d2ql program from this file.
 * `-d, --define TEXT`: Run/explain this named definition.
 * `--help`: Show this message and exit.
 
 ### `d2w query ast`
 
-Print the parsed d2ql AST (no profile needed).
+Print the parsed d2ql AST (no profile needed; inline program or `--file`).
 
 **Usage**:
 
 ```console
-$ d2w query ast [OPTIONS] TEXT
+$ d2w query ast [OPTIONS] [TEXT]
 ```
 
 **Arguments**:
 
-* `TEXT`: A d2ql program (quote it).  [required]
+* `[TEXT]`: A d2ql program (quote it); or read one with --file.
 
 **Options**:
 
+* `-f, --file PATH`: Read the d2ql program from this file.
 * `--help`: Show this message and exit.
 
 ### `d2w query d2path`
@@ -8899,7 +8926,7 @@ $ d2w query d2path [OPTIONS] EXPRESSION
 
 ### `d2w query repl`
 
-Start an interactive d2ql prompt against the active profile.
+Interactive d2ql REPL. Uses the Textual TUI when the `tui` extra is installed, else line mode.
 
 **Usage**:
 

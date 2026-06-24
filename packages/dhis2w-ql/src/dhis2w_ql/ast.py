@@ -258,9 +258,10 @@ Stage = Annotated[
 
 
 class StdoutSink(_Node):
-    """Default sink: render the result to stdout."""
+    """Sink rendering the result to stdout; `format` (from `as`) picks json/ndjson/csv, else the default."""
 
     kind: Literal["stdout"] = "stdout"
+    format: Literal["json", "ndjson", "csv"] | None = None
 
 
 class FileSink(_Node):

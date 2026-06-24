@@ -3598,3 +3598,23 @@ curl -s -u admin:district \
 **Workaround in this repo:** the d2ql planner treats a configurable set of field roots as non-pushable (`geometry`, `attributeValues`, `translations`) — predicates touching them stay local and run in the engine over the fetched rows instead of being pushed to `filter=`. See `SourceCapabilities.non_pushable_paths` (`packages/dhis2w-ql/src/dhis2w_ql/engine/plan.py`) and `Dhis2DataSource.capabilities` (`packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/query/datasource.py`).
 
 **How to know it's fixed:** the repro returns `200` (filter honoured or ignored), at which point `geometry` can be removed from `non_pushable_paths`.
+
+### 46. v43 `DataValueFollowUpRequest.period` is typed as an object, but the wire accepts a string
+
+**Observed on:** v43 generated OpenAPI (`dhis2w_client.generated.v43.oas`), 2026-06-24. v41/v42 type the same field as `str`.
+
+**Repro:** the `/api/dataValues/followup` PUT body schema in the v43 OpenAPI types `period` as `DataValueFollowUpRequestPeriod` (an object), whereas v41/v42 type it as a plain `string`:
+```
+# v43 openapi.json, components.schemas.DataValueFollowUpRequest.properties.period
+#   -> {"$ref": "#/components/schemas/DataValueFollowUpRequestPeriod"}   (an object)
+# v41/v42 -> {"type": "string"}
+```
+A live `PUT /api/dataValues/followup` with `{"dataElement":"...","period":"202403","orgUnit":"...","followup":true}` succeeds on all three majors (period is a plain ISO period string).
+
+**Expected:** `period` typed as a `string` (an ISO period like `202403`), consistent with every other data-value endpoint and with v41/v42.
+
+**Actual:** the v43 generated `DataValueFollowUpRequest(period="202403")` fails strict typing (`Argument "period" ... expected "DataValueFollowUpRequestPeriod | None"`), even though the string is what the server wants.
+
+**Workaround in this repo:** `set_data_value_followup` builds the PUT body as a plain dict at the HTTP/JSON boundary instead of via the generated `DataValueFollowUpRequest` model, so the same code works across v41/v42/v43 (`packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/aggregate/service.py`).
+
+**How to know it's fixed:** the v43 OpenAPI types `DataValueFollowUpRequest.period` as `string`, at which point the typed generated model can replace the hand-built body dict.

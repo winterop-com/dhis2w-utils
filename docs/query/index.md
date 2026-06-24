@@ -41,12 +41,13 @@ It is two languages working together:
 # run a query against the active profile
 d2w query eval 'dataElements | where domainType = "AGGREGATE" | select id, name | limit 10'
 
-# run a saved program
+# run a saved program (or use `eval --file` / `-f`)
 d2w query run examples/d2ql/analytics-rollup.d2ql
+d2w query eval --file examples/d2ql/analytics-rollup.d2ql
 
-# inspect parsing (offline) or the pushdown plan
+# inspect parsing (offline) or the pushdown plan — inline or `--file`
 d2w query ast     'dataElements | select id, name | limit 5'
-d2w query explain 'dataElements | where domainType = "AGGREGATE" | limit 5'
+d2w query explain -f examples/d2ql/metadata-anc-elements.d2ql
 ```
 
 ## Where to start

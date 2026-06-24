@@ -1,0 +1,6 @@
+// Write rows to a JSON array file. The sink format follows the extension (.json -> json array).
+dataElements
+  | where domainType = "AGGREGATE"
+  | select id, name, valueType
+  | order name asc | limit 20
+  >> "/tmp/data-elements.json"

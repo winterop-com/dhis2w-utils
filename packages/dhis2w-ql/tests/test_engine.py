@@ -111,6 +111,32 @@ async def test_json_sink(tmp_path: Path) -> None:
     assert json.loads(path.read_text()) == [{"id": "a1"}, {"id": "b2"}, {"id": "c3"}]
 
 
+async def test_as_overrides_file_extension(tmp_path: Path) -> None:
+    path = tmp_path / "out.txt"  # .txt -> no inferred format; `as csv` forces CSV
+    text = f'dataElements | transform {{ code: id }} >> "{path}" as csv'
+    result = await _engine(text).run_terminal()
+    assert result.written_to == str(path)
+    assert path.read_text().splitlines()[0] == "code"
+
+
+async def test_stdout_format_is_reported_not_written() -> None:
+    # `>> stdout as ndjson` and the bare `>> ndjson` shorthand both set the result format, no file.
+    for text in ("dataElements | select id >> stdout as ndjson", "dataElements | select id >> ndjson"):
+        result = await _engine(text).run_terminal()
+        assert result.written_to is None
+        assert result.format == "ndjson"
+        assert result.rows == [{"id": "a1"}, {"id": "b2"}, {"id": "c3"}]
+
+
+async def test_serialize_rows_matches_each_format() -> None:
+    from dhis2w_ql import serialize_rows
+
+    rows = [{"id": "a1", "name": "ANC"}, {"id": "b2", "name": "BCG"}]
+    assert serialize_rows(rows, "ndjson") == '{"id": "a1", "name": "ANC"}\n{"id": "b2", "name": "BCG"}\n'
+    assert serialize_rows(rows, "csv").splitlines()[0] == "id,name"
+    assert json.loads(serialize_rows(rows, "json")) == rows
+
+
 async def test_inline_filter_source() -> None:
     rows = await _rows('dataElements[domainType = "TRACKER"] | select id')
     assert rows == [{"id": "c3"}]

@@ -67,6 +67,35 @@ def test_source_position_function_calls_are_expressions() -> None:
         assert isinstance(library.terminal.source, CallSource)
 
 
+def test_count_stage_takes_no_parentheses() -> None:
+    # `count` is a plain keyword stage (like `limit`/`where`), not a function call.
+    parse("dataElements | count")
+    with pytest.raises(ParseError):
+        parse("dataElements | count()")
+
+
+def test_sink_format_forms_parse() -> None:
+    from dhis2w_ql.ast import FileSink, Sink, StdoutSink
+
+    def sink(program: str) -> Sink:
+        library = parse(program)
+        assert library.terminal is not None
+        assert library.terminal.sink is not None
+        return library.terminal.sink
+
+    plain = sink("dataElements >> stdout")
+    assert isinstance(plain, StdoutSink) and plain.format is None
+    assert sink("dataElements >> stdout as ndjson").format == "ndjson"
+    assert sink("dataElements >> ndjson").format == "ndjson"  # bare format -> stdout
+    assert sink("dataElements >> json").format == "json"
+    assert sink("dataElements >> csv").format == "csv"
+    overridden = sink('dataElements >> "out.txt" as csv')  # `as` overrides the (none) extension format
+    assert isinstance(overridden, FileSink) and overridden.format == "csv"
+    assert sink('dataElements >> "out.ndjson"').format == "ndjson"  # extension inferred
+    with pytest.raises(ParseError):
+        parse("dataElements >> stdout as yaml")
+
+
 def test_committed_example_programs_parse() -> None:
     from pathlib import Path
 

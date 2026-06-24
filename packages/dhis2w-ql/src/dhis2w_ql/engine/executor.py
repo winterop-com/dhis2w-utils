@@ -39,13 +39,14 @@ from dhis2w_ql.ast import (
     SelectStage,
     SkipStage,
     Stage,
+    StdoutSink,
     TransformStage,
     WhereStage,
 )
 from dhis2w_ql.d2path.evaluator import EvalContext, Evaluator
 from dhis2w_ql.d2path.functions import lookup as builtin_function
 from dhis2w_ql.d2path.values import collapse, compare, truthy
-from dhis2w_ql.engine.datasource import ResourceBinder
+from dhis2w_ql.engine.datasource import CountableSource, ResourceBinder
 from dhis2w_ql.engine.planner import plan_pipeline
 from dhis2w_ql.errors import EvaluationError, SemanticError
 
@@ -156,14 +157,35 @@ class QueryEngine:
                 written_to=written.path,
                 format=written.format,
             )
-        return QueryResult(rows=outcome.rows, count=len(outcome.rows), scalar=outcome.scalar)
+        stdout_format = pipeline.sink.format if isinstance(pipeline.sink, StdoutSink) else None
+        return QueryResult(rows=outcome.rows, count=len(outcome.rows), scalar=outcome.scalar, format=stdout_format)
 
     # ------------------------------------------------------------------ execution
 
     async def _execute(self, pipeline: Pipeline) -> _StageOutcome:
         stages = self._effective_stages(pipeline)
+        total = await self._try_count_fast_path(pipeline, stages)
+        if total is not None:
+            return _StageOutcome(rows=[total], scalar=True)
         resolved = await self._resolve_source(pipeline, stages)
         return self._run_local(resolved.residual, resolved.rows)
+
+    async def _try_count_fast_path(self, pipeline: Pipeline, stages: list[Stage]) -> int | None:
+        """Count via the source's native total when the pipeline is a pushable-filtered resource + `count`.
+
+        Applies only when every stage before `count` pushes down (so the residual is exactly the count)
+        and the source can count natively; otherwise returns None and the rows are fetched and counted.
+        """
+        source = pipeline.source
+        if not isinstance(source, NameSource):
+            return None
+        data_source = self._binder.bind(source.name)
+        if not isinstance(data_source, CountableSource):
+            return None
+        plan = plan_pipeline(source.name, data_source.capabilities(), stages)
+        if len(plan.residual) != 1 or not isinstance(plan.residual[0], CountStage):
+            return None
+        return await data_source.count(plan.native)
 
     def _effective_stages(self, pipeline: Pipeline) -> list[Stage]:
         source = pipeline.source
@@ -336,18 +358,21 @@ class _WriteOutcome(BaseModel):
     format: str
 
 
-def _write_file(sink: FileSink, rows: list[Any], *, scalar: bool = False) -> _WriteOutcome:
-    fmt = sink.format or "json"
+def serialize_rows(rows: list[Any], fmt: Literal["json", "ndjson", "csv"], *, scalar: bool = False) -> str:
+    """Serialize result rows to text in `fmt` — shared by file sinks and stdout/REPL rendering."""
     payload = [_jsonable(row) for row in rows]
     if fmt == "csv":
-        text = _to_csv(payload)
-    elif fmt == "ndjson":
-        text = "\n".join(json.dumps(row, ensure_ascii=False) for row in payload) + "\n"
-    else:
-        # A scalar result (fold/count) writes the single value, not a one-element array.
-        document: Any = payload[0] if scalar and len(payload) == 1 else payload
-        text = json.dumps(document, indent=2, ensure_ascii=False)
-    Path(sink.path).write_text(text, encoding="utf-8")
+        return _to_csv(payload)
+    if fmt == "ndjson":
+        return "\n".join(json.dumps(row, ensure_ascii=False) for row in payload) + "\n"
+    # A scalar result (fold/count) serializes the single value, not a one-element array.
+    document: Any = payload[0] if scalar and len(payload) == 1 else payload
+    return json.dumps(document, indent=2, ensure_ascii=False)
+
+
+def _write_file(sink: FileSink, rows: list[Any], *, scalar: bool = False) -> _WriteOutcome:
+    fmt = sink.format or "json"
+    Path(sink.path).write_text(serialize_rows(rows, fmt, scalar=scalar), encoding="utf-8")
     return _WriteOutcome(path=sink.path, format=fmt)
 
 

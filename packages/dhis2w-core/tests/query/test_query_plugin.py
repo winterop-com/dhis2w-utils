@@ -65,6 +65,31 @@ async def test_run_query_count_is_scalar() -> None:
 
 
 @respx.mock
+async def test_count_uses_pager_total_not_a_full_fetch() -> None:
+    # `dataElements | count` reads DHIS2's pager total via a pageSize=1 request — it does not fetch
+    # every row (the total here differs from the single returned row to prove it).
+    _mock_connect()
+    route = respx.get(f"{_BASE}/api/dataElements").mock(
+        return_value=httpx.Response(
+            200, json={"pager": {"page": 1, "pageSize": 1, "total": 42}, "dataElements": [{"id": "x"}]}
+        )
+    )
+    result = await service.run_query(_PROFILE, "dataElements | count")
+    assert result.scalar is True
+    assert result.rows == [42]
+    assert dict(route.calls.last.request.url.params).get("pageSize") == "1"
+
+
+@respx.mock
+async def test_count_after_local_predicate_counts_locally() -> None:
+    # A local (non-pushable) predicate before `count` forces fetch + count, not the pager fast-path.
+    _mock_connect()
+    _mock_data_elements()  # 2 rows (ANC, BCG), pager total 2
+    result = await service.run_query(_PROFILE, 'dataElements | where name.upper() = "ANC" | count')
+    assert result.rows == [1]
+
+
+@respx.mock
 async def test_explain_reports_pushdown() -> None:
     _mock_connect()
     explain = await service.explain_query(
@@ -90,6 +115,74 @@ async def test_explain_unknown_call_source() -> None:
     explain = await service.explain_query(_PROFILE, "wat(a: 1) | limit 5")
     assert explain.source_kind == "call"
     assert explain.note is not None and "not a known call source" in explain.note
+
+
+def _mock_analytics() -> respx.Route:
+    return respx.get(f"{_BASE}/api/analytics").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "headers": [{"name": "dx"}, {"name": "pe"}, {"name": "ou"}, {"name": "value"}],
+                "rows": [["fbfJHSPpUQD", "202401", "ImspTQPwCqd", "100"]],
+            },
+        )
+    )
+
+
+@respx.mock
+async def test_analytics_call_source_routes_options_vs_dimensions() -> None:
+    _mock_connect()
+    route = _mock_analytics()
+    await service.run_query(
+        _PROFILE,
+        'analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", '
+        'aggregationType: "AVERAGE", outputIdScheme: "NAME", includeNumDen: true) | limit 5',
+    )
+    params = route.calls.last.request.url.params
+    # Options become their own query params, not dimensions.
+    assert params.get("aggregationType") == "AVERAGE"
+    assert params.get("outputIdScheme") == "NAME"
+    assert params.get("includeNumDen") == "true"
+    # Dimensions are exactly dx/pe/ou — no option leaked in as a dimension.
+    dimensions = [value for key, value in params.multi_items() if key == "dimension"]
+    assert dimensions == ["dx:fbfJHSPpUQD", "pe:LAST_12_MONTHS", "ou:ImspTQPwCqd"]
+
+
+@respx.mock
+async def test_datavalues_call_source_threads_all_selection_args() -> None:
+    _mock_connect()
+    route = respx.get(f"{_BASE}/api/dataValueSets").mock(
+        return_value=httpx.Response(200, json={"dataValues": [{"dataElement": "d", "period": "202401", "value": "1"}]})
+    )
+    await service.run_query(
+        _PROFILE,
+        'dataValues(dataSet: "BfMAe6Itzgt", startDate: "2024-01-01", endDate: "2024-03-31", '
+        'orgUnit: "ImspTQPwCqd", orgUnitGroup: "OU_GRP", children: true, dataElementGroup: "oDkJh5Ddh7d", '
+        'includeDeleted: true, lastUpdated: "2024-01-01", limit: 5) | limit 5',
+    )
+    params = route.calls.last.request.url.params
+    assert params.get("dataSet") == "BfMAe6Itzgt"
+    assert params.get("startDate") == "2024-01-01"
+    assert params.get("endDate") == "2024-03-31"
+    assert params.get("orgUnit") == "ImspTQPwCqd"
+    assert params.get("orgUnitGroup") == "OU_GRP"
+    assert params.get("children") == "true"
+    assert params.get("dataElementGroup") == "oDkJh5Ddh7d"
+    assert params.get("includeDeleted") == "true"
+    assert params.get("lastUpdated") == "2024-01-01"
+
+
+@respx.mock
+async def test_analytics_bool_option_accepts_literal_and_string() -> None:
+    # The d2ql boolean literal `true` and the quoted string `"true"` both coerce to includeNumDen=true.
+    _mock_connect()
+    for program in (
+        'analytics(dx: "x", pe: "y", ou: "z", includeNumDen: true) | limit 1',
+        'analytics(dx: "x", pe: "y", ou: "z", includeNumDen: "true") | limit 1',
+    ):
+        route = _mock_analytics()
+        await service.run_query(_PROFILE, program)
+        assert route.calls.last.request.url.params.get("includeNumDen") == "true"
 
 
 @respx.mock
@@ -227,6 +320,50 @@ def test_cli_ast_is_offline(runner: CliRunner) -> None:
     result = runner.invoke(build_app(), ["query", "ast", "dataElements | select id, name | limit 5"])
     assert result.exit_code == 0
     assert '"kind": "select"' in result.stdout
+
+
+def test_cli_reads_program_from_file(runner: CliRunner, tmp_path: Path) -> None:
+    program = tmp_path / "p.d2ql"
+    program.write_text("dataElements | select id, name | limit 5")
+    result = runner.invoke(build_app(), ["query", "ast", "--file", str(program)])
+    assert result.exit_code == 0
+    assert '"kind": "select"' in result.stdout
+
+
+def _flat(output: str) -> str:
+    # Rich wraps error-panel text across lines with `│` borders; flatten so messages match regardless.
+    return " ".join(output.replace("│", " ").split())
+
+
+def test_cli_rejects_a_bare_file_path(runner: CliRunner, tmp_path: Path) -> None:
+    # A file path passed as the program would otherwise parse as a meaningless expression.
+    program = tmp_path / "p.d2ql"
+    program.write_text("dataElements | select id")
+    result = runner.invoke(build_app(), ["query", "ast", str(program)])
+    assert result.exit_code != 0
+    assert "looks like a file path" in _flat(result.output)
+
+
+def test_cli_requires_a_program_or_file(runner: CliRunner) -> None:
+    result = runner.invoke(build_app(), ["query", "ast"])
+    assert result.exit_code != 0
+    assert "provide a d2ql program" in _flat(result.output)
+
+
+def test_repl_step_accumulates_until_blank_or_semicolon() -> None:
+    from dhis2w_core.v42.plugins.query.cli import _repl_step
+
+    # A leading-`|` multi-line program accumulates; a blank line submits the whole thing.
+    buffer: list[str] = []
+    program: str | None = None
+    for line in ["dataElements", '  | where domainType = "AGGREGATE"', "  | select id", ""]:
+        buffer, program = _repl_step(buffer, line)
+    assert program == 'dataElements\n  | where domainType = "AGGREGATE"\n  | select id'
+    assert buffer == []
+    # A trailing `;` submits immediately and is stripped off.
+    assert _repl_step([], "dataElements | count;") == ([], "dataElements | count")
+    # A blank line with an empty buffer is a no-op.
+    assert _repl_step([], "") == ([], None)
 
 
 def test_cli_d2path_over_input_file(runner: CliRunner, tmp_path: Path) -> None:

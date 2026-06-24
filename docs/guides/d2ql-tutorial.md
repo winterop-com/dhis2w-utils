@@ -171,6 +171,14 @@ analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd"
 ]
 ```
 
+Besides dimensions, `analytics(...)` takes analytics **options** — e.g. `outputIdScheme: "NAME"` for
+readable names, or `includeNumDen: true` to get an indicator's numerator/denominator:
+
+```
+analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", outputIdScheme: "NAME")
+  | transform { element: dx, month: pe, value: value }
+```
+
 `dataValues(dataSet: "…", period: "…", orgUnit: "…")` reads raw aggregate values from
 `/api/dataValueSets`.
 
@@ -202,7 +210,7 @@ dataElements | where domainType = "AGGREGATE"
 ```
 
 The same pattern emits a GeoJSON FeatureCollection from org units (geometry passes through whole) —
-see `fhir-de-bundle.d2ql` and `geojson-featurecollection.d2ql` in the example library.
+see `fhir-bundle-de.d2ql` and `geojson-featurecollection.d2ql` in the example library.
 
 ## 10. Write the result to a file
 

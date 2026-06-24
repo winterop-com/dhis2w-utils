@@ -35,7 +35,7 @@ from dhis2w_ql.d2path.values import (
     to_number,
     truthy,
 )
-from dhis2w_ql.errors import EvaluationError
+from dhis2w_ql.errors import EvaluationError, SemanticError
 
 
 @runtime_checkable
@@ -69,19 +69,32 @@ class Evaluator:
     def __init__(self, resolver: Resolver | None = None) -> None:
         """Bind an optional resolver for library-level variable/function references."""
         self._resolver = resolver
+        self._active_functions: set[str] = set()
 
     def evaluate(self, expr: Expr, focus: list[Any], context: EvalContext | None = None) -> list[Any]:
         """Evaluate `expr` against `focus`, returning a collection (list of values)."""
         return self._eval(expr, focus, context or EvalContext())
 
-    def call_function(self, definition: DefineFunction, args: list[list[Any]], focus: list[Any]) -> list[Any]:
-        """Invoke a user-defined function with already-evaluated argument collections."""
+    def call_function(
+        self, definition: DefineFunction, args: list[list[Any]], focus: list[Any], context: EvalContext
+    ) -> list[Any]:
+        """Invoke a user-defined function, overlaying its params on the caller's scope.
+
+        The caller context carries through so `$this`/`$index` stay visible inside an extracted
+        helper; the function name is tracked to reject recursive calls instead of crashing.
+        """
         if len(args) != len(definition.params):
             raise EvaluationError(
                 f"function {definition.name!r} expects {len(definition.params)} argument(s), got {len(args)}"
             )
+        if definition.name in self._active_functions:
+            raise SemanticError(f"recursive function {definition.name!r}")
         bound = dict(zip(definition.params, args, strict=True))
-        return self._eval(definition.body, focus, EvalContext(variables=bound))
+        self._active_functions.add(definition.name)
+        try:
+            return self._eval(definition.body, focus, context.child(**bound))
+        finally:
+            self._active_functions.discard(definition.name)
 
     def per_item(self, expr: Expr, item: Any, index: int, context: EvalContext) -> list[Any]:
         """Evaluate `expr` against a single item, binding `$this`/`$index` for that item."""
@@ -151,7 +164,7 @@ class Evaluator:
             definition = self._resolver.resolve_function(expr.name)
             if definition is not None:
                 args = [self._eval(arg, focus, context) for arg in expr.args]
-                return self.call_function(definition, args, target_focus)
+                return self.call_function(definition, args, target_focus, context)
         raise EvaluationError(f"unknown function {expr.name!r}")
 
     def _eval_unary(self, expr: UnaryExpr, focus: list[Any], context: EvalContext) -> list[Any]:

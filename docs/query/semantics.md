@@ -33,7 +33,7 @@ in the bucket (`sum(value)` in group mode), and is not meaningful bare in fold (
 
 | Variable | Resolves to | Valid in |
 |----------|-------------|----------|
-| `$this` | the current row (row mode) or current item (inside a collection method like `.where(…)`) | row-mode stages, method bodies |
+| `$this` | the current row (row mode) or current item (inside a collection method like `.where(…)`) | row-mode stages, method bodies, and a `define function` body (a helper sees the caller's `$this`/`$index`) |
 | `$index` | the current row's zero-based position | row-mode stages. In `order` comparators it is fixed to `0` (position is meaningless while sorting) |
 | `$rows` | the entire row stream | `fold` only |
 | `$Name` | a scalar `define`'s value (`define Min: 3` → `$Min`) | anywhere; resolves scalar defines only, not query defines |
@@ -54,7 +54,10 @@ your defines distinctly. An identifier that matches neither is an error.
 `name(...)` is disambiguated by its arguments, not a reserved list:
 
 - **Named arguments** (`key: value`) → a **call source**: `analytics(dx: "…", pe: "…", ou: "…")`,
-  `dataValues(dataSet: "…", period: "…", orgUnit: "…")`.
+  `dataValues(dataSet: "…", period: "…", orgUnit: "…")`. For `analytics(...)`, args split into a
+  known analytics-**option** set (`aggregationType`, `outputIdScheme`, `includeNumDen`, `skipMeta`,
+  `startDate`/`endDate`, …, plus `filter`) routed to query params, and **dimensions** (everything
+  else: `dx`/`pe`/`ou`/`co`/UIDs) — the camelCase option names never collide with dimension keys.
 - **Positional arguments or none** → a **d2path function call** (an expression source):
   `today()`, `iif(active, 1, 0)`, a user `define function`.
 
@@ -71,9 +74,11 @@ source; reference a scalar define as `$NAME`.
 
 **Definition rules.** Names must be unique — a duplicate `define`/`define function` name is rejected,
 not silently overwritten. A `define function` may not reuse a built-in function name (`upper`, `sum`,
-…), since the built-in would shadow it. A definition that references itself, directly or through a
-cycle (`define A: B` / `define B: A`), is rejected as a recursive definition rather than recursing
-until it crashes.
+…), since the built-in would shadow it, and its parameters must be distinct (`f(x, x)` is rejected).
+A definition or function that references itself, directly or through a cycle (`define A: B` /
+`define B: A`, or `define function f(x): f($x)`), is rejected as recursive rather than recursing until
+it crashes. A `define function` body sees the caller's `$this`/`$index`, so helpers can read the
+current row without taking it as a parameter.
 
 ## `select` vs `transform`
 

@@ -8,6 +8,7 @@ from dhis2w_client.v43 import DataValueSet, WebMessageResponse
 
 from dhis2w_core.profile import resolve_profile
 from dhis2w_core.v43.plugins.aggregate import service
+from dhis2w_core.v43.plugins.aggregate.models import FollowUpResult
 
 
 def register(mcp: Any) -> None:
@@ -20,8 +21,11 @@ def register(mcp: Any) -> None:
         start_date: str | None = None,
         end_date: str | None = None,
         org_unit: str | None = None,
+        org_unit_group: str | None = None,
         children: bool = False,
         data_element_group: str | None = None,
+        include_deleted: bool = False,
+        last_updated: str | None = None,
         limit: int = 100,
         profile: str | None = None,
     ) -> DataValueSet:
@@ -29,9 +33,12 @@ def register(mcp: Any) -> None:
 
         Use either `period` for a single period (e.g. `202401`, `2024W12`, `2024`)
         or `start_date`+`end_date` (ISO YYYY-MM-DD). `org_unit` is the UID of
-        the org-unit; set `children=True` to include descendants. `limit`
-        truncates the `dataValues` array client-side (default 100).
-        `profile` selects a named profile; omit for the default.
+        the org-unit (or `org_unit_group`); set `children=True` to include
+        descendants. `include_deleted` also returns soft-deleted values;
+        `last_updated` keeps only values modified since a date (YYYY-MM-DD) or
+        duration (e.g. `7d`). `limit` truncates the `dataValues` array
+        client-side (default 100). `profile` selects a named profile; omit for
+        the default.
         """
         return await service.get_data_values(
             resolve_profile(profile),
@@ -40,8 +47,11 @@ def register(mcp: Any) -> None:
             start_date=start_date,
             end_date=end_date,
             org_unit=org_unit,
+            org_unit_group=org_unit_group,
             children=children,
             data_element_group=data_element_group,
+            include_deleted=include_deleted,
+            last_updated=last_updated,
             limit=limit,
         )
 
@@ -111,6 +121,27 @@ def register(mcp: Any) -> None:
             data_element=data_element,
             period=period,
             org_unit=org_unit,
+            category_option_combo=category_option_combo,
+            attribute_option_combo=attribute_option_combo,
+        )
+
+    @mcp.tool()
+    async def data_aggregate_followup(
+        data_element: str,
+        period: str,
+        org_unit: str,
+        followup: bool = True,
+        category_option_combo: str | None = None,
+        attribute_option_combo: str | None = None,
+        profile: str | None = None,
+    ) -> FollowUpResult:
+        """Set or clear the follow-up flag on a single aggregate data value (PUT /api/dataValues/followup)."""
+        return await service.set_data_value_followup(
+            resolve_profile(profile),
+            data_element=data_element,
+            period=period,
+            org_unit=org_unit,
+            followup=followup,
             category_option_combo=category_option_combo,
             attribute_option_combo=attribute_option_combo,
         )

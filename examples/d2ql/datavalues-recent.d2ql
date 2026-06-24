@@ -1,0 +1,6 @@
+// Most-recently-updated values first — the DataValue audit fields (`lastUpdated`, `storedBy`)
+// are navigable like any other field.
+dataValues(dataSet: "BfMAe6Itzgt", period: "202401", orgUnit: "ImspTQPwCqd", children: true)
+  | select dataElement, value, lastUpdated, storedBy
+  | order lastUpdated desc
+  | limit 25

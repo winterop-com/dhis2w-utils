@@ -1,0 +1,5 @@
+// `children: true` includes the org unit's whole subtree — here every facility under Sierra Leone
+// reporting into the dataset for the period, not just the national-level org unit.
+dataValues(dataSet: "BfMAe6Itzgt", period: "202401", orgUnit: "ImspTQPwCqd", children: true)
+  | transform { de: dataElement, ou: orgUnit, value: value }
+  | limit 25

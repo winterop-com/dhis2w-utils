@@ -32,6 +32,10 @@ def get_command(
     start_date: Annotated[str | None, typer.Option("--start-date", help="ISO date (YYYY-MM-DD).")] = None,
     end_date: Annotated[str | None, typer.Option("--end-date", help="ISO date (YYYY-MM-DD).")] = None,
     org_unit: Annotated[str | None, typer.Option("--org-unit", "--ou", help="OrganisationUnit UID.")] = None,
+    org_unit_group: Annotated[
+        str | None,
+        typer.Option("--org-unit-group", "--oug", help="OrganisationUnitGroup UID (alternative to --ou)."),
+    ] = None,
     children: Annotated[
         bool,
         typer.Option(
@@ -42,6 +46,13 @@ def get_command(
     data_element_group: Annotated[
         str | None,
         typer.Option("--data-element-group", "--deg", help="DataElementGroup UID (narrows to its member DEs)."),
+    ] = None,
+    include_deleted: Annotated[
+        bool, typer.Option("--include-deleted", help="Also return soft-deleted values.")
+    ] = False,
+    last_updated: Annotated[
+        str | None,
+        typer.Option("--last-updated", help="Only values modified since a date (YYYY-MM-DD) or duration (e.g. 7d)."),
     ] = None,
     limit: Annotated[int | None, typer.Option("--limit", help="Max rows to include in output.")] = None,
 ) -> None:
@@ -59,8 +70,11 @@ def get_command(
             start_date=start_date,
             end_date=end_date,
             org_unit=org_unit,
+            org_unit_group=org_unit_group,
             children=children,
             data_element_group=data_element_group,
+            include_deleted=include_deleted,
+            last_updated=last_updated,
             limit=limit,
         )
     )
@@ -184,3 +198,32 @@ def delete_command(
         typer.echo(response.model_dump_json(indent=2, exclude_none=True))
     else:
         typer.echo(f"deleted  {data_element}  {period}  {org_unit}")
+
+
+@app.command("followup")
+def followup_command(
+    data_element: Annotated[str, typer.Option("--data-element", "--de", prompt="DataElement UID")],
+    period: Annotated[str, typer.Option("--period", "--pe", prompt="Period")],
+    org_unit: Annotated[str, typer.Option("--org-unit", "--ou", prompt="OrganisationUnit UID")],
+    on: Annotated[bool, typer.Option("--on/--off", help="Set (--on) or clear (--off) the follow-up flag.")] = True,
+    category_option_combo: Annotated[str | None, typer.Option("--coc")] = None,
+    attribute_option_combo: Annotated[str | None, typer.Option("--aoc")] = None,
+) -> None:
+    """Set or clear the follow-up flag on a single data value."""
+    from dhis2w_core.v42.plugins.aggregate import service
+
+    result = asyncio.run(
+        service.set_data_value_followup(
+            profile_from_env(),
+            data_element=data_element,
+            period=period,
+            org_unit=org_unit,
+            followup=on,
+            category_option_combo=category_option_combo,
+            attribute_option_combo=attribute_option_combo,
+        )
+    )
+    if is_json_output():
+        typer.echo(result.model_dump_json(indent=2))
+    else:
+        typer.echo(f"follow-up {'set' if result.followup else 'cleared'}  {data_element}  {period}  {org_unit}")

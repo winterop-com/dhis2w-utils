@@ -23,12 +23,30 @@ back here to look things up; the **[cookbook](../query/cookbook.md)** has ready-
 
 ```bash
 d2w query eval 'dataElements | where domainType = "AGGREGATE" | select id, name | limit 20'
-d2w query run report.d2ql                 # run a program from a file
+d2w query run report.d2ql                 # run a program from a file (or `eval --file`)
 d2w query explain 'dataElements | ...'    # show what is pushed to DHIS2 vs. run locally
 d2w query ast 'dataElements | ...'        # print the parsed AST (offline)
+d2w query repl                            # interactive REPL
 ```
 
+`eval`, `explain`, and `ast` also accept `--file/-f <path>` to read a program from a file.
+
 The same engine is available as MCP tools (`query_eval`, `query_explain`, `query_d2path`).
+
+### Interactive REPL
+
+`d2w query repl` opens an interactive prompt. With the **`tui` extra** installed
+(`uv add 'dhis2w-cli[tui]'`) it's a full-screen [Textual](https://textual.textualize.io/) editor:
+**Enter runs** the program, **Shift+Enter** / **Ctrl+J** insert a newline, and pasting a multi-line
+pipeline drops it in cleanly. **Up/Down** recall history at the buffer edges (or Ctrl+P/Ctrl+N), and
+move the cursor within a multi-line program otherwise; **Ctrl+L** clears, **Ctrl+Q** quits. The editor
+has full readline-style keys (Ctrl+A/E/W/K/U, word nav, undo/redo). **Ctrl+F** cycles the output
+format (table / json / ndjson / csv) for wide results, and **Ctrl+T** toggles **tree mode** — the
+result pane becomes a collapsible **JSON tree** that each new query repopulates (so you see the tree,
+not JSON, first). It takes focus on toggle so you can navigate immediately (up/down move, **right/left**
+or Enter expand/collapse); Tab back to the editor to run another query; **Escape** or **Ctrl+T**
+returns to the log. The tree is structural, so it renders json and ndjson results alike.
+Without the extra, `repl` falls back to a line-mode prompt that runs on a blank line or a trailing `;`.
 
 A library of runnable, commented programs lives in
 [`examples/d2ql/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/d2ql) — run any
@@ -47,9 +65,16 @@ from Python via `parse(open(<file>).read())`.
 - A **call source** for aggregate data:
     - `analytics(dx: "...", pe: "LAST_12_MONTHS", ou: "...")` — rows from `/api/analytics`, one dict
       per row keyed by dimension (`dx`, `pe`, `ou`, `value`, ...). An optional `filter: "..."` arg
-      maps to an analytics filter.
+      maps to an analytics filter. Beyond dimensions, `analytics(...)` also takes analytics **option**
+      args, routed to the matching query params: `aggregationType`, `measureCriteria`,
+      `outputIdScheme`, `displayProperty`, `startDate`, `endDate`, `relativePeriodDate`, `skipMeta`,
+      `skipData`, and `includeNumDen` (adds `numerator`/`denominator`/`factor`). Any arg that isn't a
+      known option or `filter` is treated as a dimension.
     - `dataValues(dataSet: "...", period: "...", orgUnit: "...")` — raw aggregate values from
-      `/api/dataValueSets` (navigate `dataElement`, `period`, `orgUnit`, `value`).
+      `/api/dataValueSets` (navigate `dataElement`, `period`, `orgUnit`, `value`). Accepts the full
+      selection: `dataSet` **or** `dataElementGroup`, a single `period` **or** a `startDate`/`endDate`
+      window, `orgUnit` **or** `orgUnitGroup` with optional `children: true` for its subtree,
+      `includeDeleted: true`, `lastUpdated` (modified-since date/duration), and `limit`.
 
 ## Stages
 
@@ -116,16 +141,28 @@ dataElements
 
 ## Sinks
 
-End a pipeline with `>>` to write the result instead of returning it. The format is inferred from
-the file extension:
+End a pipeline with `>>` to choose where the result goes and in which format. **Destination** is
+`stdout` or a quoted file path; **format** is `json` / `ndjson` / `csv`, set explicitly with
+`as <format>` or, for files, inferred from the extension. Format and destination are independent:
+
+| Sink | Destination | Format |
+|------|-------------|--------|
+| *(no sink)* / `>> stdout` | stdout | table (or JSON under `--json`) — the default renderer |
+| `>> json` / `>> ndjson` / `>> csv` | stdout | that format (bare-keyword shorthand) |
+| `>> stdout as ndjson` | stdout | ndjson (explicit; identical to `>> ndjson`) |
+| `>> "out.csv"` / `>> "out.json"` / `>> "out.ndjson"` | file | from the extension |
+| `>> "out.txt" as csv` | file | csv (`as` overrides the extension) |
 
 ```
-dataElements | select id, name >> "elements.csv"      # csv
-dataElements | transform { … }   >> "out.json"        # json
-dataElements | select id, name >> "elements.ndjson"   # ndjson
+dataElements | select id, name >> ndjson                # ndjson to stdout (pipe to jq; escapes wide tables)
+dataElements | select id, name >> csv                   # csv to stdout
+dataElements | select id, name >> "elements.csv"        # csv file (extension)
+dataElements | select id, name >> "elements.txt" as csv # csv file, extension overridden
 ```
 
-On the CLI, `--out FILE` is the equivalent of an in-program sink.
+A `json`/`ndjson`/`csv` format applies in the **REPL** too; or cycle the REPL's default render with
+**Ctrl+F** (or open a tree with **Ctrl+T**) when tables are too wide. On the CLI, `--out FILE` is the equivalent of an in-program file
+sink.
 
 ## Definitions
 

@@ -12,6 +12,7 @@ from dhis2w_client.v41 import DataValueSet, WebMessageResponse
 
 from dhis2w_core.profile import Profile
 from dhis2w_core.v41.client_context import open_client
+from dhis2w_core.v41.plugins.aggregate.models import FollowUpResult
 
 
 async def get_data_values(
@@ -22,15 +23,20 @@ async def get_data_values(
     start_date: str | None = None,
     end_date: str | None = None,
     org_unit: str | None = None,
+    org_unit_group: str | None = None,
     children: bool = False,
     data_element_group: str | None = None,
+    include_deleted: bool = False,
+    last_updated: str | None = None,
     limit: int | None = None,
 ) -> DataValueSet:
     """Fetch a data value set via GET /api/dataValueSets.
 
     DHIS2 requires a coherent combination of params — typically `dataSet`,
-    `period` (or `startDate`+`endDate`), and `orgUnit`. `limit` truncates
-    the `dataValues` list client-side after the response is parsed.
+    `period` (or `startDate`+`endDate`), and `orgUnit` (or `orgUnitGroup`).
+    `include_deleted` returns soft-deleted values; `last_updated` filters to
+    values modified since a date/duration (e.g. `2024-01-01` or `7d`); `limit`
+    truncates the `dataValues` list client-side after the response is parsed.
     """
     params: dict[str, Any] = {}
     if data_set is not None:
@@ -43,10 +49,16 @@ async def get_data_values(
         params["endDate"] = end_date
     if org_unit is not None:
         params["orgUnit"] = org_unit
+    if org_unit_group is not None:
+        params["orgUnitGroup"] = org_unit_group
     if children:
         params["children"] = "true"
     if data_element_group is not None:
         params["dataElementGroup"] = data_element_group
+    if include_deleted:
+        params["includeDeleted"] = "true"
+    if last_updated is not None:
+        params["lastUpdated"] = last_updated
 
     async with open_client(profile) as client:
         raw = await client.get_raw("/api/dataValueSets", params=params)
@@ -140,3 +152,34 @@ async def delete_data_value(
 
     async with open_client(profile) as client:
         return await client.delete("/api/dataValues", params=params, model=WebMessageResponse)
+
+
+async def set_data_value_followup(
+    profile: Profile,
+    *,
+    data_element: str,
+    period: str,
+    org_unit: str,
+    followup: bool,
+    category_option_combo: str | None = None,
+    attribute_option_combo: str | None = None,
+) -> FollowUpResult:
+    """Set or clear the follow-up flag on a single data value via PUT /api/dataValues/followup.
+
+    DHIS2 returns an empty 200; a non-2xx raises. Returns a small typed summary. The body is built
+    as a dict at the HTTP boundary rather than via the generated `DataValueFollowUpRequest`, whose
+    v43 schema types `period` as an object the live wire doesn't require (BUGS.md #46).
+    """
+    body: dict[str, Any] = {
+        "dataElement": data_element,
+        "period": period,
+        "orgUnit": org_unit,
+        "followup": followup,
+    }
+    if category_option_combo is not None:
+        body["categoryOptionCombo"] = category_option_combo
+    if attribute_option_combo is not None:
+        body["attributeOptionCombo"] = attribute_option_combo
+    async with open_client(profile) as client:
+        await client.put_raw("/api/dataValues/followup", body)
+    return FollowUpResult(count=1, followup=followup)
