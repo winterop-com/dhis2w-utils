@@ -198,3 +198,32 @@ def delete_command(
         typer.echo(response.model_dump_json(indent=2, exclude_none=True))
     else:
         typer.echo(f"deleted  {data_element}  {period}  {org_unit}")
+
+
+@app.command("followup")
+def followup_command(
+    data_element: Annotated[str, typer.Option("--data-element", "--de", prompt="DataElement UID")],
+    period: Annotated[str, typer.Option("--period", "--pe", prompt="Period")],
+    org_unit: Annotated[str, typer.Option("--org-unit", "--ou", prompt="OrganisationUnit UID")],
+    on: Annotated[bool, typer.Option("--on/--off", help="Set (--on) or clear (--off) the follow-up flag.")] = True,
+    category_option_combo: Annotated[str | None, typer.Option("--coc")] = None,
+    attribute_option_combo: Annotated[str | None, typer.Option("--aoc")] = None,
+) -> None:
+    """Set or clear the follow-up flag on a single data value."""
+    from dhis2w_core.v41.plugins.aggregate import service
+
+    result = asyncio.run(
+        service.set_data_value_followup(
+            profile_from_env(),
+            data_element=data_element,
+            period=period,
+            org_unit=org_unit,
+            followup=on,
+            category_option_combo=category_option_combo,
+            attribute_option_combo=attribute_option_combo,
+        )
+    )
+    if is_json_output():
+        typer.echo(result.model_dump_json(indent=2))
+    else:
+        typer.echo(f"follow-up {'set' if result.followup else 'cleared'}  {data_element}  {period}  {org_unit}")
