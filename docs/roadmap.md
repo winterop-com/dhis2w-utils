@@ -149,8 +149,16 @@ feed the single external egress. Full design lives in `SECURITY-SCANNER-PLAN.md`
 checks); the [security plugin page](architecture/security-plugin.md) carries the
 extension recipe.
 
-Remaining: PR 9 -- a cheap MCP read surface (`security_settings` / `security_authorities`
-/ `security_version`) mirroring the CLI; the long-running `audit` stays CLI-only.
+The cheap MCP read surface has shipped (`security_settings` / `security_authorities` /
+`security_version`, read-only single-request tools mirroring the CLI; the long-running
+`audit` stays CLI-only). The full 14-check catalog plus the auditor-app gap checks (CSP
+directive grading, runtime CORS response headers, HSTS max-age, cross-origin-isolation
+headers, all-account hygiene aggregates, password-age, and the route-management
+dangerous-authority category) have all landed. The one remaining item is opt-in js-x-ray
+static analysis of installed-app JavaScript bundles (see
+`SECURITY-CHECKS-FROM-AUDITOR-APP-PLAN.md` section 4), deferred as a post-release
+sub-project with its own same-origin bundle-fetch guardrail surface.
+
 Writes (rotating credentials, toggling registration, editing security settings) stay
 out of scope until a concrete caller needs them.
 

@@ -2,7 +2,7 @@
 
 Author: Morten Svanaes
 Date: 2026-06-25
-Status: PLANNED. Branch: feat/security-audit-scanner.
+Status: PRs A-F IMPLEMENTED on `feat/security-audit-scanner` (2026-06-25) -- A `13adeb36` (settings top-ups), B `5e4a4291` (transport header grading: HSTS max-age / CSP directives / cross-origin isolation), C `9446ef0c` (runtime CORS response headers), D `e6c28d40` (all-account hygiene aggregates), E `f4962051` (password-age with the v41-vs-v42/v43 _wire split), F `9ae0b38f` (route-management dangerous-authority category). Each was adversarially reviewed and gated. PR G (js-x-ray static app-bundle analysis, section 4) is the one remaining item, deferred as an opt-in post-release sub-project. Source-grounding corrected an app bug en route: the app's `F_PUBLIC_ROUTE_ADD` authority does not exist; the real constant is `F_ROUTE_PUBLIC_ADD` (BUGS.md #57). The sections below are the as-built design for A-F and the design for G.
 
 ## 1. Method and scope
 
