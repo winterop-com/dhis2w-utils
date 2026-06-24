@@ -63,6 +63,26 @@ def test_benign_role_produces_no_findings() -> None:
     assert evaluate_roles([role]) == []
 
 
+def test_impersonate_user_role_is_flagged_high() -> None:
+    """A role granting F_IMPERSONATE_USER (account takeover) is HIGH in user_management."""
+    role = build_role_audit(role_id="r4", name="Support", authorities=["F_IMPERSONATE_USER"], member_count=3)
+    assert role.categories == ["user_management"]
+    findings = evaluate_roles([role])
+    assert len(findings) == 1
+    assert findings[0].severity is Severity.HIGH
+    assert "user_management" in (findings[0].evidence or {}).get("categories", "")
+
+
+def test_public_route_role_is_flagged_high() -> None:
+    """A role granting F_ROUTE_PUBLIC_ADD (SSRF-relay creation) is HIGH in route_management."""
+    role = build_role_audit(role_id="r5", name="Integrations", authorities=["F_ROUTE_PUBLIC_ADD"], member_count=2)
+    assert role.categories == ["route_management"]
+    findings = evaluate_roles([role])
+    assert len(findings) == 1
+    assert findings[0].severity is Severity.HIGH
+    assert "route_management" in (findings[0].evidence or {}).get("categories", "")
+
+
 # ---------------------------------------------------------------------------
 # Per-tree wiring over the live /api/userRoles shape
 # ---------------------------------------------------------------------------

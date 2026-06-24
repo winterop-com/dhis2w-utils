@@ -36,6 +36,7 @@ HIGH_RISK_ROLE_CATEGORIES: frozenset[str] = frozenset(
         "sql_views",
         "metadata_io",
         "user_management",
+        "route_management",
     }
 )
 

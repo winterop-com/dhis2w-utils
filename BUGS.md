@@ -23,7 +23,7 @@ below.
 
 ## Index
 
-58 entries grouped by area. **Status tags** carry the result of the most recent
+59 entries grouped by area. **Status tags** carry the result of the most recent
 re-verification against `dhis2/core` docker images on 2026-05-12: **[FIXED]**
 upstream on all of v41/v42/v43, **[FIXED v43]** on v43 only (still present on
 older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -55,6 +55,7 @@ filing.
 - [#46](#46-post-apiapphubversionid-returns-an-opaque-proxied-app-hub-404-when-given-an-app-id-instead-of-a-version-id) — `POST /api/appHub/{versionId}` with an app id → opaque proxied App Hub 404
 - [#48](#48-no-reliable-server-side-filter-for-non-default-sharing-publicaccessexternalaccess-are-unfilterable-sharingpublic-is-an-ineffective-volume-reducer) — No reliable server-side filter for non-default sharing (`publicAccess`/`externalAccess` unfilterable)
 - [#51](#51-apitokenexpire-is-a-nullable-long-on-the-model-so-a-non-expiring-pat-is-representable-despite-the-controllers-30-day-create-default) - `ApiToken.expire` nullable on the model; a non-expiring PAT is representable despite the 30-day create default
+- [#57](#57-the-dhis2-public-route-authority-is-f_route_public_add-not-f_public_route_add) - DHIS2 public-route authority is `F_ROUTE_PUBLIC_ADD`, not the auditor app's `F_PUBLIC_ROUTE_ADD`
 
 ### Auth / OAuth2 / OIDC
 
@@ -283,6 +284,57 @@ curl -s -o /dev/null -w '%{http_code}' -u admin:district \
 **Workaround:** none in this repo yet — no code reads `/api/authorities` today.
 If a live taxonomy-validation test lands (proposed in the PR #369 review), skip
 it on v41 and cite this entry.
+
+---
+
+### 57. The DHIS2 public-route authority is `F_ROUTE_PUBLIC_ADD`, not `F_PUBLIC_ROUTE_ADD`
+
+Not a DHIS2 defect -- a naming trap that the security-auditor-app fell into and
+that the security taxonomy in this repo must avoid. The DHIS2 Route metadata
+object derives its create authority from its schema descriptor as
+`F_ROUTE_PUBLIC_ADD` (resource name first, then the `*_PUBLIC_ADD` suffix, like
+every other `MetadataObject`). The auditor app's `PRIVILEGED_AUTHORITIES`
+constant lists `F_PUBLIC_ROUTE_ADD` -- a transposed name that exists nowhere in
+the DHIS2 source and therefore can never match a granted authority.
+
+**Observed on:** DHIS2 v41-v43. Verified in the local source checkout
+(`/Users/netromsb/develop/dhis2/GARAGE/SLOT3/dhis-2`) on `origin/2.41`,
+`origin/2.42`, and the `2.44-SNAPSHOT` dev line (2026-06-25).
+
+**Repro (against the DHIS2 source):**
+
+```bash
+cd /Users/netromsb/develop/dhis2/GARAGE/SLOT3/dhis-2
+# Real authority -- declared in the Route schema descriptor:
+git show origin/2.41:dhis-2/dhis-services/dhis-service-schema/src/main/java/org/hisp/dhis/schema/descriptors/RouteSchemaDescriptor.java \
+  | grep F_ROUTE_PUBLIC_ADD
+#   schema.add(new Authority(AuthorityType.CREATE_PUBLIC, List.of("F_ROUTE_PUBLIC_ADD")));
+# The app's name -- matches nothing:
+git grep -l F_PUBLIC_ROUTE_ADD origin/2.41 origin/2.42 -- '*.java'
+# (no output)
+```
+
+`F_IMPERSONATE_USER` (the other privilege-escalation authority in the same app
+list) IS correct and has existed since 2.41.0 (`Authorities.java`, commit
+#14980, 2023-08-30), so the taxonomy maps it as-is.
+
+**Expected:** the auditor app would key on `F_ROUTE_PUBLIC_ADD` and flag route
+managers.
+
+**Actual:** the app keys on `F_PUBLIC_ROUTE_ADD`; on any real DHIS2 instance the
+holder query returns nobody, so the app's route-manager check is a silent
+no-op.
+
+**Workaround in this repo:** the dangerous-authority taxonomy uses the correct
+name. The `route_management` category in
+`packages/dhis2w-core/src/dhis2w_core/security_core/authorities.py` lists
+`F_ROUTE_PUBLIC_ADD` (plus `F_ROUTE_PRIVATE_ADD` / `F_ROUTE_DELETE`), so a role
+granting it is flagged HIGH by the `roles` check. We key the taxonomy on the
+authority NAME, not the live `/api/authorities` endpoint (which 500s on v41,
+#45 above), so the mapping works on every version regardless.
+
+**How to know it's relevant upstream:** raise it against the auditor app, not
+DHIS2 -- the constant is the app's bug.
 
 ---
 

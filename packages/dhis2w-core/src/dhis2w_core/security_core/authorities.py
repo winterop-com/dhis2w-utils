@@ -17,6 +17,12 @@ versions that the running server no longer defines (and therefore no
 longer checks). The taxonomy deliberately keys on current-version names
 only, so matches always describe capabilities the server enforces today.
 
+Route authority name: DHIS2 derives the public-route authority from the
+``Route`` schema descriptor as ``F_ROUTE_PUBLIC_ADD`` (verified in
+``RouteSchemaDescriptor.java`` on v41, v42, and the 2.44 dev line). It exists
+across the whole v41-v43 window, so the taxonomy entry matches uniformly. See
+BUGS.md #57 for the naming divergence vs the auditor app's constant.
+
 References:
 - ``GET /api/authorities`` on a live DHIS2 instance lists every authority
   string that version defines.
@@ -108,6 +114,27 @@ SQL_VIEWS = AuthorityCategory(
     ),
 )
 
+# Route management lets a user register DHIS2 Routes, which proxy outbound
+# requests from the server to a configured destination URL. A user who can
+# add a public route can create the very SSRF targets the `routes` check
+# flags: a route to an internal/cloud-metadata host turns the server into a
+# request relay. The dangerous step is authoring the route.
+ROUTE_MANAGEMENT = AuthorityCategory(
+    key="route_management",
+    label="Route management",
+    description=(
+        "Register DHIS2 Routes that proxy server-side outbound requests. "
+        "A public route to an internal host is an SSRF relay (see the routes check)."
+    ),
+    authorities=frozenset(
+        {
+            "F_ROUTE_PUBLIC_ADD",
+            "F_ROUTE_PRIVATE_ADD",
+            "F_ROUTE_DELETE",
+        }
+    ),
+)
+
 # System configuration includes credential-bearing strings (SMTP / SMS
 # provider keys, App Hub URL), behavioural toggles (account
 # self-registration), and OAuth2 client registration.
@@ -190,6 +217,7 @@ AUTHORITY_CATEGORIES: tuple[AuthorityCategory, ...] = (
     USER_MANAGEMENT,
     APP_MANAGEMENT,
     SQL_VIEWS,
+    ROUTE_MANAGEMENT,
     SYSTEM_SETTINGS,
     METADATA_IO,
     TRACKER_ADMIN,
