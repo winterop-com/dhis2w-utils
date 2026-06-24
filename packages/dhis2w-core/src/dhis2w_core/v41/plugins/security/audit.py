@@ -299,6 +299,7 @@ def _build_users(items: list[Any], all_role_ids: set[str], dangerous_role_ids: s
                 disabled=bool(item.get("disabled", False)),
                 email=email if isinstance(email, str) else None,
                 last_login=_wire.last_login(item),
+                password_last_updated=_wire.password_last_updated(item),
                 two_factor=_wire.two_factor_enabled(item),
                 role_ids=role_ids,
                 all_role_ids=all_role_ids,
@@ -339,7 +340,9 @@ async def _fetch_disabled_2fa_ids(client: Dhis2Client) -> set[str] | None:
     return {str(item.get("id", "")) for item in items if isinstance(item, dict)}
 
 
-async def _run_hygiene(client: Dhis2Client, *, stale_days: int, now: datetime, two_factor_detail: bool) -> CheckResult:
+async def _run_hygiene(
+    client: Dhis2Client, *, stale_days: int, max_password_age_days: int, now: datetime, two_factor_detail: bool
+) -> CheckResult:
     """Audit per-user hygiene over privileged accounts, joined to login and 2FA posture."""
     label = label_for("hygiene")
     try:
@@ -354,7 +357,7 @@ async def _run_hygiene(client: Dhis2Client, *, stale_days: int, now: datetime, t
         )
     all_role_ids, dangerous_role_ids = _role_id_sets(roles_raw)
     users = _build_users(user_items, all_role_ids, dangerous_role_ids)
-    findings = evaluate_hygiene(users, stale_days=stale_days, now=now)
+    findings = evaluate_hygiene(users, stale_days=stale_days, max_password_age_days=max_password_age_days, now=now)
     note: str | None = None
     if _wire.TWO_FACTOR_SOURCE == TwoFactorSource.USER_FIELD:
         findings.extend(evaluate_two_factor_from_user_field(users))
@@ -1041,7 +1044,11 @@ def _bind_hygiene(
 
     async def _run() -> CheckResult:
         return await _run_hygiene(
-            client, stale_days=options.stale_days, now=runtime.now, two_factor_detail=options.two_factor_detail
+            client,
+            stale_days=options.stale_days,
+            max_password_age_days=options.max_password_age_days,
+            now=runtime.now,
+            two_factor_detail=options.two_factor_detail,
         )
 
     return _run

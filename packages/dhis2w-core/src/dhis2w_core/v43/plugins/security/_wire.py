@@ -35,7 +35,7 @@ from pydantic import ValidationError
 from dhis2w_core.security_core import OAuth2ClientView, TokenAllowlists, TokenView, TwoFactorSource
 from dhis2w_core.security_core.text import split_delimited
 
-USER_FIELDS = "id,username,disabled,email,lastLogin,userRoles[id]"
+USER_FIELDS = "id,username,disabled,email,lastLogin,passwordLastUpdated,userRoles[id]"
 TWO_FACTOR_SOURCE: TwoFactorSource = TwoFactorSource.AUDIT_ENDPOINT
 
 # OAuth2 client fields the auth-methods check reads on v43: the `clientId` identifier, display name, and the
@@ -51,6 +51,12 @@ def two_factor_enabled(user: dict[str, Any]) -> bool | None:
 def last_login(user: dict[str, Any]) -> str | None:
     """Read the last-login timestamp from the /api/users record."""
     value = user.get("lastLogin")
+    return value if isinstance(value, str) else None
+
+
+def password_last_updated(user: dict[str, Any]) -> str | None:
+    """Read v43's flattened top-level passwordLastUpdated timestamp from the /api/users record."""
+    value = user.get("passwordLastUpdated")
     return value if isinstance(value, str) else None
 
 

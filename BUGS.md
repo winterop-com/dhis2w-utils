@@ -109,6 +109,7 @@ filing.
 ### v41-specific
 
 - [#39](#39-v41-oauth2-client-wire-shape--cid-not-clientid--strict-array-typed-multi-valued-fields) — OAuth2 client wire: `cid` not `clientId`, strict arrays
+- [#56](#56-v41-apiusers-nests-passwordlastupdated-under-usercredentials-v42v43-flatten-it-onto-the-user) — `/api/users` nests `passwordLastUpdated` under `userCredentials` (v42/v43 flatten it)
 
 ## Retest log
 
@@ -3122,6 +3123,38 @@ curl -sI -u admin:district "$BASE/api/system/info" | grep -iE 'cross-origin-open
 **How to know it's resolved:** not a DHIS2 bug -- expected behaviour. This entry documents the non-obvious upstream default so the scanner does not flag a stock instance. If a future DHIS2 starts emitting some of the three by default, a missing/weak one would become a real regression and could be raised to WARN.
 
 **Related:** BUGS.md #49 (HSTS suppressed behind a proxy; CSP wire-only, default `frame-ancestors 'self';`).
+
+---
+
+### 56. v41: `/api/users` nests `passwordLastUpdated` under `userCredentials`; v42/v43 flatten it onto the User
+
+**Observed on:** DHIS2 `2.41` (nested) vs `2.42` / `2.43` (flat). The User-resource flattening landed on v42; the generated client trees confirm it (v41 `User` carries a `userCredentials: UserCredentialsDto` block whose `passwordLastUpdated` is the populated path, while v42/v43 have no `UserCredentials` class and expose only the top-level field). The DHIS2 source at `dhis-2/dhis-api/.../user/User.java` (master, 2.44-SNAPSHOT) has `getPasswordLastUpdated()` annotated `@JsonProperty` directly on `User`, serialising it flat with no `UserCredentials` class present.
+
+**Repro:**
+
+```bash
+# v41 returns the timestamp nested under userCredentials:
+curl -s -u admin:district \
+  'https://play.im.dhis2.org/dev-2-41/api/users/xE7jOejl9FI.json?fields=username,userCredentials[passwordLastUpdated]'
+# {"username":"admin","userCredentials":{"passwordLastUpdated":"2024-..."}}
+
+# v42/v43 return it flattened on the User:
+curl -s -u admin:district \
+  'https://play.im.dhis2.org/dev-2-42/api/users/xE7jOejl9FI.json?fields=username,passwordLastUpdated'
+# {"username":"admin","passwordLastUpdated":"2024-..."}
+```
+
+**Expected:** one field path (`passwordLastUpdated`) answers "when was this password last changed" across all supported majors, so a password-age audit can request a single selector.
+
+**Actual:** v42 flattened `passwordLastUpdated` (and the rest of the former `UserCredentials`) onto the `User` resource; v41 still nests it under `userCredentials`. The same `fields=passwordLastUpdated` selector returns the value on v42/v43 but nothing on v41 (which needs `fields=userCredentials[passwordLastUpdated]`).
+
+**Impact:** the password-age hygiene signal -- "active accounts whose password is older than the threshold or never set" -- reads a different field path per major. A version-blind read would silently see every v41 password as never-set (the flat field is empty there).
+
+**Workaround in this repo:** per-tree `_wire.py` selects the field path -- v41 requests `userCredentials[passwordLastUpdated]` and reads the nested value; v42/v43 request the flat `passwordLastUpdated` and read the top-level value. Both feed the version-invariant `password_last_updated` field on `UserHygiene`, so the hygiene reducer stays version-neutral. See `password_last_updated` + `USER_FIELDS` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py` and the password-age aggregate in `packages/dhis2w-core/src/dhis2w_core/security_core/hygiene.py`.
+
+**How to know it's fixed:** not a bug -- a deliberate v42 wire change. This entry documents the per-major field path so the password-age check reads the right shape. Mirrors the 2FA `_wire` split (BUGS.md #47).
+
+**Verifier:** none yet.
 
 ---
 

@@ -17,6 +17,7 @@ class AuditOptions(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     stale_days: int
+    max_password_age_days: int
     two_factor_detail: bool
     max_objects: int
     dhis_conf_path: Path | None = None

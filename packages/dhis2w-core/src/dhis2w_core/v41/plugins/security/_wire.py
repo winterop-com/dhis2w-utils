@@ -35,8 +35,11 @@ from pydantic import ValidationError
 
 from dhis2w_core.security_core import OAuth2ClientView, TokenAllowlists, TokenView, TwoFactorSource
 
-# v41 still exposes per-user 2FA state on the User resource, so it is requested inline.
-USER_FIELDS = "id,username,disabled,email,lastLogin,twoFactorEnabled,userCredentials[twoFA],userRoles[id]"
+# v41 still exposes per-user 2FA state on the User resource, so it is requested inline. v41 nests
+# passwordLastUpdated under userCredentials (flattened onto the User from v42; BUGS.md #56).
+USER_FIELDS = (
+    "id,username,disabled,email,lastLogin,twoFactorEnabled,userCredentials[twoFA,passwordLastUpdated],userRoles[id]"
+)
 TWO_FACTOR_SOURCE: TwoFactorSource = TwoFactorSource.USER_FIELD
 
 # OAuth2 client fields the auth-methods check reads on v41: the `cid` identifier, display name, and the
@@ -58,6 +61,15 @@ def two_factor_enabled(user: dict[str, Any]) -> bool | None:
 def last_login(user: dict[str, Any]) -> str | None:
     """Read the last-login timestamp from the /api/users record."""
     value = user.get("lastLogin")
+    return value if isinstance(value, str) else None
+
+
+def password_last_updated(user: dict[str, Any]) -> str | None:
+    """Read v41's nested userCredentials.passwordLastUpdated timestamp from the /api/users record (BUGS.md #56)."""
+    credentials = user.get("userCredentials")
+    if not isinstance(credentials, dict):
+        return None
+    value = credentials.get("passwordLastUpdated")
     return value if isinstance(value, str) else None
 
 

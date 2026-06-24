@@ -48,6 +48,9 @@ d2w security audit --checks hygiene
 # Treat privileged accounts idle for 180 days (instead of the default 90) as stale:
 d2w security audit --checks hygiene --stale-days 180
 
+# Flag active accounts whose password is older than 90 days or never set (default threshold is 365):
+d2w security audit --checks hygiene --max-password-age 90
+
 # On v42+, also name each superuser missing 2FA (per-user /api/users/twoFactor read):
 d2w security audit --two-factor-detail
 

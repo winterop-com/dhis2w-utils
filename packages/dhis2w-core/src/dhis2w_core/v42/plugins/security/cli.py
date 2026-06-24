@@ -135,6 +135,10 @@ def audit_command(
     stale_days: Annotated[
         int, typer.Option("--stale-days", min=1, help="Days without login before a privileged account is stale.")
     ] = 90,
+    max_password_age: Annotated[
+        int,
+        typer.Option("--max-password-age", min=1, help="Days before an unchanged password is treated as stale."),
+    ] = 365,
     two_factor_detail: Annotated[
         bool,
         typer.Option(
@@ -188,6 +192,7 @@ def audit_command(
     animated = progress and sys.stderr.isatty() and not is_json_output()
     options = AuditOptions(
         stale_days=stale_days,
+        max_password_age_days=max_password_age,
         two_factor_detail=two_factor_detail,
         max_objects=max_objects if max_objects is not None else audit.DEFAULT_SHARING_MAX_OBJECTS,
         dhis_conf_path=dhis_conf,

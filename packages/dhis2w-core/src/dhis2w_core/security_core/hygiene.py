@@ -18,6 +18,9 @@ SEED_USERNAME = "admin"
 # Mirrors the auditor app's SAMPLE_LIMIT so a 5000-user instance emits one row, not thousands.
 SAMPLE_LIMIT = 10
 
+# Default age (in days) past which a password is treated as stale. Mirrors the auditor app's 365-day floor.
+DEFAULT_MAX_PASSWORD_AGE_DAYS = 365
+
 
 class TwoFactorSource(StrEnum):
     """Where a version tree reads per-user 2FA state from."""
@@ -36,6 +39,7 @@ class UserHygiene(BaseModel):
     disabled: bool = False
     email: str | None = None
     last_login: str | None = None
+    password_last_updated: str | None = None
     two_factor: bool | None = None
     is_superuser: bool = False
     is_privileged: bool = False
@@ -61,6 +65,7 @@ def build_user_hygiene(
     disabled: bool,
     email: str | None,
     last_login: str | None,
+    password_last_updated: str | None,
     two_factor: bool | None,
     role_ids: list[str],
     all_role_ids: set[str],
@@ -76,23 +81,35 @@ def build_user_hygiene(
         disabled=disabled,
         email=email,
         last_login=last_login,
+        password_last_updated=password_last_updated,
         two_factor=two_factor,
         is_superuser=is_superuser,
         is_privileged=is_privileged,
     )
 
 
-def evaluate_hygiene(users: list[UserHygiene], *, stale_days: int, now: datetime) -> list[AuditFinding]:
+def evaluate_hygiene(
+    users: list[UserHygiene],
+    *,
+    stale_days: int,
+    max_password_age_days: int = DEFAULT_MAX_PASSWORD_AGE_DAYS,
+    now: datetime,
+) -> list[AuditFinding]:
     """Per-user hygiene over privileged accounts plus aggregate never-logged-in / stale signals for the rest.
 
     Privileged accounts keep their high-signal per-user rows (privileged sets are small). Active
     non-privileged accounts that never logged in or have gone stale are rolled up into at most two
-    aggregate WARN findings so a large instance never emits a row per account.
+    aggregate WARN findings so a large instance never emits a row per account. A third aggregate WARN
+    rolls up every active account (privileged or not) whose password is older than the threshold or has
+    never been set, since password age is a hardening signal independent of privilege.
     """
     findings: list[AuditFinding] = []
     never_logged_in: list[str] = []
     stale_accounts: list[str] = []
+    stale_passwords: list[str] = []
     for user in users:
+        if not user.disabled and _has_stale_password(user.password_last_updated, now, max_password_age_days):
+            stale_passwords.append(user.username)
         if not user.is_privileged:
             if not user.disabled:
                 if user.last_login is None:
@@ -160,6 +177,14 @@ def evaluate_hygiene(users: list[UserHygiene], *, stale_days: int, now: datetime
             title="Stale active accounts",
             detail_lead=f"non-privileged active account(s) have not logged in for over {stale_days} days",
             group_key="active-stale",
+        )
+    )
+    findings.extend(
+        _aggregate_finding(
+            stale_passwords,
+            title="Accounts with stale or unset passwords",
+            detail_lead=f"active account(s) have a password older than {max_password_age_days} days or never set",
+            group_key="stale-password",
         )
     )
     findings.extend(_seed_admin_findings(users))
@@ -312,3 +337,23 @@ def _is_stale(last_login: str, now: datetime, stale_days: int) -> bool:
     stamp = stamp.replace(tzinfo=None)
     reference = now.replace(tzinfo=None)
     return (reference - stamp).days > stale_days
+
+
+def _has_stale_password(password_last_updated: str | None, now: datetime, max_password_age_days: int) -> bool:
+    """Return True when a password was never set (null) or last changed before the max-age threshold.
+
+    An unparseable timestamp is treated as a recent password (not flagged) rather than as unset:
+    DHIS2 always serializes a real java.util.Date, so an unparseable value indicates corrupt data or
+    an unforeseen wire format, and treating it as stale would risk a mass false positive across every
+    account if a format ever slips past fromisoformat. The null/never-set case (password_last_updated
+    is None) IS still flagged via the union with the older-than-threshold branch.
+    """
+    if password_last_updated is None:
+        return True
+    try:
+        stamp = datetime.fromisoformat(password_last_updated)
+    except ValueError:
+        return False
+    stamp = stamp.replace(tzinfo=None)
+    reference = now.replace(tzinfo=None)
+    return (reference - stamp).days > max_password_age_days
