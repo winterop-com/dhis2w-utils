@@ -38,7 +38,7 @@ class _Settings(BaseModel):
     keySelfRegistrationNoRecaptcha: bool | None = False
     keyCanGrantOwnUserAuthorityGroups: bool | None = False
     keyAccountRecovery: bool | None = False
-    enforceVerifiedEmail: bool | None = False
+    enforceVerifiedEmail: bool | None = None
     keyEmailHostName: str | None = "smtp.example.org"
     keyEmailUsername: str | None = "mailer"
 
@@ -116,6 +116,53 @@ def test_cors_without_wildcard_emits_no_cors_finding() -> None:
     """A concrete-origin CORS whitelist with no `*` raises no permissive-CORS finding."""
     findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=("https://app.example.org",)))
     assert "Permissive CORS wildcard origin" not in _titles(findings)
+
+
+def test_email_verification_off_is_warn() -> None:
+    """enforceVerifiedEmail explicitly False raises a standalone WARN email-verification finding."""
+    finding = _by_title(evaluate_settings(_Settings(enforceVerifiedEmail=False)), "Email verification is not enforced")
+    assert finding.severity is Severity.WARN
+
+
+def test_email_verification_none_emits_no_finding() -> None:
+    """enforceVerifiedEmail None (absent on v41) emits no finding; flagging it would be a false positive."""
+    findings = evaluate_settings(_Settings(enforceVerifiedEmail=None))
+    assert "Email verification is not enforced" not in _titles(findings)
+
+
+def test_email_verification_on_emits_no_finding() -> None:
+    """enforceVerifiedEmail True raises no email-verification finding."""
+    findings = evaluate_settings(_Settings(enforceVerifiedEmail=True))
+    assert "Email verification is not enforced" not in _titles(findings)
+
+
+def test_non_empty_cors_without_wildcard_is_info_with_origins() -> None:
+    """A non-empty no-wildcard CORS whitelist raises an INFO with the origins enumerated in evidence."""
+    origins = ("https://app.example.org", "https://admin.example.org")
+    finding = _by_title(
+        evaluate_settings(_Settings(), cors=CorsWhitelist(origins=origins)),
+        "CORS origin allowlist configured",
+    )
+    assert finding.severity is Severity.INFO
+    evidence = finding.evidence or {}
+    for origin in origins:
+        assert origin in evidence.get("origins", "")
+
+
+def test_wildcard_cors_is_medium_only_not_info() -> None:
+    """A wildcard CORS whitelist raises the MEDIUM permissive finding only, never the INFO allowlist one."""
+    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=("*", "https://app.example.org")))
+    titles = _titles(findings)
+    assert "Permissive CORS wildcard origin" in titles
+    assert "CORS origin allowlist configured" not in titles
+
+
+def test_empty_cors_emits_neither_cors_finding() -> None:
+    """An empty CORS whitelist raises neither the wildcard MEDIUM nor the allowlist INFO."""
+    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=()))
+    titles = _titles(findings)
+    assert "Permissive CORS wildcard origin" not in titles
+    assert "CORS origin allowlist configured" not in titles
 
 
 def test_cors_none_skips_only_the_cors_verdict() -> None:

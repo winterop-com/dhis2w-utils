@@ -111,6 +111,19 @@ def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = No
             )
         )
 
+    if settings.enforceVerifiedEmail is False:
+        findings.append(
+            AuditFinding(
+                check=_CHECK,
+                severity=Severity.WARN,
+                title="Email verification is not enforced",
+                detail=(
+                    "enforceVerifiedEmail is off; users can act without a verified email address, weakening "
+                    "account-recovery and notification trust. Email verification was introduced in DHIS2 v42."
+                ),
+            )
+        )
+
     if cors is not None and cors.has_wildcard:
         findings.append(
             AuditFinding(
@@ -120,6 +133,19 @@ def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = No
                 detail=(
                     "The CORS whitelist contains a `*` origin; any site can make credentialed cross-origin API calls."
                 ),
+            )
+        )
+    elif cors is not None and cors.origins:
+        findings.append(
+            AuditFinding(
+                check=_CHECK,
+                severity=Severity.INFO,
+                title="CORS origin allowlist configured",
+                detail=(
+                    "The CORS whitelist permits cross-origin API calls from the listed origins. An origin "
+                    "allowlist is the correct mechanism; review that each entry is still trusted."
+                ),
+                evidence={"origins": ", ".join(cors.origins)},
             )
         )
 
