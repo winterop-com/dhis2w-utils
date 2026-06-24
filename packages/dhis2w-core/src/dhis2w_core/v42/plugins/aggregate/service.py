@@ -22,15 +22,20 @@ async def get_data_values(
     start_date: str | None = None,
     end_date: str | None = None,
     org_unit: str | None = None,
+    org_unit_group: str | None = None,
     children: bool = False,
     data_element_group: str | None = None,
+    include_deleted: bool = False,
+    last_updated: str | None = None,
     limit: int | None = None,
 ) -> DataValueSet:
     """Fetch a data value set via GET /api/dataValueSets.
 
     DHIS2 requires a coherent combination of params — typically `dataSet`,
-    `period` (or `startDate`+`endDate`), and `orgUnit`. `limit` truncates
-    the `dataValues` list client-side after the response is parsed.
+    `period` (or `startDate`+`endDate`), and `orgUnit` (or `orgUnitGroup`).
+    `include_deleted` returns soft-deleted values; `last_updated` filters to
+    values modified since a date/duration (e.g. `2024-01-01` or `7d`); `limit`
+    truncates the `dataValues` list client-side after the response is parsed.
     """
     params: dict[str, Any] = {}
     if data_set is not None:
@@ -43,10 +48,16 @@ async def get_data_values(
         params["endDate"] = end_date
     if org_unit is not None:
         params["orgUnit"] = org_unit
+    if org_unit_group is not None:
+        params["orgUnitGroup"] = org_unit_group
     if children:
         params["children"] = "true"
     if data_element_group is not None:
         params["dataElementGroup"] = data_element_group
+    if include_deleted:
+        params["includeDeleted"] = "true"
+    if last_updated is not None:
+        params["lastUpdated"] = last_updated
 
     async with open_client(profile) as client:
         raw = await client.get_raw("/api/dataValueSets", params=params)

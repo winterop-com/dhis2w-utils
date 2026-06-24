@@ -317,8 +317,11 @@ Fetch a DHIS2 aggregate data value set.
 | `start_date` | `string` | no | — |
 | `end_date` | `string` | no | — |
 | `org_unit` | `string` | no | — |
+| `org_unit_group` | `string` | no | — |
 | `children` | `boolean` | no | — |
 | `data_element_group` | `string` | no | — |
+| `include_deleted` | `boolean` | no | — |
+| `last_updated` | `string` | no | — |
 | `limit` | `integer` | no | — |
 | `profile` | `string` | no | — |
 

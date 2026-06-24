@@ -159,10 +159,13 @@ class AggregateDataSource:
             data_set=self._str("dataSet"),
             period=self._str("period"),
             org_unit=self._str("orgUnit"),
+            org_unit_group=self._str("orgUnitGroup"),
             start_date=self._str("startDate"),
             end_date=self._str("endDate"),
             children=_as_bool(self._args.get("children", False)),
             data_element_group=self._str("dataElementGroup"),
+            include_deleted=_as_bool(self._args.get("includeDeleted", False)),
+            last_updated=self._str("lastUpdated"),
             limit=int(limit) if limit is not None else None,
         )
         return list(value_set.dataValues or [])
