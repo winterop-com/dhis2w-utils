@@ -1,0 +1,3 @@
+// `>> json` sends a JSON array to stdout (a bare format keyword = that format to stdout).
+// Equivalent long form: `>> stdout as json`.
+dataElements | select id, name, valueType | order name asc | limit 10 >> json

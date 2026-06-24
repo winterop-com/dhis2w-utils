@@ -231,6 +231,23 @@ Aggregates | where isImmunisation($this) | select id, name, valueType | order na
 Run it with `d2w query run examples/d2ql/library-immunisation.d2ql`, or run a specific definition with
 `--define <name>`.
 
+## Output formats & sinks
+
+A `>>` sink picks **destination** (stdout or a file) and **format** (json/ndjson/csv) independently.
+Format comes from `as <format>`, a bare format keyword (stdout), or a file's extension.
+
+```
+dataElements | select id, name >> ndjson                 # ndjson to stdout (sink-stdout-ndjson.d2ql)
+dataElements | select id, name >> csv                    # csv to stdout — escapes wide tables (sink-stdout-csv.d2ql)
+dataElements | select id, name >> json                   # JSON array to stdout (sink-stdout-json.d2ql)
+dataElements | select id, name >> stdout as ndjson       # explicit long form of `>> ndjson` (sink-stdout-as.d2ql)
+dataElements | select id, name >> "elements.csv"         # csv file from the extension (export-csv.d2ql)
+dataElements | select id, name >> "elements.txt" as csv  # `as` overrides the extension (sink-file-as-override.d2ql)
+```
+
+In the [REPL](../guides/d2ql.md#interactive-repl) the same formats apply, and **Ctrl+T** cycles the
+default render (table -> json -> ndjson -> csv) when a result is too wide for a table.
+
 ## See also
 
 - [d2ql tutorial](../guides/d2ql-tutorial.md) — build these up step by step.

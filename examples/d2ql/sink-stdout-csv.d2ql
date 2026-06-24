@@ -1,0 +1,3 @@
+// `>> csv` writes CSV to stdout (columns are the union of row keys). Useful when the REPL/CLI
+// table is too wide. Equivalent long form: `>> stdout as csv`.
+dataElements | select id, name, valueType | order name asc | limit 10 >> csv

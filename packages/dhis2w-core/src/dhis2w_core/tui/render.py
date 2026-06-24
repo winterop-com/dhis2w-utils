@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal
 
-from dhis2w_ql import to_jsonable
+from dhis2w_ql import serialize_rows, to_jsonable
 from rich.console import RenderableType
 from rich.table import Table
 from rich.text import Text
+
+Format = Literal["json", "ndjson", "csv"]
 
 
 def _cell(value: Any) -> str:
@@ -37,10 +39,17 @@ def build_result_table(rows: list[dict[str, Any]]) -> Table:
     return table
 
 
-def build_result_renderable(result: Any) -> RenderableType:
-    """Render a `QueryResult` as a table (object rows), JSON (other rows), or a written-to note."""
+def build_result_renderable(result: Any, default_format: Format | None = None) -> RenderableType:
+    """Render a `QueryResult` as a table (object rows), JSON, an explicit format, or a written-to note.
+
+    An explicit sink `format` on the result wins; otherwise `default_format` (a REPL-wide toggle)
+    applies; otherwise object rows render as a table and anything else as JSON.
+    """
     if result.written_to is not None:
         return Text(f"wrote {result.count} row(s) to {result.written_to}", style="green")
+    effective_format = result.format or default_format
+    if effective_format is not None:
+        return Text(serialize_rows(result.rows, effective_format, scalar=result.scalar).rstrip("\n"))
     if result.scalar:
         value = to_jsonable(result.rows[0]) if result.rows else None
         return Text(json.dumps(value, ensure_ascii=False))

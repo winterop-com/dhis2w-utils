@@ -39,6 +39,7 @@ from dhis2w_ql.ast import (
     SelectStage,
     SkipStage,
     Stage,
+    StdoutSink,
     TransformStage,
     WhereStage,
 )
@@ -156,7 +157,8 @@ class QueryEngine:
                 written_to=written.path,
                 format=written.format,
             )
-        return QueryResult(rows=outcome.rows, count=len(outcome.rows), scalar=outcome.scalar)
+        stdout_format = pipeline.sink.format if isinstance(pipeline.sink, StdoutSink) else None
+        return QueryResult(rows=outcome.rows, count=len(outcome.rows), scalar=outcome.scalar, format=stdout_format)
 
     # ------------------------------------------------------------------ execution
 
@@ -356,18 +358,21 @@ class _WriteOutcome(BaseModel):
     format: str
 
 
-def _write_file(sink: FileSink, rows: list[Any], *, scalar: bool = False) -> _WriteOutcome:
-    fmt = sink.format or "json"
+def serialize_rows(rows: list[Any], fmt: Literal["json", "ndjson", "csv"], *, scalar: bool = False) -> str:
+    """Serialize result rows to text in `fmt` — shared by file sinks and stdout/REPL rendering."""
     payload = [_jsonable(row) for row in rows]
     if fmt == "csv":
-        text = _to_csv(payload)
-    elif fmt == "ndjson":
-        text = "\n".join(json.dumps(row, ensure_ascii=False) for row in payload) + "\n"
-    else:
-        # A scalar result (fold/count) writes the single value, not a one-element array.
-        document: Any = payload[0] if scalar and len(payload) == 1 else payload
-        text = json.dumps(document, indent=2, ensure_ascii=False)
-    Path(sink.path).write_text(text, encoding="utf-8")
+        return _to_csv(payload)
+    if fmt == "ndjson":
+        return "\n".join(json.dumps(row, ensure_ascii=False) for row in payload) + "\n"
+    # A scalar result (fold/count) serializes the single value, not a one-element array.
+    document: Any = payload[0] if scalar and len(payload) == 1 else payload
+    return json.dumps(document, indent=2, ensure_ascii=False)
+
+
+def _write_file(sink: FileSink, rows: list[Any], *, scalar: bool = False) -> _WriteOutcome:
+    fmt = sink.format or "json"
+    Path(sink.path).write_text(serialize_rows(rows, fmt, scalar=scalar), encoding="utf-8")
     return _WriteOutcome(path=sink.path, format=fmt)
 
 
