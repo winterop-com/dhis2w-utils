@@ -9166,6 +9166,7 @@ $ d2w security audit [OPTIONS]
 * `--max-objects INTEGER RANGE`: Max objects the sharing scan inspects across all types before stopping (default 5000; truncation is loud).  [x&gt;=1]
 * `--sharing-graph, --visualize`: Also write the interactive d3 sharing explorer (sharing-explorer.html) into the run folder.
 * `--resume DIRECTORY`: Resume an interrupted run folder.
+* `--dhis-conf FILE`: Path to a local COPY of the server&#x27;s dhis.conf for the audit-config check. The audit posture is not API-readable; secrets are reported set/not-set only and never echoed.  [env var: DHIS2_CONF_LOCATION]
 * `--help`: Show this message and exit.
 
 ### `d2w security report`

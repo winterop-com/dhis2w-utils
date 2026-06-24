@@ -163,6 +163,20 @@ def audit_command(
     resume: Annotated[
         Path | None, typer.Option("--resume", file_okay=False, exists=True, help="Resume an interrupted run folder.")
     ] = None,
+    dhis_conf: Annotated[
+        Path | None,
+        typer.Option(
+            "--dhis-conf",
+            envvar="DHIS2_CONF_LOCATION",
+            show_envvar=True,
+            dir_okay=False,
+            exists=True,
+            help=(
+                "Path to a local COPY of the server's dhis.conf for the audit-config check. The audit "
+                "posture is not API-readable; secrets are reported set/not-set only and never echoed."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Run the security checks step by step and stream a report to a folder. `--json` prints the report."""
     from dhis2w_core.v43.plugins.security import audit
@@ -184,6 +198,7 @@ def audit_command(
                     stale_days=stale_days,
                     two_factor_detail=two_factor_detail,
                     max_objects=resolved_max_objects,
+                    dhis_conf_path=dhis_conf,
                     visualize=sharing_graph,
                     animated=animated,
                 )
@@ -207,6 +222,7 @@ def audit_command(
                     stale_days=stale_days,
                     two_factor_detail=two_factor_detail,
                     max_objects=resolved_max_objects,
+                    dhis_conf_path=dhis_conf,
                     visualize=sharing_graph,
                     animated=animated,
                 )

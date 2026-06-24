@@ -34,6 +34,7 @@ filing.
 ### Schema / OAS / Filters
 
 - [#3](#3-blank-auditmetadata--audittracker--auditaggregate-in-dhisconf-silently-fall-back-to-audit-enabled-defaults) — Blank `audit.metadata` / `audit.tracker` / `audit.aggregate` silently fall back to defaults
+- [#53](#53-the-audit-posture-lives-only-in-dhisconf-and-is-exposed-by-no-api-endpoint-so-it-cannot-be-verified-remotely) — Audit posture is dhis.conf-only and exposed by no API endpoint (not remotely verifiable)
 - [#7](#7-dhis2s-openapi-names-the-primary-key-uid-while-the-rest-api-wire-format-uses-id) — OAS names primary key `uid` while wire uses `id` **[FIXED]**
 - [#8](#8-apischemas-mis-reports-the-plural-wire-key-for-userroleauthorities-as-authoritys) — `/api/schemas` mis-reports `UserRole.authorities` as `authoritys` **[FIXED]**
 - [#14](#14-oas-routeauth-is-a-oneof-with-no-discriminator--and-the-auth-scheme-schemas-are-missing-their-jackson-type-field) — OAS `Route.auth` is an undiscriminated `oneOf`
@@ -3034,6 +3035,64 @@ ls packages/dhis2w-client/src/dhis2w_client/generated/v42/oas/o_auth2_client.py 
 **How to know it's fixed:** the generated trees emit one OAuth2-client schema (same class name, same identifier field, same multi-valued field types) across v41/v42/v43, at which point `OAuth2ClientView` and the per-tree `oauth2_clients` extractors collapse into one. Tied to BUGS.md #39 being fixed upstream.
 
 **Verifier:** none yet (covered by `packages/dhis2w-core/tests/security/test_auth_methods.py`, which exercises both wire shapes through the per-tree extractors).
+
+---
+
+### 53. The audit posture lives only in `dhis.conf` and is exposed by no API endpoint, so it cannot be verified remotely
+
+**Observed on:** DHIS2 `2.41` / `2.42` / `2.43` (the `AUDIT_*` `ConfigurationKey` enum is shared across majors).
+
+**Repro:**
+
+```bash
+# The audit configuration keys live only in dhis.conf:
+#   audit.logger (default on), audit.database (default off),
+#   audit.metadata / audit.aggregate / audit.tracker / audit.api (default empty),
+#   system.audit.enabled (default on).
+# None of these appear on any API endpoint:
+
+GET /api/system/info        # carries no audit.* field
+GET /api/configuration      # systemId / feedbackRecipients / etc -- no audit.* keys
+GET /api/systemSettings     # @Confidential keys filtered server-side; audit.* keys are not settings at all
+```
+
+**Expected:** a read-only audit-posture endpoint (or `system.audit.enabled` plus the four scope matrices surfaced on `/api/system/info` for a superuser) so a remote security audit can confirm whether auditing is enabled and adequately scoped.
+
+**Actual:** the entire audit posture is a `dhis.conf` concern parsed at startup by `org.hisp.dhis.external.conf.ConfigurationKey` and `org.hisp.dhis.artemis.audit.configuration.AuditMatrixConfigurer` (the matrix string is a semicolon-separated list of `AuditType` names; a blank string or the literal `DISABLED` disables the scope). There is no controller route that returns any of it. A remote scanner cannot observe the audit posture at all.
+
+**Impact:** the audit-config security check cannot read the audit posture over the API on any version. Its API-first result is therefore an INFO that the posture is not API-readable -- explicitly NOT a claim that auditing is off. Evaluating the real posture requires the operator to hand the scanner a local copy of `dhis.conf`.
+
+**Workaround in this repo:** the audit-config check takes an explicit `--dhis-conf <path>` (env `DHIS2_CONF_LOCATION`) pointed at a local COPY of the server's `dhis.conf`. The parser in `packages/dhis2w-core/src/dhis2w_core/security_core/dhisconf.py` retains only the `audit.*` keys plus a set/not-set flag for confidential keys (it physically cannot hold a secret value), and `packages/dhis2w-core/src/dhis2w_core/security_core/audit_config.py` evaluates the posture. Without the flag the check states the posture is not API-readable.
+
+**How to know it's fixed:** a DHIS2 endpoint returns `system.audit.enabled` and the four scope matrices (at least for a superuser), at which point the check can read the posture over the wire and the `--dhis-conf` flag becomes optional.
+
+**Verifier:** none (the posture is not API-observable; covered by `packages/dhis2w-core/tests/security/test_security_audit_config.py`).
+
+**Related:** BUGS.md #3 (blank `audit.*` matrices fall back to audit-enabled defaults). See also BUGS.md #54.
+
+---
+
+### 54. DHIS2 applies `{CREATE, UPDATE, DELETE, SECURITY}` as the default matrix when a scope key is absent or empty
+
+**Observed on:** DHIS2 `2.41` / `2.42` / `2.43` (the behavior is in `AuditMatrixConfigurer.java`, shared across majors).
+
+**Source reference:** `dhis-support/dhis-support-artemis/src/main/java/org/hisp/dhis/artemis/audit/configuration/AuditMatrixConfigurer.java`, `configure()` method, lines 84-101.
+
+**Repro:** deploy a DHIS2 instance with NO `audit.*` matrix keys in `dhis.conf`. Query any audited object. The audit log captures CREATE/UPDATE/DELETE/SECURITY events on every scope -- despite the absence of any explicit matrix configuration.
+
+**Expected (naive reading):** an absent or empty `audit.metadata` / `audit.aggregate` / `audit.tracker` / `audit.api` key means the scope is unconfigured, i.e. no types are captured.
+
+**Actual:** `AuditMatrixConfigurer.configure()` checks `StringUtils.isEmpty(config.getProperty(confKey.get()))` (line 91); when the key is absent OR its value is the empty string, it calls `matrix.put(scope, DEFAULT_AUDIT_CONFIGURATION)` (line 94). `DEFAULT_AUDIT_CONFIGURATION` is `EnumSet.of(CREATE, UPDATE, DELETE, SECURITY)`. A scope only deviates from this default when an explicit non-empty matrix string is set. The literal `DISABLED` token is supported (documented in `parseAuditTypes` ~line 112) and produces an empty type set, but any other unrecognised token throws `IllegalArgumentException` at boot.
+
+**Impact:** a security scanner that treats a blank/absent matrix as "no types captured" produces a FALSE POSITIVE on every freshly-deployed DHIS2 instance. The correct model is: absent or empty = DHIS2 forensic default = {CREATE, UPDATE, DELETE, SECURITY} = audited. Only an EXPLICIT non-empty matrix that omits one or more of those four types is narrower than the default.
+
+**Workaround in this repo:** `AuditScopeMatrix.explicit` tracks whether the key was present with a non-empty value. When `explicit=False`, `audit_types` is set to `_DEFAULT_AUDIT_TYPES` (the four forensic types). The `audit-scope-narrowly-scoped` finding fires only when `explicit=True` and the parsed type set omits one or more forensic types. See `packages/dhis2w-core/src/dhis2w_core/security_core/dhisconf.py` (`_scope_matrix`) and `audit_config.py` (`_narrowly_scoped`).
+
+**How to know it's resolved:** not a DHIS2 bug -- expected behavior. This entry documents the non-obvious upstream semantic so the scanner model stays correct.
+
+**Verifier:** `packages/dhis2w-core/tests/security/test_security_audit_config.py::test_default_config_posture_has_no_medium`.
+
+**Related:** BUGS.md #53 (audit posture not API-readable), BUGS.md #3 (blank matrices fall back to defaults).
 
 ---
 

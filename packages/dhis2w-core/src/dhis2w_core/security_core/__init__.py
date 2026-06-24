@@ -10,6 +10,7 @@ extraction lives per tree.
 from __future__ import annotations
 
 from dhis2w_core.security_core.apps import HubApp, InstalledApp, evaluate_apps
+from dhis2w_core.security_core.audit_config import evaluate_audit_config
 from dhis2w_core.security_core.auth_methods import LoginProviderView, OAuth2ClientView, evaluate_auth_methods
 from dhis2w_core.security_core.authorities import (
     AUTHORITY_CATEGORIES,
@@ -23,6 +24,12 @@ from dhis2w_core.security_core.credentials import (
     ProbeOutcome,
     classify_probe_status,
     evaluate_credential_probe,
+)
+from dhis2w_core.security_core.dhisconf import (
+    AuditPosture,
+    AuditScopeMatrix,
+    RedactedSecret,
+    parse_dhis_conf,
 )
 from dhis2w_core.security_core.findings import (
     HIGH_RISK_ROLE_CATEGORIES,
@@ -179,7 +186,9 @@ __all__ = [
     "AdvisoryFloor",
     "AnonymousResult",
     "AuditFinding",
+    "AuditPosture",
     "AuditReport",
+    "AuditScopeMatrix",
     "AuditSummary",
     "AuthorityCategory",
     "BoundCheck",
@@ -216,6 +225,7 @@ __all__ = [
     "ProbeOutcome",
     "ProgressReporter",
     "ProvenanceKind",
+    "RedactedSecret",
     "ReleaseFeed",
     "ReleaseLine",
     "ReportMeta",
@@ -264,6 +274,7 @@ __all__ = [
     "compute_effective_access",
     "evaluate_account_authorities",
     "evaluate_apps",
+    "evaluate_audit_config",
     "evaluate_auth_methods",
     "evaluate_credential_probe",
     "evaluate_guest",
@@ -282,6 +293,7 @@ __all__ = [
     "label_for",
     "make_reporter",
     "parse_dhis2_version",
+    "parse_dhis_conf",
     "resolve_check_keys",
     "resolve_focus_types",
     "role_severity",

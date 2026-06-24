@@ -55,6 +55,7 @@ IMPLEMENTED_CHECK_KEYS: frozenset[str] = frozenset(
         "auth-methods",
         "tokens",
         "routes",
+        "audit-config",
     }
 )
 

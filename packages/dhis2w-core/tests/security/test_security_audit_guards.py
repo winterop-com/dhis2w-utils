@@ -53,6 +53,7 @@ def test_resolve_check_keys_defaults_to_all_implemented() -> None:
         "auth-methods",
         "tokens",
         "routes",
+        "audit-config",
     ]
 
 
@@ -65,9 +66,20 @@ def test_resolve_check_keys_rejects_unknown_key() -> None:
         resolve_check_keys(only=["bogus"])
 
 
-def test_resolve_check_keys_rejects_not_yet_implemented_key() -> None:
+def test_resolve_check_keys_rejects_not_yet_implemented_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    # All 14 canonical checks are implemented, so no real key triggers the not-implemented guard. Inject a
+    # synthetic canonical key ("__test_unimplemented__") that is deliberately absent from IMPLEMENTED_CHECK_KEYS.
+    # The guard must reject it regardless of which real checks ship.
+    from dhis2w_core.security_core import registry
+    from dhis2w_core.security_core.registry import CheckSpec
+
+    synthetic_key = "__test_unimplemented__"
+    extended_canonical = registry.CANONICAL_CHECKS + (
+        CheckSpec(key=synthetic_key, label="Test sentinel (never implemented)"),
+    )
+    monkeypatch.setattr(registry, "CANONICAL_CHECKS", extended_canonical)
     with pytest.raises(ValueError, match="not implemented"):
-        resolve_check_keys(only=["audit-config"])
+        resolve_check_keys(only=[synthetic_key])
 
 
 def test_resolve_check_keys_rejects_empty_selection() -> None:
@@ -87,6 +99,7 @@ def test_resolve_check_keys_rejects_empty_selection() -> None:
                 "auth-methods",
                 "tokens",
                 "routes",
+                "audit-config",
             ]
         )
 

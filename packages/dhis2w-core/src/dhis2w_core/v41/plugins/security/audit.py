@@ -22,6 +22,7 @@ from dhis2w_core.security_core import (
     DEFAULT_PROBE_PASSWORD,
     DEFAULT_PROBE_USERNAME,
     AnonymousResult,
+    AuditPosture,
     AuditReport,
     AuditSummary,
     BoundCheck,
@@ -67,6 +68,7 @@ from dhis2w_core.security_core import (
     compute_effective_access,
     evaluate_account_authorities,
     evaluate_apps,
+    evaluate_audit_config,
     evaluate_auth_methods,
     evaluate_credential_probe,
     evaluate_guest,
@@ -84,6 +86,7 @@ from dhis2w_core.security_core import (
     label_for,
     make_reporter,
     parse_dhis2_version,
+    parse_dhis_conf,
     resolve_check_keys,
     resolve_focus_types,
     run_audit,
@@ -615,6 +618,36 @@ async def _run_auth_methods(client: Dhis2Client) -> CheckResult:
     return CheckResult(check="auth-methods", label=label, status=status, findings=findings, note=note)
 
 
+async def _run_audit_config(client: Dhis2Client, dhis_conf_path: Path | None) -> CheckResult:
+    """Report the auditing posture: the API-only INFO when no dhis.conf is given, else the parsed verdicts.
+
+    DHIS2 does not expose its audit configuration over the API, so this check reads nothing per-run from the
+    client. With no `--dhis-conf` the posture is the unparsed (`parsed=False`) placeholder and the reducer
+    emits the not-API-readable INFO. With a path, `parse_dhis_conf` reads a local copy of dhis.conf; a
+    missing/unreadable/unparseable file degrades the check with a note rather than a finding about the instance.
+    """
+    label = label_for("audit-config")
+    if dhis_conf_path is None:
+        return CheckResult(
+            check="audit-config",
+            label=label,
+            status=CheckStatus.OK,
+            findings=evaluate_audit_config(AuditPosture(parsed=False)),
+        )
+    try:
+        posture = parse_dhis_conf(dhis_conf_path)
+    except (ValidationError, ValueError, TypeError, OSError) as exc:
+        return CheckResult(
+            check="audit-config",
+            label=label,
+            status=CheckStatus.DEGRADED,
+            note=f"dhis.conf unreadable ({exc}); audit posture not evaluated",
+        )
+    return CheckResult(
+        check="audit-config", label=label, status=CheckStatus.OK, findings=evaluate_audit_config(posture)
+    )
+
+
 _RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
     "version": _run_version,
     "transport": _run_transport,
@@ -979,6 +1012,15 @@ def _bind_sharing(
     return _run
 
 
+def _bind_audit_config(client: Dhis2Client, *, dhis_conf_path: Path | None) -> Callable[[], Awaitable[CheckResult]]:
+    """Bind the audit-config check to the open client and the optional local dhis.conf path."""
+
+    async def _run() -> CheckResult:
+        return await _run_audit_config(client, dhis_conf_path)
+
+    return _run
+
+
 def _bound_checks(
     client: Dhis2Client,
     keys: Sequence[str],
@@ -989,6 +1031,7 @@ def _bound_checks(
     two_factor_detail: bool,
     max_objects: int,
     generated_at: str,
+    dhis_conf_path: Path | None = None,
     graph_sink: list[SharingGraph] | None = None,
 ) -> list[BoundCheck]:
     """Build the ordered bound checks for `keys` against the open client."""
@@ -1000,6 +1043,8 @@ def _bound_checks(
             run = _bind_hygiene(client, stale_days=stale_days, now=now, two_factor_detail=two_factor_detail)
         elif key == "sharing":
             run = _bind_sharing(client, max_objects=max_objects, generated_at=generated_at, graph_sink=graph_sink)
+        elif key == "audit-config":
+            run = _bind_audit_config(client, dhis_conf_path=dhis_conf_path)
         else:
             run = _bind(_RUNNERS[key], client)
         checks.append(BoundCheck(key=key, label=label_for(key), run=run))
@@ -1062,6 +1107,7 @@ async def run_security_audit(
     stale_days: int = 90,
     two_factor_detail: bool = False,
     max_objects: int = DEFAULT_SHARING_MAX_OBJECTS,
+    dhis_conf_path: Path | None = None,
     visualize: bool = False,
     animated: bool = True,
     console: Console | None = None,
@@ -1098,6 +1144,7 @@ async def run_security_audit(
                 two_factor_detail=two_factor_detail,
                 max_objects=max_objects,
                 generated_at=started_at,
+                dhis_conf_path=dhis_conf_path,
                 graph_sink=graph_sink if visualize else None,
             ),
             writer=writer,
@@ -1116,6 +1163,7 @@ async def resume_security_audit(
     stale_days: int = 90,
     two_factor_detail: bool = False,
     max_objects: int = DEFAULT_SHARING_MAX_OBJECTS,
+    dhis_conf_path: Path | None = None,
     visualize: bool = False,
     animated: bool = True,
     console: Console | None = None,
@@ -1157,6 +1205,7 @@ async def resume_security_audit(
                 two_factor_detail=two_factor_detail,
                 max_objects=max_objects,
                 generated_at=manifest.started_at,
+                dhis_conf_path=dhis_conf_path,
                 graph_sink=graph_sink if visualize else None,
             ),
             writer=writer,
