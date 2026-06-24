@@ -24,13 +24,17 @@ from dhis2w_core.security_core import (
 
 TREES = ("v41", "v42", "v43")
 
-# A fully hardened HTTPS posture: HSTS, CSP with frame-ancestors, nosniff, and a genericised server.
+# A fully hardened HTTPS posture: a 1-year-plus HSTS, CSP with frame-ancestors, nosniff, the three
+# cross-origin isolation headers, and a genericised server.
 _SECURE = TransportHeaders(
     base_url="https://mock.example",
     scheme="https",
     strict_transport_security="max-age=63072000; includeSubDomains",
     content_security_policy="frame-ancestors 'self';",
     x_content_type_options="nosniff",
+    cross_origin_opener_policy="same-origin",
+    cross_origin_embedder_policy="require-corp",
+    cross_origin_resource_policy="same-origin",
     server="nginx",
 )
 
@@ -68,7 +72,7 @@ def test_plaintext_http_base_url_is_high() -> None:
 
 
 def test_http_instance_all_headers_none_has_expected_finding_set() -> None:
-    """A plaintext instance with every header absent yields exactly plaintext, no-CSP, no-anti-framing, no-nosniff."""
+    """A plaintext instance with every header absent yields plaintext, no-CSP, anti-framing, nosniff, cross-origin."""
     findings = evaluate_transport(TransportHeaders(base_url="http://bare.example", scheme="http"))
     titles = _titles(findings)
     assert titles == {
@@ -76,6 +80,7 @@ def test_http_instance_all_headers_none_has_expected_finding_set() -> None:
         "No Content-Security-Policy header",
         "No anti-framing header",
         "No X-Content-Type-Options: nosniff",
+        "Cross-origin isolation headers not configured (COOP/COEP/CORP)",
     }
     # HSTS fires only on https — must not appear for a plaintext endpoint.
     assert "No Strict-Transport-Security header" not in titles
@@ -153,6 +158,231 @@ def test_nosniff_value_is_case_insensitive() -> None:
     assert "No X-Content-Type-Options: nosniff" not in _titles(findings)
 
 
+# ---------------------------------------------------------------------------
+# HSTS max-age grading (3.5)
+# ---------------------------------------------------------------------------
+
+
+def test_hsts_one_year_or_more_has_no_weak_finding() -> None:
+    """A max-age of at least 1 year (the secure fixture has 2 years) raises no weak-HSTS finding."""
+    assert "Strict-Transport-Security max-age is weak" not in _titles(evaluate_transport(_SECURE))
+
+
+def test_hsts_absent_is_medium_only_no_weak_finding() -> None:
+    """An absent HSTS header stays the existing MEDIUM and does not also fire the present-but-weak WARN."""
+    findings = evaluate_transport(_SECURE.model_copy(update={"strict_transport_security": None}))
+    titles = _titles(findings)
+    assert "No Strict-Transport-Security header" in titles
+    assert "Strict-Transport-Security max-age is weak" not in titles
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "includeSubDomains",  # max-age missing
+        "max-age=31536000abc",  # non-digit tail rejected by the strict regex
+        "max-age=0",  # zero
+        "max-age=3600",  # below 1 day
+        "max-age=100000",  # below 1 year
+    ],
+)
+def test_hsts_present_but_weak_is_one_warn(value: str) -> None:
+    """Each present-but-weak max-age sub-case collapses into exactly one WARN with the parsed value in detail."""
+    findings = evaluate_transport(_SECURE.model_copy(update={"strict_transport_security": value}))
+    weak = [finding for finding in findings if finding.title == "Strict-Transport-Security max-age is weak"]
+    assert len(weak) == 1
+    assert weak[0].severity is Severity.WARN
+    assert value in weak[0].detail
+    assert (weak[0].evidence or {}).get("header") == value
+    # The "missing HSTS" MEDIUM covers the absent case only -- it must not co-fire with the present-but-weak WARN.
+    assert "No Strict-Transport-Security header" not in _titles(findings)
+
+
+# ---------------------------------------------------------------------------
+# CSP directive grading (3.6)
+# ---------------------------------------------------------------------------
+
+# A locked-down policy: a self fetch directive, object-src none, base-uri self, frame-ancestors self.
+_STRONG_CSP = "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';"
+
+
+def _csp_finding(headers: TransportHeaders) -> Any:
+    """The single Content-Security-Policy-is-weak finding for a header set, or None when absent."""
+    weak = [finding for finding in evaluate_transport(headers) if finding.title == "Content-Security-Policy is weak"]
+    return weak[0] if weak else None
+
+
+def test_strong_csp_has_no_weak_finding() -> None:
+    """A locked-down CSP (self fetch, object-src none, base-uri self, frame-ancestors self) raises no weak finding."""
+    assert _csp_finding(_SECURE.model_copy(update={"content_security_policy": _STRONG_CSP})) is None
+
+
+def test_dhis2_default_frame_only_csp_has_no_weak_finding() -> None:
+    """DHIS2's stock `frame-ancestors 'self';` is a frame-only policy and must not be graded as content-weak."""
+    assert _csp_finding(_SECURE.model_copy(update={"content_security_policy": "frame-ancestors 'self';"})) is None
+
+
+def test_csp_absent_is_no_csp_medium_only_no_weak_finding() -> None:
+    """An absent CSP stays the existing no-CSP MEDIUM; the parser produces no present-but-weak finding."""
+    findings = evaluate_transport(
+        _SECURE.model_copy(update={"content_security_policy": None, "x_frame_options": "SAMEORIGIN"})
+    )
+    titles = _titles(findings)
+    assert "No Content-Security-Policy header" in titles
+    assert "Content-Security-Policy is weak" not in titles
+
+
+@pytest.mark.parametrize(
+    ("policy", "expected_in_detail"),
+    [
+        ("default-src *; object-src 'none'; base-uri 'self'; frame-ancestors 'self';", "broad source"),
+        (
+            "script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';",
+            "'unsafe-inline' allowed",
+        ),
+        (
+            "script-src 'self' 'unsafe-eval'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';",
+            "'unsafe-eval' allowed",
+        ),
+        ("object-src 'self';", "no script-src or default-src directive"),
+        (
+            "script-src 'self'; object-src 'self' 'unsafe-inline'; base-uri 'self'; frame-ancestors 'self';",
+            "object-src is not strictly locked down",
+        ),
+        ("script-src 'self'; object-src 'none'; frame-ancestors 'self';", "base-uri is unset"),
+        (
+            "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors *;",
+            "frame-ancestors contains a broad source",
+        ),
+    ],
+)
+def test_csp_weak_subcase_is_one_medium_with_directive_in_detail(policy: str, expected_in_detail: str) -> None:
+    """Each weak CSP sub-case yields exactly one MEDIUM finding naming the failed directive in its detail."""
+    findings = evaluate_transport(_SECURE.model_copy(update={"content_security_policy": policy}))
+    weak = [finding for finding in findings if finding.title == "Content-Security-Policy is weak"]
+    assert len(weak) == 1
+    assert weak[0].severity is Severity.MEDIUM
+    assert expected_in_detail in (weak[0].evidence or {}).get("weak_directives", "")
+
+
+def test_csp_report_only_mode_is_one_medium() -> None:
+    """A CSP present only via the report-only header is flagged present-but-weak (not the absent no-CSP MEDIUM)."""
+    findings = evaluate_transport(
+        _SECURE.model_copy(
+            update={
+                "content_security_policy": None,
+                "content_security_policy_report_only": _STRONG_CSP,
+                "x_frame_options": "SAMEORIGIN",
+            }
+        )
+    )
+    titles = _titles(findings)
+    assert "No Content-Security-Policy header" not in titles
+    weak = [finding for finding in findings if finding.title == "Content-Security-Policy is weak"]
+    assert len(weak) == 1
+    assert "report-only" in (weak[0].evidence or {}).get("weak_directives", "")
+
+
+def test_csp_strict_dynamic_is_annotation_not_a_warning() -> None:
+    """A nonce-based policy using 'strict-dynamic' is annotated in detail and never flagged for it alone."""
+    policy = "script-src 'self' 'strict-dynamic'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';"
+    finding = _csp_finding(_SECURE.model_copy(update={"content_security_policy": policy}))
+    assert finding is None
+
+
+def test_csp_present_without_frame_ancestors_does_not_double_flag() -> None:
+    """A present CSP with no frame-ancestors raises only the anti-framing WARN, never a frame-ancestors-missing line."""
+    headers = _SECURE.model_copy(
+        update={
+            "content_security_policy": "default-src 'self'; object-src 'none'; base-uri 'self';",
+            "x_frame_options": None,
+        }
+    )
+    findings = evaluate_transport(headers)
+    titles = _titles(findings)
+    # The anti-framing WARN owns the "frame-ancestors entirely missing" case.
+    assert "No anti-framing header" in titles
+    # The CSP-weak finding must not appear at all (the content directives are strong and a missing
+    # frame-ancestors is NOT a CSP-weak sub-case -- only a present-but-broad one is).
+    assert "Content-Security-Policy is weak" not in titles
+
+
+# MINOR-2: empty source-list edge cases (present-but-empty = block-all = strong)
+
+
+def test_csp_empty_script_src_is_strong() -> None:
+    """A `script-src;` with no sources blocks all scripts and must not be flagged as missing fetch directive."""
+    policy = "script-src; object-src 'none'; base-uri 'self'; frame-ancestors 'self';"
+    assert _csp_finding(_SECURE.model_copy(update={"content_security_policy": policy})) is None
+
+
+def test_csp_empty_object_src_is_strong() -> None:
+    """A `object-src;` with no sources blocks all plugins and must not fall through to default-src."""
+    policy = "script-src 'self'; object-src; base-uri 'self'; frame-ancestors 'self';"
+    assert _csp_finding(_SECURE.model_copy(update={"content_security_policy": policy})) is None
+
+
+# MINOR-3: duplicate-directive last-wins behavior pin
+
+
+def test_csp_duplicate_directive_last_wins() -> None:
+    """Duplicate directives resolve last-wins (mirroring the auditor app), not first-wins (CSP spec)."""
+    # First default-src is broad; second is 'self'. Last-wins means the safe 'self' wins -- no broad warning.
+    policy = "default-src *; default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';"
+    assert _csp_finding(_SECURE.model_copy(update={"content_security_policy": policy})) is None
+
+
+# ---------------------------------------------------------------------------
+# Cross-origin isolation headers: COOP / COEP / CORP (3.7)
+# ---------------------------------------------------------------------------
+
+
+def test_cross_origin_isolation_all_present_has_no_finding() -> None:
+    """When COOP, COEP, and CORP are all set (the secure fixture) no cross-origin finding is raised."""
+    assert "Cross-origin isolation headers not configured (COOP/COEP/CORP)" not in _titles(evaluate_transport(_SECURE))
+
+
+def test_cross_origin_isolation_all_absent_is_one_info() -> None:
+    """DHIS2 sets none of COOP/COEP/CORP, so all-absent is a SINGLE INFO listing the three missing headers."""
+    findings = evaluate_transport(
+        _SECURE.model_copy(
+            update={
+                "cross_origin_opener_policy": None,
+                "cross_origin_embedder_policy": None,
+                "cross_origin_resource_policy": None,
+            }
+        )
+    )
+    aggregated = [
+        finding
+        for finding in findings
+        if finding.title == "Cross-origin isolation headers not configured (COOP/COEP/CORP)"
+    ]
+    assert len(aggregated) == 1
+    assert aggregated[0].severity is Severity.INFO
+    missing = (aggregated[0].evidence or {}).get("missing", "")
+    assert "Cross-Origin-Opener-Policy" in missing
+    assert "Cross-Origin-Embedder-Policy" in missing
+    assert "Cross-Origin-Resource-Policy" in missing
+
+
+def test_cross_origin_isolation_partial_lists_only_missing() -> None:
+    """When only one of the three is set, the single INFO enumerates exactly the two still missing."""
+    findings = evaluate_transport(
+        _SECURE.model_copy(update={"cross_origin_embedder_policy": None, "cross_origin_resource_policy": None})
+    )
+    aggregated = [
+        finding
+        for finding in findings
+        if finding.title == "Cross-origin isolation headers not configured (COOP/COEP/CORP)"
+    ]
+    assert len(aggregated) == 1
+    missing = (aggregated[0].evidence or {}).get("missing", "")
+    assert "Cross-Origin-Opener-Policy" not in missing
+    assert "Cross-Origin-Embedder-Policy" in missing
+    assert "Cross-Origin-Resource-Policy" in missing
+
+
 def test_server_version_token_is_warn() -> None:
     """A Server header carrying a version token (a digit run) is a WARN disclosure finding."""
     findings = evaluate_transport(_SECURE.model_copy(update={"server": "nginx/1.18.0"}))
@@ -199,6 +429,9 @@ async def test_run_transport_clean_https_instance(tree: str) -> None:
             "strict-transport-security": "max-age=63072000",
             "content-security-policy": "frame-ancestors 'self';",
             "x-content-type-options": "nosniff",
+            "cross-origin-opener-policy": "same-origin",
+            "cross-origin-embedder-policy": "require-corp",
+            "cross-origin-resource-policy": "same-origin",
             "server": "nginx",
         },
     )

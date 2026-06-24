@@ -25,6 +25,7 @@ from dhis2w_core.security_core.credentials import (
     classify_probe_status,
     evaluate_credential_probe,
 )
+from dhis2w_core.security_core.csp import CspDirectives, grade_csp, parse_csp
 from dhis2w_core.security_core.dhisconf import (
     AuditPosture,
     AuditScopeMatrix,
@@ -200,6 +201,7 @@ __all__ = [
     "CheckStatus",
     "CorsWhitelist",
     "CredentialProbeResult",
+    "CspDirectives",
     "CsvRenderer",
     "EffectiveAccess",
     "EffectiveGrant",
@@ -292,8 +294,10 @@ __all__ = [
     "evaluate_version",
     "fetch_release_feed",
     "finding_sort_key",
+    "grade_csp",
     "label_for",
     "make_reporter",
+    "parse_csp",
     "parse_dhis2_version",
     "parse_dhis_conf",
     "resolve_check_keys",

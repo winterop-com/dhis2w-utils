@@ -71,6 +71,7 @@ filing.
 - [#49](#49-hsts-is-suppressed-behind-a-tls-terminating-proxy-and-csp-state-is-observable-only-on-the-wire-there-is-no-keycspenabled-setting) — HSTS suppressed behind a TLS-terminating proxy; CSP state is wire-only (no `keyCspEnabled` setting)
 - [#50](#50-keycorswhitelist-was-removed-from-systemsettings-the-cors-origin-list-is-only-readable-from-apiconfigurationcorswhitelist) — `keyCorsWhitelist` removed from systemSettings; CORS origins only readable from `/api/configuration/corsWhitelist`
 - [#52](#52-no-version-invariant-generated-oauth2-client-schema-v41-emits-only-the-array-typed-oauth2client-v42v43-only-the-comma-string-dhis2oauth2client) — No version-invariant generated OAuth2-client schema (v41 array-typed `OAuth2Client` vs v42/v43 comma-string `Dhis2OAuth2Client`; cross-references #39)
+- [#55](#55-dhis2-calls-spring-securitys-defaultsdisabled-and-never-emits-coop--coep--corp-so-cross-origin-isolation-headers-are-absent-on-every-stock-instance) -- DHIS2 calls `defaultsDisabled()` and never emits COOP/COEP/CORP, so cross-origin isolation headers are absent on every stock instance
 
 ### Analytics / Aggregate / Data Values
 
@@ -3093,6 +3094,34 @@ GET /api/systemSettings     # @Confidential keys filtered server-side; audit.* k
 **Verifier:** `packages/dhis2w-core/tests/security/test_security_audit_config.py::test_default_config_posture_has_no_medium`.
 
 **Related:** BUGS.md #53 (audit posture not API-readable), BUGS.md #3 (blank matrices fall back to defaults).
+
+---
+
+### 55. DHIS2 calls Spring Security's `defaultsDisabled()` and never emits COOP / COEP / CORP, so cross-origin isolation headers are absent on every stock instance
+
+**Observed on:** DHIS2 `2.41` / `2.42` / `2.43` (the header-setting code is version-uniform). Confirmed against the backend source at `dhis-2/dhis-web-api`.
+
+**Source reference:** `dhis-web-api/src/main/java/org/hisp/dhis/webapi/security/config/DhisWebApiWebSecurityConfig.java`, `setHttpHeaders(HttpSecurity)`.
+
+**Repro (against any instance):**
+
+```bash
+BASE=https://your-dhis2.example
+curl -sI -u admin:district "$BASE/api/system/info" | grep -iE 'cross-origin-opener-policy|cross-origin-embedder-policy|cross-origin-resource-policy'
+# (no output) -- none of the three headers are emitted.
+```
+
+**Expected (naive reading):** a hardened web application emits Cross-Origin-Opener-Policy, Cross-Origin-Embedder-Policy, and Cross-Origin-Resource-Policy as defence-in-depth against cross-origin attacks (Spectre-class side channels, cross-origin resource leaks).
+
+**Actual:** `setHttpHeaders` starts with `http.headers().defaultsDisabled()` and re-enables only `contentTypeOptions()`, `xssProtection()`, and `httpStrictTransportSecurity()`. It never calls `crossOriginOpenerPolicy()`, `crossOriginEmbedderPolicy()`, or `crossOriginResourcePolicy()`, so a stock DHIS2 response carries none of the three headers. There is no `dhis.conf` key or system setting that turns them on; they can only be added at a fronting proxy.
+
+**Impact:** a security scanner that emits a WARN per missing cross-origin isolation header would raise three WARNs on every default DHIS2 instance -- pure noise, since DHIS2 never sets them and the absence is its designed posture, not a regression. They are defence-in-depth, not active holes.
+
+**Workaround in this repo:** the security `transport` check aggregates the three absent headers into a SINGLE INFO finding ("Cross-origin isolation headers not configured (COOP/COEP/CORP)") listing exactly which are missing, at INFO so a default instance is not flagged at WARN for a header DHIS2 never sets. See `_cross_origin_isolation_finding` in `packages/dhis2w-core/src/dhis2w_core/security_core/transport.py`. The CSP grading in the same check also leaves DHIS2's stock `frame-ancestors 'self';` (a frame-only policy emitted by `CspFilter`, BUGS.md #49) ungraded on its content directives, so the default policy is never flagged either.
+
+**How to know it's resolved:** not a DHIS2 bug -- expected behaviour. This entry documents the non-obvious upstream default so the scanner does not flag a stock instance. If a future DHIS2 starts emitting some of the three by default, a missing/weak one would become a real regression and could be raised to WARN.
+
+**Related:** BUGS.md #49 (HSTS suppressed behind a proxy; CSP wire-only, default `frame-ancestors 'self';`).
 
 ---
 

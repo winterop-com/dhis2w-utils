@@ -147,8 +147,12 @@ async def _run_transport(client: Dhis2Client) -> CheckResult:
         scheme=scheme,
         strict_transport_security=response.headers.get("strict-transport-security"),
         content_security_policy=response.headers.get("content-security-policy"),
+        content_security_policy_report_only=response.headers.get("content-security-policy-report-only"),
         x_frame_options=response.headers.get("x-frame-options"),
         x_content_type_options=response.headers.get("x-content-type-options"),
+        cross_origin_opener_policy=response.headers.get("cross-origin-opener-policy"),
+        cross_origin_embedder_policy=response.headers.get("cross-origin-embedder-policy"),
+        cross_origin_resource_policy=response.headers.get("cross-origin-resource-policy"),
         server=response.headers.get("server"),
     )
     return CheckResult(check="transport", label=label, status=CheckStatus.OK, findings=evaluate_transport(headers))
