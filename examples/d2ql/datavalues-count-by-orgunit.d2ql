@@ -1,0 +1,6 @@
+// Reporting volume per facility: count raw data values per org unit across a subtree
+// (`children: true`), busiest first. Shows `group by` + `count` over the dataValues source.
+dataValues(dataSet: "BfMAe6Itzgt", period: "202401", orgUnit: "ImspTQPwCqd", children: true)
+  | group by orgUnit { values: count() }
+  | order values desc
+  | limit 25
