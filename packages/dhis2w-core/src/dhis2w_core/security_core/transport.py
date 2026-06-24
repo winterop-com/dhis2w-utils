@@ -12,6 +12,16 @@ are absent. X-Content-Type-Options is set unconditionally by Spring Security, so
 upstream stripping. A Server header carrying a version token is a free CVE-matching fingerprint emitted
 by the container or proxy, not DHIS2 code. The wire-only CSP state and the HSTS-behind-proxy
 suppression are recorded as BUGS.md #49.
+
+CORS response headers are request-conditioned: DhisCorsProcessor only emits Access-Control-Allow-Origin
+/ Access-Control-Allow-Credentials when the request carries an `Origin` header, and it echoes that
+origin back (with credentials always `true`) only when the origin equals the instance's own URL or
+matches a glob in the configured CORS whitelist. So the wiring probe sends a benign foreign `Origin`
+(never the instance's own, which DHIS2 would always echo) to surface the dangerous "server reflects an
+arbitrary origin" misconfiguration -- a configured `*` whitelist matches the foreign origin and echoes
+it with credentials. This reads the LIVE response headers, complementing the settings check's read of
+the static `/api/configuration/corsWhitelist` config: the config read sees the declared allowlist, this
+read sees what the server actually grants on the wire.
 """
 
 from __future__ import annotations
@@ -37,6 +47,13 @@ _HSTS_MAX_AGE_RE = re.compile(r"^max-age=(\d+)$")
 _ONE_YEAR_SECONDS = 31_536_000
 _ONE_DAY_SECONDS = 86_400
 
+# The foreign Origin the wiring probe sends to elicit CORS response headers. `.invalid` is reserved by
+# RFC 6761 and can never resolve to a real host, so it is a safe, unmistakably-untrusted origin. DHIS2
+# echoes it back (with credentials) only if a configured CORS whitelist glob matches an arbitrary origin
+# -- the dangerous reflect-any misconfiguration. The instance's own origin is deliberately NOT used: it
+# is always echoed by DhisCorsProcessor (localUrl.equals(origin)) and would be a guaranteed false positive.
+CORS_PROBE_ORIGIN = "https://dhis2w-security-probe.invalid"
+
 
 class TransportHeaders(BaseModel):
     """The transport posture of one response: the resolved base URL, scheme, and security headers off the wire."""
@@ -53,11 +70,13 @@ class TransportHeaders(BaseModel):
     cross_origin_opener_policy: str | None = None
     cross_origin_embedder_policy: str | None = None
     cross_origin_resource_policy: str | None = None
+    access_control_allow_origin: str | None = None
+    access_control_allow_credentials: str | None = None
     server: str | None = None
 
 
 def evaluate_transport(headers: TransportHeaders) -> list[AuditFinding]:
-    """Findings over the transport scheme and security headers: TLS, HSTS, CSP, anti-framing, nosniff, cross-origin."""
+    """Findings over the transport scheme and headers: TLS, HSTS, CSP, anti-framing, nosniff, cross-origin, CORS."""
     findings: list[AuditFinding] = []
     is_https = headers.scheme.lower() == "https"
     if not is_https:
@@ -86,6 +105,9 @@ def evaluate_transport(headers: TransportHeaders) -> list[AuditFinding]:
     cross_origin = _cross_origin_isolation_finding(headers)
     if cross_origin is not None:
         findings.append(cross_origin)
+    cors = _cors_response_finding(headers)
+    if cors is not None:
+        findings.append(cors)
     server_finding = _server_disclosure_finding(headers.server)
     if server_finding is not None:
         findings.append(server_finding)
@@ -200,6 +222,89 @@ def _cross_origin_isolation_finding(headers: TransportHeaders) -> AuditFinding |
         ),
         evidence={"missing": ", ".join(missing)},
     )
+
+
+def _cors_response_finding(headers: TransportHeaders) -> AuditFinding | None:
+    """Grade the live CORS response headers elicited by the synthetic foreign Origin probe.
+
+    The probe sends `Origin: CORS_PROBE_ORIGIN` (an untrusted foreign origin). DHIS2 echoes that origin
+    back, with `Access-Control-Allow-Credentials: true`, only when a configured whitelist glob matches an
+    arbitrary origin -- so an echoed foreign origin IS the dangerous reflect-any misconfiguration. A
+    fronting proxy may instead answer with a literal `*`. Both are graded; credentials raise the ceiling.
+    """
+    allow_origin = headers.access_control_allow_origin
+    if allow_origin is None:
+        return None
+    allow_origin = allow_origin.strip()
+    if not allow_origin:
+        return None
+    credentialed = (headers.access_control_allow_credentials or "").strip().lower() == "true"
+    is_wildcard = allow_origin == "*"
+    reflects_foreign = allow_origin == CORS_PROBE_ORIGIN
+    if is_wildcard or reflects_foreign:
+        target = (
+            "any origin (Access-Control-Allow-Origin: *)" if is_wildcard else f"an arbitrary origin ({allow_origin})"
+        )
+        if credentialed:
+            if is_wildcard:
+                # Browsers reject the `*` + credentials pair (Fetch standard sec. 3.2.5), so the immediate
+                # blast radius of this exact combination is a fronting proxy misconfiguration. The live
+                # browser-exploitable form is the reflect-any variant (ACAO echoes the specific probe
+                # origin with ACAC: true), which browsers do honour. Both cases are HIGH and both require
+                # remediation; the distinction matters only for the root-cause note.
+                detail = (
+                    "Access-Control-Allow-Origin: * together with Access-Control-Allow-Credentials: true is "
+                    "invalid per the Fetch standard (browsers reject the combination), so this is a fronting "
+                    "proxy misconfiguration rather than a direct browser exploit. The live browser-exploitable "
+                    "form is a server that reflects an arbitrary Origin with credentials (echoed specific origin "
+                    "+ ACAC: true), which browsers do honour. Both cases require remediation: restrict the CORS "
+                    "whitelist to specific trusted origins."
+                )
+            else:
+                detail = (
+                    f"Access-Control-Allow-Origin grants {target} with Access-Control-Allow-Credentials: true, "
+                    "so any website can make authenticated cross-origin requests on a logged-in user's behalf. "
+                    "Restrict the CORS whitelist to specific trusted origins."
+                )
+            return AuditFinding(
+                check=_CHECK,
+                severity=Severity.HIGH,
+                title="CORS allows credentialed requests from any origin",
+                detail=detail,
+                evidence={
+                    "access-control-allow-origin": allow_origin,
+                    "access-control-allow-credentials": headers.access_control_allow_credentials or "",
+                    "probe-origin": CORS_PROBE_ORIGIN,
+                },
+            )
+        return AuditFinding(
+            check=_CHECK,
+            severity=Severity.WARN,
+            title="CORS allows requests from any origin",
+            detail=(
+                f"Access-Control-Allow-Origin grants {target}, so any website can read responses from this API. "
+                "Restrict the CORS whitelist to specific trusted origins unless this is an intentional public API."
+            ),
+            evidence={
+                "access-control-allow-origin": allow_origin,
+                "probe-origin": CORS_PROBE_ORIGIN,
+            },
+        )
+    if credentialed:
+        return AuditFinding(
+            check=_CHECK,
+            severity=Severity.WARN,
+            title="CORS allows credentials from a specific origin",
+            detail=(
+                f"Access-Control-Allow-Origin: {allow_origin} with Access-Control-Allow-Credentials: true. "
+                "The origin can make authenticated cross-origin requests; confirm it is trusted."
+            ),
+            evidence={
+                "access-control-allow-origin": allow_origin,
+                "access-control-allow-credentials": headers.access_control_allow_credentials or "",
+            },
+        )
+    return None
 
 
 def _no_csp_finding() -> AuditFinding:

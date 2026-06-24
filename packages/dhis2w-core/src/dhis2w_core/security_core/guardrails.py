@@ -10,6 +10,15 @@ The contract:
 - Read-only: every check issues ONLY GET requests against `GET_ALLOWLIST`.
   The one exception is the default-credential probe (see below). The plugin
   never reads data values, tracked entities, events, files, or audit logs.
+- Synthetic CORS Origin: the transport check sends a benign foreign `Origin`
+  request header (`CORS_PROBE_ORIGIN`, an unresolvable `.invalid` host) on its
+  allowlisted `GET /api/system/info` so DHIS2's CORS filter, which emits
+  Access-Control-Allow-Origin / Access-Control-Allow-Credentials only on
+  requests that carry an Origin, reveals the live CORS posture. This is a
+  reviewed, documented widening of the probe: still a GET-only request, still
+  the same allowlisted path, no new endpoint and no write -- it only ADDS a
+  request header. A foreign origin (never the instance's own, which DHIS2 always
+  echoes) is used so only a server that reflects an arbitrary origin is flagged.
 - Credential probe: the probe may make at most one HTTP Basic login attempt,
   for the single well-known default pair `admin`/`district`, against the
   identity endpoint only (`GET /api/me`, in `CREDENTIAL_PROBE_PATHS`). It is
@@ -127,6 +136,8 @@ MAX_PROBE_ATTEMPTS = 1
 REPORT_GUARDRAIL_NOTE = (
     "This audit issues only read-only GET requests against a fixed allowlist. The single exception "
     "is the optional default-credential probe, which makes at most one HTTP Basic login attempt for "
-    "the well-known admin/district pair against /api/me, never retried. The audit never reads data "
-    "values, tracked entities, events, files, or audit logs."
+    "the well-known admin/district pair against /api/me, never retried. The transport check adds a "
+    "benign foreign Origin request header to its allowlisted GET /api/system/info to elicit the live "
+    "CORS response headers (a documented widening of the probe; still GET-only, same path, no write). "
+    "The audit never reads data values, tracked entities, events, files, or audit logs."
 )

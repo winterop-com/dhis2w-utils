@@ -16,6 +16,7 @@ import httpx
 import pytest
 from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_core.security_core import (
+    CORS_PROBE_ORIGIN,
     CheckStatus,
     Severity,
     TransportHeaders,
@@ -383,6 +384,118 @@ def test_cross_origin_isolation_partial_lists_only_missing() -> None:
     assert "Cross-Origin-Resource-Policy" in missing
 
 
+# ---------------------------------------------------------------------------
+# Runtime CORS response headers: ACAO / ACAC graded off the foreign-Origin probe (3.4)
+# ---------------------------------------------------------------------------
+
+
+def _cors_finding(headers: TransportHeaders) -> Any:
+    """The single CORS response-header finding for a header set, or None when none is raised."""
+    cors = [finding for finding in evaluate_transport(headers) if finding.title.startswith("CORS allows")]
+    return cors[0] if cors else None
+
+
+def test_cors_no_acao_has_no_finding() -> None:
+    """A stock instance that does not whitelist the foreign probe origin emits no ACAO, so no finding."""
+    assert _cors_finding(_SECURE) is None
+
+
+def test_cors_wildcard_with_credentials_is_high() -> None:
+    """Access-Control-Allow-Origin: * with credentials true is the dangerous wildcard-with-creds HIGH."""
+    finding = _cors_finding(
+        _SECURE.model_copy(update={"access_control_allow_origin": "*", "access_control_allow_credentials": "true"})
+    )
+    assert finding is not None
+    assert finding.severity is Severity.HIGH
+    assert finding.title == "CORS allows credentialed requests from any origin"
+    assert (finding.evidence or {}).get("access-control-allow-origin") == "*"
+
+
+def test_cors_wildcard_without_credentials_is_warn() -> None:
+    """Access-Control-Allow-Origin: * with no credentials is the WARN allow-all case."""
+    finding = _cors_finding(_SECURE.model_copy(update={"access_control_allow_origin": "*"}))
+    assert finding is not None
+    assert finding.severity is Severity.WARN
+    assert finding.title == "CORS allows requests from any origin"
+
+
+def test_cors_reflects_foreign_origin_with_credentials_is_high() -> None:
+    """A server echoing the untrusted probe origin with credentials is the reflect-any HIGH (the live DHIS2 signal)."""
+    finding = _cors_finding(
+        _SECURE.model_copy(
+            update={
+                "access_control_allow_origin": CORS_PROBE_ORIGIN,
+                "access_control_allow_credentials": "true",
+            }
+        )
+    )
+    assert finding is not None
+    assert finding.severity is Severity.HIGH
+    assert finding.title == "CORS allows credentialed requests from any origin"
+    assert CORS_PROBE_ORIGIN in finding.detail
+    assert (finding.evidence or {}).get("probe-origin") == CORS_PROBE_ORIGIN
+
+
+def test_cors_reflects_foreign_origin_without_credentials_is_warn() -> None:
+    """A server that echoes the untrusted probe origin without credentials is the reflect-any WARN."""
+    finding = _cors_finding(_SECURE.model_copy(update={"access_control_allow_origin": CORS_PROBE_ORIGIN}))
+    assert finding is not None
+    assert finding.severity is Severity.WARN
+    assert finding.title == "CORS allows requests from any origin"
+
+
+def test_cors_specific_origin_with_credentials_is_warn() -> None:
+    """A specific trusted origin echoed with credentials is the trusted-origin-review WARN."""
+    finding = _cors_finding(
+        _SECURE.model_copy(
+            update={
+                "access_control_allow_origin": "https://app.trusted.example",
+                "access_control_allow_credentials": "true",
+            }
+        )
+    )
+    assert finding is not None
+    assert finding.severity is Severity.WARN
+    assert finding.title == "CORS allows credentials from a specific origin"
+    assert "https://app.trusted.example" in finding.detail
+
+
+def test_cors_specific_origin_without_credentials_has_no_finding() -> None:
+    """A specific origin echoed WITHOUT credentials is a benign same-origin/whitelisted read, so no finding."""
+    assert (
+        _cors_finding(_SECURE.model_copy(update={"access_control_allow_origin": "https://app.trusted.example"})) is None
+    )
+
+
+def test_cors_credentials_value_is_case_insensitive() -> None:
+    """An Access-Control-Allow-Credentials value of `TRUE` (any case) still raises the credentialed ceiling."""
+    finding = _cors_finding(
+        _SECURE.model_copy(update={"access_control_allow_origin": "*", "access_control_allow_credentials": "TRUE"})
+    )
+    assert finding is not None
+    assert finding.severity is Severity.HIGH
+
+
+def test_cors_wildcard_with_credentials_false_is_warn_not_high() -> None:
+    """ACAO==* with ACAC==\"false\" stays WARN -- only the literal \"true\" (case-insensitive) escalates to HIGH."""
+    finding = _cors_finding(
+        _SECURE.model_copy(update={"access_control_allow_origin": "*", "access_control_allow_credentials": "false"})
+    )
+    assert finding is not None
+    assert finding.severity is Severity.WARN
+    assert finding.title == "CORS allows requests from any origin"
+
+
+def test_cors_wildcard_with_credentials_empty_is_warn_not_high() -> None:
+    """ACAO==* with ACAC==\"\" stays WARN -- an empty credentials value does not escalate to HIGH."""
+    finding = _cors_finding(
+        _SECURE.model_copy(update={"access_control_allow_origin": "*", "access_control_allow_credentials": ""})
+    )
+    assert finding is not None
+    assert finding.severity is Severity.WARN
+    assert finding.title == "CORS allows requests from any origin"
+
+
 def test_server_version_token_is_warn() -> None:
     """A Server header carrying a version token (a digit run) is a WARN disclosure finding."""
     findings = evaluate_transport(_SECURE.model_copy(update={"server": "nginx/1.18.0"}))
@@ -486,3 +599,39 @@ async def test_run_transport_degrades_on_api_error(tree: str) -> None:
     assert result.status is CheckStatus.DEGRADED
     assert result.findings == []
     assert result.note is not None and "HTTP error" in result.note
+
+
+@pytest.mark.parametrize("tree", TREES)
+async def test_run_transport_sends_foreign_origin_header(tree: str) -> None:
+    """The probe sends a synthetic foreign Origin header on its allowlisted GET so DHIS2 emits the CORS headers."""
+    client = _mock_client(base_url="https://mock.example", headers={})
+
+    await _audit_module(tree)._run_transport(client)
+
+    client.get_response.assert_awaited_once_with("/api/system/info", extra_headers={"Origin": CORS_PROBE_ORIGIN})
+
+
+@pytest.mark.parametrize("tree", TREES)
+async def test_run_transport_grades_echoed_cors_headers(tree: str) -> None:
+    """The wiring reads the echoed ACAO/ACAC off the response and grades the dangerous reflect-with-creds case HIGH."""
+    client = _mock_client(
+        base_url="https://mock.example",
+        headers={
+            "strict-transport-security": "max-age=63072000",
+            "content-security-policy": "frame-ancestors 'self';",
+            "x-content-type-options": "nosniff",
+            "cross-origin-opener-policy": "same-origin",
+            "cross-origin-embedder-policy": "require-corp",
+            "cross-origin-resource-policy": "same-origin",
+            "server": "nginx",
+            "access-control-allow-origin": CORS_PROBE_ORIGIN,
+            "access-control-allow-credentials": "true",
+        },
+    )
+
+    result = await _audit_module(tree)._run_transport(client)
+
+    assert result.status is CheckStatus.OK
+    by_title = _by_title(result.findings)
+    finding = by_title["CORS allows credentialed requests from any origin"]
+    assert finding.severity is Severity.HIGH

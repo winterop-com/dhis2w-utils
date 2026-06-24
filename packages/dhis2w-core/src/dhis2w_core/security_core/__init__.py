@@ -149,7 +149,7 @@ from dhis2w_core.security_core.sharing import (
 )
 from dhis2w_core.security_core.streaming import ReportWriter
 from dhis2w_core.security_core.tokens import TokenAllowlists, TokensInventory, TokenView, evaluate_tokens
-from dhis2w_core.security_core.transport import TransportHeaders, evaluate_transport
+from dhis2w_core.security_core.transport import CORS_PROBE_ORIGIN, TransportHeaders, evaluate_transport
 from dhis2w_core.security_core.versions import (
     ADVISORY_PATCH_FLOOR,
     ADVISORY_PATCH_FLOOR_REVIEWED,
@@ -167,6 +167,7 @@ __all__ = [
     "AUTHORITY_CATEGORIES",
     "CANONICAL_CHECKS",
     "CONNECT_PATHS",
+    "CORS_PROBE_ORIGIN",
     "CREDENTIAL_PROBE_PATHS",
     "DEFAULT_PROBE_PASSWORD",
     "DEFAULT_PROBE_USERNAME",

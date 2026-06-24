@@ -19,6 +19,7 @@ from rich.console import Console
 from dhis2w_core.profile import Profile
 from dhis2w_core.security_core import (
     ANONYMOUS_PROBE_TARGETS,
+    CORS_PROBE_ORIGIN,
     DEFAULT_PROBE_PASSWORD,
     DEFAULT_PROBE_USERNAME,
     AnonymousResult,
@@ -135,11 +136,17 @@ async def _run_version(client: Dhis2Client) -> CheckResult:
 
 
 async def _run_transport(client: Dhis2Client) -> CheckResult:
-    """Read the TLS scheme and security headers off one /api/system/info response and evaluate them."""
+    """Read the TLS scheme and security headers off one /api/system/info response and evaluate them.
+
+    The probe carries a synthetic foreign `Origin` header so DHIS2's CORS filter, which only emits
+    Access-Control-Allow-Origin / Access-Control-Allow-Credentials on requests that carry an Origin,
+    echoes back the live CORS posture. The request stays a read-only GET against the allowlisted
+    /api/system/info path; it only ADDS the Origin request header (see security_core.guardrails).
+    """
     label = label_for("transport")
     scheme = urlsplit(client.base_url).scheme or "http"
     try:
-        response = await client.get_response("/api/system/info")
+        response = await client.get_response("/api/system/info", extra_headers={"Origin": CORS_PROBE_ORIGIN})
     except (Dhis2ApiError, httpx.HTTPError) as exc:
         return CheckResult(check="transport", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
     headers = TransportHeaders(
@@ -153,6 +160,8 @@ async def _run_transport(client: Dhis2Client) -> CheckResult:
         cross_origin_opener_policy=response.headers.get("cross-origin-opener-policy"),
         cross_origin_embedder_policy=response.headers.get("cross-origin-embedder-policy"),
         cross_origin_resource_policy=response.headers.get("cross-origin-resource-policy"),
+        access_control_allow_origin=response.headers.get("access-control-allow-origin"),
+        access_control_allow_credentials=response.headers.get("access-control-allow-credentials"),
         server=response.headers.get("server"),
     )
     return CheckResult(check="transport", label=label, status=CheckStatus.OK, findings=evaluate_transport(headers))

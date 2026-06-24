@@ -105,6 +105,24 @@ def test_oauth2_clients_path_is_allowlisted() -> None:
     assert "/api/oAuth2Clients" in GET_ALLOWLIST
 
 
+def test_transport_cors_probe_origin_is_foreign_and_unresolvable() -> None:
+    """The synthetic CORS probe origin is a foreign .invalid host, never the audited instance's own origin."""
+    from dhis2w_core.security_core import CORS_PROBE_ORIGIN
+
+    assert CORS_PROBE_ORIGIN.endswith(".invalid")
+    assert CORS_PROBE_ORIGIN.startswith("https://")
+    assert BASE not in CORS_PROBE_ORIGIN
+
+
+def test_guardrail_note_documents_synthetic_cors_origin() -> None:
+    """The report-embedded guardrail note discloses the transport check's synthetic Origin header."""
+    from dhis2w_core.security_core import REPORT_GUARDRAIL_NOTE
+
+    note = REPORT_GUARDRAIL_NOTE.lower()
+    assert "origin" in note
+    assert "cors" in note
+
+
 def test_retry_policy_default_never_retries_auth_failures() -> None:
     """No-lockout: 401/403 are never retried; only 429/5xx are retry candidates."""
     from dhis2w_client.v41 import RetryPolicy as RetryPolicyV41
