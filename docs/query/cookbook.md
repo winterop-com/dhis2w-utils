@@ -245,8 +245,10 @@ dataElements | select id, name >> "elements.csv"         # csv file from the ext
 dataElements | select id, name >> "elements.txt" as csv  # `as` overrides the extension (sink-file-as-override.d2ql)
 ```
 
-In the [REPL](../guides/d2ql.md#interactive-repl) the same formats apply, and **Ctrl+T** cycles the
-default render (table -> json -> ndjson -> csv) when a result is too wide for a table.
+In the [REPL](../guides/d2ql.md#interactive-repl) the same formats apply, **Ctrl+F** cycles the
+default render (table -> json -> ndjson -> csv) when a result is too wide for a table, and **Ctrl+T**
+toggles a collapsible **JSON tree** that each query repopulates (Tab to navigate, Enter to
+expand/collapse) — ideal for deeply nested rows.
 
 ## See also
 

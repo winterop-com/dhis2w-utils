@@ -40,8 +40,12 @@ The same engine is available as MCP tools (`query_eval`, `query_explain`, `query
 **Enter runs** the program, **Shift+Enter** / **Ctrl+J** insert a newline, and pasting a multi-line
 pipeline drops it in cleanly. **Up/Down** recall history at the buffer edges (or Ctrl+P/Ctrl+N), and
 move the cursor within a multi-line program otherwise; **Ctrl+L** clears, **Ctrl+Q** quits. The editor
-has full readline-style keys (Ctrl+A/E/W/K/U, word nav, undo/redo). Without the extra it falls back to
-a line-mode prompt that runs on a blank line or a trailing `;`.
+has full readline-style keys (Ctrl+A/E/W/K/U, word nav, undo/redo). **Ctrl+F** cycles the output
+format (table / json / ndjson / csv) for wide results, and **Ctrl+T** toggles **tree mode** — the
+result pane becomes a collapsible **JSON tree** that each new query repopulates (so you see the tree,
+not JSON, first). Tab into it to navigate (arrows move, Enter expands/collapses); **Escape** or
+**Ctrl+T** returns to the log. The tree is structural, so it renders json and ndjson results alike.
+Without the extra, `repl` falls back to a line-mode prompt that runs on a blank line or a trailing `;`.
 
 A library of runnable, commented programs lives in
 [`examples/d2ql/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/d2ql) — run any
@@ -152,8 +156,8 @@ dataElements | select id, name >> "elements.csv"        # csv file (extension)
 dataElements | select id, name >> "elements.txt" as csv # csv file, extension overridden
 ```
 
-A `json`/`ndjson`/`csv` format applies in the **REPL** too; or toggle the REPL's default render with
-**Ctrl+T** when tables are too wide. On the CLI, `--out FILE` is the equivalent of an in-program file
+A `json`/`ndjson`/`csv` format applies in the **REPL** too; or cycle the REPL's default render with
+**Ctrl+F** (or open a tree with **Ctrl+T**) when tables are too wide. On the CLI, `--out FILE` is the equivalent of an in-program file
 sink.
 
 ## Definitions
