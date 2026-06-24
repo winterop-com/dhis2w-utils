@@ -34,6 +34,32 @@ def _add_node(name: str, node: TreeNode[Any], data: Any) -> None:
 class JSONTree(Tree[Any]):
     """A collapsible tree view of a d2ql result; `show(result)` rebuilds it from the result rows."""
 
+    # Right/left expand/collapse (file-explorer style); Space/Enter still toggle (Textual defaults).
+    BINDINGS = [
+        ("right", "expand_node", "Expand"),
+        ("left", "collapse_node", "Collapse"),
+    ]
+
+    def action_expand_node(self) -> None:
+        """Right arrow: expand the highlighted node, or step into it when it is already open."""
+        node = self.cursor_node
+        if node is None:
+            return
+        if node.allow_expand and not node.is_expanded:
+            node.expand()
+        else:
+            self.action_cursor_down()
+
+    def action_collapse_node(self) -> None:
+        """Left arrow: collapse the highlighted node, or move to its parent when already closed."""
+        node = self.cursor_node
+        if node is None:
+            return
+        if node.is_expanded:
+            node.collapse()
+        else:
+            self.action_cursor_parent()
+
     def show(self, result: Any) -> None:
         """Rebuild the tree from a QueryResult — a scalar value, or the list of object rows."""
         self.clear()

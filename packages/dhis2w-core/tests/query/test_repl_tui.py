@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 pytest.importorskip("textual")
@@ -10,7 +12,7 @@ from dhis2w_core.tui.repl import D2qlReplApp, _ProgramArea  # noqa: E402 — aft
 from dhis2w_ql import QueryResult  # noqa: E402
 
 
-def _result(rows: list[dict[str, str]], format: str | None = None) -> QueryResult:
+def _result(rows: list[dict[str, Any]], format: str | None = None) -> QueryResult:
     return QueryResult(rows=rows, count=len(rows), scalar=False, format=format)
 
 
@@ -98,6 +100,31 @@ async def test_ctrl_t_toggles_the_json_tree_view() -> None:
         await pilot.pause()
         assert tree.display is False and log.display is True
         assert app.focused is app.query_one("#program", _ProgramArea)  # focus returns to the editor
+
+
+async def test_tree_right_left_expand_and_collapse() -> None:
+    from dhis2w_core.tui.json_tree import JSONTree
+
+    async def fake(program: str) -> QueryResult:
+        return _result([{"id": "a1", "meta": {"x": "1"}}])  # nested so a child node is expandable
+
+    app = D2qlReplApp(run_program=fake, title="test")
+    async with app.run_test() as pilot:
+        app.query_one("#program", _ProgramArea).text = "dataElements | limit 1"
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.press("ctrl+t")  # tree mode, tree focused, cursor on the (expanded) root
+        await pilot.press("down")  # move to the first row node (collapsed)
+        await pilot.pause()
+        tree = app.query_one("#tree", JSONTree)
+        assert tree.cursor_node is not None and tree.cursor_node.is_expanded is False
+        await pilot.press("right")  # expand it
+        await pilot.pause()
+        assert tree.cursor_node.is_expanded is True
+        await pilot.press("left")  # collapse it
+        await pilot.pause()
+        assert tree.cursor_node.is_expanded is False
 
 
 async def test_tree_mode_renders_new_results_into_the_tree() -> None:

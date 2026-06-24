@@ -106,11 +106,13 @@ class D2qlReplApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        """Focus the editor and print the key hints."""
-        self.query_one("#program", _ProgramArea).focus()
-        log = self.query_one("#results", RichLog)
-        log.write("[dim]Enter runs · Ctrl+J newline · Up/Down history[/dim]")
-        log.write("[dim]Ctrl+F format · Ctrl+T tree · Ctrl+L clear · Ctrl+Q quit[/dim]")
+        """Focus the editor; the persistent shortcuts live on the editor border + the Footer."""
+        editor = self.query_one("#program", _ProgramArea)
+        # Border title/subtitle stay visible no matter how large the results grow; app-level keys
+        # (Ctrl+F/T/L/Q, history) are always shown in the Footer.
+        editor.border_title = "d2ql"
+        editor.border_subtitle = "Enter run · Ctrl+J newline · Up/Down history"
+        editor.focus()
 
     @on(_ProgramArea.Submit)
     def _on_submit(self, message: _ProgramArea.Submit) -> None:
