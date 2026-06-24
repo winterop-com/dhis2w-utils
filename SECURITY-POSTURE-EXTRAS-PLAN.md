@@ -2,7 +2,7 @@
 
 Author: Morten Svanaes
 Date: 2026-06-24
-Status: PLANNED. Branch: feat/security-audit-scanner.
+Status: IMPLEMENTED on `feat/security-audit-scanner` (2026-06-25) -- 8a `1a7da685`, 8b `f8c19125` / `e9b22859` / `649f4655`, 8c `52ac0f1f`. All five checks (transport, settings extensions, auth-methods, tokens, routes, audit-config) landed adversarially reviewed and gated; the 14-check catalog is complete. Only PR 9 (the cheap MCP read surface) remains before the scanner is release-complete. The sections below are the as-built design.
 
 ## 1. Overview
 

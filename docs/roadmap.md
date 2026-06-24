@@ -124,20 +124,33 @@ The organisation-unit PR (#174) set a template — canonical DHIS2 resource name
 
 Optional `ProgramStageSection` grouping (rarely used in practice) is still unauthored; reach for `metadata patch` for it. That's the only known absence and it stays parked unless a concrete caller surfaces.
 
-### Security plugin: read-surface build-out
+### Security plugin: read-only posture scanner
 
-`d2w security` ships its first command — `settings` (the security slice of
-`/api/systemSettings`: password policy, credential expiry, registration, lockout).
-Deliberately small and read-only, built to grow one command at a time. The
-[security plugin page](architecture/security-plugin.md) carries a step-by-step
-extension recipe (service -> cli -> sweep v41/v43 -> example x3 -> docs -> test, plus
-how to add an MCP surface). Candidate next commands, read-only first:
+`d2w security` ships a read-only DHIS2 security scanner. Alongside `settings` (the
+security slice of `/api/systemSettings`) and `authorities` (the caller's effective
+authorities, categorised), the headline command is `d2w security audit`: it runs the
+full 14-check catalog step by step, streams a crash-safe, resumable report to a run
+folder in four human formats (md/txt/csv/html) plus a JSONL machine spine, and
+prints a severity scorecard. `d2w security report <folder>` re-renders any format
+from the spine without re-scanning.
 
-- `d2w security whoami` — authenticated user + roles + authority count (`/api/me`; typed `Me` exists).
-- `d2w security authorities` — effective authorities (`/api/me/authorities`).
-- `d2w security password-policy --lint` — pass/warn checks over `settings` against a baseline (sibling of the `doctor` probe model).
-- `d2w security sharing-defaults` — default public-access / authority-grant settings for new metadata.
+The 14 checks (in run order): version, transport, settings, authorities, roles,
+hygiene, credential-probe, guest, apps, sharing, auth-methods, tokens, routes,
+audit-config. Highlights: an opt-in `admin/district` default-credential probe (one
+Basic `GET /api/me`, never retried); an opt-in interactive d3 sharing explorer
+(`--sharing-graph`); a routes SSRF check that flags Route destinations on
+private/internal/cloud-metadata hosts; a PAT posture check; an external login-methods
+(OIDC + OAuth2 client) inventory; and an `audit-config` check whose optional
+`--dhis-conf PATH` parses a local copy of `dhis.conf` with secret redaction enforced
+by construction. The whole scan is GET-only against an allowlist, with the
+credential probe the single deliberate exception (one login attempt) and the release
+feed the single external egress. Full design lives in `SECURITY-SCANNER-PLAN.md`
+(framework + checks) and `SECURITY-POSTURE-EXTRAS-PLAN.md` (the posture-extras
+checks); the [security plugin page](architecture/security-plugin.md) carries the
+extension recipe.
 
+Remaining: PR 9 -- a cheap MCP read surface (`security_settings` / `security_authorities`
+/ `security_version`) mirroring the CLI; the long-running `audit` stays CLI-only.
 Writes (rotating credentials, toggling registration, editing security settings) stay
 out of scope until a concrete caller needs them.
 
