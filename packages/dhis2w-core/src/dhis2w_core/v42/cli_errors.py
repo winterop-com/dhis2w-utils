@@ -16,20 +16,15 @@ from dhis2w_client.errors import AuthenticationError, Dhis2ApiError, Dhis2Client
 from dhis2w_client.v42.envelopes import WebMessageResponse
 
 from dhis2w_core.profile import (
+    NO_PROFILE_HINT_LINES,
     InvalidProfileNameError,
     NoProfileError,
     ProfileAlreadyExistsError,
     UnknownProfileError,
 )
 
-_NO_PROFILE_HINT = [
-    "run `d2w profile --help` for setup options, or try:",
-    "  d2w profile list                             # see what's configured",
-    "  d2w profile add <name> --scope global \\",
-    "      --url https://dhis2.example.org \\",
-    "      --auth pat --token d2p_... --default",
-    "  d2w profile verify <name>                    # confirm auth works",
-]
+#: Shared with the MCP server's error middleware — hard requirement 1 keeps both surfaces identical.
+_NO_PROFILE_HINT = list(NO_PROFILE_HINT_LINES)
 
 _UNKNOWN_PROFILE_HINT = [
     "run `d2w profile list` to see available profiles",
