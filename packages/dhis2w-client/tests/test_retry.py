@@ -195,6 +195,32 @@ async def test_retry_respects_retry_after_header(monkeypatch: pytest.MonkeyPatch
     assert sleep_args == [7.0]  # server's Retry-After hint beats the computed 0.5
 
 
+async def test_retry_after_hint_is_capped_at_max_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pathological `Retry-After: 86400` sleeps `max_delay`, not a day."""
+    sleep_args: list[float] = []
+
+    async def tracked_sleep(seconds: float) -> None:
+        sleep_args.append(seconds)
+
+    monkeypatch.setattr("dhis2w_client.v42.retry.asyncio.sleep", tracked_sleep)
+
+    policy = RetryPolicy(max_attempts=3, base_delay=0.5, jitter=0.0, max_delay=2.0)
+    transport = build_retry_transport(
+        policy,
+        inner=_FakeTransport(
+            response_queue=[
+                httpx.Response(429, headers={"Retry-After": "86400"}),
+                httpx.Response(200, text="ok"),
+            ]
+        ),
+    )
+
+    async with httpx.AsyncClient(transport=transport) as client:
+        response = await client.get("https://dhis2.example/x")
+    assert response.status_code == 200
+    assert sleep_args == [2.0]  # hint honored but clamped to policy.max_delay
+
+
 def test_retry_transport_is_async_base_transport() -> None:
     """The wrapper is a proper httpx transport so `httpx.AsyncClient(transport=...)` accepts it."""
     policy = RetryPolicy()

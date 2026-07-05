@@ -1,10 +1,12 @@
 """Open a connected `Dhis2Client` from a `Profile` for PAT/Basic auth (v43).
 
 This module is the lightweight library-user entry point: it handles the two
-auth schemes that need no persistent state. OAuth2 needs concurrent-refresh
-safety on the token store, which lives in `dhis2w-core` — calling
-`open_client` with `profile.auth == "oauth2"` here raises with a clear
-install hint pointing at `dhis2w_core.open_client`.
+auth schemes that need no persistent state. OAuth2 needs the SQLite-backed
+token store that ships in `dhis2w-core` — calling `open_client` with
+`profile.auth == "oauth2"` here raises with a clear install hint pointing at
+`dhis2w_core.open_client`. Concurrent-refresh safety is built into
+`OAuth2Auth` itself (an `asyncio.Lock` serialises the check-refresh-persist
+section); the token-store dependency is the only reason OAuth2 lives there.
 """
 
 from __future__ import annotations
@@ -49,7 +51,7 @@ def build_auth_for_basic(profile: Profile) -> AuthProvider:
 async def open_client(
     profile: Profile,
     *,
-    allow_version_fallback: bool = True,
+    allow_version_fallback: bool = False,
     retry_policy: RetryPolicy | None = None,
     http_limits: httpx.Limits | None = None,
     system_cache_ttl: float | None = 300.0,
@@ -59,6 +61,11 @@ async def open_client(
     Yields a connected client inside `async with`. Raises `NotImplementedError`
     on OAuth2 profiles — use `dhis2w_core.open_client(profile, scope=..., profile_name=...)`
     for those.
+
+    `allow_version_fallback` (default False) mirrors the `Dhis2Client`
+    constructor: a server major with no generated tree raises
+    `UnsupportedVersionError`. Pass True to bind the nearest-lower
+    generated tree instead (never nearest-higher).
 
     `retry_policy`, `http_limits`, and `system_cache_ttl` mirror the
     underlying `Dhis2Client` constructor — see its docstring for tuning.

@@ -71,13 +71,24 @@ def test_version_omitted_when_none_on_toml_write(tmp_path: Path) -> None:
     assert "version" not in text
 
 
-def test_env_raw_rejects_bare_digit_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A bare-digit DHIS2_VERSION is not accepted — only the vXX form is valid."""
+def test_env_raw_accepts_bare_digit_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A bare-digit DHIS2_VERSION (`"43"`) populates `Profile.version` like the vXX form."""
     _clear_env(monkeypatch)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
     monkeypatch.setenv("DHIS2_URL", "http://localhost:8080")
     monkeypatch.setenv("DHIS2_PAT", "d2p_env")
     monkeypatch.setenv("DHIS2_VERSION", "43")
+    resolved = resolve(start=tmp_path)
+    assert resolved.profile.version is Dhis2.V43
+
+
+def test_env_raw_ignores_malformed_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A malformed DHIS2_VERSION leaves `Profile.version` unset — auto-detect takes over."""
+    _clear_env(monkeypatch)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    monkeypatch.setenv("DHIS2_URL", "http://localhost:8080")
+    monkeypatch.setenv("DHIS2_PAT", "d2p_env")
+    monkeypatch.setenv("DHIS2_VERSION", "latest")
     resolved = resolve(start=tmp_path)
     assert resolved.profile.version is None
 

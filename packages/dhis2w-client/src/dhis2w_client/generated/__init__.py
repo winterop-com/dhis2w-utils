@@ -19,7 +19,7 @@ class Dhis2(StrEnum):
     letting it auto-detect via `/api/system/info`:
 
         from dhis2w_client import Dhis2, Dhis2Client
-        async with Dhis2Client(url, auth=auth, pin_version=Dhis2.V42) as client:
+        async with Dhis2Client(url, auth=auth, version=Dhis2.V42) as client:
             ...
     """
 

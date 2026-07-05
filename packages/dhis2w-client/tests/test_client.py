@@ -33,6 +33,44 @@ async def test_get_raw_injects_auth_header_and_parses_json() -> None:
 
 
 @respx.mock
+async def test_empty_2xx_body_parses_to_empty_dict() -> None:
+    """DELETE-style empty bodies map to {} — no error, no fake payload."""
+    respx.delete("https://dhis2.example/api/dataElements/abc").mock(
+        return_value=httpx.Response(204),
+    )
+    client = Dhis2Client("https://dhis2.example", auth=BasicAuth(username="a", password="b"))
+    client._http = httpx.AsyncClient(base_url="https://dhis2.example")
+    try:
+        body = await client.delete_raw("/api/dataElements/abc")
+    finally:
+        await client.close()
+    assert body == {}
+
+
+@respx.mock
+async def test_non_json_2xx_body_raises_with_snippet() -> None:
+    """A 200 with an HTML body (proxy / SSO login page) raises Dhis2ApiError instead of returning {}."""
+    respx.get("https://dhis2.example/api/me").mock(
+        return_value=httpx.Response(
+            200,
+            headers={"Content-Type": "text/html"},
+            text="<html><body>Corporate proxy sign-in</body></html>",
+        ),
+    )
+    client = Dhis2Client("https://dhis2.example", auth=BasicAuth(username="a", password="b"))
+    client._http = httpx.AsyncClient(base_url="https://dhis2.example")
+    try:
+        with pytest.raises(Dhis2ApiError) as exc:
+            await client.get_raw("/api/me")
+    finally:
+        await client.close()
+    assert exc.value.status_code == 200
+    assert "non-JSON" in exc.value.message
+    assert isinstance(exc.value.body, str)
+    assert "Corporate proxy sign-in" in exc.value.body
+
+
+@respx.mock
 async def test_typed_get_returns_pydantic_instance() -> None:
     """Typed get returns pydantic instance."""
     respx.get("https://dhis2.example/api/me").mock(

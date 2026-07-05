@@ -97,13 +97,54 @@ async def test_capture_error_param_raises() -> None:
         await fire
 
 
-async def test_capture_missing_code_raises() -> None:
-    """A redirect with the right state but no `code` param raises `OAuth2FlowError`."""
+async def test_capture_ignores_requests_without_code() -> None:
+    """Stray local requests (port scans, preconnects, favicon fetches) get a 404 and don't kill the flow.
+
+    The receiver listens on a fixed loopback port, so unrelated local
+    traffic is routine. Anything without a `code` query parameter must be
+    answered 404 and ignored — the flow keeps waiting for the real
+    redirect and resolves normally afterwards.
+    """
     port = _free_port()
     redirect_uri = f"http://127.0.0.1:{port}/"
-    fire = asyncio.create_task(_fire_redirect(f"{redirect_uri}?state=expected-state"))
+
+    async def fire_strays_then_redirect() -> list[int]:
+        statuses: list[int] = []
+        stray_paths = ["favicon.ico", "?probe=1", "?state=expected-state", ""]
+        async with httpx.AsyncClient(timeout=2.0) as http_client:
+            for stray_path in stray_paths:
+                for _ in range(30):
+                    try:
+                        response = await http_client.get(f"{redirect_uri}{stray_path}")
+                        statuses.append(response.status_code)
+                        break
+                    except httpx.ConnectError:
+                        await asyncio.sleep(0.05)
+            await http_client.get(f"{redirect_uri}?code=survivor&state=expected-state")
+        return statuses
+
+    fire = asyncio.create_task(fire_strays_then_redirect())
     try:
-        with pytest.raises(OAuth2FlowError, match="no authorization code"):
+        code = await capture_code(
+            redirect_uri,
+            "expected-state",
+            auth_url=_STUB_AUTH_URL,
+            open_browser=False,
+            timeout=10.0,
+        )
+    finally:
+        stray_statuses = await fire
+    assert code == "survivor"
+    assert stray_statuses == [404, 404, 404, 404]
+
+
+async def test_capture_code_without_state_raises() -> None:
+    """A request that carries a `code` but no `state` fails the flow — CSRF guard stays intact."""
+    port = _free_port()
+    redirect_uri = f"http://127.0.0.1:{port}/"
+    fire = asyncio.create_task(_fire_redirect(f"{redirect_uri}?code=abc"))
+    try:
+        with pytest.raises(OAuth2FlowError, match="state mismatch"):
             await capture_code(
                 redirect_uri,
                 "expected-state",
