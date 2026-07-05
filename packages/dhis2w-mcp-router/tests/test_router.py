@@ -172,3 +172,113 @@ def test_router_config_parses_optional_embeddings() -> None:
     assert with_embed.embeddings is not None
     assert with_embed.embeddings.model == "m"
     assert RouterConfig.model_validate({"servers": []}).embeddings is None
+
+
+# --- Registry build: concurrency + partial-failure retry ------------------------------------
+
+
+class _FakeUpstreamTool:
+    """Bare tool shape (`name` only) — the registry reads the rest via getattr defaults."""
+
+    def __init__(self, name: str) -> None:
+        """Carry just the tool name."""
+        self.name = name
+
+
+class _FakeUpstreamClient:
+    """Stands in for `fastmcp.Client`: counts spawns per server and lists one canned tool."""
+
+    spawn_counts: dict[str, int] = {}
+    fail_first_connect: set[str] = set()
+
+    def __init__(self, config: dict[str, dict[str, object]]) -> None:
+        """Record which upstream this client was spawned for."""
+        self.server_name = next(iter(config["mcpServers"]))
+        counts = type(self).spawn_counts
+        counts[self.server_name] = counts.get(self.server_name, 0) + 1
+
+    async def __aenter__(self) -> _FakeUpstreamClient:
+        """Yield to the loop (so concurrent builders interleave); fail the first marked connect."""
+        import asyncio
+
+        await asyncio.sleep(0)
+        if self.server_name in type(self).fail_first_connect and type(self).spawn_counts[self.server_name] == 1:
+            raise RuntimeError(f"upstream {self.server_name!r} refused the first connect")
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        """Nothing to close."""
+        return None
+
+    async def list_tools(self) -> list[_FakeUpstreamTool]:
+        """One canned read tool per upstream."""
+        return [_FakeUpstreamTool(f"{self.server_name}_info")]
+
+
+@pytest.fixture
+def fake_upstreams(monkeypatch: pytest.MonkeyPatch) -> type[_FakeUpstreamClient]:
+    """Patch the registry's `Client` with the counting fake and reset its class state."""
+    from dhis2w_mcp_router import core as core_module
+
+    _FakeUpstreamClient.spawn_counts = {}
+    _FakeUpstreamClient.fail_first_connect = set()
+    monkeypatch.setattr(core_module, "Client", _FakeUpstreamClient)
+    return _FakeUpstreamClient
+
+
+async def test_ensure_built_concurrent_calls_spawn_each_upstream_once(
+    fake_upstreams: type[_FakeUpstreamClient],
+) -> None:
+    """Concurrent first calls serialise on the build lock — every upstream spawns exactly once."""
+    import asyncio
+
+    registry = Registry([UpstreamServer(name="alpha", command="x"), UpstreamServer(name="beta", command="x")])
+
+    await asyncio.gather(*(registry.ensure_built() for _ in range(3)))
+
+    assert fake_upstreams.spawn_counts == {"alpha": 1, "beta": 1}
+    assert registry.built
+    assert registry.tool_count() == 2
+
+
+async def test_ensure_built_retry_after_partial_failure_reconnects_only_the_missing_upstream(
+    fake_upstreams: type[_FakeUpstreamClient],
+) -> None:
+    """A failing upstream on attempt 1 doesn't make attempt 2 respawn the healthy upstreams."""
+    fake_upstreams.fail_first_connect = {"flaky"}
+    registry = Registry([UpstreamServer(name="steady", command="x"), UpstreamServer(name="flaky", command="x")])
+
+    with pytest.raises(RuntimeError, match="refused the first connect"):
+        await registry.ensure_built()
+    assert not registry.built
+
+    await registry.ensure_built()
+
+    assert fake_upstreams.spawn_counts == {"steady": 1, "flaky": 2}
+    assert registry.built
+    assert registry.tool_count() == 2
+    assert "steady__steady_info" in {entry.name for entry in await registry.search("", limit=10)}
+
+
+# --- Ranking strictness ----------------------------------------------------------------------
+
+
+def test_cosine_dimension_mismatch_raises() -> None:
+    """Mismatched vector dimensions are an error, not a silent truncation."""
+    from dhis2w_mcp_router.ranking import _cosine
+
+    with pytest.raises(ValueError, match="dimension mismatch"):
+        _cosine([1.0, 0.0], [1.0])
+
+
+async def test_embedding_prepare_rejects_vector_count_mismatch() -> None:
+    """Fewer vectors than inputs is an error, not silently dropped tools."""
+    from dhis2w_mcp_router.ranking import EmbeddingRanker
+
+    class _ShortRanker(EmbeddingRanker):
+        async def _embed(self, inputs: list[str]) -> list[list[float]]:  # noqa: D102 — test override of the HTTP call
+            return [[1.0, 0.0]]
+
+    entries = [_entry("s__a_get", "s", "a_get", "a"), _entry("s__b_get", "s", "b_get", "b")]
+    with pytest.raises(RuntimeError, match="returned 1 vectors for 2 inputs"):
+        await _ShortRanker("http://x/v1/embeddings", "m").prepare(entries)
