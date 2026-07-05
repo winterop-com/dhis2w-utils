@@ -1,6 +1,69 @@
 # Changelog
 
-## 1.0.0.dev1 (in development)
+## 1.0.0.dev2 (in development)
+
+Development snapshot. Not a published release — no tag, no PyPI upload.
+
+### d2ql / d2path query language (new)
+
+- **New `dhis2w-ql` workspace member + a `query` plugin across all three version trees.** d2ql is a pipeline
+  query/transform language with an embedded expression core (d2path): tokenizer + recursive-descent parser
+  producing a pydantic AST, a d2path evaluator with collection semantics over dicts or pydantic models, and an
+  engine with source binding, a pushdown planner (where/order/paging compile to native DHIS2 list parameters),
+  a local executor for residual stages, define/define-function resolution, and json/ndjson/csv sinks. CLI
+  (`d2w query eval/run/explain/ast/d2path/repl`) and MCP (`query_eval` / `query_explain` / `query_d2path`)
+  share one service layer; a curated samples catalog and a combinatorial example generator ship alongside (#404).
+- **Language semantics spec**, verified by conformance tests (#409); tutorial, cookbook, and a full d2path
+  reference under a clean QL nav (#406).
+- **Parser + scoping rules:** source-position function calls parse as expressions; duplicate projection
+  columns, recursive / duplicate definitions, and duplicate object keys are rejected; `implies`
+  right-associates; user-defined functions evaluate in caller scope and reject recursion + duplicate
+  parameters; the FHIRPath framing is dropped from docs and errors — d2path stands on its own semantics
+  (#407, #408, #413, #414).
+- **d2path string subscript** (`x["field name"]`) reads fields whose names aren't identifiers (#411).
+- **Pushdown correctness + performance:** `~` filters stay local when the match value carries SQL wildcards
+  (#412); `count` reads the DHIS2 pager total instead of fetching every row (#420); an unreachable catch-all
+  arm in stage dispatch is removed (#410).
+- **Call sources:** `analytics(...)` routes analytics options (`aggregationType`, `outputIdScheme`,
+  `includeNumDen`, `startDate` / `endDate`, ...) to the analytics service instead of treating them as
+  dimensions (#416); `dataValues(...)` threads its full selection through to `get_data_values` (#425).
+- **`--file/-f` on `eval` / `explain` / `ast`**, with a clear pointer at `--file` when a bare file path is
+  passed as an inline program (#415).
+
+### Query REPL (Textual TUI)
+
+- **A Textual TUI REPL** for `d2w query repl`: Enter runs, Shift+Enter / Ctrl+J inserts a newline (#419); the
+  plain REPL accumulates multi-line input until a blank line or `;` (#418).
+- **Collapsible JSON-tree result view** (Ctrl+T) and render-format cycling (Ctrl+F) (#423); format changes
+  surface as a top-right toast instead of a log line (#424).
+- **Sink format decoupled from destination:** `>> stdout as ndjson`, bare `>> csv` shorthand, and
+  `>> "out.txt" as csv` extension override; CLI and REPL render through a shared `serialize_rows` (#422).
+
+### Aggregate
+
+- **Follow-up flag on a data value:** `d2w data aggregate followup --de --pe --ou --on/--off` + the
+  `data_aggregate_followup` MCP tool drive `PUT /api/dataValues/followup` and return a typed
+  `FollowUpResult`; the PUT body is built at the HTTP boundary because the v43 OAS mis-types `period`
+  (BUGS.md #49) (#427).
+- **Read filters:** `get_data_values` exposes `org_unit_group`, `include_deleted`, and `last_updated`
+  (date or duration like `7d`) on every read surface — the d2ql `dataValues(...)` call source, the CLI
+  `get` flags, and the `data_aggregate_get` MCP tool (#426).
+
+### Examples / docs
+
+- File-export CLI examples bundled under an `export-*` family (#417); the three FHIR Bundle examples share a
+  `fhir-bundle-*` prefix (#415).
+- Nested-relationship "join" examples; the cookbook clarifies `transform` vs `fold` (#421).
+- Ten aggregate analytics d2ql examples — named output, indicator numerator/denominator, aggregation
+  override, category-option-combo breakdown, org-unit-level rollup, date windows, multi-period,
+  multi-org-unit, and a CSV export sink (#416).
+
+### Fixes
+
+- Tracker contract discovery skips programs the play user can't read, so the live suite can't flake on
+  sharing settings (#405).
+
+## 1.0.0.dev1
 
 Development snapshot. Not a published release — no tag, no PyPI upload.
 
@@ -31,6 +94,12 @@ Development snapshot. Not a published release — no tag, no PyPI upload.
 - `make dhis2-run` exits cleanly on Ctrl+C instead of `Error 130`.
 - The v41 and v43 plugin trees now accept `d2w profile add --version v42` (a tree-copy sed had corrupted the
   validator allow-list).
+- The v41 and v43 `openapi_manifest.json` files match their emitted trees, and every codegen run rebuilds the
+  OAS tree (#401).
+
+### Dependencies
+
+- Dependabot rounds: the actions group (2 updates) and the python-deps group (7 updates) (#402, #403).
 
 ## 1.0.0.dev0
 
