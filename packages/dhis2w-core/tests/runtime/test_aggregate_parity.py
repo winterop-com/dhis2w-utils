@@ -8,13 +8,21 @@ not just smoke-imported. Mocked (respx); no live stack.
 from __future__ import annotations
 
 from collections.abc import Callable
+from importlib import import_module
 from types import ModuleType
 
 import httpx
 import respx
 from dhis2w_core.profile import resolve_profile
+from pydantic import BaseModel
 
 _HOST = "https://dhis2.example"
+
+
+def _data_value_class(core_version: str) -> type[BaseModel]:
+    """Return the version tree's generated `DataValue` class."""
+    data_value_cls: type[BaseModel] = import_module(f"dhis2w_client.{core_version}").DataValue
+    return data_value_cls
 
 
 @respx.mock
@@ -64,7 +72,11 @@ async def test_aggregate_push_data_values_parity(
 
     response = await service.push_data_values(
         resolve_profile("probe"),
-        data_values=[{"dataElement": "de1", "period": "202403", "orgUnit": "ou1", "value": "1"}],
+        data_values=[
+            _data_value_class(core_version).model_validate(
+                {"dataElement": "de1", "period": "202403", "orgUnit": "ou1", "value": "1"}
+            )
+        ],
         data_set="lyLU2wR22tC",
         dry_run=True,
         import_strategy="CREATE",

@@ -14,6 +14,7 @@ from collections.abc import Iterator
 import httpx
 import pytest
 import respx
+from dhis2w_client.v42 import DataValue
 from dhis2w_core.profile import Profile
 from dhis2w_core.v42.plugins.aggregate import service
 
@@ -132,8 +133,8 @@ async def test_push_data_values_sends_payload_and_params(profile: Profile) -> No
     response = await service.push_data_values(
         profile,
         data_values=[
-            {"dataElement": "de1", "period": "202403", "orgUnit": "ou1", "value": "1"},
-            {"dataElement": "de2", "period": "202403", "orgUnit": "ou1", "value": "2"},
+            DataValue.model_validate({"dataElement": "de1", "period": "202403", "orgUnit": "ou1", "value": "1"}),
+            DataValue.model_validate({"dataElement": "de2", "period": "202403", "orgUnit": "ou1", "value": "2"}),
         ],
         data_set="lyLU2wR22tC",
         dry_run=True,
@@ -144,9 +145,12 @@ async def test_push_data_values_sends_payload_and_params(profile: Profile) -> No
     request = route.calls.last.request
     assert request.url.params["dryRun"] == "true"
     assert request.url.params["importStrategy"] == "CREATE"
-    body = request.read()
-    assert b'"dataSet":"lyLU2wR22tC"' in body
-    assert b'"dataValues":[' in body
+    body = json.loads(request.read())
+    assert body["dataSet"] == "lyLU2wR22tC"
+    assert body["dataValues"] == [
+        {"dataElement": "de1", "period": "202403", "orgUnit": "ou1", "value": "1"},
+        {"dataElement": "de2", "period": "202403", "orgUnit": "ou1", "value": "2"},
+    ]
 
 
 @respx.mock
