@@ -299,9 +299,9 @@ v43 adds eight new fields to `Program`. They cluster into three unrelated concer
 
 | Concern | Fields | Accessor | CLI | MCP tool |
 | --- | --- | --- | --- | --- |
-| UI label overrides | `enrollmentsLabel`, `eventsLabel`, `programStagesLabel` (+ matching `display*`) | `client.programs.set_labels(uid, ...)` | `d2w metadata program set-labels` | `metadata_program_set_labels` |
-| Server-side audit toggle | `enableChangeLog` | `client.programs.set_change_log_enabled(uid, enabled)` | `d2w metadata program set-change-log` | `metadata_program_set_change_log_enabled` |
-| Alt enrollment CategoryCombo | `enrollmentCategoryCombo` | `client.programs.set_enrollment_category_combo(uid, cc_uid)` | `d2w metadata program set-enrollment-category-combo` | `metadata_program_set_enrollment_category_combo` |
+| UI label overrides | `enrollmentsLabel`, `eventsLabel`, `programStagesLabel` (+ matching `display*`) | `client.programs.set_labels(uid, ...)` | `d2w metadata programs set-labels` | `metadata_program_set_labels` |
+| Server-side audit toggle | `enableChangeLog` | `client.programs.set_change_log_enabled(uid, enabled)` | `d2w metadata programs set-change-log` | `metadata_program_set_change_log_enabled` |
+| Alt enrollment CategoryCombo | `enrollmentCategoryCombo` | `client.programs.set_enrollment_category_combo(uid, cc_uid)` | `d2w metadata programs set-enrollment-category-combo` | `metadata_program_set_enrollment_category_combo` |
 
 **Reading** the new fields on v43 — the v43 `ProgramsAccessor` requests them in its read fields, so they surface as typed attributes on the parsed `Program` when the active version is v43:
 
@@ -343,9 +343,9 @@ Worked examples (one per concern):
 CLI + MCP equivalents (v43-only):
 
 ```bash
-d2w metadata program set-labels PRG... --enrollments-label Visits --events-label Encounters
-d2w metadata program set-change-log PRG... --enable
-d2w metadata program set-enrollment-category-combo PRG... CC_ALT...
+d2w metadata programs set-labels PRG... --enrollments-label Visits --events-label Encounters
+d2w metadata programs set-change-log PRG... --enable
+d2w metadata programs set-enrollment-category-combo PRG... CC_ALT...
 ```
 
 For v42-pinned typed reads of v43 wire data — e.g. parsing a raw response directly with the v42 model — the fields fall through to `model_extra`. Use the v43 `Program` import to get them typed:

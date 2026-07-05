@@ -7111,6 +7111,98 @@ def programs_rename_command(
     _console.print(f"[green]renamed[/green] program [cyan]{program.id}[/cyan]  name={program.name!r}")
 
 
+@programs_app.command("set-labels")
+def programs_set_labels_command(
+    uid: Annotated[str, typer.Argument(help="Program UID.")],
+    enrollments_label: Annotated[
+        str | None,
+        typer.Option("--enrollments-label", help="Custom UI label for enrollments (2-255 chars)."),
+    ] = None,
+    events_label: Annotated[
+        str | None,
+        typer.Option("--events-label", help="Custom UI label for events (2-255 chars)."),
+    ] = None,
+    program_stages_label: Annotated[
+        str | None,
+        typer.Option("--program-stages-label", help="Custom UI label for program stages (2-255 chars)."),
+    ] = None,
+) -> None:
+    """Set the v43-only Program UI label overrides (capture / tracker apps).
+
+    Requires the active DHIS2 to be v43. Pass only the labels to change.
+
+        d2w metadata programs set-labels PRG... --enrollments-label Visits --events-label Encounters
+    """
+    from dhis2w_core.v43.plugins.metadata import service
+
+    program = asyncio.run(
+        service.set_program_labels(
+            profile_from_env(),
+            uid,
+            enrollments_label=enrollments_label,
+            events_label=events_label,
+            program_stages_label=program_stages_label,
+        ),
+    )
+    if is_json_output():
+        typer.echo(program.model_dump_json(indent=2, exclude_none=True))
+        return
+    _console.print(f"[green]labels updated[/green] program [cyan]{program.id}[/cyan]  name={program.name!r}")
+
+
+@programs_app.command("set-change-log")
+def programs_set_change_log_command(
+    uid: Annotated[str, typer.Argument(help="Program UID.")],
+    enabled: Annotated[
+        bool,
+        typer.Option("--enable/--disable", help="Turn the per-program change-log audit on or off."),
+    ],
+) -> None:
+    """Toggle the v43-only `enableChangeLog` audit flag on a Program.
+
+    Behavioural switch — orthogonal to the UI label setters. Requires
+    the active DHIS2 to be v43.
+
+        d2w metadata programs set-change-log PRG... --enable
+    """
+    from dhis2w_core.v43.plugins.metadata import service
+
+    program = asyncio.run(
+        service.set_program_change_log_enabled(profile_from_env(), uid, enabled),
+    )
+    if is_json_output():
+        typer.echo(program.model_dump_json(indent=2, exclude_none=True))
+        return
+    state = "enabled" if enabled else "disabled"
+    _console.print(f"[green]change-log {state}[/green] program [cyan]{program.id}[/cyan]  name={program.name!r}")
+
+
+@programs_app.command("set-enrollment-category-combo")
+def programs_set_enrollment_category_combo_command(
+    uid: Annotated[str, typer.Argument(help="Program UID.")],
+    category_combo_uid: Annotated[
+        str,
+        typer.Argument(help="UID of the alternative CategoryCombo applied at enrollment time."),
+    ],
+) -> None:
+    """Set the v43-only `enrollmentCategoryCombo` reference on a Program.
+
+    An alt-CC applied specifically at enrollment time, distinct from the
+    Program's regular `categoryCombo`. Requires the active DHIS2 to be v43.
+
+        d2w metadata programs set-enrollment-category-combo PRG... CC_ALT...
+    """
+    from dhis2w_core.v43.plugins.metadata import service
+
+    program = asyncio.run(
+        service.set_program_enrollment_category_combo(profile_from_env(), uid, category_combo_uid),
+    )
+    if is_json_output():
+        typer.echo(program.model_dump_json(indent=2, exclude_none=True))
+        return
+    _console.print(f"[green]enrollment cc set[/green] program [cyan]{program.id}[/cyan]  name={program.name!r}")
+
+
 @programs_app.command("add-attribute")
 def programs_add_attribute_command(
     program_uid: Annotated[str, typer.Argument(help="Program UID.")],
