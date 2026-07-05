@@ -107,8 +107,11 @@ async def test_merge_bundle_dry_run_uses_validate_mode(tmp_path: Path, pat_profi
 
 
 @respx.mock
-async def test_merge_bundle_resource_filter_narrows_count_summary(tmp_path: Path, pat_profile: None) -> None:  # noqa: ARG001
-    """Merge bundle resource filter narrows count summary."""
+async def test_merge_bundle_resource_filter_restricts_import_and_count_summary(
+    tmp_path: Path,
+    pat_profile: None,  # noqa: ARG001
+) -> None:
+    """The resource filter narrows both the POSTed bundle and the count summary."""
     _mock_preamble()
     bundle_path = tmp_path / "bundle.json"
     bundle_path.write_text(
@@ -121,7 +124,7 @@ async def test_merge_bundle_resource_filter_narrows_count_summary(tmp_path: Path
             )
         )
     )
-    respx.post("https://target.example/api/metadata").mock(
+    import_route = respx.post("https://target.example/api/metadata").mock(
         return_value=httpx.Response(
             200, json={"status": "OK", "httpStatusCode": 200, "response": {"stats": {"total": 0}}}
         ),
@@ -133,6 +136,9 @@ async def test_merge_bundle_resource_filter_narrows_count_summary(tmp_path: Path
     result = await service.merge_metadata_from_bundle(target, bundle_path, resources=["dataElements"])
     assert sorted(result.export_counts) == ["dataElements"]
     assert result.export_counts["dataElements"] == 2
+    posted = json.loads(import_route.calls.last.request.content)
+    assert "indicators" not in posted
+    assert [item["id"] for item in posted["dataElements"]] == ["DE_A", "DE_B"]
 
 
 async def test_merge_bundle_rejects_non_object_root(tmp_path: Path) -> None:

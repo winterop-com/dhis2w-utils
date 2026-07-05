@@ -2851,7 +2851,7 @@ Replace the Section's `dataElements` with exactly the given UIDs in order.
 
 ### `metadata_share`
 
-Apply one sharing block across many UIDs of one resource.
+Merge a sharing change across many UIDs of one resource (read-merge-write).
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |

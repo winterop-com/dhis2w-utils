@@ -38,10 +38,22 @@ def _mock_preamble() -> None:
     )
 
 
+def _mock_current_sharing(*uids: str) -> None:
+    """Mock the read half of read-merge-write: an empty sharing block per UID."""
+    for uid in uids:
+        respx.get("https://dhis2.example/api/sharing", params={"type": "dataSet", "id": uid}).mock(
+            return_value=httpx.Response(
+                200,
+                json={"object": {"id": uid, "publicAccess": "--------", "externalAccess": False}},
+            ),
+        )
+
+
 @respx.mock
 async def test_bulk_share_applies_grants_to_every_uid(pat_profile: None) -> None:  # noqa: ARG001
     """Bulk share applies grants to every uid."""
     _mock_preamble()
+    _mock_current_sharing("DS_A", "DS_B")
     route = respx.post("https://dhis2.example/api/sharing").mock(return_value=httpx.Response(200, json={}))
 
     from dhis2w_core.profile import resolve_profile
@@ -59,13 +71,15 @@ async def test_bulk_share_applies_grants_to_every_uid(pat_profile: None) -> None
     assert result.dry_run is False
     assert result.succeeded == 2
     assert result.failed == 0
+    assert result.entries[0].public_access == "r-------"
     assert result.entries[0].user_group_grants == ["UG_PROG:rwrw----"]
 
 
 @respx.mock
 async def test_bulk_share_dry_run_does_not_post(pat_profile: None) -> None:  # noqa: ARG001
-    """Bulk share dry run does not post."""
+    """Bulk share dry run reads current sharing for the preview but never posts."""
     _mock_preamble()
+    _mock_current_sharing("DS_A")
     route = respx.post("https://dhis2.example/api/sharing").mock(return_value=httpx.Response(200, json={}))
 
     from dhis2w_core.profile import resolve_profile

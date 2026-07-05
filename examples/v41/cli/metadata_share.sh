@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# `d2w metadata share` — bulk-apply a sharing block across many UIDs of one resource.
-# Fans out concurrent POSTs to /api/sharing?type=<resource>&id=<uid> via
-# client.metadata.apply_sharing_bulk; per-UID failures land in a row-level table.
+# `d2w metadata share` — merge a sharing change across many UIDs of one resource.
+# Read-merge-write: each UID's current sharing block is fetched first, the new
+# grants merge into the existing ones (existing grants are preserved), and
+# --public-access only changes publicAccess when given. Per-UID failures land
+# in a row-level table.
 # Run via `uv run bash examples/v41/cli/metadata_share.sh` so `d2w` resolves.
 set -euo pipefail
 
