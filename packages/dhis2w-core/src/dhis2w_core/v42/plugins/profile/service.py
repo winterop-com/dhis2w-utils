@@ -17,6 +17,7 @@ from dhis2w_core.profile import (
     Profile,
     ProfileAlreadyExistsError,
     ProfileSource,
+    ResolvedProfile,
     UnknownProfileError,
     find_project_profiles_file,
     global_profiles_path,
@@ -111,7 +112,7 @@ class VerifyResult(BaseModel):
 async def verify_profile(name: str, *, start: Path | None = None) -> VerifyResult:
     """Verify a single profile by calling /api/system/info and /api/me."""
     resolved = resolve(name, start=start)
-    return await _verify_one(resolved.name, resolved.profile)
+    return await _verify_one(resolved)
 
 
 async def verify_all_profiles(*, start: Path | None = None) -> list[VerifyResult]:
@@ -119,14 +120,26 @@ async def verify_all_profiles(*, start: Path | None = None) -> list[VerifyResult
     catalog = load_catalog(start=start)
     results: list[VerifyResult] = []
     for name in sorted(catalog.merged):
-        profile = catalog.merged[name].profile
-        results.append(await _verify_one(name, profile))
+        entry = catalog.merged[name]
+        resolved = ResolvedProfile(name=name, profile=entry.profile, source=entry.source, source_path=entry.source_path)
+        try:
+            result = await _verify_one(resolved)
+        except Exception as exc:  # noqa: BLE001 — one broken profile must not abort the sweep
+            result = VerifyResult(
+                name=name,
+                ok=False,
+                base_url=entry.profile.base_url,
+                auth=entry.profile.auth,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        results.append(result)
     return results
 
 
-async def _verify_one(name: str, profile: Profile) -> VerifyResult:
-    """Build a client for the profile, probe /api/system/info + /api/me, report."""
-    resolved = resolve(name)
+async def _verify_one(resolved: ResolvedProfile) -> VerifyResult:
+    """Build a client for the resolved profile, probe /api/system/info + /api/me, report."""
+    name = resolved.name
+    profile = resolved.profile
     if profile.auth == "oauth2":
         preflight_error = await check_oauth2_server(profile.base_url)
         if preflight_error is not None:
@@ -302,7 +315,9 @@ def remove_profile(name: str, *, scope: str | None = None, start: Path | None = 
     origin_path = catalog.merged[name].source_path
     target = _resolve_target_path(scope, start=start) if scope else origin_path
     if target is None:
-        raise NoProfileError("cannot remove from project scope — no project profiles.toml exists")
+        raise NoProfileError(
+            f"cannot remove {name!r} — it has no source file (env-raw profiles are derived from environment variables)"
+        )
     data = load_profiles_file(target)
     if name not in data.profiles:
         raise UnknownProfileError(f"profile {name!r} is not in {target}")
