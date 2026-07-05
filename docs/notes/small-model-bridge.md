@@ -6,7 +6,7 @@ Working log for making the dhis2 toolkit usable by **small local models** (LM St
 
 - Branch / staging PR: `feat/dhis2-mcp-cli-bridge` (PR #360 — testing PR, split into smaller PRs).
 - Done → PR #360 description + commits. Queued → `docs/roadmap.md` ("Small-model bridge"
-  follow-ups). Upstream quirk → `BUGS.md` #42. Testing rule: reads → `play42`, writes →
+  follow-ups). Upstream quirk → `BUGS.md` #47. Testing rule: reads → `play42`, writes →
   `local_basic` (never mutate the shared public demo).
 
 ## How to run a round (the rig)
@@ -138,7 +138,7 @@ masked as clean exit-1 messages.
   v41/v42/v43.
 
 ### 6. Also noted
-- `metadata get <type> <bad-uid>` → HTTP 405 (upstream, BUGS.md #42); pre-validate UID shape
+- `metadata get <type> <bad-uid>` → HTTP 405 (upstream, BUGS.md #47); pre-validate UID shape
   (`^[A-Za-z][A-Za-z0-9]{10}$`) locally before the request.
 - Re-expose type-specific list filters + migrate docs/examples off the removed typed lists
   (separate, pre-existing roadmap item).

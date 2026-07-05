@@ -200,7 +200,7 @@ SAMPLES: list[Sample] = [
         "Filter by geometry type",
         "orgunits",
         'organisationUnits | where geometry.type = "Point" | select id, name | limit 20',
-        "A nested geometry path is not a DHIS2 filter property (BUGS.md #45), so this predicate runs locally over fetched rows, not pushed down.",  # noqa: E501
+        "A nested geometry path is not a DHIS2 filter property (BUGS.md #48), so this predicate runs locally over fetched rows, not pushed down.",  # noqa: E501
     ),
     _q(
         "ou-as-feature",

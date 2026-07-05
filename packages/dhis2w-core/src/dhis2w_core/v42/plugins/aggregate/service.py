@@ -168,7 +168,7 @@ async def set_data_value_followup(
 
     DHIS2 returns an empty 200; a non-2xx raises. Returns a small typed summary. The body is built
     as a dict at the HTTP boundary rather than via the generated `DataValueFollowUpRequest`, whose
-    v43 schema types `period` as an object the live wire doesn't require (BUGS.md #46).
+    v43 schema types `period` as an object the live wire doesn't require (BUGS.md #49).
     """
     body: dict[str, Any] = {
         "dataElement": data_element,
