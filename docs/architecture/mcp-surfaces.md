@@ -104,6 +104,23 @@ The threat that actually matters for agents is **prompt injection via data** (a 
 metadata that tells the model to do something destructive). Read-only-by-default + scoped credentials +
 no execution tools bound the damage.
 
+### Destructive commands are CLI-only by design
+
+The full server's tool surface is deliberately narrower than the CLI's command surface: the most
+destructive operations exist as `d2w` commands but are **not** exposed as MCP tools. A human at a
+terminal types these knowingly; an agent should not be able to reach them at all, whatever the
+read-only mode says. The omissions are:
+
+- tracker deletes — `d2w data tracker delete`, `d2w data tracker enrollment delete`,
+  `d2w data tracker event delete` (cascading `importStrategy=DELETE` bundles)
+- metadata visualization and map deletes
+- legend-set clone
+- dashboard remove-item
+
+An agent that genuinely needs one of these goes through the bridge, where the operation is still a
+CLI command string subject to the bridge's read-only and protected-host guards — or through a human
+running the command directly.
+
 ## Choosing a surface
 
 - **Capable cloud model (Claude, GPT, Gemini), aggregate data** → **full server**. It holds the 49k
