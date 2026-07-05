@@ -73,7 +73,7 @@ make install                          # uv sync --all-packages
 uv run d2w --version
 ```
 
-`make install` runs `uv sync --all-packages --all-extras` at the workspace root, so all six members (including `dhis2w-cli`) install in editable mode.
+`make install` runs `uv sync --all-packages --all-extras` at the workspace root, so all ten workspace members (including `dhis2w-cli`) install in editable mode.
 
 ## First steps
 

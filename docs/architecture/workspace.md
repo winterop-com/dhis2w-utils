@@ -25,10 +25,14 @@ dhis2w-utils/
 └── packages/
     ├── dhis2w-client/             # httpx + pydantic lib + Profile + open_client (PAT/Basic) (PyPI)
     ├── dhis2w-core/               # TOML profile resolution + OAuth2 token store + plugin runtime + plugins (PyPI)
+    ├── dhis2w-ql/                 # d2ql query + transform engine, FHIRPath-compatible expression core (PyPI)
     ├── dhis2w-cli/                # Typer console script `d2w` (PyPI)
     ├── dhis2w-mcp/                # FastMCP server (PyPI)
+    ├── dhis2w-mcp-bridge/         # single-tool MCP bridge for small local models (PyPI)
     ├── dhis2w-browser/            # Playwright helpers (PyPI)
-    └── dhis2w-codegen/            # generator — registers `d2w dev codegen` subcommand (workspace-only)
+    ├── dhis2w-codegen/            # generator — registers `d2w dev codegen` subcommand (workspace-only)
+    ├── dhis2w-bench/              # local-LLM benchmark harness (workspace-only)
+    └── dhis2w-mcp-router/         # domain-neutral MCP search + dispatch router (workspace-only)
 ```
 
 ## Configuration split
@@ -44,7 +48,7 @@ Each member's `pyproject.toml` has just:
 
 ## Build + publish
 
-`make build` produces wheels for all members. PyPI publishing is automated — tag a `vX.Y.Z` and `.github/workflows/pypi-publish.yml` builds + uploads every publishable member via PyPI Trusted Publishing (OIDC). Six members ship: `dhis2w-client`, `dhis2w-core`, `dhis2w-cli`, `dhis2w-mcp`, `dhis2w-mcp-bridge`, `dhis2w-browser`. The seventh, `dhis2w-codegen`, stays workspace-only — it's a developer tool that emits committed code into `dhis2w-client`'s tree, with no value to PyPI consumers. See [Releasing to PyPI](../releasing.md) for the full bump-and-tag flow.
+`make build` produces wheels for all members. PyPI publishing is automated — tag a `vX.Y.Z` and `.github/workflows/pypi-publish.yml` builds + uploads every publishable member via PyPI Trusted Publishing (OIDC). Seven members ship: `dhis2w-client`, `dhis2w-core`, `dhis2w-ql`, `dhis2w-cli`, `dhis2w-mcp`, `dhis2w-mcp-bridge`, `dhis2w-browser`. Three stay workspace-only: `dhis2w-codegen` (a developer tool that emits committed code into `dhis2w-client`'s tree), `dhis2w-bench` (the local-LLM benchmark harness), and `dhis2w-mcp-router` (the MCP search + dispatch router the bench drives). See [Releasing to PyPI](../releasing.md) for the full bump-and-tag flow.
 
 ## Open questions
 
