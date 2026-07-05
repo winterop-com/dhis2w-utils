@@ -372,3 +372,112 @@ def test_cli_d2path_over_input_file(runner: CliRunner, tmp_path: Path) -> None:
     result = runner.invoke(build_app(), ["query", "d2path", "name.given.first()", "--input", str(data)])
     assert result.exit_code == 0
     assert "Ada" in result.stdout
+
+
+@respx.mock
+async def test_metacharacter_filter_value_is_not_pushed_down() -> None:
+    # DHIS2 filter syntax cannot escape `:` `,` `[` `]`, so the predicate runs locally: no `filter`
+    # param goes on the wire and the rows are still narrowed correctly in-engine.
+    _mock_connect()
+    route = respx.get(f"{_BASE}/api/dataElements").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "pager": {"page": 1, "pageSize": 10, "total": 2},
+                "dataElements": [{"id": "a1", "name": "a:b,c"}, {"id": "b2", "name": "plain"}],
+            },
+        )
+    )
+    result = await service.run_query(_PROFILE, 'dataElements | where name = "a:b,c" | select id')
+    assert route.called
+    assert dict(route.calls.last.request.url.params).get("filter") is None
+    assert result.rows == [{"id": "a1"}]
+
+
+@respx.mock
+async def test_metacharacter_in_member_is_not_pushed_down() -> None:
+    _mock_connect()
+    route = respx.get(f"{_BASE}/api/dataElements").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "pager": {"page": 1, "pageSize": 10, "total": 2},
+                "dataElements": [{"id": "a1", "name": "x[1]"}, {"id": "b2", "name": "plain"}],
+            },
+        )
+    )
+    result = await service.run_query(_PROFILE, 'dataElements | where name in ["x[1]"] | select id')
+    assert dict(route.calls.last.request.url.params).get("filter") is None
+    assert result.rows == [{"id": "a1"}]
+
+
+def test_compiler_refuses_metacharacter_filter_values() -> None:
+    # The planner never emits such a filter; a NativeQuery built outside it fails loudly instead of
+    # rendering a clause DHIS2 would misparse into silently wrong results.
+    from dhis2w_core.v42.plugins.query.compiler import compile_filters
+    from dhis2w_ql import EvaluationError, NativeFilter, NativeQuery
+
+    for value in ("a:b", "a,b", "a[b]", ["ok", "a:b"]):
+        native = NativeQuery(
+            resource="dataElements",
+            filters=[NativeFilter(property="name", operator="in" if isinstance(value, list) else "eq", value=value)],
+        )
+        with pytest.raises(EvaluationError, match="cannot escape"):
+            compile_filters(native)
+
+
+def test_line_repl_renders_unexpected_errors_and_keeps_running(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A non-D2qlError (network/auth/regex/recursion) is rendered in red and the loop keeps going;
+    # EOF still exits cleanly.
+    from dhis2w_core.v42.plugins.query import cli as query_cli
+    from dhis2w_ql import QueryResult
+
+    lines = iter(["boom;", "again;"])
+
+    def fake_input(prompt: str) -> str:
+        """Feed scripted REPL lines, then simulate Ctrl-D."""
+        try:
+            return next(lines)
+        except StopIteration:
+            raise EOFError from None
+
+    calls: list[str] = []
+
+    async def explode(profile: Profile, program: str) -> QueryResult:
+        """Fail with a non-d2ql error to prove the loop survives it."""
+        calls.append(program)
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(query_cli._console, "input", fake_input)
+    monkeypatch.setattr(service, "run_query", explode)
+    query_cli._line_repl(_PROFILE)
+    assert calls == ["boom", "again"]  # the loop ran both programs despite the first failure
+    assert "network down" in capsys.readouterr().out
+
+
+def test_line_repl_renders_d2ql_errors_and_keeps_running(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from dhis2w_core.v42.plugins.query import cli as query_cli
+    from dhis2w_ql import QueryResult, parse
+
+    lines = iter(["dataElements |;"])
+
+    def fake_input(prompt: str) -> str:
+        """Feed one malformed program, then simulate Ctrl-D."""
+        try:
+            return next(lines)
+        except StopIteration:
+            raise EOFError from None
+
+    async def parse_only(profile: Profile, program: str) -> QueryResult:
+        """Parse the program so a ParseError (a D2qlError) surfaces like the real service."""
+        parse(program)
+        raise AssertionError("the malformed program should have failed to parse")
+
+    monkeypatch.setattr(query_cli._console, "input", fake_input)
+    monkeypatch.setattr(service, "run_query", parse_only)
+    query_cli._line_repl(_PROFILE)
+    assert "expected a stage keyword" in capsys.readouterr().out
