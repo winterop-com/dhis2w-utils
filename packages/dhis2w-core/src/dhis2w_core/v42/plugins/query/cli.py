@@ -102,6 +102,7 @@ def repl_command() -> None:
         from dhis2w_core.tui.repl import run_repl  # noqa: PLC0415 — optional [tui] extra
 
         async def execute(program: str) -> QueryResult:
+            """Run one REPL program against the active profile."""
             return await service.run_query(profile, program)
 
         run_repl(run_program=execute, title=f"d2ql REPL — {profile.base_url}")
@@ -111,8 +112,8 @@ def repl_command() -> None:
 
 def _line_repl(profile: Profile) -> None:
     """Line-mode REPL fallback (no `tui` extra): build a program over lines; blank line or `;` runs it."""
-    _console.print("[dim]d2ql REPL — enter a program; a blank line or trailing `;` runs it. Ctrl-D to exit.")
-    _console.print("Install the `tui` extra (`uv add 'dhis2w-cli[tui]'`) for the full-screen editor.[/dim]")
+    _console.print("[dim]d2ql REPL — enter a program; a blank line or trailing `;` runs it. Ctrl-D to exit.[/dim]")
+    _console.print("[dim]Install the `tui` extra (`uv add 'dhis2w-cli\\[tui]'`) for the full-screen editor.[/dim]")
     buffer: list[str] = []
     while True:
         prompt = "[bold cyan]d2ql>[/bold cyan] " if not buffer else "[bold cyan]  ...>[/bold cyan] "
@@ -125,9 +126,11 @@ def _line_repl(profile: Profile) -> None:
         if program is None:
             continue
         try:
-            _render_result(_run(service.run_query(profile, program)))
+            _render_result(asyncio.run(service.run_query(profile, program)))
         except D2qlError as error:
             _console.print(f"[red]{error}[/red]")
+        except Exception as error:  # noqa: BLE001 — render any failure in red, never kill the REPL loop
+            _console.print(f"[red]{type(error).__name__}: {error}[/red]")
 
 
 def register(root_app: Any) -> None:

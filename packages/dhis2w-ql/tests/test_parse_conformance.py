@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from dhis2w_ql import (
     SAMPLES,
+    EvaluationError,
     Evaluator,
     LexError,
     ParseError,
@@ -13,6 +14,8 @@ from dhis2w_ql import (
     parse,
     parse_expression,
 )
+from dhis2w_ql.d2path.functions import MAX_REGEX_PATTERN_LENGTH
+from dhis2w_ql.parser import MAX_EXPRESSION_DEPTH
 
 _PATIENT = {
     "resourceType": "Patient",
@@ -182,6 +185,56 @@ def test_logical_operators_short_circuit() -> None:
     rows = [{"value": 0}, {"value": 50}]
     kept = [r for r in rows if ev.evaluate(parse_expression("value != 0 and (100 div value) > 1"), [r]) == [True]]
     assert kept == [{"value": 50}]
+
+
+def test_paren_nesting_under_the_depth_limit_parses() -> None:
+    depth = MAX_EXPRESSION_DEPTH - 1
+    result = Evaluator().evaluate(parse_expression("(" * depth + "1" + ")" * depth), [])
+    assert result == [1]
+
+
+def test_paren_nesting_over_the_depth_limit_is_a_parse_error() -> None:
+    # Both just-over-limit and grossly-over-limit inputs raise the typed error, never RecursionError.
+    for depth in (MAX_EXPRESSION_DEPTH + 1, 300):
+        with pytest.raises(ParseError, match=f"nesting exceeds {MAX_EXPRESSION_DEPTH} levels"):
+            parse_expression("(" * depth + "1" + ")" * depth)
+
+
+def test_unary_chain_under_the_depth_limit_parses() -> None:
+    result = Evaluator().evaluate(parse_expression("-" * (MAX_EXPRESSION_DEPTH - 1) + "1"), [])
+    assert result == [-1.0]
+
+
+def test_unary_chain_over_the_depth_limit_is_a_parse_error() -> None:
+    for depth in (MAX_EXPRESSION_DEPTH + 1, 5000):
+        with pytest.raises(ParseError, match=f"nesting exceeds {MAX_EXPRESSION_DEPTH} levels"):
+            parse_expression("-" * depth + "1")
+
+
+def test_implies_chain_over_the_depth_limit_is_a_parse_error() -> None:
+    with pytest.raises(ParseError, match=f"nesting exceeds {MAX_EXPRESSION_DEPTH} levels"):
+        parse_expression("true implies " * (MAX_EXPRESSION_DEPTH * 2) + "true")
+
+
+def test_deep_array_nesting_is_a_parse_error_not_recursion() -> None:
+    with pytest.raises(ParseError, match=f"nesting exceeds {MAX_EXPRESSION_DEPTH} levels"):
+        parse_expression("[" * 300 + "1" + "]" * 300)
+
+
+def test_matches_evaluates_a_valid_pattern() -> None:
+    assert Evaluator().evaluate(parse_expression('"abc123".matches("^abc[0-9]+$")'), [{}]) == [True]
+    assert Evaluator().evaluate(parse_expression('"abc".matches("[0-9]")'), [{}]) == [False]
+
+
+def test_matches_invalid_pattern_is_a_typed_evaluation_error() -> None:
+    with pytest.raises(EvaluationError, match="not a valid regular expression"):
+        Evaluator().evaluate(parse_expression('"abc".matches("(")'), [{}])
+
+
+def test_matches_pattern_over_the_length_cap_is_a_typed_evaluation_error() -> None:
+    oversized = "a" * (MAX_REGEX_PATTERN_LENGTH + 1)
+    with pytest.raises(EvaluationError, match=f"limit is {MAX_REGEX_PATTERN_LENGTH}"):
+        Evaluator().evaluate(parse_expression(f'"abc".matches("{oversized}")'), [{}])
 
 
 def test_lex_error_has_position() -> None:

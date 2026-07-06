@@ -97,3 +97,30 @@ def test_non_pushable_path_blocks_whole_and_clause() -> None:
     plan = _plan('organisationUnits | where level >= 2 and geometry.type = "Point"', caps)
     assert plan.native.filters == []
     assert [s.kind for s in plan.residual] == ["where"]
+
+
+def test_value_with_filter_metacharacters_stays_local() -> None:
+    # DHIS2 `property:operator:value` filter syntax cannot escape `:` `,` `[` `]`, so such values
+    # never push down — the predicate runs locally instead of compiling to a misparsed clause.
+    for value in ("a:b", "a,b", "a[b", "a]b", "a:b,c"):
+        plan = _plan(f'dataElements | where name = "{value}"')
+        assert plan.native.filters == []
+        assert [s.kind for s in plan.residual] == ["where"]
+
+
+def test_in_member_with_filter_metacharacters_stays_local() -> None:
+    plan = _plan('dataElements | where name in ["plain", "a:b,c"]')
+    assert plan.native.filters == []
+    assert [s.kind for s in plan.residual] == ["where"]
+
+
+def test_metacharacter_predicate_blocks_later_pushdown_but_clean_values_push() -> None:
+    # The clean predicate before the metacharacter one still pushes; the rest goes residual.
+    plan = _plan('dataElements | where domainType = "AGGREGATE" | where name = "a:b" | limit 5')
+    assert [(f.property, f.operator, f.value) for f in plan.native.filters] == [("domainType", "eq", "AGGREGATE")]
+    assert [s.kind for s in plan.residual] == ["where", "limit"]
+
+
+def test_non_string_values_are_unaffected_by_the_metacharacter_guard() -> None:
+    plan = _plan("dataElements | where value > 10")
+    assert [(f.property, f.operator, f.value) for f in plan.native.filters] == [("value", "gt", 10)]

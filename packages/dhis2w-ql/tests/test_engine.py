@@ -182,3 +182,56 @@ async def test_fold_to_json_file_writes_object_not_array(tmp_path: Path) -> None
     document = json.loads(path.read_text())
     assert document["resourceType"] == "Bundle"
     assert [e["id"] for e in document["entry"]] == ["a1", "b2", "c3"]
+
+
+async def test_file_sink_creates_missing_parent_directories(tmp_path: Path) -> None:
+    path = tmp_path / "reports" / "monthly" / "out.json"
+    text = f'dataElements | select id >> "{path}"'
+    result = await _engine(text).run_terminal()
+    assert result.written_to == str(path)
+    assert json.loads(path.read_text()) == [{"id": "a1"}, {"id": "b2"}, {"id": "c3"}]
+
+
+async def test_define_chain_over_the_depth_limit_is_a_semantic_error() -> None:
+    from dhis2w_ql.engine.executor import MAX_DEFINE_CHAIN_DEPTH
+
+    depth = MAX_DEFINE_CHAIN_DEPTH + 5
+    lines = ["define Q0: dataElements | limit 3"]
+    lines.extend(f"define Q{i}: Q{i - 1} | limit 3" for i in range(1, depth))
+    lines.append(f"Q{depth - 1} | count")
+    with pytest.raises(SemanticError, match=f"definition chain exceeds {MAX_DEFINE_CHAIN_DEPTH} levels"):
+        await _engine("\n".join(lines)).run_terminal()
+
+
+async def test_define_chain_under_the_depth_limit_runs() -> None:
+    from dhis2w_ql.engine.executor import MAX_DEFINE_CHAIN_DEPTH
+
+    depth = MAX_DEFINE_CHAIN_DEPTH - 2
+    lines = ["define Q0: dataElements | limit 3"]
+    lines.extend(f"define Q{i}: Q{i - 1} | limit 3" for i in range(1, depth))
+    lines.append(f"Q{depth - 1} | count")
+    result = await _engine("\n".join(lines)).run_terminal()
+    assert result.rows == [3]
+
+
+async def test_function_call_chain_over_the_depth_limit_is_a_typed_error() -> None:
+    from dhis2w_ql.d2path.evaluator import MAX_FUNCTION_CALL_DEPTH
+    from dhis2w_ql.errors import EvaluationError
+
+    depth = MAX_FUNCTION_CALL_DEPTH + 5
+    lines = ["define function f0(x): $x"]
+    lines.extend(f"define function f{i}(x): f{i - 1}($x)" for i in range(1, depth))
+    lines.append(f"dataElements | where f{depth - 1}(value) > 0 | count")
+    with pytest.raises(EvaluationError, match=f"call chain exceeds {MAX_FUNCTION_CALL_DEPTH} levels"):
+        await _engine("\n".join(lines)).run_terminal()
+
+
+async def test_function_call_chain_under_the_depth_limit_runs() -> None:
+    from dhis2w_ql.d2path.evaluator import MAX_FUNCTION_CALL_DEPTH
+
+    depth = MAX_FUNCTION_CALL_DEPTH - 2
+    lines = ["define function f0(x): $x"]
+    lines.extend(f"define function f{i}(x): f{i - 1}($x)" for i in range(1, depth))
+    lines.append(f"dataElements | where f{depth - 1}(value) > 0 | count")
+    result = await _engine("\n".join(lines)).run_terminal()
+    assert result.rows == [3]

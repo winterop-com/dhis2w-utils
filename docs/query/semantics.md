@@ -164,11 +164,15 @@ filter selects the same rows as the same filter evaluated locally: `=`→`eq`, `
 audit against the demo server confirmed pushed and local agree for literal values across these
 operators (including `!=` over rows where the field is absent).
 
-Three corners are handled or called out explicitly:
+Four corners are handled or called out explicitly:
 
 - **`~` with `%` or `_`:** DHIS2 `ilike` treats these as SQL wildcards, but d2path `~` is a *literal*
   case-insensitive substring. A `~` value containing `%`/`_` is therefore **kept local** (not pushed)
   so the result matches the literal meaning. `explain` shows it as a local `where`.
+- **Values containing `:` `,` `[` `]`:** DHIS2's `property:operator:value` filter syntax has no
+  escaping for its own structural characters, so a value like `"a:b,c"` would render as a broken
+  clause and silently return wrong rows. Any comparison (or `in` member) whose value contains one of
+  these characters is **kept local**; `explain` shows it as a local `where`.
 - **Server-side value validation:** DHIS2 validates a pushed filter's value, so an invalid value
   (e.g. an enum in the wrong case like `domainType = "aggregate"`) raises a `400` where local
   evaluation would simply return no rows. Use the exact value DHIS2 expects.

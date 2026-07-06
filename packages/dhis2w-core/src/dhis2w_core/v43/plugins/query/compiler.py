@@ -10,8 +10,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from dhis2w_ql import NativeFilter, NativeQuery
+from dhis2w_ql import EvaluationError, NativeFilter, NativeQuery
 from pydantic import BaseModel, ConfigDict
+
+# DHIS2's `property:operator:value` filter syntax has no escaping for these characters. The planner
+# keeps predicates with such values local, so hitting this in the compiler means a `NativeQuery` was
+# built outside the planner — refuse to render a clause DHIS2 would misparse into wrong results.
+_FILTER_VALUE_METACHARACTERS = (":", ",", "[", "]")
 
 
 class PageSpec(BaseModel):
@@ -46,14 +51,23 @@ def resolve_paging(native: NativeQuery) -> PageSpec:
 
 
 def _render_filter(native_filter: NativeFilter) -> str:
+    """Render one `NativeFilter` as a DHIS2 filter clause, rejecting values its syntax cannot carry."""
     if native_filter.operator == "in":
         members = native_filter.value if isinstance(native_filter.value, list) else [native_filter.value]
-        rendered = ",".join(_scalar(member) for member in members)
+        rendered = ",".join(_scalar(native_filter.property, member) for member in members)
         return f"{native_filter.property}:in:[{rendered}]"
-    return f"{native_filter.property}:{native_filter.operator}:{_scalar(native_filter.value)}"
+    return f"{native_filter.property}:{native_filter.operator}:{_scalar(native_filter.property, native_filter.value)}"
 
 
-def _scalar(value: Any) -> str:
+def _scalar(property_name: str, value: Any) -> str:
+    """Render one filter value, raising when it contains DHIS2 filter metacharacters."""
     if isinstance(value, bool):
         return "true" if value else "false"
-    return str(value)
+    rendered = str(value)
+    if any(character in rendered for character in _FILTER_VALUE_METACHARACTERS):
+        raise EvaluationError(
+            f"filter value {rendered!r} for {property_name!r} contains one of "
+            f"{''.join(_FILTER_VALUE_METACHARACTERS)!r}, which DHIS2 filter syntax cannot escape; "
+            "evaluate this predicate locally instead of pushing it down"
+        )
+    return rendered

@@ -220,6 +220,7 @@ def collect_fields(library: Library, entry: Pipeline) -> str | None:
     seen_functions: set[str] = set()
 
     def visit_function(name: str) -> None:
+        """Collect the row field paths a `define function` body navigates, following its callees once."""
         if name in seen_functions or name not in functions:
             return
         seen_functions.add(name)
@@ -230,6 +231,7 @@ def collect_fields(library: Library, entry: Pipeline) -> str | None:
             visit_function(called)
 
     def collect_from(expr: Any) -> None:
+        """Collect field paths from a stage expression, then walk any user functions it calls."""
         _collect_expr(expr, paths, {"this", "rows"})
         for name in _called_functions(expr, known):
             visit_function(name)

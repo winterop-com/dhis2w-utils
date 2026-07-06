@@ -211,7 +211,9 @@ name.replace("visit", "v.")   over {"name":"ANC visit"}   => ["ANC v."]
 ```
 
 ### `matches(regex)`
-True if the string matches the regular expression.
+True if the string matches the regular expression. An invalid pattern, or one longer than 1000
+characters, raises a typed evaluation error. Patterns run on Python's stdlib `re` engine, so
+catastrophic backtracking is bounded only by the length cap — prefer simple patterns.
 ```text
 code.matches("^[A-Z]{2}[0-9]+$")
 ```
