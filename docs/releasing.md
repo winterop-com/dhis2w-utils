@@ -1,11 +1,12 @@
 # Releasing to PyPI
 
-The six publishable workspace members ship to PyPI in lockstep — every release tags every package at the same version. The internal `dhis2w-codegen` package is workspace-only and does not ship.
+The seven publishable workspace members ship to PyPI in lockstep — every release tags every package at the same version. The internal `dhis2w-codegen`, `dhis2w-bench`, and `dhis2w-mcp-router` packages are workspace-only and do not ship.
 
 | Package | PyPI |
 | --- | --- |
 | `dhis2w-client` | https://pypi.org/project/dhis2w-client/ |
 | `dhis2w-core` | https://pypi.org/project/dhis2w-core/ |
+| `dhis2w-ql` | https://pypi.org/project/dhis2w-ql/ |
 | `dhis2w-cli` | https://pypi.org/project/dhis2w-cli/ |
 | `dhis2w-browser` | https://pypi.org/project/dhis2w-browser/ |
 | `dhis2w-mcp` | https://pypi.org/project/dhis2w-mcp/ |
@@ -13,7 +14,7 @@ The six publishable workspace members ship to PyPI in lockstep — every release
 
 ## Versioning policy
 
-- **Lockstep.** All six publishable packages share the same `version =` value in their `pyproject.toml`. Bump them together, never one at a time.
+- **Lockstep.** All seven publishable packages share the same `version =` value in their `pyproject.toml`. Bump them together, never one at a time.
 - **SemVer.** `MAJOR.MINOR.PATCH` for stable releases; pre-releases use SemVer suffixes (`0.6.0a1`, `0.6.0rc1`). Pre-1.0 means breaking changes can land on minor bumps.
 - **Inter-package deps** are pinned to `>=<current>,<<next-major>` (e.g. `dhis2w-client>=0.5.0,<0.6`). When the next minor lands, every consumer's pin needs the same shift.
 
@@ -41,7 +42,7 @@ The six publishable workspace members ship to PyPI in lockstep — every release
    git push origin main v0.6.0
    ```
 
-6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. Six `build` jobs produce wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token), with `skip-existing` so a re-run after a partial publish is safe.
+6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. Seven `build` jobs produce wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token), with `skip-existing` so a re-run after a partial publish is safe.
 
 7. **Create the GitHub release** (the tag alone does not — the Releases page stays on the previous version otherwise):
 

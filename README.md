@@ -8,7 +8,7 @@
 
 A Python toolkit for DHIS2 — pure client library, CLI, MCP server, Playwright browser automation, and a shared plugin runtime, all in one `uv` workspace. Targets DHIS2 v41, v42, and v43.
 
-The repo lives at `winterop-com/dhis2w-utils`; PyPI ships the six publishable members under the `dhis2w-*` prefix. Not affiliated with DHIS2.
+The repo lives at `winterop-com/dhis2w-utils`; PyPI ships the seven publishable members under the `dhis2w-*` prefix. Not affiliated with DHIS2.
 
 > **Learning path · step 1 of 8** — You are here. Quick install + profile + first CLI / Python call below. Next: the [contributor walkthrough](docs/walkthrough.md) for the local docker stack, or jump to a surface-specific tutorial — [CLI](docs/guides/cli-tutorial.md), [Python](docs/guides/client-tutorial.md), [MCP](docs/mcp/tutorial.md).
 
@@ -35,9 +35,12 @@ Reach for the official client when you want the smallest possible dependency and
 | [`dhis2w-mcp`](https://pypi.org/project/dhis2w-mcp/) | `uv tool install dhis2w-mcp` | FastMCP server `dhis2w-mcp`. |
 | [`dhis2w-mcp-bridge`](https://pypi.org/project/dhis2w-mcp-bridge/) | `uv tool install dhis2w-mcp-bridge` | FastMCP server `dhis2w-mcp-bridge` — exposes the whole `d2w` CLI as a single `dhis2_cli` tool for small local models. |
 | [`dhis2w-browser`](https://pypi.org/project/dhis2w-browser/) | `uv add dhis2w-browser` | Playwright helpers for DHIS2 UI automation — PAT minting, Playwright-driven OIDC login + consent, dashboard / viz / map screenshot capture. Mounted under `d2w browser` when the `[browser]` extra is installed on `dhis2w-cli`. |
+| [`dhis2w-ql`](https://pypi.org/project/dhis2w-ql/) | `uv add dhis2w-ql` | The d2ql query + transform language: tokenizer, parser, evaluator, planner. Pure engine with a FHIRPath-compatible expression core — no DHIS2 runtime dependency. Powers `d2w query`. |
 | `dhis2w-codegen` | _workspace-only_ | Generator that emits pydantic models + `StrEnum`s + CRUD accessors into `dhis2w_client.generated.v{N}/`. Two source-of-truth paths: `/api/schemas` for metadata resources, `/api/openapi.json` for instance-side shapes (tracker writes, envelopes, auth schemes). |
+| `dhis2w-bench` | _workspace-only_ | Local-LLM benchmark harness for DHIS2 agents: coding, mcp-bridge, and full-mcp suites. |
+| `dhis2w-mcp-router` | _workspace-only_ | Domain-neutral MCP router — fronts many upstream MCP servers behind two meta-tools (search + dispatch) so an agent gets lazy, searchable tool discovery instead of a huge up-front tool payload. |
 
-All six publishable packages release together (lockstep versioning); see [`docs/releasing.md`](docs/releasing.md).
+All seven publishable packages release together (lockstep versioning); see [`docs/releasing.md`](docs/releasing.md).
 
 ## Install
 
@@ -52,6 +55,9 @@ uv tool install dhis2w-cli
 # With Playwright UI automation (browser screenshots, OIDC login, PAT minting)
 uv tool install 'dhis2w-cli[browser]'
 playwright install chromium    # one-time, after the install above
+
+# With the full-screen d2ql REPL (textual TUI behind `d2w query repl`)
+uv tool install 'dhis2w-cli[tui]'
 
 # Update to the latest release
 uv tool upgrade dhis2w-cli
@@ -230,7 +236,7 @@ PyPI consumers who want the library without the profile layer can construct `Dhi
 
 ## CLI surface
 
-Eighteen top-level domains; every plugin shares a `service.py` between the CLI and MCP sides so one typed call answers both surfaces.
+Nineteen top-level domains; every plugin shares a `service.py` between the CLI and MCP sides so one typed call answers both surfaces.
 
 | Command | What it covers |
 | --- | --- |
@@ -246,11 +252,25 @@ Eighteen top-level domains; every plugin shares a `service.py` between the CLI a
 | `d2w files` | `/api/documents` + `/api/fileResources` — upload / download / list binary attachments |
 | `d2w messaging` | `/api/messageConversations` — send, reply, list, mark read/unread |
 | `d2w apps` | `/api/apps` + `/api/appHub` — install / uninstall / update installed apps, browse the App Hub catalog, point DHIS2 at a custom App Hub |
+| `d2w query` | Run d2ql queries against the instance — one-shot or in the interactive REPL |
 | `d2w doctor` | One-command preflight — ~100 metadata-health + integrity checks against a live instance |
 | `d2w browser` | Playwright-driven UI automation (PAT minting, dashboard / viz / map screenshot capture, automated OIDC login) — only registers when the `[browser]` extra is installed |
 | `d2w dev` | Codegen, UID gen, PAT / OAuth2 seed helpers, branding (`dev customize`), sample data |
 
 Full per-command reference: `d2w --help` (or `uvx --from dhis2w-cli d2w --help` — the package is `dhis2w-cli` but the binary is `d2w`, so `uvx --from` is required).
+
+## Query with d2ql
+
+**d2ql** is the toolkit's query + transform language: one readable pipeline instead of endpoint-specific `filter=` / analytics / tracker parameters, with pushdown to DHIS2 where the server can express the work:
+
+```bash
+d2w query eval 'dataElements | where domainType = "AGGREGATE" and name like "ANC" | select id, name | limit 10'
+
+# Interactive REPL — full-screen TUI with the [tui] extra, plain line mode without
+d2w query repl
+```
+
+The engine lives in the standalone [`dhis2w-ql`](packages/dhis2w-ql/) package (FHIRPath-compatible expression core, no DHIS2 runtime dependency) and backs the CLI, the MCP `query_*` tools, and the Python API. Start at the [query-language docs](docs/query/index.md); the full stage/source/sink reference is [`docs/guides/d2ql.md`](docs/guides/d2ql.md).
 
 ## Working on the workspace itself
 

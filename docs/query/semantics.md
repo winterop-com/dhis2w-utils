@@ -134,7 +134,7 @@ function. For prefix/suffix use `startsWith` / `endsWith`.
 
 A missing field and an explicit JSON `null` both evaluate to the empty collection, so `field = null`
 matches nothing. Test presence with `field.exists()` and absence with `field.empty()` — see
-[d2path → Presence and absence](../guides/d2path.md#presence-and-absence-there-is-no--null).
+[d2path → Presence and absence](../guides/d2path.md#presence-and-absence-there-is-no-null).
 
 ## `[]` is overloaded by position
 
