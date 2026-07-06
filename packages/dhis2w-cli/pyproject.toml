@@ -14,7 +14,7 @@ dependencies = [
 [project.optional-dependencies]
 browser = ["dhis2w-browser>=1.0.0.dev1,<1.1"]
 tui = [
-    "textual>=8.2.7",
+    "textual>=8.2.8",
 ]
 
 [project.scripts]

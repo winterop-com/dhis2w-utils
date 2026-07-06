@@ -13,21 +13,21 @@ dhis2w-ql = { workspace = true }
 
 [dependency-groups]
 dev = [
-  "coverage[toml]>=7.14.2",
+  "coverage[toml]>=7.15.0",
   "mypy>=2",
   "pytest>=9.1.1",
   "pytest-asyncio>=1.4",
   "pytest-cov>=7",
   "respx>=0.23",
-  "ruff>=0.15.18",
-  "pyright>=1.1",
+  "ruff>=0.15.20",
+  "pyright>=1.1.411",
   "mkdocs>=1.6",
   "mkdocs-material>=9.7",
   "mkdocstrings[python]>=1.0.4",
-  "pillow>=12.2.0",
-  "hypothesis>=6.155.6",
+  "pillow>=12.3.0",
+  "hypothesis>=6.156.1",
   "pytest-xdist>=3.8.0",
-  "textual>=8.2.7",
+  "textual>=8.2.8",
 ]
 
 [tool.ruff]
