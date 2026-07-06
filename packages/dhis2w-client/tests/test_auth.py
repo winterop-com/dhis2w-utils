@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import time
+from typing import Any
 
 import httpx
+import pytest
 import respx
 from dhis2w_client.v42.auth.basic import BasicAuth
 from dhis2w_client.v42.auth.oauth2 import OAuth2Auth, OAuth2Token
@@ -46,6 +49,18 @@ class _InMemoryTokenStore:
 
     async def set(self, key: str, token: OAuth2Token) -> None:
         self._items[key] = token
+
+
+class _CountingTokenStore(_InMemoryTokenStore):
+    """TokenStore that counts `set` calls — asserts persistence frequency."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.set_calls = 0
+
+    async def set(self, key: str, token: OAuth2Token) -> None:
+        self.set_calls += 1
+        await super().set(key, token)
 
 
 @respx.mock
@@ -228,3 +243,127 @@ async def test_oauth2_full_authorization_flow_via_injected_capturer() -> None:
     assert stored is not None
     assert stored.access_token == "first-access"
     assert stored.refresh_token == "first-refresh"
+
+
+def _provider(token_store: _InMemoryTokenStore, **kwargs: Any) -> OAuth2Auth:
+    """Build an OAuth2Auth against dhis2.example with test defaults."""
+    defaults: dict[str, Any] = {
+        "base_url": "https://dhis2.example",
+        "client_id": "dhis2-utils",
+        "client_secret": "secret",
+        "scope": "ALL",
+        "redirect_uri": "http://localhost:8765",
+        "token_store": token_store,
+        "store_key": "profile:prod",
+    }
+    defaults.update(kwargs)
+    return OAuth2Auth(**defaults)
+
+
+async def test_oauth2_fresh_cached_token_is_not_rewritten_to_store() -> None:
+    """A valid cached token costs zero store writes per request — no SQLite upsert per API call."""
+    token_store = _CountingTokenStore()
+    cached = OAuth2Token(access_token="cached", refresh_token="r", expires_at=time.time() + 3600)
+    await token_store.set("profile:prod", cached)
+    token_store.set_calls = 0
+
+    provider = _provider(token_store)
+    for _ in range(5):
+        await provider.headers()
+    assert token_store.set_calls == 0
+
+
+@respx.mock
+async def test_oauth2_refresh_persists_exactly_once() -> None:
+    """A refresh writes the new token to the store once; later fresh-token requests write nothing."""
+    token_store = _CountingTokenStore()
+    expiring = OAuth2Token(access_token="old", refresh_token="refresh-me", expires_at=time.time() + 5)
+    await token_store.set("profile:prod", expiring)
+    token_store.set_calls = 0
+
+    respx.post("https://dhis2.example/oauth2/token").mock(
+        return_value=httpx.Response(
+            200,
+            json={"access_token": "new", "refresh_token": "new-r", "expires_in": 3600},
+        ),
+    )
+
+    provider = _provider(token_store)
+    await provider.headers()
+    await provider.headers()
+    assert token_store.set_calls == 1
+
+
+@respx.mock
+async def test_oauth2_concurrent_requests_refresh_exactly_once() -> None:
+    """N concurrent requests on an expired token trigger one refresh — rotation-safe."""
+    token_store = _CountingTokenStore()
+    expiring = OAuth2Token(access_token="old", refresh_token="rotate-me", expires_at=time.time() + 5)
+    await token_store.set("profile:prod", expiring)
+    token_store.set_calls = 0
+
+    route = respx.post("https://dhis2.example/oauth2/token").mock(
+        return_value=httpx.Response(
+            200,
+            json={"access_token": "fresh", "refresh_token": "rotated", "expires_in": 3600},
+        ),
+    )
+
+    provider = _provider(token_store)
+    all_headers = await asyncio.gather(*(provider.headers() for _ in range(10)))
+    assert route.call_count == 1
+    assert token_store.set_calls == 1
+    assert all(headers == {"Authorization": "Bearer fresh"} for headers in all_headers)
+
+
+@respx.mock
+async def test_oauth2_concurrent_first_time_requests_run_one_interactive_flow() -> None:
+    """Concurrent first-time requests launch the interactive flow once, not once per request."""
+    capturer_calls = 0
+
+    async def counting_capturer(_auth_url: str, _state: str) -> str:
+        nonlocal capturer_calls
+        capturer_calls += 1
+        await asyncio.sleep(0)  # yield so waiters pile up on the lock
+        return "one-code"
+
+    route = respx.post("https://dhis2.example/oauth2/token").mock(
+        return_value=httpx.Response(
+            200,
+            json={"access_token": "flow-access", "refresh_token": "flow-r", "expires_in": 3600},
+        ),
+    )
+
+    provider = _provider(_CountingTokenStore(), redirect_capturer=counting_capturer)
+    all_headers = await asyncio.gather(*(provider.headers() for _ in range(5)))
+    assert capturer_calls == 1
+    assert route.call_count == 1
+    assert all(headers == {"Authorization": "Bearer flow-access"} for headers in all_headers)
+
+
+@respx.mock
+async def test_oauth2_verify_threads_into_token_endpoint_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`verify=False` reaches the httpx client used for `/oauth2/token` — self-signed refresh works."""
+    recorded_verify: list[Any] = []
+
+    class _RecordingAsyncClient(httpx.AsyncClient):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            recorded_verify.append(kwargs.get("verify", True))
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", _RecordingAsyncClient)
+
+    token_store = _InMemoryTokenStore()
+    expiring = OAuth2Token(access_token="old", refresh_token="r", expires_at=time.time() + 5)
+    await token_store.set("profile:prod", expiring)
+
+    respx.post("https://dhis2.example/oauth2/token").mock(
+        return_value=httpx.Response(
+            200,
+            json={"access_token": "new", "refresh_token": "new-r", "expires_in": 3600},
+        ),
+    )
+
+    provider = _provider(token_store, verify=False)
+    await provider.headers()
+    assert recorded_verify == [False]

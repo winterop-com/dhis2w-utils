@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 
 _COC_FIELDS: str = "id,name,code,categoryCombo[id,name],categoryOptions[id,name]"
 
+_LIST_FOR_COMBO_PAGE_SIZE: int = 1000
+"""Page size for `list_for_combo`'s pager walk — one request covers most combos."""
+
 
 class CategoryOptionCombosAccessor:
     """`Dhis2Client.category_option_combos` — read-only access to the materialised matrix."""
@@ -56,16 +59,35 @@ class CategoryOptionCombosAccessor:
         )
 
     async def list_for_combo(self, combo_uid: str) -> list[CategoryOptionCombo]:
-        """List every CategoryOptionCombo materialised by one CategoryCombo."""
-        raw = await self._client.get_raw(
-            "/api/categoryOptionCombos",
-            params={
-                "fields": _COC_FIELDS,
-                "filter": f"categoryCombo.id:eq:{combo_uid}",
-                "pageSize": "1000",
-            },
-        )
-        return parse_collection(raw, "categoryOptionCombos", CategoryOptionCombo)
+        """List every CategoryOptionCombo materialised by one CategoryCombo.
+
+        Follows the pager envelope until exhausted, so large combos (a
+        cross-product past `_LIST_FOR_COMBO_PAGE_SIZE` cells) come back
+        complete rather than truncated at the first page.
+        """
+        combos: list[CategoryOptionCombo] = []
+        page = 1
+        while True:
+            raw = await self._client.get_raw(
+                "/api/categoryOptionCombos",
+                params={
+                    "fields": _COC_FIELDS,
+                    "filter": f"categoryCombo.id:eq:{combo_uid}",
+                    "page": str(page),
+                    "pageSize": str(_LIST_FOR_COMBO_PAGE_SIZE),
+                },
+            )
+            rows = parse_collection(raw, "categoryOptionCombos", CategoryOptionCombo)
+            combos.extend(rows)
+            pager = raw.get("pager")
+            if isinstance(pager, dict) and "pageCount" in pager:
+                if page >= int(pager["pageCount"] or 1):
+                    break
+            elif len(rows) < _LIST_FOR_COMBO_PAGE_SIZE:
+                # No pager envelope — a short (or empty) page means we're done.
+                break
+            page += 1
+        return combos
 
 
 __all__ = [

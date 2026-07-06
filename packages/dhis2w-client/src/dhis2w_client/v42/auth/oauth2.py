@@ -86,8 +86,13 @@ async def capture_code(
     `auth_url` is opened with `webbrowser.open()` once the server is
     listening (skip with `open_browser=False`; URL is then printed to
     stderr so the user can paste it into any browser). `timeout` bounds
-    the wait — raises `OAuth2FlowError` on timeout, state mismatch, IdP
-    error, or missing code.
+    the wait — raises `OAuth2FlowError` on timeout, state mismatch, or
+    IdP error.
+
+    Requests whose query string carries no `code` parameter (port scans,
+    browser preconnects, favicon fetches) get a 404 and are ignored — the
+    receiver keeps listening. Only a request that carries a `code` but a
+    wrong or missing `state` fails the flow.
     """
     parsed = urllib.parse.urlparse(redirect_uri)
     host = parsed.hostname or "localhost"
@@ -97,6 +102,7 @@ async def capture_code(
     captured: asyncio.Future[str] = loop.create_future()
 
     async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        """Answer one loopback request — resolve the OAuth2 redirect, 404 anything else."""
         request_line = (await reader.readline()).decode("latin-1")
         while (await reader.readline()).strip():
             pass
@@ -116,20 +122,19 @@ async def capture_code(
                 if not captured.done():
                     captured.set_exception(OAuth2FlowError(f"authorization failed: {description}"))
                 return
+            code = params.get("code")
+            if not code:
+                # Not an OAuth2 redirect (port scan, browser preconnect,
+                # favicon fetch, ...) — 404 it and keep listening. The
+                # fixed loopback port makes stray local traffic routine;
+                # it must not kill the login.
+                status_line = b"HTTP/1.1 404 Not Found\r\n"
+                return
             if params.get("state") != expected_state:
                 status_line = b"HTTP/1.1 400 Bad Request\r\n"
                 body = _render_html(heading="Authentication failed", body="State mismatch.", success=False)
                 if not captured.done():
                     captured.set_exception(OAuth2FlowError("state mismatch — possible CSRF"))
-                return
-            code = params.get("code")
-            if not code:
-                status_line = b"HTTP/1.1 400 Bad Request\r\n"
-                body = _render_html(
-                    heading="Authentication failed", body="No authorization code in redirect.", success=False
-                )
-                if not captured.done():
-                    captured.set_exception(OAuth2FlowError("no authorization code returned in redirect"))
                 return
             body = _render_html(
                 heading="Authentication successful",
@@ -205,6 +210,7 @@ class OAuth2Auth:
         store_key: str | None = None,
         redirect_capturer: RedirectCapturer | None = None,
         open_browser: bool = True,
+        verify: bool | str = True,
     ) -> None:
         """Construct the provider.
 
@@ -218,6 +224,12 @@ class OAuth2Auth:
         copy-paste instead. Ignored when a custom `redirect_capturer` is
         supplied — in that case, the caller owns the "how to get the URL
         in front of the user" decision.
+
+        `verify` controls TLS certificate verification on the token-endpoint
+        calls (`/oauth2/token`). Pass the same value you pass to
+        `Dhis2Client(verify=...)` so the code exchange and refresh use the
+        same trust decision as the API traffic — `False` for self-signed
+        staging boxes, or a path to a custom CA bundle.
         """
         self._base_url = base_url.rstrip("/")
         self._client_id = client_id
@@ -229,6 +241,8 @@ class OAuth2Auth:
         self._token: OAuth2Token | None = None
         self._redirect_capturer = redirect_capturer
         self._open_browser = open_browser
+        self._verify = verify
+        self._refresh_lock = asyncio.Lock()
 
     async def headers(self) -> dict[str, str]:
         """Return Authorization: Bearer <access_token>, running interactive flow if needed."""
@@ -238,14 +252,27 @@ class OAuth2Auth:
         return {"Authorization": f"Bearer {self._token.access_token}"}
 
     async def refresh_if_needed(self) -> None:
-        """Load cached token, refresh if close to expiry, run interactive flow if missing."""
-        if self._token is None:
-            self._token = await self._token_store.get(self._store_key)
-        if self._token is None:
-            self._token = await self._run_authorization_flow()
-        elif self._token.expires_at < time.time() + 60:
-            self._token = await self._refresh(self._token)
-        await self._token_store.set(self._store_key, self._token)
+        """Load cached token, refresh if close to expiry, run interactive flow if missing.
+
+        The whole check-refresh-persist section runs under an `asyncio.Lock`:
+        of N concurrent requests hitting an expired token, one refreshes (or
+        runs the interactive flow) while the rest wait and re-check, then
+        reuse the fresh token — a second concurrent refresh would submit an
+        already-rotated (revoked) refresh_token, and a second concurrent
+        first-time request would launch a duplicate browser flow. The token
+        store is written only when a new token was obtained, so the steady
+        state (valid cached token) costs zero store writes per request.
+        """
+        async with self._refresh_lock:
+            if self._token is None:
+                self._token = await self._token_store.get(self._store_key)
+            if self._token is None:
+                self._token = await self._run_authorization_flow()
+            elif self._token.expires_at < time.time() + 60:
+                self._token = await self._refresh(self._token)
+            else:
+                return
+            await self._token_store.set(self._store_key, self._token)
 
     async def _run_authorization_flow(self) -> OAuth2Token:
         """Run the browser-based PKCE authorization-code flow."""
@@ -295,7 +322,7 @@ class OAuth2Auth:
             "client_secret": self._client_secret,
             "code_verifier": code_verifier,
         }
-        async with httpx.AsyncClient(follow_redirects=True) as http_client:
+        async with httpx.AsyncClient(follow_redirects=True, verify=self._verify) as http_client:
             response = await http_client.post(f"{self._base_url}/oauth2/token", data=data)
         if response.status_code >= 400:
             raise OAuth2FlowError(_format_token_endpoint_failure("authorization-code exchange", response))
@@ -320,7 +347,7 @@ class OAuth2Auth:
             "client_id": self._client_id,
             "client_secret": self._client_secret,
         }
-        async with httpx.AsyncClient(follow_redirects=True) as http_client:
+        async with httpx.AsyncClient(follow_redirects=True, verify=self._verify) as http_client:
             response = await http_client.post(f"{self._base_url}/oauth2/token", data=data)
         if response.status_code >= 400:
             raise OAuth2FlowError(

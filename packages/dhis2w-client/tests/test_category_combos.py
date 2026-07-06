@@ -209,3 +209,44 @@ async def test_coc_list_for_combo_filters_by_category_combo_id(
     assert route.calls.last.request.url.params["filter"] == "categoryCombo.id:eq:CC_SEX"
     assert all(type(row).__name__ == "CategoryOptionCombo" for row in rows)
     assert {row.id for row in rows} == {"COC_M", "COC_F"}
+
+
+@respx.mock
+async def test_coc_list_for_combo_follows_pager_to_exhaustion(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
+    """A combo whose COCs span multiple pages comes back complete — no silent truncation at page one."""
+    mock_system_info(server_version)
+    route = respx.get("https://dhis2.example/api/categoryOptionCombos").mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                json={
+                    "pager": {"page": 1, "pageCount": 2, "total": 3, "pageSize": 1000},
+                    "categoryOptionCombos": [
+                        {"id": "COC_A", "name": "A", "categoryCombo": {"id": "CC_BIG"}},
+                        {"id": "COC_B", "name": "B", "categoryCombo": {"id": "CC_BIG"}},
+                    ],
+                },
+            ),
+            httpx.Response(
+                200,
+                json={
+                    "pager": {"page": 2, "pageCount": 2, "total": 3, "pageSize": 1000},
+                    "categoryOptionCombos": [
+                        {"id": "COC_C", "name": "C", "categoryCombo": {"id": "CC_BIG"}},
+                    ],
+                },
+            ),
+        ],
+    )
+    client = Dhis2Client("https://dhis2.example", auth=_auth())
+    try:
+        await client.connect()
+        rows = await client.category_option_combos.list_for_combo("CC_BIG")
+    finally:
+        await client.close()
+    assert route.call_count == 2
+    assert route.calls[0].request.url.params["page"] == "1"
+    assert route.calls[1].request.url.params["page"] == "2"
+    assert [row.id for row in rows] == ["COC_A", "COC_B", "COC_C"]

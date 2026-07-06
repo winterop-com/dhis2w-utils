@@ -1,10 +1,11 @@
 """Helpers for opening a connected Dhis2Client from a resolved Profile.
 
 PAT and Basic auth construction lives in `dhis2w_client.client_context` (no
-heavy deps). This module adds the OAuth2 path — which needs the token store
-in this package for concurrent-refresh safety — and keeps the existing
-`build_auth` / `open_client` signatures so every caller in the CLI, MCP, and
-plugin tree keeps working.
+heavy deps). This module adds the OAuth2 path — which needs the SQLite-backed
+token store in this package — and keeps the existing `build_auth` /
+`open_client` signatures so every caller in the CLI, MCP, and plugin tree
+keeps working. Concurrent-refresh safety is built into `OAuth2Auth` itself
+(an `asyncio.Lock` serialises the check-refresh-persist section).
 """
 
 from __future__ import annotations
@@ -106,12 +107,17 @@ async def open_client(
     *,
     profile_name: str | None = None,
     scope: str = "global",
-    allow_version_fallback: bool = True,
+    allow_version_fallback: bool = False,
     retry_policy: RetryPolicy | None = None,
     http_limits: httpx.Limits | None = None,
     system_cache_ttl: float | None = 300.0,
 ) -> AsyncGenerator[Dhis2Client]:
     """Open a connected Dhis2Client for `profile` — yields inside `async with`.
+
+    `allow_version_fallback` (default False) mirrors the `Dhis2Client`
+    constructor: a server major with no generated tree raises
+    `UnsupportedVersionError` through the CLI / MCP paths too. Pass True
+    to bind the nearest-lower generated tree instead (never nearest-higher).
 
     Pass `retry_policy=RetryPolicy(...)` to enable exponential-backoff retries
     on transient HTTP failures (connection errors, 429/502/503/504). See

@@ -112,11 +112,12 @@ class Dhis2Client:
     ) -> None:
         """Build a client. Call connect() or use as an async context manager before API calls.
 
-        `version` defaults to `Dhis2.V42` — the workspace targets v42 and v43.
-        Set `Dhis2.V43` to pin to v43 explicitly, or pass `None` to let the
-        client auto-detect via `/api/system/info` on `connect()`. Pinning
-        skips that round-trip and fails fast on a server version with no
-        matching generated module.
+        `version` defaults to `None` — the client auto-detects the server's
+        major via `/api/system/info` on `connect()`. Pass `Dhis2.V41` /
+        `Dhis2.V42` / `Dhis2.V43` to pin explicitly; `connect()` then checks
+        the server's reported major against the pin and raises
+        `VersionPinMismatchError` on a mismatch unless
+        `allow_version_mismatch=True`.
 
         `retry_policy` (default: no retries) enables exponential-backoff
         retries on transient failures — connection errors plus the status
@@ -632,11 +633,26 @@ class Dhis2Client:
 
     @staticmethod
     def _parse_json(response: httpx.Response) -> dict[str, Any]:
-        """Parse a successful response body into a dict (wrapping non-dict JSON under "data")."""
+        """Parse a successful response body into a dict (wrapping non-dict JSON under "data").
+
+        An empty body maps to `{}` — DHIS2 DELETEs and some 204-style
+        endpoints return nothing. A *non-empty* body that isn't JSON raises
+        `Dhis2ApiError` with a snippet: a 200 with an HTML body is almost
+        always a proxy or SSO login page standing in for the API, and
+        silently returning `{}` would mask it.
+        """
+        if not response.content.strip():
+            return {}
         try:
             parsed = response.json()
         except ValueError:
-            return {}
+            snippet = response.text.strip()[:200]
+            raise Dhis2ApiError(
+                status_code=response.status_code,
+                message="expected a JSON body but got non-JSON content "
+                "(a proxy or SSO login page may be intercepting API calls)",
+                body=snippet,
+            ) from None
         if isinstance(parsed, dict):
             return parsed
         return {"data": parsed}
