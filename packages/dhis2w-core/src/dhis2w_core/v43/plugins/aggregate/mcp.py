@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from dhis2w_client.v43 import DataValueSet, WebMessageResponse
+from dhis2w_client.v43 import DataValue, DataValueSet, WebMessageResponse
 
 from dhis2w_core.profile import resolve_profile
 from dhis2w_core.v43.plugins.aggregate import service
@@ -75,7 +75,7 @@ def register(mcp: Any) -> None:
         """
         return await service.push_data_values(
             resolve_profile(profile),
-            data_values,
+            [DataValue.model_validate(item) for item in data_values],
             data_set=data_set,
             period=period,
             org_unit=org_unit,

@@ -10,13 +10,21 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from importlib import import_module
 from types import ModuleType
 
 import httpx
 import respx
 from dhis2w_core.profile import resolve_profile
+from pydantic import BaseModel
 
 _HOST = "https://dhis2.example"
+
+
+def _tracker_bundle_class(core_version: str) -> type[BaseModel]:
+    """Return the version tree's `TrackerBundle` class."""
+    bundle_cls: type[BaseModel] = import_module(f"dhis2w_client.generated.{core_version}.tracker").TrackerBundle
+    return bundle_cls
 
 
 @respx.mock
@@ -198,7 +206,7 @@ async def test_push_tracker_parity(
 
     response = await service.push_tracker(
         resolve_profile("probe"),
-        {"events": [{"event": "evt01234567"}]},
+        _tracker_bundle_class(core_version).model_validate({"events": [{"event": "evt01234567"}]}),
         import_strategy="CREATE",
         dry_run=True,
     )

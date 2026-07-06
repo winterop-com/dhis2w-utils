@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import functools
 import json
 import os
 import shlex
@@ -279,13 +278,14 @@ def _host_is_protected(host: str, patterns: tuple[str, ...]) -> bool:
     return any(host == pattern or host.endswith(f".{pattern}") for pattern in patterns)
 
 
-@functools.cache
 def _resolve_base_url(profile: str | None) -> str | None:
     """Resolve the active profile's base URL in-process; None if it cannot be resolved.
 
-    Uses the same precedence chain as the `d2w` CLI (`resolve_profile`). Fails open — a resolution
-    error returns None so the underlying command runs and reports its own error, rather than the
-    guard blocking on a transient lookup failure.
+    Uses the same precedence chain as the `d2w` CLI (`resolve_profile`). Resolved fresh on every
+    mutating command — reading the local TOML is cheap, and the MCP server is long-lived, so a
+    profile edit made while it runs must be reflected by the very next write guard check. Fails
+    open — a resolution error returns None so the underlying command runs and reports its own
+    error, rather than the guard blocking on a transient lookup failure.
     """
     from dhis2w_core.profile import resolve_profile  # lazy: only when a mutating command runs
 

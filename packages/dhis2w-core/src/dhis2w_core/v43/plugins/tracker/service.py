@@ -22,6 +22,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from dhis2w_client.generated.v43.tracker import (
+    TrackerBundle,
     TrackerEnrollment,
     TrackerEvent,
     TrackerRelationship,
@@ -37,21 +38,38 @@ from dhis2w_core.v43.client_context import open_client
 _DHIS2_UID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]{10}$")
 
 
-class _TrackedEntityTypeRef(BaseModel):
-    """Minimal `{id, name}` ref for the tracked-entity-type lookup response."""
+class TrackedEntityTypeSummary(BaseModel):
+    """Picker-sized `{id, name, description}` projection of a TrackedEntityType.
+
+    A deliberate projection of the generated `TrackedEntityType` schema: the listing and the
+    name-to-UID lookup only ever request `fields=id,name,description`, and returning the full
+    generated class would balloon the MCP tool's return schema for what is a picker listing.
+    """
 
     model_config = ConfigDict(extra="allow")
 
     id: str
     name: str | None = None
+    description: str | None = None
 
 
 class _TrackedEntityTypeLookup(BaseModel):
-    """`{trackedEntityTypes: [{id, name}, ...]}` envelope from /api/trackedEntityTypes."""
+    """`{trackedEntityTypes: [{id, name, ...}, ...]}` envelope from /api/trackedEntityTypes."""
 
     model_config = ConfigDict(extra="allow")
 
-    trackedEntityTypes: list[_TrackedEntityTypeRef] = []
+    trackedEntityTypes: list[TrackedEntityTypeSummary] = []
+
+
+async def list_tracked_entity_types(profile: Profile) -> list[TrackedEntityTypeSummary]:
+    """List every configured TrackedEntityType (id, name, description) via /api/trackedEntityTypes."""
+    async with open_client(profile) as client:
+        envelope = await client.get(
+            "/api/trackedEntityTypes",
+            model=_TrackedEntityTypeLookup,
+            params={"fields": "id,name,description", "paging": "false"},
+        )
+    return envelope.trackedEntityTypes
 
 
 async def resolve_tracked_entity_type(profile: Profile, name_or_uid: str) -> str:
@@ -281,22 +299,22 @@ async def list_relationships(
 
 async def push_tracker(
     profile: Profile,
-    bundle: dict[str, Any],
+    bundle: TrackerBundle,
     *,
     import_strategy: str | None = None,
     atomic_mode: str | None = None,
     dry_run: bool = False,
     async_mode: bool = False,
 ) -> WebMessageResponse:
-    """Bulk import via POST /api/tracker with a bundle of tracker objects.
+    """Bulk import via POST /api/tracker with a typed `TrackerBundle` of tracker objects.
 
-    The `bundle` envelope follows DHIS2's tracker payload shape:
-      { "trackedEntities": [...], "enrollments": [...], "events": [...],
-        "relationships": [...] }
-    Any key may be omitted. `import_strategy` is one of `CREATE`, `UPDATE`,
-    `CREATE_AND_UPDATE`, `DELETE`. `atomic_mode` is `ALL` or `OBJECT`.
-    `dry_run=True` validates without writing. `async_mode=True` returns a job
-    reference immediately (response.id = the job UID to poll).
+    The bundle carries `trackedEntities` / `enrollments` / `events` /
+    `relationships` lists; empty lists are dropped from the wire payload so
+    the request body names only the object kinds actually pushed.
+    `import_strategy` is one of `CREATE`, `UPDATE`, `CREATE_AND_UPDATE`,
+    `DELETE`. `atomic_mode` is `ALL` or `OBJECT`. `dry_run=True` validates
+    without writing. `async_mode=True` returns a job reference immediately
+    (response.id = the job UID to poll).
     """
     params: dict[str, Any] = {}
     if import_strategy is not None:
@@ -308,8 +326,13 @@ async def push_tracker(
     if async_mode:
         params["async"] = "true"
 
+    body = {
+        key: value
+        for key, value in bundle.model_dump(by_alias=True, exclude_none=True, mode="json").items()
+        if value != []
+    }
     async with open_client(profile) as client:
-        return await client.post("/api/tracker", bundle, params=params, model=WebMessageResponse)
+        return await client.post("/api/tracker", body, params=params, model=WebMessageResponse)
 
 
 _TRACKER_ID_FIELD = {"trackedEntities": "trackedEntity", "enrollments": "enrollment", "events": "event"}
@@ -328,8 +351,10 @@ async def delete_tracker_objects(
     Builds the minimal `{<kind>: [{<idField>: uid}, ...]}` bundle and pushes it with DELETE.
     Deleting a tracked entity cascades to its enrollments and events.
     """
-    id_field = _TRACKER_ID_FIELD[kind]
-    bundle: dict[str, Any] = {kind: [{id_field: uid} for uid in uids]}
+    id_field = _TRACKER_ID_FIELD.get(kind)
+    if id_field is None:
+        raise ValueError(f"unknown tracker kind {kind!r}; expected one of: {', '.join(sorted(_TRACKER_ID_FIELD))}")
+    bundle = TrackerBundle.model_validate({kind: [{id_field: uid} for uid in uids]})
     return await push_tracker(profile, bundle, import_strategy="DELETE", atomic_mode=atomic_mode, async_mode=async_mode)
 
 

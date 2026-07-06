@@ -14,6 +14,7 @@ from dhis2w_mcp_bridge.cli_bridge import (
     EXIT_TIMEOUT,
     READ_ONLY_COMMANDS,
     _host_is_protected,
+    _resolve_base_url,
     is_read_only,
     protected_hosts,
     run_cli,
@@ -252,6 +253,23 @@ async def test_write_guard_fails_open_when_host_unresolved(fake_cli: Path, monke
     monkeypatch.setattr(_RESOLVER, lambda profile: None)
     result = await run_cli(["metadata", "create", "dataElements", "x.json"])
     assert result.exit_code == 0
+
+
+def test_resolve_base_url_reads_the_profile_fresh_each_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The guard resolver reflects a profile change made while the long-lived server runs (no caching)."""
+    from dhis2w_core import profile as core_profile_module
+    from dhis2w_core.profile import Profile
+
+    responses = iter(
+        [
+            Profile(base_url="https://play.im.dhis2.org", auth="pat", token="x"),
+            Profile(base_url="http://localhost:8080", auth="pat", token="x"),
+        ]
+    )
+    monkeypatch.setattr(core_profile_module, "resolve_profile", lambda name=None, **_kwargs: next(responses))
+
+    assert _resolve_base_url(None) == "https://play.im.dhis2.org"
+    assert _resolve_base_url(None) == "http://localhost:8080"
 
 
 def _live_leaf_paths() -> set[tuple[str, ...]]:

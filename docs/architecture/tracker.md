@@ -13,6 +13,7 @@ Read services return typed pydantic models from `dhis2w_client.generated.v42.tra
 | `list_enrollments` | `list[TrackerEnrollment]` |
 | `list_events` | `list[TrackerEvent]` |
 | `list_relationships` | `list[TrackerRelationship]` |
+| `list_tracked_entity_types` | `list[TrackedEntityTypeSummary]` |
 | `push_tracker` | `WebMessageResponse` |
 
 Status fields come back as `StrEnum` values (`EnrollmentStatus`, `EventStatus`) so agents/scripts can match them without stringly-typed drift. See [Typed schemas](typed-schemas.md) for the full model list and the TrackedEntityType metadata ↔ instance relationship.

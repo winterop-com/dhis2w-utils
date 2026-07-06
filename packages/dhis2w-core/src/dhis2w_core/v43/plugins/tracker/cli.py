@@ -367,29 +367,19 @@ def type_list_command() -> None:
     The `list` and `get` commands accept either a name or a UID in their `<type>`
     positional — run this first to see what's configured.
     """
+    from dhis2w_core.v43.plugins.tracker import service
 
-    async def _fetch() -> list[dict[str, Any]]:
-        from dhis2w_core.v43.client_context import open_client
-
-        async with open_client(profile_from_env()) as client:
-            response = await client.get_raw(
-                "/api/trackedEntityTypes",
-                params={"fields": "id,name,description", "paging": "false"},
-            )
-        items = response.get("trackedEntityTypes", [])
-        assert isinstance(items, list)
-        return items
-
-    types = asyncio.run(_fetch())
+    types = asyncio.run(service.list_tracked_entity_types(profile_from_env()))
     if is_json_output():
-        typer.echo(json.dumps(types, indent=2))
+        _as_json(types)
         return
     if not types:
         typer.echo("(no TrackedEntityTypes configured on this instance)")
         return
+    rows = [t.model_dump(mode="json") for t in types]
     render_list(
         "TrackedEntityTypes",
-        types,
+        rows,
         [
             ColumnSpec("id", "id", style="cyan", no_wrap=True),
             ColumnSpec("name", "name"),
@@ -409,10 +399,12 @@ def push_command(
     async_mode: Annotated[bool, typer.Option("--async")] = False,
 ) -> None:
     """Bulk import via POST /api/tracker."""
+    from dhis2w_client.generated.v43.tracker import TrackerBundle
+
     from dhis2w_core.v43.cli_output import render_webmessage
     from dhis2w_core.v43.plugins.tracker import service
 
-    bundle = json.loads(file.read_text(encoding="utf-8"))
+    bundle = TrackerBundle.model_validate(json.loads(file.read_text(encoding="utf-8")))
     response = asyncio.run(
         service.push_tracker(
             profile_from_env(),

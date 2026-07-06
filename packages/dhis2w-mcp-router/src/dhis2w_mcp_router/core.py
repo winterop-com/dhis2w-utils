@@ -9,6 +9,7 @@ tool discovery instead of a huge up-front tool payload.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from contextlib import AsyncExitStack
 from typing import Any
@@ -92,6 +93,7 @@ class Registry:
         self._entries: dict[str, ToolEntry] = {}
         self._clients: dict[str, Client] = {}
         self._stack = AsyncExitStack()
+        self._build_lock = asyncio.Lock()
         self._built = False
         self._readonly = readonly
         self._read_verbs = read_verbs
@@ -113,25 +115,35 @@ class Registry:
         return len(self._entries)
 
     async def ensure_built(self) -> None:
-        """Connect to every upstream once, list + namespace its tools (idempotent)."""
+        """Connect to every upstream once, list + namespace its tools (idempotent, concurrency-safe).
+
+        A lock serialises concurrent first calls so upstream servers spawn once, not once per
+        caller. On a partial failure (one upstream refusing to connect) the successfully opened
+        clients stay registered in `_clients`; a retry connects only the missing upstreams and
+        re-lists tools from the surviving ones, so nothing is spawned twice or leaked.
+        """
         if self._built:
             return
-        for server in self._servers:
-            client = await self._stack.enter_async_context(Client(server.client_config()))
-            self._clients[server.name] = client
-            for tool in await client.list_tools():
-                name = f"{server.name}{_NS}{tool.name}"
-                annotations = getattr(tool, "annotations", None)
-                self._entries[name] = ToolEntry(
-                    name=name,
-                    server=server.name,
-                    bare=tool.name,
-                    description=getattr(tool, "description", "") or "",
-                    input_schema=getattr(tool, "inputSchema", {}) or {},
-                    read_only_hint=getattr(annotations, "readOnlyHint", None) if annotations else None,
-                )
-        await self._ranker.prepare(list(self._entries.values()))
-        self._built = True
+        async with self._build_lock:
+            if self._built:
+                return
+            for server in self._servers:
+                if server.name not in self._clients:
+                    client = await self._stack.enter_async_context(Client(server.client_config()))
+                    self._clients[server.name] = client
+                for tool in await self._clients[server.name].list_tools():
+                    name = f"{server.name}{_NS}{tool.name}"
+                    annotations = getattr(tool, "annotations", None)
+                    self._entries[name] = ToolEntry(
+                        name=name,
+                        server=server.name,
+                        bare=tool.name,
+                        description=getattr(tool, "description", "") or "",
+                        input_schema=getattr(tool, "inputSchema", {}) or {},
+                        read_only_hint=getattr(annotations, "readOnlyHint", None) if annotations else None,
+                    )
+            await self._ranker.prepare(list(self._entries.values()))
+            self._built = True
 
     async def search(self, query: str, limit: int = 10) -> list[ToolEntry]:
         """Rank the permitted tools (read-only context hides write tools) via the configured ranker."""
