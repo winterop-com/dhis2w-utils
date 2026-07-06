@@ -1014,14 +1014,14 @@ def rename_command(
         str | None,
         typer.Option(
             "--name-strip-prefix",
-            help="Remove this prefix from each matched object's `name` (idempotent; no-op when absent).",
+            help="Remove this non-empty prefix from each matched object's `name` (idempotent; no-op when absent).",
         ),
     ] = None,
     name_strip_suffix: Annotated[
         str | None,
         typer.Option(
             "--name-strip-suffix",
-            help="Remove this suffix from each matched object's `name` (idempotent; no-op when absent).",
+            help="Remove this non-empty suffix from each matched object's `name` (idempotent; no-op when absent).",
         ),
     ] = None,
     short_name_prefix: Annotated[
@@ -1036,14 +1036,14 @@ def rename_command(
         str | None,
         typer.Option(
             "--short-name-strip-prefix",
-            help="Remove this prefix from each matched object's `shortName` (idempotent).",
+            help="Remove this non-empty prefix from each matched object's `shortName` (idempotent).",
         ),
     ] = None,
     short_name_strip_suffix: Annotated[
         str | None,
         typer.Option(
             "--short-name-strip-suffix",
-            help="Remove this suffix from each matched object's `shortName` (idempotent).",
+            help="Remove this non-empty suffix from each matched object's `shortName` (idempotent).",
         ),
     ] = None,
     set_description: Annotated[
@@ -1349,8 +1349,8 @@ def share_command(
             "--public-access",
             help=(
                 "Replace the public-access string. 8-char DHIS2 pattern "
-                "(`rwrw----`, `r-------`, `--------`). Defaults to `r-------` if omitted "
-                "and at least one grant is supplied."
+                "(`rwrw----`, `r-------`, `--------`). Omit to keep each object's "
+                "current public access unchanged."
             ),
         ),
     ] = None,
@@ -1377,15 +1377,17 @@ def share_command(
         typer.Option("--dry-run", help="Preview the planned grants without sending them."),
     ] = False,
 ) -> None:
-    """Apply one sharing block across many UIDs of one resource.
+    """Merge a sharing change across many UIDs of one resource.
 
-    Fans out concurrent `POST /api/sharing?type=<resource_type>&id=<uid>`
-    requests via the shared `client.metadata.apply_sharing_bulk` primitive.
+    Read-merge-write: each UID's current sharing block is fetched first,
+    the new grants are merged into the existing ones (existing grants are
+    preserved; a grant for an already-granted UID replaces its access
+    string), and `--public-access` only changes `publicAccess` when given.
     Per-UID failures render through the same row table used by
     `metadata rename` instead of raising.
 
-    Use `--dry-run` to preview the planned grants, then drop the flag to
-    apply. UIDs come from positional args or stdin (`-`); pipe from
+    Use `--dry-run` to preview the merged sharing per UID, then drop the
+    flag to apply. UIDs come from positional args or stdin (`-`); pipe from
     `d2w --json metadata list ... | jq -r '.[].id'` to filter-then-share without
     leaving the shell.
     """
@@ -1434,7 +1436,7 @@ def share_command(
     for entry in result.entries:
         table.add_row(
             entry.uid,
-            entry.public_access,
+            entry.public_access or "-",
             ", ".join(entry.user_grants) or "-",
             ", ".join(entry.user_group_grants) or "-",
         )
@@ -1879,8 +1881,10 @@ def merge_bundle_command(
             "--resource",
             "-r",
             help=(
-                "Resource type to include in the count summary (e.g. dataElements). Repeatable. "
-                "Optional — when omitted, every resource section in the bundle is reported."
+                "Resource type to import from the bundle (e.g. dataElements). Repeatable. "
+                "The bundle is filtered to these collections before the POST, so the count "
+                "summary reports exactly what was written. Optional — when omitted, the whole "
+                "bundle is imported."
             ),
         ),
     ] = None,
@@ -5583,11 +5587,12 @@ def organisation_unit_group_sets_get_command(
     """Show one group set with its groups + per-group member counts."""
     from dhis2w_core.v42.plugins.metadata import service
 
-    group_set, group_member_counts = asyncio.run(
+    detail = asyncio.run(
         service.show_organisation_unit_group_set(profile_from_env(), uid),
     )
+    group_set = detail.group_set
     if is_json_output():
-        typer.echo(group_set.model_dump_json(indent=2, exclude_none=True))
+        typer.echo(detail.model_dump_json(indent=2, exclude_none=True))
         return
     typer.echo(f"{group_set.name} ({group_set.id}) code={group_set.code or '-'}")
     if group_set.description:
@@ -5607,11 +5612,12 @@ def organisation_unit_group_sets_get_command(
         if not isinstance(group, dict):
             continue
         gid = str(group.get("id") or "-")
+        member_count = detail.member_counts.get(gid)
         table.add_row(
             gid,
             str(group.get("name") or "-"),
             str(group.get("code") or "-"),
-            str(group_member_counts.get(gid, 0)),
+            str(member_count) if member_count is not None else "?",
         )
     _console.print(table)
 

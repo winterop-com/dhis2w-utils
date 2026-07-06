@@ -368,8 +368,9 @@ def register(mcp: Any) -> None:
         Same import semantics as `metadata_merge` — atomic + sharing
         stripped by default, `dry_run=True` flips to `importMode=VALIDATE`.
 
-        `resources` narrows the count summary to a subset of the bundle's
-        resource keys. Omit to report every resource section in the bundle.
+        `resources` restricts the import to those resource collections —
+        the bundle is filtered before the POST, so the count summary
+        reports exactly what was written. Omit to import the whole bundle.
         """
         from pathlib import Path as _Path
 
@@ -467,7 +468,8 @@ def register(mcp: Any) -> None:
         Pass at least one mutation flag. Prefix/suffix add + strip
         variants are idempotent — re-running won't double-apply. Strip
         runs before add so you can combine `name_strip_prefix=X` +
-        `name_prefix=Y` to rewrite the prefix in one pass.
+        `name_prefix=Y` to rewrite the prefix in one pass. Strip values
+        must be non-empty strings.
         """
         result = await service.bulk_rename_metadata(
             resolve_profile(profile),
@@ -499,13 +501,15 @@ def register(mcp: Any) -> None:
         dry_run: bool = False,
         profile: str | None = None,
     ) -> dict[str, Any]:
-        """Apply one sharing block across many UIDs of one resource.
+        """Merge a sharing change across many UIDs of one resource (read-merge-write).
 
         `resource_type` is the DHIS2 singular form used by `/api/sharing?type=`
         (`dataSet`, `program`, ...). `user_access` and `user_group_access` are
         repeatable `UID:access` strings (e.g. `U_ALICE:rw------`,
-        `UG_PROG:rwrw----`). Set `dry_run=True` to preview without sending
-        any POSTs.
+        `UG_PROG:rwrw----`). Each UID's current sharing is fetched first and
+        the new grants merged in — existing grants are preserved, and
+        `publicAccess` only changes when `public_access` is given. Set
+        `dry_run=True` to preview the merged sharing without sending any POSTs.
         """
         result = await service.bulk_share_metadata(
             resolve_profile(profile),
@@ -3249,10 +3253,11 @@ def register(mcp: Any) -> None:
     ) -> dict[str, Any]:
         """Fetch one group set with per-group member counts.
 
-        Return shape: `{"group_set": {...}, "member_counts": {"<group_uid>": <int>}}`.
+        Return shape: `{"group_set": {...}, "member_counts": {"<group_uid>": <int or null>}}` —
+        a null count means DHIS2 returned an unreadable `~size` (unknown), not an empty group.
         """
-        group_set, counts = await service.show_organisation_unit_group_set(resolve_profile(profile), uid)
-        return {"group_set": _dump_model(group_set), "member_counts": counts}
+        detail = await service.show_organisation_unit_group_set(resolve_profile(profile), uid)
+        return {"group_set": _dump_model(detail.group_set), "member_counts": dict(detail.member_counts)}
 
     @mcp.tool()
     async def metadata_organisation_unit_group_set_create(
