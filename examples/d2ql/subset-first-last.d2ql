@@ -1,0 +1,7 @@
+// `first()` and `last()` pick the ends of a nested collection — here each district's first and
+// last child name. A single-element collection collapses to a scalar.
+organisationUnits
+  | where level = 2
+  | transform { name: name, firstChild: children.name.first(), lastChild: children.name.last() }
+  | order name asc
+  | limit 25

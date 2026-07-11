@@ -1,0 +1,6 @@
+// `join(sep)` turns a repeating association (each option set's option codes) into one delimited
+// string — collection-to-string, the inverse of `split`.
+optionSets
+  | transform { name: name, codes: options.code.join(", ") }
+  | order name asc
+  | limit 25

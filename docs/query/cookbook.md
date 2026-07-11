@@ -194,6 +194,218 @@ define function summary(de): { code: $de.id, label: $de.name, type: $de.valueTyp
 dataElements | transform summary($this)
 ```
 
+## Read from local files (`read(...)`)
+
+A pipeline's source is usually a DHIS2 resource, but `read("path")` reads rows from a local file
+instead — a JSON array (or single object), or a `.ndjson` file (one object per line). Everything runs
+locally, so these need **no profile or server**. Use it to shape exported data, join a d2ql pipeline
+onto a previous run's output, or develop a transform offline against a fixture.
+
+**Read a JSON array** — the top-level array becomes the rows (`read-json-array.d2ql`):
+
+```d2ql
+read("examples/d2ql/data/orgunits.json")
+  | where level = 2
+  | select id, name, parent.name as parent
+  | order name asc
+```
+```json
+[
+  { "id": "OU_BO", "name": "Bo", "parent": "Sierra Leone" },
+  { "id": "OU_BOMBALI", "name": "Bombali", "parent": "Sierra Leone" }
+]
+```
+
+**Read NDJSON** — one JSON object per line, ideal for streamed exports (`read-ndjson.d2ql`):
+
+```d2ql
+read("examples/d2ql/data/facilities.ndjson")
+  | select id, name, lastUpdated
+  | order lastUpdated desc
+```
+
+**Group a local file** — `group by` + `count` work over any source (`read-group-by.d2ql`):
+
+```d2ql
+read("examples/d2ql/data/orgunits.json")
+  | group by level { n: count() }
+  | order level asc
+```
+```json
+[ { "level": 2, "n": 2 }, { "level": 3, "n": 2 } ]
+```
+
+**Two-step chain: export, then read back** — run one program that writes a file, then a second that
+reads it for further shaping without re-fetching. Step 1 (`read-chain-1-export.d2ql`) writes NDJSON:
+
+```d2ql
+read("examples/d2ql/data/orgunits.json")
+  | where level = 2
+  | transform { id: id, name: name, districts: children.count() }
+  | order name asc
+  >> "/tmp/d2ql-districts.ndjson"
+```
+
+Step 2 (`read-chain-2-reshape.d2ql`) reads that file back:
+
+```d2ql
+read("/tmp/d2ql-districts.ndjson")
+  | where districts >= 2
+  | select name, districts
+  | order districts desc
+```
+
+## Filter by date
+
+A `@`-prefixed literal is a date (`@2024-01-01`) or datetime (`@2024-01-01T00:00:00`). Dates compare
+as ISO strings, so `>=`/`<=` order correctly. Use it against audit fields like `lastUpdated` /
+`created`. A plain `@date` pushes down into a native `lastUpdated:ge:2024-01-01` filter; a datetime
+literal (it contains `:`) stays local instead.
+
+**Modified since a date** (`date-modified-since.d2ql`):
+
+```d2ql
+dataElements
+  | where lastUpdated >= @2024-01-01
+  | select id, name, lastUpdated
+  | order lastUpdated desc
+  | limit 25
+```
+
+**A created-date window** — two literals AND'd, both pushed down (`date-created-window.d2ql`):
+
+```d2ql
+dataElements
+  | where created >= @2020-01-01 and created <= @2024-12-31
+  | select id, name, created
+  | order created asc
+  | limit 25
+```
+
+**A datetime literal over a local file** — the time part keeps the compare local
+(`date-datetime-literal.d2ql`):
+
+```d2ql
+read("examples/d2ql/data/facilities.ndjson")
+  | where lastUpdated >= @2024-01-01T00:00:00
+  | select name, lastUpdated
+  | order lastUpdated asc
+```
+
+## Build strings and keys
+
+String `+` is concatenation when both sides are strings, so you can compose labels and keys in a
+`transform`. `toString()` casts a number first; `join(sep)` collapses a collection into one string.
+
+**Compose a display label** (`string-label.d2ql`):
+
+```d2ql
+dataElements
+  | transform { id: id, label: "[" + valueType + "] " + name }
+  | order name asc
+  | limit 25
+```
+```json
+[ { "id": "FTRrcoaog83", "label": "[NUMBER] Accute Flaccid Paralysis (Deaths < 5 yrs)" } ]
+```
+
+**Cast a number so `+` can concatenate it** (`string-tostring-cast.d2ql`):
+
+```d2ql
+organisationUnits
+  | where level = 2
+  | transform { label: name + " (level " + level.toString() + ")" }
+  | order name asc
+  | limit 25
+```
+```json
+[ { "label": "Bo (level 2)" }, { "label": "Bombali (level 2)" } ]
+```
+
+**Join a collection into one delimited string** — the inverse of `split` (`string-join-codes.d2ql`):
+
+```d2ql
+optionSets
+  | transform { name: name, codes: options.code.join(", ") }
+  | order name asc
+  | limit 25
+```
+
+## Take subsets of a collection
+
+Inside a `transform`, d2path collection functions pick parts of a nested list. `first()`/`last()` take
+the ends, `tail()` takes everything after the first, and `distinct()`/`isDistinct()` dedupe or test
+for duplicates. A single-element collection collapses to a scalar.
+
+**First and last child of each district** (`subset-first-last.d2ql`):
+
+```d2ql
+organisationUnits
+  | where level = 2
+  | transform { name: name, firstChild: children.name.first(), lastChild: children.name.last() }
+  | order name asc
+  | limit 25
+```
+```json
+[ { "name": "Bombali", "firstChild": "Gbanti Kamaranka", "lastChild": "Safroko Limba" } ]
+```
+
+**Everything after the first** (`subset-tail.d2ql`):
+
+```d2ql
+organisationUnits
+  | where level = 2
+  | transform { name: name, otherChildren: children.name.tail() }
+  | order name asc
+  | limit 25
+```
+
+**Distinct values and a distinctness test** (`subset-distinct.d2ql`):
+
+```d2ql
+dataElementGroups
+  | transform {
+      name: name,
+      valueTypes: dataElements.valueType.distinct(),
+      allTypesDistinct: dataElements.valueType.isDistinct()
+    }
+  | order name asc
+  | limit 25
+```
+
+## Convert string columns to numbers
+
+Files carry everything as text. `toInteger()` / `toDecimal()` cast text columns so later stages can
+compare and aggregate them numerically; `round(n)` trims a computed value.
+
+**A per-1000 rate from raw string inputs** (`convert-rate.d2ql`, `convert-numeric.d2ql`):
+
+```d2ql
+read("examples/d2ql/data/readings.ndjson")
+  | transform { facility: facility, per1000: ((cases.toDecimal() / population.toDecimal()) * 1000).round(1) }
+  | order per1000 desc
+```
+```json
+[
+  { "facility": "Kamaranka CHP", "per1000": 4.1 },
+  { "facility": "Njandama MCHP", "per1000": 3.9 }
+]
+```
+
+## Regex filters
+
+`matches(pattern)` is a regex predicate (Python `re.search`). Because it is a function call it always
+runs locally over fetched rows (never pushed down), and a row whose field is missing simply fails the
+match. Use it when a `like`/`~` substring test isn't precise enough (`filter-matches-regex.d2ql`):
+
+```d2ql
+dataElements
+  | where code.matches("^[A-Z]{2}")
+  | select id, name, code
+  | order name asc
+  | limit 25
+```
+
 ## DHIS2 → FHIR
 
 The recipe is always the same: a `define function` builds the resource, `transform` wraps each row,
@@ -242,6 +454,26 @@ Aggregates | where isImmunisation($this) | select id, name, valueType | order na
 
 Run it with `d2w query run examples/d2ql/library-immunisation.d2ql`, or run a specific definition with
 `--define <name>`.
+
+**A library of several named queries** — pick one at run time with `--define` (`library-run.d2ql`):
+
+```d2ql
+define MinLevel: 2
+define function isImmunisation(de): $de.name like "BCG" or $de.name like "measles" or $de.name like "Penta"
+
+define AggregateElements: dataElements | where domainType = "AGGREGATE" | select id, name, valueType | order name asc | limit 25
+define ImmunisationElements: dataElements | where isImmunisation($this) | select id, name | order name asc | limit 25
+define Districts: organisationUnits | where level = $MinLevel | select id, name | order name asc | limit 25
+define TrackerPrograms: programs | where programType = "WITH_REGISTRATION" | select id, name | order name asc | limit 25
+
+Districts
+```
+
+```bash
+d2w query run examples/d2ql/library-run.d2ql --define AggregateElements   # run one named query
+d2w query run examples/d2ql/library-run.d2ql --define TrackerPrograms
+d2w query run examples/d2ql/library-run.d2ql                              # no --define runs the terminal (Districts)
+```
 
 ## Output formats & sinks
 

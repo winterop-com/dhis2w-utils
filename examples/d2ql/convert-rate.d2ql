@@ -1,0 +1,5 @@
+// A computed rate from string inputs: cast with `toDecimal()`, divide, scale, and `round(1)` the
+// result — a per-1000 incidence from raw case/population text columns.
+read("examples/d2ql/data/readings.ndjson")
+  | transform { facility: facility, per1000: ((cases.toDecimal() / population.toDecimal()) * 1000).round(1) }
+  | order per1000 desc
