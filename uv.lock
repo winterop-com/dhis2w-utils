@@ -750,7 +750,7 @@ requires-dist = [
 
 [[package]]
 name = "dhis2w-ql"
-version = "0.99.0"
+version = "0.99.1"
 source = { editable = "packages/dhis2w-ql" }
 dependencies = [
     { name = "pydantic" },
