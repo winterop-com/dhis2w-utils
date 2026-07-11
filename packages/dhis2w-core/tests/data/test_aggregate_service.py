@@ -181,7 +181,7 @@ async def test_set_data_value_uses_query_params(profile: Profile) -> None:
 
 @respx.mock
 async def test_delete_data_value_threads_optional_combos(profile: Profile) -> None:
-    """`delete_data_value` issues DELETE /api/dataValues and forwards co/cc params when supplied."""
+    """`delete_data_value` issues DELETE /api/dataValues, forwarding co plus the cc + cp attribute pair."""
     _mock_preamble()
     route = respx.delete("https://dhis2.example/api/dataValues").mock(
         return_value=httpx.Response(200, json={"status": "OK", "httpStatusCode": 200}),
@@ -193,14 +193,65 @@ async def test_delete_data_value_threads_optional_combos(profile: Profile) -> No
         period="202403",
         org_unit="ImspTQPwCqd",
         category_option_combo="HllvX50cXC0",
-        attribute_option_combo="bRowv6yZOF2",
+        attribute_combo="bRowv6yZOF2",
+        attribute_options=["optA0000001", "optB0000002"],
     )
 
     assert response.status == "OK"
     request = route.calls.last.request
     assert request.url.params["de"] == "fbfJHSPpUQD"
     assert request.url.params["co"] == "HllvX50cXC0"
+    # DHIS2's /api/dataValues addresses the attribute option combo via cc (its
+    # CategoryCombo UID) + cp (its option UIDs, ;-joined) — there is no
+    # attributeOptionCombo query param (BUGS.md #50).
     assert request.url.params["cc"] == "bRowv6yZOF2"
+    assert request.url.params["cp"] == "optA0000001;optB0000002"
+    assert "aoc" not in request.url.params
+    assert "attributeOptionCombo" not in request.url.params
+
+
+@respx.mock
+async def test_set_data_value_forwards_cc_and_cp_attribute_pair(profile: Profile) -> None:
+    """`set_data_value` forwards the attribute option combo as cc + cp, never a bare AOC param."""
+    _mock_preamble()
+    route = respx.post("https://dhis2.example/api/dataValues").mock(
+        return_value=httpx.Response(200, json={"status": "OK", "httpStatusCode": 200}),
+    )
+
+    await service.set_data_value(
+        profile,
+        data_element="fbfJHSPpUQD",
+        period="202403",
+        org_unit="ImspTQPwCqd",
+        value="42",
+        attribute_combo="bRowv6yZOF2",
+        attribute_options=["optA0000001"],
+    )
+
+    params = route.calls.last.request.url.params
+    assert params["cc"] == "bRowv6yZOF2"
+    assert params["cp"] == "optA0000001"
+
+
+async def test_set_data_value_rejects_half_of_the_attribute_pair(profile: Profile) -> None:
+    """A cc without cp (or vice versa) is a caller error — DHIS2 needs both together (BUGS.md #50)."""
+    with pytest.raises(ValueError, match="must be provided together"):
+        await service.set_data_value(
+            profile,
+            data_element="fbfJHSPpUQD",
+            period="202403",
+            org_unit="ImspTQPwCqd",
+            value="42",
+            attribute_combo="bRowv6yZOF2",
+        )
+    with pytest.raises(ValueError, match="must be provided together"):
+        await service.delete_data_value(
+            profile,
+            data_element="fbfJHSPpUQD",
+            period="202403",
+            org_unit="ImspTQPwCqd",
+            attribute_options=["optA0000001"],
+        )
 
 
 @respx.mock

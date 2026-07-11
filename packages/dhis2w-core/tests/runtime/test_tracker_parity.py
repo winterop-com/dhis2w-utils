@@ -214,7 +214,9 @@ async def test_push_tracker_parity(
     assert response.status == "OK"
     request = route.calls.last.request
     assert request.url.params["importStrategy"] == "CREATE"
-    assert request.url.params["dryRun"] == "true"
+    assert request.url.params["importMode"] == "VALIDATE"
+    assert "dryRun" not in request.url.params
+    assert request.url.params["async"] == "false"
     assert json.loads(request.content) == {"events": [{"event": "evt01234567"}]}
 
 

@@ -424,11 +424,17 @@ def delete_command(
     async_mode: Annotated[
         bool, typer.Option("--async", help="Return a job reference immediately instead of waiting.")
     ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete tracked entities by UID (cascades to their enrollments + events)."""
     from dhis2w_core.v43.cli_output import render_webmessage
     from dhis2w_core.v43.plugins.tracker import service
 
+    if not yes:
+        typer.confirm(
+            f"really delete tracked entities {', '.join(uids)}? This cascades to their enrollments and events.",
+            abort=True,
+        )
     response = asyncio.run(
         service.delete_tracker_objects(profile_from_env(), kind="trackedEntities", uids=uids, async_mode=async_mode)
     )
@@ -441,11 +447,14 @@ def event_delete_command(
     async_mode: Annotated[
         bool, typer.Option("--async", help="Return a job reference immediately instead of waiting.")
     ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
     """Delete events by UID."""
     from dhis2w_core.v43.cli_output import render_webmessage
     from dhis2w_core.v43.plugins.tracker import service
 
+    if not yes:
+        typer.confirm(f"really delete events {', '.join(uids)}?", abort=True)
     response = asyncio.run(
         service.delete_tracker_objects(profile_from_env(), kind="events", uids=uids, async_mode=async_mode)
     )
@@ -458,11 +467,17 @@ def enrollment_delete_command(
     async_mode: Annotated[
         bool, typer.Option("--async", help="Return a job reference immediately instead of waiting.")
     ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
-    """Delete enrollments by UID."""
+    """Delete enrollments by UID (cascades to their events)."""
     from dhis2w_core.v43.cli_output import render_webmessage
     from dhis2w_core.v43.plugins.tracker import service
 
+    if not yes:
+        typer.confirm(
+            f"really delete enrollments {', '.join(uids)}? This cascades to their events.",
+            abort=True,
+        )
     response = asyncio.run(
         service.delete_tracker_objects(profile_from_env(), kind="enrollments", uids=uids, async_mode=async_mode)
     )

@@ -1,4 +1,4 @@
-"""DHIS2 WebMessageResponse + ImportReport envelopes (shim over generated/v42/oas).
+"""DHIS2 WebMessageResponse + ImportReport envelopes (shim over generated/v43/oas).
 
 The raw shapes come from `/api/openapi.json#/components/schemas/{WebMessage,
 ObjectReport, ImportReport, TypeReport, Stats, ErrorReport, ImportConflict,

@@ -49,7 +49,8 @@ def test_add_session_reads_cookie_from_env(app: Typer, tmp_path: Path, monkeypat
     assert result.exit_code == 0, result.output
     loaded = load_profiles_file(tmp_path / ".dhis2" / "profiles.toml")
     assert loaded.profiles["browser"].auth == "session"
-    assert loaded.profiles["browser"].cookie == "JSESSIONID=abc123"
+    cookie = loaded.profiles["browser"].cookie
+    assert cookie is not None and cookie == "JSESSIONID=abc123"
 
 
 @TREES
@@ -62,7 +63,8 @@ def test_add_session_strips_cookie_whitespace(app: Typer, tmp_path: Path, monkey
     )
     assert result.exit_code == 0, result.output
     loaded = load_profiles_file(tmp_path / ".dhis2" / "profiles.toml")
-    assert loaded.profiles["browser"].cookie == "JSESSIONID=abc123"
+    cookie = loaded.profiles["browser"].cookie
+    assert cookie is not None and cookie == "JSESSIONID=abc123"
 
 
 @TREES
@@ -121,3 +123,25 @@ def test_show_profile_masks_cookie(tree: str, tmp_path: Path) -> None:
     assert redacted.cookie == "***"
     revealed = service.show_profile("browser", include_secrets=True, start=tmp_path)
     assert revealed.cookie == "JSESSIONID=abc123"
+
+
+@pytest.mark.parametrize("tree", ["v41", "v42", "v43"])
+def test_revealed_view_cookie_is_plain_string(tree: str, tmp_path: Path) -> None:
+    """`show_profile(include_secrets=True)` yields the real cookie value when include_secrets is set."""
+    service = importlib.import_module(f"dhis2w_core.{tree}.plugins.profile.service")
+    toml_dir = tmp_path / "xdg" / "dhis2"
+    toml_dir.mkdir(parents=True, exist_ok=True)
+    (toml_dir / "profiles.toml").write_text(
+        'default = "browser"\n\n'
+        "[profiles.browser]\n"
+        'base_url = "https://play.dhis2.org"\n'
+        'auth = "session"\n'
+        'cookie = "JSESSIONID=abc123"\n',
+        encoding="utf-8",
+    )
+    revealed = service.show_profile("browser", include_secrets=True, start=tmp_path)
+    # ProfileView holds plain strings, so JSON/model_dump renders the real value.
+    assert revealed.model_dump()["cookie"] == "JSESSIONID=abc123"
+    # And the default (redacted) view never carries the raw secret.
+    redacted = service.show_profile("browser", start=tmp_path)
+    assert "abc123" not in str(redacted.model_dump())

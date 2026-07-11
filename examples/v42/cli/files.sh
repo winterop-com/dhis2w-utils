@@ -32,7 +32,7 @@ d2w files documents download "$DOC_UID" "$TMP/rt.txt"
 diff "$TMP/hello.txt" "$TMP/rt.txt" && echo "document bytes match"
 
 # 5. Clean up.
-d2w files documents delete "$DOC_UID"
+d2w files documents delete "$DOC_UID" --yes
 
 # --- file resources ----------------------------------------------------------
 

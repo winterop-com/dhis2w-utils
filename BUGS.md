@@ -3064,6 +3064,27 @@ A live `PUT /api/dataValues/followup` with `{"dataElement":"...","period":"20240
 
 ---
 
+### 50. `POST` / `DELETE /api/dataValues` has no `attributeOptionCombo` query param — the attribute option combo is addressed by `cc` + `cp`
+
+**Observed on:** v41 / v42 / v43 (generated OpenAPI `dhis2w_client.generated.v{41,42,43}.openapi.json`, path `/api/dataValues/`), 2026-07-11.
+
+**Repro:** the query parameters the generated OpenAPI lists for `GET` / `POST` (`#saveDataValue`) / `DELETE /api/dataValues` are `de`, `pe`, `ou`, `co`, `cc`, `cp` (plus `ds`, `value`, `comment`, `followUp`, `force`). There is no `attributeOptionCombo` parameter:
+```
+# openapi.json paths./api/dataValues/#saveDataValue.post.parameters
+#   -> cc, co, comment, cp, de, ds, followUp, force, ou, pe, value
+```
+`cc` is the attribute CategoryCombo UID; `cp` is a `;`-joined list of the attribute category-option UIDs. DHIS2 resolves the two into the attribute option combo server-side. To write a value against a specific attribute option combo you must decompose it into its category combo + option UIDs — the endpoint never accepts the resolved AOC UID directly (contrast `/api/dataValueSets`, whose JSON body does take `attributeOptionCombo`).
+
+**Expected:** a symmetric `aoc` / `attributeOptionCombo` query param mirroring `co` (the categoryOptionCombo), so callers holding a resolved AOC UID could pass it directly.
+
+**Actual:** only `cc` + `cp` are accepted; passing a resolved AOC UID as `cc` silently addresses the wrong thing (`cc` is read as a CategoryCombo UID, not a CategoryOptionCombo UID), so the value lands under the wrong attribute combo or the request errors.
+
+**Workaround in this repo:** `set_data_value` / `delete_data_value` take `attribute_combo` (→ `cc`) + `attribute_options` (→ `cp`, `;`-joined) and require the two together; the CLI exposes `--attribute-combo`/`--cc` + `--attribute-option`/`--cp`, and the MCP tools mirror the pair (`packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/aggregate/{service,cli,mcp}.py`). The `/api/dataValueSets` push path is unaffected — its JSON body carries `attributeOptionCombo` directly.
+
+**How to know it's fixed:** `/api/dataValues` gains an `attributeOptionCombo` (or `aoc`) query param, at which point callers holding a resolved AOC UID can pass it without decomposing into `cc` + `cp`.
+
+---
+
 ## Resolved upstream
 
 Entries verified fixed upstream on all supported majors (v41 / v42 / v43).

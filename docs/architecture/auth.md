@@ -44,7 +44,11 @@ from dhis2w_client import PatAuth
 auth = PatAuth(token="d2pat_...")
 ```
 
-For the profile-based convenience path, `dhis2w_client.build_auth_for_basic(profile)` returns `PatAuth` for `profile.auth == "pat"`, `BasicAuth` for `profile.auth == "basic"`, and `SessionCookieAuth` for `profile.auth == "session"`. It raises `NotImplementedError` on OAuth2 (which needs the token store in `dhis2w-core`). The full `dhis2w_core.client_context.build_auth(profile)` is a strict superset that adds the OAuth2 path.
+For the profile-based convenience path, `dhis2w_client.build_auth_provider(profile)` returns `PatAuth` for `profile.auth == "pat"`, `BasicAuth` for `profile.auth == "basic"`, and `SessionCookieAuth` for `profile.auth == "session"`. It raises `NotImplementedError` on OAuth2 (which needs the token store in `dhis2w-core`). The full `dhis2w_core.client_context.build_auth(profile)` is a strict superset that adds the OAuth2 path.
+
+### Secrets are `SecretStr`
+
+Every credential field — `BasicAuth.password`, `PatAuth.token`, `SessionCookieAuth.cookie`, `OAuth2Token.access_token` / `refresh_token`, and the `Profile.token` / `password` / `client_secret` / `cookie` fields — is a `pydantic.SecretStr`. Constructing them from a plain string still works (`PatAuth(token="d2pat_...")`), but the value is masked in `repr()`, `model_dump()`, `model_dump_json()`, and tracebacks so credentials don't leak into logs or error output. Call `.get_secret_value()` at the point of use — the `headers()` methods, the `profiles.toml` writer, and the OAuth2 token store all unwrap internally, so callers never see the mask where the real value is required.
 
 ### SessionCookieAuth
 

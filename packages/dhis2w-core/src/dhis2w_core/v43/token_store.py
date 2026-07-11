@@ -84,18 +84,19 @@ class SqliteTokenStore:
         await self._ensure_init()
         async with self._session_maker() as session:
             existing = await session.get(_TokenRow, key)
+            refresh = token.refresh_token
             if existing is None:
                 session.add(
                     _TokenRow(
                         store_key=key,
                         access_token=token.access_token,
-                        refresh_token=token.refresh_token,
+                        refresh_token=refresh,
                         expires_at=token.expires_at,
                     )
                 )
             else:
                 existing.access_token = token.access_token
-                existing.refresh_token = token.refresh_token
+                existing.refresh_token = refresh
                 existing.expires_at = token.expires_at
             await session.commit()
 

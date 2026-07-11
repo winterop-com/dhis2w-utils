@@ -51,7 +51,7 @@ purge_examples() {
   d2w --json route list --fields id,code \
     | jq -r '.[] | select(.code // "" | startswith("EX_")) | "\(.id)\t\(.code)"' \
     | while IFS=$'\t' read -r uid code; do
-        d2w route delete "$uid" >/dev/null
+        d2w route delete "$uid" --yes >/dev/null
         echo "    deleted $code ($uid)" >&2
       done
 }

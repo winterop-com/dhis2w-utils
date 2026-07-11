@@ -167,41 +167,72 @@ def cache_command() -> None:
 
 
 @cleanup_app.command("data-values")
-def cleanup_data_values_command() -> None:
+def cleanup_data_values_command(
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
+) -> None:
     """Hard-remove soft-deleted data values from `/api/dataValueSets` imports."""
     from dhis2w_core.v43.plugins.maintenance import service
     from dhis2w_core.v43.plugins.maintenance.service import SoftDeleteTarget
 
+    if not yes:
+        typer.confirm(
+            "Permanently purge soft-deleted data values? This is irreversible and destroys the recovery audit trail.",
+            abort=True,
+        )
     asyncio.run(service.remove_soft_deleted(profile_from_env(), SoftDeleteTarget.DATA_VALUES))
     typer.echo("soft-deleted data values removed")
 
 
 @cleanup_app.command("events")
-def cleanup_events_command() -> None:
+def cleanup_events_command(
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
+) -> None:
     """Hard-remove soft-deleted tracker events."""
     from dhis2w_core.v43.plugins.maintenance import service
     from dhis2w_core.v43.plugins.maintenance.service import SoftDeleteTarget
 
+    if not yes:
+        typer.confirm(
+            "Permanently purge soft-deleted tracker events? This is irreversible and "
+            "destroys the recovery audit trail.",
+            abort=True,
+        )
     asyncio.run(service.remove_soft_deleted(profile_from_env(), SoftDeleteTarget.EVENTS))
     typer.echo("soft-deleted events removed")
 
 
 @cleanup_app.command("enrollments")
-def cleanup_enrollments_command() -> None:
+def cleanup_enrollments_command(
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
+) -> None:
     """Hard-remove soft-deleted tracker enrollments."""
     from dhis2w_core.v43.plugins.maintenance import service
     from dhis2w_core.v43.plugins.maintenance.service import SoftDeleteTarget
 
+    if not yes:
+        typer.confirm(
+            "Permanently purge soft-deleted tracker enrollments? This is irreversible and "
+            "destroys the recovery audit trail.",
+            abort=True,
+        )
     asyncio.run(service.remove_soft_deleted(profile_from_env(), SoftDeleteTarget.ENROLLMENTS))
     typer.echo("soft-deleted enrollments removed")
 
 
 @cleanup_app.command("tracked-entities")
-def cleanup_tracked_entities_command() -> None:
+def cleanup_tracked_entities_command(
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
+) -> None:
     """Hard-remove soft-deleted tracked entities."""
     from dhis2w_core.v43.plugins.maintenance import service
     from dhis2w_core.v43.plugins.maintenance.service import SoftDeleteTarget
 
+    if not yes:
+        typer.confirm(
+            "Permanently purge soft-deleted tracked entities? This is irreversible and "
+            "destroys the recovery audit trail.",
+            abort=True,
+        )
     asyncio.run(service.remove_soft_deleted(profile_from_env(), SoftDeleteTarget.TRACKED_ENTITIES))
     typer.echo("soft-deleted tracked entities removed")
 

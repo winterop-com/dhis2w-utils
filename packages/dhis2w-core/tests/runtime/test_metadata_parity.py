@@ -298,6 +298,7 @@ async def test_metadata_bulk_retag_parity(
         resolve_profile("probe"),
         "dataElements",
         category_combo_uid="ccNew00001",
+        allow_all=True,
     )
 
     assert result.matched == 1

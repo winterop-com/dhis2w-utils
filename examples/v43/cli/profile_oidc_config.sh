@@ -20,4 +20,4 @@ d2w profile oidc-config http://localhost:8080 \
 d2w profile verify example_oidc_discovered || true
 
 # Clean up the demo profile.
-d2w profile remove example_oidc_discovered
+d2w profile remove example_oidc_discovered --yes

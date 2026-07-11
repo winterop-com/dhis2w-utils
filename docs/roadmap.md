@@ -194,7 +194,7 @@ validation, env caveat — #439) leave these open, none blocking:
   missed two more (show masking, browser mint). Consolidate the per-kind knowledge — provider
   constructor, secret field, env var, prompt label, table color — into one descriptor before a
   service-account JWT or OIDC-federation kind repeats the scatter. `_build_probe_auth` restating
-  `build_auth_for_basic` folds into the same cleanup.
+  `build_auth_provider` folds into the same cleanup.
 - **`dhis2://target` MCP resource on the bridge.** kodo currently gets bound-state/expiry data by
   polling the `dhis2_cli` tool with `profile verify`; a proper MCP resource is the cleaner long-term
   shape for "what instance/user am I bound to".

@@ -112,12 +112,32 @@ def test_route_run_surfaces_lookup_error_with_red_hint(
 
 
 def test_route_delete_renders_webmessage(pat_profile: None) -> None:  # noqa: ARG001
-    """Route delete renders webmessage."""
+    """Route delete renders webmessage when the confirmation is skipped with --yes."""
     envelope = WebMessageResponse.model_validate({"status": "OK", "message": "Route deleted"})
     with patch("dhis2w_core.v42.plugins.route.service.delete_route", new=AsyncMock(return_value=envelope)):
-        result = CliRunner().invoke(build_app(), ["route", "delete", "chap"])
+        result = CliRunner().invoke(build_app(), ["route", "delete", "chap", "--yes"])
     assert result.exit_code == 0, result.output
     assert "deleted chap" in result.output
+
+
+def test_route_delete_confirm_accept(pat_profile: None) -> None:  # noqa: ARG001
+    """Answering `y` at the prompt proceeds to delete."""
+    envelope = WebMessageResponse.model_validate({"status": "OK", "message": "Route deleted"})
+    delete = AsyncMock(return_value=envelope)
+    with patch("dhis2w_core.v42.plugins.route.service.delete_route", new=delete):
+        result = CliRunner().invoke(build_app(), ["route", "delete", "chap"], input="y\n")
+    assert result.exit_code == 0, result.output
+    assert "deleted chap" in result.output
+    delete.assert_awaited_once()
+
+
+def test_route_delete_confirm_abort_skips_service(pat_profile: None) -> None:  # noqa: ARG001
+    """Answering `n` at the prompt aborts before the service is called."""
+    delete = AsyncMock()
+    with patch("dhis2w_core.v42.plugins.route.service.delete_route", new=delete):
+        result = CliRunner().invoke(build_app(), ["route", "delete", "chap"], input="n\n")
+    assert result.exit_code != 0
+    delete.assert_not_called()
 
 
 def test_route_delete_unknown_code_exits_1(
@@ -126,7 +146,7 @@ def test_route_delete_unknown_code_exits_1(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """An unknown code raises LookupError which `run_app` renders as `error: ...` on stderr."""
-    monkeypatch.setattr("sys.argv", ["d2w", "route", "delete", "nope"])
+    monkeypatch.setattr("sys.argv", ["d2w", "route", "delete", "nope", "--yes"])
     with (
         patch(
             "dhis2w_core.v42.plugins.route.service.delete_route",

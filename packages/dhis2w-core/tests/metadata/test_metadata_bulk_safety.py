@@ -62,6 +62,63 @@ async def test_metadata_usage_error_renders_cleanly(plugin_service: Callable[[st
 
 
 # ---------------------------------------------------------------------------
+# Bug 1b — a no-filter live rename/retag would mutate the whole catalog
+# ---------------------------------------------------------------------------
+
+
+async def test_bulk_rename_refuses_no_filter_live_mutation(
+    core_profile: None,  # noqa: ARG001
+    plugin_service: Callable[[str], ModuleType],
+) -> None:
+    """A live rename with no filter targets the whole catalog — refused before any HTTP call."""
+    service = plugin_service("metadata")
+
+    from dhis2w_core.profile import resolve_profile
+
+    with pytest.raises(service.MetadataUsageError, match="no filter"):
+        await service.bulk_rename_metadata(resolve_profile("probe"), "dataElements", name_prefix="[X] ")
+
+
+async def test_bulk_retag_refuses_no_filter_live_mutation(
+    core_profile: None,  # noqa: ARG001
+    plugin_service: Callable[[str], ModuleType],
+) -> None:
+    """A live retag with no filter targets the whole catalog — refused before any HTTP call."""
+    service = plugin_service("metadata")
+
+    from dhis2w_core.profile import resolve_profile
+
+    with pytest.raises(service.MetadataUsageError, match="no filter"):
+        await service.bulk_retag_metadata(resolve_profile("probe"), "dataElements", category_combo_uid="ccNew00001")
+
+
+@respx.mock
+async def test_bulk_rename_no_filter_dry_run_is_allowed(
+    core_version: str,
+    core_profile: None,  # noqa: ARG001
+    plugin_service: Callable[[str], ModuleType],
+    mock_system_info: Callable[..., None],
+) -> None:
+    """A no-filter dry-run is a safe preview — it must not be refused."""
+    service = plugin_service("metadata")
+    mock_system_info(core_version)
+    respx.get(f"{_BASE_URL}/api/dataElements").mock(
+        return_value=httpx.Response(200, json={"dataElements": [{"id": "DE_A", "name": "ANC"}]}),
+    )
+
+    from dhis2w_core.profile import resolve_profile
+
+    result = await service.bulk_rename_metadata(
+        resolve_profile("probe"),
+        "dataElements",
+        name_prefix="[X] ",
+        dry_run=True,
+    )
+    assert result.dry_run is True
+    assert result.matched == 1
+
+
+# ---------------------------------------------------------------------------
 # Bug 2 — `metadata share` merges into existing sharing instead of replacing it
 # ---------------------------------------------------------------------------
 

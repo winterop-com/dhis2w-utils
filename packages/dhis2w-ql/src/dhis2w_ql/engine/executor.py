@@ -89,10 +89,18 @@ class QueryResult(BaseModel):
 class QueryEngine:
     """Executes d2ql pipelines and definitions against a resource binder."""
 
-    def __init__(self, library: Library, binder: ResourceBinder) -> None:
-        """Index the library's definitions and bind the source resolver."""
+    def __init__(self, library: Library, binder: ResourceBinder, *, allow_file_io: bool = True) -> None:
+        """Index the library's definitions and bind the source resolver.
+
+        `allow_file_io` gates local filesystem access: `read(...)` sources and `>> "path"` file sinks
+        are trusted-code-equivalent — they read and write arbitrary host paths with the process's
+        permissions. The CLI leaves it True (the local operator already has shell access); a library
+        embedder running untrusted d2ql should pass `allow_file_io=False`, which makes those constructs
+        raise a `SemanticError` instead. This is defence-in-depth beneath any surface-level gate.
+        """
         self._library = library
         self._binder = binder
+        self._allow_file_io = allow_file_io
         self._evaluator = Evaluator(resolver=self)
         self._defines: dict[str, Define] = {}
         self._functions: dict[str, DefineFunction] = {}
@@ -153,6 +161,10 @@ class QueryEngine:
 
     async def run(self, pipeline: Pipeline) -> QueryResult:
         """Execute a pipeline and apply its sink, returning the rows and sink metadata."""
+        if isinstance(pipeline.sink, FileSink) and not self._allow_file_io:
+            raise SemanticError(
+                'file sinks (`>> "path"`) are disabled: this engine was created with allow_file_io=False'
+            )
         outcome = await self._execute(pipeline)
         if isinstance(pipeline.sink, FileSink):
             written = _write_file(pipeline.sink, outcome.rows, scalar=outcome.scalar)
@@ -233,6 +245,10 @@ class QueryEngine:
             rows = await data_source.fetch(plan.native)
             return _SourceResolution(rows=rows, residual=list(plan.residual))
         if isinstance(source, ReadSource):
+            if not self._allow_file_io:
+                raise SemanticError(
+                    "read(...) file sources are disabled: this engine was created with allow_file_io=False"
+                )
             return _SourceResolution(rows=_read_rows(source.path), residual=list(stages))
         return _SourceResolution(rows=self._evaluator.evaluate(source.expr, []), residual=list(stages))
 

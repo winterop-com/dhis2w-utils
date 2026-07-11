@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -76,6 +77,35 @@ def test_cli_mounted_on_root() -> None:
     result = _runner.invoke(build_app(), ["files", "--help"])
     assert result.exit_code == 0, result.output
     assert "documents" in result.output
+
+
+def test_documents_delete_confirm_accept() -> None:
+    """`documents delete <uid>` with `y` at the prompt proceeds to delete."""
+    delete = AsyncMock(return_value=None)
+    with patch("dhis2w_core.v42.plugins.files.service.delete_document", new=delete):
+        result = _runner.invoke(build_app(), ["files", "documents", "delete", "docUid00001"], input="y\n")
+    assert result.exit_code == 0, result.output
+    assert "deleted docUid00001" in result.output
+    delete.assert_awaited_once()
+
+
+def test_documents_delete_confirm_abort_skips_service() -> None:
+    """`documents delete <uid>` with `n` at the prompt aborts before the service is called."""
+    delete = AsyncMock()
+    with patch("dhis2w_core.v42.plugins.files.service.delete_document", new=delete):
+        result = _runner.invoke(build_app(), ["files", "documents", "delete", "docUid00001"], input="n\n")
+    assert result.exit_code != 0
+    delete.assert_not_called()
+
+
+def test_documents_delete_yes_flag_skips_prompt() -> None:
+    """`documents delete <uid> --yes` deletes without prompting."""
+    delete = AsyncMock(return_value=None)
+    with patch("dhis2w_core.v42.plugins.files.service.delete_document", new=delete):
+        result = _runner.invoke(build_app(), ["files", "documents", "delete", "docUid00001", "--yes"])
+    assert result.exit_code == 0, result.output
+    assert "deleted docUid00001" in result.output
+    delete.assert_awaited_once()
 
 
 @respx.mock

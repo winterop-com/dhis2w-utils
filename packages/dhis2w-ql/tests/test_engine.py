@@ -192,6 +192,39 @@ async def test_file_sink_creates_missing_parent_directories(tmp_path: Path) -> N
     assert json.loads(path.read_text()) == [{"id": "a1"}, {"id": "b2"}, {"id": "c3"}]
 
 
+async def test_allow_file_io_false_blocks_read_source(tmp_path: Path) -> None:
+    """A `read(...)` source raises when the engine is created with allow_file_io=False."""
+    source = tmp_path / "in.json"
+    source.write_text(json.dumps([{"id": "a1"}]), encoding="utf-8")
+    engine = QueryEngine(
+        parse(f'read("{source}") | select id'), InMemoryBinder({"dataElements": _ROWS}), allow_file_io=False
+    )
+    with pytest.raises(SemanticError, match="read\\(...\\) file sources are disabled"):
+        await engine.run_terminal()
+
+
+async def test_allow_file_io_false_blocks_file_sink(tmp_path: Path) -> None:
+    """A `>> "path"` file sink raises when the engine is created with allow_file_io=False."""
+    path = tmp_path / "out.json"
+    engine = QueryEngine(
+        parse(f'dataElements | select id >> "{path}"'), InMemoryBinder({"dataElements": _ROWS}), allow_file_io=False
+    )
+    with pytest.raises(SemanticError, match="file sinks .* are disabled"):
+        await engine.run_terminal()
+    assert not path.exists()  # refused before any bytes are written
+
+
+async def test_allow_file_io_true_is_the_default_and_permits_read_and_sinks(tmp_path: Path) -> None:
+    """The default (True) preserves the CLI's local-file capability for both sources and sinks."""
+    source = tmp_path / "in.json"
+    source.write_text(json.dumps([{"id": "z9", "name": "Z"}]), encoding="utf-8")
+    out = tmp_path / "out.json"
+    engine = QueryEngine(parse(f'read("{source}") | select id >> "{out}"'), InMemoryBinder({}))
+    result = await engine.run_terminal()
+    assert result.written_to == str(out)
+    assert json.loads(out.read_text()) == [{"id": "z9"}]
+
+
 async def test_define_chain_over_the_depth_limit_is_a_semantic_error() -> None:
     from dhis2w_ql.engine.executor import MAX_DEFINE_CHAIN_DEPTH
 

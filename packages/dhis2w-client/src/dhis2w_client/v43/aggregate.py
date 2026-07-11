@@ -1,4 +1,4 @@
-"""Typed models for DHIS2 aggregate data values (shim over generated/v42/oas).
+"""Typed models for DHIS2 aggregate data values (shim over generated/v43/oas).
 
 Covers the `/api/dataValueSets` GET response (a `DataValueSet` envelope
 containing a list of `DataValue`s). The corresponding POST/import path

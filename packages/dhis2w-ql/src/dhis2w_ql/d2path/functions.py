@@ -258,16 +258,69 @@ def _replace(ev: Evaluator, focus: list[Any], args: list[Expr], context: EvalCon
 
 MAX_REGEX_PATTERN_LENGTH = 1000
 
+#: Quantifiers that, applied to a group whose body already contains an unbounded quantifier, drive the
+#: exponential backtracking `matches()` refuses (`(a+)+`, `(a*)*`, `(a+){2,}`).
+_GROUP_QUANTIFIERS = frozenset({"+", "*", "{"})
+#: Unbounded quantifiers whose presence inside a group makes re-quantifying that group catastrophic.
+_INNER_QUANTIFIERS = frozenset({"+", "*"})
+
+
+def _has_nested_quantifier(pattern: str) -> bool:
+    """Linear scan: True when a quantified group contains an unbounded quantifier (the ReDoS shape).
+
+    Detects `(a+)+`, `(a*)*`, `(a+)*`, `(a*)+`, and `(a+){2,}` — a group re-quantified while its body
+    already repeats unboundedly. Respects backslash escapes and character classes (where `+`/`*`/`(`
+    are literals), and treats a quantified subgroup as a quantifier within its parent so nested cases
+    like `((a+)+)+` trip on the innermost pair. Bounded/optional inner quantifiers (`?`, `{n,m}`) do
+    not trigger, so ordinary patterns like `(ab?c)+` pass.
+    """
+    body_has_quantifier: list[bool] = []  # one flag per open group on the stack
+    index = 0
+    length = len(pattern)
+    in_class = False
+    while index < length:
+        char = pattern[index]
+        if char == "\\":
+            index += 2  # a backslash escapes the next char, so `\+` / `\(` are literals
+            continue
+        if in_class:
+            in_class = char != "]"
+            index += 1
+            continue
+        if char == "[":
+            in_class = True
+        elif char == "(":
+            body_has_quantifier.append(False)
+        elif char == ")":
+            group_had_quantifier = body_has_quantifier.pop() if body_has_quantifier else False
+            following = pattern[index + 1] if index + 1 < length else ""
+            if following in _GROUP_QUANTIFIERS:
+                if group_had_quantifier:
+                    return True
+                if body_has_quantifier:  # a quantified subgroup is itself a quantifier in its parent
+                    body_has_quantifier[-1] = True
+        elif char in _INNER_QUANTIFIERS and body_has_quantifier:
+            body_has_quantifier[-1] = True
+        index += 1
+    return False
+
 
 def _compile_pattern(name: str, pattern: str) -> re.Pattern[str]:
-    """Compile a user-supplied regex, raising `EvaluationError` for over-long or invalid patterns.
+    """Compile a user-supplied regex, raising `EvaluationError` for over-long, catastrophic, or invalid patterns.
 
-    The length cap bounds the ReDoS surface, but catastrophic backtracking is not fully
-    preventable with the stdlib `re` module.
+    Guards two ReDoS surfaces before handing the pattern to the stdlib `re` engine: an absolute length
+    cap, and a linear pre-scan that rejects nested-quantifier constructs (`(a+)+` and kin) which cause
+    catastrophic backtracking. This is a guardrail for well-meaning patterns, not a defence against a
+    determined adversary — `matches()` is not intended for untrusted regex input.
     """
     if len(pattern) > MAX_REGEX_PATTERN_LENGTH:
         raise EvaluationError(
             f"{name}() pattern is {len(pattern)} characters long; the limit is {MAX_REGEX_PATTERN_LENGTH}"
+        )
+    if _has_nested_quantifier(pattern):
+        raise EvaluationError(
+            f"{name}() pattern {pattern!r} nests quantifiers (e.g. `(a+)+`), which risks catastrophic "
+            f"backtracking; rewrite it without a quantified group whose body also repeats unboundedly"
         )
     try:
         return re.compile(pattern)
@@ -277,7 +330,12 @@ def _compile_pattern(name: str, pattern: str) -> re.Pattern[str]:
 
 @_register("matches")
 def _matches(ev: Evaluator, focus: list[Any], args: list[Expr], context: EvalContext) -> list[Any]:
-    """Test the focus string against a regular expression, compiled once with typed error wrapping."""
+    """Test the focus string against a regular expression, compiled once with typed error wrapping.
+
+    Guards against over-long and catastrophic-backtracking patterns (nested quantifiers like `(a+)+`)
+    by raising a typed `EvaluationError`; it is a guardrail for honest mistakes, not a shield for
+    adversarial regex input.
+    """
     _expect_argc("matches", args, 1)
     text, pattern = _string(focus), _scalar(ev, args[0], focus, context)
     if text is None or not isinstance(pattern, str):
@@ -349,7 +407,14 @@ def _round(ev: Evaluator, focus: list[Any], args: list[Expr], context: EvalConte
 def _to_integer(ev: Evaluator, focus: list[Any], args: list[Expr], context: EvalContext) -> list[Any]:
     _expect_argc("toInteger", args, 0)
     number = to_number(collapse(focus))
-    return [] if number is None else [int(number)]
+    if number is None:
+        return []
+    try:
+        return [int(number)]
+    except (OverflowError, ValueError) as error:
+        # int(inf) raises OverflowError and int(nan) raises ValueError — keep both inside the d2ql
+        # error hierarchy instead of letting the raw exception escape.
+        raise EvaluationError(f"toInteger() cannot convert {number!r} to an integer") from error
 
 
 @_register("toDecimal")

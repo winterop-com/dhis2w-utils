@@ -10,6 +10,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from dhis2w_ql.errors import EvaluationError
+
 _MISSING = object()
 
 
@@ -73,11 +75,18 @@ def flatten_member(items: list[Any], name: str) -> list[Any]:
 
 
 def to_number(value: Any) -> float | None:
-    """Coerce a value to a float for arithmetic/comparison, or None when it is not numeric."""
+    """Coerce a value to a float for arithmetic/comparison, or None when it is not numeric.
+
+    A too-large numeric value (e.g. a JSON integer beyond float range) raises a typed
+    `EvaluationError` rather than letting a raw `OverflowError` escape the d2ql error hierarchy.
+    """
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        try:
+            return float(value)
+        except OverflowError as error:
+            raise EvaluationError(f"numeric value is too large to coerce to a number: {value!r}") from error
     if isinstance(value, str):
         try:
             return float(value)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -186,6 +187,36 @@ async def test_get_dataintegrity_summary_parses_report(profile: Profile) -> None
     report = await service.get_dataintegrity_summary(profile)
     assert sorted(report.results.keys()) == ["check_a", "check_b"]
     assert report.results["check_a"].count == 3
+
+
+def test_cli_cleanup_data_values_confirm_accept(runner: CliRunner) -> None:
+    """`maintenance cleanup data-values` with `y` proceeds to the irreversible purge."""
+    remove = AsyncMock(return_value=None)
+    with patch("dhis2w_core.v42.plugins.maintenance.service.remove_soft_deleted", new=remove):
+        result = runner.invoke(build_app(), ["maintenance", "cleanup", "data-values"], input="y\n")
+    assert result.exit_code == 0, result.output
+    assert "irreversible" in result.output
+    assert "soft-deleted data values removed" in result.output
+    remove.assert_awaited_once()
+
+
+def test_cli_cleanup_data_values_confirm_abort_skips_service(runner: CliRunner) -> None:
+    """`maintenance cleanup data-values` with `n` aborts before the purge runs."""
+    remove = AsyncMock()
+    with patch("dhis2w_core.v42.plugins.maintenance.service.remove_soft_deleted", new=remove):
+        result = runner.invoke(build_app(), ["maintenance", "cleanup", "data-values"], input="n\n")
+    assert result.exit_code != 0
+    remove.assert_not_called()
+
+
+def test_cli_cleanup_data_values_yes_flag_skips_prompt(runner: CliRunner) -> None:
+    """`maintenance cleanup data-values --yes` purges without prompting."""
+    remove = AsyncMock(return_value=None)
+    with patch("dhis2w_core.v42.plugins.maintenance.service.remove_soft_deleted", new=remove):
+        result = runner.invoke(build_app(), ["maintenance", "cleanup", "data-values", "--yes"])
+    assert result.exit_code == 0, result.output
+    assert "soft-deleted data values removed" in result.output
+    remove.assert_awaited_once()
 
 
 def test_cli_maintenance_is_mounted(runner: CliRunner) -> None:
