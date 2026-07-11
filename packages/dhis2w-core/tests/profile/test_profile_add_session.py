@@ -53,6 +53,19 @@ def test_add_session_reads_cookie_from_env(app: Typer, tmp_path: Path, monkeypat
 
 
 @TREES
+def test_add_session_strips_cookie_whitespace(app: Typer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A cookie captured with a trailing newline (echo / clipboard artifact) is stored stripped."""
+    monkeypatch.setenv("DHIS2_SESSION_COOKIE", "  JSESSIONID=abc123\n")
+    result = CliRunner().invoke(
+        app,
+        ["add", "browser", "--url", "https://play.dhis2.org", "--auth", "session", "--local"],
+    )
+    assert result.exit_code == 0, result.output
+    loaded = load_profiles_file(tmp_path / ".dhis2" / "profiles.toml")
+    assert loaded.profiles["browser"].cookie == "JSESSIONID=abc123"
+
+
+@TREES
 def test_env_emits_session_cookie_export(app: Typer, tmp_path: Path) -> None:
     """`profile env` on a session profile emits the DHIS2_SESSION_COOKIE export, ready for `eval`."""
     toml_dir = tmp_path / "xdg" / "dhis2"
@@ -69,6 +82,25 @@ def test_env_emits_session_cookie_export(app: Typer, tmp_path: Path) -> None:
     result = CliRunner().invoke(app, ["env"])
     assert result.exit_code == 0, result.output
     assert "export DHIS2_SESSION_COOKIE=JSESSIONID=abc123" in result.output
+
+
+@TREES
+def test_env_session_prints_no_raw_path_caveat(app: Typer, tmp_path: Path) -> None:
+    """`profile env` on a session profile warns that DHIS2_SESSION_COOKIE has no raw-env path."""
+    toml_dir = tmp_path / "xdg" / "dhis2"
+    toml_dir.mkdir(parents=True, exist_ok=True)
+    (toml_dir / "profiles.toml").write_text(
+        'default = "browser"\n\n'
+        "[profiles.browser]\n"
+        'base_url = "https://play.dhis2.org"\n'
+        'auth = "session"\n'
+        'cookie = "JSESSIONID=abc123"\n'
+        'version = "v42"\n',
+        encoding="utf-8",
+    )
+    result = CliRunner().invoke(app, ["env"])
+    assert result.exit_code == 0, result.output
+    assert "DHIS2_SESSION_COOKIE has no raw-env path" in result.output
 
 
 @pytest.mark.parametrize("tree", ["v41", "v42", "v43"])

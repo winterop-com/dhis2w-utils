@@ -175,12 +175,7 @@ async def _verify_one(resolved: ResolvedProfile) -> VerifyResult:
             ok=False,
             base_url=profile.base_url,
             auth=profile.auth,
-            error=(
-                "oauth2 profile has no cached tokens — run `d2w profile login "
-                f"{name}` first to complete the browser flow"
-                if profile.auth == "oauth2"
-                else f"verification does not yet support auth type {profile.auth!r}"
-            ),
+            error=_probe_unavailable_reason(profile, name),
         )
     start = time.perf_counter()
     try:
@@ -249,6 +244,31 @@ def _build_probe_auth(
             redirect_capturer=_probe_capturer,
         )
     return None
+
+
+def _missing_material_error(profile: Profile, name: str) -> str | None:
+    """Return a remedy-pointing error when a known auth kind lacks its secret, else None."""
+    if profile.auth == "pat" and not profile.token:
+        return f"profile has no token; re-run `d2w profile add {name} --auth pat` to bind a personal access token"
+    if profile.auth == "basic" and not (profile.username and profile.password):
+        return (
+            f"profile has no username/password; re-run `d2w profile add {name} --auth basic` to bind Basic credentials"
+        )
+    if profile.auth == "session" and not profile.cookie:
+        return f"profile has no cookie; re-run `d2w profile add {name} --auth session` to bind a fresh session cookie"
+    return None
+
+
+def _probe_unavailable_reason(profile: Profile, name: str) -> str:
+    """Explain why a profile can't be probed: missing material, uncached oauth2, or an unknown kind."""
+    missing = _missing_material_error(profile, name)
+    if missing is not None:
+        return missing
+    if profile.auth == "oauth2":
+        return (
+            f"oauth2 profile has no cached tokens — run `d2w profile login {name}` first to complete the browser flow"
+        )
+    return f"verification does not yet support auth type {profile.auth!r}"
 
 
 # ---------------------------------------------------------------------------
