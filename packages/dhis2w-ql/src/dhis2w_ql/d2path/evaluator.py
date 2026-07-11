@@ -37,6 +37,11 @@ from dhis2w_ql.d2path.values import (
 )
 from dhis2w_ql.errors import EvaluationError, SemanticError
 
+# Each user-function call costs several interpreter frames (the call plus its body's expression
+# walk), so a chain of distinct functions calling each other must be bounded well below the
+# interpreter's recursion limit. 32 levels of composition is far beyond any real library.
+MAX_FUNCTION_CALL_DEPTH = 32
+
 
 @runtime_checkable
 class Resolver(Protocol):
@@ -89,6 +94,8 @@ class Evaluator:
             )
         if definition.name in self._active_functions:
             raise SemanticError(f"recursive function {definition.name!r}")
+        if len(self._active_functions) >= MAX_FUNCTION_CALL_DEPTH:
+            raise EvaluationError(f"function call chain exceeds {MAX_FUNCTION_CALL_DEPTH} levels")
         bound = dict(zip(definition.params, args, strict=True))
         self._active_functions.add(definition.name)
         try:

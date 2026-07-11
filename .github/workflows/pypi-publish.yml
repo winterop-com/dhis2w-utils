@@ -33,10 +33,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Workspace members shipped to PyPI. Excludes `dhis2w-codegen` —
-        # workspace-internal dev tool with no value to PyPI consumers.
+        # Workspace members shipped to PyPI. Excludes the workspace-only
+        # members (`dhis2w-codegen`, `dhis2w-bench`, `dhis2w-mcp-router`) —
+        # internal tools with no value to PyPI consumers.
         package:
           - dhis2w-client
+          - dhis2w-ql
           - dhis2w-core
           - dhis2w-cli
           - dhis2w-browser
@@ -110,6 +112,7 @@ jobs:
       matrix:
         package:
           - dhis2w-client
+          - dhis2w-ql
           - dhis2w-core
           - dhis2w-cli
           - dhis2w-browser
@@ -146,7 +149,7 @@ jobs:
         # newer-style sdist/wheel filenames.
         run: |
           VERSION="${{ steps.version.outputs.value }}"
-          PACKAGES="dhis2w-client dhis2w-core dhis2w-cli dhis2w-browser dhis2w-mcp dhis2w-mcp-bridge"
+          PACKAGES="dhis2w-client dhis2w-ql dhis2w-core dhis2w-cli dhis2w-browser dhis2w-mcp dhis2w-mcp-bridge"
           for pkg in $PACKAGES; do
             normalized="${pkg//-/_}"
             for i in $(seq 1 36); do

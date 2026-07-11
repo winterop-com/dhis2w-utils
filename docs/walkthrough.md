@@ -15,7 +15,7 @@ cd /Users/morteoh/dev/dhis2w-utils
 make install
 ```
 
-Runs `uv sync --all-packages --all-extras` at the workspace root. Installs all six members in editable mode plus dev tools (ruff, mypy, pyright, pytest, respx, mkdocs-material, mkdocs-claude-theme).
+Runs `uv sync --all-packages --all-extras` at the workspace root. Installs all ten workspace members in editable mode plus dev tools (ruff, mypy, pyright, pytest, respx, mkdocs-material, mkdocs-claude-theme).
 
 Expect: ~120 packages installed.
 

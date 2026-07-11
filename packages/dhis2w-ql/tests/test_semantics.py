@@ -222,3 +222,18 @@ async def test_recursive_function_is_rejected() -> None:
 def test_duplicate_function_parameters_are_rejected() -> None:
     with pytest.raises(ParseError, match="duplicate parameter"):
         parse("define function f(x, x): $x\ndataElements")
+
+
+# ---------------------------------------------------------------- Pushdown corners
+
+
+def test_filter_metacharacter_values_are_kept_local() -> None:
+    # DHIS2's `property:operator:value` filter syntax has no escaping for `:` `,` `[` `]`, so a
+    # predicate whose value contains one of them is kept local instead of pushed down.
+    from dhis2w_ql import SourceCapabilities, parse_pipeline, plan_pipeline
+
+    capabilities = SourceCapabilities(filter=True, order=True, paging=True)
+    pipeline = parse_pipeline('dataElements | where name = "a:b,c"')
+    plan = plan_pipeline("dataElements", capabilities, pipeline.stages)
+    assert plan.native.filters == []
+    assert [stage.kind for stage in plan.residual] == ["where"]

@@ -3,7 +3,7 @@
 d2ql is a pipeline language for querying and reshaping DHIS2 data. A program reads as a source
 feeding a chain of stages, optionally ending in a sink:
 
-```
+```d2ql
 dataElements
   | where domainType = "AGGREGATE" and name ~ "ANC"
   | select id, name, categoryCombo.name as combo
@@ -76,6 +76,38 @@ from Python via `parse(open(<file>).read())`.
       window, `orgUnit` **or** `orgUnitGroup` with optional `children: true` for its subtree,
       `includeDeleted: true`, `lastUpdated` (modified-since date/duration), and `limit`.
 
+### Reading from a file with `read(...)`
+
+`read("path")` reads rows from a local **JSON** or **NDJSON** file and feeds them into the pipeline
+like any other source — no profile or network needed. A top-level JSON array becomes one row per
+element; a single JSON object becomes a single row; an `.ndjson` file becomes one row per line. Once
+the rows are in, every stage works exactly as it does over a resource:
+
+```d2ql
+read("patients.json") | where age >= 18 | select id, age | order age desc
+```
+
+```d2ql
+read("observations.ndjson") | group by code { total: sum(value), n: count() } | order total desc
+```
+
+The natural companion to a `>>` file sink is a **capture-then-reread** workflow: run an expensive
+query once into a file, then iterate locally over the snapshot without hitting DHIS2 again. Produce
+the snapshot:
+
+```d2ql
+dataElements | where domainType = "AGGREGATE" | select id, name, valueType >> "aggregates.ndjson"
+```
+
+then re-read it as many times as you like — profiling, filtering, reshaping — all offline:
+
+```d2ql
+read("aggregates.ndjson") | where valueType = "NUMBER" | count
+```
+
+`read(...)` is a trusted-surface feature: the CLI allows it, but MCP tools reject `read(...)` sources
+and `>>` file sinks so a caller cannot reach arbitrary host files through a query.
+
 ## Stages
 
 | Stage | Purpose |
@@ -96,7 +128,7 @@ emits one object per group: the group key (named like a `select` column) plus ea
 Aggregation expressions are evaluated against the group's rows, so `sum(value)` gathers `value`
 across the group. Works over any source — metadata, analytics, or data values:
 
-```
+```d2ql
 analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")
   | where value > 1000
   | group by dx { total: sum(value), periods: count() }
@@ -110,7 +142,7 @@ an envelope like a FHIR `Bundle` or a GeoJSON `FeatureCollection`. The template 
 the entire stream in focus: `$rows` is the rows as a list, and `select(...)` / aggregate functions
 see all rows. Pair it with `define function`s to keep the per-item shape readable:
 
-```
+```d2ql
 define function observation(de): { resourceType: "Observation", status: "final",
                                     code: { coding: [ { system: "dhis2", code: $de.id, display: $de.name } ] } }
 
@@ -129,7 +161,7 @@ evaluates to one, e.g. a `define function` call `transform feature($this)`. Nest
 and computed values are all allowed. It depends on nothing FHIR-specific, but it is exactly what you
 use to emit FHIR-shaped output:
 
-```
+```d2ql
 dataElements
   | where domainType = "AGGREGATE"
   | transform {
@@ -169,7 +201,7 @@ sink.
 A program may begin with `define`s, making a `.d2ql` file a reusable library. Reference a scalar
 definition or a function parameter with the `$` sigil.
 
-```
+```d2ql
 define MinLevel: 3
 define function isAnc(de): $de.name ~ "ANC"
 define Aggregates: dataElements | where domainType = "AGGREGATE"
@@ -183,6 +215,52 @@ Aggregates
 - `define NAME: <expression>` — a scalar value; reference it as `$NAME`.
 - `define function NAME(params): <expression>` — a reusable function; parameters are read as
   `$param` inside the body. `$this` is the current row inside `where`/`select`/`transform`.
+
+### A library file and `--define`
+
+Collect several definitions in one `.d2ql` file and it becomes a small library. Save this as
+`immunisation.d2ql`:
+
+```d2ql
+// immunisation.d2ql — reusable named queries over the data dictionary
+define MinLevel: 2
+define function isAnc(de): $de.name ~ "ANC"
+define function isImmunisation(de): $de.name ~ "BCG" or $de.name ~ "measles" or $de.name ~ "Penta"
+
+define AncElements:
+  dataElements
+    | where isAnc($this) and level >= $MinLevel
+    | select id, name
+
+define ImmunisationElements:
+  dataElements
+    | where isImmunisation($this)
+    | select id, name
+
+ImmunisationElements | order name asc | limit 10
+```
+
+Running the file executes its **terminal** pipeline (the last, unnamed one):
+
+```bash
+d2w query run immunisation.d2ql                       # runs `ImmunisationElements | order name asc | limit 10`
+```
+
+Point `--define/-d` at any named query to run *that* one instead of the terminal — the rest of the
+library (its scalars and functions) is still in scope:
+
+```bash
+d2w query run immunisation.d2ql --define AncElements  # runs the AncElements query
+```
+
+`--define` works on `eval`/`explain` too, and a file with no terminal pipeline is a pure library you
+*must* address with `--define`. The same file is loadable inline with `--file/-f` on `eval`,
+`explain`, and `ast` (equivalent to `run` for `eval`):
+
+```bash
+d2w query eval --file immunisation.d2ql --define AncElements
+d2w query explain -f immunisation.d2ql --define ImmunisationElements
+```
 
 ## Pushdown — what runs where
 
@@ -203,9 +281,28 @@ local stages: transform
 A predicate the server cannot express (for example `where name.substring(0, 3) = "ANC"`) simply
 stays local — the result is identical, only the work moves.
 
+### `count` uses the native total
+
+When a pipeline is a resource with a leading run of pushable `where` filters ending in a bare
+`count` — so the only thing left to do locally *is* the count — the engine asks DHIS2 for its pager
+total and returns that number **without fetching a single row**. `count` never compiles into the
+native filter/order/paging block, so `explain` still lists it under local stages:
+
+```text
+$ d2w query explain 'dataElements | where domainType = "AGGREGATE" | count'
+source: dataElements (resource)
+pushed down: filter[AND] domainType:eq:AGGREGATE
+             order (none); skip None; limit None
+local stages: count
+```
+
+The fast-path applies only when every stage before `count` pushed down; add a stage that can't
+(`transform`, a function predicate) and `count` falls back to counting the fetched rows. Either way
+`count` yields a scalar (e.g. `621`), not a one-row list.
+
 One predicate is not just local but meaningless: `where field = null`. A missing or null field is the
 empty collection, so `= null` matches nothing and is never pushed. Use `where field.exists()` /
-`where field.empty()` to test presence and absence — see [d2path](d2path.md#presence-and-absence-there-is-no--null).
+`where field.empty()` to test presence and absence — see [d2path](d2path.md#presence-and-absence-there-is-no-null).
 
 ## See also
 

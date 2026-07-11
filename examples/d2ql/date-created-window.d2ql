@@ -1,0 +1,7 @@
+// A created-date window with two `@`-date literals AND'd together — both clauses push down as
+// native `created:ge:` / `created:le:` filters.
+dataElements
+  | where created >= @2020-01-01 and created <= @2024-12-31
+  | select id, name, created
+  | order created asc
+  | limit 25

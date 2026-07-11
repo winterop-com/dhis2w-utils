@@ -109,18 +109,21 @@ def push_command(
     ] = None,
 ) -> None:
     """Bulk push data values from a JSON file."""
+    from dhis2w_client.v41 import DataValue
+
     from dhis2w_core.v41.plugins.aggregate import service
 
     loaded: Any = json.loads(file.read_text(encoding="utf-8"))
     if isinstance(loaded, list):
-        data_values = loaded
+        raw_rows = loaded
     elif isinstance(loaded, dict) and isinstance(loaded.get("dataValues"), list):
-        data_values = loaded["dataValues"]
+        raw_rows = loaded["dataValues"]
         data_set = data_set or loaded.get("dataSet")
         period = period or loaded.get("period")
         org_unit = org_unit or loaded.get("orgUnit")
     else:
         raise typer.BadParameter("file must contain a dataValues array or an envelope with dataValues[]")
+    data_values = [DataValue.model_validate(row) for row in raw_rows]
 
     response = asyncio.run(
         service.push_data_values(

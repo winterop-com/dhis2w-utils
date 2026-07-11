@@ -3128,7 +3128,7 @@ $ d2w metadata [OPTIONS] COMMAND [ARGS]...
 * `patch`: Apply an RFC 6902 JSON Patch to a metadata...
 * `rename`: Bulk-rename metadata objects by RFC 6902...
 * `retag`: Bulk-rewrite ref / enum fields on metadata...
-* `share`: Apply one sharing block across many UIDs...
+* `share`: Merge a sharing change across many UIDs of...
 * `diff`: Compare two metadata bundles (or one...
 * `diff-profiles`: Diff a metadata slice between two...
 * `merge`: Export resources from one profile and...
@@ -3436,12 +3436,12 @@ $ d2w metadata rename [OPTIONS] RESOURCE
 * `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.
 * `--name-prefix TEXT`: Prefix each matched object&#x27;s `name` (idempotent).
 * `--name-suffix TEXT`: Suffix each matched object&#x27;s `name` (idempotent).
-* `--name-strip-prefix TEXT`: Remove this prefix from each matched object&#x27;s `name` (idempotent; no-op when absent).
-* `--name-strip-suffix TEXT`: Remove this suffix from each matched object&#x27;s `name` (idempotent; no-op when absent).
+* `--name-strip-prefix TEXT`: Remove this non-empty prefix from each matched object&#x27;s `name` (idempotent; no-op when absent).
+* `--name-strip-suffix TEXT`: Remove this non-empty suffix from each matched object&#x27;s `name` (idempotent; no-op when absent).
 * `--short-name-prefix TEXT`: Prefix each matched object&#x27;s `shortName` (idempotent).
 * `--short-name-suffix TEXT`: Suffix each matched object&#x27;s `shortName` (idempotent).
-* `--short-name-strip-prefix TEXT`: Remove this prefix from each matched object&#x27;s `shortName` (idempotent).
-* `--short-name-strip-suffix TEXT`: Remove this suffix from each matched object&#x27;s `shortName` (idempotent).
+* `--short-name-strip-prefix TEXT`: Remove this non-empty prefix from each matched object&#x27;s `shortName` (idempotent).
+* `--short-name-strip-suffix TEXT`: Remove this non-empty suffix from each matched object&#x27;s `shortName` (idempotent).
 * `--set-description TEXT`: Replace every matched object&#x27;s `description` with this string.
 * `--concurrency INTEGER`: Max concurrent PATCH requests (default 8).  [default: 8]
 * `--dry-run`: Preview the planned patches without sending them.
@@ -3490,15 +3490,17 @@ $ d2w metadata retag [OPTIONS] RESOURCE
 
 ### `d2w metadata share`
 
-Apply one sharing block across many UIDs of one resource.
+Merge a sharing change across many UIDs of one resource.
 
-Fans out concurrent `POST /api/sharing?type=&lt;resource_type&gt;&amp;id=&lt;uid&gt;`
-requests via the shared `client.metadata.apply_sharing_bulk` primitive.
+Read-merge-write: each UID&#x27;s current sharing block is fetched first,
+the new grants are merged into the existing ones (existing grants are
+preserved; a grant for an already-granted UID replaces its access
+string), and `--public-access` only changes `publicAccess` when given.
 Per-UID failures render through the same row table used by
 `metadata rename` instead of raising.
 
-Use `--dry-run` to preview the planned grants, then drop the flag to
-apply. UIDs come from positional args or stdin (`-`); pipe from
+Use `--dry-run` to preview the merged sharing per UID, then drop the
+flag to apply. UIDs come from positional args or stdin (`-`); pipe from
 `d2w --json metadata list ... | jq -r &#x27;.[].id&#x27;` to filter-then-share without
 leaving the shell.
 
@@ -3515,7 +3517,7 @@ $ d2w metadata share [OPTIONS] RESOURCE_TYPE [UIDS]...
 
 **Options**:
 
-* `--public-access TEXT`: Replace the public-access string. 8-char DHIS2 pattern (`rwrw----`, `r-------`, `--------`). Defaults to `r-------` if omitted and at least one grant is supplied.
+* `--public-access TEXT`: Replace the public-access string. 8-char DHIS2 pattern (`rwrw----`, `r-------`, `--------`). Omit to keep each object&#x27;s current public access unchanged.
 * `--user-access TEXT`: Repeatable; grant a user access in `UID:access` form (e.g. `U_ALICE:rw------`).
 * `--user-group-access TEXT`: Repeatable; grant a user-group access in `UID:access` form.
 * `--concurrency INTEGER`: Max concurrent POSTs (default 8).  [default: 8]
@@ -3652,7 +3654,7 @@ $ d2w metadata merge-bundle [OPTIONS] TARGET_PROFILE BUNDLE
 
 **Options**:
 
-* `-r, --resource TEXT`: Resource type to include in the count summary (e.g. dataElements). Repeatable. Optional — when omitted, every resource section in the bundle is reported.
+* `-r, --resource TEXT`: Resource type to import from the bundle (e.g. dataElements). Repeatable. The bundle is filtered to these collections before the POST, so the count summary reports exactly what was written. Optional — when omitted, the whole bundle is imported.
 * `--strategy TEXT`: Import strategy — CREATE / UPDATE / CREATE_AND_UPDATE / DELETE (default: CREATE_AND_UPDATE).  [default: CREATE_AND_UPDATE]
 * `--atomic TEXT`: atomicMode — ALL / NONE (default: ALL; one broken object aborts the whole import).  [default: ALL]
 * `--include-sharing / --skip-sharing`: Carry sharing blocks across. OFF by default — different instances typically have different user / group UIDs and sharing imports fail with false-positive conflicts.  [default: skip-sharing]
@@ -8500,8 +8502,8 @@ $ d2w profile default [OPTIONS] [NAME]
 Add (or upsert) a profile.
 
 Secrets are never accepted as command-line flags (they&#x27;d leak into shell history).
-Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`) or
-prompted interactively when missing.
+Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`,
+`DHIS2_SESSION_COOKIE`) or prompted interactively when missing.
 
 **Usage**:
 
@@ -8516,7 +8518,7 @@ $ d2w profile add [OPTIONS] NAME
 **Options**:
 
 * `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--auth TEXT`: pat | basic | oauth2  [default: pat]
+* `--auth TEXT`: pat | basic | oauth2 | session  [default: pat]
 * `--username TEXT`: Basic-auth username.
 * `--client-id TEXT`: OAuth2 client_id.
 * `--scope TEXT`: OAuth2 scope (DHIS2 only recognises `ALL`).  [default: ALL]

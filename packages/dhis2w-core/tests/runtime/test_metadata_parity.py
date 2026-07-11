@@ -243,9 +243,16 @@ async def test_metadata_bulk_share_parity(
     mock_system_info: Callable[..., None],
     plugin_service: Callable[[str], ModuleType],
 ) -> None:
-    """`bulk_share_metadata` posts a `/api/sharing` grant per UID, on every version tree."""
+    """`bulk_share_metadata` reads then posts a merged `/api/sharing` block per UID, on every version tree."""
     mock_system_info(core_version)
     service = plugin_service("metadata")
+    for uid in ("DS_A", "DS_B"):
+        respx.get(f"{_HOST}/api/sharing", params={"type": "dataSet", "id": uid}).mock(
+            return_value=httpx.Response(
+                200,
+                json={"object": {"id": uid, "publicAccess": "--------", "externalAccess": False}},
+            ),
+        )
     route = respx.post(f"{_HOST}/api/sharing").mock(return_value=httpx.Response(200, json={}))
 
     result = await service.bulk_share_metadata(

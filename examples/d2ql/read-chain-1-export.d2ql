@@ -1,0 +1,8 @@
+// Step 1 of a two-step chain: read the org-unit fixture, roll each district's child count,
+// and write newline-delimited JSON to a scratch file. Step 2 (`read-chain-2-reshape.d2ql`)
+// reads that file back for further shaping. Run this first.
+read("examples/d2ql/data/orgunits.json")
+  | where level = 2
+  | transform { id: id, name: name, districts: children.count() }
+  | order name asc
+  >> "/tmp/d2ql-districts.ndjson"

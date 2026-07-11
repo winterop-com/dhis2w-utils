@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from dhis2w_client.v42 import DataValueSet, WebMessageResponse
+from dhis2w_client.v42 import DataValue, DataValueSet, WebMessageResponse
 
 from dhis2w_core.profile import Profile
 from dhis2w_core.v42.client_context import open_client
@@ -70,7 +70,7 @@ async def get_data_values(
 
 async def push_data_values(
     profile: Profile,
-    data_values: list[dict[str, Any]],
+    data_values: list[DataValue],
     *,
     data_set: str | None = None,
     period: str | None = None,
@@ -79,13 +79,15 @@ async def push_data_values(
     preheat_cache: bool = True,
     import_strategy: str | None = None,
 ) -> WebMessageResponse:
-    """Bulk push data values via POST /api/dataValueSets.
+    """Bulk push typed `DataValue` rows via POST /api/dataValueSets.
 
     `import_strategy` can be CREATE, UPDATE, CREATE_AND_UPDATE, DELETE (DHIS2 defaults
     to CREATE_AND_UPDATE). `dry_run=True` validates without writing. Use
     `response.import_count()` to get the typed ImportCount counters.
     """
-    body: dict[str, Any] = {"dataValues": data_values}
+    body: dict[str, Any] = {
+        "dataValues": [row.model_dump(by_alias=True, exclude_none=True, mode="json") for row in data_values]
+    }
     if data_set is not None:
         body["dataSet"] = data_set
     if period is not None:
@@ -168,7 +170,7 @@ async def set_data_value_followup(
 
     DHIS2 returns an empty 200; a non-2xx raises. Returns a small typed summary. The body is built
     as a dict at the HTTP boundary rather than via the generated `DataValueFollowUpRequest`, whose
-    v43 schema types `period` as an object the live wire doesn't require (BUGS.md #46).
+    v43 schema types `period` as an object the live wire doesn't require (BUGS.md #49).
     """
     body: dict[str, Any] = {
         "dataElement": data_element,

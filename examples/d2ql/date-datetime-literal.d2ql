@@ -1,0 +1,7 @@
+// A datetime literal (`@2024-01-01T00:00:00`, note the time part) against a `lastUpdated`-shaped
+// field. Over a local `read(...)` file this compares as ISO strings, so newer rows pass the filter.
+// (Against DHIS2 metadata a datetime literal with `:` stays local rather than pushing down.)
+read("examples/d2ql/data/facilities.ndjson")
+  | where lastUpdated >= @2024-01-01T00:00:00
+  | select name, lastUpdated
+  | order lastUpdated asc

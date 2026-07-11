@@ -18,7 +18,14 @@ from dhis2w_browser.maps import (
 )
 from dhis2w_browser.oauth2 import OAuth2LoginResult, drive_login_form, drive_oauth2_login
 from dhis2w_browser.pat import PatAttribute, PatOptions, PatPayload, create_pat
-from dhis2w_browser.session import logged_in_page, resolve_headless, session_from_cookie
+from dhis2w_browser.session import (
+    CookiePair,
+    logged_in_page,
+    parse_cookie_header,
+    resolve_headless,
+    session_from_cookie,
+    session_from_cookie_header,
+)
 from dhis2w_browser.visualization import (
     VisualizationCaptureResult,
     VisualizationTarget,
@@ -29,6 +36,7 @@ from dhis2w_browser.visualization import (
 
 __all__ = [
     "CaptureResult",
+    "CookiePair",
     "DashboardTarget",
     "MapCaptureResult",
     "MapTarget",
@@ -48,8 +56,10 @@ __all__ = [
     "drive_login_form",
     "drive_oauth2_login",
     "logged_in_page",
+    "parse_cookie_header",
     "resolve_headless",
     "session_from_cookie",
+    "session_from_cookie_header",
     "slugify",
     "slugify_map",
     "slugify_viz",

@@ -78,6 +78,32 @@ async def test_top_level_client_against_v41_dispatches_to_v41_accessors() -> Non
 
 
 @respx.mock
+async def test_connect_primes_system_cache_with_bound_tree_model() -> None:
+    """After a rebind to v43, the primed system-info cache holds v43's SystemInfo, not the v42 baseline's."""
+    _mock_redirect_probe()
+    info_route = respx.get("https://dhis2.example/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": "2.43.0"})
+    )
+    async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
+        info = await client.system.info()
+    assert info_route.call_count == 1  # connect's fetch primed the cache; info() was a free read
+    assert type(info).__module__.startswith("dhis2w_client.generated.v43")
+
+
+@respx.mock
+async def test_connect_primes_system_cache_with_v41_tree_model() -> None:
+    """Same priming guarantee for a v41 rebind."""
+    _mock_redirect_probe()
+    info_route = respx.get("https://dhis2.example/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": "2.41.0"})
+    )
+    async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
+        info = await client.system.info()
+    assert info_route.call_count == 1
+    assert type(info).__module__.startswith("dhis2w_client.generated.v41")
+
+
+@respx.mock
 async def test_v43_client_class_against_v42_server_raises() -> None:
     """Direct use of `dhis2w_client.v43.client.Dhis2Client` against a v42 server is a hard error."""
     from dhis2w_client.v43.client import Dhis2Client as V43Client

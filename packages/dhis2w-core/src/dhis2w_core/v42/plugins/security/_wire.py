@@ -1,7 +1,7 @@
 """Version-specific wire extraction for the v42 security plugin (2FA + last login + route auth + tokens).
 
 v42 removed every admin-readable per-user 2FA field from the User resource
-(BUGS.md #47); 2FA enrolment is read via the superuser-only
+(BUGS.md #58); 2FA enrolment is read via the superuser-only
 `/api/users/twoFactor` audit endpoints instead, so it is not requested here.
 
 The generated v42 `ApiToken` carries `type` as the `ApiTokenType` enum and `createdBy` as a `UserDto`

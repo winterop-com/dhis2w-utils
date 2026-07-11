@@ -54,8 +54,14 @@ class KeywordRanker:
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
-    """Cosine similarity of two equal-length vectors (0.0 if either is degenerate)."""
-    dot = sum(x * y for x, y in zip(a, b, strict=False))
+    """Cosine similarity of two equal-length vectors (0.0 if either is degenerate).
+
+    Raises `ValueError` on a dimension mismatch — truncating one vector would silently
+    corrupt every similarity score.
+    """
+    if len(a) != len(b):
+        raise ValueError(f"embedding dimension mismatch: {len(a)} != {len(b)}")
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
     norm = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
     return dot / norm if norm else 0.0
 
@@ -70,12 +76,21 @@ class EmbeddingRanker:
         self._vectors: dict[str, list[float]] = {}
 
     async def prepare(self, entries: list[ToolEntry]) -> None:
-        """Embed every tool's `name + description` once and cache the vectors by tool name."""
+        """Embed every tool's `name + description` once and cache the vectors by tool name.
+
+        Raises `RuntimeError` when the endpoint returns a different number of vectors than
+        inputs — pairing them up anyway would silently drop tools from every search.
+        """
         if not entries:
             return
         texts = [f"{entry.name} {entry.description}" for entry in entries]
         vectors = await self._embed(texts)
-        self._vectors = {entry.name: vector for entry, vector in zip(entries, vectors, strict=False)}
+        if len(vectors) != len(entries):
+            raise RuntimeError(
+                f"embeddings endpoint returned {len(vectors)} vectors for {len(entries)} inputs "
+                f"(url={self._url!r}, model={self._model!r})"
+            )
+        self._vectors = {entry.name: vector for entry, vector in zip(entries, vectors, strict=True)}
 
     async def rank(self, query: str, entries: list[ToolEntry], limit: int) -> list[ToolEntry]:
         """Rank permitted entries by cosine similarity to the embedded query; empty query lists alphabetically."""

@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from dhis2w_client.errors import Dhis2ClientError
-from dhis2w_client.v42 import BasicAuth, Dhis2, Dhis2Client, PatAuth
+from dhis2w_client.v42 import BasicAuth, Dhis2, Dhis2Client, PatAuth, SessionCookieAuth
 from dhis2w_client.v42.auth.base import AuthProvider
 from dhis2w_client.v42.auth.oauth2 import DEFAULT_REDIRECT_URI, OAuth2Auth
 from pydantic import BaseModel, ConfigDict
@@ -17,6 +17,7 @@ from dhis2w_core.profile import (
     Profile,
     ProfileAlreadyExistsError,
     ProfileSource,
+    ResolvedProfile,
     UnknownProfileError,
     find_project_profiles_file,
     global_profiles_path,
@@ -111,7 +112,7 @@ class VerifyResult(BaseModel):
 async def verify_profile(name: str, *, start: Path | None = None) -> VerifyResult:
     """Verify a single profile by calling /api/system/info and /api/me."""
     resolved = resolve(name, start=start)
-    return await _verify_one(resolved.name, resolved.profile)
+    return await _verify_one(resolved)
 
 
 async def verify_all_profiles(*, start: Path | None = None) -> list[VerifyResult]:
@@ -119,14 +120,26 @@ async def verify_all_profiles(*, start: Path | None = None) -> list[VerifyResult
     catalog = load_catalog(start=start)
     results: list[VerifyResult] = []
     for name in sorted(catalog.merged):
-        profile = catalog.merged[name].profile
-        results.append(await _verify_one(name, profile))
+        entry = catalog.merged[name]
+        resolved = ResolvedProfile(name=name, profile=entry.profile, source=entry.source, source_path=entry.source_path)
+        try:
+            result = await _verify_one(resolved)
+        except Exception as exc:  # noqa: BLE001 — one broken profile must not abort the sweep
+            result = VerifyResult(
+                name=name,
+                ok=False,
+                base_url=entry.profile.base_url,
+                auth=entry.profile.auth,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        results.append(result)
     return results
 
 
-async def _verify_one(name: str, profile: Profile) -> VerifyResult:
-    """Build a client for the profile, probe /api/system/info + /api/me, report."""
-    resolved = resolve(name)
+async def _verify_one(resolved: ResolvedProfile) -> VerifyResult:
+    """Build a client for the resolved profile, probe /api/system/info + /api/me, report."""
+    name = resolved.name
+    profile = resolved.profile
     if profile.auth == "oauth2":
         preflight_error = await check_oauth2_server(profile.base_url)
         if preflight_error is not None:
@@ -162,12 +175,7 @@ async def _verify_one(name: str, profile: Profile) -> VerifyResult:
             ok=False,
             base_url=profile.base_url,
             auth=profile.auth,
-            error=(
-                "oauth2 profile has no cached tokens — run `d2w profile login "
-                f"{name}` first to complete the browser flow"
-                if profile.auth == "oauth2"
-                else f"verification does not yet support auth type {profile.auth!r}"
-            ),
+            error=_probe_unavailable_reason(profile, name),
         )
     start = time.perf_counter()
     try:
@@ -213,6 +221,8 @@ def _build_probe_auth(
         return PatAuth(token=profile.token)
     if profile.auth == "basic" and profile.username and profile.password:
         return BasicAuth(username=profile.username, password=profile.password)
+    if profile.auth == "session" and profile.cookie:
+        return SessionCookieAuth(cookie=profile.cookie)
     if profile.auth == "oauth2":
         if not (profile.client_id and profile.client_secret and profile.scope and profile.redirect_uri):
             return None
@@ -234,6 +244,31 @@ def _build_probe_auth(
             redirect_capturer=_probe_capturer,
         )
     return None
+
+
+def _missing_material_error(profile: Profile, name: str) -> str | None:
+    """Return a remedy-pointing error when a known auth kind lacks its secret, else None."""
+    if profile.auth == "pat" and not profile.token:
+        return f"profile has no token; re-run `d2w profile add {name} --auth pat` to bind a personal access token"
+    if profile.auth == "basic" and not (profile.username and profile.password):
+        return (
+            f"profile has no username/password; re-run `d2w profile add {name} --auth basic` to bind Basic credentials"
+        )
+    if profile.auth == "session" and not profile.cookie:
+        return f"profile has no cookie; re-run `d2w profile add {name} --auth session` to bind a fresh session cookie"
+    return None
+
+
+def _probe_unavailable_reason(profile: Profile, name: str) -> str:
+    """Explain why a profile can't be probed: missing material, uncached oauth2, or an unknown kind."""
+    missing = _missing_material_error(profile, name)
+    if missing is not None:
+        return missing
+    if profile.auth == "oauth2":
+        return (
+            f"oauth2 profile has no cached tokens — run `d2w profile login {name}` first to complete the browser flow"
+        )
+    return f"verification does not yet support auth type {profile.auth!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +337,9 @@ def remove_profile(name: str, *, scope: str | None = None, start: Path | None = 
     origin_path = catalog.merged[name].source_path
     target = _resolve_target_path(scope, start=start) if scope else origin_path
     if target is None:
-        raise NoProfileError("cannot remove from project scope — no project profiles.toml exists")
+        raise NoProfileError(
+            f"cannot remove {name!r} — it has no source file (env-raw profiles are derived from environment variables)"
+        )
     data = load_profiles_file(target)
     if name not in data.profiles:
         raise UnknownProfileError(f"profile {name!r} is not in {target}")
@@ -390,6 +427,7 @@ def show_profile(name: str, *, include_secrets: bool = False, start: Path | None
                 "token": "***" if profile.token else None,
                 "password": "***" if profile.password else None,
                 "client_secret": "***" if profile.client_secret else None,
+                "cookie": "***" if profile.cookie else None,
             }
         )
     return ProfileView(

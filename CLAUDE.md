@@ -14,7 +14,7 @@ These reshape every decision. Re-read them when in doubt.
 2. **DHIS2 v41 / v42 / v43 supported via per-version subpackages.** Each major has its own hand-written tree under `dhis2w_client.v{41,42,43}` + `dhis2w_core.v{41,42,43}.plugins.*`; the client auto-detects via `/api/system/info` on connect and binds the matching tree (v42 is the canonical baseline). No compatibility shims for DHIS2 versions older than v41.
 3. **Auth is pluggable; ship three kinds of provider: Basic, PAT, OAuth2/OIDC.** `dhis2w-client` defines an `AuthProvider` Protocol. The client never touches auth internals. OAuth2 uses the OAuth 2.1 authorization-code flow with PKCE against `/oauth2/authorize` and `/oauth2/token`. Future providers (service-account JWT, OIDC federation, proxy-injected headers) land as new files in `dhis2w-client/auth/` without touching the client.
 4. **Playwright UI automation is isolated in `dhis2w-browser`.** API-only installs must not pull Chromium. The screenshot plugin is the first consumer; future UI-update plugins layer on the same helpers.
-5. **`uv` for everything Python, organized as a `uv` workspace.** Seven members under `packages/`: the six publishable ones — `dhis2w-client`, `dhis2w-core`, `dhis2w-cli`, `dhis2w-mcp`, `dhis2w-mcp-bridge`, `dhis2w-browser` — plus the workspace-only `dhis2w-codegen` (not published). Single `uv.lock` at the workspace root, `uv_build` backend. Every member uses the `src/` layout. Shared code lives in a workspace member (never a floating `src/` outside a package). **Never edit `pyproject.toml` deps by hand — use `uv add` / `uv add --dev`.**
+5. **`uv` for everything Python, organized as a `uv` workspace.** Ten members under `packages/`: the seven publishable ones — `dhis2w-client`, `dhis2w-core`, `dhis2w-cli`, `dhis2w-mcp`, `dhis2w-mcp-bridge`, `dhis2w-browser`, `dhis2w-ql` — plus the workspace-only `dhis2w-codegen`, `dhis2w-bench`, and `dhis2w-mcp-router` (not published). Single `uv.lock` at the workspace root, `uv_build` backend. Every member uses the `src/` layout. Shared code lives in a workspace member (never a floating `src/` outside a package). **Never edit `pyproject.toml` deps by hand — use `uv add` / `uv add --dev`.**
 6. **FastAPI for any HTTP service, FastMCP for any MCP service.** No Flask, no bare `http.server`, no hand-rolled stdio loops.
 7. **Pydantic for ALL structured data. No `dict`s. No `@dataclass`es.** Every type that carries domain meaning — DHIS2 resources, service return values, CLI output shapes, MCP tool returns, error bodies, configuration, view-models, command options — is a `pydantic.BaseModel`. DHIS2 resource models (Me, SystemInfo, DataElement, Indicator, …) live in `dhis2w-client/models/` so PyPI users of the client get them. Plugin-internal view-models (reports, job state, summaries) live in the plugin's `models.py`. `Dhis2Client` returns parsed models, not raw dicts.
 
@@ -31,7 +31,7 @@ These reshape every decision. Re-read them when in doubt.
 10. **If any persistent storage is needed, default to SQLAlchemy + SQLite over asyncio** — `sqlalchemy[asyncio]` with `aiosqlite`, typed `Mapped[...]` columns, Alembic for migrations. DB files live beside the active profile (`.dhis2/tokens.sqlite`, `.dhis2/cache.sqlite`). No Postgres, no ORM-free raw SQL, no pickled files.
 11. **Typer for every CLI** — root CLI, plugin sub-apps, anything in `examples/`. No `argparse`, no `click` directly, no `sys.argv` parsing.
 12. **CLI surface is heavily preferred.** New capabilities expose a CLI command first and an MCP tool second, both calling the same `service.py`. Plugins without a `cli.py` need explicit justification; plugins without an `mcp.py` are fine (e.g. `profile` is CLI-only).
-13. **Makefile drives every workflow.** `make install / lint / test / test-slow / coverage / docs / docs-serve / docs-build / migrate / upgrade / downgrade / build / publish-client / clean`. CI calls make targets, not raw commands.
+13. **Makefile drives every workflow.** Core targets: `make install / lint / test / test-slow / coverage / docs / docs-serve / docs-build / build / publish-client / clean`, plus target families for the local DHIS2 stack (`dhis2-*`), codegen (`dhis2-codegen-*`), and model benchmarking (`bench-*`) — `make help` lists them all. CI calls make targets, not raw commands.
 14. **Docs use mkdocs-material.** `mkdocs.yml` mirrors chapkit's. Docs live in `docs/`; build output in `site/` (gitignored). API reference uses `mkdocstrings` to auto-generate from pydantic models and service docstrings.
 15. **Per-version subpackages — every behaviour-changing edit considers v41 / v42 / v43.** Hand-written code in `dhis2w-client` lives under `dhis2w_client.v{41,42,43}.*`; the plugin tree in `dhis2w-core` lives under `dhis2w_core.v{41,42,43}.plugins.*`. The generated trees at `dhis2w_client.generated.v{41,42,43}.*` are already split. **When you add, rename, or remove a public symbol, an example, or a CLI command, you must apply the same edit to all three trees** — sed-sweep, then re-read the diff to confirm. A new file lands in three locations; a fix lands in three locations; a deletion lands in three locations. Tests cover all three; examples come in three flavours (`examples/v41/`, `examples/v42/`, `examples/v43/`). When v41 and v43 diverge from v42 because the wire shape genuinely differs, fold that divergence into the same PR with a BUGS.md entry — don't ship "fixed in v42 only, v43 follow-up later".
 
@@ -41,23 +41,33 @@ Four orthogonal axes of extension — extending one never forces edits to anothe
 
 - **Workspace members** (`packages/`): each shippable unit. New surfaces (a future FastAPI web UI, another SDK) land as new members.
 - **Version subpackages** (`dhis2w_client.v{41,42,43}/`, `dhis2w_core.v{41,42,43}/plugins/`): each DHIS2 major has its own hand-written tree. The three trees start as mechanical copies of v42 (the canonical baseline) and diverge per-file as version-specific behaviour lands.
-- **Plugins** (`dhis2w-core/v{N}/plugins/<name>/`): each DHIS2 domain is a folder with `__init__.py`, `models.py`, `service.py`, `cli.py`, `mcp.py`. Tests live outside the shipped package, grouped per domain at `packages/dhis2w-core/tests/<name>/` (one test tree parametrised over the three version trees — never per-tree test copies). Discovered automatically by iterating `dhis2w_core.v{N}.plugins.*` (today: v42); external plugins register via `importlib.metadata.entry_points(group="dhis2.plugins")`.
+- **Plugins** (`dhis2w-core/v{N}/plugins/<name>/`): each DHIS2 domain is a folder with `__init__.py` and `cli.py` always; `service.py` when the plugin has logic (grouping shells like `data` and `dev` only mount sub-apps); `models.py` when the plugin has view-models (small models may live inline in `service.py`); `mcp.py` optional with justification. Tests live outside the shipped package, grouped per domain at `packages/dhis2w-core/tests/<name>/` (one test tree parametrised over the three version trees — never per-tree test copies). Discovered automatically by iterating `dhis2w_core.v{N}.plugins.*` (today: v42); external plugins register via `importlib.metadata.entry_points(group="dhis2.plugins")`.
 - **Auth providers** (`dhis2w-client/v{N}/auth/`): `AuthProvider` Protocol. Ship Basic, PAT, OAuth2. Add more without touching `client.py`.
 
 Dependency arrows (no cycles):
 
 ```mermaid
 graph LR
+    bench["dhis2w-bench"]
+    bridge["dhis2w-mcp-bridge"]
     cli["dhis2w-cli"]
     mcp["dhis2w-mcp"]
+    router["dhis2w-mcp-router"]
     core["dhis2w-core"]
+    ql["dhis2w-ql"]
     browser["dhis2w-browser"]
+    codegen["dhis2w-codegen"]
     client["dhis2w-client"]
 
     cli --> core
     mcp --> core
+    bridge --> cli
+    bench --> cli
+    bench --> router
     core --> client
+    core --> ql
     browser --> client
+    codegen --> client
     cli -.->|"optional [browser] extra"| browser
     mcp -.->|"optional [browser] extra"| browser
 ```

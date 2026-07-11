@@ -33,6 +33,9 @@ def profiles_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
     monkeypatch.delenv("DHIS2_PROFILE", raising=False)
+    # chdir away from the repo so a developer-local `.dhis2/profiles.toml` cannot
+    # leak in via the cwd walk-up and rebind the CLI to a different version tree.
+    monkeypatch.chdir(tmp_path)
     return path
 
 

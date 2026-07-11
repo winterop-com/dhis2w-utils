@@ -76,6 +76,11 @@ _COMPARISON_OPS = frozenset({"<", "<=", ">", ">="})
 _INFIX_KEYWORDS = frozenset({"and", "or", "xor", "implies", "in", "contains", "is", "div", "mod", "like"})
 _FORMAT_BY_EXT: dict[str, Literal["json", "ndjson", "csv"]] = {"json": "json", "ndjson": "ndjson", "csv": "csv"}
 
+# One nesting level of the expression grammar costs ~11 interpreter frames (the whole precedence
+# chain), so the guard must fire far below CPython's default 1000-frame recursion limit even when
+# the parser is entered from a deep caller stack. 64 levels is far beyond any real query.
+MAX_EXPRESSION_DEPTH = 64
+
 
 def parse(source: str) -> Library:
     """Parse d2ql source text into a `Library` AST."""
@@ -105,6 +110,7 @@ class _Parser:
         """Bind the token stream and reset the cursor."""
         self._tokens = tokens
         self._index = 0
+        self._expression_depth = 0
 
     # ------------------------------------------------------------------ cursor helpers
 
@@ -358,14 +364,29 @@ class _Parser:
 
     def parse_expr(self) -> Expr:
         """Parse a full expression honouring d2ql operator precedence."""
-        return self._parse_implies()
+        self._enter_expression()
+        try:
+            return self._parse_implies()
+        finally:
+            self._expression_depth -= 1
+
+    def _enter_expression(self) -> None:
+        """Count one level of expression nesting, rejecting input beyond `MAX_EXPRESSION_DEPTH`."""
+        self._expression_depth += 1
+        if self._expression_depth > MAX_EXPRESSION_DEPTH:
+            raise self._error(f"expression nesting exceeds {MAX_EXPRESSION_DEPTH} levels")
 
     def _parse_implies(self) -> Expr:
+        """Parse the right-associative `implies` level: `a implies b implies c` is `a implies (b implies c)`."""
         left = self._parse_or()
         if self._at_keyword("implies"):
-            # `implies` is right-associative: `a implies b implies c` is `a implies (b implies c)`.
             self._advance()
-            return BinaryExpr(op="implies", left=left, right=self._parse_implies())
+            self._enter_expression()
+            try:
+                right = self._parse_implies()
+            finally:
+                self._expression_depth -= 1
+            return BinaryExpr(op="implies", left=left, right=right)
         return left
 
     def _parse_or(self) -> Expr:
@@ -415,9 +436,15 @@ class _Parser:
         return left
 
     def _parse_unary(self) -> Expr:
+        """Parse a (possibly chained) unary `-`/`+` prefix, counting each link against the depth limit."""
         if self._at_op("-", "+"):
             op = self._advance().value
-            return UnaryExpr(op=op, operand=self._parse_unary())
+            self._enter_expression()
+            try:
+                operand = self._parse_unary()
+            finally:
+                self._expression_depth -= 1
+            return UnaryExpr(op=op, operand=operand)
         return self._parse_postfix()
 
     def _parse_postfix(self) -> Expr:

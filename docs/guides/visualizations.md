@@ -189,7 +189,7 @@ DHIS2 has no native `/api/visualizations/{uid}.png` endpoint. Two paths to a PNG
 - **`d2w browser viz screenshot <uid>`** — captures one or more saved Visualizations through the DHIS2 Data Visualizer app. Navigates to `/dhis-web-data-visualizer/#/<uid>` in an authenticated Playwright context, waits for the chart (SVG / canvas / table) to render, hides the outer DHIS2 header, and writes a PNG with an info banner (name / type / instance / user / timestamp). Works across LINE / COLUMN / STACKED / PIVOT_TABLE / SINGLE_VALUE — same session drives every capture so you pay the login cost once.
 - **`d2w browser dashboard screenshot`** — captures a whole dashboard in the same way. Use this when the composition of several vizes on one dashboard is what you want to see.
 
-Both require the `[browser]` extra (Chromium via Playwright). Install via `uv add 'dhis2w-cli[browser]'` + `playwright install chromium`.
+Both require the `[browser]` extra (Chromium via Playwright). Install via `uv add 'dhis2w-cli[browser]'` + `playwright install chromium`. The authenticated context comes from the active profile: Basic profiles mint a session via `/api/me`, session profiles inject their stored cookie directly, PAT profiles cannot drive the browser (see [Browser automation](../architecture/browser.md) for the dispatch table).
 
 ```bash
 # One viz.

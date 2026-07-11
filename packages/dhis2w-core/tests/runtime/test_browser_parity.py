@@ -44,3 +44,52 @@ async def test_browser_mint_jsessionid_rejects_pat_parity(
     profile = Profile(base_url="http://localhost:8080", auth="pat", token="d2p_fake")
     with pytest.raises(service.BrowserWorkflowNotSupported, match="PAT"):
         await service.mint_jsessionid(profile)
+
+
+async def test_browser_mint_jsessionid_rejects_session_parity(
+    core_version: str,
+    plugin_service: Callable[[str], ModuleType],
+) -> None:
+    """Session profiles carry their cookie directly — minting is a no-op that raises on every tree."""
+    service = plugin_service("browser")
+    profile = Profile(base_url="http://localhost:8080", auth="session", cookie="JSESSIONID=abc123")
+    with pytest.raises(service.BrowserWorkflowNotSupported, match="no JSESSIONID to mint"):
+        await service.mint_jsessionid(profile)
+
+
+async def test_browser_authenticated_session_empty_cookie_parity(
+    core_version: str,
+    plugin_service: Callable[[str], ModuleType],
+) -> None:
+    """A session profile with no cookie raises a truthful error before any browser launch."""
+    service = plugin_service("browser")
+    profile = Profile(base_url="http://localhost:8080", auth="session")
+    with pytest.raises(service.BrowserWorkflowNotSupported, match="no session cookie"):
+        async with service.authenticated_session(profile) as _:
+            pass
+
+
+async def test_browser_resolve_banner_username_basic_parity(
+    core_version: str,
+    plugin_service: Callable[[str], ModuleType],
+) -> None:
+    """A Basic profile's banner username is its own `username` — no HTTP call, on every tree."""
+    service = plugin_service("browser")
+    profile = Profile(base_url="https://dhis2.example", auth="basic", username="admin", password="district")
+    assert await service.resolve_banner_username(profile) == "admin"
+
+
+@respx.mock
+async def test_browser_resolve_banner_username_session_parity(
+    core_version: str,
+    mock_system_info: Callable[..., None],
+    plugin_service: Callable[[str], ModuleType],
+) -> None:
+    """A session profile (no username) resolves its banner username via /api/me, on every tree."""
+    mock_system_info(core_version)
+    service = plugin_service("browser")
+    respx.get("https://dhis2.example/api/me").mock(
+        return_value=httpx.Response(200, json={"username": "session_user"}),
+    )
+    profile = Profile(base_url="https://dhis2.example", auth="session", cookie="JSESSIONID=abc123")
+    assert await service.resolve_banner_username(profile) == "session_user"

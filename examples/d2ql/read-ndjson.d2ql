@@ -1,0 +1,5 @@
+// `read(...)` on a `.ndjson` file parses one JSON object per line (streaming shape).
+// Everything runs locally over the file rows.
+read("examples/d2ql/data/facilities.ndjson")
+  | select id, name, lastUpdated
+  | order lastUpdated desc

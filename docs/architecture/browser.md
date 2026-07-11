@@ -11,6 +11,7 @@ through its web UI.
 | --- | --- | --- |
 | Library (low-level) | `dhis2w_browser.logged_in_page` | `packages/dhis2w-browser/src/dhis2w_browser/session.py` |
 | Library (low-level) | `dhis2w_browser.session_from_cookie` | `packages/dhis2w-browser/src/dhis2w_browser/session.py` |
+| Library (low-level) | `dhis2w_browser.session_from_cookie_header` + `parse_cookie_header` / `CookiePair` | `packages/dhis2w-browser/src/dhis2w_browser/session.py` |
 | Library (low-level) | `dhis2w_browser.create_pat` | `packages/dhis2w-browser/src/dhis2w_browser/pat.py` |
 | Library (low-level) | `dhis2w_browser.drive_oauth2_login` | `packages/dhis2w-browser/src/dhis2w_browser/oauth2.py` |
 | Service (profile-aware) | `dhis2w_core.v42.plugins.browser.service.authenticated_session` | `packages/dhis2w-core/src/dhis2w_core/v42/plugins/browser/service.py` |
@@ -57,21 +58,25 @@ header doesn't mint a session — PATs are deliberately stateless, so they
 work for one-shot API calls but **cannot** drive the browser. Any workflow
 that navigates into a DHIS2 app needs a session cookie first.
 
-Three ways to get one, each matching a profile auth type:
+Each profile auth type maps to a way of getting one:
 
 | Profile auth | API calls | Browser session available via |
 | --- | --- | --- |
 | **Basic** (username + password) | Yes | Either (a) drive the React login form, or (b) one `GET /api/me` with `Authorization: Basic ...` — DHIS2 mints a `JSESSIONID` in the response `Set-Cookie` and we inject it into `BrowserContext.add_cookies(...)`. Path (b) is faster + fully headless + doesn't depend on login-form selectors. |
+| **Session** (stored cookie) | Yes | The profile already holds the session material: `profile.cookie` is parsed with `parse_cookie_header` (every `name=value` pair, multi-pair values included) and injected directly via `session_from_cookie_header` — no mint, no login form, path (c). |
 | **PAT** | Yes | **Not supported for browser workflows.** PATs don't mint sessions. A browser flow on a PAT profile has to fall back to prompting for a password; the profile itself can't drive it. |
 | **OAuth2 / OIDC** | Yes | Probably path (b) with `Authorization: Bearer <access_token>` — DHIS2 should mint a session the same way it does for Basic, but this is unverified as of today; track in BUGS.md if it doesn't. |
 
-Both paths are implemented:
+All three paths are implemented:
 
 - `dhis2w_browser.logged_in_page(url, user, pass)` — path (a), drives the
   React login form. Use when path (b) isn't available (e.g. Basic API
   auth disabled server-side).
 - `dhis2w_browser.session_from_cookie(url, jsessionid)` — path (b)'s
   browser half, given a pre-minted cookie. Fast + fully headless.
+- `dhis2w_browser.session_from_cookie_header(url, cookie_header)` — path (c),
+  injects every pair of a raw `Cookie` header value (the shape a session
+  profile stores). Fast + fully headless.
 
 ## OAuth2 login via Playwright — `drive_oauth2_login`
 
@@ -92,10 +97,13 @@ receiver — the helper handles both cases.
 
 The profile-aware wrapper `dhis2w_core.v42.plugins.browser.service.authenticated_session(profile)`
 dispatches on auth type: Basic → hit `GET /api/me` with `BasicAuth(...)`,
-grab the `Set-Cookie: JSESSIONID`, call `session_from_cookie`. OIDC
-raises `NotImplementedError` for now (needs a Bearer-to-session smoke
-test). PAT profiles raise `BrowserWorkflowNotSupported` with a message
-pointing users at a Basic profile.
+grab the `Set-Cookie: JSESSIONID`, call `session_from_cookie`. Session →
+inject the profile's stored cookie directly via `session_from_cookie_header`
+(a missing cookie raises `BrowserWorkflowNotSupported` pointing at
+re-running `d2w profile add <name> --auth session`). OIDC raises
+`NotImplementedError` for now (needs a Bearer-to-session smoke test). PAT
+profiles raise `BrowserWorkflowNotSupported` with a message pointing users
+at a Basic profile.
 
 ## `d2w browser pat` vs `d2w profile pat create`
 

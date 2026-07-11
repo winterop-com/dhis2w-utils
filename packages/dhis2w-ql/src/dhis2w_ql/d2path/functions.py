@@ -256,13 +256,33 @@ def _replace(ev: Evaluator, focus: list[Any], args: list[Expr], context: EvalCon
     return [text.replace(pattern, replacement)]
 
 
+MAX_REGEX_PATTERN_LENGTH = 1000
+
+
+def _compile_pattern(name: str, pattern: str) -> re.Pattern[str]:
+    """Compile a user-supplied regex, raising `EvaluationError` for over-long or invalid patterns.
+
+    The length cap bounds the ReDoS surface, but catastrophic backtracking is not fully
+    preventable with the stdlib `re` module.
+    """
+    if len(pattern) > MAX_REGEX_PATTERN_LENGTH:
+        raise EvaluationError(
+            f"{name}() pattern is {len(pattern)} characters long; the limit is {MAX_REGEX_PATTERN_LENGTH}"
+        )
+    try:
+        return re.compile(pattern)
+    except re.error as error:
+        raise EvaluationError(f"{name}() pattern {pattern!r} is not a valid regular expression: {error}") from error
+
+
 @_register("matches")
 def _matches(ev: Evaluator, focus: list[Any], args: list[Expr], context: EvalContext) -> list[Any]:
+    """Test the focus string against a regular expression, compiled once with typed error wrapping."""
     _expect_argc("matches", args, 1)
     text, pattern = _string(focus), _scalar(ev, args[0], focus, context)
     if text is None or not isinstance(pattern, str):
         return []
-    return [re.search(pattern, text) is not None]
+    return [_compile_pattern("matches", pattern).search(text) is not None]
 
 
 @_register("split")

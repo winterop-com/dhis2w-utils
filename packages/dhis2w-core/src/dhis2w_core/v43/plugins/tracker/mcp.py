@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from dhis2w_client.generated.v43.tracker import (
+    TrackerBundle,
     TrackerEnrollment,
     TrackerEvent,
     TrackerRelationship,
@@ -15,6 +16,7 @@ from dhis2w_client.v43 import WebMessageResponse
 
 from dhis2w_core.profile import resolve_profile
 from dhis2w_core.v43.plugins.tracker import service
+from dhis2w_core.v43.plugins.tracker.service import TrackedEntityTypeSummary
 
 
 def register(mcp: Any) -> None:
@@ -71,21 +73,13 @@ def register(mcp: Any) -> None:
         return await service.get_tracked_entity(resolve_profile(profile), uid, program=program, fields=fields)
 
     @mcp.tool()
-    async def data_tracker_type_list(profile: str | None = None) -> list[dict[str, Any]]:
+    async def data_tracker_type_list(profile: str | None = None) -> list[TrackedEntityTypeSummary]:
         """List every TrackedEntityType configured on the connected instance.
 
         Each entry has `id`, `name`, and `description`. Useful for picking the
         right `type` argument before calling `data_tracker_list`.
         """
-        from dhis2w_core.v43.client_context import open_client
-
-        async with open_client(resolve_profile(profile)) as client:
-            response = await client.get_raw(
-                "/api/trackedEntityTypes",
-                params={"fields": "id,name,description", "paging": "false"},
-            )
-        items = response.get("trackedEntityTypes", [])
-        return list(items) if isinstance(items, list) else []
+        return await service.list_tracked_entity_types(resolve_profile(profile))
 
     @mcp.tool()
     async def data_tracker_enrollment_list(
@@ -195,7 +189,7 @@ def register(mcp: Any) -> None:
         """
         return await service.push_tracker(
             resolve_profile(profile),
-            bundle,
+            TrackerBundle.model_validate(bundle),
             import_strategy=import_strategy,
             atomic_mode=atomic_mode,
             dry_run=dry_run,

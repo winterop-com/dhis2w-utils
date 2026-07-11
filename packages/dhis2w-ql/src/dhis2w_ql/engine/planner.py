@@ -59,6 +59,18 @@ _COMPARISON_OPS: dict[str, Literal["eq", "ne", "ilike", "gt", "ge", "lt", "le"]]
     "<=": "le",
 }
 
+# DHIS2's `property:operator:value` filter syntax has no escaping, so a value containing one of its
+# structural characters would render as a broken clause and return silently wrong rows. Predicates
+# with such values are never pushed down; they run locally instead.
+_FILTER_VALUE_METACHARACTERS = (":", ",", "[", "]")
+
+
+def _pushable_value(value: object) -> bool:
+    """Whether a literal renders into a native filter clause without colliding with its syntax."""
+    if isinstance(value, str):
+        return not any(character in value for character in _FILTER_VALUE_METACHARACTERS)
+    return True
+
 
 def plan_pipeline(resource: str, capabilities: SourceCapabilities, stages: list[Stage]) -> QueryPlan:
     """Split `stages` into a `NativeQuery` (pushed down) and a residual list (run locally)."""
@@ -146,6 +158,7 @@ def _compile_predicate(expr: Expr, blocked: frozenset[str]) -> _CompiledClause |
 
 
 def _compile_comparison(expr: Expr, blocked: frozenset[str]) -> NativeFilter | None:
+    """Compile one comparison to a `NativeFilter`, or None when it must stay local."""
     if not isinstance(expr, BinaryExpr):
         return None
     path = _field_path(expr.left)
@@ -153,11 +166,15 @@ def _compile_comparison(expr: Expr, blocked: frozenset[str]) -> NativeFilter | N
         return None
     if expr.op == "in":
         values = _array_literal(expr.right)
-        return NativeFilter(property=path, operator="in", value=values) if values is not None else None
+        if values is None or not all(_pushable_value(member) for member in values):
+            return None
+        return NativeFilter(property=path, operator="in", value=values)
     operator = _COMPARISON_OPS.get(expr.op)
     if operator is None or not isinstance(expr.right, LiteralExpr) or expr.right.literal_type == "null":
         return None
     value = expr.right.value
+    if not _pushable_value(value):
+        return None
     if operator == "ilike" and isinstance(value, str) and ("%" in value or "_" in value):
         # DHIS2 `ilike` treats `%`/`_` as SQL wildcards, but d2path `~` is a literal case-insensitive
         # substring match. Keep this filter local so the pushed and local results agree.

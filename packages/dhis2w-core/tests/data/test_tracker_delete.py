@@ -49,3 +49,9 @@ async def test_delete_tracked_entities_uses_trackedEntity_id_field(basic_profile
     await delete_tracker_objects(basic_profile, kind="trackedEntities", uids=["teI01234567"])
 
     assert json.loads(route.calls.last.request.content) == {"trackedEntities": [{"trackedEntity": "teI01234567"}]}
+
+
+async def test_delete_unknown_kind_raises_usage_error(basic_profile: Profile) -> None:
+    """An unknown `kind` raises a ValueError naming the valid kinds, not a bare KeyError."""
+    with pytest.raises(ValueError, match="expected one of: enrollments, events, trackedEntities"):
+        await delete_tracker_objects(basic_profile, kind="bogus", uids=["evt01234567"])

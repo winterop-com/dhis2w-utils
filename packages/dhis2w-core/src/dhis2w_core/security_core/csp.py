@@ -6,7 +6,7 @@ permissive policy like `default-src *` cannot slip past. The header is parsed in
 sources such as `'unsafe-inline'` are case-insensitive in practice). The grader returns a list
 of human-readable directive failures that the transport reducer aggregates into one MEDIUM
 finding. DHIS2's own default policy is `frame-ancestors 'self';` (a clickjacking-only policy,
-BUGS.md #49), so the content-source rules (script-src/object-src/base-uri) apply only to a
+BUGS.md #60), so the content-source rules (script-src/object-src/base-uri) apply only to a
 policy that actually governs content loading: a frame-only / report-only policy is left ungraded
 on its content directives so a stock instance is never flagged.
 """

@@ -50,6 +50,11 @@ from dhis2w_ql.engine.datasource import CountableSource, ResourceBinder
 from dhis2w_ql.engine.planner import plan_pipeline
 from dhis2w_ql.errors import EvaluationError, SemanticError
 
+# Resolving a `define` that sources another `define` recurses once per link, so a long chain of
+# distinct definitions must be bounded well below the interpreter's recursion limit. 32 levels of
+# chained definitions is far beyond any real library.
+MAX_DEFINE_CHAIN_DEPTH = 32
+
 
 class _StageOutcome(BaseModel):
     """Rows produced by a stage (or stage chain) and whether they are a scalar result."""
@@ -116,6 +121,7 @@ class QueryEngine:
             return None
         if name in self._resolving:
             raise SemanticError(f"recursive definition {name!r}")
+        self._check_define_chain_depth()
         source = define.body.source
         assert isinstance(source, ExprSource)  # guaranteed by _is_scalar_define
         self._resolving.add(name)
@@ -193,6 +199,11 @@ class QueryEngine:
             return [WhereStage(predicate=source.inline_filter), *pipeline.stages]
         return list(pipeline.stages)
 
+    def _check_define_chain_depth(self) -> None:
+        """Reject a definition chain deeper than `MAX_DEFINE_CHAIN_DEPTH` before recursing into it."""
+        if len(self._resolving) >= MAX_DEFINE_CHAIN_DEPTH:
+            raise SemanticError(f"definition chain exceeds {MAX_DEFINE_CHAIN_DEPTH} levels")
+
     async def _resolve_source(self, pipeline: Pipeline, stages: list[Stage]) -> _SourceResolution:
         source = pipeline.source
         if isinstance(source, NameSource):
@@ -206,6 +217,7 @@ class QueryEngine:
                 raise SemanticError(f"unknown source {source.name!r}: not a bound resource or definition")
             if source.name in self._resolving:
                 raise SemanticError(f"recursive definition {source.name!r}")
+            self._check_define_chain_depth()
             self._resolving.add(source.name)
             try:
                 inner = await self._execute(define.body)
@@ -289,6 +301,7 @@ class QueryEngine:
         # Sort keys are per-row field/value expressions; `$index` has no meaning in a comparator and
         # is intentionally fixed to 0 (it would compare equal for every row anyway).
         def comparator(left: Any, right: Any) -> int:
+            """Three-way compare two rows across the stage's sort keys, honouring each key's direction."""
             for key in stage.keys:
                 left_value = collapse(self._per_item(key.expr, left, 0))
                 right_value = collapse(self._per_item(key.expr, right, 0))
@@ -371,8 +384,11 @@ def serialize_rows(rows: list[Any], fmt: Literal["json", "ndjson", "csv"], *, sc
 
 
 def _write_file(sink: FileSink, rows: list[Any], *, scalar: bool = False) -> _WriteOutcome:
+    """Serialize rows to the sink's path, creating missing parent directories on the way."""
     fmt = sink.format or "json"
-    Path(sink.path).write_text(serialize_rows(rows, fmt, scalar=scalar), encoding="utf-8")
+    destination = Path(sink.path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(serialize_rows(rows, fmt, scalar=scalar), encoding="utf-8")
     return _WriteOutcome(path=sink.path, format=fmt)
 
 

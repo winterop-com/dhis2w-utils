@@ -42,6 +42,7 @@ from dhis2w_client.profile import (
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
+    "NO_PROFILE_HINT_LINES",
     "PROFILE_NAME_MAX_LEN",
     "InvalidProfileNameError",
     "MergedProfile",
@@ -65,6 +66,21 @@ __all__ = [
     "validate_profile_name",
     "write_profiles_file",
 ]
+
+
+#: Actionable follow-up steps for `NoProfileError`, shared by every surface that renders it:
+#: the CLI's clean-error hint block and the MCP server's tool-error message both read this, so
+#: the guidance (hard requirement 1: point at `d2w profile add <name>` / `d2w profile bootstrap`)
+#: lives in exactly one place.
+NO_PROFILE_HINT_LINES: tuple[str, ...] = (
+    "run `d2w profile --help` for setup options, or try:",
+    "  d2w profile list                             # see what's configured",
+    "  d2w profile add <name> --scope global \\",
+    "      --url https://dhis2.example.org \\",
+    "      --auth pat --token d2p_... --default",
+    "  d2w profile bootstrap <name>                 # provision a PAT/OAuth2 client + profile in one shot",
+    "  d2w profile verify <name>                    # confirm auth works",
+)
 
 
 class ProfileVersionMismatchError(RuntimeError):

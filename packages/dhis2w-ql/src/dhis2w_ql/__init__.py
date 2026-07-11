@@ -10,6 +10,7 @@
 
 from dhis2w_ql.ast import AggregateStage, CallSource, Define, DefineFunction, FoldStage, Library, Pipeline
 from dhis2w_ql.d2path import EvalContext, Evaluator, Resolver
+from dhis2w_ql.doc_examples import DOC_EXAMPLES, FunctionExample, doc_examples_by_category
 from dhis2w_ql.engine import (
     DataSource,
     InMemoryBinder,
@@ -37,11 +38,14 @@ __all__ = [
     "DEFAULT_SCHEMA",
     "AggregateStage",
     "CallSource",
+    "DOC_EXAMPLES",
     "D2qlError",
     "DataSource",
     "Define",
     "DefineFunction",
     "EvalContext",
+    "FunctionExample",
+    "doc_examples_by_category",
     "EvaluationError",
     "Evaluator",
     "FoldStage",

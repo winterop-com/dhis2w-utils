@@ -24,7 +24,7 @@ Eighteen top-level domains: `analytics`, `apps`, `browser`, `data`, `dev`, `doct
 
 `d2w metadata` has the full workflow surface:
 
-- **Core CRUD**: `list` / `get` / `patch` (RFC 6902) / `rename` (bulk name/shortName/description add + strip prefix/suffix, `--dry-run`) / `retag` (bulk ref-field + enum rewrites: categoryCombo, optionSet, legendSets, aggregationType, domainType) / `share` (bulk apply one sharing block to many UIDs, with `--public-access` / `--user-access UID:access` / `--user-group-access UID:access`, stdin UID input via `-`, `--dry-run`) / `merge-bundle` (import a saved JSON bundle file into a target profile — sibling to the source-profile `merge` verb).
+- **Core CRUD**: `list` / `get` / `patch` (RFC 6902) / `rename` (bulk name/shortName/description add + strip prefix/suffix, `--dry-run`) / `retag` (bulk ref-field + enum rewrites: categoryCombo, optionSet, legendSets, aggregationType, domainType) / `share` (bulk read-merge-write sharing across many UIDs, with `--public-access` / `--user-access UID:access` / `--user-group-access UID:access`, stdin UID input via `-`, `--dry-run`) / `merge-bundle` (import a saved JSON bundle file into a target profile — sibling to the source-profile `merge` verb).
 - **Cross-resource search**: `d2w metadata search <query>` — fans out three concurrent `/api/metadata?filter=<field>:ilike:<q>` calls (`id`, `code`, `name`) and merges by UID. Full UID, partial UID, business code, or name fragment all flow through one verb.
 - **Bundle operations**: `export` / `import` / `diff` (file-vs-file and file-vs-live) with per-resource filters + dangling-reference warning on export; `diff-profiles` for staging-vs-prod drift.
 - **Authoring sub-apps**: `options get / find / sync` for OptionSet sync; `attribute get / set / delete / find` for cross-resource AttributeValue workflows; `program-rule get / vars-for / validate-expression / where-de-is-used`; `sql-view list / get / execute / refresh / adhoc`; `viz list / get / create / clone / delete`; `dashboard list / get / add-item / remove-item`; `map list / get / create / clone / delete`; `legend-sets list / get / create / clone / delete`; four full `X / XGroup / XGroupSet` authoring triples with canonical DHIS2 naming — `organisation-units` / `organisation-unit-groups` / `organisation-unit-group-sets` (plus `organisation-unit-levels` for per-depth rename), `data-elements` / `data-element-groups` / `data-element-group-sets`, `indicators` / `indicator-groups` / `indicator-group-sets`, and `category-options` / `category-option-groups` / `category-option-group-sets`; plus the `program-indicators` + `program-indicator-groups` pair (DHIS2 has no `programIndicatorGroupSet`). Aggregate data-set surface: `data-sets list / get / create / add-element / remove-element / delete` + `sections list / get / create / add-element / remove-element / reorder / delete`. Authoring flip side of maintenance runs: `validation-rules {list,show,create,delete}` + `validation-rule-groups` + `predictors {list,show,create,delete}` + `predictor-groups`. Tracker-schema authoring complete end-to-end: `tracked-entity-attributes` + `tracked-entity-types` (with TETA linkage) + `programs {list,show,create,rename,add-attribute,remove-attribute,add-to-ou,remove-from-ou,delete}` + `program-stages {list,show,create,rename,add-element,remove-element,reorder,delete}`. Category-dimension authoring complete end-to-end: `categories {list,show,create,rename,add-option,remove-option,delete}` + `category-combos {list,show,create,rename,add-category,remove-category,wait-for-cocs,delete,build}` (the `build` verb is the one-pass create-or-reuse helper for the full stack, fed a JSON `CategoryComboBuildSpec`) + read-only `category-option-combos {list,show,list-for-combo}`.
@@ -168,6 +168,66 @@ out of scope until a concrete caller needs them.
 - `Local OIDC` login-page button is non-functional for browser clicks (CLI-only `redirect_url`); no per-provider "hide from login UI" flag in DHIS2 v42 — documented in `docs/architecture/auth.md`.
 - Bearer-to-JSESSIONID path for browser workflows on OIDC profiles is unverified (flagged in `authenticated_session` docstring).
 
+### d2path evaluator: sharp edges surfaced by the example sweep
+
+Writing evaluator-verified examples for every registry function (the d2path-examples catalog) exposed
+three behaviours worth a decision — the examples document actual behaviour, so fixing any of these
+means updating the affected catalog entries in the same PR:
+
+- **Literal negative and computed indices raise.** `scores[-1]` and `scores[1 + 1]` fail with
+  "index must be an integer" because unary minus / arithmetic always produce a float (`-1.0`), which
+  `_eval_index` and `_int_arg` reject — while the bounds check explicitly anticipates negative
+  indices, so the intent was for `[-1]` to work. Fix shape: arithmetic on integer operands should
+  yield an int (or the index/argument checks should accept integral floats). The same coercion breaks
+  `take(-1)`-style arguments.
+- **`union()` / `combine()` arguments evaluate against the navigated focus, not the row root.**
+  `a.union(b)` over `{a: [1,2], b: [2,3]}` yields `[1,2]` (b resolves to `[]` against the int focus),
+  so neither "merge two sibling fields" nor "union with a literal set" works as a naive user expects —
+  and an array-literal argument arrives as one nested element (`a.union([3,4])` appends `[3,4]`
+  whole). Decide whether args should get root/parent scope (likely a spec question) or whether the
+  docs stance (use sub-selections of the same focus) is the intended semantics; either way the
+  cookbook and catalog steer users to working forms today.
+- **Out-of-bounds vs negative index asymmetry.** OOB returns `[]` silently; negative raises — the
+  visible symptom of the float-coercion bug above. Resolves with it.
+- **Singleton-only string functions return `[]` silently over multi-element focus.**
+  `name.upper()` over two rows yields `[]` (the `_string` helper requires a singleton), while
+  `name.select(upper())` maps correctly. Silent-empty is the sharp part — an EvaluationError
+  ("upper() needs a singleton; map with select()") would turn a confusing no-op into a teachable
+  error. The dhis2w-ql README documents the `select(...)` idiom in the meantime.
+
+### Session-cookie auth: follow-ups
+
+The session auth kind (#438) plus its parity pass (browser workflows, verify diagnostics, cookie
+validation, env caveat — #439) leave these open, none blocking:
+
+- **Expired-session verify signal.** The client maps only HTTP 401 to `AuthenticationError`; a DHIS2
+  that answers an expired-cookie `/api/*` request with a 302-to-login surfaces as a confusing
+  `Dhis2ApiError(302)` / empty-body error instead of the 401-flavored failure the kodo panel's expiry
+  detector expects. Needs a live test against a genuinely expired cookie per supported DHIS2 version;
+  if the redirect is real, map redirect-to-login on API calls to an auth-flavored error (and log the
+  server behaviour in `BUGS.md`).
+- **Non-TTY fail-fast for secret prompts.** All four `profile add` secret branches (pat / basic /
+  oauth2 / session) fall into an interactive hidden prompt when the env var is unset or empty; in a
+  non-TTY subprocess that blocks on an open stdin pipe or dies with a generic `Aborted.`. A shared
+  capture helper should fail fast with "set <ENV_VAR> or run interactively" when stdin is not a TTY.
+- **Per-auth-kind descriptor table before the next kind lands.** Adding `session` meant touching five
+  enumerations per tree (provider factory, probe auth, colorize, env export, add branch) and initially
+  missed two more (show masking, browser mint). Consolidate the per-kind knowledge — provider
+  constructor, secret field, env var, prompt label, table color — into one descriptor before a
+  service-account JWT or OIDC-federation kind repeats the scatter. `_build_probe_auth` restating
+  `build_auth_for_basic` folds into the same cleanup.
+- **`dhis2://target` MCP resource on the bridge.** kodo currently gets bound-state/expiry data by
+  polling the `dhis2_cli` tool with `profile verify`; a proper MCP resource is the cleaner long-term
+  shape for "what instance/user am I bound to".
+- **Direct unit test for `pat_registration.register_pat`.** The self-service PAT mint (kodo's primary
+  path) is only exercised indirectly today.
+- **Cookie storage escape hatch.** If rotation frequency ever makes `profiles.toml` rewrites a
+  problem, the sqlite token store's columns already fit (cookie -> access_token, expires_at); recorded
+  as an option, not a plan.
+- **Profile test-tree conftest.** The `TREES` parametrization + `_isolated` env fixture exist as four
+  verbatim copies (and have already drifted on which env vars they strip); promote them to
+  `packages/dhis2w-core/tests/profile/conftest.py`.
+
 ### Metadata listing consolidation
 
 Listing collapsed onto one surface — generic `metadata list <type>` + the `metadata_list` MCP tool (see the 2026-06-04 decisions-log entry). Three follow-ups remain:
@@ -178,7 +238,7 @@ Listing collapsed onto one surface — generic `metadata list <type>` + the `met
 
 ### Small-model bridge: CLI read-surface follow-ups
 
-Surfaced by the `dhis2w-mcp-bridge` gap probes (small local models driving the CLI). Shipped: camelCase discovery + did-you-mean, `type list --json`, `show`→`get` help, the rewritten `dhis2_cli` docstring (incl. `search`/`usage`/field-presets/nested-filters/export-warning + a WRITES primer), single-string-arg tolerance, paging help, `--filter` nested/`in`/`null` help, read-only allowlist for `metadata usage`/`export`, the analytics/tracker/aggregate help-text fills, the tracker `--program` fix, malformed-UID pre-validation on `metadata get` (BUGS #42), relationship mutators + deletes honor `--json`, headless `route create` (`--no-auth` + clean ValidationError), `files documents list --details` (no more filename-as-FR-UID), and `metadata share` accepting the plural type. See `docs/notes/small-model-bridge.md` + `docs/notes/bridge-verification.md`. Remaining:
+Surfaced by the `dhis2w-mcp-bridge` gap probes (small local models driving the CLI). Shipped: camelCase discovery + did-you-mean, `type list --json`, `show`→`get` help, the rewritten `dhis2_cli` docstring (incl. `search`/`usage`/field-presets/nested-filters/export-warning + a WRITES primer), single-string-arg tolerance, paging help, `--filter` nested/`in`/`null` help, read-only allowlist for `metadata usage`/`export`, the analytics/tracker/aggregate help-text fills, the tracker `--program` fix, malformed-UID pre-validation on `metadata get` (BUGS #47), relationship mutators + deletes honor `--json`, headless `route create` (`--no-auth` + clean ValidationError), `files documents list --details` (no more filename-as-FR-UID), and `metadata share` accepting the plural type. See `docs/notes/small-model-bridge.md` + `docs/notes/bridge-verification.md`. Remaining:
 
 - **Removed typed `list` discoverability** — point `metadata <subapp> list`/`show` at `metadata list <type>` / `get` (hidden redirect commands or epilog).
 - ~~**Missing authoring verbs: `optionSets` + `userGroups` `create`/`delete`**~~ Shipped: `metadata option-sets create/delete` + `user-group create/delete` (build the schema, POST via `resources.<accessor>.create`, return a typed WebMessageResponse). v41/v42/v43 + tests + examples.

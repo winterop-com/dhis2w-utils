@@ -13,7 +13,7 @@ Design:
   delete, etc). Caller opts in explicitly when they know the endpoint is
   safe (analytics refresh kick-offs, for instance).
 - A server-provided `Retry-After` header (sent on 429 / 503) overrides the
-  computed backoff for that attempt.
+  computed backoff for that attempt, capped at the policy's `max_delay`.
 - Exponential: `delay = min(max_delay, base_delay * backoff_factor ** (attempt - 1))`
   with a +/- jitter applied before sleeping.
 """
@@ -111,7 +111,13 @@ class _RetryTransport(httpx.AsyncBaseTransport):
                 # Consume body so the underlying stream is free to close, then sleep.
                 await response.aclose()
                 server_hint = _parse_retry_after(response.headers.get("Retry-After"))
-                delay = server_hint if server_hint is not None else self._policy.compute_delay(attempt)
+                if server_hint is not None:
+                    # Honor the server's hint but never sleep past the
+                    # policy's cap — a pathological Retry-After: 86400
+                    # must not wedge the caller for a day.
+                    delay = min(self._policy.max_delay, server_hint)
+                else:
+                    delay = self._policy.compute_delay(attempt)
                 await asyncio.sleep(delay)
                 continue
             return response

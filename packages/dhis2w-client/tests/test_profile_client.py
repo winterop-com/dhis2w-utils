@@ -109,6 +109,28 @@ def test_profile_from_env_raw_picks_up_version(monkeypatch: pytest.MonkeyPatch, 
     assert profile.version == Dhis2.V43
 
 
+def test_profile_from_env_raw_accepts_bare_digit_version(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """DHIS2_VERSION accepts the bare major (`"41"`) as well as the v-prefixed form (`"v41"`)."""
+    _clear_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("DHIS2_URL", "http://localhost:8080")
+    monkeypatch.setenv("DHIS2_PAT", "t")
+    monkeypatch.setenv("DHIS2_VERSION", "41")
+    profile = profile_from_env_raw()
+    assert profile is not None
+    assert profile.version == Dhis2.V41
+
+
+def test_profile_from_env_raw_ignores_malformed_version(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A malformed DHIS2_VERSION resolves to None — open_client falls back to auto-detect."""
+    _clear_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("DHIS2_URL", "http://localhost:8080")
+    monkeypatch.setenv("DHIS2_PAT", "t")
+    monkeypatch.setenv("DHIS2_VERSION", "latest")
+    profile = profile_from_env_raw()
+    assert profile is not None
+    assert profile.version is None
+
+
 def test_validate_profile_name_accepts_valid_names() -> None:
     """Validate profile name accepts valid names."""
     for name in ("local", "prod", "prod_eu", "test42", "Abc123"):

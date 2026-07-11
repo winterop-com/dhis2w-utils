@@ -104,7 +104,7 @@ def _format_profile_name(name: str, is_default: bool, shadowed: bool) -> str:
 
 
 def _colorize_auth(auth: str) -> str:
-    """Color auth kind so basic / pat / oauth2 / oidc stand apart in the table."""
+    """Color auth kind so basic / pat / oauth2 / oidc / session stand apart in the table."""
     upper = auth.lower()
     if upper == "basic":
         return f"[yellow]{auth}[/yellow]"
@@ -112,6 +112,8 @@ def _colorize_auth(auth: str) -> str:
         return f"[cyan]{auth}[/cyan]"
     if upper in ("oauth2", "oidc"):
         return f"[magenta]{auth}[/magenta]"
+    if upper == "session":
+        return f"[blue]{auth}[/blue]"
     return auth
 
 
@@ -250,6 +252,13 @@ def env_command(
         _export_if("DHIS2_PASSWORD", profile.password)
     elif profile.auth == "pat":
         _export_if("DHIS2_PAT", profile.token)
+    elif profile.auth == "session":
+        _export_if("DHIS2_SESSION_COOKIE", profile.cookie)
+        typer.echo(
+            "note: DHIS2_SESSION_COOKIE has no raw-env path; a session profile must exist in "
+            "profiles.toml. The exported DHIS2_PROFILE makes `d2w` use this TOML profile.",
+            err=True,
+        )
     elif profile.auth == "oauth2":
         _export_if("DHIS2_OAUTH_CLIENT_ID", profile.client_id)
         _export_if("DHIS2_OAUTH_CLIENT_SECRET", profile.client_secret)
@@ -375,7 +384,7 @@ def _picker_label(summary: service.ProfileSummary) -> str:
 def add_command(
     name: Annotated[str, typer.Argument()],
     base_url: Annotated[str | None, typer.Option("--url", help="DHIS2 base URL (also: DHIS2_URL env).")] = None,
-    auth: Annotated[str, typer.Option("--auth", help="pat | basic | oauth2")] = "pat",
+    auth: Annotated[str, typer.Option("--auth", help="pat | basic | oauth2 | session")] = "pat",
     username: Annotated[str | None, typer.Option("--username", help="Basic-auth username.")] = None,
     client_id: Annotated[str | None, typer.Option("--client-id", help="OAuth2 client_id.")] = None,
     oauth_scope: Annotated[
@@ -420,8 +429,8 @@ def add_command(
     """Add (or upsert) a profile.
 
     Secrets are never accepted as command-line flags (they'd leak into shell history).
-    Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`) or
-    prompted interactively when missing.
+    Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`,
+    `DHIS2_SESSION_COOKIE`) or prompted interactively when missing.
     """
     from dhis2w_core.v42.plugins.profile import service
 
@@ -458,6 +467,12 @@ def add_command(
             password=password,
             version=pinned_version,
         )
+    elif auth == "session":
+        cookie = (
+            os.environ.get("DHIS2_SESSION_COOKIE")
+            or typer.prompt("Session cookie (e.g. JSESSIONID=...)", hide_input=True)
+        ).strip()
+        profile = Profile(base_url=resolved_url, auth="session", cookie=cookie, version=pinned_version)
     elif auth == "oauth2":
         client_id = client_id or typer.prompt("OAuth2 client_id", default="dhis2-utils-local")
         client_secret = os.environ.get("DHIS2_OAUTH_CLIENT_SECRET") or typer.prompt(
@@ -474,7 +489,7 @@ def add_command(
             version=pinned_version,
         )
     else:
-        raise typer.BadParameter(f"unsupported auth {auth!r}; use pat, basic, or oauth2")
+        raise typer.BadParameter(f"unsupported auth {auth!r}; use pat, basic, oauth2, or session")
     result = service.add_profile(name, profile, scope=scope, make_default=make_default)
     typer.echo(f"profile {name!r} saved to {result.path}")
     if result.shadowed_scope == "global":

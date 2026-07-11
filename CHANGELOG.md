@@ -23,7 +23,7 @@
   new `/api/configuration/corsWhitelist` allowlist entry), email-unconfigured-while-recovery-or-
   verification-on WARN, and a global-2FA-not-enforced INFO note. Both run by default across
   v41/v42/v43. Full PR 8 plan in `SECURITY-POSTURE-EXTRAS-PLAN.md` (8a here; 8b auth-methods/tokens/
-  routes and 8c audit-config to follow). BUGS.md #49 (HSTS behind a proxy, wire-only CSP state) and
+  routes and 8c audit-config to follow). BUGS.md #60 (HSTS behind a proxy, wire-only CSP state) and
   #50 (keyCorsWhitelist removed in v2.31; CORS now only at /api/configuration/corsWhitelist).
 
 - **Sharing explorer design refresh** (2026-06-23). Adopt the updated explorer design: a DHIS2 logo
@@ -73,7 +73,7 @@
   readable SQL views, and public data-read on data-bearing objects MEDIUM. The scan resolves the
   shareable types from `/api/schemas` (data-bearing from `dataShareable`), pages a curated focus set
   of exposure-prone types, and decodes each object's sharing block client-side because no reliable
-  server-side non-default-sharing filter exists (BUGS.md #48); it is capped by `--max-objects` with a
+  server-side non-default-sharing filter exists (BUGS.md #59); it is capped by `--max-objects` with a
   loud truncation note. The findings and the graph are both projections of the one graph, built once.
   Allowlist gains `/api/schemas`, `/api/userGroups`, and the focus-type collections. Across
   v41/v42/v43; the interactive explorer (effective-access closure, viewer bundle) is PR 7b/7c.
@@ -113,7 +113,124 @@
   collapsible groups via a `group_key` on `AuditFinding`; role findings render as separate rows. Plan
   in `DHIS2_Security_Report_Redesign_PLAN.md`.
 
-## 1.0.0.dev1 (in development)
+## 0.99.1 — 2026-07-11 (dhis2w-ql only)
+
+- **A standalone PyPI face for `dhis2w-ql`**: the README leads with the no-DHIS2-required story —
+  install, a verified d2path quickstart over plain JSON, a full pipeline quickstart with
+  `QueryEngine` + `InMemoryBinder`, a collection-semantics primer, and links to the docs site
+  including the 140-example evaluator-verified d2path catalog. The package description drops the
+  FHIRPath framing in line with the language docs (d2path stands on its own semantics). Only
+  `dhis2w-ql` bumps; the sibling packages stay at 0.99.0 and their `>=0.99.0` pins resolve to this
+  release.
+
+## 0.99.0 — 2026-07-11
+
+First tagged release since 0.23.0. Everything below plus the two unpublished snapshot sections
+(1.0.0.dev1, 1.0.0.dev0) ships in this release; 1.0.0 follows once the remaining roadmap items
+under "Session-cookie auth: follow-ups" and the release-blocking checks settle.
+
+### Session-cookie auth (new)
+
+- **A fourth auth kind: `session`.** `Profile` gains `auth = "session"` + a `cookie` field holding the raw
+  `Cookie` header value (name included, e.g. `JSESSIONID=abc123`, so the client stays cookie-name-agnostic),
+  and `SessionCookieAuth` ships in all three `dhis2w_client.v{41,42,43}.auth` trees alongside Basic/PAT/OAuth2.
+  `d2w profile add --auth session` reads the secret from `DHIS2_SESSION_COOKIE` (or a hidden prompt — never
+  argv), `profile env` exports it, and `profile verify` probes session profiles. This is the fallback binding
+  for instances where PAT creation is unavailable (pre-2.38, disabled, or 403 for the user); the driving
+  consumer is the kodo Chrome extension's "use my login" flow, which upserts a session profile from the
+  browser's live DHIS2 session and re-runs the upsert on cookie rotation.
+- **Session profiles drive browser capture workflows** (dashboards, maps, visualizations): the stored
+  Cookie header is parsed pair-by-pair (`parse_cookie_header`) and injected into the Playwright context
+  directly via the new `dhis2w_browser.session_from_cookie_header` — no login form, no mint. Banner
+  usernames for session profiles resolve via `GET /api/me`.
+- **`profile verify` names the missing auth material and its remedy** — a known auth kind with an
+  incomplete profile (session without cookie, pat without token, basic without credentials) reports
+  what is missing and the `d2w profile add` command that re-binds it; "verification does not yet
+  support auth type ..." is reserved for genuinely unknown kinds.
+- **Session cookies are trimmed and validated at capture time**: surrounding whitespace is stripped and
+  values with embedded control characters (newlines, carriage returns, tabs) are rejected with a clear
+  message at profile-add/model-validation time instead of failing later inside httpx. Multi-pair values
+  stay accepted; the design remains cookie-name-agnostic.
+- **`profile env` prints a caveat for session profiles**: `DHIS2_SESSION_COOKIE` has no raw-env path —
+  a session profile must exist in `profiles.toml` (mirrors the oauth2 note).
+
+### d2ql / d2path query language (new)
+
+- **New `dhis2w-ql` workspace member + a `query` plugin across all three version trees.** d2ql is a pipeline
+  query/transform language with an embedded expression core (d2path): tokenizer + recursive-descent parser
+  producing a pydantic AST, a d2path evaluator with collection semantics over dicts or pydantic models, and an
+  engine with source binding, a pushdown planner (where/order/paging compile to native DHIS2 list parameters),
+  a local executor for residual stages, define/define-function resolution, and json/ndjson/csv sinks. CLI
+  (`d2w query eval/run/explain/ast/d2path/repl`) and MCP (`query_eval` / `query_explain` / `query_d2path`)
+  share one service layer; a curated samples catalog and a combinatorial example generator ship alongside (#404).
+- **Language semantics spec**, verified by conformance tests (#409); tutorial, cookbook, and a full d2path
+  reference under a clean QL nav (#406).
+- **Parser + scoping rules:** source-position function calls parse as expressions; duplicate projection
+  columns, recursive / duplicate definitions, and duplicate object keys are rejected; `implies`
+  right-associates; user-defined functions evaluate in caller scope and reject recursion + duplicate
+  parameters; the FHIRPath framing is dropped from docs and errors — d2path stands on its own semantics
+  (#407, #408, #413, #414).
+- **d2path string subscript** (`x["field name"]`) reads fields whose names aren't identifiers (#411).
+- **Pushdown correctness + performance:** `~` filters stay local when the match value carries SQL wildcards
+  (#412); `count` reads the DHIS2 pager total instead of fetching every row (#420); an unreachable catch-all
+  arm in stage dispatch is removed (#410).
+- **Call sources:** `analytics(...)` routes analytics options (`aggregationType`, `outputIdScheme`,
+  `includeNumDen`, `startDate` / `endDate`, ...) to the analytics service instead of treating them as
+  dimensions (#416); `dataValues(...)` threads its full selection through to `get_data_values` (#425).
+- **`--file/-f` on `eval` / `explain` / `ast`**, with a clear pointer at `--file` when a bare file path is
+  passed as an inline program (#415).
+
+### Query REPL (Textual TUI)
+
+- **A Textual TUI REPL** for `d2w query repl`: Enter runs, Shift+Enter / Ctrl+J inserts a newline (#419); the
+  plain REPL accumulates multi-line input until a blank line or `;` (#418).
+- **Collapsible JSON-tree result view** (Ctrl+T) and render-format cycling (Ctrl+F) (#423); format changes
+  surface as a top-right toast instead of a log line (#424).
+- **Sink format decoupled from destination:** `>> stdout as ndjson`, bare `>> csv` shorthand, and
+  `>> "out.txt" as csv` extension override; CLI and REPL render through a shared `serialize_rows` (#422).
+
+### Aggregate
+
+- **Follow-up flag on a data value:** `d2w data aggregate followup --de --pe --ou --on/--off` + the
+  `data_aggregate_followup` MCP tool drive `PUT /api/dataValues/followup` and return a typed
+  `FollowUpResult`; the PUT body is built at the HTTP boundary because the v43 OAS mis-types `period`
+  (BUGS.md #49) (#427).
+- **Read filters:** `get_data_values` exposes `org_unit_group`, `include_deleted`, and `last_updated`
+  (date or duration like `7d`) on every read surface — the d2ql `dataValues(...)` call source, the CLI
+  `get` flags, and the `data_aggregate_get` MCP tool (#426).
+
+### Examples / docs
+
+- **A generated, evaluator-verified d2path example reference** (`docs/query/d2path-examples.md`): a typed
+  catalog of 140 examples covering every registered d2path function plus the operator, literal, and
+  navigation surface — each entry is parsed and evaluated in CI against the real evaluator, and a hard
+  coverage gate fails the suite if a registry function ships without examples. Rendered by
+  `make docs-d2path` (chained into `docs-build`).
+- **Every d2ql / d2path fence in the QL docs is machine-validated**: fenced blocks tagged `d2ql` or
+  `d2path` across the tutorial, references, cookbook, semantics, and index pages are parsed in CI
+  (68 validated fences); pseudo-notation stays on `text` fences.
+- **Guide depth**: date/datetime literal semantics (`@2026-06-23`, ISO-string comparisons — the
+  semantics page previously framed these as future work), `read(...)` file sources with an
+  export-then-reread chain, library files with `--define`/`--file` worked examples, string building
+  (`+` concat vs `join()`), arithmetic (`/` vs `div`, `mod`), existential comparison, the full five-label
+  `is` type test, native pager-total `count`, and a gotchas list (index rules, depth and regex caps).
+- **20 new `.d2ql` sample programs** (read-*, date-*, string-*, subset-*, convert-*, library-run) with
+  local JSON/NDJSON fixtures under `examples/d2ql/data/`, 16 new cookbook recipes, and 15 new entries
+  in the curated SAMPLES registry — all parse-tested in CI.
+- File-export CLI examples bundled under an `export-*` family (#417); the three FHIR Bundle examples share a
+  `fhir-bundle-*` prefix (#415).
+- Nested-relationship "join" examples; the cookbook clarifies `transform` vs `fold` (#421).
+- Ten aggregate analytics d2ql examples — named output, indicator numerator/denominator, aggregation
+  override, category-option-combo breakdown, org-unit-level rollup, date windows, multi-period,
+  multi-org-unit, and a CSV export sink (#416).
+
+### Fixes
+
+- Tracker contract discovery skips programs the play user can't read, so the live suite can't flake on
+  sharing settings (#405).
+
+## 1.0.0.dev1
+
 
 Development snapshot. Not a published release — no tag, no PyPI upload.
 
@@ -144,6 +261,12 @@ Development snapshot. Not a published release — no tag, no PyPI upload.
 - `make dhis2-run` exits cleanly on Ctrl+C instead of `Error 130`.
 - The v41 and v43 plugin trees now accept `d2w profile add --version v42` (a tree-copy sed had corrupted the
   validator allow-list).
+- The v41 and v43 `openapi_manifest.json` files match their emitted trees, and every codegen run rebuilds the
+  OAS tree (#401).
+
+### Dependencies
+
+- Dependabot rounds: the actions group (2 updates) and the python-deps group (7 updates) (#402, #403).
 
 ## 1.0.0.dev0
 

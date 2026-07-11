@@ -134,7 +134,7 @@ that legitimately diverges by content (audit.py/cli.py/service.py differ only in
 import paths). It exports module-level constants and tiny pure extractors, NOT
 classes -- the 2FA case is the worked example (v41 `_wire.py:10-22` reads the
 inline `twoFactorEnabled`; v42/v43 `_wire.py:14-26` return None and cite
-BUGS.md #47). The reducer in `security_core` stays version-blind; only the
+BUGS.md #58). The reducer in `security_core` stays version-blind; only the
 extraction lives per tree. For PR 8, `_wire.py` gains members ONLY for
 `auth-methods` (the OAuth2 client wire split) and `tokens` (the v41 ApiToken
 shape split) and `routes` (the auth-union split). `transport`, `audit-config`,

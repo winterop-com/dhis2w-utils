@@ -1,0 +1,6 @@
+// Compose a synthetic composite key from two fields with a separator — handy for joins/dedup
+// downstream. `+` between strings concatenates.
+dataElements
+  | transform { key: valueType + ":" + id, name: name }
+  | order name asc
+  | limit 25

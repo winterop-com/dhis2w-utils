@@ -23,7 +23,7 @@ JSON); without it you get a table. Global flags go **before** the command:
 A d2ql program is a **source** followed by a chain of **stages** separated by `|`. The simplest
 program is just a resource name; cap it with `limit`:
 
-```
+```d2ql
 dataElements | select id, name | limit 3
 ```
 ```json
@@ -44,7 +44,7 @@ dataElements | select id, name | limit 3
 `where` keeps rows matching a predicate. `like` is case-insensitive matching; combine clauses with
 `and` / `or`:
 
-```
+```d2ql
 dataElements | where domainType = "AGGREGATE" and name like "ANC" | select id, name | limit 3
 ```
 ```json
@@ -72,7 +72,7 @@ local stages: transform
 
 `select` takes expressions, each optionally renamed with `as`. Navigate into nested objects with `.`:
 
-```
+```d2ql
 dataElements | select name, categoryCombo.name as combo, valueType | limit 3
 ```
 ```json
@@ -90,7 +90,7 @@ navigation plus operators and functions, e.g. `categoryCombo.name`, `name.upper(
 `select` makes a flat row; `transform` builds an arbitrary object per row — nested objects, arrays,
 computed values:
 
-```
+```d2ql
 dataElements | transform { code: id, label: name, aggregate: domainType = "AGGREGATE" } | limit 2
 ```
 ```json
@@ -117,7 +117,7 @@ dataElements | select id, name | skip 50 | limit 25            # page: offset th
 `group by <key> { name: agg, … }` groups rows and reduces each group with `sum`/`avg`/`min`/`max`/
 `count`. Profile the data dictionary by value type:
 
-```
+```d2ql
 dataElements | group by valueType { n: count() } | order n desc
 ```
 ```json
@@ -136,7 +136,7 @@ Or count facilities per org-unit level: `organisationUnits | group by level { n:
 A program can begin with `define`s, turning a `.d2ql` file into a reusable library. Reference a
 scalar value or a function parameter with `$`; reference a named query as a source:
 
-```
+```d2ql
 define MinLevel: 3
 define function isImmunisation(de): $de.name like "BCG" or $de.name like "measles" or $de.name like "Penta"
 define Aggregates: dataElements | where domainType = "AGGREGATE"
@@ -151,14 +151,23 @@ Aggregates
 - `define NAME: <expression>` — a scalar; reference it as `$NAME`.
 - `define function NAME(p): <expr>` — a function; its parameter is `$p`, and `$this` is the current row.
 
-Save a program to a `.d2ql` file and run it with `d2w query run report.d2ql`.
+Save a program to a `.d2ql` file and run it with `d2w query run report.d2ql`. A file can hold
+several named queries; run any one by name with `--define/-d`, and the file's scalars and functions
+stay in scope:
+
+```bash
+d2w query run report.d2ql --define Aggregates   # run the named query, not the terminal pipeline
+```
+
+See [d2ql reference → A library file and `--define`](d2ql.md#a-library-file-and-define) for a fuller
+worked library.
 
 ## 8. Aggregate data, not just metadata
 
 Two call sources read aggregate data. `analytics(...)` hits the analytics tables; rows are keyed by
 dimension (`dx`/`pe`/`ou`/`value`):
 
-```
+```d2ql
 analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd")
   | where value > 1000
   | group by dx { total: sum(value), periods: count() }
@@ -174,7 +183,7 @@ analytics(dx: "fbfJHSPpUQD;cYeuwXTCPkU", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd"
 Besides dimensions, `analytics(...)` takes analytics **options** — e.g. `outputIdScheme: "NAME"` for
 readable names, or `includeNumDen: true` to get an indicator's numerator/denominator:
 
-```
+```d2ql
 analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", outputIdScheme: "NAME")
   | transform { element: dx, month: pe, value: value }
 ```
@@ -188,7 +197,7 @@ analytics(dx: "fbfJHSPpUQD", pe: "LAST_12_MONTHS", ou: "ImspTQPwCqd", outputIdSc
 a FHIR `Bundle`, a GeoJSON `FeatureCollection`. Inside `fold`, `$rows` is the stream. Combine it with
 a `define function` for the per-item shape:
 
-```
+```d2ql
 define function observation(de): {
   resourceType: "Observation", status: "final",
   code: { coding: [ { system: "dhis2", code: $de.id, display: $de.name } ] }
@@ -222,6 +231,16 @@ dataElements | transform { code: id, label: name } >> "out.json"
 ```
 
 On the CLI, `--out elements.csv` does the same.
+
+Write JSON or NDJSON and you can read it straight back with `read("...")` — capture an expensive
+result once, then iterate over the snapshot offline:
+
+```d2ql
+read("out.json") | where label ~ "ANC" | count
+```
+
+See [d2ql reference → Reading from a file](d2ql.md#reading-from-a-file-with-read) for the full
+capture-then-reread pattern.
 
 ---
 

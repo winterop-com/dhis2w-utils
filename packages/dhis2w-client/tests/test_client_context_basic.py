@@ -8,6 +8,7 @@ from dhis2w_client import (
     BasicAuth,
     PatAuth,
     Profile,
+    SessionCookieAuth,
     build_auth_for_basic,
     open_client,
 )
@@ -26,6 +27,19 @@ def test_build_auth_for_basic_basic() -> None:
     provider = build_auth_for_basic(Profile(base_url="http://x", auth="basic", username="admin", password="district"))
     assert isinstance(provider, BasicAuth)
     assert provider.username == "admin"
+
+
+def test_build_auth_for_basic_session() -> None:
+    """Build auth for basic session."""
+    provider = build_auth_for_basic(Profile(base_url="http://x", auth="session", cookie="JSESSIONID=abc123"))
+    assert isinstance(provider, SessionCookieAuth)
+    assert provider.cookie == "JSESSIONID=abc123"
+
+
+def test_build_auth_for_basic_session_requires_cookie() -> None:
+    """Build auth for basic session requires cookie."""
+    with pytest.raises(ValueError):
+        build_auth_for_basic(Profile(base_url="http://x", auth="session"))
 
 
 def test_build_auth_for_basic_oauth2_raises_with_install_hint() -> None:

@@ -46,7 +46,7 @@ uv add dhis2w-client             # PAT + Basic auth: build Profile + call open_c
 uv add dhis2w-client dhis2w-core  # adds TOML profile resolution + OAuth2 token persistence
 ```
 
-PAT and Basic library users get the `Profile` model + `open_client(profile)` from `dhis2w-client` alone. Multi-profile TOML resolution (`profiles.toml` discovery, `resolve()`, `profile_from_env()` with its full precedence chain) and the OAuth2 token cache live in `dhis2w-core` — pull it when you want the CLI/MCP profile layer or when your auth is OAuth2. Calling `dhis2w_client.open_client(oauth2_profile)` raises `NotImplementedError` with the install hint.
+PAT, Basic, and session library users get the `Profile` model + `open_client(profile)` from `dhis2w-client` alone. Multi-profile TOML resolution (`profiles.toml` discovery, `resolve()`, `profile_from_env()` with its full precedence chain) and the OAuth2 token cache live in `dhis2w-core` — pull it when you want the CLI/MCP profile layer or when your auth is OAuth2. Calling `dhis2w_client.open_client(oauth2_profile)` raises `NotImplementedError` with the install hint.
 
 The split exists for transitive-dependency weight on PyPI, not for cycle avoidance. `dhis2w-client` keeps a minimal install (`httpx`, `pydantic`, `geojson-pydantic`) so third-party Python apps — FastAPI services, scripts, notebooks — can embed it without pulling in a CLI framework, an MCP server, SQLAlchemy for the OAuth2 token store, or bcrypt. `dhis2w-core` adds all of those because the CLI and MCP server need them. The dependency arrow is one-way: `dhis2w-core` imports from `dhis2w-client`, never the reverse. See [Decisions log](../decisions.md) for the original decision.
 
@@ -54,7 +54,7 @@ The split exists for transitive-dependency weight on PyPI, not for cycle avoidan
 
 Two concepts to internalise before any code:
 
-**Auth provider.** An `AuthProvider` is "how to prove who you are to DHIS2 on every request." Three shipped variants — `BasicAuth`, `PatAuth`, `OAuth2Auth` — each implementing the same Protocol. The rest of the client doesn't care which one you pick.
+**Auth provider.** An `AuthProvider` is "how to prove who you are to DHIS2 on every request." Four shipped variants — `BasicAuth`, `PatAuth`, `OAuth2Auth`, `SessionCookieAuth` — each implementing the same Protocol. The rest of the client doesn't care which one you pick.
 
 **Profile.** A `Profile` is "a named bundle of how to reach one DHIS2 instance" — a base URL plus the parameters needed to build the right `AuthProvider`. A profile can be:
 
@@ -66,10 +66,10 @@ Profiles are the **preferred entry point** for every Python script. They're what
 
 **The split:**
 
-- [`dhis2w-client`](../api/index.md) — HTTP client + `AuthProvider` implementations + `Profile` model + `open_client(profile)` for PAT/Basic. Standalone PyPI package.
+- [`dhis2w-client`](../api/index.md) — HTTP client + `AuthProvider` implementations + `Profile` model + `open_client(profile)` for PAT/Basic/session. Standalone PyPI package.
 - [`dhis2w-core`](../architecture/overview.md) — TOML profile resolution + `open_client` overload that adds OAuth2 token persistence. Depends on `dhis2w-client`.
 
-Every code block in this guide uses `dhis2w-core.open_client(profile)` (with `profile_from_env()`'s full TOML+env precedence) as the happy path. Library users on PAT or Basic can use `dhis2w_client.open_client(profile)` directly without installing `dhis2w-core` — see [`examples/v42/client/profile_pat_pure_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/profile_pat_pure_client.py). The "direct-client" form (`Dhis2Client(base_url, auth=...)`) is covered at the end for the cases that need the lowest level.
+Every code block in this guide uses `dhis2w-core.open_client(profile)` (with `profile_from_env()`'s full TOML+env precedence) as the happy path. Library users on PAT, Basic, or session can use `dhis2w_client.open_client(profile)` directly without installing `dhis2w-core` — see [`examples/v42/client/profile_pat_pure_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/profile_pat_pure_client.py). The "direct-client" form (`Dhis2Client(base_url, auth=...)`) is covered at the end for the cases that need the lowest level.
 
 ## Your first call
 
@@ -92,7 +92,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-**Library-only path (no `dhis2w-core` install).** If your auth is PAT or Basic and you don't want the TOML profile system, build a `Profile` in-memory and call `dhis2w_client.open_client` directly:
+**Library-only path (no `dhis2w-core` install).** If your auth is PAT, Basic, or session and you don't want the TOML profile system, build a `Profile` in-memory and call `dhis2w_client.open_client` directly:
 
 ```python
 import asyncio
@@ -222,13 +222,14 @@ Pass a `start: Path` argument to scope the write to a specific project directory
 
 ## Auth providers in detail
 
-`Profile.auth` is a `Literal["pat", "basic", "oauth2"]` tag; `open_client` builds the right `AuthProvider` internally. When constructing a profile in-memory, fill the fields for the auth type you pick:
+`Profile.auth` is a `Literal["pat", "basic", "oauth2", "session"]` tag; `open_client` builds the right `AuthProvider` internally. When constructing a profile in-memory, fill the fields for the auth type you pick:
 
 | `auth` value | Required fields | Optional |
 | --- | --- | --- |
 | `"pat"` | `token` | — |
 | `"basic"` | `username`, `password` | — |
 | `"oauth2"` | `client_id`, `client_secret` | `scope`, `redirect_uri` (for interactive flows) |
+| `"session"` | `cookie` (raw `Cookie` header value, name included) | — |
 
 ### PAT (recommended for scripts)
 
@@ -277,6 +278,18 @@ async with open_client(profile, profile_name="my-oauth-profile") as client:
 ```
 
 For a complete standalone OAuth2 demo including PKCE, FastAPI redirect receiver, and SQLite token store, see `examples/v42/client/oidc_login.py`. Architecture details in [Pluggable auth](../architecture/auth.md).
+
+### Session cookie (ride an existing browser login)
+
+`SessionCookieAuth` sends a stored browser session verbatim as a raw `Cookie` header on every request. The profile's `cookie` field holds the full header value, cookie name included (e.g. `"JSESSIONID=abc123"`), so any cookie name DHIS2 uses works unchanged. This is the fallback for instances where PAT creation is unavailable (pre-2.38, disabled, or 403 for the user) — prefer PAT when you can mint one.
+
+```python
+profile = Profile(base_url="http://localhost:8080", auth="session", cookie=os.environ["DHIS2_SESSION_COOKIE"])
+async with open_client(profile) as client:
+    ...
+```
+
+Session cookies expire server-side and there is nothing to refresh client-side (`refresh_if_needed` is a no-op). When calls start failing with 401, capture a fresh cookie from the browser and re-run `d2w profile add <name> --auth session` — the upsert replaces the stored value. `d2w profile verify <name>` is the cheap way to detect an expired binding. See `examples/v42/cli/profile_session.sh` for the end-to-end flow.
 
 ### Route API auth (for `/api/routes` objects, not for client auth)
 

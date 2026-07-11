@@ -11,7 +11,7 @@ and switches to `X-Frame-Options: SAMEORIGIN` when CSP is off, so anti-framing i
 are absent. X-Content-Type-Options is set unconditionally by Spring Security, so its absence points at
 upstream stripping. A Server header carrying a version token is a free CVE-matching fingerprint emitted
 by the container or proxy, not DHIS2 code. The wire-only CSP state and the HSTS-behind-proxy
-suppression are recorded as BUGS.md #49.
+suppression are recorded as BUGS.md #60.
 
 CORS response headers are request-conditioned: DhisCorsProcessor only emits Access-Control-Allow-Origin
 / Access-Control-Allow-Credentials when the request carries an `Origin` header, and it echoes that

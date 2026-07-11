@@ -1,8 +1,8 @@
 """DHIS2 connection profile — the Pydantic model shared across the workspace.
 
 The model itself lives in `dhis2w-client` so library users can build a
-`Profile` and call `open_client(profile)` for PAT or Basic auth without
-installing `dhis2w-core`. TOML loading, multi-profile resolution, and
+`Profile` and call `open_client(profile)` for PAT, Basic, or session auth
+without installing `dhis2w-core`. TOML loading, multi-profile resolution, and
 OAuth2 token persistence stay in `dhis2w-core`.
 """
 
@@ -12,7 +12,7 @@ import os
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from dhis2w_client.generated import Dhis2
 
@@ -32,7 +32,7 @@ class Profile(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     base_url: str
-    auth: Literal["pat", "basic", "oauth2"]
+    auth: Literal["pat", "basic", "oauth2", "session"]
     token: str | None = None
     username: str | None = None
     password: str | None = None
@@ -40,8 +40,26 @@ class Profile(BaseModel):
     client_secret: str | None = None
     scope: str | None = None
     redirect_uri: str | None = None
+    cookie: str | None = None
+    """Raw `Cookie` header value for `auth="session"` (e.g. `JSESSIONID=abc123`; the name is included)."""
     version: Dhis2 | None = None
     """Plugin-tree hint (see class docstring). Wire version is auto-detected on connect()."""
+
+    @field_validator("cookie")
+    @classmethod
+    def _normalize_cookie(cls, value: str | None) -> str | None:
+        """Trim surrounding whitespace and reject a cookie carrying ASCII control characters."""
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("session cookie is empty after trimming whitespace — re-copy the raw Cookie header value")
+        if any(ord(character) < 0x20 or ord(character) == 0x7F for character in normalized):
+            raise ValueError(
+                "session cookie contains control characters or stray line breaks — "
+                "re-copy the value from the browser without embedded newlines, carriage returns, or tabs"
+            )
+        return normalized
 
 
 class NoProfileError(RuntimeError):
@@ -113,15 +131,18 @@ def profile_from_env_raw() -> Profile | None:
 
 
 def _env_version() -> Dhis2 | None:
-    """Read `DHIS2_VERSION` env (`"v43"`) into a `Dhis2` enum member.
+    """Read `DHIS2_VERSION` env (`"43"` or `"v43"`) into a `Dhis2` enum member.
 
-    Returns None when unset or malformed (a bare digit like `"43"` is not
-    accepted) — `open_client` then falls back to auto-detect via
+    Accepts both the bare major (`"41"` / `"42"` / `"43"`) and the
+    v-prefixed form (`"v41"` / `"v42"` / `"v43"`). Returns None when unset
+    or malformed — `open_client` then falls back to auto-detect via
     `/api/system/info`.
     """
     raw = os.environ.get("DHIS2_VERSION", "").strip().lower()
-    match raw:
-        case "v41" | "v42" | "v43":
-            return Dhis2(raw)
-        case _:
-            return None
+    if not raw:
+        return None
+    key = raw if raw.startswith("v") else f"v{raw}"
+    try:
+        return Dhis2(key)
+    except ValueError:
+        return None

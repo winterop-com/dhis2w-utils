@@ -41,6 +41,22 @@ def test_write_and_read_round_trip(tmp_path: Path) -> None:
     assert loaded.profiles["prod"].auth == "basic"
 
 
+def test_session_cookie_round_trip_stays_0600(tmp_path: Path) -> None:
+    """A session profile's raw cookie survives write/read and the file keeps 0600 perms."""
+    path = tmp_path / ".dhis2" / "profiles.toml"
+    data = ProfilesFile(
+        default="browser",
+        profiles={
+            "browser": Profile(base_url="https://play.dhis2.org", auth="session", cookie="JSESSIONID=abc123"),
+        },
+    )
+    write_profiles_file(path, data)
+    loaded = load_profiles_file(path)
+    assert loaded.profiles["browser"].auth == "session"
+    assert loaded.profiles["browser"].cookie == "JSESSIONID=abc123"
+    assert (path.stat().st_mode & 0o777) == 0o600
+
+
 def test_resolve_by_project_toml_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Resolve by project toml default."""
     _clear_env(monkeypatch)

@@ -1,6 +1,6 @@
 """Typed accessors for /api/system/info and /api/me (non-metadata system endpoints).
 
-`SystemInfo` re-exports from `generated/v42/oas` — OpenAPI ships the full
+`SystemInfo` re-exports from `generated/v43/oas` — OpenAPI ships the full
 shape (46 fields including `buildTime`, `databaseInfo`, analytics-table
 timings, memory info). `Me` stays hand-written because `/api/me` isn't in
 the OpenAPI spec under that name.

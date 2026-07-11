@@ -134,7 +134,7 @@ function. For prefix/suffix use `startsWith` / `endsWith`.
 
 A missing field and an explicit JSON `null` both evaluate to the empty collection, so `field = null`
 matches nothing. Test presence with `field.exists()` and absence with `field.empty()` — see
-[d2path → Presence and absence](../guides/d2path.md#presence-and-absence-there-is-no--null).
+[d2path → Presence and absence](../guides/d2path.md#presence-and-absence-there-is-no-null).
 
 ## `[]` is overloaded by position
 
@@ -164,18 +164,27 @@ filter selects the same rows as the same filter evaluated locally: `=`→`eq`, `
 audit against the demo server confirmed pushed and local agree for literal values across these
 operators (including `!=` over rows where the field is absent).
 
-Three corners are handled or called out explicitly:
+Four corners are handled or called out explicitly:
 
 - **`~` with `%` or `_`:** DHIS2 `ilike` treats these as SQL wildcards, but d2path `~` is a *literal*
   case-insensitive substring. A `~` value containing `%`/`_` is therefore **kept local** (not pushed)
   so the result matches the literal meaning. `explain` shows it as a local `where`.
+- **Values containing `:` `,` `[` `]`:** DHIS2's `property:operator:value` filter syntax has no
+  escaping for its own structural characters, so a value like `"a:b,c"` would render as a broken
+  clause and silently return wrong rows. Any comparison (or `in` member) whose value contains one of
+  these characters is **kept local**; `explain` shows it as a local `where`.
 - **Server-side value validation:** DHIS2 validates a pushed filter's value, so an invalid value
   (e.g. an enum in the wrong case like `domainType = "aggregate"`) raises a `400` where local
   evaluation would simply return no rows. Use the exact value DHIS2 expects.
-- **Date / datetime comparisons:** when pushed, DHIS2's date semantics apply (correct). The local
-  fallback compares values as-is, and a date/datetime field does not compare against a bare string
-  literal — so a date comparison that is *not* pushed can under-match. Pin date handling is tracked
-  with date-literal support (`@2026-06-23`).
+- **Date / datetime comparisons:** date and datetime **literals** are first-class — `@2026-06-23`
+  and `@2026-06-23T12:00:00` (see [d2path → Date and datetime literals](../guides/d2path.md#date-and-datetime-literals)).
+  A literal evaluates to its ISO-8601 string and compares lexicographically, which is correct
+  chronological order for ISO values. When a date `where` is pushed, DHIS2's own date semantics apply
+  (correct). The local fallback is a string compare, so it lines up only when the field is *also* a
+  string: over a wire model whose field parsed into a typed timestamp, the comparison finds a
+  non-string on one side and yields the empty collection — a date comparison that is *not* pushed can
+  therefore under-match. Keep date predicates leading so they push down, or compare over JSON where
+  the field is a string.
 
 `explain` always tells you exactly what ran where.
 

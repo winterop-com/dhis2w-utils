@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import difflib
 import json
 import re
@@ -9,6 +10,7 @@ from collections.abc import AsyncIterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from dhis2w_client.errors import Dhis2ApiError
 from dhis2w_client.generated.v43.oas import (
     AtomicMode,
     FlushMode,
@@ -16,10 +18,12 @@ from dhis2w_client.generated.v43.oas import (
     MergeMode,
     PreheatIdentifier,
     PreheatMode,
+    SharingUserAccess,
+    SharingUserGroupAccess,
 )
 from dhis2w_client.v43 import (
-    ACCESS_READ_METADATA,
     BulkPatchResult,
+    BulkSharingError,
     BulkSharingResult,
     Category,
     CategoryCombo,
@@ -53,13 +57,15 @@ from dhis2w_client.v43 import (
     ProgramStage,
     SearchResults,
     Section,
-    SharingBuilder,
+    SharingObject,
     TrackedEntityAttribute,
     TrackedEntityType,
     ValidationRule,
     ValidationRuleGroup,
     WebMessageResponse,
+    apply_sharing,
     build_category_combo,
+    get_sharing,
 )
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -73,6 +79,10 @@ _STREAM_PAGE_SIZE = 500
 
 class UnknownResourceError(LookupError):
     """Raised when a caller asks for a metadata resource not present on this instance."""
+
+
+class MetadataUsageError(LookupError):
+    """Raised when a bulk-verb argument is malformed in a way that could never do what the caller intends."""
 
 
 def _attr_name(resource: str) -> str:
@@ -633,17 +643,34 @@ async def diff_bundle_against_instance(
 ) -> MetadataDiff:
     """Export the live instance + diff it against `bundle`.
 
-    `resources` narrows the export to specific types (defaults to every
-    resource present in `bundle`, so we don't drag down the entire
-    catalog just to compare one slice).
+    `resources` narrows the export to specific types; `None` defaults to
+    every resource present in `bundle`, so we don't drag down the entire
+    catalog just to compare one slice. An explicit empty list is a caller
+    mistake and raises `MetadataUsageError` — it must never silently widen
+    to a whole-instance export (which would report every instance object
+    as deleted). A bundle with no resource collections diffs against an
+    empty export for the same reason.
     """
-    if resources is None:
-        resources = bundle.resource_names()
-    live_bundle = await export_metadata(profile, resources=resources or None, fields=":owner")
+    if resources is not None and not resources:
+        raise MetadataUsageError(
+            "diff_bundle_against_instance requires a non-empty `resources` selection "
+            "(or None to diff every resource type present in the bundle)",
+        )
+    effective_resources = resources if resources is not None else bundle.resource_names()
+    left_label = f"instance:{profile.base_url}"
+    if not effective_resources:
+        return diff_bundles(
+            MetadataBundle(),
+            bundle,
+            left_label=left_label,
+            right_label=bundle_label,
+            ignored_fields=ignored_fields,
+        )
+    live_bundle = await export_metadata(profile, resources=effective_resources, fields=":owner")
     return diff_bundles(
         live_bundle,
         bundle,
-        left_label=f"instance:{profile.base_url}",
+        left_label=left_label,
         right_label=bundle_label,
         ignored_fields=ignored_fields,
     )
@@ -805,20 +832,31 @@ async def merge_metadata_from_bundle(
     Useful when the source is a saved export, a manually-crafted bundle,
     or output from a non-DHIS2 tool.
 
-    `resources` narrows the export-count summary to a subset of the
-    bundle's resource keys (matches the `--resource` filter on
-    `merge_metadata`). When omitted, every resource section in the bundle
-    is reported.
+    `resources` restricts the import to those resource collections — the
+    bundle is filtered before the POST, so the count summary reports
+    exactly what was written (matches the `--resource` filter on
+    `merge_metadata`). When omitted, the whole bundle is imported and
+    every resource section is reported. An explicit empty list raises
+    `MetadataUsageError`.
 
     `MergeResult.source_base_url` carries the bundle file path (prefixed
     with `bundle:`) so callers can tell at a glance which source
     produced the merge.
     """
+    if resources is not None and not resources:
+        raise MetadataUsageError(
+            "merge_metadata_from_bundle requires a non-empty `resources` selection "
+            "(or None to import every resource section in the bundle)",
+        )
     raw = json.loads(bundle_path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError(f"bundle file {bundle_path} did not parse to an object")
+    if resources is not None:
+        requested = set(resources)
+        # Keep meta keys (`system`, `date`, scalars); drop unrequested resource collections.
+        raw = {key: value for key, value in raw.items() if not isinstance(value, list) or key in requested}
     bundle = MetadataBundle.from_raw(raw)
-    bundle_resources = list(resources) if resources else sorted(name for name, _ in bundle.resources())
+    bundle_resources = list(resources) if resources is not None else sorted(name for name, _ in bundle.resources())
     import_report = await import_metadata(
         target_profile,
         bundle,
@@ -944,49 +982,123 @@ async def bulk_share_metadata(
     concurrency: int = 8,
     dry_run: bool = False,
 ) -> BulkShareResult:
-    """Apply a single sharing block across many UIDs of one resource.
+    """Merge a sharing change across many UIDs of one resource (read-merge-write).
 
     `resource_type` is the DHIS2 singular form used by `/api/sharing?type=`
     (`dataSet`, `dataElement`, `program`, ...). `uids` is the cohort.
     `user_access` / `user_group_access` are repeatable `UID:access` strings.
 
-    `dry_run=True` returns a preview without sending any POSTs — the
-    `BulkShareResult.entries` reflect the planned grants.
+    Each UID's current sharing block is fetched first, then the new grants
+    are merged in: `publicAccess` stays unchanged unless `public_access` is
+    given, a grant for an already-granted UID replaces that UID's access
+    string, and every existing grant not re-specified is preserved. A
+    failing sharing fetch aborts before any write.
+
+    `dry_run=True` fetches but never POSTs — the `BulkShareResult.entries`
+    preview shows the merged sharing per UID.
     """
-    builder = SharingBuilder(public_access=public_access or ACCESS_READ_METADATA)
+    new_user_grants: dict[str, str] = {}
     for raw in user_access or []:
-        uid, access = _parse_grant(raw, flag_name="--user-access")
-        builder = builder.grant_user(uid, access)
+        grant_uid, grant_access = _parse_grant(raw, flag_name="--user-access")
+        new_user_grants[grant_uid] = grant_access
+    new_user_group_grants: dict[str, str] = {}
     for raw in user_group_access or []:
-        gid, access = _parse_grant(raw, flag_name="--user-group-access")
-        builder = builder.grant_user_group(gid, access)
-    user_grants = list(builder.user_accesses.items())
-    group_grants = list(builder.user_group_accesses.items())
-    entries = [
-        BulkShareEntry(
-            uid=uid,
-            public_access=builder.public_access,
-            user_grants=[f"{u}:{a}" for u, a in user_grants],
-            user_group_grants=[f"{g}:{a}" for g, a in group_grants],
-        )
-        for uid in uids
-    ]
-    if dry_run or not uids:
-        return BulkShareResult(entries=entries, dry_run=dry_run)
+        grant_uid, grant_access = _parse_grant(raw, flag_name="--user-group-access")
+        new_user_group_grants[grant_uid] = grant_access
+    if not uids:
+        return BulkShareResult(entries=[], dry_run=dry_run)
     async with open_client(profile) as client:
-        sharing_result = await client.metadata.apply_sharing_bulk(
-            resource_type, list(uids), builder, concurrency=concurrency
+        semaphore = asyncio.Semaphore(max(1, concurrency))
+
+        async def _fetch_current(uid: str) -> SharingObject:
+            async with semaphore:
+                return await get_sharing(client, resource_type, uid)
+
+        current_blocks = await asyncio.gather(*(_fetch_current(uid) for uid in uids))
+        merged_by_uid: dict[str, SharingObject] = {
+            uid: _merge_sharing(
+                current,
+                public_access=public_access,
+                user_grants=new_user_grants,
+                user_group_grants=new_user_group_grants,
+            )
+            for uid, current in zip(uids, current_blocks, strict=True)
+        }
+        entries = [_share_entry(uid, merged) for uid, merged in merged_by_uid.items()]
+        if dry_run:
+            return BulkShareResult(entries=entries, dry_run=True)
+
+        async def _apply_merged(uid: str, merged: SharingObject) -> BulkSharingError | None:
+            async with semaphore:
+                try:
+                    await apply_sharing(client, resource_type, uid, merged)
+                except Dhis2ApiError as exc:
+                    return BulkSharingError(
+                        uid=uid,
+                        resource=resource_type,
+                        status_code=exc.status_code,
+                        message=exc.message,
+                    )
+            return None
+
+        apply_errors = await asyncio.gather(*(_apply_merged(uid, merged) for uid, merged in merged_by_uid.items()))
+        sharing_result = BulkSharingResult(
+            successful_uids=[uid for uid, error in zip(merged_by_uid, apply_errors, strict=True) if error is None],
+            failures=[error for error in apply_errors if error is not None],
         )
     return BulkShareResult(entries=entries, dry_run=False, sharing_result=sharing_result)
 
 
+def _merge_sharing(
+    current: SharingObject,
+    *,
+    public_access: str | None,
+    user_grants: Mapping[str, str],
+    user_group_grants: Mapping[str, str],
+) -> SharingObject:
+    """Merge new user / user-group grants into an object's current sharing block."""
+    merged_users: dict[str, str] = {}
+    for user_grant in current.userAccesses or []:
+        if user_grant.id is not None and user_grant.access is not None:
+            merged_users[user_grant.id] = user_grant.access
+    merged_users.update(user_grants)
+    merged_groups: dict[str, str] = {}
+    for group_grant in current.userGroupAccesses or []:
+        if group_grant.id is not None and group_grant.access is not None:
+            merged_groups[group_grant.id] = group_grant.access
+    merged_groups.update(user_group_grants)
+    # model_copy keeps every other fetched field (owner user, externalAccess, ...)
+    # exactly as DHIS2 returned it — only the merged fields change.
+    return current.model_copy(
+        update={
+            "publicAccess": public_access if public_access is not None else current.publicAccess,
+            "userAccesses": [
+                SharingUserAccess(id=grant_uid, access=access) for grant_uid, access in merged_users.items()
+            ],
+            "userGroupAccesses": [
+                SharingUserGroupAccess(id=grant_uid, access=access) for grant_uid, access in merged_groups.items()
+            ],
+        },
+    )
+
+
+def _share_entry(uid: str, merged: SharingObject) -> BulkShareEntry:
+    """Build the per-UID preview row from a merged sharing block."""
+    return BulkShareEntry(
+        uid=uid,
+        public_access=merged.publicAccess,
+        user_grants=[f"{grant.id}:{grant.access}" for grant in merged.userAccesses or []],
+        user_group_grants=[f"{grant.id}:{grant.access}" for grant in merged.userGroupAccesses or []],
+    )
+
+
 class BulkShareEntry(BaseModel):
-    """One row in a `bulk_share_metadata` preview / result."""
+    """One row in a `bulk_share_metadata` preview / result — the merged sharing for that UID."""
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
-    public_access: str
+    public_access: str | None = None
     user_grants: list[str] = Field(default_factory=list)
     user_group_grants: list[str] = Field(default_factory=list)
 
@@ -2076,19 +2188,35 @@ async def delete_organisation_unit_group(profile: Profile, uid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+class OrganisationUnitGroupSetDetail(BaseModel):
+    """A group set plus per-child-group OU member counts; a count is None when DHIS2's `~size` is unreadable.
+
+    Plugin view-model: no generated OAS schema pairs a group set with its
+    per-group `organisationUnits~size` counts, so the pairing is hand-rolled
+    here (the group set itself is the generated `OrganisationUnitGroupSet`).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    group_set: OrganisationUnitGroupSet
+    member_counts: dict[str, int | None] = Field(default_factory=dict)
+
+
 async def show_organisation_unit_group_set(
     profile: Profile,
     uid: str,
-) -> tuple[OrganisationUnitGroupSet, dict[str, int]]:
+) -> OrganisationUnitGroupSetDetail:
     """Fetch a group set + per-child-group member counts.
 
     One trip for the set itself + one `organisationUnits~size` call per
     referenced group. Gives the reporting-friendly "how many OUs in
-    each slice?" view without hitting analytics.
+    each slice?" view without hitting analytics. A `~size` value DHIS2
+    returns in an unparseable shape maps to None (unknown), which keeps
+    it distinguishable from a genuinely empty group's 0.
     """
     async with open_client(profile) as client:
         group_set = await client.organisation_unit_group_sets.get(uid)
-        counts: dict[str, int] = {}
+        member_counts: dict[str, int | None] = {}
         for group in group_set.organisationUnitGroups or []:
             if not isinstance(group, dict):
                 continue
@@ -2099,12 +2227,22 @@ async def show_organisation_unit_group_set(
                 f"/api/organisationUnitGroups/{gid}",
                 params={"fields": "id,organisationUnits~size"},
             )
-            size_raw = raw.get("organisationUnits")
-            try:
-                counts[gid] = int(size_raw) if isinstance(size_raw, int | str) else 0
-            except (TypeError, ValueError):
-                counts[gid] = 0
-    return group_set, counts
+            member_counts[gid] = _parse_member_count(raw.get("organisationUnits"))
+    return OrganisationUnitGroupSetDetail(group_set=group_set, member_counts=member_counts)
+
+
+def _parse_member_count(size_raw: object) -> int | None:
+    """Parse an `organisationUnits~size` value; None when the wire shape is not an integer count."""
+    if isinstance(size_raw, bool):
+        return None
+    if isinstance(size_raw, int):
+        return size_raw
+    if isinstance(size_raw, str):
+        try:
+            return int(size_raw)
+        except ValueError:
+            return None
+    return None
 
 
 async def create_organisation_unit_group_set(
@@ -3896,7 +4034,8 @@ async def bulk_rename_metadata(
     all idempotent — the add helpers skip rows already prefixed /
     suffixed, the strip helpers skip rows that don't carry the
     pattern. You can stack them: `--name-strip-prefix "[old] "
-    --name-prefix "[new] "` rewrites the prefix.
+    --name-prefix "[new] "` rewrites the prefix. Strip patterns must
+    be non-empty — an empty pattern raises `MetadataUsageError`.
 
     `dry_run=True` returns the preview (matched UIDs + before/after
     names) without calling `/api/<resource>/<uid>`. Live calls fan out
@@ -3921,6 +4060,18 @@ async def bulk_rename_metadata(
             "name_strip_prefix / name_strip_suffix / short_name_prefix / short_name_suffix / "
             "short_name_strip_prefix / short_name_strip_suffix / set_description",
         )
+    strip_flags = (
+        ("name_strip_prefix", name_strip_prefix),
+        ("name_strip_suffix", name_strip_suffix),
+        ("short_name_strip_prefix", short_name_strip_prefix),
+        ("short_name_strip_suffix", short_name_strip_suffix),
+    )
+    for strip_flag_name, strip_flag_value in strip_flags:
+        if strip_flag_value == "":
+            raise MetadataUsageError(
+                f"{strip_flag_name} must be a non-empty string — every label ends (and starts) with "
+                "the empty string, so an empty strip pattern would blank out every matched label",
+            )
 
     params: dict[str, Any] = {
         "fields": "id,name,shortName",
@@ -4009,10 +4160,10 @@ def _apply_string_mutation(
     if current is None:
         return None
     result = current
-    if strip_prefix is not None and result.startswith(strip_prefix):
-        result = result[len(strip_prefix) :]
-    if strip_suffix is not None and result.endswith(strip_suffix):
-        result = result[: -len(strip_suffix)]
+    if strip_prefix is not None:
+        result = result.removeprefix(strip_prefix)
+    if strip_suffix is not None:
+        result = result.removesuffix(strip_suffix)
     if prefix is not None and not result.startswith(prefix):
         result = f"{prefix}{result}"
     if suffix is not None and not result.endswith(suffix):
@@ -4109,7 +4260,7 @@ async def bulk_retag_metadata(
             clear_option_set,
             aggregation_type,
             domain_type,
-            legend_set_uids,
+            legend_set_uids is not None,
             clear_legend_sets,
         ],
     ):
@@ -4119,7 +4270,7 @@ async def bulk_retag_metadata(
         )
     if option_set_uid and clear_option_set:
         raise ValueError("pick one of option_set_uid / clear_option_set (not both)")
-    if legend_set_uids and clear_legend_sets:
+    if legend_set_uids is not None and clear_legend_sets:
         raise ValueError("pick one of legend_set_uids / clear_legend_sets (not both)")
 
     fields_parts = ["id"]
@@ -4131,7 +4282,7 @@ async def bulk_retag_metadata(
         fields_parts.append("aggregationType")
     if domain_type:
         fields_parts.append("domainType")
-    if legend_set_uids or clear_legend_sets:
+    if legend_set_uids is not None or clear_legend_sets:
         fields_parts.append("legendSets[id]")
     fields = ",".join(fields_parts)
 
