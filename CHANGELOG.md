@@ -1,8 +1,10 @@
 # Changelog
 
-## 1.0.0.dev2 (in development)
+## 0.99.0 — 2026-07-11
 
-Development snapshot. Not a published release — no tag, no PyPI upload.
+First tagged release since 0.23.0. Everything below plus the two unpublished snapshot sections
+(1.0.0.dev1, 1.0.0.dev0) ships in this release; 1.0.0 follows once the remaining roadmap items
+under "Session-cookie auth: follow-ups" and the release-blocking checks settle.
 
 ### Session-cookie auth (new)
 
