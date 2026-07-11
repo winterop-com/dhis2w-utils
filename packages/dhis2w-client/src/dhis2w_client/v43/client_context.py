@@ -20,12 +20,13 @@ from dhis2w_client.profile import Profile
 from dhis2w_client.v43.auth.base import AuthProvider
 from dhis2w_client.v43.auth.basic import BasicAuth
 from dhis2w_client.v43.auth.pat import PatAuth
+from dhis2w_client.v43.auth.session import SessionCookieAuth
 from dhis2w_client.v43.client import Dhis2Client
 from dhis2w_client.v43.retry import RetryPolicy
 
 
 def build_auth_for_basic(profile: Profile) -> AuthProvider:
-    """Return a `PatAuth` or `BasicAuth` provider for the profile.
+    """Return a `PatAuth`, `BasicAuth`, or `SessionCookieAuth` provider for the profile.
 
     Raises `NotImplementedError` on `profile.auth == "oauth2"` pointing at
     `dhis2w_core` — OAuth2 needs the token-store machinery that lives there.
@@ -39,6 +40,10 @@ def build_auth_for_basic(profile: Profile) -> AuthProvider:
         if not (profile.username and profile.password):
             raise ValueError("profile.auth == 'basic' but username/password are missing")
         return BasicAuth(username=profile.username, password=profile.password)
+    if profile.auth == "session":
+        if not profile.cookie:
+            raise ValueError("profile.auth == 'session' but no cookie is set")
+        return SessionCookieAuth(cookie=profile.cookie)
     if profile.auth == "oauth2":
         raise NotImplementedError(
             "OAuth2 auth needs the token store in dhis2w-core. "

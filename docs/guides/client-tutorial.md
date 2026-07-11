@@ -54,7 +54,7 @@ The split exists for transitive-dependency weight on PyPI, not for cycle avoidan
 
 Two concepts to internalise before any code:
 
-**Auth provider.** An `AuthProvider` is "how to prove who you are to DHIS2 on every request." Three shipped variants — `BasicAuth`, `PatAuth`, `OAuth2Auth` — each implementing the same Protocol. The rest of the client doesn't care which one you pick.
+**Auth provider.** An `AuthProvider` is "how to prove who you are to DHIS2 on every request." Four shipped variants — `BasicAuth`, `PatAuth`, `OAuth2Auth`, `SessionCookieAuth` — each implementing the same Protocol. The rest of the client doesn't care which one you pick.
 
 **Profile.** A `Profile` is "a named bundle of how to reach one DHIS2 instance" — a base URL plus the parameters needed to build the right `AuthProvider`. A profile can be:
 
@@ -222,13 +222,14 @@ Pass a `start: Path` argument to scope the write to a specific project directory
 
 ## Auth providers in detail
 
-`Profile.auth` is a `Literal["pat", "basic", "oauth2"]` tag; `open_client` builds the right `AuthProvider` internally. When constructing a profile in-memory, fill the fields for the auth type you pick:
+`Profile.auth` is a `Literal["pat", "basic", "oauth2", "session"]` tag; `open_client` builds the right `AuthProvider` internally. When constructing a profile in-memory, fill the fields for the auth type you pick:
 
 | `auth` value | Required fields | Optional |
 | --- | --- | --- |
 | `"pat"` | `token` | — |
 | `"basic"` | `username`, `password` | — |
 | `"oauth2"` | `client_id`, `client_secret` | `scope`, `redirect_uri` (for interactive flows) |
+| `"session"` | `cookie` (raw `Cookie` header value, name included) | — |
 
 ### PAT (recommended for scripts)
 
@@ -277,6 +278,18 @@ async with open_client(profile, profile_name="my-oauth-profile") as client:
 ```
 
 For a complete standalone OAuth2 demo including PKCE, FastAPI redirect receiver, and SQLite token store, see `examples/v42/client/oidc_login.py`. Architecture details in [Pluggable auth](../architecture/auth.md).
+
+### Session cookie (ride an existing browser login)
+
+`SessionCookieAuth` sends a stored browser session verbatim as a raw `Cookie` header on every request. The profile's `cookie` field holds the full header value, cookie name included (e.g. `"JSESSIONID=abc123"`), so any cookie name DHIS2 uses works unchanged. This is the fallback for instances where PAT creation is unavailable (pre-2.38, disabled, or 403 for the user) — prefer PAT when you can mint one.
+
+```python
+profile = Profile(base_url="http://localhost:8080", auth="session", cookie=os.environ["DHIS2_SESSION_COOKIE"])
+async with open_client(profile) as client:
+    ...
+```
+
+Session cookies expire server-side and there is nothing to refresh client-side (`refresh_if_needed` is a no-op). When calls start failing with 401, capture a fresh cookie from the browser and re-run `d2w profile add <name> --auth session` — the upsert replaces the stored value. `d2w profile verify <name>` is the cheap way to detect an expired binding. See `examples/v42/cli/profile_session.sh` for the end-to-end flow.
 
 ### Route API auth (for `/api/routes` objects, not for client auth)
 

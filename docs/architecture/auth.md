@@ -1,6 +1,6 @@
 # Pluggable auth
 
-**Looking for a step-by-step setup?** See [Connecting to DHIS2](../guides/connecting-to-dhis2.md) — the end-to-end guide with working commands for Basic, PAT, and OAuth2/OIDC. This page covers the *internals*.
+**Looking for a step-by-step setup?** See [Connecting to DHIS2](../guides/connecting-to-dhis2.md) — the end-to-end guide with working commands for Basic, PAT, OAuth2/OIDC, and session cookies. This page covers the *internals*.
 
 `dhis2w-client` has no hardcoded auth. It takes an `AuthProvider` Protocol at construction time and asks it for request headers.
 
@@ -44,7 +44,16 @@ from dhis2w_client import PatAuth
 auth = PatAuth(token="d2pat_...")
 ```
 
-For the profile-based convenience path, `dhis2w_client.build_auth_for_basic(profile)` returns `PatAuth` for `profile.auth == "pat"` and `BasicAuth` for `profile.auth == "basic"`. It raises `NotImplementedError` on OAuth2 (which needs the token store in `dhis2w-core`). The full `dhis2w_core.client_context.build_auth(profile)` is a strict superset that adds the OAuth2 path.
+For the profile-based convenience path, `dhis2w_client.build_auth_for_basic(profile)` returns `PatAuth` for `profile.auth == "pat"`, `BasicAuth` for `profile.auth == "basic"`, and `SessionCookieAuth` for `profile.auth == "session"`. It raises `NotImplementedError` on OAuth2 (which needs the token store in `dhis2w-core`). The full `dhis2w_core.client_context.build_auth(profile)` is a strict superset that adds the OAuth2 path.
+
+### SessionCookieAuth
+
+An existing browser session, sent verbatim as a raw `Cookie` header. The `cookie` value holds the full header value, name included (e.g. `"JSESSIONID=abc123"`), so the provider stays cookie-name-agnostic. `refresh_if_needed` is a no-op — the session lives (and dies) server-side; when it expires, store a fresh cookie. **The fallback when PAT creation is unavailable** (pre-2.38 instances, PATs disabled, or 403 for the user) — the primary consumer is browser-extension flows that bind tooling to the user's live DHIS2 login.
+
+```python
+from dhis2w_client import SessionCookieAuth
+auth = SessionCookieAuth(cookie="JSESSIONID=abc123")
+```
 
 ### OAuth2Auth
 

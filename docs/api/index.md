@@ -8,7 +8,7 @@ Auto-generated from the `dhis2w-client` source via `mkdocstrings`. Every class, 
 
 - [Client + lifecycle](client.md) — `Dhis2Client`, connect, close, raw escape hatches
 - [Profile + lightweight open_client](profile.md) — `Profile`, `open_client`, `build_auth_for_basic`, `profile_from_env_raw`, exceptions — PAT/Basic library path with no `dhis2w-core` install
-- [Auth providers](auth.md) — `BasicAuth`, `PatAuth`, `OAuth2Auth`, the `AuthProvider` Protocol, `OAuth2Token`, `TokenStore`
+- [Auth providers](auth.md) — `BasicAuth`, `PatAuth`, `OAuth2Auth`, `SessionCookieAuth`, the `AuthProvider` Protocol, `OAuth2Token`, `TokenStore`
 - [Errors](errors.md) — the exception hierarchy
 - [Envelopes + responses](envelopes.md) — `WebMessageResponse`, `Conflict`, `ImportCount`, `ObjectReport`, `ImportReport`
 - [Route auth schemes](auth-schemes.md) — the 5-variant discriminated `AuthScheme` union

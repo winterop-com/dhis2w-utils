@@ -32,7 +32,7 @@ class Profile(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     base_url: str
-    auth: Literal["pat", "basic", "oauth2"]
+    auth: Literal["pat", "basic", "oauth2", "session"]
     token: str | None = None
     username: str | None = None
     password: str | None = None
@@ -40,6 +40,8 @@ class Profile(BaseModel):
     client_secret: str | None = None
     scope: str | None = None
     redirect_uri: str | None = None
+    cookie: str | None = None
+    """Raw `Cookie` header value for `auth="session"` (e.g. `JSESSIONID=abc123`; the name is included)."""
     version: Dhis2 | None = None
     """Plugin-tree hint (see class docstring). Wire version is auto-detected on connect()."""
 

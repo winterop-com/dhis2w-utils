@@ -8502,8 +8502,8 @@ $ d2w profile default [OPTIONS] [NAME]
 Add (or upsert) a profile.
 
 Secrets are never accepted as command-line flags (they&#x27;d leak into shell history).
-Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`) or
-prompted interactively when missing.
+Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`,
+`DHIS2_SESSION_COOKIE`) or prompted interactively when missing.
 
 **Usage**:
 
@@ -8518,7 +8518,7 @@ $ d2w profile add [OPTIONS] NAME
 **Options**:
 
 * `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--auth TEXT`: pat | basic | oauth2  [default: pat]
+* `--auth TEXT`: pat | basic | oauth2 | session  [default: pat]
 * `--username TEXT`: Basic-auth username.
 * `--client-id TEXT`: OAuth2 client_id.
 * `--scope TEXT`: OAuth2 scope (DHIS2 only recognises `ALL`).  [default: ALL]
