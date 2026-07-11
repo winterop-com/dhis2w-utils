@@ -1,10 +1,19 @@
 [project]
 name = "dhis2w-ql"
-version = "0.99.1"
+version = "1.0.0"
 description = "d2ql: a pipeline query + transform language over JSON-shaped data, with an embedded expression core (d2path). Pure engine (tokenizer, parser, evaluator, planner) with no DHIS2 or FHIR runtime dependency."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "pydantic>=2.13",
 ]
@@ -15,6 +24,12 @@ dependencies = [
 #
 # Published: in the pypi-publish matrix (.github/workflows/pypi-publish.yml) — dhis2w-core
 # declares it as a runtime dependency, so PyPI installs of dhis2w-core resolve it from PyPI.
+
+[project.urls]
+Homepage = "https://github.com/winterop-com/dhis2w-utils"
+Documentation = "https://winterop-com.github.io/dhis2w-utils/"
+Repository = "https://github.com/winterop-com/dhis2w-utils"
+Changelog = "https://github.com/winterop-com/dhis2w-utils/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["uv_build>=0.11.26,<0.12.0"]

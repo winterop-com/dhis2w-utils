@@ -42,7 +42,7 @@ Basic, PAT, and OAuth2/OIDC with PKCE, behind a pluggable provider protocol. A p
 
 If you want the smallest possible dependency and raw JSON for a quick notebook pull, the official DHIS2 Python client is a great fit. If you want types, a CLI, agent tooling, and v41-v43 coverage in one place, that's what `dhis2w` adds.
 
-It's third-party, unaffiliated with DHIS2, and pre-1.0 — the surface is still moving. Try it:
+It's third-party, unaffiliated with DHIS2, and stable at 1.0 — the client surface, CLI, and MCP tools are committed under SemVer. Try it:
 
 ```bash
 uv tool install dhis2w-cli

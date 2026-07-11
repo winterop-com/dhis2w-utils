@@ -1,20 +1,35 @@
 [project]
 name = "dhis2w-mcp"
-version = "0.99.0"
+version = "1.0.0"
 description = "dhis2 FastMCP server — mounts plugins from dhis2w-core."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
-  "dhis2w-core>=0.99.0,<1.1",
+  "dhis2w-core>=1.0.0,<2.0",
   "fastmcp>=3.4",
 ]
 
 [project.optional-dependencies]
-browser = ["dhis2w-browser>=0.99.0,<1.1"]
+browser = ["dhis2w-browser>=1.0.0,<2.0"]
 
 [project.scripts]
 dhis2w-mcp = "dhis2w_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/winterop-com/dhis2w-utils"
+Documentation = "https://winterop-com.github.io/dhis2w-utils/"
+Repository = "https://github.com/winterop-com/dhis2w-utils"
+Changelog = "https://github.com/winterop-com/dhis2w-utils/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["uv_build>=0.11.26,<0.12.0"]

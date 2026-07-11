@@ -1,6 +1,6 @@
 # Roadmap
 
-A running inventory of what the workspace covers today, gaps surfaced during use, and the near-term plan. Pre-1.0, no deployed users; every item is a judgment call about priority, not a commitment.
+A running inventory of what the workspace covers today, gaps surfaced during use, and the near-term plan. Every item is a judgment call about priority, not a commitment.
 
 ## Current state
 

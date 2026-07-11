@@ -23,7 +23,7 @@ DHIS2 already has a lightweight, official Python client that returns plain JSON 
 - **Real auth.** Basic, PAT, and OAuth2/OIDC with PKCE, behind a pluggable `AuthProvider` protocol, with a profile system for juggling multiple instances.
 - **Production posture.** Strict ruff + mypy + pyright, ~1,150 tests, an mkdocs-material site, and runnable examples for every supported version.
 
-Reach for the official client when you want the smallest possible dependency and raw JSON. Reach for `dhis2w` when you want types, a CLI, agent tooling, and version coverage in one place. Note that `dhis2w` is third-party and pre-1.0.
+Reach for the official client when you want the smallest possible dependency and raw JSON. Reach for `dhis2w` when you want types, a CLI, agent tooling, and version coverage in one place. Note that `dhis2w` is third-party.
 
 ## Workspace members
 

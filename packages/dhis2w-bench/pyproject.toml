@@ -1,10 +1,11 @@
 [project]
 name = "dhis2w-bench"
-version = "0.99.0"
+version = "1.0.0"
 description = "Local-LLM benchmark harness for DHIS2 agents: coding, mcp-bridge, and full-mcp."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 requires-python = ">=3.13"
+classifiers = ["Private :: Do Not Upload"]
 dependencies = [
     "claude-agent-sdk>=0.2.110",
     "dhis2w-cli",
