@@ -335,7 +335,7 @@ d2w profile add local_oidc \
 
 To persist the OAuth2 client config separately (so you can pair it with `--auth oauth2 --from-env`), see `d2w profile oidc-config` — that command has the `--client-secret` flag because its job is exactly to write the client credentials block.
 
-Note: `add` does **not** open a browser. It just writes the profile. Unlike PAT/Basic, where the profile itself is usable as soon as it's saved, OAuth2 needs a separate interactive step to actually obtain an access token.
+Note: `add` does **not** open a browser. It just writes the profile. Unlike PAT/Basic/session, where the profile itself is usable as soon as it's saved, OAuth2 needs a separate interactive step to actually obtain an access token.
 
 The profile ends up in `profiles.toml` as:
 

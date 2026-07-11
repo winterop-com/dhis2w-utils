@@ -1,8 +1,8 @@
 """DHIS2 connection profile — the Pydantic model shared across the workspace.
 
 The model itself lives in `dhis2w-client` so library users can build a
-`Profile` and call `open_client(profile)` for PAT or Basic auth without
-installing `dhis2w-core`. TOML loading, multi-profile resolution, and
+`Profile` and call `open_client(profile)` for PAT, Basic, or session auth
+without installing `dhis2w-core`. TOML loading, multi-profile resolution, and
 OAuth2 token persistence stay in `dhis2w-core`.
 """
 

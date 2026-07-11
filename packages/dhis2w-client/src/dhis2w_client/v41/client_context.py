@@ -1,6 +1,6 @@
-"""Open a connected `Dhis2Client` from a `Profile` for PAT/Basic auth (v41).
+"""Open a connected `Dhis2Client` from a `Profile` for PAT/Basic/session auth (v41).
 
-This module is the lightweight library-user entry point: it handles the two
+This module is the lightweight library-user entry point: it handles the
 auth schemes that need no persistent state. OAuth2 needs the SQLite-backed
 token store that ships in `dhis2w-core` — calling `open_client` with
 `profile.auth == "oauth2"` here raises with a clear install hint pointing at
@@ -61,7 +61,7 @@ async def open_client(
     http_limits: httpx.Limits | None = None,
     system_cache_ttl: float | None = 300.0,
 ) -> AsyncGenerator[Dhis2Client]:
-    """Open a connected `Dhis2Client` for `profile` — PAT or Basic auth only.
+    """Open a connected `Dhis2Client` for `profile` — PAT, Basic, or session auth only.
 
     Yields a connected client inside `async with`. Raises `NotImplementedError`
     on OAuth2 profiles — use `dhis2w_core.open_client(profile, scope=..., profile_name=...)`

@@ -4,7 +4,7 @@ A **profile** is a named bundle of "how to reach one DHIS2 instance" — a base 
 
 ## Profile model location
 
-The `Profile` Pydantic model itself lives in `dhis2w-client` so library users on PAT or Basic auth can build profiles and call `dhis2w_client.open_client(profile)` without installing `dhis2w-core` and its heavier dependencies. TOML loading + writing, multi-profile resolution (`resolve()` / `load_catalog()` / the precedence chain), and OAuth2 token persistence stay in `dhis2w-core` — every `from dhis2w_core.profile import Profile` etc. import keeps working via re-export.
+The `Profile` Pydantic model itself lives in `dhis2w-client` so library users on PAT, Basic, or session auth can build profiles and call `dhis2w_client.open_client(profile)` without installing `dhis2w-core` and its heavier dependencies. TOML loading + writing, multi-profile resolution (`resolve()` / `load_catalog()` / the precedence chain), and OAuth2 token persistence stay in `dhis2w-core` — every `from dhis2w_core.profile import Profile` etc. import keeps working via re-export.
 
 ## Where profiles live
 

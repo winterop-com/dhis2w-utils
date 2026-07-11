@@ -12,7 +12,7 @@ Each shippable unit of code is a `uv` workspace member under `packages/`:
 
 | Member | Role | PyPI |
 | --- | --- | --- |
-| `dhis2w-client` | Async DHIS2 API client + `Profile` model + `open_client(profile)` for PAT/Basic auth. | [`dhis2w-client`](https://pypi.org/project/dhis2w-client/) |
+| `dhis2w-client` | Async DHIS2 API client + `Profile` model + `open_client(profile)` for PAT/Basic/session auth. | [`dhis2w-client`](https://pypi.org/project/dhis2w-client/) |
 | `dhis2w-core` | TOML profile resolution, OAuth2 token store, plugin registry, first-party plugins. | [`dhis2w-core`](https://pypi.org/project/dhis2w-core/) |
 | `dhis2w-ql` | d2ql query + transform engine (FHIRPath-compatible expression core). | [`dhis2w-ql`](https://pypi.org/project/dhis2w-ql/) |
 | `dhis2w-cli` | Thin Typer console-script shell. | [`dhis2w-cli`](https://pypi.org/project/dhis2w-cli/) |
