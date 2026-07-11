@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-ql"
-version = "1.0.0.dev2"
+version = "0.99.0"
 description = "d2ql: a pipeline query + transform language with a FHIRPath-compatible expression core. Pure engine (tokenizer, parser, evaluator, planner) with no DHIS2 or FHIR runtime dependency."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
