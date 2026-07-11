@@ -176,10 +176,15 @@ Four corners are handled or called out explicitly:
 - **Server-side value validation:** DHIS2 validates a pushed filter's value, so an invalid value
   (e.g. an enum in the wrong case like `domainType = "aggregate"`) raises a `400` where local
   evaluation would simply return no rows. Use the exact value DHIS2 expects.
-- **Date / datetime comparisons:** when pushed, DHIS2's date semantics apply (correct). The local
-  fallback compares values as-is, and a date/datetime field does not compare against a bare string
-  literal — so a date comparison that is *not* pushed can under-match. Pin date handling is tracked
-  with date-literal support (`@2026-06-23`).
+- **Date / datetime comparisons:** date and datetime **literals** are first-class — `@2026-06-23`
+  and `@2026-06-23T12:00:00` (see [d2path → Date and datetime literals](../guides/d2path.md#date-and-datetime-literals)).
+  A literal evaluates to its ISO-8601 string and compares lexicographically, which is correct
+  chronological order for ISO values. When a date `where` is pushed, DHIS2's own date semantics apply
+  (correct). The local fallback is a string compare, so it lines up only when the field is *also* a
+  string: over a wire model whose field parsed into a typed timestamp, the comparison finds a
+  non-string on one side and yields the empty collection — a date comparison that is *not* pushed can
+  therefore under-match. Keep date predicates leading so they push down, or compare over JSON where
+  the field is a string.
 
 `explain` always tells you exactly what ran where.
 

@@ -1,0 +1,10 @@
+// `distinct()` dedupes a collection; `isDistinct()` reports whether it had no duplicates. Here:
+// the set of value types a group's data elements use, and whether every member's type is unique.
+dataElementGroups
+  | transform {
+      name: name,
+      valueTypes: dataElements.valueType.distinct(),
+      allTypesDistinct: dataElements.valueType.isDistinct()
+    }
+  | order name asc
+  | limit 25

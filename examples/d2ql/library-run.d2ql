@@ -1,0 +1,14 @@
+// A library of reusable named queries + a predicate function. Run any one by name, e.g.:
+//   d2w query run examples/d2ql/library-run.d2ql --define AggregateElements
+//   d2w query run examples/d2ql/library-run.d2ql --define TrackerPrograms
+// With no --define, the terminal pipeline (the district roster) runs.
+define MinLevel: 2
+define function isImmunisation(de): $de.name like "BCG" or $de.name like "measles" or $de.name like "Penta"
+
+define AggregateElements: dataElements | where domainType = "AGGREGATE" | select id, name, valueType | order name asc | limit 25
+define ImmunisationElements: dataElements | where isImmunisation($this) | select id, name | order name asc | limit 25
+define Districts: organisationUnits | where level = $MinLevel | select id, name | order name asc | limit 25
+define TrackerPrograms: programs | where programType = "WITH_REGISTRATION" | select id, name | order name asc | limit 25
+
+// Default terminal, used when no --define is given.
+Districts

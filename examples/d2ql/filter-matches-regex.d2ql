@@ -1,0 +1,7 @@
+// `matches(pattern)` is a regex predicate (Python `re.search`). It runs locally over fetched rows
+// (a function call never pushes down), and a row whose `code` is missing simply fails the match.
+dataElements
+  | where code.matches("^[A-Z]{2}")
+  | select id, name, code
+  | order name asc
+  | limit 25

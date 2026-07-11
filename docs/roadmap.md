@@ -147,6 +147,28 @@ out of scope until a concrete caller needs them.
 - `Local OIDC` login-page button is non-functional for browser clicks (CLI-only `redirect_url`); no per-provider "hide from login UI" flag in DHIS2 v42 — documented in `docs/architecture/auth.md`.
 - Bearer-to-JSESSIONID path for browser workflows on OIDC profiles is unverified (flagged in `authenticated_session` docstring).
 
+### d2path evaluator: sharp edges surfaced by the example sweep
+
+Writing evaluator-verified examples for every registry function (the d2path-examples catalog) exposed
+three behaviours worth a decision — the examples document actual behaviour, so fixing any of these
+means updating the affected catalog entries in the same PR:
+
+- **Literal negative and computed indices raise.** `scores[-1]` and `scores[1 + 1]` fail with
+  "index must be an integer" because unary minus / arithmetic always produce a float (`-1.0`), which
+  `_eval_index` and `_int_arg` reject — while the bounds check explicitly anticipates negative
+  indices, so the intent was for `[-1]` to work. Fix shape: arithmetic on integer operands should
+  yield an int (or the index/argument checks should accept integral floats). The same coercion breaks
+  `take(-1)`-style arguments.
+- **`union()` / `combine()` arguments evaluate against the navigated focus, not the row root.**
+  `a.union(b)` over `{a: [1,2], b: [2,3]}` yields `[1,2]` (b resolves to `[]` against the int focus),
+  so neither "merge two sibling fields" nor "union with a literal set" works as a naive user expects —
+  and an array-literal argument arrives as one nested element (`a.union([3,4])` appends `[3,4]`
+  whole). Decide whether args should get root/parent scope (likely a spec question) or whether the
+  docs stance (use sub-selections of the same focus) is the intended semantics; either way the
+  cookbook and catalog steer users to working forms today.
+- **Out-of-bounds vs negative index asymmetry.** OOB returns `[]` silently; negative raises — the
+  visible symptom of the float-coercion bug above. Resolves with it.
+
 ### Session-cookie auth: follow-ups
 
 The session auth kind (#438) plus its parity pass (browser workflows, verify diagnostics, cookie

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "OU_BOMBALI",
+    "name": "Bombali",
+    "level": 2,
+    "parent": { "name": "Sierra Leone" },
+    "children": [{ "name": "Gbanti Kamaranka" }, { "name": "Makari Gbanti" }, { "name": "Safroko Limba" }]
+  },
+  {
+    "id": "OU_BO",
+    "name": "Bo",
+    "level": 2,
+    "parent": { "name": "Sierra Leone" },
+    "children": [{ "name": "Badjia" }, { "name": "Bagbo" }]
+  },
+  {
+    "id": "OU_GBANTI",
+    "name": "Gbanti Kamaranka",
+    "level": 3,
+    "parent": { "name": "Bombali" },
+    "children": [{ "name": "Kamaranka CHP" }]
+  },
+  {
+    "id": "OU_BADJIA",
+    "name": "Badjia",
+    "level": 3,
+    "parent": { "name": "Bo" },
+    "children": [{ "name": "Njandama MCHP" }, { "name": "Ngelehun CHC" }]
+  }
+]

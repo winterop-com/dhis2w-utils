@@ -1,0 +1,5 @@
+// `group by` + `count` works over any source, including a local `read(...)` file:
+// here, how many org units sit at each hierarchy level in the fixture.
+read("examples/d2ql/data/orgunits.json")
+  | group by level { n: count() }
+  | order level asc

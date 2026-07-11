@@ -1,0 +1,6 @@
+// Step 2 of a two-step chain: read back the file `read-chain-1-export.d2ql` produced and
+// shape it further — no re-fetch. Run `read-chain-1-export.d2ql` first so the file exists.
+read("/tmp/d2ql-districts.ndjson")
+  | where districts >= 2
+  | select name, districts
+  | order districts desc

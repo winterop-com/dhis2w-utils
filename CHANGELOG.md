@@ -76,6 +76,22 @@ Development snapshot. Not a published release — no tag, no PyPI upload.
 
 ### Examples / docs
 
+- **A generated, evaluator-verified d2path example reference** (`docs/query/d2path-examples.md`): a typed
+  catalog of 140 examples covering every registered d2path function plus the operator, literal, and
+  navigation surface — each entry is parsed and evaluated in CI against the real evaluator, and a hard
+  coverage gate fails the suite if a registry function ships without examples. Rendered by
+  `make docs-d2path` (chained into `docs-build`).
+- **Every d2ql / d2path fence in the QL docs is machine-validated**: fenced blocks tagged `d2ql` or
+  `d2path` across the tutorial, references, cookbook, semantics, and index pages are parsed in CI
+  (68 validated fences); pseudo-notation stays on `text` fences.
+- **Guide depth**: date/datetime literal semantics (`@2026-06-23`, ISO-string comparisons — the
+  semantics page previously framed these as future work), `read(...)` file sources with an
+  export-then-reread chain, library files with `--define`/`--file` worked examples, string building
+  (`+` concat vs `join()`), arithmetic (`/` vs `div`, `mod`), existential comparison, the full five-label
+  `is` type test, native pager-total `count`, and a gotchas list (index rules, depth and regex caps).
+- **20 new `.d2ql` sample programs** (read-*, date-*, string-*, subset-*, convert-*, library-run) with
+  local JSON/NDJSON fixtures under `examples/d2ql/data/`, 16 new cookbook recipes, and 15 new entries
+  in the curated SAMPLES registry — all parse-tested in CI.
 - File-export CLI examples bundled under an `export-*` family (#417); the three FHIR Bundle examples share a
   `fhir-bundle-*` prefix (#415).
 - Nested-relationship "join" examples; the cookbook clarifies `transform` vs `fold` (#421).
