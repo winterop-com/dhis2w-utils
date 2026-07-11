@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.99.1 — 2026-07-11 (dhis2w-ql only)
+
+- **A standalone PyPI face for `dhis2w-ql`**: the README leads with the no-DHIS2-required story —
+  install, a verified d2path quickstart over plain JSON, a full pipeline quickstart with
+  `QueryEngine` + `InMemoryBinder`, a collection-semantics primer, and links to the docs site
+  including the 140-example evaluator-verified d2path catalog. The package description drops the
+  FHIRPath framing in line with the language docs (d2path stands on its own semantics). Only
+  `dhis2w-ql` bumps; the sibling packages stay at 0.99.0 and their `>=0.99.0` pins resolve to this
+  release.
+
 ## 0.99.0 — 2026-07-11
 
 First tagged release since 0.23.0. Everything below plus the two unpublished snapshot sections

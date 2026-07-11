@@ -168,6 +168,11 @@ means updating the affected catalog entries in the same PR:
   cookbook and catalog steer users to working forms today.
 - **Out-of-bounds vs negative index asymmetry.** OOB returns `[]` silently; negative raises — the
   visible symptom of the float-coercion bug above. Resolves with it.
+- **Singleton-only string functions return `[]` silently over multi-element focus.**
+  `name.upper()` over two rows yields `[]` (the `_string` helper requires a singleton), while
+  `name.select(upper())` maps correctly. Silent-empty is the sharp part — an EvaluationError
+  ("upper() needs a singleton; map with select()") would turn a confusing no-op into a teachable
+  error. The dhis2w-ql README documents the `select(...)` idiom in the meantime.
 
 ### Session-cookie auth: follow-ups
 
