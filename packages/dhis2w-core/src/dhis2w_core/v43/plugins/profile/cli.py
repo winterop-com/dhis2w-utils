@@ -254,6 +254,11 @@ def env_command(
         _export_if("DHIS2_PAT", profile.token)
     elif profile.auth == "session":
         _export_if("DHIS2_SESSION_COOKIE", profile.cookie)
+        typer.echo(
+            "note: DHIS2_SESSION_COOKIE has no raw-env path; a session profile must exist in "
+            "profiles.toml. The exported DHIS2_PROFILE makes `d2w` use this TOML profile.",
+            err=True,
+        )
     elif profile.auth == "oauth2":
         _export_if("DHIS2_OAUTH_CLIENT_ID", profile.client_id)
         _export_if("DHIS2_OAUTH_CLIENT_SECRET", profile.client_secret)
@@ -463,9 +468,10 @@ def add_command(
             version=pinned_version,
         )
     elif auth == "session":
-        cookie = os.environ.get("DHIS2_SESSION_COOKIE") or typer.prompt(
-            "Session cookie (e.g. JSESSIONID=...)", hide_input=True
-        )
+        cookie = (
+            os.environ.get("DHIS2_SESSION_COOKIE")
+            or typer.prompt("Session cookie (e.g. JSESSIONID=...)", hide_input=True)
+        ).strip()
         profile = Profile(base_url=resolved_url, auth="session", cookie=cookie, version=pinned_version)
     elif auth == "oauth2":
         client_id = client_id or typer.prompt("OAuth2 client_id", default="dhis2-utils-local")

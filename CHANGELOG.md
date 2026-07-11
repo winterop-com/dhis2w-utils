@@ -14,6 +14,20 @@ Development snapshot. Not a published release — no tag, no PyPI upload.
   for instances where PAT creation is unavailable (pre-2.38, disabled, or 403 for the user); the driving
   consumer is the kodo Chrome extension's "use my login" flow, which upserts a session profile from the
   browser's live DHIS2 session and re-runs the upsert on cookie rotation.
+- **Session profiles drive browser capture workflows** (dashboards, maps, visualizations): the stored
+  Cookie header is parsed pair-by-pair (`parse_cookie_header`) and injected into the Playwright context
+  directly via the new `dhis2w_browser.session_from_cookie_header` — no login form, no mint. Banner
+  usernames for session profiles resolve via `GET /api/me`.
+- **`profile verify` names the missing auth material and its remedy** — a known auth kind with an
+  incomplete profile (session without cookie, pat without token, basic without credentials) reports
+  what is missing and the `d2w profile add` command that re-binds it; "verification does not yet
+  support auth type ..." is reserved for genuinely unknown kinds.
+- **Session cookies are trimmed and validated at capture time**: surrounding whitespace is stripped and
+  values with embedded control characters (newlines, carriage returns, tabs) are rejected with a clear
+  message at profile-add/model-validation time instead of failing later inside httpx. Multi-pair values
+  stay accepted; the design remains cookie-name-agnostic.
+- **`profile env` prints a caveat for session profiles**: `DHIS2_SESSION_COOKIE` has no raw-env path —
+  a session profile must exist in `profiles.toml` (mirrors the oauth2 note).
 
 ### d2ql / d2path query language (new)
 

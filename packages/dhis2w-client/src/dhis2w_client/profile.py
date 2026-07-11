@@ -12,7 +12,7 @@ import os
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from dhis2w_client.generated import Dhis2
 
@@ -44,6 +44,22 @@ class Profile(BaseModel):
     """Raw `Cookie` header value for `auth="session"` (e.g. `JSESSIONID=abc123`; the name is included)."""
     version: Dhis2 | None = None
     """Plugin-tree hint (see class docstring). Wire version is auto-detected on connect()."""
+
+    @field_validator("cookie")
+    @classmethod
+    def _normalize_cookie(cls, value: str | None) -> str | None:
+        """Trim surrounding whitespace and reject a cookie carrying ASCII control characters."""
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("session cookie is empty after trimming whitespace — re-copy the raw Cookie header value")
+        if any(ord(character) < 0x20 or ord(character) == 0x7F for character in normalized):
+            raise ValueError(
+                "session cookie contains control characters or stray line breaks — "
+                "re-copy the value from the browser without embedded newlines, carriage returns, or tabs"
+            )
+        return normalized
 
 
 class NoProfileError(RuntimeError):

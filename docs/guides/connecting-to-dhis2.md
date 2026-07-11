@@ -403,6 +403,8 @@ DHIS2_SESSION_COOKIE="JSESSIONID=abc123" \
   d2w profile add browser --url https://dhis2.example.org --auth session --local
 ```
 
+The captured value is trimmed of surrounding whitespace, and values carrying control characters (stray newlines, carriage returns, tabs — classic `echo`/clipboard artifacts) are rejected at add time with a clear message rather than failing later inside the HTTP client. Multi-pair values (`A=1; B=2`) are fine.
+
 Profile shape in `profiles.toml`:
 
 ```toml
@@ -416,7 +418,9 @@ cookie = "JSESSIONID=abc123"
 
 The session lives (and dies) server-side; there is nothing to refresh client-side. When the browser session expires or the user logs out, requests start failing — `d2w profile verify browser` is the cheap detector. Re-binding is just re-running the same `profile add` upsert with a fresh cookie.
 
-Note that `profile env` exports `DHIS2_SESSION_COOKIE`, but the raw-env fallback (`DHIS2_URL` + secret, no TOML) handles PAT and Basic only — a session binding always needs the saved profile.
+Note that `profile env` exports `DHIS2_SESSION_COOKIE`, but the raw-env fallback (`DHIS2_URL` + secret, no TOML) handles PAT and Basic only — a session binding always needs the saved profile. The command prints a caveat note saying exactly that when the profile is a session one.
+
+Session profiles also drive the Playwright browser workflows (`d2w browser viz screenshot`, dashboard captures): the stored cookie is injected into the browser context directly — see [Browser automation](../architecture/browser.md).
 
 See `examples/v{41,42,43}/cli/profile_session.sh` for the end-to-end flow.
 

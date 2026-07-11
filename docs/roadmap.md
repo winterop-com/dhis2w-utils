@@ -147,6 +147,39 @@ out of scope until a concrete caller needs them.
 - `Local OIDC` login-page button is non-functional for browser clicks (CLI-only `redirect_url`); no per-provider "hide from login UI" flag in DHIS2 v42 — documented in `docs/architecture/auth.md`.
 - Bearer-to-JSESSIONID path for browser workflows on OIDC profiles is unverified (flagged in `authenticated_session` docstring).
 
+### Session-cookie auth: follow-ups
+
+The session auth kind (#438) plus its parity pass (browser workflows, verify diagnostics, cookie
+validation, env caveat — #439) leave these open, none blocking:
+
+- **Expired-session verify signal.** The client maps only HTTP 401 to `AuthenticationError`; a DHIS2
+  that answers an expired-cookie `/api/*` request with a 302-to-login surfaces as a confusing
+  `Dhis2ApiError(302)` / empty-body error instead of the 401-flavored failure the kodo panel's expiry
+  detector expects. Needs a live test against a genuinely expired cookie per supported DHIS2 version;
+  if the redirect is real, map redirect-to-login on API calls to an auth-flavored error (and log the
+  server behaviour in `BUGS.md`).
+- **Non-TTY fail-fast for secret prompts.** All four `profile add` secret branches (pat / basic /
+  oauth2 / session) fall into an interactive hidden prompt when the env var is unset or empty; in a
+  non-TTY subprocess that blocks on an open stdin pipe or dies with a generic `Aborted.`. A shared
+  capture helper should fail fast with "set <ENV_VAR> or run interactively" when stdin is not a TTY.
+- **Per-auth-kind descriptor table before the next kind lands.** Adding `session` meant touching five
+  enumerations per tree (provider factory, probe auth, colorize, env export, add branch) and initially
+  missed two more (show masking, browser mint). Consolidate the per-kind knowledge — provider
+  constructor, secret field, env var, prompt label, table color — into one descriptor before a
+  service-account JWT or OIDC-federation kind repeats the scatter. `_build_probe_auth` restating
+  `build_auth_for_basic` folds into the same cleanup.
+- **`dhis2://target` MCP resource on the bridge.** kodo currently gets bound-state/expiry data by
+  polling the `dhis2_cli` tool with `profile verify`; a proper MCP resource is the cleaner long-term
+  shape for "what instance/user am I bound to".
+- **Direct unit test for `pat_registration.register_pat`.** The self-service PAT mint (kodo's primary
+  path) is only exercised indirectly today.
+- **Cookie storage escape hatch.** If rotation frequency ever makes `profiles.toml` rewrites a
+  problem, the sqlite token store's columns already fit (cookie -> access_token, expires_at); recorded
+  as an option, not a plan.
+- **Profile test-tree conftest.** The `TREES` parametrization + `_isolated` env fixture exist as four
+  verbatim copies (and have already drifted on which env vars they strip); promote them to
+  `packages/dhis2w-core/tests/profile/conftest.py`.
+
 ### Metadata listing consolidation
 
 Listing collapsed onto one surface — generic `metadata list <type>` + the `metadata_list` MCP tool (see the 2026-06-04 decisions-log entry). Three follow-ups remain:

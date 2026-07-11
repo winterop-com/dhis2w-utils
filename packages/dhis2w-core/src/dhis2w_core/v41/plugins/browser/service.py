@@ -74,8 +74,16 @@ async def mint_jsessionid(profile: Profile) -> str:
     `BrowserWorkflowNotSupported` — PATs are stateless in DHIS2, and the
     OAuth2 Bearer-token-to-JSESSIONID exchange has not been wired (needs
     a smoke test to confirm DHIS2 mints a JSESSIONID when
-    `Authorization: Bearer` is presented to `/api/me`).
+    `Authorization: Bearer` is presented to `/api/me`). Session profiles
+    never reach here — `authenticated_session` injects their stored cookie
+    directly rather than minting one.
     """
+    if profile.auth == "session":
+        raise BrowserWorkflowNotSupported(
+            "Session profiles carry their session cookie in `profile.cookie` and inject it "
+            "directly — there is no JSESSIONID to mint. Drive browser workflows through "
+            "`authenticated_session`, which reads the stored cookie.",
+        )
     if profile.auth == "pat":
         raise BrowserWorkflowNotSupported(
             "PAT profiles cannot drive browser workflows — DHIS2 PATs are stateless "
@@ -116,12 +124,33 @@ async def authenticated_session(
 ) -> AsyncGenerator[tuple[BrowserContext, Page]]:
     """Yield a Playwright `(context, page)` authenticated as the profile's user.
 
-    Mints a `JSESSIONID` from the profile's credentials (via `mint_jsessionid`)
-    and injects it into a fresh browser context — no React login form
-    interaction required. Raises `BrowserWorkflowNotSupported` for profile
-    auth types that can't produce a session (PAT today).
+    Session profiles inject their stored `profile.cookie` directly (no login
+    dance). Basic profiles mint a `JSESSIONID` from their credentials (via
+    `mint_jsessionid`) and inject it. Either way a fresh browser context is
+    seeded with the session cookie — no React login form interaction required.
+    Raises `BrowserWorkflowNotSupported` for auth types that can't produce a
+    session (PAT, OAuth2) or a session profile that has no cookie.
     """
     require_browser()
+
+    if profile.auth == "session":
+        from dhis2w_browser import session_from_cookie_header  # noqa: PLC0415 — optional-extra guard
+
+        if not profile.cookie:
+            raise BrowserWorkflowNotSupported(
+                "Profile auth='session' has no session cookie; there is no session material to inject. "
+                "Re-run `d2w profile add <name> --auth session` with the Cookie header captured from an "
+                "authenticated browser (e.g. `JSESSIONID=...`).",
+            )
+        async with session_from_cookie_header(
+            profile.base_url,
+            profile.cookie,
+            headless=headless,
+            navigate_to=navigate_to,
+        ) as (context, page):
+            yield context, page
+        return
+
     from dhis2w_browser import session_from_cookie  # noqa: PLC0415 — optional-extra guard
 
     jsessionid = await mint_jsessionid(profile)
@@ -132,6 +161,21 @@ async def authenticated_session(
         navigate_to=navigate_to,
     ) as (context, page):
         yield context, page
+
+
+async def resolve_banner_username(profile: Profile) -> str:
+    """Return a display username for capture banners, resolving session profiles via `GET /api/me`.
+
+    Basic profiles carry `profile.username` directly. Session profiles have no
+    username field, so the live session (its stored cookie) is asked `/api/me`
+    for one; if the server doesn't surface a username, the auth kind stands in.
+    """
+    if profile.username is not None:
+        return profile.username
+    async with open_client(profile) as client:
+        raw = await client.get_raw("/api/me", params={"fields": "username"})
+    username = raw.get("username")
+    return username if isinstance(username, str) else profile.auth
 
 
 async def list_dashboards(profile: Profile) -> list[dict[str, object]]:
@@ -195,11 +239,7 @@ async def capture_dashboards(
         trim_background,
     )
 
-    if profile.username is None:
-        raise BrowserWorkflowNotSupported(
-            "Dashboard screenshots need a profile with a resolvable username for the banner. "
-            "Use a Basic profile (username + password).",
-        )
+    banner_username = await resolve_banner_username(profile)
 
     instance_dir = output_dir / instance_slug(profile.base_url)
     instance_dir.mkdir(parents=True, exist_ok=True)
@@ -245,7 +285,7 @@ async def capture_dashboards(
                     output_path,
                     target.display_name,
                     instance_url=profile.base_url,
-                    username=profile.username,
+                    username=banner_username,
                     item_count=target.item_count,
                 )
             results.append(result)
@@ -291,11 +331,7 @@ async def capture_maps(
         trim_background,
     )
 
-    if profile.username is None:
-        raise BrowserWorkflowNotSupported(
-            "Map screenshots need a profile with a resolvable username for the banner. "
-            "Use a Basic profile (username + password).",
-        )
+    banner_username = await resolve_banner_username(profile)
 
     instance_dir = output_dir / instance_slug(profile.base_url)
     instance_dir.mkdir(parents=True, exist_ok=True)
@@ -353,7 +389,7 @@ async def capture_maps(
                     output_path,
                     target.display_name,
                     instance_url=profile.base_url,
-                    username=profile.username,
+                    username=banner_username,
                     layer_count=layer_count,
                 )
             results.append(
@@ -409,11 +445,7 @@ async def capture_visualizations(
         trim_background,
     )
 
-    if profile.username is None:
-        raise BrowserWorkflowNotSupported(
-            "Visualization screenshots need a profile with a resolvable username for the banner. "
-            "Use a Basic profile (username + password).",
-        )
+    banner_username = await resolve_banner_username(profile)
 
     instance_dir = output_dir / instance_slug(profile.base_url)
     instance_dir.mkdir(parents=True, exist_ok=True)
@@ -472,7 +504,7 @@ async def capture_visualizations(
                     output_path,
                     target.display_name,
                     instance_url=profile.base_url,
-                    username=profile.username,
+                    username=banner_username,
                     viz_type=target.viz_type,
                 )
             results.append(
