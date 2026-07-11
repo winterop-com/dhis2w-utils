@@ -1,0 +1,6 @@
+// Build a display label by `+`-concatenating string fields with literals — one composed
+// column per row. String `+` is concatenation when both sides are strings.
+dataElements
+  | transform { id: id, label: "[" + valueType + "] " + name }
+  | order name asc
+  | limit 25

@@ -1,0 +1,7 @@
+// `tail()` returns everything after the first element of a collection (the complement of `first()`).
+// Here: each district's child names except the first.
+organisationUnits
+  | where level = 2
+  | transform { name: name, firstChild: children.name.first(), otherChildren: children.name.tail() }
+  | order name asc
+  | limit 25

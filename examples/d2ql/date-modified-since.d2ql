@@ -1,0 +1,7 @@
+// Metadata modified on/after a date, using a `@`-date literal. A plain `@2024-01-01` renders
+// into a native `lastUpdated:ge:2024-01-01` filter (pushed down); ISO dates compare correctly.
+dataElements
+  | where lastUpdated >= @2024-01-01
+  | select id, name, lastUpdated
+  | order lastUpdated desc
+  | limit 25

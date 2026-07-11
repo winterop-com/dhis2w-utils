@@ -1,0 +1,6 @@
+// Read a local JSON array with `read(...)` instead of a DHIS2 resource — the file's
+// top-level array becomes the rows, then the usual stages shape them. No profile/server needed.
+read("examples/d2ql/data/orgunits.json")
+  | where level = 2
+  | select id, name, parent.name as parent
+  | order name asc

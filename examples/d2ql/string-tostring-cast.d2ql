@@ -1,0 +1,7 @@
+// `toString()` casts a non-string (here the numeric `level`) so it can be `+`-concatenated into a
+// label. Without the cast, `+` across a string and a number would not concatenate.
+organisationUnits
+  | where level = 2
+  | transform { label: name + " (level " + level.toString() + ")" }
+  | order name asc
+  | limit 25

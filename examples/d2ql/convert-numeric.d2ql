@@ -1,0 +1,5 @@
+// CSV/NDJSON files carry everything as strings. `toInteger()` / `toDecimal()` cast text numbers so
+// later stages can compare and aggregate them numerically.
+read("examples/d2ql/data/readings.ndjson")
+  | transform { facility: facility, cases: cases.toInteger(), population: population.toInteger() }
+  | order cases desc

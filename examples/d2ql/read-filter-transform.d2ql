@@ -1,0 +1,6 @@
+// Filter and reshape local file rows: keep districts, then build a compact object per row.
+// Nested navigation (`children.count()`) works the same over local data as over DHIS2 metadata.
+read("examples/d2ql/data/orgunits.json")
+  | where level = 2
+  | transform { id: id, name: name, childCount: children.count() }
+  | order name asc

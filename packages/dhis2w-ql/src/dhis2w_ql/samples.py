@@ -44,6 +44,19 @@ def _p(id: str, title: str, source: str, description: str) -> Sample:
     )
 
 
+def _r(id: str, title: str, category: str, source: str, description: str) -> Sample:
+    """Build a d2ql sample that reads a local file (`read(...)`), so it needs no profile."""
+    return Sample(
+        id=id,
+        title=title,
+        category=category,
+        language="d2ql",
+        source=source,
+        description=description,
+        needs_profile=False,
+    )
+
+
 SAMPLES: list[Sample] = [
     # ---------------------------------------------------------------- basics
     _q("basics-all", "List a resource", "basics", "dataElements | limit 25", "Fetch the first rows of a resource."),
@@ -389,6 +402,117 @@ SAMPLES: list[Sample] = [
         "sinks",
         'dataElements | select id, name >> "elements.ndjson"',
         "Write newline-delimited JSON.",
+    ),
+    # ---------------------------------------------------------------- read (local files, no profile)
+    _r(
+        "read-json-array",
+        "Read a JSON array",
+        "read",
+        'read("examples/d2ql/data/orgunits.json") | where level = 2 | select id, name, parent.name as parent | order name asc',  # noqa: E501
+        "Use a local JSON file as the source instead of a DHIS2 resource; the top-level array becomes the rows.",
+    ),
+    _r(
+        "read-ndjson",
+        "Read newline-delimited JSON",
+        "read",
+        'read("examples/d2ql/data/facilities.ndjson") | select id, name, lastUpdated | order lastUpdated desc',
+        "A `.ndjson` file is parsed one JSON object per line; all stages run locally over the file.",
+    ),
+    _r(
+        "read-group-by",
+        "Group a local file",
+        "read",
+        'read("examples/d2ql/data/orgunits.json") | group by level { n: count() } | order level asc',
+        "`group by` + `count` works over any source, including a local `read(...)` file.",
+    ),
+    _r(
+        "read-transform",
+        "Reshape local file rows",
+        "read",
+        'read("examples/d2ql/data/orgunits.json") | where level = 2 | transform { id: id, name: name, childCount: children.count() } | order name asc',  # noqa: E501
+        "Nested navigation (`children.count()`) works the same over local data as over DHIS2 metadata.",
+    ),
+    # ---------------------------------------------------------------- dates
+    _q(
+        "date-modified-since",
+        "Modified since a date",
+        "dates",
+        "dataElements | where lastUpdated >= @2024-01-01 | select id, name, lastUpdated | order lastUpdated desc | limit 25",  # noqa: E501
+        "A plain `@`-date literal renders into a native `lastUpdated:ge:` filter (pushed down); ISO dates compare correctly.",  # noqa: E501
+    ),
+    _q(
+        "date-created-window",
+        "Created-date window",
+        "dates",
+        "dataElements | where created >= @2020-01-01 and created <= @2024-12-31 | select id, name, created | order created asc | limit 25",  # noqa: E501
+        "Two `@`-date literals AND'd into a window; both clauses push down as native `created:ge:`/`created:le:` filters.",  # noqa: E501
+    ),
+    _r(
+        "date-datetime-literal",
+        "Datetime literal filter",
+        "dates",
+        'read("examples/d2ql/data/facilities.ndjson") | where lastUpdated >= @2024-01-01T00:00:00 | select name, lastUpdated | order lastUpdated asc',  # noqa: E501
+        "A `@`-datetime literal (with a time part) compares as an ISO string; over a local file it stays local.",
+    ),
+    # ---------------------------------------------------------------- strings
+    _q(
+        "string-label",
+        "Compose a display label",
+        "strings",
+        'dataElements | transform { id: id, label: "[" + valueType + "] " + name } | order name asc | limit 25',
+        "`+` between strings concatenates fields and literals into one composed column.",
+    ),
+    _q(
+        "string-join-codes",
+        "Join a collection to a string",
+        "strings",
+        'optionSets | transform { name: name, codes: options.code.join(", ") } | order name asc | limit 25',
+        "`join(sep)` turns a repeating association into one delimited string (the inverse of `split`).",
+    ),
+    _q(
+        "string-tostring-cast",
+        "Cast a number for concatenation",
+        "strings",
+        'organisationUnits | where level = 2 | transform { label: name + " (level " + level.toString() + ")" } | order name asc | limit 25',  # noqa: E501
+        "`toString()` casts a number so `+` can concatenate it into a label.",
+    ),
+    # ---------------------------------------------------------------- subset (collection ends / dedup)
+    _q(
+        "subset-first-last",
+        "First and last of a collection",
+        "subset",
+        "organisationUnits | where level = 2 | transform { name: name, firstChild: children.name.first(), lastChild: children.name.last() } | order name asc | limit 25",  # noqa: E501
+        "`first()`/`last()` pick the ends of a nested collection; a single-element collection collapses to a scalar.",
+    ),
+    _q(
+        "subset-tail",
+        "All but the first",
+        "subset",
+        "organisationUnits | where level = 2 | transform { name: name, otherChildren: children.name.tail() } | order name asc | limit 25",  # noqa: E501
+        "`tail()` returns everything after the first element (the complement of `first()`).",
+    ),
+    _q(
+        "subset-distinct",
+        "Dedupe and test distinctness",
+        "subset",
+        "dataElementGroups | transform { name: name, valueTypes: dataElements.valueType.distinct(), allTypesDistinct: dataElements.valueType.isDistinct() } | order name asc | limit 25",  # noqa: E501
+        "`distinct()` dedupes a collection; `isDistinct()` reports whether it had no duplicates.",
+    ),
+    # ---------------------------------------------------------------- convert (string -> number)
+    _r(
+        "convert-rate",
+        "Computed rate from string inputs",
+        "convert",
+        'read("examples/d2ql/data/readings.ndjson") | transform { facility: facility, per1000: ((cases.toDecimal() / population.toDecimal()) * 1000).round(1) } | order per1000 desc',  # noqa: E501
+        "Cast text columns with `toDecimal()`, divide/scale, and `round(1)` — a per-1000 rate from raw string inputs.",
+    ),
+    # ---------------------------------------------------------------- regex filter
+    _q(
+        "filter-matches",
+        "Regex predicate",
+        "filtering",
+        'dataElements | where code.matches("^[A-Z]{2}") | select id, name, code | order name asc | limit 25',
+        "`matches(pattern)` is a local regex predicate (never pushed down); a missing `code` fails the match.",
     ),
     # ---------------------------------------------------------------- d2path
     _p(

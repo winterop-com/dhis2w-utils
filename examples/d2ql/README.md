@@ -5,7 +5,10 @@ A d2ql program is the same text regardless of the DHIS2 major, so these live her
 `examples/v41|v42|v43`), and the per-version `cli/query_run.sh` runners execute them.
 
 Files are grouped by a name prefix: `metadata-*`, `orgunits-*`, `analytics-*`, `datavalues-*`,
-`fhir-*`, `geojson-*`, `export-*`, `sink-*`, `library-*`.
+`fhir-*`, `geojson-*`, `export-*`, `sink-*`, `library-*`, `read-*`, `date-*`, `string-*`, `subset-*`,
+`convert-*`, `filter-*`.
+
+Small fixture files the `read-*` / `convert-*` programs load live under `data/` (JSON + NDJSON).
 
 ## Run one
 
@@ -128,3 +131,43 @@ print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'or
 | `geojson-districts.d2ql` | per-row GeoJSON Feature, file sink |
 | `geojson-featurecollection.d2ql` | `transform` + `fold` into one FeatureCollection |
 | `library-immunisation.d2ql` | a full library: scalar define + function + named query |
+| `library-run.d2ql` | several named queries in one file; pick one with `--define <name>` |
+
+**`read-*`** — read rows from a local file (`read(...)`) instead of a DHIS2 resource; no profile needed
+
+| File | Shows |
+|------|-------|
+| `read-json-array.d2ql` | read a `.json` array as the source, then filter/select/order |
+| `read-ndjson.d2ql` | read a `.ndjson` file (one object per line) |
+| `read-group-by.d2ql` | `group by` + `count` over local file rows |
+| `read-filter-transform.d2ql` | `where` + `transform` (nested `children.count()`) over a file |
+| `read-chain-1-export.d2ql` | step 1: reshape a file and write NDJSON to a scratch path |
+| `read-chain-2-reshape.d2ql` | step 2: `read(...)` that file back for further shaping |
+
+**`date-*`** — `@`-date / `@`-datetime literal filtering on audit fields
+
+| File | Shows |
+|------|-------|
+| `date-modified-since.d2ql` | `lastUpdated >= @2024-01-01` (pushes down to a native `ge` filter) |
+| `date-created-window.d2ql` | a `created` window with two `@`-date literals AND'd |
+| `date-datetime-literal.d2ql` | a `@`-datetime literal (with time part) over a local file |
+
+**`string-*` / `convert-*`** — string composition and text-to-number casts
+
+| File | Shows |
+|------|-------|
+| `string-label.d2ql` | compose a label by `+`-concatenating string fields and literals |
+| `string-key-compose.d2ql` | build a composite key from two fields with a separator |
+| `string-join-codes.d2ql` | `join(sep)` a repeating association into one delimited string |
+| `string-tostring-cast.d2ql` | `toString()` a number so `+` can concatenate it |
+| `convert-numeric.d2ql` | `toInteger()` / cast text columns to numbers |
+| `convert-rate.d2ql` | `toDecimal()` + divide + `round(1)` into a per-1000 rate |
+
+**`subset-*` / `filter-*`** — collection ends/dedup and regex predicates
+
+| File | Shows |
+|------|-------|
+| `subset-first-last.d2ql` | `first()` / `last()` of a nested collection |
+| `subset-tail.d2ql` | `tail()` (everything after the first element) |
+| `subset-distinct.d2ql` | `distinct()` + `isDistinct()` over a nested collection |
+| `filter-matches-regex.d2ql` | `matches(pattern)` local regex predicate |

@@ -4,7 +4,7 @@
 parameters (`filter=`, analytics `dx`/`pe`/`ou`, tracker params) and reshaping the JSON yourself, you
 write one readable pipeline:
 
-```
+```d2ql
 dataElements
   | where domainType = "AGGREGATE" and name like "ANC"
   | select id, name, categoryCombo.name as combo
@@ -59,6 +59,23 @@ d2w query explain -f examples/d2ql/metadata-anc-elements.d2ql
 | Look up an operator or function | [d2path](../guides/d2path.md) |
 | Copy a working recipe (FHIR, GeoJSON, reports) | [Cookbook](cookbook.md) |
 | Use it from Python | [`dhis2w_ql` API](../api/query.md) |
+
+## Where to find what
+
+Reaching for a concrete example? Three places hold ready-to-copy material, each at a different
+grain:
+
+- **[d2path examples](d2path-examples.md)** — a validated gallery of single-expression d2path
+  snippets grouped by function, each with its input JSON and exact result. Use it to look up how one
+  operator or function behaves.
+- **[Cookbook](cookbook.md)** — whole-program recipes (FHIR Bundle / CodeSystem / ValueSet /
+  Questionnaire, GeoJSON FeatureCollection, reports) you can adapt end to end.
+- **[`examples/d2ql/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/d2ql)** — the
+  runnable sample library shipped in the repo; run any with `d2w query run examples/d2ql/<name>.d2ql`
+  or load it from Python with `parse(open(<file>).read())`.
+
+Every d2ql/d2path snippet in these query docs is parsed by the real parser in the test suite, so the
+examples cannot drift out of sync with the language.
 
 Aggregate data sources (`analytics(...)`, `dataValues(...)`) are covered; event/tracker sources are
 on the [roadmap](../roadmap.md).
