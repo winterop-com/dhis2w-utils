@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from dhis2w_client.errors import Dhis2ClientError
-from dhis2w_client.v41 import BasicAuth, Dhis2, Dhis2Client, PatAuth
+from dhis2w_client.v41 import BasicAuth, Dhis2, Dhis2Client, PatAuth, SessionCookieAuth
 from dhis2w_client.v41.auth.base import AuthProvider
 from dhis2w_client.v41.auth.oauth2 import DEFAULT_REDIRECT_URI, OAuth2Auth
 from pydantic import BaseModel, ConfigDict
@@ -226,6 +226,8 @@ def _build_probe_auth(
         return PatAuth(token=profile.token)
     if profile.auth == "basic" and profile.username and profile.password:
         return BasicAuth(username=profile.username, password=profile.password)
+    if profile.auth == "session" and profile.cookie:
+        return SessionCookieAuth(cookie=profile.cookie)
     if profile.auth == "oauth2":
         if not (profile.client_id and profile.client_secret and profile.scope and profile.redirect_uri):
             return None
@@ -405,6 +407,7 @@ def show_profile(name: str, *, include_secrets: bool = False, start: Path | None
                 "token": "***" if profile.token else None,
                 "password": "***" if profile.password else None,
                 "client_secret": "***" if profile.client_secret else None,
+                "cookie": "***" if profile.cookie else None,
             }
         )
     return ProfileView(

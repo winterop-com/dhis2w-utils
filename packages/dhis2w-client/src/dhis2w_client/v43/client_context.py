@@ -1,6 +1,6 @@
-"""Open a connected `Dhis2Client` from a `Profile` for PAT/Basic auth (v43).
+"""Open a connected `Dhis2Client` from a `Profile` for PAT/Basic/session auth (v43).
 
-This module is the lightweight library-user entry point: it handles the two
+This module is the lightweight library-user entry point: it handles the
 auth schemes that need no persistent state. OAuth2 needs the SQLite-backed
 token store that ships in `dhis2w-core` — calling `open_client` with
 `profile.auth == "oauth2"` here raises with a clear install hint pointing at
@@ -20,12 +20,13 @@ from dhis2w_client.profile import Profile
 from dhis2w_client.v43.auth.base import AuthProvider
 from dhis2w_client.v43.auth.basic import BasicAuth
 from dhis2w_client.v43.auth.pat import PatAuth
+from dhis2w_client.v43.auth.session import SessionCookieAuth
 from dhis2w_client.v43.client import Dhis2Client
 from dhis2w_client.v43.retry import RetryPolicy
 
 
 def build_auth_for_basic(profile: Profile) -> AuthProvider:
-    """Return a `PatAuth` or `BasicAuth` provider for the profile.
+    """Return a `PatAuth`, `BasicAuth`, or `SessionCookieAuth` provider for the profile.
 
     Raises `NotImplementedError` on `profile.auth == "oauth2"` pointing at
     `dhis2w_core` — OAuth2 needs the token-store machinery that lives there.
@@ -39,6 +40,10 @@ def build_auth_for_basic(profile: Profile) -> AuthProvider:
         if not (profile.username and profile.password):
             raise ValueError("profile.auth == 'basic' but username/password are missing")
         return BasicAuth(username=profile.username, password=profile.password)
+    if profile.auth == "session":
+        if not profile.cookie:
+            raise ValueError("profile.auth == 'session' but no cookie is set")
+        return SessionCookieAuth(cookie=profile.cookie)
     if profile.auth == "oauth2":
         raise NotImplementedError(
             "OAuth2 auth needs the token store in dhis2w-core. "
@@ -56,7 +61,7 @@ async def open_client(
     http_limits: httpx.Limits | None = None,
     system_cache_ttl: float | None = 300.0,
 ) -> AsyncGenerator[Dhis2Client]:
-    """Open a connected `Dhis2Client` for `profile` — PAT or Basic auth only.
+    """Open a connected `Dhis2Client` for `profile` — PAT, Basic, or session auth only.
 
     Yields a connected client inside `async with`. Raises `NotImplementedError`
     on OAuth2 profiles — use `dhis2w_core.open_client(profile, scope=..., profile_name=...)`

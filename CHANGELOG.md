@@ -4,6 +4,17 @@
 
 Development snapshot. Not a published release — no tag, no PyPI upload.
 
+### Session-cookie auth (new)
+
+- **A fourth auth kind: `session`.** `Profile` gains `auth = "session"` + a `cookie` field holding the raw
+  `Cookie` header value (name included, e.g. `JSESSIONID=abc123`, so the client stays cookie-name-agnostic),
+  and `SessionCookieAuth` ships in all three `dhis2w_client.v{41,42,43}.auth` trees alongside Basic/PAT/OAuth2.
+  `d2w profile add --auth session` reads the secret from `DHIS2_SESSION_COOKIE` (or a hidden prompt — never
+  argv), `profile env` exports it, and `profile verify` probes session profiles. This is the fallback binding
+  for instances where PAT creation is unavailable (pre-2.38, disabled, or 403 for the user); the driving
+  consumer is the kodo Chrome extension's "use my login" flow, which upserts a session profile from the
+  browser's live DHIS2 session and re-runs the upsert on cookie rotation.
+
 ### d2ql / d2path query language (new)
 
 - **New `dhis2w-ql` workspace member + a `query` plugin across all three version trees.** d2ql is a pipeline

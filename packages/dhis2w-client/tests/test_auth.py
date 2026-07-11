@@ -13,6 +13,7 @@ import respx
 from dhis2w_client.v42.auth.basic import BasicAuth
 from dhis2w_client.v42.auth.oauth2 import OAuth2Auth, OAuth2Token
 from dhis2w_client.v42.auth.pat import PatAuth
+from dhis2w_client.v42.auth.session import SessionCookieAuth
 
 
 async def test_basic_auth_header() -> None:
@@ -36,6 +37,17 @@ async def test_basic_refresh_is_noop() -> None:
 async def test_pat_refresh_is_noop() -> None:
     """Pat refresh is noop."""
     await PatAuth(token="t").refresh_if_needed()
+
+
+async def test_session_cookie_auth_header() -> None:
+    """Session cookie auth header — the raw Cookie value is sent verbatim, name included."""
+    provider = SessionCookieAuth(cookie="JSESSIONID=abc123")
+    assert await provider.headers() == {"Cookie": "JSESSIONID=abc123"}
+
+
+async def test_session_cookie_refresh_is_noop() -> None:
+    """Session cookie refresh is noop."""
+    await SessionCookieAuth(cookie="JSESSIONID=abc123").refresh_if_needed()
 
 
 class _InMemoryTokenStore:

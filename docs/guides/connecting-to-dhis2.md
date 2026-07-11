@@ -9,8 +9,9 @@ Everything you need to point `dhis2w-utils` at a real DHIS2 instance. Pick an au
 | **PAT** | Automation, CI, day-to-day dev | None after first mint | Long-lived, user-revocable | Static token — anyone with it is that user |
 | **Basic** | Scripts against dev/play instances | None | Forever until password change | Password hits the wire on every request |
 | **OAuth2 / OIDC** | Interactive use, humans-in-the-loop, short-lived access tokens | Browser popup on first login | Access token ~5 min, refresh token auto-rotates | Per-device, per-user, revocable server-side |
+| **Session cookie** | Riding an existing browser login when PATs are unavailable | None (cookie captured from the browser) | Dies with the server-side session; re-add on expiry | Anyone with the cookie is that browser session |
 
-**Short version:** start with PAT. Switch to OAuth2/OIDC only when you need interactive login flows or you explicitly need short-lived access tokens with refresh. Use Basic only when you can't avoid it.
+**Short version:** start with PAT. Switch to OAuth2/OIDC only when you need interactive login flows or you explicitly need short-lived access tokens with refresh. Use Basic only when you can't avoid it. Session cookies are the fallback when the instance can't mint PATs (pre-2.38, disabled, or 403 for the user).
 
 The code paths are orthogonal — every `AuthProvider` in `dhis2w-client/auth/` implements the same `headers()` / `refresh_if_needed()` Protocol, so the rest of the client is identical regardless of what you pick. See [Pluggable auth](../architecture/auth.md) for the internals.
 
@@ -334,7 +335,7 @@ d2w profile add local_oidc \
 
 To persist the OAuth2 client config separately (so you can pair it with `--auth oauth2 --from-env`), see `d2w profile oidc-config` — that command has the `--client-secret` flag because its job is exactly to write the client credentials block.
 
-Note: `add` does **not** open a browser. It just writes the profile. Unlike PAT/Basic, where the profile itself is usable as soon as it's saved, OAuth2 needs a separate interactive step to actually obtain an access token.
+Note: `add` does **not** open a browser. It just writes the profile. Unlike PAT/Basic/session, where the profile itself is usable as soon as it's saved, OAuth2 needs a separate interactive step to actually obtain an access token.
 
 The profile ends up in `profiles.toml` as:
 
@@ -384,6 +385,40 @@ d2w profile verify local_oidc
 ```
 
 `verify` never opens a browser. If the cached access token is still valid it just uses it; if it's near expiry, it silently refreshes. If there are no cached tokens yet (you haven't run `login`), you get a clean error telling you to run `login` first — no surprise browser popup.
+
+---
+
+## Option 4 — Session cookie
+
+The fallback for instances where PAT creation is unavailable: the DHIS2 is older than 2.38, PATs are disabled server-side, or the user's role gets a 403 on `/api/apiToken`. Instead of minting a credential, the profile stores the session cookie of an existing browser login and sends it verbatim as a raw `Cookie` header on every request. The stored value is the full header value, cookie name included (e.g. `JSESSIONID=abc123`), so any cookie name DHIS2 uses works unchanged.
+
+The primary consumer is browser-extension "use my login" flows that bind CLI/MCP tooling to the user's live DHIS2 session, but capturing a cookie by hand from DevTools (Application > Cookies) works the same way.
+
+### Adding a session profile
+
+```bash
+# Like every other secret, the cookie never goes on argv. It's read from
+# DHIS2_SESSION_COOKIE, or prompted silently when unset:
+DHIS2_SESSION_COOKIE="JSESSIONID=abc123" \
+  d2w profile add browser --url https://dhis2.example.org --auth session --local
+```
+
+Profile shape in `profiles.toml`:
+
+```toml
+[profiles.browser]
+base_url = "https://dhis2.example.org"
+auth = "session"
+cookie = "JSESSIONID=abc123"
+```
+
+### Lifecycle
+
+The session lives (and dies) server-side; there is nothing to refresh client-side. When the browser session expires or the user logs out, requests start failing — `d2w profile verify browser` is the cheap detector. Re-binding is just re-running the same `profile add` upsert with a fresh cookie.
+
+Note that `profile env` exports `DHIS2_SESSION_COOKIE`, but the raw-env fallback (`DHIS2_URL` + secret, no TOML) handles PAT and Basic only — a session binding always needs the saved profile.
+
+See `examples/v{41,42,43}/cli/profile_session.sh` for the end-to-end flow.
 
 ---
 

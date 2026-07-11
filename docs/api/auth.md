@@ -17,3 +17,7 @@ Every auth method implements the same `AuthProvider` Protocol (`headers()` + `re
 ## OAuth2 / OIDC
 
 ::: dhis2w_client.v42.auth.oauth2
+
+## Session cookie
+
+::: dhis2w_client.v42.auth.session

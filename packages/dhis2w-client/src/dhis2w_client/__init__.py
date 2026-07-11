@@ -104,6 +104,7 @@ if TYPE_CHECKING:
         TokenStore as TokenStore,
     )
     from dhis2w_client.v42.auth.pat import PatAuth as PatAuth
+    from dhis2w_client.v42.auth.session import SessionCookieAuth as SessionCookieAuth
     from dhis2w_client.v42.auth_schemes import (
         ApiHeadersAuthScheme as ApiHeadersAuthScheme,
     )
@@ -794,6 +795,7 @@ __all__ = [
     "SearchResults",
     "Section",
     "SectionsAccessor",
+    "SessionCookieAuth",
     "Sharing",
     "SharingBuilder",
     "SharingObject",
@@ -1021,6 +1023,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "SearchResults": "dhis2w_client.v42.metadata",
     "Section": "dhis2w_client.v42.sections",
     "SectionsAccessor": "dhis2w_client.v42.sections",
+    "SessionCookieAuth": "dhis2w_client.v42.auth.session",
     "Sharing": "dhis2w_client.v42.sharing",
     "SharingBuilder": "dhis2w_client.v42.sharing",
     "SharingObject": "dhis2w_client.v42.sharing",

@@ -23,7 +23,7 @@ dhis2w-utils/
 ├── site/                         # mkdocs output (gitignored)
 ├── examples/
 └── packages/
-    ├── dhis2w-client/             # httpx + pydantic lib + Profile + open_client (PAT/Basic) (PyPI)
+    ├── dhis2w-client/             # httpx + pydantic lib + Profile + open_client (PAT/Basic/session) (PyPI)
     ├── dhis2w-core/               # TOML profile resolution + OAuth2 token store + plugin runtime + plugins (PyPI)
     ├── dhis2w-ql/                 # d2ql query + transform engine, FHIRPath-compatible expression core (PyPI)
     ├── dhis2w-cli/                # Typer console script `d2w` (PyPI)

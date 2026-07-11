@@ -1,10 +1,10 @@
 # Profile + lightweight open_client
 
-The `Profile` Pydantic model + `open_client(profile)` for PAT and Basic auth live in `dhis2w-client` — no `dhis2w-core` install needed for library users embedding the client in their own Python tooling. OAuth2 still requires `dhis2w-core` because OAuth2 token refresh needs the concurrent-writer-safe token store; calling `dhis2w_client.open_client(oauth2_profile)` raises `NotImplementedError` pointing at `dhis2w_core.open_client`.
+The `Profile` Pydantic model + `open_client(profile)` for PAT, Basic, and session-cookie auth live in `dhis2w-client` — no `dhis2w-core` install needed for library users embedding the client in their own Python tooling. OAuth2 still requires `dhis2w-core` because OAuth2 token refresh needs the concurrent-writer-safe token store; calling `dhis2w_client.open_client(oauth2_profile)` raises `NotImplementedError` pointing at `dhis2w_core.open_client`.
 
 ## When to reach for this surface
 
-- **Embedding `dhis2w-client` in a third-party app** (FastAPI service, script, notebook) with PAT or Basic auth — you don't want the full CLI/MCP runtime weight (Typer, FastMCP, SQLAlchemy, bcrypt, questionary).
+- **Embedding `dhis2w-client` in a third-party app** (FastAPI service, script, notebook) with PAT, Basic, or session-cookie auth — you don't want the full CLI/MCP runtime weight (Typer, FastMCP, SQLAlchemy, bcrypt, questionary).
 - **OAuth2 auth?** Use `dhis2w_core.open_client(profile)` instead — same `Profile` model, full token-store-backed refresh.
 - **Multi-profile TOML resolution?** That lives in `dhis2w-core`. Use `dhis2w_core.profile_from_env()` for the full precedence chain (TOML + env), or this module's `profile_from_env_raw()` for the env-only fallback that returns `None` instead of consulting TOML.
 
@@ -60,7 +60,7 @@ See `examples/v{41,42,43}/client/profile_pat_pure_client.py` for the runnable, v
 
 ## Open a client from a profile
 
-`build_auth_for_basic(profile)` returns a `PatAuth` or `BasicAuth` `AuthProvider`. `open_client(profile)` is the async context manager that wires that auth provider into a connected `Dhis2Client`. Both live at the top of `dhis2w_client` (re-exported from `dhis2w_client.v42.client_context`) and on each per-version surface (`dhis2w_client.v41`, `dhis2w_client.v42`, `dhis2w_client.v43`).
+`build_auth_for_basic(profile)` returns a `PatAuth`, `BasicAuth`, or `SessionCookieAuth` `AuthProvider`. `open_client(profile)` is the async context manager that wires that auth provider into a connected `Dhis2Client`. Both live at the top of `dhis2w_client` (re-exported from `dhis2w_client.v42.client_context`) and on each per-version surface (`dhis2w_client.v41`, `dhis2w_client.v42`, `dhis2w_client.v43`).
 
 ::: dhis2w_client.v42.client_context.build_auth_for_basic
 
