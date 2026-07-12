@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.0 — 2026-07-12
+
+All publishable packages ship at 1.2.0 in lockstep; inter-package pins move to `>=1.2.0,<2.0`.
+
+### New package
+
+- **`dhis2w-mcp-router` ships to PyPI.** The domain-neutral MCP router — front many upstream MCP
+  servers behind two meta-tools (`search_tools` + `call_tool`) so an agent gets lazy, searchable tool
+  discovery instead of a huge up-front tool payload — joins the published set as the eighth member.
+  Its core depends only on FastMCP + httpx + pydantic (no `dhis2w-*` imports). Install with
+  `uv tool install dhis2w-mcp-router`; run it as a stdio MCP server. Read-only mode
+  (`MCP_ROUTER_READONLY=1` or per-upstream `"readonly": true`) hides and refuses write tools, and
+  ranking is pluggable (keyword by default, optional embedding ranker against an OpenAI-compatible
+  `/v1/embeddings` endpoint). Whether the router becomes the default MCP surface for all clients
+  remains gated on the `bench-router` numbers.
+
 ## 1.1.0 — 2026-07-12
 
 All publishable packages ship at 1.1.0 in lockstep; inter-package pins move to `>=1.1.0,<2.0`.
