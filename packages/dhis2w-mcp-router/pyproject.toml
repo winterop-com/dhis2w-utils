@@ -5,19 +5,32 @@ description = "Domain-neutral MCP router: front many upstream MCP servers behind
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 requires-python = ">=3.13"
-classifiers = ["Private :: Do Not Upload"]
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "fastmcp>=3.4.2",
     "httpx>=0.28.1",
     "pydantic>=2.13.4",
 ]
 
-# Experimental: not yet in the pypi-publish matrix (.github/workflows/pypi-publish.yml). The core is
-# domain-neutral (depends only on FastMCP, no dhis2w-* imports) so it can graduate to publish — or
-# extract to a standalone repo — without a rewrite.
+# Domain-neutral: the core depends only on FastMCP + httpx + pydantic, no dhis2w-* imports, so it can
+# also extract to a standalone `mcp-router` repo without a rewrite (see docs/architecture/mcp-router.md).
 
 [project.scripts]
 dhis2w-mcp-router = "dhis2w_mcp_router.server:main"
+
+[project.urls]
+Homepage = "https://github.com/winterop-com/dhis2w-utils"
+Documentation = "https://winterop-com.github.io/dhis2w-utils/"
+Repository = "https://github.com/winterop-com/dhis2w-utils"
+Changelog = "https://github.com/winterop-com/dhis2w-utils/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["uv_build>=0.11.26,<0.12.0"]

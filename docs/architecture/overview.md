@@ -21,7 +21,7 @@ Each shippable unit of code is a `uv` workspace member under `packages/`:
 | `dhis2w-browser` | Playwright helpers for UI automation. | [`dhis2w-browser`](https://pypi.org/project/dhis2w-browser/) |
 | `dhis2w-codegen` | Version-aware client generator. | _workspace-only_ |
 | `dhis2w-bench` | Local-LLM benchmark harness (coding, mcp-bridge, full-mcp suites). | _workspace-only_ |
-| `dhis2w-mcp-router` | Domain-neutral MCP router: search + dispatch meta-tools over upstream MCP servers. | _workspace-only_ |
+| `dhis2w-mcp-router` | Domain-neutral MCP router: search + dispatch meta-tools over upstream MCP servers. | [`dhis2w-mcp-router`](https://pypi.org/project/dhis2w-mcp-router/) |
 
 New surfaces (a future FastAPI web UI, an HTTP webhook receiver, a TUI) land as new members. No edits required to existing ones.
 
