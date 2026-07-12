@@ -54,9 +54,13 @@ Every credential field — `BasicAuth.password`, `PatAuth.token`, `SessionCookie
 
 An existing browser session, sent verbatim as a raw `Cookie` header. The `cookie` value holds the full header value, name included (e.g. `"JSESSIONID=abc123"`), so the provider stays cookie-name-agnostic. `refresh_if_needed` is a no-op — the session lives (and dies) server-side; when it expires, store a fresh cookie. **The fallback when PAT creation is unavailable** (pre-2.38 instances, PATs disabled, or 403 for the user) — the primary consumer is browser-extension flows that bind tooling to the user's live DHIS2 login.
 
+The optional `xsrf_token` carries DHIS2's double-submit CSRF value: when set, `headers()` echoes it as `X-XSRF-TOKEN` alongside the `Cookie`, which write endpoints on CSRF-enforcing instances require. It's inert by default — `None` (or an empty value) omits the header, so read-only sessions leave it unset. A non-empty token carrying control characters is rejected at construction rather than emitting a malformed header at send time.
+
 ```python
 from dhis2w_client import SessionCookieAuth
 auth = SessionCookieAuth(cookie="JSESSIONID=abc123")
+# With CSRF protection (write-enabled sessions):
+auth = SessionCookieAuth(cookie="JSESSIONID=abc123", xsrf_token="a1b2c3d4-xsrf")
 ```
 
 ### OAuth2Auth

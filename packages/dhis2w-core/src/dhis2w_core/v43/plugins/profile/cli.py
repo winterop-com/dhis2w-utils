@@ -254,6 +254,7 @@ def env_command(
         _export_if("DHIS2_PAT", profile.token)
     elif profile.auth == "session":
         _export_if("DHIS2_SESSION_COOKIE", profile.cookie)
+        _export_if("DHIS2_SESSION_XSRF", profile.xsrf_token)
         typer.echo(
             "note: DHIS2_SESSION_COOKIE has no raw-env path; a session profile must exist in "
             "profiles.toml. The exported DHIS2_PROFILE makes `d2w` use this TOML profile.",
@@ -431,7 +432,7 @@ def add_command(
 
     Secrets are never accepted as command-line flags (they'd leak into shell history).
     Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`,
-    `DHIS2_SESSION_COOKIE`) or prompted interactively when missing.
+    `DHIS2_SESSION_COOKIE`, `DHIS2_SESSION_XSRF`) or prompted interactively when missing.
     """
     from dhis2w_core.v43.plugins.profile import service
 
@@ -473,7 +474,15 @@ def add_command(
             os.environ.get("DHIS2_SESSION_COOKIE")
             or typer.prompt("Session cookie (e.g. JSESSIONID=...)", hide_input=True)
         ).strip()
-        profile = Profile(base_url=resolved_url, auth="session", cookie=cookie, version=pinned_version)
+        # Optional CSRF token: absent env -> xsrf_token=None (unchanged session-only behavior).
+        xsrf_token = os.environ.get("DHIS2_SESSION_XSRF")
+        profile = Profile(
+            base_url=resolved_url,
+            auth="session",
+            cookie=cookie,
+            xsrf_token=xsrf_token,
+            version=pinned_version,
+        )
     elif auth == "oauth2":
         client_id = client_id or typer.prompt("OAuth2 client_id", default="dhis2-utils-local")
         client_secret = os.environ.get("DHIS2_OAUTH_CLIENT_SECRET") or typer.prompt(

@@ -44,7 +44,7 @@ def build_auth_provider(profile: Profile) -> AuthProvider:
     if profile.auth == "session":
         if not profile.cookie:
             raise ValueError("profile.auth == 'session' but no cookie is set")
-        return SessionCookieAuth(cookie=profile.cookie)
+        return SessionCookieAuth(cookie=profile.cookie, xsrf_token=profile.xsrf_token)
     if profile.auth == "oauth2":
         raise NotImplementedError(
             "OAuth2 auth needs the token store in dhis2w-core. "

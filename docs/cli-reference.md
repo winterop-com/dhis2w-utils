@@ -8524,7 +8524,7 @@ Add (or upsert) a profile.
 
 Secrets are never accepted as command-line flags (they&#x27;d leak into shell history).
 Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`,
-`DHIS2_SESSION_COOKIE`) or prompted interactively when missing.
+`DHIS2_SESSION_COOKIE`, `DHIS2_SESSION_XSRF`) or prompted interactively when missing.
 
 **Usage**:
 

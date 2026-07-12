@@ -47,10 +47,18 @@ class Profile(BaseModel):
     Kept out of `repr()` (`Field(repr=False)`) and masked in `model_dump()`;
     pass `context={"reveal": True}` to `model_dump()` to reveal it.
     """
+    xsrf_token: str | None = Field(default=None, repr=False)
+    """Optional double-submit CSRF token for `auth="session"` (echoed as the `X-XSRF-TOKEN` header).
+
+    DHIS2 issues an `XSRF-TOKEN` cookie and expects it echoed back as the
+    `X-XSRF-TOKEN` header; `None` means the instance doesn't require CSRF, so
+    the header is omitted. Kept out of `repr()` (`Field(repr=False)`) and masked
+    in `model_dump()`; pass `context={"reveal": True}` to reveal it.
+    """
     version: Dhis2 | None = None
     """Plugin-tree hint (see class docstring). Wire version is auto-detected on connect()."""
 
-    @field_serializer("token", "password", "client_secret", "cookie")
+    @field_serializer("token", "password", "client_secret", "cookie", "xsrf_token")
     def _redact(self, value: str | None, info: SerializationInfo) -> str | None:
         """Mask credential fields unless serialization runs with `context={"reveal": True}`."""
         if value is None:
@@ -78,6 +86,32 @@ class Profile(BaseModel):
         if any(ord(character) < 0x20 or ord(character) == 0x7F for character in normalized):
             raise ValueError(
                 "session cookie contains control characters or stray line breaks — "
+                "re-copy the value from the browser without embedded newlines, carriage returns, or tabs"
+            )
+        return normalized
+
+    @field_validator("xsrf_token", mode="before")
+    @classmethod
+    def _normalize_xsrf_token(cls, value: object) -> str | None:
+        """Trim the CSRF token and reject one carrying ASCII control characters; empty normalizes to None.
+
+        Unlike `cookie`, `xsrf_token` is optional and inert-by-default: an empty
+        or whitespace-only value normalizes to `None` (header omitted) rather
+        than raising, so `DHIS2_SESSION_XSRF=""` behaves exactly like unset. A
+        non-empty value that still carries control characters after trimming is a
+        genuine copy-paste error and is rejected, mirroring `cookie`.
+        """
+        if value is None:
+            return None
+        raw = value
+        if not isinstance(raw, str):
+            raise ValueError("session xsrf token must be a string")
+        normalized = raw.strip()
+        if not normalized:
+            return None
+        if any(ord(character) < 0x20 or ord(character) == 0x7F for character in normalized):
+            raise ValueError(
+                "session xsrf token contains control characters or stray line breaks — "
                 "re-copy the value from the browser without embedded newlines, carriage returns, or tabs"
             )
         return normalized

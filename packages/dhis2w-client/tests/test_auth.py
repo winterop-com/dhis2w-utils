@@ -45,6 +45,62 @@ async def test_session_cookie_auth_header() -> None:
     assert await provider.headers() == {"Cookie": "JSESSIONID=abc123"}
 
 
+async def test_session_cookie_auth_header_includes_xsrf_when_set() -> None:
+    """When an xsrf token is set, headers() echoes it as X-XSRF-TOKEN alongside the Cookie."""
+    provider = SessionCookieAuth(cookie="JSESSIONID=abc123", xsrf_token="xsrf-tok-1")
+    assert await provider.headers() == {"Cookie": "JSESSIONID=abc123", "X-XSRF-TOKEN": "xsrf-tok-1"}
+
+
+async def test_session_cookie_auth_header_omits_xsrf_when_none() -> None:
+    """With no xsrf token (the default), headers() carries only the Cookie header."""
+    provider = SessionCookieAuth(cookie="JSESSIONID=abc123")
+    assert provider.xsrf_token is None
+    assert await provider.headers() == {"Cookie": "JSESSIONID=abc123"}
+
+
+async def test_session_cookie_auth_empty_xsrf_normalizes_to_none() -> None:
+    """An empty xsrf token is inert — it normalizes to None so headers() omits X-XSRF-TOKEN."""
+    provider = SessionCookieAuth(cookie="JSESSIONID=abc123", xsrf_token="")
+    assert provider.xsrf_token is None
+    assert await provider.headers() == {"Cookie": "JSESSIONID=abc123"}
+
+
+async def test_session_cookie_auth_whitespace_xsrf_normalizes_to_none() -> None:
+    """A whitespace-only xsrf token normalizes to None (header omitted), never a literal empty header."""
+    provider = SessionCookieAuth(cookie="JSESSIONID=abc123", xsrf_token="   \n")
+    assert provider.xsrf_token is None
+    assert "X-XSRF-TOKEN" not in await provider.headers()
+
+
+async def test_session_cookie_auth_xsrf_surrounding_whitespace_is_stripped() -> None:
+    """Surrounding whitespace on the xsrf token is trimmed while the inner value is preserved."""
+    provider = SessionCookieAuth(cookie="JSESSIONID=abc123", xsrf_token="  xsrf-tok-9\n")
+    assert provider.xsrf_token == "xsrf-tok-9"
+    assert (await provider.headers())["X-XSRF-TOKEN"] == "xsrf-tok-9"
+
+
+async def test_session_cookie_auth_xsrf_control_char_is_rejected() -> None:
+    """A CRLF/control-char xsrf token fails fast at construction, not with a cryptic error at send time."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError) as excinfo:
+        SessionCookieAuth(cookie="JSESSIONID=abc123", xsrf_token="xsrf\r\ntok")
+    assert "control characters" in str(excinfo.value)
+
+
+async def test_session_cookie_masks_xsrf_token_in_repr_and_dump() -> None:
+    """The xsrf token stays out of repr() and is masked in model_dump(); reveal returns the real value."""
+    session = SessionCookieAuth(cookie="JSESSIONID=xyz789", xsrf_token="xsrf-secret")
+    assert "xsrf-secret" not in repr(session)
+    assert "xsrf-secret" not in str(session.model_dump())
+    assert "xsrf-secret" not in session.model_dump_json()
+    assert session.model_dump()["xsrf_token"] == "**********"
+    assert session.model_dump(context={"reveal": True})["xsrf_token"] == "xsrf-secret"
+    # The plain attribute is still readable for headers().
+    assert session.xsrf_token == "xsrf-secret"
+    assert (await session.headers())["X-XSRF-TOKEN"] == "xsrf-secret"
+
+
 async def test_auth_providers_mask_secrets_in_repr_and_dump() -> None:
     """Credential fields stay out of repr() and are masked in model_dump() by default."""
     basic = BasicAuth(username="admin", password="hunter2pw")

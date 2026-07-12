@@ -229,7 +229,7 @@ Pass a `start: Path` argument to scope the write to a specific project directory
 | `"pat"` | `token` | — |
 | `"basic"` | `username`, `password` | — |
 | `"oauth2"` | `client_id`, `client_secret` | `scope`, `redirect_uri` (for interactive flows) |
-| `"session"` | `cookie` (raw `Cookie` header value, name included) | — |
+| `"session"` | `cookie` (raw `Cookie` header value, name included) | `xsrf_token` (echoed as `X-XSRF-TOKEN` for CSRF-enforcing writes) |
 
 ### PAT (recommended for scripts)
 
@@ -287,6 +287,17 @@ For a complete standalone OAuth2 demo including PKCE, FastAPI redirect receiver,
 profile = Profile(base_url="http://localhost:8080", auth="session", cookie=os.environ["DHIS2_SESSION_COOKIE"])
 async with open_client(profile) as client:
     ...
+```
+
+If the instance enforces CSRF on write endpoints, also set `xsrf_token` (the value of the `XSRF-TOKEN` cookie); the client echoes it as an `X-XSRF-TOKEN` header. It's optional and inert when unset, so read-only sessions can omit it:
+
+```python
+profile = Profile(
+    base_url="http://localhost:8080",
+    auth="session",
+    cookie=os.environ["DHIS2_SESSION_COOKIE"],
+    xsrf_token=os.environ.get("DHIS2_SESSION_XSRF"),
+)
 ```
 
 Session cookies expire server-side and there is nothing to refresh client-side (`refresh_if_needed` is a no-op). When calls start failing with 401, capture a fresh cookie from the browser and re-run `d2w profile add <name> --auth session` — the upsert replaces the stored value. `d2w profile verify <name>` is the cheap way to detect an expired binding. See `examples/v42/cli/profile_session.sh` for the end-to-end flow.
