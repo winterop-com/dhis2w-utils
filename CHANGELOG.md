@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.0 — 2026-07-12
+
+All publishable packages ship at 1.3.0 in lockstep; inter-package pins move to `>=1.3.0,<2.0`.
+
+### MCP tool annotations
+
+- **Every MCP tool advertises a `readOnlyHint` annotation.** The full `dhis2-mcp` server stamps each
+  of its ~315 typed tools with `readOnlyHint` (reads `True`, writes `False`), derived at build time
+  from the same read/write name classifier the read-only middleware already uses; the router hints its
+  `search_tools` read-only and leaves `call_tool` (the write chokepoint) unhinted. A host that honours
+  the annotation — e.g. one that skips its per-action write confirmation for read-only-hinted tools —
+  gets frictionless reads while writes still prompt, with no per-tool configuration. A hand-set hint is
+  never overwritten, and the hint is present regardless of the `DHIS2_MCP_READONLY` switch. Because the
+  name classifier now drives an always-on hint that a client may use to skip confirmations, a
+  registry-wide guard asserts no write tool is ever hinted read-only.
+
 ## 1.2.0 — 2026-07-12
 
 All publishable packages ship at 1.2.0 in lockstep; inter-package pins move to `>=1.2.0,<2.0`.
