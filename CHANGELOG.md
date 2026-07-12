@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.0 — 2026-07-12
+
+All publishable packages ship at 1.1.0 in lockstep; inter-package pins move to `>=1.1.0,<2.0`.
+
+### Session auth
+
+- **Optional CSRF token for session profiles.** `auth="session"` gains an optional `xsrf_token`
+  carrying DHIS2's double-submit CSRF value. When set, `SessionCookieAuth` echoes it as an
+  `X-XSRF-TOKEN` header alongside the `Cookie`, which write endpoints on CSRF-enforcing instances
+  require; read-only sessions leave it unset and are unaffected. `profile add` reads it from
+  `DHIS2_SESSION_XSRF`, `profile env` exports it, and `profile show` masks it like every other
+  credential. An empty or whitespace-only value normalizes to unset (header omitted); a non-empty
+  value carrying control characters is rejected at construction rather than emitting a malformed
+  header at send time.
+
 ## 1.0.0 — 2026-07-12
 
 First stable release. All seven publishable packages ship at 1.0.0 in lockstep; the imported
