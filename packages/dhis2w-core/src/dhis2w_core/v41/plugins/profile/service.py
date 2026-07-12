@@ -222,7 +222,7 @@ def _build_probe_auth(
     if profile.auth == "basic" and profile.username and profile.password:
         return BasicAuth(username=profile.username, password=profile.password)
     if profile.auth == "session" and profile.cookie:
-        return SessionCookieAuth(cookie=profile.cookie)
+        return SessionCookieAuth(cookie=profile.cookie, xsrf_token=profile.xsrf_token)
     if profile.auth == "oauth2":
         if not (profile.client_id and profile.client_secret and profile.scope and profile.redirect_uri):
             return None
@@ -430,6 +430,7 @@ class ProfileView(BaseModel):
     scope: str | None = None
     redirect_uri: str | None = None
     cookie: str | None = None
+    xsrf_token: str | None = None
     version: Dhis2 | None = None
     meta: ProfileMeta
 
@@ -456,6 +457,7 @@ def show_profile(name: str, *, include_secrets: bool = False, start: Path | None
         scope=profile.scope,
         redirect_uri=profile.redirect_uri,
         cookie=_reveal(profile.cookie),
+        xsrf_token=_reveal(profile.xsrf_token),
         version=profile.version,
         meta=ProfileMeta(
             name=resolved.name,

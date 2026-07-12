@@ -16,16 +16,25 @@ export DHIS2_URL="${DHIS2_URL:-http://localhost:8080}"
 DHIS2_SESSION_COOKIE="JSESSIONID=abc123" \
   d2w profile add browser --url "$DHIS2_URL" --auth session --local
 
+# Instances that enforce CSRF on write endpoints also expect the XSRF-TOKEN
+# cookie echoed back as an X-XSRF-TOKEN header. Capture it the same way (it's the
+# value of the XSRF-TOKEN cookie) and pass it via DHIS2_SESSION_XSRF; it's
+# optional and inert when absent, so read-only sessions can skip it entirely.
+DHIS2_SESSION_COOKIE="JSESSIONID=abc123" DHIS2_SESSION_XSRF="a1b2c3d4-xsrf" \
+  d2w profile add browser --url "$DHIS2_URL" --auth session --local
+
 # The profile acts as whoever owns the browser session. `verify` probes
 # /api/me: a 401-flavored failure means the cookie has expired — re-run the
 # upsert above with a fresh cookie.
 d2w profile verify browser || echo "session expired; re-add with a fresh cookie"
 
-# The stored profile looks like this in .dhis2/profiles.toml (0600):
+# The stored profile looks like this in .dhis2/profiles.toml (0600). The
+# xsrf_token line is present only when DHIS2_SESSION_XSRF was set:
 #   [profiles.browser]
 #   base_url = "http://localhost:8080"
 #   auth = "session"
 #   cookie = "JSESSIONID=abc123"
+#   xsrf_token = "a1b2c3d4-xsrf"
 
 # Unbind by removing the profile.
 d2w profile remove browser --local

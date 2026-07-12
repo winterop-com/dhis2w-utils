@@ -38,6 +38,34 @@ def test_build_auth_provider_session() -> None:
     assert provider.cookie == "JSESSIONID=abc123"
 
 
+def test_build_auth_provider_session_threads_xsrf_token() -> None:
+    """build_auth_provider passes profile.xsrf_token into the SessionCookieAuth provider."""
+    profile = Profile(base_url="http://x", auth="session", cookie="JSESSIONID=abc123", xsrf_token="xsrf-tok")
+    provider = build_auth_provider(profile)
+    assert isinstance(provider, SessionCookieAuth)
+    assert provider.xsrf_token == "xsrf-tok"
+
+
+def test_build_auth_provider_session_defaults_xsrf_to_none() -> None:
+    """Without a profile xsrf token, the session provider's xsrf_token stays None."""
+    provider = build_auth_provider(Profile(base_url="http://x", auth="session", cookie="JSESSIONID=abc123"))
+    assert isinstance(provider, SessionCookieAuth)
+    assert provider.xsrf_token is None
+
+
+@pytest.mark.parametrize("version", ["v41", "v42", "v43"])
+def test_build_auth_provider_session_threads_xsrf_parity(version: str) -> None:
+    """v41/v42/v43 build_auth_provider all thread profile.xsrf_token into their SessionCookieAuth."""
+    import importlib
+
+    ctx = importlib.import_module(f"dhis2w_client.{version}.client_context")
+    session_mod = importlib.import_module(f"dhis2w_client.{version}.auth.session")
+    profile = Profile(base_url="http://x", auth="session", cookie="JSESSIONID=abc123", xsrf_token="xsrf-tok")
+    provider = ctx.build_auth_provider(profile)
+    assert isinstance(provider, session_mod.SessionCookieAuth)
+    assert provider.xsrf_token == "xsrf-tok"
+
+
 def test_build_auth_provider_session_requires_cookie() -> None:
     """Build auth for basic session requires cookie."""
     with pytest.raises(ValueError):

@@ -72,6 +72,34 @@ def test_profile_masks_secrets_in_repr_and_dump() -> None:
     assert "http://localhost:8080" in repr(profile)
 
 
+def test_profile_masks_xsrf_token_and_round_trips() -> None:
+    """A session Profile masks xsrf_token in dump/repr, reveals it under reveal, and round-trips."""
+    profile = Profile(
+        base_url="http://localhost:8080",
+        auth="session",
+        cookie="JSESSIONID=abc123",
+        xsrf_token="xsrf-secret",
+    )
+    assert "xsrf-secret" not in repr(profile)
+    assert "xsrf-secret" not in str(profile.model_dump())
+    assert "xsrf-secret" not in profile.model_dump_json()
+    assert profile.model_dump()["xsrf_token"] == "**********"
+    revealed = profile.model_dump(context={"reveal": True})
+    assert revealed["xsrf_token"] == "xsrf-secret"
+    # A revealed dump rebuilds an equal profile — the session cookie + token survive the round trip.
+    rebuilt = Profile(**revealed)
+    assert rebuilt.xsrf_token == "xsrf-secret"
+    assert rebuilt.cookie == "JSESSIONID=abc123"
+    # Plain attribute read still works for the code that needs it.
+    assert profile.xsrf_token == "xsrf-secret"
+
+
+def test_profile_xsrf_token_defaults_to_none() -> None:
+    """xsrf_token is optional — a session Profile without it leaves the field None."""
+    profile = Profile(base_url="http://localhost:8080", auth="session", cookie="JSESSIONID=abc123")
+    assert profile.xsrf_token is None
+
+
 def test_profile_is_frozen() -> None:
     """Profile is frozen."""
     profile = Profile(base_url="http://localhost:8080", auth="pat", token="t")
