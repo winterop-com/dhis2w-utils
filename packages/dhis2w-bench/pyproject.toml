@@ -7,7 +7,7 @@ authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 requires-python = ">=3.13"
 classifiers = ["Private :: Do Not Upload"]
 dependencies = [
-    "claude-agent-sdk>=0.2.110",
+    "claude-agent-sdk>=0.2.116",
     "dhis2w-cli",
     "dhis2w-mcp-router",
     "fastmcp>=3.4.2",
