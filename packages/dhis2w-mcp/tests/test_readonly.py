@@ -254,6 +254,24 @@ async def test_no_mutating_tool_is_classified_read() -> None:
     assert not leaked, f"tools classified read but not on the verified read allowlist: {sorted(leaked)}"
 
 
+async def test_no_write_tool_advertises_read_only_hint() -> None:
+    """The always-on annotation pass must never stamp `readOnlyHint=True` on a write tool.
+
+    build_server() runs `_annotate_read_only_hints`, and a client (e.g. kodo) may skip its per-action
+    confirmation for any tool advertising `readOnlyHint=True`. The safety property therefore lives on the
+    stamped annotation, not just the name classifier: every tool hinted read-only must be a hand-verified
+    read. Subset (hinted-read <= verified reads) is non-circular — it does not re-derive expected from
+    actual via the heuristic under test.
+    """
+    server = build_server()
+    all_tools = await server.list_tools(run_middleware=False)  # every registered tool, guard bypassed
+    hinted_read = {
+        tool.name for tool in all_tools if tool.annotations is not None and tool.annotations.readOnlyHint is True
+    }
+    leaked = hinted_read - _VERIFIED_READ_TOOLS
+    assert not leaked, f"tools advertising readOnlyHint=True but not on the verified read allowlist: {sorted(leaked)}"
+
+
 async def test_readonly_server_hides_write_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     """With DHIS2_MCP_READONLY set, list_tools exposes only verified reads; without it, writes appear."""
     monkeypatch.setenv("DHIS2_MCP_READONLY", "1")
