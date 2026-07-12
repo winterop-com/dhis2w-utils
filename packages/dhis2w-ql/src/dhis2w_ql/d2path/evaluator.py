@@ -275,7 +275,14 @@ class Evaluator:
                 if right_number == 0:
                     raise EvaluationError("division by zero")
                 result = left_number / right_number
-                return float(int(result)) if op == "div" else result
+                if op != "div":
+                    return result
+                try:
+                    return float(int(result))
+                except (OverflowError, ValueError) as error:
+                    # int() of a non-finite quotient (inf from an overflowing operand, nan) raises —
+                    # keep it inside the d2ql error hierarchy rather than leaking the raw exception.
+                    raise EvaluationError(f"div result is not a finite integer: {result!r}") from error
             case _:  # mod
                 if right_number == 0:
                     raise EvaluationError("division by zero")

@@ -5,7 +5,15 @@ from __future__ import annotations
 import httpx
 import pytest
 import respx
-from dhis2w_client import AuthenticationError, BasicAuth, Dhis2ApiError, Dhis2Client
+from dhis2w_client import (
+    AuthenticationError,
+    BasicAuth,
+    Dhis2,
+    Dhis2ApiError,
+    Dhis2Client,
+    UnsupportedVersionError,
+    VersionPinMismatchError,
+)
 from pydantic import BaseModel
 
 
@@ -411,6 +419,61 @@ async def test_get_response_applies_auth_header() -> None:
         await client.close()
     sent = dict(route.calls.last.request.headers)
     assert sent["authorization"].startswith("Basic ")
+
+
+# ---------- connect() cleanup on probe failure ----------
+
+
+@respx.mock
+async def test_connect_closes_pool_when_probe_returns_401() -> None:
+    """A 401 during the connect probe closes the pool — connect() never leaks an AsyncClient."""
+    created: list[httpx.AsyncClient] = []
+    real_async_client = httpx.AsyncClient
+
+    def _spy(*args: object, **kwargs: object) -> httpx.AsyncClient:
+        instance = real_async_client(*args, **kwargs)  # type: ignore[arg-type]
+        created.append(instance)
+        return instance
+
+    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
+    respx.get("https://dhis2.example/api/system/info").mock(return_value=httpx.Response(401, text="Unauthorized"))
+    client = Dhis2Client("https://dhis2.example", auth=BasicAuth(username="a", password="b"))
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(httpx, "AsyncClient", _spy)
+        with pytest.raises(AuthenticationError):
+            await client.connect()
+    # close() nulls the pool reference; the created pool must be closed, not leaked.
+    assert client._http is None
+    assert created, "connect() should have opened at least one AsyncClient"
+    assert created[-1].is_closed
+
+
+@respx.mock
+async def test_connect_closes_pool_on_version_pin_mismatch() -> None:
+    """A version-pin mismatch during the probe closes the pool before re-raising."""
+    respx.get("https://dhis2.example/").mock(return_value=httpx.Response(200, text="ok"))
+    respx.get("https://dhis2.example/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": "2.42.4"}),
+    )
+    client = Dhis2Client(
+        "https://dhis2.example",
+        auth=BasicAuth(username="a", password="b"),
+        version=Dhis2.V43,
+    )
+    with pytest.raises(VersionPinMismatchError):
+        await client.connect()
+    assert client._http is None
+
+
+# ---------- VersionPinMismatchError export ----------
+
+
+def test_version_pin_mismatch_error_is_exported_and_subclasses_unsupported() -> None:
+    """`VersionPinMismatchError` is importable from the top level and extends `UnsupportedVersionError`."""
+    assert issubclass(VersionPinMismatchError, UnsupportedVersionError)
+    err = VersionPinMismatchError(pinned="v43", reported="2.42.4")
+    assert err.pinned == "v43"
+    assert err.reported == "2.42.4"
 
 
 @respx.mock

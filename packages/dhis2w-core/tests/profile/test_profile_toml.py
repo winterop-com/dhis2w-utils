@@ -37,8 +37,25 @@ def test_write_and_read_round_trip(tmp_path: Path) -> None:
     assert path.exists()
     loaded = load_profiles_file(path)
     assert loaded.default == "local"
-    assert loaded.profiles["local"].token == "d2p_x"
+    local_token = loaded.profiles["local"].token
+    assert local_token == "d2p_x"
     assert loaded.profiles["prod"].auth == "basic"
+
+
+def test_writer_persists_real_secret_not_the_mask(tmp_path: Path) -> None:
+    """The TOML writer serialises with the reveal context so the file carries the real secret."""
+    path = tmp_path / ".dhis2" / "profiles.toml"
+    profile = Profile(base_url="http://x", auth="pat", token="d2p_realvalue")
+    write_profiles_file(path, ProfilesFile(profiles={"local": profile}))
+    raw = path.read_text(encoding="utf-8")
+    assert "d2p_realvalue" in raw
+    assert "**********" not in raw
+    # A default model_dump masks; the reveal context is what the writer uses.
+    assert profile.model_dump()["token"] == "**********"
+    assert profile.model_dump(context={"reveal": True})["token"] == "d2p_realvalue"
+    # And the reload reconstructs the exact secret.
+    reloaded = load_profiles_file(path).profiles["local"].token
+    assert reloaded == "d2p_realvalue"
 
 
 def test_session_cookie_round_trip_stays_0600(tmp_path: Path) -> None:
@@ -53,7 +70,8 @@ def test_session_cookie_round_trip_stays_0600(tmp_path: Path) -> None:
     write_profiles_file(path, data)
     loaded = load_profiles_file(path)
     assert loaded.profiles["browser"].auth == "session"
-    assert loaded.profiles["browser"].cookie == "JSESSIONID=abc123"
+    browser_cookie = loaded.profiles["browser"].cookie
+    assert browser_cookie == "JSESSIONID=abc123"
     assert (path.stat().st_mode & 0o777) == 0o600
 
 

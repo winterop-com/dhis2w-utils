@@ -45,6 +45,35 @@ async def test_session_cookie_auth_header() -> None:
     assert await provider.headers() == {"Cookie": "JSESSIONID=abc123"}
 
 
+async def test_auth_providers_mask_secrets_in_repr_and_dump() -> None:
+    """Credential fields stay out of repr() and are masked in model_dump() by default."""
+    basic = BasicAuth(username="admin", password="hunter2pw")
+    pat = PatAuth(token="d2pat_zzz")
+    session = SessionCookieAuth(cookie="JSESSIONID=xyz789")
+    token = OAuth2Token(access_token="ax-9931", refresh_token="rx-8842", expires_at=1.0)
+    for model, leaked in (
+        (basic, "hunter2pw"),
+        (pat, "d2pat_zzz"),
+        (session, "JSESSIONID=xyz789"),
+        (token, "ax-9931"),
+    ):
+        assert leaked not in repr(model)
+        assert leaked not in str(model.model_dump())
+        assert leaked not in model.model_dump_json()
+        assert "**********" in str(model.model_dump())
+    # The reveal context returns the real value for persistence.
+    assert basic.model_dump(context={"reveal": True})["password"] == "hunter2pw"
+    assert token.model_dump(context={"reveal": True})["access_token"] == "ax-9931"
+    assert token.model_dump(context={"reveal": True})["refresh_token"] == "rx-8842"
+    # The plain attribute is still readable for the code that needs it.
+    assert basic.password == "hunter2pw"
+    assert token.access_token == "ax-9931"
+    # headers() carry the real secret (attribute read, not the mask).
+    assert (await basic.headers())["Authorization"].endswith(base64.b64encode(b"admin:hunter2pw").decode("ascii"))
+    assert (await pat.headers())["Authorization"] == "ApiToken d2pat_zzz"
+    assert (await session.headers())["Cookie"] == "JSESSIONID=xyz789"
+
+
 async def test_session_cookie_refresh_is_noop() -> None:
     """Session cookie refresh is noop."""
     await SessionCookieAuth(cookie="JSESSIONID=abc123").refresh_if_needed()

@@ -75,11 +75,11 @@ def test_files_documents_upload_url_cli_parity(
 def test_files_documents_delete_cli_parity(
     core_version: str, core_profile: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`d2w files documents delete <uid>` confirms the delete on every tree."""
+    """`d2w files documents delete <uid> --yes` confirms the delete on every tree."""
     mock = AsyncMock(return_value=None)
     with patch(f"dhis2w_core.{core_version}.plugins.files.service.delete_document", new=mock):
         app = _build_versioned_app(core_version, monkeypatch)
-        result = CliRunner().invoke(app, ["-p", "probe", "files", "documents", "delete", "docUid00001"])
+        result = CliRunner().invoke(app, ["-p", "probe", "files", "documents", "delete", "docUid00001", "--yes"])
     assert result.exit_code == 0, result.output
     assert "deleted docUid00001" in result.output
 

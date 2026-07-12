@@ -110,7 +110,9 @@ class TaskModule:
                     notifications=notifications,
                     final=notification,
                 )
-        # Reached when timeout expires before any `completed=True` row.
+        # Unreachable: `iter_notifications` either yields a `completed=True` notification
+        # (returned above) or raises `TaskTimeoutError` on its own deadline. This raise
+        # only satisfies the `TaskCompletion` return type for the impossible fall-through.
         raise TaskTimeoutError(f"task {task_ref!r} did not complete within the iterator's timeout")
 
     async def iter_notifications(

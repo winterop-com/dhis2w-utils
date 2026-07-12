@@ -22,7 +22,7 @@ from dhis2w_core.profile import Profile
 from dhis2w_core.v42.client_context import open_client
 
 if TYPE_CHECKING:
-    from dhis2w_browser import CaptureResult, PatOptions
+    from dhis2w_browser import CaptureResult, MapCaptureResult, PatOptions, VisualizationCaptureResult
     from playwright.async_api import BrowserContext, Page
 
 
@@ -313,7 +313,7 @@ async def capture_maps(
     headless: bool | None = None,
     banner: bool = True,
     trim: bool = True,
-) -> list[dict[str, object]]:
+) -> list[MapCaptureResult]:
     """Capture a PNG for each Map UID (or every map when `only` is None).
 
     Shared Playwright context across the batch — one login, one app-shell
@@ -360,7 +360,7 @@ async def capture_maps(
         return []
 
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    results: list[dict[str, object]] = []
+    results: list[MapCaptureResult] = []
     first_target, _ = targets[0]
     async with authenticated_session(
         profile,
@@ -392,15 +392,7 @@ async def capture_maps(
                     username=banner_username,
                     layer_count=layer_count,
                 )
-            results.append(
-                {
-                    "uid": result.uid,
-                    "display_name": result.display_name,
-                    "output_path": result.output_path,
-                    "rendered": result.rendered,
-                    "layer_count": layer_count,
-                },
-            )
+            results.append(result)
     return results
 
 
@@ -425,7 +417,7 @@ async def capture_visualizations(
     headless: bool | None = None,
     banner: bool = True,
     trim: bool = True,
-) -> list[dict[str, object]]:
+) -> list[VisualizationCaptureResult]:
     """Capture a PNG for each Visualization UID (or every viz when `only` is None).
 
     Output PNGs land under `{output_dir}/{instance-slug}/{YYYY-MM-DD}-{viz-slug}.png`
@@ -471,7 +463,7 @@ async def capture_visualizations(
         return []
 
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    results: list[dict[str, object]] = []
+    results: list[VisualizationCaptureResult] = []
     # First target's URL lands us in the Data Visualizer app shell;
     # subsequent targets swap via hash navigation so the shell only loads
     # once.
@@ -507,13 +499,5 @@ async def capture_visualizations(
                     username=banner_username,
                     viz_type=target.viz_type,
                 )
-            results.append(
-                {
-                    "uid": result.uid,
-                    "display_name": result.display_name,
-                    "output_path": result.output_path,
-                    "rendered": result.rendered,
-                    "viz_type": target.viz_type,
-                },
-            )
+            results.append(result)
     return results

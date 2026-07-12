@@ -92,11 +92,8 @@ uv run twine yank dhis2w-client==0.6.0 --reason "broken release; use 0.6.1"
 
 (Or do it through PyPI's web UI under each project's Manage page.)
 
-## When to bump major (1.0.0)
+## Major bumps (2.0 and beyond)
 
-The pre-1.0 marker says "API is still moving". Move to 1.0.0 when:
-- The `dhis2w-client` public surface (the imported names from `dhis2w_client`) is committed for at least 6 months across two minor releases.
-- The CLI command names + flags are stable.
-- The MCP tool catalogue is committed.
-
-After 1.0.0, breaking changes require a major bump.
+1.0.0 committed the public surface: the imported names from `dhis2w_client`, the `d2w` command
+names and flags, and the MCP tool catalogue. Under SemVer, backward-compatible additions ship on
+minor bumps and any breaking change to that surface requires a new major.

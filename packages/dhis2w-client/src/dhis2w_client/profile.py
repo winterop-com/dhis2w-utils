@@ -12,7 +12,8 @@ import os
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic_core.core_schema import SerializationInfo
 
 from dhis2w_client.generated import Dhis2
 
@@ -33,25 +34,45 @@ class Profile(BaseModel):
 
     base_url: str
     auth: Literal["pat", "basic", "oauth2", "session"]
-    token: str | None = None
+    token: str | None = Field(default=None, repr=False)
     username: str | None = None
-    password: str | None = None
+    password: str | None = Field(default=None, repr=False)
     client_id: str | None = None
-    client_secret: str | None = None
+    client_secret: str | None = Field(default=None, repr=False)
     scope: str | None = None
     redirect_uri: str | None = None
-    cookie: str | None = None
-    """Raw `Cookie` header value for `auth="session"` (e.g. `JSESSIONID=abc123`; the name is included)."""
+    cookie: str | None = Field(default=None, repr=False)
+    """Raw `Cookie` header value for `auth="session"` (e.g. `JSESSIONID=abc123`; the name is included).
+
+    Kept out of `repr()` (`Field(repr=False)`) and masked in `model_dump()`;
+    pass `context={"reveal": True}` to `model_dump()` to reveal it.
+    """
     version: Dhis2 | None = None
     """Plugin-tree hint (see class docstring). Wire version is auto-detected on connect()."""
 
-    @field_validator("cookie")
-    @classmethod
-    def _normalize_cookie(cls, value: str | None) -> str | None:
-        """Trim surrounding whitespace and reject a cookie carrying ASCII control characters."""
+    @field_serializer("token", "password", "client_secret", "cookie")
+    def _redact(self, value: str | None, info: SerializationInfo) -> str | None:
+        """Mask credential fields unless serialization runs with `context={"reveal": True}`."""
         if value is None:
             return None
-        normalized = value.strip()
+        if info.context and info.context.get("reveal"):
+            return value
+        return "**********"
+
+    @field_validator("cookie", mode="before")
+    @classmethod
+    def _normalize_cookie(cls, value: object) -> str | None:
+        """Trim surrounding whitespace and reject a cookie carrying ASCII control characters.
+
+        Accepts a plain string (TOML / env / kwarg), normalises it, and returns
+        the cleaned raw string.
+        """
+        if value is None:
+            return None
+        raw = value
+        if not isinstance(raw, str):
+            raise ValueError("session cookie must be a string")
+        normalized = raw.strip()
         if not normalized:
             raise ValueError("session cookie is empty after trimming whitespace — re-copy the raw Cookie header value")
         if any(ord(character) < 0x20 or ord(character) == 0x7F for character in normalized):

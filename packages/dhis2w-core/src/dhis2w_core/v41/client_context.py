@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 import httpx
 from dhis2w_client.v41 import AuthProvider, Dhis2, Dhis2Client, RetryPolicy
 from dhis2w_client.v41.auth.oauth2 import OAuth2Auth
-from dhis2w_client.v41.client_context import build_auth_for_basic
+from dhis2w_client.v41.client_context import build_auth_provider
 
 from dhis2w_core.profile import Profile, ResolvedProfile, current_bound_version_tree, resolve
 from dhis2w_core.v41.token_store import token_store_for_scope
@@ -40,7 +40,7 @@ def build_auth(
     """
     if profile.auth == "oauth2":
         return _build_oauth2(profile, profile_name=profile_name, scope=scope, open_browser=open_browser)
-    return build_auth_for_basic(profile)
+    return build_auth_provider(profile)
 
 
 def _build_oauth2(

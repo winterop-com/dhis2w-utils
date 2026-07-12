@@ -16,19 +16,19 @@ def test_cookie_none_is_allowed() -> None:
 def test_cookie_single_pair_passes() -> None:
     """A plain `name=value` cookie is accepted verbatim."""
     profile = Profile(base_url="https://play.dhis2.org", auth="session", cookie="JSESSIONID=abc123")
-    assert profile.cookie == "JSESSIONID=abc123"
+    assert profile.cookie is not None and profile.cookie == "JSESSIONID=abc123"
 
 
 def test_cookie_multi_pair_passes() -> None:
     """A multi-pair Cookie header with internal spaces and semicolons stays intact."""
     profile = Profile(base_url="https://play.dhis2.org", auth="session", cookie="A=1; B=2")
-    assert profile.cookie == "A=1; B=2"
+    assert profile.cookie is not None and profile.cookie == "A=1; B=2"
 
 
 def test_cookie_surrounding_whitespace_is_stripped() -> None:
     """Leading and trailing whitespace is trimmed while the inner value is preserved."""
     profile = Profile(base_url="https://play.dhis2.org", auth="session", cookie="  JSESSIONID=abc123\n")
-    assert profile.cookie == "JSESSIONID=abc123"
+    assert profile.cookie is not None and profile.cookie == "JSESSIONID=abc123"
 
 
 def test_cookie_with_embedded_newline_is_rejected() -> None:

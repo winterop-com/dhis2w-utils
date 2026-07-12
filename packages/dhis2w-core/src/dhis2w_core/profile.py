@@ -215,6 +215,17 @@ def load_profiles_file(path: Path) -> ProfilesFile:
     return ProfilesFile(default=default, profiles=profiles)
 
 
+def _profile_to_toml_dict(profile: Profile) -> dict[str, object]:
+    """Serialise a `Profile` to a TOML-ready dict carrying real credential values.
+
+    `model_dump()` masks credential fields to `**********` by default. Dumping
+    with `context={"reveal": True}` emits the real secrets so the file carries
+    usable credentials and a `load_profiles_file` -> `write_profiles_file`
+    round-trip preserves them exactly.
+    """
+    return profile.model_dump(exclude_none=True, context={"reveal": True})
+
+
 def write_profiles_file(path: Path, data: ProfilesFile) -> None:
     """Write a `profiles.toml` file with 0600 perms. Creates parents as needed."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -222,10 +233,7 @@ def write_profiles_file(path: Path, data: ProfilesFile) -> None:
     if data.default is not None:
         payload["default"] = data.default
     if data.profiles:
-        payload["profiles"] = {
-            name: {k: v for k, v in profile.model_dump(exclude_none=True).items()}
-            for name, profile in data.profiles.items()
-        }
+        payload["profiles"] = {name: _profile_to_toml_dict(profile) for name, profile in data.profiles.items()}
     path.write_text(tomli_w.dumps(payload), encoding="utf-8")
     path.chmod(0o600)
 

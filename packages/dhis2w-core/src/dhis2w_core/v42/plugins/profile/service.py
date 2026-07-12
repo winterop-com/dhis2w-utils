@@ -411,9 +411,26 @@ class ProfileMeta(BaseModel):
     source_path: str | None = None
 
 
-class ProfileView(Profile):
-    """A Profile plus its resolution meta — returned by `show_profile`."""
+class ProfileView(BaseModel):
+    """Display projection of a `Profile` plus its resolution meta — returned by `show_profile`.
 
+    Credential fields are plain strings here, already redacted to `***` or
+    revealed by `show_profile` when `include_secrets` is set.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    base_url: str
+    auth: str
+    token: str | None = None
+    username: str | None = None
+    password: str | None = None
+    client_id: str | None = None
+    client_secret: str | None = None
+    scope: str | None = None
+    redirect_uri: str | None = None
+    cookie: str | None = None
+    version: Dhis2 | None = None
     meta: ProfileMeta
 
 
@@ -421,17 +438,25 @@ def show_profile(name: str, *, include_secrets: bool = False, start: Path | None
     """Return one profile with its resolution meta. Secrets redacted unless explicitly requested."""
     resolved = resolve(name, start=start)
     profile = resolved.profile
-    if not include_secrets:
-        profile = profile.model_copy(
-            update={
-                "token": "***" if profile.token else None,
-                "password": "***" if profile.password else None,
-                "client_secret": "***" if profile.client_secret else None,
-                "cookie": "***" if profile.cookie else None,
-            }
-        )
+
+    def _reveal(value: str | None) -> str | None:
+        """Return the plain secret when `include_secrets`, else redact it to `***`."""
+        if value is None:
+            return None
+        return value if include_secrets else "***"
+
     return ProfileView(
-        **profile.model_dump(),
+        base_url=profile.base_url,
+        auth=profile.auth,
+        token=_reveal(profile.token),
+        username=profile.username,
+        password=_reveal(profile.password),
+        client_id=profile.client_id,
+        client_secret=_reveal(profile.client_secret),
+        scope=profile.scope,
+        redirect_uri=profile.redirect_uri,
+        cookie=_reveal(profile.cookie),
+        version=profile.version,
         meta=ProfileMeta(
             name=resolved.name,
             source=resolved.source,

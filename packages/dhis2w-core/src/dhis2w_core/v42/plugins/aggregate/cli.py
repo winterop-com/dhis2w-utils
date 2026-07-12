@@ -150,12 +150,26 @@ def set_command(
     ],
     value: Annotated[str, typer.Option("--value", prompt="Value", help="The value to set (as a string).")],
     category_option_combo: Annotated[str | None, typer.Option("--coc", help="CategoryOptionCombo UID.")] = None,
-    attribute_option_combo: Annotated[
-        str | None, typer.Option("--aoc", help="AttributeOptionCombo UID (category-combo attributes).")
+    attribute_combo: Annotated[
+        str | None,
+        typer.Option("--attribute-combo", "--cc", help="Attribute CategoryCombo UID (pair with --attribute-option)."),
+    ] = None,
+    attribute_options: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--attribute-option",
+            "--cp",
+            help="Attribute category-option UID; repeat for each. Pair with --attribute-combo.",
+        ),
     ] = None,
     comment: Annotated[str | None, typer.Option("--comment")] = None,
 ) -> None:
-    """Set a single data value."""
+    """Set a single data value.
+
+    An attribute option combo is addressed by its CategoryCombo UID (--cc) plus
+    the category-option UIDs (--cp, repeatable) — DHIS2 has no attributeOptionCombo
+    query param, so pass the two together.
+    """
     from dhis2w_core.v42.plugins.aggregate import service
 
     response = asyncio.run(
@@ -166,7 +180,8 @@ def set_command(
             org_unit=org_unit,
             value=value,
             category_option_combo=category_option_combo,
-            attribute_option_combo=attribute_option_combo,
+            attribute_combo=attribute_combo,
+            attribute_options=attribute_options,
             comment=comment,
         )
     )
@@ -182,9 +197,19 @@ def delete_command(
     period: Annotated[str, typer.Option("--period", "--pe", prompt="Period")],
     org_unit: Annotated[str, typer.Option("--org-unit", "--ou", prompt="OrganisationUnit UID")],
     category_option_combo: Annotated[str | None, typer.Option("--coc")] = None,
-    attribute_option_combo: Annotated[str | None, typer.Option("--aoc")] = None,
+    attribute_combo: Annotated[
+        str | None, typer.Option("--attribute-combo", "--cc", help="Attribute CategoryCombo UID.")
+    ] = None,
+    attribute_options: Annotated[
+        list[str] | None,
+        typer.Option("--attribute-option", "--cp", help="Attribute category-option UID; repeat for each."),
+    ] = None,
 ) -> None:
-    """Delete a single data value."""
+    """Delete a single data value.
+
+    Address an attribute option combo via --cc (its CategoryCombo UID) plus --cp
+    (its category-option UIDs, repeatable) — DHIS2 has no attributeOptionCombo param.
+    """
     from dhis2w_core.v42.plugins.aggregate import service
 
     response = asyncio.run(
@@ -194,7 +219,8 @@ def delete_command(
             period=period,
             org_unit=org_unit,
             category_option_combo=category_option_combo,
-            attribute_option_combo=attribute_option_combo,
+            attribute_combo=attribute_combo,
+            attribute_options=attribute_options,
         )
     )
     if is_json_output():

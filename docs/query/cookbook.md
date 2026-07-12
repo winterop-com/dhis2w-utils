@@ -255,6 +255,15 @@ read("/tmp/d2ql-districts.ndjson")
   | order districts desc
 ```
 
+> **Contract — d2ql file I/O is trusted-code-equivalent.** `read("path")` sources and `>> "path"`
+> file sinks read and write arbitrary host paths with the running process's permissions. Running a
+> d2ql program that uses them is equivalent to running local code: a query text is not a safe
+> sandbox boundary on its own. The `d2w` CLI enables file I/O because the local operator already has
+> shell access. An application that executes **untrusted** d2ql must disable it — construct the
+> engine with `QueryEngine(library, binder, allow_file_io=False)`, which makes `read(...)` and file
+> sinks raise a `SemanticError` instead of touching the filesystem. The DHIS2 MCP query surface sets
+> this off, so a model-authored query can never read or write host files.
+
 ## Filter by date
 
 A `@`-prefixed literal is a date (`@2024-01-01`) or datetime (`@2024-01-01T00:00:00`). Dates compare

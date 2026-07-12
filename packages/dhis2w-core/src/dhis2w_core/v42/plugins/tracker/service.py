@@ -312,9 +312,12 @@ async def push_tracker(
     `relationships` lists; empty lists are dropped from the wire payload so
     the request body names only the object kinds actually pushed.
     `import_strategy` is one of `CREATE`, `UPDATE`, `CREATE_AND_UPDATE`,
-    `DELETE`. `atomic_mode` is `ALL` or `OBJECT`. `dry_run=True` validates
-    without writing. `async_mode=True` returns a job reference immediately
-    (response.id = the job UID to poll).
+    `DELETE`. `atomic_mode` is `ALL` or `OBJECT`. `dry_run=True` sends
+    `importMode=VALIDATE` so DHIS2 runs the full import pipeline and reports
+    per-object errors without committing anything. The push runs synchronously
+    (`async=false`) by default so those per-object errors surface inline on the
+    returned `WebMessageResponse`; `async_mode=True` sends `async=true` to
+    return a job reference immediately (response.id = the job UID to poll).
     """
     params: dict[str, Any] = {}
     if import_strategy is not None:
@@ -322,9 +325,8 @@ async def push_tracker(
     if atomic_mode is not None:
         params["atomicMode"] = atomic_mode
     if dry_run:
-        params["dryRun"] = "true"
-    if async_mode:
-        params["async"] = "true"
+        params["importMode"] = "VALIDATE"
+    params["async"] = "true" if async_mode else "false"
 
     body = {
         key: value

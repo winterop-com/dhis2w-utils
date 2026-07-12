@@ -221,9 +221,23 @@ def _command_path(args: list[str]) -> tuple[str, ...]:
     return tuple(path)
 
 
+def _first_option(args: list[str]) -> str | None:
+    """Return the first option-like token (starts with `-`), or None when the args are all positional."""
+    for token in args:
+        if token.startswith("-"):
+            return token
+    return None
+
+
 def _is_help_or_version(args: list[str]) -> bool:
-    """Return True when the invocation only asks for help or version output."""
-    return any(token in _HELP_FLAGS for token in args)
+    """Return True only when the FIRST option is a standalone help/version flag — genuine discovery.
+
+    Deciding read-vs-write by the command VERB, not by scanning every token, is what makes this safe:
+    a `--help` used as an option VALUE (`create --name --help`) is NOT the first option (a
+    value-taking `--name` precedes it), so it does not short-circuit and the write command is still
+    classified — and refused — as a write. Fail-closed: help is honoured only when it leads the flags.
+    """
+    return _first_option(args) in _HELP_FLAGS
 
 
 _DISK_WRITE_FLAGS = frozenset({"--output", "-o"})

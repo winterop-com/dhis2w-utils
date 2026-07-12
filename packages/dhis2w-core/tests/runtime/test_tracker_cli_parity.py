@@ -239,7 +239,7 @@ def test_tracker_delete_cli_parity(core_version: str, core_profile: None, monkey
         new=AsyncMock(return_value=response),
     ):
         app = _build_versioned_app(core_version, monkeypatch)
-        result = CliRunner().invoke(app, ["-p", "probe", "data", "tracker", "delete", "teI01234567"])
+        result = CliRunner().invoke(app, ["-p", "probe", "data", "tracker", "delete", "teI01234567", "--yes"])
     assert result.exit_code == 0, result.output
     assert "deleted" in result.output
 

@@ -27,6 +27,9 @@ if TYPE_CHECKING:
     from dhis2w_client.errors import (
         UnsupportedVersionError as UnsupportedVersionError,
     )
+    from dhis2w_client.errors import (
+        VersionPinMismatchError as VersionPinMismatchError,
+    )
     from dhis2w_client.generated import Dhis2 as Dhis2
     from dhis2w_client.profile import (
         PROFILE_NAME_MAX_LEN as PROFILE_NAME_MAX_LEN,
@@ -179,7 +182,7 @@ if TYPE_CHECKING:
     )
     from dhis2w_client.v41.client import Dhis2Client as Dhis2Client
     from dhis2w_client.v41.client_context import (
-        build_auth_for_basic as build_auth_for_basic,
+        build_auth_provider as build_auth_provider,
     )
     from dhis2w_client.v41.client_context import (
         open_client as open_client,
@@ -821,13 +824,14 @@ __all__ = [
     "ValidationRuleGroup",
     "ValidationRuleGroupsAccessor",
     "ValidationRulesAccessor",
+    "VersionPinMismatchError",
     "VisualizationSpec",
     "VisualizationsAccessor",
     "WebMessageResponse",
     "access_string",
     "apply_sharing",
     "auth_scheme_from_route",
-    "build_auth_for_basic",
+    "build_auth_provider",
     "build_category_combo",
     "generate_uid",
     "generate_uids",
@@ -1046,13 +1050,14 @@ _LAZY_EXPORTS: dict[str, str] = {
     "ValidationRuleGroup": "dhis2w_client.v41.validation_rule_groups",
     "ValidationRuleGroupsAccessor": "dhis2w_client.v41.validation_rule_groups",
     "ValidationRulesAccessor": "dhis2w_client.v41.validation_rules",
+    "VersionPinMismatchError": "dhis2w_client.errors",
     "VisualizationSpec": "dhis2w_client.v41.visualizations",
     "VisualizationsAccessor": "dhis2w_client.v41.visualizations",
     "WebMessageResponse": "dhis2w_client.v41.envelopes",
     "access_string": "dhis2w_client.v41.sharing",
     "apply_sharing": "dhis2w_client.v41.sharing",
     "auth_scheme_from_route": "dhis2w_client.v41.auth_schemes",
-    "build_auth_for_basic": "dhis2w_client.v41.client_context",
+    "build_auth_provider": "dhis2w_client.v41.client_context",
     "build_category_combo": "dhis2w_client.v41.category_combo_builder",
     "generate_uid": "dhis2w_client.v41.uids",
     "generate_uids": "dhis2w_client.v41.uids",

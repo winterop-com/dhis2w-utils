@@ -100,4 +100,5 @@ async def test_discover_oidc_profile_parity(
     assert discovered.profile.auth == "oauth2"
     assert discovered.profile.base_url == _HOST
     assert discovered.profile.client_id == "my-client"
-    assert discovered.profile.client_secret == "my-secret"
+    client_secret = discovered.profile.client_secret
+    assert client_secret is not None and client_secret == "my-secret"

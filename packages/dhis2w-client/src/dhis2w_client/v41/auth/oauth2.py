@@ -15,7 +15,8 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Protocol, runtime_checkable
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_serializer
+from pydantic_core.core_schema import SerializationInfo
 
 from dhis2w_client.errors import OAuth2FlowError
 
@@ -176,11 +177,26 @@ async def capture_code(
 
 
 class OAuth2Token(BaseModel):
-    """Access + refresh token pair with expiry info (unix epoch seconds)."""
+    """Access + refresh token pair with expiry info (unix epoch seconds).
 
-    access_token: str
-    refresh_token: str | None = None
+    Both token values stay out of `repr()` (`Field(repr=False)`) and are masked
+    in `model_dump()`; pass `context={"reveal": True}` to `model_dump()` to
+    reveal them. Read the plain attributes when building an Authorization header
+    or a token-endpoint request body.
+    """
+
+    access_token: str = Field(repr=False)
+    refresh_token: str | None = Field(default=None, repr=False)
     expires_at: float
+
+    @field_serializer("access_token", "refresh_token")
+    def _redact(self, value: str | None, info: SerializationInfo) -> str | None:
+        """Mask both token values unless serialization runs with `context={"reveal": True}`."""
+        if value is None:
+            return None
+        if info.context and info.context.get("reveal"):
+            return value
+        return "**********"
 
 
 @runtime_checkable

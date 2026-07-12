@@ -365,9 +365,11 @@ name.replace("visit", "v.")   over {"name":"ANC visit"}       => ["ANC v."]
 ```
 
 ### `matches(regex)`
-True if the string matches the regular expression. An invalid pattern, or one longer than 1000
-characters, raises a typed evaluation error. Patterns run on Python's stdlib `re` engine, so
-catastrophic backtracking is bounded only by the length cap — prefer simple patterns.
+True if the string matches the regular expression. Patterns run on Python's stdlib `re` engine, and
+`matches()` raises a typed evaluation error for a pattern that is invalid, longer than 1000
+characters, or that nests quantifiers (`(a+)+`, `(a*)*`, `(a+)*`, `(a*)+`, and kin) — the shape that
+drives catastrophic backtracking. That guard is a safety rail for honest mistakes, **not** a defence
+against adversarial input: `matches()` is not intended to run untrusted regex.
 ```text
 code.matches("^[A-Z]{2}[0-9]+$")
 ```
@@ -434,9 +436,10 @@ A handful of edge rules are worth knowing before they surprise you:
 - **Division by zero raises** for `/`, `div`, and `mod`; guard with a short-circuiting `and`.
 - **Expression nesting is capped at 64 levels** (`MAX_EXPRESSION_DEPTH`) — parentheses/operators
   nested deeper are rejected at parse time. No real query approaches this.
-- **A `matches()` pattern is capped at 1000 characters** (`MAX_REGEX_PATTERN_LENGTH`) and an invalid
-  pattern raises a typed error; the length cap bounds the ReDoS surface but does not eliminate
-  catastrophic backtracking, so prefer simple patterns.
+- **A `matches()` pattern is capped at 1000 characters** (`MAX_REGEX_PATTERN_LENGTH`), and an invalid
+  pattern or one that nests quantifiers (`(a+)+` and kin) raises a typed error before it ever
+  compiles. Together the length cap and the nested-quantifier pre-scan block the common ReDoS shapes,
+  but `matches()` is a convenience for well-formed patterns, not a shield for adversarial regex.
 - **`define function` composition is capped at 32 levels** (`MAX_FUNCTION_CALL_DEPTH`) and a
   self-referential or cyclic definition is rejected as recursive rather than looping.
 

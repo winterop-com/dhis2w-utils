@@ -92,7 +92,8 @@ async def test_discover_oidc_profile_builds_oauth2_profile() -> None:
     assert discovered.profile.auth == "oauth2"
     assert discovered.profile.base_url == "https://dhis2.example"
     assert discovered.profile.client_id == "my-client"
-    assert discovered.profile.client_secret == "my-secret"
+    client_secret = discovered.profile.client_secret
+    assert client_secret is not None and client_secret == "my-secret"
     # Default scope/redirect_uri mirror DHIS2 + the CLI loopback.
     assert discovered.profile.scope == "ALL"
     assert discovered.profile.redirect_uri == "http://localhost:8765"
@@ -132,6 +133,36 @@ def test_cli_oidc_config_writes_profile(tmp_path: Path, monkeypatch: pytest.Monk
     assert profile["client_id"] == "abc"
     assert profile["client_secret"] == "xyz"
     assert profile["base_url"] == "https://dhis2.example"
+
+
+@respx.mock
+def test_cli_oidc_config_reads_client_secret_from_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`oidc-config` reads the secret from DHIS2_OAUTH_CLIENT_SECRET when --client-secret is omitted."""
+    respx.get("https://dhis2.example/.well-known/openid-configuration").mock(
+        return_value=httpx.Response(200, json=_DISCOVERY_BODY),
+    )
+    monkeypatch.setenv("DHIS2_OAUTH_CLIENT_SECRET", "env-secret-xyz")
+    result = CliRunner().invoke(
+        build_app(),
+        [
+            "profile",
+            "oidc-config",
+            "https://dhis2.example",
+            "--name",
+            "env_oidc",
+            "--client-id",
+            "abc",
+            "--global",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "saved profile 'env_oidc'" in result.output
+
+    toml_path = tmp_path / "xdg" / "dhis2" / "profiles.toml"
+    parsed = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+    profile = parsed["profiles"]["env_oidc"]
+    assert profile["client_secret"] == "env-secret-xyz"
+    assert profile["client_id"] == "abc"
 
 
 @respx.mock

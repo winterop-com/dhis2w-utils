@@ -3984,6 +3984,7 @@ async def bulk_rename_metadata(
     set_description: str | None = None,
     concurrency: int = 8,
     dry_run: bool = False,
+    allow_all: bool = False,
 ) -> BulkRenameResult:
     """Bulk-rename many metadata objects with RFC 6902 patches.
 
@@ -4006,6 +4007,10 @@ async def bulk_rename_metadata(
     through `client.metadata.patch_bulk(...)` under `concurrency`;
     failures land on `BulkRenameResult.patch_result.failures` instead
     of raising.
+
+    A live rename with no `filters` would mutate the entire resource
+    catalog, so it is refused unless `allow_all=True` opts in explicitly
+    (a `dry_run=True` preview is always allowed).
     """
     mutation_flags = (
         name_prefix,
@@ -4036,6 +4041,13 @@ async def bulk_rename_metadata(
                 f"{strip_flag_name} must be a non-empty string — every label ends (and starts) with "
                 "the empty string, so an empty strip pattern would blank out every matched label",
             )
+
+    if not filters and not allow_all and not dry_run:
+        raise MetadataUsageError(
+            f"refusing to rename every {resource} object: no filter was given, so the whole catalog would be "
+            "mutated. Narrow the cohort with at least one filter, pass allow_all=True to opt into a catalog-wide "
+            "rename, or dry_run=True to preview it first.",
+        )
 
     params: dict[str, Any] = {
         "fields": "id,name,shortName",
@@ -4198,6 +4210,7 @@ async def bulk_retag_metadata(
     clear_legend_sets: bool = False,
     concurrency: int = 8,
     dry_run: bool = False,
+    allow_all: bool = False,
 ) -> BulkRetagResult:
     """Bulk-rewrite ref / enum fields across a filtered cohort.
 
@@ -4216,6 +4229,10 @@ async def bulk_retag_metadata(
     Pass at least one mutation; multiple flags stack into one
     bulk-patch round-trip per matched UID. `dry_run=True` returns the
     preview without calling `/api/<resource>/<uid>`.
+
+    A live retag with no `filters` would mutate the entire resource
+    catalog, so it is refused unless `allow_all=True` opts in explicitly
+    (a `dry_run=True` preview is always allowed).
     """
     if not any(
         [
@@ -4236,6 +4253,13 @@ async def bulk_retag_metadata(
         raise ValueError("pick one of option_set_uid / clear_option_set (not both)")
     if legend_set_uids is not None and clear_legend_sets:
         raise ValueError("pick one of legend_set_uids / clear_legend_sets (not both)")
+
+    if not filters and not allow_all and not dry_run:
+        raise MetadataUsageError(
+            f"refusing to retag every {resource} object: no filter was given, so the whole catalog would be "
+            "mutated. Narrow the cohort with at least one filter, pass allow_all=True to opt into a catalog-wide "
+            "retag, or dry_run=True to preview it first.",
+        )
 
     fields_parts = ["id"]
     if category_combo_uid:

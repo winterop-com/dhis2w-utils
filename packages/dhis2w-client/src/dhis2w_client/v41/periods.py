@@ -7,7 +7,7 @@ Quarterly…). DHIS2's `/api/schemas` reports `DataSet.periodType` as `TEXT`
 constants. We list the canonical type-name strings here as a StrEnum.
 
 `RelativePeriod` mirrors the 45 boolean flags on the generated
-`RelativePeriods` model (`generated/v42/oas/relative_periods.py`) — the
+`RelativePeriods` model (`generated/v41/oas/relative_periods.py`) — the
 rolling windows a `Visualization` / `EventVisualization` / `Map` can pin
 itself to (`last12Months`, `thisYear`, `lastSixMonth`, …). Use the enum
 on builder APIs so callers don't have to remember the exact flag casing,

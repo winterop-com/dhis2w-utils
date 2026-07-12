@@ -30,7 +30,7 @@ def test_profile_from_env_pat(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     profile = profile_from_env()
     assert profile.base_url == "http://localhost:8080"
     assert profile.auth == "pat"
-    assert profile.token == "d2p_test"
+    assert profile.token is not None and profile.token == "d2p_test"
 
 
 def test_profile_from_env_basic(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -42,7 +42,7 @@ def test_profile_from_env_basic(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     profile = profile_from_env()
     assert profile.auth == "basic"
     assert profile.username == "admin"
-    assert profile.password == "district"
+    assert profile.password is not None and profile.password == "district"
 
 
 def test_profile_from_env_pat_beats_basic(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
