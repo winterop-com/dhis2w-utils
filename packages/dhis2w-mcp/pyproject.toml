@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-mcp"
-version = "1.1.0"
+version = "1.2.0"
 description = "dhis2 FastMCP server — mounts plugins from dhis2w-core."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
@@ -15,12 +15,12 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-  "dhis2w-core>=1.1.0,<2.0",
+  "dhis2w-core>=1.2.0,<2.0",
   "fastmcp>=3.4",
 ]
 
 [project.optional-dependencies]
-browser = ["dhis2w-browser>=1.1.0,<2.0"]
+browser = ["dhis2w-browser>=1.2.0,<2.0"]
 
 [project.scripts]
 dhis2w-mcp = "dhis2w_mcp.server:main"
