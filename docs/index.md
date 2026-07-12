@@ -30,7 +30,7 @@ Other entry points:
 | `dhis2w-browser` | Playwright helpers (PAT creation, future UI automation) | [`dhis2w-browser`](https://pypi.org/project/dhis2w-browser/) |
 | `dhis2w-codegen` | Version-aware client generator | _workspace-only_ |
 | `dhis2w-bench` | Model benchmarking harness | _workspace-only_ |
-| `dhis2w-mcp-router` | Search + dispatch over upstream MCP servers | _workspace-only_ |
+| `dhis2w-mcp-router` | Search + dispatch over upstream MCP servers | [`dhis2w-mcp-router`](https://pypi.org/project/dhis2w-mcp-router/) |
 
 Plus `infra/`, a docker-compose stack for running a local DHIS2 instance with pre-seeded PATs and an OAuth2 client.
 

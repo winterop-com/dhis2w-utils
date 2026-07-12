@@ -60,5 +60,8 @@ queries with a small local embedder; a larger embedder or a hybrid is the furthe
 
 ## Status
 
-Experimental — not yet published. The core (`core.py`) is domain-neutral (FastMCP + httpx only, no `dhis2w-*`
-imports), so it can graduate to PyPI or extract to a standalone repo without a rewrite.
+Published to PyPI from 1.2.0, in lockstep with the rest of the `dhis2w-*` workspace. The core
+(`core.py`) is domain-neutral (FastMCP + httpx only, no `dhis2w-*` imports), so the same code could
+also extract to a standalone `mcp-router` repo without a rewrite. Whether the router should become the
+*default* MCP surface for all clients (not just small local models) is still gated on the `bench-router`
+numbers — see the roadmap.
