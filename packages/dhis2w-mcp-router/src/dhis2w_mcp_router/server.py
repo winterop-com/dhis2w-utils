@@ -48,7 +48,7 @@ def _get_registry() -> Registry:
     return _registry
 
 
-@mcp.tool
+@mcp.tool(annotations={"readOnlyHint": True})
 async def search_tools(query: str, limit: int = 10) -> list[dict[str, Any]]:
     """Search the federated tool surface; returns matching tools with their input schemas."""
     registry = _get_registry()

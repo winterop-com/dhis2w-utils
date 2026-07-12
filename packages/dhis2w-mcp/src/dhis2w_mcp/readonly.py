@@ -6,6 +6,12 @@ classified by their `readOnlyHint` annotation when set, else by a verb heuristic
 write verb anywhere in the name wins first, and only a name with no write verb and a trailing read verb
 is a read (fail-closed: anything else is a write). The authoritative control remains the DHIS2
 authorities of the profile's credentials; this is a structural convenience guard, like the bridge's.
+
+`is_read_tool` has a second, always-on consumer: `_annotate_read_only_hints` in `server.py` stamps every
+tool's `readOnlyHint` from it at build time (not only under read-only mode), and a client may use that
+hint to skip a per-action write confirmation. So a write misclassified as a read is now a silent-write
+risk, not just an over-refusal: any new tool whose name lacks a recognized write verb must be checked.
+`test_no_write_tool_advertises_read_only_hint` guards this against the whole assembled registry.
 """
 
 from __future__ import annotations

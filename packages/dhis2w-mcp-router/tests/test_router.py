@@ -116,6 +116,19 @@ async def test_per_server_readonly_denies_only_that_server() -> None:
     assert "play__data_set_create" not in names  # read-only server's write hidden
 
 
+async def test_search_tools_is_read_only_and_call_tool_is_not() -> None:
+    """`search_tools` only queries the registry (read-only hint); `call_tool` dispatches writes (no hint)."""
+    from dhis2w_mcp_router.server import mcp
+
+    tools = {tool.name: tool for tool in await mcp.list_tools(run_middleware=False)}
+
+    search = tools["search_tools"].annotations
+    assert search is not None and search.readOnlyHint is True
+
+    call = tools["call_tool"].annotations
+    assert call is None or call.readOnlyHint is None
+
+
 def test_cosine_similarity() -> None:
     """Cosine is 1 for identical vectors, 0 for orthogonal, and 0 for a degenerate (zero) vector."""
     from dhis2w_mcp_router.ranking import _cosine
