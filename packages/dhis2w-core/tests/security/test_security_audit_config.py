@@ -87,7 +87,7 @@ def _default_config_posture() -> AuditPosture:
 
 def test_unparsed_posture_yields_api_only_info() -> None:
     """An unparsed posture (no dhis.conf) yields exactly the not-API-readable INFO, never a MEDIUM."""
-    findings = evaluate_audit_config(AuditPosture(parsed=False))
+    findings = evaluate_audit_config(AuditPosture(parsed=False)).findings
     assert _titles(findings) == {"Audit configuration is not API-readable"}
     assert findings[0].severity is Severity.INFO
     # The wording must state it is not API-readable and explicitly deny that this means auditing is off.
@@ -98,7 +98,7 @@ def test_unparsed_posture_yields_api_only_info() -> None:
 def test_system_disabled_is_medium_and_short_circuits() -> None:
     """system.audit.enabled off flags the instance-wide MEDIUM and suppresses the scope findings."""
     posture = _healthy_posture().model_copy(update={"system_enabled": False})
-    findings = evaluate_audit_config(posture)
+    findings = evaluate_audit_config(posture).findings
     assert _titles(findings) == {"Auditing is disabled instance-wide"}
     assert findings[0].severity is Severity.MEDIUM
 
@@ -106,7 +106,7 @@ def test_system_disabled_is_medium_and_short_circuits() -> None:
 def test_both_sinks_off_is_medium() -> None:
     """audit.logger off AND audit.database off flags the both-sinks-off MEDIUM."""
     posture = _healthy_posture().model_copy(update={"logger_enabled": False, "database_enabled": False})
-    findings = evaluate_audit_config(posture)
+    findings = evaluate_audit_config(posture).findings
     assert "Both audit sinks are off" in _titles(findings)
     by_title = {f.title: f for f in findings}
     assert by_title["Both audit sinks are off"].severity is Severity.MEDIUM
@@ -115,7 +115,7 @@ def test_both_sinks_off_is_medium() -> None:
 def test_one_sink_on_does_not_flag_both_sinks_off() -> None:
     """With at least one sink on (database here), the both-sinks-off finding does not fire."""
     posture = _healthy_posture().model_copy(update={"logger_enabled": False, "database_enabled": True})
-    assert "Both audit sinks are off" not in _titles(evaluate_audit_config(posture))
+    assert "Both audit sinks are off" not in _titles(evaluate_audit_config(posture).findings)
 
 
 def test_default_config_posture_has_no_medium() -> None:
@@ -124,7 +124,7 @@ def test_default_config_posture_has_no_medium() -> None:
     This is the key correctness test: a fresh DHIS2 instance with no audit.* configuration in dhis.conf
     gets {CREATE, UPDATE, DELETE, SECURITY} on every scope by default and must NOT be flagged.
     """
-    findings = evaluate_audit_config(_default_config_posture())
+    findings = evaluate_audit_config(_default_config_posture()).findings
     assert Severity.MEDIUM not in _severities(findings)
 
 
@@ -143,7 +143,7 @@ def test_explicit_narrow_matrix_is_medium() -> None:
         ),
         parsed=True,
     )
-    findings = evaluate_audit_config(posture)
+    findings = evaluate_audit_config(posture).findings
     by_title = {f.title: f for f in findings}
     narrow = by_title["Audit scope coverage is narrower than the DHIS2 default"]
     assert narrow.severity is Severity.MEDIUM
@@ -168,7 +168,7 @@ def test_explicit_disabled_scope_is_medium() -> None:
         ),
         parsed=True,
     )
-    findings = evaluate_audit_config(posture)
+    findings = evaluate_audit_config(posture).findings
     by_title = {f.title: f for f in findings}
     narrow = by_title["Audit scope coverage is narrower than the DHIS2 default"]
     assert narrow.severity is Severity.MEDIUM
@@ -177,7 +177,7 @@ def test_explicit_disabled_scope_is_medium() -> None:
 
 def test_healthy_posture_has_no_medium() -> None:
     """A fully-configured posture (auditing on, a sink on, every scope explicitly full) yields no MEDIUM findings."""
-    findings = evaluate_audit_config(_healthy_posture())
+    findings = evaluate_audit_config(_healthy_posture()).findings
     assert Severity.MEDIUM not in _severities(findings)
 
 

@@ -89,20 +89,20 @@ def test_parse_rejects_unusable_strings(raw: str | None) -> None:
 
 def test_stripped_version_is_info() -> None:
     """An unreported version is INFO, not a silent pass."""
-    findings = evaluate_version(None, _feed())
+    findings = evaluate_version(None, _feed()).findings
     assert len(findings) == 1
     assert findings[0].severity is Severity.INFO
 
 
 def test_eol_line_is_high() -> None:
     """A version on an unsupported line is flagged EOL (HIGH)."""
-    findings = evaluate_version(parse_dhis2_version("2.40.11"), _feed())
+    findings = evaluate_version(parse_dhis2_version("2.40.11"), _feed()).findings
     assert any(f.title == "End-of-life DHIS2 version" and f.severity is Severity.HIGH for f in findings)
 
 
 def test_below_advisory_floor_is_high_and_suppresses_currency_note() -> None:
     """Below the advisory floor is HIGH, and the generic patch/hotfix note is suppressed."""
-    findings = evaluate_version(parse_dhis2_version("2.42.5"), _feed())
+    findings = evaluate_version(parse_dhis2_version("2.42.5"), _feed()).findings
     titles = {f.title for f in findings}
     assert "Running below the security-advisory patch floor" in titles
     assert "Patch or hotfix update available" not in titles
@@ -110,19 +110,19 @@ def test_below_advisory_floor_is_high_and_suppresses_currency_note() -> None:
 
 def test_latest_line_at_latest_patch_is_clean() -> None:
     """The newest line at its latest patch yields no findings at all."""
-    assert evaluate_version(parse_dhis2_version("2.43.2"), _feed()) == []
+    assert evaluate_version(parse_dhis2_version("2.43.2"), _feed()).findings == []
 
 
 def test_supported_non_latest_line_is_informational_only() -> None:
     """A supported, patched, non-latest line is at most an INFO note, never HIGH/WARN."""
-    findings = evaluate_version(parse_dhis2_version("2.42.6"), _feed())
+    findings = evaluate_version(parse_dhis2_version("2.42.6"), _feed()).findings
     assert findings and all(f.severity is Severity.INFO for f in findings)
     assert any(f.title == "Newer DHIS2 version line available" for f in findings)
 
 
 def test_behind_on_hotfix_is_flagged() -> None:
     """Behind only on the hotfix (patch matches) still flags an update, naming the hotfix."""
-    findings = evaluate_version(parse_dhis2_version("2.42.5.1"), _feed())
+    findings = evaluate_version(parse_dhis2_version("2.42.5.1"), _feed()).findings
     currency = [f for f in findings if f.title == "Patch or hotfix update available"]
     assert currency and currency[0].severity is Severity.WARN
     assert currency[0].evidence is not None and currency[0].evidence["latest"] == "2.42.5.2"
@@ -130,7 +130,7 @@ def test_behind_on_hotfix_is_flagged() -> None:
 
 def test_no_feed_still_applies_advisory_floor() -> None:
     """With no feed, feed-dependent checks are skipped but the static advisory floor still fires."""
-    findings = evaluate_version(parse_dhis2_version("2.41.5"), None)
+    findings = evaluate_version(parse_dhis2_version("2.41.5"), None).findings
     assert any(f.title == "Running below the security-advisory patch floor" for f in findings)
 
 

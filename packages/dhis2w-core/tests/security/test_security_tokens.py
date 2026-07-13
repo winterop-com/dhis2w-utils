@@ -67,13 +67,13 @@ def _by_title(findings: list[Any]) -> dict[str, Any]:
 def test_empty_inventory_superuser_emits_nothing() -> None:
     """A superuser with no readable tokens emits no findings at all (no inventory, no scope caveat)."""
     inventory = TokensInventory(tokens=(), account_is_superuser=True)
-    assert evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS) == []
+    assert evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings == []
 
 
 def test_empty_inventory_non_superuser_emits_only_scope_caveat() -> None:
     """A non-superuser with no readable tokens still emits the INFO account-scoped caveat."""
     inventory = TokensInventory(tokens=(), account_is_superuser=False)
-    findings = evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS)
+    findings = evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings
     assert _titles(findings) == {"Token inventory is account-scoped"}
     assert _by_title(findings)["Token inventory is account-scoped"].severity is Severity.INFO
 
@@ -81,7 +81,7 @@ def test_empty_inventory_non_superuser_emits_only_scope_caveat() -> None:
 def test_healthy_token_superuser_emits_only_inventory() -> None:
     """A healthy token under a superuser yields only the MEDIUM inventory finding."""
     inventory = TokensInventory(tokens=(_HEALTHY,), account_is_superuser=True)
-    findings = evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS)
+    findings = evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings
     assert _titles(findings) == {"Personal access token inventory"}
     assert _by_title(findings)["Personal access token inventory"].severity is Severity.MEDIUM
 
@@ -89,7 +89,7 @@ def test_healthy_token_superuser_emits_only_inventory() -> None:
 def test_inventory_detail_states_scope_sentence_verbatim() -> None:
     """The inventory finding detail states the verbatim account-scoped scope sentence."""
     inventory = TokensInventory(tokens=(_HEALTHY,), account_is_superuser=True)
-    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS))[
+    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)[
         "Personal access token inventory"
     ]
     assert (
@@ -102,7 +102,7 @@ def test_non_expiring_null_expire_is_high() -> None:
     """A token with no expiry (null) flags the HIGH non-expiring finding with 'expires: never'."""
     token = _HEALTHY.model_copy(update={"expire_epoch_millis": None})
     inventory = TokensInventory(tokens=(token,), account_is_superuser=True)
-    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS))[
+    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)[
         "Non-expiring personal access token"
     ]
     assert finding.severity is Severity.HIGH
@@ -113,7 +113,7 @@ def test_non_expiring_past_epoch_is_high_deterministic() -> None:
     """A token whose expiry epoch is already in the past flags the HIGH non-expiring finding (fixed now)."""
     token = _HEALTHY.model_copy(update={"expire_epoch_millis": _PAST_EPOCH_MILLIS})
     inventory = TokensInventory(tokens=(token,), account_is_superuser=True)
-    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS))[
+    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)[
         "Non-expiring personal access token"
     ]
     assert finding.severity is Severity.HIGH
@@ -124,7 +124,7 @@ def test_future_expiry_does_not_flag_non_expiring() -> None:
     """A token with a future expiry is not flagged as non-expiring."""
     inventory = TokensInventory(tokens=(_HEALTHY,), account_is_superuser=True)
     assert "Non-expiring personal access token" not in _titles(
-        evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS)
+        evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings
     )
 
 
@@ -132,7 +132,7 @@ def test_no_ip_allowlist_is_high() -> None:
     """A token with an empty IP allowlist flags the HIGH no-IP-allowlist finding."""
     token = _HEALTHY.model_copy(update={"allowlists": TokenAllowlists(ips=(), methods=("GET",))})
     inventory = TokensInventory(tokens=(token,), account_is_superuser=True)
-    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS))[
+    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)[
         "Personal access token with no IP allowlist"
     ]
     assert finding.severity is Severity.HIGH
@@ -143,7 +143,7 @@ def test_worst_case_non_expiring_and_no_ip_allowlist_is_called_out() -> None:
     """A token that never expires AND has no IP allowlist fires both HIGHs and calls out the worst case."""
     token = _HEALTHY.model_copy(update={"expire_epoch_millis": None, "allowlists": TokenAllowlists()})
     inventory = TokensInventory(tokens=(token,), account_is_superuser=True)
-    findings = evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS)
+    findings = evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings
     titles = _titles(findings)
     assert "Non-expiring personal access token" in titles
     assert "Personal access token with no IP allowlist" in titles
@@ -155,7 +155,7 @@ def test_no_ip_allowlist_with_future_expiry_does_not_call_out_worst_case() -> No
     """A token missing only the IP allowlist (but with a future expiry) does not mention the worst case."""
     token = _HEALTHY.model_copy(update={"allowlists": TokenAllowlists()})
     inventory = TokensInventory(tokens=(token,), account_is_superuser=True)
-    no_ip = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS))[
+    no_ip = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)[
         "Personal access token with no IP allowlist"
     ]
     assert "worst case" not in no_ip.detail
@@ -165,7 +165,7 @@ def test_non_expiring_finding_evidence_includes_created() -> None:
     """The non-expiring finding carries a 'created' key in evidence so the field is not dead weight."""
     token = _HEALTHY.model_copy(update={"expire_epoch_millis": None})
     inventory = TokensInventory(tokens=(token,), account_is_superuser=True)
-    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS))[
+    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)[
         "Non-expiring personal access token"
     ]
     assert "created" in (finding.evidence or {})
@@ -175,7 +175,7 @@ def test_non_expiring_finding_evidence_includes_created() -> None:
 def test_non_superuser_with_tokens_adds_scope_caveat() -> None:
     """A non-superuser run with a token emits the inventory plus the INFO account-scoped caveat."""
     inventory = TokensInventory(tokens=(_HEALTHY,), account_is_superuser=False)
-    titles = _titles(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS))
+    titles = _titles(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)
     assert "Personal access token inventory" in titles
     assert "Token inventory is account-scoped" in titles
 
@@ -184,7 +184,7 @@ def test_superuser_with_tokens_omits_scope_caveat() -> None:
     """A superuser run never emits the account-scoped INFO caveat."""
     inventory = TokensInventory(tokens=(_HEALTHY,), account_is_superuser=True)
     assert "Token inventory is account-scoped" not in _titles(
-        evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS)
+        evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings
     )
 
 

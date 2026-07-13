@@ -39,19 +39,19 @@ def test_all_role_with_members_is_critical() -> None:
     """A role granting ALL with at least one member is CRITICAL."""
     role = build_role_audit(role_id="r1", name="Sysadmin", authorities=["ALL"], member_count=5)
     assert role.is_all
-    assert [finding.severity for finding in evaluate_roles([role])] == [Severity.CRITICAL]
+    assert [finding.severity for finding in evaluate_roles([role]).findings] == [Severity.CRITICAL]
 
 
 def test_all_role_without_members_is_high() -> None:
     """A role granting ALL but with no members is HIGH (latent, not active)."""
     role = build_role_audit(role_id="r1", name="Empty ALL", authorities=["ALL"], member_count=0)
-    assert [finding.severity for finding in evaluate_roles([role])] == [Severity.HIGH]
+    assert [finding.severity for finding in evaluate_roles([role]).findings] == [Severity.HIGH]
 
 
 def test_high_risk_category_role_is_high() -> None:
     """A non-ALL role in a high-risk category (SQL views) is HIGH."""
     role = build_role_audit(role_id="r2", name="SQL authors", authorities=["F_SQLVIEW_PUBLIC_ADD"], member_count=2)
-    findings = evaluate_roles([role])
+    findings = evaluate_roles([role]).findings
     assert len(findings) == 1
     assert findings[0].severity is Severity.HIGH
     assert "sql_views" in (findings[0].evidence or {}).get("categories", "")
@@ -61,14 +61,14 @@ def test_benign_role_produces_no_findings() -> None:
     """A role with only harmless data-entry authorities yields no findings."""
     role = build_role_audit(role_id="r3", name="Data entry", authorities=["F_DATAVALUE_ADD"], member_count=10)
     assert not role.is_all
-    assert evaluate_roles([role]) == []
+    assert evaluate_roles([role]).findings == []
 
 
 def test_impersonate_user_role_is_flagged_high() -> None:
     """A role granting F_IMPERSONATE_USER (account takeover) is HIGH in user_management."""
     role = build_role_audit(role_id="r4", name="Support", authorities=["F_IMPERSONATE_USER"], member_count=3)
     assert role.categories == ["user_management"]
-    findings = evaluate_roles([role])
+    findings = evaluate_roles([role]).findings
     assert len(findings) == 1
     assert findings[0].severity is Severity.HIGH
     assert "user_management" in (findings[0].evidence or {}).get("categories", "")
@@ -78,7 +78,7 @@ def test_public_route_role_is_flagged_high() -> None:
     """A role granting F_ROUTE_PUBLIC_ADD (SSRF-relay creation) is HIGH in route_management."""
     role = build_role_audit(role_id="r5", name="Integrations", authorities=["F_ROUTE_PUBLIC_ADD"], member_count=2)
     assert role.categories == ["route_management"]
-    findings = evaluate_roles([role])
+    findings = evaluate_roles([role]).findings
     assert len(findings) == 1
     assert findings[0].severity is Severity.HIGH
     assert "route_management" in (findings[0].evidence or {}).get("categories", "")

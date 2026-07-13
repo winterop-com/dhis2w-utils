@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 
 _CHECK = "guest"
@@ -51,15 +52,21 @@ def evaluate_guest(
     anonymous: list[AnonymousResult],
     self_registration_role: str | None,
     account_recovery: bool,
-) -> list[AuditFinding]:
-    """Findings over anonymous-readable endpoints, self-registration state, and account recovery."""
-    findings: list[AuditFinding] = []
-    findings.extend(_anonymous_findings(anonymous))
+) -> CheckOutcome:
+    """Outcome over anonymous-readable endpoints, self-registration state, and account recovery."""
+    log = ControlLog(_CHECK)
+    log.mark_passed(
+        "guest-anonymous-readable-endpoint",
+        "guest-self-registration-enabled",
+        "guest-account-recovery-enabled",
+    )
+    for finding in _anonymous_findings(anonymous):
+        log.record(finding)
     if self_registration_role is not None:
-        findings.append(_self_registration_finding(self_registration_role))
+        log.record(_self_registration_finding(self_registration_role))
     if account_recovery:
-        findings.append(_account_recovery_finding())
-    return findings
+        log.record(_account_recovery_finding())
+    return log.result()
 
 
 def _anonymous_findings(anonymous: list[AnonymousResult]) -> list[AuditFinding]:
@@ -85,6 +92,7 @@ def _anonymous_findings(anonymous: list[AnonymousResult]) -> list[AuditFinding]:
                 ),
                 subject=result.path,
                 evidence={"path": result.path},
+                control="guest-anonymous-readable-endpoint",
             )
         )
     return findings
@@ -102,6 +110,7 @@ def _self_registration_finding(role: str) -> AuditFinding:
         ),
         subject=role,
         evidence={"role": role},
+        control="guest-self-registration-enabled",
     )
 
 
@@ -116,4 +125,5 @@ def _account_recovery_finding() -> AuditFinding:
             "widens the attack surface if email uniqueness or the mail server is not trusted."
         ),
         evidence={"setting": "keyAccountRecovery"},
+        control="guest-account-recovery-enabled",
     )

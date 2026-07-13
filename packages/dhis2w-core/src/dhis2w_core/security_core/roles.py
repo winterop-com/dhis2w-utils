@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_core.security_core.authorities import categorise_authorities
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity, role_severity
 
 _CHECK = "roles"
@@ -37,15 +38,16 @@ def build_role_audit(*, role_id: str, name: str, authorities: list[str], member_
     )
 
 
-def evaluate_roles(roles: list[RoleAudit]) -> list[AuditFinding]:
-    """Turn the role inventory into findings: ALL-granting roles, then dangerous-category roles."""
-    findings: list[AuditFinding] = []
+def evaluate_roles(roles: list[RoleAudit]) -> CheckOutcome:
+    """Record ALL-granting and dangerous-category role controls, flagging each role that trips them."""
+    log = ControlLog(_CHECK)
+    log.mark_passed("roles-grants-all-in-use", "roles-grants-all-unused", "roles-dangerous-authorities")
     for role in roles:
         if role.is_all:
-            findings.append(_all_finding(role))
+            log.record(_all_finding(role))
         elif role.categories:
-            findings.append(_dangerous_finding(role))
-    return findings
+            log.record(_dangerous_finding(role))
+    return log.result()
 
 
 def _all_finding(role: RoleAudit) -> AuditFinding:
@@ -53,9 +55,11 @@ def _all_finding(role: RoleAudit) -> AuditFinding:
     if role.member_count > 0:
         severity = Severity.CRITICAL
         detail = f"Role '{role.name}' grants ALL (full superuser) to {role.member_count} account(s)."
+        control = "roles-grants-all-in-use"
     else:
         severity = Severity.HIGH
         detail = f"Role '{role.name}' grants ALL (full superuser) but currently has no members."
+        control = "roles-grants-all-unused"
     return AuditFinding(
         check=_CHECK,
         severity=severity,
@@ -63,6 +67,7 @@ def _all_finding(role: RoleAudit) -> AuditFinding:
         detail=detail,
         subject=role.name,
         evidence={"role_id": role.id, "members": str(role.member_count)},
+        control=control,
     )
 
 
@@ -78,4 +83,5 @@ def _dangerous_finding(role: RoleAudit) -> AuditFinding:
         ),
         subject=role.name,
         evidence={"role_id": role.id, "categories": ", ".join(role.categories), "members": str(role.member_count)},
+        control="roles-dangerous-authorities",
     )

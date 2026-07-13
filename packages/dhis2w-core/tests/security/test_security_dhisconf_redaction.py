@@ -73,7 +73,7 @@ def _report_from_conf(conf: Path) -> AuditReport:
         check="audit-config",
         label="Audit logging configuration",
         status=CheckStatus.OK,
-        findings=evaluate_audit_config(posture),
+        findings=evaluate_audit_config(posture).findings,
     )
     manifest = RunManifest(
         target="https://mock.example",

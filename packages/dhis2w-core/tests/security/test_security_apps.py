@@ -42,7 +42,7 @@ def test_side_loaded_app_without_hub_id_is_high() -> None:
         hub=[],
         custom_js=False,
         custom_css=False,
-    )
+    ).findings
     side = [f for f in findings if f.title == "Side-loaded app installed"]
     assert side and side[0].severity is Severity.HIGH
     assert side[0].subject == "Sideloaded"
@@ -59,7 +59,7 @@ def test_bundled_and_core_apps_are_not_side_loaded() -> None:
         hub=[],
         custom_js=False,
         custom_css=False,
-    )
+    ).findings
     assert "Side-loaded app installed" not in _titles(findings)
 
 
@@ -70,7 +70,7 @@ def test_hub_backed_app_is_not_side_loaded() -> None:
         hub=[],
         custom_js=False,
         custom_css=False,
-    )
+    ).findings
     assert "Side-loaded app installed" not in _titles(findings)
 
 
@@ -81,7 +81,7 @@ def test_update_available_is_medium_with_numeric_semver() -> None:
         hub=[HubApp(app_hub_id="hub-reports", versions=["100.3.1", "100.4.0", "100.10.0"])],
         custom_js=False,
         custom_css=False,
-    )
+    ).findings
     update = [f for f in findings if f.title == "App update available"]
     assert update and update[0].severity is Severity.MEDIUM
     assert update[0].subject == "Reports"
@@ -96,7 +96,7 @@ def test_app_at_latest_version_has_no_update_finding() -> None:
         hub=[HubApp(app_hub_id="hub-cache", versions=["1.0.0", "2.0.0"])],
         custom_js=False,
         custom_css=False,
-    )
+    ).findings
     assert "App update available" not in _titles(findings)
 
 
@@ -107,7 +107,7 @@ def test_app_not_in_hub_catalog_is_not_flagged() -> None:
         hub=[HubApp(app_hub_id="hub-other", versions=["9.9.9"])],
         custom_js=False,
         custom_css=False,
-    )
+    ).findings
     assert findings == []
 
 
@@ -118,7 +118,7 @@ def test_prerelease_versions_do_not_flag_a_downgrade_or_miss_an_update() -> None
         hub=[HubApp(app_hub_id="hub-beta", versions=["1.9.0"])],
         custom_js=False,
         custom_css=False,
-    )
+    ).findings
     assert "App update available" not in _titles(no_downgrade)
 
     real_update = evaluate_apps(
@@ -126,7 +126,7 @@ def test_prerelease_versions_do_not_flag_a_downgrade_or_miss_an_update() -> None
         hub=[HubApp(app_hub_id="hub-app", versions=["1.2.4-SNAPSHOT"])],
         custom_js=False,
         custom_css=False,
-    )
+    ).findings
     assert "App update available" in _titles(real_update)
 
 
@@ -137,7 +137,7 @@ def test_trailing_zero_versions_compare_equal() -> None:
         hub=[HubApp(app_hub_id="hub-app", versions=["2.0.0"])],
         custom_js=False,
         custom_css=False,
-    )
+    ).findings
     assert "App update available" not in _titles(findings)
 
 
@@ -148,7 +148,7 @@ def test_installed_ahead_of_hub_uses_numeric_not_lexicographic_compare() -> None
         hub=[HubApp(app_hub_id="hub-app", versions=["100.9.0"])],
         custom_js=False,
         custom_css=False,
-    )
+    ).findings
     assert "App update available" not in _titles(findings)
 
 
@@ -162,7 +162,7 @@ def test_hub_unreachable_skips_updates_but_keeps_other_signals() -> None:
         hub=None,
         custom_js=False,
         custom_css=True,
-    )
+    ).findings
     titles = _titles(findings)
     assert "App update available" not in titles
     assert "Side-loaded app installed" in titles
@@ -171,7 +171,7 @@ def test_hub_unreachable_skips_updates_but_keeps_other_signals() -> None:
 
 def test_custom_js_and_css_are_high() -> None:
     """Configured custom JavaScript and CSS each raise a HIGH injection finding."""
-    findings = evaluate_apps(installed=[], hub=[], custom_js=True, custom_css=True)
+    findings = evaluate_apps(installed=[], hub=[], custom_js=True, custom_css=True).findings
     by_title = {f.title: f for f in findings}
     assert by_title["Custom JavaScript injected into every app"].severity is Severity.HIGH
     assert by_title["Custom CSS injected into every app"].severity is Severity.HIGH
@@ -179,7 +179,7 @@ def test_custom_js_and_css_are_high() -> None:
 
 def test_no_custom_code_when_unset() -> None:
     """No custom-code findings when neither keyCustomJs nor keyCustomCss is set."""
-    findings = evaluate_apps(installed=[], hub=[], custom_js=False, custom_css=False)
+    findings = evaluate_apps(installed=[], hub=[], custom_js=False, custom_css=False).findings
     assert findings == []
 
 

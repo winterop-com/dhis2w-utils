@@ -44,7 +44,7 @@ def test_anonymous_200_on_users_is_critical() -> None:
         anonymous=[AnonymousResult(path="/api/users", status_code=200, content_type="application/json")],
         self_registration_role=None,
         account_recovery=False,
-    )
+    ).findings
     assert len(findings) == 1
     assert findings[0].title == "Endpoint readable without authentication"
     assert findings[0].severity is Severity.CRITICAL
@@ -60,7 +60,7 @@ def test_anonymous_200_on_user_roles_and_me_is_high() -> None:
         ],
         self_registration_role=None,
         account_recovery=False,
-    )
+    ).findings
     assert {f.subject for f in findings} == {"/api/userRoles", "/api/me"}
     assert all(f.severity is Severity.HIGH for f in findings)
 
@@ -71,7 +71,7 @@ def test_anonymous_200_with_non_json_body_is_not_flagged() -> None:
         anonymous=[AnonymousResult(path="/api/users", status_code=200, content_type="text/html; charset=utf-8")],
         self_registration_role=None,
         account_recovery=False,
-    )
+    ).findings
     assert findings == []
 
 
@@ -85,13 +85,13 @@ def test_non_200_anonymous_results_are_not_flagged() -> None:
         ],
         self_registration_role=None,
         account_recovery=False,
-    )
+    ).findings
     assert findings == []
 
 
 def test_self_registration_role_is_high() -> None:
     """A non-null self-registration role means anyone can register, a HIGH finding naming the role."""
-    findings = evaluate_guest(anonymous=[], self_registration_role="Guest", account_recovery=False)
+    findings = evaluate_guest(anonymous=[], self_registration_role="Guest", account_recovery=False).findings
     assert len(findings) == 1
     assert findings[0].title == "Self-registration enabled"
     assert findings[0].severity is Severity.HIGH
@@ -100,7 +100,7 @@ def test_self_registration_role_is_high() -> None:
 
 def test_account_recovery_is_info() -> None:
     """Account recovery enabled is an INFO posture note."""
-    findings = evaluate_guest(anonymous=[], self_registration_role=None, account_recovery=True)
+    findings = evaluate_guest(anonymous=[], self_registration_role=None, account_recovery=True).findings
     assert len(findings) == 1
     assert findings[0].title == "Account recovery enabled"
     assert findings[0].severity is Severity.INFO
@@ -112,7 +112,7 @@ def test_clean_instance_has_no_guest_findings() -> None:
         anonymous=[AnonymousResult(path=target.path, status_code=401) for target in ANONYMOUS_PROBE_TARGETS],
         self_registration_role=None,
         account_recovery=False,
-    )
+    ).findings
     assert findings == []
 
 

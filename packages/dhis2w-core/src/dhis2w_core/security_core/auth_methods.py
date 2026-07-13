@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 from dhis2w_core.security_core.net import LOOPBACK_REDIRECT_HOSTS, redirect_scheme_and_host
 
@@ -72,19 +73,31 @@ def evaluate_auth_methods(
     *,
     oidc_providers: list[LoginProviderView],
     oauth2_clients: list[OAuth2ClientView] | None,
-) -> list[AuditFinding]:
-    """Findings over the external login surface: configured OIDC providers and registered OAuth2 clients.
+) -> CheckOutcome:
+    """Outcome over the external login surface: configured OIDC providers and registered OAuth2 clients.
 
     `oauth2_clients=None` means `/api/oAuth2Clients` was unreadable (the audited account lacks
-    F_OAUTH2_CLIENT_MANAGE, or a transport error); the caller records the degradation as a note and the
+    F_OAUTH2_CLIENT_MANAGE, or a transport error); the three OAuth2 controls are marked skipped and the
     OIDC half still produces its findings.
     """
-    findings: list[AuditFinding] = []
-    findings.extend(_oidc_provider_findings(oidc_providers))
-    if oauth2_clients is not None:
+    log = ControlLog(_CHECK)
+    log.mark_passed("auth-methods-oidc-provider")
+    for finding in _oidc_provider_findings(oidc_providers):
+        log.record(finding)
+    if oauth2_clients is None:
+        log.mark_skipped("auth-methods-oauth2-broad-grant", "/api/oAuth2Clients unreadable")
+        log.mark_skipped("auth-methods-oauth2-loose-redirect", "/api/oAuth2Clients unreadable")
+        log.mark_skipped("auth-methods-oauth2-clean-client", "/api/oAuth2Clients unreadable")
+    else:
+        log.mark_passed(
+            "auth-methods-oauth2-broad-grant",
+            "auth-methods-oauth2-loose-redirect",
+            "auth-methods-oauth2-clean-client",
+        )
         for client in oauth2_clients:
-            findings.extend(_oauth2_client_findings(client))
-    return findings
+            for finding in _oauth2_client_findings(client):
+                log.record(finding)
+    return log.result()
 
 
 def _oidc_provider_findings(providers: list[LoginProviderView]) -> list[AuditFinding]:
@@ -105,6 +118,7 @@ def _oidc_provider_findings(providers: list[LoginProviderView]) -> list[AuditFin
                 subject=provider_id,
                 group_key="configured-oidc-provider",
                 evidence={"provider": provider_id, "login_text": provider.login_text or "unknown"},
+                control="auth-methods-oidc-provider",
             )
         )
     return findings
@@ -141,6 +155,7 @@ def _registered_client_finding(client: OAuth2ClientView) -> AuditFinding:
             "grant_types": ", ".join(sorted(client.grant_types)) or "none",
             "redirect_uris": ", ".join(client.redirect_uris) or "none",
         },
+        control="auth-methods-oauth2-clean-client",
     )
 
 
@@ -158,6 +173,7 @@ def _broad_grant_finding(client: OAuth2ClientView, broad_grants: list[str]) -> A
         subject=client.identifier,
         group_key="oauth2-broad-grant",
         evidence={"client": client.identifier, "grant_types": ", ".join(broad_grants)},
+        control="auth-methods-oauth2-broad-grant",
     )
 
 
@@ -174,6 +190,7 @@ def _wildcard_redirect_finding(client: OAuth2ClientView, loose_redirects: list[s
         subject=client.identifier,
         group_key="oauth2-wildcard-redirect",
         evidence={"client": client.identifier, "redirect_uris": ", ".join(loose_redirects)},
+        control="auth-methods-oauth2-loose-redirect",
     )
 
 

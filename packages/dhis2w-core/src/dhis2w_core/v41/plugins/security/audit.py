@@ -23,11 +23,13 @@ from dhis2w_core.security_core import (
     DEFAULT_PROBE_PASSWORD,
     DEFAULT_PROBE_USERNAME,
     AnonymousResult,
+    AuditFinding,
     AuditOptions,
     AuditPosture,
     AuditReport,
     AuditSummary,
     BoundCheck,
+    CheckOutcome,
     CheckResult,
     CheckStatus,
     CorsWhitelist,
@@ -120,9 +122,20 @@ def scanner_version() -> str:
         return "unknown"
 
 
+def _ok(check: str, outcome: CheckOutcome, *, note: str | None = None) -> CheckResult:
+    """Wrap a reducer's CheckOutcome into an OK CheckResult carrying its findings and controls."""
+    return CheckResult(
+        check=check,
+        label=label_for(check),
+        status=CheckStatus.OK,
+        findings=outcome.findings,
+        controls=outcome.controls,
+        note=note,
+    )
+
+
 async def _run_version(client: Dhis2Client) -> CheckResult:
     """Classify the running DHIS2 version against EOL/outdated lines and the advisory patch floor."""
-    label = label_for("version")
     parsed = parse_dhis2_version(_safe_raw_version(client))
     note: str | None = None
     feed: ReleaseFeed | None
@@ -131,9 +144,7 @@ async def _run_version(client: Dhis2Client) -> CheckResult:
     except httpx.HTTPError as exc:
         feed = None
         note = f"release feed unavailable ({exc}); EOL and upgrade checks limited to the static advisory floor"
-    return CheckResult(
-        check="version", label=label, status=CheckStatus.OK, findings=evaluate_version(parsed, feed), note=note
-    )
+    return _ok("version", evaluate_version(parsed, feed), note=note)
 
 
 async def _run_transport(client: Dhis2Client) -> CheckResult:
@@ -165,7 +176,7 @@ async def _run_transport(client: Dhis2Client) -> CheckResult:
         access_control_allow_credentials=response.headers.get("access-control-allow-credentials"),
         server=response.headers.get("server"),
     )
-    return CheckResult(check="transport", label=label, status=CheckStatus.OK, findings=evaluate_transport(headers))
+    return _ok("transport", evaluate_transport(headers))
 
 
 async def _run_settings(client: Dhis2Client) -> CheckResult:
@@ -177,13 +188,7 @@ async def _run_settings(client: Dhis2Client) -> CheckResult:
         return CheckResult(check="settings", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
     cors = await _fetch_cors_whitelist(client)
     note = None if cors is not None else "CORS whitelist unreadable; wildcard-origin verdict skipped"
-    return CheckResult(
-        check="settings",
-        label=label,
-        status=CheckStatus.OK,
-        findings=evaluate_settings(settings, cors=cors),
-        note=note,
-    )
+    return _ok("settings", evaluate_settings(settings, cors=cors), note=note)
 
 
 async def _fetch_cors_whitelist(client: Dhis2Client) -> CorsWhitelist | None:
@@ -214,12 +219,7 @@ async def _run_authorities(client: Dhis2Client) -> CheckResult:
             note="unexpected /api/me/authorization payload shape",
         )
     account = build_account_authorities([str(item) for item in payload])
-    return CheckResult(
-        check="authorities",
-        label=label,
-        status=CheckStatus.OK,
-        findings=evaluate_account_authorities(account),
-    )
+    return _ok("authorities", evaluate_account_authorities(account))
 
 
 async def _run_roles(client: Dhis2Client) -> CheckResult:
@@ -249,7 +249,7 @@ async def _run_roles(client: Dhis2Client) -> CheckResult:
                 member_count=members if isinstance(members, int) else 0,
             )
         )
-    return CheckResult(check="roles", label=label, status=CheckStatus.OK, findings=evaluate_roles(roles))
+    return _ok("roles", evaluate_roles(roles))
 
 
 def _coerce_int(value: Any) -> int:
@@ -358,15 +358,25 @@ async def _run_hygiene(
         )
     all_role_ids, dangerous_role_ids = _role_id_sets(roles_raw)
     users = _build_users(user_items, all_role_ids, dangerous_role_ids)
-    findings = evaluate_hygiene(users, stale_days=stale_days, max_password_age_days=max_password_age_days, now=now)
     note: str | None = None
     if _wire.TWO_FACTOR_SOURCE == TwoFactorSource.USER_FIELD:
-        findings.extend(evaluate_two_factor_from_user_field(users))
+        two_factor_findings: list[AuditFinding] | None = evaluate_two_factor_from_user_field(users)
     else:
         summary, note = await _fetch_two_factor_summary(client)
         disabled_ids = await _fetch_disabled_2fa_ids(client) if (two_factor_detail and summary is not None) else None
-        findings.extend(evaluate_two_factor_from_endpoint(summary=summary, users=users, disabled_2fa_ids=disabled_ids))
-    return CheckResult(check="hygiene", label=label, status=CheckStatus.OK, findings=findings, note=note)
+        two_factor_findings = (
+            evaluate_two_factor_from_endpoint(summary=summary, users=users, disabled_2fa_ids=disabled_ids)
+            if summary is not None
+            else None
+        )
+    outcome = evaluate_hygiene(
+        users,
+        stale_days=stale_days,
+        max_password_age_days=max_password_age_days,
+        now=now,
+        two_factor_findings=two_factor_findings,
+    )
+    return _ok("hygiene", outcome, note=note)
 
 
 async def _custom_code_flags(client: Dhis2Client) -> tuple[bool, bool]:
@@ -415,8 +425,8 @@ async def _run_apps(client: Dhis2Client) -> CheckResult:
                 continue
             hub.append(HubApp(app_hub_id=hub_id, versions=[ver for ver in (v.version for v in entry.versions) if ver]))
     custom_js, custom_css = await _custom_code_flags(client)
-    findings = evaluate_apps(installed=installed, hub=hub, custom_js=custom_js, custom_css=custom_css)
-    return CheckResult(check="apps", label=label, status=CheckStatus.OK, findings=findings, note=note)
+    outcome = evaluate_apps(installed=installed, hub=hub, custom_js=custom_js, custom_css=custom_css)
+    return _ok("apps", outcome, note=note)
 
 
 async def _probe_anonymous(base_url: str) -> list[AnonymousResult]:
@@ -452,7 +462,6 @@ async def _self_registration_role(client: Dhis2Client) -> str | None:
 
 async def _run_guest(client: Dhis2Client) -> CheckResult:
     """Probe anonymous read access and report self-registration and account-recovery posture."""
-    label = label_for("guest")
     anonymous = await _probe_anonymous(client.base_url)
     role = await _self_registration_role(client)
     account_recovery = False
@@ -463,8 +472,8 @@ async def _run_guest(client: Dhis2Client) -> CheckResult:
         note = f"system settings unavailable ({exc}); account-recovery state not checked"
     else:
         account_recovery = settings.keyAccountRecovery is True
-    findings = evaluate_guest(anonymous=anonymous, self_registration_role=role, account_recovery=account_recovery)
-    return CheckResult(check="guest", label=label, status=CheckStatus.OK, findings=findings, note=note)
+    outcome = evaluate_guest(anonymous=anonymous, self_registration_role=role, account_recovery=account_recovery)
+    return _ok("guest", outcome, note=note)
 
 
 # Route fields the check reads: identity, destination, run gating, and the auth block.
@@ -541,7 +550,7 @@ async def _run_routes(client: Dhis2Client) -> CheckResult:
             except (ValidationError, ValueError, TypeError):
                 skipped += 1
     note = f"{skipped} route(s) could not be parsed and were skipped" if skipped else None
-    return CheckResult(check="routes", label=label, status=CheckStatus.OK, findings=evaluate_routes(targets), note=note)
+    return _ok("routes", evaluate_routes(targets), note=note)
 
 
 # Token fields the check reads: identity, type, expiry, created timestamp, owner id, and the polymorphic
@@ -588,8 +597,8 @@ async def _run_tokens(client: Dhis2Client) -> CheckResult:
         records = []
     inventory = TokensInventory(tokens=tuple(_wire.tokens_from_raw(records)), account_is_superuser=superuser)
     now_epoch_millis = int(datetime.now(tz=UTC).timestamp() * 1000)
-    findings = evaluate_tokens(inventory, now_epoch_millis=now_epoch_millis)
-    return CheckResult(check="tokens", label=label, status=CheckStatus.OK, findings=findings)
+    outcome = evaluate_tokens(inventory, now_epoch_millis=now_epoch_millis)
+    return _ok("tokens", outcome)
 
 
 async def _run_auth_methods(client: Dhis2Client) -> CheckResult:
@@ -632,8 +641,15 @@ async def _run_auth_methods(client: Dhis2Client) -> CheckResult:
             note = f"OAuth2 clients unreadable: {exc}"
     else:
         clients = _wire.oauth2_clients(clients_raw)
-    findings = evaluate_auth_methods(oidc_providers=oidc_providers, oauth2_clients=clients)
-    return CheckResult(check="auth-methods", label=label, status=status, findings=findings, note=note)
+    outcome = evaluate_auth_methods(oidc_providers=oidc_providers, oauth2_clients=clients)
+    return CheckResult(
+        check="auth-methods",
+        label=label,
+        status=status,
+        findings=outcome.findings,
+        controls=outcome.controls,
+        note=note,
+    )
 
 
 async def _run_audit_config(client: Dhis2Client, dhis_conf_path: Path | None) -> CheckResult:
@@ -646,12 +662,7 @@ async def _run_audit_config(client: Dhis2Client, dhis_conf_path: Path | None) ->
     """
     label = label_for("audit-config")
     if dhis_conf_path is None:
-        return CheckResult(
-            check="audit-config",
-            label=label,
-            status=CheckStatus.OK,
-            findings=evaluate_audit_config(AuditPosture(parsed=False)),
-        )
+        return _ok("audit-config", evaluate_audit_config(AuditPosture(parsed=False)))
     try:
         posture = parse_dhis_conf(dhis_conf_path)
     except (ValidationError, ValueError, TypeError, OSError) as exc:
@@ -661,9 +672,7 @@ async def _run_audit_config(client: Dhis2Client, dhis_conf_path: Path | None) ->
             status=CheckStatus.DEGRADED,
             note=f"dhis.conf unreadable ({exc}); audit posture not evaluated",
         )
-    return CheckResult(
-        check="audit-config", label=label, status=CheckStatus.OK, findings=evaluate_audit_config(posture)
-    )
+    return _ok("audit-config", evaluate_audit_config(posture))
 
 
 # How many objects the sharing scan pages at a time, and the default scan budget (max objects
@@ -916,7 +925,7 @@ async def _run_sharing(
         truncated=truncated,
         truncation_note=truncation_note,
     )
-    findings = evaluate_sharing(graph)
+    outcome = evaluate_sharing(graph)
     note = truncation_note
     if graph_sink is not None:
         graph = graph.model_copy(update={"effective": compute_effective_access(graph)})
@@ -924,7 +933,7 @@ async def _run_sharing(
         _persist_sharing_graph(output_folder, graph)
         explorer_note = "Interactive explorer generated: open sharing-explorer.html for the effective-access graph."
         note = f"{truncation_note} {explorer_note}" if truncation_note else explorer_note
-    return CheckResult(check="sharing", label=label, status=CheckStatus.OK, findings=findings, note=note)
+    return _ok("sharing", outcome, note=note)
 
 
 async def _lockout_active(client: Dhis2Client) -> bool:
@@ -974,13 +983,7 @@ async def _run_credential_probe(client: Dhis2Client, console: Console) -> CheckR
         if lockout_active
         else None
     )
-    return CheckResult(
-        check="credential-probe",
-        label=label,
-        status=CheckStatus.OK,
-        findings=evaluate_credential_probe(result),
-        note=note,
-    )
+    return _ok("credential-probe", evaluate_credential_probe(result), note=note)
 
 
 class RunContext(BaseModel):

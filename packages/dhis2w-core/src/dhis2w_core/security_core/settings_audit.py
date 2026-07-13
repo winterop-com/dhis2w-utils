@@ -6,6 +6,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 
 # Below this, DHIS2's configured minimum password length is treated as weak.
@@ -52,54 +53,72 @@ def _is_email_configured(settings: SettingsLike) -> bool:
     return bool(host) and bool(username)
 
 
-def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = None) -> list[AuditFinding]:
-    """Turn the security settings slice (and optional CORS whitelist) into audit findings."""
-    findings: list[AuditFinding] = []
+def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = None) -> CheckOutcome:
+    """Turn the security settings slice (and optional CORS whitelist) into a CheckOutcome."""
+    log = ControlLog(_CHECK)
 
     minimum = settings.minPasswordLength
-    if minimum is not None and minimum < MIN_RECOMMENDED_PASSWORD_LENGTH:
-        findings.append(
+    if minimum is None:
+        log.mark_skipped("settings-weak-min-password-length", "minPasswordLength not set")
+    elif minimum < MIN_RECOMMENDED_PASSWORD_LENGTH:
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.MEDIUM,
                 title="Weak minimum password length",
                 detail=(f"minPasswordLength is {minimum}; at least {MIN_RECOMMENDED_PASSWORD_LENGTH} is recommended."),
                 evidence={"minPasswordLength": str(minimum)},
+                control="settings-weak-min-password-length",
             )
         )
+    else:
+        log.mark_passed("settings-weak-min-password-length")
 
     if settings.keyLockMultipleFailedLogins is False:
-        findings.append(
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.MEDIUM,
                 title="Failed-login lockout disabled",
                 detail="keyLockMultipleFailedLogins is off; repeated wrong passwords are not throttled.",
+                control="settings-lockout-disabled",
             )
         )
+    elif settings.keyLockMultipleFailedLogins is True:
+        log.mark_passed("settings-lockout-disabled")
+    else:
+        log.mark_skipped("settings-lockout-disabled", "keyLockMultipleFailedLogins not set")
 
     if settings.credentialsExpires in (None, 0):
-        findings.append(
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.WARN,
                 title="Passwords never expire",
                 detail="credentialsExpires is unset or 0; account passwords are never forced to rotate.",
+                control="settings-passwords-never-expire",
             )
         )
+    else:
+        log.mark_passed("settings-passwords-never-expire")
 
     if settings.keySelfRegistrationNoRecaptcha is True:
-        findings.append(
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.MEDIUM,
                 title="Self-registration captcha disabled",
                 detail="keySelfRegistrationNoRecaptcha is on; self-registration is not protected by a captcha.",
+                control="settings-self-registration-captcha-off",
             )
         )
+    elif settings.keySelfRegistrationNoRecaptcha is False:
+        log.mark_passed("settings-self-registration-captcha-off")
+    else:
+        log.mark_skipped("settings-self-registration-captcha-off", "keySelfRegistrationNoRecaptcha not set")
 
     if settings.keyCanGrantOwnUserAuthorityGroups is True:
-        findings.append(
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.HIGH,
@@ -108,11 +127,16 @@ def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = No
                     "keyCanGrantOwnUserAuthorityGroups is on; users can grant themselves authorities they "
                     "already hold, a direct privilege-escalation path."
                 ),
+                control="settings-can-grant-own-authorities",
             )
         )
+    elif settings.keyCanGrantOwnUserAuthorityGroups is False:
+        log.mark_passed("settings-can-grant-own-authorities")
+    else:
+        log.mark_skipped("settings-can-grant-own-authorities", "keyCanGrantOwnUserAuthorityGroups not set")
 
     if settings.enforceVerifiedEmail is False:
-        findings.append(
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.WARN,
@@ -121,11 +145,21 @@ def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = No
                     "enforceVerifiedEmail is off; users can act without a verified email address, weakening "
                     "account-recovery and notification trust. Email verification was introduced in DHIS2 v42."
                 ),
+                control="settings-email-verification-not-enforced",
             )
         )
+    elif settings.enforceVerifiedEmail is True:
+        log.mark_passed("settings-email-verification-not-enforced")
+    else:
+        log.mark_skipped(
+            "settings-email-verification-not-enforced", "enforceVerifiedEmail not set (feature absent before v42)"
+        )
 
-    if cors is not None and cors.has_wildcard:
-        findings.append(
+    if cors is None:
+        log.mark_skipped("settings-cors-wildcard", "CORS whitelist not fetched")
+        log.mark_skipped("settings-cors-allowlist", "CORS whitelist not fetched")
+    elif cors.has_wildcard:
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.MEDIUM,
@@ -133,10 +167,12 @@ def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = No
                 detail=(
                     "The CORS whitelist contains a `*` origin; any site can make credentialed cross-origin API calls."
                 ),
+                control="settings-cors-wildcard",
             )
         )
-    elif cors is not None and cors.origins:
-        findings.append(
+        log.mark_passed("settings-cors-allowlist")
+    elif cors.origins:
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.INFO,
@@ -146,10 +182,15 @@ def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = No
                     "allowlist is the correct mechanism; review that each entry is still trusted."
                 ),
                 evidence={"origins": ", ".join(cors.origins)},
+                control="settings-cors-allowlist",
             )
         )
+        log.mark_passed("settings-cors-wildcard")
+    else:
+        log.mark_passed("settings-cors-wildcard")
+        log.mark_passed("settings-cors-allowlist")
 
-    findings.append(
+    log.record(
         AuditFinding(
             check=_CHECK,
             severity=Severity.INFO,
@@ -159,12 +200,13 @@ def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = No
                 "TWO_FACTOR_AUTH_REQUIRED restriction. This is a property of DHIS2, not of this instance, so it "
                 "is reported as INFO. See the hygiene check for the actual per-account 2FA enrolment gaps."
             ),
+            control="settings-2fa-not-global",
         )
     )
 
     recovery_or_verification_on = settings.keyAccountRecovery is True or settings.enforceVerifiedEmail is True
     if recovery_or_verification_on and not _is_email_configured(settings):
-        findings.append(
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.WARN,
@@ -173,7 +215,10 @@ def evaluate_settings(settings: SettingsLike, *, cors: CorsWhitelist | None = No
                     "Account recovery or email verification is on but keyEmailHostName / keyEmailUsername is "
                     "blank; recovery and verification silently fail without configured SMTP."
                 ),
+                control="settings-email-feature-without-smtp",
             )
         )
+    else:
+        log.mark_passed("settings-email-feature-without-smtp")
 
-    return findings
+    return log.result()

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 
 _CHECK = "apps"
@@ -44,18 +45,26 @@ def evaluate_apps(
     hub: list[HubApp] | None,
     custom_js: bool,
     custom_css: bool,
-) -> list[AuditFinding]:
-    """Findings over installed apps: side-loaded code, available hub updates, and custom JS/CSS.
+) -> CheckOutcome:
+    """Record the app controls (side-loaded, hub update, custom JS/CSS), flagging each that trips.
 
-    `hub=None` means the App Hub was unreachable, so update currency is not evaluated (the caller
-    records the degradation as a note); the side-loaded and custom-code signals do not need the hub.
+    `hub=None` means the App Hub was unreachable, so update currency is skipped this run; the
+    side-loaded and custom-code signals do not need the hub.
     """
-    findings: list[AuditFinding] = []
-    findings.extend(_side_loaded_findings(installed))
+    log = ControlLog(_CHECK)
+    log.mark_passed("apps-side-loaded", "apps-custom-js", "apps-custom-css")
+    if hub is None:
+        log.mark_skipped("apps-update-available", "App Hub unreachable")
+    else:
+        log.mark_passed("apps-update-available")
+    for finding in _side_loaded_findings(installed):
+        log.record(finding)
     if hub is not None:
-        findings.extend(_update_findings(installed, hub))
-    findings.extend(_custom_code_findings(custom_js=custom_js, custom_css=custom_css))
-    return findings
+        for finding in _update_findings(installed, hub):
+            log.record(finding)
+    for finding in _custom_code_findings(custom_js=custom_js, custom_css=custom_css):
+        log.record(finding)
+    return log.result()
 
 
 def _side_loaded_findings(installed: list[InstalledApp]) -> list[AuditFinding]:
@@ -76,6 +85,7 @@ def _side_loaded_findings(installed: list[InstalledApp]) -> list[AuditFinding]:
                 subject=app.name,
                 group_key="side-loaded-app",
                 evidence={"app": app.name, "version": app.version or "unknown"},
+                control="apps-side-loaded",
             )
         )
     return findings
@@ -103,6 +113,7 @@ def _update_findings(installed: list[InstalledApp], hub: list[HubApp]) -> list[A
                 subject=app.name,
                 group_key="app-update",
                 evidence={"app": app.name, "installed": app.version or "unknown", "latest": latest},
+                control="apps-update-available",
             )
         )
     return findings
@@ -122,6 +133,7 @@ def _custom_code_findings(*, custom_js: bool, custom_css: bool) -> list[AuditFin
                     "all apps. Anyone who can write this setting holds persistent XSS over the instance."
                 ),
                 evidence={"setting": "keyCustomJs"},
+                control="apps-custom-js",
             )
         )
     if custom_css:
@@ -135,6 +147,7 @@ def _custom_code_findings(*, custom_js: bool, custom_css: bool) -> list[AuditFin
                     "deface the UI or exfiltrate data through crafted selectors."
                 ),
                 evidence={"setting": "keyCustomCss"},
+                control="apps-custom-css",
             )
         )
     return findings

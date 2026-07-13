@@ -9,18 +9,27 @@ explicit user/group share edges are explorer detail, not findings, so they are n
 
 from __future__ import annotations
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 from dhis2w_core.security_core.sharing.model import ExposureKind, ObjectNode, SharingGraph, public_exposure_kind
 
 _CHECK = "sharing"
 
 
-def evaluate_sharing(graph: SharingGraph) -> list[AuditFinding]:
-    """Reduce the graph's object nodes into sharing-exposure findings, most-urgent concerns first."""
-    findings: list[AuditFinding] = []
+def evaluate_sharing(graph: SharingGraph) -> CheckOutcome:
+    """Reduce the graph's object nodes into a sharing-exposure outcome, most-urgent concerns first."""
+    log = ControlLog(_CHECK)
+    log.mark_passed(
+        "sharing-external",
+        "sharing-public-write-data",
+        "sharing-public-write-metadata",
+        "sharing-public-sql-view",
+        "sharing-public-read-data",
+    )
     for obj in graph.objects:
-        findings.extend(_object_findings(obj))
-    return findings
+        for finding in _object_findings(obj):
+            log.record(finding)
+    return log.result()
 
 
 def _object_findings(obj: ObjectNode) -> list[AuditFinding]:
@@ -67,6 +76,7 @@ def _external_finding(obj: ObjectNode) -> AuditFinding:
         subject=obj.name,
         group_key="sharing-external",
         evidence=_evidence(obj),
+        control="sharing-external",
     )
 
 
@@ -83,6 +93,7 @@ def _public_write_data_finding(obj: ObjectNode) -> AuditFinding:
         subject=obj.name,
         group_key="sharing-public-write-data",
         evidence=_evidence(obj),
+        control="sharing-public-write-data",
     )
 
 
@@ -99,6 +110,7 @@ def _public_write_metadata_finding(obj: ObjectNode) -> AuditFinding:
         subject=obj.name,
         group_key="sharing-public-write-metadata",
         evidence=_evidence(obj),
+        control="sharing-public-write-metadata",
     )
 
 
@@ -115,6 +127,7 @@ def _sql_view_read_finding(obj: ObjectNode) -> AuditFinding:
         subject=obj.name,
         group_key="sharing-public-sql-view",
         evidence=_evidence(obj),
+        control="sharing-public-sql-view",
     )
 
 
@@ -131,6 +144,7 @@ def _public_data_read_finding(obj: ObjectNode) -> AuditFinding:
         subject=obj.name,
         group_key="sharing-public-read-data",
         evidence=_evidence(obj),
+        control="sharing-public-read-data",
     )
 
 

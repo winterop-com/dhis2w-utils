@@ -86,7 +86,7 @@ def _graph(*objects: FetchedObject) -> SharingGraph:
 
 def test_external_object_is_high() -> None:
     """An externally-accessible object is flagged HIGH and folds under the external group key."""
-    findings = evaluate_sharing(_graph(FetchedObject(uid="m1", type="map", name="Ext", external=True)))
+    findings = evaluate_sharing(_graph(FetchedObject(uid="m1", type="map", name="Ext", external=True))).findings
     external = [f for f in findings if f.title == "Object accessible without authentication"]
     assert external and external[0].severity is Severity.HIGH
     assert external[0].group_key == "sharing-external"
@@ -97,7 +97,7 @@ def test_public_write_data_bearing_is_high() -> None:
     """Public write on a data-bearing object is HIGH under the public-write-data group key."""
     findings = evaluate_sharing(
         _graph(FetchedObject(uid="ds1", type="dataSet", name="HIV", data_bearing=True, public_access="rwrw----"))
-    )
+    ).findings
     write = [f for f in findings if f.title == "Public write access to data-bearing object"]
     assert write and write[0].severity is Severity.HIGH
     assert write[0].group_key == "sharing-public-write-data"
@@ -107,7 +107,7 @@ def test_public_write_metadata_is_medium() -> None:
     """Public metadata write on a non-data-bearing object is MEDIUM, not HIGH."""
     findings = evaluate_sharing(
         _graph(FetchedObject(uid="doc1", type="document", name="Memo", data_bearing=False, public_access="rw------"))
-    )
+    ).findings
     write = [f for f in findings if f.title == "Public write access to metadata object"]
     assert write and write[0].severity is Severity.MEDIUM
     assert write[0].group_key == "sharing-public-write-metadata"
@@ -117,7 +117,7 @@ def test_public_readable_sql_view_is_medium() -> None:
     """A publicly-readable SQL view is its own MEDIUM finding, distinct from the data-read finding."""
     findings = evaluate_sharing(
         _graph(FetchedObject(uid="sv1", type="sqlView", name="Patients", data_bearing=True, public_access="r-r-----"))
-    )
+    ).findings
     sql = [f for f in findings if f.title == "SQL view readable by all users"]
     assert sql and sql[0].severity is Severity.MEDIUM
     assert sql[0].group_key == "sharing-public-sql-view"
@@ -128,7 +128,7 @@ def test_public_data_read_data_bearing_is_medium() -> None:
     """Public data read on a (non-SQL-view) data-bearing object is MEDIUM under the read group key."""
     findings = evaluate_sharing(
         _graph(FetchedObject(uid="pr1", type="program", name="TB", data_bearing=True, public_access="r-r-----"))
-    )
+    ).findings
     read = [f for f in findings if f.title == "Public read access to data-bearing object"]
     assert read and read[0].severity is Severity.MEDIUM
     assert read[0].group_key == "sharing-public-read-data"
@@ -142,7 +142,7 @@ def test_read_finding_suppressed_when_external() -> None:
                 uid="pr1", type="program", name="TB", data_bearing=True, public_access="r-r-----", external=True
             )
         )
-    )
+    ).findings
     assert _titles(findings) == {"Object accessible without authentication"}
 
 
@@ -154,7 +154,7 @@ def test_write_and_external_both_flagged() -> None:
                 uid="ds1", type="dataSet", name="HIV", data_bearing=True, public_access="rwrw----", external=True
             )
         )
-    )
+    ).findings
     assert "Object accessible without authentication" in _titles(findings)
     assert "Public write access to data-bearing object" in _titles(findings)
     assert "Public read access to data-bearing object" not in _titles(findings)
@@ -170,7 +170,7 @@ def test_default_shared_object_has_no_finding() -> None:
         public_access="--------",
         group_shares=[FetchedShare(principal_uid="g1", access="rwrw----")],
     )
-    assert evaluate_sharing(_graph(obj)) == []
+    assert evaluate_sharing(_graph(obj)).findings == []
 
 
 # ---------------------------------------------------------------------------

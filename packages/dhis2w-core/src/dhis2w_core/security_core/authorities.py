@@ -34,6 +34,7 @@ from collections.abc import Iterable
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 from dhis2w_core.security_core.models import AccountAuthorities, CategoryMatch
 
@@ -257,33 +258,36 @@ def build_account_authorities(authorities: Iterable[str]) -> AccountAuthorities:
     )
 
 
-def evaluate_account_authorities(account: AccountAuthorities) -> list[AuditFinding]:
-    """Report the audited account's own privileged reach as informational findings.
+def evaluate_account_authorities(account: AccountAuthorities) -> CheckOutcome:
+    """Record the audited account's own privileged reach as informational controls, flagging what it holds.
 
     These describe the reach of the credential running the audit, not an
     instance-wide weakness, so they are INFO. The CRITICAL/HIGH role and user
     findings come from the instance-wide `roles` and `hygiene` checks.
     """
-    findings: list[AuditFinding] = []
+    log = ControlLog("authorities")
+    log.mark_passed("authorities-audited-superuser", "authorities-audited-category")
     if account.is_superuser:
-        findings.append(
+        log.record(
             AuditFinding(
                 check="authorities",
                 severity=Severity.INFO,
                 title="Audited account is a superuser (ALL)",
                 detail="The credential used for this audit holds the ALL authority.",
+                control="authorities-audited-superuser",
             )
         )
     for match in account.categories:
         if match.key == "superuser":
             continue
-        findings.append(
+        log.record(
             AuditFinding(
                 check="authorities",
                 severity=Severity.INFO,
                 title=f"Audited account holds {match.label} authorities",
                 detail=match.description,
                 evidence={"matched": ", ".join(match.matched)} if match.matched else None,
+                control="authorities-audited-category",
             )
         )
-    return findings
+    return log.result()

@@ -19,6 +19,14 @@ from dhis2w_core.security_core.authorities import (
     categorise_authorities,
     evaluate_account_authorities,
 )
+from dhis2w_core.security_core.controls import (
+    CONTROL_CATALOG,
+    CheckOutcome,
+    ControlLog,
+    ControlOutcome,
+    ControlSpec,
+    ControlStatus,
+)
 from dhis2w_core.security_core.credentials import (
     CredentialProbeResult,
     ProbeOutcome,
@@ -96,6 +104,7 @@ from dhis2w_core.security_core.report.model import (
 from dhis2w_core.security_core.report.progress import PlainLogReporter, RichProgressReporter, make_reporter
 from dhis2w_core.security_core.report.text import TextRenderer
 from dhis2w_core.security_core.report.view import (
+    ControlView,
     GroupView,
     ItemView,
     ReportMeta,
@@ -170,6 +179,7 @@ __all__ = [
     "ANONYMOUS_PROBE_TARGETS",
     "AUTHORITY_CATEGORIES",
     "CANONICAL_CHECKS",
+    "CONTROL_CATALOG",
     "CONNECT_PATHS",
     "CORS_PROBE_ORIGIN",
     "CREDENTIAL_PROBE_PATHS",
@@ -200,9 +210,15 @@ __all__ = [
     "AuthorityCategory",
     "BoundCheck",
     "CategoryMatch",
+    "CheckOutcome",
     "CheckResult",
     "CheckSpec",
     "CheckStatus",
+    "ControlLog",
+    "ControlOutcome",
+    "ControlSpec",
+    "ControlStatus",
+    "ControlView",
     "CorsWhitelist",
     "CredentialProbeResult",
     "CspDirectives",

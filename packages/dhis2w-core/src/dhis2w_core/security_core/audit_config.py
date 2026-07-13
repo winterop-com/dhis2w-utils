@@ -16,24 +16,38 @@ would otherwise be audited by default. See BUGS.md #54 for the upstream behaviou
 
 from __future__ import annotations
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.dhisconf import _FORENSIC_AUDIT_TYPES, AuditPosture
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 
 _CHECK = "audit-config"
 
 
-def evaluate_audit_config(posture: AuditPosture) -> list[AuditFinding]:
-    """Turn an audit posture into findings: the API-only INFO, or the parsed-posture weak-channel verdicts."""
+def evaluate_audit_config(posture: AuditPosture) -> CheckOutcome:
+    """Turn an audit posture into a CheckOutcome: the API-only INFO, or the parsed-posture weak-channel verdicts."""
+    log = ControlLog(_CHECK)
     if not posture.parsed:
-        return [_api_only_finding()]
-    findings: list[AuditFinding] = []
+        log.record(_api_only_finding())
+        log.mark_skipped("audit-config-system-disabled", "dhis.conf not provided")
+        log.mark_skipped("audit-config-both-sinks-off", "dhis.conf not provided")
+        log.mark_skipped("audit-config-narrow-scope", "dhis.conf not provided")
+        return log.result()
     if posture.system_enabled is False:
-        findings.append(_system_disabled_finding())
-        return findings
+        log.record(_system_disabled_finding())
+        log.mark_skipped("audit-config-both-sinks-off", "auditing disabled instance-wide")
+        log.mark_skipped("audit-config-narrow-scope", "auditing disabled instance-wide")
+        return log.result()
+    log.mark_passed("audit-config-system-disabled")
     if not posture.logger_enabled and not posture.database_enabled:
-        findings.append(_both_sinks_off_finding())
-    findings.extend(_scope_findings(posture))
-    return findings
+        log.record(_both_sinks_off_finding())
+    else:
+        log.mark_passed("audit-config-both-sinks-off")
+    scope_findings = _scope_findings(posture)
+    for finding in scope_findings:
+        log.record(finding)
+    if not scope_findings:
+        log.mark_passed("audit-config-narrow-scope")
+    return log.result()
 
 
 def _scope_findings(posture: AuditPosture) -> list[AuditFinding]:
@@ -95,6 +109,7 @@ def _system_disabled_finding() -> AuditFinding:
         ),
         group_key="audit-system-disabled",
         evidence={"system.audit.enabled": "off"},
+        control="audit-config-system-disabled",
     )
 
 
@@ -110,6 +125,7 @@ def _both_sinks_off_finding() -> AuditFinding:
         ),
         group_key="audit-logger-and-database-both-off",
         evidence={"audit.logger": "off", "audit.database": "off"},
+        control="audit-config-both-sinks-off",
     )
 
 
@@ -127,4 +143,5 @@ def _narrowly_scoped_finding(*, narrow: dict[str, tuple[str, ...]]) -> AuditFind
         ),
         group_key="audit-scope-narrowly-scoped",
         evidence={"narrow_matrices": narrow_text},
+        control="audit-config-narrow-scope",
     )

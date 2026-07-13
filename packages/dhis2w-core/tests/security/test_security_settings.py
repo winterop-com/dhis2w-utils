@@ -62,14 +62,14 @@ def _by_title(findings: list[Any], title: str) -> Any:
 
 def test_clean_settings_emit_only_the_static_2fa_note() -> None:
     """A hardened settings slice with no CORS still emits the static no-global-2FA finding only."""
-    findings = evaluate_settings(_Settings())
+    findings = evaluate_settings(_Settings()).findings
     assert _titles(findings) == {"Two-factor authentication is not globally enforced"}
     assert _by_title(findings, "Two-factor authentication is not globally enforced").severity is Severity.INFO
 
 
 def test_weak_minimum_password_length_is_medium() -> None:
     """A minPasswordLength below the recommended floor is MEDIUM with the value as evidence."""
-    finding = _by_title(evaluate_settings(_Settings(minPasswordLength=6)), "Weak minimum password length")
+    finding = _by_title(evaluate_settings(_Settings(minPasswordLength=6)).findings, "Weak minimum password length")
     assert finding.severity is Severity.MEDIUM
     assert (finding.evidence or {}).get("minPasswordLength") == "6"
 
@@ -77,21 +77,21 @@ def test_weak_minimum_password_length_is_medium() -> None:
 def test_failed_login_lockout_disabled_is_medium() -> None:
     """keyLockMultipleFailedLogins False raises a MEDIUM lockout finding."""
     finding = _by_title(
-        evaluate_settings(_Settings(keyLockMultipleFailedLogins=False)), "Failed-login lockout disabled"
+        evaluate_settings(_Settings(keyLockMultipleFailedLogins=False)).findings, "Failed-login lockout disabled"
     )
     assert finding.severity is Severity.MEDIUM
 
 
 def test_passwords_never_expire_is_warn() -> None:
     """credentialsExpires of 0 raises a WARN never-expire finding."""
-    finding = _by_title(evaluate_settings(_Settings(credentialsExpires=0)), "Passwords never expire")
+    finding = _by_title(evaluate_settings(_Settings(credentialsExpires=0)).findings, "Passwords never expire")
     assert finding.severity is Severity.WARN
 
 
 def test_self_registration_captcha_disabled_is_medium() -> None:
     """keySelfRegistrationNoRecaptcha True raises a MEDIUM captcha finding."""
     finding = _by_title(
-        evaluate_settings(_Settings(keySelfRegistrationNoRecaptcha=True)), "Self-registration captcha disabled"
+        evaluate_settings(_Settings(keySelfRegistrationNoRecaptcha=True)).findings, "Self-registration captcha disabled"
     )
     assert finding.severity is Severity.MEDIUM
 
@@ -99,7 +99,7 @@ def test_self_registration_captcha_disabled_is_medium() -> None:
 def test_self_grant_authorities_is_high() -> None:
     """keyCanGrantOwnUserAuthorityGroups True is a HIGH privilege-escalation finding."""
     finding = _by_title(
-        evaluate_settings(_Settings(keyCanGrantOwnUserAuthorityGroups=True)),
+        evaluate_settings(_Settings(keyCanGrantOwnUserAuthorityGroups=True)).findings,
         "Users can grant themselves their own authorities",
     )
     assert finding.severity is Severity.HIGH
@@ -107,32 +107,34 @@ def test_self_grant_authorities_is_high() -> None:
 
 def test_cors_wildcard_is_medium() -> None:
     """A `*` origin in the CORS whitelist raises a MEDIUM permissive-CORS finding."""
-    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=("https://app.example.org", "*")))
+    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=("https://app.example.org", "*"))).findings
     finding = _by_title(findings, "Permissive CORS wildcard origin")
     assert finding.severity is Severity.MEDIUM
 
 
 def test_cors_without_wildcard_emits_no_cors_finding() -> None:
     """A concrete-origin CORS whitelist with no `*` raises no permissive-CORS finding."""
-    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=("https://app.example.org",)))
+    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=("https://app.example.org",))).findings
     assert "Permissive CORS wildcard origin" not in _titles(findings)
 
 
 def test_email_verification_off_is_warn() -> None:
     """enforceVerifiedEmail explicitly False raises a standalone WARN email-verification finding."""
-    finding = _by_title(evaluate_settings(_Settings(enforceVerifiedEmail=False)), "Email verification is not enforced")
+    finding = _by_title(
+        evaluate_settings(_Settings(enforceVerifiedEmail=False)).findings, "Email verification is not enforced"
+    )
     assert finding.severity is Severity.WARN
 
 
 def test_email_verification_none_emits_no_finding() -> None:
     """enforceVerifiedEmail None (absent on v41) emits no finding; flagging it would be a false positive."""
-    findings = evaluate_settings(_Settings(enforceVerifiedEmail=None))
+    findings = evaluate_settings(_Settings(enforceVerifiedEmail=None)).findings
     assert "Email verification is not enforced" not in _titles(findings)
 
 
 def test_email_verification_on_emits_no_finding() -> None:
     """enforceVerifiedEmail True raises no email-verification finding."""
-    findings = evaluate_settings(_Settings(enforceVerifiedEmail=True))
+    findings = evaluate_settings(_Settings(enforceVerifiedEmail=True)).findings
     assert "Email verification is not enforced" not in _titles(findings)
 
 
@@ -140,7 +142,7 @@ def test_non_empty_cors_without_wildcard_is_info_with_origins() -> None:
     """A non-empty no-wildcard CORS whitelist raises an INFO with the origins enumerated in evidence."""
     origins = ("https://app.example.org", "https://admin.example.org")
     finding = _by_title(
-        evaluate_settings(_Settings(), cors=CorsWhitelist(origins=origins)),
+        evaluate_settings(_Settings(), cors=CorsWhitelist(origins=origins)).findings,
         "CORS origin allowlist configured",
     )
     assert finding.severity is Severity.INFO
@@ -151,7 +153,7 @@ def test_non_empty_cors_without_wildcard_is_info_with_origins() -> None:
 
 def test_wildcard_cors_is_medium_only_not_info() -> None:
     """A wildcard CORS whitelist raises the MEDIUM permissive finding only, never the INFO allowlist one."""
-    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=("*", "https://app.example.org")))
+    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=("*", "https://app.example.org"))).findings
     titles = _titles(findings)
     assert "Permissive CORS wildcard origin" in titles
     assert "CORS origin allowlist configured" not in titles
@@ -159,7 +161,7 @@ def test_wildcard_cors_is_medium_only_not_info() -> None:
 
 def test_empty_cors_emits_neither_cors_finding() -> None:
     """An empty CORS whitelist raises neither the wildcard MEDIUM nor the allowlist INFO."""
-    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=()))
+    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=())).findings
     titles = _titles(findings)
     assert "Permissive CORS wildcard origin" not in titles
     assert "CORS origin allowlist configured" not in titles
@@ -170,7 +172,7 @@ def test_cors_none_skips_only_the_cors_verdict() -> None:
     findings = evaluate_settings(
         _Settings(minPasswordLength=4, keyCanGrantOwnUserAuthorityGroups=True),
         cors=None,
-    )
+    ).findings
     titles = _titles(findings)
     assert "Permissive CORS wildcard origin" not in titles
     assert "Weak minimum password length" in titles
@@ -179,7 +181,7 @@ def test_cors_none_skips_only_the_cors_verdict() -> None:
 
 def test_global_2fa_note_is_always_emitted() -> None:
     """The no-global-2FA finding is unconditional, even with a wildcard CORS present."""
-    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=("*",)))
+    findings = evaluate_settings(_Settings(), cors=CorsWhitelist(origins=("*",))).findings
     finding = _by_title(findings, "Two-factor authentication is not globally enforced")
     assert finding.severity is Severity.INFO
 
@@ -187,7 +189,7 @@ def test_global_2fa_note_is_always_emitted() -> None:
 def test_email_unconfigured_with_recovery_on_is_warn() -> None:
     """Account recovery on with blank SMTP host/username raises a WARN email-misconfig finding."""
     finding = _by_title(
-        evaluate_settings(_Settings(keyAccountRecovery=True, keyEmailHostName="", keyEmailUsername="")),
+        evaluate_settings(_Settings(keyAccountRecovery=True, keyEmailHostName="", keyEmailUsername="")).findings,
         "Email-dependent feature on while SMTP is unconfigured",
     )
     assert finding.severity is Severity.WARN
@@ -197,7 +199,7 @@ def test_email_unconfigured_with_verification_on_is_warn() -> None:
     """Email verification on with a blank username raises the WARN email-misconfig finding."""
     findings = evaluate_settings(
         _Settings(enforceVerifiedEmail=True, keyEmailHostName="smtp.example.org", keyEmailUsername="   ")
-    )
+    ).findings
     assert "Email-dependent feature on while SMTP is unconfigured" in _titles(findings)
 
 
@@ -205,13 +207,13 @@ def test_email_configured_suppresses_the_email_finding() -> None:
     """A configured SMTP host and username suppress the email finding even with recovery on."""
     findings = evaluate_settings(
         _Settings(keyAccountRecovery=True, keyEmailHostName="smtp.example.org", keyEmailUsername="mailer")
-    )
+    ).findings
     assert "Email-dependent feature on while SMTP is unconfigured" not in _titles(findings)
 
 
 def test_email_finding_skipped_when_recovery_and_verification_off() -> None:
     """Blank SMTP is fine when neither recovery nor verification is on; no email finding fires."""
-    findings = evaluate_settings(_Settings(keyEmailHostName="", keyEmailUsername=""))
+    findings = evaluate_settings(_Settings(keyEmailHostName="", keyEmailUsername="")).findings
     assert "Email-dependent feature on while SMTP is unconfigured" not in _titles(findings)
 
 

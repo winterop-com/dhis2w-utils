@@ -6,6 +6,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 from dhis2w_core.security_core.guardrails import DEFAULT_PROBE_PASSWORD, DEFAULT_PROBE_USERNAME
 
@@ -41,10 +42,11 @@ def classify_probe_status(status_code: int) -> ProbeOutcome:
     return ProbeOutcome.INCONCLUSIVE
 
 
-def evaluate_credential_probe(result: CredentialProbeResult) -> list[AuditFinding]:
-    """Turn a credential-probe result into audit findings (CRITICAL when the default login works)."""
+def evaluate_credential_probe(result: CredentialProbeResult) -> CheckOutcome:
+    """Turn a credential-probe result into a CheckOutcome (CRITICAL when the default login works)."""
+    log = ControlLog(_CHECK)
     if result.outcome is ProbeOutcome.AUTHENTICATED:
-        return [
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.CRITICAL,
@@ -55,10 +57,11 @@ def evaluate_credential_probe(result: CredentialProbeResult) -> list[AuditFindin
                 ),
                 subject=result.username,
                 evidence={"username": result.username, "status": str(result.status_code or "")},
+                control="credential-probe-default",
             )
-        ]
-    if result.outcome is ProbeOutcome.INCONCLUSIVE:
-        return [
+        )
+    elif result.outcome is ProbeOutcome.INCONCLUSIVE:
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.INFO,
@@ -72,5 +75,8 @@ def evaluate_credential_probe(result: CredentialProbeResult) -> list[AuditFindin
                 ),
                 evidence={"status": str(result.status_code or "")},
             )
-        ]
-    return []
+        )
+        log.mark_skipped("credential-probe-default", f"probe returned an unexpected status ({result.status_code})")
+    else:
+        log.mark_passed("credential-probe-default")
+    return log.result()

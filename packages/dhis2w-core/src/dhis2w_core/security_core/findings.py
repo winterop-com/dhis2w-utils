@@ -53,6 +53,7 @@ class AuditFinding(BaseModel):
     subject: str | None = None
     evidence: dict[str, str] | None = None
     group_key: str | None = None
+    control: str | None = None
 
 
 def severity_rank(severity: Severity) -> int:

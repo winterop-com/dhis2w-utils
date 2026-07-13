@@ -58,13 +58,13 @@ _CLEAN_CLIENT = OAuth2ClientView(
 
 def test_empty_providers_and_clients_emits_nothing() -> None:
     """No OIDC providers and no OAuth2 clients yields no findings at all."""
-    assert evaluate_auth_methods(oidc_providers=[], oauth2_clients=[]) == []
+    assert evaluate_auth_methods(oidc_providers=[], oauth2_clients=[]).findings == []
 
 
 def test_configured_oidc_provider_is_info() -> None:
     """Each configured OIDC provider emits an INFO finding subject-scoped to the provider id."""
     provider = LoginProviderView(provider_id="google", login_text="Sign in with Google")
-    findings = evaluate_auth_methods(oidc_providers=[provider], oauth2_clients=[])
+    findings = evaluate_auth_methods(oidc_providers=[provider], oauth2_clients=[]).findings
     assert _titles(findings) == {"External OIDC login provider configured"}
     finding = findings[0]
     assert finding.severity is Severity.INFO
@@ -74,7 +74,7 @@ def test_configured_oidc_provider_is_info() -> None:
 
 def test_registered_clean_client_is_info() -> None:
     """A clean OAuth2 client (no broad grant, no loose redirect) emits the registered-client INFO."""
-    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[_CLEAN_CLIENT])
+    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[_CLEAN_CLIENT]).findings
     assert _titles(findings) == {"Registered OAuth2 client"}
     finding = findings[0]
     assert finding.severity is Severity.INFO
@@ -86,7 +86,7 @@ def test_broad_grant_client_is_medium_and_suppresses_registered_info() -> None:
     client = _CLEAN_CLIENT.model_copy(
         update={"identifier": "machine", "grant_types": frozenset({"client_credentials"})}
     )
-    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client])
+    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client]).findings
     assert _titles(findings) == {"OAuth2 client with broad grant type"}
     finding = findings[0]
     assert finding.severity is Severity.MEDIUM
@@ -98,7 +98,7 @@ def test_broad_grant_detects_device_code_urn() -> None:
     client = _CLEAN_CLIENT.model_copy(
         update={"identifier": "device", "grant_types": frozenset({"urn:ietf:params:oauth:grant-type:device_code"})}
     )
-    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client])
+    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client]).findings
     assert "OAuth2 client with broad grant type" in _titles(findings)
 
 
@@ -106,14 +106,14 @@ def test_broad_grant_detects_implicit_and_password() -> None:
     """The implicit and resource-owner-password grants are detected as broad grants."""
     for grant in ("implicit", "password"):
         client = _CLEAN_CLIENT.model_copy(update={"identifier": grant, "grant_types": frozenset({grant})})
-        findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client])
+        findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client]).findings
         assert "OAuth2 client with broad grant type" in _titles(findings)
 
 
 def test_wildcard_redirect_is_medium_and_suppresses_registered_info() -> None:
     """A redirect URI containing a wildcard flags the MEDIUM loose-redirect and suppresses the registered INFO."""
     client = _CLEAN_CLIENT.model_copy(update={"identifier": "wild", "redirect_uris": ("https://app.example/*",)})
-    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client])
+    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client]).findings
     assert _titles(findings) == {"OAuth2 client with loose redirect URI"}
     finding = findings[0]
     assert finding.severity is Severity.MEDIUM
@@ -125,7 +125,7 @@ def test_non_loopback_http_redirect_is_flagged() -> None:
     client = _CLEAN_CLIENT.model_copy(
         update={"identifier": "cleartext", "redirect_uris": ("http://app.example/callback",)}
     )
-    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client])
+    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client]).findings
     assert "OAuth2 client with loose redirect URI" in _titles(findings)
 
 
@@ -137,20 +137,20 @@ def test_loopback_http_redirect_is_not_flagged() -> None:
             "redirect_uris": ("http://localhost:8765/callback", "http://127.0.0.1:9000/cb"),
         }
     )
-    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client])
+    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client]).findings
     assert _titles(findings) == {"Registered OAuth2 client"}
 
 
 def test_https_redirect_is_not_flagged() -> None:
     """A plain https redirect URI is not a loose redirect."""
-    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[_CLEAN_CLIENT])
+    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[_CLEAN_CLIENT]).findings
     assert "OAuth2 client with loose redirect URI" not in _titles(findings)
 
 
 def test_oauth2_clients_none_keeps_only_oidc_findings() -> None:
     """When the OAuth2-client half is unreadable (None), only the OIDC findings are produced."""
     provider = LoginProviderView(provider_id="okta", login_text="Okta")
-    findings = evaluate_auth_methods(oidc_providers=[provider], oauth2_clients=None)
+    findings = evaluate_auth_methods(oidc_providers=[provider], oauth2_clients=None).findings
     assert _titles(findings) == {"External OIDC login provider configured"}
 
 
@@ -163,7 +163,7 @@ def test_client_with_both_broad_grant_and_loose_redirect_fires_both_mediums() ->
             "redirect_uris": ("https://app.example/*",),
         }
     )
-    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client])
+    findings = evaluate_auth_methods(oidc_providers=[], oauth2_clients=[client]).findings
     assert _titles(findings) == {
         "OAuth2 client with broad grant type",
         "OAuth2 client with loose redirect URI",

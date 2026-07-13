@@ -79,7 +79,9 @@ def test_classify_probe_status_maps_codes() -> None:
 
 def test_authenticated_probe_is_a_single_critical_finding() -> None:
     """A 200 from the default login yields one CRITICAL finding."""
-    findings = evaluate_credential_probe(CredentialProbeResult(outcome=ProbeOutcome.AUTHENTICATED, status_code=200))
+    findings = evaluate_credential_probe(
+        CredentialProbeResult(outcome=ProbeOutcome.AUTHENTICATED, status_code=200)
+    ).findings
     assert len(findings) == 1
     assert findings[0].severity is Severity.CRITICAL
     assert findings[0].check == "credential-probe"
@@ -87,12 +89,16 @@ def test_authenticated_probe_is_a_single_critical_finding() -> None:
 
 def test_rejected_probe_produces_no_findings() -> None:
     """A 401 means the default login was refused; that is the clean, finding-free path."""
-    assert evaluate_credential_probe(CredentialProbeResult(outcome=ProbeOutcome.REJECTED, status_code=401)) == []
+    assert (
+        evaluate_credential_probe(CredentialProbeResult(outcome=ProbeOutcome.REJECTED, status_code=401)).findings == []
+    )
 
 
 def test_inconclusive_probe_is_info_only() -> None:
     """An unexpected status is reported as INFO, never as a false CRITICAL."""
-    findings = evaluate_credential_probe(CredentialProbeResult(outcome=ProbeOutcome.INCONCLUSIVE, status_code=500))
+    findings = evaluate_credential_probe(
+        CredentialProbeResult(outcome=ProbeOutcome.INCONCLUSIVE, status_code=500)
+    ).findings
     assert len(findings) == 1
     assert findings[0].severity is Severity.INFO
 

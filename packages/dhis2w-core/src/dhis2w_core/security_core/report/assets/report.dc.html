@@ -169,9 +169,14 @@
                 <sc-if value="{{ sec.statusNote }}" hint-placeholder-val="">
                   <div style="font-size:12.5px; color:var(--faint); margin-top:8px; line-height:1.45; max-width:60ch; font-style:italic;">{{ sec.statusNote }}</div>
                 </sc-if>
-                <sc-if value="{{ sec.hasExpand }}" hint-placeholder-val="{{ false }}">
-                  <button onClick="{{ sec.expandAll }}" style="margin-top:14px; font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--brand-deep); background:transparent; border:1px solid var(--info-bd); border-radius:4px; padding:6px 11px; cursor:pointer;" style-hover="background:var(--info-bg);">{{ sec.expandLabel }}</button>
-                </sc-if>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">
+                  <sc-if value="{{ sec.hasControls }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ sec.toggleChecks }}" style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--brand-deep); background:transparent; border:1px solid var(--info-bd); border-radius:4px; padding:6px 11px; cursor:pointer;" style-hover="background:var(--info-bg);">{{ sec.checksLabel }}</button>
+                  </sc-if>
+                  <sc-if value="{{ sec.hasExpand }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ sec.expandAll }}" style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--brand-deep); background:transparent; border:1px solid var(--info-bd); border-radius:4px; padding:6px 11px; cursor:pointer;" style-hover="background:var(--info-bg);">{{ sec.expandLabel }}</button>
+                  </sc-if>
+                </div>
               </div>
               <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:flex-end;">
                 <sc-for list="{{ sec.tallyChips }}" as="c" hint-placeholder-count="3">
@@ -222,6 +227,28 @@
                 </div>
               </sc-for>
             </div>
+
+            <sc-if value="{{ sec.checksOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="border-top:1px solid var(--divider); padding:18px 24px 20px; background:var(--surface2);">
+                <div style="font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--faint2); margin-bottom:13px;">{{ sec.checksSummary }}</div>
+                <div style="display:flex; flex-direction:column; gap:1px;">
+                  <sc-for list="{{ sec.controls }}" as="ctl" hint-placeholder-count="6">
+                    <div style="display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:11px; align-items:baseline; padding:6px 0;">
+                      <span style="{{ ctl.markStyle }}">{{ ctl.mark }}</span>
+                      <div style="min-width:0;">
+                        <span style="font-size:13.5px; color:var(--text2);">{{ ctl.label }}</span>
+                        <sc-if value="{{ ctl.hasNote }}" hint-placeholder-val="{{ false }}">
+                          <span style="font-size:12px; color:var(--faint2); font-style:italic;"> — {{ ctl.note }}</span>
+                        </sc-if>
+                      </div>
+                      <sc-if value="{{ ctl.hasSev }}" hint-placeholder-val="{{ false }}">
+                        <span style="{{ ctl.sevTag.style }}">{{ ctl.sevTag.label }}</span>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
           </div>
         </section>
       </sc-for>
@@ -242,6 +269,7 @@
 class Component extends DCLogic {
   state = {
     open: {},
+    checks: {},
     active: 0,
     theme: (typeof localStorage !== 'undefined' && localStorage.getItem('dhis2_audit_theme'))
       || ((typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'),
@@ -305,6 +333,10 @@ class Component extends DCLogic {
     this.setState({ open: next });
   }
 
+  toggleChecks(idx) {
+    this.setState(s => ({ checks: { ...s.checks, [idx]: !s.checks[idx] } }));
+  }
+
   splitDetail(text) {
     // Fold setting keys, authority constants, API paths, and backtick spans in a finding's
     // detail into styled inline-code segments; everything else stays plain text. Rendered as
@@ -364,6 +396,7 @@ class Component extends DCLogic {
     };
 
     const open = this.state.open;
+    const checks = this.state.checks;
     const active = this.state.active;
 
     const tagStyle = (k) => {
@@ -417,6 +450,32 @@ class Component extends DCLogic {
       const anyOpen = collIds.some(id => open[id]);
       const statusNote = (sec.status.note || '').trim();
 
+      const rawControls = sec.controls || [];
+      const controls = rawControls.map(c => {
+        const flagged = c.status === 'FLAGGED';
+        const skipped = c.status === 'SKIPPED';
+        const isInfo = flagged && c.severity === 'INFO';
+        const mark = isInfo ? 'ℹ' : (flagged ? '✗' : (skipped ? '⊘' : '✓'));
+        const markColor = flagged ? ((SEV[c.severity] && SEV[c.severity].dot) || 'var(--crit-dot)')
+          : (skipped ? 'var(--faint2)' : 'var(--ok)');
+        const hasSev = flagged && !!c.severity;
+        const hasNote = skipped && !!c.note;
+        return {
+          label: c.label,
+          mark,
+          markStyle: {
+            fontFamily: "'Space Mono',monospace", fontWeight: 700, fontSize: '14px',
+            color: markColor, textAlign: 'center', lineHeight: 1.3,
+          },
+          hasSev, sevTag: hasSev ? { label: c.severity, style: tagStyle(c.severity) } : { label: '', style: {} },
+          hasNote, note: hasNote ? c.note : '',
+        };
+      });
+      const cFlagged = rawControls.filter(c => c.status === 'FLAGGED').length;
+      const cPassed = rawControls.filter(c => c.status === 'PASS').length;
+      const cSkipped = rawControls.filter(c => c.status === 'SKIPPED').length;
+      const checksOpen = !!checks[idx];
+
       return {
         idx, num: String(idx + 1).padStart(2, '0'), anchor: `sec-${idx}`,
         title: sec.title, total, statusLabel: 'OK', statusNote, accent, tallyChips,
@@ -429,6 +488,13 @@ class Component extends DCLogic {
         hasExpand: collIds.length > 1,
         expandLabel: anyOpen ? 'Collapse all' : 'Expand all',
         expandAll: () => this.toggleAll(idx),
+        controls,
+        hasControls: rawControls.length > 0,
+        checksOpen,
+        toggleChecks: () => this.toggleChecks(idx),
+        checksLabel: (checksOpen ? 'Hide all checks' : 'See all checks') + ' (' + rawControls.length + ')',
+        checksSummary: rawControls.length + ' controls · ' + cFlagged + ' flagged · '
+          + cPassed + ' passed · ' + cSkipped + ' skipped',
       };
     });
 
@@ -451,7 +517,7 @@ class Component extends DCLogic {
         titleStyle: { flex: 1, fontSize: '13px', fontWeight: isA ? 600 : 500, lineHeight: 1.2, letterSpacing: '-0.01em' },
         countStyle: sev
           ? { fontFamily: "'Space Mono',monospace", fontSize: '10px', fontWeight: 700, color: sev.fg, background: sev.bg, border: `1px solid ${sev.bd}`, padding: '2px 6px', borderRadius: '3px', flex: 'none' }
-          : { fontFamily: "'Space Mono',monospace", fontSize: '10.5px', color: 'var(--faint3)', flex: 'none' },
+          : { fontFamily: "'Space Mono',monospace", fontSize: '10px', fontWeight: 700, color: 'var(--muted)', background: 'var(--chip)', border: '1px solid var(--border)', padding: '2px 6px', borderRadius: '3px', flex: 'none' },
       };
     });
 

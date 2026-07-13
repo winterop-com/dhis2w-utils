@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 
 _CHECK = "tokens"
@@ -70,21 +71,25 @@ class TokensInventory(BaseModel):
     account_is_superuser: bool = False
 
 
-def evaluate_tokens(inventory: TokensInventory, *, now_epoch_millis: int) -> list[AuditFinding]:
-    """Findings over readable PATs: inventory, non-expiring, missing IP allowlist, and the scope caveat.
+def evaluate_tokens(inventory: TokensInventory, *, now_epoch_millis: int) -> CheckOutcome:
+    """Record the PAT controls (inventory, non-expiring, missing IP allowlist) plus the scope caveat.
 
     `now_epoch_millis` is the reference time the expired-but-not-deleted detection compares each token's
     expiry against; the caller (the I/O-edge runner) supplies it so this reducer stays deterministic and
     never reads the clock.
     """
-    findings: list[AuditFinding] = []
+    log = ControlLog(_CHECK)
+    log.mark_passed("tokens-non-expiring", "tokens-no-ip-allowlist")
     if inventory.tokens:
-        findings.append(_inventory_finding(inventory))
+        log.record(_inventory_finding(inventory))
+    else:
+        log.mark_passed("tokens-inventory")
     for token in inventory.tokens:
-        findings.extend(_token_findings(token, now_epoch_millis=now_epoch_millis))
+        for finding in _token_findings(token, now_epoch_millis=now_epoch_millis):
+            log.record(finding)
     if not inventory.account_is_superuser:
-        findings.append(_degraded_account_scoped_finding())
-    return findings
+        log.record(_degraded_account_scoped_finding())
+    return log.result()
 
 
 def _token_findings(token: TokenView, *, now_epoch_millis: int) -> list[AuditFinding]:
@@ -133,6 +138,7 @@ def _inventory_finding(inventory: TokensInventory) -> AuditFinding:
             "with_method_allowlist": str(with_method),
             "with_referer_allowlist": str(with_referer),
         },
+        control="tokens-inventory",
     )
 
 
@@ -156,6 +162,7 @@ def _non_expiring_finding(token: TokenView, *, now_epoch_millis: int) -> AuditFi
             "expires": expiry,
             "created": token.created or "unknown",
         },
+        control="tokens-non-expiring",
     )
 
 
@@ -178,6 +185,7 @@ def _no_ip_allowlist_finding(token: TokenView, *, worst_case: bool) -> AuditFind
         subject=token.name or token.id,
         group_key="tokens-no-ip-allowlist",
         evidence={"token": token.name or token.id, "type": token.token_type, "ip_allowlist": "none"},
+        control="tokens-no-ip-allowlist",
     )
 
 

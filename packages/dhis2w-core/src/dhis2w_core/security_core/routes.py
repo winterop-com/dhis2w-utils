@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 from dhis2w_core.security_core.net import is_metadata_host, is_private_host
 
@@ -55,13 +56,21 @@ class RouteTarget(BaseModel):
     required_authorities: tuple[str, ...] = ()
 
 
-def evaluate_routes(targets: list[RouteTarget]) -> list[AuditFinding]:
-    """Findings over registered routes: private/metadata destinations, subpath wildcards, auth, run gating."""
-    findings: list[AuditFinding] = []
+def evaluate_routes(targets: list[RouteTarget]) -> CheckOutcome:
+    """Record route controls (metadata/private dest, subpaths, auth, run gating) plus the always-on inventory."""
+    log = ControlLog(_CHECK)
+    log.mark_passed(
+        "routes-metadata-endpoint",
+        "routes-private-address",
+        "routes-allows-subpaths",
+        "routes-carries-auth",
+        "routes-no-required-authorities",
+    )
     for target in targets:
-        findings.extend(_route_findings(target))
-    findings.append(_inventory_finding(targets))
-    return findings
+        for finding in _route_findings(target):
+            log.record(finding)
+    log.record(_inventory_finding(targets))
+    return log.result()
 
 
 def _route_findings(target: RouteTarget) -> list[AuditFinding]:
@@ -95,6 +104,7 @@ def _private_address_finding(target: RouteTarget) -> AuditFinding:
         subject=target.name,
         group_key="route-private-address",
         evidence={"route": target.name, "url": target.url, "host": target.host or "unknown"},
+        control="routes-private-address",
     )
 
 
@@ -111,6 +121,7 @@ def _metadata_finding(target: RouteTarget) -> AuditFinding:
         subject=target.name,
         group_key="route-metadata-endpoint",
         evidence={"route": target.name, "url": target.url, "host": target.host or "unknown"},
+        control="routes-metadata-endpoint",
     )
 
 
@@ -128,6 +139,7 @@ def _subpaths_finding(target: RouteTarget) -> AuditFinding:
         subject=target.name,
         group_key="route-allows-subpaths",
         evidence={"route": target.name, "url": target.url},
+        control="routes-allows-subpaths",
     )
 
 
@@ -149,6 +161,7 @@ def _carries_auth_finding(target: RouteTarget) -> AuditFinding:
             "auth_type": target.auth_type or "unknown",
             "identity": target.auth_identity or "none",
         },
+        control="routes-carries-auth",
     )
 
 
@@ -166,6 +179,7 @@ def _no_required_authorities_finding(target: RouteTarget) -> AuditFinding:
         subject=target.name,
         group_key="route-no-required-authorities",
         evidence={"route": target.name, "url": target.url},
+        control="routes-no-required-authorities",
     )
 
 
@@ -183,4 +197,5 @@ def _inventory_finding(targets: list[RouteTarget]) -> AuditFinding:
         ),
         group_key="route-inventory",
         evidence={"total": str(len(targets)), "active": str(active), "disabled": str(disabled)},
+        control="routes-inventory",
     )

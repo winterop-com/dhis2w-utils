@@ -107,7 +107,9 @@ def test_build_user_hygiene_derives_superuser_and_privileged() -> None:
 
 def test_privileged_never_logged_in_is_high() -> None:
     """A privileged account that has never logged in is HIGH and folds under the never-logged-in key."""
-    findings = evaluate_hygiene([_user(username="ghost", last_login=None, privileged=True)], stale_days=90, now=NOW)
+    findings = evaluate_hygiene(
+        [_user(username="ghost", last_login=None, privileged=True)], stale_days=90, now=NOW
+    ).findings
     high = [f for f in findings if f.title == "Privileged account never logged in"]
     assert high and high[0].severity is Severity.HIGH
     assert high[0].group_key == "never-logged-in"
@@ -117,7 +119,7 @@ def test_privileged_stale_is_medium() -> None:
     """A privileged account past the stale threshold is MEDIUM and carries its last-login in evidence."""
     findings = evaluate_hygiene(
         [_user(username="rusty", last_login="2026-01-01T00:00:00", privileged=True)], stale_days=90, now=NOW
-    )
+    ).findings
     stale = [f for f in findings if f.title == "Stale privileged account"]
     assert stale and stale[0].severity is Severity.MEDIUM
     assert stale[0].group_key == "stale"
@@ -128,7 +130,7 @@ def test_disabled_privileged_is_medium_and_skips_other_user_flags() -> None:
     """A disabled privileged account reports the latent-access flag only."""
     findings = evaluate_hygiene(
         [_user(username="ex", disabled=True, email=None, last_login=None, privileged=True)], stale_days=90, now=NOW
-    )
+    ).findings
     titles = _titles(findings)
     assert "Disabled account holds privileged roles" in titles
     assert "Privileged account never logged in" not in titles
@@ -138,7 +140,9 @@ def test_disabled_privileged_is_medium_and_skips_other_user_flags() -> None:
 
 def test_privileged_missing_email_is_warn() -> None:
     """A privileged account with no email is WARN (the catalog's low tier) under the no-email key."""
-    findings = evaluate_hygiene([_user(username="noemail", email=None, privileged=True)], stale_days=90, now=NOW)
+    findings = evaluate_hygiene(
+        [_user(username="noemail", email=None, privileged=True)], stale_days=90, now=NOW
+    ).findings
     no_email = [f for f in findings if f.title == "Privileged account has no email"]
     assert no_email and no_email[0].severity is Severity.WARN
     assert no_email[0].group_key == "no-email"
@@ -146,14 +150,14 @@ def test_privileged_missing_email_is_warn() -> None:
 
 def test_seed_admin_enabled_is_flagged() -> None:
     """The well-known enabled 'admin' account is flagged regardless of privilege, under the seed-admin key."""
-    findings = evaluate_hygiene([_user(username="admin")], stale_days=90, now=NOW)
+    findings = evaluate_hygiene([_user(username="admin")], stale_days=90, now=NOW).findings
     seed = [f for f in findings if f.title == "Default seed account 'admin' is enabled"]
     assert seed and seed[0].group_key == "seed-admin"
 
 
 def test_non_privileged_user_yields_only_inventory() -> None:
     """A clean non-privileged account contributes nothing but the inventory roll-up."""
-    findings = evaluate_hygiene([_user(username="clerk")], stale_days=90, now=NOW)
+    findings = evaluate_hygiene([_user(username="clerk")], stale_days=90, now=NOW).findings
     assert _titles(findings) == {"User account inventory"}
     inventory = findings[0]
     assert inventory.severity is Severity.INFO
@@ -168,7 +172,7 @@ def test_hygiene_findings_fold_into_groups_through_the_view() -> None:
         _user(username="ghostC", email=None, last_login=None, privileged=True),
         _user(username="rusty", email=None, last_login="2026-01-01T00:00:00", privileged=True),
     ]
-    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW).findings
     result = CheckResult(check="hygiene", label="User account hygiene", status=CheckStatus.OK, findings=findings)
     report = AuditReport(
         manifest=RunManifest(
@@ -204,7 +208,7 @@ def test_hygiene_findings_fold_into_groups_through_the_view() -> None:
 def test_non_privileged_never_logged_in_aggregates_to_one_warn() -> None:
     """Many non-privileged never-logged-in accounts collapse into one WARN with a capped sample."""
     users = [_user(username=f"clerk{n:02d}", last_login=None) for n in range(15)]
-    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW).findings
     rows = [f for f in findings if f.title == "Active accounts that never logged in"]
     assert len(rows) == 1
     row = rows[0]
@@ -219,7 +223,7 @@ def test_non_privileged_never_logged_in_aggregates_to_one_warn() -> None:
 def test_non_privileged_stale_aggregates_to_one_warn() -> None:
     """Many non-privileged stale accounts collapse into one WARN aggregate with the right count."""
     users = [_user(username=f"old{n:02d}", last_login="2026-01-01T00:00:00") for n in range(12)]
-    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW).findings
     rows = [f for f in findings if f.title == "Stale active accounts"]
     assert len(rows) == 1
     row = rows[0]
@@ -233,7 +237,7 @@ def test_non_privileged_stale_aggregates_to_one_warn() -> None:
 def test_aggregate_under_sample_limit_names_all_with_no_more_suffix() -> None:
     """A handful of non-privileged accounts name every username with no truncation suffix."""
     users = [_user(username=f"clerk{n}", last_login=None) for n in range(3)]
-    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW).findings
     row = next(f for f in findings if f.title == "Active accounts that never logged in")
     assert (row.evidence or {}).get("count") == "3"
     assert (row.evidence or {}).get("sample") == "clerk0, clerk1, clerk2"
@@ -246,7 +250,7 @@ def test_aggregate_excludes_disabled_non_privileged_accounts() -> None:
         _user(username="active", last_login=None),
         _user(username="gone", disabled=True, last_login=None),
     ]
-    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW).findings
     row = next(f for f in findings if f.title == "Active accounts that never logged in")
     assert (row.evidence or {}).get("count") == "1"
     assert (row.evidence or {}).get("sample") == "active"
@@ -260,7 +264,7 @@ def test_privileged_per_user_rows_and_aggregates_coexist_without_double_count() 
         *[_user(username=f"clerk{n:02d}", last_login=None) for n in range(15)],
         *[_user(username=f"old{n:02d}", last_login="2026-01-01T00:00:00") for n in range(5)],
     ]
-    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW).findings
 
     # Privileged per-user rows still present and severity-correct.
     priv_never = [f for f in findings if f.title == "Privileged account never logged in"]
@@ -282,7 +286,7 @@ def test_privileged_per_user_rows_and_aggregates_coexist_without_double_count() 
 def test_aggregates_absent_when_no_non_privileged_offenders() -> None:
     """A clean instance emits neither aggregate WARN row."""
     users = [_user(username="clerk", last_login="2026-06-17T00:00:00")]
-    titles = _titles(evaluate_hygiene(users, stale_days=90, now=NOW))
+    titles = _titles(evaluate_hygiene(users, stale_days=90, now=NOW).findings)
     assert "Active accounts that never logged in" not in titles
     assert "Stale active accounts" not in titles
 
@@ -290,7 +294,7 @@ def test_aggregates_absent_when_no_non_privileged_offenders() -> None:
 def test_non_privileged_aggregates_render_as_single_rows_through_the_view() -> None:
     """The aggregate WARN findings each render as one static row, never a per-account item list."""
     users = [_user(username=f"clerk{n:02d}", last_login=None) for n in range(15)]
-    findings = evaluate_hygiene(users, stale_days=90, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, now=NOW).findings
     result = CheckResult(check="hygiene", label="User account hygiene", status=CheckStatus.OK, findings=findings)
     report = AuditReport(
         manifest=RunManifest(
@@ -320,7 +324,7 @@ _PW_TITLE = "Accounts with stale or unset passwords"
 def test_password_older_than_threshold_aggregates_to_one_warn() -> None:
     """An active account whose password predates the threshold rolls up into one WARN aggregate."""
     users = [_user(username="rusty", password_last_updated="2025-01-01T00:00:00")]
-    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings
     rows = [f for f in findings if f.title == _PW_TITLE]
     assert len(rows) == 1
     assert rows[0].severity is Severity.WARN
@@ -332,7 +336,7 @@ def test_password_older_than_threshold_aggregates_to_one_warn() -> None:
 def test_password_never_set_aggregates_to_one_warn() -> None:
     """An active account with a null passwordLastUpdated contributes to the aggregate WARN."""
     users = [_user(username="fresh", password_last_updated=None)]
-    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings
     rows = [f for f in findings if f.title == _PW_TITLE]
     assert len(rows) == 1
     assert (rows[0].evidence or {}).get("count") == "1"
@@ -341,7 +345,7 @@ def test_password_never_set_aggregates_to_one_warn() -> None:
 def test_recent_password_yields_no_password_finding() -> None:
     """An account whose password is within the threshold contributes nothing to the aggregate."""
     users = [_user(username="ok", password_last_updated="2026-06-01T00:00:00")]
-    titles = _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW))
+    titles = _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings)
     assert _PW_TITLE not in titles
 
 
@@ -353,7 +357,7 @@ def test_password_aggregate_unions_stale_and_never_set() -> None:
         _user(username="never", password_last_updated=None),
         _user(username="fresh", password_last_updated="2026-06-01T00:00:00"),
     ]
-    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings
     row = next(f for f in findings if f.title == _PW_TITLE)
     assert (row.evidence or {}).get("count") == "3"
     sample = (row.evidence or {}).get("sample", "")
@@ -364,7 +368,7 @@ def test_password_aggregate_unions_stale_and_never_set() -> None:
 def test_password_aggregate_caps_sample_at_limit() -> None:
     """A large stale-password set collapses into one WARN with a count and a capped sample."""
     users = [_user(username=f"old{n:02d}", password_last_updated="2024-01-01T00:00:00") for n in range(15)]
-    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings
     row = next(f for f in findings if f.title == _PW_TITLE)
     assert (row.evidence or {}).get("count") == "15"
     assert len((row.evidence or {}).get("sample", "").split(", ")) == 10  # capped at SAMPLE_LIMIT
@@ -377,7 +381,7 @@ def test_password_aggregate_excludes_disabled_accounts() -> None:
         _user(username="active", password_last_updated=None),
         _user(username="gone", disabled=True, password_last_updated=None),
     ]
-    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings
     row = next(f for f in findings if f.title == _PW_TITLE)
     assert (row.evidence or {}).get("count") == "1"
     assert (row.evidence or {}).get("sample") == "active"
@@ -389,7 +393,7 @@ def test_password_aggregate_includes_active_privileged_accounts() -> None:
         _user(username="adminOld", password_last_updated="2024-01-01T00:00:00", privileged=True),
         _user(username="clerkOld", password_last_updated="2024-01-01T00:00:00"),
     ]
-    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings
     row = next(f for f in findings if f.title == _PW_TITLE)
     assert (row.evidence or {}).get("count") == "2"
     assert {"adminOld", "clerkOld"} == set((row.evidence or {}).get("sample", "").split(", "))
@@ -399,24 +403,24 @@ def test_password_aggregate_is_deterministic_with_supplied_now() -> None:
     """The reducer compares against the supplied `now`, never the wall clock: a borderline date flips on now."""
     users = [_user(username="edge", password_last_updated="2025-06-19T00:00:00")]
     # 364 days before NOW (2026-06-18): within the 365-day threshold -> no finding.
-    assert _PW_TITLE not in _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW))
+    assert _PW_TITLE not in _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings)
     # The same record is stale once `now` advances past the threshold.
     later = datetime(2027, 6, 18)
-    assert _PW_TITLE in _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=later))
+    assert _PW_TITLE in _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=later).findings)
 
 
 def test_password_aggregate_respects_custom_threshold() -> None:
     """A tighter max_password_age_days flags accounts a looser threshold would pass."""
     users = [_user(username="midaged", password_last_updated="2026-01-01T00:00:00")]
-    assert _PW_TITLE not in _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW))
-    assert _PW_TITLE in _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=30, now=NOW))
+    assert _PW_TITLE not in _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings)
+    assert _PW_TITLE in _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=30, now=NOW).findings)
 
 
 def test_password_aware_timestamp_old_enough_is_flagged_without_crash() -> None:
     """An aware (timezone-attached) ISO timestamp old enough to be stale is flagged and raises no exception."""
     # The .replace(tzinfo=None) strip is exercised here; a naive comparison would raise TypeError.
     users = [_user(username="tz_old", password_last_updated="2024-01-01T00:00:00Z")]
-    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings
     rows = [f for f in findings if f.title == _PW_TITLE]
     assert len(rows) == 1
     assert (rows[0].evidence or {}).get("sample") == "tz_old"
@@ -430,21 +434,21 @@ def test_password_unparseable_timestamp_is_not_flagged_and_does_not_crash() -> N
     returns False on ValueError (documented in its docstring).
     """
     users = [_user(username="corrupt", password_last_updated="garbage")]
-    titles = _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW))
+    titles = _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings)
     assert _PW_TITLE not in titles
 
 
 def test_password_future_timestamp_is_not_flagged() -> None:
     """A passwordLastUpdated set in the future (negative age) is never treated as stale."""
     users = [_user(username="future_pw", password_last_updated="2099-01-01T00:00:00")]
-    titles = _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW))
+    titles = _titles(evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings)
     assert _PW_TITLE not in titles
 
 
 def test_password_aggregate_renders_as_single_row_through_the_view() -> None:
     """The password-age aggregate renders as one static row, never a per-account item list."""
     users = [_user(username=f"old{n:02d}", password_last_updated="2024-01-01T00:00:00") for n in range(15)]
-    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW)
+    findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW).findings
     result = CheckResult(check="hygiene", label="User account hygiene", status=CheckStatus.OK, findings=findings)
     report = AuditReport(
         manifest=RunManifest(

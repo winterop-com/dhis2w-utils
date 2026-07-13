@@ -14,6 +14,8 @@ from dhis2w_core.security_core import (
     AuditSummary,
     CheckResult,
     CheckStatus,
+    ControlOutcome,
+    ControlStatus,
     RunManifest,
     Severity,
     build_report_view,
@@ -199,6 +201,56 @@ def test_meta_uses_unknown_when_dhis2_version_missing() -> None:
     manifest = _MANIFEST.model_copy(update={"dhis2_version": None})
     report = AuditReport(manifest=manifest, results=[], summary=AuditSummary.from_results([]))
     assert build_report_view(report).meta.version == "unknown"
+
+
+def test_section_projects_control_outcomes_with_status_and_severity() -> None:
+    """build_report_view projects each CheckResult.controls entry into the section's control list."""
+    controls = [
+        ControlOutcome(id="settings-lockout-disabled", label="Failed-login lockout", status=ControlStatus.PASSED),
+        ControlOutcome(
+            id="settings-can-grant-own-authorities",
+            label="Self-grant of authorities",
+            status=ControlStatus.FLAGGED,
+            severity=Severity.HIGH,
+            finding_titles=["x"],
+        ),
+        ControlOutcome(
+            id="settings-cors-wildcard",
+            label="CORS wildcard origin",
+            status=ControlStatus.SKIPPED,
+            note="CORS whitelist not fetched",
+        ),
+    ]
+    result = CheckResult(check="settings", label="Settings", status=CheckStatus.OK, controls=controls)
+    section = build_report_view(_report([result])).sections[0]
+    assert [(control.label, control.status) for control in section.controls] == [
+        ("Failed-login lockout", "PASS"),
+        ("Self-grant of authorities", "FLAGGED"),
+        ("CORS wildcard origin", "SKIPPED"),
+    ]
+    assert section.controls[0].severity is None  # a PASS carries no severity
+    assert section.controls[1].severity is Severity.HIGH
+    assert section.controls[2].note == "CORS whitelist not fetched"
+
+
+def test_control_outcomes_serialise_into_report_data_js() -> None:
+    """to_report_data_js carries each section's controls with status and severity for the template runtime."""
+    controls = [
+        ControlOutcome(
+            id="roles-grants-all-in-use",
+            label="Roles granting ALL that are in use",
+            status=ControlStatus.FLAGGED,
+            severity=Severity.CRITICAL,
+            finding_titles=["r"],
+        )
+    ]
+    result = CheckResult(check="roles", label="Roles", status=CheckStatus.OK, controls=controls)
+    js = build_report_view(_report([result])).to_report_data_js()
+    payload = json.loads(js.removeprefix("window.__REPORT__ = ").rstrip().removesuffix(";"))
+    control = payload["sections"][0]["controls"][0]
+    assert control["status"] == "FLAGGED"
+    assert control["severity"] == "CRITICAL"
+    assert control["label"] == "Roles granting ALL that are in use"
 
 
 def test_to_report_data_js_is_an_assignable_json_payload() -> None:

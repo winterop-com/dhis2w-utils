@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_core.security_core.controls import ControlOutcome, ControlStatus
 from dhis2w_core.security_core.findings import AuditFinding, Severity, severity_rank
 from dhis2w_core.security_core.guardrails import REPORT_GUARDRAIL_NOTE
 from dhis2w_core.security_core.report.model import AuditReport, AuditSummary, CheckResult
@@ -75,14 +76,26 @@ class SectionStatus(BaseModel):
     note: str | None = None
 
 
+class ControlView(BaseModel):
+    """One evaluated control rendered in the 'see all checks' list: its label, outcome, and detail."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    status: str
+    severity: Severity | None = None
+    note: str | None = None
+
+
 class SectionView(BaseModel):
-    """One audit check rendered as a section: its label, status pill, and finding groups."""
+    """One audit check rendered as a section: its label, status pill, finding groups, and control list."""
 
     model_config = ConfigDict(frozen=True)
 
     title: str
     status: SectionStatus
     groups: list[GroupView] = []
+    controls: list[ControlView] = []
 
 
 class ReportView(BaseModel):
@@ -117,9 +130,20 @@ def build_report_view(report: AuditReport) -> ReportView:
 
 
 def _build_section(result: CheckResult) -> SectionView:
-    """Build one section from a check result: status pill, optional note, and grouped findings."""
+    """Build one section from a check result: status pill, optional note, grouped findings, and controls."""
     status = SectionStatus(label=result.status.value, note=result.note)
-    return SectionView(title=result.label, status=status, groups=_build_groups(result.findings))
+    return SectionView(
+        title=result.label,
+        status=status,
+        groups=_build_groups(result.findings),
+        controls=[_build_control(control) for control in result.controls],
+    )
+
+
+def _build_control(control: ControlOutcome) -> ControlView:
+    """Project one control outcome into its view row, keeping the severity only when it flagged."""
+    severity = control.severity if control.status is ControlStatus.FLAGGED else None
+    return ControlView(label=control.label, status=control.status.value, severity=severity, note=control.note)
 
 
 def _build_groups(findings: list[AuditFinding]) -> list[GroupView]:

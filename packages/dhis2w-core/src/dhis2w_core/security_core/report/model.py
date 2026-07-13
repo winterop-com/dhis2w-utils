@@ -6,6 +6,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import ControlOutcome
 from dhis2w_core.security_core.findings import (
     SEVERITY_ORDER,
     AuditFinding,
@@ -41,6 +42,7 @@ class CheckResult(BaseModel):
     label: str
     status: CheckStatus
     findings: list[AuditFinding] = []
+    controls: list[ControlOutcome] = []
     note: str | None = None
 
     def top_severity(self) -> Severity | None:

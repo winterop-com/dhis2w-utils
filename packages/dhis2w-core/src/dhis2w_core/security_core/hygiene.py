@@ -7,6 +7,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 
 _CHECK = "hygiene"
@@ -94,7 +95,8 @@ def evaluate_hygiene(
     stale_days: int,
     max_password_age_days: int = DEFAULT_MAX_PASSWORD_AGE_DAYS,
     now: datetime,
-) -> list[AuditFinding]:
+    two_factor_findings: list[AuditFinding] | None = None,
+) -> CheckOutcome:
     """Per-user hygiene over privileged accounts plus aggregate never-logged-in / stale signals for the rest.
 
     Privileged accounts keep their high-signal per-user rows (privileged sets are small). Active
@@ -102,7 +104,23 @@ def evaluate_hygiene(
     aggregate WARN findings so a large instance never emits a row per account. A third aggregate WARN
     rolls up every active account (privileged or not) whose password is older than the threshold or has
     never been set, since password age is a hardening signal independent of privilege.
+
+    `two_factor_findings` carries the pre-computed superuser-2FA findings (each tagged
+    `hygiene-2fa-superuser`); they are recorded last so the outcome's findings equal the main hygiene
+    findings followed by the 2FA findings. `None` means the per-user 2FA endpoint was unreadable, so the
+    2FA control is marked skipped; an empty list leaves it PASS.
     """
+    log = ControlLog(_CHECK)
+    log.mark_passed(
+        "hygiene-priv-disabled-holds-roles",
+        "hygiene-priv-never-logged-in",
+        "hygiene-priv-stale",
+        "hygiene-priv-no-email",
+        "hygiene-agg-never-logged-in",
+        "hygiene-agg-stale",
+        "hygiene-agg-stale-password",
+        "hygiene-seed-admin-enabled",
+    )
     findings: list[AuditFinding] = []
     never_logged_in: list[str] = []
     stale_accounts: list[str] = []
@@ -126,6 +144,7 @@ def evaluate_hygiene(
                     f"Disabled account '{user.username}' still holds privileged roles; "
                     "re-enabling the account restores that access.",
                     group_key="disabled-privileged",
+                    control="hygiene-priv-disabled-holds-roles",
                 )
             )
             continue
@@ -138,6 +157,7 @@ def evaluate_hygiene(
                     f"Privileged account '{user.username}' has never logged in; "
                     "a dormant admin account is a takeover target.",
                     group_key="never-logged-in",
+                    control="hygiene-priv-never-logged-in",
                 )
             )
         elif _is_stale(user.last_login, now, stale_days):
@@ -149,6 +169,7 @@ def evaluate_hygiene(
                     f"Privileged account '{user.username}' has not logged in for over "
                     f"{stale_days} days (last: {user.last_login}).",
                     group_key="stale",
+                    control="hygiene-priv-stale",
                     last=user.last_login,
                 )
             )
@@ -161,6 +182,7 @@ def evaluate_hygiene(
                     f"Privileged account '{user.username}' has no email; "
                     "password recovery and security alerts cannot reach it.",
                     group_key="no-email",
+                    control="hygiene-priv-no-email",
                 )
             )
     findings.extend(
@@ -169,6 +191,7 @@ def evaluate_hygiene(
             title="Active accounts that never logged in",
             detail_lead="non-privileged active account(s) have never logged in",
             group_key="active-never-logged-in",
+            control="hygiene-agg-never-logged-in",
         )
     )
     findings.extend(
@@ -177,6 +200,7 @@ def evaluate_hygiene(
             title="Stale active accounts",
             detail_lead=f"non-privileged active account(s) have not logged in for over {stale_days} days",
             group_key="active-stale",
+            control="hygiene-agg-stale",
         )
     )
     findings.extend(
@@ -185,14 +209,25 @@ def evaluate_hygiene(
             title="Accounts with stale or unset passwords",
             detail_lead=f"active account(s) have a password older than {max_password_age_days} days or never set",
             group_key="stale-password",
+            control="hygiene-agg-stale-password",
         )
     )
     findings.extend(_seed_admin_findings(users))
     findings.append(_inventory_finding(users))
-    return findings
+    for finding in findings:
+        log.record(finding)
+    if two_factor_findings is None:
+        log.mark_skipped("hygiene-2fa-superuser", "per-user 2FA endpoint unreadable")
+    else:
+        log.mark_passed("hygiene-2fa-superuser")
+        for finding in two_factor_findings:
+            log.record(finding)
+    return log.result()
 
 
-def _aggregate_finding(usernames: list[str], *, title: str, detail_lead: str, group_key: str) -> list[AuditFinding]:
+def _aggregate_finding(
+    usernames: list[str], *, title: str, detail_lead: str, group_key: str, control: str
+) -> list[AuditFinding]:
     """Roll up non-privileged accounts into one WARN finding with a count and a capped username sample."""
     count = len(usernames)
     if count == 0:
@@ -211,6 +246,7 @@ def _aggregate_finding(usernames: list[str], *, title: str, detail_lead: str, gr
             detail=detail,
             evidence={"count": str(count), "sample": ", ".join(sample)},
             group_key=group_key,
+            control=control,
         )
     ]
 
@@ -224,6 +260,7 @@ def evaluate_two_factor_from_user_field(users: list[UserHygiene]) -> list[AuditF
             "Superuser without 2FA",
             f"Superuser '{user.username}' does not have two-factor authentication enabled.",
             group_key="superuser-no-2fa",
+            control="hygiene-2fa-superuser",
         )
         for user in users
         if user.is_superuser and not user.disabled and user.two_factor is False
@@ -247,6 +284,7 @@ def evaluate_two_factor_from_endpoint(
                 "Superuser without 2FA",
                 f"Superuser '{user.username}' (ALL authority) does not have two-factor authentication enabled.",
                 group_key="superuser-no-2fa",
+                control="hygiene-2fa-superuser",
             )
             for user in users
             if user.is_superuser and not user.disabled and user.id in disabled_2fa_ids
@@ -265,6 +303,7 @@ def evaluate_two_factor_from_endpoint(
                     "missing_2fa": str(summary.privileged_missing_2fa),
                     "with_all": str(summary.privileged_with_all),
                 },
+                control="hygiene-2fa-superuser",
             )
         ]
     return []
@@ -277,6 +316,7 @@ def _finding(
     detail: str,
     *,
     group_key: str,
+    control: str,
     last: str | None = None,
 ) -> AuditFinding:
     """Build a per-user hygiene finding keyed to the account and folded by `group_key`."""
@@ -289,6 +329,7 @@ def _finding(
         subject=user.username,
         evidence=evidence,
         group_key=group_key,
+        control=control,
     )
 
 
@@ -304,6 +345,7 @@ def _seed_admin_findings(users: list[UserHygiene]) -> list[AuditFinding]:
                     "The well-known seed account 'admin' exists and is enabled; "
                     "rename or disable it once real admins exist.",
                     group_key="seed-admin",
+                    control="hygiene-seed-admin-enabled",
                 )
             ]
     return []
@@ -325,6 +367,7 @@ def _inventory_finding(users: list[UserHygiene]) -> AuditFinding:
             "disabled": str(disabled),
             "privileged": str(privileged),
         },
+        control="hygiene-inventory",
     )
 
 

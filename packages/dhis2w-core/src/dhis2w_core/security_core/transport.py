@@ -30,6 +30,7 @@ import re
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.csp import grade_csp, parse_csp
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 
@@ -75,43 +76,77 @@ class TransportHeaders(BaseModel):
     server: str | None = None
 
 
-def evaluate_transport(headers: TransportHeaders) -> list[AuditFinding]:
-    """Findings over the transport scheme and headers: TLS, HSTS, CSP, anti-framing, nosniff, cross-origin, CORS."""
-    findings: list[AuditFinding] = []
+def evaluate_transport(headers: TransportHeaders) -> CheckOutcome:
+    """Grade the transport scheme and headers into a CheckOutcome: TLS, HSTS, CSP, anti-framing, nosniff, CORS."""
+    log = ControlLog(_CHECK)
     is_https = headers.scheme.lower() == "https"
     if not is_https:
-        findings.append(_no_tls_finding(headers.base_url, headers.scheme))
-    elif headers.strict_transport_security is None:
-        findings.append(_no_hsts_finding())
+        log.record(_no_tls_finding(headers.base_url, headers.scheme))
+        log.mark_skipped("transport-no-hsts", "base URL is not HTTPS")
+        log.mark_skipped("transport-weak-hsts", "base URL is not HTTPS")
     else:
-        weak_hsts = _weak_hsts_finding(headers.strict_transport_security)
-        if weak_hsts is not None:
-            findings.append(weak_hsts)
+        log.mark_passed("transport-no-tls")
+        if headers.strict_transport_security is None:
+            log.record(_no_hsts_finding())
+            log.mark_skipped("transport-weak-hsts", "no HSTS header to grade")
+        else:
+            log.mark_passed("transport-no-hsts")
+            weak_hsts = _weak_hsts_finding(headers.strict_transport_security)
+            if weak_hsts is not None:
+                log.record(weak_hsts)
+            else:
+                log.mark_passed("transport-weak-hsts")
     enforced_csp = headers.content_security_policy
     report_only_csp = headers.content_security_policy_report_only
     csp_value = enforced_csp if enforced_csp is not None else report_only_csp
     has_csp = csp_value is not None
     has_frame_ancestors = has_csp and "frame-ancestors" in (csp_value or "").lower()
     if not has_csp:
-        findings.append(_no_csp_finding())
+        log.record(_no_csp_finding())
+        log.mark_skipped("transport-weak-csp", "no CSP header to grade")
     else:
+        log.mark_passed("transport-no-csp")
         weak_csp = _weak_csp_finding(csp_value or "", report_only=enforced_csp is None)
         if weak_csp is not None:
-            findings.append(weak_csp)
+            log.record(weak_csp)
+        else:
+            log.mark_passed("transport-weak-csp")
     if headers.x_frame_options is None and not has_frame_ancestors:
-        findings.append(_no_anti_framing_finding())
+        log.record(_no_anti_framing_finding())
+    else:
+        log.mark_passed("transport-no-anti-framing")
     if (headers.x_content_type_options or "").strip().lower() != "nosniff":
-        findings.append(_no_nosniff_finding())
+        log.record(_no_nosniff_finding())
+    else:
+        log.mark_passed("transport-no-nosniff")
     cross_origin = _cross_origin_isolation_finding(headers)
     if cross_origin is not None:
-        findings.append(cross_origin)
-    cors = _cors_response_finding(headers)
-    if cors is not None:
-        findings.append(cors)
+        log.record(cross_origin)
+    else:
+        log.mark_passed("transport-cross-origin-isolation")
+    allow_origin = headers.access_control_allow_origin
+    if allow_origin is None or not allow_origin.strip():
+        for control_id in (
+            "transport-cors-credentialed-any-origin",
+            "transport-cors-any-origin",
+            "transport-cors-credentialed-specific-origin",
+        ):
+            log.mark_skipped(control_id, "CORS probe returned no Access-Control-Allow-Origin")
+    else:
+        log.mark_passed(
+            "transport-cors-credentialed-any-origin",
+            "transport-cors-any-origin",
+            "transport-cors-credentialed-specific-origin",
+        )
+        cors = _cors_response_finding(headers)
+        if cors is not None:
+            log.record(cors)
     server_finding = _server_disclosure_finding(headers.server)
     if server_finding is not None:
-        findings.append(server_finding)
-    return findings
+        log.record(server_finding)
+    else:
+        log.mark_passed("transport-server-version-disclosure")
+    return log.result()
 
 
 def _no_tls_finding(base_url: str, scheme: str) -> AuditFinding:
@@ -125,6 +160,7 @@ def _no_tls_finding(base_url: str, scheme: str) -> AuditFinding:
             "and all metadata in clear text. Terminate TLS in front of DHIS2 and serve only https."
         ),
         evidence={"base_url": base_url, "scheme": scheme},
+        control="transport-no-tls",
     )
 
 
@@ -141,6 +177,7 @@ def _no_hsts_finding() -> AuditFinding:
             "or forward the secure flag."
         ),
         evidence={"header": "strict-transport-security"},
+        control="transport-no-hsts",
     )
 
 
@@ -166,6 +203,7 @@ def _weak_hsts_finding(value: str) -> AuditFinding | None:
             "(1 year) with includeSubDomains for strong protection against downgrade attacks."
         ),
         evidence={"header": value},
+        control="transport-weak-hsts",
     )
 
 
@@ -194,6 +232,7 @@ def _weak_csp_finding(value: str, *, report_only: bool) -> AuditFinding | None:
             "Tighten the policy so it governs script, object, and base-uri sources without broad or unsafe sources."
         ),
         evidence={"header": value, "weak_directives": "; ".join(failures)},
+        control="transport-weak-csp",
     )
 
 
@@ -221,6 +260,7 @@ def _cross_origin_isolation_finding(headers: TransportHeaders) -> AuditFinding |
             "(COOP: same-origin, COEP: require-corp, CORP: same-origin)."
         ),
         evidence={"missing": ", ".join(missing)},
+        control="transport-cross-origin-isolation",
     )
 
 
@@ -276,6 +316,7 @@ def _cors_response_finding(headers: TransportHeaders) -> AuditFinding | None:
                     "access-control-allow-credentials": headers.access_control_allow_credentials or "",
                     "probe-origin": CORS_PROBE_ORIGIN,
                 },
+                control="transport-cors-credentialed-any-origin",
             )
         return AuditFinding(
             check=_CHECK,
@@ -289,6 +330,7 @@ def _cors_response_finding(headers: TransportHeaders) -> AuditFinding | None:
                 "access-control-allow-origin": allow_origin,
                 "probe-origin": CORS_PROBE_ORIGIN,
             },
+            control="transport-cors-any-origin",
         )
     if credentialed:
         return AuditFinding(
@@ -303,6 +345,7 @@ def _cors_response_finding(headers: TransportHeaders) -> AuditFinding | None:
                 "access-control-allow-origin": allow_origin,
                 "access-control-allow-credentials": headers.access_control_allow_credentials or "",
             },
+            control="transport-cors-credentialed-specific-origin",
         )
     return None
 
@@ -319,6 +362,7 @@ def _no_csp_finding() -> AuditFinding:
             "The header on the wire is the SOLE evidence; there is no `keyCspEnabled` system setting."
         ),
         evidence={"header": "content-security-policy"},
+        control="transport-no-csp",
     )
 
 
@@ -334,6 +378,7 @@ def _no_anti_framing_finding() -> AuditFinding:
             "frame-ancestors is present, to avoid a guaranteed false positive on default instances."
         ),
         evidence={"headers": "x-frame-options, content-security-policy"},
+        control="transport-no-anti-framing",
     )
 
 
@@ -348,6 +393,7 @@ def _no_nosniff_finding() -> AuditFinding:
             "indicates upstream stripping."
         ),
         evidence={"header": "x-content-type-options"},
+        control="transport-no-nosniff",
     )
 
 
@@ -367,4 +413,5 @@ def _server_disclosure_finding(server: str | None) -> AuditFinding | None:
             "matching. Emitted by the container or proxy, not DHIS2 code; genericize it at the proxy."
         ),
         evidence={"server": value},
+        control="transport-server-version-disclosure",
     )

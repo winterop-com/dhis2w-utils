@@ -57,12 +57,12 @@ def _by_title(findings: list[Any]) -> dict[str, Any]:
 
 def test_hardened_https_instance_has_no_findings() -> None:
     """HTTPS with HSTS, CSP frame-ancestors, nosniff, and a bare server token is clean."""
-    assert evaluate_transport(_SECURE) == []
+    assert evaluate_transport(_SECURE).findings == []
 
 
 def test_plaintext_http_base_url_is_high() -> None:
     """A non-https scheme flags the plaintext base URL as HIGH, names it in detail/evidence, skips HSTS."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"scheme": "http"}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"scheme": "http"})).findings
     by_title = _by_title(findings)
     finding = by_title["Base URL is plaintext HTTP"]
     assert finding.severity is Severity.HIGH
@@ -74,7 +74,7 @@ def test_plaintext_http_base_url_is_high() -> None:
 
 def test_http_instance_all_headers_none_has_expected_finding_set() -> None:
     """A plaintext instance with every header absent yields plaintext, no-CSP, anti-framing, nosniff, cross-origin."""
-    findings = evaluate_transport(TransportHeaders(base_url="http://bare.example", scheme="http"))
+    findings = evaluate_transport(TransportHeaders(base_url="http://bare.example", scheme="http")).findings
     titles = _titles(findings)
     assert titles == {
         "Base URL is plaintext HTTP",
@@ -89,13 +89,13 @@ def test_http_instance_all_headers_none_has_expected_finding_set() -> None:
 
 def test_http_scheme_is_case_insensitive() -> None:
     """An uppercase HTTPS scheme is still treated as TLS, so no plaintext finding is raised."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"scheme": "HTTPS"}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"scheme": "HTTPS"})).findings
     assert "Base URL is plaintext HTTP" not in _titles(findings)
 
 
 def test_https_without_hsts_is_medium() -> None:
     """HTTPS with no Strict-Transport-Security header is MEDIUM (an SSL-strip window)."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"strict_transport_security": None}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"strict_transport_security": None})).findings
     by_title = _by_title(findings)
     assert by_title["No Strict-Transport-Security header"].severity is Severity.MEDIUM
 
@@ -104,14 +104,14 @@ def test_missing_csp_is_medium() -> None:
     """No Content-Security-Policy header is MEDIUM, the sole evidence that CSP is off or stripped."""
     findings = evaluate_transport(
         _SECURE.model_copy(update={"content_security_policy": None, "x_frame_options": "SAMEORIGIN"})
-    )
+    ).findings
     by_title = _by_title(findings)
     assert by_title["No Content-Security-Policy header"].severity is Severity.MEDIUM
 
 
 def test_anti_framing_suppressed_when_csp_frame_ancestors_present() -> None:
     """With CSP frame-ancestors and no X-Frame-Options, the anti-framing finding is suppressed."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"x_frame_options": None}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"x_frame_options": None})).findings
     assert "No anti-framing header" not in _titles(findings)
 
 
@@ -119,7 +119,7 @@ def test_anti_framing_satisfied_by_x_frame_options_when_csp_off() -> None:
     """X-Frame-Options SAMEORIGIN with CSP off (csp.enabled=off) leaves no anti-framing finding."""
     findings = evaluate_transport(
         _SECURE.model_copy(update={"content_security_policy": None, "x_frame_options": "SAMEORIGIN"})
-    )
+    ).findings
     assert "No anti-framing header" not in _titles(findings)
 
 
@@ -127,7 +127,7 @@ def test_anti_framing_suppressed_with_mixed_case_frame_ancestors() -> None:
     """A CSP value with mixed-case `Frame-Ancestors` still suppresses the anti-framing finding (case-insensitive)."""
     findings = evaluate_transport(
         _SECURE.model_copy(update={"content_security_policy": "Frame-Ancestors 'self';", "x_frame_options": None})
-    )
+    ).findings
     assert "No anti-framing header" not in _titles(findings)
 
 
@@ -135,27 +135,27 @@ def test_no_anti_framing_is_warn_when_both_missing() -> None:
     """Neither X-Frame-Options nor a CSP frame-ancestors directive raises a WARN anti-framing finding."""
     findings = evaluate_transport(
         _SECURE.model_copy(update={"content_security_policy": "default-src 'self';", "x_frame_options": None})
-    )
+    ).findings
     by_title = _by_title(findings)
     assert by_title["No anti-framing header"].severity is Severity.WARN
 
 
 def test_missing_nosniff_is_warn() -> None:
     """A missing X-Content-Type-Options header is WARN."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"x_content_type_options": None}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"x_content_type_options": None})).findings
     by_title = _by_title(findings)
     assert by_title["No X-Content-Type-Options: nosniff"].severity is Severity.WARN
 
 
 def test_non_nosniff_value_is_warn() -> None:
     """An X-Content-Type-Options value other than `nosniff` is treated as missing and flags WARN."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"x_content_type_options": "something-else"}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"x_content_type_options": "something-else"})).findings
     assert "No X-Content-Type-Options: nosniff" in _titles(findings)
 
 
 def test_nosniff_value_is_case_insensitive() -> None:
     """A `NOSNIFF` value (any case, surrounding whitespace) satisfies the nosniff check."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"x_content_type_options": "  NOSNIFF "}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"x_content_type_options": "  NOSNIFF "})).findings
     assert "No X-Content-Type-Options: nosniff" not in _titles(findings)
 
 
@@ -166,12 +166,12 @@ def test_nosniff_value_is_case_insensitive() -> None:
 
 def test_hsts_one_year_or_more_has_no_weak_finding() -> None:
     """A max-age of at least 1 year (the secure fixture has 2 years) raises no weak-HSTS finding."""
-    assert "Strict-Transport-Security max-age is weak" not in _titles(evaluate_transport(_SECURE))
+    assert "Strict-Transport-Security max-age is weak" not in _titles(evaluate_transport(_SECURE).findings)
 
 
 def test_hsts_absent_is_medium_only_no_weak_finding() -> None:
     """An absent HSTS header stays the existing MEDIUM and does not also fire the present-but-weak WARN."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"strict_transport_security": None}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"strict_transport_security": None})).findings
     titles = _titles(findings)
     assert "No Strict-Transport-Security header" in titles
     assert "Strict-Transport-Security max-age is weak" not in titles
@@ -189,7 +189,7 @@ def test_hsts_absent_is_medium_only_no_weak_finding() -> None:
 )
 def test_hsts_present_but_weak_is_one_warn(value: str) -> None:
     """Each present-but-weak max-age sub-case collapses into exactly one WARN with the parsed value in detail."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"strict_transport_security": value}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"strict_transport_security": value})).findings
     weak = [finding for finding in findings if finding.title == "Strict-Transport-Security max-age is weak"]
     assert len(weak) == 1
     assert weak[0].severity is Severity.WARN
@@ -209,7 +209,11 @@ _STRONG_CSP = "default-src 'self'; object-src 'none'; base-uri 'self'; frame-anc
 
 def _csp_finding(headers: TransportHeaders) -> Any:
     """The single Content-Security-Policy-is-weak finding for a header set, or None when absent."""
-    weak = [finding for finding in evaluate_transport(headers) if finding.title == "Content-Security-Policy is weak"]
+    weak = [
+        finding
+        for finding in evaluate_transport(headers).findings
+        if finding.title == "Content-Security-Policy is weak"
+    ]
     return weak[0] if weak else None
 
 
@@ -227,7 +231,7 @@ def test_csp_absent_is_no_csp_medium_only_no_weak_finding() -> None:
     """An absent CSP stays the existing no-CSP MEDIUM; the parser produces no present-but-weak finding."""
     findings = evaluate_transport(
         _SECURE.model_copy(update={"content_security_policy": None, "x_frame_options": "SAMEORIGIN"})
-    )
+    ).findings
     titles = _titles(findings)
     assert "No Content-Security-Policy header" in titles
     assert "Content-Security-Policy is weak" not in titles
@@ -259,7 +263,7 @@ def test_csp_absent_is_no_csp_medium_only_no_weak_finding() -> None:
 )
 def test_csp_weak_subcase_is_one_medium_with_directive_in_detail(policy: str, expected_in_detail: str) -> None:
     """Each weak CSP sub-case yields exactly one MEDIUM finding naming the failed directive in its detail."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"content_security_policy": policy}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"content_security_policy": policy})).findings
     weak = [finding for finding in findings if finding.title == "Content-Security-Policy is weak"]
     assert len(weak) == 1
     assert weak[0].severity is Severity.MEDIUM
@@ -276,7 +280,7 @@ def test_csp_report_only_mode_is_one_medium() -> None:
                 "x_frame_options": "SAMEORIGIN",
             }
         )
-    )
+    ).findings
     titles = _titles(findings)
     assert "No Content-Security-Policy header" not in titles
     weak = [finding for finding in findings if finding.title == "Content-Security-Policy is weak"]
@@ -299,7 +303,7 @@ def test_csp_present_without_frame_ancestors_does_not_double_flag() -> None:
             "x_frame_options": None,
         }
     )
-    findings = evaluate_transport(headers)
+    findings = evaluate_transport(headers).findings
     titles = _titles(findings)
     # The anti-framing WARN owns the "frame-ancestors entirely missing" case.
     assert "No anti-framing header" in titles
@@ -340,7 +344,9 @@ def test_csp_duplicate_directive_last_wins() -> None:
 
 def test_cross_origin_isolation_all_present_has_no_finding() -> None:
     """When COOP, COEP, and CORP are all set (the secure fixture) no cross-origin finding is raised."""
-    assert "Cross-origin isolation headers not configured (COOP/COEP/CORP)" not in _titles(evaluate_transport(_SECURE))
+    assert "Cross-origin isolation headers not configured (COOP/COEP/CORP)" not in _titles(
+        evaluate_transport(_SECURE).findings
+    )
 
 
 def test_cross_origin_isolation_all_absent_is_one_info() -> None:
@@ -353,7 +359,7 @@ def test_cross_origin_isolation_all_absent_is_one_info() -> None:
                 "cross_origin_resource_policy": None,
             }
         )
-    )
+    ).findings
     aggregated = [
         finding
         for finding in findings
@@ -371,7 +377,7 @@ def test_cross_origin_isolation_partial_lists_only_missing() -> None:
     """When only one of the three is set, the single INFO enumerates exactly the two still missing."""
     findings = evaluate_transport(
         _SECURE.model_copy(update={"cross_origin_embedder_policy": None, "cross_origin_resource_policy": None})
-    )
+    ).findings
     aggregated = [
         finding
         for finding in findings
@@ -391,7 +397,7 @@ def test_cross_origin_isolation_partial_lists_only_missing() -> None:
 
 def _cors_finding(headers: TransportHeaders) -> Any:
     """The single CORS response-header finding for a header set, or None when none is raised."""
-    cors = [finding for finding in evaluate_transport(headers) if finding.title.startswith("CORS allows")]
+    cors = [finding for finding in evaluate_transport(headers).findings if finding.title.startswith("CORS allows")]
     return cors[0] if cors else None
 
 
@@ -498,7 +504,7 @@ def test_cors_wildcard_with_credentials_empty_is_warn_not_high() -> None:
 
 def test_server_version_token_is_warn() -> None:
     """A Server header carrying a version token (a digit run) is a WARN disclosure finding."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"server": "nginx/1.18.0"}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"server": "nginx/1.18.0"})).findings
     by_title = _by_title(findings)
     assert by_title["Server header discloses version"].severity is Severity.WARN
     assert (by_title["Server header discloses version"].evidence or {}).get("server") == "nginx/1.18.0"
@@ -506,12 +512,12 @@ def test_server_version_token_is_warn() -> None:
 
 def test_bare_server_token_is_not_flagged() -> None:
     """A bare product token (just `nginx`) carries no version and is not flagged."""
-    assert "Server header discloses version" not in _titles(evaluate_transport(_SECURE))
+    assert "Server header discloses version" not in _titles(evaluate_transport(_SECURE).findings)
 
 
 def test_missing_server_header_is_not_flagged() -> None:
     """No Server header at all discloses nothing, so no finding."""
-    findings = evaluate_transport(_SECURE.model_copy(update={"server": None}))
+    findings = evaluate_transport(_SECURE.model_copy(update={"server": None})).findings
     assert "Server header discloses version" not in _titles(findings)
 
 

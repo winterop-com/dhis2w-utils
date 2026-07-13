@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
 from dhis2w_core.security_core.findings import AuditFinding, Severity
 from dhis2w_core.security_core.releases import ReleaseFeed
 
@@ -72,7 +73,7 @@ def build_version_posture(raw: str | None) -> VersionPosture:
     behind-latest-patch refinement (which needs releases.dhis2.org) is omitted.
     """
     parsed = parse_dhis2_version(raw)
-    return VersionPosture(version=raw, parsed=parsed, findings=tuple(evaluate_version(parsed, feed=None)))
+    return VersionPosture(version=raw, parsed=parsed, findings=tuple(evaluate_version(parsed, feed=None).findings))
 
 
 # Curated from the DHIS2 GitHub security advisories
@@ -131,26 +132,65 @@ def parse_dhis2_version(raw: str | None) -> ParsedVersion | None:
     )
 
 
-def evaluate_version(parsed: ParsedVersion | None, feed: ReleaseFeed | None) -> list[AuditFinding]:
-    """Classify the running version: stripped (INFO), EOL line (HIGH), advisory floor (HIGH), else patch currency."""
+def evaluate_version(parsed: ParsedVersion | None, feed: ReleaseFeed | None) -> CheckOutcome:
+    """Classify the running version into a CheckOutcome: exposure, EOL line, advisory floor, and patch currency."""
+    log = ControlLog(_CHECK)
     if parsed is None:
-        return [
+        log.record(
             AuditFinding(
                 check=_CHECK,
                 severity=Severity.INFO,
                 title="DHIS2 version not exposed",
                 detail="The server did not report a parseable version; patch and advisory checks cannot run.",
+                control="version-unparseable",
             )
-        ]
-    findings: list[AuditFinding] = []
-    findings.extend(_eol_findings(parsed, feed))
-    findings.extend(_newer_line_findings(parsed, feed))
+        )
+        for control_id in (
+            "version-eol-below-min-line",
+            "version-eol-feed-unsupported",
+            "version-newer-line-available",
+            "version-below-advisory-floor",
+            "version-patch-currency",
+        ):
+            log.mark_skipped(control_id, "version string unparseable")
+        return log.result()
+
+    log.mark_passed("version-unparseable")
+
+    below_min = parsed.line < MIN_SUPPORTED_LINE
+    eol_findings = _eol_findings(parsed, feed)
+    for finding in eol_findings:
+        log.record(finding)
+    if not below_min:
+        log.mark_passed("version-eol-below-min-line")
+    if feed is None:
+        log.mark_skipped("version-eol-feed-unsupported", "release feed unavailable")
+    elif not any(finding.control == "version-eol-feed-unsupported" for finding in eol_findings):
+        log.mark_passed("version-eol-feed-unsupported")
+
+    newer_findings = _newer_line_findings(parsed, feed)
+    for finding in newer_findings:
+        log.record(finding)
+    if feed is None:
+        log.mark_skipped("version-newer-line-available", "release feed unavailable")
+    elif not newer_findings:
+        log.mark_passed("version-newer-line-available")
+
     floor_finding = _advisory_floor_finding(parsed)
     if floor_finding is not None:
-        findings.append(floor_finding)
+        log.record(floor_finding)
+        log.mark_skipped("version-patch-currency", "superseded by advisory-floor finding")
     else:
-        findings.extend(_patch_currency_findings(parsed, feed))
-    return findings
+        log.mark_passed("version-below-advisory-floor")
+        if feed is None:
+            log.mark_skipped("version-patch-currency", "release feed unavailable")
+        else:
+            patch_findings = _patch_currency_findings(parsed, feed)
+            for finding in patch_findings:
+                log.record(finding)
+            if not patch_findings:
+                log.mark_passed("version-patch-currency")
+    return log.result()
 
 
 def _eol_findings(parsed: ParsedVersion, feed: ReleaseFeed | None) -> list[AuditFinding]:
@@ -163,6 +203,7 @@ def _eol_findings(parsed: ParsedVersion, feed: ReleaseFeed | None) -> list[Audit
                 title="End-of-life DHIS2 version",
                 detail=f"DHIS2 2.{parsed.line} is older than 2.{MIN_SUPPORTED_LINE} and is EOL by definition.",
                 evidence={"version": parsed.raw},
+                control="version-eol-below-min-line",
             )
         ]
     entry = feed.line(parsed.line) if feed is not None else None
@@ -174,6 +215,7 @@ def _eol_findings(parsed: ParsedVersion, feed: ReleaseFeed | None) -> list[Audit
                 title="End-of-life DHIS2 version",
                 detail=f"DHIS2 2.{parsed.line} is no longer supported; it receives no security fixes.",
                 evidence={"version": parsed.raw},
+                control="version-eol-feed-unsupported",
             )
         ]
     return []
@@ -193,6 +235,7 @@ def _newer_line_findings(parsed: ParsedVersion, feed: ReleaseFeed | None) -> lis
             title="Newer DHIS2 version line available",
             detail=f"Running the 2.{parsed.line} line; 2.{latest} is the latest released line.",
             evidence={"running_line": f"2.{parsed.line}", "latest_line": f"2.{latest}"},
+            control="version-newer-line-available",
         )
     ]
 
@@ -210,6 +253,7 @@ def _patch_currency_findings(parsed: ParsedVersion, feed: ReleaseFeed | None) ->
             title="Patch or hotfix update available",
             detail=f"Running {parsed.raw}; the latest on the 2.{parsed.line} line is {latest}.",
             evidence={"running": parsed.raw, "latest": latest},
+            control="version-patch-currency",
         )
     ]
 
@@ -232,4 +276,5 @@ def _advisory_floor_finding(parsed: ParsedVersion) -> AuditFinding | None:
         title="Running below the security-advisory patch floor",
         detail=(f"{parsed.raw} is below {fixed}, which fixes: {floor.note} Advisories: {', '.join(floor.advisories)}."),
         evidence={"version": parsed.raw, "fixed_in": fixed, "advisories": ", ".join(floor.advisories)},
+        control="version-below-advisory-floor",
     )
