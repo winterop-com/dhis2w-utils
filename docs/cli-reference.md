@@ -9186,7 +9186,7 @@ $ d2w security audit [OPTIONS]
 
 * `--output-dir DIRECTORY`: Parent directory for the run folder (default: current dir).
 * `--format TEXT`: Comma-separated formats: md,txt,csv,html (default: all).
-* `--checks TEXT`: Comma-separated check keys to run (default: all).
+* `--checks TEXT`: Comma-separated check keys to run (default: all). Valid keys: version, transport, settings, authorities, roles, hygiene, credential-probe, guest, apps, sharing, auth-methods, tokens, routes, audit-config.
 * `--skip TEXT`: Comma-separated check keys to skip.
 * `--progress / --no-progress`: Animate step-by-step progress on a TTY.  [default: progress]
 * `--credential-probe / --no-credential-probe`: Actively test the default admin/district login against /api/me (on by default).  [default: credential-probe]

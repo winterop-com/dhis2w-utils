@@ -2,7 +2,7 @@
 
 Author: Morten Svanaes
 Date: 2026-06-25
-Status: PRs A-F IMPLEMENTED on `feat/security-audit-scanner` (2026-06-25) -- A `13adeb36` (settings top-ups), B `5e4a4291` (transport header grading: HSTS max-age / CSP directives / cross-origin isolation), C `9446ef0c` (runtime CORS response headers), D `e6c28d40` (all-account hygiene aggregates), E `f4962051` (password-age with the v41-vs-v42/v43 _wire split), F `9ae0b38f` (route-management dangerous-authority category). Each was adversarially reviewed and gated. PR G (js-x-ray static app-bundle analysis, section 4) is the one remaining item, deferred as an opt-in post-release sub-project. Source-grounding corrected an app bug en route: the app's `F_PUBLIC_ROUTE_ADD` authority does not exist; the real constant is `F_ROUTE_PUBLIC_ADD` (BUGS.md #57). The sections below are the as-built design for A-F and the design for G.
+Status: PRs A-F IMPLEMENTED on `feat/security-audit-scanner` (2026-06-25); A `13adeb36` (settings top-ups), B `5e4a4291` (transport header grading: HSTS max-age / CSP directives / cross-origin isolation), C `9446ef0c` (runtime CORS response headers), D `e6c28d40` (all-account hygiene aggregates), E `f4962051` (password-age with the v41-vs-v42/v43 _wire split), F `9ae0b38f` (route-management dangerous-authority category). Each was adversarially reviewed and gated. PR G (js-x-ray static app-bundle analysis, section 4) is the one remaining item, deferred as an opt-in post-release sub-project. Source-grounding corrected an app bug en route: the app's `F_PUBLIC_ROUTE_ADD` authority does not exist; the real constant is `F_ROUTE_PUBLIC_ADD` (BUGS.md #57). The sections below are the as-built design for A-F and the design for G.
 
 ## 1. Method and scope
 
@@ -21,13 +21,13 @@ How the diff was produced:
 - Each app signal was mapped to the OUR-check whose domain it falls in
   (`transport`, `settings`, `hygiene`, `apps`, `auth-methods`, `routes`, etc.).
 - Each was then marked HAVE (ours is equivalent), HAVE-BUT-WEAKER (ours covers
-  the domain but the app inspects more / more precisely -- the delta is noted),
+  the domain but the app inspects more / more precisely; the delta is noted),
   GAP (we lack it entirely), or OUT-OF-SCOPE (with reason).
 - Severity translation: the app's `fail`/`warning`/`pass` enum is coarser than
   ours (CRITICAL/HIGH/MEDIUM/WARN/INFO, no LOW). App `fail` maps to HIGH or
   CRITICAL by blast-radius judgement; app `warning` maps to MEDIUM or WARN; app
   `pass`/`info` carries no finding in our model (absence of a finding IS our
-  success signal -- we emit no per-check pass rows).
+  success signal; we emit no per-check pass rows).
 
 Version scope mismatch (load-bearing):
 
@@ -53,7 +53,7 @@ thorough (delta noted); GAP = we lack it; OOS = out of scope (reason).
 | app signal | status | delta / reason |
 |---|---|---|
 | password-policy (minPasswordLength < 8) | HAVE | ours: `settings_audit.py:60`, identical threshold. |
-| account-lockout (lockMultipleFailedLogins false) | HAVE | ours: `keyLockMultipleFailedLogins is False` (`:71`). App also warns when the key is ABSENT (older version) -- minor WEAKER, see 3.1. |
+| account-lockout (lockMultipleFailedLogins false) | HAVE | ours: `keyLockMultipleFailedLogins is False` (`:71`). App also warns when the key is ABSENT (older version); minor WEAKER, see 3.1. |
 | password-expiry-policy (credentialsExpires == 0) | HAVE | ours: `credentialsExpires in (None, 0)` (`:81`). |
 | email-verification (enforceVerifiedEmail) | WEAKER | ours reads `enforceVerifiedEmail` only inside the SMTP-coupling verdict (`:139`); we do NOT emit a standalone "email verification not enforced" finding. App warns whenever it is not `'true'`. GAP-ish verdict, see 3.2. |
 | password-policy / lockout / expiry "setting unavailable -> warning" | OOS | ours degrades the whole check with a note when systemSettings is unreachable; we do not emit per-setting "unable to check" warnings. Design choice (DEGRADED note, not a finding). Keep as-is. |
@@ -81,7 +81,7 @@ thorough (delta noted); GAP = we lack it; OOS = out of scope (reason).
 | corp-header (Cross-Origin-Resource-Policy) | GAP | not inspected by us. See 3.7. |
 | header "unavailable -> warning" (responseHeaders null) | OOS | ours degrades the check with a note when the response is unreachable; we do not emit per-header "unavailable" warnings. Keep DEGRADED-note design. |
 | anti-framing (X-Frame-Options / CSP frame-ancestors) | HAVE | ours: combined anti-framing WARN, suppressed when CSP frame-ancestors present. |
-| X-Content-Type-Options nosniff | HAVE | ours: nosniff WARN. (App does NOT check this -- we are ahead here.) |
+| X-Content-Type-Options nosniff | HAVE | ours: nosniff WARN. (App does NOT check this; we are ahead here.) |
 
 ### 2.4 -> OUR `hygiene` check (users)
 
@@ -101,10 +101,10 @@ thorough (delta noted); GAP = we lack it; OOS = out of scope (reason).
 | app signal | status | delta / reason |
 |---|---|---|
 | untrusted-app-sources manual/sideloaded present | HAVE | ours: `apps` side-loaded -> HIGH (`apps.py`). |
-| untrusted-app-sources bundled/coreApp/appHubId classification | HAVE | ours classifies bundled / core_app / app_hub_id identically. (coreApp is the v39/v40 legacy flag -- partially OOS but we already read it.) |
+| untrusted-app-sources bundled/coreApp/appHubId classification | HAVE | ours classifies bundled / core_app / app_hub_id identically. (coreApp is the v39/v40 legacy flag; partially OOS but we already read it.) |
 | untrusted-app-sources fetch error | OOS | ours degrades with a note rather than an `error` finding row. Keep. |
 
-### 2.6 -> OUR `apps-static-analysis` (js-x-ray) -- NEW capability
+### 2.6 -> OUR `apps-static-analysis` (js-x-ray): NEW capability
 
 | app signal | status | delta / reason |
 |---|---|---|
@@ -144,7 +144,7 @@ a version-invariant reducer in `security_core/<check>.py`, per-tree wiring in
 
 - Lands in: extend `settings_audit.evaluate_settings` (one new verdict).
 - Setting-key: `enforceVerifiedEmail` (already on `SettingsLike` and the per-tree
-  `SecuritySettings` projection -- NO model change).
+  `SecuritySettings` projection; NO model change).
 - Today we only read it inside the SMTP-coupling verdict. Add a standalone
   verdict: `enforceVerifiedEmail is False` (or None) -> WARN "Email verification
   is not enforced". Keep it WARN not MEDIUM: it is a hardening gap, not an active
@@ -224,7 +224,7 @@ a version-invariant reducer in `security_core/<check>.py`, per-tree wiring in
 
 ---
 
-### 3.6 transport: CSP directive parsing (GAP, medium value -- biggest transport gap)
+### 3.6 transport: CSP directive parsing (GAP, medium value; biggest transport gap)
 
 - Lands in: extend `transport` (or a focused `csp.py` helper imported by
   `transport.py` to keep the reducer readable).
@@ -239,7 +239,7 @@ a version-invariant reducer in `security_core/<check>.py`, per-tree wiring in
   - `object-src` not `'none'` (and no locked default-src) -> WARN.
   - `base-uri` unset or broad -> WARN.
   - `frame-ancestors` unset or broad -> WARN (NOTE: our existing anti-framing
-    WARN already covers the "frame-ancestors entirely missing" case -- de-dup so
+    WARN already covers the "frame-ancestors entirely missing" case; de-dup so
     we do not double-flag; the CSP parse should only ADD the "present but broad"
     sub-case).
   - `strict-dynamic` -> informational annotation only, NEVER a warning.
@@ -249,7 +249,7 @@ a version-invariant reducer in `security_core/<check>.py`, per-tree wiring in
   MEDIUM). App uses warning.
 - Models: no new endpoint; add nothing to `TransportHeaders` (value already read).
   A small frozen `CspDirectives` view-model inside `transport.py`/`csp.py` for the
-  parsed map (NO dict across boundaries -- typed accessor).
+  parsed map (NO dict across boundaries; typed accessor).
 - Version: uniform. DHIS2's `CspFilter` is version-invariant; the policy STRING
   is what we grade, so no per-tree wire split. Verify against `CspFilter.java`
   that the default policy on v43 has not tightened in a way that would make our
@@ -264,7 +264,7 @@ a version-invariant reducer in `security_core/<check>.py`, per-tree wiring in
 - Lands in: extend `transport`.
 - Fields: `cross-origin-opener-policy`, `cross-origin-embedder-policy`,
   `cross-origin-resource-policy` response headers (no new endpoint).
-- Findings (one each, all WARN -- these are defence-in-depth, not active holes):
+- Findings (one each, all WARN: these are defence-in-depth, not active holes):
   - COOP: missing or `unsafe-none` or unrecognized -> WARN; `same-origin` /
     `same-origin-allow-popups` -> no finding.
   - COEP: missing or `unsafe-none` or unrecognized -> WARN; `require-corp` /
@@ -290,7 +290,7 @@ a version-invariant reducer in `security_core/<check>.py`, per-tree wiring in
   never-logged-in (`:99`) and stale (`:110`) branches are guarded by
   `if not user.is_privileged: continue` (`:85`). The app applies these to every
   active account.
-- Endpoints/fields: `/api/users` (already allowlisted) -- we already fetch
+- Endpoints/fields: `/api/users` (already allowlisted); we already fetch
   `disabled`, `lastLogin` for the hygiene join. To match the app efficiently,
   optionally use the server `inactiveMonths` param and `filter=lastLogin:null`,
   but our existing full-user fetch already carries `lastLogin`, so we can grade
@@ -301,7 +301,7 @@ a version-invariant reducer in `security_core/<check>.py`, per-tree wiring in
   - active non-privileged account stale > `stale_days` -> **WARN** "Stale active
     account" (privileged stays MEDIUM as today).
   - Fold per-account findings under a `group_key` so a 5000-user instance does
-    not emit 5000 rows -- emit a COUNT + a capped sample (mirror app's
+    not emit 5000 rows; emit a COUNT + a capped sample (mirror app's
     SAMPLE_LIMIT=10) in one finding. This is important: the privileged path
     emits per-user because privileged sets are small; the all-users path MUST
     aggregate.
@@ -332,7 +332,7 @@ a version-invariant reducer in `security_core/<check>.py`, per-tree wiring in
   3.8.
 - Severity: WARN (stale password is a hardening gap; reserve MEDIUM/HIGH for
   active holes). Privileged accounts with never-set passwords could be bumped to
-  MEDIUM -- decide at build.
+  MEDIUM; decide at build.
 - Version: divergent field name (v41 vs v42/v43) -> `_wire.py` member required.
   The app's `<v42` nested path is partially OOS (we only support v41 as the floor,
   and v41 IS pre-v42, so we DO need the nested path for v41).
@@ -359,7 +359,7 @@ a version-invariant reducer in `security_core/<check>.py`, per-tree wiring in
     taxonomy (`AUTHORITY_CATEGORIES`).
 - Lands in: extend `authorities.py` taxonomy + the `roles` reducer.
   - Add `F_PUBLIC_ROUTE_ADD` to a new/`tracker_admin`-adjacent category (it pairs
-    naturally with our `routes` SSRF check -- a user who can add public routes can
+    naturally with our `routes` SSRF check; a user who can add public routes can
     create the SSRF targets that check flags), and `F_IMPERSONATE_USER` to a
     `user_management`-adjacent or new `impersonation` category. F_SYSTEM_SETTING
     already maps to our `system_settings` category.
@@ -385,7 +385,7 @@ a version-invariant reducer in `security_core/<check>.py`, per-tree wiring in
 ## 4. js-x-ray installed-app static analysis (MAJOR strategic section)
 
 This is the single largest gap and the one the app's `apps-static-analysis`
-cluster is built around. It is NOT a posture read -- it FETCHES every installed
+cluster is built around. It is NOT a posture read; it FETCHES every installed
 app's bundles and statically analyzes the JavaScript for malware/obfuscation
 signals (eval/new Function, remote dynamic import, obfuscation fingerprints,
 encoded literals, weak crypto). Our `apps` check today does ONLY install-source
@@ -398,7 +398,7 @@ analysis. Honest assessment: this is a sub-project, not a check.
   engine; its specific kinds (obfuscated-code via curated obfuscator fingerprints,
   encoded-literal, suspicious-literal, short-identifiers, unsafe-import/stmt) have
   no Python port.
-- The heaviest signal -- `obfuscated-code` -- relies on curated
+- The heaviest signal, `obfuscated-code`, relies on curated
   javascript-obfuscator fingerprints that are non-trivial to reproduce.
 - It is heavier than ANY current check: it fetches `index.html` per app, parses
   `<script src>`, fetches each same-origin bundle (up to 5 MB each), and runs an
@@ -415,11 +415,11 @@ unsafe-import; Shannon-entropy + length on string literals -> encoded-literal /
 suspicious-literal; mean identifier length -> short-identifiers; MD5/SHA1
 references -> weak-crypto. Port the FAIL/WARNING/INFO mapping and the
 NOISY_KINDS exclusions (`unsafe-assign`, `unsafe-regex`) verbatim. The
-`obfuscated-code` fingerprint detector is the hard part -- ship it as a stretch
+`obfuscated-code` fingerprint detector is the hard part; ship it as a stretch
 goal.
 
 (b) **Shell out to js-x-ray via a Node subprocess.** Exact parity, but adds a
-Node runtime dependency to a pure-Python CLI -- contradicts the repo ethos
+Node runtime dependency to a pure-Python CLI; contradicts the repo ethos
 (CLAUDE.md, `uv` for everything Python). Reject as the default; acceptable only
 as an optional `obfuscated-code` fallback if a user has Node.
 
@@ -459,35 +459,35 @@ tree-sitter, opt-in.** Rationale:
 Mirrors the 8a/8b/8c sizing (small/medium, ~<=15 files). Ordered so each PR is
 independently shippable and reviewable.
 
-- **PR A -- settings verdict top-ups (XS-S).** 3.2 (standalone email-verification
+- **PR A: settings verdict top-ups (XS-S).** 3.2 (standalone email-verification
   WARN), 3.3 (non-empty CORS INFO). Pure `settings_audit.py` reducer edits + one
   reducer test. No allowlist, no `_wire`, no model change. Highest signal-per-line.
   Files: `settings_audit.py`, `test_security_settings*.py`, `FEATURES.md`.
-- **PR B -- transport header grading (S-M).** 3.5 (HSTS max-age), 3.6 (CSP
+- **PR B: transport header grading (S-M).** 3.5 (HSTS max-age), 3.6 (CSP
   directive parse), 3.7 (COOP/COEP/CORP, shipped as a single aggregated WARN/INFO
   after confirming DHIS2 defaults). Extends `transport.py` (+ optional `csp.py`),
   `TransportHeaders` fields. One reducer test file. No new endpoint.
   Files: `transport.py`, `csp.py`(new), `__init__.py`, `test_security_transport.py`,
   `BUGS.md`, `FEATURES.md`.
-- **PR C -- runtime CORS response headers (S).** 3.4. Extends `transport` with the
+- **PR C: runtime CORS response headers (S).** 3.4. Extends `transport` with the
   synthetic-Origin probe + ACAO/ACAC findings. Carries the guardrail-note update
   for the synthetic Origin header.
   Files: `transport.py`, `guardrails.py` (note only), `test_security_transport.py`,
   `test_security_guardrails.py`, `FEATURES.md`.
-- **PR D -- all-account hygiene (S-M).** 3.8 (never-logged-in / stale for all
+- **PR D: all-account hygiene (S-M).** 3.8 (never-logged-in / stale for all
   active accounts, AGGREGATED). Extends `hygiene.py`. No `_wire`.
   Files: `hygiene.py`, `audit.py` x3 (only if the user fetch needs widening),
   `test_security_hygiene.py`, `FEATURES.md`.
-- **PR E -- password-age (M).** 3.9. The one PR with a real `_wire.py` split
+- **PR E: password-age (M).** 3.9. The one PR with a real `_wire.py` split
   (v41 nested vs v42/v43 flat `passwordLastUpdated`). BUGS.md entry for the field
   divergence.
   Files: `hygiene.py` (or `password_age.py`), `_wire.py` x3, `audit.py` x3,
   `test_security_*`, `BUGS.md`, `FEATURES.md`.
-- **PR F -- privileged-authority taxonomy (S).** 3.10. Add F_PUBLIC_ROUTE_ADD /
+- **PR F: privileged-authority taxonomy (S).** 3.10. Add F_PUBLIC_ROUTE_ADD /
   F_IMPERSONATE_USER to the dangerous-authority taxonomy; descope the
   holder-count threshold.
   Files: `authorities.py`, `roles.py`, `test_security_roles.py`, `FEATURES.md`.
-- **PR G+ -- js-x-ray static analysis (L, post-release, opt-in).** Section 4. Its
+- **PR G+: js-x-ray static analysis (L, post-release, opt-in).** Section 4. Its
   own 1-2 PRs with the new same-origin bundle-fetch guardrail surface and the
   tree-sitter analyzer. Explicitly NOT in the default run set.
 

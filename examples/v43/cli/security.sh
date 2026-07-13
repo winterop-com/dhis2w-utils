@@ -33,6 +33,11 @@ d2w security audit --output-dir ./reports --format md,html
 # Disable the active probe to keep the audit strictly read-only:
 d2w security audit --no-credential-probe
 
+# The 14 valid --checks keys, in canonical running order:
+#   version, transport, settings, authorities, roles, hygiene, credential-probe,
+#   guest, apps, sharing, auth-methods, tokens, routes, audit-config
+# Pass any comma-separated subset; --skip takes the same keys.
+
 # Run only the probe (skips every other check):
 d2w security audit --checks credential-probe
 

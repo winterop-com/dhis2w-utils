@@ -229,9 +229,9 @@ Real instances: tens of thousands of metadata objects, thousands of users, hundr
 groups/roles. We cannot embed everything naively.
 
 - **Tier the data.** (1) Always include the full *principal* subgraph (users, groups, roles,
-  authorities, memberships) — bounded, thousands not millions. (2) Always include every
+  authorities, memberships); bounded, thousands not millions. (2) Always include every
   object with *non-default* sharing (public-write, external, any explicit user/group share
-  beyond owner) — the security-relevant slice, usually a small fraction. (3) Only with
+  beyond owner); the security-relevant slice, usually a small fraction. (3) Only with
   `--sharing-graph-full` (and under `--max-objects`) include the full object inventory.
 - **Aggregate the boring.** Owner-only / default-shared objects roll into a per-type count
   ("4,812 dataElements with default sharing") rather than individual nodes.
@@ -283,7 +283,7 @@ with a BUGS.md entry, per the three-tree rule.
 Standalone app, later and cheap: the same `sharing-explorer.html` + `sharing-runtime.js`,
 plus a loader that fetches the graph live from a DHIS2 instance (via `dhis2w-client`) instead
 of reading the embedded `sharing-data.js`. Because the builder is UI-agnostic and the schema
-is versioned, the app is "new workspace member + live loader", not a rewrite — consistent
+is versioned, the app is "new workspace member + live loader", not a rewrite; consistent
 with the architecture's "new surfaces land as new members."
 
 LOCKED: vendor d3 (decision 3), bundled as package data, offline, no CDN. Revisit only if
@@ -305,16 +305,16 @@ target ~15 files, three trees). Three-PR sequence, each independently reviewable
 shipping its tests over the three trees, examples, FEATURES.md rows, docs, and BUGS.md
 entries where divergence surfaces:
 
-- **PR 7a — sharing data layer + findings.** `security_core/sharing/{model,builder,check}.py`,
+- **PR 7a: sharing data layer + findings.** `security_core/sharing/{model,builder,check}.py`,
   the per-tree `_run_sharing` wiring, the `sharing` findings, `--format json` exposure of the
   graph, tests over three trees. No UI, no closure yet. Independently useful: a
   machine-readable access graph plus the PR 7 findings the base plan promised.
-- **PR 7b — core explorer.** `effective.py` (the transitive closure + provenance), `view.py`
+- **PR 7b: core explorer.** `effective.py` (the transitive closure + provenance), `view.py`
   (the `window.__SHARING__` payload), `explorer.py` (the bundle emitter), the vendored d3 +
   explorer template/runtime as package data, the `--sharing-graph` flag, the report deep-link
   banner. Viewer modes: object tree + exposure triage + by-principal + by-role/authority
   pivots. Tests: payload-shape + closure correctness + a smoke render.
-- **PR 7c — advanced visual modes.** The force-directed graph and the matrix heatmap modes on
+- **PR 7c: advanced visual modes.** The force-directed graph and the matrix heatmap modes on
   top of 7b's payload, plus the compact columnar encoding for large graphs and the
   loud-truncation banner. Mostly runtime (`sharing-runtime.js`) plus any encoding changes in
   `view.py`.
@@ -331,5 +331,5 @@ larger than a two-PR split can hold reviewably.
 - Whether `managedGroups` is worth surfacing in v1 (it is the admin-delegation relation, very
   relevant to "who can grant access") or deferred with the boundary-crossing graph work the
   base plan already defers.
-- Compact-encoding format for the large graph (columnar arrays + index refs) — design when
+- Compact-encoding format for the large graph (columnar arrays + index refs); design when
   the force-graph lands.

@@ -2,7 +2,7 @@
 
 Author: Morten Svanaes
 Date: 2026-06-24
-Status: IMPLEMENTED on `feat/security-audit-scanner` (2026-06-25) -- 8a `1a7da685`, 8b `f8c19125` / `e9b22859` / `649f4655`, 8c `52ac0f1f`. All five checks (transport, settings extensions, auth-methods, tokens, routes, audit-config) landed adversarially reviewed and gated; the 14-check catalog is complete. Only PR 9 (the cheap MCP read surface) remains before the scanner is release-complete. The sections below are the as-built design.
+Status: IMPLEMENTED on `feat/security-audit-scanner` (2026-06-25); 8a `1a7da685`, 8b `f8c19125` / `e9b22859` / `649f4655`, 8c `52ac0f1f`. All five checks (transport, settings extensions, auth-methods, tokens, routes, audit-config) landed adversarially reviewed and gated; the 14-check catalog is complete. Only PR 9 (the cheap MCP read surface) remains before the scanner is release-complete. The sections below are the as-built design.
 
 ## 1. Overview
 
@@ -13,12 +13,12 @@ five catalog checks that are pre-declared in `registry.py` but not yet flipped
 into the implemented set, plus the verdict extensions to the already-shipped
 `settings` check:
 
-1. `transport` -- TLS posture and HTTP security headers read off the wire.
-2. `auth-methods` -- OIDC providers on the login page plus registered OAuth2 clients.
-3. `tokens` -- Personal Access Token inventory and weak-token posture.
-4. `routes` -- the 2.41+ Route API as an SSRF surface.
-5. `audit-config` -- DHIS2 auditing posture, API-first with an optional `--dhis-conf` parse.
-6. `settings-extensions` -- new privilege-escalation and account-policy verdicts on the existing `settings` check.
+1. `transport`: TLS posture and HTTP security headers read off the wire.
+2. `auth-methods`: OIDC providers on the login page plus registered OAuth2 clients.
+3. `tokens`: Personal Access Token inventory and weak-token posture.
+4. `routes`: the 2.41+ Route API as an SSRF surface.
+5. `audit-config`: DHIS2 auditing posture, API-first with an optional `--dhis-conf` parse.
+6. `settings-extensions`: new privilege-escalation and account-policy verdicts on the existing `settings` check.
 
 After PR 8, the only remaining work before release is PR 9 (the MCP surface:
 cheap single-request reads mirroring the CLI). The long-running `audit` stays
@@ -26,7 +26,7 @@ CLI-only. The feature is released once PR 8 and PR 9 have both landed.
 
 This is greenfield. Every check below is the first working version of the thing;
 nothing here fixes, migrates, or deprecates prior behaviour. The `settings`
-extension adds verdicts to a reducer that already ships -- it does not rewrite
+extension adds verdicts to a reducer that already ships; it does not rewrite
 the four verdicts already there.
 
 ## 2. Architecture pattern recap
@@ -55,11 +55,11 @@ holding exactly four things (model after `apps.py:1-140`, `guest.py:1-119`):
    passes `hub: list[HubApp] | None` where `None` skips the update findings).
    The shipped `settings_audit.evaluate_settings:28-74` reads through a
    `SettingsLike` Protocol (`settings_audit.py:15-26`) so the reducer never
-   imports a per-tree model -- the settings extension follows that same Protocol path.
+   imports a per-tree model; the settings extension follows that same Protocol path.
 4. Finding shaping via `AuditFinding` (`security_core/findings.py:43-54`: fields
    `check`, `severity`, `title`, `detail`, `subject?`, `evidence: dict[str,str]|None`,
    `group_key?`). `Severity` is the StrEnum CRITICAL/HIGH/MEDIUM/WARN/INFO
-   (`findings.py:11-19`) -- there is NO LOW tier, so any "LOW" signal maps to WARN.
+   (`findings.py:11-19`); there is NO LOW tier, so any "LOW" signal maps to WARN.
    `evidence` values are ALWAYS str. `group_key` folds repeated findings of one
    kind in the renderer; `subject` names the offending object. Reuse the
    severity helpers in `findings.py:57-74` where a role-reach signal is involved.
@@ -109,7 +109,7 @@ calls `_bound_checks`.
 The `CheckSpec` rows for `"transport"` (`:27`), `"settings"` (`:28`),
 `"auth-methods"` (`:36`), `"tokens"` (`:37`), `"routes"` (`:38`), and
 `"audit-config"` (`:39`) ALREADY exist in `CANONICAL_CHECKS` in canonical running
-order, so PR 8 adds NO `CANONICAL_CHECKS` rows -- it only flips the implemented
+order, so PR 8 adds NO `CANONICAL_CHECKS` rows; it only flips the implemented
 set. `"settings"` is already implemented (shipped PR 1), so the settings-verdict
 EXTENSION needs NO registry edit.
 
@@ -119,7 +119,7 @@ expected default-run order from `resolve_check_keys()`. Adding to
 `resolve_check_keys()` returns implemented keys in CANONICAL_CHECKS order, and
 `transport` is declared 2nd in CANONICAL_CHECKS (`registry.py:27`, right after
 `version`). So flipping `transport` into the implemented set inserts it at
-position 2 and shifts every later index by one -- it is NOT appended. The shipped
+position 2 and shifts every later index by one; it is NOT appended. The shipped
 assertion is `version, settings, authorities, roles, hygiene, credential-probe,
 guest, apps, sharing`. After PR 8a adds `transport`, the new assertion list is
 exactly: `version, transport, settings, authorities, roles, hygiene,
@@ -132,7 +132,7 @@ after sharing).
 `dhis2w_core/v{41,42,43}/plugins/security/_wire.py` is the ONLY per-tree file
 that legitimately diverges by content (audit.py/cli.py/service.py differ only in
 import paths). It exports module-level constants and tiny pure extractors, NOT
-classes -- the 2FA case is the worked example (v41 `_wire.py:10-22` reads the
+classes; the 2FA case is the worked example (v41 `_wire.py:10-22` reads the
 inline `twoFactorEnabled`; v42/v43 `_wire.py:14-26` return None and cite
 BUGS.md #58). The reducer in `security_core` stays version-blind; only the
 extraction lives per tree. For PR 8, `_wire.py` gains members ONLY for
@@ -143,7 +143,7 @@ and `settings-extensions` need NO `_wire.py` change.
 ### 2.5 One parametrised test per check
 
 Tests live ONCE at `packages/dhis2w-core/tests/security/`, parametrised over the
-three trees -- never per-tree copies. File naming `test_security_<check>.py`.
+three trees; never per-tree copies. File naming `test_security_<check>.py`.
 Each file has two sections: version-invariant reducer tests (call
 `evaluate_<check>` directly with hand-built typed inputs, no client/respx/parametrize),
 and per-tree wiring tests (`TREES = ("v41","v42","v43")`, a `_audit_module(tree)`
@@ -164,12 +164,12 @@ The transport check inspects TLS posture and HTTP security headers DHIS2 (or its
 reverse proxy) returns on the wire, because credential confidentiality and
 clickjacking/MIME-sniffing defences are decided at the transport edge, not in
 metadata. It reads the base-URL scheme from `client.base_url` and the response
-headers from a single GET against `/api/system/info` -- already in `GET_ALLOWLIST`
+headers from a single GET against `/api/system/info`; already in `GET_ALLOWLIST`
 (`guardrails.py:48`) and `CONNECT_PATHS` (`guardrails.py:88`). It adds NO new
 endpoint and NO new allowlist path. The check reads the response headers via
 `client.get_response("/api/system/info")` (`client.py:444`), the no-raise GET
-escape hatch that returns the raw `httpx.Response` -- headers, status, and body
-all inspectable -- while still applying the audited auth header and base-URL
+escape hatch that returns the raw `httpx.Response`; headers, status, and body
+all inspectable; while still applying the audited auth header and base-URL
 machinery. The docstring already names "you need the raw `Content-Type` (SSO /
 proxy-page detection)" as a sanctioned use, so reading security headers off the
 same response is the idiomatic path.
@@ -183,12 +183,12 @@ No response body fields are read.
 `/schemas` found only `api_headers_auth_scheme.py` and `grid_header.py`, both
 unrelated). NEW plugin-internal frozen view-model in `security_core/transport.py`:
 
-- `TransportHeaders` -- frozen BaseModel, fields `scheme: str`,
+- `TransportHeaders`: frozen BaseModel, fields `scheme: str`,
   `strict_transport_security: str | None`, `content_security_policy: str | None`,
   `x_frame_options: str | None`, `x_content_type_options: str | None`,
   `server: str | None`. Mirrors `guest.AnonymousResult`. Exported from
   `security_core/__init__.py` + `__all__`.
-- `TransportProbe` (optional) -- frozen BaseModel `reachable: bool`,
+- `TransportProbe` (optional): frozen BaseModel `reachable: bool`,
   `status_code: int | None`, `headers: TransportHeaders | None`, `error: str | None`,
   to keep the transport-error degraded path typed like `AnonymousResult.status_code=None`.
   Fold into `_run_transport` if it does not earn its keep.
@@ -202,7 +202,7 @@ The `httpx.Response.headers` returned by `client.get_response` are wrapped into
 |--------|----------|-----------|--------|
 | Base URL uses http:// (non-TLS) | HIGH | resolved canonical base URL scheme != https | Plaintext HTTP at `{base_url}`; every request carries the operator's credentials and all metadata in clear text. Terminate TLS in front of DHIS2 and serve only https. |
 | HTTPS but no HSTS | MEDIUM | scheme is https AND no `strict-transport-security` header | HTTPS endpoint returns no Strict-Transport-Security header, leaving an SSL-strip / downgrade window. DHIS2 emits HSTS via Spring Security only when the request reaches the app as secure; a TLS-terminating proxy that forwards plain HTTP commonly suppresses it. Set HSTS at the proxy or forward the secure flag. |
-| No Content-Security-Policy | MEDIUM | no `content-security-policy` header | On a default DHIS2 (csp.enabled=on) the CspFilter always emits at least `frame-ancestors 'self';`. Absence means CSP was disabled in dhis.conf (csp.enabled=off) or stripped upstream. The header on the wire is the SOLE evidence -- there is no `keyCspEnabled` system setting. |
+| No Content-Security-Policy | MEDIUM | no `content-security-policy` header | On a default DHIS2 (csp.enabled=on) the CspFilter always emits at least `frame-ancestors 'self';`. Absence means CSP was disabled in dhis.conf (csp.enabled=off) or stripped upstream. The header on the wire is the SOLE evidence; there is no `keyCspEnabled` system setting. |
 | No anti-framing (no X-Frame-Options and no CSP frame-ancestors) | WARN | neither `x-frame-options` NOR a `content-security-policy` containing `frame-ancestors` | DHIS2 supplies one or the other (CSP frame-ancestors when csp.enabled=on, X-Frame-Options SAMEORIGIN when off); both missing points at upstream stripping. Suppressed when CSP frame-ancestors is present, to avoid a guaranteed false positive on default instances. |
 | No X-Content-Type-Options: nosniff | WARN | no `x-content-type-options` header, or value not `nosniff` (case-insensitive) | Browsers may MIME-sniff. DHIS2 sets this unconditionally via Spring Security, so absence indicates upstream stripping. |
 | Server header version disclosure | WARN | `server` header value contains a version token (digit run, or Apache/nginx/Jetty/Tomcat with a version) | The Server header reveals server software and version (`{server_value}`), a free fingerprint for CVE matching. Emitted by the container or proxy, not DHIS2 code; genericize it at the proxy. A bare token (just `nginx`) is INFO-or-suppressed. |
@@ -222,10 +222,10 @@ runner + `_RUNNERS` entry in each of v41/v42/v43 audit.py (three identical edits
   frame-ancestors 'self';` on every response; when DISABLED adds
   `X-Frame-Options: SAMEORIGIN` instead.
 - CSP is governed by `ConfigurationKey.CSP_ENABLED('csp.enabled', Constants.ON,
-  confidential=true)` -- a dhis.conf key, default ON, confidential. There is NO
+  confidential=true)`; a dhis.conf key, default ON, confidential. There is NO
   `keyCspEnabled` system setting anywhere (grep returned nothing).
   `DefaultDhisConfigurationProvider.getConfigurationsAsMap` masks every confidential
-  key to `""`, so csp.enabled is never observable via any exposed config -- the
+  key to `""`, so csp.enabled is never observable via any exposed config; the
   only evidence of CSP state is the response header.
 - `DhisWebApiWebSecurityConfig.setHttpHeaders` (lines 274-282) sets
   X-Content-Type-Options (nosniff) and X-XSS-Protection unconditionally and HSTS
@@ -259,11 +259,11 @@ attempt, never reading secrets.
 
 **Endpoints + wire fields.**
 
-- GET `/api/loginConfig` -- `oidcProviders[]` (each: `id`, `loginText`, `url`,
+- GET `/api/loginConfig`: `oidcProviders[]` (each: `id`, `loginText`, `url`,
   `icon`, `iconPadding`), `selfRegistrationEnabled`, `allowAccountRecovery`,
   `emailConfigured`. PermitAll / pre-auth on all majors. SAML providers are NOT
-  surfaced here -- describe the signal as OIDC providers, not OIDC/SAML.
-- GET `/api/oAuth2Clients` -- DIVERGENT (see below). v41: `data[].{cid,
+  surfaced here; describe the signal as OIDC providers, not OIDC/SAML.
+- GET `/api/oAuth2Clients`: DIVERGENT (see below). v41: `data[].{cid,
   grantTypes:list[str], redirectUris:list[str], secret, displayName}`;
   v42/v43: `oAuth2Clients[].{clientId, authorizationGrantTypes:comma-string,
   redirectUris:comma-string, clientSecret, scopes:comma-string, displayName}`.
@@ -274,15 +274,15 @@ escape hatch and IMMEDIATELY wraps into a NAMED Pydantic view-model in
 
 REUSE (verified generated classes):
 
-- `LoginConfigResponse` -- `dhis2w_client.generated.v{41,42,43}.oas.login_config_response.LoginConfigResponse`.
+- `LoginConfigResponse`: `dhis2w_client.generated.v{41,42,43}.oas.login_config_response.LoginConfigResponse`.
   Exact wire model for `/api/loginConfig`, has `oidcProviders: list[LoginOidcProvider]`.
   `extra=allow`. v42/v43 byte-identical; v41 omits min/maxPasswordLength (not read here).
-- `LoginOidcProvider` -- `dhis2w_client.generated.v{41,42,43}.oas.login_oidc_provider.LoginOidcProvider`.
+- `LoginOidcProvider`: `dhis2w_client.generated.v{41,42,43}.oas.login_oidc_provider.LoginOidcProvider`.
   Uniform across all three trees.
-- `OAuth2Client` -- `dhis2w_client.generated.v41.oas.o_auth2_client.OAuth2Client`,
+- `OAuth2Client`: `dhis2w_client.generated.v41.oas.o_auth2_client.OAuth2Client`,
   reuse ONLY in the v41 tree (list-typed `grantTypes`/`redirectUris`, `secret`, `cid`).
 
-NEW (the three-tree gap -- BUGS.md REQUIRED): the generated `Dhis2OAuth2Client`
+NEW (the three-tree gap; BUGS.md REQUIRED): the generated `Dhis2OAuth2Client`
 (`dhis2w_client.generated.v{42,43}.oas.dhis2_o_auth2_client.Dhis2OAuth2Client`,
 string-typed `authorizationGrantTypes`/`redirectUris`/`scopes`, `clientSecret`,
 `clientId`) exists ONLY for v42/v43, and the array-typed `OAuth2Client` exists
@@ -293,11 +293,11 @@ view-model in `security_core/auth_methods.py`, with a REQUIRED BUGS.md entry
 (cross-referencing #39) explaining the absent v42/v43 array schema / the absent
 v41 string schema:
 
-- `OAuth2ClientView` -- frozen BaseModel: `identifier: str` (clientId on v42/v43,
+- `OAuth2ClientView`: frozen BaseModel: `identifier: str` (clientId on v42/v43,
   cid on v41), `display_name: str | None`, `grant_types: frozenset[str]`
   (normalized lowercase), `redirect_uris: tuple[str, ...]`. Deliberately omits
   `secret`/`clientSecret` so the audit can NEVER carry a secret into a finding.
-- `LoginProviderView` (optional) -- frozen BaseModel `provider_id: str`,
+- `LoginProviderView` (optional): frozen BaseModel `provider_id: str`,
   `login_text: str | None`. Skip if the evaluator can accept `list[LoginOidcProvider]`
   directly (it is uniform and already a BaseModel); decide at implementation time.
 
@@ -317,7 +317,7 @@ modelled on the 2FA-endpoint comment style at `guardrails.py:53`.
 
 **Version divergence + _wire.py.** Two divergences. (1) `LoginConfigResponse`:
 v42/v43 byte-identical; v41 omits fields not read here, and oidcProviders is
-uniform -- NO per-tree branch for loginConfig. (2) OAuth2 client list: STRONGLY
+uniform; NO per-tree branch for loginConfig. (2) OAuth2 client list: STRONGLY
 divergent and the reason this check needs `_wire.py` members. Add
 `OAUTH2_CLIENT_FIELDS` + `oauth2_clients(raw) -> list[OAuth2ClientView]`,
 `grant_types(client) -> set[str]`, `redirect_uris(client) -> list[str]` to each
@@ -375,7 +375,7 @@ gets the system-wide inventory. EVERY token finding is therefore scoped to
 caveat that it cannot prove the absence of dangerous PATs. This resolution CLOSES
 the open "still to confirm" item in the parent `SECURITY-SCANNER-PLAN.md`
 (line ~305: "Whether /api/apiToken enumerates system-wide or only the calling
-account") -- caller-only unless superuser -- so the two documents agree.
+account"), caller-only unless superuser, so the two documents agree.
 
 **Endpoints + wire fields.** GET `/api/apiToken` (alias `/api/apiTokens`),
 all three majors. Read `id,name,type,expire,created,lastUpdated,createdBy[id],
@@ -387,19 +387,19 @@ The token secret (`key`) is `@JsonIgnore` and never returned over the wire.
 `get_raw` and IMMEDIATELY wraps into named view-models. REUSE generated wire
 models inside the per-tree `_wire.py`: `ApiToken`, `IpAllowedList`,
 `MethodAllowedList`, `RefererAllowedList` (all in `dhis2w_client.generated.v{41,42,43}.oas`),
-and `ApiTokenType` (v42/v43 only -- v41's generated `ApiToken.type` is a
+and `ApiTokenType` (v42/v43 only; v41's generated `ApiToken.type` is a
 `Literal`, not the enum). The per-tree `_wire.py` absorbs the v41-vs-v42/43 shape
 difference and normalizes `type` to a plain str so `security_core` never imports
 `ApiTokenType`.
 
 NEW version-invariant view-models in `security_core/tokens.py`:
 
-- `TokenAllowlists` -- frozen, `ips: tuple[str,...]=()`, `methods: tuple[str,...]=()`,
+- `TokenAllowlists`: frozen, `ips: tuple[str,...]=()`, `methods: tuple[str,...]=()`,
   `referrers: tuple[str,...]=()`. Flattens the polymorphic `attributes` list.
-- `TokenView` -- frozen, `id: str`, `name: str | None`, `token_type: str`
+- `TokenView`: frozen, `id: str`, `name: str | None`, `token_type: str`
   (normalized str), `expire_epoch_millis: int | None`, `created: str | None`,
   `owner_id: str | None`, `allowlists: TokenAllowlists`.
-- `TokensInventory` -- frozen, `tokens: tuple[TokenView,...]=()`,
+- `TokensInventory`: frozen, `tokens: tuple[TokenView,...]=()`,
   `account_is_superuser: bool = False`. The ALL flag comes from the
   `/api/me/authorization` data the audit already fetches for the authorities check.
 
@@ -409,9 +409,9 @@ NEW version-invariant view-models in `security_core/tokens.py`:
 |--------|----------|-----------|--------|
 | tokens-inventory | MEDIUM | 200 with at least one readable token | Summary of PATs visible to the audited account: count, per-token type, expiry (or never), IP-allowlist presence, method/referer constraints. The detail MUST state scope: "account-scoped: a non-superuser sees only its own tokens; a full system inventory requires an account with ALL authority." |
 | tokens-non-expiring | HIGH | `expire` null/absent, OR an epoch-millis value already in the past (expired-but-not-deleted), within readable scope | A token with no expiry is a permanent credential; if it leaks it grants standing API access until manually revoked. Names the token + type + "expires: never" or the past date. |
-| tokens-no-ip-allowlist | HIGH | no `IpAllowedList` attribute, or empty `allowedIps`, within readable scope | Without an IP allowlist the token is usable from anywhere. Pair with non-expiring: a token that never expires AND has no IP allowlist is the worst case -- call that out. |
+| tokens-no-ip-allowlist | HIGH | no `IpAllowedList` attribute, or empty `allowedIps`, within readable scope | Without an IP allowlist the token is usable from anywhere. Pair with non-expiring: a token that never expires AND has no IP allowlist is the worst case; call that out. |
 | tokens-degraded-account-scoped | INFO | 200 but the audited account is NOT a superuser | An INFO caveat (not a vulnerability) that the inventory is account-scoped, so tokens owned by other users are invisible to this scan. |
-| tokens-endpoint-unavailable | INFO (note) | `Dhis2ApiError` (401/403/404) -- never retried | Returns `CheckStatus.DEGRADED` with `note="HTTP error: <exc>"`; no synthesised findings. |
+| tokens-endpoint-unavailable | INFO (note) | `Dhis2ApiError` (401/403/404); never retried | Returns `CheckStatus.DEGRADED` with `note="HTTP error: <exc>"`; no synthesised findings. |
 
 **GET_ALLOWLIST additions (reviewed change).** `/api/apiToken`, with an inline
 justifying comment.
@@ -436,11 +436,11 @@ RUNTIME authority distinction, not a version one, so it does not drive `_wire`.
 - `ApiToken`: `key` is `@JsonIgnore` (secret never serialised); `expire` is a
   nullable `Long` (epoch millis); `DEFAULT_TOKEN_EXPIRE = 30 days` is set
   server-side at create if null, so a "never expires" token cannot be made via
-  the normal POST path -- but `expire` is still nullable on the model and
+  the normal POST path; but `expire` is still nullable on the model and
   imported/DB-inserted tokens may lack it, so the non-expiring check is valid.
 - `ApiTokenAttribute` is a polymorphic base keyed by `type` with three subtypes:
   `IpAllowedList`, `MethodAllowedList`, `RefererAllowedList`. There is NO
-  per-token authority subset -- a PAT inherits the full authority set of its
+  per-token authority subset; a PAT inherits the full authority set of its
   owning user; the only per-token scoping is the IP/method/referer allowlists.
 
 **Files to add / edit.**
@@ -496,14 +496,14 @@ per-tree `_wire.py`/`audit.py`. The raw payload is wrapped immediately into type
 
 NEW version-invariant view-model in `security_core/routes.py`:
 
-- `RouteTarget` -- frozen, `uid: str | None`, `code: str | None`, `name: str`,
+- `RouteTarget`: frozen, `uid: str | None`, `code: str | None`, `name: str`,
   `url: str`, `host: str | None` (literal host parsed from url; None when
   unparseable), `disabled: bool`, `allows_subpaths: bool`, `auth_type: str | None`
   (the discriminator tag, None when no auth), `auth_identity: str | None`
   (non-secret identity: username / clientId / tokenUri; NEVER a secret),
   `required_authorities: tuple[str,...]`. Carries NO secret field by construction,
   enforcing the redaction contract in the type.
-- `_RoutesEnvelope` -- per-tree transient declared by this check (`pager`,
+- `_RoutesEnvelope`: per-tree transient declared by this check (`pager`,
   `routes: list[oas.Route]`). It is NOT the existing `route` plugin's envelope:
   that one types `routes` as `schemas.Route` (`auth: Any`), so PR 8 declares its
   own over `oas.Route` to keep the typed `auth` union.
@@ -512,7 +512,7 @@ NEW version-invariant view-model in `security_core/routes.py`:
 
 | signal | severity | condition | detail |
 |--------|----------|-----------|--------|
-| route-destination-private-address | HIGH | `url` host is a literal private/internal IP: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, ::1, fc00::/7, fe80::/10, 0.0.0.0; OR host is `localhost`, ends in `.internal`/`.local`/`.localdomain`, OR is `metadata.google.internal` | Route `{name}` ({code}) proxies to {url}, a private/internal or cloud-metadata host. Any operator authorized to run it makes DHIS2 issue the request from inside the network -- an SSRF primitive. Detection inspects the configured URL host only; the audit never executes the route. |
+| route-destination-private-address | HIGH | `url` host is a literal private/internal IP: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, ::1, fc00::/7, fe80::/10, 0.0.0.0; OR host is `localhost`, ends in `.internal`/`.local`/`.localdomain`, OR is `metadata.google.internal` | Route `{name}` ({code}) proxies to {url}, a private/internal or cloud-metadata host. Any operator authorized to run it makes DHIS2 issue the request from inside the network; an SSRF primitive. Detection inspects the configured URL host only; the audit never executes the route. |
 | route-metadata-endpoint | HIGH | host is specifically 169.254.169.254, the IPv6 metadata address, or `metadata.google.internal` | Route `{name}` targets the cloud instance metadata endpoint; on a misconfigured IMDSv1 host this exposes temporary IAM/role credentials. The highest-value SSRF target. |
 | route-allows-subpaths | MEDIUM | `url` ends with `/**` (Route.PATH_WILDCARD_SUFFIX) | Callers can append arbitrary paths, widening the upstream URLs DHIS2 can be made to fetch; combined with a private base host this increases SSRF reach. |
 | route-carries-auth | INFO | `auth` block non-null (any scheme) | Route stores upstream credentials server-side (auth type `{auth_type}`) that DHIS2 attaches when proxying. The secret is WRITE_ONLY and not exposed; identity shown for context. |
@@ -551,7 +551,7 @@ rather than opening a new entry (#14 already documents the divergence).
   api-query-params maps, `OAuth2ClientCredentialsAuthScheme.clientSecret`).
   Non-secret returned fields: `type`, `username`, `clientId`/`tokenUri`/`scopes`.
   Secrets are also PBE-encrypted at rest. The check cannot and must not read them.
-- `/api/routes` is NOT currently in `GET_ALLOWLIST` -- it must be added.
+- `/api/routes` is NOT currently in `GET_ALLOWLIST`: it must be added.
 
 **Files to add / edit.**
 
@@ -585,16 +585,16 @@ API read because audit posture is not API-exposed.
 **Models to reuse vs new.** No generated OAS model covers dhis.conf (it is not an
 API resource). The dhis.conf is parsed into Pydantic models in
 `security_core/dhisconf.py` whose ONLY fields are the audit keys plus a set/not-set
-enum for credential keys -- the models CANNOT physically hold a secret value:
+enum for credential keys; the models CANNOT physically hold a secret value:
 
-- `AuditChannel` -- frozen, `name: str` (the audit.* key), `enabled: bool`,
+- `AuditChannel`: frozen, `name: str` (the audit.* key), `enabled: bool`,
   `raw_value: str | None` (on/off/matrix string for NON-secret audit keys ONLY).
-- `AuditScopeMatrix` -- frozen, `scope: str` (METADATA/AGGREGATE/TRACKER/API),
+- `AuditScopeMatrix`: frozen, `scope: str` (METADATA/AGGREGATE/TRACKER/API),
   `configured: bool`, `audit_types: tuple[str,...]` (subset of
   CREATE/READ/UPDATE/DELETE/SEARCH/SECURITY).
-- `RedactedSecret` -- frozen, `key: str`, `is_set: bool`. NO value field by
+- `RedactedSecret`: frozen, `key: str`, `is_set: bool`. NO value field by
   construction; a secret value is unrepresentable through this model.
-- `AuditPosture` -- frozen, `system_enabled: bool | None`, `logger_enabled: bool`,
+- `AuditPosture`: frozen, `system_enabled: bool | None`, `logger_enabled: bool`,
   `database_enabled: bool`, `in_memory_queue_enabled: bool`,
   `changelog_aggregate_enabled: bool`, `scopes: tuple[AuditScopeMatrix,...]`,
   `secrets: tuple[RedactedSecret,...]`, `source_path: str | None`, `parsed: bool`.
@@ -622,7 +622,7 @@ allowlisted; the dhis.conf read is a local-file read, not an HTTP path.
 **audit-config dhis.conf secret-redaction contract.** Redaction is enforced by
 CONSTRUCTION, not discipline. `dhisconf.py` parses the Java `.properties` file
 into the Pydantic models above whose only fields are the audit keys plus
-`RedactedSecret(key, is_set)` for credential keys -- so the model physically
+`RedactedSecret(key, is_set)` for credential keys; so the model physically
 cannot hold a secret value. Non-audit, non-credential keys are not represented at
 all. The confidential keys reported as set/not-set (never echoed):
 `encryption.password`, `connection.password`, `analytics.connection.password`,
@@ -637,7 +637,7 @@ copy of dhis.conf.
 **Version divergence + _wire.py.** None. The AUDIT_* `ConfigurationKey` entries,
 their dhis.conf key strings, and their defaults are identical across v41/v42/v43
 (the source enum is shared). Because the audit posture is not API-readable in ANY
-version, there is no per-version wire extraction -- NO `_wire.py` change. The
+version, there is no per-version wire extraction; NO `_wire.py` change. The
 dhis.conf parser and key set are version-invariant in `security_core/dhisconf.py`.
 The per-tree audit.py edit is a mechanical three-way copy (add `_run_audit_config`
 to `_RUNNERS`, thread the optional `dhis_conf_path` through `run_security_audit`
@@ -655,7 +655,7 @@ edit lands in all three `cli.py` (identical except import paths).
   `changelog.aggregate` default ON.
 - Enums: `AuditScope` = {METADATA, AGGREGATE, TRACKER, API}; `AuditType` =
   {CREATE, READ, UPDATE, DELETE, SEARCH, SECURITY}.
-- `/api/configuration` exposes only systemId / feedbackRecipients / etc -- NO
+- `/api/configuration` exposes only systemId / feedbackRecipients / etc; NO
   audit.* keys. `/api/systemSettings` filters @Confidential keys server-side.
   `/api/system/info` has no audit field. The audit posture is genuinely not
   API-readable.
@@ -694,13 +694,13 @@ by system settings, and one has no source at all.
 
 **Endpoints + wire fields.**
 
-- GET `/api/systemSettings` (already allowlisted) -- `minPasswordLength`,
+- GET `/api/systemSettings` (already allowlisted): `minPasswordLength`,
   `credentialsExpires`, `keyLockMultipleFailedLogins`,
   `keyCanGrantOwnUserAuthorityGroups`, `keyAccountRecovery`, `enforceVerifiedEmail`,
   `keyEmailHostName`, `keyEmailUsername`. v41 has no generated SystemSettings OAS
   but all three keep the hand-rolled `SecuritySettings` projection, so this does
   not affect the plan.
-- GET `/api/configuration/corsWhitelist` -- the ONLY source for the permissive-CORS
+- GET `/api/configuration/corsWhitelist`: the ONLY source for the permissive-CORS
   verdict. Returns a bare JSON array of origin strings. The `keyCorsWhitelist`
   system setting was removed in v2.31, so the settings endpoint cannot answer this.
   GET has no `@RequiresAuthority` (readable by any authenticated user).
@@ -708,7 +708,7 @@ by system settings, and one has no source at all.
 **Models to reuse vs new.** REUSE `AuditFinding` and `Severity`
 (`security_core.findings`) and the per-tree `SecuritySettings`
 (`dhis2w_core.v{41,42,43}.plugins.security.models`). The `SettingsLike` Protocol
-(`settings_audit.py:15-26`) today declares only FOUR fields -- `minPasswordLength`,
+(`settings_audit.py:15-26`) today declares only FOUR fields; `minPasswordLength`,
 `credentialsExpires`, `keyLockMultipleFailedLogins`, `keySelfRegistrationNoRecaptcha`.
 The email and self-grant verdicts read fields the Protocol does not yet expose, so
 PR 8 WIDENS `SettingsLike` with five fields:
@@ -726,7 +726,7 @@ NAMED view-model in `security_core` (the client wraps non-dict bodies under a
 `data` key, same as `/api/me/authorization`, so the fetch unwraps `raw["data"]`
 -> `list[str]`):
 
-- `CorsWhitelist` -- frozen, `origins: tuple[str,...]`, with a `has_wildcard`
+- `CorsWhitelist`: frozen, `origins: tuple[str,...]`, with a `has_wildcard`
   property checking for `"*"`. Lives in `security_core` (shared; the wire shape is
   uniform across v41/v42/v43).
 
@@ -734,7 +734,7 @@ NAMED view-model in `security_core` (the client wraps non-dict bodies under a
 
 | signal | severity | condition | detail |
 |--------|----------|-----------|--------|
-| keyCanGrantOwnUserAuthorityGroups | HIGH | `settings.keyCanGrantOwnUserAuthorityGroups is True` | Users can grant themselves authorities they already hold -- a direct privilege-escalation path. NOT @Confidential, API-readable on all three. Add the field to the projection + Protocol. Version-uniform; verdict in `evaluate_settings`. |
+| keyCanGrantOwnUserAuthorityGroups | HIGH | `settings.keyCanGrantOwnUserAuthorityGroups is True` | Users can grant themselves authorities they already hold; a direct privilege-escalation path. NOT @Confidential, API-readable on all three. Add the field to the projection + Protocol. Version-uniform; verdict in `evaluate_settings`. |
 | corsWhitelist contains wildcard | MEDIUM | `"*"` present in the `/api/configuration/corsWhitelist` array | A `*` origin lets any site make credentialed cross-origin API calls. Config-sourced (NOT settings-sourced); requires the new allowlist entry and the `CorsWhitelist` wrapper. |
 | global 2FA enforcement | INFO | always (no global enforcement key exists) | 2FA is per-user/per-role only (via the TWO_FACTOR_AUTH_REQUIRED restriction); no global enforce-2FA system setting exists in any version. Emitted at INFO, not MEDIUM: it is an always-true fact about DHIS2 rather than a per-instance misconfiguration, so a MEDIUM here would floor every audit's worst-severity at MEDIUM and inflate the MEDIUM count on clean instances (the same INFO tier `versions.py` uses for "version not exposed"). Cross-references the hygiene check for actual per-account enrolment gaps. Must NOT read a non-existent key. |
 | email not configured while recovery / verification on | WARN (the LOW tier) | (`keyAccountRecovery` True OR `enforceVerifiedEmail` True) AND `keyEmailHostName`/`keyEmailUsername` blank | When recovery or email-verification is on but SMTP is unconfigured, recovery/verification silently fails. `isEmailConfigured()` = host non-blank AND username non-blank. Add `keyEmailHostName`/`keyEmailUsername` to the projection + Protocol. The task says LOW; the enum has no LOW, so emit WARN. |
@@ -751,9 +751,9 @@ with an inline justifying comment. The `/api/systemSettings` base read adds none
 (keyCanGrantOwnUserAuthorityGroups, email) are uniform across v41/v42/v43: the
 `/api/systemSettings` wire shape, keys, and defaults match, and the verdicts read
 through the version-agnostic `SettingsLike` Protocol, so the verdict logic stays
-in shared `security_core` with NO `_wire.py` -- only the three `SecuritySettings`
+in shared `security_core` with NO `_wire.py`; only the three `SecuritySettings`
 models gain the new fields identically. The CORS verdict reads a different
-endpoint returning a uniform bare array, so it also needs NO `_wire.py` -- a
+endpoint returning a uniform bare array, so it also needs NO `_wire.py`; a
 single shared `CorsWhitelist` wrapper plus identical per-tree fetch wiring. The
 only genuine version split is the 2FA enrolment-summary enrichment:
 `/api/users/twoFactor/summary` is v42/v43 (master-pending-backport for v41) and
@@ -789,7 +789,7 @@ rather than a `_wire.py`. NO `_wire.py` is required for the settings extension.
 - EDIT `v{41,42,43}/plugins/security/models.py` (new `SecuritySettings` fields),
   `v{41,42,43}/plugins/security/audit.py` (CORS fetch + 2FA-summary enrichment)
 - ADD `packages/dhis2w-core/tests/security/test_security_settings.py` (the MISSING
-  version-invariant `evaluate_settings` coverage -- today only the CLI render
+  version-invariant `evaluate_settings` coverage; today only the CLI render
   test exists)
 - EDIT `packages/dhis2w-core/tests/security/test_security_guardrails.py`
 - EDIT `FEATURES.md`, `BUGS.md`
@@ -824,9 +824,9 @@ posture as the existing `REPORT_GUARDRAIL_NOTE` discipline, encoded in the type 
 PR 8 spans five checks plus the settings extension. At roughly 10-12 files per
 check (security_core module, `__init__`, registry/guardrails, three audit.py,
 optional three `_wire.py`, one test, FEATURES/BUGS), the whole thing is 50-60
-files -- 3-4x the ~15-file target. It MUST be split. THE split, in landing order:
+files; 3-4x the ~15-file target. It MUST be split. THE split, in landing order:
 
-### PR 8a -- transport + settings-extensions
+### PR 8a: transport + settings-extensions
 
 Cheapest, highest-signal, and NO new HTTP allowlist paths beyond
 `/api/configuration/corsWhitelist`. Transport reads response headers already on
@@ -836,7 +836,7 @@ it is the lowest-risk and proves the registry/guard-test flip with the smallest
 blast radius. Also fills the long-standing gap that `evaluate_settings` has no
 version-invariant test (adds `test_security_settings.py`).
 
-### PR 8b -- auth-methods + tokens + routes
+### PR 8b: auth-methods + tokens + routes
 
 The new-endpoint checks. Groups the three reads that add the bulk of the
 `GET_ALLOWLIST` surface (`/api/loginConfig`, `/api/oAuth2Clients`, `/api/apiToken`,
@@ -846,7 +846,7 @@ the v41 route auth-union split citing BUGS.md #14). Grouping the wire-divergent
 checks together keeps the `_wire.py` edits and their BUGS.md entries in one
 reviewable PR.
 
-SIZE: this is the large sub-PR -- roughly 28-34 files (three
+SIZE: this is the large sub-PR; roughly 28-34 files (three
 `security_core` modules + `__init__` exports, registry + guardrails, three
 `audit.py`, three `_wire.py`, three tests, the guard/guardrail test edits, plus
 nine example files and the docs/FEATURES sweep), about 2x the ~15-file target this
@@ -858,7 +858,7 @@ side rather than across three separate reviews. Routes alone is the cleanest
 single-divergence story and is the natural carve-out if a reviewer asks 8b to
 shrink, but the default is to keep the three wire-divergent checks in one review.
 
-### PR 8c -- audit-config
+### PR 8c: audit-config
 
 The `--dhis-conf` parser, the redaction-by-construction models, and the negative
 redaction test. Isolated because it is the only check touching `cli.py` (the
@@ -910,7 +910,7 @@ Tests live ONCE under `packages/dhis2w-core/tests/security/`, parametrised over
   render the report in every format (md/txt/csv/html/json), and assert that string
   never appears in any output.
 - **settings-extensions** (`test_security_settings.py`, NEW): the FOUR shipped
-  verdicts (today untested at the reducer level -- only the CLI render test exists)
+  verdicts (today untested at the reducer level; only the CLI render test exists)
   PLUS the new ones (keyCanGrantOwnUserAuthorityGroups HIGH, CORS wildcard MEDIUM
   via `CorsWhitelist.has_wildcard`, the static 2FA MEDIUM, the email-not-configured
   WARN, and the dropped/INFO unique-email decision).
@@ -954,14 +954,14 @@ Pulled from each check's research, deduplicated, recommended answers in brackets
    envelope key (`data[]` vs `oAuth2Clients[]`) against a real v41 dump; until
    then read tolerantly (try `oAuth2Clients[]` then `data[]`).
 2. **auth-methods, redirect scope**: include non-loopback cleartext `http://`
-   redirect URIs in the MEDIUM, not only literal `*`? [Recommend yes -- same
+   redirect URIs in the MEDIUM, not only literal `*`? [Recommend yes; same
    code-interception class; confirm with the PR owner so the finding set matches
    the brief.]
 3. **routes, no DNS**: private-address detection does NO DNS resolution (the
    no-egress guardrail forbids it), so a hostname resolving to 10.x is NOT flagged.
    Confirm the accepted trade-off (flag literal private IPs + known-internal
    suffixes, accept DNS-cloaked false negatives, document the limitation in the
-   finding detail). [Recommend yes -- the only design consistent with the guardrail.]
+   finding detail). [Recommend yes; the only design consistent with the guardrail.]
 4. **tokens, default fields**: confirm GET `/api/apiToken` default projection
    includes `attributes`/`expire`/`type`/`createdBy` without an explicit `?fields=`;
    the runner should always pass an explicit `fields=` to be safe.

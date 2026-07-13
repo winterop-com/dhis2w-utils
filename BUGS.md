@@ -49,11 +49,11 @@ the bottom of the file and keep their numbers.
 - [#42](#42-get-apisystemsettings-returns-keyanalysisdisplayproperty-name-lowercase--generated-systemsettings-enum-rejects-it) — `/api/systemSettings` returns lowercase `keyAnalysisDisplayProperty`; generated `SystemSettings` enum rejects it
 - [#43](#43-mapview-schema-removed-from-apischemas-cross-major-lands-first-on-released-2425) — `mapView` schema removed from `/api/schemas` (v42 pin held at `2.42.4.1`)
 - [#46](#46-post-apiapphubversionid-returns-an-opaque-proxied-app-hub-404-when-given-an-app-id-instead-of-a-version-id) — `POST /api/appHub/{versionId}` with an app id → opaque proxied App Hub 404
-- [#51](#51-apitokenexpire-is-a-nullable-long-on-the-model-so-a-non-expiring-pat-is-representable-despite-the-controllers-30-day-create-default) — `ApiToken.expire` nullable; non-expiring PAT representable despite 30-day create default
-- [#53](#53-the-audit-posture-lives-only-in-dhisconf-and-is-exposed-by-no-api-endpoint-so-it-cannot-be-verified-remotely) — Audit posture is dhis.conf-only (not remotely verifiable)
-- [#54](#54-dhis2-applies-create-update-delete-security-as-the-default-matrix-when-a-scope-key-is-absent-or-empty) — Absent/empty audit scope matrix falls back to {CREATE, UPDATE, DELETE, SECURITY}
-- [#58](#58-v42v43-apiusers-exposes-no-2fa-state-for-other-users-admin-2fa-audit-moved-to-apiuserstwofactor-master-only) — v42/v43: no 2FA state on `/api/users` for other users (moved to `/api/users/twoFactor`)
-- [#59](#59-no-reliable-server-side-filter-for-non-default-sharing-publicaccessexternalaccess-are-unfilterable-sharingpublic-is-an-ineffective-volume-reducer) — No reliable server-side filter for non-default sharing
+- [#51](#51-apitokenexpire-is-a-nullable-long-on-the-model-so-a-non-expiring-pat-is-representable-despite-the-controllers-30-day-create-default): `ApiToken.expire` nullable; non-expiring PAT representable despite 30-day create default
+- [#53](#53-the-audit-posture-lives-only-in-dhisconf-and-is-exposed-by-no-api-endpoint-so-it-cannot-be-verified-remotely): Audit posture is dhis.conf-only (not remotely verifiable)
+- [#54](#54-dhis2-applies-create-update-delete-security-as-the-default-matrix-when-a-scope-key-is-absent-or-empty): Absent/empty audit scope matrix falls back to {CREATE, UPDATE, DELETE, SECURITY}
+- [#58](#58-v42v43-apiusers-exposes-no-2fa-state-for-other-users-admin-2fa-audit-moved-to-apiuserstwofactor-master-only): v42/v43: no 2FA state on `/api/users` for other users (moved to `/api/users/twoFactor`)
+- [#59](#59-no-reliable-server-side-filter-for-non-default-sharing-publicaccessexternalaccess-are-unfilterable-sharingpublic-is-an-ineffective-volume-reducer): No reliable server-side filter for non-default sharing
 - [#47](#47-metadata-get-with-a-malformed-uid-returns-http-405-instead-of-404) — malformed UID → HTTP 405 instead of 404 on `GET /api/{resource}/{uid}`
 - [#48](#48-filtering-on-a-nested-geometry-path-geometrytype-returns-400-unknown-path-property) — nested `geometry.type` filter returns `400 Unknown path property`
 
@@ -70,11 +70,11 @@ the bottom of the file and keep their numbers.
 - [#4h](#4h-dhis2-rejects-its-own-oauth2-jwts-when-the-resolved-user-has-an-empty-openid) — DHIS2 rejects its own JWTs when the user has empty `openId`
 - [#9](#9-dhis2s-strict-oidc-property-parser-rejects-entire-provider-config-on-typos) — OIDC property parser rejects entire provider config on typos
 - [#44](#44-v42-2425-post-apiapitoken-returns-500-notserializableexception-methodallowedlist) — `POST /api/apiToken` 500s on `2.42.5` (`NotSerializableException`)
-- [#50](#50-keycorswhitelist-was-removed-from-systemsettings-the-cors-origin-list-is-only-readable-from-apiconfigurationcorswhitelist) — `keyCorsWhitelist` removed; CORS origins only at `/api/configuration/corsWhitelist`
-- [#52](#52-no-version-invariant-generated-oauth2-client-schema-v41-emits-only-the-array-typed-oauth2client-v42v43-only-the-comma-string-dhis2oauth2client) — No version-invariant generated OAuth2-client schema (cross-ref #39)
-- [#55](#55-dhis2-calls-spring-securitys-defaultsdisabled-and-never-emits-coop--coep--corp-so-cross-origin-isolation-headers-are-absent-on-every-stock-instance) — Stock DHIS2 never emits COOP/COEP/CORP (`defaultsDisabled()`)
-- [#57](#57-the-dhis2-public-route-authority-is-f_route_public_add-not-f_public_route_add) — Public-route authority is `F_ROUTE_PUBLIC_ADD`, not `F_PUBLIC_ROUTE_ADD`
-- [#60](#60-hsts-is-suppressed-behind-a-tls-terminating-proxy-and-csp-state-is-observable-only-on-the-wire-there-is-no-keycspenabled-setting) — HSTS suppressed behind TLS-terminating proxy; CSP is wire-only
+- [#50](#50-keycorswhitelist-was-removed-from-systemsettings-the-cors-origin-list-is-only-readable-from-apiconfigurationcorswhitelist): `keyCorsWhitelist` removed; CORS origins only at `/api/configuration/corsWhitelist`
+- [#52](#52-no-version-invariant-generated-oauth2-client-schema-v41-emits-only-the-array-typed-oauth2client-v42v43-only-the-comma-string-dhis2oauth2client): No version-invariant generated OAuth2-client schema (cross-ref #39)
+- [#55](#55-dhis2-calls-spring-securitys-defaultsdisabled-and-never-emits-coop--coep--corp-so-cross-origin-isolation-headers-are-absent-on-every-stock-instance): Stock DHIS2 never emits COOP/COEP/CORP (`defaultsDisabled()`)
+- [#57](#57-the-dhis2-public-route-authority-is-f_route_public_add-not-f_public_route_add): Public-route authority is `F_ROUTE_PUBLIC_ADD`, not `F_PUBLIC_ROUTE_ADD`
+- [#60](#60-hsts-is-suppressed-behind-a-tls-terminating-proxy-and-csp-state-is-observable-only-on-the-wire-there-is-no-keycspenabled-setting): HSTS suppressed behind TLS-terminating proxy; CSP is wire-only
 
 ### Analytics / Aggregate / Data Values
 
@@ -115,7 +115,7 @@ the bottom of the file and keep their numbers.
 
 - [#39](#39-v41-oauth2-client-wire-shape--cid-not-clientid--strict-array-typed-multi-valued-fields) — OAuth2 client wire: `cid` not `clientId`, strict arrays
 - [#45](#45-v41-get-apiauthorities-returns-500) — v41 `GET /api/authorities` returns 500
-- [#56](#56-v41-apiusers-nests-passwordlastupdated-under-usercredentials-v42v43-flatten-it-onto-the-user) — v41 nests `passwordLastUpdated` under `userCredentials` (v42/v43 flatten)
+- [#56](#56-v41-apiusers-nests-passwordlastupdated-under-usercredentials-v42v43-flatten-it-onto-the-user): v41 nests `passwordLastUpdated` under `userCredentials` (v42/v43 flatten)
 
 ### Resolved upstream
 
@@ -3135,7 +3135,7 @@ settings verdicts still run. See `_fetch_cors_whitelist` in
 **Repro:**
 
 ```
-# create a PAT through the normal path -- the server fills expire if omitted
+# create a PAT through the normal path; the server fills expire if omitted
 curl -s -X POST "$BASE/api/apiToken" -H "Content-Type: application/json" \
   -u admin:district -d '{"type":"PERSONAL_ACCESS_TOKEN_V2"}' | jq '.response.expire'
 # -> a non-null epoch-millis ~30 days out (DEFAULT_TOKEN_EXPIRE)
@@ -3146,7 +3146,7 @@ curl -s "$BASE/api/apiToken?fields=id,expire" -u admin:district | jq '.apiToken[
 
 **Expected:** if the server always assigns a 30-day default at create when `expire` is omitted, a token can never have a null/absent expiry, so "non-expiring token" would be unrepresentable.
 
-**Actual:** `ApiToken.expire` is a nullable `Long` (epoch millis) on the entity (and on the generated OAS model: `expire: int | None`). `DEFAULT_TOKEN_EXPIRE = 30 days` is applied server-side only on the normal `POST /api/apiToken` create path when `expire` is null. A token written through metadata import or a direct DB insert can therefore carry a null/absent `expire` -- a permanent credential -- even though the interactive create path always fills it. The wire read of such a token returns `expire: null`.
+**Actual:** `ApiToken.expire` is a nullable `Long` (epoch millis) on the entity (and on the generated OAS model: `expire: int | None`). `DEFAULT_TOKEN_EXPIRE = 30 days` is applied server-side only on the normal `POST /api/apiToken` create path when `expire` is null. A token written through metadata import or a direct DB insert can therefore carry a null/absent `expire`, a permanent credential, even though the interactive create path always fills it. The wire read of such a token returns `expire: null`.
 
 **Impact:** the tokens security check cannot assume every PAT has an expiry. A null (or past) `expire` is a standing credential that bypasses interactive login and 2FA until manually revoked, so the non-expiring-token finding is valid and necessary despite the create-time default.
 
@@ -3200,7 +3200,7 @@ ls packages/dhis2w-client/src/dhis2w_client/generated/v42/oas/o_auth2_client.py 
 # None of these appear on any API endpoint:
 
 GET /api/system/info        # carries no audit.* field
-GET /api/configuration      # systemId / feedbackRecipients / etc -- no audit.* keys
+GET /api/configuration      # systemId / feedbackRecipients / etc; no audit.* keys
 GET /api/systemSettings     # @Confidential keys filtered server-side; audit.* keys are not settings at all
 ```
 
@@ -3208,7 +3208,7 @@ GET /api/systemSettings     # @Confidential keys filtered server-side; audit.* k
 
 **Actual:** the entire audit posture is a `dhis.conf` concern parsed at startup by `org.hisp.dhis.external.conf.ConfigurationKey` and `org.hisp.dhis.artemis.audit.configuration.AuditMatrixConfigurer` (the matrix string is a semicolon-separated list of `AuditType` names; a blank string or the literal `DISABLED` disables the scope). There is no controller route that returns any of it. A remote scanner cannot observe the audit posture at all.
 
-**Impact:** the audit-config security check cannot read the audit posture over the API on any version. Its API-first result is therefore an INFO that the posture is not API-readable -- explicitly NOT a claim that auditing is off. Evaluating the real posture requires the operator to hand the scanner a local copy of `dhis.conf`.
+**Impact:** the audit-config security check cannot read the audit posture over the API on any version. Its API-first result is therefore an INFO that the posture is not API-readable; explicitly NOT a claim that auditing is off. Evaluating the real posture requires the operator to hand the scanner a local copy of `dhis.conf`.
 
 **Workaround in this repo:** the audit-config check takes an explicit `--dhis-conf <path>` (env `DHIS2_CONF_LOCATION`) pointed at a local COPY of the server's `dhis.conf`. The parser in `packages/dhis2w-core/src/dhis2w_core/security_core/dhisconf.py` retains only the `audit.*` keys plus a set/not-set flag for confidential keys (it physically cannot hold a secret value), and `packages/dhis2w-core/src/dhis2w_core/security_core/audit_config.py` evaluates the posture. Without the flag the check states the posture is not API-readable.
 
@@ -3226,7 +3226,7 @@ GET /api/systemSettings     # @Confidential keys filtered server-side; audit.* k
 
 **Source reference:** `dhis-support/dhis-support-artemis/src/main/java/org/hisp/dhis/artemis/audit/configuration/AuditMatrixConfigurer.java`, `configure()` method, lines 84-101.
 
-**Repro:** deploy a DHIS2 instance with NO `audit.*` matrix keys in `dhis.conf`. Query any audited object. The audit log captures CREATE/UPDATE/DELETE/SECURITY events on every scope -- despite the absence of any explicit matrix configuration.
+**Repro:** deploy a DHIS2 instance with NO `audit.*` matrix keys in `dhis.conf`. Query any audited object. The audit log captures CREATE/UPDATE/DELETE/SECURITY events on every scope, despite the absence of any explicit matrix configuration.
 
 **Expected (naive reading):** an absent or empty `audit.metadata` / `audit.aggregate` / `audit.tracker` / `audit.api` key means the scope is unconfigured, i.e. no types are captured.
 
@@ -3236,7 +3236,7 @@ GET /api/systemSettings     # @Confidential keys filtered server-side; audit.* k
 
 **Workaround in this repo:** `AuditScopeMatrix.explicit` tracks whether the key was present with a non-empty value. When `explicit=False`, `audit_types` is set to `_DEFAULT_AUDIT_TYPES` (the four forensic types). The `audit-scope-narrowly-scoped` finding fires only when `explicit=True` and the parsed type set omits one or more forensic types. See `packages/dhis2w-core/src/dhis2w_core/security_core/dhisconf.py` (`_scope_matrix`) and `audit_config.py` (`_narrowly_scoped`).
 
-**How to know it's resolved:** not a DHIS2 bug -- expected behavior. This entry documents the non-obvious upstream semantic so the scanner model stays correct.
+**How to know it's resolved:** not a DHIS2 bug; expected behavior. This entry documents the non-obvious upstream semantic so the scanner model stays correct.
 
 **Verifier:** `packages/dhis2w-core/tests/security/test_security_audit_config.py::test_default_config_posture_has_no_medium`.
 
@@ -3255,18 +3255,18 @@ GET /api/systemSettings     # @Confidential keys filtered server-side; audit.* k
 ```bash
 BASE=https://your-dhis2.example
 curl -sI -u admin:district "$BASE/api/system/info" | grep -iE 'cross-origin-opener-policy|cross-origin-embedder-policy|cross-origin-resource-policy'
-# (no output) -- none of the three headers are emitted.
+# (no output); none of the three headers are emitted.
 ```
 
 **Expected (naive reading):** a hardened web application emits Cross-Origin-Opener-Policy, Cross-Origin-Embedder-Policy, and Cross-Origin-Resource-Policy as defence-in-depth against cross-origin attacks (Spectre-class side channels, cross-origin resource leaks).
 
 **Actual:** `setHttpHeaders` starts with `http.headers().defaultsDisabled()` and re-enables only `contentTypeOptions()`, `xssProtection()`, and `httpStrictTransportSecurity()`. It never calls `crossOriginOpenerPolicy()`, `crossOriginEmbedderPolicy()`, or `crossOriginResourcePolicy()`, so a stock DHIS2 response carries none of the three headers. There is no `dhis.conf` key or system setting that turns them on; they can only be added at a fronting proxy.
 
-**Impact:** a security scanner that emits a WARN per missing cross-origin isolation header would raise three WARNs on every default DHIS2 instance -- pure noise, since DHIS2 never sets them and the absence is its designed posture, not a regression. They are defence-in-depth, not active holes.
+**Impact:** a security scanner that emits a WARN per missing cross-origin isolation header would raise three WARNs on every default DHIS2 instance; pure noise, since DHIS2 never sets them and the absence is its designed posture, not a regression. They are defence-in-depth, not active holes.
 
 **Workaround in this repo:** the security `transport` check aggregates the three absent headers into a SINGLE INFO finding ("Cross-origin isolation headers not configured (COOP/COEP/CORP)") listing exactly which are missing, at INFO so a default instance is not flagged at WARN for a header DHIS2 never sets. See `_cross_origin_isolation_finding` in `packages/dhis2w-core/src/dhis2w_core/security_core/transport.py`. The CSP grading in the same check also leaves DHIS2's stock `frame-ancestors 'self';` (a frame-only policy emitted by `CspFilter`, BUGS.md #49) ungraded on its content directives, so the default policy is never flagged either.
 
-**How to know it's resolved:** not a DHIS2 bug -- expected behaviour. This entry documents the non-obvious upstream default so the scanner does not flag a stock instance. If a future DHIS2 starts emitting some of the three by default, a missing/weak one would become a real regression and could be raised to WARN.
+**How to know it's resolved:** not a DHIS2 bug; expected behaviour. This entry documents the non-obvious upstream default so the scanner does not flag a stock instance. If a future DHIS2 starts emitting some of the three by default, a missing/weak one would become a real regression and could be raised to WARN.
 
 **Related:** BUGS.md #60 (HSTS suppressed behind a proxy; CSP wire-only, default `frame-ancestors 'self';`).
 
@@ -3294,11 +3294,11 @@ curl -s -u admin:district \
 
 **Actual:** v42 flattened `passwordLastUpdated` (and the rest of the former `UserCredentials`) onto the `User` resource; v41 still nests it under `userCredentials`. The same `fields=passwordLastUpdated` selector returns the value on v42/v43 but nothing on v41 (which needs `fields=userCredentials[passwordLastUpdated]`).
 
-**Impact:** the password-age hygiene signal -- "active accounts whose password is older than the threshold or never set" -- reads a different field path per major. A version-blind read would silently see every v41 password as never-set (the flat field is empty there).
+**Impact:** the password-age hygiene signal, "active accounts whose password is older than the threshold or never set", reads a different field path per major. A version-blind read would silently see every v41 password as never-set (the flat field is empty there).
 
-**Workaround in this repo:** per-tree `_wire.py` selects the field path -- v41 requests `userCredentials[passwordLastUpdated]` and reads the nested value; v42/v43 request the flat `passwordLastUpdated` and read the top-level value. Both feed the version-invariant `password_last_updated` field on `UserHygiene`, so the hygiene reducer stays version-neutral. See `password_last_updated` + `USER_FIELDS` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py` and the password-age aggregate in `packages/dhis2w-core/src/dhis2w_core/security_core/hygiene.py`.
+**Workaround in this repo:** per-tree `_wire.py` selects the field path: v41 requests `userCredentials[passwordLastUpdated]` and reads the nested value; v42/v43 request the flat `passwordLastUpdated` and read the top-level value. Both feed the version-invariant `password_last_updated` field on `UserHygiene`, so the hygiene reducer stays version-neutral. See `password_last_updated` + `USER_FIELDS` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py` and the password-age aggregate in `packages/dhis2w-core/src/dhis2w_core/security_core/hygiene.py`.
 
-**How to know it's fixed:** not a bug -- a deliberate v42 wire change. This entry documents the per-major field path so the password-age check reads the right shape. Mirrors the 2FA `_wire` split (BUGS.md #58).
+**How to know it's fixed:** not a bug; a deliberate v42 wire change. This entry documents the per-major field path so the password-age check reads the right shape. Mirrors the 2FA `_wire` split (BUGS.md #58).
 
 **Verifier:** none yet.
 
@@ -3306,12 +3306,12 @@ curl -s -u admin:district \
 
 ### 57. The DHIS2 public-route authority is `F_ROUTE_PUBLIC_ADD`, not `F_PUBLIC_ROUTE_ADD`
 
-Not a DHIS2 defect -- a naming trap that the security-auditor-app fell into and
+Not a DHIS2 defect; a naming trap that the security-auditor-app fell into and
 that the security taxonomy in this repo must avoid. The DHIS2 Route metadata
 object derives its create authority from its schema descriptor as
 `F_ROUTE_PUBLIC_ADD` (resource name first, then the `*_PUBLIC_ADD` suffix, like
 every other `MetadataObject`). The auditor app's `PRIVILEGED_AUTHORITIES`
-constant lists `F_PUBLIC_ROUTE_ADD` -- a transposed name that exists nowhere in
+constant lists `F_PUBLIC_ROUTE_ADD`, a transposed name that exists nowhere in
 the DHIS2 source and therefore can never match a granted authority.
 
 **Observed on:** DHIS2 v41-v43. Verified in the local source checkout
@@ -3322,11 +3322,11 @@ the DHIS2 source and therefore can never match a granted authority.
 
 ```bash
 cd /Users/netromsb/develop/dhis2/GARAGE/SLOT3/dhis-2
-# Real authority -- declared in the Route schema descriptor:
+# Real authority, declared in the Route schema descriptor:
 git show origin/2.41:dhis-2/dhis-services/dhis-service-schema/src/main/java/org/hisp/dhis/schema/descriptors/RouteSchemaDescriptor.java \
   | grep F_ROUTE_PUBLIC_ADD
 #   schema.add(new Authority(AuthorityType.CREATE_PUBLIC, List.of("F_ROUTE_PUBLIC_ADD")));
-# The app's name -- matches nothing:
+# The app's name, matches nothing:
 git grep -l F_PUBLIC_ROUTE_ADD origin/2.41 origin/2.42 -- '*.java'
 # (no output)
 ```
@@ -3351,7 +3351,7 @@ authority NAME, not the live `/api/authorities` endpoint (which 500s on v41,
 #45 above), so the mapping works on every version regardless.
 
 **How to know it's relevant upstream:** raise it against the auditor app, not
-DHIS2 -- the constant is the app's bug.
+DHIS2; the constant is the app's bug.
 
 ---
 
@@ -3375,11 +3375,11 @@ curl -s -u admin:district \
 
 **Expected:** an admin-readable per-user 2FA state on `/api/users`, so an operator can audit which privileged accounts lack 2FA.
 
-**Actual:** v42 removed every admin-readable surface for another user's 2FA state (the User resource ACL was too coarse — anyone who could read users would have seen every user's 2FA enrolment). `/api/me.twoFactorType` still works for the calling user only. Replacement superuser-only audit endpoints (`GET /api/users/twoFactor/summary`, `GET /api/users/twoFactor`) were added on master via [dhis2-core#23925](https://github.com/dhis2/dhis2-core/pull/23925) (DHIS2-20097) but are **not backported** to released 2.42 / 2.43 yet.
+**Actual:** v42 removed every admin-readable surface for another user's 2FA state (the User resource ACL was too coarse; anyone who could read users would have seen every user's 2FA enrolment). `/api/me.twoFactorType` still works for the calling user only. Replacement superuser-only audit endpoints (`GET /api/users/twoFactor/summary`, `GET /api/users/twoFactor`) were added on master via [dhis2-core#23925](https://github.com/dhis2/dhis2-core/pull/23925) (DHIS2-20097) but are **not backported** to released 2.42 / 2.43 yet.
 
-**Impact:** the security audit's headline hygiene signal — "superuser without 2FA" — is computable from `/api/users` only on v41. On v42/v43 it requires the new `/api/users/twoFactor` endpoints, which 404 until the backport lands and 403 unless the auditing account holds ALL.
+**Impact:** the security audit's headline hygiene signal, "superuser without 2FA", is computable from `/api/users` only on v41. On v42/v43 it requires the new `/api/users/twoFactor` endpoints, which 404 until the backport lands and 403 unless the auditing account holds ALL.
 
-**Workaround in this repo:** per-tree `_wire.py` selects the 2FA source — v41 reads `twoFactorEnabled` (falling back to `userCredentials.twoFA`) from `/api/users`; v42/v43 read `GET /api/users/twoFactor/summary` (`privileged.withAllAuthorityMissing2FA`). The hygiene check (`packages/dhis2w-core/src/dhis2w_core/security_core/hygiene.py`) degrades to a clear note on v42/v43 when the endpoint returns 404 (not backported) or 403 (auditing account is not a superuser), instead of a false all-clear.
+**Workaround in this repo:** per-tree `_wire.py` selects the 2FA source: v41 reads `twoFactorEnabled` (falling back to `userCredentials.twoFA`) from `/api/users`; v42/v43 read `GET /api/users/twoFactor/summary` (`privileged.withAllAuthorityMissing2FA`). The hygiene check (`packages/dhis2w-core/src/dhis2w_core/security_core/hygiene.py`) degrades to a clear note on v42/v43 when the endpoint returns 404 (not backported) or 403 (auditing account is not a superuser), instead of a false all-clear.
 
 **How to know it's fixed:** `GET /api/users/twoFactor/summary` returns 200 on a released 2.42 / 2.43 patch (backport of #23925).
 
@@ -3437,7 +3437,7 @@ curl -sI -u admin:district "$BASE/api/system/info" | grep -iE 'strict-transport-
 #   x-content-type-options: nosniff
 # strict-transport-security is OFTEN ABSENT when a TLS-terminating proxy forwards plain HTTP to DHIS2.
 
-# There is no system setting that reports CSP state — grep confirms no such key exists:
+# There is no system setting that reports CSP state; grep confirms no such key exists:
 curl -sg -u admin:district "$BASE/api/systemSettings" | grep -io 'keyCspEnabled'   # (no output)
 ```
 
@@ -3445,7 +3445,7 @@ curl -sg -u admin:district "$BASE/api/systemSettings" | grep -io 'keyCspEnabled'
 
 **Actual:** (a) `DhisWebApiWebSecurityConfig.setHttpHeaders` wires HSTS through Spring Security's `httpStrictTransportSecurity()`, which by default emits the header only on requests Spring considers secure. A proxy that terminates TLS and forwards plain HTTP makes DHIS2 see an insecure request, so HSTS is silently dropped even though the public endpoint is HTTPS. (b) CSP is governed by the confidential `dhis.conf` key `csp.enabled` (default ON); `CspFilter` emits `Content-Security-Policy: frame-ancestors 'self';` when on and `X-Frame-Options: SAMEORIGIN` when off. `DefaultDhisConfigurationProvider.getConfigurationsAsMap` masks every confidential key to `""`, so `csp.enabled` is never observable via any exposed config, and no `keyCspEnabled` system setting exists. The response header on the wire is the SOLE evidence of CSP state.
 
-**Impact:** a security audit cannot read CSP/HSTS posture from settings — it must read the live response headers. A missing HSTS header behind a proxy is a real downgrade window but reads as a false positive if attributed to DHIS2 itself; the cause is proxy configuration.
+**Impact:** a security audit cannot read CSP/HSTS posture from settings; it must read the live response headers. A missing HSTS header behind a proxy is a real downgrade window but reads as a false positive if attributed to DHIS2 itself; the cause is proxy configuration.
 
 **Workaround in this repo:** the security `transport` check reads the scheme from the resolved base URL and the security headers off one `get_response("/api/system/info")` response, never from settings. It softens the HSTS finding to MEDIUM with a note that a TLS-terminating proxy commonly suppresses it, and treats the wire CSP header as the only CSP evidence. It suppresses the anti-framing finding when a CSP `frame-ancestors` directive is present, to avoid a guaranteed false positive on default instances. See `evaluate_transport` in `packages/dhis2w-core/src/dhis2w_core/security_core/transport.py` and `_run_transport` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/audit.py`.
 

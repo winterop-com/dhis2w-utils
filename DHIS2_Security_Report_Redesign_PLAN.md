@@ -143,17 +143,17 @@ Shared, single location unless noted.
      `"window.__REPORT__ = " + self.model_dump_json() + ";\n"`.
 
 2. New `security_core/report/assets/` (shipped package data)
-   - `report.dc.html` — the edited, fully data-bound template (see template edits below).
-   - `support.js` — copied verbatim from the design folder, never edited.
-   - `dhis2-logo.png` — copied verbatim.
+   - `report.dc.html`: the edited, fully data-bound template (see template edits below).
+   - `support.js`: copied verbatim from the design folder, never edited.
+   - `dhis2-logo.png`: copied verbatim.
 
-3. `security_core/report/html.py` — rewrite as the bundle emitter
+3. `security_core/report/html.py`: rewrite as the bundle emitter
    - Keep the class name `HtmlRenderer` and `name = "html"` to minimise import churn in
      `__init__.py` and the three `audit.py` files.
    - It is no longer a pure string renderer (it must write several files), so add a
      folder-aware emit path (next item).
 
-4. `security_core/report/base.py` — extend the renderer contract minimally
+4. `security_core/report/base.py`: extend the renderer contract minimally
    - Add `emit(self, folder: Path, report: AuditReport) -> None`.
    - Provide a tiny default for the existing string renderers (text/csv/markdown):
      write `render(report)` to `folder / f"report.{suffix}"`. Implement once (small mixin
@@ -163,11 +163,11 @@ Shared, single location unless noted.
      the three assets out of package data via
      `importlib.resources.files("dhis2w_core.security_core.report") / "assets"`.
 
-5. `security_core/streaming.py` — `ReportWriter.finalize`
+5. `security_core/streaming.py`: `ReportWriter.finalize`
    - Replace the `report.{suffix}` write loop with `renderer.emit(folder, report)` (or the
      helper), so the bundle and the string formats finalize through one path.
 
-6. `audit.py` in all three trees (`v41`, `v42`, `v43` `plugins/security/audit.py`) — same edit x3
+6. `audit.py` in all three trees (`v41`, `v42`, `v43` `plugins/security/audit.py`); same edit x3
    - `_FINALIZE_RENDERERS` keeps `txt` and `csv`; `html` maps to the new `HtmlRenderer`.
    - `DEFAULT_FORMATS` stays `("md", "txt", "csv", "html")`.
    - `rerender_report` builds output through the same emit path so `d2w security report`
