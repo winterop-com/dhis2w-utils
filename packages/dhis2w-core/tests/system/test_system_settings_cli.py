@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -55,6 +56,29 @@ def test_settings_set_many_applies_object(pat_profile: None, tmp_path: Path) -> 
         result = _runner.invoke(build_app(), ["system", "settings", "set-many", str(file)])
     assert result.exit_code == 0, result.output
     assert "set applicationTitle" in result.output
+
+
+def test_settings_set_many_coerces_json_scalars(pat_profile: None, tmp_path: Path) -> None:  # noqa: ARG001
+    """set-many serializes JSON scalars as DHIS2 expects: bool -> lowercase, numbers plain, strings verbatim."""
+    file = tmp_path / "s.json"
+    file.write_text(
+        json.dumps(
+            {"keyAnalyticsBool": True, "otherBool": False, "keyCount": 7, "ratio": 1.5, "applicationTitle": "MoH"}
+        ),
+        encoding="utf-8",
+    )
+    mock = AsyncMock(return_value=["keyAnalyticsBool"])
+    with patch("dhis2w_core.v42.plugins.system.service.set_system_settings", new=mock):
+        result = _runner.invoke(build_app(), ["system", "settings", "set-many", str(file)])
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    applied = mock.await_args.args[1]
+    # A DHIS2 boolean setting parses `true`/`false`, not Python's `True`/`False`.
+    assert applied["keyAnalyticsBool"] == "true"
+    assert applied["otherBool"] == "false"
+    assert applied["keyCount"] == "7"
+    assert applied["ratio"] == "1.5"
+    assert applied["applicationTitle"] == "MoH"
 
 
 def test_settings_set_many_rejects_non_object(pat_profile: None, tmp_path: Path) -> None:  # noqa: ARG001

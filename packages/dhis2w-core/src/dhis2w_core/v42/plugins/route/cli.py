@@ -330,10 +330,13 @@ def patch_command(
 @app.command("delete")
 def delete_command(
     route: Annotated[str, typer.Argument(help=_ROUTE_REF_HELP)],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Delete a route."""
     from dhis2w_core.v42.plugins.route import service
 
+    if not yes:
+        typer.confirm(f"really delete route {route}?", abort=True)
     response = asyncio.run(service.delete_route(profile_from_env(), route))
     render_webmessage(response, action=f"deleted {route}")
 

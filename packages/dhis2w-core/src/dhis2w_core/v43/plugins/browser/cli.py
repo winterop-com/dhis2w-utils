@@ -242,14 +242,14 @@ def viz_screenshot_command(
         ),
     )
     if is_json_output():
-        typer.echo(json.dumps([dict(r) for r in results], indent=2, default=str))
+        typer.echo(json.dumps([r.model_dump(mode="json", exclude_none=True) for r in results], indent=2))
         return
     if not results:
         typer.echo("no visualizations captured.")
         return
     for result in results:
-        suffix = "" if result.get("rendered") else "  (plateau — chart may be blank)"
-        typer.echo(f"  {result['output_path']}  {result['display_name']}{suffix}")
+        suffix = "" if result.rendered else "  (plateau — chart may be blank)"
+        typer.echo(f"  {result.output_path}  {result.display_name}{suffix}")
 
 
 def map_screenshot_command(
@@ -315,11 +315,11 @@ def map_screenshot_command(
         ),
     )
     if is_json_output():
-        typer.echo(json.dumps([dict(r) for r in results], indent=2, default=str))
+        typer.echo(json.dumps([r.model_dump(mode="json", exclude_none=True) for r in results], indent=2))
         return
     if not results:
         typer.echo("no maps captured.")
         return
     for result in results:
-        suffix = "" if result.get("rendered") else "  (plateau — map may be blank)"
-        typer.echo(f"  {result['output_path']}  {result['display_name']}{suffix}")
+        suffix = "" if result.rendered else "  (plateau — map may be blank)"
+        typer.echo(f"  {result.output_path}  {result.display_name}{suffix}")

@@ -230,6 +230,8 @@ In a host config, set it under the `env:` block (see Claude Desktop example abov
 
 Set `DHIS2_MCP_READONLY=1` to run the full server read-only: write tools are **hidden from the tool list** and **refused if called** (the agent gets a `ToolError`). Tools are classified by their `readOnlyHint` annotation when present, else by a read-verb heuristic on the tool name — fail-closed, so an unrecognized verb is treated as a write. Enforced by a single FastMCP middleware (one chokepoint), independent of the profile's credentials. As always the authoritative guarantee is the DHIS2 authorities of those credentials, so pair read-only mode with a read-scoped PAT for a hard guard. (The single-tool bridge has the same `DHIS2_MCP_READONLY` switch — see [the bridge guide](bridge.md).)
 
+Independently of that switch, every tool advertises a `readOnlyHint` annotation (reads `True`, writes `False`), stamped at build time from the same read/write classifier. A host that honours the MCP annotation — e.g. one that skips its per-action write confirmation for read-only-hinted tools — gets frictionless reads while writes still prompt, without any per-tool configuration.
+
 ## Filesystem trust model
 
 Several tools read and write **arbitrary local filesystem paths** the agent provides:

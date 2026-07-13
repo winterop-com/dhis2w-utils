@@ -459,7 +459,8 @@ def register(mcp: Any) -> None:
         short_name_strip_suffix: str | None = None,
         set_description: str | None = None,
         concurrency: int = 8,
-        dry_run: bool = False,
+        dry_run: bool = True,
+        allow_all: bool = False,
         profile: str | None = None,
     ) -> dict[str, Any]:
         """Bulk-rename metadata objects by RFC 6902 patch.
@@ -469,7 +470,9 @@ def register(mcp: Any) -> None:
         variants are idempotent — re-running won't double-apply. Strip
         runs before add so you can combine `name_strip_prefix=X` +
         `name_prefix=Y` to rewrite the prefix in one pass. Strip values
-        must be non-empty strings.
+        must be non-empty strings. `dry_run` defaults True (preview only) —
+        set `dry_run=False` to apply. A live rename with no `filters` mutates
+        the whole catalog and is refused unless `allow_all=True`.
         """
         result = await service.bulk_rename_metadata(
             resolve_profile(profile),
@@ -487,6 +490,7 @@ def register(mcp: Any) -> None:
             set_description=set_description,
             concurrency=concurrency,
             dry_run=dry_run,
+            allow_all=allow_all,
         )
         return _dump_model(result)
 
@@ -536,7 +540,8 @@ def register(mcp: Any) -> None:
         legend_set_uids: list[str] | None = None,
         clear_legend_sets: bool = False,
         concurrency: int = 8,
-        dry_run: bool = False,
+        dry_run: bool = True,
+        allow_all: bool = False,
         profile: str | None = None,
     ) -> dict[str, Any]:
         """Bulk-rewrite ref / enum fields across a filtered cohort.
@@ -546,7 +551,10 @@ def register(mcp: Any) -> None:
         replace the ref(s); `clear_option_set` / `clear_legend_sets` =
         remove / empty; `aggregation_type` / `domain_type` = replace the
         enum value. Per-UID failures land on the nested
-        `BulkPatchResult.failures`, not raised.
+        `BulkPatchResult.failures`, not raised. `dry_run` defaults True
+        (preview only) — set `dry_run=False` to apply. A live retag with no
+        `filters` mutates the whole catalog and is refused unless
+        `allow_all=True`.
         """
         result = await service.bulk_retag_metadata(
             resolve_profile(profile),
@@ -562,6 +570,7 @@ def register(mcp: Any) -> None:
             clear_legend_sets=clear_legend_sets,
             concurrency=concurrency,
             dry_run=dry_run,
+            allow_all=allow_all,
         )
         return _dump_model(result)
 

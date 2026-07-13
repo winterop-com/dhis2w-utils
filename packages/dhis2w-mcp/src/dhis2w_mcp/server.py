@@ -7,10 +7,12 @@ import typing
 from dhis2w_core.plugin import discover_plugins, resolve_startup_version
 from dhis2w_core.profile import bind_version_tree
 from fastmcp import FastMCP
+from fastmcp.tools.base import Tool
+from mcp.types import ToolAnnotations
 from pydantic import BaseModel
 
 from dhis2w_mcp.profile_errors import NoProfileHintMiddleware
-from dhis2w_mcp.readonly import ReadOnlyMiddleware, readonly_enabled
+from dhis2w_mcp.readonly import ReadOnlyMiddleware, is_read_tool, readonly_enabled
 
 
 def build_server() -> FastMCP:
@@ -28,6 +30,7 @@ def build_server() -> FastMCP:
     for plugin in discover_plugins(bound_tree):
         plugin.register_mcp(server)
     _eager_rebuild_tool_return_types(server)
+    _annotate_read_only_hints(server)
     server.add_middleware(NoProfileHintMiddleware())
     if readonly_enabled():
         server.add_middleware(ReadOnlyMiddleware())
@@ -83,6 +86,38 @@ def _eager_rebuild_tool_return_types(server: FastMCP) -> None:
             continue
         for component in components.values():
             _rebuild(getattr(component, "return_type", None))
+
+
+def _annotate_read_only_hints(server: FastMCP) -> None:
+    """Stamp each registered tool's `readOnlyHint` annotation from the name-based read/write classifier.
+
+    kodo's per-action confirmation gate skips tools that advertise `readOnlyHint=True`, but the
+    ~315 hand-written typed tools carry no annotations, so every read would still prompt. Rather than
+    edit each `@mcp.tool()` site, this single post-registration pass sets the hint in place from the
+    same `is_read_tool` verb heuristic the read-only middleware already trusts: reads -> `True`,
+    writes -> `False`. This covers whichever version tree (v41/v42/v43) is mounted.
+
+    An already-annotated tool is respected — the hint is set only when a tool has no annotations or a
+    `readOnlyHint` that is still unset — so a deliberate hand-set annotation is never overwritten. Tool
+    objects are mutable pydantic models here (FastMCP 3.4.x), so the annotation is attached in place.
+    Reads from `server.providers[*]._components` for the same synchronous, in-async-context reasons as
+    `_eager_rebuild_tool_return_types`.
+    """
+    for provider in server.providers:
+        components = getattr(provider, "_components", None)
+        if not components:
+            continue
+        for component in components.values():
+            if not isinstance(component, Tool):
+                continue
+            annotations = component.annotations
+            if annotations is not None and annotations.readOnlyHint is not None:
+                continue  # respect a hand-set hint
+            read_only = is_read_tool(component.name)
+            if annotations is None:
+                component.annotations = ToolAnnotations(readOnlyHint=read_only)
+            else:
+                annotations.readOnlyHint = read_only
 
 
 if __name__ == "__main__":

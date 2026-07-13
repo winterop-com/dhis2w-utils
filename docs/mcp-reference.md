@@ -304,7 +304,8 @@ Delete a single aggregate data value via DELETE /api/dataValues.
 | `period` | `string` | yes | — |
 | `org_unit` | `string` | yes | — |
 | `category_option_combo` | `string` | no | — |
-| `attribute_option_combo` | `string` | no | — |
+| `attribute_combo` | `string` | no | — |
+| `attribute_options` | `list[string]` | no | — |
 | `profile` | `string` | no | — |
 
 ### `data_aggregate_followup`
@@ -365,7 +366,8 @@ Set a single aggregate data value via POST /api/dataValues.
 | `org_unit` | `string` | yes | — |
 | `value` | `string` | yes | — |
 | `category_option_combo` | `string` | no | — |
-| `attribute_option_combo` | `string` | no | — |
+| `attribute_combo` | `string` | no | — |
+| `attribute_options` | `list[string]` | no | — |
 | `comment` | `string` | no | — |
 | `profile` | `string` | no | — |
 
@@ -2736,6 +2738,7 @@ Bulk-rename metadata objects by RFC 6902 patch.
 | `set_description` | `string` | no | — |
 | `concurrency` | `integer` | no | — |
 | `dry_run` | `boolean` | no | — |
+| `allow_all` | `boolean` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_retag`
@@ -2756,6 +2759,7 @@ Bulk-rewrite ref / enum fields across a filtered cohort.
 | `clear_legend_sets` | `boolean` | no | — |
 | `concurrency` | `integer` | no | — |
 | `dry_run` | `boolean` | no | — |
+| `allow_all` | `boolean` | no | — |
 | `profile` | `string` | no | — |
 
 ### `metadata_search`

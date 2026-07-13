@@ -32,7 +32,7 @@ def test_profile_construct_pat() -> None:
     """Profile construct pat."""
     profile = Profile(base_url="http://localhost:8080", auth="pat", token="d2p_test")
     assert profile.auth == "pat"
-    assert profile.token == "d2p_test"
+    assert profile.token is not None and profile.token == "d2p_test"
     assert profile.username is None
 
 
@@ -40,7 +40,64 @@ def test_profile_construct_basic() -> None:
     """Profile construct basic."""
     profile = Profile(base_url="http://localhost:8080", auth="basic", username="admin", password="district")
     assert profile.username == "admin"
-    assert profile.password == "district"
+    assert profile.password is not None and profile.password == "district"
+
+
+def test_profile_masks_secrets_in_repr_and_dump() -> None:
+    """Profile secret fields never leak in repr() / model_dump() / model_dump_json()."""
+    profile = Profile(
+        base_url="http://localhost:8080",
+        auth="oauth2",
+        token="d2p_secret",
+        password="district",
+        client_secret="cs_secret",
+        cookie="JSESSIONID=abc123",
+    )
+    for leaked in ("d2p_secret", "district", "cs_secret", "abc123"):
+        assert leaked not in repr(profile)
+        assert leaked not in str(profile.model_dump())
+        assert leaked not in profile.model_dump_json()
+    # Default model_dump masks credential fields.
+    assert profile.model_dump()["token"] == "**********"
+    assert profile.model_dump()["client_secret"] == "**********"
+    # The reveal context returns the real values for persistence.
+    revealed = profile.model_dump(context={"reveal": True})
+    assert revealed["token"] == "d2p_secret"
+    assert revealed["password"] == "district"
+    assert revealed["client_secret"] == "cs_secret"
+    assert revealed["cookie"] == "JSESSIONID=abc123"
+    # Plain attribute reads still work for the code that needs them.
+    assert profile.token == "d2p_secret"
+    # Non-secret fields remain visible.
+    assert "http://localhost:8080" in repr(profile)
+
+
+def test_profile_masks_xsrf_token_and_round_trips() -> None:
+    """A session Profile masks xsrf_token in dump/repr, reveals it under reveal, and round-trips."""
+    profile = Profile(
+        base_url="http://localhost:8080",
+        auth="session",
+        cookie="JSESSIONID=abc123",
+        xsrf_token="xsrf-secret",
+    )
+    assert "xsrf-secret" not in repr(profile)
+    assert "xsrf-secret" not in str(profile.model_dump())
+    assert "xsrf-secret" not in profile.model_dump_json()
+    assert profile.model_dump()["xsrf_token"] == "**********"
+    revealed = profile.model_dump(context={"reveal": True})
+    assert revealed["xsrf_token"] == "xsrf-secret"
+    # A revealed dump rebuilds an equal profile — the session cookie + token survive the round trip.
+    rebuilt = Profile(**revealed)
+    assert rebuilt.xsrf_token == "xsrf-secret"
+    assert rebuilt.cookie == "JSESSIONID=abc123"
+    # Plain attribute read still works for the code that needs it.
+    assert profile.xsrf_token == "xsrf-secret"
+
+
+def test_profile_xsrf_token_defaults_to_none() -> None:
+    """xsrf_token is optional — a session Profile without it leaves the field None."""
+    profile = Profile(base_url="http://localhost:8080", auth="session", cookie="JSESSIONID=abc123")
+    assert profile.xsrf_token is None
 
 
 def test_profile_is_frozen() -> None:
@@ -59,7 +116,7 @@ def test_profile_from_env_raw_pat(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     assert profile is not None
     assert profile.base_url == "http://localhost:8080"
     assert profile.auth == "pat"
-    assert profile.token == "d2p_env"
+    assert profile.token is not None and profile.token == "d2p_env"
 
 
 def test_profile_from_env_raw_basic(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

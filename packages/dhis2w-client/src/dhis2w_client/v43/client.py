@@ -296,7 +296,18 @@ class Dhis2Client:
                 "verify": self._verify,
             }
             if self._retry_policy is not None:
-                kwargs["transport"] = build_retry_transport(self._retry_policy)
+                # httpx ignores the client-level `verify`/`limits` kwargs whenever an
+                # explicit transport is supplied, so fold both into the inner transport
+                # the retry wrapper drives. Otherwise a retry policy would silently drop
+                # `verify=False` / a custom CA bundle (TLS failure on every call) and
+                # ignore `http_limits`.
+                pool_limits = (
+                    self._http_limits
+                    if self._http_limits is not None
+                    else httpx.Limits(max_connections=100, max_keepalive_connections=20)
+                )
+                inner_transport = httpx.AsyncHTTPTransport(verify=self._verify, limits=pool_limits)
+                kwargs["transport"] = build_retry_transport(self._retry_policy, inner=inner_transport)
             if self._http_limits is not None:
                 kwargs["limits"] = self._http_limits
             if self._event_hooks is not None:
@@ -304,33 +315,41 @@ class Dhis2Client:
             self._http = httpx.AsyncClient(**kwargs)
         if self._skip_version_probe:
             return
-        info = await self.get_raw("/api/system/info")
-        self._raw_version = str(info.get("version", ""))
-        if self._version is not None:
-            # Caller asserted a version — verify the server's reported version
-            # matches the pinned major. A v43 pin against a v42 server would
-            # silently round-trip renamed/added fields wrong, so fail loud
-            # unless the caller explicitly opts into the mismatch.
-            if not self._allow_version_mismatch:
-                self._assert_reported_version_matches_pin(self._raw_version, self._version)
-            self._version_key = self._version.value
-        else:
-            self._version_key = self._pick_version_key(self._raw_version)
-        self._generated = load(self._version_key)
-        if self._version_key != "v43":
-            raise RuntimeError(
-                f"dhis2w_client.v43.client.Dhis2Client connected to a {self._raw_version!r} "
-                f"server (version_key={self._version_key!r}); v43 accessors will misbehave "
-                "against a non-v43 instance. Use dhis2w_client.Dhis2Client (the top-level "
-                "v42 entry point) for auto-dispatching accessors per server version."
-            )
-        # Prime the system cache with the info we already fetched so
-        # `client.system.info()` right after connect is a free in-process read.
-        if self._system_cache is not None:
-            self._system_cache.set("info", _SystemInfo.model_validate(info))
-        resources_cls = getattr(self._generated, "Resources", None)
-        if resources_cls is not None:
-            self._resources = resources_cls(self)
+        try:
+            info = await self.get_raw("/api/system/info")
+            self._raw_version = str(info.get("version", ""))
+            if self._version is not None:
+                # Caller asserted a version — verify the server's reported version
+                # matches the pinned major. A v43 pin against a v42 server would
+                # silently round-trip renamed/added fields wrong, so fail loud
+                # unless the caller explicitly opts into the mismatch.
+                if not self._allow_version_mismatch:
+                    self._assert_reported_version_matches_pin(self._raw_version, self._version)
+                self._version_key = self._version.value
+            else:
+                self._version_key = self._pick_version_key(self._raw_version)
+            self._generated = load(self._version_key)
+            if self._version_key != "v43":
+                raise RuntimeError(
+                    f"dhis2w_client.v43.client.Dhis2Client connected to a {self._raw_version!r} "
+                    f"server (version_key={self._version_key!r}); v43 accessors will misbehave "
+                    "against a non-v43 instance. Use dhis2w_client.Dhis2Client (the top-level "
+                    "v42 entry point) for auto-dispatching accessors per server version."
+                )
+            # Prime the system cache with the info we already fetched so
+            # `client.system.info()` right after connect is a free in-process read.
+            if self._system_cache is not None:
+                self._system_cache.set("info", _SystemInfo.model_validate(info))
+            resources_cls = getattr(self._generated, "Resources", None)
+            if resources_cls is not None:
+                self._resources = resources_cls(self)
+        except BaseException:
+            # Any probe failure (bad auth, version-pin mismatch, non-JSON body, or the
+            # wrong-server RuntimeError above) leaves the pool open, and __aexit__ never
+            # runs because __aenter__ raised. Close the pool before re-raising so
+            # connect() never leaks an AsyncClient.
+            await self.close()
+            raise
 
     @staticmethod
     async def _resolve_canonical_base_url(base_url: str, *, verify: bool | str = True) -> str:

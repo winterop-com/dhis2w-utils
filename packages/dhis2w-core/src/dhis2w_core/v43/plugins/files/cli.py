@@ -191,10 +191,15 @@ def documents_download_command(
 
 
 @documents_app.command("delete")
-def documents_delete_command(uid: Annotated[str, typer.Argument(help="Document UID.")]) -> None:
+def documents_delete_command(
+    uid: Annotated[str, typer.Argument(help="Document UID.")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
+) -> None:
     """Delete one document."""
     from dhis2w_core.v43.plugins.files import service
 
+    if not yes:
+        typer.confirm(f"really delete document {uid}?", abort=True)
     asyncio.run(service.delete_document(profile_from_env(), uid))
     typer.echo(f"deleted {uid}")
 

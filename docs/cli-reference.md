@@ -942,6 +942,10 @@ $ d2w data aggregate push [OPTIONS] FILE
 
 Set a single data value.
 
+An attribute option combo is addressed by its CategoryCombo UID (--cc) plus
+the category-option UIDs (--cp, repeatable) — DHIS2 has no attributeOptionCombo
+query param, so pass the two together.
+
 **Usage**:
 
 ```console
@@ -955,13 +959,17 @@ $ d2w data aggregate set [OPTIONS]
 * `--org-unit, --ou TEXT`: OrganisationUnit UID.  [required]
 * `--value TEXT`: The value to set (as a string).  [required]
 * `--coc TEXT`: CategoryOptionCombo UID.
-* `--aoc TEXT`: AttributeOptionCombo UID (category-combo attributes).
+* `--attribute-combo, --cc TEXT`: Attribute CategoryCombo UID (pair with --attribute-option).
+* `--attribute-option, --cp TEXT`: Attribute category-option UID; repeat for each. Pair with --attribute-combo.
 * `--comment TEXT`
 * `--help`: Show this message and exit.
 
 #### `d2w data aggregate delete`
 
 Delete a single data value.
+
+Address an attribute option combo via --cc (its CategoryCombo UID) plus --cp
+(its category-option UIDs, repeatable) — DHIS2 has no attributeOptionCombo param.
 
 **Usage**:
 
@@ -975,7 +983,8 @@ $ d2w data aggregate delete [OPTIONS]
 * `--period, --pe TEXT`: [required]
 * `--org-unit, --ou TEXT`: [required]
 * `--coc TEXT`
-* `--aoc TEXT`
+* `--attribute-combo, --cc TEXT`: Attribute CategoryCombo UID.
+* `--attribute-option, --cp TEXT`: Attribute category-option UID; repeat for each.
 * `--help`: Show this message and exit.
 
 #### `d2w data aggregate followup`
@@ -1160,6 +1169,7 @@ $ d2w data tracker delete [OPTIONS] UIDS...
 **Options**:
 
 * `--async`: Return a job reference immediately instead of waiting.
+* `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
 #### `d2w data tracker register`
@@ -1236,7 +1246,7 @@ $ d2w data tracker enrollment [OPTIONS] COMMAND [ARGS]...
 
 * `ls`: List enrollments (tracker programs only).
 * `list`: List enrollments (tracker programs only).
-* `delete`: Delete enrollments by UID.
+* `delete`: Delete enrollments by UID (cascades to...
 * `create`: Enroll an existing tracked entity in a...
 
 ##### `d2w data tracker enrollment ls`
@@ -1287,7 +1297,7 @@ $ d2w data tracker enrollment list [OPTIONS]
 
 ##### `d2w data tracker enrollment delete`
 
-Delete enrollments by UID.
+Delete enrollments by UID (cascades to their events).
 
 **Usage**:
 
@@ -1302,6 +1312,7 @@ $ d2w data tracker enrollment delete [OPTIONS] UIDS...
 **Options**:
 
 * `--async`: Return a job reference immediately instead of waiting.
+* `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
 ##### `d2w data tracker enrollment create`
@@ -1419,6 +1430,7 @@ $ d2w data tracker event delete [OPTIONS] UIDS...
 **Options**:
 
 * `--async`: Return a job reference immediately instead of waiting.
+* `-y, --yes`: Skip confirmation.
 * `--help`: Show this message and exit.
 
 ##### `d2w data tracker event create`
@@ -2152,6 +2164,7 @@ $ d2w files documents delete [OPTIONS] UID
 
 **Options**:
 
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 ### `d2w files resources`
@@ -2413,6 +2426,7 @@ $ d2w maintenance cleanup data-values [OPTIONS]
 
 **Options**:
 
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 #### `d2w maintenance cleanup events`
@@ -2427,6 +2441,7 @@ $ d2w maintenance cleanup events [OPTIONS]
 
 **Options**:
 
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 #### `d2w maintenance cleanup enrollments`
@@ -2441,6 +2456,7 @@ $ d2w maintenance cleanup enrollments [OPTIONS]
 
 **Options**:
 
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 #### `d2w maintenance cleanup tracked-entities`
@@ -2455,6 +2471,7 @@ $ d2w maintenance cleanup tracked-entities [OPTIONS]
 
 **Options**:
 
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 ### `d2w maintenance dataintegrity`
@@ -3445,6 +3462,8 @@ $ d2w metadata rename [OPTIONS] RESOURCE
 * `--set-description TEXT`: Replace every matched object&#x27;s `description` with this string.
 * `--concurrency INTEGER`: Max concurrent PATCH requests (default 8).  [default: 8]
 * `--dry-run`: Preview the planned patches without sending them.
+* `--all`: Opt into renaming EVERY object when no --filter is given (asks to confirm).
+* `-y, --yes`: Skip the confirmation prompt for a catalog-wide (--all) rename.
 * `--help`: Show this message and exit.
 
 ### `d2w metadata retag`
@@ -3486,6 +3505,8 @@ $ d2w metadata retag [OPTIONS] RESOURCE
 * `--clear-legend-sets`: Empty `/legendSets`.
 * `--concurrency INTEGER`: Max concurrent PATCH requests (default 8).  [default: 8]
 * `--dry-run`: Preview without sending patches.
+* `--all`: Opt into retagging EVERY object when no --filter is given (asks to confirm).
+* `-y, --yes`: Skip the confirmation prompt for a catalog-wide (--all) retag.
 * `--help`: Show this message and exit.
 
 ### `d2w metadata share`
@@ -8503,7 +8524,7 @@ Add (or upsert) a profile.
 
 Secrets are never accepted as command-line flags (they&#x27;d leak into shell history).
 Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`,
-`DHIS2_SESSION_COOKIE`) or prompted interactively when missing.
+`DHIS2_SESSION_COOKIE`, `DHIS2_SESSION_XSRF`) or prompted interactively when missing.
 
 **Usage**:
 
@@ -8549,6 +8570,7 @@ $ d2w profile remove [OPTIONS] NAME
 
 * `--global`: Remove from ~/.config/dhis2/profiles.toml specifically.
 * `--local`: Remove from ./.dhis2/profiles.toml specifically.
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 ### `d2w profile rename`
@@ -8669,6 +8691,10 @@ step from the OAuth2 setup walkthrough.
 The URL can be either the DHIS2 base URL (discovery path is appended
 automatically) or the full discovery URL.
 
+The client_secret never comes in via argv (it would leak to shell history / `ps`).
+Read it from the `DHIS2_OAUTH_CLIENT_SECRET` env var or a hidden prompt when the
+`--client-secret` flag is omitted.
+
 **Usage**:
 
 ```console
@@ -8683,7 +8709,7 @@ $ d2w profile oidc-config [OPTIONS] URL
 
 * `-n, --name TEXT`: Profile name to save as.  [required]
 * `--client-id TEXT`: OAuth2 client_id (from your registration).  [required]
-* `--client-secret TEXT`: OAuth2 client_secret.  [required]
+* `--client-secret TEXT`: OAuth2 client_secret. Omit to read DHIS2_OAUTH_CLIENT_SECRET env or a hidden prompt.
 * `--scope TEXT`: OAuth2 scope (DHIS2 only recognises `ALL`).  [default: ALL]
 * `--redirect-uri TEXT`: OAuth2 redirect URI (match your registered client — default is the CLI&#x27;s loopback listener).  [default: http://localhost:8765]
 * `--global`: Save to ~/.config/dhis2/profiles.toml (default, user-wide).
@@ -9096,6 +9122,7 @@ $ d2w route delete [OPTIONS] ROUTE
 
 **Options**:
 
+* `-y, --yes`: Skip the confirmation prompt.
 * `--help`: Show this message and exit.
 
 ### `d2w route run`
@@ -9337,6 +9364,10 @@ $ d2w system settings set [OPTIONS] KEY VALUE
 #### `d2w system settings set-many`
 
 Bulk-set system settings from a JSON file.
+
+JSON scalars are coerced to the string form DHIS2 expects: booleans map to
+lowercase `true` / `false`, numbers to their plain form, strings pass
+through, and structured values (lists / objects) are re-serialized as JSON.
 
 **Usage**:
 

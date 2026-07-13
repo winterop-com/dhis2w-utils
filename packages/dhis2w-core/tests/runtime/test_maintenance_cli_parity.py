@@ -66,11 +66,11 @@ def test_maintenance_task_list_cli_parity(
 def test_maintenance_cleanup_data_values_cli_parity(
     core_version: str, core_profile: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`d2w maintenance cleanup data-values` confirms the cleanup on every tree."""
+    """`d2w maintenance cleanup data-values --yes` confirms the cleanup on every tree."""
     mock = AsyncMock(return_value=None)
     with patch(f"dhis2w_core.{core_version}.plugins.maintenance.service.remove_soft_deleted", new=mock):
         app = _build_versioned_app(core_version, monkeypatch)
-        result = CliRunner().invoke(app, ["-p", "probe", "maintenance", "cleanup", "data-values"])
+        result = CliRunner().invoke(app, ["-p", "probe", "maintenance", "cleanup", "data-values", "--yes"])
     assert result.exit_code == 0, result.output
     assert "soft-deleted data values removed" in result.output
 

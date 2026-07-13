@@ -6,13 +6,13 @@
 set -euo pipefail
 
 # Delete one event by UID.
-d2w data tracker event delete evt01234567
+d2w data tracker event delete evt01234567 --yes
 
 # Delete an enrollment by UID.
-d2w data tracker enrollment delete enr01234567
+d2w data tracker enrollment delete enr01234567 --yes
 
 # Delete a tracked entity (cascades to its enrollments + events).
-d2w data tracker delete teI01234567
+d2w data tracker delete teI01234567 --yes
 
 # Delete several at once; --async returns a job reference instead of waiting.
-d2w data tracker event delete evt01234567 evt7654321X --async
+d2w data tracker event delete evt01234567 evt7654321X --async --yes

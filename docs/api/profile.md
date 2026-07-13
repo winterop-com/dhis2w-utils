@@ -60,8 +60,8 @@ See `examples/v{41,42,43}/client/profile_pat_pure_client.py` for the runnable, v
 
 ## Open a client from a profile
 
-`build_auth_for_basic(profile)` returns a `PatAuth`, `BasicAuth`, or `SessionCookieAuth` `AuthProvider`. `open_client(profile)` is the async context manager that wires that auth provider into a connected `Dhis2Client`. Both live at the top of `dhis2w_client` (re-exported from `dhis2w_client.v42.client_context`) and on each per-version surface (`dhis2w_client.v41`, `dhis2w_client.v42`, `dhis2w_client.v43`).
+`build_auth_provider(profile)` returns a `PatAuth`, `BasicAuth`, or `SessionCookieAuth` `AuthProvider`. `open_client(profile)` is the async context manager that wires that auth provider into a connected `Dhis2Client`. Both live at the top of `dhis2w_client` (re-exported from `dhis2w_client.v42.client_context`) and on each per-version surface (`dhis2w_client.v41`, `dhis2w_client.v42`, `dhis2w_client.v43`).
 
-::: dhis2w_client.v42.client_context.build_auth_for_basic
+::: dhis2w_client.v42.client_context.build_auth_provider
 
 ::: dhis2w_client.v42.client_context.open_client

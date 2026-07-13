@@ -1058,6 +1058,14 @@ def rename_command(
         bool,
         typer.Option("--dry-run", help="Preview the planned patches without sending them."),
     ] = False,
+    all_objects: Annotated[
+        bool,
+        typer.Option("--all", help="Opt into renaming EVERY object when no --filter is given (asks to confirm)."),
+    ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", "-y", help="Skip the confirmation prompt for a catalog-wide (--all) rename."),
+    ] = False,
 ) -> None:
     """Bulk-rename metadata objects by RFC 6902 patch.
 
@@ -1090,6 +1098,17 @@ def rename_command(
             "--name-strip-suffix / --short-name-prefix / --short-name-suffix / "
             "--short-name-strip-prefix / --short-name-strip-suffix / --set-description",
         )
+    if not filters and not dry_run:
+        if not all_objects:
+            raise typer.BadParameter(
+                f"refusing to rename every {resource} with no --filter. Add a --filter to narrow the cohort, "
+                "or pass --all to mutate the entire catalog.",
+            )
+        if not yes and not typer.confirm(
+            f"Rename EVERY {resource} object on the instance (no --filter)?",
+            default=False,
+        ):
+            raise typer.Abort()
     result = asyncio.run(
         service.bulk_rename_metadata(
             profile_from_env(),
@@ -1107,6 +1126,7 @@ def rename_command(
             set_description=set_description,
             concurrency=concurrency,
             dry_run=dry_run,
+            allow_all=all_objects,
         ),
     )
 
@@ -1207,6 +1227,14 @@ def retag_command(
         typer.Option("--concurrency", help="Max concurrent PATCH requests (default 8)."),
     ] = 8,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without sending patches.")] = False,
+    all_objects: Annotated[
+        bool,
+        typer.Option("--all", help="Opt into retagging EVERY object when no --filter is given (asks to confirm)."),
+    ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", "-y", help="Skip the confirmation prompt for a catalog-wide (--all) retag."),
+    ] = False,
 ) -> None:
     """Bulk-rewrite ref / enum fields on metadata objects.
 
@@ -1239,6 +1267,17 @@ def retag_command(
             "pass at least one of --category-combo / --option-set / --clear-option-set / "
             "--aggregation-type / --domain-type / --legend-set / --clear-legend-sets",
         )
+    if not filters and not dry_run:
+        if not all_objects:
+            raise typer.BadParameter(
+                f"refusing to retag every {resource} with no --filter. Add a --filter to narrow the cohort, "
+                "or pass --all to mutate the entire catalog.",
+            )
+        if not yes and not typer.confirm(
+            f"Retag EVERY {resource} object on the instance (no --filter)?",
+            default=False,
+        ):
+            raise typer.Abort()
     result = asyncio.run(
         service.bulk_retag_metadata(
             profile_from_env(),
@@ -1254,6 +1293,7 @@ def retag_command(
             clear_legend_sets=clear_legend_sets,
             concurrency=concurrency,
             dry_run=dry_run,
+            allow_all=all_objects,
         ),
     )
 

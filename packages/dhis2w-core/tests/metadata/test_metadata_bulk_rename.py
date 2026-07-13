@@ -136,6 +136,7 @@ async def test_bulk_rename_idempotent_prefix_skips_already_prefixed(pat_profile:
         profile,
         "dataElements",
         name_prefix="[MoH] ",
+        allow_all=True,
     )
     # Only DE_B changes; DE_A was already prefixed so no op is planned.
     assert result.matched == 1
@@ -202,6 +203,7 @@ async def test_bulk_rename_strip_prefix_removes_only_matching_rows(pat_profile: 
         resolve_profile("probe"),
         "dataElements",
         name_strip_prefix="[MoH] ",
+        allow_all=True,
     )
     assert result.matched == 1
     assert result.entries[0].uid == "DE_A"
@@ -231,6 +233,7 @@ async def test_bulk_rename_strip_then_add_rewrites_prefix(pat_profile: None) -> 
         "dataElements",
         name_strip_prefix="[old] ",
         name_prefix="[new] ",
+        allow_all=True,
     )
     import json as _json
 
@@ -258,6 +261,7 @@ async def test_bulk_rename_strip_suffix_idempotent_when_absent(pat_profile: None
         resolve_profile("probe"),
         "dataElements",
         name_strip_suffix=" (retired)",
+        allow_all=True,
     )
     # Nothing to strip; no patch called.
     assert result.matched == 0
@@ -274,6 +278,8 @@ def test_rename_cli_strip_prefix_forwards_flag(pat_profile: None) -> None:  # no
                 "metadata",
                 "rename",
                 "dataElements",
+                "--filter",
+                "code:like:DE_",
                 "--name-strip-prefix",
                 "[old] ",
                 "--name-prefix",
@@ -368,7 +374,7 @@ def test_rename_cli_renders_no_match_message(pat_profile: None) -> None:  # noqa
     with patch("dhis2w_core.v42.plugins.metadata.service.bulk_rename_metadata", new=AsyncMock(return_value=empty)):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "rename", "dataElements", "--name-prefix", "X"],
+            ["metadata", "rename", "dataElements", "--filter", "code:like:DE_", "--name-prefix", "X"],
         )
     assert result.exit_code == 0, result.output
     assert "no dataElements matched" in result.output
@@ -380,7 +386,7 @@ def test_rename_cli_emits_json_when_requested(pat_profile: None) -> None:  # noq
     with patch("dhis2w_core.v42.plugins.metadata.service.bulk_rename_metadata", new=mock):
         result = CliRunner().invoke(
             build_app(),
-            ["--json", "metadata", "rename", "dataElements", "--name-prefix", "[MoH] "],
+            ["--json", "metadata", "rename", "dataElements", "--filter", "code:like:DE_", "--name-prefix", "[MoH] "],
         )
     assert result.exit_code == 0, result.output
     import json as _json
@@ -389,3 +395,39 @@ def test_rename_cli_emits_json_when_requested(pat_profile: None) -> None:  # noq
     assert payload["resource"] == "dataElements"
     assert payload["matched"] == 2
     assert len(payload["entries"]) == 2
+
+
+def test_rename_cli_refuses_no_filter_without_all(pat_profile: None) -> None:  # noqa: ARG001
+    """A no-filter live rename is refused unless --all opts in; the service is never called."""
+    mock = AsyncMock(return_value=_fake_result())
+    with patch("dhis2w_core.v42.plugins.metadata.service.bulk_rename_metadata", new=mock):
+        result = CliRunner().invoke(build_app(), ["metadata", "rename", "dataElements", "--name-prefix", "[X] "])
+    assert result.exit_code != 0
+    assert "refusing to rename every dataElements" in result.output
+    assert mock.await_count == 0
+
+
+def test_rename_cli_all_yes_opts_into_catalog_wide(pat_profile: None) -> None:  # noqa: ARG001
+    """--all --yes forwards allow_all=True and skips the confirmation prompt."""
+    mock = AsyncMock(return_value=_fake_result())
+    with patch("dhis2w_core.v42.plugins.metadata.service.bulk_rename_metadata", new=mock):
+        result = CliRunner().invoke(
+            build_app(),
+            ["metadata", "rename", "dataElements", "--name-prefix", "[X] ", "--all", "--yes"],
+        )
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["allow_all"] is True
+
+
+def test_rename_cli_all_without_yes_aborts_on_no(pat_profile: None) -> None:  # noqa: ARG001
+    """--all without --yes prompts for confirmation; answering 'n' aborts without calling the service."""
+    mock = AsyncMock(return_value=_fake_result())
+    with patch("dhis2w_core.v42.plugins.metadata.service.bulk_rename_metadata", new=mock):
+        result = CliRunner().invoke(
+            build_app(),
+            ["metadata", "rename", "dataElements", "--name-prefix", "[X] ", "--all"],
+            input="n\n",
+        )
+    assert result.exit_code != 0
+    assert mock.await_count == 0

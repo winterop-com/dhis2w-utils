@@ -44,15 +44,23 @@ from dhis2w_client import PatAuth
 auth = PatAuth(token="d2pat_...")
 ```
 
-For the profile-based convenience path, `dhis2w_client.build_auth_for_basic(profile)` returns `PatAuth` for `profile.auth == "pat"`, `BasicAuth` for `profile.auth == "basic"`, and `SessionCookieAuth` for `profile.auth == "session"`. It raises `NotImplementedError` on OAuth2 (which needs the token store in `dhis2w-core`). The full `dhis2w_core.client_context.build_auth(profile)` is a strict superset that adds the OAuth2 path.
+For the profile-based convenience path, `dhis2w_client.build_auth_provider(profile)` returns `PatAuth` for `profile.auth == "pat"`, `BasicAuth` for `profile.auth == "basic"`, and `SessionCookieAuth` for `profile.auth == "session"`. It raises `NotImplementedError` on OAuth2 (which needs the token store in `dhis2w-core`). The full `dhis2w_core.client_context.build_auth(profile)` is a strict superset that adds the OAuth2 path.
+
+### Secrets are `SecretStr`
+
+Every credential field — `BasicAuth.password`, `PatAuth.token`, `SessionCookieAuth.cookie`, `OAuth2Token.access_token` / `refresh_token`, and the `Profile.token` / `password` / `client_secret` / `cookie` fields — is a `pydantic.SecretStr`. Constructing them from a plain string still works (`PatAuth(token="d2pat_...")`), but the value is masked in `repr()`, `model_dump()`, `model_dump_json()`, and tracebacks so credentials don't leak into logs or error output. Call `.get_secret_value()` at the point of use — the `headers()` methods, the `profiles.toml` writer, and the OAuth2 token store all unwrap internally, so callers never see the mask where the real value is required.
 
 ### SessionCookieAuth
 
 An existing browser session, sent verbatim as a raw `Cookie` header. The `cookie` value holds the full header value, name included (e.g. `"JSESSIONID=abc123"`), so the provider stays cookie-name-agnostic. `refresh_if_needed` is a no-op — the session lives (and dies) server-side; when it expires, store a fresh cookie. **The fallback when PAT creation is unavailable** (pre-2.38 instances, PATs disabled, or 403 for the user) — the primary consumer is browser-extension flows that bind tooling to the user's live DHIS2 login.
 
+The optional `xsrf_token` carries DHIS2's double-submit CSRF value: when set, `headers()` echoes it as `X-XSRF-TOKEN` alongside the `Cookie`, which write endpoints on CSRF-enforcing instances require. It's inert by default — `None` (or an empty value) omits the header, so read-only sessions leave it unset. A non-empty token carrying control characters is rejected at construction rather than emitting a malformed header at send time.
+
 ```python
 from dhis2w_client import SessionCookieAuth
 auth = SessionCookieAuth(cookie="JSESSIONID=abc123")
+# With CSRF protection (write-enabled sessions):
+auth = SessionCookieAuth(cookie="JSESSIONID=abc123", xsrf_token="a1b2c3d4-xsrf")
 ```
 
 ### OAuth2Auth

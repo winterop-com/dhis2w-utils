@@ -254,6 +254,7 @@ def env_command(
         _export_if("DHIS2_PAT", profile.token)
     elif profile.auth == "session":
         _export_if("DHIS2_SESSION_COOKIE", profile.cookie)
+        _export_if("DHIS2_SESSION_XSRF", profile.xsrf_token)
         typer.echo(
             "note: DHIS2_SESSION_COOKIE has no raw-env path; a session profile must exist in "
             "profiles.toml. The exported DHIS2_PROFILE makes `d2w` use this TOML profile.",
@@ -261,7 +262,8 @@ def env_command(
         )
     elif profile.auth == "oauth2":
         _export_if("DHIS2_OAUTH_CLIENT_ID", profile.client_id)
-        _export_if("DHIS2_OAUTH_CLIENT_SECRET", profile.client_secret)
+        oauth_client_secret = profile.client_secret
+        _export_if("DHIS2_OAUTH_CLIENT_SECRET", oauth_client_secret)
         typer.echo(
             "note: oauth2 has no full raw-env path; the access token comes from the profile's "
             "token store. The exported DHIS2_PROFILE makes `d2w` use this TOML profile.",
@@ -430,7 +432,7 @@ def add_command(
 
     Secrets are never accepted as command-line flags (they'd leak into shell history).
     Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`,
-    `DHIS2_SESSION_COOKIE`) or prompted interactively when missing.
+    `DHIS2_SESSION_COOKIE`, `DHIS2_SESSION_XSRF`) or prompted interactively when missing.
     """
     from dhis2w_core.v42.plugins.profile import service
 
@@ -472,7 +474,15 @@ def add_command(
             os.environ.get("DHIS2_SESSION_COOKIE")
             or typer.prompt("Session cookie (e.g. JSESSIONID=...)", hide_input=True)
         ).strip()
-        profile = Profile(base_url=resolved_url, auth="session", cookie=cookie, version=pinned_version)
+        # Optional CSRF token: absent env -> xsrf_token=None (unchanged session-only behavior).
+        xsrf_token = os.environ.get("DHIS2_SESSION_XSRF")
+        profile = Profile(
+            base_url=resolved_url,
+            auth="session",
+            cookie=cookie,
+            xsrf_token=xsrf_token,
+            version=pinned_version,
+        )
     elif auth == "oauth2":
         client_id = client_id or typer.prompt("OAuth2 client_id", default="dhis2-utils-local")
         client_secret = os.environ.get("DHIS2_OAUTH_CLIENT_SECRET") or typer.prompt(
@@ -521,12 +531,19 @@ def remove_command(
         bool,
         typer.Option("--local", help="Remove from ./.dhis2/profiles.toml specifically."),
     ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
     """Remove a profile. Without --global/--local, removes from whichever file holds it."""
     from dhis2w_core.v42.plugins.profile import service
 
     if global_scope and local_scope:
         raise typer.BadParameter("--global and --local are mutually exclusive")
+    if not yes:
+        typer.confirm(
+            f"remove profile {name!r}? If it holds a PAT or client_secret that DHIS2 showed "
+            "only once, that credential cannot be recovered after removal.",
+            abort=True,
+        )
     scope: str | None = None
     if local_scope:
         scope = "project"
@@ -783,7 +800,13 @@ def oidc_config_command(
     ],
     name: Annotated[str, typer.Option("--name", "-n", help="Profile name to save as.")],
     client_id: Annotated[str, typer.Option("--client-id", help="OAuth2 client_id (from your registration).")],
-    client_secret: Annotated[str, typer.Option("--client-secret", help="OAuth2 client_secret.")],
+    client_secret: Annotated[
+        str | None,
+        typer.Option(
+            "--client-secret",
+            help="OAuth2 client_secret. Omit to read DHIS2_OAUTH_CLIENT_SECRET env or a hidden prompt.",
+        ),
+    ] = None,
     scope_value: Annotated[
         str,
         typer.Option("--scope", help="OAuth2 scope (DHIS2 only recognises `ALL`)."),
@@ -819,18 +842,27 @@ def oidc_config_command(
 
     The URL can be either the DHIS2 base URL (discovery path is appended
     automatically) or the full discovery URL.
+
+    The client_secret never comes in via argv (it would leak to shell history / `ps`).
+    Read it from the `DHIS2_OAUTH_CLIENT_SECRET` env var or a hidden prompt when the
+    `--client-secret` flag is omitted.
     """
     from dhis2w_core.oauth2_preflight import OidcDiscoveryError
     from dhis2w_core.v42.plugins.profile import service
 
     scope = _resolve_scope(is_global=global_scope, is_local=local_scope)
     pinned_version = _validate_version(version)
+    resolved_secret = (
+        client_secret
+        or os.environ.get("DHIS2_OAUTH_CLIENT_SECRET")
+        or typer.prompt("OAuth2 client_secret", hide_input=True)
+    )
     try:
         discovered = asyncio.run(
             service.discover_oidc_profile(
                 url,
                 client_id=client_id,
-                client_secret=client_secret,
+                client_secret=resolved_secret,
                 scope=scope_value,
                 redirect_uri=redirect_uri,
                 version=pinned_version,

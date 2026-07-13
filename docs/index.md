@@ -25,8 +25,12 @@ Other entry points:
 | `dhis2w-core` | Profile discovery, plugin registry, first-party plugins | [`dhis2w-core`](https://pypi.org/project/dhis2w-core/) |
 | `dhis2w-cli` | Typer console script `d2w` (mounts plugins from `dhis2w-core`) | [`dhis2w-cli`](https://pypi.org/project/dhis2w-cli/) |
 | `dhis2w-mcp` | FastMCP server `dhis2w-mcp` (mounts the same plugins) | [`dhis2w-mcp`](https://pypi.org/project/dhis2w-mcp/) |
+| `dhis2w-mcp-bridge` | Single-tool MCP bridge exposing the `d2w` CLI for small local models | [`dhis2w-mcp-bridge`](https://pypi.org/project/dhis2w-mcp-bridge/) |
+| `dhis2w-ql` | d2ql pipeline query + transform language (d2path engine), no DHIS2 runtime dependency | [`dhis2w-ql`](https://pypi.org/project/dhis2w-ql/) |
 | `dhis2w-browser` | Playwright helpers (PAT creation, future UI automation) | [`dhis2w-browser`](https://pypi.org/project/dhis2w-browser/) |
 | `dhis2w-codegen` | Version-aware client generator | _workspace-only_ |
+| `dhis2w-bench` | Model benchmarking harness | _workspace-only_ |
+| `dhis2w-mcp-router` | Search + dispatch over upstream MCP servers | [`dhis2w-mcp-router`](https://pypi.org/project/dhis2w-mcp-router/) |
 
 Plus `infra/`, a docker-compose stack for running a local DHIS2 instance with pre-seeded PATs and an OAuth2 client.
 

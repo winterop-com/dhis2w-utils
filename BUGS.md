@@ -3075,58 +3075,32 @@ A live `PUT /api/dataValues/followup` with `{"dataElement":"...","period":"20240
 
 ---
 
+### 50. `POST` / `DELETE /api/dataValues` has no `attributeOptionCombo` query param — the attribute option combo is addressed by `cc` + `cp`
+
+**Observed on:** v41 / v42 / v43 (generated OpenAPI `dhis2w_client.generated.v{41,42,43}.openapi.json`, path `/api/dataValues/`), 2026-07-11.
+
+**Repro:** the query parameters the generated OpenAPI lists for `GET` / `POST` (`#saveDataValue`) / `DELETE /api/dataValues` are `de`, `pe`, `ou`, `co`, `cc`, `cp` (plus `ds`, `value`, `comment`, `followUp`, `force`). There is no `attributeOptionCombo` parameter:
+```
+# openapi.json paths./api/dataValues/#saveDataValue.post.parameters
+#   -> cc, co, comment, cp, de, ds, followUp, force, ou, pe, value
+```
+`cc` is the attribute CategoryCombo UID; `cp` is a `;`-joined list of the attribute category-option UIDs. DHIS2 resolves the two into the attribute option combo server-side. To write a value against a specific attribute option combo you must decompose it into its category combo + option UIDs — the endpoint never accepts the resolved AOC UID directly (contrast `/api/dataValueSets`, whose JSON body does take `attributeOptionCombo`).
+
+**Expected:** a symmetric `aoc` / `attributeOptionCombo` query param mirroring `co` (the categoryOptionCombo), so callers holding a resolved AOC UID could pass it directly.
+
+**Actual:** only `cc` + `cp` are accepted; passing a resolved AOC UID as `cc` silently addresses the wrong thing (`cc` is read as a CategoryCombo UID, not a CategoryOptionCombo UID), so the value lands under the wrong attribute combo or the request errors.
+
+**Workaround in this repo:** `set_data_value` / `delete_data_value` take `attribute_combo` (→ `cc`) + `attribute_options` (→ `cp`, `;`-joined) and require the two together; the CLI exposes `--attribute-combo`/`--cc` + `--attribute-option`/`--cp`, and the MCP tools mirror the pair (`packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/aggregate/{service,cli,mcp}.py`). The `/api/dataValueSets` push path is unaffected — its JSON body carries `attributeOptionCombo` directly.
+
+**How to know it's fixed:** `/api/dataValues` gains an `attributeOptionCombo` (or `aoc`) query param, at which point callers holding a resolved AOC UID can pass it without decomposing into `cc` + `cp`.
+
+---
+
 
 ## Security-audit-scanner findings (feat/security-audit-scanner)
 
 Entries filed while building the security audit plugin. Numbers continue the global sequence;
-#58/#59/#60 were renumbered on merge with main (main claimed #47–#49 for other findings).
-
-### 50. `keyCorsWhitelist` was removed from systemSettings; the CORS origin list is only readable from `/api/configuration/corsWhitelist`
-
-A security audit that wants to flag a permissive `*` CORS origin cannot read it
-from `/api/systemSettings`: the `keyCorsWhitelist` key was deleted from
-`systemsetting` in migration `V2_31_1`. The origin set now lives in
-`Configuration.corsWhitelist`, served by `ConfigurationController`
-(`@RequestMapping("/api/configuration")`, GET `{"/corsWhitelist","/corsAllowlist"}`)
-as a bare JSON array of strings, with no `@RequiresAuthority` on the GET.
-
-**Observed on:** DHIS2 2.42 (`dhis2/core:2.42.4`, 2026-06-24); the migration
-predates v41, so the same split holds on v41 and v43.
-
-**Repro:**
-
-```bash
-# CORS is absent from systemSettings:
-curl -s -u admin:district 'https://play.im.dhis2.org/dev/api/systemSettings' | grep -i cors
-# (no output)
-# CORS lives under configuration, returned as a bare array:
-curl -s -u admin:district 'https://play.im.dhis2.org/dev/api/configuration/corsWhitelist'
-# ["https://app.example.org"]
-```
-
-**Expected:** one settings read answers the full security-settings posture,
-including CORS, the way it does for password policy and registration.
-
-**Actual:** CORS is split onto a separate `/api/configuration` endpoint that
-returns a bare JSON array, so a settings-only read silently misses it.
-
-**Impact:** a settings audit must issue a second GET against
-`/api/configuration/corsWhitelist` to see the wildcard origin, and the response
-is a bare array (the client wraps it under a `data` key) rather than the keyed
-object `/api/systemSettings` returns.
-
-**Workaround in this repo:** `_run_settings` fetches
-`/api/configuration/corsWhitelist` separately, unwraps the bare array, and wraps
-it in `CorsWhitelist` before passing it to `evaluate_settings`. When the read
-fails the CORS verdict is skipped (degraded with a note) while the rest of the
-settings verdicts still run. See `_fetch_cors_whitelist` in
-`packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/audit.py` and
-`evaluate_settings` in
-`packages/dhis2w-core/src/dhis2w_core/security_core/settings_audit.py`.
-
-**Verifier:** none yet.
-
----
+these entries were renumbered on merge with main (main claimed #47–#50 for other findings); the CORS-whitelist finding is #61 at the end of this section.
 
 ### 51. `ApiToken.expire` is a nullable `Long` on the model, so a non-expiring PAT is representable despite the controller's 30-day create default
 
@@ -3453,6 +3427,52 @@ curl -sg -u admin:district "$BASE/api/systemSettings" | grep -io 'keyCspEnabled'
 
 ---
 
+### 61. `keyCorsWhitelist` was removed from systemSettings; the CORS origin list is only readable from `/api/configuration/corsWhitelist`
+
+A security audit that wants to flag a permissive `*` CORS origin cannot read it
+from `/api/systemSettings`: the `keyCorsWhitelist` key was deleted from
+`systemsetting` in migration `V2_31_1`. The origin set now lives in
+`Configuration.corsWhitelist`, served by `ConfigurationController`
+(`@RequestMapping("/api/configuration")`, GET `{"/corsWhitelist","/corsAllowlist"}`)
+as a bare JSON array of strings, with no `@RequiresAuthority` on the GET.
+
+**Observed on:** DHIS2 2.42 (`dhis2/core:2.42.4`, 2026-06-24); the migration
+predates v41, so the same split holds on v41 and v43.
+
+**Repro:**
+
+```bash
+# CORS is absent from systemSettings:
+curl -s -u admin:district 'https://play.im.dhis2.org/dev/api/systemSettings' | grep -i cors
+# (no output)
+# CORS lives under configuration, returned as a bare array:
+curl -s -u admin:district 'https://play.im.dhis2.org/dev/api/configuration/corsWhitelist'
+# ["https://app.example.org"]
+```
+
+**Expected:** one settings read answers the full security-settings posture,
+including CORS, the way it does for password policy and registration.
+
+**Actual:** CORS is split onto a separate `/api/configuration` endpoint that
+returns a bare JSON array, so a settings-only read silently misses it.
+
+**Impact:** a settings audit must issue a second GET against
+`/api/configuration/corsWhitelist` to see the wildcard origin, and the response
+is a bare array (the client wraps it under a `data` key) rather than the keyed
+object `/api/systemSettings` returns.
+
+**Workaround in this repo:** `_run_settings` fetches
+`/api/configuration/corsWhitelist` separately, unwraps the bare array, and wraps
+it in `CorsWhitelist` before passing it to `evaluate_settings`. When the read
+fails the CORS verdict is skipped (degraded with a note) while the rest of the
+settings verdicts still run. See `_fetch_cors_whitelist` in
+`packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/audit.py` and
+`evaluate_settings` in
+`packages/dhis2w-core/src/dhis2w_core/security_core/settings_audit.py`.
+
+**Verifier:** none yet.
+
+---
 
 ## Resolved upstream
 

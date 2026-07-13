@@ -21,7 +21,7 @@ async def test_round_trip_get_set(tmp_path: Path) -> None:
         got = await store.get("profile:prod")
         assert got is not None
         assert got.access_token == "at1"
-        assert got.refresh_token == "rt1"
+        assert got.refresh_token is not None and got.refresh_token == "rt1"
         assert got.expires_at == 1.0
     finally:
         await store.close()
@@ -36,7 +36,7 @@ async def test_upsert_replaces_existing(tmp_path: Path) -> None:
         got = await store.get("k")
         assert got is not None
         assert got.access_token == "v2"
-        assert got.refresh_token == "r2"
+        assert got.refresh_token is not None and got.refresh_token == "r2"
         assert got.expires_at == 2.0
     finally:
         await store.close()

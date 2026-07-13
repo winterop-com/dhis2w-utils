@@ -8,7 +8,7 @@
 
 A Python toolkit for DHIS2 — pure client library, CLI, MCP server, Playwright browser automation, and a shared plugin runtime, all in one `uv` workspace. Targets DHIS2 v41, v42, and v43.
 
-The repo lives at `winterop-com/dhis2w-utils`; PyPI ships the seven publishable members under the `dhis2w-*` prefix. Not affiliated with DHIS2.
+The repo lives at `winterop-com/dhis2w-utils`; PyPI ships the eight publishable members under the `dhis2w-*` prefix. Not affiliated with DHIS2.
 
 > **Learning path · step 1 of 8** — You are here. Quick install + profile + first CLI / Python call below. Next: the [contributor walkthrough](docs/walkthrough.md) for the local docker stack, or jump to a surface-specific tutorial — [CLI](docs/guides/cli-tutorial.md), [Python](docs/guides/client-tutorial.md), [MCP](docs/mcp/tutorial.md).
 
@@ -23,7 +23,7 @@ DHIS2 already has a lightweight, official Python client that returns plain JSON 
 - **Real auth.** Basic, PAT, and OAuth2/OIDC with PKCE, behind a pluggable `AuthProvider` protocol, with a profile system for juggling multiple instances.
 - **Production posture.** Strict ruff + mypy + pyright, ~1,150 tests, an mkdocs-material site, and runnable examples for every supported version.
 
-Reach for the official client when you want the smallest possible dependency and raw JSON. Reach for `dhis2w` when you want types, a CLI, agent tooling, and version coverage in one place. Note that `dhis2w` is third-party and pre-1.0.
+Reach for the official client when you want the smallest possible dependency and raw JSON. Reach for `dhis2w` when you want types, a CLI, agent tooling, and version coverage in one place. Note that `dhis2w` is third-party.
 
 ## Workspace members
 
@@ -38,9 +38,9 @@ Reach for the official client when you want the smallest possible dependency and
 | [`dhis2w-ql`](https://pypi.org/project/dhis2w-ql/) | `uv add dhis2w-ql` | The d2ql query + transform language: tokenizer, parser, evaluator, planner. Pure engine with a FHIRPath-compatible expression core — no DHIS2 runtime dependency. Powers `d2w query`. |
 | `dhis2w-codegen` | _workspace-only_ | Generator that emits pydantic models + `StrEnum`s + CRUD accessors into `dhis2w_client.generated.v{N}/`. Two source-of-truth paths: `/api/schemas` for metadata resources, `/api/openapi.json` for instance-side shapes (tracker writes, envelopes, auth schemes). |
 | `dhis2w-bench` | _workspace-only_ | Local-LLM benchmark harness for DHIS2 agents: coding, mcp-bridge, and full-mcp suites. |
-| `dhis2w-mcp-router` | _workspace-only_ | Domain-neutral MCP router — fronts many upstream MCP servers behind two meta-tools (search + dispatch) so an agent gets lazy, searchable tool discovery instead of a huge up-front tool payload. |
+| [`dhis2w-mcp-router`](https://pypi.org/project/dhis2w-mcp-router/) | `uv tool install dhis2w-mcp-router` | Domain-neutral MCP router — fronts many upstream MCP servers behind two meta-tools (search + dispatch) so an agent gets lazy, searchable tool discovery instead of a huge up-front tool payload. |
 
-All seven publishable packages release together (lockstep versioning); see [`docs/releasing.md`](docs/releasing.md).
+All eight publishable packages release together (lockstep versioning); see [`docs/releasing.md`](docs/releasing.md).
 
 ## Install
 

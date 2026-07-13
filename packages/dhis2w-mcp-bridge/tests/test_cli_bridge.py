@@ -201,6 +201,37 @@ async def test_readonly_refuses_disk_write_flag(monkeypatch: pytest.MonkeyPatch)
         assert "read-only" in result.stderr
 
 
+def test_help_token_as_option_value_does_not_bypass_the_guard() -> None:
+    """A `--help` used as an option VALUE must NOT flip a write command to read.
+
+    Regression: `_is_help_or_version` once scanned every token, so a `--help` passed as the value of
+    `--name` masked the `create` verb and slipped past both the read-only guard and the protected-host
+    backstop. Read-vs-write is now decided by the command verb, and help only leads.
+    """
+    bypass = [
+        "metadata", "data-elements", "create",
+        "--name", "--help", "--short-name", "X", "--value-type", "NUMBER",
+    ]  # fmt: skip
+    assert is_read_only(bypass) is False
+
+
+def test_help_flag_leading_the_options_is_discovery() -> None:
+    """Genuine help — help/version as the first option on any command — still classifies read."""
+    assert is_read_only(["--help"]) is True
+    assert is_read_only(["--version"]) is True
+    assert is_read_only(["metadata", "--help"]) is True
+    assert is_read_only(["metadata", "data-elements", "create", "--help"]) is True
+
+
+async def test_readonly_refuses_write_with_help_valued_option(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The bypass input is refused (exit 126) before any subprocess spawns, under read-only mode."""
+    monkeypatch.setenv("DHIS2_CLI_BIN", "/no/such/dhis2-binary")  # would 127 if it spawned
+    args = ["metadata", "data-elements", "create", "--name", "--help", "--value-type", "NUMBER"]
+    result = await run_cli(args, read_only=True)
+    assert result.exit_code == EXIT_REFUSED
+    assert "read-only" in result.stderr
+
+
 # --- Host-level write guard (protected public hosts) ---------------------------------------
 
 #: Resolver attribute path monkeypatched to fix the active profile's base URL in guard tests.

@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 
+from dhis2w_client.generated import Dhis2
 from dhis2w_client.profile import Profile
 from dhis2w_client.v41.auth.base import AuthProvider
 from dhis2w_client.v41.auth.basic import BasicAuth
@@ -25,7 +26,7 @@ from dhis2w_client.v41.client import Dhis2Client
 from dhis2w_client.v41.retry import RetryPolicy
 
 
-def build_auth_for_basic(profile: Profile) -> AuthProvider:
+def build_auth_provider(profile: Profile) -> AuthProvider:
     """Return a `PatAuth`, `BasicAuth`, or `SessionCookieAuth` provider for the profile.
 
     Raises `NotImplementedError` on `profile.auth == "oauth2"` pointing at
@@ -43,7 +44,7 @@ def build_auth_for_basic(profile: Profile) -> AuthProvider:
     if profile.auth == "session":
         if not profile.cookie:
             raise ValueError("profile.auth == 'session' but no cookie is set")
-        return SessionCookieAuth(cookie=profile.cookie)
+        return SessionCookieAuth(cookie=profile.cookie, xsrf_token=profile.xsrf_token)
     if profile.auth == "oauth2":
         raise NotImplementedError(
             "OAuth2 auth needs the token store in dhis2w-core. "
@@ -57,9 +58,12 @@ async def open_client(
     profile: Profile,
     *,
     allow_version_fallback: bool = False,
+    version: Dhis2 | None = None,
+    allow_version_mismatch: bool = False,
     retry_policy: RetryPolicy | None = None,
     http_limits: httpx.Limits | None = None,
     system_cache_ttl: float | None = 300.0,
+    verify: bool | str = True,
 ) -> AsyncGenerator[Dhis2Client]:
     """Open a connected `Dhis2Client` for `profile` — PAT, Basic, or session auth only.
 
@@ -72,17 +76,28 @@ async def open_client(
     `UnsupportedVersionError`. Pass True to bind the nearest-lower
     generated tree instead (never nearest-higher).
 
+    `version` (default None) pins the generated tree explicitly; `connect()`
+    then raises `VersionPinMismatchError` when the server reports a different
+    major unless `allow_version_mismatch=True`. Leave both at their defaults
+    to auto-detect from `/api/system/info`.
+
+    `verify` controls TLS certificate verification — pass `False` for a
+    self-signed staging box or a path to a custom CA bundle for a private-CA
+    instance. Default `True`.
+
     `retry_policy`, `http_limits`, and `system_cache_ttl` mirror the
     underlying `Dhis2Client` constructor — see its docstring for tuning.
     """
-    auth = build_auth_for_basic(profile)
+    auth = build_auth_provider(profile)
     async with Dhis2Client(
         profile.base_url,
         auth=auth,
-        version=None,
+        version=version,
         allow_version_fallback=allow_version_fallback,
+        allow_version_mismatch=allow_version_mismatch,
         retry_policy=retry_policy,
         http_limits=http_limits,
         system_cache_ttl=system_cache_ttl,
+        verify=verify,
     ) as client:
         yield client

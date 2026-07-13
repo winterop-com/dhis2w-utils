@@ -1,6 +1,6 @@
 # Errors
 
-Every non-success response from DHIS2 raises a typed exception. The hierarchy is rooted at `Dhis2ClientError` and branches into four leaves: `Dhis2ApiError` (any HTTP non-success), `AuthenticationError` (401 / 403 specifically, on top of `Dhis2ApiError`), `OAuth2FlowError` (raised by the OAuth2 PKCE flow when token exchange fails), `UnsupportedVersionError` (raised on `connect()` when the live DHIS2 has no generated module).
+Every non-success response from DHIS2 raises a typed exception. The hierarchy is rooted at `Dhis2ClientError` and branches into four leaves: `Dhis2ApiError` (any HTTP non-success), `AuthenticationError` (401 / 403 specifically, on top of `Dhis2ApiError`), `OAuth2FlowError` (raised by the OAuth2 PKCE flow when token exchange fails), `UnsupportedVersionError` (raised on `connect()` when the live DHIS2 has no generated module). `VersionPinMismatchError` extends `UnsupportedVersionError` and is raised on `connect()` when an explicit `Dhis2Client(version=...)` pin names a different major than the server reports (unless `allow_version_mismatch=True`).
 
 ## Worked example — branch on `Dhis2ApiError`
 

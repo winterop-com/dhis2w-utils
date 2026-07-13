@@ -107,6 +107,31 @@ async def push_data_values(
         return await client.post("/api/dataValueSets", body, params=params, model=WebMessageResponse)
 
 
+def _apply_attribute_option_combo(
+    params: dict[str, Any],
+    attribute_combo: str | None,
+    attribute_options: list[str] | None,
+) -> None:
+    """Add the `cc` + `cp` attribute-option-combo params, or neither.
+
+    DHIS2's /api/dataValues resolves an attribute option combo from the
+    attribute CategoryCombo UID (`cc`) plus its category-option UIDs (`cp`,
+    `;`-joined) — there is no attributeOptionCombo param. The two must be
+    supplied together; one without the other is a caller error (BUGS.md #50).
+    """
+    has_combo = attribute_combo is not None
+    has_options = bool(attribute_options)
+    if has_combo != has_options:
+        raise ValueError(
+            "attribute_combo (cc) and attribute_options (cp) must be provided together — DHIS2's "
+            "/api/dataValues resolves an attribute option combo from the category-combo UID plus its "
+            "category-option UIDs, and rejects one without the other",
+        )
+    if attribute_combo is not None and attribute_options:
+        params["cc"] = attribute_combo
+        params["cp"] = ";".join(attribute_options)
+
+
 async def set_data_value(
     profile: Profile,
     *,
@@ -115,10 +140,18 @@ async def set_data_value(
     org_unit: str,
     value: str,
     category_option_combo: str | None = None,
-    attribute_option_combo: str | None = None,
+    attribute_combo: str | None = None,
+    attribute_options: list[str] | None = None,
     comment: str | None = None,
 ) -> WebMessageResponse:
-    """Set a single data value via POST /api/dataValues (params-based)."""
+    """Set a single data value via POST /api/dataValues (params-based).
+
+    DHIS2's /api/dataValues has no attributeOptionCombo query param: an
+    attribute option combo is addressed by `cc` (the attribute CategoryCombo
+    UID) plus `cp` (its category-option UIDs). Pass `attribute_combo` and
+    `attribute_options` together — the server resolves them into the option
+    combo (BUGS.md #50).
+    """
     params: dict[str, Any] = {
         "de": data_element,
         "pe": period,
@@ -127,8 +160,7 @@ async def set_data_value(
     }
     if category_option_combo is not None:
         params["co"] = category_option_combo
-    if attribute_option_combo is not None:
-        params["cc"] = attribute_option_combo
+    _apply_attribute_option_combo(params, attribute_combo, attribute_options)
     if comment is not None:
         params["comment"] = comment
 
@@ -143,14 +175,19 @@ async def delete_data_value(
     period: str,
     org_unit: str,
     category_option_combo: str | None = None,
-    attribute_option_combo: str | None = None,
+    attribute_combo: str | None = None,
+    attribute_options: list[str] | None = None,
 ) -> WebMessageResponse:
-    """Delete a single data value via DELETE /api/dataValues."""
+    """Delete a single data value via DELETE /api/dataValues.
+
+    Attribute option combos are addressed by `cc` (attribute CategoryCombo
+    UID) plus `cp` (its category-option UIDs), never a bare
+    attributeOptionCombo param (BUGS.md #50).
+    """
     params: dict[str, Any] = {"de": data_element, "pe": period, "ou": org_unit}
     if category_option_combo is not None:
         params["co"] = category_option_combo
-    if attribute_option_combo is not None:
-        params["cc"] = attribute_option_combo
+    _apply_attribute_option_combo(params, attribute_combo, attribute_options)
 
     async with open_client(profile) as client:
         return await client.delete("/api/dataValues", params=params, model=WebMessageResponse)

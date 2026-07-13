@@ -229,6 +229,71 @@ def test_retry_transport_is_async_base_transport() -> None:
     assert isinstance(transport, httpx.AsyncBaseTransport)
 
 
+async def test_retry_transport_carries_verify_false_and_custom_limits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Under a retry policy, `verify=False` and `http_limits` reach the inner transport.
+
+    httpx ignores the client-level `verify`/`limits` kwargs whenever a transport is
+    supplied, so the client folds both into the `AsyncHTTPTransport` the retry wrapper
+    drives. Without that, `Dhis2Client(verify=False, retry_policy=...)` would fail TLS
+    on every call and silently ignore the pool limits.
+    """
+    captured: dict[str, object] = {}
+    real_transport = httpx.AsyncHTTPTransport
+
+    def _capturing_transport(*args: object, **kwargs: object) -> httpx.AsyncHTTPTransport:
+        captured.update(kwargs)
+        return real_transport(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", _capturing_transport)
+
+    limits = httpx.Limits(max_connections=7, max_keepalive_connections=3)
+    client = Dhis2Client(
+        "https://dhis2.example",
+        auth=BasicAuth(username="a", password="b"),
+        retry_policy=RetryPolicy(),
+        http_limits=limits,
+        verify=False,
+        skip_version_probe=True,
+    )
+    try:
+        await client.connect()
+    finally:
+        await client.close()
+    assert captured["verify"] is False
+    assert captured["limits"] is limits
+
+
+async def test_retry_transport_carries_ca_bundle_and_default_limits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A CA-bundle path reaches the transport; unset `http_limits` falls back to httpx defaults."""
+    captured: dict[str, object] = {}
+    real_transport = httpx.AsyncHTTPTransport
+
+    def _capturing_transport(*args: object, **kwargs: object) -> httpx.AsyncHTTPTransport:
+        captured.update(kwargs)
+        # Return a transport that does not read the (non-existent) CA path — the assertion is on
+        # what the client passed, not on building a real TLS context from a fixture bundle.
+        return real_transport(verify=False)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", _capturing_transport)
+
+    client = Dhis2Client(
+        "https://dhis2.example",
+        auth=BasicAuth(username="a", password="b"),
+        retry_policy=RetryPolicy(),
+        verify="/etc/ssl/custom-ca.pem",
+        skip_version_probe=True,
+    )
+    try:
+        await client.connect()
+    finally:
+        await client.close()
+    assert captured["verify"] == "/etc/ssl/custom-ca.pem"
+    default_limits = captured["limits"]
+    assert isinstance(default_limits, httpx.Limits)
+    assert default_limits.max_connections == 100
+    assert default_limits.max_keepalive_connections == 20
+
+
 @pytest.mark.parametrize("status_code", [429, 502, 504])
 @respx.mock
 async def test_retry_on_other_default_statuses(status_code: int, monkeypatch: pytest.MonkeyPatch) -> None:

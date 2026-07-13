@@ -184,8 +184,9 @@ def register(mcp: Any) -> None:
           {"trackedEntities": [...], "enrollments": [...], "events": [...], "relationships": [...]}
         Any key may be omitted. `import_strategy` options: CREATE, UPDATE,
         CREATE_AND_UPDATE, DELETE. `atomic_mode` options: ALL, OBJECT.
-        `dry_run=True` validates without writing. `async_mode=True` returns a
-        job reference immediately.
+        `dry_run=True` sends importMode=VALIDATE (validate-only, nothing
+        commits). The push runs synchronously by default so per-object errors
+        come back inline; `async_mode=True` returns a job reference immediately.
         """
         return await service.push_tracker(
             resolve_profile(profile),

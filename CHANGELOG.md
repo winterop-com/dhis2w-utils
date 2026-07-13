@@ -118,6 +118,110 @@
   collapsible groups via a `group_key` on `AuditFinding`; role findings render as separate rows. Plan
   in `DHIS2_Security_Report_Redesign_PLAN.md`.
 
+## 1.3.0 — 2026-07-12
+
+All publishable packages ship at 1.3.0 in lockstep; inter-package pins move to `>=1.3.0,<2.0`.
+
+### MCP tool annotations
+
+- **Every MCP tool advertises a `readOnlyHint` annotation.** The full `dhis2-mcp` server stamps each
+  of its ~315 typed tools with `readOnlyHint` (reads `True`, writes `False`), derived at build time
+  from the same read/write name classifier the read-only middleware already uses; the router hints its
+  `search_tools` read-only and leaves `call_tool` (the write chokepoint) unhinted. A host that honours
+  the annotation — e.g. one that skips its per-action write confirmation for read-only-hinted tools —
+  gets frictionless reads while writes still prompt, with no per-tool configuration. A hand-set hint is
+  never overwritten, and the hint is present regardless of the `DHIS2_MCP_READONLY` switch. Because the
+  name classifier now drives an always-on hint that a client may use to skip confirmations, a
+  registry-wide guard asserts no write tool is ever hinted read-only.
+
+## 1.2.0 — 2026-07-12
+
+All publishable packages ship at 1.2.0 in lockstep; inter-package pins move to `>=1.2.0,<2.0`.
+
+### New package
+
+- **`dhis2w-mcp-router` ships to PyPI.** The domain-neutral MCP router — front many upstream MCP
+  servers behind two meta-tools (`search_tools` + `call_tool`) so an agent gets lazy, searchable tool
+  discovery instead of a huge up-front tool payload — joins the published set as the eighth member.
+  Its core depends only on FastMCP + httpx + pydantic (no `dhis2w-*` imports). Install with
+  `uv tool install dhis2w-mcp-router`; run it as a stdio MCP server. Read-only mode
+  (`MCP_ROUTER_READONLY=1` or per-upstream `"readonly": true`) hides and refuses write tools, and
+  ranking is pluggable (keyword by default, optional embedding ranker against an OpenAI-compatible
+  `/v1/embeddings` endpoint). Whether the router becomes the default MCP surface for all clients
+  remains gated on the `bench-router` numbers.
+
+## 1.1.0 — 2026-07-12
+
+All publishable packages ship at 1.1.0 in lockstep; inter-package pins move to `>=1.1.0,<2.0`.
+
+### Session auth
+
+- **Optional CSRF token for session profiles.** `auth="session"` gains an optional `xsrf_token`
+  carrying DHIS2's double-submit CSRF value. When set, `SessionCookieAuth` echoes it as an
+  `X-XSRF-TOKEN` header alongside the `Cookie`, which write endpoints on CSRF-enforcing instances
+  require; read-only sessions leave it unset and are unaffected. `profile add` reads it from
+  `DHIS2_SESSION_XSRF`, `profile env` exports it, and `profile show` masks it like every other
+  credential. An empty or whitespace-only value normalizes to unset (header omitted); a non-empty
+  value carrying control characters is rejected at construction rather than emitting a malformed
+  header at send time.
+
+## 1.0.0 — 2026-07-12
+
+First stable release. All seven publishable packages ship at 1.0.0 in lockstep; the imported
+`dhis2w_client` surface, the `d2w` command set, and the MCP tool catalogue are committed under
+SemVer from here — breaking changes require a 2.0.
+
+### Data safety
+
+- **Tracker `--dry-run` validates instead of committing.** A dry-run push now sends
+  `importMode=VALIDATE`; the previous `dryRun` query parameter was ignored by `/api/tracker`, so a
+  validate-only push committed. Pushes are synchronous by default, so per-object import errors
+  surface inline instead of behind an async job reference.
+- **Destructive commands confirm before acting.** `data tracker delete` (and the event/enrollment
+  variants), `maintenance cleanup`, and `files documents delete` / `route delete` / `profile remove`
+  prompt for confirmation, with a `--yes` flag to skip. The tracked-entity prompt spells out the
+  cascade to enrollments and events.
+- **Bulk metadata rename/retag refuse a whole-catalogue mutation.** A no-filter `metadata rename` /
+  `metadata retag` requires an explicit opt-in (`--all` plus confirmation); the MCP tools default to
+  a dry-run preview.
+- **Aggregate data-value writes address the attribute combo correctly** via `cc` + `cp`
+  (`--attribute-combo` / `--attribute-option`), matching `/api/dataValues` (see BUGS.md #50).
+
+### Credentials
+
+- Credential fields on the auth providers and `Profile` stay out of `repr()` and are masked in
+  `model_dump()` by default; real values are revealed only through an explicit serialization context
+  that the `profiles.toml` writer and the OAuth2 token store pass. Secrets no longer leak through
+  tracebacks or logs.
+- `profile oidc-config` and `browser pat` read secrets from the environment or a hidden prompt
+  instead of an argv option.
+
+### Client
+
+- The retry transport now honours `verify` and connection limits; `connect()` closes the HTTP pool
+  when the version probe fails; `open_client` accepts a `verify` passthrough; `VersionPinMismatchError`
+  is exported at the top level.
+- `build_auth_for_basic` is now `build_auth_provider` (it builds PAT, Basic, and SessionCookie
+  providers from a profile).
+
+### MCP and bridge
+
+- The read-only guard (`DHIS2_MCP_READONLY`) classifies tools by explicit write verbs, so group
+  membership and status writes are refused; the CLI bridge decides read-versus-write by the command
+  verb rather than by help/version tokens appearing as option values.
+
+### Query engine (d2ql)
+
+- `matches()` rejects catastrophic-backtracking patterns; numeric coercion raises `D2qlError` rather
+  than a raw `OverflowError` / `ValueError`; `read()` and file sinks are gated behind an opt-in flag
+  for library embedders (the CLI keeps them enabled).
+
+### Packaging
+
+- Every publishable package carries license metadata, project URLs, and production classifiers;
+  the workspace-only `dhis2w-codegen`, `dhis2w-bench`, and `dhis2w-mcp-router` are marked
+  no-upload. Inter-package pins move to `>=1.0.0,<2.0`.
+
 ## 0.99.1 — 2026-07-11 (dhis2w-ql only)
 
 - **A standalone PyPI face for `dhis2w-ql`**: the README leads with the no-DHIS2-required story —

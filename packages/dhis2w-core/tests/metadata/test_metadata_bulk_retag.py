@@ -74,6 +74,7 @@ async def test_bulk_retag_replaces_category_combo(pat_profile: None) -> None:  #
         resolve_profile("probe"),
         "dataElements",
         category_combo_uid="ccNew00001",
+        allow_all=True,
     )
     assert result.matched == 1
     assert result.entries[0].uid == "DE_A"
@@ -105,6 +106,7 @@ async def test_bulk_retag_clear_option_set_emits_remove(pat_profile: None) -> No
         resolve_profile("probe"),
         "dataElements",
         clear_option_set=True,
+        allow_all=True,
     )
     assert result.matched == 1
     import json as _json
@@ -130,6 +132,7 @@ async def test_bulk_retag_replaces_legend_sets_as_full_list(pat_profile: None) -
         resolve_profile("probe"),
         "dataElements",
         legend_set_uids=["newLs1", "newLs2"],
+        allow_all=True,
     )
     import json as _json
 
@@ -217,7 +220,7 @@ def test_retag_cli_renders_before_after_table(pat_profile: None) -> None:  # noq
     with patch("dhis2w_core.v42.plugins.metadata.service.bulk_retag_metadata", new=mock):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "retag", "dataElements", "--category-combo", "ccNew"],
+            ["metadata", "retag", "dataElements", "--filter", "code:like:DE_", "--category-combo", "ccNew"],
         )
     assert result.exit_code == 0, result.output
     assert "/categoryCombo" in result.output
@@ -238,6 +241,8 @@ def test_retag_cli_forwards_repeated_legend_set_flag(pat_profile: None) -> None:
                 "metadata",
                 "retag",
                 "dataElements",
+                "--filter",
+                "code:like:DE_",
                 "--legend-set",
                 "LS1",
                 "--legend-set",
@@ -267,7 +272,43 @@ def test_retag_cli_renders_no_match_message(pat_profile: None) -> None:  # noqa:
     with patch("dhis2w_core.v42.plugins.metadata.service.bulk_retag_metadata", new=AsyncMock(return_value=empty)):
         result = CliRunner().invoke(
             build_app(),
-            ["metadata", "retag", "dataElements", "--category-combo", "cc"],
+            ["metadata", "retag", "dataElements", "--filter", "code:like:DE_", "--category-combo", "cc"],
         )
     assert result.exit_code == 0, result.output
     assert "no dataElements matched" in result.output
+
+
+def test_retag_cli_refuses_no_filter_without_all(pat_profile: None) -> None:  # noqa: ARG001
+    """A no-filter live retag is refused unless --all opts in; the service is never called."""
+    mock = AsyncMock(return_value=_fake_result())
+    with patch("dhis2w_core.v42.plugins.metadata.service.bulk_retag_metadata", new=mock):
+        result = CliRunner().invoke(build_app(), ["metadata", "retag", "dataElements", "--category-combo", "cc"])
+    assert result.exit_code != 0
+    assert "refusing to retag every dataElements" in result.output
+    assert mock.await_count == 0
+
+
+def test_retag_cli_all_yes_opts_into_catalog_wide(pat_profile: None) -> None:  # noqa: ARG001
+    """--all --yes forwards allow_all=True and skips the confirmation prompt."""
+    mock = AsyncMock(return_value=_fake_result())
+    with patch("dhis2w_core.v42.plugins.metadata.service.bulk_retag_metadata", new=mock):
+        result = CliRunner().invoke(
+            build_app(),
+            ["metadata", "retag", "dataElements", "--category-combo", "cc", "--all", "--yes"],
+        )
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["allow_all"] is True
+
+
+def test_retag_cli_all_without_yes_aborts_on_no(pat_profile: None) -> None:  # noqa: ARG001
+    """--all without --yes prompts for confirmation; answering 'n' aborts without calling the service."""
+    mock = AsyncMock(return_value=_fake_result())
+    with patch("dhis2w_core.v42.plugins.metadata.service.bulk_retag_metadata", new=mock):
+        result = CliRunner().invoke(
+            build_app(),
+            ["metadata", "retag", "dataElements", "--category-combo", "cc", "--all"],
+            input="n\n",
+        )
+    assert result.exit_code != 0
+    assert mock.await_count == 0

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 from dhis2w_ql import Evaluator, InMemoryBinder, QueryEngine, parse, parse_expression
-from dhis2w_ql.errors import EvaluationError, ParseError, SemanticError
+from dhis2w_ql.errors import D2qlError, EvaluationError, ParseError, SemanticError
 
 _ROWS = [
     {"id": "a1", "name": "ANC 1st visit", "domainType": "AGGREGATE", "categoryCombo": {"name": "default"}, "value": 12},
@@ -132,6 +132,50 @@ def test_like_is_case_insensitive_substring_not_sql_or_regex() -> None:
     assert _p('name ~ "%lov%"', {"name": "Lovelace"}) == [False]  # not SQL LIKE wildcards
     assert _p('name.matches("^Lov")', {"name": "Lovelace"}) == [True]  # regex is separate
     assert _p('name.startsWith("Lov")', {"name": "Lovelace"}) == [True]
+
+
+# ---------------------------------------------------------------- matches() ReDoS guard
+
+
+def test_matches_rejects_nested_quantifier_pattern_quickly() -> None:
+    # `(a+)+` over `aaaa...!` is the classic catastrophic-backtracking input; the pre-scan rejects the
+    # pattern before it is ever compiled, so this raises immediately instead of hanging.
+    with pytest.raises(D2qlError, match="nests quantifiers"):
+        _p(r'name.matches("(a+)+$")', {"name": "a" * 40 + "!"})
+
+
+def test_matches_rejects_further_nested_quantifier_shapes() -> None:
+    for pattern in ("(a*)*", "(a+)*", "(a*)+", "(.*)+", r"(\d+){2,}"):
+        with pytest.raises(D2qlError, match="nests quantifiers"):
+            _p(f'name.matches("{pattern}")', {"name": "x"})
+
+
+def test_matches_allows_ordinary_patterns() -> None:
+    assert _p(r'code.matches("^[A-Z]{2}[0-9]+$")', {"code": "DE42"}) == [True]
+    assert _p('name.matches("(abc)+")', {"name": "abcabc"}) == [True]
+    assert _p('url.matches("https?://")', {"url": "http://x"}) == [True]
+    assert _p('name.matches("(ab?c)+")', {"name": "abcac"}) == [True]  # bounded/optional inner is fine
+
+
+# ---------------------------------------------------------------- numeric coercion is typed
+
+
+def test_div_of_overflowing_string_raises_typed_error() -> None:
+    # "1e999" parses to float inf; `div` truncates to int, which would raise a raw OverflowError —
+    # wrapped so it stays inside the D2qlError hierarchy.
+    with pytest.raises(D2qlError):
+        _p("x div 1", {"x": "1e999"})
+
+
+def test_to_integer_of_non_finite_raises_typed_error() -> None:
+    for value in ("1e999", "-1e999", "nan"):
+        with pytest.raises(D2qlError):
+            _p("x.toInteger()", {"x": value})
+
+
+def test_to_number_and_arithmetic_stay_finite_for_ordinary_values() -> None:
+    assert _p("x div 1", {"x": "7.5"}) == [7.0]
+    assert _p("x.toInteger()", {"x": "42"}) == [42]
 
 
 # ---------------------------------------------------------------- null / missing

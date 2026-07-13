@@ -18,7 +18,7 @@ from dhis2w_client.v43 import (
     Dhis2Client,
     PatAuth,
     Profile,
-    build_auth_for_basic,
+    build_auth_provider,
     open_client,
 )
 
@@ -30,15 +30,15 @@ def test_v43_top_level_imports_resolve() -> None:
     assert BasicAuth.__module__ == "dhis2w_client.v43.auth.basic"
 
 
-def test_v43_build_auth_for_basic_pat() -> None:
+def test_v43_build_auth_provider_pat() -> None:
     """v43 build auth for basic pat."""
-    provider = build_auth_for_basic(Profile(base_url="http://x", auth="pat", token="d2p_x"))
+    provider = build_auth_provider(Profile(base_url="http://x", auth="pat", token="d2p_x"))
     assert isinstance(provider, PatAuth)
 
 
-def test_v43_build_auth_for_basic_basic() -> None:
+def test_v43_build_auth_provider_basic() -> None:
     """v43 build auth for basic basic."""
-    provider = build_auth_for_basic(Profile(base_url="http://x", auth="basic", username="admin", password="district"))
+    provider = build_auth_provider(Profile(base_url="http://x", auth="basic", username="admin", password="district"))
     assert isinstance(provider, BasicAuth)
 
 

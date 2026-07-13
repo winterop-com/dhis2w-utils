@@ -90,11 +90,17 @@ def register(mcp: Any) -> None:
         org_unit: str,
         value: str,
         category_option_combo: str | None = None,
-        attribute_option_combo: str | None = None,
+        attribute_combo: str | None = None,
+        attribute_options: list[str] | None = None,
         comment: str | None = None,
         profile: str | None = None,
     ) -> WebMessageResponse:
-        """Set a single aggregate data value via POST /api/dataValues."""
+        """Set a single aggregate data value via POST /api/dataValues.
+
+        An attribute option combo is addressed by `attribute_combo` (its
+        CategoryCombo UID, `cc`) plus `attribute_options` (its category-option
+        UIDs, `cp`) — DHIS2 has no attributeOptionCombo param. Pass both together.
+        """
         return await service.set_data_value(
             resolve_profile(profile),
             data_element=data_element,
@@ -102,7 +108,8 @@ def register(mcp: Any) -> None:
             org_unit=org_unit,
             value=value,
             category_option_combo=category_option_combo,
-            attribute_option_combo=attribute_option_combo,
+            attribute_combo=attribute_combo,
+            attribute_options=attribute_options,
             comment=comment,
         )
 
@@ -112,17 +119,23 @@ def register(mcp: Any) -> None:
         period: str,
         org_unit: str,
         category_option_combo: str | None = None,
-        attribute_option_combo: str | None = None,
+        attribute_combo: str | None = None,
+        attribute_options: list[str] | None = None,
         profile: str | None = None,
     ) -> WebMessageResponse:
-        """Delete a single aggregate data value via DELETE /api/dataValues."""
+        """Delete a single aggregate data value via DELETE /api/dataValues.
+
+        Address an attribute option combo via `attribute_combo` (`cc`) plus
+        `attribute_options` (`cp`) — DHIS2 has no attributeOptionCombo param.
+        """
         return await service.delete_data_value(
             resolve_profile(profile),
             data_element=data_element,
             period=period,
             org_unit=org_unit,
             category_option_combo=category_option_combo,
-            attribute_option_combo=attribute_option_combo,
+            attribute_combo=attribute_combo,
+            attribute_options=attribute_options,
         )
 
     @mcp.tool()
