@@ -1,6 +1,6 @@
 # Upstream DHIS2 quirks
 
-> **Learning path · step 8 of 8** — External DHIS2 / API defects only. Prev: [Architecture overview](docs/architecture/overview.md). Workarounds reference this repo with `packages/dhis2w-*` paths; the entries themselves are upstream-flavoured so a DHIS2 maintainer can paste the repro. Internal-design discussion belongs in `docs/architecture/`, not here.
+> **Learning path · step 8 of 8** — External DHIS2 / API defects only. Prev: [Architecture overview](https://github.com/winterop-com/dhis2w-utils/blob/main/docs/architecture/overview.md). Workarounds reference this repo with `packages/dhis2w-*` paths; the entries themselves are upstream-flavoured so a DHIS2 maintainer can paste the repro. Internal-design discussion belongs in `docs/architecture/`, not here.
 
 Running list of DHIS2 behaviours that look like bugs or design surprises, found
 while building + testing this workspace against live v41 / v42 / v43 stacks.
