@@ -66,7 +66,7 @@ def route_auth(route: Any) -> tuple[str | None, str | None]:
     The identity is the non-secret field of each scheme (username / clientId / tokenUri); the secret
     is WRITE_ONLY upstream and never serialized, so it is never read here. A route with auth present but
     an unrecognizable or missing `type` (e.g. a future 6th variant) returns ("unknown", None) so the
-    route-carries-auth INFO finding still fires -- credentials are present even when we cannot classify the
+    route-carries-auth INFO finding still fires; credentials are present even when we cannot classify the
     scheme. ValidationError from the adapter is caught; it never propagates. Returns (None, None) only when
     the route has no auth block at all.
     """

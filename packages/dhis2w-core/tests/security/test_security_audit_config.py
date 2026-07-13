@@ -134,7 +134,7 @@ def test_explicit_narrow_matrix_is_medium() -> None:
         system_enabled=True,
         logger_enabled=True,
         scopes=(
-            # METADATA: explicit but only CREATE and READ -- omits UPDATE, DELETE, SECURITY.
+            # METADATA: explicit but only CREATE and READ; omits UPDATE, DELETE, SECURITY.
             AuditScopeMatrix(scope="METADATA", explicit=True, audit_types=("CREATE", "READ")),
             # All other scopes: default (not explicit) -> no finding.
             _default_scope("AGGREGATE"),
@@ -231,7 +231,7 @@ async def test_run_audit_config_default_config_no_medium(tree: str, tmp_path: Pa
     conf.write_text(
         "\n".join(
             [
-                "# minimal dhis.conf -- no audit matrix keys",
+                "# minimal dhis.conf; no audit matrix keys",
                 "system.audit.enabled = on",
                 "audit.logger = on",
                 "connection.url = jdbc:postgresql://localhost/dhis2",

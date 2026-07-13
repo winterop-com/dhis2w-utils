@@ -83,7 +83,7 @@ def test_http_instance_all_headers_none_has_expected_finding_set() -> None:
         "No X-Content-Type-Options: nosniff",
         "Cross-origin isolation headers not configured (COOP/COEP/CORP)",
     }
-    # HSTS fires only on https — must not appear for a plaintext endpoint.
+    # HSTS fires only on https; must not appear for a plaintext endpoint.
     assert "No Strict-Transport-Security header" not in titles
 
 
@@ -195,7 +195,7 @@ def test_hsts_present_but_weak_is_one_warn(value: str) -> None:
     assert weak[0].severity is Severity.WARN
     assert value in weak[0].detail
     assert (weak[0].evidence or {}).get("header") == value
-    # The "missing HSTS" MEDIUM covers the absent case only -- it must not co-fire with the present-but-weak WARN.
+    # The "missing HSTS" MEDIUM covers the absent case only; it must not co-fire with the present-but-weak WARN.
     assert "No Strict-Transport-Security header" not in _titles(findings)
 
 
@@ -304,7 +304,7 @@ def test_csp_present_without_frame_ancestors_does_not_double_flag() -> None:
     # The anti-framing WARN owns the "frame-ancestors entirely missing" case.
     assert "No anti-framing header" in titles
     # The CSP-weak finding must not appear at all (the content directives are strong and a missing
-    # frame-ancestors is NOT a CSP-weak sub-case -- only a present-but-broad one is).
+    # frame-ancestors is NOT a CSP-weak sub-case; only a present-but-broad one is).
     assert "Content-Security-Policy is weak" not in titles
 
 
@@ -328,7 +328,7 @@ def test_csp_empty_object_src_is_strong() -> None:
 
 def test_csp_duplicate_directive_last_wins() -> None:
     """Duplicate directives resolve last-wins (mirroring the auditor app), not first-wins (CSP spec)."""
-    # First default-src is broad; second is 'self'. Last-wins means the safe 'self' wins -- no broad warning.
+    # First default-src is broad; second is 'self'. Last-wins means the safe 'self' wins; no broad warning.
     policy = "default-src *; default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';"
     assert _csp_finding(_SECURE.model_copy(update={"content_security_policy": policy})) is None
 
@@ -477,7 +477,7 @@ def test_cors_credentials_value_is_case_insensitive() -> None:
 
 
 def test_cors_wildcard_with_credentials_false_is_warn_not_high() -> None:
-    """ACAO==* with ACAC==\"false\" stays WARN -- only the literal \"true\" (case-insensitive) escalates to HIGH."""
+    """ACAO==* with ACAC==\"false\" stays WARN; only the literal \"true\" (case-insensitive) escalates to HIGH."""
     finding = _cors_finding(
         _SECURE.model_copy(update={"access_control_allow_origin": "*", "access_control_allow_credentials": "false"})
     )
@@ -487,7 +487,7 @@ def test_cors_wildcard_with_credentials_false_is_warn_not_high() -> None:
 
 
 def test_cors_wildcard_with_credentials_empty_is_warn_not_high() -> None:
-    """ACAO==* with ACAC==\"\" stays WARN -- an empty credentials value does not escalate to HIGH."""
+    """ACAO==* with ACAC==\"\" stays WARN; an empty credentials value does not escalate to HIGH."""
     finding = _cors_finding(
         _SECURE.model_copy(update={"access_control_allow_origin": "*", "access_control_allow_credentials": ""})
     )

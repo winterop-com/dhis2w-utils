@@ -19,7 +19,7 @@ fd00:ec2::254, and `metadata.google.internal`) is the highest-value SSRF target 
 specific metadata finding instead of the generic private-address one, so a single root cause never raises
 two HIGHs.
 
-Residual limitation: DNS-name hosts that resolve to private IPs at runtime are NOT detected -- the check
+Residual limitation: DNS-name hosts that resolve to private IPs at runtime are NOT detected; the check
 inspects only the configured literal host, by design (no DNS resolution). Operators should audit any
 hostname that is not a public domain against their internal DNS.
 
@@ -36,8 +36,6 @@ from dhis2w_core.security_core.findings import AuditFinding, Severity
 from dhis2w_core.security_core.net import is_metadata_host, is_private_host
 
 _CHECK = "routes"
-
-__all__ = ["RouteTarget", "evaluate_routes"]
 
 
 class RouteTarget(BaseModel):
@@ -91,7 +89,7 @@ def _private_address_finding(target: RouteTarget) -> AuditFinding:
         detail=(
             f"Route '{target.name}' ({target.code or 'no code'}) proxies to {target.url}, a private/internal "
             "or cloud-metadata host. Any operator authorized to run it makes DHIS2 issue the request from "
-            "inside the network -- an SSRF primitive. Detection inspects the configured URL host only; the "
+            "inside the network; an SSRF primitive. Detection inspects the configured URL host only; the "
             "audit never executes the route."
         ),
         subject=target.name,

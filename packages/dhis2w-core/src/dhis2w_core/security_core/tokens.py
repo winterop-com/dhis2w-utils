@@ -163,7 +163,7 @@ def _no_ip_allowlist_finding(token: TokenView, *, worst_case: bool) -> AuditFind
     """Flag a token with no IP allowlist; calls out the worst case when it also never expires."""
     worst = (
         " This token also never expires: a token that never expires AND has no IP allowlist is the worst "
-        "case -- a permanent credential usable from anywhere."
+        "case: a permanent credential usable from anywhere."
         if worst_case
         else ""
     )

@@ -2,7 +2,7 @@
 
 There is no reliable server-side filter for non-default sharing (the `sharing.public` filter is
 silently ignored when the instance's default sharing is itself public, and the legacy
-`publicAccess` / `externalAccess` fields are not filterable at all — see BUGS.md), so the scan pages
+`publicAccess` / `externalAccess` fields are not filterable at all; see BUGS.md), so the scan pages
 objects and decodes their sharing client-side. To keep the default audit bounded and high-signal, it
 targets the data-bearing types plus the classically exposure-prone metadata (dashboards, documents,
 maps, visualizations, SQL views, reports), rather than every shareable type. `data_bearing` is never

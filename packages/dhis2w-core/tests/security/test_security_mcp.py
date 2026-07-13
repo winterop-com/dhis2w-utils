@@ -3,7 +3,7 @@
 Builds a FastMCP server from each version tree's `security` plugin and drives it through
 FastMCP's in-process Client (CLAUDE.md's mandated MCP test shape), with respx mocking the
 DHIS2 endpoints. Asserts the three `security_*` read tools register (and nothing audit /
-probe / sharing related does), and that each returns the correct typed model -- including
+probe / sharing related does), and that each returns the correct typed model; including
 the version tool's EOL / below-floor findings and its single-request, no-external-feed
 guarantee.
 """

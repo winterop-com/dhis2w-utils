@@ -29,11 +29,8 @@ def _result_summary(result: CheckResult) -> str:
 
 def _scorecard(summary: AuditSummary) -> str:
     """One-line severity scorecard for the end of a run."""
-    return (
-        f"done: {summary.total_findings} finding(s); "
-        f"CRITICAL={summary.critical} HIGH={summary.high} MEDIUM={summary.medium} "
-        f"WARN={summary.warn} INFO={summary.info}"
-    )
+    tally = " ".join(f"{entry.severity.value}={entry.count}" for entry in summary.severity_counts())
+    return f"done: {summary.total_findings} finding(s); {tally}"
 
 
 class PlainLogReporter:
@@ -90,7 +87,7 @@ class RichProgressReporter:
         if self._task is not None:
             self._progress.advance(self._task)
         worst = result.top_severity()
-        style = _SEVERITY_STYLE[worst] if worst is not None else None
+        style = _SEVERITY_STYLE.get(worst) if worst is not None else None
         self._console.print(
             f"[{index}/{total}] {result.label}: {_result_summary(result)}",
             style=style,

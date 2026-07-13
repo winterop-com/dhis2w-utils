@@ -16,7 +16,7 @@ The contract:
   Access-Control-Allow-Origin / Access-Control-Allow-Credentials only on
   requests that carry an Origin, reveals the live CORS posture. This is a
   reviewed, documented widening of the probe: still a GET-only request, still
-  the same allowlisted path, no new endpoint and no write -- it only ADDS a
+  the same allowlisted path, no new endpoint and no write; it only ADDS a
   request header. A foreign origin (never the instance's own, which DHIS2 always
   echoes) is used so only a server that reflects an arbitrary origin is flagged.
 - Credential probe: the probe may make at most one HTTP Basic login attempt,
@@ -46,6 +46,10 @@ The contract:
 """
 
 from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+
+import httpx
 
 # Every path the security plugin is allowed to GET, matched exactly against
 # `httpx.URL.path`. Adding an endpoint here is a reviewed decision, not a
@@ -141,3 +145,68 @@ REPORT_GUARDRAIL_NOTE = (
     "CORS response headers (a documented widening of the probe; still GET-only, same path, no write). "
     "The audit never reads data values, tracked entities, events, files, or audit logs."
 )
+
+
+class GuardrailViolation(Exception):
+    """Raised when an audit request escapes the read-only allowlist contract.
+
+    Deliberately not a `Dhis2ClientError` / `httpx.HTTPError` subclass so it surfaces
+    loudly as an error rather than being swallowed by a check's degrade-catch.
+    """
+
+
+# The full set of paths any audit request may hit: the plugin read allowlist plus the
+# connect-time canonical-URL and version-detection probes. `CREDENTIAL_PROBE_PATHS` is a
+# subset of `GET_ALLOWLIST` already, so it needs no separate union here.
+ALLOWED_AUDIT_PATHS: frozenset[str] = GET_ALLOWLIST | CONNECT_PATHS
+
+# Identifiable User-Agent so audit traffic stays legible as tooling in target-server access logs.
+SECURITY_AUDIT_USER_AGENT = "dhis2w-security-audit"
+
+
+def guardrail_request_hook(
+    allowed_paths: frozenset[str],
+    allowed_methods: frozenset[str] = frozenset({"GET", "HEAD"}),
+    *,
+    base_path: str = "",
+) -> Callable[[httpx.Request], Awaitable[None]]:
+    """Build an async httpx request event hook that rejects any off-contract request.
+
+    `base_path` is the instance's context path (the path component of the base URL, e.g. `/dev-2-42`
+    for an instance served under a sub-path or reverse proxy). It is stripped off the request path
+    before matching against `allowed_paths`, so a request to `/dev-2-42/api/me` matches the `/api/me`
+    allowlist entry. The default `""` leaves the request path untouched, matching allowlist entries
+    exactly as they are stored.
+    """
+    prefix = base_path.rstrip("/")
+
+    async def _hook(request: httpx.Request) -> None:
+        """Raise `GuardrailViolation` when the request leaves the read-only allowlist."""
+        if request.method not in allowed_methods:
+            raise GuardrailViolation(
+                f"guardrail: method {request.method} is not read-only (allowed: {sorted(allowed_methods)})"
+            )
+        path = request.url.path
+        if prefix and (path == prefix or path.startswith(prefix + "/")):
+            path = path[len(prefix) :] or "/"
+        if path not in allowed_paths:
+            raise GuardrailViolation(f"guardrail: path {request.url.path} is not on the audit allowlist")
+
+    return _hook
+
+
+def probe_client(*, base_path: str = "", headers: dict[str, str] | None = None) -> httpx.AsyncClient:
+    """Build a read-only, guardrailed httpx.AsyncClient for the plugin's bare-httpx probes.
+
+    `base_path` is threaded into the guardrail hook so probes against a context-path-hosted instance
+    (whose absolute probe URLs carry that prefix) match the allowlist after the prefix is stripped.
+    """
+    merged_headers = {"User-Agent": SECURITY_AUDIT_USER_AGENT}
+    if headers is not None:
+        merged_headers.update(headers)
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(15.0, connect=10.0),
+        follow_redirects=False,
+        headers=merged_headers,
+        event_hooks={"request": [guardrail_request_hook(ALLOWED_AUDIT_PATHS, base_path=base_path)]},
+    )

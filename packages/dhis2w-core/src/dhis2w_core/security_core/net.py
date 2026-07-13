@@ -20,8 +20,9 @@ from __future__ import annotations
 import ipaddress
 from urllib.parse import urlsplit
 
-# Hostnames that always resolve to the local instance or an internal-only zone.
-_PRIVATE_HOSTNAMES: frozenset[str] = frozenset({"localhost", "metadata.google.internal"})
+# Hostnames that always resolve to the local instance or an internal-only zone. The `.internal`
+# suffix in `_PRIVATE_HOST_SUFFIXES` already covers `metadata.google.internal` and friends.
+_PRIVATE_HOSTNAMES: frozenset[str] = frozenset({"localhost"})
 
 # Hostname suffixes reserved for internal / link-local naming, never a public destination.
 _PRIVATE_HOST_SUFFIXES: tuple[str, ...] = (".internal", ".local", ".localdomain")
@@ -133,7 +134,7 @@ def _as_ip(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
                 return ipaddress.IPv4Address(value)
         except ValueError:
             pass
-    # Octal-dotted: `0177.0.0.1` -- each octet that starts with `0` and is all-digits is base-8.
+    # Octal-dotted: `0177.0.0.1`; each octet that starts with `0` and is all-digits is base-8.
     result = _parse_octal_dotted(candidate)
     if result is not None:
         return result

@@ -19,9 +19,7 @@ class CheckSpec(BaseModel):
 
 
 # The full audit running order: cheap and high-signal first, broad and expensive
-# last. Checks are implemented incrementally; `IMPLEMENTED_CHECK_KEYS` records
-# which specs have a runnable implementation today, and each later check PR adds
-# its key there as it lands.
+# last. Tuple order is the order the orchestrator runs the checks in.
 CANONICAL_CHECKS: tuple[CheckSpec, ...] = (
     CheckSpec(key="version", label="Version and patch posture"),
     CheckSpec(key="transport", label="Transport and security headers"),
@@ -37,26 +35,6 @@ CANONICAL_CHECKS: tuple[CheckSpec, ...] = (
     CheckSpec(key="tokens", label="Personal access tokens"),
     CheckSpec(key="routes", label="Route API targets"),
     CheckSpec(key="audit-config", label="Audit logging configuration"),
-)
-
-# Checks with a runnable implementation right now.
-IMPLEMENTED_CHECK_KEYS: frozenset[str] = frozenset(
-    {
-        "version",
-        "transport",
-        "settings",
-        "authorities",
-        "credential-probe",
-        "roles",
-        "hygiene",
-        "apps",
-        "guest",
-        "sharing",
-        "auth-methods",
-        "tokens",
-        "routes",
-        "audit-config",
-    }
 )
 
 _LABEL_BY_KEY: dict[str, str] = {spec.key: spec.label for spec in CANONICAL_CHECKS}
@@ -95,25 +73,17 @@ def select_keys(keys: list[str], *, only: list[str] | None = None, skip: list[st
 
 
 def resolve_check_keys(only: list[str] | None = None, skip: list[str] | None = None) -> list[str]:
-    """Resolve the implemented check keys to run, validating every requested key.
+    """Resolve the catalog check keys to run, validating every requested key.
 
-    Raises ValueError when a requested key is unknown, when `only` names a check
-    that has no implementation yet, or when the selection is empty, so a typo or
-    a not-yet-built check never silently produces an empty security report.
+    Raises ValueError when a requested key is unknown or when the selection is
+    empty, so a typo never silently produces an empty security report.
     """
     valid = set(canonical_keys())
     requested = [*(only or []), *(skip or [])]
     unknown = sorted({key for key in requested if key not in valid})
     if unknown:
         raise ValueError(f"unknown check key(s): {', '.join(unknown)}; valid keys: {', '.join(canonical_keys())}")
-    implemented = [key for key in canonical_keys() if key in IMPLEMENTED_CHECK_KEYS]
-    if only is not None:
-        not_implemented = sorted({key for key in only if key not in IMPLEMENTED_CHECK_KEYS})
-        if not_implemented:
-            raise ValueError(
-                f"check(s) not implemented yet: {', '.join(not_implemented)}; available now: {', '.join(implemented)}"
-            )
-    selected = select_keys(implemented, only=only, skip=skip)
+    selected = select_keys(canonical_keys(), only=only, skip=skip)
     if not selected:
         raise ValueError("no checks selected to run")
     return selected

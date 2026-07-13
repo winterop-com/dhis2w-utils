@@ -3,7 +3,7 @@
 The audit posture (the instance-wide enable flag, the file logger, the database sink, and the four
 per-scope matrices) is not exposed over any DHIS2 API; it lives only in `dhis.conf`. The reducer therefore
 has two modes driven by `AuditPosture.parsed`: when `parsed` is False (no `--dhis-conf` supplied) it emits a
-single INFO stating the posture is not API-readable -- never "auditing is off". When a `dhis.conf` copy was
+single INFO stating the posture is not API-readable; never "auditing is off". When a `dhis.conf` copy was
 parsed it reports each weak channel: the master switch off, both sinks off, and an explicitly-configured
 matrix that is narrower than the DHIS2 default {CREATE, UPDATE, DELETE, SECURITY}.
 
@@ -41,7 +41,7 @@ def _scope_findings(posture: AuditPosture) -> list[AuditFinding]:
 
     An absent or blank matrix key receives the DHIS2 default {CREATE, UPDATE, DELETE, SECURITY} and is
     healthy. Only scopes where the operator supplied an EXPLICIT matrix (explicit=True) that omits one or
-    more of the forensic types are reported -- including a DISABLED scope (empty type set).
+    more of the forensic types are reported, including a DISABLED scope (empty type set).
     """
     narrow = _narrowly_scoped(posture)
     if narrow:
@@ -58,7 +58,7 @@ def _narrowly_scoped(posture: AuditPosture) -> dict[str, tuple[str, ...]]:
     narrow: dict[str, tuple[str, ...]] = {}
     for scope in posture.scopes:
         if not scope.explicit:
-            # No explicit matrix: DHIS2 applies its default -- not a narrowing.
+            # No explicit matrix: DHIS2 applies its default, not a narrowing.
             continue
         missing = tuple(audit_type for audit_type in _FORENSIC_AUDIT_TYPES if audit_type not in scope.audit_types)
         if missing:
@@ -74,7 +74,7 @@ def _api_only_finding() -> AuditFinding:
         title="Audit configuration is not API-readable",
         detail=(
             "DHIS2 does not expose its audit configuration over the API; the audit.* keys live only in "
-            "dhis.conf. This check could not read the audit posture remotely -- this is a property of DHIS2, "
+            "dhis.conf. This check could not read the audit posture remotely; this is a property of DHIS2, "
             "not a statement that auditing is off. Re-run with --dhis-conf <path> pointed at a copy of the "
             "server's dhis.conf to evaluate the file logger, the database sink, and the per-scope matrices."
         ),

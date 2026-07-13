@@ -49,6 +49,9 @@ from dhis2w_core.security_core.guardrails import (
     GET_ALLOWLIST,
     MAX_PROBE_ATTEMPTS,
     REPORT_GUARDRAIL_NOTE,
+    GuardrailViolation,
+    guardrail_request_hook,
+    probe_client,
 )
 from dhis2w_core.security_core.guest import (
     ANONYMOUS_PROBE_TARGETS,
@@ -71,7 +74,6 @@ from dhis2w_core.security_core.options import AuditOptions
 from dhis2w_core.security_core.orchestrator import run_audit
 from dhis2w_core.security_core.registry import (
     CANONICAL_CHECKS,
-    IMPLEMENTED_CHECK_KEYS,
     BoundCheck,
     CheckSpec,
     canonical_keys,
@@ -175,7 +177,6 @@ __all__ = [
     "DEFAULT_PROBE_USERNAME",
     "GET_ALLOWLIST",
     "HIGH_RISK_ROLE_CATEGORIES",
-    "IMPLEMENTED_CHECK_KEYS",
     "MAX_PROBE_ATTEMPTS",
     "MIN_RECOMMENDED_PASSWORD_LENGTH",
     "MIN_SUPPORTED_LINE",
@@ -215,6 +216,7 @@ __all__ = [
     "FetchedShare",
     "FetchedUser",
     "GroupView",
+    "GuardrailViolation",
     "GuestProbeTarget",
     "HtmlRenderer",
     "HubApp",
@@ -300,11 +302,13 @@ __all__ = [
     "fetch_release_feed",
     "finding_sort_key",
     "grade_csp",
+    "guardrail_request_hook",
     "label_for",
     "make_reporter",
     "parse_csp",
     "parse_dhis2_version",
     "parse_dhis_conf",
+    "probe_client",
     "resolve_check_keys",
     "resolve_focus_types",
     "role_severity",

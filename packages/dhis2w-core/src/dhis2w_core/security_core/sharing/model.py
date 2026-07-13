@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 # The current SharingGraph wire-schema version. Bump when the serialized shape changes so a viewer
 # reading an embedded graph can refuse a payload it does not understand.
@@ -88,6 +88,47 @@ class AccessBits(BaseModel):
         return self.meta_write or self.data_write
 
 
+class ExposureLevel(StrEnum):
+    """The exposure severity a shareable object's public/external access resolves to."""
+
+    HIGH = "high"
+    MEDIUM = "med"
+    NONE = "none"
+
+
+class ExposureKind(StrEnum):
+    """The single dominant exposure an object carries, the one branch its precedence resolves to."""
+
+    EXTERNAL = "external"
+    PUBLIC_WRITE_DATA = "public_write_data"
+    PUBLIC_WRITE_METADATA = "public_write_metadata"
+    SQL_VIEW_READ = "sql_view_read"
+    PUBLIC_DATA_READ = "public_data_read"
+    RESTRICTED = "restricted"
+
+
+class ExposureView(BaseModel):
+    """An object's resolved sharing exposure: its severity level and a human-readable label."""
+
+    model_config = ConfigDict(frozen=True)
+
+    severity: ExposureLevel
+    label: str
+
+
+# The one exposure-severity algebra: both the findings reduction and the serialized explorer read it.
+_EXPOSURE_VIEWS: dict[ExposureKind, ExposureView] = {
+    ExposureKind.EXTERNAL: ExposureView(severity=ExposureLevel.HIGH, label="Externally accessible"),
+    ExposureKind.PUBLIC_WRITE_DATA: ExposureView(severity=ExposureLevel.HIGH, label="Public write (data-bearing)"),
+    ExposureKind.PUBLIC_WRITE_METADATA: ExposureView(severity=ExposureLevel.MEDIUM, label="Public write (metadata)"),
+    ExposureKind.SQL_VIEW_READ: ExposureView(severity=ExposureLevel.MEDIUM, label="SQL view readable by all"),
+    ExposureKind.PUBLIC_DATA_READ: ExposureView(severity=ExposureLevel.MEDIUM, label="Public data read"),
+    ExposureKind.RESTRICTED: ExposureView(severity=ExposureLevel.NONE, label="Restricted sharing"),
+}
+
+_SQL_VIEW_TYPE = "sqlView"
+
+
 class ObjectNode(BaseModel):
     """One shareable metadata object: its identity, owner, and intrinsic public/external exposure."""
 
@@ -101,6 +142,33 @@ class ObjectNode(BaseModel):
     owner: str | None = None
     public: AccessBits = AccessBits()
     external: bool = False
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def exposure(self) -> ExposureView:
+        """The object's resolved exposure severity and label, serialized so the explorer never recomputes it."""
+        return classify_exposure(self)
+
+
+def public_exposure_kind(obj: ObjectNode) -> ExposureKind:
+    """Resolve an object's dominant public exposure, ignoring external reach, as one precedence branch."""
+    public = obj.public
+    if obj.data_bearing and public.has_write:
+        return ExposureKind.PUBLIC_WRITE_DATA
+    if not obj.data_bearing and public.meta_write:
+        return ExposureKind.PUBLIC_WRITE_METADATA
+    if obj.type == _SQL_VIEW_TYPE and public.meta_read:
+        return ExposureKind.SQL_VIEW_READ
+    if obj.data_bearing and public.data_read:
+        return ExposureKind.PUBLIC_DATA_READ
+    return ExposureKind.RESTRICTED
+
+
+def classify_exposure(obj: ObjectNode) -> ExposureView:
+    """Project an object onto its worst exposure: anonymous reach dominates, else its public exposure."""
+    if obj.external:
+        return _EXPOSURE_VIEWS[ExposureKind.EXTERNAL]
+    return _EXPOSURE_VIEWS[public_exposure_kind(obj)]
 
 
 class UserNode(BaseModel):

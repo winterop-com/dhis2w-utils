@@ -188,7 +188,7 @@
                       <div><span style="{{ g.sevTag.style }}">{{ g.sevTag.label }}</span></div>
                       <div>
                         <div style="font-weight:600; font-size:15px; letter-spacing:-0.01em;">{{ g.finding }}</div>
-                        <div style="color:var(--text3); margin-top:5px; font-size:14px; line-height:1.5; max-width:80ch;">{{ g.detail }}</div>
+                        <div style="color:var(--text3); margin-top:5px; font-size:14px; line-height:1.5; max-width:80ch;"><sc-for list="{{ g.detailSegments }}" as="seg"><span style="{{ seg.style }}">{{ seg.text }}</span></sc-for></div>
                       </div>
                     </div>
                   </sc-if>
@@ -197,7 +197,7 @@
                       <div><span style="{{ g.sevTag.style }}">{{ g.sevTag.label }}</span></div>
                       <div style="min-width:0;">
                         <div style="font-weight:600; font-size:15px; letter-spacing:-0.01em;">{{ g.finding }}</div>
-                        <div style="color:var(--text3); margin-top:5px; font-size:14px; line-height:1.5; max-width:80ch;">{{ g.detail }}</div>
+                        <div style="color:var(--text3); margin-top:5px; font-size:14px; line-height:1.5; max-width:80ch;"><sc-for list="{{ g.detailSegments }}" as="seg"><span style="{{ seg.style }}">{{ seg.text }}</span></sc-for></div>
                       </div>
                       <div style="display:flex; align-items:center; gap:14px; white-space:nowrap;">
                         <span style="font-family:'Space Mono',monospace; font-size:11px; font-weight:700; color:var(--muted); background:var(--chip); border:1px solid var(--border); padding:4px 9px; border-radius:20px;">{{ g.countLabel }}</span>
@@ -305,6 +305,28 @@ class Component extends DCLogic {
     this.setState({ open: next });
   }
 
+  splitDetail(text) {
+    // Fold setting keys, authority constants, API paths, and backtick spans in a finding's
+    // detail into styled inline-code segments; everything else stays plain text. Rendered as
+    // textContent per segment, so instance-supplied names can never become markup.
+    const code = {
+      fontFamily: "'Space Mono',monospace", fontSize: '0.86em',
+      background: 'var(--chip)', color: 'var(--brand-deep)', borderRadius: '3px', padding: '1px 5px',
+    };
+    const plain = {};
+    const value = (text == null) ? '' : String(text);
+    const token = /`([^`]+)`|([a-z][a-z0-9]*[A-Z][A-Za-z0-9]*|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|\/api\/[A-Za-z0-9_/:{}-]+)/g;
+    const segments = [];
+    let last = 0, match;
+    while ((match = token.exec(value)) !== null) {
+      if (match.index > last) segments.push({ text: value.slice(last, match.index), style: plain });
+      segments.push({ text: match[1] !== undefined ? match[1] : match[2], style: code });
+      last = match.index + match[0].length;
+    }
+    if (last < value.length) segments.push({ text: value.slice(last), style: plain });
+    return segments.length ? segments : [{ text: value, style: plain }];
+  }
+
   renderVals() {
     const SEV = {
       CRITICAL: { fg: 'var(--crit-fg)', bg: 'var(--crit-bg)', bd: 'var(--crit-bd)', dot: 'var(--crit-dot)', rank: 0 },
@@ -374,7 +396,7 @@ class Component extends DCLogic {
         const isOpen = !!open[id];
         return {
           id, single: !collapsible, collapsible, open: isOpen,
-          finding: g.finding, detail: g.sampleDetail,
+          finding: g.finding, detailSegments: this.splitDetail(g.sampleDetail),
           countLabel: g.count + ' ' + (g.count === 1 ? 'account' : 'accounts'),
           sevTag: { label: g.sev, style: tagStyle(g.sev) },
           chevStyle: {
@@ -393,8 +415,7 @@ class Component extends DCLogic {
 
       const collIds = groups.filter(g => g.collapsible).map(g => g.id);
       const anyOpen = collIds.some(id => open[id]);
-      const noteRaw = sec.status.find(s => s.startsWith('(')) || '';
-      const statusNote = noteRaw.replace(/^\(|\)$/g, '').trim();
+      const statusNote = (sec.status.note || '').trim();
 
       return {
         idx, num: String(idx + 1).padStart(2, '0'), anchor: `sec-${idx}`,
@@ -443,7 +464,7 @@ class Component extends DCLogic {
     const heroLead = totalFindings + ' findings across ' + areaCount + ' control area' + (areaCount === 1 ? '' : 's');
     const heroEmphasis = hasCritical
       ? 'including ' + criticalCount + ' critical' + (criticalCount === 1 ? '' : 's') + ' that demand immediate attention.'
-      : 'no critical findings — review the items below.';
+      : 'no critical findings; review the items below.';
     const targetRaw = meta.target || '';
     const startedRaw = meta.started || '';
     const startedMatch = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(startedRaw);

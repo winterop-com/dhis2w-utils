@@ -5,7 +5,7 @@ not in metadata, so this check reads the base-URL scheme and a single response's
 plaintext base URL leaks every credential and all metadata in clear text. Over HTTPS, a missing
 Strict-Transport-Security header leaves an SSL-strip window; DHIS2 emits HSTS via Spring Security only
 when the request reaches the app as secure, so a TLS-terminating proxy that forwards plain HTTP commonly
-suppresses it. The wire header is the SOLE evidence of CSP state -- there is no `keyCspEnabled` system
+suppresses it. The wire header is the SOLE evidence of CSP state; there is no `keyCspEnabled` system
 setting; a default DHIS2 (csp.enabled=on) always emits at least `frame-ancestors 'self';` via CspFilter,
 and switches to `X-Frame-Options: SAMEORIGIN` when CSP is off, so anti-framing is flagged only when both
 are absent. X-Content-Type-Options is set unconditionally by Spring Security, so its absence points at
@@ -18,7 +18,7 @@ CORS response headers are request-conditioned: DhisCorsProcessor only emits Acce
 origin back (with credentials always `true`) only when the origin equals the instance's own URL or
 matches a glob in the configured CORS whitelist. So the wiring probe sends a benign foreign `Origin`
 (never the instance's own, which DHIS2 would always echo) to surface the dangerous "server reflects an
-arbitrary origin" misconfiguration -- a configured `*` whitelist matches the foreign origin and echoes
+arbitrary origin" misconfiguration; a configured `*` whitelist matches the foreign origin and echoes
 it with credentials. This reads the LIVE response headers, complementing the settings check's read of
 the static `/api/configuration/corsWhitelist` config: the config read sees the declared allowlist, this
 read sees what the server actually grants on the wire.
@@ -50,7 +50,7 @@ _ONE_DAY_SECONDS = 86_400
 # The foreign Origin the wiring probe sends to elicit CORS response headers. `.invalid` is reserved by
 # RFC 6761 and can never resolve to a real host, so it is a safe, unmistakably-untrusted origin. DHIS2
 # echoes it back (with credentials) only if a configured CORS whitelist glob matches an arbitrary origin
-# -- the dangerous reflect-any misconfiguration. The instance's own origin is deliberately NOT used: it
+# that is the dangerous reflect-any misconfiguration. The instance's own origin is deliberately NOT used: it
 # is always echoed by DhisCorsProcessor (localUrl.equals(origin)) and would be a guaranteed false positive.
 CORS_PROBE_ORIGIN = "https://dhis2w-security-probe.invalid"
 
@@ -229,7 +229,7 @@ def _cors_response_finding(headers: TransportHeaders) -> AuditFinding | None:
 
     The probe sends `Origin: CORS_PROBE_ORIGIN` (an untrusted foreign origin). DHIS2 echoes that origin
     back, with `Access-Control-Allow-Credentials: true`, only when a configured whitelist glob matches an
-    arbitrary origin -- so an echoed foreign origin IS the dangerous reflect-any misconfiguration. A
+    arbitrary origin, so an echoed foreign origin IS the dangerous reflect-any misconfiguration. A
     fronting proxy may instead answer with a literal `*`. Both are graded; credentials raise the ceiling.
     """
     allow_origin = headers.access_control_allow_origin
@@ -316,7 +316,7 @@ def _no_csp_finding() -> AuditFinding:
         detail=(
             "On a default DHIS2 (csp.enabled=on) the CspFilter always emits at least `frame-ancestors "
             "'self';`. Absence means CSP was disabled in dhis.conf (csp.enabled=off) or stripped upstream. "
-            "The header on the wire is the SOLE evidence -- there is no `keyCspEnabled` system setting."
+            "The header on the wire is the SOLE evidence; there is no `keyCspEnabled` system setting."
         ),
         evidence={"header": "content-security-policy"},
     )

@@ -3,7 +3,7 @@
 Exposes only the cheap, single-request reads that mirror the CLI's `settings`,
 `authorities`, and `version` checks. The long-running `d2w security audit` (and its
 credential probe, guest probe, sharing scan, and per-check subcommands) stays
-CLI-only -- it is multi-request, makes one external release-feed call, and may issue
+CLI-only; it is multi-request, makes one external release-feed call, and may issue
 the single default-credential login attempt, none of which belong in an MCP tool.
 
 Every tool here is one read-only GET against an already-allowlisted path

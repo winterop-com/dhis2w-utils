@@ -60,12 +60,9 @@ def severity_rank(severity: Severity) -> int:
     return SEVERITY_ORDER.index(severity)
 
 
-def role_severity(categories: Iterable[str], *, has_all: bool) -> Severity:
-    """ALL roles are CRITICAL; high-impact categories HIGH; the rest MEDIUM."""
-    keys = set(categories)
-    if has_all or "superuser" in keys:
-        return Severity.CRITICAL
-    if keys & HIGH_RISK_ROLE_CATEGORIES:
+def role_severity(categories: Iterable[str]) -> Severity:
+    """High-impact authority categories are HIGH; the rest MEDIUM."""
+    if set(categories) & HIGH_RISK_ROLE_CATEGORIES:
         return Severity.HIGH
     return Severity.MEDIUM
 

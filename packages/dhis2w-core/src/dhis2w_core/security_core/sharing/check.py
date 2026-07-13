@@ -10,10 +10,9 @@ explicit user/group share edges are explorer detail, not findings, so they are n
 from __future__ import annotations
 
 from dhis2w_core.security_core.findings import AuditFinding, Severity
-from dhis2w_core.security_core.sharing.model import ObjectNode, SharingGraph
+from dhis2w_core.security_core.sharing.model import ExposureKind, ObjectNode, SharingGraph, public_exposure_kind
 
 _CHECK = "sharing"
-_SQL_VIEW_TYPE = "sqlView"
 
 
 def evaluate_sharing(graph: SharingGraph) -> list[AuditFinding]:
@@ -25,22 +24,34 @@ def evaluate_sharing(graph: SharingGraph) -> list[AuditFinding]:
 
 
 def _object_findings(obj: ObjectNode) -> list[AuditFinding]:
-    """Findings for one object: external exposure, public write, then public read.
+    """Findings for one object: external exposure plus its dominant public exposure.
 
-    The read finding is suppressed when the object is already external or publicly writable, since
-    anonymous reach and write access both dominate a public-read concern.
+    The exposure precedence lives once in `public_exposure_kind`; the read findings it resolves are
+    suppressed when the object is external, since anonymous reach already dominates a public-read concern.
     """
     findings: list[AuditFinding] = []
     if obj.external:
         findings.append(_external_finding(obj))
-    write = _public_write_finding(obj)
-    if write is not None:
-        findings.append(write)
-    elif not obj.external:
-        read = _public_read_finding(obj)
-        if read is not None:
-            findings.append(read)
+    public = _public_finding(obj)
+    if public is not None:
+        findings.append(public)
     return findings
+
+
+def _public_finding(obj: ObjectNode) -> AuditFinding | None:
+    """The one public-exposure finding for an object, keyed off the shared precedence kind."""
+    kind = public_exposure_kind(obj)
+    if kind is ExposureKind.PUBLIC_WRITE_DATA:
+        return _public_write_data_finding(obj)
+    if kind is ExposureKind.PUBLIC_WRITE_METADATA:
+        return _public_write_metadata_finding(obj)
+    if obj.external:
+        return None
+    if kind is ExposureKind.SQL_VIEW_READ:
+        return _sql_view_read_finding(obj)
+    if kind is ExposureKind.PUBLIC_DATA_READ:
+        return _public_data_read_finding(obj)
+    return None
 
 
 def _external_finding(obj: ObjectNode) -> AuditFinding:
@@ -59,66 +70,68 @@ def _external_finding(obj: ObjectNode) -> AuditFinding:
     )
 
 
-def _public_write_finding(obj: ObjectNode) -> AuditFinding | None:
-    """Public write: HIGH on data-bearing objects, MEDIUM on plain metadata; None when not writable."""
-    if obj.data_bearing and obj.public.has_write:
-        return AuditFinding(
-            check=_CHECK,
-            severity=Severity.HIGH,
-            title="Public write access to data-bearing object",
-            detail=(
-                f"{obj.type} '{obj.name}' grants write to every authenticated user (public {_axes(obj)}). "
-                "On a data-bearing type this lets any logged-in account alter its definition or its data."
-            ),
-            subject=obj.name,
-            group_key="sharing-public-write-data",
-            evidence=_evidence(obj),
-        )
-    if not obj.data_bearing and obj.public.meta_write:
-        return AuditFinding(
-            check=_CHECK,
-            severity=Severity.MEDIUM,
-            title="Public write access to metadata object",
-            detail=(
-                f"{obj.type} '{obj.name}' grants metadata write to every authenticated user (public "
-                f"{_axes(obj)}); any logged-in account can change it."
-            ),
-            subject=obj.name,
-            group_key="sharing-public-write-metadata",
-            evidence=_evidence(obj),
-        )
-    return None
+def _public_write_data_finding(obj: ObjectNode) -> AuditFinding:
+    """Public write to a data-bearing object: HIGH, since any account can alter its definition or data."""
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.HIGH,
+        title="Public write access to data-bearing object",
+        detail=(
+            f"{obj.type} '{obj.name}' grants write to every authenticated user (public {_axes(obj)}). "
+            "On a data-bearing type this lets any logged-in account alter its definition or its data."
+        ),
+        subject=obj.name,
+        group_key="sharing-public-write-data",
+        evidence=_evidence(obj),
+    )
 
 
-def _public_read_finding(obj: ObjectNode) -> AuditFinding | None:
-    """Broad public read: SQL views readable by everyone, or public data read on data-bearing types."""
-    if obj.type == _SQL_VIEW_TYPE and obj.public.meta_read:
-        return AuditFinding(
-            check=_CHECK,
-            severity=Severity.MEDIUM,
-            title="SQL view readable by all users",
-            detail=(
-                f"SQL view '{obj.name}' is readable by every authenticated user; any logged-in account can "
-                "run it and read whatever it queries, including tables the user could not otherwise reach."
-            ),
-            subject=obj.name,
-            group_key="sharing-public-sql-view",
-            evidence=_evidence(obj),
-        )
-    if obj.data_bearing and obj.public.data_read:
-        return AuditFinding(
-            check=_CHECK,
-            severity=Severity.MEDIUM,
-            title="Public read access to data-bearing object",
-            detail=(
-                f"{obj.type} '{obj.name}' grants data read to every authenticated user (public {_axes(obj)}); "
-                "its data is visible to any logged-in account, subject to org-unit scope."
-            ),
-            subject=obj.name,
-            group_key="sharing-public-read-data",
-            evidence=_evidence(obj),
-        )
-    return None
+def _public_write_metadata_finding(obj: ObjectNode) -> AuditFinding:
+    """Public metadata write on a non-data-bearing object: MEDIUM, since any account can change it."""
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.MEDIUM,
+        title="Public write access to metadata object",
+        detail=(
+            f"{obj.type} '{obj.name}' grants metadata write to every authenticated user (public "
+            f"{_axes(obj)}); any logged-in account can change it."
+        ),
+        subject=obj.name,
+        group_key="sharing-public-write-metadata",
+        evidence=_evidence(obj),
+    )
+
+
+def _sql_view_read_finding(obj: ObjectNode) -> AuditFinding:
+    """A publicly-readable SQL view: MEDIUM, since any account can run it and read what it queries."""
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.MEDIUM,
+        title="SQL view readable by all users",
+        detail=(
+            f"SQL view '{obj.name}' is readable by every authenticated user; any logged-in account can "
+            "run it and read whatever it queries, including tables the user could not otherwise reach."
+        ),
+        subject=obj.name,
+        group_key="sharing-public-sql-view",
+        evidence=_evidence(obj),
+    )
+
+
+def _public_data_read_finding(obj: ObjectNode) -> AuditFinding:
+    """Public data read on a data-bearing object: MEDIUM, since its data is visible to any account."""
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.MEDIUM,
+        title="Public read access to data-bearing object",
+        detail=(
+            f"{obj.type} '{obj.name}' grants data read to every authenticated user (public {_axes(obj)}); "
+            "its data is visible to any logged-in account, subject to org-unit scope."
+        ),
+        subject=obj.name,
+        group_key="sharing-public-read-data",
+        evidence=_evidence(obj),
+    )
 
 
 def _axes(obj: ObjectNode) -> str:

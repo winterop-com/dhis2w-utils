@@ -352,7 +352,7 @@ def _object(uid: str, name: str, public: str, **extra: Any) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("tree", TREES)
-async def test_run_sharing_flags_public_write_and_builds_findings(tree: str) -> None:
+async def test_run_sharing_flags_public_write_and_builds_findings(tree: str, tmp_path: Path) -> None:
     """_run_sharing scans the focus types, builds the graph once, and surfaces the public-write finding."""
     audit = _audit_module(tree)
     client = _mock_sharing_client(
@@ -370,7 +370,7 @@ async def test_run_sharing_flags_public_write_and_builds_findings(tree: str) -> 
         groups=[{"id": "g1", "name": "M&E", "users": 3, "managedGroups": []}],
     )
 
-    result = await audit._run_sharing(client, max_objects=5000, generated_at="t")
+    result = await audit._run_sharing(client, max_objects=5000, generated_at="t", output_folder=tmp_path)
 
     assert result.status is CheckStatus.OK
     assert result.note is None
@@ -380,21 +380,21 @@ async def test_run_sharing_flags_public_write_and_builds_findings(tree: str) -> 
 
 
 @pytest.mark.parametrize("tree", TREES)
-async def test_run_sharing_degrades_on_api_error(tree: str) -> None:
+async def test_run_sharing_degrades_on_api_error(tree: str, tmp_path: Path) -> None:
     """An HTTP error while reading the sharing surface degrades the check rather than a false all-clear."""
     audit = _audit_module(tree)
     client = MagicMock()
     client.get_raw = AsyncMock(side_effect=Dhis2ApiError(500, "boom"))
     client.base_url = "https://mock.example"
 
-    result = await audit._run_sharing(client, max_objects=5000, generated_at="t")
+    result = await audit._run_sharing(client, max_objects=5000, generated_at="t", output_folder=tmp_path)
 
     assert result.status is CheckStatus.DEGRADED
     assert result.findings == []
 
 
 @pytest.mark.parametrize("tree", TREES)
-async def test_run_sharing_truncates_at_budget(tree: str) -> None:
+async def test_run_sharing_truncates_at_budget(tree: str, tmp_path: Path) -> None:
     """When the scan budget is hit mid-type, the check notes the loud truncation and still returns OK."""
     audit = _audit_module(tree)
     client = _mock_sharing_client(
@@ -412,7 +412,7 @@ async def test_run_sharing_truncates_at_budget(tree: str) -> None:
         groups=[],
     )
 
-    result = await audit._run_sharing(client, max_objects=1, generated_at="t")
+    result = await audit._run_sharing(client, max_objects=1, generated_at="t", output_folder=tmp_path)
 
     assert result.status is CheckStatus.OK
     assert result.note is not None and "max-objects" in result.note
@@ -554,8 +554,8 @@ def test_explorer_emit_writes_self_contained_bundle(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("tree", TREES)
-async def test_run_sharing_populates_sink_and_explorer_note(tree: str) -> None:
-    """With a graph sink, _run_sharing computes the closure, stashes the graph, and notes the explorer."""
+async def test_run_sharing_populates_sink_and_explorer_note(tree: str, tmp_path: Path) -> None:
+    """With a graph sink, _run_sharing computes the closure, stashes the graph, persists it, and notes the explorer."""
     audit = _audit_module(tree)
     client = _mock_sharing_client(
         schemas=[{"name": "dataSet", "plural": "dataSets", "shareable": True, "dataShareable": True}],
@@ -570,9 +570,13 @@ async def test_run_sharing_populates_sink_and_explorer_note(tree: str) -> None:
     )
     sink: list[SharingGraph] = []
 
-    result = await audit._run_sharing(client, max_objects=5000, generated_at="t", graph_sink=sink)
+    result = await audit._run_sharing(
+        client, max_objects=5000, generated_at="t", output_folder=tmp_path, graph_sink=sink
+    )
 
     assert result.status is CheckStatus.OK
     assert len(sink) == 1
     assert sink[0].effective and sink[0].effective[0].object_uid == "ds1"
     assert "sharing-explorer.html" in (result.note or "")
+    persisted = audit._load_sharing_graph(tmp_path)
+    assert persisted is not None and persisted.effective and persisted.effective[0].object_uid == "ds1"

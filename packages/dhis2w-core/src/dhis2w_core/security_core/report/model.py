@@ -23,6 +23,15 @@ class CheckStatus(StrEnum):
     ERROR = "error"
 
 
+class SeverityCount(BaseModel):
+    """One severity tier paired with how many findings fell into it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    severity: Severity
+    count: int
+
+
 class CheckResult(BaseModel):
     """Result of one audit check: its findings plus how the run went."""
 
@@ -102,9 +111,8 @@ class AuditSummary(BaseModel):
             checks_skipped=skipped,
         )
 
-    @property
-    def worst(self) -> Severity | None:
-        """Most urgent severity that occurred at least once, or None when clean."""
+    def severity_counts(self) -> list[SeverityCount]:
+        """Return per-severity finding counts in most-urgent-first order."""
         count_by_severity = {
             Severity.CRITICAL: self.critical,
             Severity.HIGH: self.high,
@@ -112,9 +120,14 @@ class AuditSummary(BaseModel):
             Severity.WARN: self.warn,
             Severity.INFO: self.info,
         }
-        for severity in SEVERITY_ORDER:
-            if count_by_severity[severity] > 0:
-                return severity
+        return [SeverityCount(severity=severity, count=count_by_severity[severity]) for severity in SEVERITY_ORDER]
+
+    @property
+    def worst(self) -> Severity | None:
+        """Most urgent severity that occurred at least once, or None when clean."""
+        for entry in self.severity_counts():
+            if entry.count > 0:
+                return entry.severity
         return None
 
 

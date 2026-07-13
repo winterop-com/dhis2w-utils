@@ -55,19 +55,16 @@ class MarkdownRenderer(SingleFileRenderer):
 
     def footer(self, summary: AuditSummary) -> str:
         """Render the severity scorecard and the guardrail statement."""
-        lines = [
-            "## Summary",
-            "",
-            f"- CRITICAL: {summary.critical}",
-            f"- HIGH: {summary.high}",
-            f"- MEDIUM: {summary.medium}",
-            f"- WARN: {summary.warn}",
-            f"- INFO: {summary.info}",
-            "",
-            f"{summary.total_findings} finding(s) across {summary.checks_run} check(s) "
-            f"({summary.checks_degraded} degraded, {summary.checks_error} error).",
-            "",
-            f"> {REPORT_GUARDRAIL_NOTE}",
-            "",
-        ]
+        lines = ["## Summary", ""]
+        lines.extend(f"- {entry.severity.value}: {entry.count}" for entry in summary.severity_counts())
+        lines.extend(
+            [
+                "",
+                f"{summary.total_findings} finding(s) across {summary.checks_run} check(s) "
+                f"({summary.checks_degraded} degraded, {summary.checks_error} error).",
+                "",
+                f"> {REPORT_GUARDRAIL_NOTE}",
+                "",
+            ]
+        )
         return "\n".join(lines) + "\n"

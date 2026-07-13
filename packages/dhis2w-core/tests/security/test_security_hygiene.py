@@ -414,7 +414,7 @@ def test_password_aggregate_respects_custom_threshold() -> None:
 
 def test_password_aware_timestamp_old_enough_is_flagged_without_crash() -> None:
     """An aware (timezone-attached) ISO timestamp old enough to be stale is flagged and raises no exception."""
-    # The .replace(tzinfo=None) strip is exercised here -- a naive comparison would raise TypeError.
+    # The .replace(tzinfo=None) strip is exercised here; a naive comparison would raise TypeError.
     users = [_user(username="tz_old", password_last_updated="2024-01-01T00:00:00Z")]
     findings = evaluate_hygiene(users, stale_days=90, max_password_age_days=365, now=NOW)
     rows = [f for f in findings if f.title == _PW_TITLE]

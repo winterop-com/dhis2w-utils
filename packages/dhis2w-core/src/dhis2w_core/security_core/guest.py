@@ -1,7 +1,7 @@
 """Anonymous-access audit: endpoints readable without a login, plus self-registration and recovery.
 
 The core signal is an unauthenticated probe. `/api/users`, `/api/userRoles`, and `/api/me` require a
-login on a default DHIS2, so an anonymous 200 means that endpoint has been opened up — user-list
+login on a default DHIS2, so an anonymous 200 means that endpoint has been opened up; user-list
 enumeration is the worst case. `/api/systemSettings` is deliberately NOT probed: DHIS2 serves its
 non-confidential settings anonymously by design (the login page needs them) and filters confidential
 keys server-side, so an anonymous 200 there is expected, not a finding. Self-registration (a non-null

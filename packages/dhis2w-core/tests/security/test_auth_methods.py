@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
-from dhis2w_client.errors import Dhis2ApiError
+from dhis2w_client.errors import AuthenticationError, Dhis2ApiError
 from dhis2w_core.security_core import (
     CheckStatus,
     LoginProviderView,
@@ -332,6 +332,22 @@ async def test_run_auth_methods_oauth2_403_degrades_but_keeps_oidc(tree: str) ->
     client = _mock_client(
         login=_login_payload([{"id": "okta", "loginText": "Okta"}]),
         clients=Dhis2ApiError(403, "forbidden"),
+    )
+
+    result = await _audit_module(tree)._run_auth_methods(client)
+
+    assert result.status is CheckStatus.DEGRADED
+    assert result.note is not None and "F_OAUTH2_CLIENT_MANAGE" in result.note
+    assert "External OIDC login provider configured" in _titles(result.findings)
+    assert "Registered OAuth2 client" not in _titles(result.findings)
+
+
+@pytest.mark.parametrize("tree", TREES)
+async def test_run_auth_methods_oauth2_authentication_error_degrades_but_keeps_oidc(tree: str) -> None:
+    """An AuthenticationError on /api/oAuth2Clients degrades with the F_OAUTH2_CLIENT_MANAGE note, not an error."""
+    client = _mock_client(
+        login=_login_payload([{"id": "keycloak", "loginText": "Keycloak"}]),
+        clients=AuthenticationError("401 Unauthorized"),
     )
 
     result = await _audit_module(tree)._run_auth_methods(client)

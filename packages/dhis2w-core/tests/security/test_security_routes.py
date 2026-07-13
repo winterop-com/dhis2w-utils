@@ -367,7 +367,7 @@ async def test_run_routes_v41_oauth2_on_wire_handled_gracefully() -> None:
 
     The v41 AuthSchemeAdapter has no oauth2-client-credentials variant; its ValidationError is caught in
     route_auth, which returns ("unknown", None). The route itself still validates as an oas.Route (extra=allow),
-    so it is included in the check as a route with unknown auth -- not skipped, not crashing.
+    so it is included in the check as a route with unknown auth; not skipped, not crashing.
     """
     envelope = {
         "routes": [
@@ -469,7 +469,7 @@ async def test_run_routes_one_bad_route_does_not_lose_other_findings(tree: str) 
     """A route that cannot be parsed at all (non-dict) is skipped; other routes' HIGH findings still appear."""
     envelope = {
         "routes": [
-            "not-a-dict",  # completely malformed -- should be skipped
+            "not-a-dict",  # completely malformed; should be skipped
             {
                 "id": "route000priv",
                 "name": "Private route",
@@ -508,7 +508,7 @@ def test_numeric_encoded_private_host_is_classified(host: str, label: str) -> No
     """Non-canonical numeric IP encodings the JVM resolves to private addresses are flagged HIGH."""
     target = _PUBLIC.model_copy(update={"url": f"http://{host}/x", "host": host})
     titles = _titles(evaluate_routes([target]))
-    # 2852039166 == int(ipaddress.IPv4Address("169.254.169.254")) -- the AWS/GCP metadata endpoint.
+    # 2852039166 == int(ipaddress.IPv4Address("169.254.169.254")); the AWS/GCP metadata endpoint.
     is_metadata = host == "2852039166"
     if is_metadata:
         assert "Route targets the cloud metadata endpoint" in titles

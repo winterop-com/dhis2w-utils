@@ -1,6 +1,6 @@
 """View-models projecting an AuditReport into the window.__REPORT__ shape the HTML report consumes.
 
-The redesigned HTML report is data-driven: a fixed template and runtime read every value from a
+The HTML report is data-driven: a fixed template and runtime read every value from a
 `window.__REPORT__` object emitted into `report-data.js`. These models mirror that object exactly,
 and `build_report_view` folds the flat per-finding rows into the sections, severity-tally groups,
 and collapsible item lists the template renders. Findings carrying the same `group_key` within one
@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_core.security_core.findings import AuditFinding, Severity, severity_rank
 from dhis2w_core.security_core.guardrails import REPORT_GUARDRAIL_NOTE
-from dhis2w_core.security_core.report.model import AuditReport, CheckResult
+from dhis2w_core.security_core.report.model import AuditReport, AuditSummary, CheckResult
 
 
 class ReportMeta(BaseModel):
@@ -39,6 +39,11 @@ class Scorecard(BaseModel):
     warn: int = Field(0, serialization_alias="WARN")
     info: int = Field(0, serialization_alias="INFO")
 
+    @classmethod
+    def from_summary(cls, summary: AuditSummary) -> Scorecard:
+        """Build the hero scorecard from an audit summary's per-severity finding counts."""
+        return cls(**{entry.severity.value.lower(): entry.count for entry in summary.severity_counts()})
+
 
 class ItemView(BaseModel):
     """One entry in a collapsible group: an account name and an optional last-seen stamp."""
@@ -61,13 +66,22 @@ class GroupView(BaseModel):
     items: list[ItemView] = []
 
 
+class SectionStatus(BaseModel):
+    """One section's check status: the raw status label and an optional explanatory note."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    note: str | None = None
+
+
 class SectionView(BaseModel):
     """One audit check rendered as a section: its label, status pill, and finding groups."""
 
     model_config = ConfigDict(frozen=True)
 
     title: str
-    status: list[str]
+    status: SectionStatus
     groups: list[GroupView] = []
 
 
@@ -97,22 +111,14 @@ def build_report_view(report: AuditReport) -> ReportView:
         scanner=manifest.scanner_version,
         started=manifest.started_at,
     )
-    scorecard = Scorecard(
-        critical=summary.critical,
-        high=summary.high,
-        medium=summary.medium,
-        warn=summary.warn,
-        info=summary.info,
-    )
+    scorecard = Scorecard.from_summary(summary)
     sections = [_build_section(result) for result in report.results]
     return ReportView(meta=meta, scorecard=scorecard, sections=sections)
 
 
 def _build_section(result: CheckResult) -> SectionView:
     """Build one section from a check result: status pill, optional note, and grouped findings."""
-    status = [f"[{result.status.value}]"]
-    if result.note:
-        status.append(f"({result.note})")
+    status = SectionStatus(label=result.status.value, note=result.note)
     return SectionView(title=result.label, status=status, groups=_build_groups(result.findings))
 
 

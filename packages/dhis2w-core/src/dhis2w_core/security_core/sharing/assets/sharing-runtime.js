@@ -11,6 +11,9 @@
 (function () {
   "use strict";
 
+  // Must match SHARING_SCHEMA_VERSION in model.py; the explorer refuses a payload it cannot read.
+  var EXPECTED_SCHEMA_VERSION = 1;
+
   var ROOT = document.getElementById("app");
   var DATA = window.__SHARING__;
   if (!DATA || !DATA.graph) {
@@ -19,6 +22,12 @@
   }
   var G = DATA.graph;
   var META = DATA.meta || {};
+  if (G.schema_version !== EXPECTED_SCHEMA_VERSION) {
+    ROOT.appendChild(h("div", { class: "empty" },
+      "Sharing data schema version " + G.schema_version + " does not match this explorer (expects " +
+      EXPECTED_SCHEMA_VERSION + "). Re-run the scan with a matching build."));
+    return;
+  }
 
   // ---- tiny hyperscript helper -------------------------------------------------
   function h(tag, props) {
@@ -70,16 +79,11 @@
   var objsByType = {};
   G.objects.forEach(function (o) { (objsByType[o.type] = objsByType[o.type] || []).push(o); });
 
-  // ---- exposure classification (mirrors the sharing check) ---------------------
-  var SEV = { crit: 0, high: 1, med: 2, low: 3, none: 4 };
+  // ---- exposure (read from the server-computed ObjectNode.exposure projection) --
+  var SEV = { high: 0, med: 1, none: 2 };
   function exposure(o) {
-    var p = o.public || {}, db = o.data_bearing;
-    if (o.external) return { sev: "high", label: "Externally accessible" };
-    if (db && (p.meta_write || p.data_write)) return { sev: "high", label: "Public write (data-bearing)" };
-    if (!db && p.meta_write) return { sev: "med", label: "Public write (metadata)" };
-    if (o.type === "sqlView" && p.meta_read) return { sev: "med", label: "SQL view readable by all" };
-    if (db && p.data_read) return { sev: "med", label: "Public data read" };
-    return { sev: "none", label: "Restricted sharing" };
+    var ex = (o && o.exposure) || {};
+    return { sev: ex.severity || "none", label: ex.label || "Restricted sharing" };
   }
   function worstSev(list) {
     var w = "none";
@@ -168,7 +172,7 @@
       var total = (G.type_summary || []).reduce(function (a, t) { return a + (t.total || 0); }, 0);
       main.appendChild(h("div", { class: "banner" },
         h("strong", {}, "Truncated view "),
-        "— showing " + shown + " objects; up to " + total + " exist across the scanned types. " + (G.truncation_note || "")));
+        ", showing " + shown + " objects; up to " + total + " exist across the scanned types. " + (G.truncation_note || "")));
     }
     main.appendChild(renderToolbar());
     main.appendChild(renderMode());
@@ -421,7 +425,7 @@
     body.appendChild(kvRow("UID", o.uid));
     if (o.code) body.appendChild(kvRow("Code", o.code));
     body.appendChild(h("div", { class: "kv" }, h("span", { class: "k" }, "Public access"), h("span", { class: "v" }, accessChip(o.public))));
-    body.appendChild(kvRow("External", o.external ? "yes — anonymous" : "no"));
+    body.appendChild(kvRow("External", o.external ? "yes, anonymous" : "no"));
     if (o.owner) body.appendChild(h("div", { class: "kv" }, h("span", { class: "k" }, "Owner"),
       h("span", { class: "v" }, userByUid[o.owner] ? link("user", o.owner, name(userByUid[o.owner])) : o.owner)));
 
@@ -433,7 +437,7 @@
         countBox("Meta write", eff.meta_writers, eff.public_meta_write),
         countBox("Data read", eff.data_readers, eff.public_data_read),
         countBox("Data write", eff.data_writers, eff.public_data_write)));
-      body.appendChild(label("How — grant paths"));
+      body.appendChild(label("How: grant paths"));
       (eff.grants || []).forEach(function (gr) { body.appendChild(grantRow(gr)); });
     }
 
@@ -476,7 +480,7 @@
     body.appendChild(kvRow("UID", u.uid));
     if (u.display_name) body.appendChild(kvRow("Display name", u.display_name));
     body.appendChild(kvRow("Disabled", u.disabled ? "yes" : "no"));
-    body.appendChild(kvRow("Superuser (ALL)", u.superuser ? "yes — bypasses sharing" : "no"));
+    body.appendChild(kvRow("Superuser (ALL)", u.superuser ? "yes, bypasses sharing" : "no"));
     if (u.last_login) body.appendChild(kvRow("Last login", String(u.last_login).slice(0, 10)));
 
     var roles = rolesByUser[u.uid] || [];
@@ -499,9 +503,14 @@
           h("span", { class: "gname" }, link("group", gid, g ? name(g) : gid))));
       });
     }
+    if (u.superuser) {
+      body.appendChild(label("Reach"));
+      body.appendChild(h("div", { class: "panel-sub", style: "padding:6px 0;" },
+        "Superuser (ALL): bypasses sharing and can reach every object, beyond the explicit shares below."));
+    }
     var reach = reachForUser(u);
-    body.appendChild(label("Can reach (" + reach.length + " objects)"));
-    if (!reach.length) body.appendChild(h("div", { class: "panel-sub", style: "padding:6px 0;" }, "No explicitly-shared objects in this slice."));
+    body.appendChild(label("Explicit shares to this user (" + reach.length + " objects)"));
+    if (!reach.length) body.appendChild(h("div", { class: "panel-sub", style: "padding:6px 0;" }, "No objects are shared directly with this user or their groups in this slice. Public, external, and superuser reach are not counted here."));
     reach.slice(0, 200).forEach(function (r) {
       body.appendChild(h("div", { class: "grant" },
         h("span", { class: "gkind" }, r.via),
@@ -730,7 +739,7 @@
       cellLevel[o.type + "|" + s.principal_uid] = Math.max(cellLevel[o.type + "|" + s.principal_uid] || 0, accessLevel(s.access));
       activeGroupIds[s.principal_uid] = 1;
     });
-    var groups = G.groups.filter(function (g) { return activeGroupIds[g.uid] && matches(g.name) !== false; })
+    var groups = G.groups.filter(function (g) { return activeGroupIds[g.uid] && matches(g.name); })
       .sort(function (a, b) { return name(a).localeCompare(name(b)); });
     var cols = [{ key: "__public", label: "PUBLIC" }, { key: "__external", label: "EXTERNAL" }]
       .concat(groups.map(function (g) { return { key: g.uid, label: name(g), uid: g.uid }; }));
@@ -796,9 +805,9 @@
 
   // ---- d3 severity distribution bar -------------------------------------------
   function severityChart() {
-    var order = ["high", "med", "low", "none"];
-    var colorVar = { high: "--high", med: "--med", low: "--low", none: "--none" };
-    var counts = { high: 0, med: 0, low: 0, none: 0 };
+    var order = ["high", "med", "none"];
+    var colorVar = { high: "--high", med: "--med", none: "--none" };
+    var counts = { high: 0, med: 0, none: 0 };
     G.objects.forEach(function (o) { counts[exposure(o).sev]++; });
     var total = G.objects.length || 1;
     var wrap = h("div", { class: "chart-row" });

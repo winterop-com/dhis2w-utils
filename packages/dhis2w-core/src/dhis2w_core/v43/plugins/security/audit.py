@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
-from dhis2w_client.errors import Dhis2ApiError
+from dhis2w_client.errors import AuthenticationError, Dhis2ApiError, Dhis2ClientError
 from dhis2w_client.generated.v43.oas import LoginConfigResponse, Route
 from dhis2w_client.v43 import Dhis2Client
 from dhis2w_client.v43.auth.basic import BasicAuth
@@ -93,6 +93,7 @@ from dhis2w_core.security_core import (
     resolve_focus_types,
     run_audit,
 )
+from dhis2w_core.security_core.guardrails import ALLOWED_AUDIT_PATHS, guardrail_request_hook, probe_client
 from dhis2w_core.security_core.net import host_from_url
 from dhis2w_core.v43.client_context import open_client
 from dhis2w_core.v43.plugins.security import _wire
@@ -202,7 +203,7 @@ async def _run_authorities(client: Dhis2Client) -> CheckResult:
     label = label_for("authorities")
     try:
         raw = await client.get_raw("/api/me/authorization")
-    except Dhis2ApiError as exc:
+    except (Dhis2ClientError, httpx.HTTPError) as exc:
         return CheckResult(check="authorities", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
     payload = raw.get("data")
     if not isinstance(payload, list):
@@ -228,7 +229,7 @@ async def _run_roles(client: Dhis2Client) -> CheckResult:
         raw = await client.get_raw(
             "/api/userRoles", params={"fields": "id,name,authorities,users~size", "paging": "false"}
         )
-    except Dhis2ApiError as exc:
+    except (Dhis2ClientError, httpx.HTTPError) as exc:
         return CheckResult(check="roles", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
     items = raw.get("userRoles")
     if not isinstance(items, list):
@@ -313,7 +314,7 @@ async def _fetch_two_factor_summary(client: Dhis2Client) -> tuple[TwoFactorSumma
     """Read the superuser-only 2FA summary; degrade with a note when absent (404) or forbidden (403)."""
     try:
         raw = await client.get_raw("/api/users/twoFactor/summary")
-    except Dhis2ApiError as exc:
+    except (Dhis2ClientError, httpx.HTTPError) as exc:
         return None, f"2FA audit endpoint unavailable ({exc}); superuser-2FA coverage not checked"
     privileged = raw.get("privileged")
     privileged = privileged if isinstance(privileged, dict) else {}
@@ -332,7 +333,7 @@ async def _fetch_disabled_2fa_ids(client: Dhis2Client) -> set[str] | None:
     """Read the per-user list of accounts with 2FA disabled (ids only); None on error."""
     try:
         raw = await client.get_raw("/api/users/twoFactor", params={"status": "DISABLED", "paging": "false"})
-    except Dhis2ApiError:
+    except (Dhis2ClientError, httpx.HTTPError):
         return None
     items = raw.get("users")
     if not isinstance(items, list):
@@ -348,7 +349,7 @@ async def _run_hygiene(
     try:
         roles_raw = await client.get_raw("/api/userRoles", params={"fields": "id,authorities", "paging": "false"})
         users_raw = await client.get_raw("/api/users", params={"fields": _wire.USER_FIELDS, "paging": "false"})
-    except Dhis2ApiError as exc:
+    except (Dhis2ClientError, httpx.HTTPError) as exc:
         return CheckResult(check="hygiene", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
     user_items = users_raw.get("users")
     if not isinstance(user_items, list):
@@ -372,7 +373,7 @@ async def _custom_code_flags(client: Dhis2Client) -> tuple[bool, bool]:
     """Read keyCustomJs / keyCustomCss; True for each when set to a non-empty value."""
     try:
         raw = await client.get_raw("/api/systemSettings", params={"key": ["keyCustomJs", "keyCustomCss"]})
-    except Dhis2ApiError:
+    except (Dhis2ClientError, httpx.HTTPError):
         return False, False
     custom_js = raw.get("keyCustomJs")
     custom_css = raw.get("keyCustomCss")
@@ -387,7 +388,7 @@ async def _run_apps(client: Dhis2Client) -> CheckResult:
     label = label_for("apps")
     try:
         installed_apps = await client.apps.list_apps()
-    except Dhis2ApiError as exc:
+    except (Dhis2ClientError, httpx.HTTPError) as exc:
         return CheckResult(check="apps", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
     installed = [
         InstalledApp(
@@ -422,7 +423,7 @@ async def _probe_anonymous(base_url: str) -> list[AnonymousResult]:
     """GET each login-required endpoint with no credentials, recording the status (None on transport error)."""
     results: list[AnonymousResult] = []
     headers = {"Accept": "application/json"}
-    async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=10.0), follow_redirects=False) as http:
+    async with probe_client(base_path=urlsplit(base_url).path) as http:
         for target in ANONYMOUS_PROBE_TARGETS:
             try:
                 response = await http.get(f"{base_url}{target.path}", headers=headers)
@@ -443,7 +444,7 @@ async def _self_registration_role(client: Dhis2Client) -> str | None:
     """Return the self-registration role name when self-registration is enabled, else None."""
     try:
         raw = await client.get_raw("/api/configuration/selfRegistrationRole")
-    except Dhis2ApiError:
+    except (Dhis2ClientError, httpx.HTTPError):
         return None
     name = raw.get("name") or raw.get("displayName") or raw.get("id")
     return name if isinstance(name, str) else None
@@ -458,7 +459,7 @@ async def _run_guest(client: Dhis2Client) -> CheckResult:
     note: str | None = None
     try:
         settings = await client.get("/api/systemSettings", SecuritySettings)
-    except Dhis2ApiError as exc:
+    except (Dhis2ClientError, httpx.HTTPError) as exc:
         note = f"system settings unavailable ({exc}); account-recovery state not checked"
     else:
         account_recovery = settings.keyAccountRecovery is True
@@ -513,7 +514,7 @@ async def _run_routes(client: Dhis2Client) -> CheckResult:
             route = Route.model_validate(raw_route)
             targets.append(_route_target(route))
         except (ValidationError, ValueError, TypeError):
-            # Full validation failed -- try again without the auth block. An unrecognized or
+            # Full validation failed; try again without the auth block. An unrecognized or
             # missing auth `type` causes pydantic's discriminated union to reject the whole route.
             # Stripping auth and re-validating lets us include the route with auth_type="unknown"
             # so the carries-auth finding still fires when credentials are present on the wire.
@@ -602,7 +603,7 @@ async def _run_auth_methods(client: Dhis2Client) -> CheckResult:
     label = label_for("auth-methods")
     try:
         login_raw = await client.get_raw("/api/loginConfig")
-    except (Dhis2ApiError, httpx.HTTPError) as exc:
+    except (Dhis2ClientError, httpx.HTTPError) as exc:
         return CheckResult(check="auth-methods", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
     try:
         login_config = LoginConfigResponse.model_validate(login_raw)
@@ -622,10 +623,10 @@ async def _run_auth_methods(client: Dhis2Client) -> CheckResult:
     status = CheckStatus.OK
     try:
         clients_raw = await client.get_raw("/api/oAuth2Clients", params={"fields": _wire.OAUTH2_CLIENT_FIELDS})
-    except (Dhis2ApiError, httpx.HTTPError) as exc:
+    except (Dhis2ClientError, httpx.HTTPError) as exc:
         clients = None
         status = CheckStatus.DEGRADED
-        if getattr(exc, "status_code", None) in (401, 403):
+        if isinstance(exc, AuthenticationError) or getattr(exc, "status_code", None) in (401, 403):
             note = f"OAuth2 clients unreadable (requires F_OAUTH2_CLIENT_MANAGE): {exc}"
         else:
             note = f"OAuth2 clients unreadable: {exc}"
@@ -664,19 +665,6 @@ async def _run_audit_config(client: Dhis2Client, dhis_conf_path: Path | None) ->
         check="audit-config", label=label, status=CheckStatus.OK, findings=evaluate_audit_config(posture)
     )
 
-
-_RUNNERS: dict[str, Callable[[Dhis2Client], Awaitable[CheckResult]]] = {
-    "version": _run_version,
-    "transport": _run_transport,
-    "settings": _run_settings,
-    "authorities": _run_authorities,
-    "roles": _run_roles,
-    "apps": _run_apps,
-    "guest": _run_guest,
-    "auth-methods": _run_auth_methods,
-    "tokens": _run_tokens,
-    "routes": _run_routes,
-}
 
 # How many objects the sharing scan pages at a time, and the default scan budget (max objects
 # inspected across all focus types) when the CLI does not override --max-objects.
@@ -777,7 +765,9 @@ async def _scan_focus_type(
         items = raw.get(focus.plural)
         if not isinstance(items, list) or not items:
             break
-        for item in items:
+        page_count = pager.get("pageCount")
+        more_pages = isinstance(page_count, int) and page < page_count
+        for index, item in enumerate(items):
             if not isinstance(item, dict):
                 continue
             obj = _fetched_object(item, focus)
@@ -785,9 +775,9 @@ async def _scan_focus_type(
             if obj.has_non_default_sharing:
                 kept.append(obj)
             if scanned >= budget:
-                return server_total, kept, scanned, True
-        page_count = pager.get("pageCount")
-        if not isinstance(page_count, int) or page >= page_count:
+                more_remaining = index < len(items) - 1 or more_pages
+                return server_total, kept, scanned, more_remaining
+        if not more_pages:
             break
         page += 1
     return server_total, kept, scanned, False
@@ -872,13 +862,18 @@ async def _fetch_sharing_principals(
 
 
 async def _run_sharing(
-    client: Dhis2Client, *, max_objects: int, generated_at: str, graph_sink: list[SharingGraph] | None = None
+    client: Dhis2Client,
+    *,
+    max_objects: int,
+    generated_at: str,
+    output_folder: Path,
+    graph_sink: list[SharingGraph] | None = None,
 ) -> CheckResult:
     """Build the sharing access graph once (focus types, capped) and reduce it into exposure findings.
 
     When `graph_sink` is provided (the `--sharing-graph` explorer is requested) the effective-access
     closure is computed and the graph is stashed for the explorer emitter; otherwise only the findings
-    are derived. The graph is built once either way -- the findings and the explorer are projections.
+    are derived. The graph is built once either way; the findings and the explorer are projections.
     """
     label = label_for("sharing")
     objects: list[FetchedObject] = []
@@ -902,7 +897,7 @@ async def _run_sharing(
                 capped_at = focus.name
                 break
         users, roles, groups = await _fetch_sharing_principals(client)
-    except Dhis2ApiError as exc:
+    except (Dhis2ClientError, httpx.HTTPError) as exc:
         return CheckResult(check="sharing", label=label, status=CheckStatus.DEGRADED, note=f"HTTP error: {exc}")
     truncation_note = (
         f"Scanning stopped at the --max-objects budget ({max_objects}); objects from '{capped_at}' "
@@ -926,6 +921,7 @@ async def _run_sharing(
     if graph_sink is not None:
         graph = graph.model_copy(update={"effective": compute_effective_access(graph)})
         graph_sink.append(graph)
+        _persist_sharing_graph(output_folder, graph)
         explorer_note = "Interactive explorer generated: open sharing-explorer.html for the effective-access graph."
         note = f"{truncation_note} {explorer_note}" if truncation_note else explorer_note
     return CheckResult(check="sharing", label=label, status=CheckStatus.OK, findings=findings, note=note)
@@ -935,7 +931,7 @@ async def _lockout_active(client: Dhis2Client) -> bool:
     """Read keyLockMultipleFailedLogins so the probe can warn before it tries a wrong password."""
     try:
         settings = await client.get("/api/systemSettings", SecuritySettings)
-    except Dhis2ApiError:
+    except (Dhis2ClientError, httpx.HTTPError):
         return False
     return settings.keyLockMultipleFailedLogins is True
 
@@ -944,8 +940,8 @@ async def _probe_default_credentials(base_url: str, *, lockout_active: bool) -> 
     """Issue exactly one HTTP Basic GET /api/me as admin/district and classify the status."""
     auth = BasicAuth(username=DEFAULT_PROBE_USERNAME, password=DEFAULT_PROBE_PASSWORD)
     headers = {**await auth.headers(), "Accept": "application/json"}
-    async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=10.0), follow_redirects=False) as http:
-        response = await http.get(f"{base_url}/api/me", headers=headers)
+    async with probe_client(base_path=urlsplit(base_url).path, headers=headers) as http:
+        response = await http.get(f"{base_url}/api/me")
     return CredentialProbeResult(
         outcome=classify_probe_status(response.status_code),
         status_code=response.status_code,
@@ -988,11 +984,11 @@ async def _run_credential_probe(client: Dhis2Client, console: Console) -> CheckR
 
 
 class RunContext(BaseModel):
-    """Runtime context the binders read: the console plus the run's deterministic clock.
+    """Runtime context the binders read: the console, the run's deterministic clock, and the output folder.
 
-    Separate from AuditOptions: these are run-time values (clock, console), not user options, so the core
-    stays deterministic with `now`/`generated_at` supplied by the caller. The mutable sharing-graph sink is
-    passed separately by reference (a pydantic field would be copied on validation, breaking the sink).
+    Separate from AuditOptions: these are run-time values (clock, console, output folder), not user options,
+    so the core stays deterministic with `now`/`generated_at` supplied by the caller. The mutable
+    sharing-graph sink is passed separately by reference (a pydantic field would be copied on validation).
     """
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
@@ -1000,6 +996,7 @@ class RunContext(BaseModel):
     console: Console
     now: datetime
     generated_at: str
+    output_folder: Path
 
 
 # A binder turns the open client plus run-time inputs into a zero-argument check coroutine. Every binder
@@ -1009,21 +1006,6 @@ Binder = Callable[
     [Dhis2Client, AuditOptions, RunContext, "list[SharingGraph] | None"],
     Callable[[], Awaitable[CheckResult]],
 ]
-
-
-def _bind_default(key: str) -> Binder:
-    """Build a binder for a runner that needs only the open client (other inputs ignored)."""
-    runner = _RUNNERS[key]
-
-    def _binder(
-        client: Dhis2Client, options: AuditOptions, runtime: RunContext, graph_sink: list[SharingGraph] | None
-    ) -> Callable[[], Awaitable[CheckResult]]:
-        async def _run() -> CheckResult:
-            return await runner(client)
-
-        return _run
-
-    return _binder
 
 
 def _bind_probe(
@@ -1061,7 +1043,11 @@ def _bind_sharing(
 
     async def _run() -> CheckResult:
         return await _run_sharing(
-            client, max_objects=options.max_objects, generated_at=runtime.generated_at, graph_sink=graph_sink
+            client,
+            max_objects=options.max_objects,
+            generated_at=runtime.generated_at,
+            output_folder=runtime.output_folder,
+            graph_sink=graph_sink,
         )
 
     return _run
@@ -1078,9 +1064,33 @@ def _bind_audit_config(
     return _run
 
 
-# Checks that need tunables or runtime: each maps to a uniform-signature binder. Every other check falls
-# through to `_bind_default`, so adding a tunable-bearing check is one table entry, not a new dispatch arm.
-_BINDERS: dict[str, Binder] = {
+def bind_client_only(runner: Callable[[Dhis2Client], Awaitable[CheckResult]]) -> Binder:
+    """Wrap a client-only runner into a Binder that ignores the options, runtime, and sharing-graph sink."""
+
+    def _binder(
+        client: Dhis2Client, options: AuditOptions, runtime: RunContext, graph_sink: list[SharingGraph] | None
+    ) -> Callable[[], Awaitable[CheckResult]]:
+        async def _run() -> CheckResult:
+            return await runner(client)
+
+        return _run
+
+    return _binder
+
+
+# The single dispatch table: every check key maps to a Binder. Client-only checks wrap their runner with
+# `bind_client_only`; the four checks that need tunables, runtime, or the sink use their dedicated binders.
+CHECK_FACTORIES: dict[str, Binder] = {
+    "version": bind_client_only(_run_version),
+    "transport": bind_client_only(_run_transport),
+    "settings": bind_client_only(_run_settings),
+    "authorities": bind_client_only(_run_authorities),
+    "roles": bind_client_only(_run_roles),
+    "apps": bind_client_only(_run_apps),
+    "guest": bind_client_only(_run_guest),
+    "auth-methods": bind_client_only(_run_auth_methods),
+    "tokens": bind_client_only(_run_tokens),
+    "routes": bind_client_only(_run_routes),
     "credential-probe": _bind_probe,
     "hygiene": _bind_hygiene,
     "sharing": _bind_sharing,
@@ -1098,7 +1108,7 @@ def _bound_checks(
     """Build the ordered bound checks for `keys` against the open client via the binder dispatch table."""
     checks: list[BoundCheck] = []
     for key in keys:
-        binder = _BINDERS.get(key) or _bind_default(key)
+        binder = CHECK_FACTORIES[key]
         checks.append(BoundCheck(key=key, label=label_for(key), run=binder(client, options, runtime, graph_sink)))
     return checks
 
@@ -1116,14 +1126,34 @@ def _finalize_renderers(formats: Sequence[str]) -> list[ReportRenderer]:
     return [factory() for fmt, factory in _FINALIZE_RENDERERS.items() if fmt in chosen]
 
 
-def _emit_explorer_if_requested(
-    folder: Path, graph_sink: list[SharingGraph], manifest: RunManifest, *, visualize: bool
-) -> None:
-    """Write the interactive explorer bundle into the run folder when the graph was captured for it."""
-    if not (visualize and graph_sink):
+SHARING_GRAPH_FILENAME = "sharing-graph.json"
+
+
+def _sharing_graph_path(folder: Path) -> Path:
+    """Return the stable path where the sharing graph is persisted for later explorer rendering."""
+    return folder / SHARING_GRAPH_FILENAME
+
+
+def _persist_sharing_graph(folder: Path, graph: SharingGraph) -> None:
+    """Write the effective-access sharing graph beside the run manifest so resume and rerender reuse it."""
+    _sharing_graph_path(folder).write_text(graph.model_dump_json())
+
+
+def _load_sharing_graph(folder: Path) -> SharingGraph | None:
+    """Load the persisted sharing graph from the run folder, or None when it was never written."""
+    path = _sharing_graph_path(folder)
+    if not path.exists():
+        return None
+    return SharingGraph.model_validate_json(path.read_text())
+
+
+def _emit_explorer_if_requested(folder: Path, manifest: RunManifest) -> None:
+    """Emit the interactive explorer bundle from the persisted sharing graph when one exists in the folder."""
+    graph = _load_sharing_graph(folder)
+    if graph is None:
         return
     view = build_sharing_view(
-        graph_sink[0],
+        graph,
         profile=manifest.profile,
         version=manifest.dhis2_version or "unknown",
         scanner=manifest.scanner_version,
@@ -1144,7 +1174,7 @@ def _started_at_to_now(started_at: str) -> datetime:
     try:
         return datetime.fromisoformat(started_at)
     except ValueError:
-        return datetime.now()
+        return datetime.now(tz=UTC)
 
 
 async def run_security_audit(
@@ -1154,6 +1184,7 @@ async def run_security_audit(
     profile_name: str,
     started_at: str,
     options: AuditOptions,
+    allow_version_fallback: bool = False,
     only: list[str] | None = None,
     skip: list[str] | None = None,
     formats: Sequence[str] = DEFAULT_FORMATS,
@@ -1167,7 +1198,13 @@ async def run_security_audit(
     con = console or Console(stderr=True)
     reporter = make_reporter(con, animated=animated)
     graph_sink: list[SharingGraph] = []
-    async with open_client(profile, profile_name=profile_name) as client:
+    base_path = urlsplit(profile.base_url).path
+    async with open_client(
+        profile,
+        profile_name=profile_name,
+        allow_version_fallback=allow_version_fallback,
+        event_hooks={"request": [guardrail_request_hook(ALLOWED_AUDIT_PATHS, base_path=base_path)]},
+    ) as client:
         manifest = RunManifest(
             target=client.base_url,
             profile=profile_name,
@@ -1182,14 +1219,16 @@ async def run_security_audit(
             streaming_renderer=MarkdownRenderer(),
             finalize_renderers=_finalize_renderers(formats),
         )
-        runtime = RunContext(console=con, now=_started_at_to_now(started_at), generated_at=started_at)
+        runtime = RunContext(
+            console=con, now=_started_at_to_now(started_at), generated_at=started_at, output_folder=output_dir
+        )
         report = await run_audit(
             manifest=manifest,
             checks=_bound_checks(client, keys, options, runtime, graph_sink if visualize else None),
             writer=writer,
             reporter=reporter,
         )
-        _emit_explorer_if_requested(output_dir, graph_sink, manifest, visualize=visualize)
+        _emit_explorer_if_requested(output_dir, manifest)
         return report
 
 
@@ -1199,6 +1238,7 @@ async def resume_security_audit(
     folder: Path,
     profile_name: str,
     options: AuditOptions,
+    allow_version_fallback: bool = False,
     formats: Sequence[str] = DEFAULT_FORMATS,
     visualize: bool = False,
     animated: bool = True,
@@ -1217,7 +1257,13 @@ async def resume_security_audit(
     con = console or Console(stderr=True)
     reporter = make_reporter(con, animated=animated)
     graph_sink: list[SharingGraph] = []
-    async with open_client(profile, profile_name=profile_name) as client:
+    base_path = urlsplit(profile.base_url).path
+    async with open_client(
+        profile,
+        profile_name=profile_name,
+        allow_version_fallback=allow_version_fallback,
+        event_hooks={"request": [guardrail_request_hook(ALLOWED_AUDIT_PATHS, base_path=base_path)]},
+    ) as client:
         if client.base_url != manifest.target:
             raise ValueError(
                 f"resume folder targets {manifest.target}, but profile '{profile_name}' "
@@ -1230,7 +1276,12 @@ async def resume_security_audit(
             finalize_renderers=_finalize_renderers(formats),
             resume=True,
         )
-        runtime = RunContext(console=con, now=_started_at_to_now(manifest.started_at), generated_at=manifest.started_at)
+        runtime = RunContext(
+            console=con,
+            now=_started_at_to_now(manifest.started_at),
+            generated_at=manifest.started_at,
+            output_folder=folder,
+        )
         report = await run_audit(
             manifest=manifest,
             checks=_bound_checks(client, manifest.check_order, options, runtime, graph_sink if visualize else None),
@@ -1238,7 +1289,7 @@ async def resume_security_audit(
             reporter=reporter,
             prior=prior,
         )
-        _emit_explorer_if_requested(folder, graph_sink, manifest, visualize=visualize)
+        _emit_explorer_if_requested(folder, manifest)
         return report
 
 
@@ -1253,4 +1304,5 @@ def rerender_report(folder: Path, *, formats: Sequence[str] = DEFAULT_FORMATS) -
     for fmt, factory in _ALL_RENDERERS.items():
         if fmt in chosen:
             factory().emit(folder, report)
+    _emit_explorer_if_requested(folder, manifest)
     return report

@@ -37,10 +37,8 @@ class TextRenderer(SingleFileRenderer):
             lines.append("")
         summary = report.summary
         lines.append("SUMMARY")
-        lines.append(
-            f"    CRITICAL={summary.critical} HIGH={summary.high} MEDIUM={summary.medium} "
-            f"WARN={summary.warn} INFO={summary.info}"
-        )
+        tally = " ".join(f"{entry.severity.value}={entry.count}" for entry in summary.severity_counts())
+        lines.append(f"    {tally}")
         lines.append(f"    {summary.total_findings} finding(s) across {summary.checks_run} check(s)")
         lines.append("")
         return "\n".join(lines) + "\n"

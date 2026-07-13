@@ -27,7 +27,7 @@ from dhis2w_core.security_core import (
 
 # The sentinel that must never appear in any rendered output. It contains "=" to exercise the path where a
 # confidential key's value includes the separator character (the parser must still read it correctly and the
-# redaction model must suppress the entire value -- including the embedded "=").
+# redaction model must suppress the entire value, including the embedded "=").
 _SENTINEL = "SUPER=SECRET=SENTINEL-9c3f1a"
 
 _CONFIDENTIAL_KEYS = (

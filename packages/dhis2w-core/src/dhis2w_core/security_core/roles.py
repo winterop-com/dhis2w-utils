@@ -68,7 +68,7 @@ def _all_finding(role: RoleAudit) -> AuditFinding:
 
 def _dangerous_finding(role: RoleAudit) -> AuditFinding:
     """A non-ALL role in one or more dangerous categories: HIGH for high-impact, else MEDIUM."""
-    severity = role_severity(role.categories, has_all=False)
+    severity = role_severity(role.categories)
     return AuditFinding(
         check=_CHECK,
         severity=severity,

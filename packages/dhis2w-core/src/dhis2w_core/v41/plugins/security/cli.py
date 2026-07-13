@@ -119,7 +119,15 @@ def audit_command(
         str | None, typer.Option("--format", help="Comma-separated formats: md,txt,csv,html (default: all).")
     ] = None,
     checks: Annotated[
-        str | None, typer.Option("--checks", help="Comma-separated check keys to run (default: all).")
+        str | None,
+        typer.Option(
+            "--checks",
+            help=(
+                "Comma-separated check keys to run (default: all). Valid keys: version, transport, settings, "
+                "authorities, roles, hygiene, credential-probe, guest, apps, sharing, auth-methods, tokens, "
+                "routes, audit-config."
+            ),
+        ),
     ] = None,
     skip: Annotated[str | None, typer.Option("--skip", help="Comma-separated check keys to skip.")] = None,
     progress: Annotated[
@@ -181,6 +189,14 @@ def audit_command(
             ),
         ),
     ] = None,
+    version_fallback: Annotated[
+        bool,
+        typer.Option(
+            "--version-fallback/--no-version-fallback",
+            help="When the server's exact generated tree is not shipped (e.g. a dev/master build), bind the "
+            "nearest lower generated tree instead of failing.",
+        ),
+    ] = False,
 ) -> None:
     """Run the security checks step by step and stream a report to a folder. `--json` prints the report."""
     from dhis2w_core.security_core import AuditOptions
@@ -206,6 +222,7 @@ def audit_command(
                     folder=resume,
                     profile_name=profile_name,
                     options=options,
+                    allow_version_fallback=version_fallback,
                     formats=formats,
                     visualize=sharing_graph,
                     animated=animated,
@@ -225,6 +242,7 @@ def audit_command(
                     profile_name=profile_name,
                     started_at=now.isoformat(),
                     options=options,
+                    allow_version_fallback=version_fallback,
                     only=_parse_csv(checks),
                     skip=skip_keys or None,
                     formats=formats,

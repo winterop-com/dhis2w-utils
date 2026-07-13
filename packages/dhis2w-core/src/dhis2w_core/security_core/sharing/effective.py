@@ -7,7 +7,7 @@ of individuals is resolved by expanding group memberships once, server-side, and
 stored. Superusers (any role granting ALL) bypass sharing entirely, so they are counted on every
 object regardless of its sharing block.
 
-Honesty boundaries (also carried as graph caveats): the counts are a sharing-level upper bound — a
+Honesty boundaries (also carried as graph caveats): the counts are a sharing-level upper bound; a
 user's org-unit capture and data-view scope narrows actual data access further, and public access is
 modeled as "every authenticated user" without resolving the per-type authority each user would need.
 """
@@ -94,7 +94,6 @@ def _object_effective(
     if owner is not None and owner in enabled:
         for axis_users in axes.values():
             axis_users.add(owner)
-    if owner is not None:
         grants.append(
             EffectiveGrant(kind=ProvenanceKind.OWNER, principal_uid=owner, access=_FULL_ACCESS, subject_count=1)
         )

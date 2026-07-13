@@ -4,7 +4,7 @@ v41's generated `oas.Route.auth` is an UNDISCRIMINATED 4-variant union with no `
 member and no `type` discriminator (BUGS.md #14): the OAS gap upstream omits the Jackson `type` field, so
 the codegen spec-patch synthesises a discriminated union only in the `auth_schemes` re-export. The route
 auth extractor below re-validates through that adapter, which correctly picks the variant by `type`, and
-references only the four schemes v41 carries -- never the OAuth2 variant, which does not exist here.
+references only the four schemes v41 carries; never the OAuth2 variant, which does not exist here.
 
 The generated v41 `ApiToken` differs from v42/v43: `type` is a `Literal`, not the `ApiTokenType` enum
 (which v41 does not have), and `createdBy` is an id-only inline class rather than a `UserDto`.

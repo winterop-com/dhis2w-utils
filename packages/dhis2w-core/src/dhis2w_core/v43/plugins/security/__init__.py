@@ -1,4 +1,4 @@
-"""Security plugin — inspect DHIS2 security posture (settings, account authorities)."""
+"""Security plugin: inspect DHIS2 security posture (settings, account authorities)."""
 
 from __future__ import annotations
 

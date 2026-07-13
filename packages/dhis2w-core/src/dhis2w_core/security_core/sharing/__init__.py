@@ -33,6 +33,9 @@ from dhis2w_core.security_core.sharing.model import (
     AccessBits,
     EffectiveAccess,
     EffectiveGrant,
+    ExposureKind,
+    ExposureLevel,
+    ExposureView,
     ManageEdge,
     MembershipEdge,
     ObjectNode,
@@ -45,6 +48,8 @@ from dhis2w_core.security_core.sharing.model import (
     TypeSummary,
     UserGroupNode,
     UserNode,
+    classify_exposure,
+    public_exposure_kind,
 )
 from dhis2w_core.security_core.sharing.view import SharingExplorerMeta, SharingView, build_sharing_view
 
@@ -56,6 +61,9 @@ __all__ = [
     "EffectiveAccess",
     "EffectiveGrant",
     "ExplorerRenderer",
+    "ExposureKind",
+    "ExposureLevel",
+    "ExposureView",
     "FetchedGroup",
     "FetchedObject",
     "FetchedRole",
@@ -81,7 +89,9 @@ __all__ = [
     "UserNode",
     "build_sharing_graph",
     "build_sharing_view",
+    "classify_exposure",
     "compute_effective_access",
     "evaluate_sharing",
+    "public_exposure_kind",
     "resolve_focus_types",
 ]

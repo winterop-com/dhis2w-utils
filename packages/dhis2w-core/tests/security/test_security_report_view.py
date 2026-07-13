@@ -183,13 +183,15 @@ def test_scorecard_equals_sum_of_group_counts_per_severity() -> None:
     assert scorecard.info == tally.get("INFO", 0) == 1
 
 
-def test_section_status_carries_pill_and_optional_note() -> None:
-    """The status array holds the bracketed check status, then the parenthesised note when present."""
+def test_section_status_carries_label_and_optional_note() -> None:
+    """The status model carries the raw check-status label and the optional note when present."""
     findings = [_finding(Severity.INFO, "Inventory", group_key="inv")]
     view = build_report_view(_report([_section("Hygiene", findings, note="2FA endpoint unavailable")]))
-    assert view.sections[0].status == ["[ok]", "(2FA endpoint unavailable)"]
+    assert view.sections[0].status.label == "ok"
+    assert view.sections[0].status.note == "2FA endpoint unavailable"
     plain = build_report_view(_report([_section("Hygiene", findings)]))
-    assert plain.sections[0].status == ["[ok]"]
+    assert plain.sections[0].status.label == "ok"
+    assert plain.sections[0].status.note is None
 
 
 def test_meta_uses_unknown_when_dhis2_version_missing() -> None:

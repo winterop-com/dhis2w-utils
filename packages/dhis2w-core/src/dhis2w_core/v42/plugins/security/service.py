@@ -46,7 +46,7 @@ async def get_version_posture(profile: Profile) -> VersionPosture:
     static advisory patch floor and EOL line rules. It deliberately passes no
     release feed (`build_version_posture` -> `evaluate_version(feed=None)`), so the
     behind-latest-patch refinement that needs releases.dhis2.org is omitted and this
-    read makes no external egress -- just the one allowlisted DHIS2 GET. The
+    read makes no external egress; just the one allowlisted DHIS2 GET. The
     feed-based currency check is the audit's job, not this cheap read.
     """
     async with open_client(profile) as client:

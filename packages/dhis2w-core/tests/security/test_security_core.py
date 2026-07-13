@@ -111,8 +111,6 @@ def test_severity_rank_matches_order() -> None:
 
 
 def test_role_severity_tiers() -> None:
-    """ALL is CRITICAL; high-impact categories HIGH; the rest MEDIUM."""
-    assert role_severity(["superuser"], has_all=True) is Severity.CRITICAL
-    assert role_severity([], has_all=True) is Severity.CRITICAL
-    assert role_severity(["sql_views"], has_all=False) is Severity.HIGH
-    assert role_severity(["tracker_admin"], has_all=False) is Severity.MEDIUM
+    """High-impact categories are HIGH; the rest MEDIUM."""
+    assert role_severity(["sql_views"]) is Severity.HIGH
+    assert role_severity(["tracker_admin"]) is Severity.MEDIUM
