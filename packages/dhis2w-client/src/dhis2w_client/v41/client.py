@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from collections.abc import Callable, Mapping
 from types import ModuleType, TracebackType
 from typing import Any, Self
 
@@ -109,6 +110,7 @@ class Dhis2Client:
         system_cache_ttl: float | None = 300.0,
         verify: bool | str = True,
         skip_version_probe: bool = False,
+        event_hooks: Mapping[str, list[Callable[..., Any]]] | None = None,
     ) -> None:
         """Build a client. Call connect() or use as an async context manager before API calls.
 
@@ -154,6 +156,10 @@ class Dhis2Client:
         this flag set, `version_key`, `raw_version`, and `resources` raise
         on access — only `get_raw`, `post_raw`, `get_response`, and
         friends are usable.
+
+        `event_hooks` (default `None`) passes httpx event hooks straight to the
+        internal `AsyncClient`; `None` leaves httpx defaults untouched. The
+        security audit uses a `request` hook to enforce its read-only allowlist.
         """
         self._base_url = base_url.rstrip("/")
         self._auth = auth
@@ -163,6 +169,7 @@ class Dhis2Client:
         self._http: httpx.AsyncClient | None = None
         self._verify = verify
         self._skip_version_probe = skip_version_probe
+        self._event_hooks = event_hooks
         self._version_key: str | None = None
         self._raw_version: str | None = None
         self._generated: ModuleType | None = None
@@ -291,6 +298,8 @@ class Dhis2Client:
                 kwargs["transport"] = build_retry_transport(self._retry_policy)
             if self._http_limits is not None:
                 kwargs["limits"] = self._http_limits
+            if self._event_hooks is not None:
+                kwargs["event_hooks"] = self._event_hooks
             self._http = httpx.AsyncClient(**kwargs)
         if self._skip_version_probe:
             return
