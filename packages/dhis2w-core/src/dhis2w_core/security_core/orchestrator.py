@@ -59,5 +59,9 @@ async def run_audit(
         writer.finalize(report)
     finally:
         writer.close()
+        # Tear the live display down on EVERY exit path: an exception from write_result/finalize/close
+        # must not leave the Rich Live refresh thread running with the terminal corrupted. On success,
+        # finish() below still prints the scorecard; stop() is idempotent.
+        reporter.stop()
     reporter.finish(summary)
     return report

@@ -140,6 +140,41 @@ def test_no_anti_framing_is_warn_when_both_missing() -> None:
     assert by_title["No anti-framing header"].severity is Severity.WARN
 
 
+def test_report_only_frame_ancestors_does_not_satisfy_anti_framing() -> None:
+    """frame-ancestors carried ONLY by CSP-Report-Only enforces nothing: the anti-framing finding must fire.
+
+    Regression: a response with only `Content-Security-Policy-Report-Only: frame-ancestors 'self'` and no
+    X-Frame-Options was reported protected, but report-only reports violations without blocking framing,
+    so the instance is clickjackable.
+    """
+    findings = evaluate_transport(
+        _SECURE.model_copy(
+            update={
+                "content_security_policy": None,
+                "content_security_policy_report_only": "frame-ancestors 'self';",
+                "x_frame_options": None,
+            }
+        )
+    ).findings
+    by_title = _by_title(findings)
+    finding = by_title["No anti-framing header"]
+    assert finding.severity is Severity.WARN
+    assert "Report-Only" in finding.detail
+
+
+def test_enforced_frame_ancestors_beside_report_only_still_suppresses() -> None:
+    """An ENFORCED frame-ancestors suppresses the finding even when a report-only header is also present."""
+    findings = evaluate_transport(
+        _SECURE.model_copy(
+            update={
+                "content_security_policy_report_only": "frame-ancestors 'none';",
+                "x_frame_options": None,
+            }
+        )
+    ).findings
+    assert "No anti-framing header" not in _titles(findings)
+
+
 def test_missing_nosniff_is_warn() -> None:
     """A missing X-Content-Type-Options header is WARN."""
     findings = evaluate_transport(_SECURE.model_copy(update={"x_content_type_options": None})).findings
@@ -178,24 +213,28 @@ def test_hsts_absent_is_medium_only_no_weak_finding() -> None:
 
 
 @pytest.mark.parametrize(
-    "value",
+    ("value", "expected_severity"),
     [
-        "includeSubDomains",  # max-age missing
-        "max-age=31536000abc",  # non-digit tail rejected by the strict regex
-        "max-age=0",  # zero
-        "max-age=3600",  # below 1 day
-        "max-age=100000",  # below 1 year
+        # Zero-protection states grade MEDIUM, matching the missing-header finding: a header that
+        # browsers ignore (missing/invalid max-age) or that actively deletes cached HSTS state
+        # (max-age=0) must never score better than no header at all.
+        ("includeSubDomains", Severity.MEDIUM),  # max-age missing
+        ("max-age=31536000abc", Severity.MEDIUM),  # non-digit tail rejected by the strict regex
+        ("max-age=0", Severity.MEDIUM),  # zero: deletes cached HSTS state
+        # Positive but sub-year max-age still provides partial protection: WARN.
+        ("max-age=3600", Severity.WARN),  # below 1 day
+        ("max-age=100000", Severity.WARN),  # below 1 year
     ],
 )
-def test_hsts_present_but_weak_is_one_warn(value: str) -> None:
-    """Each present-but-weak max-age sub-case collapses into exactly one WARN with the parsed value in detail."""
+def test_hsts_present_but_weak_severity(value: str, expected_severity: Severity) -> None:
+    """Each present-but-weak max-age sub-case collapses into exactly one finding at the graded severity."""
     findings = evaluate_transport(_SECURE.model_copy(update={"strict_transport_security": value})).findings
     weak = [finding for finding in findings if finding.title == "Strict-Transport-Security max-age is weak"]
     assert len(weak) == 1
-    assert weak[0].severity is Severity.WARN
+    assert weak[0].severity is expected_severity
     assert value in weak[0].detail
     assert (weak[0].evidence or {}).get("header") == value
-    # The "missing HSTS" MEDIUM covers the absent case only; it must not co-fire with the present-but-weak WARN.
+    # The "missing HSTS" MEDIUM covers the absent case only; it must not co-fire with the present-but-weak finding.
     assert "No Strict-Transport-Security header" not in _titles(findings)
 
 

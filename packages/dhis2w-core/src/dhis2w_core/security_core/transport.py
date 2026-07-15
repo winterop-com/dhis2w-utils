@@ -100,7 +100,13 @@ def evaluate_transport(headers: TransportHeaders) -> CheckOutcome:
     report_only_csp = headers.content_security_policy_report_only
     csp_value = enforced_csp if enforced_csp is not None else report_only_csp
     has_csp = csp_value is not None
-    has_frame_ancestors = has_csp and "frame-ancestors" in (csp_value or "").lower()
+    # Anti-framing counts only when the directive is ENFORCED: a frame-ancestors carried solely by
+    # Content-Security-Policy-Report-Only reports violations but blocks nothing, so the instance is
+    # still clickjackable. The weak-CSP grade below stays report-only-aware via its own flag.
+    has_frame_ancestors = enforced_csp is not None and "frame-ancestors" in enforced_csp.lower()
+    report_only_frame_ancestors = (
+        not has_frame_ancestors and report_only_csp is not None and "frame-ancestors" in report_only_csp.lower()
+    )
     if not has_csp:
         log.record(_no_csp_finding())
         log.mark_skipped("transport-weak-csp", "no CSP header to grade")
@@ -112,7 +118,7 @@ def evaluate_transport(headers: TransportHeaders) -> CheckOutcome:
         else:
             log.mark_passed("transport-weak-csp")
     if headers.x_frame_options is None and not has_frame_ancestors:
-        log.record(_no_anti_framing_finding())
+        log.record(_no_anti_framing_finding(report_only_frame_ancestors=report_only_frame_ancestors))
     else:
         log.mark_passed("transport-no-anti-framing")
     if (headers.x_content_type_options or "").strip().lower() != "nosniff":
@@ -182,21 +188,28 @@ def _no_hsts_finding() -> AuditFinding:
 
 
 def _weak_hsts_finding(value: str) -> AuditFinding | None:
-    """Grade a present Strict-Transport-Security header's max-age; flag one WARN when below 1 year."""
+    """Grade a present Strict-Transport-Security header's max-age.
+
+    A max-age of 0 (which actively deletes cached HSTS state) or a missing/invalid max-age (browsers
+    ignore the header) provides exactly the protection a missing header does: none. Those states grade
+    MEDIUM, matching the no-HSTS finding, so a header cannot score better than its absence. A positive
+    but sub-year max-age still provides partial protection and grades WARN.
+    """
     max_age = _parse_hsts_max_age(value)
     if max_age is not None and max_age >= _ONE_YEAR_SECONDS:
         return None
     if max_age is None:
         reason = "max-age is missing or invalid (a digits-only max-age in seconds is required)"
     elif max_age <= 0:
-        reason = f"max-age={max_age} provides no protection"
+        reason = f"max-age={max_age} provides no protection and deletes any cached HSTS state"
     elif max_age < _ONE_DAY_SECONDS:
         reason = f"max-age={max_age} is below 1 day and provides effectively no protection"
     else:
         reason = f"max-age={max_age} is below the recommended 1 year ({_ONE_YEAR_SECONDS})"
+    no_protection = max_age is None or max_age <= 0
     return AuditFinding(
         check=_CHECK,
-        severity=Severity.WARN,
+        severity=Severity.MEDIUM if no_protection else Severity.WARN,
         title="Strict-Transport-Security max-age is weak",
         detail=(
             f"Strict-Transport-Security: {value}. {reason}. Set max-age to at least {_ONE_YEAR_SECONDS} "
@@ -366,16 +379,23 @@ def _no_csp_finding() -> AuditFinding:
     )
 
 
-def _no_anti_framing_finding() -> AuditFinding:
-    """Flag missing anti-framing: neither X-Frame-Options nor a CSP frame-ancestors directive is present."""
+def _no_anti_framing_finding(*, report_only_frame_ancestors: bool) -> AuditFinding:
+    """Flag missing anti-framing: no X-Frame-Options and no ENFORCED CSP frame-ancestors directive."""
+    report_only_note = (
+        " A frame-ancestors directive was found only in Content-Security-Policy-Report-Only, which "
+        "reports violations but does not block framing, so it provides no protection."
+        if report_only_frame_ancestors
+        else ""
+    )
     return AuditFinding(
         check=_CHECK,
         severity=Severity.WARN,
         title="No anti-framing header",
         detail=(
             "DHIS2 supplies one or the other (CSP frame-ancestors when csp.enabled=on, X-Frame-Options "
-            "SAMEORIGIN when off); both missing points at upstream stripping. Suppressed when CSP "
-            "frame-ancestors is present, to avoid a guaranteed false positive on default instances."
+            "SAMEORIGIN when off); both missing points at upstream stripping. Suppressed when an enforced "
+            "CSP frame-ancestors is present, to avoid a guaranteed false positive on default instances."
+            + report_only_note
         ),
         evidence={"headers": "x-frame-options, content-security-policy"},
         control="transport-no-anti-framing",

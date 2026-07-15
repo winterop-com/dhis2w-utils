@@ -43,6 +43,15 @@ TWO_FACTOR_SOURCE: TwoFactorSource = TwoFactorSource.AUDIT_ENDPOINT
 OAUTH2_CLIENT_FIELDS = "clientId,displayName,authorizationGrantTypes,redirectUris"
 
 
+# The three field extractors below intentionally take the raw /api/users record rather than a
+# validated generated `User` (unlike `tokens_from_raw` / `oauth2_clients`, which validate each raw
+# record through its generated schema): pydantic's default lenient coercion accepts values the wire
+# contract must reject outright, e.g. `User.model_validate({"passwordLastUpdated": 123})` silently
+# turns the int into a valid epoch timestamp instead of failing, and `{"twoFactorEnabled": "yes"}`
+# coerces to `True`. That would defeat the deliberate `isinstance(value, str | bool)` guards below,
+# which treat any non-conforming wire value as absent rather than trust a type-coerced guess.
+# `test_security_hygiene.py` (test_password_last_updated_v42_v43_*) pins the strict-or-None behaviour
+# across all three trees, so these three stay on `dict[str, Any]`.
 def two_factor_enabled(user: dict[str, Any]) -> bool | None:
     """v42 does not expose per-user 2FA on /api/users; the audit endpoint supplies it instead."""
     return None

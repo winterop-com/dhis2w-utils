@@ -126,6 +126,32 @@ def test_privileged_stale_is_medium() -> None:
     assert (stale[0].evidence or {}).get("last") == "2026-01-01T00:00:00"
 
 
+def test_stale_negative_offset_login_converts_instead_of_dropping() -> None:
+    """An offset-bearing lastLogin is CONVERTED to UTC, not stripped: dropping -05:00 would flag this account.
+
+    Regression: `.replace(tzinfo=None)` dropped the offset, shifting the day-boundary comparison. UTC
+    instant here is 2026-03-19T03:00Z, 90 full days before NOW (not > 90, so fresh); the naive-drop
+    reading (2026-03-18T22:00) is 91 days back and would have flagged it stale.
+    """
+    findings = evaluate_hygiene(
+        [_user(username="edge", last_login="2026-03-18T22:00:00-05:00", privileged=True)], stale_days=90, now=NOW
+    ).findings
+    assert "Stale privileged account" not in _titles(findings)
+
+
+def test_stale_positive_offset_login_converts_instead_of_dropping() -> None:
+    """The mirror case: dropping +06:00 would miss this stale account; converting flags it.
+
+    UTC instant is 2026-03-18T22:00Z, 91 full days before NOW (> 90, stale); the naive-drop reading
+    (2026-03-19T04:00) is only 90 days back and would have passed it.
+    """
+    findings = evaluate_hygiene(
+        [_user(username="edge", last_login="2026-03-19T04:00:00+06:00", privileged=True)], stale_days=90, now=NOW
+    ).findings
+    stale = [f for f in findings if f.title == "Stale privileged account"]
+    assert stale and stale[0].severity is Severity.MEDIUM
+
+
 def test_disabled_privileged_is_medium_and_skips_other_user_flags() -> None:
     """A disabled privileged account reports the latent-access flag only."""
     findings = evaluate_hygiene(

@@ -151,7 +151,9 @@ def audit_command(
         bool,
         typer.Option(
             "--two-factor-detail/--no-two-factor-detail",
-            help="On v41+, also list each superuser lacking 2FA (per-user /api/users/twoFactor read).",
+            help="On v42+, also list each superuser lacking 2FA (per-user /api/users/twoFactor read). "
+            "No-op on v41: /api/users/twoFactor does not exist there, so this flag never adds detail "
+            "(BUGS.md #58).",
         ),
     ] = False,
     max_objects: Annotated[

@@ -1,26 +1,38 @@
-// GENERATED from dc-runtime/src/*.ts — do not edit. Rebuild with `cd dc-runtime && bun run build`.
+/*
+ * DHIS2 security audit HTML report runtime.
+ *
+ * This file IS the source; there is no build step. Hand-maintained vanilla
+ * JavaScript, edited directly like its sibling `sharing-runtime.js`. Parses the
+ * <x-dc> template embedded in report.dc.html, evaluates the inline
+ * <script data-dc-script> logic class, and renders server-supplied finding data
+ * into DOM via a small React-based template compiler. Also holds the
+ * HTML-escaping and {{ ... }} interpolation logic that keeps report content safe
+ * to render.
+ *
+ * Author: Morten Svanaes
+ */
 "use strict";
 (() => {
   var __defProp = Object.defineProperty;
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-  // src/react.ts
+  // ---- react & reactDOM: window globals + hyperscript helper -------------------
   function getReact() {
     const R = window.React;
-    if (!R) throw new Error("dc-runtime: window.React is not available yet");
+    if (!R) throw new Error("dc: window.React is not available yet");
     return R;
   }
   function getReactDOM() {
     const RD = window.ReactDOM;
-    if (!RD) throw new Error("dc-runtime: window.ReactDOM is not available yet");
+    if (!RD) throw new Error("dc: window.ReactDOM is not available yet");
     return RD;
   }
   var h = ((...args) => getReact().createElement(
     ...args
   ));
 
-  // src/parse.ts
+  // ---- parsing <x-dc> documents and inline data-props ---------------------------
   function parseDcDocument(doc) {
     const dc = doc.querySelector("x-dc");
     if (!dc) return null;
@@ -82,7 +94,7 @@
     return base.replace(/\.dc\.html$/, "").replace(/\.html?$/, "") || "Root";
   }
 
-  // src/boot.ts
+  // ---- standalone boot: base css, full-page css, mounting the root --------------
   var BASE_CSS = `
     .sc-placeholder{background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
       border-radius:2px;box-sizing:border-box;overflow:hidden}
@@ -113,7 +125,7 @@
       padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
       border-radius:4px;white-space:pre-wrap;pointer-events:none}
     /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts \u2014 keep both
-       in sync until dc-runtime regains a build step. */
+       in sync by hand when either one changes. */
     @media print {
       @page { margin: 0.5cm; }
       section, article, figure, table { break-inside: avoid; }
@@ -185,7 +197,7 @@
     return rootName;
   }
 
-  // src/expr.ts
+  // ---- expression evaluation: {{ path.expr }} resolution ------------------------
   var IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*/;
   var NUMBER_RE = /^-?\d+(\.\d+)?$/;
   function resolve(vals, src) {
@@ -279,7 +291,7 @@
     return cur;
   }
 
-  // src/encode.ts
+  // ---- template encoding: camelCase attrs + raw-tag rewriting for innerHTML -----
   var CAMEL_ATTR = "sc-camel-";
   var RAW_WRAP = {
     select: "sc-raw-select",
@@ -363,7 +375,7 @@
     return () => raw;
   }
 
-  // src/compile.ts
+  // ---- template compilation: walking parsed dom into render builders ------------
   function collectProps(node, isComponent, host) {
     const propGetters = [];
     const pseudoClasses = [];
@@ -451,7 +463,7 @@
     const key = (ctx?.__name || "?") + "\0" + what;
     if (warnedHoles.has(key)) return;
     warnedHoles.add(key);
-    console.warn("[dc-runtime] " + (ctx?.__name || "template") + ": " + what);
+    console.warn("[dc] " + (ctx?.__name || "template") + ": " + what);
   }
   function walkText(node) {
     const txt = node.nodeValue ?? "";
@@ -657,7 +669,7 @@
     };
   }
 
-  // src/logic.ts
+  // ---- StreamableLogic base class + inline <script data-dc-script> eval ---------
   var StreamableLogic = class {
     constructor(props) {
       __publicField(this, "props");
@@ -694,7 +706,7 @@
     return fn(StreamableLogic, StreamableLogic, getReact());
   }
 
-  // src/component.ts
+  // ---- StreamableComponent: the React class hosting one design component -------
   function shallowEqual(a, b) {
     if (!b) return false;
     const ak = Object.keys(a).filter((k) => k !== "children");
@@ -774,7 +786,7 @@
       }
       componentDidCatch(e, info) {
         console.error(
-          "[dc-runtime] render error in <" + this.__name + ">:",
+          "[dc] render error in <" + this.__name + ">:",
           e,
           info?.componentStack || ""
         );
@@ -972,7 +984,7 @@
     };
   }
 
-  // src/external.ts
+  // ---- x-import: loading + resolving external js/jsx modules and globals --------
   var isCustomElementName = (n) => !n.includes(".") && n.includes("-");
   function isRenderableType(g) {
     if (typeof g === "function") return !isElementClass(g);
@@ -1010,7 +1022,7 @@
     function load(kind, url) {
       if (cache.has(url)) return;
       cache.set(url, null);
-      console.info("[dc-runtime] x-import: loading", url, "(" + kind + ")");
+      console.info("[dc] x-import: loading", url, "(" + kind + ")");
       const ready = kind === "jsx" ? ensureBabel() : Promise.resolve();
       ready.then(() => fetch(url)).then((r) => {
         if (!r.ok) throw new Error("HTTP " + r.status);
@@ -1037,7 +1049,7 @@
         }
         cache.set(url, { mod: module.exports, globals });
         console.info(
-          "[dc-runtime] x-import: loaded",
+          "[dc] x-import: loaded",
           url,
           "\u2014 exports:",
           Object.keys(module.exports),
@@ -1052,7 +1064,7 @@
           error: "failed to load: " + (e instanceof Error && e.message ? e.message : String(e))
         });
         console.error(
-          "[dc-runtime] x-import: FAILED to load",
+          "[dc] x-import: FAILED to load",
           url,
           "(" + kind + ")",
           e
@@ -1073,7 +1085,7 @@
           entry.error || 'no export named "' + name + '" (has: ' + Object.keys(mod).join(", ") + ")"
         );
         console.error(
-          "[dc-runtime] x-import: module",
+          "[dc] x-import: module",
           url,
           "loaded but has no component named",
           JSON.stringify(name),
@@ -1100,7 +1112,7 @@
         }
         if (Date.now() - started >= GLOBAL_POLL_TIMEOUT_MS) {
           console.warn(
-            "[dc-runtime] x-import: global",
+            "[dc] x-import: global",
             JSON.stringify(name),
             "never appeared on window after " + GLOBAL_POLL_TIMEOUT_MS + "ms"
           );
@@ -1134,7 +1146,7 @@
         reportedMissing.set(key, null);
         if (isCE && !customElements.get(name)) {
           console.warn(
-            "[dc-runtime] x-import:",
+            "[dc] x-import:",
             url,
             "loaded but no custom element",
             JSON.stringify(name),
@@ -1159,7 +1171,7 @@
     }
   }
 
-  // src/helmet.ts
+  // ---- sc-helmet: mounting <script>/<link>/<meta> and other head tags -----------
   function createHelmetManager(doc, isStreaming) {
     const mounted = /* @__PURE__ */ new Set();
     const live = /* @__PURE__ */ new Map();
@@ -1211,7 +1223,7 @@
     return { compile };
   }
 
-  // src/pseudo.ts
+  // ---- pseudo-class style sheet (style-hover, style-before, ...) ----------------
   function createPseudoSheet(doc) {
     let el = null;
     const cache = /* @__PURE__ */ new Map();
@@ -1232,7 +1244,7 @@
     };
   }
 
-  // src/registry.ts
+  // ---- per-component registry: template/logic/version state + subscriptions ----
   function createRegistry() {
     const entries = /* @__PURE__ */ Object.create(null);
     function get(name) {
@@ -1262,7 +1274,7 @@
     };
   }
 
-  // src/runtime.ts
+  // ---- runtime: wires registry + host callbacks, fetches sibling .dc.html files -
   var COMPONENT_DIR = ".";
   function createRuntime(doc = document) {
     const registry = createRegistry();
@@ -1291,7 +1303,7 @@
       fetch(url).then((res) => {
         if (!res.ok) {
           console.error(
-            "[dc-runtime] sibling fetch for <" + name + "/> failed:",
+            "[dc] sibling fetch for <" + name + "/> failed:",
             url,
             "returned",
             res.status,
@@ -1305,7 +1317,7 @@
         const parsed = parseDcText(t);
         if (!parsed) {
           console.error(
-            "[dc-runtime] sibling fetch for <" + name + "/>:",
+            "[dc] sibling fetch for <" + name + "/>:",
             url,
             "has no <x-dc> block \u2014 not a Design Component."
           );
@@ -1317,7 +1329,7 @@
         if (parsed.js && !r.Logic) updateJs(name, parsed.js);
       }).catch(
         (e) => console.error(
-          "[dc-runtime] sibling fetch for <" + name + "/> threw:",
+          "[dc] sibling fetch for <" + name + "/> threw:",
           url,
           e
         )
@@ -1329,7 +1341,7 @@
       try {
         r.tpl = compileTemplate(html, host);
       } catch (e) {
-        console.error("[dc-runtime] template compile FAILED for", name, e);
+        console.error("[dc] template compile FAILED for", name, e);
       }
       registry.bump(name);
     }
@@ -1348,7 +1360,7 @@
       } catch (e) {
         if (r.jsSeq !== seq) return;
         console.error(
-          "[dc-runtime] logic class eval FAILED for",
+          "[dc] logic class eval FAILED for",
           name,
           "\u2014 the template renders with props only.",
           e
@@ -1420,7 +1432,7 @@
     };
   }
 
-  // src/index.ts
+  // ---- entry point: loads React/ReactDOM UMD builds and boots the page ----------
   var REACT_URL = "https://unpkg.com/react@18.3.1/umd/react.production.min.js";
   var REACT_SRI = "sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z";
   var REACT_DOM_URL = "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js";

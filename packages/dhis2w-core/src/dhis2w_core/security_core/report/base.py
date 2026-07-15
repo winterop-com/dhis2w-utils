@@ -73,3 +73,7 @@ class ProgressReporter(Protocol):
     def finish(self, summary: AuditSummary) -> None:
         """Announce that the run finished, with the final summary."""
         ...
+
+    def stop(self) -> None:
+        """Tear down any live display without a summary; idempotent, called on every exit path."""
+        ...

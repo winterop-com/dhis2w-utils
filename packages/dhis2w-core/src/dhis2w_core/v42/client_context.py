@@ -9,8 +9,9 @@ signatures so every v42 caller keeps working.
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable, Mapping
 from contextlib import asynccontextmanager
+from typing import Any
 
 import httpx
 from dhis2w_client.v42 import AuthProvider, Dhis2, Dhis2Client, RetryPolicy
@@ -109,7 +110,7 @@ async def open_client(
     retry_policy: RetryPolicy | None = None,
     http_limits: httpx.Limits | None = None,
     system_cache_ttl: float | None = 300.0,
-    event_hooks: dict[str, list] | None = None,
+    event_hooks: Mapping[str, list[Callable[..., Any]]] | None = None,
 ) -> AsyncGenerator[Dhis2Client]:
     """Open a connected Dhis2Client for `profile` — yields inside `async with`.
 

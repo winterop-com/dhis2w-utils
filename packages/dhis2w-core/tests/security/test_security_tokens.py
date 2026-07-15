@@ -79,11 +79,15 @@ def test_empty_inventory_non_superuser_emits_only_scope_caveat() -> None:
 
 
 def test_healthy_token_superuser_emits_only_inventory() -> None:
-    """A healthy token under a superuser yields only the MEDIUM inventory finding."""
+    """A healthy token under a superuser yields only the informational inventory finding.
+
+    The inventory is a purely informational roll-up (like the routes and hygiene inventories): a
+    perfectly-configured token set must not add severity noise, so it is INFO, never MEDIUM.
+    """
     inventory = TokensInventory(tokens=(_HEALTHY,), account_is_superuser=True)
     findings = evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings
     assert _titles(findings) == {"Personal access token inventory"}
-    assert _by_title(findings)["Personal access token inventory"].severity is Severity.MEDIUM
+    assert _by_title(findings)["Personal access token inventory"].severity is Severity.INFO
 
 
 def test_inventory_detail_states_scope_sentence_verbatim() -> None:
@@ -99,24 +103,29 @@ def test_inventory_detail_states_scope_sentence_verbatim() -> None:
 
 
 def test_non_expiring_null_expire_is_high() -> None:
-    """A token with no expiry (null) flags the HIGH non-expiring finding with 'expires: never'."""
+    """A token with no expiry (null) flags the HIGH non-expiring finding with 'never' in evidence."""
     token = _HEALTHY.model_copy(update={"expire_epoch_millis": None})
     inventory = TokensInventory(tokens=(token,), account_is_superuser=True)
     finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)[
         "Non-expiring personal access token"
     ]
     assert finding.severity is Severity.HIGH
-    assert (finding.evidence or {})["expires"] == "expires: never"
+    assert (finding.evidence or {})["expires"] == "never"
 
 
-def test_non_expiring_past_epoch_is_high_deterministic() -> None:
-    """A token whose expiry epoch is already in the past flags the HIGH non-expiring finding (fixed now)."""
+def test_expired_but_not_deleted_is_warn_not_high() -> None:
+    """A token whose expiry epoch is already past is an inert stale-state WARN, never the HIGH permanent-credential.
+
+    Regression: an expired-but-undeleted token (rejected server-side by DHIS2) was mischaracterised as a
+    HIGH 'non-expiring permanent credential'. It is a lifecycle-cleanup finding, distinct control, WARN.
+    """
     token = _HEALTHY.model_copy(update={"expire_epoch_millis": _PAST_EPOCH_MILLIS})
     inventory = TokensInventory(tokens=(token,), account_is_superuser=True)
-    finding = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)[
-        "Non-expiring personal access token"
-    ]
-    assert finding.severity is Severity.HIGH
+    findings = evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings
+    assert "Non-expiring personal access token" not in _titles(findings)
+    finding = _by_title(findings)["Expired personal access token not deleted"]
+    assert finding.severity is Severity.WARN
+    assert finding.control == "tokens-expired-not-deleted"
     assert "expired on 2026-06-23" in (finding.evidence or {})["expires"]
 
 
@@ -154,6 +163,16 @@ def test_worst_case_non_expiring_and_no_ip_allowlist_is_called_out() -> None:
 def test_no_ip_allowlist_with_future_expiry_does_not_call_out_worst_case() -> None:
     """A token missing only the IP allowlist (but with a future expiry) does not mention the worst case."""
     token = _HEALTHY.model_copy(update={"allowlists": TokenAllowlists()})
+    inventory = TokensInventory(tokens=(token,), account_is_superuser=True)
+    no_ip = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)[
+        "Personal access token with no IP allowlist"
+    ]
+    assert "worst case" not in no_ip.detail
+
+
+def test_no_ip_allowlist_with_past_expiry_does_not_call_out_worst_case() -> None:
+    """An expired (inert) token with no IP allowlist is not the 'permanent credential' worst case."""
+    token = _HEALTHY.model_copy(update={"expire_epoch_millis": _PAST_EPOCH_MILLIS, "allowlists": TokenAllowlists()})
     inventory = TokensInventory(tokens=(token,), account_is_superuser=True)
     no_ip = _by_title(evaluate_tokens(inventory, now_epoch_millis=_NOW_EPOCH_MILLIS).findings)[
         "Personal access token with no IP allowlist"
@@ -396,8 +415,8 @@ async def test_run_tokens_degrades_on_transport_error(tree: str) -> None:
 
 
 @pytest.mark.parametrize("tree", TREES)
-async def test_run_tokens_past_expiry_flags_non_expiring(tree: str) -> None:
-    """A token whose expiry epoch is already in the past flags the non-expiring HIGH (expired-but-live)."""
+async def test_run_tokens_past_expiry_flags_expired_not_deleted(tree: str) -> None:
+    """A token whose expiry epoch is already in the past flags the WARN expired-not-deleted, not the HIGH."""
     token = {
         "id": "tok000000007",
         "name": "stale",
@@ -409,7 +428,9 @@ async def test_run_tokens_past_expiry_flags_non_expiring(tree: str) -> None:
 
     result = await _audit_module(tree)._run_tokens(_mock_client(tokens=[token], authorities=["ALL"]))
 
-    assert "Non-expiring personal access token" in _titles(result.findings)
+    titles = _titles(result.findings)
+    assert "Expired personal access token not deleted" in titles
+    assert "Non-expiring personal access token" not in titles
 
 
 @pytest.mark.parametrize("tree", TREES)

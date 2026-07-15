@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
@@ -371,15 +371,25 @@ def _inventory_finding(users: list[UserHygiene]) -> AuditFinding:
     )
 
 
+def _as_utc(moment: datetime) -> datetime:
+    """Normalise a timestamp to aware UTC: convert an offset-bearing value, assume UTC for a naive one.
+
+    DHIS2 usually serialises naive timestamps (assumed UTC here); when a wire format DOES carry an
+    offset, it must be converted, not dropped: `.replace(tzinfo=None)` would shift the day-boundary
+    comparison by the offset.
+    """
+    if moment.tzinfo is None:
+        return moment.replace(tzinfo=UTC)
+    return moment.astimezone(UTC)
+
+
 def _is_stale(last_login: str, now: datetime, stale_days: int) -> bool:
     """Return True when an ISO last-login timestamp is older than the stale-days threshold."""
     try:
         stamp = datetime.fromisoformat(last_login)
     except ValueError:
         return False
-    stamp = stamp.replace(tzinfo=None)
-    reference = now.replace(tzinfo=None)
-    return (reference - stamp).days > stale_days
+    return (_as_utc(now) - _as_utc(stamp)).days > stale_days
 
 
 def _has_stale_password(password_last_updated: str | None, now: datetime, max_password_age_days: int) -> bool:
@@ -397,6 +407,4 @@ def _has_stale_password(password_last_updated: str | None, now: datetime, max_pa
         stamp = datetime.fromisoformat(password_last_updated)
     except ValueError:
         return False
-    stamp = stamp.replace(tzinfo=None)
-    reference = now.replace(tzinfo=None)
-    return (reference - stamp).days > max_password_age_days
+    return (_as_utc(now) - _as_utc(stamp)).days > max_password_age_days

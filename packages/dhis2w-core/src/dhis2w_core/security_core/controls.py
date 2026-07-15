@@ -142,6 +142,7 @@ CONTROL_CATALOG: dict[str, tuple[ControlSpec, ...]] = {
     "tokens": (
         ControlSpec(id="tokens-inventory", label="Personal access token inventory"),
         ControlSpec(id="tokens-non-expiring", label="No non-expiring tokens"),
+        ControlSpec(id="tokens-expired-not-deleted", label="No expired-but-undeleted tokens"),
         ControlSpec(id="tokens-no-ip-allowlist", label="Tokens restricted by IP allowlist"),
     ),
     "routes": (

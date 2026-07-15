@@ -68,6 +68,7 @@ class AccessBits(BaseModel):
         chars = access or ""
 
         def _is(position: int, expected: str) -> bool:
+            """True when `chars` is long enough and its char at `position` equals `expected`."""
             return len(chars) > position and chars[position] == expected
 
         return cls(
@@ -150,25 +151,25 @@ class ObjectNode(BaseModel):
         return classify_exposure(self)
 
 
-def public_exposure_kind(obj: ObjectNode) -> ExposureKind:
+def public_exposure_kind(object_node: ObjectNode) -> ExposureKind:
     """Resolve an object's dominant public exposure, ignoring external reach, as one precedence branch."""
-    public = obj.public
-    if obj.data_bearing and public.has_write:
+    public = object_node.public
+    if object_node.data_bearing and public.has_write:
         return ExposureKind.PUBLIC_WRITE_DATA
-    if not obj.data_bearing and public.meta_write:
+    if not object_node.data_bearing and public.meta_write:
         return ExposureKind.PUBLIC_WRITE_METADATA
-    if obj.type == _SQL_VIEW_TYPE and public.meta_read:
+    if object_node.type == _SQL_VIEW_TYPE and public.meta_read:
         return ExposureKind.SQL_VIEW_READ
-    if obj.data_bearing and public.data_read:
+    if object_node.data_bearing and public.data_read:
         return ExposureKind.PUBLIC_DATA_READ
     return ExposureKind.RESTRICTED
 
 
-def classify_exposure(obj: ObjectNode) -> ExposureView:
+def classify_exposure(object_node: ObjectNode) -> ExposureView:
     """Project an object onto its worst exposure: anonymous reach dominates, else its public exposure."""
-    if obj.external:
+    if object_node.external:
         return _EXPOSURE_VIEWS[ExposureKind.EXTERNAL]
-    return _EXPOSURE_VIEWS[public_exposure_kind(obj)]
+    return _EXPOSURE_VIEWS[public_exposure_kind(object_node)]
 
 
 class UserNode(BaseModel):

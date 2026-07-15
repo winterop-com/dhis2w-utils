@@ -113,6 +113,22 @@ class TypeInventory(BaseModel):
     total: int = 0
 
 
+class FocusTypeScan(BaseModel):
+    """One focus type's paging result: the server-reported total, retained objects, and cap state.
+
+    Returned by each tree's `_scan_focus_type`, which pages `/api/<plural>` for one shareable type
+    up to a scan budget. `scanned` counts every object inspected (kept or not); `capped` is set when
+    the budget was exhausted before the type's pages ran out, so the caller knows to stop.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    server_total: int = 0
+    kept: list[FetchedObject] = []
+    scanned: int = 0
+    capped: bool = False
+
+
 def build_sharing_graph(
     *,
     target: str,
@@ -131,8 +147,8 @@ def build_sharing_graph(
     user_nodes = [_user_node(user, all_role_uids) for user in users]
     group_nodes = [UserGroupNode(uid=group.uid, name=group.name, member_count=group.member_count) for group in groups]
 
-    object_nodes = [_object_node(obj) for obj in objects]
-    shares = [edge for obj in objects for edge in _share_edges(obj)]
+    object_nodes = [_object_node(fetched_object) for fetched_object in objects]
+    shares = [edge for fetched_object in objects for edge in _share_edges(fetched_object)]
     memberships = [MembershipEdge(user_uid=u.uid, group_uid=g) for u in users for g in u.group_uids]
     role_grants = [RoleGrantEdge(user_uid=u.uid, role_uid=r) for u in users for r in u.role_uids]
     manages = [
@@ -183,39 +199,39 @@ def _user_node(user: FetchedUser, all_role_uids: set[str]) -> UserNode:
     )
 
 
-def _object_node(obj: FetchedObject) -> ObjectNode:
+def _object_node(fetched_object: FetchedObject) -> ObjectNode:
     """Build an object node with its public access decoded and its external flag carried through."""
     return ObjectNode(
-        uid=obj.uid,
-        type=obj.type,
-        name=obj.name,
-        code=obj.code,
-        data_bearing=obj.data_bearing,
-        owner=obj.owner,
-        public=AccessBits.decode(obj.public_access),
-        external=obj.external,
+        uid=fetched_object.uid,
+        type=fetched_object.type,
+        name=fetched_object.name,
+        code=fetched_object.code,
+        data_bearing=fetched_object.data_bearing,
+        owner=fetched_object.owner,
+        public=AccessBits.decode(fetched_object.public_access),
+        external=fetched_object.external,
     )
 
 
-def _share_edges(obj: FetchedObject) -> list[ShareEdge]:
+def _share_edges(fetched_object: FetchedObject) -> list[ShareEdge]:
     """Emit one decoded share edge per explicit user and group share on an object."""
     edges = [
         ShareEdge(
-            object_uid=obj.uid,
+            object_uid=fetched_object.uid,
             principal_kind=PrincipalKind.USER,
             principal_uid=share.principal_uid,
             access=AccessBits.decode(share.access),
         )
-        for share in obj.user_shares
+        for share in fetched_object.user_shares
     ]
     edges.extend(
         ShareEdge(
-            object_uid=obj.uid,
+            object_uid=fetched_object.uid,
             principal_kind=PrincipalKind.GROUP,
             principal_uid=share.principal_uid,
             access=AccessBits.decode(share.access),
         )
-        for share in obj.group_shares
+        for share in fetched_object.group_shares
     )
     return edges
 
@@ -223,8 +239,8 @@ def _share_edges(obj: FetchedObject) -> list[ShareEdge]:
 def _type_summaries(objects: list[FetchedObject], type_inventory: list[TypeInventory]) -> list[TypeSummary]:
     """Roll the retained objects into per-type counts, keyed off the full per-type inventory totals."""
     kept_by_type: dict[str, list[FetchedObject]] = {}
-    for obj in objects:
-        kept_by_type.setdefault(obj.type, []).append(obj)
+    for fetched_object in objects:
+        kept_by_type.setdefault(fetched_object.type, []).append(fetched_object)
     summaries: list[TypeSummary] = []
     for entry in type_inventory:
         kept = kept_by_type.get(entry.type, [])
@@ -233,8 +249,10 @@ def _type_summaries(objects: list[FetchedObject], type_inventory: list[TypeInven
                 type=entry.type,
                 total=entry.total,
                 with_custom_sharing=len(kept),
-                public_count=sum(1 for obj in kept if not AccessBits.decode(obj.public_access).grants_nothing),
-                external_count=sum(1 for obj in kept if obj.external),
+                public_count=sum(
+                    1 for fetched_object in kept if not AccessBits.decode(fetched_object.public_access).grants_nothing
+                ),
+                external_count=sum(1 for fetched_object in kept if fetched_object.external),
                 data_bearing=entry.data_bearing,
             )
         )

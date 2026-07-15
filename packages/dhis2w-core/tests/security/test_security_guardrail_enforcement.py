@@ -55,7 +55,20 @@ _RUN_ENDPOINTS: dict[str, object] = {
     "/api/userRoles": {"userRoles": []},
     "/api/users": {"users": []},
     "/api/userGroups": {"userGroups": []},
-    "/api/schemas": {"schemas": []},
+    "/api/schemas": {"schemas": [{"name": "dataSet", "plural": "dataSets", "shareable": True, "dataShareable": True}]},
+    # The one schema stubbed shareable above (dataSet), so the sharing scan's data-driven
+    # `f"/api/{focus.plural}"` request (built from the /api/schemas response, not hardcoded) is
+    # actually issued and exercised, not just the never-taken static allowlist entry.
+    "/api/dataSets": {
+        "dataSets": [
+            {
+                "id": "ds1",
+                "name": "HIV",
+                "sharing": {"public": "--------", "external": False, "users": {}, "userGroups": {}},
+            }
+        ],
+        "pager": {"page": 1, "pageCount": 1, "total": 1},
+    },
     "/api/apps": [],
     "/api/appHub": [],
     "/api/routes": {"routes": []},
@@ -166,7 +179,14 @@ async def test_guardrail_hook_empty_base_path_matches_exactly() -> None:
 
 @pytest.mark.parametrize(("tree", "wire_version"), TREES, ids=[t[0] for t in TREES])
 async def test_full_audit_run_is_get_only_inside_allowlist(tree: str, wire_version: str, tmp_path: Path) -> None:
-    """Every request a complete audit run records is a read-only GET/HEAD against ALLOWED_AUDIT_PATHS."""
+    """Every request a complete audit run records is a read-only GET/HEAD against ALLOWED_AUDIT_PATHS.
+
+    Also asserts no check result comes back ERROR: per the orchestrator's isolation contract
+    (`run_audit`), any exception a check raises -- including a guardrail false-positive that turns
+    an in-allowlist request into a `GuardrailViolation` -- is caught and folded into an ERROR
+    CheckResult rather than aborting the run. Asserting only on `router.calls` would stay green
+    even if every check silently errored out, so this also checks the produced report directly.
+    """
     audit = _audit_module(tree)
     # assert_all_mocked (default) makes any unmocked endpoint raise, so a new off-allowlist read fails
     # loudly here; assert_all_called is disabled because the version trees hit divergent 2FA endpoints.
@@ -176,7 +196,7 @@ async def test_full_audit_run_is_get_only_inside_allowlist(tree: str, wire_versi
         for path, body in _RUN_ENDPOINTS.items():
             router.get(f"{BASE}{path}").mock(return_value=httpx.Response(200, json=body))
         profile = Profile(base_url=BASE, auth="pat", token="test-token")
-        await audit.run_security_audit(
+        report = await audit.run_security_audit(
             profile,
             output_dir=tmp_path,
             profile_name="probe",
@@ -193,6 +213,18 @@ async def test_full_audit_run_is_get_only_inside_allowlist(tree: str, wire_versi
         assert request.method in {"GET", "HEAD"}, f"{tree}: non-read-only request {request.method} {request.url.path}"
         assert request.url.host == "dhis2.example", f"{tree}: request left the target host: {request.url}"
         assert request.url.path in ALLOWED_AUDIT_PATHS, f"{tree}: path outside the allowlist: {request.url.path}"
+
+    errored = [r for r in report.results if r.status is CheckStatus.ERROR]
+    error_detail = ", ".join(f"{r.check}: {r.note}" for r in errored)
+    assert not errored, f"{tree}: check(s) came back ERROR (guardrail false-positive?): {error_detail}"
+
+    # The sharing scan's data-driven `/api/<plural>` request (built from the /api/schemas response,
+    # not a hardcoded literal) must actually have been issued and admitted by the allowlist.
+    recorded_paths = {call.request.url.path for call in recorded}
+    assert "/api/dataSets" in recorded_paths, (
+        f"{tree}: the data-driven sharing-scan request for the stubbed shareable schema never fired"
+    )
+    assert "/api/dataSets" in ALLOWED_AUDIT_PATHS, "the data-driven plural must itself be allowlisted"
 
 
 def test_allowed_audit_paths_is_the_read_surface_plus_connect() -> None:

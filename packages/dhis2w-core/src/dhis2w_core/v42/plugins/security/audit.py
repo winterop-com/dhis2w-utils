@@ -41,6 +41,7 @@ from dhis2w_core.security_core import (
     FetchedRole,
     FetchedShare,
     FetchedUser,
+    FocusTypeScan,
     HtmlRenderer,
     HubApp,
     InstalledApp,
@@ -744,10 +745,8 @@ async def _fetch_shareable_focus(client: Dhis2Client) -> list[ResolvedFocusType]
     return resolve_focus_types(schemas)
 
 
-async def _scan_focus_type(
-    client: Dhis2Client, focus: ResolvedFocusType, *, budget: int
-) -> tuple[int, list[FetchedObject], int, bool]:
-    """Page one focus type, returning (server total, retained objects, scanned count, capped flag).
+async def _scan_focus_type(client: Dhis2Client, focus: ResolvedFocusType, *, budget: int) -> FocusTypeScan:
+    """Page one focus type, returning its server total, retained objects, scanned count, and cap flag.
 
     Pages `/api/<plural>` keeping only objects with non-default sharing. Stops once `budget` objects
     have been scanned for this type, flagging that this type's scan was capped before exhausting it.
@@ -785,11 +784,11 @@ async def _scan_focus_type(
                 kept.append(obj)
             if scanned >= budget:
                 more_remaining = index < len(items) - 1 or more_pages
-                return server_total, kept, scanned, more_remaining
+                return FocusTypeScan(server_total=server_total, kept=kept, scanned=scanned, capped=more_remaining)
         if not more_pages:
             break
         page += 1
-    return server_total, kept, scanned, False
+    return FocusTypeScan(server_total=server_total, kept=kept, scanned=scanned, capped=False)
 
 
 def _parse_sharing_users(raw: dict[str, Any]) -> list[FetchedUser]:
@@ -897,11 +896,11 @@ async def _run_sharing(
                 truncated = True
                 capped_at = focus.name
                 break
-            total, kept, scanned, capped = await _scan_focus_type(client, focus, budget=remaining)
-            inventory.append(TypeInventory(type=focus.name, data_bearing=focus.data_bearing, total=total))
-            objects.extend(kept)
-            remaining -= scanned
-            if capped:
+            scan = await _scan_focus_type(client, focus, budget=remaining)
+            inventory.append(TypeInventory(type=focus.name, data_bearing=focus.data_bearing, total=scan.server_total))
+            objects.extend(scan.kept)
+            remaining -= scan.scanned
+            if scan.capped:
                 truncated = True
                 capped_at = focus.name
                 break

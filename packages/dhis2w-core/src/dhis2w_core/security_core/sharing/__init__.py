@@ -14,6 +14,7 @@ from dhis2w_core.security_core.sharing.builder import (
     FetchedRole,
     FetchedShare,
     FetchedUser,
+    FocusTypeScan,
     TypeInventory,
     build_sharing_graph,
 )
@@ -69,6 +70,7 @@ __all__ = [
     "FetchedRole",
     "FetchedShare",
     "FetchedUser",
+    "FocusTypeScan",
     "ManageEdge",
     "MembershipEdge",
     "ObjectNode",

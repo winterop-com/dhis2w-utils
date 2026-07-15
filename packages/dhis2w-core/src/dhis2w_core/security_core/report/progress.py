@@ -57,6 +57,9 @@ class PlainLogReporter:
         """Print the final one-line scorecard."""
         self._console.print(_scorecard(summary), markup=False, highlight=False)
 
+    def stop(self) -> None:
+        """Do nothing; the plain reporter holds no live display to tear down."""
+
 
 class RichProgressReporter:
     """Animates a spinner and a Step k of N counter, printing each completed step above it."""
@@ -99,6 +102,15 @@ class RichProgressReporter:
         """Stop the live display and print the final scorecard."""
         self._progress.stop()
         self._console.print(_scorecard(summary), markup=False, highlight=False)
+
+    def stop(self) -> None:
+        """Stop the live display without printing a scorecard; Rich's stop is idempotent.
+
+        The orchestrator calls this on every exit path (in its `finally`) so a writer error cannot
+        leave the Live display's refresh thread running and the terminal corrupted; `finish` still
+        owns the success-path scorecard.
+        """
+        self._progress.stop()
 
 
 def make_reporter(console: Console, *, animated: bool) -> ProgressReporter:

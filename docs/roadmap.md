@@ -144,10 +144,9 @@ private/internal/cloud-metadata hosts; a PAT posture check; an external login-me
 `--dhis-conf PATH` parses a local copy of `dhis.conf` with secret redaction enforced
 by construction. The whole scan is GET-only against an allowlist, with the
 credential probe the single deliberate exception (one login attempt) and the release
-feed the single external egress. Full design lives in `SECURITY-SCANNER-PLAN.md`
-(framework + checks) and `SECURITY-POSTURE-EXTRAS-PLAN.md` (the posture-extras
-checks); the [security plugin page](architecture/security-plugin.md) carries the
-extension recipe.
+feed the single external egress. The
+[security plugin page](architecture/security-plugin.md) carries the architecture and
+the extension recipe.
 
 The cheap MCP read surface has shipped (`security_settings` / `security_authorities` /
 `security_version`, read-only single-request tools mirroring the CLI; the long-running
@@ -155,8 +154,7 @@ The cheap MCP read surface has shipped (`security_settings` / `security_authorit
 directive grading, runtime CORS response headers, HSTS max-age, cross-origin-isolation
 headers, all-account hygiene aggregates, password-age, and the route-management
 dangerous-authority category) have all landed. The one remaining item is opt-in js-x-ray
-static analysis of installed-app JavaScript bundles (see
-`SECURITY-CHECKS-FROM-AUDITOR-APP-PLAN.md` section 4), deferred as a post-release
+static analysis of installed-app JavaScript bundles, deferred as a post-release
 sub-project with its own same-origin bundle-fetch guardrail surface.
 
 Writes (rotating credentials, toggling registration, editing security settings) stay

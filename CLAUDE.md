@@ -79,13 +79,13 @@ graph LR
 - Every method/function: one-line docstring.
 - Format: triple quotes `"""docstring"""`. Google style. Keep it one line when possible.
 
-## Keep FEATURES.md in sync with code
+## Keep docs/project/features.md in sync with code
 
-`FEATURES.md` is the user-facing feature catalog. When a PR adds, removes, or renames a plugin, CLI command, MCP tool, auth provider, client API, or any other user-visible capability, update `FEATURES.md` in the same PR. A stale feature list is worse than no feature list.
+`docs/project/features.md` is the user-facing feature catalog. When a PR adds, removes, or renames a plugin, CLI command, MCP tool, auth provider, client API, or any other user-visible capability, update `docs/project/features.md` in the same PR. A stale feature list is worse than no feature list.
 
 ## Keep docs and examples in sync with code
 
-Every behaviour-changing PR must leave `docs/`, `examples/`, and `FEATURES.md` matching the new reality. Not later — **in the same PR**.
+Every behaviour-changing PR must leave `docs/`, `examples/`, and `docs/project/features.md` matching the new reality. Not later — **in the same PR**.
 
 - Rename a kwarg, add a flag, change a return type, rename a directory? Grep for the old name across `docs/`, `examples/`, `README.md`, top-level architecture pages, and every `*.md` in `docs/guides/`. Update each hit or record an explicit reason not to.
 - Add a new plugin command or MCP tool? Add an example under `examples/v{41,42,43}/cli/` and `examples/v{41,42,43}/mcp/` (plus `examples/v{N}/client/` if the new surface has a library path) — three example files per change, one per version tree.
@@ -110,16 +110,6 @@ When you hit a DHIS2 behaviour that looks like a genuine bug or design surprise 
 - Any workaround applied in this repo (with a file path) so the workaround is discoverable when the upstream fix lands.
 
 The goal is to make it easy for the user to raise these upstream later without having to re-investigate. Don't pre-filter — if something surprised you enough to spend time on it, it's worth recording even if it turns out to be WAI on closer reading.
-
-## DHIS2 backend source available locally
-
-The full DHIS2 backend monorepo (Java/Maven) is checked out at:
-
-```
-/Users/netromsb/develop/dhis2/GARAGE/SLOT3/dhis-2
-```
-
-Whenever you need ground truth about how DHIS2 actually behaves — exact API response shapes, the real name of a system setting key, controller routes, default values, version-specific divergence, authority constants, etc. — read the source there instead of guessing or relying on docs alone. Useful entry points: `dhis-api` (interfaces and constants), `dhis-services` (business logic), `dhis-web-api` / `dhis-web-server` (controllers and endpoints). It is read-only reference; never build, modify, or run it from this repo's workflow.
 
 ## Greenfield language — don't narrate history this repo doesn't have
 

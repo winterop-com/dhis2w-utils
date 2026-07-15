@@ -13,8 +13,7 @@ with six publishable packages and one internal generator.
     command and tool counts are regenerated per release; the auto-built
     [CLI reference](../cli-reference.md) and [MCP tool reference](../mcp-reference.md)
     are the source of truth when a number here drifts. For where the project is
-    heading, see the [Roadmap](../roadmap.md) and the
-    [security scanner plan](planning/security-scanner.md).
+    heading, see the [Roadmap](../roadmap.md).
 
 ---
 

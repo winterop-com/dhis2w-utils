@@ -47,6 +47,17 @@ TWO_FACTOR_SOURCE: TwoFactorSource = TwoFactorSource.USER_FIELD
 OAUTH2_CLIENT_FIELDS = "cid,displayName,grantTypes,redirectUris"
 
 
+# The three field extractors below intentionally take the raw /api/users record rather than a
+# validated generated `User` (unlike `tokens_from_raw` / `oauth2_clients`, which validate each raw
+# record through its generated schema): pydantic's default lenient coercion accepts values the wire
+# contract must reject outright, e.g. `User.model_validate({"passwordLastUpdated": 123})` silently
+# turns the int into a valid epoch timestamp instead of failing, and `{"twoFactorEnabled": "yes"}`
+# coerces to `True`. That would defeat the deliberate `isinstance(value, str | bool)` guards below,
+# which treat any non-conforming wire value as absent rather than trust a type-coerced guess.
+# `test_security_hygiene.py` (test_password_last_updated_v41_reads_nested_user_credentials, and the
+# v42/v43 counterpart) pins the strict-or-None behaviour across all three trees, so these three stay
+# on `dict[str, Any]`; the nested `userCredentials` shape itself is a genuine, separate wire divergence
+# (BUGS.md #56), also not representable as a flat top-level read.
 def two_factor_enabled(user: dict[str, Any]) -> bool | None:
     """Read v41's per-user 2FA flag from the /api/users record (falls back to userCredentials.twoFA)."""
     value = user.get("twoFactorEnabled")

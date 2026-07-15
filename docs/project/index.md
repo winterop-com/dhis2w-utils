@@ -38,15 +38,6 @@ reference.
 
     [See the roadmap](../roadmap.md)
 
-- **Planning**
-
-    ---
-
-    Design notes for in-flight bodies of work, starting with the security
-    scanner (`d2w security audit`) in the `security` plugin.
-
-    [Open the plan](planning/security-scanner.md)
-
 - **Upstream DHIS2 quirks**
 
     ---

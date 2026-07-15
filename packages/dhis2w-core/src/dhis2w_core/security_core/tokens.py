@@ -3,8 +3,9 @@
 A DHIS2 Personal Access Token is a standing credential that authenticates API calls without an
 interactive login and without 2FA: a leaked long-lived PAT grants the full authority set of its owning
 user until it is manually revoked. The check inventories the tokens readable by the audited account via
-GET `/api/apiToken` and flags weak posture: tokens with no expiry (or an expiry already in the past),
-tokens with no IP allowlist, and the worst case of both together.
+GET `/api/apiToken` and flags weak posture: tokens with no expiry (HIGH, a live permanent credential),
+tokens already expired but never deleted (WARN, inert stale state), tokens with no IP allowlist, and the
+worst case of a never-expiring token with no IP allowlist.
 
 Scope is a runtime authority distinction, not a version one. `ApiToken` is `defaultPrivate(true)` and the
 list goes through the ACL-aware store filtered by `createdBy` ownership, so a non-superuser sees only its
@@ -72,14 +73,14 @@ class TokensInventory(BaseModel):
 
 
 def evaluate_tokens(inventory: TokensInventory, *, now_epoch_millis: int) -> CheckOutcome:
-    """Record the PAT controls (inventory, non-expiring, missing IP allowlist) plus the scope caveat.
+    """Record the PAT controls (inventory, non-expiring, expired-not-deleted, no-IP-allowlist) plus scope.
 
     `now_epoch_millis` is the reference time the expired-but-not-deleted detection compares each token's
     expiry against; the caller (the I/O-edge runner) supplies it so this reducer stays deterministic and
     never reads the clock.
     """
     log = ControlLog(_CHECK)
-    log.mark_passed("tokens-non-expiring", "tokens-no-ip-allowlist")
+    log.mark_passed("tokens-non-expiring", "tokens-expired-not-deleted", "tokens-no-ip-allowlist")
     if inventory.tokens:
         log.record(_inventory_finding(inventory))
     else:
@@ -93,22 +94,24 @@ def evaluate_tokens(inventory: TokensInventory, *, now_epoch_millis: int) -> Che
 
 
 def _token_findings(token: TokenView, *, now_epoch_millis: int) -> list[AuditFinding]:
-    """Per-token findings: non-expiring (or expired-but-live) and a missing IP allowlist, with the worst case."""
+    """Per-token findings: non-expiring OR expired-but-undeleted, and a missing IP allowlist.
+
+    The two expiry states are distinct verdicts: a token with no expiry is a live permanent credential
+    (HIGH); a token whose expiry has already passed is inert (DHIS2 rejects it server-side) and only a
+    hygiene cleanup item (WARN). The no-IP-allowlist worst case combines only with the live
+    never-expiring state, never with an inert expired token.
+    """
     findings: list[AuditFinding] = []
-    non_expiring = _is_non_expiring(token, now_epoch_millis=now_epoch_millis)
+    non_expiring = token.expire_epoch_millis is None
+    expired = token.expire_epoch_millis is not None and token.expire_epoch_millis < now_epoch_millis
     no_ip_allowlist = not token.allowlists.ips
     if non_expiring:
-        findings.append(_non_expiring_finding(token, now_epoch_millis=now_epoch_millis))
+        findings.append(_non_expiring_finding(token))
+    elif expired:
+        findings.append(_expired_not_deleted_finding(token, now_epoch_millis=now_epoch_millis))
     if no_ip_allowlist:
         findings.append(_no_ip_allowlist_finding(token, worst_case=non_expiring))
     return findings
-
-
-def _is_non_expiring(token: TokenView, *, now_epoch_millis: int) -> bool:
-    """True when the token has no expiry, or an expiry epoch already in the past (expired but not deleted)."""
-    if token.expire_epoch_millis is None:
-        return True
-    return token.expire_epoch_millis < now_epoch_millis
 
 
 def _inventory_finding(inventory: TokensInventory) -> AuditFinding:
@@ -121,7 +124,7 @@ def _inventory_finding(inventory: TokensInventory) -> AuditFinding:
     types = sorted({token.token_type for token in tokens})
     return AuditFinding(
         check=_CHECK,
-        severity=Severity.MEDIUM,
+        severity=Severity.INFO,
         title="Personal access token inventory",
         detail=(
             f"{len(tokens)} personal access token(s) visible to the audited account "
@@ -142,15 +145,14 @@ def _inventory_finding(inventory: TokensInventory) -> AuditFinding:
     )
 
 
-def _non_expiring_finding(token: TokenView, *, now_epoch_millis: int) -> AuditFinding:
-    """Flag a token that never expires, or whose expiry epoch is already past (expired but not revoked)."""
-    expiry = _expiry_text(token, now_epoch_millis=now_epoch_millis)
+def _non_expiring_finding(token: TokenView) -> AuditFinding:
+    """Flag a token that never expires: a live permanent credential."""
     return AuditFinding(
         check=_CHECK,
         severity=Severity.HIGH,
         title="Non-expiring personal access token",
         detail=(
-            f"Token '{token.name or token.id}' (type {token.token_type}) has {expiry}. A token with no "
+            f"Token '{token.name or token.id}' (type {token.token_type}) has no expiry. A token with no "
             "expiry is a permanent credential; if it leaks it grants standing API access until manually "
             "revoked. Within readable scope only."
         ),
@@ -159,10 +161,38 @@ def _non_expiring_finding(token: TokenView, *, now_epoch_millis: int) -> AuditFi
         evidence={
             "token": token.name or token.id,
             "type": token.token_type,
-            "expires": expiry,
+            "expires": "never",
             "created": token.created or "unknown",
         },
         control="tokens-non-expiring",
+    )
+
+
+def _expired_not_deleted_finding(token: TokenView, *, now_epoch_millis: int) -> AuditFinding:
+    """Flag a token whose expiry has passed but which was never deleted: inert, but stale-state hygiene.
+
+    DHIS2 rejects an expired token server-side, so this is NOT a live credential; the risk is limited
+    to inventory clutter and the signal that token lifecycle cleanup is not happening. WARN, not HIGH.
+    """
+    expiry = _expiry_text(token, now_epoch_millis=now_epoch_millis)
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.WARN,
+        title="Expired personal access token not deleted",
+        detail=(
+            f"Token '{token.name or token.id}' (type {token.token_type}) {expiry}. An expired token is "
+            "rejected by DHIS2 and grants no access, but leaving it undeleted clutters the inventory and "
+            "suggests token lifecycle cleanup is not happening. Delete it. Within readable scope only."
+        ),
+        subject=token.name or token.id,
+        group_key="tokens-expired-not-deleted",
+        evidence={
+            "token": token.name or token.id,
+            "type": token.token_type,
+            "expires": expiry,
+            "created": token.created or "unknown",
+        },
+        control="tokens-expired-not-deleted",
     )
 
 

@@ -38,17 +38,17 @@ def compute_effective_access(graph: SharingGraph) -> list[EffectiveAccess]:
     shares_by_object = _shares_by_object(graph)
     return [
         _object_effective(
-            obj_uid=obj.uid,
-            owner=obj.owner,
-            public=obj.public,
-            external=obj.external,
-            shares=shares_by_object.get(obj.uid, []),
+            obj_uid=object_node.uid,
+            owner=object_node.owner,
+            public=object_node.public,
+            external=object_node.external,
+            shares=shares_by_object.get(object_node.uid, []),
             enabled=enabled,
             enabled_count=enabled_count,
             superuser_uids=superuser_uids,
             members_by_group=members_by_group,
         )
-        for obj in graph.objects
+        for object_node in graph.objects
     ]
 
 

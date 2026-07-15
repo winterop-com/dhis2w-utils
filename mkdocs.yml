@@ -194,9 +194,7 @@ nav:
       - Feature catalog: project/features.md
       - Changelog: project/changelog.md
       - Upstream DHIS2 quirks: project/upstream-quirks.md
-      - Planning:
-          - Roadmap: roadmap.md
-          - Security scanner: project/planning/security-scanner.md
+      - Roadmap: roadmap.md
 
 markdown_extensions:
   - admonition

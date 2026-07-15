@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from dhis2w_core.security_core import (
     AuditFinding,
     AuditReport,
@@ -293,6 +294,71 @@ def _two_bound_checks() -> list[BoundCheck]:
         BoundCheck(key="settings", label="System security settings", run=_settings_result),
         BoundCheck(key="authorities", label="Audited account authorities", run=_authorities_result),
     ]
+
+
+class _RecordingReporter:
+    """A ProgressReporter that records lifecycle calls, for teardown-contract assertions."""
+
+    def __init__(self) -> None:
+        """Start with no recorded calls."""
+        self.stopped = False
+        self.finished = False
+
+    def start(self, total: int) -> None:
+        """Record nothing; start is not under test."""
+
+    def step(self, index: int, total: int, label: str) -> None:
+        """Record nothing; step is not under test."""
+
+    def complete(self, index: int, total: int, result: CheckResult) -> None:
+        """Record nothing; complete is not under test."""
+
+    def finish(self, summary: AuditSummary) -> None:
+        """Record that the success-path finish ran."""
+        self.finished = True
+
+    def stop(self) -> None:
+        """Record that the display was torn down."""
+        self.stopped = True
+
+
+async def test_run_audit_stops_reporter_when_writer_raises(tmp_path: Path) -> None:
+    """A writer error must still tear the progress display down, or a Rich Live refresh thread leaks.
+
+    Regression: reporter teardown sat after the `finally`, so any exception from write_result/finalize
+    skipped it, leaving the live display running and the terminal corrupted.
+    """
+
+    class _ExplodingWriter:
+        def write_result(self, result: CheckResult) -> None:
+            raise OSError("disk full")
+
+        def finalize(self, report: AuditReport) -> None:
+            raise AssertionError("finalize must not be reached")
+
+        def close(self) -> None:
+            pass
+
+    reporter = _RecordingReporter()
+    with pytest.raises(OSError, match="disk full"):
+        await run_audit(
+            manifest=_MANIFEST,
+            checks=_two_bound_checks(),
+            writer=_ExplodingWriter(),  # type: ignore[arg-type]
+            reporter=reporter,
+        )
+    assert reporter.stopped, "reporter.stop() must run on the exception path"
+    assert not reporter.finished, "finish() owns the success path only"
+
+
+async def test_run_audit_stops_and_finishes_reporter_on_success(tmp_path: Path) -> None:
+    """On the success path the reporter is both stopped (teardown) and finished (scorecard)."""
+    folder = tmp_path / "run"
+    writer = ReportWriter(folder, _MANIFEST, streaming_renderer=MarkdownRenderer(), finalize_renderers=[])
+    reporter = _RecordingReporter()
+    await run_audit(manifest=_MANIFEST, checks=_two_bound_checks(), writer=writer, reporter=reporter)
+    assert reporter.stopped
+    assert reporter.finished
 
 
 async def test_run_audit_creates_all_output_files(tmp_path: Path) -> None:

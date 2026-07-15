@@ -151,7 +151,7 @@ def audit_command(
         bool,
         typer.Option(
             "--two-factor-detail/--no-two-factor-detail",
-            help="On v43+, also list each superuser lacking 2FA (per-user /api/users/twoFactor read).",
+            help="On v42+, also list each superuser lacking 2FA (per-user /api/users/twoFactor read).",
         ),
     ] = False,
     max_objects: Annotated[

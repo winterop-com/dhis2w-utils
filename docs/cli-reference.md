@@ -9224,6 +9224,7 @@ $ d2w security audit [OPTIONS]
 * `--sharing-graph, --visualize`: Also write the interactive d3 sharing explorer (sharing-explorer.html) into the run folder.
 * `--resume DIRECTORY`: Resume an interrupted run folder.
 * `--dhis-conf FILE`: Path to a local COPY of the server&#x27;s dhis.conf for the audit-config check. The audit posture is not API-readable; secrets are reported set/not-set only and never echoed.  [env var: DHIS2_CONF_LOCATION]
+* `--version-fallback / --no-version-fallback`: When the server&#x27;s exact generated tree is not shipped (e.g. a dev/master build), bind the nearest lower generated tree instead of failing.  [default: no-version-fallback]
 * `--help`: Show this message and exit.
 
 ### `d2w security report`
