@@ -16,7 +16,7 @@ classifiers = [
 ]
 dependencies = [
   "dhis2w-core>=1.3.0,<2.0",
-  "typer>=0.26",
+  "typer>=0.27.0",
   "rich>=15",
 ]
 
