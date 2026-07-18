@@ -11,7 +11,7 @@ v41 is exempt: its `/api/authorities` endpoint returns 500 (BUGS.md #45).
 
 Marked `@pytest.mark.contract` so it runs in the dedicated CI job
 (`.github/workflows/contract.yml`) and not as part of `make test`. Play
-being unreachable skips rather than fails.
+being unreachable or down (gateway 502/503/504) skips rather than fails.
 """
 
 from __future__ import annotations
@@ -27,19 +27,23 @@ PLAY_URLS = {
 
 TAXONOMY_STRINGS: frozenset[str] = frozenset().union(*(category.authorities for category in AUTHORITY_CATEGORIES))
 
+_OUTAGE_STATUS_CODES = frozenset({502, 503, 504})
+
 
 async def _fetch_inventory(base_url: str) -> set[str]:
-    """Return the authority id inventory from a live instance, skipping only if unreachable.
+    """Return the authority id inventory from a live instance, skipping only if it's down.
 
-    Only network-level failures (`httpx.RequestError`) skip; an HTTP error
-    status fails the test — a 401/500 from the endpoint must not turn into
-    a green run that validated nothing.
+    Network-level failures (`httpx.RequestError`) and gateway outage statuses
+    (502/503/504) skip; any other HTTP error status fails the test — a 401/500
+    from the endpoint must not turn into a green run that validated nothing.
     """
     try:
         async with httpx.AsyncClient(auth=("admin", "district"), timeout=30.0) as client:
             response = await client.get(f"{base_url}/api/authorities")
     except httpx.RequestError as exc:
         pytest.skip(f"play instance {base_url} unreachable: {exc}")
+    if response.status_code in _OUTAGE_STATUS_CODES:
+        pytest.skip(f"play instance {base_url} down ({response.status_code})")
     response.raise_for_status()
     body = response.json()
     return {entry["id"] for entry in body.get("systemAuthorities", [])}
