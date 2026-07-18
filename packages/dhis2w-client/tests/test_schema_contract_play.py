@@ -67,14 +67,26 @@ PLAY_URLS = {
 }
 
 
+_OUTAGE_STATUS_CODES = frozenset({502, 503, 504})
+
+
 async def _make_client(url: str) -> AsyncIterator[Dhis2Client]:
-    """Connect to a play instance, skipping the test if it's unreachable."""
+    """Connect to a play instance, skipping the test if it's unreachable or down.
+
+    Network-level failures and gateway outage statuses (502/503/504) skip;
+    any other API error status fails, since it points at the endpoint rather
+    than the instance being down.
+    """
     client = Dhis2Client(url, auth=BasicAuth(username="admin", password="district"), allow_version_fallback=True)
     try:
         try:
             await client.connect()
         except httpx.HTTPError as exc:
             pytest.skip(f"play instance {url} unreachable: {exc}")
+        except Dhis2ApiError as exc:
+            if exc.status_code in _OUTAGE_STATUS_CODES:
+                pytest.skip(f"play instance {url} down ({exc.status_code}): {exc.message}")
+            raise
         yield client
     finally:
         await client.close()
