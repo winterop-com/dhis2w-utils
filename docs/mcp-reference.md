@@ -2,7 +2,7 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 315 across 15 plugin groups.
+**Total tools**: 318 across 16 plugin groups.
 
 ## Plugins
 
@@ -19,6 +19,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 - [`profile_*`](#profile) — 4 tools
 - [`query_*`](#query) — 3 tools
 - [`route_*`](#route) — 7 tools
+- [`security_*`](#security) — 3 tools
 - [`system_*`](#system) — 9 tools
 - [`user_*`](#user) — 15 tools
 
@@ -3325,6 +3326,32 @@ Replace a route via PUT /api/routes/{uid} (full-object semantics).
 | --- | --- | --- | --- |
 | `route` | `string` | yes | — |
 | `payload` | `object` | yes | Typed body for `POST /api/routes` + `PUT /api/routes/{uid}`.  DHIS2 accepts (and requires on create) at least `code`, `name`, `url`. `extra="allow"` preserves anything else the server cares about that isn't explicitly typed here.  `auth` is the discriminated `AuthScheme` union — one of five typed variants keyed on `type`. The codegen `spec_patches` module synthesises the Jackson discriminator that upstream DHIS2 omits (BUGS.md #14), so this field is fully typed end-to-end. Callers either build a concrete variant directly (e.g. `HttpBasicAuthScheme(username=..., password=...)`) or pass a raw dict with a `type` key and pydantic routes it to the right subclass. |
+| `profile` | `string` | no | — |
+
+## `security`
+
+### `security_authorities`
+
+Read the authenticated account's effective authorities, risk-categorised (one GET).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `profile` | `string` | no | — |
+
+### `security_settings`
+
+Read the security slice of /api/systemSettings (one GET).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `profile` | `string` | no | — |
+
+### `security_version`
+
+Read the DHIS2 version and classify its EOL/advisory posture (one GET, no external egress).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
 | `profile` | `string` | no | — |
 
 ## `system`

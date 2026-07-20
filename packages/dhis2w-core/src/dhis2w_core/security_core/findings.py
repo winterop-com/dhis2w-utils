@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from enum import StrEnum
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -37,19 +36,24 @@ HIGH_RISK_ROLE_CATEGORIES: frozenset[str] = frozenset(
         "sql_views",
         "metadata_io",
         "user_management",
+        "route_management",
     }
 )
 
 
 class AuditFinding(BaseModel):
-    """One security audit finding; a single row in audit output."""
+    """One security audit finding: a single row in a check's result."""
 
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["instance", "role", "user", "app", "guest"]
-    subject: str
+    check: str
     severity: Severity
-    details: str
+    title: str
+    detail: str
+    subject: str | None = None
+    evidence: dict[str, str] | None = None
+    group_key: str | None = None
+    control: str | None = None
 
 
 def severity_rank(severity: Severity) -> int:
@@ -57,11 +61,13 @@ def severity_rank(severity: Severity) -> int:
     return SEVERITY_ORDER.index(severity)
 
 
-def role_severity(categories: Iterable[str], *, has_all: bool) -> Severity:
-    """ALL roles are CRITICAL; high-impact categories HIGH; the rest MEDIUM."""
-    keys = set(categories)
-    if has_all or "superuser" in keys:
-        return Severity.CRITICAL
-    if keys & HIGH_RISK_ROLE_CATEGORIES:
+def role_severity(categories: Iterable[str]) -> Severity:
+    """High-impact authority categories are HIGH; the rest MEDIUM."""
+    if set(categories) & HIGH_RISK_ROLE_CATEGORIES:
         return Severity.HIGH
     return Severity.MEDIUM
+
+
+def finding_sort_key(finding: AuditFinding) -> tuple[int, str]:
+    """Sort findings most-urgent first, then by title, for stable output."""
+    return (severity_rank(finding.severity), finding.title.lower())

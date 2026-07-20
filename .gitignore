@@ -81,9 +81,19 @@ dmypy.json
 # Jupyter
 .ipynb_checkpoints
 
+# oh-my-claudecode session state
+.omc/
+
+# Security audit scanner report bundles (timestamped output directories)
+dhis2-security-*/
+
 # Playwright MCP session artefacts (per-run console logs + page snapshots)
 .playwright-mcp/
 .claude/
 *.png
 # Committed brand assets — applied by the e2e seed via `Dhis2Client.customize`
 !infra/login-customization/*.png
+# Committed report + sharing explorer bundle assets — shipped as package data,
+# copied into each run folder
+!packages/dhis2w-core/src/dhis2w_core/security_core/report/assets/*.png
+!packages/dhis2w-core/src/dhis2w_core/security_core/sharing/assets/*.png

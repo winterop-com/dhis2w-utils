@@ -20,7 +20,7 @@ A running inventory of what the workspace covers today, gaps surfaced during use
 
 ### CLI surface
 
-Eighteen top-level domains: `analytics`, `apps`, `browser`, `data`, `dev`, `doctor`, `files`, `maintenance`, `messaging`, `metadata`, `profile`, `route`, `schema`, `security`, `system`, `user`, `user-group`, `user-role`. Each plugin shares a `service.py` between the CLI and MCP sides; the same typed call from both surfaces.
+Twenty-one top-level domains: `analytics`, `apps`, `browser`, `customize`, `data`, `datastore`, `dev`, `doctor`, `files`, `maintenance`, `messaging`, `metadata`, `profile`, `query`, `route`, `schema`, `security`, `system`, `user`, `user-group`, `user-role`. Each plugin shares a `service.py` between the CLI and MCP sides; the same typed call from both surfaces.
 
 `d2w metadata` has the full workflow surface:
 
@@ -33,7 +33,7 @@ Eighteen top-level domains: `analytics`, `apps`, `browser`, `data`, `dev`, `doct
 
 ### MCP surface
 
-Roughly 304 tools across 13 plugin groups (`analytics_*`, `apps_*`, `customize_*`, `data_*`, `doctor_*`, `files_*`, `maintenance_*`, `messaging_*`, `metadata_*` (~197), `profile_*`, `route_*`, `system_*`, `user_*`). Counts age with each release; the auto-regenerated [MCP reference](mcp-reference.md) is the source of truth. Most operational CLI commands have a matching MCP tool; `d2w dev`, `d2w browser`, and profile mutations are intentionally CLI-only (see the [capability matrix](index.md#capability-matrix)).
+Roughly 318 tools across 16 plugin groups (`analytics_*`, `apps_*`, `customize_*`, `data_*`, `datastore_*`, `doctor_*`, `files_*`, `maintenance_*`, `messaging_*`, `metadata_*` (~197), `profile_*`, `query_*`, `route_*`, `security_*`, `system_*`, `user_*`). Counts age with each release; the auto-regenerated [MCP reference](mcp-reference.md) is the source of truth. Most operational CLI commands have a matching MCP tool; `d2w dev`, `d2w browser`, and profile mutations are intentionally CLI-only (see the [capability matrix](index.md#capability-matrix)).
 
 There are **three MCP surfaces** over this tool set — the full server, the single-tool bridge, and the search+dispatch router. The [MCP surfaces map](architecture/mcp-surfaces.md) compares them and explains how to choose; all three carry a `*_READONLY` guard.
 
@@ -100,21 +100,21 @@ Public distribution is now active — every workspace member (except `dhis2w-cod
 
 ### Docs
 
-- Auto-generated **CLI reference** (`docs/cli-reference.md`, ~10,300 lines from the Typer app) + **MCP reference** (`docs/mcp-reference.md`, roughly 304 tools across 13 groups from the FastMCP server). Both regenerated on every `make docs-build`; the counts age with each release.
+- Auto-generated **CLI reference** (`docs/cli-reference.md`, ~10,300 lines from the Typer app) + **MCP reference** (`docs/mcp-reference.md`, roughly 318 tools across 16 groups from the FastMCP server). Both regenerated on every `make docs-build`; the counts age with each release.
 - **Narrative tutorials**: `docs/guides/cli-tutorial.md`, `docs/guides/client-tutorial.md`, `docs/guides/visualizations.md` (step-by-step viz + dashboard composition).
 - **Examples index** (`docs/examples.md`) catalogues the canonical v42 example set spread across cli / client / mcp on the v42 tree; v41 + v43 mirror most of them. Per-version totals printed by `ls examples/v{41,42,43}/{cli,client,mcp}/` (the source of truth). Tracker-schema authoring examples (steps 1 / 2 / 3 under `examples/v42/cli/tracker_*.sh`) round-trip the full chain end-to-end.
 - **Architecture docs** cover every plugin, the client, auth, profiles, codegen, typed schemas, plugins runtime, external plugins, MCP, versioning, browser automation.
-- **`BUGS.md`** — nearly 40 upstream DHIS2 quirks with live `curl` repros + v43 re-audit status (entry count drifts as new ones land; the file itself is the source of truth).
+- **`BUGS.md`** — over 70 upstream DHIS2 quirks with live `curl` repros + v43 re-audit status (entry count drifts as new ones land; the file itself is the source of truth).
 
 ### Test coverage
 
-Roughly 1,180 tests collected (`uv run pytest --collect-only -q | tail -1` is the source of truth); the mocked tier runs in seconds via `make test`, and the slow-marked + contract tiers run in `make test-slow` / `make test-contract` against a live stack (Playwright PAT creation, dashboard screenshot capture, Playwright-driven OIDC login, contract tests against `play.im.dhis2.org/dev-2-{42,43}`). Unit + CliRunner + respx-mocked HTTP; integration paths use in-process FastMCP `Client` against the real plugin tree. `make coverage` runs branch-coverage locally + on every CI run (produces `coverage.xml` as an artifact); the per-PR floor is set at 70%.
+Roughly 4,500 tests collected (`uv run pytest --collect-only -q | tail -1` is the source of truth); the mocked tier runs in seconds via `make test`, and the slow-marked + contract tiers run in `make test-slow` / `make test-contract` against a live stack (Playwright PAT creation, dashboard screenshot capture, Playwright-driven OIDC login, contract tests against `play.im.dhis2.org/dev-2-{42,43}`). Unit + CliRunner + respx-mocked HTTP; integration paths use in-process FastMCP `Client` against the real plugin tree. `make coverage` runs branch-coverage locally + on every CI run (produces `coverage.xml` as an artifact); the per-PR floor is set at 70%.
 
 Detailed test gaps + the planned next moves are in [Testing roadmap](#testing-roadmap) below.
 
 ### Upstream quirks tracked
 
-Roughly forty entries in the repo-root `BUGS.md` (the file is the source of truth — `grep -c '^- \[#' BUGS.md` prints the live count). Recent additions cover the seed / workflow cycle: DataSet Hibernate flush ordering (#23), Person-TET built-in name collisions (#24), `/api/.../metadata` leaking computed fields (#25), admin OU scope cached per session (#26), fresh-install flakiness on first metadata import (#27), `RelativePeriods` OAS schema shape (#28), `/api/metadata` ignoring `rootJunction` (#29 — the reason `metadata search` has to fan out N requests instead of one), App Hub `versions[*].created` returning epoch-millis ints instead of ISO-8601 strings (#30), and the predictor-expression parser rejecting uppercase aggregators (#31 — forces `avg()` / `sum()` lowercase even though DHIS2 docs use uppercase). The v43-specific cluster (#33–#38) plus the v41 OAuth2 wire-shape quirk (#39) round out the recent set.
+Roughly seventy entries in the repo-root `BUGS.md` (the file is the source of truth — `grep -c '^- \[#' BUGS.md` prints the live count); the security-scanner cycle added the #50-#61 cluster. Recent additions cover the seed / workflow cycle: DataSet Hibernate flush ordering (#23), Person-TET built-in name collisions (#24), `/api/.../metadata` leaking computed fields (#25), admin OU scope cached per session (#26), fresh-install flakiness on first metadata import (#27), `RelativePeriods` OAS schema shape (#28), `/api/metadata` ignoring `rootJunction` (#29 — the reason `metadata search` has to fan out N requests instead of one), App Hub `versions[*].created` returning epoch-millis ints instead of ISO-8601 strings (#30), and the predictor-expression parser rejecting uppercase aggregators (#31 — forces `avg()` / `sum()` lowercase even though DHIS2 docs use uppercase). The v43-specific cluster (#33–#38) plus the v41 OAuth2 wire-shape quirk (#39) round out the recent set.
 
 ## Gaps surfaced during use
 
@@ -124,19 +124,61 @@ The organisation-unit PR (#174) set a template — canonical DHIS2 resource name
 
 Optional `ProgramStageSection` grouping (rarely used in practice) is still unauthored; reach for `metadata patch` for it. That's the only known absence and it stays parked unless a concrete caller surfaces.
 
-### Security plugin: read-surface build-out
+### Security plugin: read-only posture scanner
 
-`d2w security` ships its first command — `settings` (the security slice of
-`/api/systemSettings`: password policy, credential expiry, registration, lockout).
-Deliberately small and read-only, built to grow one command at a time. The
-[security plugin page](architecture/security-plugin.md) carries a step-by-step
-extension recipe (service -> cli -> sweep v41/v43 -> example x3 -> docs -> test, plus
-how to add an MCP surface). Candidate next commands, read-only first:
+`d2w security` ships a read-only DHIS2 security scanner. Alongside `settings` (the
+security slice of `/api/systemSettings`) and `authorities` (the caller's effective
+authorities, categorised), the headline command is `d2w security audit`: it runs the
+full 14-check catalog step by step, streams a crash-safe, resumable report to a run
+folder in four human formats (md/txt/csv/html) plus a JSONL machine spine, and
+prints a severity scorecard. `d2w security report <folder>` re-renders any format
+from the spine without re-scanning.
 
-- `d2w security whoami` — authenticated user + roles + authority count (`/api/me`; typed `Me` exists).
-- `d2w security authorities` — effective authorities (`/api/me/authorities`).
-- `d2w security password-policy --lint` — pass/warn checks over `settings` against a baseline (sibling of the `doctor` probe model).
-- `d2w security sharing-defaults` — default public-access / authority-grant settings for new metadata.
+The 14 checks (in run order): version, transport, settings, authorities, roles,
+hygiene, credential-probe, guest, apps, sharing, auth-methods, tokens, routes,
+audit-config. Highlights: an opt-in `admin/district` default-credential probe (one
+Basic `GET /api/me`, never retried); an opt-in interactive d3 sharing explorer
+(`--sharing-graph`); a routes SSRF check that flags Route destinations on
+private/internal/cloud-metadata hosts; a PAT posture check; an external login-methods
+(OIDC + OAuth2 client) inventory; and an `audit-config` check whose optional
+`--dhis-conf PATH` parses a local copy of `dhis.conf` with secret redaction enforced
+by construction. The whole scan is GET-only against an allowlist, with the
+credential probe the single deliberate exception (one login attempt) and the release
+feed the single external egress. The
+[security plugin page](architecture/security-plugin.md) carries the architecture and
+the extension recipe.
+
+The cheap MCP read surface has shipped (`security_settings` / `security_authorities` /
+`security_version`, read-only single-request tools mirroring the CLI; the long-running
+`audit` stays CLI-only). The full 14-check catalog plus the auditor-app gap checks (CSP
+directive grading, runtime CORS response headers, HSTS max-age, cross-origin-isolation
+headers, all-account hygiene aggregates, password-age, and the route-management
+dangerous-authority category) have all landed. The one remaining check item is opt-in
+js-x-ray static analysis of installed-app JavaScript bundles, deferred as a post-release
+sub-project with its own same-origin bundle-fetch guardrail surface.
+
+Follow-ups deferred from the PR #452 review, in priority order:
+
+- **Make the HTML report bundle genuinely self-contained.** `support.js` loads React +
+  ReactDOM UMD builds from unpkg.com at page open (SRI-pinned, but offline the report
+  renders a blank page, and opening it phones out to unpkg), and `report.dc.html`
+  pulls three font families from Google Fonts. Vendor the two React UMD files beside
+  the bundle the way the sharing explorer vendors `d3.min.js`, and vendor or drop the
+  web fonts. Highest priority of this list: a security audit report is exactly the
+  artifact opened inside restricted or air-gapped networks.
+- **Strip the dormant remote-code machinery from `support.js`.** The `x-import`
+  subsystem fetches arbitrary external JS/JSX URLs, loads `@babel/standalone` from
+  unpkg, and executes fetched code via `new Function(...)`; an editor bridge
+  `postMessage`s report metadata to any embedding parent with origin `"*"`. None of it
+  is reachable from the shipped template today, but it is live, unreferenced attack
+  surface inside a security deliverable. The report only needs the template compiler
+  and the escaping path. While in there, reword the file header to state provenance
+  honestly (adopted transpiler output as source; no build step exists).
+- **Sync the feature catalog with the review-round severity changes.**
+  `docs/project/features.md` and the CHANGELOG tokens entry still describe the
+  pre-review verdicts (expired-but-undeleted PAT as HIGH under the non-expiring
+  finding, a MEDIUM token inventory, zero-protection HSTS as WARN) and omit the
+  `tokens-expired-not-deleted` control.
 
 Writes (rotating credentials, toggling registration, editing security settings) stay
 out of scope until a concrete caller needs them.
@@ -222,20 +264,20 @@ Surfaced by the `dhis2w-mcp-bridge` gap probes (small local models driving the C
 - **Removed typed `list` discoverability** — point `metadata <subapp> list`/`show` at `metadata list <type>` / `get` (hidden redirect commands or epilog).
 - ~~**Missing authoring verbs: `optionSets` + `userGroups` `create`/`delete`**~~ Shipped: `metadata option-sets create/delete` + `user-group create/delete` (build the schema, POST via `resources.<accessor>.create`, return a typed WebMessageResponse). v41/v42/v43 + tests + examples.
 - ~~**Inline tracker delete**~~ Shipped: `data tracker delete` / `event delete` / `enrollment delete` via `delete_tracker_objects` (minimal bundle + importStrategy=DELETE). v41/v42/v43 + tests + examples.
-- **Removed typed `list` discoverability** — point `metadata <subapp> list`/`show` at `metadata list <type>` / `get` (hidden redirect commands or epilog).
 - **`data aggregate get` is keyed by dataSet, `set` by dataElement** — can't verify a write with the same key; consider a `--de` filter on `get`.
 
 ## Near-term plan (next 3–5 PRs)
 
 Latest cycle closed the **category-dimension strategic option** (Category #205, CategoryCombo + read-only CategoryOptionCombo #208, the one-pass `CategoryComboBuilder` create-or-reuse helper #209) plus the smaller `metadata merge-bundle` verb (#206). With every authoring path on the main workflow now covered, the codegen emitters fully regen-stable, and bulk verbs (rename / retag / share) shipped on top of `patch_bulk` / `apply_sharing_bulk`, the obvious tactical sweep is complete.
 
-**The near-term slate is once again open.** The multi-version CI integration matrix (long-standing carry-over) and the `*Spec`-class audit are both resolved — the matrix runs `e2e.yml` across `dhis2_version: [42, 43]` nightly; the spec audit settled on `VisualizationSpec` / `MapSpec` + `MapLayerSpec` / `LegendSetSpec` + `LegendSpec` (the rule for when a spec is justified is documented on `api/legend-sets.md`).
+**The near-term slate is once again open.** The multi-version CI integration matrix (long-standing carry-over) and the `*Spec`-class audit are both resolved — the matrix runs `e2e.yml` across `dhis2_version: [41, 42, 43]` nightly; the spec audit settled on `VisualizationSpec` / `MapSpec` + `MapLayerSpec` / `LegendSetSpec` + `LegendSpec` (the rule for when a spec is justified is documented on `api/legend-sets.md`).
 
 The natural next direction is one of:
 
 - **Pick one of the two remaining strategic options** below and commit to a multi-PR body of work (data approval workflow, or audit log reader).
-- **Promote a medium-term tactical item** (CLI startup latency, property-based DSL tests) for a focused 1-PR cycle.
-- **Land A1** (live-schema contract tests against play) — now first in the recommended testing order.
+- **Promote a medium-term tactical item** (client cold-open latency, the A4 filter-DSL / URL property tests) for a focused 1-PR cycle.
+- **Land the security-report follow-ups** (vendored React + fonts, `support.js` trim) — see the security plugin section above.
+- **Start A6** (plugin coverage gaps) — the main remaining Tier A testing item.
 
 Demoted / parked:
 
@@ -304,7 +346,7 @@ The unique shape of this project — **we generate code from a moving REST API, 
 | Layer                  | What can break                                                  | Today                                                                       | Strongest tool                                |
 | ---------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------- |
 | Static                 | Type errors, unused imports, dead code                          | ruff + mypy + pyright (good)                                                | + add `deptry` for unused / missing deps      |
-| Unit                   | Pure logic, parsers, builders                                   | ~1,100 tests, respx-mocked HTTP (good)                                      | + property-based + mutation                   |
+| Unit                   | Pure logic, parsers, builders                                   | ~4,500 tests, respx-mocked HTTP (good)                                      | + property-based + mutation                   |
 | Codegen                | Generator emits wrong code                                      | Snapshot tests on the emitted tree pin the diff per PR                      | + mutation tests on the templates             |
 | Schema contract        | Generated code stops matching live API                          | `@pytest.mark.contract` suite hits `play.im.dhis2.org/dev-2-{42,43}`        | Widen to more resources + nightly cron        |
 | Live integration       | End-to-end against real DHIS2                                   | E2E workflow matrix runs `make test-slow` against docker stack v41/v42/v43  | Add a read-only per-PR contract pass          |
@@ -322,16 +364,11 @@ The unique shape of this project — **we generate code from a moving REST API, 
 **A3. Multi-version CI matrix** — **shipped.**
 `.github/workflows/e2e.yml` runs nightly across `dhis2_version: [41, 42, 43]`. Each matrix job pulls the matching `infra/v{N}/dump.sql.gz`, brings up `dhis2/core:{N}`, seeds, and runs `make test-slow`. `fail-fast: false` so one version's hiccup doesn't cancel the other; per-job concurrency keyed on the matrix value so matrix jobs don't fight over the run-slot.
 
-**A4. Property-based tests for the parser-shaped code paths.**
-Hypothesis is overkill for happy-path business logic but devastatingly effective for parsers. Targets:
+**A4. Property-based tests for the parser-shaped code paths.** — **partially shipped.**
+`packages/dhis2w-client/tests/test_parser_properties.py` covers UID generation/validation, period parsing round-trips, and the JSON Patch builder with hypothesis strategies. Remaining targets, one PR per parser:
 
-- `generate_uid` — distribution properties (no character bias, all 11 chars, 62-symbol alphabet).
-- Period parsing (`LAST_3_MONTHS`, `202403`, `2024Q1`, `2024S2`, `2024W12`, …).
 - Filter DSL (`name:ilike:foo`, `code:in:[a,b]`, nested `attributeValues.attribute.id:eq:UID`).
-- JSON Patch RFC 6902 round-trip — apply then invert; the composition should be a no-op.
 - URL construction — no double-slashes, correct encoding, `.json` suffix on `/api/analytics/*` (BUGS.md #1).
-
-One PR per parser, ~50 lines of hypothesis strategies + 5 properties each.
 
 **A5. Generated-code golden snapshots.** — **shipped.**
 `packages/dhis2w-codegen/tests/test_snapshots.py` loads each committed `schemas_manifest.json`, runs `emit()` + `emit_from_openapi()` into a tmp dir, and asserts byte-for-byte equality against the committed `generated/v{N}/` tree. Parameterised over v41 / v42 / v43. CI fails the moment codegen drifts from the committed tree.
@@ -390,7 +427,7 @@ Cron job that runs `d2w dev codegen diff` against the live play instances. If th
 **C3. Performance benchmarks + regression detection.**
 `pytest-benchmark` for:
 
-- CLI startup time (already on roadmap, ~2 s today, target < 400 ms).
+- Client cold-open import time (~530 ms today via the eager OAS tree; target < 100 ms — see the medium-term latency item).
 - MCP `list_tools` latency.
 - Generated-code import time (the 562 OAS classes pydantic-rebuilds).
 - Bulk fetch (1 k metadata items).
@@ -412,13 +449,12 @@ Playwright is a runtime dep (for screenshot capture, OIDC login automation), not
 
 ### Recommended order
 
-A3 is shipped (e2e.yml matrix runs across `dhis2_version: [42, 43]` nightly, v43 dump committed at `infra/v43/dump.sql.gz`). The remaining order:
+A1, A2, A3, and A5 are shipped; A4 is partially shipped (UID / period / JSON Patch properties landed). The remaining order:
 
-1. **A1 — live-schema contract tests against play, per-PR.** Cheapest highest-leverage thing in this list. Now first.
-2. **A2 — `BUGS.md` regression suite scaffolding.** Stops the manual BUGS retest cycles.
-3. **A4** + **A5** — property-based + codegen snapshots. Independent; either order.
+1. **A6 — plugin coverage gaps.** The last substantial Tier A item; do it before pinning per-package gates (B2).
+2. **A4 leftovers — filter DSL + URL construction properties.** Small, independent PRs.
 
-Tier B and C defer until A1–A5 are paying off.
+Tier B and C defer until Tier A is paying off.
 
 ## Reference: dhis2-java-client
 

@@ -17,6 +17,12 @@ versions that the running server no longer defines (and therefore no
 longer checks). The taxonomy deliberately keys on current-version names
 only, so matches always describe capabilities the server enforces today.
 
+Route authority name: DHIS2 derives the public-route authority from the
+``Route`` schema descriptor as ``F_ROUTE_PUBLIC_ADD`` (verified in
+``RouteSchemaDescriptor.java`` on v41, v42, and the 2.44 dev line). It exists
+across the whole v41-v43 window, so the taxonomy entry matches uniformly. See
+BUGS.md #57 for the naming divergence vs the auditor app's constant.
+
 References:
 - ``GET /api/authorities`` on a live DHIS2 instance lists every authority
   string that version defines.
@@ -28,6 +34,8 @@ from collections.abc import Iterable
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
+from dhis2w_core.security_core.findings import AuditFinding, Severity
 from dhis2w_core.security_core.models import AccountAuthorities, CategoryMatch
 
 
@@ -103,6 +111,27 @@ SQL_VIEWS = AuthorityCategory(
             "F_SQLVIEW_PUBLIC_ADD",
             "F_SQLVIEW_PRIVATE_ADD",
             "F_SQLVIEW_DELETE",
+        }
+    ),
+)
+
+# Route management lets a user register DHIS2 Routes, which proxy outbound
+# requests from the server to a configured destination URL. A user who can
+# add a public route can create the very SSRF targets the `routes` check
+# flags: a route to an internal/cloud-metadata host turns the server into a
+# request relay. The dangerous step is authoring the route.
+ROUTE_MANAGEMENT = AuthorityCategory(
+    key="route_management",
+    label="Route management",
+    description=(
+        "Register DHIS2 Routes that proxy server-side outbound requests. "
+        "A public route to an internal host is an SSRF relay (see the routes check)."
+    ),
+    authorities=frozenset(
+        {
+            "F_ROUTE_PUBLIC_ADD",
+            "F_ROUTE_PRIVATE_ADD",
+            "F_ROUTE_DELETE",
         }
     ),
 )
@@ -189,6 +218,7 @@ AUTHORITY_CATEGORIES: tuple[AuthorityCategory, ...] = (
     USER_MANAGEMENT,
     APP_MANAGEMENT,
     SQL_VIEWS,
+    ROUTE_MANAGEMENT,
     SYSTEM_SETTINGS,
     METADATA_IO,
     TRACKER_ADMIN,
@@ -226,3 +256,38 @@ def build_account_authorities(authorities: Iterable[str]) -> AccountAuthorities:
         is_superuser="ALL" in name_set,
         categories=matches,
     )
+
+
+def evaluate_account_authorities(account: AccountAuthorities) -> CheckOutcome:
+    """Record the audited account's own privileged reach as informational controls, flagging what it holds.
+
+    These describe the reach of the credential running the audit, not an
+    instance-wide weakness, so they are INFO. The CRITICAL/HIGH role and user
+    findings come from the instance-wide `roles` and `hygiene` checks.
+    """
+    log = ControlLog("authorities")
+    log.mark_passed("authorities-audited-superuser", "authorities-audited-category")
+    if account.is_superuser:
+        log.record(
+            AuditFinding(
+                check="authorities",
+                severity=Severity.INFO,
+                title="Audited account is a superuser (ALL)",
+                detail="The credential used for this audit holds the ALL authority.",
+                control="authorities-audited-superuser",
+            )
+        )
+    for match in account.categories:
+        if match.key == "superuser":
+            continue
+        log.record(
+            AuditFinding(
+                check="authorities",
+                severity=Severity.INFO,
+                title=f"Audited account holds {match.label} authorities",
+                detail=match.description,
+                evidence={"matched": ", ".join(match.matched)} if match.matched else None,
+                control="authorities-audited-category",
+            )
+        )
+    return log.result()

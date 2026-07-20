@@ -74,7 +74,6 @@ nav:
                   - Design log + rounds: notes/small-model-bridge.md
                   - Command x model matrix: notes/cli-matrix.md
                   - Bridge verification: notes/bridge-verification.md
-          - Roadmap: roadmap.md
   - Architecture:
       - Overview: architecture/overview.md
       - Core:
@@ -190,6 +189,12 @@ nav:
       - Language semantics: query/semantics.md
       - Cookbook: query/cookbook.md
       - API reference: api/query.md
+  - Project:
+      - Overview: project/index.md
+      - Feature catalog: project/features.md
+      - Changelog: project/changelog.md
+      - Upstream DHIS2 quirks: project/upstream-quirks.md
+      - Roadmap: roadmap.md
 
 markdown_extensions:
   - admonition
@@ -212,6 +217,13 @@ markdown_extensions:
   - pymdownx.keys
   - pymdownx.mark
   - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      # Lets docs pages embed repository-root files (CHANGELOG.md, BUGS.md, the
+      # planning docs) via `--8<-- "FILE"` so the site renders them without a
+      # second copy. base_path is the repo root (where mkdocs runs).
+      base_path:
+        - .
+      check_paths: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid

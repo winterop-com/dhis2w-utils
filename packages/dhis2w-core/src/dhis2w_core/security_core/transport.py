@@ -1,0 +1,437 @@
+"""Transport-posture audit: TLS scheme and the security headers DHIS2 (or its proxy) returns on the wire.
+
+Credential confidentiality and clickjacking / MIME-sniffing defences are decided at the transport edge,
+not in metadata, so this check reads the base-URL scheme and a single response's security headers. A
+plaintext base URL leaks every credential and all metadata in clear text. Over HTTPS, a missing
+Strict-Transport-Security header leaves an SSL-strip window; DHIS2 emits HSTS via Spring Security only
+when the request reaches the app as secure, so a TLS-terminating proxy that forwards plain HTTP commonly
+suppresses it. The wire header is the SOLE evidence of CSP state; there is no `keyCspEnabled` system
+setting; a default DHIS2 (csp.enabled=on) always emits at least `frame-ancestors 'self';` via CspFilter,
+and switches to `X-Frame-Options: SAMEORIGIN` when CSP is off, so anti-framing is flagged only when both
+are absent. X-Content-Type-Options is set unconditionally by Spring Security, so its absence points at
+upstream stripping. A Server header carrying a version token is a free CVE-matching fingerprint emitted
+by the container or proxy, not DHIS2 code. The wire-only CSP state and the HSTS-behind-proxy
+suppression are recorded as BUGS.md #60.
+
+CORS response headers are request-conditioned: DhisCorsProcessor only emits Access-Control-Allow-Origin
+/ Access-Control-Allow-Credentials when the request carries an `Origin` header, and it echoes that
+origin back (with credentials always `true`) only when the origin equals the instance's own URL or
+matches a glob in the configured CORS whitelist. So the wiring probe sends a benign foreign `Origin`
+(never the instance's own, which DHIS2 would always echo) to surface the dangerous "server reflects an
+arbitrary origin" misconfiguration; a configured `*` whitelist matches the foreign origin and echoes
+it with credentials. This reads the LIVE response headers, complementing the settings check's read of
+the static `/api/configuration/corsWhitelist` config: the config read sees the declared allowlist, this
+read sees what the server actually grants on the wire.
+"""
+
+from __future__ import annotations
+
+import re
+
+from pydantic import BaseModel, ConfigDict
+
+from dhis2w_core.security_core.controls import CheckOutcome, ControlLog
+from dhis2w_core.security_core.csp import grade_csp, parse_csp
+from dhis2w_core.security_core.findings import AuditFinding, Severity
+
+_CHECK = "transport"
+
+# A Server header discloses a version when it carries a digit run (e.g. `nginx/1.18.0`, `Jetty(9.4.x)`).
+# A bare product token (just `nginx`) carries no version and is genericised enough to not warrant a finding.
+_SERVER_VERSION_RE = re.compile(r"\d+(?:\.\d+)*")
+
+# The max-age directive value must be entirely digits: `parseInt`-style parsing would silently accept
+# `max-age=31536000abc`. The full directive is anchored so a trailing garbage tail rejects the whole match.
+_HSTS_MAX_AGE_RE = re.compile(r"^max-age=(\d+)$")
+
+# HSTS thresholds in seconds: below 1 year is weak, below 1 day is effectively no protection.
+_ONE_YEAR_SECONDS = 31_536_000
+_ONE_DAY_SECONDS = 86_400
+
+# The foreign Origin the wiring probe sends to elicit CORS response headers. `.invalid` is reserved by
+# RFC 6761 and can never resolve to a real host, so it is a safe, unmistakably-untrusted origin. DHIS2
+# echoes it back (with credentials) only if a configured CORS whitelist glob matches an arbitrary origin
+# that is the dangerous reflect-any misconfiguration. The instance's own origin is deliberately NOT used: it
+# is always echoed by DhisCorsProcessor (localUrl.equals(origin)) and would be a guaranteed false positive.
+CORS_PROBE_ORIGIN = "https://dhis2w-security-probe.invalid"
+
+
+class TransportHeaders(BaseModel):
+    """The transport posture of one response: the resolved base URL, scheme, and security headers off the wire."""
+
+    model_config = ConfigDict(frozen=True)
+
+    base_url: str
+    scheme: str
+    strict_transport_security: str | None = None
+    content_security_policy: str | None = None
+    content_security_policy_report_only: str | None = None
+    x_frame_options: str | None = None
+    x_content_type_options: str | None = None
+    cross_origin_opener_policy: str | None = None
+    cross_origin_embedder_policy: str | None = None
+    cross_origin_resource_policy: str | None = None
+    access_control_allow_origin: str | None = None
+    access_control_allow_credentials: str | None = None
+    server: str | None = None
+
+
+def evaluate_transport(headers: TransportHeaders) -> CheckOutcome:
+    """Grade the transport scheme and headers into a CheckOutcome: TLS, HSTS, CSP, anti-framing, nosniff, CORS."""
+    log = ControlLog(_CHECK)
+    is_https = headers.scheme.lower() == "https"
+    if not is_https:
+        log.record(_no_tls_finding(headers.base_url, headers.scheme))
+        log.mark_skipped("transport-no-hsts", "base URL is not HTTPS")
+        log.mark_skipped("transport-weak-hsts", "base URL is not HTTPS")
+    else:
+        log.mark_passed("transport-no-tls")
+        if headers.strict_transport_security is None:
+            log.record(_no_hsts_finding())
+            log.mark_skipped("transport-weak-hsts", "no HSTS header to grade")
+        else:
+            log.mark_passed("transport-no-hsts")
+            weak_hsts = _weak_hsts_finding(headers.strict_transport_security)
+            if weak_hsts is not None:
+                log.record(weak_hsts)
+            else:
+                log.mark_passed("transport-weak-hsts")
+    enforced_csp = headers.content_security_policy
+    report_only_csp = headers.content_security_policy_report_only
+    csp_value = enforced_csp if enforced_csp is not None else report_only_csp
+    has_csp = csp_value is not None
+    # Anti-framing counts only when the directive is ENFORCED: a frame-ancestors carried solely by
+    # Content-Security-Policy-Report-Only reports violations but blocks nothing, so the instance is
+    # still clickjackable. The weak-CSP grade below stays report-only-aware via its own flag.
+    has_frame_ancestors = enforced_csp is not None and "frame-ancestors" in enforced_csp.lower()
+    report_only_frame_ancestors = (
+        not has_frame_ancestors and report_only_csp is not None and "frame-ancestors" in report_only_csp.lower()
+    )
+    if not has_csp:
+        log.record(_no_csp_finding())
+        log.mark_skipped("transport-weak-csp", "no CSP header to grade")
+    else:
+        log.mark_passed("transport-no-csp")
+        weak_csp = _weak_csp_finding(csp_value or "", report_only=enforced_csp is None)
+        if weak_csp is not None:
+            log.record(weak_csp)
+        else:
+            log.mark_passed("transport-weak-csp")
+    if headers.x_frame_options is None and not has_frame_ancestors:
+        log.record(_no_anti_framing_finding(report_only_frame_ancestors=report_only_frame_ancestors))
+    else:
+        log.mark_passed("transport-no-anti-framing")
+    if (headers.x_content_type_options or "").strip().lower() != "nosniff":
+        log.record(_no_nosniff_finding())
+    else:
+        log.mark_passed("transport-no-nosniff")
+    cross_origin = _cross_origin_isolation_finding(headers)
+    if cross_origin is not None:
+        log.record(cross_origin)
+    else:
+        log.mark_passed("transport-cross-origin-isolation")
+    allow_origin = headers.access_control_allow_origin
+    if allow_origin is None or not allow_origin.strip():
+        for control_id in (
+            "transport-cors-credentialed-any-origin",
+            "transport-cors-any-origin",
+            "transport-cors-credentialed-specific-origin",
+        ):
+            log.mark_skipped(control_id, "CORS probe returned no Access-Control-Allow-Origin")
+    else:
+        log.mark_passed(
+            "transport-cors-credentialed-any-origin",
+            "transport-cors-any-origin",
+            "transport-cors-credentialed-specific-origin",
+        )
+        cors = _cors_response_finding(headers)
+        if cors is not None:
+            log.record(cors)
+    server_finding = _server_disclosure_finding(headers.server)
+    if server_finding is not None:
+        log.record(server_finding)
+    else:
+        log.mark_passed("transport-server-version-disclosure")
+    return log.result()
+
+
+def _no_tls_finding(base_url: str, scheme: str) -> AuditFinding:
+    """Flag a plaintext base URL: every request carries credentials and metadata in clear text."""
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.HIGH,
+        title="Base URL is plaintext HTTP",
+        detail=(
+            f"Plaintext HTTP at {base_url}; every request carries the operator's credentials "
+            "and all metadata in clear text. Terminate TLS in front of DHIS2 and serve only https."
+        ),
+        evidence={"base_url": base_url, "scheme": scheme},
+        control="transport-no-tls",
+    )
+
+
+def _no_hsts_finding() -> AuditFinding:
+    """Flag an HTTPS endpoint with no Strict-Transport-Security header, leaving an SSL-strip window."""
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.MEDIUM,
+        title="No Strict-Transport-Security header",
+        detail=(
+            "HTTPS endpoint returns no Strict-Transport-Security header, leaving an SSL-strip / downgrade "
+            "window. DHIS2 emits HSTS via Spring Security only when the request reaches the app as secure; "
+            "a TLS-terminating proxy that forwards plain HTTP commonly suppresses it. Set HSTS at the proxy "
+            "or forward the secure flag."
+        ),
+        evidence={"header": "strict-transport-security"},
+        control="transport-no-hsts",
+    )
+
+
+def _weak_hsts_finding(value: str) -> AuditFinding | None:
+    """Grade a present Strict-Transport-Security header's max-age.
+
+    A max-age of 0 (which actively deletes cached HSTS state) or a missing/invalid max-age (browsers
+    ignore the header) provides exactly the protection a missing header does: none. Those states grade
+    MEDIUM, matching the no-HSTS finding, so a header cannot score better than its absence. A positive
+    but sub-year max-age still provides partial protection and grades WARN.
+    """
+    max_age = _parse_hsts_max_age(value)
+    if max_age is not None and max_age >= _ONE_YEAR_SECONDS:
+        return None
+    if max_age is None:
+        reason = "max-age is missing or invalid (a digits-only max-age in seconds is required)"
+    elif max_age <= 0:
+        reason = f"max-age={max_age} provides no protection and deletes any cached HSTS state"
+    elif max_age < _ONE_DAY_SECONDS:
+        reason = f"max-age={max_age} is below 1 day and provides effectively no protection"
+    else:
+        reason = f"max-age={max_age} is below the recommended 1 year ({_ONE_YEAR_SECONDS})"
+    no_protection = max_age is None or max_age <= 0
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.MEDIUM if no_protection else Severity.WARN,
+        title="Strict-Transport-Security max-age is weak",
+        detail=(
+            f"Strict-Transport-Security: {value}. {reason}. Set max-age to at least {_ONE_YEAR_SECONDS} "
+            "(1 year) with includeSubDomains for strong protection against downgrade attacks."
+        ),
+        evidence={"header": value},
+        control="transport-weak-hsts",
+    )
+
+
+def _parse_hsts_max_age(value: str) -> int | None:
+    """Parse the max-age directive with a strict digit-only regex; None when absent or non-numeric."""
+    for directive in value.split(";"):
+        match = _HSTS_MAX_AGE_RE.match(directive.strip().lower())
+        if match is not None:
+            return int(match.group(1))
+    return None
+
+
+def _weak_csp_finding(value: str, *, report_only: bool) -> AuditFinding | None:
+    """Grade a present CSP into one MEDIUM finding listing the failed directives, or None when strong."""
+    policy = parse_csp(value, report_only=report_only)
+    failures = grade_csp(policy)
+    if not failures:
+        return None
+    annotation = " (uses 'strict-dynamic')" if policy.uses_strict_dynamic() else ""
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.MEDIUM,
+        title="Content-Security-Policy is weak",
+        detail=(
+            f"Content-Security-Policy: {value}{annotation}. Weak directives: {'; '.join(failures)}. "
+            "Tighten the policy so it governs script, object, and base-uri sources without broad or unsafe sources."
+        ),
+        evidence={"header": value, "weak_directives": "; ".join(failures)},
+        control="transport-weak-csp",
+    )
+
+
+def _cross_origin_isolation_finding(headers: TransportHeaders) -> AuditFinding | None:
+    """Flag cross-origin isolation as one INFO when DHIS2 sets none of COOP/COEP/CORP (its stock posture)."""
+    missing = [
+        name
+        for name, value in (
+            ("Cross-Origin-Opener-Policy", headers.cross_origin_opener_policy),
+            ("Cross-Origin-Embedder-Policy", headers.cross_origin_embedder_policy),
+            ("Cross-Origin-Resource-Policy", headers.cross_origin_resource_policy),
+        )
+        if value is None
+    ]
+    if not missing:
+        return None
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.INFO,
+        title="Cross-origin isolation headers not configured (COOP/COEP/CORP)",
+        detail=(
+            f"Not set: {', '.join(missing)}. DHIS2 calls Spring Security's `defaultsDisabled()` and re-enables "
+            "only contentTypeOptions, xssProtection, and HSTS, so it never emits these defence-in-depth headers; "
+            "a stock instance is missing all three. Set them at the proxy to harden cross-origin isolation "
+            "(COOP: same-origin, COEP: require-corp, CORP: same-origin)."
+        ),
+        evidence={"missing": ", ".join(missing)},
+        control="transport-cross-origin-isolation",
+    )
+
+
+def _cors_response_finding(headers: TransportHeaders) -> AuditFinding | None:
+    """Grade the live CORS response headers elicited by the synthetic foreign Origin probe.
+
+    The probe sends `Origin: CORS_PROBE_ORIGIN` (an untrusted foreign origin). DHIS2 echoes that origin
+    back, with `Access-Control-Allow-Credentials: true`, only when a configured whitelist glob matches an
+    arbitrary origin, so an echoed foreign origin IS the dangerous reflect-any misconfiguration. A
+    fronting proxy may instead answer with a literal `*`. Both are graded; credentials raise the ceiling.
+    """
+    allow_origin = headers.access_control_allow_origin
+    if allow_origin is None:
+        return None
+    allow_origin = allow_origin.strip()
+    if not allow_origin:
+        return None
+    credentialed = (headers.access_control_allow_credentials or "").strip().lower() == "true"
+    is_wildcard = allow_origin == "*"
+    reflects_foreign = allow_origin == CORS_PROBE_ORIGIN
+    if is_wildcard or reflects_foreign:
+        target = (
+            "any origin (Access-Control-Allow-Origin: *)" if is_wildcard else f"an arbitrary origin ({allow_origin})"
+        )
+        if credentialed:
+            if is_wildcard:
+                # Browsers reject the `*` + credentials pair (Fetch standard sec. 3.2.5), so the immediate
+                # blast radius of this exact combination is a fronting proxy misconfiguration. The live
+                # browser-exploitable form is the reflect-any variant (ACAO echoes the specific probe
+                # origin with ACAC: true), which browsers do honour. Both cases are HIGH and both require
+                # remediation; the distinction matters only for the root-cause note.
+                detail = (
+                    "Access-Control-Allow-Origin: * together with Access-Control-Allow-Credentials: true is "
+                    "invalid per the Fetch standard (browsers reject the combination), so this is a fronting "
+                    "proxy misconfiguration rather than a direct browser exploit. The live browser-exploitable "
+                    "form is a server that reflects an arbitrary Origin with credentials (echoed specific origin "
+                    "+ ACAC: true), which browsers do honour. Both cases require remediation: restrict the CORS "
+                    "whitelist to specific trusted origins."
+                )
+            else:
+                detail = (
+                    f"Access-Control-Allow-Origin grants {target} with Access-Control-Allow-Credentials: true, "
+                    "so any website can make authenticated cross-origin requests on a logged-in user's behalf. "
+                    "Restrict the CORS whitelist to specific trusted origins."
+                )
+            return AuditFinding(
+                check=_CHECK,
+                severity=Severity.HIGH,
+                title="CORS allows credentialed requests from any origin",
+                detail=detail,
+                evidence={
+                    "access-control-allow-origin": allow_origin,
+                    "access-control-allow-credentials": headers.access_control_allow_credentials or "",
+                    "probe-origin": CORS_PROBE_ORIGIN,
+                },
+                control="transport-cors-credentialed-any-origin",
+            )
+        return AuditFinding(
+            check=_CHECK,
+            severity=Severity.WARN,
+            title="CORS allows requests from any origin",
+            detail=(
+                f"Access-Control-Allow-Origin grants {target}, so any website can read responses from this API. "
+                "Restrict the CORS whitelist to specific trusted origins unless this is an intentional public API."
+            ),
+            evidence={
+                "access-control-allow-origin": allow_origin,
+                "probe-origin": CORS_PROBE_ORIGIN,
+            },
+            control="transport-cors-any-origin",
+        )
+    if credentialed:
+        return AuditFinding(
+            check=_CHECK,
+            severity=Severity.WARN,
+            title="CORS allows credentials from a specific origin",
+            detail=(
+                f"Access-Control-Allow-Origin: {allow_origin} with Access-Control-Allow-Credentials: true. "
+                "The origin can make authenticated cross-origin requests; confirm it is trusted."
+            ),
+            evidence={
+                "access-control-allow-origin": allow_origin,
+                "access-control-allow-credentials": headers.access_control_allow_credentials or "",
+            },
+            control="transport-cors-credentialed-specific-origin",
+        )
+    return None
+
+
+def _no_csp_finding() -> AuditFinding:
+    """Flag a missing Content-Security-Policy header: CSP is disabled in dhis.conf or stripped upstream."""
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.MEDIUM,
+        title="No Content-Security-Policy header",
+        detail=(
+            "On a default DHIS2 (csp.enabled=on) the CspFilter always emits at least `frame-ancestors "
+            "'self';`. Absence means CSP was disabled in dhis.conf (csp.enabled=off) or stripped upstream. "
+            "The header on the wire is the SOLE evidence; there is no `keyCspEnabled` system setting."
+        ),
+        evidence={"header": "content-security-policy"},
+        control="transport-no-csp",
+    )
+
+
+def _no_anti_framing_finding(*, report_only_frame_ancestors: bool) -> AuditFinding:
+    """Flag missing anti-framing: no X-Frame-Options and no ENFORCED CSP frame-ancestors directive."""
+    report_only_note = (
+        " A frame-ancestors directive was found only in Content-Security-Policy-Report-Only, which "
+        "reports violations but does not block framing, so it provides no protection."
+        if report_only_frame_ancestors
+        else ""
+    )
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.WARN,
+        title="No anti-framing header",
+        detail=(
+            "DHIS2 supplies one or the other (CSP frame-ancestors when csp.enabled=on, X-Frame-Options "
+            "SAMEORIGIN when off); both missing points at upstream stripping. Suppressed when an enforced "
+            "CSP frame-ancestors is present, to avoid a guaranteed false positive on default instances."
+            + report_only_note
+        ),
+        evidence={"headers": "x-frame-options, content-security-policy"},
+        control="transport-no-anti-framing",
+    )
+
+
+def _no_nosniff_finding() -> AuditFinding:
+    """Flag a missing or non-`nosniff` X-Content-Type-Options header, so browsers may MIME-sniff."""
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.WARN,
+        title="No X-Content-Type-Options: nosniff",
+        detail=(
+            "Browsers may MIME-sniff. DHIS2 sets this unconditionally via Spring Security, so absence "
+            "indicates upstream stripping."
+        ),
+        evidence={"header": "x-content-type-options"},
+        control="transport-no-nosniff",
+    )
+
+
+def _server_disclosure_finding(server: str | None) -> AuditFinding | None:
+    """Flag a Server header that reveals a version token; a bare product token discloses nothing useful."""
+    if server is None:
+        return None
+    value = server.strip()
+    if not value or not _SERVER_VERSION_RE.search(value):
+        return None
+    return AuditFinding(
+        check=_CHECK,
+        severity=Severity.WARN,
+        title="Server header discloses version",
+        detail=(
+            f"The Server header reveals server software and version ({value}), a free fingerprint for CVE "
+            "matching. Emitted by the container or proxy, not DHIS2 code; genericize it at the proxy."
+        ),
+        evidence={"server": value},
+        control="transport-server-version-disclosure",
+    )

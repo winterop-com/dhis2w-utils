@@ -1,4 +1,4 @@
-"""Security plugin — inspect DHIS2 security posture (settings, account authorities)."""
+"""Security plugin: inspect DHIS2 security posture (settings, account authorities)."""
 
 from __future__ import annotations
 
@@ -24,7 +24,10 @@ class _SecurityPlugin(BaseModel):
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
-        """No MCP surface yet — CLI-only plugin."""
+        """Register the cheap read-only `security_*` tools on the MCP server."""
+        from dhis2w_core.v41.plugins.security import mcp as mcp_module
+
+        mcp_module.register(mcp)
 
 
 plugin = _SecurityPlugin()

@@ -50,6 +50,19 @@ READ_ONLY_LEAVES = frozenset(
 )
 
 
+@pytest.fixture(autouse=True)
+def neutralize_host_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the resolved host to a non-protected value so tests ignore the developer's local profile.
+
+    Without this the bridge resolves the host from the auto-discovered `.dhis2/profiles.toml`; a
+    default profile pointing at a write-protected host (e.g. `play.im.dhis2.org`) makes the
+    write-guard refuse mutating commands with exit 126, so any non-read test fails on that machine
+    but passes in CI (no profile). Pinning a local host here keeps the suite deterministic. Guard
+    tests that exercise the protected-host refusal override `_RESOLVER` within their own body.
+    """
+    monkeypatch.setattr("dhis2w_mcp_bridge.cli_bridge._resolve_base_url", lambda profile: "http://localhost:8080")
+
+
 @pytest.fixture
 def fake_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Install a fake `d2w` that echoes its argv as JSON and honours FAKE_* env knobs."""

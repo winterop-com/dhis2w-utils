@@ -49,6 +49,21 @@ def test_authority_categories_have_unique_keys() -> None:
     assert len(keys) == len(set(keys))
 
 
+def test_impersonate_user_maps_to_user_management() -> None:
+    """F_IMPERSONATE_USER (account takeover) is a user-management dangerous authority."""
+    assert [c.key for c in categorise_authorities({"F_IMPERSONATE_USER"})] == ["user_management"]
+
+
+def test_public_route_maps_to_route_management() -> None:
+    """F_ROUTE_PUBLIC_ADD (SSRF-relay creation) is a route-management dangerous authority."""
+    assert [c.key for c in categorise_authorities({"F_ROUTE_PUBLIC_ADD"})] == ["route_management"]
+
+
+def test_system_setting_maps_to_system_settings() -> None:
+    """F_SYSTEM_SETTING already maps to the system-configuration category."""
+    assert [c.key for c in categorise_authorities({"F_SYSTEM_SETTING"})] == ["system_settings"]
+
+
 # ----- build_account_authorities -----
 
 
@@ -96,8 +111,6 @@ def test_severity_rank_matches_order() -> None:
 
 
 def test_role_severity_tiers() -> None:
-    """ALL is CRITICAL; high-impact categories HIGH; the rest MEDIUM."""
-    assert role_severity(["superuser"], has_all=True) is Severity.CRITICAL
-    assert role_severity([], has_all=True) is Severity.CRITICAL
-    assert role_severity(["sql_views"], has_all=False) is Severity.HIGH
-    assert role_severity(["tracker_admin"], has_all=False) is Severity.MEDIUM
+    """High-impact categories are HIGH; the rest MEDIUM."""
+    assert role_severity(["sql_views"]) is Severity.HIGH
+    assert role_severity(["tracker_admin"]) is Severity.MEDIUM

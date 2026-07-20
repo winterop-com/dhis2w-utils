@@ -17,7 +17,7 @@ class SecuritySettings(BaseModel):
     field, so it parses cleanly.
 
     The default `extra="ignore"` drops the rest of the settings object DHIS2
-    ships, so this model is exactly the security slice — both in the table and
+    ships, so this model is exactly the security slice, both in the table and
     under `--json`.
     """
 
@@ -29,4 +29,7 @@ class SecuritySettings(BaseModel):
     keyAccountRecovery: bool | None = None
     keySelfRegistrationNoRecaptcha: bool | None = None
     keyLockMultipleFailedLogins: bool | None = None
+    keyCanGrantOwnUserAuthorityGroups: bool | None = None
     enforceVerifiedEmail: bool | None = None
+    keyEmailHostName: str | None = None
+    keyEmailUsername: str | None = None

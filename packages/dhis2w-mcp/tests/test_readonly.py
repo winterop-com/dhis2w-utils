@@ -223,6 +223,9 @@ _VERIFIED_READ_TOOLS: frozenset[str] = frozenset(
         "profile_verify",
         "route_get",
         "route_list",
+        "security_authorities",
+        "security_settings",
+        "security_version",
         "system_calendar_get",
         "system_info",
         "system_server_info",
@@ -301,3 +304,20 @@ async def test_readonly_call_refuses_write_tool(monkeypatch: pytest.MonkeyPatch)
     async with Client(build_server()) as client:
         with pytest.raises(ToolError, match="read-only mode"):
             await client.call_tool("messaging_set_status", {"uid": "x", "status": "SOLVED"})
+
+
+_SECURITY_READ_TOOLS = frozenset({"security_settings", "security_authorities", "security_version"})
+
+
+async def test_security_read_tools_visible_under_readonly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The three security read tools stay visible under read-only mode via their readOnlyHint annotation.
+
+    Their trailing tokens (settings/authorities/version) are not in READ_VERBS, so the name heuristic
+    alone would fail-close them; each is registered with an explicit readOnlyHint=True annotation the
+    classifier honours, keeping them exposed under DHIS2_MCP_READONLY and on the verified read allowlist.
+    """
+    monkeypatch.setenv("DHIS2_MCP_READONLY", "1")
+    async with Client(build_server()) as client:
+        names = {tool.name for tool in await client.list_tools()}
+    missing = _SECURITY_READ_TOOLS - names
+    assert not missing, f"security read tools hidden under read-only mode: {missing}"

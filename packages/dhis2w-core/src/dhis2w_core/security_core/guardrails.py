@@ -7,9 +7,29 @@ widen the plugin's read surface.
 
 The contract:
 
-- Read-only: the plugin issues ONLY GET requests, and only against
-  `GET_ALLOWLIST`. It never reads data values, tracked entities, events,
-  files, or audit logs.
+- Read-only: every check issues ONLY GET requests against `GET_ALLOWLIST`.
+  The one exception is the default-credential probe (see below). The plugin
+  never reads data values, tracked entities, events, files, or audit logs.
+- Synthetic CORS Origin: the transport check sends a benign foreign `Origin`
+  request header (`CORS_PROBE_ORIGIN`, an unresolvable `.invalid` host) on its
+  allowlisted `GET /api/system/info` so DHIS2's CORS filter, which emits
+  Access-Control-Allow-Origin / Access-Control-Allow-Credentials only on
+  requests that carry an Origin, reveals the live CORS posture. This is a
+  reviewed, documented widening of the probe: still a GET-only request, still
+  the same allowlisted path, no new endpoint and no write; it only ADDS a
+  request header. A foreign origin (never the instance's own, which DHIS2 always
+  echoes) is used so only a server that reflects an arbitrary origin is flagged.
+- Credential probe: the probe may make at most one HTTP Basic login attempt,
+  for the single well-known default pair `admin`/`district`, against the
+  identity endpoint only (`GET /api/me`, in `CREDENTIAL_PROBE_PATHS`). It is
+  never retried (`MAX_PROBE_ATTEMPTS == 1`); together with the guest check's
+  anonymous probe it is one of only two places the scanner sends a request as
+  something other than the operator's own profile.
+- Anonymous probe: the guest check issues unauthenticated GETs (no credentials)
+  to login-required allowlist paths (`/api/users`, `/api/userRoles`, `/api/me`)
+  solely to detect whether they are readable without a login. These stay
+  read-only GETs against `GET_ALLOWLIST`; an unauthenticated read is not a login
+  attempt, so it carries no lockout risk.
 - No-lockout: 401/403 responses are never retried; retries (when enabled at
   all) cover only 429/5xx on idempotent calls, and the default is no retry.
 - Egress: the only direct external egress is the public release feed
@@ -27,6 +47,10 @@ The contract:
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
+import httpx
+
 # Every path the security plugin is allowed to GET, matched exactly against
 # `httpx.URL.path`. Adding an endpoint here is a reviewed decision, not a
 # side effect of adding a feature. The list covers the full planned surface
@@ -39,6 +63,9 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
         "/api/me/authorization",
         "/api/userRoles",
         "/api/users",
+        # Superuser-only 2FA audit endpoints (dhis2-core#23925, v42/v43, master-pending-backport).
+        "/api/users/twoFactor",
+        "/api/users/twoFactor/summary",
         "/api/dataSets",
         "/api/programs",
         "/api/dataElements",
@@ -48,9 +75,43 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
         "/api/eventReports",
         "/api/maps",
         "/api/sqlViews",
+        # Sharing graph reads: the schema endpoint is the authoritative shareable-type list; the
+        # focus-set object collections and the userGroups principal endpoint are paged GET-only. The
+        # other principal endpoints (/api/users, /api/userRoles) are already allowlisted above.
+        "/api/schemas",
+        "/api/userGroups",
+        "/api/programStages",
+        "/api/trackedEntityTypes",
+        "/api/categoryOptions",
+        "/api/relationshipTypes",
+        "/api/aggregateDataExchanges",
+        "/api/documents",
+        "/api/eventVisualizations",
+        "/api/reports",
         "/api/apps",
         "/api/appHub",
         "/api/configuration/selfRegistrationRole",
+        # CORS-whitelist read for the permissive-CORS verdict: keyCorsWhitelist was removed from
+        # systemSettings in v2.31, so the wildcard origin can only be read from configuration.
+        "/api/configuration/corsWhitelist",
+        # Route inventory read for the SSRF-target verdict: the routes check lists /api/routes to flag
+        # destinations on private/internal or cloud-metadata hosts. A read-only GET of the collection;
+        # the check never executes a route (never /api/routes/{id}/run). Secrets are WRITE_ONLY upstream.
+        "/api/routes",
+        # Personal access token inventory read for the weak-PAT verdict: the tokens check lists
+        # /api/apiToken to flag non-expiring tokens and tokens with no IP allowlist. A read-only GET of
+        # the collection, ACL-filtered to the audited account's own tokens unless it holds ALL. The token
+        # secret (key) is @JsonIgnore upstream and never returned on the wire, so nothing secret is read.
+        "/api/apiToken",
+        # External login-surface reads for the auth-methods verdict. /api/loginConfig is the pre-auth
+        # login-page config (permitAll by design); the OIDC providers offered to anonymous visitors are
+        # read from it. A read-only GET; no credentials and no login attempt are involved.
+        "/api/loginConfig",
+        # OAuth2-client inventory read for the auth-methods verdict: /api/oAuth2Clients lists the clients
+        # DHIS2 acts as an authorization server for, to flag broad grant types and loose redirect URIs.
+        # The list requires F_OAUTH2_CLIENT_MANAGE on v42/v43; a 401/403 degrades the check (never retried)
+        # rather than failing it. The client secret is never read or carried into a finding.
+        "/api/oAuth2Clients",
         "/api/systemSettings",
     }
 )
@@ -59,3 +120,93 @@ GET_ALLOWLIST: frozenset[str] = frozenset(
 # (canonical base-URL probe + version detection). Kept separate so
 # `GET_ALLOWLIST` stays exactly the documented plugin read surface.
 CONNECT_PATHS: frozenset[str] = frozenset({"/", "/api/system/info"})
+
+# The single default-credential pair the probe tests. admin/district is by far
+# the most common live DHIS2 default (DefaultAdminUserPopulator seeds it on a
+# fresh install), so no other pairs are seeded.
+DEFAULT_PROBE_USERNAME = "admin"
+DEFAULT_PROBE_PASSWORD = "district"
+
+# The credential probe's footprint, bounded as tightly as the contract allows:
+# at most one authentication attempt, against the identity endpoint only, never
+# retried. The guardrail test asserts the probe touches no other path and makes
+# no more than this many attempts.
+CREDENTIAL_PROBE_PATHS: frozenset[str] = frozenset({"/api/me"})
+MAX_PROBE_ATTEMPTS = 1
+
+# One-line statement of the audit's footprint, embedded in every rendered
+# report so a reader can see exactly what the scan did and did not touch. Kept
+# in lock-step with the contract above and the credential-probe posture.
+REPORT_GUARDRAIL_NOTE = (
+    "This audit issues only read-only GET requests against a fixed allowlist. The single exception "
+    "is the optional default-credential probe, which makes at most one HTTP Basic login attempt for "
+    "the well-known admin/district pair against /api/me, never retried. The transport check adds a "
+    "benign foreign Origin request header to its allowlisted GET /api/system/info to elicit the live "
+    "CORS response headers (a documented widening of the probe; still GET-only, same path, no write). "
+    "The audit never reads data values, tracked entities, events, files, or audit logs."
+)
+
+
+class GuardrailViolation(Exception):
+    """Raised when an audit request escapes the read-only allowlist contract.
+
+    Deliberately not a `Dhis2ClientError` / `httpx.HTTPError` subclass so it surfaces
+    loudly as an error rather than being swallowed by a check's degrade-catch.
+    """
+
+
+# The full set of paths any audit request may hit: the plugin read allowlist plus the
+# connect-time canonical-URL and version-detection probes. `CREDENTIAL_PROBE_PATHS` is a
+# subset of `GET_ALLOWLIST` already, so it needs no separate union here.
+ALLOWED_AUDIT_PATHS: frozenset[str] = GET_ALLOWLIST | CONNECT_PATHS
+
+# Identifiable User-Agent so audit traffic stays legible as tooling in target-server access logs.
+SECURITY_AUDIT_USER_AGENT = "dhis2w-security-audit"
+
+
+def guardrail_request_hook(
+    allowed_paths: frozenset[str],
+    allowed_methods: frozenset[str] = frozenset({"GET", "HEAD"}),
+    *,
+    base_path: str = "",
+) -> Callable[[httpx.Request], Awaitable[None]]:
+    """Build an async httpx request event hook that rejects any off-contract request.
+
+    `base_path` is the instance's context path (the path component of the base URL, e.g. `/dev-2-42`
+    for an instance served under a sub-path or reverse proxy). It is stripped off the request path
+    before matching against `allowed_paths`, so a request to `/dev-2-42/api/me` matches the `/api/me`
+    allowlist entry. The default `""` leaves the request path untouched, matching allowlist entries
+    exactly as they are stored.
+    """
+    prefix = base_path.rstrip("/")
+
+    async def _hook(request: httpx.Request) -> None:
+        """Raise `GuardrailViolation` when the request leaves the read-only allowlist."""
+        if request.method not in allowed_methods:
+            raise GuardrailViolation(
+                f"guardrail: method {request.method} is not read-only (allowed: {sorted(allowed_methods)})"
+            )
+        path = request.url.path
+        if prefix and (path == prefix or path.startswith(prefix + "/")):
+            path = path[len(prefix) :] or "/"
+        if path not in allowed_paths:
+            raise GuardrailViolation(f"guardrail: path {request.url.path} is not on the audit allowlist")
+
+    return _hook
+
+
+def probe_client(*, base_path: str = "", headers: dict[str, str] | None = None) -> httpx.AsyncClient:
+    """Build a read-only, guardrailed httpx.AsyncClient for the plugin's bare-httpx probes.
+
+    `base_path` is threaded into the guardrail hook so probes against a context-path-hosted instance
+    (whose absolute probe URLs carry that prefix) match the allowlist after the prefix is stripped.
+    """
+    merged_headers = {"User-Agent": SECURITY_AUDIT_USER_AGENT}
+    if headers is not None:
+        merged_headers.update(headers)
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(15.0, connect=10.0),
+        follow_redirects=False,
+        headers=merged_headers,
+        event_hooks={"request": [guardrail_request_hook(ALLOWED_AUDIT_PATHS, base_path=base_path)]},
+    )

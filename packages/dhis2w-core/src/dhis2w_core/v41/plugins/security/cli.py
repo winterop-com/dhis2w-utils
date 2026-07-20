@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+import os
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Annotated, Any
 
 import typer
 
@@ -88,6 +92,195 @@ def authorities_command() -> None:
                 ColumnSpec("Why it matters", "description"),
             ],
         )
+
+
+def _parse_csv(value: str | None) -> list[str] | None:
+    """Split a comma-separated option into a list of keys, or None when unset."""
+    if value is None:
+        return None
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _run_folder(output_dir: Path | None, profile_name: str, timestamp: str) -> Path:
+    """Build the per-run output folder under `output_dir` (default: current directory)."""
+    parent = output_dir or Path.cwd()
+    return parent / f"dhis2-security-{profile_name}-{timestamp}"
+
+
+@app.command("audit")
+def audit_command(
+    output_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-dir", file_okay=False, help="Parent directory for the run folder (default: current dir)."
+        ),
+    ] = None,
+    output_format: Annotated[
+        str | None, typer.Option("--format", help="Comma-separated formats: md,txt,csv,html (default: all).")
+    ] = None,
+    checks: Annotated[
+        str | None,
+        typer.Option(
+            "--checks",
+            help=(
+                "Comma-separated check keys to run (default: all). Valid keys: version, transport, settings, "
+                "authorities, roles, hygiene, credential-probe, guest, apps, sharing, auth-methods, tokens, "
+                "routes, audit-config."
+            ),
+        ),
+    ] = None,
+    skip: Annotated[str | None, typer.Option("--skip", help="Comma-separated check keys to skip.")] = None,
+    progress: Annotated[
+        bool, typer.Option("--progress/--no-progress", help="Animate step-by-step progress on a TTY.")
+    ] = True,
+    credential_probe: Annotated[
+        bool,
+        typer.Option(
+            "--credential-probe/--no-credential-probe",
+            help="Actively test the default admin/district login against /api/me (on by default).",
+        ),
+    ] = True,
+    stale_days: Annotated[
+        int, typer.Option("--stale-days", min=1, help="Days without login before a privileged account is stale.")
+    ] = 90,
+    max_password_age: Annotated[
+        int,
+        typer.Option("--max-password-age", min=1, help="Days before an unchanged password is treated as stale."),
+    ] = 365,
+    two_factor_detail: Annotated[
+        bool,
+        typer.Option(
+            "--two-factor-detail/--no-two-factor-detail",
+            help="On v42+, also list each superuser lacking 2FA (per-user /api/users/twoFactor read). "
+            "No-op on v41: /api/users/twoFactor does not exist there, so this flag never adds detail "
+            "(BUGS.md #58).",
+        ),
+    ] = False,
+    max_objects: Annotated[
+        int | None,
+        typer.Option(
+            "--max-objects",
+            min=1,
+            show_default=False,
+            help="Max objects the sharing scan inspects across all types before stopping "
+            "(default 5000; truncation is loud).",
+        ),
+    ] = None,
+    sharing_graph: Annotated[
+        bool,
+        typer.Option(
+            "--sharing-graph",
+            "--visualize",
+            help="Also write the interactive d3 sharing explorer (sharing-explorer.html) into the run folder.",
+        ),
+    ] = False,
+    resume: Annotated[
+        Path | None, typer.Option("--resume", file_okay=False, exists=True, help="Resume an interrupted run folder.")
+    ] = None,
+    dhis_conf: Annotated[
+        Path | None,
+        typer.Option(
+            "--dhis-conf",
+            envvar="DHIS2_CONF_LOCATION",
+            show_envvar=True,
+            dir_okay=False,
+            exists=True,
+            help=(
+                "Path to a local COPY of the server's dhis.conf for the audit-config check. The audit "
+                "posture is not API-readable; secrets are reported set/not-set only and never echoed."
+            ),
+        ),
+    ] = None,
+    version_fallback: Annotated[
+        bool,
+        typer.Option(
+            "--version-fallback/--no-version-fallback",
+            help="When the server's exact generated tree is not shipped (e.g. a dev/master build), bind the "
+            "nearest lower generated tree instead of failing.",
+        ),
+    ] = False,
+) -> None:
+    """Run the security checks step by step and stream a report to a folder. `--json` prints the report."""
+    from dhis2w_core.security_core import AuditOptions
+    from dhis2w_core.v41.plugins.security import audit
+
+    profile = profile_from_env()
+    profile_name = os.environ.get("DHIS2_PROFILE") or "default"
+    formats = _parse_csv(output_format) or list(audit.DEFAULT_FORMATS)
+    animated = progress and sys.stderr.isatty() and not is_json_output()
+    options = AuditOptions(
+        stale_days=stale_days,
+        max_password_age_days=max_password_age,
+        two_factor_detail=two_factor_detail,
+        max_objects=max_objects if max_objects is not None else audit.DEFAULT_SHARING_MAX_OBJECTS,
+        dhis_conf_path=dhis_conf,
+    )
+
+    try:
+        if resume is not None:
+            report = asyncio.run(
+                audit.resume_security_audit(
+                    profile,
+                    folder=resume,
+                    profile_name=profile_name,
+                    options=options,
+                    allow_version_fallback=version_fallback,
+                    formats=formats,
+                    visualize=sharing_graph,
+                    animated=animated,
+                )
+            )
+            folder = resume
+        else:
+            skip_keys = _parse_csv(skip) or []
+            if not credential_probe:
+                skip_keys = [*skip_keys, "credential-probe"]
+            now = datetime.now(UTC)
+            folder = _run_folder(output_dir, profile_name, now.strftime("%Y%m%dT%H%M%S%fZ"))
+            report = asyncio.run(
+                audit.run_security_audit(
+                    profile,
+                    output_dir=folder,
+                    profile_name=profile_name,
+                    started_at=now.isoformat(),
+                    options=options,
+                    allow_version_fallback=version_fallback,
+                    only=_parse_csv(checks),
+                    skip=skip_keys or None,
+                    formats=formats,
+                    visualize=sharing_graph,
+                    animated=animated,
+                )
+            )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2, exclude_none=True))
+        return
+    worst = report.summary.worst
+    typer.echo(f"report written to {folder}")
+    typer.echo(f"{report.summary.total_findings} finding(s); worst severity: {worst.value if worst else 'none'}")
+    if sharing_graph and (folder / "sharing-explorer.html").exists():
+        typer.echo(f"sharing explorer: {folder / 'sharing-explorer.html'}")
+
+
+@app.command("report")
+def report_command(
+    folder: Annotated[Path, typer.Argument(exists=True, file_okay=False, help="An existing run folder to re-render.")],
+    output_format: Annotated[
+        str | None, typer.Option("--format", help="Comma-separated formats (default: all).")
+    ] = None,
+) -> None:
+    """Re-render an existing run's report files from its JSONL spine, without re-scanning."""
+    from dhis2w_core.v41.plugins.security import audit
+
+    formats = _parse_csv(output_format) or list(audit.DEFAULT_FORMATS)
+    try:
+        audit.rerender_report(folder, formats=formats)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"re-rendered {', '.join(formats)} in {folder}")
 
 
 def register(root_app: Any) -> None:

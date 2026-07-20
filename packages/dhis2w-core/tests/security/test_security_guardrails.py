@@ -38,6 +38,7 @@ TREES: tuple[tuple[str, ModuleType, str], ...] = (
 SERVICE_CALLS: dict[str, Callable[[ModuleType, Profile], Awaitable[Any]]] = {
     "get_security_settings": lambda service, profile: service.get_security_settings(profile),
     "get_account_authorities": lambda service, profile: service.get_account_authorities(profile),
+    "get_version_posture": lambda service, profile: service.get_version_posture(profile),
 }
 
 
@@ -78,6 +79,49 @@ def test_every_public_service_function_is_guardrail_covered(tree: str, service: 
         name for name, _member in inspect.getmembers(service, inspect.iscoroutinefunction) if not name.startswith("_")
     }
     assert public == set(SERVICE_CALLS), f"{tree}: register new service functions in SERVICE_CALLS"
+
+
+def test_cors_whitelist_path_is_allowlisted() -> None:
+    """The settings check's CORS read targets an allowlisted GET path."""
+    assert "/api/configuration/corsWhitelist" in GET_ALLOWLIST
+
+
+def test_routes_path_is_allowlisted() -> None:
+    """The routes check's route-inventory read targets an allowlisted GET path."""
+    assert "/api/routes" in GET_ALLOWLIST
+
+
+def test_api_token_path_is_allowlisted() -> None:
+    """The tokens check's PAT-inventory read targets an allowlisted GET path."""
+    assert "/api/apiToken" in GET_ALLOWLIST
+
+
+def test_login_config_path_is_allowlisted() -> None:
+    """The auth-methods check's pre-auth OIDC-provider read targets an allowlisted GET path."""
+    assert "/api/loginConfig" in GET_ALLOWLIST
+
+
+def test_oauth2_clients_path_is_allowlisted() -> None:
+    """The auth-methods check's OAuth2-client inventory read targets an allowlisted GET path."""
+    assert "/api/oAuth2Clients" in GET_ALLOWLIST
+
+
+def test_transport_cors_probe_origin_is_foreign_and_unresolvable() -> None:
+    """The synthetic CORS probe origin is a foreign .invalid host, never the audited instance's own origin."""
+    from dhis2w_core.security_core import CORS_PROBE_ORIGIN
+
+    assert CORS_PROBE_ORIGIN.endswith(".invalid")
+    assert CORS_PROBE_ORIGIN.startswith("https://")
+    assert BASE not in CORS_PROBE_ORIGIN
+
+
+def test_guardrail_note_documents_synthetic_cors_origin() -> None:
+    """The report-embedded guardrail note discloses the transport check's synthetic Origin header."""
+    from dhis2w_core.security_core import REPORT_GUARDRAIL_NOTE
+
+    note = REPORT_GUARDRAIL_NOTE.lower()
+    assert "origin" in note
+    assert "cors" in note
 
 
 def test_retry_policy_default_never_retries_auth_failures() -> None:
