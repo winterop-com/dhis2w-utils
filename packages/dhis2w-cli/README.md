@@ -47,6 +47,7 @@ d2w browser      Playwright UI automation (only with [browser] extra).
 d2w data         DHIS2 data values (aggregate + tracker).
 d2w dev          Developer/operator tools.
 d2w doctor       Probe a DHIS2 instance for known gotchas + requirements.
+d2w fhir         FHIR IG generation (SUSHI/FSH) from DHIS2 metadata.
 d2w files        Manage DHIS2 documents + file resources.
 d2w maintenance  DHIS2 maintenance (tasks, cache, integrity, cleanup, refresh).
 d2w messaging    DHIS2 internal messaging.

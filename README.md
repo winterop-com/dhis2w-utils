@@ -253,6 +253,7 @@ Nineteen top-level domains; every plugin shares a `service.py` between the CLI a
 | `d2w messaging` | `/api/messageConversations` — send, reply, list, mark read/unread |
 | `d2w apps` | `/api/apps` + `/api/appHub` — install / uninstall / update installed apps, browse the App Hub catalog, point DHIS2 at a custom App Hub |
 | `d2w query` | Run d2ql queries against the instance — one-shot or in the interactive REPL |
+| `d2w fhir` | FHIR IG generation — scaffold a SUSHI project (`fhir init`), generate FSH CodeSystems/ValueSets from option sets and Organization/Location instances from org units (`fhir generate`) |
 | `d2w doctor` | One-command preflight — ~100 metadata-health + integrity checks against a live instance |
 | `d2w browser` | Playwright-driven UI automation (PAT minting, dashboard / viz / map screenshot capture, automated OIDC login) — only registers when the `[browser]` extra is installed |
 | `d2w dev` | Codegen, UID gen, PAT / OAuth2 seed helpers, branding (`dev customize`), sample data |

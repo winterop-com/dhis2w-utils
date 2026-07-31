@@ -105,6 +105,7 @@ nav:
           - Route plugin: architecture/route-plugin.md
           - Security plugin: architecture/security-plugin.md
           - Doctor plugin: architecture/doctor-plugin.md
+          - FHIR plugin: architecture/fhir-plugin.md
   - Client:
       - Introduction: client/index.md
       - Tutorial: guides/client-tutorial.md
