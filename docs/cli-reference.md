@@ -10,7 +10,7 @@ $ d2w [OPTIONS] COMMAND [ARGS]...
 
 **Options**:
 
-* `-p, --profile TEXT`: DHIS2 profile name (overrides DHIS2_PROFILE env + TOML default).
+* `-p, --profile <str>`: DHIS2 profile name (overrides DHIS2_PROFILE env + TOML default).
 * `-d, --debug`: Verbose output on stderr — HTTP method/URL/status/elapsed for every request.
 * `-j, --json`: Emit raw JSON to stdout instead of Rich tables (uniform across all commands).
 * `-V, --version`: Print the CLI version + active plugin tree and exit.
@@ -27,6 +27,7 @@ $ d2w [OPTIONS] COMMAND [ARGS]...
 * `datastore`: DHIS2 key-value data store.
 * `dev`: Developer/operator tools.
 * `doctor`: Probe a DHIS2 instance for known gotchas +...
+* `fhir`: FHIR Implementation Guide generation from...
 * `files`: Manage DHIS2 documents + file resources.
 * `maintenance`: DHIS2 maintenance (tasks, cache,...
 * `messaging`: DHIS2 internal messaging.
@@ -45,16 +46,16 @@ Describe a generated type&#x27;s fields (metadata or instance-side; prefers the 
 **Usage**:
 
 ```console
-$ d2w schema [OPTIONS] TYPE_NAME
+$ d2w schema [OPTIONS] {type_name}
 ```
 
 **Arguments**:
 
-* `TYPE_NAME`: Type name, e.g. dataElement or TrackedEntity (case-insensitive; plural wire names ok).  [required]
+* `type_name`: Type name, e.g. dataElement or TrackedEntity (case-insensitive; plural wire names ok).  [required]
 
 **Options**:
 
-* `--source TEXT`: Which generated tree to read: auto (prefer oas), oas, or schemas.  [default: auto]
+* `--source <str>`: Which generated tree to read: auto (prefer oas), oas, or schemas.  [default: auto]
 * `--help`: Show this message and exit.
 
 ## `d2w analytics`
@@ -95,15 +96,15 @@ $ d2w analytics query [OPTIONS]
 
 **Options**:
 
-* `--dimension, --dim TEXT`: Repeatable &#x27;axis:value&#x27;: dx:&lt;UID&gt;, pe:&lt;period&gt; (both required), ou:&lt;UID&gt;.  [required]
-* `--shape TEXT`: Response shape: `table` (default, aggregated), `raw` (/api/analytics/rawData), `dvs` (/api/analytics/dataValueSet — DataValueSet shape).  [default: table]
-* `--filter TEXT`: Filter string (repeatable), same syntax as --dimension.
-* `--agg TEXT`: SUM | AVERAGE | COUNT | MIN | MAX | AVERAGE_SUM_ORG_UNIT ...
-* `--output-id-scheme TEXT`: UID | NAME | CODE | ID — how UIDs appear in the response
+* `--dimension, --dim <str>`: Repeatable &#x27;axis:value&#x27;: dx:&lt;UID&gt;, pe:&lt;period&gt; (both required), ou:&lt;UID&gt;.  [required]
+* `--shape <str>`: Response shape: `table` (default, aggregated), `raw` (/api/analytics/rawData), `dvs` (/api/analytics/dataValueSet — DataValueSet shape).  [default: table]
+* `--filter <str>`: Filter string (repeatable), same syntax as --dimension.
+* `--agg <str>`: SUM | AVERAGE | COUNT | MIN | MAX | AVERAGE_SUM_ORG_UNIT ...
+* `--output-id-scheme <str>`: UID | NAME | CODE | ID — how UIDs appear in the response
 * `--num-den / --no-num-den`: Include indicator numerator/denominator columns.  [default: no-num-den]
-* `--display-property TEXT`: NAME | SHORTNAME — which label to render metadata with.
-* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
-* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
+* `--display-property <str>`: NAME | SHORTNAME — which label to render metadata with.
+* `--start-date <str>`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date <str>`: Fixed window end, ISO date YYYY-MM-DD.
 * `--skip-meta`
 * `--help`: Show this message and exit.
 
@@ -119,17 +120,17 @@ $ d2w analytics outlier-detection [OPTIONS]
 
 **Options**:
 
-* `--data-element, --de TEXT`: Data-element UID (repeatable).
-* `--data-set, --ds TEXT`: Data-set UID (repeatable) — expanded to its dataElements.
-* `--org-unit, --ou TEXT`: Org-unit UID (repeatable).
-* `--period, --pe TEXT`: Period identifier (e.g. LAST_12_MONTHS, 202401).
-* `--start-date TEXT`: ISO date YYYY-MM-DD.
-* `--end-date TEXT`: ISO date YYYY-MM-DD.
-* `--algorithm TEXT`: Z_SCORE (default) | MODIFIED_Z_SCORE | MIN_MAX. (Upstream OAS still shows MOD_Z_SCORE but the server rejects that value — see BUGS.md.)
-* `--threshold FLOAT`: Standard-deviation cutoff (default 3.0).
-* `--max-results INTEGER`: Cap the number of outliers returned (default 500).
-* `--order-by TEXT`: ABS_DEV | STANDARD_DEVIATION | Z_SCORE | ...
-* `--sort-order TEXT`: ASC | DESC.
+* `--data-element, --de <str>`: Data-element UID (repeatable).
+* `--data-set, --ds <str>`: Data-set UID (repeatable) — expanded to its dataElements.
+* `--org-unit, --ou <str>`: Org-unit UID (repeatable).
+* `--period, --pe <str>`: Period identifier (e.g. LAST_12_MONTHS, 202401).
+* `--start-date <str>`: ISO date YYYY-MM-DD.
+* `--end-date <str>`: ISO date YYYY-MM-DD.
+* `--algorithm <str>`: Z_SCORE (default) | MODIFIED_Z_SCORE | MIN_MAX. (Upstream OAS still shows MOD_Z_SCORE but the server rejects that value — see BUGS.md.)
+* `--threshold <float>`: Standard-deviation cutoff (default 3.0).
+* `--max-results <int>`: Cap the number of outliers returned (default 500).
+* `--order-by <str>`: ABS_DEV | STANDARD_DEVIATION | Z_SCORE | ...
+* `--sort-order <str>`: ASC | DESC.
 * `--help`: Show this message and exit.
 
 ### `d2w analytics events`
@@ -161,25 +162,25 @@ PROGRAM is a program UID; --mode is query (line list) or aggregate.
 **Usage**:
 
 ```console
-$ d2w analytics events query [OPTIONS] PROGRAM
+$ d2w analytics events query [OPTIONS] {program}
 ```
 
 **Arguments**:
 
-* `PROGRAM`: Program UID.  [required]
+* `program`: Program UID.  [required]
 
 **Options**:
 
-* `--mode TEXT`: `query` (line-listed events) or `aggregate` (grouped counts).  [default: query]
-* `--dimension, --dim TEXT`: Repeatable &#x27;axis:value&#x27;: pe:&lt;period&gt;, ou:&lt;UID&gt;. Aggregate value dim = &lt;stage&gt;.&lt;de&gt; (no dx:).
-* `--filter TEXT`: Filter string (repeatable), same syntax as --dimension.
-* `--stage TEXT`: Program stage UID to narrow events.
-* `--output-type TEXT`: EVENT | ENROLLMENT | TRACKED_ENTITY_INSTANCE (row shape).
-* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
-* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
+* `--mode <str>`: `query` (line-listed events) or `aggregate` (grouped counts).  [default: query]
+* `--dimension, --dim <str>`: Repeatable &#x27;axis:value&#x27;: pe:&lt;period&gt;, ou:&lt;UID&gt;. Aggregate value dim = &lt;stage&gt;.&lt;de&gt; (no dx:).
+* `--filter <str>`: Filter string (repeatable), same syntax as --dimension.
+* `--stage <str>`: Program stage UID to narrow events.
+* `--output-type <str>`: EVENT | ENROLLMENT | TRACKED_ENTITY_INSTANCE (row shape).
+* `--start-date <str>`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date <str>`: Fixed window end, ISO date YYYY-MM-DD.
 * `--skip-meta`
-* `--page INTEGER`
-* `--page-size INTEGER`
+* `--page <int>`
+* `--page-size <int>`
 * `--help`: Show this message and exit.
 
 ### `d2w analytics enrollments`
@@ -207,22 +208,22 @@ Run an enrollment analytics query (`/api/analytics/enrollments/query/{program}`)
 **Usage**:
 
 ```console
-$ d2w analytics enrollments query [OPTIONS] PROGRAM
+$ d2w analytics enrollments query [OPTIONS] {program}
 ```
 
 **Arguments**:
 
-* `PROGRAM`: Program UID.  [required]
+* `program`: Program UID.  [required]
 
 **Options**:
 
-* `--dimension, --dim TEXT`: Dimension string (repeatable).
-* `--filter TEXT`: Filter string (repeatable).
-* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
-* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
+* `--dimension, --dim <str>`: Dimension string (repeatable).
+* `--filter <str>`: Filter string (repeatable).
+* `--start-date <str>`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date <str>`: Fixed window end, ISO date YYYY-MM-DD.
 * `--skip-meta`
-* `--page INTEGER`
-* `--page-size INTEGER`
+* `--page <int>`
+* `--page-size <int>`
 * `--help`: Show this message and exit.
 
 ### `d2w analytics tracked-entities`
@@ -250,29 +251,29 @@ Line-list tracked entities via `/api/analytics/trackedEntities/query/{TET_UID}`.
 **Usage**:
 
 ```console
-$ d2w analytics tracked-entities query [OPTIONS] TRACKED_ENTITY_TYPE
+$ d2w analytics tracked-entities query [OPTIONS] {tracked_entity_type}
 ```
 
 **Arguments**:
 
-* `TRACKED_ENTITY_TYPE`: TrackedEntityType UID.  [required]
+* `tracked_entity_type`: TrackedEntityType UID.  [required]
 
 **Options**:
 
-* `--dimension, --dim TEXT`: Dimension string (repeatable).
-* `--filter TEXT`: Filter string (repeatable).
-* `--program TEXT`: Program UID (repeatable) to narrow results.
-* `--start-date TEXT`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
-* `--end-date TEXT`: Fixed window end, ISO date YYYY-MM-DD.
-* `--ou-mode TEXT`: SELECTED|CHILDREN|DESCENDANTS|ACCESSIBLE|ALL (default SELECTED; DESCENDANTS reaches facilities).
-* `--display-property TEXT`: NAME | SHORTNAME.
+* `--dimension, --dim <str>`: Dimension string (repeatable).
+* `--filter <str>`: Filter string (repeatable).
+* `--program <str>`: Program UID (repeatable) to narrow results.
+* `--start-date <str>`: Fixed window start, ISO date YYYY-MM-DD (alternative to a pe: dimension).
+* `--end-date <str>`: Fixed window end, ISO date YYYY-MM-DD.
+* `--ou-mode <str>`: SELECTED|CHILDREN|DESCENDANTS|ACCESSIBLE|ALL (default SELECTED; DESCENDANTS reaches facilities).
+* `--display-property <str>`: NAME | SHORTNAME.
 * `--skip-meta`
 * `--skip-data`
 * `--include-metadata-details`: Include nested objects in the metaData map.
-* `--page INTEGER`
-* `--page-size INTEGER`
-* `--asc TEXT`: Field to sort ascending (repeatable).
-* `--desc TEXT`: Field to sort descending (repeatable).
+* `--page <int>`
+* `--page-size <int>`
+* `--asc <str>`: Field to sort ascending (repeatable).
+* `--desc <str>`: Field to sort descending (repeatable).
 * `--help`: Show this message and exit.
 
 ## `d2w apps`
@@ -346,12 +347,12 @@ BUGS.md #46). DHIS2 overwrites an existing install of the same app.
 **Usage**:
 
 ```console
-$ d2w apps add [OPTIONS] SOURCE
+$ d2w apps add [OPTIONS] {source}
 ```
 
 **Arguments**:
 
-* `SOURCE`: A path to a local `.zip` (installs via /api/apps), an App Hub version id, or an App Hub app id (the latest version is resolved).  [required]
+* `source`: A path to a local `.zip` (installs via /api/apps), an App Hub version id, or an App Hub app id (the latest version is resolved).  [required]
 
 **Options**:
 
@@ -364,12 +365,12 @@ Uninstall an app by key (`DELETE /api/apps/{key}`).
 **Usage**:
 
 ```console
-$ d2w apps rm [OPTIONS] KEY
+$ d2w apps rm [OPTIONS] {key}
 ```
 
 **Arguments**:
 
-* `KEY`: App key (folder name) from `apps list`.  [required]
+* `key`: App key (folder name) from `apps list`.  [required]
 
 **Options**:
 
@@ -383,12 +384,12 @@ Uninstall an app by key (`DELETE /api/apps/{key}`).
 **Usage**:
 
 ```console
-$ d2w apps remove [OPTIONS] KEY
+$ d2w apps remove [OPTIONS] {key}
 ```
 
 **Arguments**:
 
-* `KEY`: App key (folder name) from `apps list`.  [required]
+* `key`: App key (folder name) from `apps list`.  [required]
 
 **Options**:
 
@@ -410,12 +411,12 @@ first.
 **Usage**:
 
 ```console
-$ d2w apps update [OPTIONS] [KEY]
+$ d2w apps update [OPTIONS] [key]
 ```
 
 **Arguments**:
 
-* `[KEY]`: App key; omit with --all to update every app.
+* `key`: App key; omit with --all to update every app.
 
 **Options**:
 
@@ -451,12 +452,12 @@ carry their zips.
 **Usage**:
 
 ```console
-$ d2w apps restore [OPTIONS] MANIFEST
+$ d2w apps restore [OPTIONS] {manifest}
 ```
 
 **Arguments**:
 
-* `MANIFEST`: Path to a snapshot JSON file produced by `d2w apps snapshot`.  [required]
+* `manifest`: Path to a snapshot JSON file produced by `d2w apps snapshot`.  [required]
 
 **Options**:
 
@@ -485,7 +486,7 @@ $ d2w apps snapshot [OPTIONS]
 
 **Options**:
 
-* `-o, --output PATH`: Write the snapshot JSON to this file. Omit to print to stdout.
+* `-o, --output <path>`: Write the snapshot JSON to this file. Omit to print to stdout.
 * `--help`: Show this message and exit.
 
 ### `d2w apps hub-list`
@@ -505,8 +506,8 @@ $ d2w apps hub-list [OPTIONS]
 
 **Options**:
 
-* `-s, --search TEXT`: Case-insensitive substring filter on name + description (client-side).
-* `--limit INTEGER`: Cap the number of rows shown.  [default: 50]
+* `-s, --search <str>`: Case-insensitive substring filter on name + description (client-side).
+* `--limit <int>`: Cap the number of rows shown.  [default: 50]
 * `--help`: Show this message and exit.
 
 ### `d2w apps hub-versions`
@@ -521,12 +522,12 @@ of letting `apps add &lt;app-id&gt;` resolve to the latest.
 **Usage**:
 
 ```console
-$ d2w apps hub-versions [OPTIONS] APP_ID
+$ d2w apps hub-versions [OPTIONS] {app_id}
 ```
 
 **Arguments**:
 
-* `APP_ID`: App Hub app id (the `id` column from `apps hub-list`).  [required]
+* `app_id`: App Hub app id (the `id` column from `apps hub-list`).  [required]
 
 **Options**:
 
@@ -549,7 +550,7 @@ $ d2w apps hub-url [OPTIONS]
 
 **Options**:
 
-* `--set TEXT`: Point this DHIS2 instance at a different App Hub (writes the `keyAppHubUrl` system setting).
+* `--set <str>`: Point this DHIS2 instance at a different App Hub (writes the `keyAppHubUrl` system setting).
 * `--clear`: Clear the `keyAppHubUrl` setting so DHIS2 reverts to its default hub.
 * `--help`: Show this message and exit.
 
@@ -590,14 +591,14 @@ $ d2w browser pat [OPTIONS]
 
 **Options**:
 
-* `--url TEXT`: Base URL of the DHIS2 instance.  [required]
-* `--username TEXT`: Login username.  [required]
-* `--password TEXT`: Login password.  [required]
-* `--name TEXT`: Friendly display name for the token.
-* `--expires-in-days INTEGER`: Token lifetime in days; omit for no expiry.
-* `--allowed-ip TEXT`: CIDR/IP allowlist entry; repeat for multiple.
-* `--allowed-method TEXT`: HTTP method allowlist; repeat for each method.
-* `--allowed-referrer TEXT`: Referer URL allowlist; repeat for each.
+* `--url <str>`: Base URL of the DHIS2 instance.  [required]
+* `--username <str>`: Login username.  [required]
+* `--password <str>`: Login password.  [required]
+* `--name <str>`: Friendly display name for the token.
+* `--expires-in-days <int>`: Token lifetime in days; omit for no expiry.
+* `--allowed-ip <str>`: CIDR/IP allowlist entry; repeat for multiple.
+* `--allowed-method <str>`: HTTP method allowlist; repeat for each method.
+* `--allowed-referrer <str>`: Referer URL allowlist; repeat for each.
 * `--headless / --headful`: Run browser headlessly (default: visible, so you can watch the flow).  [default: headful]
 * `--help`: Show this message and exit.
 
@@ -637,8 +638,8 @@ $ d2w browser dashboard screenshot [OPTIONS]
 
 **Options**:
 
-* `-o, --output-dir PATH`: Directory for the PNG output. Defaults to `./screenshots`. Each run auto-creates an `{instance-slug}/` subdirectory keyed on the profile&#x27;s base URL so multi-stack captures don&#x27;t overwrite.
-* `--only TEXT`: Capture only these dashboard UIDs; repeat for multiple.
+* `-o, --output-dir <path>`: Directory for the PNG output. Defaults to `./screenshots`. Each run auto-creates an `{instance-slug}/` subdirectory keyed on the profile&#x27;s base URL so multi-stack captures don&#x27;t overwrite.
+* `--only <str>`: Capture only these dashboard UIDs; repeat for multiple.
 * `--headless / --headful`: Run browser headlessly (default: yes — automation-friendly).  [default: headless]
 * `--banner / --no-banner`: Prepend an info banner (instance / user / timestamp) to each PNG.  [default: banner]
 * `--trim / --no-trim`: Crop uniform-colour edges off the bottom + right of each PNG.  [default: trim]
@@ -686,8 +687,8 @@ $ d2w browser viz screenshot [OPTIONS]
 
 **Options**:
 
-* `-o, --output-dir PATH`: Directory for the PNG output. Defaults to `./screenshots`. Each run auto-creates an `{instance-slug}/` subdirectory keyed on the profile&#x27;s base URL so multi-stack captures don&#x27;t overwrite.
-* `--only TEXT`: Capture only these Visualization UIDs; repeat for multiple.
+* `-o, --output-dir <path>`: Directory for the PNG output. Defaults to `./screenshots`. Each run auto-creates an `{instance-slug}/` subdirectory keyed on the profile&#x27;s base URL so multi-stack captures don&#x27;t overwrite.
+* `--only <str>`: Capture only these Visualization UIDs; repeat for multiple.
 * `--headless / --headful`: Run browser headlessly (default: yes — automation-friendly).  [default: headless]
 * `--banner / --no-banner`: Prepend an info banner (name / type / instance / user / timestamp) to each PNG.  [default: banner]
 * `--trim / --no-trim`: Crop uniform-colour edges off the bottom + right of each PNG.  [default: trim]
@@ -729,8 +730,8 @@ $ d2w browser map screenshot [OPTIONS]
 
 **Options**:
 
-* `-o, --output-dir PATH`: Directory for the PNG output. Defaults to `./screenshots`. Each run auto-creates an `{instance-slug}/` subdirectory keyed on the profile&#x27;s base URL so multi-stack captures don&#x27;t overwrite.
-* `--only TEXT`: Capture only these Map UIDs; repeat for multiple.
+* `-o, --output-dir <path>`: Directory for the PNG output. Defaults to `./screenshots`. Each run auto-creates an `{instance-slug}/` subdirectory keyed on the profile&#x27;s base URL so multi-stack captures don&#x27;t overwrite.
+* `--only <str>`: Capture only these Map UIDs; repeat for multiple.
 * `--headless / --headful`: Run browser headlessly (default: yes — automation-friendly).  [default: headless]
 * `--banner / --no-banner`: Prepend an info banner (name / layer count / instance / user / timestamp) to each PNG.  [default: banner]
 * `--trim / --no-trim`: Crop uniform-colour edges off the bottom + right of each PNG.  [default: trim]
@@ -765,12 +766,12 @@ Upload the login-page splash / upper-right logo.
 **Usage**:
 
 ```console
-$ d2w customize logo-front [OPTIONS] FILE
+$ d2w customize logo-front [OPTIONS] {file}
 ```
 
 **Arguments**:
 
-* `FILE`: PNG/JPG/SVG to upload as the login splash logo.  [required]
+* `file`: PNG/JPG/SVG to upload as the login splash logo.  [required]
 
 **Options**:
 
@@ -783,12 +784,12 @@ Upload the top-menu banner logo (appears on every authenticated page).
 **Usage**:
 
 ```console
-$ d2w customize logo-banner [OPTIONS] FILE
+$ d2w customize logo-banner [OPTIONS] {file}
 ```
 
 **Arguments**:
 
-* `FILE`: PNG/JPG/SVG to upload as the top-menu banner.  [required]
+* `file`: PNG/JPG/SVG to upload as the top-menu banner.  [required]
 
 **Options**:
 
@@ -804,12 +805,12 @@ stylesheet. Post-auth pages do.
 **Usage**:
 
 ```console
-$ d2w customize style [OPTIONS] FILE
+$ d2w customize style [OPTIONS] {file}
 ```
 
 **Arguments**:
 
-* `FILE`: CSS file to upload as `/api/files/style`.  [required]
+* `file`: CSS file to upload as `/api/files/style`.  [required]
 
 **Options**:
 
@@ -822,12 +823,12 @@ Apply a committed preset directory in one call (skips files that don&#x27;t exis
 **Usage**:
 
 ```console
-$ d2w customize apply [OPTIONS] DIRECTORY
+$ d2w customize apply [OPTIONS] {directory}
 ```
 
 **Arguments**:
 
-* `DIRECTORY`: Directory containing optional logo_front.png, logo_banner.png, style.css, preset.json.  [required]
+* `directory`: Directory containing optional logo_front.png, logo_banner.png, style.css, preset.json.  [required]
 
 **Options**:
 
@@ -902,17 +903,17 @@ $ d2w data aggregate get [OPTIONS]
 
 **Options**:
 
-* `--data-set, --ds TEXT`: DataSet UID.
-* `--period, --pe TEXT`: Period; match the dataSet&#x27;s periodType (Monthly=202401, Yearly=2024, Weekly=2024W12).
-* `--start-date TEXT`: ISO date (YYYY-MM-DD).
-* `--end-date TEXT`: ISO date (YYYY-MM-DD).
-* `--org-unit, --ou TEXT`: OrganisationUnit UID.
-* `--org-unit-group, --oug TEXT`: OrganisationUnitGroup UID (alternative to --ou).
+* `--data-set, --ds <str>`: DataSet UID.
+* `--period, --pe <str>`: Period; match the dataSet&#x27;s periodType (Monthly=202401, Yearly=2024, Weekly=2024W12).
+* `--start-date <str>`: ISO date (YYYY-MM-DD).
+* `--end-date <str>`: ISO date (YYYY-MM-DD).
+* `--org-unit, --ou <str>`: OrganisationUnit UID.
+* `--org-unit-group, --oug <str>`: OrganisationUnitGroup UID (alternative to --ou).
 * `--children`: Include descendant org units (values usually live at facility level).
-* `--data-element-group, --deg TEXT`: DataElementGroup UID (narrows to its member DEs).
+* `--data-element-group, --deg <str>`: DataElementGroup UID (narrows to its member DEs).
 * `--include-deleted`: Also return soft-deleted values.
-* `--last-updated TEXT`: Only values modified since a date (YYYY-MM-DD) or duration (e.g. 7d).
-* `--limit INTEGER`: Max rows to include in output.
+* `--last-updated <str>`: Only values modified since a date (YYYY-MM-DD) or duration (e.g. 7d).
+* `--limit <int>`: Max rows to include in output.
 * `--help`: Show this message and exit.
 
 #### `d2w data aggregate push`
@@ -922,20 +923,20 @@ Bulk push data values from a JSON file.
 **Usage**:
 
 ```console
-$ d2w data aggregate push [OPTIONS] FILE
+$ d2w data aggregate push [OPTIONS] {file}
 ```
 
 **Arguments**:
 
-* `FILE`: Path to a JSON file containing a dataValues array or envelope.  [required]
+* `file`: Path to a JSON file containing a dataValues array or envelope.  [required]
 
 **Options**:
 
-* `--data-set, --ds TEXT`
-* `--period, --pe TEXT`
-* `--org-unit, --ou TEXT`
+* `--data-set, --ds <str>`
+* `--period, --pe <str>`
+* `--org-unit, --ou <str>`
 * `--dry-run`
-* `--strategy TEXT`: CREATE | UPDATE | CREATE_AND_UPDATE | DELETE
+* `--strategy <str>`: CREATE | UPDATE | CREATE_AND_UPDATE | DELETE
 * `--help`: Show this message and exit.
 
 #### `d2w data aggregate set`
@@ -954,14 +955,14 @@ $ d2w data aggregate set [OPTIONS]
 
 **Options**:
 
-* `--data-element, --de TEXT`: DataElement UID.  [required]
-* `--period, --pe TEXT`: Period (e.g. 202401).  [required]
-* `--org-unit, --ou TEXT`: OrganisationUnit UID.  [required]
-* `--value TEXT`: The value to set (as a string).  [required]
-* `--coc TEXT`: CategoryOptionCombo UID.
-* `--attribute-combo, --cc TEXT`: Attribute CategoryCombo UID (pair with --attribute-option).
-* `--attribute-option, --cp TEXT`: Attribute category-option UID; repeat for each. Pair with --attribute-combo.
-* `--comment TEXT`
+* `--data-element, --de <str>`: DataElement UID.  [required]
+* `--period, --pe <str>`: Period (e.g. 202401).  [required]
+* `--org-unit, --ou <str>`: OrganisationUnit UID.  [required]
+* `--value <str>`: The value to set (as a string).  [required]
+* `--coc <str>`: CategoryOptionCombo UID.
+* `--attribute-combo, --cc <str>`: Attribute CategoryCombo UID (pair with --attribute-option).
+* `--attribute-option, --cp <str>`: Attribute category-option UID; repeat for each. Pair with --attribute-combo.
+* `--comment <str>`
 * `--help`: Show this message and exit.
 
 #### `d2w data aggregate delete`
@@ -979,12 +980,12 @@ $ d2w data aggregate delete [OPTIONS]
 
 **Options**:
 
-* `--data-element, --de TEXT`: [required]
-* `--period, --pe TEXT`: [required]
-* `--org-unit, --ou TEXT`: [required]
-* `--coc TEXT`
-* `--attribute-combo, --cc TEXT`: Attribute CategoryCombo UID.
-* `--attribute-option, --cp TEXT`: Attribute category-option UID; repeat for each.
+* `--data-element, --de <str>`: [required]
+* `--period, --pe <str>`: [required]
+* `--org-unit, --ou <str>`: [required]
+* `--coc <str>`
+* `--attribute-combo, --cc <str>`: Attribute CategoryCombo UID.
+* `--attribute-option, --cp <str>`: Attribute category-option UID; repeat for each.
 * `--help`: Show this message and exit.
 
 #### `d2w data aggregate followup`
@@ -999,12 +1000,12 @@ $ d2w data aggregate followup [OPTIONS]
 
 **Options**:
 
-* `--data-element, --de TEXT`: [required]
-* `--period, --pe TEXT`: [required]
-* `--org-unit, --ou TEXT`: [required]
+* `--data-element, --de <str>`: [required]
+* `--period, --pe <str>`: [required]
+* `--org-unit, --ou <str>`: [required]
 * `--on / --off`: Set (--on) or clear (--off) the follow-up flag.  [default: on]
-* `--coc TEXT`
-* `--aoc TEXT`
+* `--coc <str>`
+* `--aoc <str>`
 * `--help`: Show this message and exit.
 
 ### `d2w data tracker`
@@ -1044,24 +1045,24 @@ Example: d2w data tracker list Person --ou ImspTQPwCqd
 **Usage**:
 
 ```console
-$ d2w data tracker ls [OPTIONS] [TYPE]
+$ d2w data tracker ls [OPTIONS] [type]
 ```
 
 **Arguments**:
 
-* `[TYPE]`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27; or &#x27;tet01234567&#x27;. Give this OR --program (not both).
+* `type`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27; or &#x27;tet01234567&#x27;. Give this OR --program (not both).
 
 **Options**:
 
-* `--program TEXT`: Program UID — list the program&#x27;s tracked entities. Alternative to TYPE; DHIS2 rejects a program and a TrackedEntityType together.
-* `--te-uids TEXT`: Comma-separated tracked-entity UIDs to fetch directly.
-* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
-* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
-* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
-* `--filter TEXT`: Attribute filter &#x27;ATTR_UID:op:value&#x27; (repeatable).
-* `--page-size INTEGER`: [default: 50]
-* `--page INTEGER`: 1-based page number.
-* `--updated-after TEXT`: ISO-8601 cutoff — only entities updated after this.
+* `--program <str>`: Program UID — list the program&#x27;s tracked entities. Alternative to TYPE; DHIS2 rejects a program and a TrackedEntityType together.
+* `--te-uids <str>`: Comma-separated tracked-entity UIDs to fetch directly.
+* `--org-unit, --ou <str>`: OrganisationUnit UID to scope the listing.
+* `--ou-mode <str>`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--fields <str>`: DHIS2 field selector (comma-separated; nest with []).
+* `--filter <str>`: Attribute filter &#x27;ATTR_UID:op:value&#x27; (repeatable).
+* `--page-size <int>`: [default: 50]
+* `--page <int>`: 1-based page number.
+* `--updated-after <str>`: ISO-8601 cutoff — only entities updated after this.
 * `--help`: Show this message and exit.
 
 #### `d2w data tracker list`
@@ -1073,24 +1074,24 @@ Example: d2w data tracker list Person --ou ImspTQPwCqd
 **Usage**:
 
 ```console
-$ d2w data tracker list [OPTIONS] [TYPE]
+$ d2w data tracker list [OPTIONS] [type]
 ```
 
 **Arguments**:
 
-* `[TYPE]`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27; or &#x27;tet01234567&#x27;. Give this OR --program (not both).
+* `type`: TrackedEntityType name (case-insensitive) or UID — e.g. &#x27;Person&#x27; or &#x27;tet01234567&#x27;. Give this OR --program (not both).
 
 **Options**:
 
-* `--program TEXT`: Program UID — list the program&#x27;s tracked entities. Alternative to TYPE; DHIS2 rejects a program and a TrackedEntityType together.
-* `--te-uids TEXT`: Comma-separated tracked-entity UIDs to fetch directly.
-* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
-* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
-* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
-* `--filter TEXT`: Attribute filter &#x27;ATTR_UID:op:value&#x27; (repeatable).
-* `--page-size INTEGER`: [default: 50]
-* `--page INTEGER`: 1-based page number.
-* `--updated-after TEXT`: ISO-8601 cutoff — only entities updated after this.
+* `--program <str>`: Program UID — list the program&#x27;s tracked entities. Alternative to TYPE; DHIS2 rejects a program and a TrackedEntityType together.
+* `--te-uids <str>`: Comma-separated tracked-entity UIDs to fetch directly.
+* `--org-unit, --ou <str>`: OrganisationUnit UID to scope the listing.
+* `--ou-mode <str>`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--fields <str>`: DHIS2 field selector (comma-separated; nest with []).
+* `--filter <str>`: Attribute filter &#x27;ATTR_UID:op:value&#x27; (repeatable).
+* `--page-size <int>`: [default: 50]
+* `--page <int>`: 1-based page number.
+* `--updated-after <str>`: ISO-8601 cutoff — only entities updated after this.
 * `--help`: Show this message and exit.
 
 #### `d2w data tracker get`
@@ -1100,17 +1101,17 @@ Fetch one tracked entity by UID (TrackedEntityType inferred from the entity).
 **Usage**:
 
 ```console
-$ d2w data tracker get [OPTIONS] UID
+$ d2w data tracker get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Tracked entity UID.  [required]
+* `uid`: Tracked entity UID.  [required]
 
 **Options**:
 
-* `--program TEXT`: Program UID.
-* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
+* `--program <str>`: Program UID.
+* `--fields <str>`: DHIS2 field selector (comma-separated; nest with []).
 * `--help`: Show this message and exit.
 
 #### `d2w data tracker type`
@@ -1137,17 +1138,17 @@ Bulk import via POST /api/tracker.
 **Usage**:
 
 ```console
-$ d2w data tracker push [OPTIONS] FILE
+$ d2w data tracker push [OPTIONS] {file}
 ```
 
 **Arguments**:
 
-* `FILE`: JSON file containing the tracker bundle.  [required]
+* `file`: JSON file containing the tracker bundle.  [required]
 
 **Options**:
 
-* `--strategy TEXT`: CREATE | UPDATE | CREATE_AND_UPDATE | DELETE
-* `--atomic TEXT`: ALL | OBJECT
+* `--strategy <str>`: CREATE | UPDATE | CREATE_AND_UPDATE | DELETE
+* `--atomic <str>`: ALL | OBJECT
 * `--dry-run`
 * `--async`
 * `--help`: Show this message and exit.
@@ -1159,12 +1160,12 @@ Delete tracked entities by UID (cascades to their enrollments + events).
 **Usage**:
 
 ```console
-$ d2w data tracker delete [OPTIONS] UIDS...
+$ d2w data tracker delete [OPTIONS] {uids}...
 ```
 
 **Arguments**:
 
-* `UIDS...`: Tracked entity UID(s) to delete.  [required]
+* `uids...`: Tracked entity UID(s) to delete.  [required]
 
 **Options**:
 
@@ -1184,19 +1185,19 @@ reference them downstream.
 **Usage**:
 
 ```console
-$ d2w data tracker register [OPTIONS] PROGRAM
+$ d2w data tracker register [OPTIONS] {program}
 ```
 
 **Arguments**:
 
-* `PROGRAM`: Program UID to enroll into.  [required]
+* `program`: Program UID to enroll into.  [required]
 
 **Options**:
 
-* `--org-unit, --ou TEXT`: OrgUnit UID where the TE lives + is enrolled.  [required]
-* `--tet TEXT`: TrackedEntityType UID. Defaults to the program&#x27;s trackedEntityType if unset.
-* `--attr TEXT`: TrackedEntityAttribute UID=value. Repeatable. Example: --attr w75KJ2mc4zz=Jane
-* `--enrolled-at TEXT`: Enrollment date (ISO, e.g. 2024-06-01). Defaults to today server-side.
+* `--org-unit, --ou <str>`: OrgUnit UID where the TE lives + is enrolled.  [required]
+* `--tet <str>`: TrackedEntityType UID. Defaults to the program&#x27;s trackedEntityType if unset.
+* `--attr <str>`: TrackedEntityAttribute UID=value. Repeatable. Example: --attr w75KJ2mc4zz=Jane
+* `--enrolled-at <str>`: Enrollment date (ISO, e.g. 2024-06-01). Defaults to today server-side.
 * `--help`: Show this message and exit.
 
 #### `d2w data tracker outstanding`
@@ -1214,18 +1215,18 @@ a single outstanding semantic and are skipped.
 **Usage**:
 
 ```console
-$ d2w data tracker outstanding [OPTIONS] PROGRAM
+$ d2w data tracker outstanding [OPTIONS] {program}
 ```
 
 **Arguments**:
 
-* `PROGRAM`: Program UID — the scope for the &#x27;what&#x27;s due&#x27; report.  [required]
+* `program`: Program UID — the scope for the &#x27;what&#x27;s due&#x27; report.  [required]
 
 **Options**:
 
-* `--org-unit, --ou TEXT`: Narrow to one OU subtree. Default: every active enrollment on the program.
-* `--ou-mode TEXT`: SELECTED | CHILDREN | DESCENDANTS | ALL  [default: DESCENDANTS]
-* `--page-size INTEGER`: Max enrollments scanned (default 200).  [default: 200]
+* `--org-unit, --ou <str>`: Narrow to one OU subtree. Default: every active enrollment on the program.
+* `--ou-mode <str>`: SELECTED | CHILDREN | DESCENDANTS | ALL  [default: DESCENDANTS]
+* `--page-size <int>`: Max enrollments scanned (default 200).  [default: 200]
 * `--help`: Show this message and exit.
 
 #### `d2w data tracker enrollment`
@@ -1261,15 +1262,15 @@ $ d2w data tracker enrollment ls [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`: Program UID.
-* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
-* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
-* `--te TEXT`: TrackedEntity UID.
-* `--status TEXT`: ACTIVE | COMPLETED | CANCELLED
-* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
-* `--page-size INTEGER`: [default: 50]
-* `--page INTEGER`
-* `--updated-after TEXT`
+* `--program <str>`: Program UID.
+* `--org-unit, --ou <str>`: OrganisationUnit UID to scope the listing.
+* `--ou-mode <str>`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te <str>`: TrackedEntity UID.
+* `--status <str>`: ACTIVE | COMPLETED | CANCELLED
+* `--fields <str>`: DHIS2 field selector (comma-separated; nest with []).
+* `--page-size <int>`: [default: 50]
+* `--page <int>`
+* `--updated-after <str>`
 * `--help`: Show this message and exit.
 
 ##### `d2w data tracker enrollment list`
@@ -1284,15 +1285,15 @@ $ d2w data tracker enrollment list [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`: Program UID.
-* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
-* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
-* `--te TEXT`: TrackedEntity UID.
-* `--status TEXT`: ACTIVE | COMPLETED | CANCELLED
-* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
-* `--page-size INTEGER`: [default: 50]
-* `--page INTEGER`
-* `--updated-after TEXT`
+* `--program <str>`: Program UID.
+* `--org-unit, --ou <str>`: OrganisationUnit UID to scope the listing.
+* `--ou-mode <str>`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te <str>`: TrackedEntity UID.
+* `--status <str>`: ACTIVE | COMPLETED | CANCELLED
+* `--fields <str>`: DHIS2 field selector (comma-separated; nest with []).
+* `--page-size <int>`: [default: 50]
+* `--page <int>`
+* `--updated-after <str>`
 * `--help`: Show this message and exit.
 
 ##### `d2w data tracker enrollment delete`
@@ -1302,12 +1303,12 @@ Delete enrollments by UID (cascades to their events).
 **Usage**:
 
 ```console
-$ d2w data tracker enrollment delete [OPTIONS] UIDS...
+$ d2w data tracker enrollment delete [OPTIONS] {uids}...
 ```
 
 **Arguments**:
 
-* `UIDS...`: Enrollment UID(s) to delete.  [required]
+* `uids...`: Enrollment UID(s) to delete.  [required]
 
 **Options**:
 
@@ -1322,18 +1323,18 @@ Enroll an existing tracked entity in a program.
 **Usage**:
 
 ```console
-$ d2w data tracker enrollment create [OPTIONS] TRACKED_ENTITY PROGRAM
+$ d2w data tracker enrollment create [OPTIONS] {tracked_entity} {program}
 ```
 
 **Arguments**:
 
-* `TRACKED_ENTITY`: Existing TrackedEntity UID to enroll.  [required]
-* `PROGRAM`: Program UID to enroll into.  [required]
+* `tracked_entity`: Existing TrackedEntity UID to enroll.  [required]
+* `program`: Program UID to enroll into.  [required]
 
 **Options**:
 
-* `--at TEXT`: OrgUnit UID where the enrollment lives.  [required]
-* `--enrolled-at TEXT`: ISO date; defaults to today server-side.
+* `--at <str>`: OrgUnit UID where the enrollment lives.  [required]
+* `--enrolled-at <str>`: ISO date; defaults to today server-side.
 * `--help`: Show this message and exit.
 
 #### `d2w data tracker event`
@@ -1371,18 +1372,18 @@ $ d2w data tracker event ls [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`: Program UID.
-* `--program-stage TEXT`: ProgramStage UID to narrow to one stage.
-* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
-* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
-* `--te TEXT`: TrackedEntity UID.
-* `--enrollment TEXT`: Enrollment UID to list its events.
-* `--status TEXT`: Event status: ACTIVE | COMPLETED | VISITED | SCHEDULE | OVERDUE | SKIPPED.
-* `--after TEXT`: Only events on/after this ISO date (YYYY-MM-DD).
-* `--before TEXT`: Only events on/before this ISO date (YYYY-MM-DD).
-* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
-* `--page-size INTEGER`: [default: 50]
-* `--page INTEGER`
+* `--program <str>`: Program UID.
+* `--program-stage <str>`: ProgramStage UID to narrow to one stage.
+* `--org-unit, --ou <str>`: OrganisationUnit UID to scope the listing.
+* `--ou-mode <str>`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te <str>`: TrackedEntity UID.
+* `--enrollment <str>`: Enrollment UID to list its events.
+* `--status <str>`: Event status: ACTIVE | COMPLETED | VISITED | SCHEDULE | OVERDUE | SKIPPED.
+* `--after <str>`: Only events on/after this ISO date (YYYY-MM-DD).
+* `--before <str>`: Only events on/before this ISO date (YYYY-MM-DD).
+* `--fields <str>`: DHIS2 field selector (comma-separated; nest with []).
+* `--page-size <int>`: [default: 50]
+* `--page <int>`
 * `--help`: Show this message and exit.
 
 ##### `d2w data tracker event list`
@@ -1399,18 +1400,18 @@ $ d2w data tracker event list [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`: Program UID.
-* `--program-stage TEXT`: ProgramStage UID to narrow to one stage.
-* `--org-unit, --ou TEXT`: OrganisationUnit UID to scope the listing.
-* `--ou-mode TEXT`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
-* `--te TEXT`: TrackedEntity UID.
-* `--enrollment TEXT`: Enrollment UID to list its events.
-* `--status TEXT`: Event status: ACTIVE | COMPLETED | VISITED | SCHEDULE | OVERDUE | SKIPPED.
-* `--after TEXT`: Only events on/after this ISO date (YYYY-MM-DD).
-* `--before TEXT`: Only events on/before this ISO date (YYYY-MM-DD).
-* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
-* `--page-size INTEGER`: [default: 50]
-* `--page INTEGER`
+* `--program <str>`: Program UID.
+* `--program-stage <str>`: ProgramStage UID to narrow to one stage.
+* `--org-unit, --ou <str>`: OrganisationUnit UID to scope the listing.
+* `--ou-mode <str>`: Org-unit scope: SELECTED | CHILDREN | DESCENDANTS | ACCESSIBLE | ALL (default DESCENDANTS).  [default: DESCENDANTS]
+* `--te <str>`: TrackedEntity UID.
+* `--enrollment <str>`: Enrollment UID to list its events.
+* `--status <str>`: Event status: ACTIVE | COMPLETED | VISITED | SCHEDULE | OVERDUE | SKIPPED.
+* `--after <str>`: Only events on/after this ISO date (YYYY-MM-DD).
+* `--before <str>`: Only events on/before this ISO date (YYYY-MM-DD).
+* `--fields <str>`: DHIS2 field selector (comma-separated; nest with []).
+* `--page-size <int>`: [default: 50]
+* `--page <int>`
 * `--help`: Show this message and exit.
 
 ##### `d2w data tracker event delete`
@@ -1420,12 +1421,12 @@ Delete events by UID.
 **Usage**:
 
 ```console
-$ d2w data tracker event delete [OPTIONS] UIDS...
+$ d2w data tracker event delete [OPTIONS] {uids}...
 ```
 
 **Arguments**:
 
-* `UIDS...`: Event UID(s) to delete.  [required]
+* `uids...`: Event UID(s) to delete.  [required]
 
 **Options**:
 
@@ -1450,13 +1451,13 @@ $ d2w data tracker event create [OPTIONS]
 
 **Options**:
 
-* `--program TEXT`: Program UID.  [required]
-* `--stage TEXT`: ProgramStage UID.  [required]
-* `--at TEXT`: OrgUnit UID where the event happened.  [required]
-* `--enrollment TEXT`: Enrollment UID for tracker (WITH_REGISTRATION) programs. Omit for event (WITHOUT_REGISTRATION) programs.
-* `--te TEXT`: TrackedEntity UID (tracker programs only). Optional — DHIS2 derives from the enrollment.
-* `--dv TEXT`: DataElement UID=value. Repeatable. Example: --dv fClA2Erf6IO=5
-* `--occurred-at TEXT`: ISO event date; defaults to today server-side.
+* `--program <str>`: Program UID.  [required]
+* `--stage <str>`: ProgramStage UID.  [required]
+* `--at <str>`: OrgUnit UID where the event happened.  [required]
+* `--enrollment <str>`: Enrollment UID for tracker (WITH_REGISTRATION) programs. Omit for event (WITHOUT_REGISTRATION) programs.
+* `--te <str>`: TrackedEntity UID (tracker programs only). Optional — DHIS2 derives from the enrollment.
+* `--dv <str>`: DataElement UID=value. Repeatable. Example: --dv fClA2Erf6IO=5
+* `--occurred-at <str>`: ISO event date; defaults to today server-side.
 * `--help`: Show this message and exit.
 
 #### `d2w data tracker relationship`
@@ -1490,11 +1491,11 @@ $ d2w data tracker relationship ls [OPTIONS]
 
 **Options**:
 
-* `--te TEXT`: TrackedEntity UID.
-* `--enrollment TEXT`: Enrollment UID to list its events.
-* `--event TEXT`
-* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
-* `--page-size INTEGER`: [default: 50]
+* `--te <str>`: TrackedEntity UID.
+* `--enrollment <str>`: Enrollment UID to list its events.
+* `--event <str>`
+* `--fields <str>`: DHIS2 field selector (comma-separated; nest with []).
+* `--page-size <int>`: [default: 50]
 * `--help`: Show this message and exit.
 
 ##### `d2w data tracker relationship list`
@@ -1509,11 +1510,11 @@ $ d2w data tracker relationship list [OPTIONS]
 
 **Options**:
 
-* `--te TEXT`: TrackedEntity UID.
-* `--enrollment TEXT`: Enrollment UID to list its events.
-* `--event TEXT`
-* `--fields TEXT`: DHIS2 field selector (comma-separated; nest with []).
-* `--page-size INTEGER`: [default: 50]
+* `--te <str>`: TrackedEntity UID.
+* `--enrollment <str>`: Enrollment UID to list its events.
+* `--event <str>`
+* `--fields <str>`: DHIS2 field selector (comma-separated; nest with []).
+* `--page-size <int>`: [default: 50]
 * `--help`: Show this message and exit.
 
 ## `d2w datastore`
@@ -1561,12 +1562,12 @@ List every key in a namespace.
 **Usage**:
 
 ```console
-$ d2w datastore keys [OPTIONS] NAMESPACE
+$ d2w datastore keys [OPTIONS] {namespace}
 ```
 
 **Arguments**:
 
-* `NAMESPACE`: Namespace to list keys in.  [required]
+* `namespace`: Namespace to list keys in.  [required]
 
 **Options**:
 
@@ -1580,13 +1581,13 @@ Print the value stored at `namespace/key` (JSON).
 **Usage**:
 
 ```console
-$ d2w datastore get [OPTIONS] NAMESPACE KEY
+$ d2w datastore get [OPTIONS] {namespace} {key}
 ```
 
 **Arguments**:
 
-* `NAMESPACE`: Namespace.  [required]
-* `KEY`: Key.  [required]
+* `namespace`: Namespace.  [required]
+* `key`: Key.  [required]
 
 **Options**:
 
@@ -1600,14 +1601,14 @@ Create or update `namespace/key`.
 **Usage**:
 
 ```console
-$ d2w datastore set [OPTIONS] NAMESPACE KEY VALUE
+$ d2w datastore set [OPTIONS] {namespace} {key} {value}
 ```
 
 **Arguments**:
 
-* `NAMESPACE`: Namespace.  [required]
-* `KEY`: Key.  [required]
-* `VALUE`: Value — parsed as JSON, or stored as a string if not valid JSON.  [required]
+* `namespace`: Namespace.  [required]
+* `key`: Key.  [required]
+* `value`: Value — parsed as JSON, or stored as a string if not valid JSON.  [required]
 
 **Options**:
 
@@ -1621,13 +1622,13 @@ Delete `namespace/key`.
 **Usage**:
 
 ```console
-$ d2w datastore delete [OPTIONS] NAMESPACE KEY
+$ d2w datastore delete [OPTIONS] {namespace} {key}
 ```
 
 **Arguments**:
 
-* `NAMESPACE`: Namespace.  [required]
-* `KEY`: Key.  [required]
+* `namespace`: Namespace.  [required]
+* `key`: Key.  [required]
 
 **Options**:
 
@@ -1642,12 +1643,12 @@ Delete an entire namespace and every key in it.
 **Usage**:
 
 ```console
-$ d2w datastore delete-namespace [OPTIONS] NAMESPACE
+$ d2w datastore delete-namespace [OPTIONS] {namespace}
 ```
 
 **Arguments**:
 
-* `NAMESPACE`: Namespace to delete (all its keys go with it).  [required]
+* `namespace`: Namespace to delete (all its keys go with it).  [required]
 
 **Options**:
 
@@ -1708,11 +1709,11 @@ $ d2w dev codegen generate [OPTIONS]
 
 **Options**:
 
-* `--url TEXT`: Base URL of the DHIS2 instance.  [required]
-* `--username TEXT`: Basic-auth username.
-* `--password TEXT`: Basic-auth password.
-* `--pat TEXT`: Personal Access Token.
-* `--output-root PATH`: Directory containing versioned subfolders; defaults to dhis2w-client&#x27;s generated/ folder.
+* `--url <str>`: Base URL of the DHIS2 instance.  [required]
+* `--username <str>`: Basic-auth username.
+* `--password <str>`: Basic-auth password.
+* `--pat <str>`: Personal Access Token.
+* `--output-root <path>`: Directory containing versioned subfolders; defaults to dhis2w-client&#x27;s generated/ folder.
 * `--help`: Show this message and exit.
 
 #### `d2w dev codegen rebuild`
@@ -1732,8 +1733,8 @@ $ d2w dev codegen rebuild [OPTIONS]
 
 **Options**:
 
-* `--manifest PATH`: Path to a committed schemas_manifest.json. Defaults to every version under the generated root.
-* `--output-root PATH`: Directory of versioned subfolders; defaults to dhis2w-client generated/.
+* `--manifest <path>`: Path to a committed schemas_manifest.json. Defaults to every version under the generated root.
+* `--output-root <path>`: Directory of versioned subfolders; defaults to dhis2w-client generated/.
 * `--help`: Show this message and exit.
 
 #### `d2w dev codegen oas-rebuild`
@@ -1752,8 +1753,8 @@ $ d2w dev codegen oas-rebuild [OPTIONS]
 
 **Options**:
 
-* `--version TEXT`: Version key (e.g. v42). Defaults to every committed version.
-* `--output-root PATH`: Directory of versioned subfolders; defaults to dhis2w-client generated/.
+* `--version <str>`: Version key (e.g. v42). Defaults to every committed version.
+* `--output-root <path>`: Directory of versioned subfolders; defaults to dhis2w-client generated/.
 * `--help`: Show this message and exit.
 
 #### `d2w dev codegen diff`
@@ -1767,17 +1768,17 @@ when bumping DHIS2 majors.
 **Usage**:
 
 ```console
-$ d2w dev codegen diff [OPTIONS] FROM_VERSION TO_VERSION
+$ d2w dev codegen diff [OPTIONS] {from_version} {to_version}
 ```
 
 **Arguments**:
 
-* `FROM_VERSION`: Source version key (e.g. v42).  [required]
-* `TO_VERSION`: Target version key (e.g. v43).  [required]
+* `from_version`: Source version key (e.g. v42).  [required]
+* `to_version`: Target version key (e.g. v43).  [required]
 
 **Options**:
 
-* `--output-root PATH`: Directory of versioned subfolders; defaults to dhis2w-client generated/.
+* `--output-root <path>`: Directory of versioned subfolders; defaults to dhis2w-client generated/.
 * `--json`: Emit a JSON dump instead of the human-readable report.
 * `--help`: Show this message and exit.
 
@@ -1793,7 +1794,7 @@ $ d2w dev uid [OPTIONS] COMMAND [ARGS]...
 
 **Options**:
 
-* `-n, --count INTEGER RANGE`: How many UIDs to generate.  [default: 1; 1&lt;=x&lt;=10000]
+* `-n, --count <int range>`: How many UIDs to generate.  [default: 1; 1&lt;=x&lt;=10000]
 * `--help`: Show this message and exit.
 
 ### `d2w dev sample`
@@ -1833,8 +1834,8 @@ $ d2w dev sample route [OPTIONS]
 
 **Options**:
 
-* `--url TEXT`: URL the sample route will proxy to.  [default: https://httpbin.org/get]
-* `--code TEXT`: [default: SMOKE_ROUTE]
+* `--url <str>`: URL the sample route will proxy to.  [default: https://httpbin.org/get]
+* `--code <str>`: [default: SMOKE_ROUTE]
 * `--keep`: Don&#x27;t delete the sample route afterwards.
 * `--help`: Show this message and exit.
 
@@ -1850,8 +1851,8 @@ $ d2w dev sample pat [OPTIONS]
 
 **Options**:
 
-* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--admin-user TEXT`
+* `--url <str>`: DHIS2 base URL (also: DHIS2_URL env).
+* `--admin-user <str>`
 * `--keep`: Don&#x27;t delete the sample PAT afterwards.
 * `--help`: Show this message and exit.
 
@@ -1875,10 +1876,10 @@ $ d2w dev sample data-value [OPTIONS]
 
 **Options**:
 
-* `--data-element, --de TEXT`: DataElement UID.  [default: fClA2Erf6IO]
-* `--org-unit, --ou TEXT`: OrganisationUnit UID.  [default: Rp268JB6Ne4]
-* `--period, --pe TEXT`: Period (e.g. 202406).  [default: 202406]
-* `--value TEXT`: [default: 42]
+* `--data-element, --de <str>`: DataElement UID.  [default: fClA2Erf6IO]
+* `--org-unit, --ou <str>`: OrganisationUnit UID.  [default: Rp268JB6Ne4]
+* `--period, --pe <str>`: Period (e.g. 202406).  [default: 202406]
+* `--value <str>`: [default: 42]
 * `--keep`: Don&#x27;t delete the sample data value afterwards.
 * `--help`: Show this message and exit.
 
@@ -1898,9 +1899,9 @@ $ d2w dev sample oauth2-client [OPTIONS]
 
 **Options**:
 
-* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--admin-user TEXT`
-* `--client-id TEXT`: OAuth2 client_id; default = smoke-&lt;epoch&gt;.
+* `--url <str>`: DHIS2 base URL (also: DHIS2_URL env).
+* `--admin-user <str>`
+* `--client-id <str>`: OAuth2 client_id; default = smoke-&lt;epoch&gt;.
 * `--keep`: Don&#x27;t delete the sample OAuth2 client afterwards.
 * `--help`: Show this message and exit.
 
@@ -1916,8 +1917,8 @@ $ d2w dev sample all [OPTIONS]
 
 **Options**:
 
-* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--admin-user TEXT`
+* `--url <str>`: DHIS2 base URL (also: DHIS2_URL env).
+* `--admin-user <str>`
 * `--keep`: Don&#x27;t delete the fixtures afterwards.
 * `--help`: Show this message and exit.
 
@@ -1984,6 +1985,111 @@ $ d2w doctor bugs [OPTIONS]
 
 * `--help`: Show this message and exit.
 
+## `d2w fhir`
+
+FHIR Implementation Guide generation from DHIS2 metadata.
+
+**Usage**:
+
+```console
+$ d2w fhir [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `init`: Scaffold a dockerized SUSHI IG project...
+* `generate`: Generate FSH files from DHIS2 metadata...
+
+### `d2w fhir init`
+
+Scaffold a dockerized SUSHI IG project with a fhir.toml for `d2w fhir generate`.
+
+**Usage**:
+
+```console
+$ d2w fhir init [OPTIONS] [directory]
+```
+
+**Arguments**:
+
+* `directory`: Project directory (default: current directory).  [default: .]
+
+**Options**:
+
+* `--id <str>`: IG package id.  [default: dhis2.fhir.example]
+* `--canonical <str>`: Canonical base URL for the IG (no trailing slash).  [default: http://example.org/fhir]
+* `--name <str>`: SUSHI name (default: derived from --id).
+* `--title <str>`: IG title (default: derived from --name).
+* `--publisher <str>`: Publisher name.  [default: Example Organisation]
+* `--force`: Overwrite scaffold files that already exist.
+* `--help`: Show this message and exit.
+
+### `d2w fhir generate`
+
+Generate FSH files from DHIS2 metadata into the nearest FHIR project.
+
+**Usage**:
+
+```console
+$ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `option-sets`: Generate CodeSystem/ValueSet FSH from...
+* `org-units`: Generate Organization/Location FSH from...
+* `all`: Generate option-set terminology and...
+
+#### `d2w fhir generate option-sets`
+
+Generate CodeSystem/ValueSet FSH from DHIS2 option sets into the nearest FHIR project.
+
+**Usage**:
+
+```console
+$ d2w fhir generate option-sets [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+#### `d2w fhir generate org-units`
+
+Generate Organization/Location FSH from DHIS2 organisation units into the nearest FHIR project.
+
+**Usage**:
+
+```console
+$ d2w fhir generate org-units [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+#### `d2w fhir generate all`
+
+Generate option-set terminology and organisation-unit instances in one run.
+
+**Usage**:
+
+```console
+$ d2w fhir generate all [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
 ## `d2w files`
 
 Manage DHIS2 documents + file resources.
@@ -2044,9 +2150,9 @@ $ d2w files documents ls [OPTIONS]
 
 **Options**:
 
-* `--filter TEXT`: DHIS2 filter, e.g. `name:like:Annual`.
-* `--page INTEGER`: 1-indexed page number.
-* `--page-size INTEGER`: Rows per page (default 50).
+* `--filter <str>`: DHIS2 filter, e.g. `name:like:Annual`.
+* `--page <int>`: 1-indexed page number.
+* `--page-size <int>`: Rows per page (default 50).
 * `--details`: For each UPLOAD_FILE, also fetch the backing fileResource&#x27;s contentType / size / storageStatus (one extra request per row).
 * `--help`: Show this message and exit.
 
@@ -2067,9 +2173,9 @@ $ d2w files documents list [OPTIONS]
 
 **Options**:
 
-* `--filter TEXT`: DHIS2 filter, e.g. `name:like:Annual`.
-* `--page INTEGER`: 1-indexed page number.
-* `--page-size INTEGER`: Rows per page (default 50).
+* `--filter <str>`: DHIS2 filter, e.g. `name:like:Annual`.
+* `--page <int>`: 1-indexed page number.
+* `--page-size <int>`: Rows per page (default 50).
 * `--details`: For each UPLOAD_FILE, also fetch the backing fileResource&#x27;s contentType / size / storageStatus (one extra request per row).
 * `--help`: Show this message and exit.
 
@@ -2080,12 +2186,12 @@ Show metadata for one document.
 **Usage**:
 
 ```console
-$ d2w files documents get [OPTIONS] UID
+$ d2w files documents get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Document UID.  [required]
+* `uid`: Document UID.  [required]
 
 **Options**:
 
@@ -2098,16 +2204,16 @@ Upload a binary document — prints the new UID.
 **Usage**:
 
 ```console
-$ d2w files documents upload [OPTIONS] FILE
+$ d2w files documents upload [OPTIONS] {file}
 ```
 
 **Arguments**:
 
-* `FILE`: File to upload.  [required]
+* `file`: File to upload.  [required]
 
 **Options**:
 
-* `--name TEXT`: Document name (defaults to filename).
+* `--name <str>`: Document name (defaults to filename).
 * `--help`: Show this message and exit.
 
 #### `d2w files documents upload-url`
@@ -2117,13 +2223,13 @@ Create an EXTERNAL_URL document — no bytes uploaded; DHIS2 links out to `url`.
 **Usage**:
 
 ```console
-$ d2w files documents upload-url [OPTIONS] NAME URL
+$ d2w files documents upload-url [OPTIONS] {name} {url}
 ```
 
 **Arguments**:
 
-* `NAME`: Document display name.  [required]
-* `URL`: External URL DHIS2 will link to.  [required]
+* `name`: Document display name.  [required]
+* `url`: External URL DHIS2 will link to.  [required]
 
 **Options**:
 
@@ -2136,13 +2242,13 @@ Download the binary payload to `destination`.
 **Usage**:
 
 ```console
-$ d2w files documents download [OPTIONS] UID DESTINATION
+$ d2w files documents download [OPTIONS] {uid} {destination}
 ```
 
 **Arguments**:
 
-* `UID`: Document UID.  [required]
-* `DESTINATION`: Output file path.  [required]
+* `uid`: Document UID.  [required]
+* `destination`: Output file path.  [required]
 
 **Options**:
 
@@ -2155,12 +2261,12 @@ Delete one document.
 **Usage**:
 
 ```console
-$ d2w files documents delete [OPTIONS] UID
+$ d2w files documents delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Document UID.  [required]
+* `uid`: Document UID.  [required]
 
 **Options**:
 
@@ -2194,16 +2300,16 @@ Upload a file resource; prints the new UID (reference it from the owning metadat
 **Usage**:
 
 ```console
-$ d2w files resources upload [OPTIONS] FILE
+$ d2w files resources upload [OPTIONS] {file}
 ```
 
 **Arguments**:
 
-* `FILE`: File to upload as a fileResource.  [required]
+* `file`: File to upload as a fileResource.  [required]
 
 **Options**:
 
-* `--domain [data_value|push_analysis|document|message_attachment|user_avatar|org_unit|icon|job_data]`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
+* `--domain <data_value|push_analysis|document|message_attachment|user_avatar|org_unit|icon|job_data>`: FileResource domain (DATA_VALUE, ICON, MESSAGE_ATTACHMENT, ...).  [default: DATA_VALUE]
 * `--help`: Show this message and exit.
 
 #### `d2w files resources get`
@@ -2213,12 +2319,12 @@ Show metadata for one file resource.
 **Usage**:
 
 ```console
-$ d2w files resources get [OPTIONS] UID
+$ d2w files resources get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: FileResource UID.  [required]
+* `uid`: FileResource UID.  [required]
 
 **Options**:
 
@@ -2231,13 +2337,13 @@ Download the file-resource payload to `destination`.
 **Usage**:
 
 ```console
-$ d2w files resources download [OPTIONS] UID DESTINATION
+$ d2w files resources download [OPTIONS] {uid} {destination}
 ```
 
 **Arguments**:
 
-* `UID`: FileResource UID.  [required]
-* `DESTINATION`: Output file path.  [required]
+* `uid`: FileResource UID.  [required]
+* `destination`: Output file path.  [required]
 
 **Options**:
 
@@ -2324,12 +2430,12 @@ List every task UID recorded for a given job type.
 **Usage**:
 
 ```console
-$ d2w maintenance task ls [OPTIONS] TASK_TYPE
+$ d2w maintenance task ls [OPTIONS] {task_type}
 ```
 
 **Arguments**:
 
-* `TASK_TYPE`: Task type, e.g. ANALYTICS_TABLE.  [required]
+* `task_type`: Task type, e.g. ANALYTICS_TABLE.  [required]
 
 **Options**:
 
@@ -2342,12 +2448,12 @@ List every task UID recorded for a given job type.
 **Usage**:
 
 ```console
-$ d2w maintenance task list [OPTIONS] TASK_TYPE
+$ d2w maintenance task list [OPTIONS] {task_type}
 ```
 
 **Arguments**:
 
-* `TASK_TYPE`: Task type, e.g. ANALYTICS_TABLE.  [required]
+* `task_type`: Task type, e.g. ANALYTICS_TABLE.  [required]
 
 **Options**:
 
@@ -2360,13 +2466,13 @@ Print every notification emitted by a task, oldest first.
 **Usage**:
 
 ```console
-$ d2w maintenance task status [OPTIONS] TASK_TYPE TASK_UID
+$ d2w maintenance task status [OPTIONS] {task_type} {task_uid}
 ```
 
 **Arguments**:
 
-* `TASK_TYPE`: Task type, e.g. ANALYTICS_TABLE.  [required]
-* `TASK_UID`: Task UID returned by the async POST.  [required]
+* `task_type`: Task type, e.g. ANALYTICS_TABLE.  [required]
+* `task_uid`: Task UID returned by the async POST.  [required]
 
 **Options**:
 
@@ -2379,18 +2485,18 @@ Poll a task until it reports `completed=true`, streaming each new notification.
 **Usage**:
 
 ```console
-$ d2w maintenance task watch [OPTIONS] TASK_TYPE TASK_UID
+$ d2w maintenance task watch [OPTIONS] {task_type} {task_uid}
 ```
 
 **Arguments**:
 
-* `TASK_TYPE`: Task type, e.g. DATA_INTEGRITY.  [required]
-* `TASK_UID`: Task UID returned by the async POST.  [required]
+* `task_type`: Task type, e.g. DATA_INTEGRITY.  [required]
+* `task_uid`: Task UID returned by the async POST.  [required]
 
 **Options**:
 
-* `--interval FLOAT`: Poll interval in seconds.  [default: 2.0]
-* `--timeout FLOAT`: Abort after N seconds (default 600).  [default: 600.0]
+* `--interval <float>`: Poll interval in seconds.  [default: 2.0]
+* `--timeout <float>`: Abort after N seconds (default 600).  [default: 600.0]
 * `--help`: Show this message and exit.
 
 ### `d2w maintenance cleanup`
@@ -2530,20 +2636,20 @@ Kick off a data-integrity run; with --watch, stream progress to completion.
 **Usage**:
 
 ```console
-$ d2w maintenance dataintegrity run [OPTIONS] [CHECK]...
+$ d2w maintenance dataintegrity run [OPTIONS] [check]...
 ```
 
 **Arguments**:
 
-* `[CHECK]...`: Check name(s); omit to run every check.
+* `check...`: Check name(s); omit to run every check.
 
 **Options**:
 
 * `--details`: Hit /details (populates issues[]) instead of /summary.
 * `--slow`: Include the ~19 `isSlow` checks DHIS2 skips by default. Resolves the full check list via /api/dataIntegrity and passes every name explicitly — DHIS2 only runs a slow check when it&#x27;s named in the `checks` filter.
 * `-w, --watch`: After kicking off the job, poll /api/system/tasks until it reports completed=true.
-* `--interval FLOAT`: Poll interval in seconds when --watch is set.  [default: 2.0]
-* `--timeout FLOAT`: Abort polling after N seconds (default 600).  [default: 600.0]
+* `--interval <float>`: Poll interval in seconds when --watch is set.  [default: 2.0]
+* `--timeout <float>`: Abort polling after N seconds (default 600).  [default: 600.0]
 * `--help`: Show this message and exit.
 
 #### `d2w maintenance dataintegrity result`
@@ -2553,12 +2659,12 @@ Read the stored result of a completed data-integrity run (summary or details mod
 **Usage**:
 
 ```console
-$ d2w maintenance dataintegrity result [OPTIONS] [CHECK]...
+$ d2w maintenance dataintegrity result [OPTIONS] [check]...
 ```
 
 **Arguments**:
 
-* `[CHECK]...`: Check name(s) to read; omit for all.
+* `check...`: Check name(s) to read; omit for all.
 
 **Options**:
 
@@ -2601,11 +2707,11 @@ $ d2w maintenance refresh analytics [OPTIONS]
 
 **Options**:
 
-* `--last-years INTEGER`
+* `--last-years <int>`
 * `--skip-resource-tables`
 * `-w, --watch`: After kicking off the job, poll /api/system/tasks until it reports completed=true.
-* `--interval FLOAT`: Poll interval in seconds when --watch is set.  [default: 2.0]
-* `--timeout FLOAT`: Abort polling after N seconds (default 600).  [default: 600.0]
+* `--interval <float>`: Poll interval in seconds when --watch is set.  [default: 2.0]
+* `--timeout <float>`: Abort polling after N seconds (default 600).  [default: 600.0]
 * `--help`: Show this message and exit.
 
 #### `d2w maintenance refresh resource-tables`
@@ -2625,8 +2731,8 @@ $ d2w maintenance refresh resource-tables [OPTIONS]
 **Options**:
 
 * `-w, --watch`: After kicking off the job, poll /api/system/tasks until it reports completed=true.
-* `--interval FLOAT`: Poll interval in seconds when --watch is set.  [default: 2.0]
-* `--timeout FLOAT`: Abort polling after N seconds (default 600).  [default: 600.0]
+* `--interval <float>`: Poll interval in seconds when --watch is set.  [default: 2.0]
+* `--timeout <float>`: Abort polling after N seconds (default 600).  [default: 600.0]
 * `--help`: Show this message and exit.
 
 #### `d2w maintenance refresh monitoring`
@@ -2645,8 +2751,8 @@ $ d2w maintenance refresh monitoring [OPTIONS]
 **Options**:
 
 * `-w, --watch`: After kicking off the job, poll /api/system/tasks until it reports completed=true.
-* `--interval FLOAT`: Poll interval in seconds when --watch is set.  [default: 2.0]
-* `--timeout FLOAT`: Abort polling after N seconds (default 600).  [default: 600.0]
+* `--interval <float>`: Poll interval in seconds when --watch is set.  [default: 2.0]
+* `--timeout <float>`: Abort polling after N seconds (default 600).  [default: 600.0]
 * `--help`: Show this message and exit.
 
 ### `d2w maintenance validation`
@@ -2677,19 +2783,19 @@ Run a validation-rule analysis + render the violations.
 **Usage**:
 
 ```console
-$ d2w maintenance validation run [OPTIONS] ORG_UNIT
+$ d2w maintenance validation run [OPTIONS] {org_unit}
 ```
 
 **Arguments**:
 
-* `ORG_UNIT`: Org-unit UID to evaluate rules under (DHIS2 walks the sub-tree).  [required]
+* `org_unit`: Org-unit UID to evaluate rules under (DHIS2 walks the sub-tree).  [required]
 
 **Options**:
 
-* `--start-date TEXT`: Period start, YYYY-MM-DD.  [required]
-* `--end-date TEXT`: Period end, YYYY-MM-DD.  [required]
-* `--group TEXT`: ValidationRuleGroup UID to narrow the rules evaluated.
-* `--max-results INTEGER`: Cap on violations returned (DHIS2 default ~500).
+* `--start-date <str>`: Period start, YYYY-MM-DD.  [required]
+* `--end-date <str>`: Period end, YYYY-MM-DD.  [required]
+* `--group <str>`: ValidationRuleGroup UID to narrow the rules evaluated.
+* `--max-results <int>`: Cap on violations returned (DHIS2 default ~500).
 * `--notification`: Fire configured notification templates for each triggered rule.
 * `--persist`: Write violations into `/api/validationResults` (otherwise ephemeral).
 * `--help`: Show this message and exit.
@@ -2715,16 +2821,16 @@ Parse-check an expression + render a human description.
 **Usage**:
 
 ```console
-$ d2w maintenance validation validate-expression [OPTIONS] EXPRESSION
+$ d2w maintenance validation validate-expression [OPTIONS] {expression}
 ```
 
 **Arguments**:
 
-* `EXPRESSION`: DHIS2 expression to parse-check.  [required]
+* `expression`: DHIS2 expression to parse-check.  [required]
 
 **Options**:
 
-* `--context TEXT`: Expression parser context: one of generic, validation-rule, indicator, predictor, program-indicator.  [default: generic]
+* `--context <str>`: Expression parser context: one of generic, validation-rule, indicator, predictor, program-indicator.  [default: generic]
 * `--help`: Show this message and exit.
 
 #### `d2w maintenance validation result`
@@ -2760,11 +2866,11 @@ $ d2w maintenance validation result ls [OPTIONS]
 
 **Options**:
 
-* `--org-unit, --ou TEXT`: Org-unit UID filter.
-* `--period, --pe TEXT`: Period filter (e.g. 202501).
-* `--vr TEXT`: Validation-rule UID filter.
-* `--page INTEGER`
-* `--page-size INTEGER`
+* `--org-unit, --ou <str>`: Org-unit UID filter.
+* `--period, --pe <str>`: Period filter (e.g. 202501).
+* `--vr <str>`: Validation-rule UID filter.
+* `--page <int>`
+* `--page-size <int>`
 * `--help`: Show this message and exit.
 
 ##### `d2w maintenance validation result list`
@@ -2779,11 +2885,11 @@ $ d2w maintenance validation result list [OPTIONS]
 
 **Options**:
 
-* `--org-unit, --ou TEXT`: Org-unit UID filter.
-* `--period, --pe TEXT`: Period filter (e.g. 202501).
-* `--vr TEXT`: Validation-rule UID filter.
-* `--page INTEGER`
-* `--page-size INTEGER`
+* `--org-unit, --ou <str>`: Org-unit UID filter.
+* `--period, --pe <str>`: Period filter (e.g. 202501).
+* `--vr <str>`: Validation-rule UID filter.
+* `--page <int>`
+* `--page-size <int>`
 * `--help`: Show this message and exit.
 
 ##### `d2w maintenance validation result get`
@@ -2793,12 +2899,12 @@ Show one persisted validation result by id.
 **Usage**:
 
 ```console
-$ d2w maintenance validation result get [OPTIONS] RESULT_ID
+$ d2w maintenance validation result get [OPTIONS] {result_id}
 ```
 
 **Arguments**:
 
-* `RESULT_ID`: Numeric validation-result id.  [required]
+* `result_id`: Numeric validation-result id.  [required]
 
 **Options**:
 
@@ -2816,9 +2922,9 @@ $ d2w maintenance validation result delete [OPTIONS]
 
 **Options**:
 
-* `--org-unit, --ou TEXT`: Org-unit UID filter. Repeatable.
-* `--period, --pe TEXT`: Period filter. Repeatable.
-* `--vr TEXT`: Validation-rule UID filter. Repeatable.
+* `--org-unit, --ou <str>`: Org-unit UID filter. Repeatable.
+* `--period, --pe <str>`: Period filter. Repeatable.
+* `--vr <str>`: Validation-rule UID filter. Repeatable.
 * `--help`: Show this message and exit.
 
 ### `d2w maintenance predictors`
@@ -2851,10 +2957,10 @@ $ d2w maintenance predictors run [OPTIONS]
 
 **Options**:
 
-* `--start-date TEXT`: Period start, YYYY-MM-DD.  [required]
-* `--end-date TEXT`: Period end, YYYY-MM-DD.  [required]
-* `--predictor TEXT`: Run one predictor by UID. Mutually exclusive with --group.
-* `--group TEXT`: Run all predictors in a PredictorGroup by UID.
+* `--start-date <str>`: Period start, YYYY-MM-DD.  [required]
+* `--end-date <str>`: Period end, YYYY-MM-DD.  [required]
+* `--predictor <str>`: Run one predictor by UID. Mutually exclusive with --group.
+* `--group <str>`: Run all predictors in a PredictorGroup by UID.
 * `--help`: Show this message and exit.
 
 ## `d2w messaging`
@@ -2898,9 +3004,9 @@ $ d2w messaging ls [OPTIONS]
 
 **Options**:
 
-* `--filter TEXT`: DHIS2 filter. Example: `read:eq:false` for unread only.
-* `--page INTEGER`: 1-indexed page number.
-* `--page-size INTEGER`: Rows per page (default 50).
+* `--filter <str>`: DHIS2 filter. Example: `read:eq:false` for unread only.
+* `--page <int>`: 1-indexed page number.
+* `--page-size <int>`: Rows per page (default 50).
 * `--help`: Show this message and exit.
 
 ### `d2w messaging list`
@@ -2915,9 +3021,9 @@ $ d2w messaging list [OPTIONS]
 
 **Options**:
 
-* `--filter TEXT`: DHIS2 filter. Example: `read:eq:false` for unread only.
-* `--page INTEGER`: 1-indexed page number.
-* `--page-size INTEGER`: Rows per page (default 50).
+* `--filter <str>`: DHIS2 filter. Example: `read:eq:false` for unread only.
+* `--page <int>`: 1-indexed page number.
+* `--page-size <int>`: Rows per page (default 50).
 * `--help`: Show this message and exit.
 
 ### `d2w messaging get`
@@ -2927,12 +3033,12 @@ Show one conversation&#x27;s metadata + message thread.
 **Usage**:
 
 ```console
-$ d2w messaging get [OPTIONS] UID
+$ d2w messaging get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Conversation UID.  [required]
+* `uid`: Conversation UID.  [required]
 
 **Options**:
 
@@ -2945,20 +3051,20 @@ Create a new conversation with an initial message.
 **Usage**:
 
 ```console
-$ d2w messaging send [OPTIONS] SUBJECT TEXT
+$ d2w messaging send [OPTIONS] {subject} {text}
 ```
 
 **Arguments**:
 
-* `SUBJECT`: Subject line.  [required]
-* `TEXT`: Message body.  [required]
+* `subject`: Subject line.  [required]
+* `text`: Message body.  [required]
 
 **Options**:
 
-* `-u, --user TEXT`: User UID recipient. Repeatable.
-* `-g, --user-group TEXT`: User-group UID recipient. Repeatable.
-* `--org-unit, --ou TEXT`: Organisation-unit UID recipient. Repeatable.
-* `-a, --attachment TEXT`: FileResource UID to attach (upload via `d2w files resources upload --domain MESSAGE_ATTACHMENT` first). Repeatable.
+* `-u, --user <str>`: User UID recipient. Repeatable.
+* `-g, --user-group <str>`: User-group UID recipient. Repeatable.
+* `--org-unit, --ou <str>`: Organisation-unit UID recipient. Repeatable.
+* `-a, --attachment <str>`: FileResource UID to attach (upload via `d2w files resources upload --domain MESSAGE_ATTACHMENT` first). Repeatable.
 * `--help`: Show this message and exit.
 
 ### `d2w messaging reply`
@@ -2971,13 +3077,13 @@ internal-note flag only work on the initial `send` call.
 **Usage**:
 
 ```console
-$ d2w messaging reply [OPTIONS] UID TEXT
+$ d2w messaging reply [OPTIONS] {uid} {text}
 ```
 
 **Arguments**:
 
-* `UID`: Conversation UID.  [required]
-* `TEXT`: Reply body (plain text).  [required]
+* `uid`: Conversation UID.  [required]
+* `text`: Reply body (plain text).  [required]
 
 **Options**:
 
@@ -2990,12 +3096,12 @@ Mark one or more conversations as read.
 **Usage**:
 
 ```console
-$ d2w messaging mark-read [OPTIONS] UID...
+$ d2w messaging mark-read [OPTIONS] {uid}...
 ```
 
 **Arguments**:
 
-* `UID...`: Conversation UID(s). One or more.  [required]
+* `uid...`: Conversation UID(s). One or more.  [required]
 
 **Options**:
 
@@ -3008,12 +3114,12 @@ Mark one or more conversations as unread.
 **Usage**:
 
 ```console
-$ d2w messaging mark-unread [OPTIONS] UID...
+$ d2w messaging mark-unread [OPTIONS] {uid}...
 ```
 
 **Arguments**:
 
-* `UID...`: Conversation UID(s). One or more.  [required]
+* `uid...`: Conversation UID(s). One or more.  [required]
 
 **Options**:
 
@@ -3026,12 +3132,12 @@ Delete a conversation (soft-delete for the calling user; other participants keep
 **Usage**:
 
 ```console
-$ d2w messaging delete [OPTIONS] UID
+$ d2w messaging delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Conversation UID.  [required]
+* `uid`: Conversation UID.  [required]
 
 **Options**:
 
@@ -3047,13 +3153,13 @@ meaningful on TICKET conversations, stored on PRIVATE threads too.
 **Usage**:
 
 ```console
-$ d2w messaging set-priority [OPTIONS] UID PRIORITY
+$ d2w messaging set-priority [OPTIONS] {uid} {priority}
 ```
 
 **Arguments**:
 
-* `UID`: Conversation UID.  [required]
-* `PRIORITY`: Priority — NONE / LOW / MEDIUM / HIGH.  [required]
+* `uid`: Conversation UID.  [required]
+* `priority`: Priority — NONE / LOW / MEDIUM / HIGH.  [required]
 
 **Options**:
 
@@ -3070,13 +3176,13 @@ initial `send` — DHIS2&#x27;s API requires a separate POST on the
 **Usage**:
 
 ```console
-$ d2w messaging set-status [OPTIONS] UID STATUS
+$ d2w messaging set-status [OPTIONS] {uid} {status}
 ```
 
 **Arguments**:
 
-* `UID`: Conversation UID.  [required]
-* `STATUS`: Status — NONE / OPEN / PENDING / INVALID / SOLVED.  [required]
+* `uid`: Conversation UID.  [required]
+* `status`: Status — NONE / OPEN / PENDING / INVALID / SOLVED.  [required]
 
 **Options**:
 
@@ -3089,13 +3195,13 @@ Assign a conversation to a user (ticket workflows).
 **Usage**:
 
 ```console
-$ d2w messaging assign [OPTIONS] UID USER
+$ d2w messaging assign [OPTIONS] {uid} {user}
 ```
 
 **Arguments**:
 
-* `UID`: Conversation UID.  [required]
-* `USER`: User UID to assign the conversation to.  [required]
+* `uid`: Conversation UID.  [required]
+* `user`: User UID to assign the conversation to.  [required]
 
 **Options**:
 
@@ -3108,12 +3214,12 @@ Remove the assignee from a conversation.
 **Usage**:
 
 ```console
-$ d2w messaging unassign [OPTIONS] UID
+$ d2w messaging unassign [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Conversation UID.  [required]
+* `uid`: Conversation UID.  [required]
 
 **Options**:
 
@@ -3195,26 +3301,26 @@ List instances of a metadata resource.
 **Usage**:
 
 ```console
-$ d2w metadata ls [OPTIONS] RESOURCE
+$ d2w metadata ls [OPTIONS] {resource}
 ```
 
 **Arguments**:
 
-* `RESOURCE`: Resource type, e.g. dataElements, indicators  [required]
+* `resource`: Resource type, e.g. dataElements, indicators  [required]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector: plain (&#x27;id,name&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), nested (&#x27;children&#x27;), or exclusions (&#x27;:all,!lastUpdated&#x27;).  [default: id,name]
-* `--filter TEXT`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates), in: (any-of), null / !null (presence); drop the `i` for case-sensitive. Nested paths use dots, e.g. dataSetElements.dataSet.id:eq:&lt;uid&gt; or categoryCombo.id:eq:&lt;uid&gt;. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
-* `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.  [default: AND]
-* `--order TEXT`: Sort clause like &#x27;name:asc&#x27; or &#x27;created:desc&#x27;. Repeatable (later clauses tie-break).
-* `--page INTEGER`: Server-side page number (1-based). With NO paging flag the FULL collection is returned; passing --page switches to paged mode (pageSize defaults to 50). Ignored when --all is set.
-* `--page-size INTEGER`: Rows per page; applies only in paged mode (when --page/--page-size is given), default 50. Omit all paging flags to get everything. Ignored when --all is set.
+* `--fields <str>`: DHIS2 field selector: plain (&#x27;id,name&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), nested (&#x27;children&#x27;), or exclusions (&#x27;:all,!lastUpdated&#x27;).  [default: id,name]
+* `--filter <str>`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates), in: (any-of), null / !null (presence); drop the `i` for case-sensitive. Nested paths use dots, e.g. dataSetElements.dataSet.id:eq:&lt;uid&gt; or categoryCombo.id:eq:&lt;uid&gt;. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
+* `--root-junction <str>`: Combine repeated --filter as AND (default) or OR.  [default: AND]
+* `--order <str>`: Sort clause like &#x27;name:asc&#x27; or &#x27;created:desc&#x27;. Repeatable (later clauses tie-break).
+* `--page <int>`: Server-side page number (1-based). With NO paging flag the FULL collection is returned; passing --page switches to paged mode (pageSize defaults to 50). Ignored when --all is set.
+* `--page-size <int>`: Rows per page; applies only in paged mode (when --page/--page-size is given), default 50. Omit all paging flags to get everything. Ignored when --all is set.
 * `--all`: Stream every page server-side (ignores --page/--page-size). Useful for dumping a full catalog.
 * `--translate / --no-translate`: Return server-side translations for i18n fields.
-* `--locale TEXT`: Locale for --translate, e.g. &#x27;fr&#x27;.
+* `--locale <str>`: Locale for --translate, e.g. &#x27;fr&#x27;.
 * `--count`: Print only the total number of matching items (DHIS2 pager total), not the rows. Respects --filter; ignores --fields / --page / --page-size / --all.
-* `-o, --output PATH`: Write the result JSON to this file and print a one-line summary instead of the rows. Combine with --fields / --filter / --all to dump a full slice without flooding the caller.
+* `-o, --output <path>`: Write the result JSON to this file and print a one-line summary instead of the rows. Combine with --fields / --filter / --all to dump a full slice without flooding the caller.
 * `--help`: Show this message and exit.
 
 ### `d2w metadata list`
@@ -3224,26 +3330,26 @@ List instances of a metadata resource.
 **Usage**:
 
 ```console
-$ d2w metadata list [OPTIONS] RESOURCE
+$ d2w metadata list [OPTIONS] {resource}
 ```
 
 **Arguments**:
 
-* `RESOURCE`: Resource type, e.g. dataElements, indicators  [required]
+* `resource`: Resource type, e.g. dataElements, indicators  [required]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector: plain (&#x27;id,name&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), nested (&#x27;children&#x27;), or exclusions (&#x27;:all,!lastUpdated&#x27;).  [default: id,name]
-* `--filter TEXT`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates), in: (any-of), null / !null (presence); drop the `i` for case-sensitive. Nested paths use dots, e.g. dataSetElements.dataSet.id:eq:&lt;uid&gt; or categoryCombo.id:eq:&lt;uid&gt;. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
-* `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.  [default: AND]
-* `--order TEXT`: Sort clause like &#x27;name:asc&#x27; or &#x27;created:desc&#x27;. Repeatable (later clauses tie-break).
-* `--page INTEGER`: Server-side page number (1-based). With NO paging flag the FULL collection is returned; passing --page switches to paged mode (pageSize defaults to 50). Ignored when --all is set.
-* `--page-size INTEGER`: Rows per page; applies only in paged mode (when --page/--page-size is given), default 50. Omit all paging flags to get everything. Ignored when --all is set.
+* `--fields <str>`: DHIS2 field selector: plain (&#x27;id,name&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), nested (&#x27;children&#x27;), or exclusions (&#x27;:all,!lastUpdated&#x27;).  [default: id,name]
+* `--filter <str>`: Filter as `property:operator:value`. Repeatable — AND&#x27;d by default, use --root-junction OR. Operators: eq (exact), ilike (contains), $ilike (starts-with), ilike$ (ends-with), token (word), gt/ge/lt/le (numbers/dates), in: (any-of), null / !null (presence); drop the `i` for case-sensitive. Nested paths use dots, e.g. dataSetElements.dataSet.id:eq:&lt;uid&gt; or categoryCombo.id:eq:&lt;uid&gt;. E.g. name:$ilike:anc lists names starting with &#x27;anc&#x27;.
+* `--root-junction <str>`: Combine repeated --filter as AND (default) or OR.  [default: AND]
+* `--order <str>`: Sort clause like &#x27;name:asc&#x27; or &#x27;created:desc&#x27;. Repeatable (later clauses tie-break).
+* `--page <int>`: Server-side page number (1-based). With NO paging flag the FULL collection is returned; passing --page switches to paged mode (pageSize defaults to 50). Ignored when --all is set.
+* `--page-size <int>`: Rows per page; applies only in paged mode (when --page/--page-size is given), default 50. Omit all paging flags to get everything. Ignored when --all is set.
 * `--all`: Stream every page server-side (ignores --page/--page-size). Useful for dumping a full catalog.
 * `--translate / --no-translate`: Return server-side translations for i18n fields.
-* `--locale TEXT`: Locale for --translate, e.g. &#x27;fr&#x27;.
+* `--locale <str>`: Locale for --translate, e.g. &#x27;fr&#x27;.
 * `--count`: Print only the total number of matching items (DHIS2 pager total), not the rows. Respects --filter; ignores --fields / --page / --page-size / --all.
-* `-o, --output PATH`: Write the result JSON to this file and print a one-line summary instead of the rows. Combine with --fields / --filter / --all to dump a full slice without flooding the caller.
+* `-o, --output <path>`: Write the result JSON to this file and print a one-line summary instead of the rows. Combine with --fields / --filter / --all to dump a full slice without flooding the caller.
 * `--help`: Show this message and exit.
 
 ### `d2w metadata search`
@@ -3264,18 +3370,18 @@ match too many siblings.
 **Usage**:
 
 ```console
-$ d2w metadata search [OPTIONS] QUERY
+$ d2w metadata search [OPTIONS] {query}
 ```
 
 **Arguments**:
 
-* `QUERY`: UID, code, or name fragment to search for.  [required]
+* `query`: UID, code, or name fragment to search for.  [required]
 
 **Options**:
 
-* `--page-size INTEGER`: Max hits per resource type (default 50).  [default: 50]
-* `--resource TEXT`: Narrow to one DHIS2 resource (e.g. dataElements, dashboards).
-* `--fields TEXT`: DHIS2 fields selector; extras land on SearchHit.extras (rendered as trailing columns).
+* `--page-size <int>`: Max hits per resource type (default 50).  [default: 50]
+* `--resource <str>`: Narrow to one DHIS2 resource (e.g. dataElements, dashboards).
+* `--fields <str>`: DHIS2 fields selector; extras land on SearchHit.extras (rendered as trailing columns).
 * `--exact`: Use `:eq:` instead of `:ilike:` — strict UID / code match.
 * `--help`: Show this message and exit.
 
@@ -3297,16 +3403,16 @@ reference-shape for that owning type.
 **Usage**:
 
 ```console
-$ d2w metadata usage [OPTIONS] UID
+$ d2w metadata usage [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: UID to reverse-lookup — find every object that references it.  [required]
+* `uid`: UID to reverse-lookup — find every object that references it.  [required]
 
 **Options**:
 
-* `--page-size INTEGER`: Max hits per reference path (default 100).  [default: 100]
+* `--page-size <int>`: Max hits per reference path (default 100).  [default: 100]
 * `--help`: Show this message and exit.
 
 ### `d2w metadata get`
@@ -3320,17 +3426,17 @@ piping into jq. Pass `--fields` to narrow what DHIS2 returns.
 **Usage**:
 
 ```console
-$ d2w metadata get [OPTIONS] RESOURCE UID
+$ d2w metadata get [OPTIONS] {resource} {uid}
 ```
 
 **Arguments**:
 
-* `RESOURCE`: Resource type, e.g. dataElements  [required]
-* `UID`: Object UID  [required]
+* `resource`: Resource type, e.g. dataElements  [required]
+* `uid`: Object UID  [required]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 fields selector.
+* `--fields <str>`: DHIS2 fields selector.
 * `--help`: Show this message and exit.
 
 ### `d2w metadata export`
@@ -3352,15 +3458,15 @@ $ d2w metadata export [OPTIONS]
 
 **Options**:
 
-* `--resource TEXT`: Resource type to include (repeatable). Omit for every type DHIS2 exports by default.
-* `--fields TEXT`: DHIS2 field selector. Defaults to &#x27;:owner&#x27; for a lossless round-trip import.  [default: :owner]
-* `--filter TEXT`: Per-resource filter in the form `RESOURCE:property:operator:value`. Repeatable. Example: `--filter dataElements:name:like:ANC`. Same DSL as `d2w metadata list --filter`, prefixed with the resource name.
-* `--resource-fields TEXT`: Per-resource field selector in the form `RESOURCE:SELECTOR`. Repeatable. Overrides the global `--fields` for the named resource. Example: `--resource-fields dataElements::identifiable`.
+* `--resource <str>`: Resource type to include (repeatable). Omit for every type DHIS2 exports by default.
+* `--fields <str>`: DHIS2 field selector. Defaults to &#x27;:owner&#x27; for a lossless round-trip import.  [default: :owner]
+* `--filter <str>`: Per-resource filter in the form `RESOURCE:property:operator:value`. Repeatable. Example: `--filter dataElements:name:like:ANC`. Same DSL as `d2w metadata list --filter`, prefixed with the resource name.
+* `--resource-fields <str>`: Per-resource field selector in the form `RESOURCE:SELECTOR`. Repeatable. Overrides the global `--fields` for the named resource. Example: `--resource-fields dataElements::identifiable`.
 * `--skip-sharing`: Exclude sharing blocks from exported objects.
 * `--skip-translation`: Exclude translation blocks.
 * `--skip-validation`: Skip validation during export (matches DHIS2&#x27;s server-side option).
 * `--check-references / --no-check-references`: After export, walk the bundle and warn on references to UIDs not in the bundle (e.g. a dataElement&#x27;s categoryCombo missing from a filtered export). On by default.  [default: check-references]
-* `-o, --output PATH`: Write the bundle to this file (JSON). A full-catalog export is tens of MB (org-unit geometry) — prefer this; omitting prints the whole bundle to stdout.
+* `-o, --output <path>`: Write the bundle to this file (JSON). A full-catalog export is tens of MB (org-unit geometry) — prefer this; omitting prints the whole bundle to stdout.
 * `--pretty / --no-pretty`: Indent JSON output (default: pretty).  [default: pretty]
 * `--help`: Show this message and exit.
 
@@ -3371,25 +3477,25 @@ Upload a metadata bundle via `POST /api/metadata` and print the import report.
 **Usage**:
 
 ```console
-$ d2w metadata import [OPTIONS] FILE
+$ d2w metadata import [OPTIONS] {file}
 ```
 
 **Arguments**:
 
-* `FILE`: Path to the metadata bundle JSON.  [required]
+* `file`: Path to the metadata bundle JSON.  [required]
 
 **Options**:
 
-* `--strategy TEXT`: CREATE | UPDATE | CREATE_AND_UPDATE | DELETE (default CREATE_AND_UPDATE).  [default: CREATE_AND_UPDATE]
-* `--atomic-mode TEXT`: ALL (rollback on any failure) or NONE (commit surviving objects).  [default: ALL]
+* `--strategy <str>`: CREATE | UPDATE | CREATE_AND_UPDATE | DELETE (default CREATE_AND_UPDATE).  [default: CREATE_AND_UPDATE]
+* `--atomic-mode <str>`: ALL (rollback on any failure) or NONE (commit surviving objects).  [default: ALL]
 * `--dry-run`: Validate + preheat without committing. Output is the import report DHIS2 would have produced.
-* `--identifier TEXT`: UID | CODE | AUTO (default UID).  [default: UID]
+* `--identifier <str>`: UID | CODE | AUTO (default UID).  [default: UID]
 * `--skip-sharing`
 * `--skip-translation`
 * `--skip-validation`
-* `--merge-mode TEXT`: REPLACE (overwrite) or MERGE (patch) existing objects.
-* `--preheat-mode TEXT`: REFERENCE (default), ALL, or NONE.
-* `--flush-mode TEXT`: AUTO (default) or OBJECT.
+* `--merge-mode <str>`: REPLACE (overwrite) or MERGE (patch) existing objects.
+* `--preheat-mode <str>`: REFERENCE (default), ALL, or NONE.
+* `--flush-mode <str>`: AUTO (default) or OBJECT.
 * `--help`: Show this message and exit.
 
 ### `d2w metadata patch`
@@ -3408,19 +3514,19 @@ Two input modes:
 **Usage**:
 
 ```console
-$ d2w metadata patch [OPTIONS] RESOURCE UID
+$ d2w metadata patch [OPTIONS] {resource} {uid}
 ```
 
 **Arguments**:
 
-* `RESOURCE`: Resource type, e.g. dataElements, indicators.  [required]
-* `UID`: UID of the object to patch.  [required]
+* `resource`: Resource type, e.g. dataElements, indicators.  [required]
+* `uid`: UID of the object to patch.  [required]
 
 **Options**:
 
-* `--file PATH`: JSON file with a RFC 6902 patch array. Mutually exclusive with --set/--remove.
-* `--set TEXT`: Inline `replace` op as `path=value`. Repeatable. Values are JSON-decoded when they parse as JSON (`{&quot;a&quot;:1}`, `true`, `42`) and treated as strings otherwise.
-* `--remove TEXT`: Inline `remove` op as `path`. Repeatable.
+* `--file <path>`: JSON file with a RFC 6902 patch array. Mutually exclusive with --set/--remove.
+* `--set <str>`: Inline `replace` op as `path=value`. Repeatable. Values are JSON-decoded when they parse as JSON (`{&quot;a&quot;:1}`, `true`, `42`) and treated as strings otherwise.
+* `--remove <str>`: Inline `remove` op as `path`. Repeatable.
 * `--help`: Show this message and exit.
 
 ### `d2w metadata rename`
@@ -3440,27 +3546,27 @@ before/after labels would be, then drop the flag to apply.
 **Usage**:
 
 ```console
-$ d2w metadata rename [OPTIONS] RESOURCE
+$ d2w metadata rename [OPTIONS] {resource}
 ```
 
 **Arguments**:
 
-* `RESOURCE`: Resource type, e.g. dataElements, indicators.  [required]
+* `resource`: Resource type, e.g. dataElements, indicators.  [required]
 
 **Options**:
 
-* `--filter TEXT`: DHIS2 filter DSL (`&lt;prop&gt;:&lt;op&gt;:&lt;value&gt;`), repeatable. Example: `--filter code:like:DE_ANC` to narrow the cohort.
-* `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.
-* `--name-prefix TEXT`: Prefix each matched object&#x27;s `name` (idempotent).
-* `--name-suffix TEXT`: Suffix each matched object&#x27;s `name` (idempotent).
-* `--name-strip-prefix TEXT`: Remove this non-empty prefix from each matched object&#x27;s `name` (idempotent; no-op when absent).
-* `--name-strip-suffix TEXT`: Remove this non-empty suffix from each matched object&#x27;s `name` (idempotent; no-op when absent).
-* `--short-name-prefix TEXT`: Prefix each matched object&#x27;s `shortName` (idempotent).
-* `--short-name-suffix TEXT`: Suffix each matched object&#x27;s `shortName` (idempotent).
-* `--short-name-strip-prefix TEXT`: Remove this non-empty prefix from each matched object&#x27;s `shortName` (idempotent).
-* `--short-name-strip-suffix TEXT`: Remove this non-empty suffix from each matched object&#x27;s `shortName` (idempotent).
-* `--set-description TEXT`: Replace every matched object&#x27;s `description` with this string.
-* `--concurrency INTEGER`: Max concurrent PATCH requests (default 8).  [default: 8]
+* `--filter <str>`: DHIS2 filter DSL (`&lt;prop&gt;:&lt;op&gt;:&lt;value&gt;`), repeatable. Example: `--filter code:like:DE_ANC` to narrow the cohort.
+* `--root-junction <str>`: Combine repeated --filter as AND (default) or OR.
+* `--name-prefix <str>`: Prefix each matched object&#x27;s `name` (idempotent).
+* `--name-suffix <str>`: Suffix each matched object&#x27;s `name` (idempotent).
+* `--name-strip-prefix <str>`: Remove this non-empty prefix from each matched object&#x27;s `name` (idempotent; no-op when absent).
+* `--name-strip-suffix <str>`: Remove this non-empty suffix from each matched object&#x27;s `name` (idempotent; no-op when absent).
+* `--short-name-prefix <str>`: Prefix each matched object&#x27;s `shortName` (idempotent).
+* `--short-name-suffix <str>`: Suffix each matched object&#x27;s `shortName` (idempotent).
+* `--short-name-strip-prefix <str>`: Remove this non-empty prefix from each matched object&#x27;s `shortName` (idempotent).
+* `--short-name-strip-suffix <str>`: Remove this non-empty suffix from each matched object&#x27;s `shortName` (idempotent).
+* `--set-description <str>`: Replace every matched object&#x27;s `description` with this string.
+* `--concurrency <int>`: Max concurrent PATCH requests (default 8).  [default: 8]
 * `--dry-run`: Preview the planned patches without sending them.
 * `--all`: Opt into renaming EVERY object when no --filter is given (asks to confirm).
 * `-y, --yes`: Skip the confirmation prompt for a catalog-wide (--all) rename.
@@ -3485,25 +3591,25 @@ Per-UID failures render through the shared `ConflictRow` renderer
 **Usage**:
 
 ```console
-$ d2w metadata retag [OPTIONS] RESOURCE
+$ d2w metadata retag [OPTIONS] {resource}
 ```
 
 **Arguments**:
 
-* `RESOURCE`: Resource type, e.g. dataElements, indicators.  [required]
+* `resource`: Resource type, e.g. dataElements, indicators.  [required]
 
 **Options**:
 
-* `--filter TEXT`: DHIS2 filter DSL (`&lt;prop&gt;:&lt;op&gt;:&lt;value&gt;`), repeatable.
-* `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.
-* `--category-combo TEXT`: Replace `/categoryCombo` with the given CategoryCombo UID.
-* `--option-set TEXT`: Replace `/optionSet` with the given OptionSet UID.
+* `--filter <str>`: DHIS2 filter DSL (`&lt;prop&gt;:&lt;op&gt;:&lt;value&gt;`), repeatable.
+* `--root-junction <str>`: Combine repeated --filter as AND (default) or OR.
+* `--category-combo <str>`: Replace `/categoryCombo` with the given CategoryCombo UID.
+* `--option-set <str>`: Replace `/optionSet` with the given OptionSet UID.
 * `--clear-option-set`: Remove `/optionSet` (null out the ref).
-* `--aggregation-type TEXT`: Replace `/aggregationType` (e.g. SUM, AVERAGE).
-* `--domain-type TEXT`: Replace `/domainType` (AGGREGATE / TRACKER).
-* `--legend-set TEXT`: Replace `/legendSets` with the given UIDs (repeatable).
+* `--aggregation-type <str>`: Replace `/aggregationType` (e.g. SUM, AVERAGE).
+* `--domain-type <str>`: Replace `/domainType` (AGGREGATE / TRACKER).
+* `--legend-set <str>`: Replace `/legendSets` with the given UIDs (repeatable).
 * `--clear-legend-sets`: Empty `/legendSets`.
-* `--concurrency INTEGER`: Max concurrent PATCH requests (default 8).  [default: 8]
+* `--concurrency <int>`: Max concurrent PATCH requests (default 8).  [default: 8]
 * `--dry-run`: Preview without sending patches.
 * `--all`: Opt into retagging EVERY object when no --filter is given (asks to confirm).
 * `-y, --yes`: Skip the confirmation prompt for a catalog-wide (--all) retag.
@@ -3528,20 +3634,20 @@ leaving the shell.
 **Usage**:
 
 ```console
-$ d2w metadata share [OPTIONS] RESOURCE_TYPE [UIDS]...
+$ d2w metadata share [OPTIONS] {resource_type} [uids]...
 ```
 
 **Arguments**:
 
-* `RESOURCE_TYPE`: DHIS2 resource type — singular or plural, e.g. `dataElement`/`dataElements`, `dataSet`/`dataSets`, `program`. Normalized to the singular `/api/sharing?type=` form.  [required]
-* `[UIDS]...`: UIDs to share. Pass `-` to read one UID per line from stdin.
+* `resource_type`: DHIS2 resource type — singular or plural, e.g. `dataElement`/`dataElements`, `dataSet`/`dataSets`, `program`. Normalized to the singular `/api/sharing?type=` form.  [required]
+* `uids...`: UIDs to share. Pass `-` to read one UID per line from stdin.
 
 **Options**:
 
-* `--public-access TEXT`: Replace the public-access string. 8-char DHIS2 pattern (`rwrw----`, `r-------`, `--------`). Omit to keep each object&#x27;s current public access unchanged.
-* `--user-access TEXT`: Repeatable; grant a user access in `UID:access` form (e.g. `U_ALICE:rw------`).
-* `--user-group-access TEXT`: Repeatable; grant a user-group access in `UID:access` form.
-* `--concurrency INTEGER`: Max concurrent POSTs (default 8).  [default: 8]
+* `--public-access <str>`: Replace the public-access string. 8-char DHIS2 pattern (`rwrw----`, `r-------`, `--------`). Omit to keep each object&#x27;s current public access unchanged.
+* `--user-access <str>`: Repeatable; grant a user access in `UID:access` form (e.g. `U_ALICE:rw------`).
+* `--user-group-access <str>`: Repeatable; grant a user-group access in `UID:access` form.
+* `--concurrency <int>`: Max concurrent POSTs (default 8).  [default: 8]
 * `--dry-run`: Preview the planned grants without sending them.
 * `--help`: Show this message and exit.
 
@@ -3556,19 +3662,19 @@ unchanged by default — `--ignore` extends that list.
 **Usage**:
 
 ```console
-$ d2w metadata diff [OPTIONS] LEFT [RIGHT]
+$ d2w metadata diff [OPTIONS] {left} [right]
 ```
 
 **Arguments**:
 
-* `LEFT`: Left-hand bundle — the &#x27;source of truth&#x27; you&#x27;re comparing against.  [required]
-* `[RIGHT]`: Right-hand bundle. Omit with `--live` to diff against the connected DHIS2 instance.
+* `left`: Left-hand bundle — the &#x27;source of truth&#x27; you&#x27;re comparing against.  [required]
+* `right`: Right-hand bundle. Omit with `--live` to diff against the connected DHIS2 instance.
 
 **Options**:
 
 * `--live`: Use the connected DHIS2 instance as the right-hand side. Exports only the resource types present in the left bundle (no full-catalog fetch). Incompatible with a positional right arg.
 * `--show-uids`: List up to 5 offending UIDs per per-resource row.
-* `--ignore TEXT`: Fields to skip when deciding if an object changed. Repeatable. Defaults cover DHIS2&#x27;s per-instance noise (lastUpdated, createdBy, access, ...); pass `--ignore sharing` etc. to extend.
+* `--ignore <str>`: Fields to skip when deciding if an object changed. Repeatable. Defaults cover DHIS2&#x27;s per-instance noise (lastUpdated, createdBy, access, ...); pass `--ignore sharing` etc. to extend.
 * `--help`: Show this message and exit.
 
 ### `d2w metadata diff-profiles`
@@ -3593,20 +3699,20 @@ interactively aren&#x27;t tripped by per-command-exit conventions). Pass
 **Usage**:
 
 ```console
-$ d2w metadata diff-profiles [OPTIONS] PROFILE_A PROFILE_B
+$ d2w metadata diff-profiles [OPTIONS] {profile_a} {profile_b}
 ```
 
 **Arguments**:
 
-* `PROFILE_A`: Name of the &#x27;left&#x27; profile (source of truth).  [required]
-* `PROFILE_B`: Name of the &#x27;right&#x27; profile (candidate).  [required]
+* `profile_a`: Name of the &#x27;left&#x27; profile (source of truth).  [required]
+* `profile_b`: Name of the &#x27;right&#x27; profile (candidate).  [required]
 
 **Options**:
 
-* `-r, --resource TEXT`: Resource type to compare (e.g. dataElements, indicators). Repeatable. Required — whole-instance diffs are almost always noise.
-* `--filter TEXT`: Per-resource filter in `resource:property:operator:value` form. Repeatable. Example: `--filter dataElements:name:like:ANC` only compares data elements whose name contains &#x27;ANC&#x27;. Same DHIS2 filter DSL as `d2w metadata list --filter`.
-* `--fields TEXT`: DHIS2 field selector applied on both profiles. Defaults to &#x27;:owner&#x27; — the selector DHIS2 itself uses for cross-instance imports (preserves every field needed for a faithful round-trip).  [default: :owner]
-* `--ignore TEXT`: Additional fields to skip when deciding if an object changed. Repeatable. Defaults already cover DHIS2&#x27;s per-instance noise (lastUpdated, createdBy, access, ...). Common extensions for drift checks: `--ignore sharing --ignore translations`.
+* `-r, --resource <str>`: Resource type to compare (e.g. dataElements, indicators). Repeatable. Required — whole-instance diffs are almost always noise.
+* `--filter <str>`: Per-resource filter in `resource:property:operator:value` form. Repeatable. Example: `--filter dataElements:name:like:ANC` only compares data elements whose name contains &#x27;ANC&#x27;. Same DHIS2 filter DSL as `d2w metadata list --filter`.
+* `--fields <str>`: DHIS2 field selector applied on both profiles. Defaults to &#x27;:owner&#x27; — the selector DHIS2 itself uses for cross-instance imports (preserves every field needed for a faithful round-trip).  [default: :owner]
+* `--ignore <str>`: Additional fields to skip when deciding if an object changed. Repeatable. Defaults already cover DHIS2&#x27;s per-instance noise (lastUpdated, createdBy, access, ...). Common extensions for drift checks: `--ignore sharing --ignore translations`.
 * `--show-uids`: List up to 5 offending UIDs per per-resource row.
 * `--exit-on-drift`: Exit 1 when any object differs. CI-friendly (default is always exit 0).
 * `--help`: Show this message and exit.
@@ -3632,21 +3738,21 @@ doesn&#x27;t exist on the target&quot; before the real run.
 **Usage**:
 
 ```console
-$ d2w metadata merge [OPTIONS] SOURCE_PROFILE TARGET_PROFILE
+$ d2w metadata merge [OPTIONS] {source_profile} {target_profile}
 ```
 
 **Arguments**:
 
-* `SOURCE_PROFILE`: Source profile — the `--from` side of the merge.  [required]
-* `TARGET_PROFILE`: Target profile — where the source&#x27;s resources land.  [required]
+* `source_profile`: Source profile — the `--from` side of the merge.  [required]
+* `target_profile`: Target profile — where the source&#x27;s resources land.  [required]
 
 **Options**:
 
-* `-r, --resource TEXT`: Resource type to merge (e.g. dataElements, indicators). Repeatable. Required — whole-instance merges are almost never what you want.
-* `--filter TEXT`: Per-resource filter in `resource:property:operator:value` form. Repeatable. Same DSL as `d2w metadata list --filter` and `d2w metadata diff-profiles`.
-* `--fields TEXT`: DHIS2 field selector applied on the source export. Defaults to &#x27;:owner&#x27; (faithful round-trip).  [default: :owner]
-* `--strategy TEXT`: Import strategy — CREATE / UPDATE / CREATE_AND_UPDATE / DELETE (default: CREATE_AND_UPDATE).  [default: CREATE_AND_UPDATE]
-* `--atomic TEXT`: atomicMode — ALL / NONE (default: ALL; one broken object aborts the whole import).  [default: ALL]
+* `-r, --resource <str>`: Resource type to merge (e.g. dataElements, indicators). Repeatable. Required — whole-instance merges are almost never what you want.
+* `--filter <str>`: Per-resource filter in `resource:property:operator:value` form. Repeatable. Same DSL as `d2w metadata list --filter` and `d2w metadata diff-profiles`.
+* `--fields <str>`: DHIS2 field selector applied on the source export. Defaults to &#x27;:owner&#x27; (faithful round-trip).  [default: :owner]
+* `--strategy <str>`: Import strategy — CREATE / UPDATE / CREATE_AND_UPDATE / DELETE (default: CREATE_AND_UPDATE).  [default: CREATE_AND_UPDATE]
+* `--atomic <str>`: atomicMode — ALL / NONE (default: ALL; one broken object aborts the whole import).  [default: ALL]
 * `--include-sharing / --skip-sharing`: Carry sharing blocks across. OFF by default — different instances typically have different user / group UIDs and sharing imports fail with false-positive conflicts.  [default: skip-sharing]
 * `--dry-run`: Send `importMode=VALIDATE` to the target; reports conflicts + counts without committing.
 * `--help`: Show this message and exit.
@@ -3665,19 +3771,19 @@ semantics match `merge` — atomic + sharing skipped by default,
 **Usage**:
 
 ```console
-$ d2w metadata merge-bundle [OPTIONS] TARGET_PROFILE BUNDLE
+$ d2w metadata merge-bundle [OPTIONS] {target_profile} {bundle}
 ```
 
 **Arguments**:
 
-* `TARGET_PROFILE`: Target profile — where the bundle&#x27;s resources land.  [required]
-* `BUNDLE`: Path to a JSON metadata bundle (the shape `GET /api/metadata` returns).  [required]
+* `target_profile`: Target profile — where the bundle&#x27;s resources land.  [required]
+* `bundle`: Path to a JSON metadata bundle (the shape `GET /api/metadata` returns).  [required]
 
 **Options**:
 
-* `-r, --resource TEXT`: Resource type to import from the bundle (e.g. dataElements). Repeatable. The bundle is filtered to these collections before the POST, so the count summary reports exactly what was written. Optional — when omitted, the whole bundle is imported.
-* `--strategy TEXT`: Import strategy — CREATE / UPDATE / CREATE_AND_UPDATE / DELETE (default: CREATE_AND_UPDATE).  [default: CREATE_AND_UPDATE]
-* `--atomic TEXT`: atomicMode — ALL / NONE (default: ALL; one broken object aborts the whole import).  [default: ALL]
+* `-r, --resource <str>`: Resource type to import from the bundle (e.g. dataElements). Repeatable. The bundle is filtered to these collections before the POST, so the count summary reports exactly what was written. Optional — when omitted, the whole bundle is imported.
+* `--strategy <str>`: Import strategy — CREATE / UPDATE / CREATE_AND_UPDATE / DELETE (default: CREATE_AND_UPDATE).  [default: CREATE_AND_UPDATE]
+* `--atomic <str>`: atomicMode — ALL / NONE (default: ALL; one broken object aborts the whole import).  [default: ALL]
 * `--include-sharing / --skip-sharing`: Carry sharing blocks across. OFF by default — different instances typically have different user / group UIDs and sharing imports fail with false-positive conflicts.  [default: skip-sharing]
 * `--dry-run`: Send `importMode=VALIDATE` to the target; reports conflicts + counts without committing.
 * `--help`: Show this message and exit.
@@ -3759,12 +3865,12 @@ Show one OptionSet with its options resolved inline.
 **Usage**:
 
 ```console
-$ d2w metadata option-sets get [OPTIONS] UID_OR_CODE
+$ d2w metadata option-sets get [OPTIONS] {uid_or_code}
 ```
 
 **Arguments**:
 
-* `UID_OR_CODE`: OptionSet UID (11 chars) or business code.  [required]
+* `uid_or_code`: OptionSet UID (11 chars) or business code.  [required]
 
 **Options**:
 
@@ -3782,9 +3888,9 @@ $ d2w metadata option-sets find [OPTIONS]
 
 **Options**:
 
-* `--set TEXT`: OptionSet UID or business code.  [required]
-* `--code TEXT`: Business code of the option to locate.
-* `--name TEXT`: Display name of the option (exact match).
+* `--set <str>`: OptionSet UID or business code.  [required]
+* `--code <str>`: Business code of the option to locate.
+* `--name <str>`: Display name of the option (exact match).
 * `--help`: Show this message and exit.
 
 #### `d2w metadata option-sets create`
@@ -3799,10 +3905,10 @@ $ d2w metadata option-sets create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: OptionSet name.  [required]
-* `--value-type TEXT`: DHIS2 ValueType, e.g. TEXT / NUMBER / INTEGER.  [required]
-* `--code TEXT`: Business code.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: OptionSet name.  [required]
+* `--value-type <str>`: DHIS2 ValueType, e.g. TEXT / NUMBER / INTEGER.  [required]
+* `--code <str>`: Business code.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata option-sets delete`
@@ -3812,12 +3918,12 @@ Delete an OptionSet by UID.
 **Usage**:
 
 ```console
-$ d2w metadata option-sets delete [OPTIONS] UID
+$ d2w metadata option-sets delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OptionSet UID.  [required]
+* `uid`: OptionSet UID.  [required]
 
 **Options**:
 
@@ -3837,13 +3943,13 @@ spec. `--dry-run` previews the diff without writing.
 **Usage**:
 
 ```console
-$ d2w metadata option-sets sync [OPTIONS] SET_REF SPEC_FILE
+$ d2w metadata option-sets sync [OPTIONS] {set_ref} {spec_file}
 ```
 
 **Arguments**:
 
-* `SET_REF`: OptionSet UID or business code.  [required]
-* `SPEC_FILE`: JSON file — list of `{code, name, sort_order?}` objects.  [required]
+* `set_ref`: OptionSet UID or business code.  [required]
+* `spec_file`: JSON file — list of `{code, name, sort_order?}` objects.  [required]
 
 **Options**:
 
@@ -3878,13 +3984,13 @@ Read one attribute value off an Option; exit 1 if unset.
 **Usage**:
 
 ```console
-$ d2w metadata option-sets attributes get [OPTIONS] OPTION_UID ATTRIBUTE
+$ d2w metadata option-sets attributes get [OPTIONS] {option_uid} {attribute}
 ```
 
 **Arguments**:
 
-* `OPTION_UID`: Option UID (11 chars).  [required]
-* `ATTRIBUTE`: Attribute UID or business code (e.g. &#x27;SNOMED_CODE&#x27;).  [required]
+* `option_uid`: Option UID (11 chars).  [required]
+* `attribute`: Attribute UID or business code (e.g. &#x27;SNOMED_CODE&#x27;).  [required]
 
 **Options**:
 
@@ -3902,14 +4008,14 @@ idempotent — calling twice with the same value is a no-op.
 **Usage**:
 
 ```console
-$ d2w metadata option-sets attributes set [OPTIONS] OPTION_UID ATTRIBUTE VALUE
+$ d2w metadata option-sets attributes set [OPTIONS] {option_uid} {attribute} {value}
 ```
 
 **Arguments**:
 
-* `OPTION_UID`: Option UID (11 chars).  [required]
-* `ATTRIBUTE`: Attribute UID or business code (e.g. &#x27;SNOMED_CODE&#x27;).  [required]
-* `VALUE`: New attribute value.  [required]
+* `option_uid`: Option UID (11 chars).  [required]
+* `attribute`: Attribute UID or business code (e.g. &#x27;SNOMED_CODE&#x27;).  [required]
+* `value`: New attribute value.  [required]
 
 **Options**:
 
@@ -3931,9 +4037,9 @@ $ d2w metadata option-sets attributes find [OPTIONS]
 
 **Options**:
 
-* `--set TEXT`: OptionSet UID or business code.  [required]
-* `--attribute TEXT`: Attribute UID or business code (e.g. &#x27;SNOMED_CODE&#x27;).  [required]
-* `--value TEXT`: Attribute value to match exactly.  [required]
+* `--set <str>`: OptionSet UID or business code.  [required]
+* `--attribute <str>`: Attribute UID or business code (e.g. &#x27;SNOMED_CODE&#x27;).  [required]
+* `--value <str>`: Attribute value to match exactly.  [required]
 * `--help`: Show this message and exit.
 
 ### `d2w metadata attributes`
@@ -3964,14 +4070,14 @@ Read one attribute value off any resource; exit 1 if unset.
 **Usage**:
 
 ```console
-$ d2w metadata attributes get [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
+$ d2w metadata attributes get [OPTIONS] {resource} {resource_uid} {attribute}
 ```
 
 **Arguments**:
 
-* `RESOURCE`: Plural DHIS2 resource name (e.g. `dataElements`, `options`, `organisationUnits`).  [required]
-* `RESOURCE_UID`: UID of the resource instance.  [required]
-* `ATTRIBUTE`: Attribute UID or business code (e.g. `ICD10_CODE`).  [required]
+* `resource`: Plural DHIS2 resource name (e.g. `dataElements`, `options`, `organisationUnits`).  [required]
+* `resource_uid`: UID of the resource instance.  [required]
+* `attribute`: Attribute UID or business code (e.g. `ICD10_CODE`).  [required]
 
 **Options**:
 
@@ -3984,15 +4090,15 @@ Set / replace one attribute value on any resource (read-merge-write).
 **Usage**:
 
 ```console
-$ d2w metadata attributes set [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE VALUE
+$ d2w metadata attributes set [OPTIONS] {resource} {resource_uid} {attribute} {value}
 ```
 
 **Arguments**:
 
-* `RESOURCE`: Plural DHIS2 resource name.  [required]
-* `RESOURCE_UID`: UID of the resource instance.  [required]
-* `ATTRIBUTE`: Attribute UID or business code.  [required]
-* `VALUE`: New attribute value.  [required]
+* `resource`: Plural DHIS2 resource name.  [required]
+* `resource_uid`: UID of the resource instance.  [required]
+* `attribute`: Attribute UID or business code.  [required]
+* `value`: New attribute value.  [required]
 
 **Options**:
 
@@ -4005,14 +4111,14 @@ Remove one attribute value from any resource; exit 0 regardless of whether it ex
 **Usage**:
 
 ```console
-$ d2w metadata attributes delete [OPTIONS] RESOURCE RESOURCE_UID ATTRIBUTE
+$ d2w metadata attributes delete [OPTIONS] {resource} {resource_uid} {attribute}
 ```
 
 **Arguments**:
 
-* `RESOURCE`: Plural DHIS2 resource name.  [required]
-* `RESOURCE_UID`: UID of the resource instance.  [required]
-* `ATTRIBUTE`: Attribute UID or business code.  [required]
+* `resource`: Plural DHIS2 resource name.  [required]
+* `resource_uid`: UID of the resource instance.  [required]
+* `attribute`: Attribute UID or business code.  [required]
 
 **Options**:
 
@@ -4030,18 +4136,18 @@ follow-ups.
 **Usage**:
 
 ```console
-$ d2w metadata attributes find [OPTIONS] RESOURCE ATTRIBUTE VALUE
+$ d2w metadata attributes find [OPTIONS] {resource} {attribute} {value}
 ```
 
 **Arguments**:
 
-* `RESOURCE`: Plural DHIS2 resource name.  [required]
-* `ATTRIBUTE`: Attribute UID or business code.  [required]
-* `VALUE`: Attribute value to match exactly.  [required]
+* `resource`: Plural DHIS2 resource name.  [required]
+* `attribute`: Attribute UID or business code.  [required]
+* `value`: Attribute value to match exactly.  [required]
 
 **Options**:
 
-* `--filter TEXT`: Extra DHIS2 filter constraints to narrow the search (e.g. `domainType:eq:AGGREGATE`). Repeatable.
+* `--filter <str>`: Extra DHIS2 filter constraints to narrow the search (e.g. `domainType:eq:AGGREGATE`). Repeatable.
 * `--help`: Show this message and exit.
 
 ### `d2w metadata program-rules`
@@ -4072,12 +4178,12 @@ Show one ProgramRule with its condition, priority, and every action.
 **Usage**:
 
 ```console
-$ d2w metadata program-rules get [OPTIONS] RULE_UID
+$ d2w metadata program-rules get [OPTIONS] {rule_uid}
 ```
 
 **Arguments**:
 
-* `RULE_UID`: ProgramRule UID.  [required]
+* `rule_uid`: ProgramRule UID.  [required]
 
 **Options**:
 
@@ -4090,12 +4196,12 @@ List every `ProgramRuleVariable` in scope for a program, sorted by name.
 **Usage**:
 
 ```console
-$ d2w metadata program-rules vars-for [OPTIONS] PROGRAM_UID
+$ d2w metadata program-rules vars-for [OPTIONS] {program_uid}
 ```
 
 **Arguments**:
 
-* `PROGRAM_UID`: Program UID.  [required]
+* `program_uid`: Program UID.  [required]
 
 **Options**:
 
@@ -4117,16 +4223,16 @@ distinguish parser mismatches from real syntax problems.
 **Usage**:
 
 ```console
-$ d2w metadata program-rules validate-expression [OPTIONS] EXPRESSION
+$ d2w metadata program-rules validate-expression [OPTIONS] {expression}
 ```
 
 **Arguments**:
 
-* `EXPRESSION`: Program-rule condition expression.  [required]
+* `expression`: Program-rule condition expression.  [required]
 
 **Options**:
 
-* `--context TEXT`: Which DHIS2 expression parser to use: program-indicator (default), validation-rule, indicator, predictor, or generic.  [default: program-indicator]
+* `--context <str>`: Which DHIS2 expression parser to use: program-indicator (default), validation-rule, indicator, predictor, or generic.  [default: program-indicator]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-rules where-de-is-used`
@@ -4140,12 +4246,12 @@ shorthand for `grep -q` pipelines).
 **Usage**:
 
 ```console
-$ d2w metadata program-rules where-de-is-used [OPTIONS] DATA_ELEMENT_UID
+$ d2w metadata program-rules where-de-is-used [OPTIONS] {data_element_uid}
 ```
 
 **Arguments**:
 
-* `DATA_ELEMENT_UID`: DataElement UID.  [required]
+* `data_element_uid`: DataElement UID.  [required]
 
 **Options**:
 
@@ -4179,12 +4285,12 @@ Show one SqlView&#x27;s metadata + its stored SQL body.
 **Usage**:
 
 ```console
-$ d2w metadata sql-views get [OPTIONS] VIEW_UID
+$ d2w metadata sql-views get [OPTIONS] {view_uid}
 ```
 
 **Arguments**:
 
-* `VIEW_UID`: SqlView UID.  [required]
+* `view_uid`: SqlView UID.  [required]
 
 **Options**:
 
@@ -4197,18 +4303,18 @@ Run a SqlView and render its rows as a table, JSON array, or CSV.
 **Usage**:
 
 ```console
-$ d2w metadata sql-views execute [OPTIONS] VIEW_UID
+$ d2w metadata sql-views execute [OPTIONS] {view_uid}
 ```
 
 **Arguments**:
 
-* `VIEW_UID`: SqlView UID.  [required]
+* `view_uid`: SqlView UID.  [required]
 
 **Options**:
 
-* `--var TEXT`: `${name}` substitution for QUERY views, in `name:value` form. Repeatable. DHIS2 strips non-alphanumeric characters from values server-side — wildcards belong in the SQL.
-* `--criteria TEXT`: Column filter for VIEW / MATERIALIZED_VIEW results, in `column:value` form. Repeatable.
-* `--format TEXT`: Output format: table (default), json, or csv.  [default: table]
+* `--var <str>`: `${name}` substitution for QUERY views, in `name:value` form. Repeatable. DHIS2 strips non-alphanumeric characters from values server-side — wildcards belong in the SQL.
+* `--criteria <str>`: Column filter for VIEW / MATERIALIZED_VIEW results, in `column:value` form. Repeatable.
+* `--format <str>`: Output format: table (default), json, or csv.  [default: table]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata sql-views refresh`
@@ -4222,12 +4328,12 @@ MATERIALIZED_VIEW types re-run the underlying SQL each call.
 **Usage**:
 
 ```console
-$ d2w metadata sql-views refresh [OPTIONS] VIEW_UID
+$ d2w metadata sql-views refresh [OPTIONS] {view_uid}
 ```
 
 **Arguments**:
 
-* `VIEW_UID`: SqlView UID.  [required]
+* `view_uid`: SqlView UID.  [required]
 
 **Options**:
 
@@ -4244,20 +4350,20 @@ the Postgres injector example.
 **Usage**:
 
 ```console
-$ d2w metadata sql-views adhoc [OPTIONS] NAME SQL_PATH
+$ d2w metadata sql-views adhoc [OPTIONS] {name} {sql_path}
 ```
 
 **Arguments**:
 
-* `NAME`: Display name for the throwaway view.  [required]
-* `SQL_PATH`: .sql file containing the query body.  [required]
+* `name`: Display name for the throwaway view.  [required]
+* `sql_path`: .sql file containing the query body.  [required]
 
 **Options**:
 
-* `--type TEXT`: SqlViewType — QUERY (default), VIEW, or MATERIALIZED_VIEW.  [default: QUERY]
+* `--type <str>`: SqlViewType — QUERY (default), VIEW, or MATERIALIZED_VIEW.  [default: QUERY]
 * `--keep`: Leave the view in place afterwards instead of deleting.
-* `--var TEXT`: `${name}` substitution in `name:value` form. Repeatable.
-* `--format TEXT`: Output format: table (default), json, or csv.  [default: table]
+* `--var <str>`: `${name}` substitution in `name:value` form. Repeatable.
+* `--format <str>`: Output format: table (default), json, or csv.  [default: table]
 * `--help`: Show this message and exit.
 
 ### `d2w metadata visualizations`
@@ -4288,12 +4394,12 @@ Show one Visualization with axes + data dimensions + period / ou selection.
 **Usage**:
 
 ```console
-$ d2w metadata visualizations get [OPTIONS] VIZ_UID
+$ d2w metadata visualizations get [OPTIONS] {viz_uid}
 ```
 
 **Arguments**:
 
-* `VIZ_UID`: Visualization UID.  [required]
+* `viz_uid`: Visualization UID.  [required]
 
 **Options**:
 
@@ -4317,16 +4423,16 @@ $ d2w metadata visualizations create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Display name for the new Visualization.  [required]
-* `--type TEXT`: VisualizationType: LINE, COLUMN, STACKED_COLUMN, BAR, PIVOT_TABLE, SINGLE_VALUE, etc.  [required]
-* `--data-element, --de TEXT`: DataElement UID (repeat for multi-DE charts).  [required]
-* `--period, --pe TEXT`: Period ID (e.g. 202401, 2024Q1, 2024). Repeat for multi-period.  [required]
-* `--org-unit, --ou TEXT`: OrganisationUnit UID. Repeat for multi-OU.  [required]
-* `--description TEXT`: Optional long description.
-* `--uid TEXT`: Explicit UID (11 chars). Auto-generates when omitted.
-* `--category-dim TEXT`: Override category axis: dx / pe / ou.
-* `--series-dim TEXT`: Override series dimension: dx / pe / ou.
-* `--filter-dim TEXT`: Override filter dimension: dx / pe / ou.
+* `--name <str>`: Display name for the new Visualization.  [required]
+* `--type <str>`: VisualizationType: LINE, COLUMN, STACKED_COLUMN, BAR, PIVOT_TABLE, SINGLE_VALUE, etc.  [required]
+* `--data-element, --de <str>`: DataElement UID (repeat for multi-DE charts).  [required]
+* `--period, --pe <str>`: Period ID (e.g. 202401, 2024Q1, 2024). Repeat for multi-period.  [required]
+* `--org-unit, --ou <str>`: OrganisationUnit UID. Repeat for multi-OU.  [required]
+* `--description <str>`: Optional long description.
+* `--uid <str>`: Explicit UID (11 chars). Auto-generates when omitted.
+* `--category-dim <str>`: Override category axis: dx / pe / ou.
+* `--series-dim <str>`: Override series dimension: dx / pe / ou.
+* `--filter-dim <str>`: Override filter dimension: dx / pe / ou.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata visualizations clone`
@@ -4336,18 +4442,18 @@ Clone an existing Visualization with a fresh UID + new name.
 **Usage**:
 
 ```console
-$ d2w metadata visualizations clone [OPTIONS] SOURCE_UID
+$ d2w metadata visualizations clone [OPTIONS] {source_uid}
 ```
 
 **Arguments**:
 
-* `SOURCE_UID`: Source Visualization UID.  [required]
+* `source_uid`: Source Visualization UID.  [required]
 
 **Options**:
 
-* `--new-name TEXT`: Display name for the cloned Visualization.  [required]
-* `--new-uid TEXT`: Explicit UID for the clone (11 chars). Auto-generates when omitted.
-* `--new-description TEXT`: Override the source&#x27;s description on the clone.
+* `--new-name <str>`: Display name for the cloned Visualization.  [required]
+* `--new-uid <str>`: Explicit UID for the clone (11 chars). Auto-generates when omitted.
+* `--new-description <str>`: Override the source&#x27;s description on the clone.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata visualizations delete`
@@ -4357,12 +4463,12 @@ Delete a Visualization.
 **Usage**:
 
 ```console
-$ d2w metadata visualizations delete [OPTIONS] VIZ_UID
+$ d2w metadata visualizations delete [OPTIONS] {viz_uid}
 ```
 
 **Arguments**:
 
-* `VIZ_UID`: Visualization UID to delete.  [required]
+* `viz_uid`: Visualization UID to delete.  [required]
 
 **Options**:
 
@@ -4396,12 +4502,12 @@ Show one Dashboard with every dashboardItem resolved inline.
 **Usage**:
 
 ```console
-$ d2w metadata dashboards get [OPTIONS] DASHBOARD_UID
+$ d2w metadata dashboards get [OPTIONS] {dashboard_uid}
 ```
 
 **Arguments**:
 
-* `DASHBOARD_UID`: Dashboard UID.  [required]
+* `dashboard_uid`: Dashboard UID.  [required]
 
 **Options**:
 
@@ -4419,21 +4525,21 @@ you want side-by-side tiling.
 **Usage**:
 
 ```console
-$ d2w metadata dashboards add-item [OPTIONS] DASHBOARD_UID
+$ d2w metadata dashboards add-item [OPTIONS] {dashboard_uid}
 ```
 
 **Arguments**:
 
-* `DASHBOARD_UID`: Dashboard UID.  [required]
+* `dashboard_uid`: Dashboard UID.  [required]
 
 **Options**:
 
-* `--viz TEXT`: Visualization UID (mutually exclusive with --map).
-* `--map TEXT`: Map UID to add as a MAP-type dashboard item.
-* `--x INTEGER`: Grid x coordinate (0-60). Auto-stacks when omitted.
-* `--y INTEGER`: Grid y coordinate. Auto-stacks below existing when omitted.
-* `--width INTEGER`: Slot width (1-60). Defaults to 60 when auto.
-* `--height INTEGER`: Slot height. Defaults to 20 when auto.
+* `--viz <str>`: Visualization UID (mutually exclusive with --map).
+* `--map <str>`: Map UID to add as a MAP-type dashboard item.
+* `--x <int>`: Grid x coordinate (0-60). Auto-stacks when omitted.
+* `--y <int>`: Grid y coordinate. Auto-stacks below existing when omitted.
+* `--width <int>`: Slot width (1-60). Defaults to 60 when auto.
+* `--height <int>`: Slot height. Defaults to 20 when auto.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata dashboards remove-item`
@@ -4443,13 +4549,13 @@ Remove one dashboardItem by its UID.
 **Usage**:
 
 ```console
-$ d2w metadata dashboards remove-item [OPTIONS] DASHBOARD_UID ITEM_UID
+$ d2w metadata dashboards remove-item [OPTIONS] {dashboard_uid} {item_uid}
 ```
 
 **Arguments**:
 
-* `DASHBOARD_UID`: Dashboard UID.  [required]
-* `ITEM_UID`: DashboardItem UID to remove.  [required]
+* `dashboard_uid`: Dashboard UID.  [required]
+* `item_uid`: DashboardItem UID to remove.  [required]
 
 **Options**:
 
@@ -4483,12 +4589,12 @@ Show one Map with its viewport + every mapViews layer.
 **Usage**:
 
 ```console
-$ d2w metadata maps get [OPTIONS] MAP_UID
+$ d2w metadata maps get [OPTIONS] {map_uid}
 ```
 
 **Arguments**:
 
-* `MAP_UID`: Map UID.  [required]
+* `map_uid`: Map UID.  [required]
 
 **Options**:
 
@@ -4511,20 +4617,20 @@ $ d2w metadata maps create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Display name for the new Map.  [required]
-* `--data-element, --de TEXT`: DataElement UID for the thematic layer.  [required]
-* `--period, --pe TEXT`: Period ID. Repeat for multi-period.  [required]
-* `--org-unit, --ou TEXT`: OrganisationUnit UID (usually the parent boundary). Repeat for multi.  [required]
-* `--ou-level INTEGER`: OU hierarchy level(s) to render (e.g. 2 for provinces). Repeat for multi.  [required]
-* `--description TEXT`
-* `--uid TEXT`: Explicit UID (11 chars). Auto-generates when omitted.
-* `--longitude FLOAT`: [default: 15.0]
-* `--latitude FLOAT`: [default: 0.0]
-* `--zoom INTEGER`: [default: 4]
-* `--basemap TEXT`: [default: openStreetMap]
-* `--classes INTEGER`: Number of color classes on the choropleth.  [default: 5]
-* `--color-low TEXT`: Choropleth low-value colour (#hex).  [default: #fef0d9]
-* `--color-high TEXT`: Choropleth high-value colour (#hex).  [default: #b30000]
+* `--name <str>`: Display name for the new Map.  [required]
+* `--data-element, --de <str>`: DataElement UID for the thematic layer.  [required]
+* `--period, --pe <str>`: Period ID. Repeat for multi-period.  [required]
+* `--org-unit, --ou <str>`: OrganisationUnit UID (usually the parent boundary). Repeat for multi.  [required]
+* `--ou-level <int>`: OU hierarchy level(s) to render (e.g. 2 for provinces). Repeat for multi.  [required]
+* `--description <str>`
+* `--uid <str>`: Explicit UID (11 chars). Auto-generates when omitted.
+* `--longitude <float>`: [default: 15.0]
+* `--latitude <float>`: [default: 0.0]
+* `--zoom <int>`: [default: 4]
+* `--basemap <str>`: [default: openStreetMap]
+* `--classes <int>`: Number of color classes on the choropleth.  [default: 5]
+* `--color-low <str>`: Choropleth low-value colour (#hex).  [default: #fef0d9]
+* `--color-high <str>`: Choropleth high-value colour (#hex).  [default: #b30000]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata maps clone`
@@ -4534,18 +4640,18 @@ Clone an existing Map with a fresh UID + new name.
 **Usage**:
 
 ```console
-$ d2w metadata maps clone [OPTIONS] SOURCE_UID
+$ d2w metadata maps clone [OPTIONS] {source_uid}
 ```
 
 **Arguments**:
 
-* `SOURCE_UID`: Source Map UID.  [required]
+* `source_uid`: Source Map UID.  [required]
 
 **Options**:
 
-* `--new-name TEXT`: Display name for the cloned Map.  [required]
-* `--new-uid TEXT`: Explicit UID for the clone.
-* `--new-description TEXT`
+* `--new-name <str>`: Display name for the cloned Map.  [required]
+* `--new-uid <str>`: Explicit UID for the clone.
+* `--new-description <str>`
 * `--help`: Show this message and exit.
 
 #### `d2w metadata maps delete`
@@ -4555,12 +4661,12 @@ Delete a Map.
 **Usage**:
 
 ```console
-$ d2w metadata maps delete [OPTIONS] MAP_UID
+$ d2w metadata maps delete [OPTIONS] {map_uid}
 ```
 
 **Arguments**:
 
-* `MAP_UID`: Map UID to delete.  [required]
+* `map_uid`: Map UID to delete.  [required]
 
 **Options**:
 
@@ -4596,12 +4702,12 @@ Show one DataElement with its references resolved inline.
 **Usage**:
 
 ```console
-$ d2w metadata data-elements get [OPTIONS] UID
+$ d2w metadata data-elements get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElement UID.  [required]
+* `uid`: DataElement UID.  [required]
 
 **Options**:
 
@@ -4619,18 +4725,18 @@ $ d2w metadata data-elements create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--value-type TEXT`: DHIS2 ValueType, e.g. NUMBER / TEXT / INTEGER_POSITIVE.  [required]
-* `--domain-type TEXT`: AGGREGATE or TRACKER.  [default: AGGREGATE]
-* `--aggregation-type TEXT`: Default SUM.  [default: SUM]
-* `--category-combo TEXT`: CategoryCombo UID (defaults to the instance default).
-* `--option-set TEXT`: OptionSet UID.
-* `--legend-set TEXT`: LegendSet UID. Repeat for multiple.
-* `--code TEXT`: Business code.
-* `--form-name TEXT`: Form name override.
-* `--description TEXT`: Free text.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: Full name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--value-type <str>`: DHIS2 ValueType, e.g. NUMBER / TEXT / INTEGER_POSITIVE.  [required]
+* `--domain-type <str>`: AGGREGATE or TRACKER.  [default: AGGREGATE]
+* `--aggregation-type <str>`: Default SUM.  [default: SUM]
+* `--category-combo <str>`: CategoryCombo UID (defaults to the instance default).
+* `--option-set <str>`: OptionSet UID.
+* `--legend-set <str>`: LegendSet UID. Repeat for multiple.
+* `--code <str>`: Business code.
+* `--form-name <str>`: Form name override.
+* `--description <str>`: Free text.
+* `--uid <str>`: Explicit 11-char UID.
 * `--zero-significant / --no-zero-significant`: Treat 0 as data, not absence.  [default: no-zero-significant]
 * `--help`: Show this message and exit.
 
@@ -4641,19 +4747,19 @@ Partial-update the label fields on a DataElement (read, mutate, PUT).
 **Usage**:
 
 ```console
-$ d2w metadata data-elements rename [OPTIONS] UID
+$ d2w metadata data-elements rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElement UID.  [required]
+* `uid`: DataElement UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--form-name TEXT`: New form name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--form-name <str>`: New form name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-elements set-legend-sets`
@@ -4663,16 +4769,16 @@ Replace the legend-set refs on one DataElement.
 **Usage**:
 
 ```console
-$ d2w metadata data-elements set-legend-sets [OPTIONS] UID
+$ d2w metadata data-elements set-legend-sets [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElement UID.  [required]
+* `uid`: DataElement UID.  [required]
 
 **Options**:
 
-* `--legend-set TEXT`: LegendSet UID to attach. Repeat for multiple. Empty list clears.  [required]
+* `--legend-set <str>`: LegendSet UID to attach. Repeat for multiple. Empty list clears.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-elements delete`
@@ -4682,12 +4788,12 @@ Delete a DataElement — DHIS2 rejects deletes on DEs with saved values.
 **Usage**:
 
 ```console
-$ d2w metadata data-elements delete [OPTIONS] UID
+$ d2w metadata data-elements delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElement UID.  [required]
+* `uid`: DataElement UID.  [required]
 
 **Options**:
 
@@ -4724,12 +4830,12 @@ Show one group with its member refs and group-sets it belongs to.
 **Usage**:
 
 ```console
-$ d2w metadata data-element-groups get [OPTIONS] UID
+$ d2w metadata data-element-groups get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElementGroup UID.  [required]
+* `uid`: DataElementGroup UID.  [required]
 
 **Options**:
 
@@ -4742,17 +4848,17 @@ Page through DataElements inside one group.
 **Usage**:
 
 ```console
-$ d2w metadata data-element-groups members [OPTIONS] UID
+$ d2w metadata data-element-groups members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElementGroup UID.  [required]
+* `uid`: DataElementGroup UID.  [required]
 
 **Options**:
 
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
+* `--page <int>`: 1-based page number.  [default: 1]
+* `--page-size <int>`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-element-groups create`
@@ -4767,11 +4873,11 @@ $ d2w metadata data-element-groups create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name.  [required]
-* `--short-name TEXT`: Short name.  [required]
-* `--uid TEXT`: Explicit 11-char UID.
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
+* `--name <str>`: Full name.  [required]
+* `--short-name <str>`: Short name.  [required]
+* `--uid <str>`: Explicit 11-char UID.
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-element-groups add-members`
@@ -4781,16 +4887,16 @@ Add `--data-element` members via the per-item POST shortcut.
 **Usage**:
 
 ```console
-$ d2w metadata data-element-groups add-members [OPTIONS] UID
+$ d2w metadata data-element-groups add-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElementGroup UID.  [required]
+* `uid`: DataElementGroup UID.  [required]
 
 **Options**:
 
-* `-e, --data-element TEXT`: DataElement UID to add. Repeat for multiple.  [required]
+* `-e, --data-element <str>`: DataElement UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-element-groups remove-members`
@@ -4800,16 +4906,16 @@ Drop `--data-element` members via the per-item DELETE shortcut.
 **Usage**:
 
 ```console
-$ d2w metadata data-element-groups remove-members [OPTIONS] UID
+$ d2w metadata data-element-groups remove-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElementGroup UID.  [required]
+* `uid`: DataElementGroup UID.  [required]
 
 **Options**:
 
-* `-e, --data-element TEXT`: DataElement UID to drop. Repeat for multiple.  [required]
+* `-e, --data-element <str>`: DataElement UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-element-groups delete`
@@ -4819,12 +4925,12 @@ Delete the grouping row — member DEs stay.
 **Usage**:
 
 ```console
-$ d2w metadata data-element-groups delete [OPTIONS] UID
+$ d2w metadata data-element-groups delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElementGroup UID.  [required]
+* `uid`: DataElementGroup UID.  [required]
 
 **Options**:
 
@@ -4860,12 +4966,12 @@ Show one group set with its groups.
 **Usage**:
 
 ```console
-$ d2w metadata data-element-group-sets get [OPTIONS] UID
+$ d2w metadata data-element-group-sets get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElementGroupSet UID.  [required]
+* `uid`: DataElementGroupSet UID.  [required]
 
 **Options**:
 
@@ -4883,11 +4989,11 @@ $ d2w metadata data-element-group-sets create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name.  [required]
-* `--short-name TEXT`: Short name.  [required]
-* `--uid TEXT`: Explicit 11-char UID.
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
+* `--name <str>`: Full name.  [required]
+* `--short-name <str>`: Short name.  [required]
+* `--uid <str>`: Explicit 11-char UID.
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
 * `--compulsory / --not-compulsory`: Require DEs to land in exactly one member group.  [default: not-compulsory]
 * `--data-dimension / --no-data-dimension`: Expose as analytics axis.  [default: data-dimension]
 * `--help`: Show this message and exit.
@@ -4899,16 +5005,16 @@ Add `--group` members to a group set.
 **Usage**:
 
 ```console
-$ d2w metadata data-element-group-sets add-groups [OPTIONS] UID
+$ d2w metadata data-element-group-sets add-groups [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElementGroupSet UID.  [required]
+* `uid`: DataElementGroupSet UID.  [required]
 
 **Options**:
 
-* `--group TEXT`: DataElementGroup UID to add. Repeat for multiple.  [required]
+* `--group <str>`: DataElementGroup UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-element-group-sets remove-groups`
@@ -4918,16 +5024,16 @@ Drop `--group` members from a group set.
 **Usage**:
 
 ```console
-$ d2w metadata data-element-group-sets remove-groups [OPTIONS] UID
+$ d2w metadata data-element-group-sets remove-groups [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElementGroupSet UID.  [required]
+* `uid`: DataElementGroupSet UID.  [required]
 
 **Options**:
 
-* `--group TEXT`: DataElementGroup UID to drop. Repeat for multiple.  [required]
+* `--group <str>`: DataElementGroup UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-element-group-sets delete`
@@ -4937,12 +5043,12 @@ Delete a DataElementGroupSet — member groups stay.
 **Usage**:
 
 ```console
-$ d2w metadata data-element-group-sets delete [OPTIONS] UID
+$ d2w metadata data-element-group-sets delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataElementGroupSet UID.  [required]
+* `uid`: DataElementGroupSet UID.  [required]
 
 **Options**:
 
@@ -4979,12 +5085,12 @@ Show one Indicator with expression pair + indicatorType resolved inline.
 **Usage**:
 
 ```console
-$ d2w metadata indicators get [OPTIONS] UID
+$ d2w metadata indicators get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Indicator UID.  [required]
+* `uid`: Indicator UID.  [required]
 
 **Options**:
 
@@ -5002,19 +5108,19 @@ $ d2w metadata indicators create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--indicator-type TEXT`: IndicatorType UID (pins the output scale).  [required]
-* `--numerator TEXT`: DHIS2 numerator expression, e.g. &#x27;#{deUid}&#x27;.  [required]
-* `--denominator TEXT`: DHIS2 denominator expression.  [required]
-* `--numerator-desc TEXT`: Human label for the numerator.
-* `--denominator-desc TEXT`: Human label for the denominator.
-* `--legend-set TEXT`: LegendSet UID. Repeat for multiple.
+* `--name <str>`: Full name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--indicator-type <str>`: IndicatorType UID (pins the output scale).  [required]
+* `--numerator <str>`: DHIS2 numerator expression, e.g. &#x27;#{deUid}&#x27;.  [required]
+* `--denominator <str>`: DHIS2 denominator expression.  [required]
+* `--numerator-desc <str>`: Human label for the numerator.
+* `--denominator-desc <str>`: Human label for the denominator.
+* `--legend-set <str>`: LegendSet UID. Repeat for multiple.
 * `--annualized / --not-annualized`: Multiply by 365 / period days on aggregation.  [default: not-annualized]
-* `--decimals INTEGER`: Rendered decimal places.
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--decimals <int>`: Rendered decimal places.
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata indicators rename`
@@ -5024,18 +5130,18 @@ Partial-update label fields on an Indicator.
 **Usage**:
 
 ```console
-$ d2w metadata indicators rename [OPTIONS] UID
+$ d2w metadata indicators rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Indicator UID.  [required]
+* `uid`: Indicator UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata indicators validate-expression`
@@ -5045,12 +5151,12 @@ Parse-check one indicator expression — fast pre-flight before create.
 **Usage**:
 
 ```console
-$ d2w metadata indicators validate-expression [OPTIONS] EXPRESSION
+$ d2w metadata indicators validate-expression [OPTIONS] {expression}
 ```
 
 **Arguments**:
 
-* `EXPRESSION`: Numerator / denominator expression to validate.  [required]
+* `expression`: Numerator / denominator expression to validate.  [required]
 
 **Options**:
 
@@ -5063,16 +5169,16 @@ Replace the legend-set refs on one Indicator.
 **Usage**:
 
 ```console
-$ d2w metadata indicators set-legend-sets [OPTIONS] UID
+$ d2w metadata indicators set-legend-sets [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Indicator UID.  [required]
+* `uid`: Indicator UID.  [required]
 
 **Options**:
 
-* `--legend-set TEXT`: LegendSet UID to attach. Empty list clears.  [required]
+* `--legend-set <str>`: LegendSet UID to attach. Empty list clears.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata indicators delete`
@@ -5082,12 +5188,12 @@ Delete an Indicator — DHIS2 rejects deletes on indicators used in viz/dashboar
 **Usage**:
 
 ```console
-$ d2w metadata indicators delete [OPTIONS] UID
+$ d2w metadata indicators delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Indicator UID.  [required]
+* `uid`: Indicator UID.  [required]
 
 **Options**:
 
@@ -5124,12 +5230,12 @@ Show one group with its member refs.
 **Usage**:
 
 ```console
-$ d2w metadata indicator-groups get [OPTIONS] UID
+$ d2w metadata indicator-groups get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: IndicatorGroup UID.  [required]
+* `uid`: IndicatorGroup UID.  [required]
 
 **Options**:
 
@@ -5142,17 +5248,17 @@ Page through Indicators inside one group.
 **Usage**:
 
 ```console
-$ d2w metadata indicator-groups members [OPTIONS] UID
+$ d2w metadata indicator-groups members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: IndicatorGroup UID.  [required]
+* `uid`: IndicatorGroup UID.  [required]
 
 **Options**:
 
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
+* `--page <int>`: 1-based page number.  [default: 1]
+* `--page-size <int>`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata indicator-groups create`
@@ -5167,11 +5273,11 @@ $ d2w metadata indicator-groups create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name.  [required]
-* `--short-name TEXT`: Short name.  [required]
-* `--uid TEXT`: Explicit 11-char UID.
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
+* `--name <str>`: Full name.  [required]
+* `--short-name <str>`: Short name.  [required]
+* `--uid <str>`: Explicit 11-char UID.
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata indicator-groups add-members`
@@ -5181,16 +5287,16 @@ Add `--indicator` members via the per-item POST shortcut.
 **Usage**:
 
 ```console
-$ d2w metadata indicator-groups add-members [OPTIONS] UID
+$ d2w metadata indicator-groups add-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: IndicatorGroup UID.  [required]
+* `uid`: IndicatorGroup UID.  [required]
 
 **Options**:
 
-* `-i, --indicator TEXT`: Indicator UID to add. Repeat for multiple.  [required]
+* `-i, --indicator <str>`: Indicator UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata indicator-groups remove-members`
@@ -5200,16 +5306,16 @@ Drop `--indicator` members via the per-item DELETE shortcut.
 **Usage**:
 
 ```console
-$ d2w metadata indicator-groups remove-members [OPTIONS] UID
+$ d2w metadata indicator-groups remove-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: IndicatorGroup UID.  [required]
+* `uid`: IndicatorGroup UID.  [required]
 
 **Options**:
 
-* `-i, --indicator TEXT`: Indicator UID to drop. Repeat for multiple.  [required]
+* `-i, --indicator <str>`: Indicator UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata indicator-groups delete`
@@ -5219,12 +5325,12 @@ Delete the grouping row — member indicators stay.
 **Usage**:
 
 ```console
-$ d2w metadata indicator-groups delete [OPTIONS] UID
+$ d2w metadata indicator-groups delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: IndicatorGroup UID.  [required]
+* `uid`: IndicatorGroup UID.  [required]
 
 **Options**:
 
@@ -5260,12 +5366,12 @@ Show one group set with its groups.
 **Usage**:
 
 ```console
-$ d2w metadata indicator-group-sets get [OPTIONS] UID
+$ d2w metadata indicator-group-sets get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: IndicatorGroupSet UID.  [required]
+* `uid`: IndicatorGroupSet UID.  [required]
 
 **Options**:
 
@@ -5283,11 +5389,11 @@ $ d2w metadata indicator-group-sets create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name.  [required]
-* `--short-name TEXT`: Short name.  [required]
-* `--uid TEXT`: Explicit 11-char UID.
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
+* `--name <str>`: Full name.  [required]
+* `--short-name <str>`: Short name.  [required]
+* `--uid <str>`: Explicit 11-char UID.
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
 * `--compulsory / --not-compulsory`: Require indicators to land in exactly one member group.  [default: not-compulsory]
 * `--help`: Show this message and exit.
 
@@ -5298,16 +5404,16 @@ Add `--group` members to a group set.
 **Usage**:
 
 ```console
-$ d2w metadata indicator-group-sets add-groups [OPTIONS] UID
+$ d2w metadata indicator-group-sets add-groups [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: IndicatorGroupSet UID.  [required]
+* `uid`: IndicatorGroupSet UID.  [required]
 
 **Options**:
 
-* `--group TEXT`: IndicatorGroup UID to add. Repeat for multiple.  [required]
+* `--group <str>`: IndicatorGroup UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata indicator-group-sets remove-groups`
@@ -5317,16 +5423,16 @@ Drop `--group` members from a group set.
 **Usage**:
 
 ```console
-$ d2w metadata indicator-group-sets remove-groups [OPTIONS] UID
+$ d2w metadata indicator-group-sets remove-groups [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: IndicatorGroupSet UID.  [required]
+* `uid`: IndicatorGroupSet UID.  [required]
 
 **Options**:
 
-* `--group TEXT`: IndicatorGroup UID to drop. Repeat for multiple.  [required]
+* `--group <str>`: IndicatorGroup UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata indicator-group-sets delete`
@@ -5336,12 +5442,12 @@ Delete an IndicatorGroupSet — member groups stay.
 **Usage**:
 
 ```console
-$ d2w metadata indicator-group-sets delete [OPTIONS] UID
+$ d2w metadata indicator-group-sets delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: IndicatorGroupSet UID.  [required]
+* `uid`: IndicatorGroupSet UID.  [required]
 
 **Options**:
 
@@ -5378,12 +5484,12 @@ Show one ProgramIndicator with its expression + filter resolved inline.
 **Usage**:
 
 ```console
-$ d2w metadata program-indicators get [OPTIONS] UID
+$ d2w metadata program-indicators get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramIndicator UID.  [required]
+* `uid`: ProgramIndicator UID.  [required]
 
 **Options**:
 
@@ -5401,18 +5507,18 @@ $ d2w metadata program-indicators create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--program TEXT`: Program UID — required.  [required]
-* `--expression TEXT`: DHIS2 expression (e.g. &#x27;#{deUid}&#x27;).  [required]
-* `--analytics-type TEXT`: EVENT (default) or ENROLLMENT.  [default: EVENT]
-* `--filter TEXT`: Boolean filter expression narrowing the rows.
-* `--description TEXT`: Free text.
-* `--aggregation-type TEXT`: Override the default SUM.
-* `--decimals INTEGER`: Rendered decimal places.
-* `--legend-set TEXT`: LegendSet UID. Repeat for multiple.
-* `--code TEXT`: Business code.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: Full name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--program <str>`: Program UID — required.  [required]
+* `--expression <str>`: DHIS2 expression (e.g. &#x27;#{deUid}&#x27;).  [required]
+* `--analytics-type <str>`: EVENT (default) or ENROLLMENT.  [default: EVENT]
+* `--filter <str>`: Boolean filter expression narrowing the rows.
+* `--description <str>`: Free text.
+* `--aggregation-type <str>`: Override the default SUM.
+* `--decimals <int>`: Rendered decimal places.
+* `--legend-set <str>`: LegendSet UID. Repeat for multiple.
+* `--code <str>`: Business code.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-indicators rename`
@@ -5422,18 +5528,18 @@ Partial-update label fields on a ProgramIndicator.
 **Usage**:
 
 ```console
-$ d2w metadata program-indicators rename [OPTIONS] UID
+$ d2w metadata program-indicators rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramIndicator UID.  [required]
+* `uid`: ProgramIndicator UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-indicators validate-expression`
@@ -5443,12 +5549,12 @@ Parse-check one program-indicator expression — fast pre-flight before create.
 **Usage**:
 
 ```console
-$ d2w metadata program-indicators validate-expression [OPTIONS] EXPRESSION
+$ d2w metadata program-indicators validate-expression [OPTIONS] {expression}
 ```
 
 **Arguments**:
 
-* `EXPRESSION`: Program-indicator expression to validate.  [required]
+* `expression`: Program-indicator expression to validate.  [required]
 
 **Options**:
 
@@ -5461,16 +5567,16 @@ Replace the legend-set refs on one ProgramIndicator.
 **Usage**:
 
 ```console
-$ d2w metadata program-indicators set-legend-sets [OPTIONS] UID
+$ d2w metadata program-indicators set-legend-sets [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramIndicator UID.  [required]
+* `uid`: ProgramIndicator UID.  [required]
 
 **Options**:
 
-* `--legend-set TEXT`: LegendSet UID to attach. Empty list clears.  [required]
+* `--legend-set <str>`: LegendSet UID to attach. Empty list clears.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-indicators delete`
@@ -5480,12 +5586,12 @@ Delete a ProgramIndicator — DHIS2 rejects deletes on PIs used in viz / dashboa
 **Usage**:
 
 ```console
-$ d2w metadata program-indicators delete [OPTIONS] UID
+$ d2w metadata program-indicators delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramIndicator UID.  [required]
+* `uid`: ProgramIndicator UID.  [required]
 
 **Options**:
 
@@ -5522,12 +5628,12 @@ Show one group with its member refs.
 **Usage**:
 
 ```console
-$ d2w metadata program-indicator-groups get [OPTIONS] UID
+$ d2w metadata program-indicator-groups get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramIndicatorGroup UID.  [required]
+* `uid`: ProgramIndicatorGroup UID.  [required]
 
 **Options**:
 
@@ -5540,17 +5646,17 @@ Page through ProgramIndicators inside one group.
 **Usage**:
 
 ```console
-$ d2w metadata program-indicator-groups members [OPTIONS] UID
+$ d2w metadata program-indicator-groups members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramIndicatorGroup UID.  [required]
+* `uid`: ProgramIndicatorGroup UID.  [required]
 
 **Options**:
 
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
+* `--page <int>`: 1-based page number.  [default: 1]
+* `--page-size <int>`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-indicator-groups create`
@@ -5565,11 +5671,11 @@ $ d2w metadata program-indicator-groups create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name.  [required]
-* `--short-name TEXT`: Short name.  [required]
-* `--uid TEXT`: Explicit 11-char UID.
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
+* `--name <str>`: Full name.  [required]
+* `--short-name <str>`: Short name.  [required]
+* `--uid <str>`: Explicit 11-char UID.
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-indicator-groups add-members`
@@ -5579,16 +5685,16 @@ Add `--program-indicator` members via the per-item POST shortcut.
 **Usage**:
 
 ```console
-$ d2w metadata program-indicator-groups add-members [OPTIONS] UID
+$ d2w metadata program-indicator-groups add-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramIndicatorGroup UID.  [required]
+* `uid`: ProgramIndicatorGroup UID.  [required]
 
 **Options**:
 
-* `-i, --program-indicator TEXT`: ProgramIndicator UID to add. Repeat for multiple.  [required]
+* `-i, --program-indicator <str>`: ProgramIndicator UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-indicator-groups remove-members`
@@ -5598,16 +5704,16 @@ Drop `--program-indicator` members via the per-item DELETE shortcut.
 **Usage**:
 
 ```console
-$ d2w metadata program-indicator-groups remove-members [OPTIONS] UID
+$ d2w metadata program-indicator-groups remove-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramIndicatorGroup UID.  [required]
+* `uid`: ProgramIndicatorGroup UID.  [required]
 
 **Options**:
 
-* `-i, --program-indicator TEXT`: ProgramIndicator UID to drop. Repeat for multiple.  [required]
+* `-i, --program-indicator <str>`: ProgramIndicator UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-indicator-groups delete`
@@ -5617,12 +5723,12 @@ Delete the grouping row — member program indicators stay.
 **Usage**:
 
 ```console
-$ d2w metadata program-indicator-groups delete [OPTIONS] UID
+$ d2w metadata program-indicator-groups delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramIndicatorGroup UID.  [required]
+* `uid`: ProgramIndicatorGroup UID.  [required]
 
 **Options**:
 
@@ -5658,12 +5764,12 @@ Show one CategoryOption with its categories + groups inline.
 **Usage**:
 
 ```console
-$ d2w metadata category-options get [OPTIONS] UID
+$ d2w metadata category-options get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOption UID.  [required]
+* `uid`: CategoryOption UID.  [required]
 
 **Options**:
 
@@ -5681,14 +5787,14 @@ $ d2w metadata category-options create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
-* `--form-name TEXT`: Form name override.
-* `--start-date TEXT`: ISO-8601 date — beginning of validity window.
-* `--end-date TEXT`: ISO-8601 date — end of validity window.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: Full name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
+* `--form-name <str>`: Form name override.
+* `--start-date <str>`: ISO-8601 date — beginning of validity window.
+* `--end-date <str>`: ISO-8601 date — end of validity window.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-options rename`
@@ -5698,19 +5804,19 @@ Partial-update the label fields on a CategoryOption.
 **Usage**:
 
 ```console
-$ d2w metadata category-options rename [OPTIONS] UID
+$ d2w metadata category-options rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOption UID.  [required]
+* `uid`: CategoryOption UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--form-name TEXT`: New form name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--form-name <str>`: New form name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-options set-validity`
@@ -5720,17 +5826,17 @@ Set the `startDate` / `endDate` validity window on a CategoryOption.
 **Usage**:
 
 ```console
-$ d2w metadata category-options set-validity [OPTIONS] UID
+$ d2w metadata category-options set-validity [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOption UID.  [required]
+* `uid`: CategoryOption UID.  [required]
 
 **Options**:
 
-* `--start-date TEXT`: ISO-8601 date (empty to clear).
-* `--end-date TEXT`: ISO-8601 date (empty to clear).
+* `--start-date <str>`: ISO-8601 date (empty to clear).
+* `--end-date <str>`: ISO-8601 date (empty to clear).
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-options delete`
@@ -5740,12 +5846,12 @@ Delete a CategoryOption — DHIS2 rejects deletes on options in use.
 **Usage**:
 
 ```console
-$ d2w metadata category-options delete [OPTIONS] UID
+$ d2w metadata category-options delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOption UID.  [required]
+* `uid`: CategoryOption UID.  [required]
 
 **Options**:
 
@@ -5782,12 +5888,12 @@ Show one group with its member + group-set refs.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-groups get [OPTIONS] UID
+$ d2w metadata category-option-groups get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOptionGroup UID.  [required]
+* `uid`: CategoryOptionGroup UID.  [required]
 
 **Options**:
 
@@ -5800,17 +5906,17 @@ Page through CategoryOptions inside one group.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-groups members [OPTIONS] UID
+$ d2w metadata category-option-groups members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOptionGroup UID.  [required]
+* `uid`: CategoryOptionGroup UID.  [required]
 
 **Options**:
 
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
+* `--page <int>`: 1-based page number.  [default: 1]
+* `--page-size <int>`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-option-groups create`
@@ -5825,12 +5931,12 @@ $ d2w metadata category-option-groups create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name.  [required]
-* `--short-name TEXT`: Short name.  [required]
-* `--data-dimension-type TEXT`: DISAGGREGATION (default) or ATTRIBUTE.  [default: DISAGGREGATION]
-* `--uid TEXT`: Explicit 11-char UID.
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
+* `--name <str>`: Full name.  [required]
+* `--short-name <str>`: Short name.  [required]
+* `--data-dimension-type <str>`: DISAGGREGATION (default) or ATTRIBUTE.  [default: DISAGGREGATION]
+* `--uid <str>`: Explicit 11-char UID.
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-option-groups add-members`
@@ -5840,16 +5946,16 @@ Add `--category-option` members via the per-item POST shortcut.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-groups add-members [OPTIONS] UID
+$ d2w metadata category-option-groups add-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOptionGroup UID.  [required]
+* `uid`: CategoryOptionGroup UID.  [required]
 
 **Options**:
 
-* `-c, --category-option TEXT`: CategoryOption UID to add. Repeat for multiple.  [required]
+* `-c, --category-option <str>`: CategoryOption UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-option-groups remove-members`
@@ -5859,16 +5965,16 @@ Drop `--category-option` members via the per-item DELETE shortcut.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-groups remove-members [OPTIONS] UID
+$ d2w metadata category-option-groups remove-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOptionGroup UID.  [required]
+* `uid`: CategoryOptionGroup UID.  [required]
 
 **Options**:
 
-* `-c, --category-option TEXT`: CategoryOption UID to drop. Repeat for multiple.  [required]
+* `-c, --category-option <str>`: CategoryOption UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-option-groups delete`
@@ -5878,12 +5984,12 @@ Delete the grouping row — member category options stay.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-groups delete [OPTIONS] UID
+$ d2w metadata category-option-groups delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOptionGroup UID.  [required]
+* `uid`: CategoryOptionGroup UID.  [required]
 
 **Options**:
 
@@ -5919,12 +6025,12 @@ Show one group set with its groups.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-group-sets get [OPTIONS] UID
+$ d2w metadata category-option-group-sets get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOptionGroupSet UID.  [required]
+* `uid`: CategoryOptionGroupSet UID.  [required]
 
 **Options**:
 
@@ -5942,13 +6048,13 @@ $ d2w metadata category-option-group-sets create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name.  [required]
-* `--short-name TEXT`: Short name.  [required]
-* `--data-dimension-type TEXT`: DISAGGREGATION (default) or ATTRIBUTE.  [default: DISAGGREGATION]
+* `--name <str>`: Full name.  [required]
+* `--short-name <str>`: Short name.  [required]
+* `--data-dimension-type <str>`: DISAGGREGATION (default) or ATTRIBUTE.  [default: DISAGGREGATION]
 * `--data-dimension / --no-data-dimension`: Expose as analytics axis.  [default: data-dimension]
-* `--uid TEXT`: Explicit 11-char UID.
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
+* `--uid <str>`: Explicit 11-char UID.
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-option-group-sets add-groups`
@@ -5958,16 +6064,16 @@ Add `--group` members to a group set.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-group-sets add-groups [OPTIONS] UID
+$ d2w metadata category-option-group-sets add-groups [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOptionGroupSet UID.  [required]
+* `uid`: CategoryOptionGroupSet UID.  [required]
 
 **Options**:
 
-* `--group TEXT`: CategoryOptionGroup UID to add. Repeat for multiple.  [required]
+* `--group <str>`: CategoryOptionGroup UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-option-group-sets remove-groups`
@@ -5977,16 +6083,16 @@ Drop `--group` members from a group set.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-group-sets remove-groups [OPTIONS] UID
+$ d2w metadata category-option-group-sets remove-groups [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOptionGroupSet UID.  [required]
+* `uid`: CategoryOptionGroupSet UID.  [required]
 
 **Options**:
 
-* `--group TEXT`: CategoryOptionGroup UID to drop. Repeat for multiple.  [required]
+* `--group <str>`: CategoryOptionGroup UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-option-group-sets delete`
@@ -5996,12 +6102,12 @@ Delete a CategoryOptionGroupSet — member groups stay.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-group-sets delete [OPTIONS] UID
+$ d2w metadata category-option-group-sets delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOptionGroupSet UID.  [required]
+* `uid`: CategoryOptionGroupSet UID.  [required]
 
 **Options**:
 
@@ -6038,12 +6144,12 @@ Show one Category with its options inline.
 **Usage**:
 
 ```console
-$ d2w metadata categories get [OPTIONS] UID
+$ d2w metadata categories get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Category UID.  [required]
+* `uid`: Category UID.  [required]
 
 **Options**:
 
@@ -6061,13 +6167,13 @@ $ d2w metadata categories create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
-* `--type TEXT`: DISAGGREGATION (default) or ATTRIBUTE.  [default: DISAGGREGATION]
-* `--option TEXT`: CategoryOption UID to wire on create. Repeatable; order is preserved on save.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: Full name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
+* `--type <str>`: DISAGGREGATION (default) or ATTRIBUTE.  [default: DISAGGREGATION]
+* `--option <str>`: CategoryOption UID to wire on create. Repeatable; order is preserved on save.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata categories rename`
@@ -6077,18 +6183,18 @@ Partial-update the label fields on a Category.
 **Usage**:
 
 ```console
-$ d2w metadata categories rename [OPTIONS] UID
+$ d2w metadata categories rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Category UID.  [required]
+* `uid`: Category UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata categories add-option`
@@ -6098,13 +6204,13 @@ Append a CategoryOption to this Category&#x27;s ordered membership.
 **Usage**:
 
 ```console
-$ d2w metadata categories add-option [OPTIONS] UID OPTION_UID
+$ d2w metadata categories add-option [OPTIONS] {uid} {option_uid}
 ```
 
 **Arguments**:
 
-* `UID`: Category UID.  [required]
-* `OPTION_UID`: CategoryOption UID to append.  [required]
+* `uid`: Category UID.  [required]
+* `option_uid`: CategoryOption UID to append.  [required]
 
 **Options**:
 
@@ -6117,13 +6223,13 @@ Remove a CategoryOption from this Category&#x27;s membership.
 **Usage**:
 
 ```console
-$ d2w metadata categories remove-option [OPTIONS] UID OPTION_UID
+$ d2w metadata categories remove-option [OPTIONS] {uid} {option_uid}
 ```
 
 **Arguments**:
 
-* `UID`: Category UID.  [required]
-* `OPTION_UID`: CategoryOption UID to remove.  [required]
+* `uid`: Category UID.  [required]
+* `option_uid`: CategoryOption UID to remove.  [required]
 
 **Options**:
 
@@ -6136,12 +6242,12 @@ Delete a Category — DHIS2 rejects deletes on categories referenced by a Catego
 **Usage**:
 
 ```console
-$ d2w metadata categories delete [OPTIONS] UID
+$ d2w metadata categories delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Category UID.  [required]
+* `uid`: Category UID.  [required]
 
 **Options**:
 
@@ -6180,12 +6286,12 @@ Show one CategoryCombo with its category + COC refs inline.
 **Usage**:
 
 ```console
-$ d2w metadata category-combos get [OPTIONS] UID
+$ d2w metadata category-combos get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryCombo UID.  [required]
+* `uid`: CategoryCombo UID.  [required]
 
 **Options**:
 
@@ -6203,12 +6309,12 @@ $ d2w metadata category-combos create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name (&lt;=230 chars).  [required]
-* `--category TEXT`: Category UID. Repeatable; order is preserved on save and shapes the COC matrix.  [required]
-* `--code TEXT`: Business code.
-* `--type TEXT`: DISAGGREGATION (default) or ATTRIBUTE.  [default: DISAGGREGATION]
+* `--name <str>`: Full name (&lt;=230 chars).  [required]
+* `--category <str>`: Category UID. Repeatable; order is preserved on save and shapes the COC matrix.  [required]
+* `--code <str>`: Business code.
+* `--type <str>`: DISAGGREGATION (default) or ATTRIBUTE.  [default: DISAGGREGATION]
 * `--skip-total / --with-total`: Omit the total aggregation row downstream tables draw from this combo.  [default: with-total]
-* `--uid TEXT`: Explicit 11-char UID.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-combos rename`
@@ -6218,17 +6324,17 @@ Partial-update label fields on a CategoryCombo.
 **Usage**:
 
 ```console
-$ d2w metadata category-combos rename [OPTIONS] UID
+$ d2w metadata category-combos rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryCombo UID.  [required]
+* `uid`: CategoryCombo UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--code TEXT`: New code.
+* `--name <str>`: New name.
+* `--code <str>`: New code.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-combos add-category`
@@ -6241,13 +6347,13 @@ DHIS2 regenerates the COC matrix server-side. Re-fetch the combo + use
 **Usage**:
 
 ```console
-$ d2w metadata category-combos add-category [OPTIONS] UID CATEGORY_UID
+$ d2w metadata category-combos add-category [OPTIONS] {uid} {category_uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryCombo UID.  [required]
-* `CATEGORY_UID`: Category UID to append.  [required]
+* `uid`: CategoryCombo UID.  [required]
+* `category_uid`: Category UID to append.  [required]
 
 **Options**:
 
@@ -6260,13 +6366,13 @@ Remove a Category from this combo&#x27;s membership.
 **Usage**:
 
 ```console
-$ d2w metadata category-combos remove-category [OPTIONS] UID CATEGORY_UID
+$ d2w metadata category-combos remove-category [OPTIONS] {uid} {category_uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryCombo UID.  [required]
-* `CATEGORY_UID`: Category UID to remove.  [required]
+* `uid`: CategoryCombo UID.  [required]
+* `category_uid`: Category UID to remove.  [required]
 
 **Options**:
 
@@ -6283,18 +6389,18 @@ next step depends on the matrix being ready.
 **Usage**:
 
 ```console
-$ d2w metadata category-combos wait-for-cocs [OPTIONS] UID
+$ d2w metadata category-combos wait-for-cocs [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryCombo UID.  [required]
+* `uid`: CategoryCombo UID.  [required]
 
 **Options**:
 
-* `--expected INTEGER`: Expected total of CategoryOptionCombos materialised by this combo.  [required]
-* `--timeout FLOAT`: Seconds to wait before giving up (default 60).  [default: 60.0]
-* `--poll FLOAT`: Seconds between polls (default 1).  [default: 1.0]
+* `--expected <int>`: Expected total of CategoryOptionCombos materialised by this combo.  [required]
+* `--timeout <float>`: Seconds to wait before giving up (default 60).  [default: 60.0]
+* `--poll <float>`: Seconds between polls (default 1).  [default: 1.0]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata category-combos delete`
@@ -6304,12 +6410,12 @@ Delete a CategoryCombo — DHIS2 rejects the default combo + combos in use.
 **Usage**:
 
 ```console
-$ d2w metadata category-combos delete [OPTIONS] UID
+$ d2w metadata category-combos delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryCombo UID.  [required]
+* `uid`: CategoryCombo UID.  [required]
 
 **Options**:
 
@@ -6337,9 +6443,9 @@ $ d2w metadata category-combos build [OPTIONS]
 
 **Options**:
 
-* `--spec TEXT`: Path to a JSON CategoryComboBuildSpec, or `-` to read from stdin. Shape: `{name, categories: [{name, options: [{name, ...}, ...]}, ...]}`.  [required]
-* `--timeout FLOAT`: Seconds to wait for the COC matrix to settle (default 120).  [default: 120.0]
-* `--poll FLOAT`: Seconds between matrix polls (default 1).  [default: 1.0]
+* `--spec <str>`: Path to a JSON CategoryComboBuildSpec, or `-` to read from stdin. Shape: `{name, categories: [{name, options: [{name, ...}, ...]}, ...]}`.  [required]
+* `--timeout <float>`: Seconds to wait for the COC matrix to settle (default 120).  [default: 120.0]
+* `--poll <float>`: Seconds between matrix polls (default 1).  [default: 1.0]
 * `--help`: Show this message and exit.
 
 ### `d2w metadata category-option-combos`
@@ -6368,12 +6474,12 @@ Show one CategoryOptionCombo with its parent combo + option refs.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-combos get [OPTIONS] UID
+$ d2w metadata category-option-combos get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: CategoryOptionCombo UID.  [required]
+* `uid`: CategoryOptionCombo UID.  [required]
 
 **Options**:
 
@@ -6386,12 +6492,12 @@ List every CategoryOptionCombo materialised by one CategoryCombo.
 **Usage**:
 
 ```console
-$ d2w metadata category-option-combos list-for-combo [OPTIONS] COMBO_UID
+$ d2w metadata category-option-combos list-for-combo [OPTIONS] {combo_uid}
 ```
 
 **Arguments**:
 
-* `COMBO_UID`: CategoryCombo UID.  [required]
+* `combo_uid`: CategoryCombo UID.  [required]
 
 **Options**:
 
@@ -6427,12 +6533,12 @@ Show one DataSet with its DSE + section + OU counts inline.
 **Usage**:
 
 ```console
-$ d2w metadata data-sets get [OPTIONS] UID
+$ d2w metadata data-sets get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataSet UID.  [required]
+* `uid`: DataSet UID.  [required]
 
 **Options**:
 
@@ -6450,17 +6556,17 @@ $ d2w metadata data-sets create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--period-type TEXT`: Period type (Monthly, Weekly, Daily, Quarterly, Yearly, …).  [required]
-* `-cc, --category-combo TEXT`: CategoryCombo UID (defaults to the instance default).
-* `--code TEXT`: Business code.
-* `--form-name TEXT`: Form-name override.
-* `--description TEXT`: Free text.
-* `--open-future-periods INTEGER`: Number of future periods open for entry.
-* `--expiry-days INTEGER`: Days after period-end that entry remains open.
-* `--timely-days INTEGER`: Days after period-start considered on-time.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: Full name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--period-type <str>`: Period type (Monthly, Weekly, Daily, Quarterly, Yearly, …).  [required]
+* `-cc, --category-combo <str>`: CategoryCombo UID (defaults to the instance default).
+* `--code <str>`: Business code.
+* `--form-name <str>`: Form-name override.
+* `--description <str>`: Free text.
+* `--open-future-periods <int>`: Number of future periods open for entry.
+* `--expiry-days <int>`: Days after period-end that entry remains open.
+* `--timely-days <int>`: Days after period-start considered on-time.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-sets rename`
@@ -6470,19 +6576,19 @@ Partial-update the label fields on a DataSet.
 **Usage**:
 
 ```console
-$ d2w metadata data-sets rename [OPTIONS] UID
+$ d2w metadata data-sets rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataSet UID.  [required]
+* `uid`: DataSet UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--form-name TEXT`: New form name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--form-name <str>`: New form name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-sets add-element`
@@ -6492,17 +6598,17 @@ Attach a DataElement to the DataSet (optionally with a per-set CategoryCombo ove
 **Usage**:
 
 ```console
-$ d2w metadata data-sets add-element [OPTIONS] DATA_SET_UID DATA_ELEMENT_UID
+$ d2w metadata data-sets add-element [OPTIONS] {data_set_uid} {data_element_uid}
 ```
 
 **Arguments**:
 
-* `DATA_SET_UID`: DataSet UID.  [required]
-* `DATA_ELEMENT_UID`: DataElement UID to attach.  [required]
+* `data_set_uid`: DataSet UID.  [required]
+* `data_element_uid`: DataElement UID to attach.  [required]
 
 **Options**:
 
-* `-cc, --category-combo TEXT`: CategoryCombo UID override for this DSE.
+* `-cc, --category-combo <str>`: CategoryCombo UID override for this DSE.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata data-sets remove-element`
@@ -6512,13 +6618,13 @@ Detach a DataElement from the DataSet.
 **Usage**:
 
 ```console
-$ d2w metadata data-sets remove-element [OPTIONS] DATA_SET_UID DATA_ELEMENT_UID
+$ d2w metadata data-sets remove-element [OPTIONS] {data_set_uid} {data_element_uid}
 ```
 
 **Arguments**:
 
-* `DATA_SET_UID`: DataSet UID.  [required]
-* `DATA_ELEMENT_UID`: DataElement UID to detach.  [required]
+* `data_set_uid`: DataSet UID.  [required]
+* `data_element_uid`: DataElement UID to detach.  [required]
 
 **Options**:
 
@@ -6531,12 +6637,12 @@ Delete a DataSet — DHIS2 rejects deletes on DataSets with saved values.
 **Usage**:
 
 ```console
-$ d2w metadata data-sets delete [OPTIONS] UID
+$ d2w metadata data-sets delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: DataSet UID.  [required]
+* `uid`: DataSet UID.  [required]
 
 **Options**:
 
@@ -6574,12 +6680,12 @@ Show one Section with its ordered DE list inline.
 **Usage**:
 
 ```console
-$ d2w metadata sections get [OPTIONS] UID
+$ d2w metadata sections get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Section UID.  [required]
+* `uid`: Section UID.  [required]
 
 **Options**:
 
@@ -6597,16 +6703,16 @@ $ d2w metadata sections create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Section name (&lt;=230 chars).  [required]
-* `-ds, --data-set TEXT`: Parent DataSet UID.  [required]
-* `--sort-order INTEGER`: Ordering within the DataSet (ascending).
-* `--description TEXT`: Free text.
-* `--code TEXT`: Business code.
-* `-de, --data-element TEXT`: DataElement UID (repeatable, order preserved).
-* `-i, --indicator TEXT`: Indicator UID to show in the side pane (repeatable).
+* `--name <str>`: Section name (&lt;=230 chars).  [required]
+* `-ds, --data-set <str>`: Parent DataSet UID.  [required]
+* `--sort-order <int>`: Ordering within the DataSet (ascending).
+* `--description <str>`: Free text.
+* `--code <str>`: Business code.
+* `-de, --data-element <str>`: DataElement UID (repeatable, order preserved).
+* `-i, --indicator <str>`: Indicator UID to show in the side pane (repeatable).
 * `--show-column-totals / --no-show-column-totals`: Render column totals.
 * `--show-row-totals / --no-show-row-totals`: Render row totals.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata sections rename`
@@ -6616,18 +6722,18 @@ Partial-update the label / sort-order fields on a Section.
 **Usage**:
 
 ```console
-$ d2w metadata sections rename [OPTIONS] UID
+$ d2w metadata sections rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Section UID.  [required]
+* `uid`: Section UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--description TEXT`: New description.
-* `--sort-order INTEGER`: New sort order.
+* `--name <str>`: New name.
+* `--description <str>`: New description.
+* `--sort-order <int>`: New sort order.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata sections add-element`
@@ -6637,17 +6743,17 @@ Append (or insert at `--position`) a DataElement to the Section.
 **Usage**:
 
 ```console
-$ d2w metadata sections add-element [OPTIONS] SECTION_UID DATA_ELEMENT_UID
+$ d2w metadata sections add-element [OPTIONS] {section_uid} {data_element_uid}
 ```
 
 **Arguments**:
 
-* `SECTION_UID`: Section UID.  [required]
-* `DATA_ELEMENT_UID`: DataElement UID.  [required]
+* `section_uid`: Section UID.  [required]
+* `data_element_uid`: DataElement UID.  [required]
 
 **Options**:
 
-* `--position INTEGER`: 0-indexed insertion position. Omit to append.
+* `--position <int>`: 0-indexed insertion position. Omit to append.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata sections remove-element`
@@ -6657,13 +6763,13 @@ Remove a DataElement from the Section (stays on the parent DataSet).
 **Usage**:
 
 ```console
-$ d2w metadata sections remove-element [OPTIONS] SECTION_UID DATA_ELEMENT_UID
+$ d2w metadata sections remove-element [OPTIONS] {section_uid} {data_element_uid}
 ```
 
 **Arguments**:
 
-* `SECTION_UID`: Section UID.  [required]
-* `DATA_ELEMENT_UID`: DataElement UID.  [required]
+* `section_uid`: Section UID.  [required]
+* `data_element_uid`: DataElement UID.  [required]
 
 **Options**:
 
@@ -6676,13 +6782,13 @@ Replace the Section&#x27;s `dataElements` with exactly the given UIDs in order.
 **Usage**:
 
 ```console
-$ d2w metadata sections reorder [OPTIONS] SECTION_UID DATA_ELEMENT_UIDS...
+$ d2w metadata sections reorder [OPTIONS] {section_uid} {data_element_uids}...
 ```
 
 **Arguments**:
 
-* `SECTION_UID`: Section UID.  [required]
-* `DATA_ELEMENT_UIDS...`: DataElement UIDs in the desired order.  [required]
+* `section_uid`: Section UID.  [required]
+* `data_element_uids...`: DataElement UIDs in the desired order.  [required]
 
 **Options**:
 
@@ -6695,12 +6801,12 @@ Delete a Section — DEs stay on the parent DataSet.
 **Usage**:
 
 ```console
-$ d2w metadata sections delete [OPTIONS] UID
+$ d2w metadata sections delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Section UID.  [required]
+* `uid`: Section UID.  [required]
 
 **Options**:
 
@@ -6735,12 +6841,12 @@ Show one ValidationRule with both expression sides inline.
 **Usage**:
 
 ```console
-$ d2w metadata validation-rules get [OPTIONS] UID
+$ d2w metadata validation-rules get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ValidationRule UID.  [required]
+* `uid`: ValidationRule UID.  [required]
 
 **Options**:
 
@@ -6758,18 +6864,18 @@ $ d2w metadata validation-rules create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Rule name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--left TEXT`: Left-side expression (e.g. #{deUid}).  [required]
-* `--operator TEXT`: Comparison operator.  [required]
-* `--right TEXT`: Right-side expression.  [required]
-* `--period-type TEXT`: Period type.  [default: Monthly]
-* `--importance TEXT`: LOW / MEDIUM / HIGH.  [default: MEDIUM]
-* `--missing-value-strategy TEXT`: How to treat absent operands.  [default: SKIP_IF_ALL_VALUES_MISSING]
-* `--description TEXT`: Free-text description.
-* `--code TEXT`: Business code.
-* `--ou-level INTEGER`: OU depth (repeatable). E.g. `--ou-level 4` for facilities.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: Rule name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--left <str>`: Left-side expression (e.g. #{deUid}).  [required]
+* `--operator <str>`: Comparison operator.  [required]
+* `--right <str>`: Right-side expression.  [required]
+* `--period-type <str>`: Period type.  [default: Monthly]
+* `--importance <str>`: LOW / MEDIUM / HIGH.  [default: MEDIUM]
+* `--missing-value-strategy <str>`: How to treat absent operands.  [default: SKIP_IF_ALL_VALUES_MISSING]
+* `--description <str>`: Free-text description.
+* `--code <str>`: Business code.
+* `--ou-level <int>`: OU depth (repeatable). E.g. `--ou-level 4` for facilities.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata validation-rules rename`
@@ -6779,18 +6885,18 @@ Partial-update the label fields on a ValidationRule.
 **Usage**:
 
 ```console
-$ d2w metadata validation-rules rename [OPTIONS] UID
+$ d2w metadata validation-rules rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ValidationRule UID.  [required]
+* `uid`: ValidationRule UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata validation-rules delete`
@@ -6800,12 +6906,12 @@ Delete a ValidationRule — any outstanding results are purged.
 **Usage**:
 
 ```console
-$ d2w metadata validation-rules delete [OPTIONS] UID
+$ d2w metadata validation-rules delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ValidationRule UID.  [required]
+* `uid`: ValidationRule UID.  [required]
 
 **Options**:
 
@@ -6842,12 +6948,12 @@ Show one group with its rule refs.
 **Usage**:
 
 ```console
-$ d2w metadata validation-rule-groups get [OPTIONS] UID
+$ d2w metadata validation-rule-groups get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ValidationRuleGroup UID.  [required]
+* `uid`: ValidationRuleGroup UID.  [required]
 
 **Options**:
 
@@ -6860,17 +6966,17 @@ Page through ValidationRules inside a group.
 **Usage**:
 
 ```console
-$ d2w metadata validation-rule-groups members [OPTIONS] UID
+$ d2w metadata validation-rule-groups members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ValidationRuleGroup UID.  [required]
+* `uid`: ValidationRuleGroup UID.  [required]
 
 **Options**:
 
-* `--page INTEGER`: 1-based page.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
+* `--page <int>`: 1-based page.  [default: 1]
+* `--page-size <int>`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata validation-rule-groups create`
@@ -6885,11 +6991,11 @@ $ d2w metadata validation-rule-groups create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Group name.  [required]
-* `--short-name TEXT`: Short name.
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: Group name.  [required]
+* `--short-name <str>`: Short name.
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata validation-rule-groups add-members`
@@ -6899,16 +7005,16 @@ Attach ValidationRules to a group.
 **Usage**:
 
 ```console
-$ d2w metadata validation-rule-groups add-members [OPTIONS] UID
+$ d2w metadata validation-rule-groups add-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ValidationRuleGroup UID.  [required]
+* `uid`: ValidationRuleGroup UID.  [required]
 
 **Options**:
 
-* `-r, --rule TEXT`: ValidationRule UID (repeatable).  [required]
+* `-r, --rule <str>`: ValidationRule UID (repeatable).  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata validation-rule-groups remove-members`
@@ -6918,16 +7024,16 @@ Detach ValidationRules from a group.
 **Usage**:
 
 ```console
-$ d2w metadata validation-rule-groups remove-members [OPTIONS] UID
+$ d2w metadata validation-rule-groups remove-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ValidationRuleGroup UID.  [required]
+* `uid`: ValidationRuleGroup UID.  [required]
 
 **Options**:
 
-* `-r, --rule TEXT`: ValidationRule UID (repeatable).  [required]
+* `-r, --rule <str>`: ValidationRule UID (repeatable).  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata validation-rule-groups delete`
@@ -6937,12 +7043,12 @@ Delete a ValidationRuleGroup — member rules stay.
 **Usage**:
 
 ```console
-$ d2w metadata validation-rule-groups delete [OPTIONS] UID
+$ d2w metadata validation-rule-groups delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ValidationRuleGroup UID.  [required]
+* `uid`: ValidationRuleGroup UID.  [required]
 
 **Options**:
 
@@ -6977,12 +7083,12 @@ Show one Predictor with generator + output inline.
 **Usage**:
 
 ```console
-$ d2w metadata predictors get [OPTIONS] UID
+$ d2w metadata predictors get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Predictor UID.  [required]
+* `uid`: Predictor UID.  [required]
 
 **Options**:
 
@@ -7000,18 +7106,18 @@ $ d2w metadata predictors create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Predictor name.  [required]
-* `--short-name TEXT`: Short name.  [required]
-* `--expression TEXT`: Generator expression (e.g. #{deUid}).  [required]
-* `-o, --output TEXT`: Output DataElement UID.  [required]
-* `--period-type TEXT`: Period type.  [default: Monthly]
-* `--sequential INTEGER`: Sequential sample count (e.g. 3 for 3-month rolling).  [default: 3]
-* `--annual INTEGER`: Annual sample count.  [default: 0]
-* `--ou-level TEXT`: OrganisationUnitLevel UID (repeatable).
-* `--output-combo TEXT`: Output CategoryOptionCombo UID.
-* `--description TEXT`: Free text.
-* `--code TEXT`: Business code.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: Predictor name.  [required]
+* `--short-name <str>`: Short name.  [required]
+* `--expression <str>`: Generator expression (e.g. #{deUid}).  [required]
+* `-o, --output <str>`: Output DataElement UID.  [required]
+* `--period-type <str>`: Period type.  [default: Monthly]
+* `--sequential <int>`: Sequential sample count (e.g. 3 for 3-month rolling).  [default: 3]
+* `--annual <int>`: Annual sample count.  [default: 0]
+* `--ou-level <str>`: OrganisationUnitLevel UID (repeatable).
+* `--output-combo <str>`: Output CategoryOptionCombo UID.
+* `--description <str>`: Free text.
+* `--code <str>`: Business code.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata predictors rename`
@@ -7021,18 +7127,18 @@ Partial-update the label fields on a Predictor.
 **Usage**:
 
 ```console
-$ d2w metadata predictors rename [OPTIONS] UID
+$ d2w metadata predictors rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Predictor UID.  [required]
+* `uid`: Predictor UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata predictors delete`
@@ -7042,12 +7148,12 @@ Delete a Predictor. DHIS2 keeps any data values it has already written.
 **Usage**:
 
 ```console
-$ d2w metadata predictors delete [OPTIONS] UID
+$ d2w metadata predictors delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Predictor UID.  [required]
+* `uid`: Predictor UID.  [required]
 
 **Options**:
 
@@ -7084,12 +7190,12 @@ Show one group with its predictor refs.
 **Usage**:
 
 ```console
-$ d2w metadata predictor-groups get [OPTIONS] UID
+$ d2w metadata predictor-groups get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: PredictorGroup UID.  [required]
+* `uid`: PredictorGroup UID.  [required]
 
 **Options**:
 
@@ -7102,17 +7208,17 @@ Page through Predictors in a group.
 **Usage**:
 
 ```console
-$ d2w metadata predictor-groups members [OPTIONS] UID
+$ d2w metadata predictor-groups members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: PredictorGroup UID.  [required]
+* `uid`: PredictorGroup UID.  [required]
 
 **Options**:
 
-* `--page INTEGER`: 1-based page.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
+* `--page <int>`: 1-based page.  [default: 1]
+* `--page-size <int>`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata predictor-groups create`
@@ -7127,11 +7233,11 @@ $ d2w metadata predictor-groups create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Group name.  [required]
-* `--short-name TEXT`: Short name.
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free text.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: Group name.  [required]
+* `--short-name <str>`: Short name.
+* `--code <str>`: Business code.
+* `--description <str>`: Free text.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata predictor-groups add-members`
@@ -7141,16 +7247,16 @@ Attach Predictors to a group.
 **Usage**:
 
 ```console
-$ d2w metadata predictor-groups add-members [OPTIONS] UID
+$ d2w metadata predictor-groups add-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: PredictorGroup UID.  [required]
+* `uid`: PredictorGroup UID.  [required]
 
 **Options**:
 
-* `-p, --predictor TEXT`: Predictor UID (repeatable).  [required]
+* `-p, --predictor <str>`: Predictor UID (repeatable).  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata predictor-groups remove-members`
@@ -7160,16 +7266,16 @@ Detach Predictors from a group.
 **Usage**:
 
 ```console
-$ d2w metadata predictor-groups remove-members [OPTIONS] UID
+$ d2w metadata predictor-groups remove-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: PredictorGroup UID.  [required]
+* `uid`: PredictorGroup UID.  [required]
 
 **Options**:
 
-* `-p, --predictor TEXT`: Predictor UID (repeatable).  [required]
+* `-p, --predictor <str>`: Predictor UID (repeatable).  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata predictor-groups delete`
@@ -7179,12 +7285,12 @@ Delete a PredictorGroup — member predictors stay.
 **Usage**:
 
 ```console
-$ d2w metadata predictor-groups delete [OPTIONS] UID
+$ d2w metadata predictor-groups delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: PredictorGroup UID.  [required]
+* `uid`: PredictorGroup UID.  [required]
 
 **Options**:
 
@@ -7219,12 +7325,12 @@ Show one TrackedEntityAttribute with its toggles inline.
 **Usage**:
 
 ```console
-$ d2w metadata tracked-entity-attributes get [OPTIONS] UID
+$ d2w metadata tracked-entity-attributes get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: TrackedEntityAttribute UID.  [required]
+* `uid`: TrackedEntityAttribute UID.  [required]
 
 **Options**:
 
@@ -7242,24 +7348,24 @@ $ d2w metadata tracked-entity-attributes create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Attribute name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--value-type TEXT`: TEXT / NUMBER / DATE / …  [default: TEXT]
-* `--aggregation-type TEXT`: DHIS2 aggregation type.  [default: NONE]
-* `--option-set TEXT`: Constraining OptionSet UID.
-* `--legend-set TEXT`: LegendSet UID (repeatable).
+* `--name <str>`: Attribute name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--value-type <str>`: TEXT / NUMBER / DATE / …  [default: TEXT]
+* `--aggregation-type <str>`: DHIS2 aggregation type.  [default: NONE]
+* `--option-set <str>`: Constraining OptionSet UID.
+* `--legend-set <str>`: LegendSet UID (repeatable).
 * `--unique / --no-unique`: Unique across the instance.  [default: no-unique]
 * `--generated / --no-generated`: Auto-generate via --pattern on TEI register.  [default: no-generated]
 * `--confidential / --no-confidential`: Sensitive.  [default: no-confidential]
 * `--inherit / --no-inherit`: Inherit on parent/child TEI link.  [default: no-inherit]
 * `--display-in-list-no-program / --no-display-in-list-no-program`: Show in the list when no program is selected.  [default: no-display-in-list-no-program]
 * `--orgunit-scope / --no-orgunit-scope`: Scope values to the capturing OU.  [default: no-orgunit-scope]
-* `--pattern TEXT`: Generator pattern (with --generated).
-* `--field-mask TEXT`: Input mask for the data-entry field.
-* `--code TEXT`: Business code.
-* `--form-name TEXT`: Form-name override.
-* `--description TEXT`: Free text.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--pattern <str>`: Generator pattern (with --generated).
+* `--field-mask <str>`: Input mask for the data-entry field.
+* `--code <str>`: Business code.
+* `--form-name <str>`: Form-name override.
+* `--description <str>`: Free text.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata tracked-entity-attributes rename`
@@ -7269,19 +7375,19 @@ Partial-update the label fields on a TrackedEntityAttribute.
 **Usage**:
 
 ```console
-$ d2w metadata tracked-entity-attributes rename [OPTIONS] UID
+$ d2w metadata tracked-entity-attributes rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: TrackedEntityAttribute UID.  [required]
+* `uid`: TrackedEntityAttribute UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--form-name TEXT`: New form name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--form-name <str>`: New form name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata tracked-entity-attributes delete`
@@ -7291,12 +7397,12 @@ Delete a TrackedEntityAttribute — DHIS2 rejects deletes on TEAs wired into a T
 **Usage**:
 
 ```console
-$ d2w metadata tracked-entity-attributes delete [OPTIONS] UID
+$ d2w metadata tracked-entity-attributes delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: TrackedEntityAttribute UID.  [required]
+* `uid`: TrackedEntityAttribute UID.  [required]
 
 **Options**:
 
@@ -7333,12 +7439,12 @@ Show one TrackedEntityType with its attribute link-table counts.
 **Usage**:
 
 ```console
-$ d2w metadata tracked-entity-types get [OPTIONS] UID
+$ d2w metadata tracked-entity-types get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: TrackedEntityType UID.  [required]
+* `uid`: TrackedEntityType UID.  [required]
 
 **Options**:
 
@@ -7356,16 +7462,16 @@ $ d2w metadata tracked-entity-types create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: TET name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--description TEXT`: Free text.
-* `--code TEXT`: Business code.
-* `--form-name TEXT`: Form-name override.
+* `--name <str>`: TET name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--description <str>`: Free text.
+* `--code <str>`: Business code.
+* `--form-name <str>`: Form-name override.
 * `--allow-audit-log / --no-allow-audit-log`: Enable the per-TEI audit trail.
-* `--feature-type TEXT`: NONE / POINT / POLYGON — geometry captured per TEI.
-* `--min-attrs INTEGER`: Min attributes required to search TEIs.
-* `--max-tei INTEGER`: Max TEI count to return per search.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--feature-type <str>`: NONE / POINT / POLYGON — geometry captured per TEI.
+* `--min-attrs <int>`: Min attributes required to search TEIs.
+* `--max-tei <int>`: Max TEI count to return per search.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata tracked-entity-types rename`
@@ -7375,19 +7481,19 @@ Partial-update the label fields on a TrackedEntityType.
 **Usage**:
 
 ```console
-$ d2w metadata tracked-entity-types rename [OPTIONS] UID
+$ d2w metadata tracked-entity-types rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: TrackedEntityType UID.  [required]
+* `uid`: TrackedEntityType UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--form-name TEXT`: New form name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--form-name <str>`: New form name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata tracked-entity-types add-attribute`
@@ -7397,13 +7503,13 @@ Attach a TrackedEntityAttribute to a TrackedEntityType.
 **Usage**:
 
 ```console
-$ d2w metadata tracked-entity-types add-attribute [OPTIONS] TET_UID ATTRIBUTE_UID
+$ d2w metadata tracked-entity-types add-attribute [OPTIONS] {tet_uid} {attribute_uid}
 ```
 
 **Arguments**:
 
-* `TET_UID`: TrackedEntityType UID.  [required]
-* `ATTRIBUTE_UID`: TrackedEntityAttribute UID to wire in.  [required]
+* `tet_uid`: TrackedEntityType UID.  [required]
+* `attribute_uid`: TrackedEntityAttribute UID to wire in.  [required]
 
 **Options**:
 
@@ -7419,13 +7525,13 @@ Detach a TrackedEntityAttribute from a TrackedEntityType.
 **Usage**:
 
 ```console
-$ d2w metadata tracked-entity-types remove-attribute [OPTIONS] TET_UID ATTRIBUTE_UID
+$ d2w metadata tracked-entity-types remove-attribute [OPTIONS] {tet_uid} {attribute_uid}
 ```
 
 **Arguments**:
 
-* `TET_UID`: TrackedEntityType UID.  [required]
-* `ATTRIBUTE_UID`: TrackedEntityAttribute UID to detach.  [required]
+* `tet_uid`: TrackedEntityType UID.  [required]
+* `attribute_uid`: TrackedEntityAttribute UID to detach.  [required]
 
 **Options**:
 
@@ -7438,12 +7544,12 @@ Delete a TrackedEntityType — DHIS2 rejects deletes on TETs in use by enrolled 
 **Usage**:
 
 ```console
-$ d2w metadata tracked-entity-types delete [OPTIONS] UID
+$ d2w metadata tracked-entity-types delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: TrackedEntityType UID.  [required]
+* `uid`: TrackedEntityType UID.  [required]
 
 **Options**:
 
@@ -7482,12 +7588,12 @@ Show one Program with counts inline.
 **Usage**:
 
 ```console
-$ d2w metadata programs get [OPTIONS] UID
+$ d2w metadata programs get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Program UID.  [required]
+* `uid`: Program UID.  [required]
 
 **Options**:
 
@@ -7505,24 +7611,24 @@ $ d2w metadata programs create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Program name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--program-type TEXT`: WITH_REGISTRATION (tracker) or WITHOUT_REGISTRATION (event).  [default: WITH_REGISTRATION]
-* `-tet, --tracked-entity-type TEXT`: TET UID. Required for WITH_REGISTRATION.
-* `-cc, --category-combo TEXT`: CategoryCombo UID (defaults to the instance default).
-* `--description TEXT`: Free text.
-* `--code TEXT`: Business code.
-* `--form-name TEXT`: Form-name override.
+* `--name <str>`: Program name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--program-type <str>`: WITH_REGISTRATION (tracker) or WITHOUT_REGISTRATION (event).  [default: WITH_REGISTRATION]
+* `-tet, --tracked-entity-type <str>`: TET UID. Required for WITH_REGISTRATION.
+* `-cc, --category-combo <str>`: CategoryCombo UID (defaults to the instance default).
+* `--description <str>`: Free text.
+* `--code <str>`: Business code.
+* `--form-name <str>`: Form-name override.
 * `--display-incident-date / --no-display-incident-date`: Capture an incident date.
-* `--enrollment-date-label TEXT`: Custom enrollment-date label.
-* `--incident-date-label TEXT`: Custom incident-date label.
-* `--feature-type TEXT`: Geometry captured per enrollment (NONE / POINT / POLYGON).
+* `--enrollment-date-label <str>`: Custom enrollment-date label.
+* `--incident-date-label <str>`: Custom incident-date label.
+* `--feature-type <str>`: Geometry captured per enrollment (NONE / POINT / POLYGON).
 * `--only-enroll-once / --no-only-enroll-once`: Block re-enrollment of the same TEI.
-* `--expiry-days INTEGER`: Days after which enrollments expire for edit.
-* `--min-attrs INTEGER`: Min attributes required for TEI search.
-* `--max-tei INTEGER`: Max TEI count per search.
+* `--expiry-days <int>`: Days after which enrollments expire for edit.
+* `--min-attrs <int>`: Min attributes required for TEI search.
+* `--max-tei <int>`: Max TEI count per search.
 * `--use-first-stage-during-registration / --no-use-first-stage-during-registration`: Run the first ProgramStage inside the enrollment flow.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata programs rename`
@@ -7532,19 +7638,19 @@ Partial-update the label fields on a Program.
 **Usage**:
 
 ```console
-$ d2w metadata programs rename [OPTIONS] UID
+$ d2w metadata programs rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Program UID.  [required]
+* `uid`: Program UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--form-name TEXT`: New form name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--form-name <str>`: New form name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata programs add-attribute`
@@ -7554,20 +7660,20 @@ Attach a TrackedEntityAttribute to the Program&#x27;s enrollment form.
 **Usage**:
 
 ```console
-$ d2w metadata programs add-attribute [OPTIONS] PROGRAM_UID ATTRIBUTE_UID
+$ d2w metadata programs add-attribute [OPTIONS] {program_uid} {attribute_uid}
 ```
 
 **Arguments**:
 
-* `PROGRAM_UID`: Program UID.  [required]
-* `ATTRIBUTE_UID`: TrackedEntityAttribute UID.  [required]
+* `program_uid`: Program UID.  [required]
+* `attribute_uid`: TrackedEntityAttribute UID.  [required]
 
 **Options**:
 
 * `--mandatory / --no-mandatory`: Require on enrollment.  [default: no-mandatory]
 * `--searchable / --no-searchable`: Include in search.  [default: no-searchable]
 * `--display-in-list / --no-display-in-list`: Show in enrolled-TEI list.  [default: display-in-list]
-* `--sort-order INTEGER`: Position on enrollment form.
+* `--sort-order <int>`: Position on enrollment form.
 * `--allow-future-date / --no-allow-future-date`: Permit dates past today.  [default: no-allow-future-date]
 * `--render-options-as-radio / --no-render-options-as-radio`: Render option-set choices as radios instead of a dropdown.  [default: no-render-options-as-radio]
 * `--help`: Show this message and exit.
@@ -7579,13 +7685,13 @@ Detach a TrackedEntityAttribute from the Program&#x27;s enrollment form.
 **Usage**:
 
 ```console
-$ d2w metadata programs remove-attribute [OPTIONS] PROGRAM_UID ATTRIBUTE_UID
+$ d2w metadata programs remove-attribute [OPTIONS] {program_uid} {attribute_uid}
 ```
 
 **Arguments**:
 
-* `PROGRAM_UID`: Program UID.  [required]
-* `ATTRIBUTE_UID`: TrackedEntityAttribute UID.  [required]
+* `program_uid`: Program UID.  [required]
+* `attribute_uid`: TrackedEntityAttribute UID.  [required]
 
 **Options**:
 
@@ -7598,13 +7704,13 @@ Scope the Program to another OrganisationUnit.
 **Usage**:
 
 ```console
-$ d2w metadata programs add-to-ou [OPTIONS] PROGRAM_UID ORGANISATION_UNIT_UID
+$ d2w metadata programs add-to-ou [OPTIONS] {program_uid} {organisation_unit_uid}
 ```
 
 **Arguments**:
 
-* `PROGRAM_UID`: Program UID.  [required]
-* `ORGANISATION_UNIT_UID`: OrganisationUnit UID.  [required]
+* `program_uid`: Program UID.  [required]
+* `organisation_unit_uid`: OrganisationUnit UID.  [required]
 
 **Options**:
 
@@ -7617,13 +7723,13 @@ Drop an OrganisationUnit from the Program&#x27;s scope.
 **Usage**:
 
 ```console
-$ d2w metadata programs remove-from-ou [OPTIONS] PROGRAM_UID ORGANISATION_UNIT_UID
+$ d2w metadata programs remove-from-ou [OPTIONS] {program_uid} {organisation_unit_uid}
 ```
 
 **Arguments**:
 
-* `PROGRAM_UID`: Program UID.  [required]
-* `ORGANISATION_UNIT_UID`: OrganisationUnit UID.  [required]
+* `program_uid`: Program UID.  [required]
+* `organisation_unit_uid`: OrganisationUnit UID.  [required]
 
 **Options**:
 
@@ -7636,12 +7742,12 @@ Delete a Program — DHIS2 rejects deletes on programs with enrollments or event
 **Usage**:
 
 ```console
-$ d2w metadata programs delete [OPTIONS] UID
+$ d2w metadata programs delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: Program UID.  [required]
+* `uid`: Program UID.  [required]
 
 **Options**:
 
@@ -7679,12 +7785,12 @@ Show one ProgramStage with its PSDE list summary inline.
 **Usage**:
 
 ```console
-$ d2w metadata program-stages get [OPTIONS] UID
+$ d2w metadata program-stages get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramStage UID.  [required]
+* `uid`: ProgramStage UID.  [required]
 
 **Options**:
 
@@ -7702,21 +7808,21 @@ $ d2w metadata program-stages create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: ProgramStage name (&lt;=230 chars).  [required]
-* `-p, --program TEXT`: Parent Program UID.  [required]
-* `--short-name TEXT`: Short name.
-* `--description TEXT`: Free text.
-* `--code TEXT`: Business code.
-* `--sort-order INTEGER`: Stage order inside the Program.
+* `--name <str>`: ProgramStage name (&lt;=230 chars).  [required]
+* `-p, --program <str>`: Parent Program UID.  [required]
+* `--short-name <str>`: Short name.
+* `--description <str>`: Free text.
+* `--code <str>`: Business code.
+* `--sort-order <int>`: Stage order inside the Program.
 * `--repeatable / --no-repeatable`: Allow the stage to reoccur within one enrollment.
 * `--auto-generate-event / --no-auto-generate-event`: Auto-create an event when the enrollment starts.
 * `--generated-by-enrollment-date / --no-generated-by-enrollment-date`: Base due-date math on enrollment date (vs incident date).
-* `--feature-type TEXT`: Geometry captured per event (NONE / POINT / POLYGON).
-* `--period-type TEXT`: Period type for scheduled events.
-* `--validation-strategy TEXT`: ON_COMPLETE / ON_UPDATE_AND_INSERT.
-* `--min-days INTEGER`: Minimum days from enrollment start before the stage opens.
-* `--standard-interval INTEGER`: Default days between scheduled repeats.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--feature-type <str>`: Geometry captured per event (NONE / POINT / POLYGON).
+* `--period-type <str>`: Period type for scheduled events.
+* `--validation-strategy <str>`: ON_COMPLETE / ON_UPDATE_AND_INSERT.
+* `--min-days <int>`: Minimum days from enrollment start before the stage opens.
+* `--standard-interval <int>`: Default days between scheduled repeats.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-stages rename`
@@ -7726,19 +7832,19 @@ Partial-update the label fields on a ProgramStage.
 **Usage**:
 
 ```console
-$ d2w metadata program-stages rename [OPTIONS] UID
+$ d2w metadata program-stages rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramStage UID.  [required]
+* `uid`: ProgramStage UID.  [required]
 
 **Options**:
 
-* `--name TEXT`: New name.
-* `--short-name TEXT`: New short name.
-* `--form-name TEXT`: New form name.
-* `--description TEXT`: New description.
+* `--name <str>`: New name.
+* `--short-name <str>`: New short name.
+* `--form-name <str>`: New form name.
+* `--description <str>`: New description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-stages add-element`
@@ -7748,13 +7854,13 @@ Attach a DataElement to the ProgramStage.
 **Usage**:
 
 ```console
-$ d2w metadata program-stages add-element [OPTIONS] STAGE_UID DATA_ELEMENT_UID
+$ d2w metadata program-stages add-element [OPTIONS] {stage_uid} {data_element_uid}
 ```
 
 **Arguments**:
 
-* `STAGE_UID`: ProgramStage UID.  [required]
-* `DATA_ELEMENT_UID`: DataElement UID to attach.  [required]
+* `stage_uid`: ProgramStage UID.  [required]
+* `data_element_uid`: DataElement UID to attach.  [required]
 
 **Options**:
 
@@ -7763,7 +7869,7 @@ $ d2w metadata program-stages add-element [OPTIONS] STAGE_UID DATA_ELEMENT_UID
 * `--display-in-reports / --no-display-in-reports`: Show in event reports.  [default: display-in-reports]
 * `--allow-provided-elsewhere / --no-allow-provided-elsewhere`: Mark the value as provided by a different OU.  [default: no-allow-provided-elsewhere]
 * `--render-options-as-radio / --no-render-options-as-radio`: Render option-set picklists as radios.  [default: no-render-options-as-radio]
-* `--sort-order INTEGER`: Position inside the stage data-entry form.
+* `--sort-order <int>`: Position inside the stage data-entry form.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata program-stages remove-element`
@@ -7773,13 +7879,13 @@ Detach a DataElement from the ProgramStage.
 **Usage**:
 
 ```console
-$ d2w metadata program-stages remove-element [OPTIONS] STAGE_UID DATA_ELEMENT_UID
+$ d2w metadata program-stages remove-element [OPTIONS] {stage_uid} {data_element_uid}
 ```
 
 **Arguments**:
 
-* `STAGE_UID`: ProgramStage UID.  [required]
-* `DATA_ELEMENT_UID`: DataElement UID.  [required]
+* `stage_uid`: ProgramStage UID.  [required]
+* `data_element_uid`: DataElement UID.  [required]
 
 **Options**:
 
@@ -7792,13 +7898,13 @@ Replace the ProgramStage&#x27;s PSDE list with exactly the given DE UIDs in orde
 **Usage**:
 
 ```console
-$ d2w metadata program-stages reorder [OPTIONS] STAGE_UID DATA_ELEMENT_UIDS...
+$ d2w metadata program-stages reorder [OPTIONS] {stage_uid} {data_element_uids}...
 ```
 
 **Arguments**:
 
-* `STAGE_UID`: ProgramStage UID.  [required]
-* `DATA_ELEMENT_UIDS...`: DataElement UIDs in the desired order.  [required]
+* `stage_uid`: ProgramStage UID.  [required]
+* `data_element_uids...`: DataElement UIDs in the desired order.  [required]
 
 **Options**:
 
@@ -7811,12 +7917,12 @@ Delete a ProgramStage — DHIS2 rejects deletes on stages with recorded events.
 **Usage**:
 
 ```console
-$ d2w metadata program-stages delete [OPTIONS] UID
+$ d2w metadata program-stages delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: ProgramStage UID.  [required]
+* `uid`: ProgramStage UID.  [required]
 
 **Options**:
 
@@ -7852,12 +7958,12 @@ Show one OU with parent + core hierarchy fields.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-units get [OPTIONS] UID
+$ d2w metadata organisation-units get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnit UID.  [required]
+* `uid`: OrganisationUnit UID.  [required]
 
 **Options**:
 
@@ -7870,16 +7976,16 @@ Render a bounded-depth subtree indented by hierarchy level.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-units tree [OPTIONS] ROOT_UID
+$ d2w metadata organisation-units tree [OPTIONS] {root_uid}
 ```
 
 **Arguments**:
 
-* `ROOT_UID`: Root OU UID — render this + descendants.  [required]
+* `root_uid`: Root OU UID — render this + descendants.  [required]
 
 **Options**:
 
-* `--max-depth INTEGER`: Depth of descendants to include (0 = just the root).  [default: 3]
+* `--max-depth <int>`: Depth of descendants to include (0 = just the root).  [default: 3]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata organisation-units create`
@@ -7889,21 +7995,21 @@ Create a child OU under `parent_uid`.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-units create [OPTIONS] PARENT_UID
+$ d2w metadata organisation-units create [OPTIONS] {parent_uid}
 ```
 
 **Arguments**:
 
-* `PARENT_UID`: Parent OU UID to create under.  [required]
+* `parent_uid`: Parent OU UID to create under.  [required]
 
 **Options**:
 
-* `--name TEXT`: Full name (&lt;=230 chars).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars).  [required]
-* `--opening-date TEXT`: ISO-8601 date, e.g. 2024-01-01.  [required]
-* `--uid TEXT`: Explicit 11-char UID (generated when omitted).
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free-text description.
+* `--name <str>`: Full name (&lt;=230 chars).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars).  [required]
+* `--opening-date <str>`: ISO-8601 date, e.g. 2024-01-01.  [required]
+* `--uid <str>`: Explicit 11-char UID (generated when omitted).
+* `--code <str>`: Business code.
+* `--description <str>`: Free-text description.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata organisation-units move`
@@ -7913,13 +8019,13 @@ Reparent an OU. DHIS2 recomputes `path` + `hierarchyLevel`.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-units move [OPTIONS] UID NEW_PARENT_UID
+$ d2w metadata organisation-units move [OPTIONS] {uid} {new_parent_uid}
 ```
 
 **Arguments**:
 
-* `UID`: OU UID to reparent.  [required]
-* `NEW_PARENT_UID`: New parent OU UID.  [required]
+* `uid`: OU UID to reparent.  [required]
+* `new_parent_uid`: New parent OU UID.  [required]
 
 **Options**:
 
@@ -7932,12 +8038,12 @@ Delete an OU. DHIS2 rejects deletes on units with children or data.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-units delete [OPTIONS] UID
+$ d2w metadata organisation-units delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OU UID to delete.  [required]
+* `uid`: OU UID to delete.  [required]
 
 **Options**:
 
@@ -7974,12 +8080,12 @@ Show one group with its member refs and the group-sets it belongs to.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-groups get [OPTIONS] UID
+$ d2w metadata organisation-unit-groups get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitGroup UID.  [required]
+* `uid`: OrganisationUnitGroup UID.  [required]
 
 **Options**:
 
@@ -7992,17 +8098,17 @@ Page through the OUs inside one group.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-groups members [OPTIONS] UID
+$ d2w metadata organisation-unit-groups members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitGroup UID.  [required]
+* `uid`: OrganisationUnitGroup UID.  [required]
 
 **Options**:
 
-* `--page INTEGER`: 1-based page number.  [default: 1]
-* `--page-size INTEGER`: Rows per page.  [default: 50]
+* `--page <int>`: 1-based page number.  [default: 1]
+* `--page-size <int>`: Rows per page.  [default: 50]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata organisation-unit-groups create`
@@ -8017,12 +8123,12 @@ $ d2w metadata organisation-unit-groups create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name (&lt;=230 chars, unique).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars, unique).  [required]
-* `--uid TEXT`: Explicit 11-char UID (generated when omitted).
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free-text description.
-* `--color TEXT`: Hex colour (#RRGGBB).
+* `--name <str>`: Full name (&lt;=230 chars, unique).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars, unique).  [required]
+* `--uid <str>`: Explicit 11-char UID (generated when omitted).
+* `--code <str>`: Business code.
+* `--description <str>`: Free-text description.
+* `--color <str>`: Hex colour (#RRGGBB).
 * `--help`: Show this message and exit.
 
 #### `d2w metadata organisation-unit-groups add-members`
@@ -8032,16 +8138,16 @@ Add `--ou` members to a group via the per-item POST shortcut.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-groups add-members [OPTIONS] UID
+$ d2w metadata organisation-unit-groups add-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitGroup UID.  [required]
+* `uid`: OrganisationUnitGroup UID.  [required]
 
 **Options**:
 
-* `--ou TEXT`: OU UID to add. Repeat for multiple.  [required]
+* `--ou <str>`: OU UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata organisation-unit-groups remove-members`
@@ -8051,16 +8157,16 @@ Drop `--ou` members from a group via the per-item DELETE shortcut.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-groups remove-members [OPTIONS] UID
+$ d2w metadata organisation-unit-groups remove-members [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitGroup UID.  [required]
+* `uid`: OrganisationUnitGroup UID.  [required]
 
 **Options**:
 
-* `--ou TEXT`: OU UID to remove. Repeat for multiple.  [required]
+* `--ou <str>`: OU UID to remove. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata organisation-unit-groups delete`
@@ -8070,12 +8176,12 @@ Delete an OrganisationUnitGroup — members stay.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-groups delete [OPTIONS] UID
+$ d2w metadata organisation-unit-groups delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitGroup UID to delete.  [required]
+* `uid`: OrganisationUnitGroup UID to delete.  [required]
 
 **Options**:
 
@@ -8111,12 +8217,12 @@ Show one group set with its groups + per-group member counts.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-group-sets get [OPTIONS] UID
+$ d2w metadata organisation-unit-group-sets get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitGroupSet UID.  [required]
+* `uid`: OrganisationUnitGroupSet UID.  [required]
 
 **Options**:
 
@@ -8134,11 +8240,11 @@ $ d2w metadata organisation-unit-group-sets create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Full name (&lt;=230 chars, unique).  [required]
-* `--short-name TEXT`: Short name (&lt;=50 chars, unique).  [required]
-* `--uid TEXT`: Explicit 11-char UID (generated when omitted).
-* `--code TEXT`: Business code.
-* `--description TEXT`: Free-text description.
+* `--name <str>`: Full name (&lt;=230 chars, unique).  [required]
+* `--short-name <str>`: Short name (&lt;=50 chars, unique).  [required]
+* `--uid <str>`: Explicit 11-char UID (generated when omitted).
+* `--code <str>`: Business code.
+* `--description <str>`: Free-text description.
 * `--compulsory / --not-compulsory`: Require OUs to land in exactly one group of this set.  [default: not-compulsory]
 * `--data-dimension / --no-data-dimension`: Expose as a pivot/visualisation axis.  [default: data-dimension]
 * `--help`: Show this message and exit.
@@ -8150,16 +8256,16 @@ Add `--group` members to a group set.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-group-sets add-groups [OPTIONS] UID
+$ d2w metadata organisation-unit-group-sets add-groups [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitGroupSet UID.  [required]
+* `uid`: OrganisationUnitGroupSet UID.  [required]
 
 **Options**:
 
-* `--group TEXT`: OrganisationUnitGroup UID to add. Repeat for multiple.  [required]
+* `--group <str>`: OrganisationUnitGroup UID to add. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata organisation-unit-group-sets remove-groups`
@@ -8169,16 +8275,16 @@ Drop `--group` members from a group set.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-group-sets remove-groups [OPTIONS] UID
+$ d2w metadata organisation-unit-group-sets remove-groups [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitGroupSet UID.  [required]
+* `uid`: OrganisationUnitGroupSet UID.  [required]
 
 **Options**:
 
-* `--group TEXT`: OrganisationUnitGroup UID to drop. Repeat for multiple.  [required]
+* `--group <str>`: OrganisationUnitGroup UID to drop. Repeat for multiple.  [required]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata organisation-unit-group-sets delete`
@@ -8188,12 +8294,12 @@ Delete an OrganisationUnitGroupSet — groups stay.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-group-sets delete [OPTIONS] UID
+$ d2w metadata organisation-unit-group-sets delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitGroupSet UID to delete.  [required]
+* `uid`: OrganisationUnitGroupSet UID to delete.  [required]
 
 **Options**:
 
@@ -8226,12 +8332,12 @@ Show one level row — by UID (default) or by numeric depth.
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-levels get [OPTIONS] UID
+$ d2w metadata organisation-unit-levels get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitLevel UID (or pass --by-level).  [required]
+* `uid`: OrganisationUnitLevel UID (or pass --by-level).  [required]
 
 **Options**:
 
@@ -8245,19 +8351,19 @@ Give a level a human label — turns &#x27;level 2&#x27; into &#x27;Province&#x2
 **Usage**:
 
 ```console
-$ d2w metadata organisation-unit-levels rename [OPTIONS] UID
+$ d2w metadata organisation-unit-levels rename [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: OrganisationUnitLevel UID (or the numeric level with --by-level).  [required]
+* `uid`: OrganisationUnitLevel UID (or the numeric level with --by-level).  [required]
 
 **Options**:
 
-* `--name TEXT`: New human label (e.g. &#x27;Country&#x27;, &#x27;District&#x27;, &#x27;Facility&#x27;).  [required]
+* `--name <str>`: New human label (e.g. &#x27;Country&#x27;, &#x27;District&#x27;, &#x27;Facility&#x27;).  [required]
 * `--by-level`: Treat UID as the numeric level (1 = roots).
-* `--code TEXT`: Optionally update the business code.
-* `--offline-levels INTEGER`: How many levels to cache offline from this one.
+* `--code <str>`: Optionally update the business code.
+* `--offline-levels <int>`: How many levels to cache offline from this one.
 * `--help`: Show this message and exit.
 
 ### `d2w metadata legend-sets`
@@ -8288,12 +8394,12 @@ Show one LegendSet with its ordered legends (colour ranges).
 **Usage**:
 
 ```console
-$ d2w metadata legend-sets get [OPTIONS] UID
+$ d2w metadata legend-sets get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: LegendSet UID.  [required]
+* `uid`: LegendSet UID.  [required]
 
 **Options**:
 
@@ -8320,10 +8426,10 @@ $ d2w metadata legend-sets create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: Display name for the new LegendSet.  [required]
-* `--legend TEXT`: One legend (colour range) in `start🔚color[:name]` form. Repeatable, at least one required. Example: `--legend 0:1000:#d73027:Low --legend 1000:5000:#1a9850:High`.  [required]
-* `--code TEXT`: Business code (unique).
-* `--uid TEXT`: Fixed 11-char UID. Omit to let the client generate one.
+* `--name <str>`: Display name for the new LegendSet.  [required]
+* `--legend <str>`: One legend (colour range) in `start🔚color[:name]` form. Repeatable, at least one required. Example: `--legend 0:1000:#d73027:Low --legend 1000:5000:#1a9850:High`.  [required]
+* `--code <str>`: Business code (unique).
+* `--uid <str>`: Fixed 11-char UID. Omit to let the client generate one.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata legend-sets clone`
@@ -8336,18 +8442,18 @@ without rebuilding the bands by hand.
 **Usage**:
 
 ```console
-$ d2w metadata legend-sets clone [OPTIONS] SOURCE_UID
+$ d2w metadata legend-sets clone [OPTIONS] {source_uid}
 ```
 
 **Arguments**:
 
-* `SOURCE_UID`: Source LegendSet UID to clone.  [required]
+* `source_uid`: Source LegendSet UID to clone.  [required]
 
 **Options**:
 
-* `--new-name TEXT`: Name of the clone (default: append &#x27; (clone)&#x27; to the source&#x27;s name).
-* `--new-uid TEXT`: Fixed 11-char UID for the clone. Omit for auto-generated.
-* `--new-code TEXT`: Business code on the clone.
+* `--new-name <str>`: Name of the clone (default: append &#x27; (clone)&#x27; to the source&#x27;s name).
+* `--new-uid <str>`: Fixed 11-char UID for the clone. Omit for auto-generated.
+* `--new-code <str>`: Business code on the clone.
 * `--help`: Show this message and exit.
 
 #### `d2w metadata legend-sets delete`
@@ -8357,12 +8463,12 @@ Delete a LegendSet.
 **Usage**:
 
 ```console
-$ d2w metadata legend-sets delete [OPTIONS] UID
+$ d2w metadata legend-sets delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: LegendSet UID to delete.  [required]
+* `uid`: LegendSet UID to delete.  [required]
 
 **Options**:
 
@@ -8438,12 +8544,12 @@ Verify one profile or all profiles by hitting /api/system/info + /api/me.
 **Usage**:
 
 ```console
-$ d2w profile verify [OPTIONS] [NAME]
+$ d2w profile verify [OPTIONS] [name]
 ```
 
 **Arguments**:
 
-* `[NAME]`: Profile name to verify; omit to verify all.
+* `name`: Profile name to verify; omit to verify all.
 
 **Options**:
 
@@ -8456,12 +8562,12 @@ Print one profile (secrets redacted by default).
 **Usage**:
 
 ```console
-$ d2w profile show [OPTIONS] NAME
+$ d2w profile show [OPTIONS] {name}
 ```
 
 **Arguments**:
 
-* `NAME`: [required]
+* `name`: [required]
 
 **Options**:
 
@@ -8481,12 +8587,12 @@ screen-sharing) use `d2w profile show` instead.
 **Usage**:
 
 ```console
-$ d2w profile env [OPTIONS] [NAME]
+$ d2w profile env [OPTIONS] [name]
 ```
 
 **Arguments**:
 
-* `[NAME]`: Profile name; defaults to the active profile.
+* `name`: Profile name; defaults to the active profile.
 
 **Options**:
 
@@ -8504,12 +8610,12 @@ default).
 **Usage**:
 
 ```console
-$ d2w profile default [OPTIONS] [NAME]
+$ d2w profile default [OPTIONS] [name]
 ```
 
 **Arguments**:
 
-* `[NAME]`: Profile name to set as default. Omit to pick interactively from a list.
+* `name`: Profile name to set as default. Omit to pick interactively from a list.
 
 **Options**:
 
@@ -8529,27 +8635,27 @@ Read from env (`DHIS2_PAT`, `DHIS2_PASSWORD`, `DHIS2_OAUTH_CLIENT_SECRET`,
 **Usage**:
 
 ```console
-$ d2w profile add [OPTIONS] NAME
+$ d2w profile add [OPTIONS] {name}
 ```
 
 **Arguments**:
 
-* `NAME`: [required]
+* `name`: [required]
 
 **Options**:
 
-* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--auth TEXT`: pat | basic | oauth2 | session  [default: pat]
-* `--username TEXT`: Basic-auth username.
-* `--client-id TEXT`: OAuth2 client_id.
-* `--scope TEXT`: OAuth2 scope (DHIS2 only recognises `ALL`).  [default: ALL]
-* `--redirect-uri TEXT`: OAuth2 redirect URI (must match the registered client).  [default: http://localhost:8765]
+* `--url <str>`: DHIS2 base URL (also: DHIS2_URL env).
+* `--auth <str>`: pat | basic | oauth2 | session  [default: pat]
+* `--username <str>`: Basic-auth username.
+* `--client-id <str>`: OAuth2 client_id.
+* `--scope <str>`: OAuth2 scope (DHIS2 only recognises `ALL`).  [default: ALL]
+* `--redirect-uri <str>`: OAuth2 redirect URI (must match the registered client).  [default: http://localhost:8765]
 * `--from-env`: Pull OAuth2 fields from DHIS2_OAUTH_CLIENT_ID / DHIS2_OAUTH_CLIENT_SECRET / DHIS2_OAUTH_REDIRECT_URI / DHIS2_OAUTH_SCOPES env vars (seeded .env.auth).
 * `--global`: Save to ~/.config/dhis2/profiles.toml (default — user-wide, applies everywhere).
 * `--local`: Save to ./.dhis2/profiles.toml instead (project-scoped, overrides global).
 * `--default`: Set as default after adding.
 * `--verify`: Probe /api/system/info + /api/me after saving.
-* `--version TEXT`: Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP to pick which version&#x27;s plugin tree to load; the wire client always auto-detects on connect.
+* `--version <str>`: Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP to pick which version&#x27;s plugin tree to load; the wire client always auto-detects on connect.
 * `--help`: Show this message and exit.
 
 ### `d2w profile remove`
@@ -8559,12 +8665,12 @@ Remove a profile. Without --global/--local, removes from whichever file holds it
 **Usage**:
 
 ```console
-$ d2w profile remove [OPTIONS] NAME
+$ d2w profile remove [OPTIONS] {name}
 ```
 
 **Arguments**:
 
-* `NAME`: [required]
+* `name`: [required]
 
 **Options**:
 
@@ -8580,13 +8686,13 @@ Rename a profile in-place. Preserves scope and updates default if needed.
 **Usage**:
 
 ```console
-$ d2w profile rename [OPTIONS] OLD_NAME NEW_NAME
+$ d2w profile rename [OPTIONS] {old_name} {new_name}
 ```
 
 **Arguments**:
 
-* `OLD_NAME`: Current profile name.  [required]
-* `NEW_NAME`: New profile name (letters, digits, underscores).  [required]
+* `old_name`: Current profile name.  [required]
+* `new_name`: New profile name (letters, digits, underscores).  [required]
 
 **Options**:
 
@@ -8607,12 +8713,12 @@ stderr instead of launching the system browser.
 **Usage**:
 
 ```console
-$ d2w profile login [OPTIONS] [NAME]
+$ d2w profile login [OPTIONS] [name]
 ```
 
 **Arguments**:
 
-* `[NAME]`: Profile name; omit to use the default.
+* `name`: Profile name; omit to use the default.
 
 **Options**:
 
@@ -8629,12 +8735,12 @@ triggers a fresh `profile login` flow. OAuth2 profiles only.
 **Usage**:
 
 ```console
-$ d2w profile logout [OPTIONS] [NAME]
+$ d2w profile logout [OPTIONS] [name]
 ```
 
 **Arguments**:
 
-* `[NAME]`: Profile name; omit to use the default.
+* `name`: Profile name; omit to use the default.
 
 **Options**:
 
@@ -8656,27 +8762,27 @@ collide (DHIS2 mints a fresh server-side UID).
 **Usage**:
 
 ```console
-$ d2w profile bootstrap [OPTIONS] NAME
+$ d2w profile bootstrap [OPTIONS] {name}
 ```
 
 **Arguments**:
 
-* `NAME`: Profile name to create.  [required]
+* `name`: Profile name to create.  [required]
 
 **Options**:
 
-* `--auth TEXT`: pat | oauth2 — which kind of profile to set up.  [default: oauth2]
-* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--admin-user TEXT`: Admin username (for basic bootstrap).
-* `--client-id TEXT`: OAuth2 client_id to register (auth=oauth2).  [default: dhis2-utils-local]
-* `--redirect-uri TEXT`: OAuth2 redirect URI.  [default: http://localhost:8765]
-* `--scope TEXT`: OAuth2 scope.  [default: ALL]
-* `--pat-description TEXT`: PAT description (auth=pat).
-* `--pat-expires-in-days INTEGER`: PAT lifetime in days; omit for no expiry.
+* `--auth <str>`: pat | oauth2 — which kind of profile to set up.  [default: oauth2]
+* `--url <str>`: DHIS2 base URL (also: DHIS2_URL env).
+* `--admin-user <str>`: Admin username (for basic bootstrap).
+* `--client-id <str>`: OAuth2 client_id to register (auth=oauth2).  [default: dhis2-utils-local]
+* `--redirect-uri <str>`: OAuth2 redirect URI.  [default: http://localhost:8765]
+* `--scope <str>`: OAuth2 scope.  [default: ALL]
+* `--pat-description <str>`: PAT description (auth=pat).
+* `--pat-expires-in-days <int>`: PAT lifetime in days; omit for no expiry.
 * `--global`: Save to ~/.config/dhis2/profiles.toml (default).
 * `--local`: Save to ./.dhis2/profiles.toml instead.
 * `--login / --no-login`: For auth=oauth2, run `profile login` after saving. Ignored for auth=pat.  [default: login]
-* `--version TEXT`: Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP to pick which version&#x27;s plugin tree to load; the wire client always auto-detects on connect.
+* `--version <str>`: Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP to pick which version&#x27;s plugin tree to load; the wire client always auto-detects on connect.
 * `--help`: Show this message and exit.
 
 ### `d2w profile oidc-config`
@@ -8698,25 +8804,25 @@ Read it from the `DHIS2_OAUTH_CLIENT_SECRET` env var or a hidden prompt when the
 **Usage**:
 
 ```console
-$ d2w profile oidc-config [OPTIONS] URL
+$ d2w profile oidc-config [OPTIONS] {url}
 ```
 
 **Arguments**:
 
-* `URL`: DHIS2 base URL or full /.well-known/openid-configuration URL.  [required]
+* `url`: DHIS2 base URL or full /.well-known/openid-configuration URL.  [required]
 
 **Options**:
 
-* `-n, --name TEXT`: Profile name to save as.  [required]
-* `--client-id TEXT`: OAuth2 client_id (from your registration).  [required]
-* `--client-secret TEXT`: OAuth2 client_secret. Omit to read DHIS2_OAUTH_CLIENT_SECRET env or a hidden prompt.
-* `--scope TEXT`: OAuth2 scope (DHIS2 only recognises `ALL`).  [default: ALL]
-* `--redirect-uri TEXT`: OAuth2 redirect URI (match your registered client — default is the CLI&#x27;s loopback listener).  [default: http://localhost:8765]
+* `-n, --name <str>`: Profile name to save as.  [required]
+* `--client-id <str>`: OAuth2 client_id (from your registration).  [required]
+* `--client-secret <str>`: OAuth2 client_secret. Omit to read DHIS2_OAUTH_CLIENT_SECRET env or a hidden prompt.
+* `--scope <str>`: OAuth2 scope (DHIS2 only recognises `ALL`).  [default: ALL]
+* `--redirect-uri <str>`: OAuth2 redirect URI (match your registered client — default is the CLI&#x27;s loopback listener).  [default: http://localhost:8765]
 * `--global`: Save to ~/.config/dhis2/profiles.toml (default, user-wide).
 * `--local`: Save to ./.dhis2/profiles.toml instead (project-scoped).
 * `--default`: Set as default after saving.
 * `--login`: Trigger `d2w profile login &lt;name&gt;` immediately after saving.
-* `--version TEXT`: Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP to pick which version&#x27;s plugin tree to load; the wire client always auto-detects on connect.
+* `--version <str>`: Expected DHIS2 major for this profile (v41 | v42 | v43). Used by CLI/MCP to pick which version&#x27;s plugin tree to load; the wire client always auto-detects on connect.
 * `--help`: Show this message and exit.
 
 ### `d2w profile pat`
@@ -8757,13 +8863,13 @@ $ d2w profile pat create [OPTIONS]
 
 **Options**:
 
-* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--admin-user TEXT`
-* `--description TEXT`
-* `--expires-in-days INTEGER`
-* `--allowed-ip TEXT`: IP allowlist entry; repeat for multiple.
-* `--allowed-method TEXT`: HTTP method allowlist; repeat for each method.
-* `--allowed-referrer TEXT`: Referer allowlist entry; repeat for multiple.
+* `--url <str>`: DHIS2 base URL (also: DHIS2_URL env).
+* `--admin-user <str>`
+* `--description <str>`
+* `--expires-in-days <int>`
+* `--allowed-ip <str>`: IP allowlist entry; repeat for multiple.
+* `--allowed-method <str>`: HTTP method allowlist; repeat for each method.
+* `--allowed-referrer <str>`: Referer allowlist entry; repeat for multiple.
 * `-q, --quiet`: Print only the PAT value, suitable for $(command substitution).
 * `--help`: Show this message and exit.
 
@@ -8822,12 +8928,12 @@ $ d2w profile oauth2 client register [OPTIONS]
 
 **Options**:
 
-* `--url TEXT`: DHIS2 base URL (also: DHIS2_URL env).
-* `--admin-user TEXT`
-* `--client-id TEXT`: [default: dhis2-utils-local]
-* `--redirect-uri TEXT`: [default: http://localhost:8765]
-* `--scope TEXT`: [default: ALL]
-* `--name TEXT`
+* `--url <str>`: DHIS2 base URL (also: DHIS2_URL env).
+* `--admin-user <str>`
+* `--client-id <str>`: [default: dhis2-utils-local]
+* `--redirect-uri <str>`: [default: http://localhost:8765]
+* `--scope <str>`: [default: ALL]
+* `--name <str>`
 * `--help`: Show this message and exit.
 
 ## `d2w query`
@@ -8860,18 +8966,18 @@ Run a d2ql program (inline or `--file`) against the active profile and render th
 **Usage**:
 
 ```console
-$ d2w query eval [OPTIONS] [TEXT]
+$ d2w query eval [OPTIONS] [text]
 ```
 
 **Arguments**:
 
-* `[TEXT]`: A d2ql program (quote it); or read one with --file.
+* `text`: A d2ql program (quote it); or read one with --file.
 
 **Options**:
 
-* `-f, --file PATH`: Read the d2ql program from this file.
-* `-d, --define TEXT`: Run/explain this named definition.
-* `-o, --out TEXT`: Write rows to this file (json/ndjson/csv).
+* `-f, --file <path>`: Read the d2ql program from this file.
+* `-d, --define <str>`: Run/explain this named definition.
+* `-o, --out <str>`: Write rows to this file (json/ndjson/csv).
 * `--help`: Show this message and exit.
 
 ### `d2w query run`
@@ -8881,17 +8987,17 @@ Run a d2ql program read from a file.
 **Usage**:
 
 ```console
-$ d2w query run [OPTIONS] FILE
+$ d2w query run [OPTIONS] {file}
 ```
 
 **Arguments**:
 
-* `FILE`: Path to a .d2ql program file.  [required]
+* `file`: Path to a .d2ql program file.  [required]
 
 **Options**:
 
-* `-d, --define TEXT`: Run/explain this named definition.
-* `-o, --out TEXT`: Write rows to this file (json/ndjson/csv).
+* `-d, --define <str>`: Run/explain this named definition.
+* `-o, --out <str>`: Write rows to this file (json/ndjson/csv).
 * `--help`: Show this message and exit.
 
 ### `d2w query explain`
@@ -8901,17 +9007,17 @@ Show how a d2ql pipeline (inline or `--file`) splits between DHIS2 pushdown and 
 **Usage**:
 
 ```console
-$ d2w query explain [OPTIONS] [TEXT]
+$ d2w query explain [OPTIONS] [text]
 ```
 
 **Arguments**:
 
-* `[TEXT]`: A d2ql program (quote it); or read one with --file.
+* `text`: A d2ql program (quote it); or read one with --file.
 
 **Options**:
 
-* `-f, --file PATH`: Read the d2ql program from this file.
-* `-d, --define TEXT`: Run/explain this named definition.
+* `-f, --file <path>`: Read the d2ql program from this file.
+* `-d, --define <str>`: Run/explain this named definition.
 * `--help`: Show this message and exit.
 
 ### `d2w query ast`
@@ -8921,16 +9027,16 @@ Print the parsed d2ql AST (no profile needed; inline program or `--file`).
 **Usage**:
 
 ```console
-$ d2w query ast [OPTIONS] [TEXT]
+$ d2w query ast [OPTIONS] [text]
 ```
 
 **Arguments**:
 
-* `[TEXT]`: A d2ql program (quote it); or read one with --file.
+* `text`: A d2ql program (quote it); or read one with --file.
 
 **Options**:
 
-* `-f, --file PATH`: Read the d2ql program from this file.
+* `-f, --file <path>`: Read the d2ql program from this file.
 * `--help`: Show this message and exit.
 
 ### `d2w query d2path`
@@ -8940,16 +9046,16 @@ Evaluate a bare d2path expression over a local JSON document (no profile needed)
 **Usage**:
 
 ```console
-$ d2w query d2path [OPTIONS] EXPRESSION
+$ d2w query d2path [OPTIONS] {expression}
 ```
 
 **Arguments**:
 
-* `EXPRESSION`: A d2path expression (quote it).  [required]
+* `expression`: A d2path expression (quote it).  [required]
 
 **Options**:
 
-* `-i, --input PATH`: JSON file to evaluate against.  [required]
+* `-i, --input <path>`: JSON file to evaluate against.  [required]
 * `--help`: Show this message and exit.
 
 ### `d2w query repl`
@@ -9003,7 +9109,7 @@ $ d2w route ls [OPTIONS]
 
 **Options**:
 
-* `--fields TEXT`: [default: id,code,name,url,disabled,auth]
+* `--fields <str>`: [default: id,code,name,url,disabled,auth]
 * `--help`: Show this message and exit.
 
 ### `d2w route list`
@@ -9018,7 +9124,7 @@ $ d2w route list [OPTIONS]
 
 **Options**:
 
-* `--fields TEXT`: [default: id,code,name,url,disabled,auth]
+* `--fields <str>`: [default: id,code,name,url,disabled,auth]
 * `--help`: Show this message and exit.
 
 ### `d2w route get`
@@ -9028,16 +9134,16 @@ Fetch one route by UID or code.
 **Usage**:
 
 ```console
-$ d2w route get [OPTIONS] ROUTE
+$ d2w route get [OPTIONS] {route}
 ```
 
 **Arguments**:
 
-* `ROUTE`: Route UID (e.g. E8OPcc45A22) or code (e.g. chap).  [required]
+* `route`: Route UID (e.g. E8OPcc45A22) or code (e.g. chap).  [required]
 
 **Options**:
 
-* `--fields TEXT`
+* `--fields <str>`
 * `--help`: Show this message and exit.
 
 ### `d2w route create`
@@ -9058,11 +9164,11 @@ $ d2w route create [OPTIONS]
 
 **Options**:
 
-* `--file PATH`: JSON file with the route definition (bypass the interactive wizard).
-* `--code TEXT`
-* `--name TEXT`
-* `--url TEXT`: Target URL the route proxies to.
-* `--authorities TEXT`: Comma-separated DHIS2 authorities allowed to run this route.
+* `--file <path>`: JSON file with the route definition (bypass the interactive wizard).
+* `--code <str>`
+* `--name <str>`
+* `--url <str>`: Target URL the route proxies to.
+* `--authorities <str>`: Comma-separated DHIS2 authorities allowed to run this route.
 * `--no-auth`: Create an unauthenticated route (skip the auth wizard) — for headless/bridge use.
 * `--help`: Show this message and exit.
 
@@ -9075,16 +9181,16 @@ DHIS2 PUT expects the complete object. For partial updates use `patch`.
 **Usage**:
 
 ```console
-$ d2w route update [OPTIONS] ROUTE
+$ d2w route update [OPTIONS] {route}
 ```
 
 **Arguments**:
 
-* `ROUTE`: Route UID (e.g. E8OPcc45A22) or code (e.g. chap).  [required]
+* `route`: Route UID (e.g. E8OPcc45A22) or code (e.g. chap).  [required]
 
 **Options**:
 
-* `--file PATH`: JSON file with the full route spec (PUT semantics).  [required]
+* `--file <path>`: JSON file with the full route spec (PUT semantics).  [required]
 * `--help`: Show this message and exit.
 
 ### `d2w route patch`
@@ -9094,16 +9200,16 @@ Apply a JSON Patch to a route via PATCH /api/routes/{uid}.
 **Usage**:
 
 ```console
-$ d2w route patch [OPTIONS] ROUTE
+$ d2w route patch [OPTIONS] {route}
 ```
 
 **Arguments**:
 
-* `ROUTE`: Route UID (e.g. E8OPcc45A22) or code (e.g. chap).  [required]
+* `route`: Route UID (e.g. E8OPcc45A22) or code (e.g. chap).  [required]
 
 **Options**:
 
-* `--file PATH`: JSON Patch array (RFC 6902).  [required]
+* `--file <path>`: JSON Patch array (RFC 6902).  [required]
 * `--help`: Show this message and exit.
 
 ### `d2w route delete`
@@ -9113,12 +9219,12 @@ Delete a route.
 **Usage**:
 
 ```console
-$ d2w route delete [OPTIONS] ROUTE
+$ d2w route delete [OPTIONS] {route}
 ```
 
 **Arguments**:
 
-* `ROUTE`: Route UID (e.g. E8OPcc45A22) or code (e.g. chap).  [required]
+* `route`: Route UID (e.g. E8OPcc45A22) or code (e.g. chap).  [required]
 
 **Options**:
 
@@ -9136,18 +9242,18 @@ what DHIS2 substitutes into the wildcard before calling upstream.
 **Usage**:
 
 ```console
-$ d2w route run [OPTIONS] ROUTE
+$ d2w route run [OPTIONS] {route}
 ```
 
 **Arguments**:
 
-* `ROUTE`: Route UID (e.g. E8OPcc45A22) or code (e.g. chap).  [required]
+* `route`: Route UID (e.g. E8OPcc45A22) or code (e.g. chap).  [required]
 
 **Options**:
 
-* `-X, --method TEXT`: [default: GET]
-* `--body PATH`: JSON body file for POST/PUT.
-* `--path TEXT`: Additional path segment appended to the route&#x27;s target URL.
+* `-X, --method <str>`: [default: GET]
+* `--body <path>`: JSON body file for POST/PUT.
+* `--path <str>`: Additional path segment appended to the route&#x27;s target URL.
 * `--help`: Show this message and exit.
 
 ## `d2w security`
@@ -9211,19 +9317,19 @@ $ d2w security audit [OPTIONS]
 
 **Options**:
 
-* `--output-dir DIRECTORY`: Parent directory for the run folder (default: current dir).
-* `--format TEXT`: Comma-separated formats: md,txt,csv,html (default: all).
-* `--checks TEXT`: Comma-separated check keys to run (default: all). Valid keys: version, transport, settings, authorities, roles, hygiene, credential-probe, guest, apps, sharing, auth-methods, tokens, routes, audit-config.
-* `--skip TEXT`: Comma-separated check keys to skip.
+* `--output-dir <directory>`: Parent directory for the run folder (default: current dir).
+* `--format <str>`: Comma-separated formats: md,txt,csv,html (default: all).
+* `--checks <str>`: Comma-separated check keys to run (default: all). Valid keys: version, transport, settings, authorities, roles, hygiene, credential-probe, guest, apps, sharing, auth-methods, tokens, routes, audit-config.
+* `--skip <str>`: Comma-separated check keys to skip.
 * `--progress / --no-progress`: Animate step-by-step progress on a TTY.  [default: progress]
 * `--credential-probe / --no-credential-probe`: Actively test the default admin/district login against /api/me (on by default).  [default: credential-probe]
-* `--stale-days INTEGER RANGE`: Days without login before a privileged account is stale.  [default: 90; x&gt;=1]
-* `--max-password-age INTEGER RANGE`: Days before an unchanged password is treated as stale.  [default: 365; x&gt;=1]
+* `--stale-days <int range>`: Days without login before a privileged account is stale.  [default: 90; x&gt;=1]
+* `--max-password-age <int range>`: Days before an unchanged password is treated as stale.  [default: 365; x&gt;=1]
 * `--two-factor-detail / --no-two-factor-detail`: On v42+, also list each superuser lacking 2FA (per-user /api/users/twoFactor read).  [default: no-two-factor-detail]
-* `--max-objects INTEGER RANGE`: Max objects the sharing scan inspects across all types before stopping (default 5000; truncation is loud).  [x&gt;=1]
+* `--max-objects <int range>`: Max objects the sharing scan inspects across all types before stopping (default 5000; truncation is loud).  [x&gt;=1]
 * `--sharing-graph, --visualize`: Also write the interactive d3 sharing explorer (sharing-explorer.html) into the run folder.
-* `--resume DIRECTORY`: Resume an interrupted run folder.
-* `--dhis-conf FILE`: Path to a local COPY of the server&#x27;s dhis.conf for the audit-config check. The audit posture is not API-readable; secrets are reported set/not-set only and never echoed.  [env var: DHIS2_CONF_LOCATION]
+* `--resume <directory>`: Resume an interrupted run folder.
+* `--dhis-conf <file>`: Path to a local COPY of the server&#x27;s dhis.conf for the audit-config check. The audit posture is not API-readable; secrets are reported set/not-set only and never echoed.  [env var: DHIS2_CONF_LOCATION]
 * `--version-fallback / --no-version-fallback`: When the server&#x27;s exact generated tree is not shipped (e.g. a dev/master build), bind the nearest lower generated tree instead of failing.  [default: no-version-fallback]
 * `--help`: Show this message and exit.
 
@@ -9234,16 +9340,16 @@ Re-render an existing run&#x27;s report files from its JSONL spine, without re-s
 **Usage**:
 
 ```console
-$ d2w security report [OPTIONS] FOLDER
+$ d2w security report [OPTIONS] {folder}
 ```
 
 **Arguments**:
 
-* `FOLDER`: An existing run folder to re-render.  [required]
+* `folder`: An existing run folder to re-render.  [required]
 
 **Options**:
 
-* `--format TEXT`: Comma-separated formats (default: all).
+* `--format <str>`: Comma-separated formats (default: all).
 * `--help`: Show this message and exit.
 
 ## `d2w system`
@@ -9309,12 +9415,12 @@ confirmation (or `--yes`).
 **Usage**:
 
 ```console
-$ d2w system calendar [OPTIONS] [VALUE]:[coptic|ethiopian|gregorian|islamic|iso8601|julian|nepali|persian|thai]
+$ d2w system calendar [OPTIONS] [value]:<coptic|ethiopian|gregorian|islamic|iso8601|julian|nepali|persian|thai>
 ```
 
 **Arguments**:
 
-* `[VALUE]:[coptic|ethiopian|gregorian|islamic|iso8601|julian|nepali|persian|thai]`: When supplied, write `keyCalendar` (one of: coptic, ethiopian, gregorian, islamic, iso8601, julian, nepali, persian, thai). Omit to print the current calendar.
+* `value:<coptic|ethiopian|gregorian|islamic|iso8601|julian|nepali|persian|thai>`: When supplied, write `keyCalendar` (one of: coptic, ethiopian, gregorian, islamic, iso8601, julian, nepali, persian, thai). Omit to print the current calendar.
 
 **Options**:
 
@@ -9350,13 +9456,13 @@ Set a single system setting.
 **Usage**:
 
 ```console
-$ d2w system settings set [OPTIONS] KEY VALUE
+$ d2w system settings set [OPTIONS] {key} {value}
 ```
 
 **Arguments**:
 
-* `KEY`: System setting key (e.g. applicationTitle, keyApplicationFooter).  [required]
-* `VALUE`: New value.  [required]
+* `key`: System setting key (e.g. applicationTitle, keyApplicationFooter).  [required]
+* `value`: New value.  [required]
 
 **Options**:
 
@@ -9373,12 +9479,12 @@ through, and structured values (lists / objects) are re-serialized as JSON.
 **Usage**:
 
 ```console
-$ d2w system settings set-many [OPTIONS] FILE
+$ d2w system settings set-many [OPTIONS] {file}
 ```
 
 **Arguments**:
 
-* `FILE`: JSON file containing a {key: value} object.  [required]
+* `file`: JSON file containing a {key: value} object.  [required]
 
 **Options**:
 
@@ -9391,12 +9497,12 @@ Print one system setting&#x27;s value; exit 1 if it is unset.
 **Usage**:
 
 ```console
-$ d2w system settings get [OPTIONS] KEY
+$ d2w system settings get [OPTIONS] {key}
 ```
 
 **Arguments**:
 
-* `KEY`: System setting key (e.g. applicationTitle).  [required]
+* `key`: System setting key (e.g. applicationTitle).  [required]
 
 **Options**:
 
@@ -9472,12 +9578,12 @@ $ d2w user ls [OPTIONS]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector. Supports plain lists (&#x27;id,username,email&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), and exclusions (&#x27;:all,!password&#x27;).  [default: id,username,displayName,email,disabled,lastLogin]
-* `--filter TEXT`: Filter &#x27;property:operator:value&#x27; (repeatable).
-* `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.  [default: AND]
-* `--order TEXT`: Sort clause &#x27;property:asc|desc&#x27; (repeatable).
-* `--page INTEGER`: Server-side page number (1-based).
-* `--page-size INTEGER`: Server-side page size (default 50).
+* `--fields <str>`: DHIS2 field selector. Supports plain lists (&#x27;id,username,email&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), and exclusions (&#x27;:all,!password&#x27;).  [default: id,username,displayName,email,disabled,lastLogin]
+* `--filter <str>`: Filter &#x27;property:operator:value&#x27; (repeatable).
+* `--root-junction <str>`: Combine repeated --filter as AND (default) or OR.  [default: AND]
+* `--order <str>`: Sort clause &#x27;property:asc|desc&#x27; (repeatable).
+* `--page <int>`: Server-side page number (1-based).
+* `--page-size <int>`: Server-side page size (default 50).
 * `--help`: Show this message and exit.
 
 ### `d2w user list`
@@ -9497,12 +9603,12 @@ $ d2w user list [OPTIONS]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector. Supports plain lists (&#x27;id,username,email&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), and exclusions (&#x27;:all,!password&#x27;).  [default: id,username,displayName,email,disabled,lastLogin]
-* `--filter TEXT`: Filter &#x27;property:operator:value&#x27; (repeatable).
-* `--root-junction TEXT`: Combine repeated --filter as AND (default) or OR.  [default: AND]
-* `--order TEXT`: Sort clause &#x27;property:asc|desc&#x27; (repeatable).
-* `--page INTEGER`: Server-side page number (1-based).
-* `--page-size INTEGER`: Server-side page size (default 50).
+* `--fields <str>`: DHIS2 field selector. Supports plain lists (&#x27;id,username,email&#x27;), presets (&#x27;:identifiable&#x27;, &#x27;:nameable&#x27;, &#x27;:owner&#x27;, &#x27;:all&#x27;), and exclusions (&#x27;:all,!password&#x27;).  [default: id,username,displayName,email,disabled,lastLogin]
+* `--filter <str>`: Filter &#x27;property:operator:value&#x27; (repeatable).
+* `--root-junction <str>`: Combine repeated --filter as AND (default) or OR.  [default: AND]
+* `--order <str>`: Sort clause &#x27;property:asc|desc&#x27; (repeatable).
+* `--page <int>`: Server-side page number (1-based).
+* `--page-size <int>`: Server-side page size (default 50).
 * `--help`: Show this message and exit.
 
 ### `d2w user get`
@@ -9512,16 +9618,16 @@ Fetch one user by UID or username. Prints a concise summary; `--json` for full p
 **Usage**:
 
 ```console
-$ d2w user get [OPTIONS] UID_OR_USERNAME
+$ d2w user get [OPTIONS] {uid_or_username}
 ```
 
 **Arguments**:
 
-* `UID_OR_USERNAME`: User UID (11 chars) or username.  [required]
+* `uid_or_username`: User UID (11 chars) or username.  [required]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector.
+* `--fields <str>`: DHIS2 field selector.
 * `--help`: Show this message and exit.
 
 ### `d2w user invite`
@@ -9534,20 +9640,20 @@ the new user sets their password on accept. Prints the new user&#x27;s UID.
 **Usage**:
 
 ```console
-$ d2w user invite [OPTIONS] EMAIL
+$ d2w user invite [OPTIONS] {email}
 ```
 
 **Arguments**:
 
-* `EMAIL`: Email address for the new user (receives the invitation link).  [required]
+* `email`: Email address for the new user (receives the invitation link).  [required]
 
 **Options**:
 
-* `--first-name TEXT`: User&#x27;s given name.  [required]
-* `--surname TEXT`: User&#x27;s surname.  [required]
-* `--username TEXT`: Desired username. Omit to let DHIS2 derive from the email prefix.
-* `--user-role TEXT`: User-role UID (repeatable). Grants the role on accept.
-* `--org-unit, --ou TEXT`: Organisation-unit UID for capture scope (repeatable).
+* `--first-name <str>`: User&#x27;s given name.  [required]
+* `--surname <str>`: User&#x27;s surname.  [required]
+* `--username <str>`: Desired username. Omit to let DHIS2 derive from the email prefix.
+* `--user-role <str>`: User-role UID (repeatable). Grants the role on accept.
+* `--org-unit, --ou <str>`: Organisation-unit UID for capture scope (repeatable).
 * `--help`: Show this message and exit.
 
 ### `d2w user reinvite`
@@ -9557,12 +9663,12 @@ Re-send the invitation email for a pending user (POST /api/users/{uid}/invite).
 **Usage**:
 
 ```console
-$ d2w user reinvite [OPTIONS] UID
+$ d2w user reinvite [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: UID of a user who hasn&#x27;t yet completed their invite.  [required]
+* `uid`: UID of a user who hasn&#x27;t yet completed their invite.  [required]
 
 **Options**:
 
@@ -9575,12 +9681,12 @@ Trigger DHIS2&#x27;s password-reset email (POST /api/users/{uid}/reset).
 **Usage**:
 
 ```console
-$ d2w user reset-password [OPTIONS] UID
+$ d2w user reset-password [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: UID of the user to reset.  [required]
+* `uid`: UID of the user to reset.  [required]
 
 **Options**:
 
@@ -9624,10 +9730,10 @@ $ d2w user group ls [OPTIONS]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector.  [default: id,name,displayName,users]
-* `--filter TEXT`: Filter &#x27;property:operator:value&#x27; (repeatable).
-* `--order TEXT`: Sort clause &#x27;property:asc|desc&#x27; (repeatable).
-* `--page-size INTEGER`: Server-side page size.
+* `--fields <str>`: DHIS2 field selector.  [default: id,name,displayName,users]
+* `--filter <str>`: Filter &#x27;property:operator:value&#x27; (repeatable).
+* `--order <str>`: Sort clause &#x27;property:asc|desc&#x27; (repeatable).
+* `--page-size <int>`: Server-side page size.
 * `--help`: Show this message and exit.
 
 #### `d2w user group list`
@@ -9642,10 +9748,10 @@ $ d2w user group list [OPTIONS]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector.  [default: id,name,displayName,users]
-* `--filter TEXT`: Filter &#x27;property:operator:value&#x27; (repeatable).
-* `--order TEXT`: Sort clause &#x27;property:asc|desc&#x27; (repeatable).
-* `--page-size INTEGER`: Server-side page size.
+* `--fields <str>`: DHIS2 field selector.  [default: id,name,displayName,users]
+* `--filter <str>`: Filter &#x27;property:operator:value&#x27; (repeatable).
+* `--order <str>`: Sort clause &#x27;property:asc|desc&#x27; (repeatable).
+* `--page-size <int>`: Server-side page size.
 * `--help`: Show this message and exit.
 
 #### `d2w user group get`
@@ -9655,16 +9761,16 @@ Fetch one user group by UID. Prints a concise summary; `--json` for full payload
 **Usage**:
 
 ```console
-$ d2w user group get [OPTIONS] UID
+$ d2w user group get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: User-group UID.  [required]
+* `uid`: User-group UID.  [required]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector.
+* `--fields <str>`: DHIS2 field selector.
 * `--help`: Show this message and exit.
 
 #### `d2w user group create`
@@ -9679,9 +9785,9 @@ $ d2w user group create [OPTIONS]
 
 **Options**:
 
-* `--name TEXT`: User-group name.  [required]
-* `--code TEXT`: Business code.
-* `--uid TEXT`: Explicit 11-char UID.
+* `--name <str>`: User-group name.  [required]
+* `--code <str>`: Business code.
+* `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
 #### `d2w user group delete`
@@ -9691,12 +9797,12 @@ Delete a user group by UID.
 **Usage**:
 
 ```console
-$ d2w user group delete [OPTIONS] UID
+$ d2w user group delete [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: User-group UID.  [required]
+* `uid`: User-group UID.  [required]
 
 **Options**:
 
@@ -9710,13 +9816,13 @@ Add a user to a group (POST /api/userGroups/&lt;gid&gt;/users/&lt;uid&gt;).
 **Usage**:
 
 ```console
-$ d2w user group add-member [OPTIONS] GROUP_UID USER_UID
+$ d2w user group add-member [OPTIONS] {group_uid} {user_uid}
 ```
 
 **Arguments**:
 
-* `GROUP_UID`: User-group UID.  [required]
-* `USER_UID`: User UID to add.  [required]
+* `group_uid`: User-group UID.  [required]
+* `user_uid`: User UID to add.  [required]
 
 **Options**:
 
@@ -9729,13 +9835,13 @@ Remove a user from a group (DELETE /api/userGroups/&lt;gid&gt;/users/&lt;uid&gt;
 **Usage**:
 
 ```console
-$ d2w user group remove-member [OPTIONS] GROUP_UID USER_UID
+$ d2w user group remove-member [OPTIONS] {group_uid} {user_uid}
 ```
 
 **Arguments**:
 
-* `GROUP_UID`: User-group UID.  [required]
-* `USER_UID`: User UID to remove.  [required]
+* `group_uid`: User-group UID.  [required]
+* `user_uid`: User UID to remove.  [required]
 
 **Options**:
 
@@ -9748,12 +9854,12 @@ Print the current sharing block for one user group. `--json` for full payload.
 **Usage**:
 
 ```console
-$ d2w user group sharing-get [OPTIONS] UID
+$ d2w user group sharing-get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: User-group UID.  [required]
+* `uid`: User-group UID.  [required]
 
 **Options**:
 
@@ -9769,13 +9875,13 @@ sharing block first, then appending the new grant.
 **Usage**:
 
 ```console
-$ d2w user group sharing-grant-user [OPTIONS] GROUP_UID USER_UID
+$ d2w user group sharing-grant-user [OPTIONS] {group_uid} {user_uid}
 ```
 
 **Arguments**:
 
-* `GROUP_UID`: User-group UID.  [required]
-* `USER_UID`: User UID to grant.  [required]
+* `group_uid`: User-group UID.  [required]
+* `user_uid`: User UID to grant.  [required]
 
 **Options**:
 
@@ -9817,10 +9923,10 @@ $ d2w user role ls [OPTIONS]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector.  [default: id,name,displayName,authorities,users]
-* `--filter TEXT`: Filter (repeatable).
-* `--order TEXT`: Sort clause (repeatable).
-* `--page-size INTEGER`: Server-side page size.
+* `--fields <str>`: DHIS2 field selector.  [default: id,name,displayName,authorities,users]
+* `--filter <str>`: Filter (repeatable).
+* `--order <str>`: Sort clause (repeatable).
+* `--page-size <int>`: Server-side page size.
 * `--help`: Show this message and exit.
 
 #### `d2w user role list`
@@ -9835,10 +9941,10 @@ $ d2w user role list [OPTIONS]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector.  [default: id,name,displayName,authorities,users]
-* `--filter TEXT`: Filter (repeatable).
-* `--order TEXT`: Sort clause (repeatable).
-* `--page-size INTEGER`: Server-side page size.
+* `--fields <str>`: DHIS2 field selector.  [default: id,name,displayName,authorities,users]
+* `--filter <str>`: Filter (repeatable).
+* `--order <str>`: Sort clause (repeatable).
+* `--page-size <int>`: Server-side page size.
 * `--help`: Show this message and exit.
 
 #### `d2w user role get`
@@ -9848,16 +9954,16 @@ Fetch one user role by UID. Prints a concise summary; `--json` for full payload.
 **Usage**:
 
 ```console
-$ d2w user role get [OPTIONS] UID
+$ d2w user role get [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: User-role UID.  [required]
+* `uid`: User-role UID.  [required]
 
 **Options**:
 
-* `--fields TEXT`: DHIS2 field selector.
+* `--fields <str>`: DHIS2 field selector.
 * `--help`: Show this message and exit.
 
 #### `d2w user role authority-list`
@@ -9867,12 +9973,12 @@ Print the sorted authorities carried by one role, one per line.
 **Usage**:
 
 ```console
-$ d2w user role authority-list [OPTIONS] UID
+$ d2w user role authority-list [OPTIONS] {uid}
 ```
 
 **Arguments**:
 
-* `UID`: User-role UID.  [required]
+* `uid`: User-role UID.  [required]
 
 **Options**:
 
@@ -9885,13 +9991,13 @@ Grant a user a role (POST /api/userRoles/&lt;rid&gt;/users/&lt;uid&gt;).
 **Usage**:
 
 ```console
-$ d2w user role add-user [OPTIONS] ROLE_UID USER_UID
+$ d2w user role add-user [OPTIONS] {role_uid} {user_uid}
 ```
 
 **Arguments**:
 
-* `ROLE_UID`: User-role UID.  [required]
-* `USER_UID`: User UID to grant the role to.  [required]
+* `role_uid`: User-role UID.  [required]
+* `user_uid`: User UID to grant the role to.  [required]
 
 **Options**:
 
@@ -9904,13 +10010,13 @@ Revoke a role from a user (DELETE /api/userRoles/&lt;rid&gt;/users/&lt;uid&gt;).
 **Usage**:
 
 ```console
-$ d2w user role remove-user [OPTIONS] ROLE_UID USER_UID
+$ d2w user role remove-user [OPTIONS] {role_uid} {user_uid}
 ```
 
 **Arguments**:
 
-* `ROLE_UID`: User-role UID.  [required]
-* `USER_UID`: User UID to revoke the role from.  [required]
+* `role_uid`: User-role UID.  [required]
+* `user_uid`: User UID to revoke the role from.  [required]
 
 **Options**:
 

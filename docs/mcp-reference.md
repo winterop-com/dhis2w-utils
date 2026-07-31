@@ -2,7 +2,7 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 318 across 16 plugin groups.
+**Total tools**: 321 across 17 plugin groups.
 
 ## Plugins
 
@@ -12,6 +12,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 - [`data_*`](#data) — 16 tools
 - [`datastore_*`](#datastore) — 5 tools
 - [`doctor_*`](#doctor) — 4 tools
+- [`fhir_*`](#fhir) — 3 tools
 - [`files_*`](#files) — 5 tools
 - [`maintenance_*`](#maintenance) — 15 tools
 - [`messaging_*`](#messaging) — 11 tools
@@ -613,6 +614,40 @@ Probe a DHIS2 instance — metadata health + DHIS2 data-integrity by default.
 | --- | --- | --- | --- |
 | `all_categories` | `boolean` | no | — |
 | `profile` | `string` | no | — |
+
+## `fhir`
+
+### `fhir_generate_option_sets`
+
+Generate CodeSystem/ValueSet FSH from DHIS2 option sets into the FHIR project at `project_directory`.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `project_directory` | `string` | no | — |
+| `profile` | `string` | no | — |
+
+### `fhir_generate_org_units`
+
+Generate Organization/Location FSH from DHIS2 organisation units into the FHIR project.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `project_directory` | `string` | no | — |
+| `profile` | `string` | no | — |
+
+### `fhir_init`
+
+Scaffold a dockerized SUSHI FHIR IG project (fhir.toml, sushi-config, Makefile) into `directory`.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `directory` | `string` | yes | — |
+| `ig_id` | `string` | no | — |
+| `canonical` | `string` | no | — |
+| `name` | `string` | no | — |
+| `title` | `string` | no | — |
+| `publisher` | `string` | no | — |
+| `force` | `boolean` | no | — |
 
 ## `files`
 

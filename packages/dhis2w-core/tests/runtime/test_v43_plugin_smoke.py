@@ -17,6 +17,7 @@ EXPECTED_PLUGINS = {
     "customize",
     "data",  # mounts aggregate + tracker as sub-commands
     "dev",
+    "fhir",
     "doctor",
     "files",
     "maintenance",
