@@ -25,6 +25,10 @@ d2w fhir generate org-units
 # by their header line); hand-authored .fsh files are never touched.
 d2w fhir generate all
 
+# Preflight: check the instance's option-set codes and names for FHIR-safety
+# (exit 1 on errors - CI-friendly; works without a fhir.toml too).
+d2w fhir validate
+
 # Compile the IG with SUSHI via the scaffolded docker setup:
 # make setup && make sushi
 

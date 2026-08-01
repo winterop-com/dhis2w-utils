@@ -125,9 +125,11 @@ Handles OAuth2 token caching and automatic refresh on expiry.
 
 ### First-Party Plugins
 
-23 plugins, each with a service layer (`service.py`) and CLI commands
-(`cli.py`); most also expose MCP tools (`mcp.py`). Every plugin exists in
-three version trees (v41, v42, v43).
+22 built-in plugins, each with a service layer (`service.py`) and CLI
+commands (`cli.py`); most also expose MCP tools (`mcp.py`). Every built-in
+plugin exists in three version trees (v41, v42, v43). The version-neutral
+**fhir** plugin ships as its own `dhis2w-fhir` package and mounts through
+the external entry-point mechanism.
 
 | Plugin | Domain |
 | --- | --- |
@@ -144,7 +146,7 @@ three version trees (v41, v42, v43).
 | **apps** | List installed, browse App Hub, install from file or hub, uninstall, update with semver picking, snapshot/restore. |
 | **datastore** | Key-value store: namespaces, keys, get/set/delete on `/api/dataStore` + `/api/userDataStore`. |
 | **files** | Documents + fileResources: upload, download, list. |
-| **fhir** | FHIR IG generation: scaffold a dockerized SUSHI project (`fhir init`), generate FSH from DHIS2 metadata (`fhir generate`) - option sets as CodeSystem/ValueSet pairs carrying both DHIS2 identifiers, organisation units as DHIS2Organization/DHIS2Location instances with partOf hierarchy (one file per level, optional CodeSystem representation). Config in a committed `fhir.toml` discovered by walking up from the working directory. |
+| **fhir** | FHIR IG generation (package `dhis2w-fhir`): scaffold a dockerized SUSHI project (`fhir init`), generate FSH from DHIS2 metadata (`fhir generate`) - option sets as CodeSystem/ValueSet pairs carrying both DHIS2 identifiers, organisation units as Organization/Location instances with partOf hierarchy (one file per level, optional CodeSystem representation) - and check an instance's codes for FHIR-safety (`fhir validate`). Artifact naming is configurable via `[generate.naming]` in a committed `fhir.toml` discovered by walking up from the working directory. |
 | **messaging** | Message conversations: list, get, send, reply, mark read/unread, ticket-workflow priority/status/assignment. |
 | **maintenance** | Background tasks, cache clear, data-integrity checks, soft-delete cleanup, validation runs, predictor runs, analytics-table rebuild. |
 | **doctor** | Health probes: ~100+ metadata checks, DHIS2 data-integrity checks, BUGS.md workaround drift detection. |
@@ -157,8 +159,9 @@ three version trees (v41, v42, v43).
 
 ### External Plugin Discovery
 
-Third-party plugins register via `importlib.metadata.entry_points(group="dhis2.plugins")`
-and are discovered automatically at startup.
+Plugins register via `importlib.metadata.entry_points(group="dhis2.plugins")`
+and are discovered automatically at startup. The in-repo `dhis2w-fhir` package
+is the first-party example of this mechanism.
 
 ---
 
@@ -229,11 +232,12 @@ d2w files           File management
   documents list | get | upload | upload-url | download | delete
   resources upload | get | download
 
-d2w fhir            FHIR IG generation (SUSHI/FSH)
+d2w fhir            FHIR IG generation (SUSHI/FSH, package dhis2w-fhir)
   init                  Scaffold a dockerized SUSHI IG project + fhir.toml
   generate option-sets  Option sets as CodeSystem/ValueSet pairs
   generate org-units    Org units as Organization/Location instances
   generate all          Both targets in one run
+  validate              FHIR-safety of the instance's codes and names
 
 d2w messaging       Internal messaging
   list | get | send | reply | delete

@@ -27,7 +27,6 @@ $ d2w [OPTIONS] COMMAND [ARGS]...
 * `datastore`: DHIS2 key-value data store.
 * `dev`: Developer/operator tools.
 * `doctor`: Probe a DHIS2 instance for known gotchas +...
-* `fhir`: FHIR Implementation Guide generation from...
 * `files`: Manage DHIS2 documents + file resources.
 * `maintenance`: DHIS2 maintenance (tasks, cache,...
 * `messaging`: DHIS2 internal messaging.
@@ -38,6 +37,7 @@ $ d2w [OPTIONS] COMMAND [ARGS]...
 * `security`: DHIS2 security posture (read-only).
 * `system`: DHIS2 system info.
 * `user`: DHIS2 user administration.
+* `fhir`: FHIR Implementation Guide generation from...
 
 ## `d2w schema`
 
@@ -1979,111 +1979,6 @@ Run BUGS.md workaround drift detection (workspace maintenance, not operator-faci
 
 ```console
 $ d2w doctor bugs [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-## `d2w fhir`
-
-FHIR Implementation Guide generation from DHIS2 metadata.
-
-**Usage**:
-
-```console
-$ d2w fhir [OPTIONS] COMMAND [ARGS]...
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-**Commands**:
-
-* `init`: Scaffold a dockerized SUSHI IG project...
-* `generate`: Generate FSH files from DHIS2 metadata...
-
-### `d2w fhir init`
-
-Scaffold a dockerized SUSHI IG project with a fhir.toml for `d2w fhir generate`.
-
-**Usage**:
-
-```console
-$ d2w fhir init [OPTIONS] [directory]
-```
-
-**Arguments**:
-
-* `directory`: Project directory (default: current directory).  [default: .]
-
-**Options**:
-
-* `--id <str>`: IG package id.  [default: dhis2.fhir.example]
-* `--canonical <str>`: Canonical base URL for the IG (no trailing slash).  [default: http://example.org/fhir]
-* `--name <str>`: SUSHI name (default: derived from --id).
-* `--title <str>`: IG title (default: derived from --name).
-* `--publisher <str>`: Publisher name.  [default: Example Organisation]
-* `--force`: Overwrite scaffold files that already exist.
-* `--help`: Show this message and exit.
-
-### `d2w fhir generate`
-
-Generate FSH files from DHIS2 metadata into the nearest FHIR project.
-
-**Usage**:
-
-```console
-$ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-**Commands**:
-
-* `option-sets`: Generate CodeSystem/ValueSet FSH from...
-* `org-units`: Generate Organization/Location FSH from...
-* `all`: Generate option-set terminology and...
-
-#### `d2w fhir generate option-sets`
-
-Generate CodeSystem/ValueSet FSH from DHIS2 option sets into the nearest FHIR project.
-
-**Usage**:
-
-```console
-$ d2w fhir generate option-sets [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `d2w fhir generate org-units`
-
-Generate Organization/Location FSH from DHIS2 organisation units into the nearest FHIR project.
-
-**Usage**:
-
-```console
-$ d2w fhir generate org-units [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `d2w fhir generate all`
-
-Generate option-set terminology and organisation-unit instances in one run.
-
-**Usage**:
-
-```console
-$ d2w fhir generate all [OPTIONS]
 ```
 
 **Options**:
@@ -10017,6 +9912,126 @@ $ d2w user role remove-user [OPTIONS] {role_uid} {user_uid}
 
 * `role_uid`: User-role UID.  [required]
 * `user_uid`: User UID to revoke the role from.  [required]
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+## `d2w fhir`
+
+FHIR Implementation Guide generation from DHIS2 metadata.
+
+**Usage**:
+
+```console
+$ d2w fhir [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `init`: Scaffold a dockerized SUSHI IG project...
+* `validate`: Check the instance&#x27;s option-set codes and...
+* `generate`: Generate FSH files from DHIS2 metadata...
+
+### `d2w fhir init`
+
+Scaffold a dockerized SUSHI IG project with a fhir.toml for `d2w fhir generate`.
+
+**Usage**:
+
+```console
+$ d2w fhir init [OPTIONS] [directory]
+```
+
+**Arguments**:
+
+* `directory`: Project directory (default: current directory).  [default: .]
+
+**Options**:
+
+* `--id <str>`: IG package id.  [default: dhis2.fhir.example]
+* `--canonical <str>`: Canonical base URL for the IG (no trailing slash).  [default: http://example.org/fhir]
+* `--name <str>`: SUSHI name (default: derived from --id).
+* `--title <str>`: IG title (default: derived from --name).
+* `--publisher <str>`: Publisher name.  [default: Example Organisation]
+* `--force`: Overwrite scaffold files that already exist.
+* `--help`: Show this message and exit.
+
+### `d2w fhir validate`
+
+Check the instance&#x27;s option-set codes and names for FHIR-safety. Exits 1 when errors are found.
+
+**Usage**:
+
+```console
+$ d2w fhir validate [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `d2w fhir generate`
+
+Generate FSH files from DHIS2 metadata into the nearest FHIR project.
+
+**Usage**:
+
+```console
+$ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `option-sets`: Generate CodeSystem/ValueSet FSH from...
+* `org-units`: Generate Organization/Location FSH from...
+* `all`: Generate option-set terminology and...
+
+#### `d2w fhir generate option-sets`
+
+Generate CodeSystem/ValueSet FSH from DHIS2 option sets into the nearest FHIR project.
+
+**Usage**:
+
+```console
+$ d2w fhir generate option-sets [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+#### `d2w fhir generate org-units`
+
+Generate Organization/Location FSH from DHIS2 organisation units into the nearest FHIR project.
+
+**Usage**:
+
+```console
+$ d2w fhir generate org-units [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+#### `d2w fhir generate all`
+
+Generate option-set terminology and organisation-unit instances in one run.
+
+**Usage**:
+
+```console
+$ d2w fhir generate all [OPTIONS]
+```
 
 **Options**:
 

@@ -9,24 +9,33 @@ d2w fhir init [DIRECTORY]           Scaffold a dockerized SUSHI IG project
 d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate org-units         Org units -> Organization/Location instances
 d2w fhir generate all               Both targets in one run
+d2w fhir validate                   FHIR-safety of the instance's codes/names (exit 1 on errors)
 ```
 
+The plugin ships as its own workspace member, `dhis2w-fhir`, and mounts
+through the `dhis2.plugins` entry point - the same mechanism third-party
+plugins use. It is version-neutral: the wire client auto-detects the DHIS2
+major on connect, so one package serves v41/v42/v43 with no per-tree copies.
+
 MCP mirrors the same surface: `fhir_init`, `fhir_generate_option_sets`,
-`fhir_generate_org_units`. Each generate tool takes a `project_directory`
+`fhir_generate_org_units`, and the read-only `fhir_validate`
+(`readOnlyHint`). Each generate tool takes a `project_directory`
 argument because a long-lived MCP server's working directory is unrelated to
-the IG project. All three tools write local files, so they are classified as
-write tools and refused under `DHIS2_MCP_READONLY=1`.
+the IG project. The init/generate tools write local files, so they are classified as
+write tools and refused under `DHIS2_MCP_READONLY=1`; `fhir_validate` stays
+available there.
 
 ## Project layout and fhir.toml
 
 `d2w fhir init` scaffolds a complete project:
 
 ```
-fhir.toml                   Generation config (committed; no secrets)
-Makefile                    setup / generate / sushi / build via docker
+fhir.toml                   Minimal generation config (committed; no secrets)
+fhir.toml.example           Every available option with its default, documented
+Makefile                    setup / upgrade / generate / sushi / build via docker
 Dockerfile                  ghcr.io/fhir/ig-publisher-localdev + fsh-sushi
 ig/sushi-config.yaml        SUSHI IG identity (id, canonical, publisher)
-ig/ig.ini                   IG publisher entry point
+ig/ig.ini                   IG publisher entry point (fhir2.base.template)
 ig/input/fsh/aliases.fsh    $DHIS2-OU / $DHIS2-OU-CODE / $V2-0203 aliases
 ig/input/pagecontent/index.md
 ig/input/ignoreWarnings.txt
@@ -38,6 +47,8 @@ committed project config: it may pin a d2w `profile` by name, but explicit
 `-p` / `DHIS2_PROFILE` always wins, and credentials never live in it.
 
 ```toml
+# fhir.toml stays minimal - the profile pointer and the [ig] identity.
+# Every other option lives in fhir.toml.example with its default.
 profile = "myserver"                # optional
 
 [ig]
@@ -46,20 +57,36 @@ canonical = "http://example.org/fhir"
 name = "Dhis2FhirExample"
 title = "DHIS2 FHIR Example IG"
 publisher = "Example Organisation"
+```
 
+Options worth calling out from `fhir.toml.example`:
+
+```toml
 [generate]
 identifier_system_base = "http://dhis2.org/fhir"
 concept_code_source = "uid"         # "uid" or "code"
 
+[generate.naming]
+prefix = "D2"                       # "" drops it; profiles keep a D2 token
+option_set = "OptionSet"            # "" drops the token
+org_unit = "OrgUnit"                # e.g. "OU" -> D2OULevelCS / d2-ou-level-cs
+
 [generate.option_sets]
-include_names = []                  # empty = all
+include_names = []
 include_ids = []
 
 [generate.org_units]
-root = ""                           # org unit root UID, empty = entire tree
-max_level = 0                       # 0 = no cap
-terminology = false                 # also emit DHIS2OrgUnitCS/VS
+root = ""
+max_level = 0
+terminology = false
 ```
+
+Artifact names concatenate the pascal naming tokens
+(`D2` + `OptionSet` + `BirthType` + `CS`); ids join the kebab of each
+non-empty token (`d2-option-set-birth-type-cs`), so renaming or dropping a
+token reshapes the whole IG consistently. The two profile names always carry
+a token (default `D2`) because FSH cannot name a profile identically to its
+parent core resource.
 
 ## Option sets -> terminology
 
@@ -109,11 +136,26 @@ deletes only header-bearing `.fsh` files in its target subdirectory, then
 writes the new set - hand-authored FSH in the same tree is never touched, and
 re-running converges instead of stacking files.
 
+## Validation
+
+`d2w fhir validate` (MCP: `fhir_validate`) previews FHIR-safety without
+writing anything, against the R4 primitives
+(https://hl7.org/fhir/R4/datatypes.html#primitive): invalid codes (edge or
+doubled whitespace - the R4 `code` prose constraint) and duplicate codes
+within a set are errors; missing codes (UID fallback) and generated FSH names
+past the 255-character `cnl-0` bound are warnings; spaced-but-valid codes,
+id truncation, and slug collisions are infos. The CLI exits 1 when errors
+exist, so it slots into CI as a preflight for `concept_code_source = "code"`.
+A `fhir.toml` is not required - validation targets the instance.
+
 ## Code layout
 
-Version-neutral logic lives once in `dhis2w_core/fhir_core/` (config
-discovery, pure FSH emission, scaffold templates, header-aware writer), the
-same split as `security_core/`. The per-tree plugin
-(`v{41,42,43}/plugins/fhir/`) is a thin binding: `service.py` opens the
-version-matched client, maps generated `OptionSet` / `OrganisationUnit`
-schemas into the neutral input models, and delegates to `fhir_core`.
+Everything lives in the `dhis2w-fhir` workspace member: pure FSH emission
+and config (`models`, `names`, `terminology`, `organization`, `scaffold`,
+`writer`, `validation`, `config`), the shared `service.py`, and the thin
+`cli.py` / `mcp.py` surfaces. `plugin.py` exports the descriptor referenced
+by the `dhis2.plugins` entry point; `dhis2w-cli` and `dhis2w-mcp` depend on
+the package so `d2w fhir` is present by default. The service opens the
+version-neutral `dhis2w_core.client_context.open_client` and maps generated
+`OptionSet` / `OrganisationUnit` schemas into the reduced input models at
+the boundary.
