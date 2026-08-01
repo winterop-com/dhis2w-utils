@@ -159,3 +159,16 @@ the package so `d2w fhir` is present by default. The service opens the
 version-neutral `dhis2w_core.client_context.open_client` and maps generated
 `OptionSet` / `OrganisationUnit` schemas into the reduced input models at
 the boundary.
+
+## Roadmap
+
+- Org unit groups / group sets: DHIS2 classifications beyond the level
+  hierarchy (facility type, ownership, ...) mapped to additional
+  `Organization.type` codings from group-set CodeSystems - the lao-v1
+  inspiration IG already classifies provinces/districts/villages by group
+  membership.
+- Categories / category options: structurally close to option sets, mapped to
+  CodeSystem/ValueSet pairs the same way.
+- Questionnaire generation from programs / program stages (valueType mapping
+  tables exist in the lao-v1 generator).
+- Translations as FHIR designations / translation extensions.
