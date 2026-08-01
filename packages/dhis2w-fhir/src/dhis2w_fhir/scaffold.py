@@ -48,8 +48,7 @@ option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
 org_unit = "OU"                     # must stay non-empty (e.g. "OrgUnit")
 
 [generate.option_sets]
-include_names = []                  # exact optionSet names to include (empty = all)
-include_ids = []                    # optionSet UIDs to include (empty = all)
+include_ids = []                    # optionSet UIDs to include (absent or empty = all)
 
 [generate.org_units]
 root = ""                           # organisation unit root UID (empty = entire tree)

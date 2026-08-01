@@ -72,8 +72,7 @@ option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
 org_unit = "OU"                     # e.g. "OrgUnit" -> D2OrgUnitLevelCS
 
 [generate.option_sets]
-include_names = []
-include_ids = []
+include_ids = []                    # UIDs; absent or empty = all
 
 [generate.org_units]
 root = ""

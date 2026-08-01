@@ -206,15 +206,12 @@ async def generate_all(profile: Profile, project: FhirProject) -> GenerateAllRep
 def _apply_option_set_selection(
     inputs: list[OptionSetInput], project: FhirProject, notes: list[str]
 ) -> list[OptionSetInput]:
-    """Filter option sets by the configured include lists, noting entries that matched nothing."""
+    """Filter option sets by the configured UID include list, noting entries that matched nothing."""
     selection = project.config.generate.option_sets
-    if not selection.include_names and not selection.include_ids:
+    if not selection.include_ids:
         return inputs
-    wanted_names = set(selection.include_names)
     wanted_ids = set(selection.include_ids)
-    selected = [item for item in inputs if item.name in wanted_names or item.uid in wanted_ids]
-    for name in sorted(wanted_names - {item.name for item in selected}):
-        notes.append(f"include_names entry {name!r} matched no option set")
+    selected = [item for item in inputs if item.uid in wanted_ids]
     for uid in sorted(wanted_ids - {item.uid for item in selected}):
         notes.append(f"include_ids entry {uid!r} matched no option set")
     return selected

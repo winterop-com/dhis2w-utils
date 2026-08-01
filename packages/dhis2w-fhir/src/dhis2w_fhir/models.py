@@ -27,9 +27,11 @@ class IgConfig(BaseModel):
 
 
 class OptionSetSelection(BaseModel):
-    """Which DHIS2 option sets to generate - the `[generate.option_sets]` table of `fhir.toml`."""
+    """Which DHIS2 option sets to generate - the `[generate.option_sets]` table of `fhir.toml`.
 
-    include_names: list[str] = Field(default_factory=list)
+    UIDs only: names are not unique in DHIS2. An empty (or absent) list means all option sets.
+    """
+
     include_ids: list[str] = Field(default_factory=list)
 
 
