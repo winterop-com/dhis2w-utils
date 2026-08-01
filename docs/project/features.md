@@ -302,7 +302,7 @@ d2w metadata list dataElements \
 
 **Package:** `dhis2w-mcp` | **Install:** `uv tool install dhis2w-mcp`
 
-FastMCP server (`dhis2`) exposing every plugin as typed MCP tools: 321 tools
+FastMCP server (`dhis2`) exposing every plugin as typed MCP tools: 322 tools
 across 17 plugin groups. The full catalog is auto-generated into
 `docs/mcp-reference.md` (`make docs-mcp`).
 
