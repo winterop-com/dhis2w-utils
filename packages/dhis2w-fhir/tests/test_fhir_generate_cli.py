@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from dhis2w_cli.main import build_app
 from dhis2w_fhir import FhirValidationReport, GenerateAllReport, GenerateReport
-from dhis2w_fhir.models import ValidationFinding
+from dhis2w_fhir.validation.schemas import ValidationFinding
 from typer.testing import CliRunner
 
 _runner = CliRunner()
@@ -68,18 +68,18 @@ def test_generate_option_sets_renders_report(fhir_project: Path) -> None:  # noq
     mock.assert_awaited_once()
 
 
-def test_generate_org_units_json(fhir_project: Path) -> None:  # noqa: ARG001
+def test_generate_organisation_units_json(fhir_project: Path) -> None:  # noqa: ARG001
     """`--json` emits the GenerateReport as JSON."""
-    mock = AsyncMock(return_value=_report("organization", org_unit_count=7, location_count=2))
-    with patch("dhis2w_fhir.service.generate_org_units", new=mock):
+    mock = AsyncMock(return_value=_report("organization", organisation_unit_count=7, position_count=2))
+    with patch("dhis2w_fhir.service.generate_organisation_units", new=mock):
         result = _runner.invoke(build_app(), ["--json", "fhir", "generate", "org-units"])
     assert result.exit_code == 0, result.output
-    assert '"org_unit_count": 7' in result.output
+    assert '"organisation_unit_count": 7' in result.output
 
 
 def test_generate_all_renders_both_reports(fhir_project: Path) -> None:  # noqa: ARG001
     """`d2w fhir generate all` renders both sub-reports."""
-    report = GenerateAllReport(option_sets=_report("terminology"), org_units=_report("organization"))
+    report = GenerateAllReport(option_sets=_report("terminology"), organisation_units=_report("organization"))
     mock = AsyncMock(return_value=report)
     with patch("dhis2w_fhir.service.generate_all", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "generate", "all"])
@@ -110,24 +110,51 @@ def test_generate_uses_fhir_toml_profile(fhir_project: Path, monkeypatch: pytest
     assert profile.base_url == "https://dhis2.example"
 
 
-def test_validate_renders_findings_and_exit_code(fhir_project: Path) -> None:  # noqa: ARG001
-    """`d2w fhir validate` renders the findings table and exits 1 when errors exist."""
-    finding = ValidationFinding(
+def _error_report() -> FhirValidationReport:
+    """One error plus one info finding for CLI rendering tests."""
+    error = ValidationFinding(
         severity="error",
         category="invalid-code",
-        option_set_uid="Aa1aaaaaaaa",
-        option_set_name="Sex",
-        option_uid="Op1aaaaaaaa",
+        resource_type="options",
+        uid="Op1aaaaaaaa",
+        name="Male [in Sex]",
         code=" M ",
         message="code is not a valid FHIR code",
     )
-    report = FhirValidationReport(option_set_count=1, option_count=1, findings=[finding])
-    mock = AsyncMock(return_value=report)
+    info = ValidationFinding(
+        severity="info",
+        category="spaced-code",
+        resource_type="options",
+        uid="Op2aaaaaaaa",
+        name="Spaced [in Sex]",
+        code="two words",
+        message="code contains spaces",
+    )
+    return FhirValidationReport(option_set_count=1, option_count=2, findings=[error, info])
+
+
+def test_validate_renders_findings_and_exit_code(fhir_project: Path) -> None:
+    """`d2w fhir validate` renders error rows, rolls infos up, writes the report file, exits 1."""
+    mock = AsyncMock(return_value=_error_report())
     with patch("dhis2w_fhir.service.validate_codes", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "validate"])
     assert result.exit_code == 1, result.output
     assert "invalid-code" in result.output
+    assert "spaced-code x1" in result.output
+    assert "two words" not in result.output
+    report_file = fhir_project / "fhir-validate-report.md"
+    assert report_file.exists()
+    assert "## options (2)" in report_file.read_text(encoding="utf-8")
     mock.assert_awaited_once()
+
+
+def test_validate_no_fail_and_all(fhir_project: Path) -> None:  # noqa: ARG001
+    """`--no-fail` exits 0 despite errors; `--all` lists info rows individually."""
+    mock = AsyncMock(return_value=_error_report())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate", "--no-fail", "--all"])
+    assert result.exit_code == 0, result.output
+    assert "two words" in result.output
 
 
 def test_validate_clean_exits_zero(fhir_project: Path) -> None:  # noqa: ARG001

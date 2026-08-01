@@ -1,8 +1,14 @@
-"""Slug and escaping helpers for FSH names, ids, codes, and string literals."""
+"""Slug, escaping, and URI helpers shared by every component: FSH names, ids, codes, and string literals."""
 
 from __future__ import annotations
 
 import re
+
+
+def strip_trailing_slash(value: str) -> str:
+    """Drop trailing slashes - SUSHI and the IG publisher append path segments to the canonical."""
+    return value.rstrip("/")
+
 
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+")
 # R4 `code` (https://hl7.org/fhir/R4/datatypes.html#primitive): the prose constraint is stricter

@@ -4,13 +4,14 @@ from pathlib import Path
 
 import pytest
 from dhis2w_fhir.config import (
+    FhirProjectConfig,
+    IgConfig,
     NoFhirProjectError,
     find_project_fhir_config,
     load_fhir_config,
     load_project,
     write_fhir_config,
 )
-from dhis2w_fhir.models import FhirProjectConfig, IgConfig
 
 _MINIMAL_TOML = """
 [ig]
@@ -20,7 +21,7 @@ name = "Dhis2FhirExample"
 title = "DHIS2 FHIR Example IG"
 publisher = "Example Organisation"
 
-[generate.org_units]
+[generate.organisation_units]
 root = ""
 max_level = 0
 """
@@ -57,8 +58,8 @@ def test_load_normalizes_placeholders(tmp_path: Path) -> None:
     path = tmp_path / "fhir.toml"
     path.write_text(_MINIMAL_TOML, encoding="utf-8")
     config = load_fhir_config(path)
-    assert config.generate.org_units.root is None
-    assert config.generate.org_units.max_level is None
+    assert config.generate.organisation_units.root is None
+    assert config.generate.organisation_units.max_level is None
     assert config.ig.canonical == "http://example.org/fhir"
 
 

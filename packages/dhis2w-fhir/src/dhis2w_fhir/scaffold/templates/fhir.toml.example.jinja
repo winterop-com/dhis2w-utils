@@ -1,0 +1,40 @@
+# fhir.toml.example - every option `d2w fhir generate` understands, with its default.
+# Copy what you need into fhir.toml; omitted options keep these defaults.
+
+# DHIS2 profile to read metadata from. Explicit `-p` / `DHIS2_PROFILE` wins over this.
+# profile = "myserver"
+
+[ig]
+id = "{{ ig_id }}"
+canonical = "{{ canonical }}"
+name = "{{ name }}"
+title = "{{ title }}"
+publisher = "{{ publisher }}"
+
+[generate]
+# Base URI for DHIS2 identifier systems in aliases.fsh ($DHIS2-OU etc).
+identifier_system_base = "http://dhis2.org/fhir"
+# Concept code source for option sets: "uid" (option UID, DHIS2 code as property)
+# or "code" (DHIS2 code when FHIR-valid, UID as property; invalid codes fall back).
+concept_code_source = "uid"
+
+[generate.naming]
+# What file names, ids, and FSH names derive from: "uid" (stable, collision-free,
+# script-agnostic - DHIS2 names are often non-latin or non-unique) or "name"
+# (human-readable slugs, truncated/disambiguated when needed).
+source = "uid"
+# Tokens composing FSH artifact names; ids derive from the kebab of each non-empty token.
+# Defaults read by context: D2OSQdm5fPK5Ra9CS / d2-os-qdm5fpk5ra9-cs (uid source).
+prefix = "D2"                       # "" drops the prefix (profiles keep a D2 token:
+                                    # a profile cannot share its parent resource's name)
+option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
+organisation_unit = "OU"            # must stay non-empty (e.g. "OrgUnit")
+
+[generate.option_sets]
+include_ids = []                    # optionSet UIDs to include (absent or empty = all)
+
+[generate.organisation_units]
+root = ""                           # organisation unit root UID (empty = entire tree)
+max_level = 0                       # 0 = no level cap
+terminology = false                 # also emit the org-unit CodeSystem/ValueSet
+                                    # with level/parent/dhis2-code properties

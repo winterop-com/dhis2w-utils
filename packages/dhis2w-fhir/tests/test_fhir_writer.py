@@ -2,8 +2,13 @@
 
 from pathlib import Path
 
-from dhis2w_fhir.models import FshArtifact
-from dhis2w_fhir.writer import GENERATED_HEADER, clean_generated_files, write_artifacts
+from dhis2w_fhir.writer import (
+    GENERATED_HEADER,
+    FshArtifact,
+    clean_generated_files,
+    sync_artifacts,
+    write_artifacts,
+)
 
 
 def _artifact(relative_path: str, content: str = "CodeSystem: X\n") -> FshArtifact:
@@ -43,3 +48,27 @@ def test_write_clean_write_is_idempotent(tmp_path: Path) -> None:
     written = write_artifacts(tmp_path, [artifact])
     assert written == ["terminology/sample.fsh"]
     assert sorted(path.name for path in (tmp_path / "terminology").glob("*.fsh")) == ["sample.fsh"]
+
+
+def test_sync_reports_written_unchanged_deleted(tmp_path: Path) -> None:
+    """Sync writes new files, leaves identical ones untouched, and deletes stale generated files."""
+    first = [_artifact("terminology/keep.fsh"), _artifact("terminology/stale.fsh")]
+    report = sync_artifacts(tmp_path, "terminology", first)
+    assert report.written == ["terminology/keep.fsh", "terminology/stale.fsh"]
+
+    keep_stat = (tmp_path / "terminology" / "keep.fsh").stat().st_mtime_ns
+    second = [_artifact("terminology/keep.fsh"), _artifact("terminology/new.fsh")]
+    report = sync_artifacts(tmp_path, "terminology", second)
+    assert report.written == ["terminology/new.fsh"]
+    assert report.unchanged == ["terminology/keep.fsh"]
+    assert report.deleted == ["stale.fsh"]
+    assert (tmp_path / "terminology" / "keep.fsh").stat().st_mtime_ns == keep_stat
+
+
+def test_sync_never_deletes_hand_authored(tmp_path: Path) -> None:
+    """Hand-authored .fsh files in the target subdirectory survive a sync."""
+    (tmp_path / "terminology").mkdir()
+    (tmp_path / "terminology" / "manual.fsh").write_text("CodeSystem: Manual\n", encoding="utf-8")
+    report = sync_artifacts(tmp_path, "terminology", [_artifact("terminology/generated.fsh")])
+    assert report.deleted == []
+    assert (tmp_path / "terminology" / "manual.fsh").exists()

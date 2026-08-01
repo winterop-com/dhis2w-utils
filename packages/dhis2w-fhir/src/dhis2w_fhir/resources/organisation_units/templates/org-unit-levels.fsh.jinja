@@ -1,0 +1,17 @@
+CodeSystem: {{ names.level_code_system }}
+Id: {{ names.terminology_id('level', 'cs') }}
+Title: "DHIS2 Organisation Unit Levels"
+Description: "Hierarchy levels of the DHIS2 organisation unit tree."
+* ^status = #active
+* ^content = #complete
+* ^caseSensitive = true
+{% for level in levels %}
+* #level-{{ level }} "Level {{ level }}"
+{% endfor %}
+
+ValueSet: {{ names.level_value_set }}
+Id: {{ names.terminology_id('level', 'vs') }}
+Title: "DHIS2 Organisation Unit Levels"
+Description: "Hierarchy levels of the DHIS2 organisation unit tree."
+* ^status = #active
+* include codes from system {{ names.level_code_system }}

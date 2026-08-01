@@ -1,6 +1,7 @@
-"""Call the `fhir` MCP tools — scaffold a SUSHI IG project and generate FSH from DHIS2 metadata.
+"""Call the read-only `fhir_validate` MCP tool - FHIR-safety of a DHIS2 instance's codes.
 
-Mirrors examples/v43/cli/fhir_generate.sh but via the MCP server.
+Scaffolding and generation are CLI-only (see examples/v43/cli/fhir_generate.sh);
+the MCP surface answers the one data-shaped question an agent actually asks.
 
 Usage:
     uv run python examples/v43/mcp/fhir.py
@@ -9,39 +10,24 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import shutil
-from pathlib import Path
 
 from dhis2w_mcp.server import build_server
 from fastmcp import Client
 
 
 async def main() -> None:
-    """Scaffold a demo IG project, generate option-set and org-unit FSH, then clean up."""
-    project_directory = Path("demo-ig").resolve()
+    """Validate the active instance's codes and print the severity counts."""
     server = build_server()
     async with Client(server) as client:
-        scaffold = await client.call_tool(
-            "fhir_init",
-            {
-                "directory": str(project_directory),
-                "ig_id": "dhis2.fhir.demo",
-                "canonical": "http://example.org/fhir/demo",
-                "publisher": "Demo Org",
-            },
+        result = await client.call_tool("fhir_validate", {})
+        report = result.structured_content or {}
+        print(
+            f"swept {report.get('object_count')} objects across {report.get('resource_type_count')} types; "
+            f"{report.get('error_count')} errors, {report.get('warning_count')} warnings, "
+            f"{report.get('info_count')} infos"
         )
-        created = (scaffold.structured_content or {}).get("created_files", [])
-        print(f"scaffolded {len(created)} files into {project_directory}")
-
-        option_sets = await client.call_tool("fhir_generate_option_sets", {"project_directory": str(project_directory)})
-        report = option_sets.structured_content or {}
-        print(f"option sets: {report.get('option_set_count')} sets, {len(report.get('written_files', []))} files")
-
-        org_units = await client.call_tool("fhir_generate_org_units", {"project_directory": str(project_directory)})
-        report = org_units.structured_content or {}
-        print(f"org units: {report.get('org_unit_count')} units, {report.get('location_count')} locations")
-
-    shutil.rmtree(project_directory)
+        for finding in report.get("findings", [])[:10]:
+            print(f"  {finding['severity']:8} {finding['category']:15} {finding['name']} code={finding['code']!r}")
 
 
 if __name__ == "__main__":

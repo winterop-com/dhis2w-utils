@@ -2,8 +2,9 @@
 
 import tomllib
 
-from dhis2w_fhir.models import FhirProjectConfig, InitOptions
+from dhis2w_fhir.config import FhirProjectConfig
 from dhis2w_fhir.scaffold import build_scaffold_files
+from dhis2w_fhir.scaffold.schemas import InitOptions
 
 _OPTIONS = InitOptions(
     ig_id="dhis2.fhir.test",
@@ -50,7 +51,7 @@ def test_fhir_toml_round_trips() -> None:
     assert config.profile is None
     assert config.generate.concept_code_source == "uid"
     assert config.generate.naming.prefix == "D2"
-    assert config.generate.org_units.root is None
+    assert config.generate.organisation_units.root is None
 
 
 def test_fhir_toml_example_round_trips_to_defaults() -> None:
@@ -58,9 +59,10 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     raw = tomllib.loads(_by_path()["fhir.toml.example"])
     config = FhirProjectConfig.model_validate(raw)
     assert config == FhirProjectConfig.model_validate(tomllib.loads(_by_path()["fhir.toml"]))
+    assert config.generate.naming.source == "uid"
     assert config.generate.naming.option_set == "OS"
-    assert config.generate.naming.org_unit == "OU"
-    assert config.generate.org_units.terminology is False
+    assert config.generate.naming.organisation_unit == "OU"
+    assert config.generate.organisation_units.terminology is False
 
 
 def test_ig_ini_points_at_sushi_output() -> None:

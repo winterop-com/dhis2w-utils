@@ -1,0 +1,26 @@
+CodeSystem: {{ base_name }}CS
+Id: {{ id_stem }}{{ slug }}-cs
+Title: {{ title }}
+Description: {{ description }}
+* ^status = #active
+* ^content = #complete
+* ^caseSensitive = true
+{% for declaration in declarations %}
+* ^property[+].code = #{{ declaration.code }}
+* ^property[=].description = "{{ declaration.description }}"
+* ^property[=].type = #{{ declaration.type }}
+{% endfor %}
+{% for concept in concepts %}
+* {{ concept.token }} {{ concept.display_literal }}
+{% if concept.property_code is not none %}
+* {{ concept.token }} ^property[+].code = #{{ concept.property_code }}
+* {{ concept.token }} {{ concept.property_line }}
+{% endif %}
+{% endfor %}
+
+ValueSet: {{ base_name }}VS
+Id: {{ id_stem }}{{ slug }}-vs
+Title: {{ title }}
+Description: {{ description }}
+* ^status = #active
+* include codes from system {{ base_name }}CS

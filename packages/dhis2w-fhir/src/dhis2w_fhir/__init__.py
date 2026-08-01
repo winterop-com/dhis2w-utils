@@ -1,44 +1,56 @@
-"""Version-neutral FHIR IG generation: fhir.toml config, FSH emission, and project scaffolding."""
+"""Version-neutral FHIR IG generation: fhir.toml config, FSH emission, and project scaffolding.
+
+Each component owns its schemas; this module is the one stable import
+surface over them, so `from dhis2w_fhir import GenerateConfig` keeps working
+however the components are arranged internally.
+"""
 
 from dhis2w_fhir.config import (
     FHIR_CONFIG_FILENAME,
+    FhirProject,
+    FhirProjectConfig,
+    GenerateConfig,
+    IgConfig,
+    NamingConfig,
     NoFhirProjectError,
     find_project_fhir_config,
     load_fhir_config,
     load_project,
     write_fhir_config,
 )
-from dhis2w_fhir.models import (
-    FhirProject,
-    FhirProjectConfig,
-    FhirValidationReport,
-    FshArtifact,
-    FshBuild,
-    GenerateAllReport,
-    GenerateConfig,
-    GenerateReport,
-    IgConfig,
-    InitOptions,
-    NamingConfig,
-    OptionInput,
-    OptionSetInput,
-    OptionSetSelection,
-    OrgUnitInput,
-    OrgUnitSelection,
-    ScaffoldFile,
-    ScaffoldReport,
-    ValidationFinding,
+from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, max_slug_length
+from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn, OptionSetSelection
+from dhis2w_fhir.resources.organisation_units import (
+    build_organisation_unit_instances,
+    build_organisation_unit_level_terminology,
+    build_organisation_unit_profiles,
+    build_organisation_unit_terminology,
 )
-from dhis2w_fhir.organization import (
-    build_org_unit_instances,
-    build_org_unit_level_terminology,
-    build_org_unit_profiles,
-    build_org_unit_terminology,
+from dhis2w_fhir.resources.organisation_units.schemas import (
+    GeoPoint,
+    OrganisationUnitIn,
+    OrganisationUnitSelection,
 )
 from dhis2w_fhir.scaffold import build_scaffold_files
-from dhis2w_fhir.terminology import build_option_set_artifacts
-from dhis2w_fhir.validation import build_code_validation
-from dhis2w_fhir.writer import GENERATED_HEADER, clean_generated_files, write_artifacts
+from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, ScaffoldReport
+from dhis2w_fhir.service import GenerateAllReport, GenerateReport
+from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
+from dhis2w_fhir.validation.schemas import (
+    FhirValidationReport,
+    MetadataCollectionIn,
+    MetadataItemIn,
+    ValidationFinding,
+)
+from dhis2w_fhir.writer import (
+    GENERATED_HEADER,
+    FshArtifact,
+    FshBuild,
+    SyncReport,
+    clean_generated_files,
+    sync_artifacts,
+    write_artifacts,
+)
 
 __all__ = [
     "FHIR_CONFIG_FILENAME",
@@ -51,29 +63,37 @@ __all__ = [
     "GenerateAllReport",
     "GenerateConfig",
     "GenerateReport",
+    "GeoPoint",
     "IgConfig",
     "InitOptions",
+    "MetadataCollectionIn",
+    "MetadataItemIn",
     "NamingConfig",
     "NoFhirProjectError",
-    "OptionInput",
-    "OptionSetInput",
+    "OptionIn",
+    "OptionSetIn",
     "OptionSetSelection",
-    "OrgUnitInput",
-    "OrgUnitSelection",
+    "OrganisationUnitIn",
+    "OrganisationUnitSelection",
     "ScaffoldFile",
     "ScaffoldReport",
+    "SyncReport",
     "ValidationFinding",
+    "aggregate_note",
     "build_code_validation",
     "build_option_set_artifacts",
-    "build_org_unit_instances",
-    "build_org_unit_level_terminology",
-    "build_org_unit_profiles",
-    "build_org_unit_terminology",
+    "build_organisation_unit_instances",
+    "build_organisation_unit_level_terminology",
+    "build_organisation_unit_profiles",
+    "build_organisation_unit_terminology",
     "build_scaffold_files",
     "clean_generated_files",
     "find_project_fhir_config",
     "load_fhir_config",
     "load_project",
+    "max_slug_length",
+    "render_validation_markdown",
+    "sync_artifacts",
     "write_artifacts",
     "write_fhir_config",
 ]

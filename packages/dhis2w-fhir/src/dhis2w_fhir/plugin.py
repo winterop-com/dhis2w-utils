@@ -1,7 +1,7 @@
 """Plugin descriptor - mounts `d2w fhir` and the `fhir_*` MCP tools via the `dhis2.plugins` entry point.
 
 The package is version-neutral: the wire client auto-detects the DHIS2 major
-on connect, and FSH emission only consumes the reduced input models, so one
+on connect, and FSH emission only consumes the reduced source models, so one
 plugin serves v41/v42/v43 without per-tree copies.
 """
 

@@ -9934,7 +9934,7 @@ $ d2w fhir [OPTIONS] COMMAND [ARGS]...
 **Commands**:
 
 * `init`: Scaffold a dockerized SUSHI IG project...
-* `validate`: Check the instance&#x27;s option-set codes and...
+* `validate`: Check the instance&#x27;s codes for...
 * `generate`: Generate FSH files from DHIS2 metadata...
 
 ### `d2w fhir init`
@@ -9963,7 +9963,7 @@ $ d2w fhir init [OPTIONS] [directory]
 
 ### `d2w fhir validate`
 
-Check the instance&#x27;s option-set codes and names for FHIR-safety. Exits 1 when errors are found.
+Check the instance&#x27;s codes for FHIR-safety; writes a Markdown report grouped by type. Exits 1 on errors.
 
 **Usage**:
 
@@ -9973,6 +9973,9 @@ $ d2w fhir validate [OPTIONS]
 
 **Options**:
 
+* `--report <file>`: Markdown report path (default: fhir-validate-report.md in the project root or current directory).
+* `--all`: List info-level findings individually instead of rolled up.
+* `--no-fail`: Exit 0 even when errors are found.
 * `--help`: Show this message and exit.
 
 ### `d2w fhir generate`

@@ -9,7 +9,7 @@ d2w fhir init [DIRECTORY]           Scaffold a dockerized SUSHI IG project
 d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate org-units         Org units -> Organization/Location instances
 d2w fhir generate all               Both targets in one run
-d2w fhir validate                   FHIR-safety of the instance's codes/names (exit 1 on errors)
+d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
 ```
 
 The plugin ships as its own workspace member, `dhis2w-fhir`, and mounts
@@ -17,13 +17,11 @@ through the `dhis2.plugins` entry point - the same mechanism third-party
 plugins use. It is version-neutral: the wire client auto-detects the DHIS2
 major on connect, so one package serves v41/v42/v43 with no per-tree copies.
 
-MCP mirrors the same surface: `fhir_init`, `fhir_generate_option_sets`,
-`fhir_generate_org_units`, and the read-only `fhir_validate`
-(`readOnlyHint`). Each generate tool takes a `project_directory`
-argument because a long-lived MCP server's working directory is unrelated to
-the IG project. The init/generate tools write local files, so they are classified as
-write tools and refused under `DHIS2_MCP_READONLY=1`; `fhir_validate` stays
-available there.
+MCP exposes only the read surface: `fhir_validate` (`readOnlyHint`).
+Scaffolding and generation are CLI-only by design - they write a file tree
+onto whatever machine the MCP server runs on, the wrong shape for an agent
+protocol (the same judgment as the browser plugin and the security audit
+runner).
 
 ## Project layout and fhir.toml
 
@@ -138,27 +136,81 @@ re-running converges instead of stacking files.
 
 ## Validation
 
-`d2w fhir validate` (MCP: `fhir_validate`) previews FHIR-safety without
-writing anything, against the R4 primitives
-(https://hl7.org/fhir/R4/datatypes.html#primitive): invalid codes (edge or
-doubled whitespace - the R4 `code` prose constraint) and duplicate codes
-within a set are errors; missing codes (UID fallback) and generated FSH names
-past the 255-character `cnl-0` bound are warnings; spaced-but-valid codes,
-id truncation, and slug collisions are infos. The CLI exits 1 when errors
-exist, so it slots into CI as a preflight for `concept_code_source = "code"`.
-A `fhir.toml` is not required - validation targets the instance.
+`d2w fhir validate` (MCP: `fhir_validate`) checks the whole instance against
+the R4 primitives (https://hl7.org/fhir/R4/datatypes.html#primitive) in two
+passes: an instance-wide sweep over `GET /api/metadata?fields=id,name,code`
+(every metadata object's code: invalid codes are errors, per-type duplicates
+warn) plus the deep option-set pass previewing `concept_code_source =
+"code"` generation (invalid/duplicate option codes are errors, missing codes
+warn, spaced-but-valid codes are infos). The terminal shows errors and
+warnings; infos roll up per category (`--all` lists them). A Markdown report
+grouped by resource type is always written (default
+`fhir-validate-report.md` beside `fhir.toml`, `--report` to move it). Exit 1
+on errors makes it a CI gate; `--no-fail` suppresses that. A `fhir.toml` is
+not required - validation targets the instance.
 
 ## Code layout
 
-Everything lives in the `dhis2w-fhir` workspace member: pure FSH emission
-and config (`models`, `names`, `terminology`, `organization`, `scaffold`,
-`writer`, `validation`, `config`), the shared `service.py`, and the thin
-`cli.py` / `mcp.py` surfaces. `plugin.py` exports the descriptor referenced
-by the `dhis2.plugins` entry point; `dhis2w-cli` and `dhis2w-mcp` depend on
-the package so `d2w fhir` is present by default. The service opens the
-version-neutral `dhis2w_core.client_context.open_client` and maps generated
-`OptionSet` / `OrganisationUnit` schemas into the reduced input models at
-the boundary.
+Everything lives in the `dhis2w-fhir` workspace member, split into
+components that each own their code, their schemas, and their templates.
+There is no central models module: a component's pydantic models sit in its
+own `schemas.py`.
+
+Flat modules carry what every component shares: `names.py` (slug, FSH
+literal, and URI helpers), `notes.py` (the one aggregate-note formatter),
+`writer.py` (the `FshArtifact` / `FshBuild` contract every emitter returns,
+plus the header-aware sync that writes it), and `config.py` (the `fhir.toml`
+document - `IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`,
+`FhirProject` - with discovery, load, and save). `service.py` holds the
+shared orchestration and its own `GenerateReport` / `GenerateAllReport`;
+`cli.py` / `mcp.py` stay thin over it. `plugin.py` exports the descriptor
+referenced by the `dhis2.plugins` entry point; `dhis2w-cli` and `dhis2w-mcp`
+depend on the package so `d2w fhir` is present by default.
+
+The components:
+
+- `scaffold/` - the ten files `d2w fhir init` writes (`InitOptions`,
+  `ScaffoldFile`, `ScaffoldReport`).
+- `resources/option_sets/` - the CodeSystem/ValueSet pair per option set,
+  plus `max_slug_length` (validation previews the same id bound) and the
+  `OptionSetIn` / `OptionIn` / `OptionSetSelection` schemas.
+- `resources/organisation_units/` - split by FHIR resource: `naming.py`
+  derives every artifact name and id from the `[generate.naming]` tokens,
+  `organization.py` builds the profiles artifact and the Organization
+  instances, `location.py` the Location instances (position, boundary
+  extension, `partOf`), `terminology.py` the level pair and the optional
+  whole-selection pair. Group / group-set emission lands here next.
+- `validation/` - the two check passes, `report.py` rendering the Markdown,
+  and the finding/report schemas.
+
+`resources/` is reserved for DHIS2 resource domains, which is why
+`scaffold/` and `validation/` stay top level.
+
+Dependencies point one way: `config.py` composes the per-component selection
+tables (`OptionSetSelection`, `OrganisationUnitSelection`), and no component
+imports `config.py` at runtime - an emitter receives its `GenerateConfig` as
+a parameter and annotates it under `TYPE_CHECKING`. `dhis2w_fhir/__init__.py`
+re-exports the whole public surface, so `from dhis2w_fhir import
+GenerateConfig` keeps working however the components are arranged.
+
+No FSH, TOML, YAML, or Markdown body is assembled by string concatenation in
+Python. Every component ships a `templates/` directory of jinja2 templates
+loaded through a `PackageLoader` scoped to that subpackage
+(`StrictUndefined`, `trim_blocks`, `lstrip_blocks`, `keep_trailing_newline`
+- the same settings `dhis2w-codegen` uses, so control tags never leak blank
+lines and rebuilds stay byte-stable). The Python side resolves every
+conditional into a pydantic view-model and renders; the templates hold the
+layout.
+
+The service opens the version-neutral
+`dhis2w_core.client_context.open_client` and maps generated `OptionSet` /
+`OrganisationUnit` schemas into the `*In` projections at the boundary.
+Geometry becomes a frozen `GeoPoint`: Point coordinates directly, and for
+Polygon/MultiPolygon the area-weighted (shoelace) centroid of the outer ring
+with the largest absolute area - not a bounding-box midpoint, which lands
+outside concave boundaries. Every unit whose geometry parses also carries
+the compact GeoJSON into `Location` through the standard
+`location-boundary-geojson` extension.
 
 ## Roadmap
 

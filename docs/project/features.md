@@ -146,7 +146,7 @@ the external entry-point mechanism.
 | **apps** | List installed, browse App Hub, install from file or hub, uninstall, update with semver picking, snapshot/restore. |
 | **datastore** | Key-value store: namespaces, keys, get/set/delete on `/api/dataStore` + `/api/userDataStore`. |
 | **files** | Documents + fileResources: upload, download, list. |
-| **fhir** | FHIR IG generation (package `dhis2w-fhir`): scaffold a dockerized SUSHI project (`fhir init`), generate FSH from DHIS2 metadata (`fhir generate`) - option sets as CodeSystem/ValueSet pairs carrying both DHIS2 identifiers, organisation units as Organization/Location instances with partOf hierarchy (one file per level, optional CodeSystem representation) - and check an instance's codes for FHIR-safety (`fhir validate`). Artifact naming is configurable via `[generate.naming]` in a committed `fhir.toml` discovered by walking up from the working directory. |
+| **fhir** | FHIR IG generation (package `dhis2w-fhir`): scaffold a dockerized SUSHI project (`fhir init`), generate FSH from DHIS2 metadata (`fhir generate`) - option sets as CodeSystem/ValueSet pairs carrying both DHIS2 identifiers, organisation units as Organization/Location instances with partOf hierarchy (one file per level, optional CodeSystem representation) - and check an instance's codes for FHIR-safety (`fhir validate`: instance-wide `/api/metadata` sweep plus a deep option-set pass, Markdown report grouped by type, exit 1 on errors; the read-only `fhir_validate` is the plugin's only MCP tool - scaffolding/generation are CLI-only). Artifact naming is configurable via `[generate.naming]` in a committed `fhir.toml` discovered by walking up from the working directory. |
 | **messaging** | Message conversations: list, get, send, reply, mark read/unread, ticket-workflow priority/status/assignment. |
 | **maintenance** | Background tasks, cache clear, data-integrity checks, soft-delete cleanup, validation runs, predictor runs, analytics-table rebuild. |
 | **doctor** | Health probes: ~100+ metadata checks, DHIS2 data-integrity checks, BUGS.md workaround drift detection. |
@@ -237,7 +237,7 @@ d2w fhir            FHIR IG generation (SUSHI/FSH, package dhis2w-fhir)
   generate option-sets  Option sets as CodeSystem/ValueSet pairs
   generate org-units    Org units as Organization/Location instances
   generate all          Both targets in one run
-  validate              FHIR-safety of the instance's codes and names
+  validate              FHIR-safety of the instance's codes (sweep + report file)
 
 d2w messaging       Internal messaging
   list | get | send | reply | delete
@@ -302,7 +302,7 @@ d2w metadata list dataElements \
 
 **Package:** `dhis2w-mcp` | **Install:** `uv tool install dhis2w-mcp`
 
-FastMCP server (`dhis2`) exposing every plugin as typed MCP tools: 322 tools
+FastMCP server (`dhis2`) exposing every plugin as typed MCP tools: 319 tools
 across 17 plugin groups. The full catalog is auto-generated into
 `docs/mcp-reference.md` (`make docs-mcp`).
 

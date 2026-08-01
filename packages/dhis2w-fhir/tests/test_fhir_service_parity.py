@@ -29,7 +29,7 @@ _OPTION_SETS_PAYLOAD = {
     ]
 }
 
-_ORG_UNITS_PAYLOAD = {
+_ORGANISATION_UNITS_PAYLOAD = {
     "organisationUnits": [
         {"id": "ImspTQPwCqd", "name": "Sierra Leone", "level": 1, "path": "/ImspTQPwCqd", "code": "SL"},
         {
@@ -73,29 +73,33 @@ async def test_generate_option_sets_across_majors(
 
     assert route.called
     assert report.option_set_count == 1
-    assert report.written_files == ["terminology/birth-type.fsh"]
-    content = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "birth-type.fsh").read_text(encoding="utf-8")
+    assert report.written_files == ["terminology/xa1b2c3d4e5.fsh"]
+    content = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "xa1b2c3d4e5.fsh").read_text(encoding="utf-8")
     assert content.startswith(GENERATED_HEADER)
-    assert "CodeSystem: D2OSBirthTypeCS" in content
+    assert "CodeSystem: D2OSXa1b2c3d4e5CS" in content
+    assert 'Title: "Birth type"' in content
 
 
 @respx.mock
-async def test_generate_org_units_across_majors(
+async def test_generate_organisation_units_across_majors(
     wire_version: str,
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """`generate_org_units` writes profiles, level terminology, and per-level instances on every major."""
+    """`generate_organisation_units` writes profiles, level terminology, and per-level instances on every major."""
     mock_system_info(wire_version)
     await _scaffold_project(tmp_path)
-    route = respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORG_UNITS_PAYLOAD))
+    route = respx.get(f"{_HOST}/api/organisationUnits").mock(
+        return_value=httpx.Response(200, json=_ORGANISATION_UNITS_PAYLOAD)
+    )
 
-    report = await service.generate_org_units(resolve_profile("probe"), load_project(tmp_path))
+    report = await service.generate_organisation_units(resolve_profile("probe"), load_project(tmp_path))
 
     assert route.called
-    assert report.org_unit_count == 2
-    assert report.location_count == 1
+    assert report.organisation_unit_count == 2
+    assert report.position_count == 1
+    assert report.boundary_count == 1
     assert report.written_files == [
         "organization/org-unit-levels.fsh",
         "organization/org-units-level-1.fsh",
@@ -108,6 +112,12 @@ async def test_generate_org_units_across_majors(
     assert "* partOf = Reference(OrganizationImspTQPwCqd)" in level_two
     assert "* position.latitude = 7.9647" in level_two
     assert "* position.longitude = -11.7383" in level_two
+    assert '* extension[+].url = "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson"' in level_two
+    assert "* partOf = Reference(LocationImspTQPwCqd)" in level_two
+    level_one = (tmp_path / "ig" / "input" / "fsh" / "organization" / "org-units-level-1.fsh").read_text(
+        encoding="utf-8"
+    )
+    assert "Instance: LocationImspTQPwCqd" in level_one
 
 
 @respx.mock
@@ -128,12 +138,16 @@ async def test_validate_codes_across_majors(
         ]
     }
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=payload))
+    sweep = {"dataElements": [{"id": "De1aaaaaaaa", "name": "Bad DE", "code": "DE 1  x"}]}
+    respx.get(f"{_HOST}/api/metadata").mock(return_value=httpx.Response(200, json=sweep))
 
     context = service.resolve_validation_context()
     report = await service.validate_codes(resolve_profile("probe"), context.config)
 
-    assert report.error_count == 1
-    assert report.findings[0].category == "invalid-code"
+    assert report.error_count == 2
+    assert {finding.resource_type for finding in report.findings} == {"options", "dataElements"}
+    assert report.resource_type_count == 1
+    assert report.object_count == 1
 
 
 @respx.mock
@@ -151,9 +165,45 @@ async def test_generate_is_idempotent(
     second = await service.generate_option_sets(resolve_profile("probe"), load_project(tmp_path))
 
     assert first.deleted_files == []
-    assert second.deleted_files == ["birth-type.fsh"]
+    assert first.written_files == ["terminology/xa1b2c3d4e5.fsh"]
+    assert second.written_files == []
+    assert second.deleted_files == []
+    assert second.unchanged_count == 1
     terminology = tmp_path / "ig" / "input" / "fsh" / "terminology"
-    assert sorted(path.name for path in terminology.glob("*.fsh")) == ["birth-type.fsh"]
+    assert sorted(path.name for path in terminology.glob("*.fsh")) == ["xa1b2c3d4e5.fsh"]
+
+
+def test_polygon_centroid_of_a_square() -> None:
+    """A square ring's area-weighted centroid is its middle."""
+    ring = [[0, 0], [4, 0], [4, 2], [0, 2], [0, 0]]
+    centroid = service._polygon_centroid("Polygon", [ring], [])
+    assert centroid.longitude == 2.0
+    assert centroid.latitude == 1.0
+
+
+def test_polygon_centroid_of_an_l_shape_is_not_the_bounding_box_midpoint() -> None:
+    """An L-shaped ring (area 6) pulls the shoelace centroid off the bounding-box midpoint (2.0, 1.5)."""
+    ring = [[0, 0], [4, 0], [4, 1], [1, 1], [1, 3], [0, 3], [0, 0]]
+    centroid = service._polygon_centroid("Polygon", [ring], [])
+    assert centroid.longitude == 1.5
+    assert centroid.latitude == 1.0
+
+
+def test_polygon_centroid_uses_the_largest_outer_ring() -> None:
+    """A MultiPolygon takes the centroid of the outer ring with the largest absolute area."""
+    small = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]
+    large = [[10, 10], [14, 10], [14, 12], [10, 12], [10, 10]]
+    centroid = service._polygon_centroid("MultiPolygon", [[small], [large]], [])
+    assert centroid.longitude == 12.0
+    assert centroid.latitude == 11.0
+
+
+def test_degenerate_ring_falls_back_to_the_vertex_mean() -> None:
+    """A zero-area ring has no shoelace centroid, so its vertices are averaged."""
+    ring = [[0, 0], [2, 2], [4, 4], [0, 0]]
+    centroid = service._polygon_centroid("Polygon", [ring], [])
+    assert centroid.longitude == 1.5
+    assert centroid.latitude == 1.5
 
 
 def test_entry_point_plugin_is_discovered() -> None:

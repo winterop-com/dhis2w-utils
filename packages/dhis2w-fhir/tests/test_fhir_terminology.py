@@ -1,15 +1,18 @@
 """Golden tests for option-set CodeSystem/ValueSet FSH emission."""
 
-from dhis2w_fhir.models import GenerateConfig, NamingConfig, OptionInput, OptionSetInput
-from dhis2w_fhir.terminology import build_option_set_artifacts
+from dhis2w_fhir.config import GenerateConfig, NamingConfig
+from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
+from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 
-_BIRTH_TYPE = OptionSetInput(
+_NAME_SOURCE = GenerateConfig(naming=NamingConfig(source="name"))
+
+_BIRTH_TYPE = OptionSetIn(
     uid="Xa1b2c3d4e5",
     name="Birth type",
     options=[
-        OptionInput(uid="EBE0c8sZazS", code="CS", name="Scheduled Cesarean", sort_order=2),
-        OptionInput(uid="kRRUtYaGett", code="NB", name="Natural Birth", sort_order=1),
-        OptionInput(uid="GVcG84DTFOB", code=None, name="Unplanned Cesarean", sort_order=3),
+        OptionIn(uid="EBE0c8sZazS", code="CS", name="Scheduled Cesarean", sort_order=2),
+        OptionIn(uid="kRRUtYaGett", code="NB", name="Natural Birth", sort_order=1),
+        OptionIn(uid="GVcG84DTFOB", code=None, name="Unplanned Cesarean", sort_order=3),
     ],
 )
 
@@ -40,14 +43,26 @@ Description: "DHIS2 option set Birth type (Xa1b2c3d4e5). Concept codes are DHIS2
 """
 
 
-def test_uid_source_golden() -> None:
-    """Default emission: UID concept codes, DHIS2 codes as dhis2-code properties, sortOrder ordering."""
-    build = build_option_set_artifacts([_BIRTH_TYPE], GenerateConfig())
+def test_name_source_golden() -> None:
+    """Name-sourced emission: UID concept codes, DHIS2 codes as dhis2-code properties, sortOrder ordering."""
+    build = build_option_set_artifacts([_BIRTH_TYPE], _NAME_SOURCE)
     assert len(build.artifacts) == 1
     artifact = build.artifacts[0]
     assert artifact.relative_path == "terminology/birth-type.fsh"
     assert artifact.fsh_name == "D2OSBirthType"
     assert artifact.content == _EXPECTED_UID_SOURCE
+    assert build.notes == []
+
+
+def test_uid_source_is_default() -> None:
+    """Default naming source is uid: file, id, and FSH name all derive from the option set UID."""
+    build = build_option_set_artifacts([_BIRTH_TYPE], GenerateConfig())
+    artifact = build.artifacts[0]
+    assert artifact.relative_path == "terminology/xa1b2c3d4e5.fsh"
+    assert artifact.fsh_name == "D2OSXa1b2c3d4e5"
+    assert "CodeSystem: D2OSXa1b2c3d4e5CS" in artifact.content
+    assert "Id: d2-os-xa1b2c3d4e5-cs" in artifact.content
+    assert 'Title: "Birth type"' in artifact.content
     assert build.notes == []
 
 
@@ -66,10 +81,10 @@ def test_code_source_uses_codes_with_uid_property() -> None:
 
 def test_code_source_rejects_invalid_fhir_codes() -> None:
     """An option code that is not a valid FHIR code falls back to the UID with a note."""
-    option_set = OptionSetInput(
+    option_set = OptionSetIn(
         uid="Ys9d8f7g6h5",
         name="Sample",
-        options=[OptionInput(uid="AcdAzPoqdtd", code=" bad code ", name="Bad", sort_order=1)],
+        options=[OptionIn(uid="AcdAzPoqdtd", code=" bad code ", name="Bad", sort_order=1)],
     )
     build = build_option_set_artifacts([option_set], GenerateConfig(concept_code_source="code"))
     content = build.artifacts[0].content
@@ -79,10 +94,10 @@ def test_code_source_rejects_invalid_fhir_codes() -> None:
 
 def test_spaced_code_uses_quoted_form() -> None:
     """A valid FHIR code containing a space is emitted with the quoted #"..." form."""
-    option_set = OptionSetInput(
+    option_set = OptionSetIn(
         uid="Ys9d8f7g6h5",
         name="Sample",
-        options=[OptionInput(uid="AcdAzPoqdtd", code="two words", name="Spaced", sort_order=1)],
+        options=[OptionIn(uid="AcdAzPoqdtd", code="two words", name="Spaced", sort_order=1)],
     )
     build = build_option_set_artifacts([option_set], GenerateConfig(concept_code_source="code"))
     assert '* #"two words" "Spaced"' in build.artifacts[0].content
@@ -90,9 +105,9 @@ def test_spaced_code_uses_quoted_form() -> None:
 
 def test_slug_collision_gets_uid_suffix() -> None:
     """Two sets kebab-ing to the same slug: the later one in (name, uid) order gets a UID suffix."""
-    first = OptionSetInput(uid="Aa1aaaaaaaa", name="Sex", options=[])
-    second = OptionSetInput(uid="Bb2bbbbbbbb", name="SEX", options=[])
-    build = build_option_set_artifacts([first, second], GenerateConfig())
+    first = OptionSetIn(uid="Aa1aaaaaaaa", name="Sex", options=[])
+    second = OptionSetIn(uid="Bb2bbbbbbbb", name="SEX", options=[])
+    build = build_option_set_artifacts([first, second], _NAME_SOURCE)
     paths = [artifact.relative_path for artifact in build.artifacts]
     assert "terminology/sex.fsh" in paths
     assert "terminology/sex-aa1aaaaaaaa.fsh" in paths
@@ -102,24 +117,24 @@ def test_slug_collision_gets_uid_suffix() -> None:
 def test_long_name_slug_is_bounded_to_fhir_id_limit() -> None:
     """A very long option-set name yields ids within FHIR's 64-character limit, disambiguated by UID."""
     long_name = "Residence of the malaria case/s that prompted foci investigation"
-    option_set = OptionSetInput(uid="Cc3cccccccc", name=long_name, options=[])
-    build = build_option_set_artifacts([option_set], GenerateConfig())
+    option_set = OptionSetIn(uid="Cc3cccccccc", name=long_name, options=[])
+    build = build_option_set_artifacts([option_set], _NAME_SOURCE)
     artifact = build.artifacts[0]
     for line in artifact.content.splitlines():
         if line.startswith("Id: "):
             assert len(line.removeprefix("Id: ")) <= 64, line
     assert "cc3cccccccc" in artifact.relative_path
-    assert any("exceeds the FHIR id length" in note for note in build.notes)
+    assert any("exceed the FHIR id length" in note for note in build.notes)
 
 
 def test_sets_sorted_by_name() -> None:
     """Output artifacts come in (name, uid) order regardless of input order."""
     build = build_option_set_artifacts(
         [
-            OptionSetInput(uid="Bb2bbbbbbbb", name="Zulu", options=[]),
-            OptionSetInput(uid="Aa1aaaaaaaa", name="Alpha", options=[]),
+            OptionSetIn(uid="Bb2bbbbbbbb", name="Zulu", options=[]),
+            OptionSetIn(uid="Aa1aaaaaaaa", name="Alpha", options=[]),
         ],
-        GenerateConfig(),
+        _NAME_SOURCE,
     )
     assert [artifact.relative_path for artifact in build.artifacts] == [
         "terminology/alpha.fsh",
@@ -129,12 +144,12 @@ def test_sets_sorted_by_name() -> None:
 
 def test_naming_tokens_flow_into_option_set_artifacts() -> None:
     """Custom prefix / option_set tokens rename artifacts; empty tokens drop out of names and ids."""
-    config = GenerateConfig(naming=NamingConfig(prefix="Dhis2", option_set=""))
+    config = GenerateConfig(naming=NamingConfig(source="name", prefix="Dhis2", option_set=""))
     build = build_option_set_artifacts([_BIRTH_TYPE], config)
     content = build.artifacts[0].content
     assert "CodeSystem: Dhis2BirthTypeCS" in content
     assert "Id: dhis2-birth-type-cs" in content
-    bare = GenerateConfig(naming=NamingConfig(prefix="", option_set=""))
+    bare = GenerateConfig(naming=NamingConfig(source="name", prefix="", option_set=""))
     content = build_option_set_artifacts([_BIRTH_TYPE], bare).artifacts[0].content
     assert "CodeSystem: BirthTypeCS" in content
     assert "Id: birth-type-cs" in content
