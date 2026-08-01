@@ -85,6 +85,66 @@ def test_scaffolded_aliases_are_hand_space() -> None:
     assert "foundation/d2-aliases.fsh" in aliases
 
 
+def test_publisher_url_is_omitted_unless_given() -> None:
+    """No --publisher-url means no publisher.url: pointing it at the canonical breaks a link on every page."""
+    sushi_config = _by_path()["ig/sushi-config.yaml"]
+    assert "  name: Test Organisation\n" in sushi_config
+    assert "  url:" not in sushi_config
+
+
+def test_publisher_url_is_emitted_when_given() -> None:
+    """A real publisher home page lands in sushi-config verbatim."""
+    options = _OPTIONS.model_copy(update={"publisher_url": "https://test.example"})
+    files = {file.relative_path: file.content for file in build_scaffold_files(options)}
+    assert "  url: https://test.example\n" in files["ig/sushi-config.yaml"]
+
+
+def test_index_page_includes_the_standard_ig_fragments() -> None:
+    """The index page pulls in the three fragments the publisher generates into Jekyll's _includes."""
+    index = _by_path()["ig/input/pagecontent/index.md"]
+    assert "{% include ip-statements.xhtml %}" in index
+    assert "{% include cross-version-analysis.xhtml %}" in index
+    assert "{% include dependency-table.xhtml %}" in index
+
+
+def test_ignore_warnings_suppresses_the_accepted_classes() -> None:
+    """Every suppressed class carries the `# ` reason line the publisher requires, in wildcard form."""
+    suppressed = _by_path()["ig/input/ignoreWarnings.txt"]
+    assert suppressed.startswith("== Suppressed Messages ==")
+    assert "%should have an OID assigned to cater for possible use with OID based terminology systems%" in suppressed
+    assert "%could usefully have an OID assigned%" in suppressed
+    assert "%is deprecated with the note: 'Use additionalBinding extension or element instead'%" in suppressed
+    assert "dhis2.org/fhir/id/" not in suppressed
+    for line in suppressed.splitlines()[1:]:
+        if line and not line.startswith("# "):
+            assert line.startswith("%"), line
+
+
+def test_gitignore_covers_the_publisher_side_products() -> None:
+    """The requirements file and the translations directory the publisher writes stay out of git."""
+    ignored = _by_path()[".gitignore"]
+    assert "ig/Requirements-fromNarrative.json" in ignored
+    assert "ig/translations/" in ignored
+    assert "ig/input-cache/" in ignored
+
+
+def test_makefile_mounts_the_package_cache_volume() -> None:
+    """Both container targets mount the named volume, so a rebuild does not re-download the packages."""
+    makefile = _by_path()["Makefile"]
+    assert makefile.count("-v $(CACHE_VOLUME):/home/publisher/.fhir") == 2
+    assert "CACHE_VOLUME := fhir-ig-cache" in makefile
+
+
+def test_makefile_clean_keeps_the_terminology_cache() -> None:
+    """`clean` drops the publisher's side products but leaves input-cache for the next build."""
+    makefile = _by_path()["Makefile"]
+    assert "$(IG_DIR)/translations $(IG_DIR)/Requirements-fromNarrative.json" in makefile
+    clean_recipe = makefile.split("clean:")[1].split("clean-all:")[0]
+    assert "rm -rf $(IG_DIR)/input-cache" not in clean_recipe
+    assert "rm -rf $(IG_DIR)/input-cache" in makefile
+    assert "docker volume rm $(CACHE_VOLUME)" in makefile
+
+
 def test_makefile_uses_real_tabs() -> None:
     """Recipe lines are tab-indented so make accepts the scaffold untouched."""
     makefile = _by_path()["Makefile"]

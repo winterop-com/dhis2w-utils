@@ -9,6 +9,7 @@ InstanceOf: {{ organization.profile }}
 Title: {{ organization.title_literal }}
 Description: {{ organization.description_literal }}
 Usage: #definition
+* id = "{{ organization.uid }}"
 * identifier[dhis2uid].system = $DHIS2-OU
 * identifier[dhis2uid].value = "{{ organization.uid }}"
 * identifier[dhis2code].system = $DHIS2-OU-CODE
@@ -46,6 +47,7 @@ InstanceOf: {{ location.profile }}
 Title: {{ location.title_literal }}
 Description: {{ location.description_literal }}
 Usage: #definition
+* id = "{{ location.uid }}"
 * identifier[dhis2uid].system = $DHIS2-OU
 * identifier[dhis2uid].value = "{{ location.uid }}"
 * identifier[dhis2code].system = $DHIS2-OU-CODE

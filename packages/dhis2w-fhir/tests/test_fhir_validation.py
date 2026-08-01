@@ -1,5 +1,7 @@
 """Unit tests for FHIR-safety validation: instance-wide sweep, deep option pass, markdown report."""
 
+from datetime import UTC, datetime
+
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
@@ -11,6 +13,7 @@ from dhis2w_fhir.validation.schemas import (
 
 _CONFIG = GenerateConfig()
 _CODE_MODE = GenerateConfig(concept_code_source="code")
+_GENERATED_AT = datetime(2026, 8, 1, 12, 0, tzinfo=UTC)
 
 
 def _set(uid: str, name: str, options: list[OptionIn]) -> OptionSetIn:
@@ -194,15 +197,15 @@ def test_markdown_report_groups_by_type() -> None:
         [_set("Aa1aaaaaaaa", "Sex", [OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Male")])],
         [MetadataCollectionIn(resource="dataElements", items=[MetadataItemIn(uid="De1aaaaaaaa", code=" X ")])],
     )
-    markdown = render_validation_markdown(report, "probe (https://dhis2.example)")
+    markdown = render_validation_markdown(report, "probe (https://dhis2.example)", _GENERATED_AT)
     assert "# FHIR-safety validation report" in markdown
     assert "Target: probe (https://dhis2.example)" in markdown
-    assert "## dataElements (1)" in markdown
-    assert "## options (1)" in markdown
+    assert "## dataElements" in markdown
+    assert "## options" in markdown
     assert "| error | invalid-code |" in markdown
 
 
 def test_markdown_report_clean() -> None:
     """A clean report says so instead of rendering empty tables."""
-    markdown = render_validation_markdown(_validate([]), "probe")
+    markdown = render_validation_markdown(_validate([]), "probe", _GENERATED_AT)
     assert "No findings" in markdown

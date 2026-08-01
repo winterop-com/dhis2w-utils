@@ -45,6 +45,7 @@ def _render(relative_path: str, template_name: str, options: InitOptions, **extr
         name=options.name,
         title=options.title,
         publisher=options.publisher,
+        publisher_url=options.publisher_url,
         **extra,
     )
     return ScaffoldFile(relative_path=relative_path, content=content)

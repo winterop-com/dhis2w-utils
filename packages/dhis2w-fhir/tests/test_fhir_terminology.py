@@ -20,15 +20,17 @@ _EXPECTED_UID_SOURCE = """CodeSystem: D2OSBirthTypeCS
 Id: d2-os-birth-type-cs
 Title: "Birth type"
 Description: "DHIS2 option set Birth type (Xa1b2c3d4e5). Concept codes are DHIS2 option UIDs."
-* ^identifier[+].system = "http://dhis2.org/fhir/id/option-set"
+* ^identifier[+].system = $DHIS2-OS
 * ^identifier[=].value = "Xa1b2c3d4e5"
-* ^identifier[+].system = "http://dhis2.org/fhir/id/option-set-code"
+* ^identifier[+].system = $DHIS2-OS-CODE
 * ^identifier[=].value = "Xa1b2c3d4e5"
 * ^status = #active
+* ^experimental = true
 * ^content = #complete
 * ^caseSensitive = true
 * ^valueSet = Canonical(D2OSBirthTypeVS)
 * ^property[+].code = #dhis2-code
+* ^property[=].uri = "http://dhis2.org/fhir/property/dhis2-code"
 * ^property[=].description = "DHIS2 option code."
 * ^property[=].type = #string
 * #kRRUtYaGett "Natural Birth"
@@ -45,11 +47,12 @@ ValueSet: D2OSBirthTypeVS
 Id: d2-os-birth-type-vs
 Title: "Birth type"
 Description: "DHIS2 option set Birth type (Xa1b2c3d4e5). Concept codes are DHIS2 option UIDs."
-* ^identifier[+].system = "http://dhis2.org/fhir/id/option-set"
+* ^identifier[+].system = $DHIS2-OS
 * ^identifier[=].value = "Xa1b2c3d4e5"
-* ^identifier[+].system = "http://dhis2.org/fhir/id/option-set-code"
+* ^identifier[+].system = $DHIS2-OS-CODE
 * ^identifier[=].value = "Xa1b2c3d4e5"
 * ^status = #active
+* ^experimental = true
 * include codes from system D2OSBirthTypeCS
 """
 
@@ -69,10 +72,10 @@ def test_uid_source_is_default() -> None:
     """Default naming source is uid: file, id, and FSH name all derive from the option set UID."""
     build = build_option_set_artifacts([_BIRTH_TYPE], GenerateConfig())
     artifact = build.artifacts[0]
-    assert artifact.relative_path == "terminology/xa1b2c3d4e5.fsh"
+    assert artifact.relative_path == "terminology/Xa1b2c3d4e5.fsh"
     assert artifact.fsh_name == "D2OSXa1b2c3d4e5"
     assert "CodeSystem: D2OSXa1b2c3d4e5CS" in artifact.content
-    assert "Id: d2-os-xa1b2c3d4e5-cs" in artifact.content
+    assert "Id: d2-os-Xa1b2c3d4e5-cs" in artifact.content
     assert 'Title: "Birth type"' in artifact.content
     assert build.notes == []
 
@@ -90,15 +93,27 @@ def test_code_source_uses_codes_with_uid_property() -> None:
     assert any("has no code" in note for note in build.notes)
 
 
-def test_option_set_business_identifiers_use_the_configured_base() -> None:
-    """The CS/VS pair carries both DHIS2 identifiers of the source set under the configured base URI."""
-    config = GenerateConfig(identifier_system_base="https://example.org/dhis2/")
+def test_option_set_business_identifiers_use_the_foundation_aliases() -> None:
+    """The CS/VS pair carries both DHIS2 identifiers of the source set through the $DHIS2-OS aliases."""
     coded = OptionSetIn(uid="Ys9d8f7g6h5", code="BIRTH", name="Sample", options=[])
-    content = build_option_set_artifacts([coded], config).artifacts[0].content
-    assert content.count('* ^identifier[+].system = "https://example.org/dhis2/id/option-set"') == 2
-    assert content.count('* ^identifier[+].system = "https://example.org/dhis2/id/option-set-code"') == 2
+    content = build_option_set_artifacts([coded], GenerateConfig()).artifacts[0].content
+    assert content.count("* ^identifier[+].system = $DHIS2-OS\n") == 2
+    assert content.count("* ^identifier[+].system = $DHIS2-OS-CODE\n") == 2
     assert content.count('* ^identifier[=].value = "Ys9d8f7g6h5"') == 2
     assert content.count('* ^identifier[=].value = "BIRTH"') == 2
+
+
+def test_concept_property_declarations_carry_the_configured_uri() -> None:
+    """Each concept property declares a URI under the configured identifier base, not a bare code."""
+    config = GenerateConfig(identifier_system_base="https://example.org/dhis2/")
+    content = build_option_set_artifacts([_BIRTH_TYPE], config).artifacts[0].content
+    assert '* ^property[=].uri = "https://example.org/dhis2/property/dhis2-code"' in content
+
+
+def test_generated_terminology_is_marked_experimental() -> None:
+    """Both halves of the pair carry ^experimental, which ShareableCodeSystem/ValueSet require."""
+    content = build_option_set_artifacts([_BIRTH_TYPE], GenerateConfig()).artifacts[0].content
+    assert content.count("* ^experimental = true") == 2
 
 
 def test_every_concept_carries_the_complementary_identifier() -> None:

@@ -5,11 +5,15 @@ from __future__ import annotations
 import csv
 import io
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.validation.schemas import FhirValidationReport, ValidationFinding
+from dhis2w_fhir.validation.schemas import FhirValidationReport, SeverityBreakdown, ValidationFinding
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.validation", "templates"),
@@ -34,19 +38,21 @@ class _ReportRow(BaseModel):
 
 
 class _ReportGroup(BaseModel):
-    """The findings of one resource type, in report order."""
+    """The findings of one resource type, in report order, under their severity breakdown."""
 
     model_config = ConfigDict(frozen=True)
 
     resource_type: str
+    breakdown: str
     rows: list[_ReportRow] = Field(default_factory=list)
 
 
-def render_validation_markdown(report: FhirValidationReport, target: str) -> str:
+def render_validation_markdown(report: FhirValidationReport, target: str, generated_at: datetime) -> str:
     """Render the validation report as Markdown, findings grouped by resource type."""
     return _ENVIRONMENT.get_template("report.md.jinja").render(
         report=report,
         target=target,
+        generated_at=generated_at.isoformat(timespec="seconds"),
         groups=_group_findings(report.findings),
     )
 
@@ -77,20 +83,35 @@ def render_validation_csv(report: FhirValidationReport) -> str:
 
 def _group_findings(findings: list[ValidationFinding]) -> list[_ReportGroup]:
     """Bucket findings by resource type, sorted by type, each finding rendered as a table row."""
-    grouped: defaultdict[str, list[_ReportRow]] = defaultdict(list)
+    grouped: defaultdict[str, list[ValidationFinding]] = defaultdict(list)
     for finding in findings:
-        grouped[finding.resource_type].append(
-            _ReportRow(
-                severity=finding.severity,
-                category=finding.category,
-                object_label=f"{_escape_pipes(finding.name)} ({finding.uid})",
-                code=_escape_pipes(finding.code) if finding.code else "-",
-                message=finding.message,
-            )
+        grouped[finding.resource_type].append(finding)
+    return [
+        _ReportGroup(
+            resource_type=resource_type,
+            breakdown=SeverityBreakdown.of(grouped[resource_type]).line,
+            rows=[_report_row(finding) for finding in grouped[resource_type]],
         )
-    return [_ReportGroup(resource_type=resource_type, rows=grouped[resource_type]) for resource_type in sorted(grouped)]
+        for resource_type in sorted(grouped)
+    ]
 
 
-def _escape_pipes(value: str) -> str:
-    """Escape the Markdown table cell separator so codes and names cannot break the table."""
-    return value.replace("|", "\\|")
+def _report_row(finding: ValidationFinding) -> _ReportRow:
+    """Project one finding onto a Markdown table row, its cells already made table-safe."""
+    return _ReportRow(
+        severity=finding.severity,
+        category=finding.category,
+        object_label=f"{_table_cell(finding.name)} ({finding.uid})",
+        code=_table_cell(finding.code) if finding.code else "-",
+        message=finding.message,
+    )
+
+
+def _table_cell(value: str) -> str:
+    r"""Make a code or name safe for a Markdown table cell: escape pipes, flatten line breaks to a space.
+
+    A DHIS2 code or name may carry a literal newline (play 2.42 has category options such as
+    `BLUE\nBLUE`), which would otherwise split the row and garble every column after it.
+    """
+    flattened = value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+    return flattened.replace("|", "\\|")

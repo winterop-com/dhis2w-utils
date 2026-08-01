@@ -16,7 +16,7 @@ from fpdf.enums import TableCellFillMode, TextEmphasis
 from fpdf.fonts import FontFace
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_fhir.validation.schemas import FhirValidationReport, ValidationFinding
+from dhis2w_fhir.validation.schemas import FhirValidationReport, SeverityBreakdown, ValidationFinding
 
 if TYPE_CHECKING:
     from fpdf.outline import OutlineSection
@@ -45,31 +45,21 @@ _FINDING_COLUMN_WIDTHS = (16, 24, 44, 22, 84)
 _BODY_FACE = FontFace(family=_FONT_FAMILY)
 
 
-class _TypeSummary(BaseModel):
-    """Per-resource-type finding counts, used by the table of contents and the section headings."""
+class _TypeSection(BaseModel):
+    """One resource type's findings, in report order, with the breakdown the contents and heading print."""
 
     model_config = ConfigDict(frozen=True)
 
     resource_type: str
-    total: int
-    errors: int
-    warnings: int
-    infos: int
-
-    @property
-    def breakdown(self) -> str:
-        """The counts as one line, e.g. `12 findings - 3 errors, 4 warnings, 5 infos`."""
-        label = "finding" if self.total == 1 else "findings"
-        return f"{self.total} {label} - {self.errors} errors, {self.warnings} warnings, {self.infos} infos"
-
-
-class _TypeSection(BaseModel):
-    """One resource type's findings, in report order."""
-
-    model_config = ConfigDict(frozen=True)
-
-    summary: _TypeSummary
+    breakdown: SeverityBreakdown
     findings: list[ValidationFinding]
+
+
+def _code_cell(code: str | None) -> str:
+    """Render the code column: a missing code as `-`, a code that is the empty string as `(empty)`."""
+    if code is None:
+        return "-"
+    return code or "(empty)"
 
 
 def render_validation_pdf(report: FhirValidationReport, target: str, generated_at: datetime) -> bytes:
@@ -102,14 +92,13 @@ def _sections(report: FhirValidationReport) -> list[_TypeSection]:
     sections: list[_TypeSection] = []
     for resource_type in resource_types:
         findings = [finding for finding in report.findings if finding.resource_type == resource_type]
-        summary = _TypeSummary(
-            resource_type=resource_type,
-            total=len(findings),
-            errors=sum(1 for finding in findings if finding.severity == "error"),
-            warnings=sum(1 for finding in findings if finding.severity == "warning"),
-            infos=sum(1 for finding in findings if finding.severity == "info"),
+        sections.append(
+            _TypeSection(
+                resource_type=resource_type,
+                breakdown=SeverityBreakdown.of(findings),
+                findings=findings,
+            )
         )
-        sections.append(_TypeSection(summary=summary, findings=findings))
     return sections
 
 
@@ -203,12 +192,12 @@ class _ValidationPdf(FPDF):
         pdf.ln(2)
         pdf.set_font(_FONT_FAMILY, "", 9)
         for entry in outline:
-            summary = self._summary_for(entry.name)
+            section = self._section_for(entry.name)
             link = pdf.add_link(page=entry.page_number)
             pdf.set_text_color(20, 60, 140)
             pdf.cell(60, 6, entry.name, link=link)
             pdf.set_text_color(*_MUTED)
-            pdf.cell(90, 6, summary.breakdown if summary is not None else "", link=link)
+            pdf.cell(90, 6, section.breakdown.line if section is not None else "", link=link)
             pdf.set_text_color(*_INK)
             pdf.cell(0, 6, str(entry.page_number), align="R", new_x="LMARGIN", new_y="NEXT", link=link)
         if not outline:
@@ -229,12 +218,12 @@ class _ValidationPdf(FPDF):
         """Open a bookmarked section for one resource type on its own page, then draw its findings table."""
         if start_new_page:
             self.add_page()
-        self.start_section(section.summary.resource_type)
+        self.start_section(section.resource_type)
         self.set_font(_FONT_FAMILY, "B", 14)
-        self.multi_cell(0, 9, section.summary.resource_type, new_x="LMARGIN", new_y="NEXT")
+        self.multi_cell(0, 9, section.resource_type, new_x="LMARGIN", new_y="NEXT")
         self.set_font(_FONT_FAMILY, "", 9)
         self.set_text_color(*_MUTED)
-        self.multi_cell(0, 5.5, section.summary.breakdown, new_x="LMARGIN", new_y="NEXT")
+        self.multi_cell(0, 5.5, section.breakdown.line, new_x="LMARGIN", new_y="NEXT")
         self.set_text_color(*_INK)
         self.ln(3)
         self.set_font(_FONT_FAMILY, "", 7.5)
@@ -257,12 +246,12 @@ class _ValidationPdf(FPDF):
                 )
                 row.cell(finding.category, style=_BODY_FACE)
                 row.cell(f"{finding.name} ({finding.uid})", style=_BODY_FACE)
-                row.cell(finding.code or "-", style=_BODY_FACE)
+                row.cell(_code_cell(finding.code), style=_BODY_FACE)
                 row.cell(finding.message, style=_BODY_FACE)
 
-    def _summary_for(self, resource_type: str) -> _TypeSummary | None:
-        """Find the counts belonging to one contents entry."""
+    def _section_for(self, resource_type: str) -> _TypeSection | None:
+        """Find the section belonging to one contents entry."""
         for section in self.sections:
-            if section.summary.resource_type == resource_type:
-                return section.summary
+            if section.resource_type == resource_type:
+                return section
         return None

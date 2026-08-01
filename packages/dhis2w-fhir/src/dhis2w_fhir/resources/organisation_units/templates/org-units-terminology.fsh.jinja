@@ -3,16 +3,20 @@ Id: {{ names.terminology_id('cs') }}
 Title: "DHIS2 Organisation Units"
 Description: "DHIS2 organisation units. Concept codes are DHIS2 organisation unit UIDs."
 * ^status = #active
+* ^experimental = true
 * ^content = #complete
 * ^caseSensitive = true
 * ^valueSet = Canonical({{ names.organisation_unit_value_set }})
 * ^property[+].code = #level
+* ^property[=].uri = "{{ property_base }}/level"
 * ^property[=].description = "DHIS2 organisation unit hierarchy level."
 * ^property[=].type = #integer
 * ^property[+].code = #parent
+* ^property[=].uri = "{{ property_base }}/parent"
 * ^property[=].description = "Parent organisation unit UID."
 * ^property[=].type = #code
 * ^property[+].code = #dhis2-code
+* ^property[=].uri = "{{ property_base }}/dhis2-code"
 * ^property[=].description = "DHIS2 organisation unit code."
 * ^property[=].type = #string
 {% for concept in concepts %}
@@ -38,4 +42,5 @@ Id: {{ names.terminology_id('vs') }}
 Title: "DHIS2 Organisation Units"
 Description: "All DHIS2 organisation units in the generated selection."
 * ^status = #active
+* ^experimental = true
 * include codes from system {{ names.organisation_unit_code_system }}

@@ -11,7 +11,9 @@ releaseLabel: ci-build
 license: CC0-1.0
 publisher:
   name: {{ publisher }}
-  url: {{ canonical }}
+{% if publisher_url %}
+  url: {{ publisher_url }}
+{% endif %}
 
 menu:
   Home: index.html

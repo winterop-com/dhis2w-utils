@@ -40,6 +40,40 @@ class ValidationFinding(BaseModel):
     message: str
 
 
+def pluralize(count: int, noun: str) -> str:
+    """Render a count with its noun, singular at exactly one (`1 error`, `0 errors`)."""
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+class SeverityBreakdown(BaseModel):
+    """One group's finding counts, rendered as the single line both the Markdown and PDF reports print."""
+
+    model_config = ConfigDict(frozen=True)
+
+    total: int
+    errors: int
+    warnings: int
+    infos: int
+
+    @classmethod
+    def of(cls, findings: list[ValidationFinding]) -> SeverityBreakdown:
+        """Count the severities across one group of findings."""
+        return cls(
+            total=len(findings),
+            errors=sum(1 for finding in findings if finding.severity == "error"),
+            warnings=sum(1 for finding in findings if finding.severity == "warning"),
+            infos=sum(1 for finding in findings if finding.severity == "info"),
+        )
+
+    @property
+    def line(self) -> str:
+        """The counts as one line, e.g. `12 findings - 3 errors, 4 warnings, 5 infos`."""
+        return (
+            f"{pluralize(self.total, 'finding')} - {pluralize(self.errors, 'error')}, "
+            f"{pluralize(self.warnings, 'warning')}, {pluralize(self.infos, 'info')}"
+        )
+
+
 class FhirValidationReport(BaseModel):
     """Outcome of `d2w fhir validate` - FHIR-safety of a DHIS2 instance's codes."""
 

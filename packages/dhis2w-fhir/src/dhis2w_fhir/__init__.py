@@ -18,7 +18,12 @@ from dhis2w_fhir.config import (
     load_project,
     write_fhir_config,
 )
-from dhis2w_fhir.foundation import FoundationNaming, build_foundation_artifacts
+from dhis2w_fhir.foundation import (
+    FoundationNaming,
+    NamingSystemDeclaration,
+    build_foundation_artifacts,
+    build_naming_system_declarations,
+)
 from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, normalize_locale
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.period import (
@@ -51,6 +56,7 @@ from dhis2w_fhir.validation.schemas import (
     FhirValidationReport,
     MetadataCollectionIn,
     MetadataItemIn,
+    SeverityBreakdown,
     ValidationFinding,
 )
 from dhis2w_fhir.writer import (
@@ -84,6 +90,7 @@ __all__ = [
     "MetadataCollectionIn",
     "MetadataItemIn",
     "NamingConfig",
+    "NamingSystemDeclaration",
     "NoFhirProjectError",
     "OptionIn",
     "OptionSetIn",
@@ -94,12 +101,14 @@ __all__ = [
     "PeriodValue",
     "ScaffoldFile",
     "ScaffoldReport",
+    "SeverityBreakdown",
     "SyncReport",
     "TranslationIn",
     "ValidationFinding",
     "aggregate_note",
     "build_code_validation",
     "build_foundation_artifacts",
+    "build_naming_system_declarations",
     "build_option_set_artifacts",
     "build_organisation_unit_instances",
     "build_organisation_unit_level_terminology",

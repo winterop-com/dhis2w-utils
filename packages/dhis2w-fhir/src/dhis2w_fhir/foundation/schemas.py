@@ -14,6 +14,34 @@ if TYPE_CHECKING:
 _DEFINITION_FALLBACK_PREFIX = "D2"
 
 
+class IdentifierSystemSubject(BaseModel):
+    """One DHIS2 object kind whose UID and code each get an identifier system."""
+
+    model_config = ConfigDict(frozen=True)
+
+    segment: str
+    token: str
+    label: str
+
+
+#: The object kinds that carry a DHIS2 identifier system today; each yields a UID and a code system.
+IDENTIFIER_SYSTEM_SUBJECTS = (
+    IdentifierSystemSubject(segment="org-unit", token="OrgUnit", label="organisation unit"),
+    IdentifierSystemSubject(segment="option-set", token="OptionSet", label="option set"),
+)
+
+
+class NamingSystemDeclaration(BaseModel):
+    """One DHIS2 identifier system as the NamingSystem instance the foundation template renders."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    title: str
+    description: str
+    url: str
+
+
 class FoundationNaming(BaseModel):
     """Derived FSH names and ids for the foundation artifacts under the configurable prefix token.
 

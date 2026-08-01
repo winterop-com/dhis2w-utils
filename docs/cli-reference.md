@@ -9958,6 +9958,7 @@ $ d2w fhir init [OPTIONS] [directory]
 * `--name <str>`: SUSHI name (default: derived from --id).
 * `--title <str>`: IG title (default: derived from --name).
 * `--publisher <str>`: Publisher name.  [default: Example Organisation]
+* `--publisher-url <str>`: Publisher home page. Omit it unless you have a real site: the IG publisher links it from every generated page, and pointing it at the canonical yields one broken link per page.
 * `--force`: Overwrite scaffold files that already exist.
 * `--help`: Show this message and exit.
 

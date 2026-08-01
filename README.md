@@ -36,7 +36,7 @@ Reach for the official client when you want the smallest possible dependency and
 | [`dhis2w-mcp-bridge`](https://pypi.org/project/dhis2w-mcp-bridge/) | `uv tool install dhis2w-mcp-bridge` | FastMCP server `dhis2w-mcp-bridge` — exposes the whole `d2w` CLI as a single `dhis2_cli` tool for small local models. |
 | [`dhis2w-browser`](https://pypi.org/project/dhis2w-browser/) | `uv add dhis2w-browser` | Playwright helpers for DHIS2 UI automation — PAT minting, Playwright-driven OIDC login + consent, dashboard / viz / map screenshot capture. Mounted under `d2w browser` when the `[browser]` extra is installed on `dhis2w-cli`. |
 | [`dhis2w-ql`](https://pypi.org/project/dhis2w-ql/) | `uv add dhis2w-ql` | The d2ql query + transform language: tokenizer, parser, evaluator, planner. Pure engine with a FHIRPath-compatible expression core — no DHIS2 runtime dependency. Powers `d2w query`. |
-| [`dhis2w-fhir`](https://pypi.org/project/dhis2w-fhir/) | `uv add dhis2w-fhir` | FHIR IG generation: SUSHI project scaffolding, FSH emission from DHIS2 option sets + organisation units, and FHIR-safety validation. Mounts `d2w fhir` via the plugin entry point. |
+| [`dhis2w-fhir`](https://pypi.org/project/dhis2w-fhir/) | `uv add dhis2w-fhir` | FHIR IG generation: SUSHI project scaffolding, FSH emission from a `foundation` target (DHIS2 identifier systems + the D2Period extension) plus DHIS2 option sets and organisation units, and FHIR-safety validation. Mounts `d2w fhir` via the plugin entry point. |
 | `dhis2w-codegen` | _workspace-only_ | Generator that emits pydantic models + `StrEnum`s + CRUD accessors into `dhis2w_client.generated.v{N}/`. Two source-of-truth paths: `/api/schemas` for metadata resources, `/api/openapi.json` for instance-side shapes (tracker writes, envelopes, auth schemes). |
 | `dhis2w-bench` | _workspace-only_ | Local-LLM benchmark harness for DHIS2 agents: coding, mcp-bridge, and full-mcp suites. |
 | [`dhis2w-mcp-router`](https://pypi.org/project/dhis2w-mcp-router/) | `uv tool install dhis2w-mcp-router` | Domain-neutral MCP router — fronts many upstream MCP servers behind two meta-tools (search + dispatch) so an agent gets lazy, searchable tool discovery instead of a huge up-front tool payload. |
@@ -254,7 +254,7 @@ Nineteen top-level domains; every plugin shares a `service.py` between the CLI a
 | `d2w messaging` | `/api/messageConversations` — send, reply, list, mark read/unread |
 | `d2w apps` | `/api/apps` + `/api/appHub` — install / uninstall / update installed apps, browse the App Hub catalog, point DHIS2 at a custom App Hub |
 | `d2w query` | Run d2ql queries against the instance — one-shot or in the interactive REPL |
-| `d2w fhir` | FHIR IG generation (via `dhis2w-fhir`) — scaffold a SUSHI project (`fhir init`), generate FSH from option sets and org units (`fhir generate`), check codes for FHIR-safety (`fhir validate`) |
+| `d2w fhir` | FHIR IG generation (via `dhis2w-fhir`) — scaffold a SUSHI project (`fhir init`), generate FSH from the DHIS2 identifier systems and D2Period (`fhir generate foundation`), from option sets and org units (`fhir generate`), check codes for FHIR-safety (`fhir validate`) |
 | `d2w doctor` | One-command preflight — ~100 metadata-health + integrity checks against a live instance |
 | `d2w browser` | Playwright-driven UI automation (PAT minting, dashboard / viz / map screenshot capture, automated OIDC login) — only registers when the `[browser]` extra is installed |
 | `d2w dev` | Codegen, UID gen, PAT / OAuth2 seed helpers, branding (`dev customize`), sample data |

@@ -1,4 +1,4 @@
-"""Unit tests for the CSV and PDF renderings of the FHIR-safety validation report."""
+"""Unit tests for the Markdown, CSV, and PDF renderings of the FHIR-safety validation report."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import csv
 import io
 from datetime import UTC, datetime
 
-from dhis2w_fhir.validation.pdf import render_validation_pdf
-from dhis2w_fhir.validation.report import CSV_HEADER, render_validation_csv
-from dhis2w_fhir.validation.schemas import FhirValidationReport, ValidationFinding
+from dhis2w_fhir.validation.pdf import _code_cell, render_validation_pdf
+from dhis2w_fhir.validation.report import CSV_HEADER, render_validation_csv, render_validation_markdown
+from dhis2w_fhir.validation.schemas import FhirValidationReport, SeverityBreakdown, ValidationFinding
 
 _GENERATED_AT = datetime(2026, 8, 1, 12, 0, tzinfo=UTC)
 
@@ -98,3 +98,44 @@ def test_pdf_of_a_clean_report() -> None:
     """A report with zero findings still renders: cover, contents, and the clean result."""
     payload = render_validation_pdf(FhirValidationReport(), "probe", _GENERATED_AT)
     assert payload.startswith(b"%PDF")
+
+
+def test_markdown_flattens_newlines_inside_a_code() -> None:
+    """A DHIS2 code carrying a literal newline (play 2.42 has them) must not split the Markdown row."""
+    report = FhirValidationReport(findings=[_finding("error", "categoryOptions", "Blue", code="BLUE\nBLUE")])
+    markdown = render_validation_markdown(report, "probe", _GENERATED_AT)
+    table_rows = [line for line in markdown.splitlines() if line.startswith("| error |")]
+    assert len(table_rows) == 1
+    assert "`BLUE BLUE`" in table_rows[0]
+    assert "BLUE\nBLUE" not in markdown
+
+
+def test_markdown_flattens_newlines_inside_a_name() -> None:
+    """The same flattening applies to the object column, which carries the DHIS2 name."""
+    report = FhirValidationReport(findings=[_finding("error", "categoryOptions", "Two\r\nLines")])
+    markdown = render_validation_markdown(report, "probe", _GENERATED_AT)
+    assert "| Two Lines (Uid1aaaaaaa) |" in markdown
+
+
+def test_markdown_carries_the_timestamp_and_per_section_breakdown() -> None:
+    """The Markdown report states when it was generated and breaks each section down by severity."""
+    markdown = render_validation_markdown(_report(), "probe", _GENERATED_AT)
+    assert "Generated: 2026-08-01T12:00:00+00:00" in markdown
+    assert "2 findings - 1 error, 0 warnings, 1 info" in markdown
+
+
+def test_severity_breakdown_is_singular_at_one() -> None:
+    """Every counted noun reads `1 error`, never `1 errors`."""
+    single = SeverityBreakdown(total=1, errors=1, warnings=1, infos=1)
+    assert single.line == "1 finding - 1 error, 1 warning, 1 info"
+    plural = SeverityBreakdown(total=0, errors=0, warnings=2, infos=2)
+    assert plural.line == "0 findings - 0 errors, 2 warnings, 2 infos"
+
+
+def test_pdf_renders_an_empty_code_distinctly() -> None:
+    """An empty-string code is a finding about an empty code, not about a missing one."""
+    assert _code_cell("") == "(empty)"
+    assert _code_cell(None) == "-"
+    assert _code_cell("X") == "X"
+    report = FhirValidationReport(findings=[_finding("error", "dataElements", "Blank", code="")])
+    assert render_validation_pdf(report, "probe", _GENERATED_AT).startswith(b"%PDF")

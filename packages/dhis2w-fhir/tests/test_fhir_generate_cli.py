@@ -158,7 +158,7 @@ def test_validate_renders_findings_and_exit_code(fhir_project: Path) -> None:
     assert "spaced-code x1" in result.output
     assert "two words" not in result.output
     markdown = fhir_project / "fhir-validate-report.md"
-    assert "## options (2)" in markdown.read_text(encoding="utf-8")
+    assert "## options" in markdown.read_text(encoding="utf-8")
     csv_report = fhir_project / "fhir-validate-report.csv"
     lines = csv_report.read_text(encoding="utf-8").splitlines()
     assert lines[0] == "severity,category,resource_type,uid,name,code,message"

@@ -11,8 +11,12 @@ def _by_path(config: GenerateConfig) -> dict[str, str]:
 
 
 def test_foundation_covers_expected_files() -> None:
-    """The target emits exactly the aliases file and the period extension file."""
-    assert set(_by_path(GenerateConfig())) == {"foundation/d2-aliases.fsh", "foundation/d2-period.fsh"}
+    """The target emits the aliases, the NamingSystem declarations, and the period extension."""
+    assert set(_by_path(GenerateConfig())) == {
+        "foundation/d2-aliases.fsh",
+        "foundation/d2-naming-systems.fsh",
+        "foundation/d2-period.fsh",
+    }
 
 
 def test_aliases_come_from_the_configured_identifier_base() -> None:
@@ -20,10 +24,41 @@ def test_aliases_come_from_the_configured_identifier_base() -> None:
     default = _by_path(GenerateConfig())["foundation/d2-aliases.fsh"]
     assert "Alias: $DHIS2-OU = http://dhis2.org/fhir/id/org-unit" in default
     assert "Alias: $DHIS2-OU-CODE = http://dhis2.org/fhir/id/org-unit-code" in default
+    assert "Alias: $DHIS2-OS = http://dhis2.org/fhir/id/option-set" in default
+    assert "Alias: $DHIS2-OS-CODE = http://dhis2.org/fhir/id/option-set-code" in default
     custom = _by_path(GenerateConfig(identifier_system_base="https://example.org/dhis2/"))
     aliases = custom["foundation/d2-aliases.fsh"]
     assert "Alias: $DHIS2-OU = https://example.org/dhis2/id/org-unit" in aliases
     assert "Alias: $DHIS2-OU-CODE = https://example.org/dhis2/id/org-unit-code" in aliases
+    assert "Alias: $DHIS2-OS = https://example.org/dhis2/id/option-set" in aliases
+
+
+def test_naming_systems_declare_every_identifier_system() -> None:
+    """Each `$DHIS2-*` alias URL is declared by a NamingSystem, so consumers can resolve what it means."""
+    content = _by_path(GenerateConfig())["foundation/d2-naming-systems.fsh"]
+    assert content.count("InstanceOf: NamingSystem") == 4
+    assert content.count("* kind = #identifier") == 4
+    assert content.count("* uniqueId[0].preferred = true") == 4
+    assert "Instance: D2OrgUnitIdentifierSystem" in content
+    assert "Instance: D2OrgUnitCodeIdentifierSystem" in content
+    assert "Instance: D2OptionSetIdentifierSystem" in content
+    assert "Instance: D2OptionSetCodeIdentifierSystem" in content
+    assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/org-unit"' in content
+    assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/option-set-code"' in content
+    assert "this slot repeats the UID" in content
+
+
+def test_naming_system_date_is_fixed_so_regeneration_is_byte_stable() -> None:
+    """R4 makes NamingSystem.date mandatory; a pinned date keeps a no-op regenerate from rewriting the file."""
+    first = _by_path(GenerateConfig())["foundation/d2-naming-systems.fsh"]
+    second = _by_path(GenerateConfig())["foundation/d2-naming-systems.fsh"]
+    assert first == second
+    assert first.count('* date = "2026-08-01"') == 4
+
+
+def test_period_terminology_is_marked_experimental() -> None:
+    """The period-type pair carries ^experimental, which ShareableCodeSystem/ValueSet require."""
+    assert _by_path(GenerateConfig())["foundation/d2-period.fsh"].count("* ^experimental = true") == 2
 
 
 def test_period_extension_shape() -> None:
@@ -61,6 +96,10 @@ def test_prefix_token_flows_into_the_foundation_names() -> None:
     assert "Extension: Dhis2Period" in custom
     assert "Id: dhis2-period" in custom
     assert "CodeSystem: Dhis2PeriodTypeCS" in custom
+    assert (
+        "Instance: Dhis2OrgUnitIdentifierSystem"
+        in (_by_path(GenerateConfig(naming=NamingConfig(prefix="Dhis2")))["foundation/d2-naming-systems.fsh"])
+    )
     bare = _by_path(GenerateConfig(naming=NamingConfig(prefix="")))["foundation/d2-period.fsh"]
     assert "Extension: D2Period" in bare
     assert "Id: d2-period" in bare

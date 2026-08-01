@@ -39,6 +39,7 @@ InstanceOf: D2Location
 Title: "Location - Sierra Leone"
 Description: "DHIS2 organisation unit Sierra Leone (ImspTQPwCqd), level 1 - physical location."
 Usage: #definition
+* id = "ImspTQPwCqd"
 * identifier[dhis2uid].system = $DHIS2-OU
 * identifier[dhis2uid].value = "ImspTQPwCqd"
 * identifier[dhis2code].system = $DHIS2-OU-CODE
@@ -53,6 +54,7 @@ InstanceOf: D2Organization
 Title: "Organization - Bo"
 Description: "DHIS2 organisation unit Bo (O6uvpzGd5pu), level 2."
 Usage: #definition
+* id = "O6uvpzGd5pu"
 * identifier[dhis2uid].system = $DHIS2-OU
 * identifier[dhis2uid].value = "O6uvpzGd5pu"
 * identifier[dhis2code].system = $DHIS2-OU-CODE
@@ -73,6 +75,7 @@ InstanceOf: D2Location
 Title: "Location - Bo"
 Description: "DHIS2 organisation unit Bo (O6uvpzGd5pu), level 2 - physical location."
 Usage: #definition
+* id = "O6uvpzGd5pu"
 * identifier[dhis2uid].system = $DHIS2-OU
 * identifier[dhis2uid].value = "O6uvpzGd5pu"
 * identifier[dhis2code].system = $DHIS2-OU-CODE
@@ -100,6 +103,22 @@ def test_profiles_artifact() -> None:
     assert "* managingOrganization only Reference(D2Organization)" in artifact.content
     assert "* position 0..1 MS" in artifact.content
     assert "* partOf only Reference(D2Location)" in artifact.content
+
+
+def test_location_profile_declares_the_boundary_extension() -> None:
+    """D2Location declares the GeoJSON boundary extension its instances carry, rather than leaving it loose."""
+    content = build_organisation_unit_profiles(_CONFIG).content
+    assert (
+        "* extension contains http://hl7.org/fhir/StructureDefinition/location-boundary-geojson named boundary 0..1"
+        in content
+    )
+    assert "* extension[boundary] ^short = \"The unit's DHIS2 geometry, carried as a GeoJSON Feature" in content
+
+
+def test_instances_carry_the_bare_uid_as_their_resource_id() -> None:
+    """Compiled files and URLs read Organization-<uid>.json / Location-<uid>.json, not the FSH instance name."""
+    content = build_organisation_unit_instances([_ROOT], _CONFIG).artifacts[0].content
+    assert content.count('* id = "ImspTQPwCqd"') == 2
 
 
 def test_level_terminology_covers_observed_levels() -> None:

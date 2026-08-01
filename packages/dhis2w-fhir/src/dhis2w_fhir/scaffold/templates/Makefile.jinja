@@ -8,6 +8,9 @@ TX_SERVER ?= http://tx.fhir.org
 #   make generate D2W="uv run --project /path/to/dhis2w-utils d2w"
 #   make generate D2W="uvx --from 'git+ssh://git@github.com/winterop-com/dhis2w-utils.git@main#     #subdirectory=packages/dhis2w-cli' --with 'dhis2w-fhir @ git+ssh://git@github.com/#     winterop-com/dhis2w-utils.git@main#subdirectory=packages/dhis2w-fhir' d2w"
 D2W ?= d2w
+# Named volume holding the FHIR package cache (~/.fhir in the container). Without it every run
+# re-downloads the core + template packages, which is the bulk of a cold build's wall clock.
+CACHE_VOLUME := fhir-ig-cache
 
 .PHONY: help setup upgrade generate validate sushi build clean clean-all
 
@@ -27,14 +30,18 @@ validate:  ## Check the DHIS2 instance's codes/names for FHIR-safety (writes md/
 	$(D2W) fhir validate
 
 sushi:  ## Compile FSH to FHIR resources
-	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig $(DOCKER_IMAGE) sushi .
+	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig -v $(CACHE_VOLUME):/home/publisher/.fhir \
+		$(DOCKER_IMAGE) sushi .
 
 build:  ## Run the full IG publisher
-	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig $(DOCKER_IMAGE) \
+	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig -v $(CACHE_VOLUME):/home/publisher/.fhir \
+		$(DOCKER_IMAGE) \
 		java -Xmx4g -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx $(TX_SERVER)
 
-clean:  ## Remove build output
-	rm -rf $(IG_DIR)/fsh-generated $(IG_DIR)/output $(IG_DIR)/temp $(IG_DIR)/template
+clean:  ## Remove build output (keeps ig/input-cache, the terminology cache the next build reuses)
+	rm -rf $(IG_DIR)/fsh-generated $(IG_DIR)/output $(IG_DIR)/temp $(IG_DIR)/template \
+		$(IG_DIR)/translations $(IG_DIR)/Requirements-fromNarrative.json
 
-clean-all: clean  ## Remove build output and the package cache
+clean-all: clean  ## Also remove the terminology cache and the FHIR package cache volume
 	rm -rf $(IG_DIR)/input-cache
+	-docker volume rm $(CACHE_VOLUME)

@@ -1,5 +1,7 @@
 // DHIS2 identifier systems, derived from [generate] identifier_system_base in fhir.toml.
-// The DHIS2 base URI is a local convention, not a registered FHIR NamingSystem.
+// Each one is declared by a NamingSystem in foundation/d2-naming-systems.fsh.
 
 Alias: $DHIS2-OU = {{ identifier_system_base }}/id/org-unit
 Alias: $DHIS2-OU-CODE = {{ identifier_system_base }}/id/org-unit-code
+Alias: $DHIS2-OS = {{ identifier_system_base }}/id/option-set
+Alias: $DHIS2-OS-CODE = {{ identifier_system_base }}/id/option-set-code

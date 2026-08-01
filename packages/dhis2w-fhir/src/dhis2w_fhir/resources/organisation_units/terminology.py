@@ -72,7 +72,11 @@ def build_organisation_unit_terminology(
         )
         for organisation_unit in sorted(organisation_units, key=lambda item: (item.path, item.uid))
     ]
-    content = _ENVIRONMENT.get_template("org-units-terminology.fsh.jinja").render(names=names, concepts=concepts)
+    content = _ENVIRONMENT.get_template("org-units-terminology.fsh.jinja").render(
+        names=names,
+        concepts=concepts,
+        property_base=f"{config.identifier_system_base}/property",
+    )
     return FshArtifact(
         relative_path="organization/org-units-terminology.fsh",
         kind="terminology-pair",

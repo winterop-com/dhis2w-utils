@@ -17,6 +17,7 @@ class InitOptions(BaseModel):
     name: str
     title: str
     publisher: str
+    publisher_url: str | None = None
 
     _normalize_canonical = field_validator("canonical")(strip_trailing_slash)
 

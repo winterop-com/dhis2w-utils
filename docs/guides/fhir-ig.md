@@ -44,7 +44,12 @@ make build
 ```
 
 The generated site lands in `ig/output/`. `make clean` removes build output;
-`make clean-all` also drops the package cache.
+`make clean-all` also drops the caches. See
+[Build time and the two caches](#build-time-and-the-two-caches).
+
+`init` also takes `--publisher-url`. Leave it off unless the publisher has a real
+home page: the IG publisher links that URL from every generated page, so aiming
+it at the canonical of an unpublished IG produces one QA warning per page.
 
 ## Which DHIS2 instance
 
@@ -98,10 +103,13 @@ locales = []
 
 **`identifier_system_base`** is the base URI for the DHIS2 identifier systems.
 It is live, not decorative: `d2w fhir generate foundation` writes it into
-`foundation/d2-aliases.fsh` as the `$DHIS2-OU` / `$DHIS2-OU-CODE` aliases, and
-the option-set terminology uses it for the business identifiers on each
-CodeSystem/ValueSet. Change it and regenerate, and every reference follows.
-It is a local convention, not a registered FHIR NamingSystem.
+`foundation/d2-aliases.fsh` as the `$DHIS2-OU` / `$DHIS2-OU-CODE` / `$DHIS2-OS` /
+`$DHIS2-OS-CODE` aliases every other file references, declares each of those URLs
+as a NamingSystem in `foundation/d2-naming-systems.fsh`, and derives the
+`<base>/property/<code>` URIs the terminology concept properties carry. Change it
+and regenerate, and every reference follows. It is a local DHIS2 convention -
+the NamingSystems are what state that convention inside the IG; they are not
+registrations with HL7.
 
 **`concept_code_source`** picks what a terminology concept's code is:
 
@@ -145,19 +153,30 @@ option_set = "OS"
 organisation_unit = "OU"
 ```
 
-**`source`** decides what file names, FHIR ids, and FSH names derive from:
+**`source`** decides what the **option-set** artifacts are named after - their
+file names, FHIR ids, and FSH names:
 
 - `"uid"` (default) - stable, collision-free, script-agnostic. DHIS2 names are
   often non-latin or non-unique, so uid-sourced ids never truncate or collide.
-  You get `d2-os-qdm5fpk5ra9-cs`.
-- `"name"` - human-readable slugs (`d2-os-birth-type-cs`), truncated with a UID
-  suffix when a name overflows FHIR's 64-character id limit and disambiguated
-  the same way when two names collide. Both are reported as notes.
+  You get `terminology/Qdm5fPK5Ra9.fsh`, `D2OSQdm5fPK5Ra9CS`, id
+  `d2-os-Qdm5fPK5Ra9-cs`. The UID keeps its own case: FHIR ids and file names
+  both permit mixed case, so the id reads straight back to the DHIS2 object.
+- `"name"` - human-readable slugs (`terminology/birth-type.fsh`,
+  `D2OSBirthTypeCS`, `d2-os-birth-type-cs`), truncated with a UID suffix when a
+  name overflows FHIR's 64-character id limit and disambiguated the same way when
+  two names collide. Both are reported as notes.
+
+Organisation-unit instances and files are outside `source` by construction:
+they are always UID-based (`Organization<UID>` / `Location<UID>` in
+`org-units-level-<n>.fsh`, each resource `id` the bare UID), because a hierarchy
+of thousands of units has neither unique names nor stable ones.
 
 **The tokens** compose artifact names by concatenation and ids by kebab-joining
 each non-empty token. With the defaults, an option set becomes
-`D2` + `OS` + `BirthType` + `CS` = `D2OSBirthTypeCS`, id `d2-os-birth-type-cs`.
-Rename or drop a token and the whole IG follows consistently.
+`D2` + `OS` + `Qdm5fPK5Ra9` + `CS` = `D2OSQdm5fPK5Ra9CS`, id
+`d2-os-Qdm5fPK5Ra9-cs`; on `source = "name"` the same set reads `D2OSBirthTypeCS`
+/ `d2-os-birth-type-cs`. Rename or drop a token and the whole IG follows
+consistently.
 
 | Token | Default | Notes |
 | --- | --- | --- |
@@ -244,9 +263,12 @@ changed, leaves what did not, deletes generated files that no longer belong.
 Writes `foundation/`, the part of the IG that depends on `fhir.toml` alone and
 never touches DHIS2:
 
-- **`d2-aliases.fsh`** - the `$DHIS2-OU` and `$DHIS2-OU-CODE` aliases, built from
-  `identifier_system_base`. The instance files reference these, so this target is
-  a prerequisite for a compiling IG.
+- **`d2-aliases.fsh`** - the `$DHIS2-OU`, `$DHIS2-OU-CODE`, `$DHIS2-OS`, and
+  `$DHIS2-OS-CODE` aliases, built from `identifier_system_base`. The instance and
+  terminology files reference these, so this target is a prerequisite for a
+  compiling IG.
+- **`d2-naming-systems.fsh`** - one `NamingSystem` per alias URL, declaring what
+  a DHIS2 identifier under it means. See [Identifiers](#identifiers).
 - **`d2-period.fsh`** - the `D2Period` extension plus its terminology.
 
 ### The D2Period extension
@@ -297,8 +319,19 @@ EpisodeOfCare, MeasureReport identifiers will follow it).
   property: in uid mode every concept gets `dhis2-code`, in code mode every
   concept gets `dhis2-uid`. No concept goes without the pair.
 - **Option-set CodeSystems and ValueSets** carry the source set's own pair as
-  `^identifier` business identifiers under `{base}/id/option-set` and
-  `{base}/id/option-set-code`.
+  `^identifier` business identifiers, referenced through the `$DHIS2-OS` /
+  `$DHIS2-OS-CODE` aliases (`{base}/id/option-set` and
+  `{base}/id/option-set-code`).
+
+**Every system is declared as a NamingSystem.** `foundation/d2-naming-systems.fsh`
+emits one `NamingSystem` per identifier system - `D2OrgUnitIdentifierSystem`,
+`D2OrgUnitCodeIdentifierSystem`, `D2OptionSetIdentifierSystem`,
+`D2OptionSetCodeIdentifierSystem` - each `kind = #identifier` with a single
+preferred `uri` uniqueId and a description of the convention, the code slot's UID
+fall-back included. Without them, a validator meeting `{base}/id/org-unit` has no
+definition to resolve and warns on every artifact carrying one. Because R4 makes
+`NamingSystem.date` mandatory, the declarations carry a pinned date rather than
+the time of the run - a generated timestamp would rewrite the file every time.
 
 **The code slot falls back to the UID.** DHIS2 codes are optional, and plenty of
 instances have units without one. Rather than emit a half-populated identifier,
@@ -458,7 +491,8 @@ make validate   d2w fhir validate
 make sushi      Compile FSH to FHIR resources
 make build      Run the full IG publisher
 make clean      Remove build output
-make clean-all  Also remove the package cache
+make clean-all  Also remove the terminology cache and the package cache volume
+make help       List the targets
 ```
 
 `generate` and `validate` call `d2w` through a `D2W` variable, so you can drive
@@ -487,6 +521,29 @@ validation for an offline build, but current IG publisher versions throw a
 `Attachment.contentType` binding on the GeoJSON boundary extension is one of
 them, so an org-unit IG will not build offline. Use `n/a` only when your content
 has no such bindings.
+
+### Build time and the two caches
+
+A full `make build` on a real instance takes around twenty minutes - the Sierra
+Leone demo (171 option sets, 2664 instances) spends 15m on generation, 1m45s on
+validation, and 1m25s on Jekyll. Most of what a *repeat* build would otherwise
+re-pay is cached, and the scaffold wires both caches up for you:
+
+- **The FHIR package cache** lives at `~/.fhir` inside the container. Because
+  `docker run --rm` throws the container away, `make sushi` and `make build`
+  mount the named volume `fhir-ig-cache` there. Without it every run
+  re-downloads the core packages, `hl7.terminology.r4`, and
+  `hl7.fhir.uv.extensions.r4` before doing any work.
+- **The terminology cache** is `ig/input-cache/`, written by the publisher and
+  ignored by git. `make clean` deliberately leaves it in place; a warm tx cache
+  takes the validation phase from minutes to seconds, because every code the
+  validator has not seen is a round trip to `TX_SERVER`.
+
+`make clean-all` drops both when you want to reproduce a cold build.
+
+**Do not iterate on `make build`.** `d2w fhir generate all` followed by
+`make sushi` compiles the FSH and tells you whether it is valid in seconds. Run
+the publisher when you are ready to publish a site, not after every edit.
 
 ## The regeneration contract
 

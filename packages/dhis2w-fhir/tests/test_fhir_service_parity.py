@@ -110,8 +110,8 @@ async def test_generate_option_sets_across_majors(
 
     assert route.called
     assert report.option_set_count == 1
-    assert report.written_files == ["terminology/xa1b2c3d4e5.fsh"]
-    content = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "xa1b2c3d4e5.fsh").read_text(encoding="utf-8")
+    assert report.written_files == ["terminology/Xa1b2c3d4e5.fsh"]
+    content = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "Xa1b2c3d4e5.fsh").read_text(encoding="utf-8")
     assert content.startswith(GENERATED_HEADER)
     assert "CodeSystem: D2OSXa1b2c3d4e5CS" in content
     assert 'Title: "Birth type"' in content
@@ -216,7 +216,7 @@ async def test_translations_are_requested_and_mapped(
     assert "options[id,code,name,sortOrder,translations[locale,property,value]]" in option_set_fields
     assert "translations[locale,property,value]" in organisation_units.calls.last.request.url.params["fields"]
 
-    terminology = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "xa1b2c3d4e5.fsh").read_text(encoding="utf-8")
+    terminology = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "Xa1b2c3d4e5.fsh").read_text(encoding="utf-8")
     assert '* ^title.extension[=].extension[=].valueString = "ປະເພດການເກີດ"' in terminology
     assert "* #kRRUtYaGett ^designation[+].language = #lo" in terminology
     assert '* #kRRUtYaGett ^designation[=].value = "ການເກີດແບບທຳມະຊາດ"' in terminology
@@ -241,12 +241,12 @@ async def test_generate_is_idempotent(
     second = await service.generate_option_sets(resolve_profile("probe"), load_project(tmp_path))
 
     assert first.deleted_files == []
-    assert first.written_files == ["terminology/xa1b2c3d4e5.fsh"]
+    assert first.written_files == ["terminology/Xa1b2c3d4e5.fsh"]
     assert second.written_files == []
     assert second.deleted_files == []
     assert second.unchanged_count == 1
     terminology = tmp_path / "ig" / "input" / "fsh" / "terminology"
-    assert sorted(path.name for path in terminology.glob("*.fsh")) == ["xa1b2c3d4e5.fsh"]
+    assert sorted(path.name for path in terminology.glob("*.fsh")) == ["Xa1b2c3d4e5.fsh"]
 
 
 def test_polygon_centroid_of_a_square() -> None:

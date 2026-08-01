@@ -35,8 +35,10 @@ runner).
 ```
 fhir.toml                   Minimal generation config (committed; no secrets)
 fhir.toml.example           Every available option with its default, documented
-Makefile                    setup / upgrade / generate / sushi / build via docker
+Makefile                    setup / upgrade / generate / validate / sushi / build /
+                            clean / clean-all / help via docker
 Dockerfile                  ghcr.io/fhir/ig-publisher-localdev + fsh-sushi
+.gitignore                  The build output, caches, and publisher side products
 ig/sushi-config.yaml        SUSHI IG identity (id, canonical, publisher)
 ig/ig.ini                   IG publisher entry point (fhir2.base.template)
 ig/fsh.ini                  Raises the publisher's internal SUSHI timeout to 900s
@@ -44,6 +46,19 @@ ig/input/fsh/aliases.fsh    Hand-authored alias stub (never regenerated)
 ig/input/pagecontent/index.md
 ig/input/ignoreWarnings.txt
 ```
+
+`sushi-config.yaml` carries `publisher.name` and, only when `d2w fhir init
+--publisher-url` supplies a real home page, `publisher.url`. The IG publisher
+links that URL from every generated page, so pointing it at the canonical of an
+IG that is not yet published produces one broken link per page - 15,425 of them
+on the Sierra Leone demo. Omitting it is the default.
+
+It carries no `groups:` section. SUSHI's grouping matches by exact resource
+reference, with no wildcard and no FSH-side `groupingId`, so grouping a real
+instance's artifacts would mean enumerating every one of its thousands of
+instances in `sushi-config.yaml`. The Artifacts page falls back to the template's
+own categorisation by resource type, which is the same shape those groups would
+have had.
 
 `d2w fhir generate` discovers the nearest `fhir.toml` by walking up from the
 working directory, the same idiom as `.dhis2/profiles.toml`. The file is
@@ -69,8 +84,10 @@ Options worth calling out from `fhir.toml.example`:
 [generate]
 identifier_system_base = "http://dhis2.org/fhir"
 concept_code_source = "uid"         # "uid" or "code"
+locales = []                        # BCP-47 or DHIS2 tags; empty = every locale found
 
 [generate.naming]
+source = "uid"                      # "uid" or "name"
 prefix = "D2"                       # "" drops it; profiles keep a D2 token
 option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
 organisation_unit = "OU"            # e.g. "OrgUnit" -> D2OrgUnitLevelCS
@@ -85,28 +102,40 @@ terminology = false
 ```
 
 `identifier_system_base` is live: `generate foundation` writes it into
-`foundation/d2-aliases.fsh` as the `$DHIS2-*` aliases, and the option-set
-terminology uses it for its `^identifier` business identifiers.
+`foundation/d2-aliases.fsh` as the `$DHIS2-*` aliases, declares each of those
+URLs as a NamingSystem in `foundation/d2-naming-systems.fsh`, and derives the
+`^property` URIs the terminology concepts carry.
 
 The full configuration reference, with the uid-first-then-code workflow and the
 canonical naming-token registry, is in the
 [FHIR IG guide](../guides/fhir-ig.md).
 
 Artifact names concatenate the pascal naming tokens
-(`D2` + `OS` + `BirthType` + `CS` - short tokens read by context); ids join
-the kebab of each non-empty token (`d2-os-birth-type-cs`), so renaming or
-dropping a token reshapes the whole IG consistently. The two profile names always carry
-a token (default `D2`) because FSH cannot name a profile identically to its
-parent core resource.
+(`D2` + `OS` + `Qdm5fPK5Ra9` + `CS` - short tokens read by context); ids join
+the kebab of each non-empty token, with the UID kept verbatim
+(`d2-os-Qdm5fPK5Ra9-cs`), so renaming or dropping a token reshapes the whole IG
+consistently. With `naming.source = "name"` the same set reads `D2OSBirthTypeCS`
+/ `d2-os-birth-type-cs`. The two profile names always carry a token (default
+`D2`) because FSH cannot name a profile identically to its parent core resource.
 
-## Foundation -> aliases and D2Period
+## Foundation -> identifier systems and D2Period
 
 `generate foundation` writes `ig/input/fsh/foundation/`, the part of the IG that
 depends on `fhir.toml` alone and never opens a client:
 
-- `d2-aliases.fsh` - `$DHIS2-OU` / `$DHIS2-OU-CODE`, built from
-  `identifier_system_base`. Generating these rather than scaffolding them is what
-  frees `ig/input/fsh/aliases.fsh` to be a pure hand-authored stub.
+- `d2-aliases.fsh` - `$DHIS2-OU` / `$DHIS2-OU-CODE` / `$DHIS2-OS` /
+  `$DHIS2-OS-CODE`, built from `identifier_system_base`. Generating these rather
+  than scaffolding them is what frees `ig/input/fsh/aliases.fsh` to be a pure
+  hand-authored stub.
+- `d2-naming-systems.fsh` - one `NamingSystem` per alias URL
+  (`D2OrgUnitIdentifierSystem`, `D2OrgUnitCodeIdentifierSystem`,
+  `D2OptionSetIdentifierSystem`, `D2OptionSetCodeIdentifierSystem`), each
+  `kind = #identifier` with a single preferred `uri` uniqueId and a description
+  stating the convention, including the code slot's UID fall-back. Without them
+  the validator has no definition behind a DHIS2 `identifier.system` and warns on
+  every artifact that carries one. R4 makes `NamingSystem.date` mandatory, so the
+  declarations carry a pinned date rather than a run timestamp - a generated one
+  would rewrite the file on every run.
 - `d2-period.fsh` - the `D2Period` extension plus `D2PeriodTypeCS`/`VS`.
 
 `D2Period` exists because a FHIR `Period` is a pair of instants while a DHIS2
@@ -122,8 +151,11 @@ and `DateUnitPeriodTypeParser` in dhis2-core.
 ## Option sets -> terminology
 
 One file per option set under `ig/input/fsh/terminology/`: a
-`D2OS<Name>CS` CodeSystem plus a matching ValueSet (naming tokens
-configurable). Artifact ids
+`D2OS<UID>CS` CodeSystem plus a matching ValueSet (naming tokens configurable).
+The file name and the id keep the UID's own case (`terminology/Qdm5fPK5Ra9.fsh`,
+`d2-os-Qdm5fPK5Ra9-cs`) - FHIR ids permit mixed case, so the id reads straight
+back to the DHIS2 object. With `naming.source = "name"` the artifacts take
+kebab-cased name slugs instead, and ids
 stay within FHIR's 64-character id limit: an over-long option-set name is
 truncated and suffixed with the set's UID (noted in the report), which also
 keeps bounded ids unique. Every concept
@@ -143,7 +175,10 @@ Under `ig/input/fsh/organization/`:
   and both slice `identifier` on `system` into `dhis2uid 1..1` and
   `dhis2code 1..1`. `Organization.type` binds to the level ValueSet
   **extensible**, not required: an IG that adds group-set codings later must not
-  be made non-conformant by the binding.
+  be made non-conformant by the binding. `D2Location` also declares the
+  `location-boundary-geojson` extension as a named `boundary 0..1` slice, so the
+  profile states the geometry contract its instances carry instead of leaving the
+  extension loose.
 - `org-unit-levels.fsh` - `D2OULevelCS`/`VS` covering the levels observed in the
   selection.
 - `org-units-level-<n>.fsh` - one file per hierarchy level. Every unit becomes an
@@ -153,7 +188,10 @@ Under `ig/input/fsh/organization/`:
   outside the selection - noted, never silent). A unit whose `closedDate` has
   passed emits `active = false` / `status = #inactive`. Instances are
   `Usage: #definition`: they are the IG's normative content, not illustrative
-  examples.
+  examples. Each one pins `id` to the bare UID, so the compiled files and URLs
+  read `Organization-<uid>.json` / `Location-<uid>.json`; the FSH instance names
+  keep their `Organization` / `Location` prefixes, which is the namespace that
+  keeps the two unique within one file.
 - `org-units-terminology.fsh` (only with `terminology = true`) - the whole
   selection as one `D2OUCS` with `level` / `parent` / `dhis2-code` concept
   properties, for flows that want the hierarchy as codes instead of resources.
@@ -163,7 +201,11 @@ wherever FHIR has a slot, and the code slot repeats the UID when the DHIS2 code 
 missing or not FHIR-valid - so `dhis2code` can be `1..1` and consumers never
 special-case absence. `d2w fhir validate` warns on every organisation unit
 without a code, which is what drives those fall-backs out over time. Every
-generated CodeSystem also points back at its ValueSet through `^valueSet`.
+identifier system those slots name is declared by a foundation NamingSystem.
+Every generated CodeSystem also points back at its ValueSet through `^valueSet`,
+carries `^experimental = true` (ShareableCodeSystem / ShareableValueSet make it
+mandatory), and gives each concept property a `<base>/property/<code>` URI so the
+property has a defined meaning outside this IG.
 
 The tree is fetched with a 500-per-page loop ordered by `path:asc` (stable
 output), filtered by `[generate.organisation_units]` `root` (DHIS2 `path:like`) and
@@ -190,10 +232,63 @@ translation; the instance-wide sweep does not fetch translations at all.
 ## Regeneration contract
 
 Every generated file starts with the header line
-`// Generated by d2w fhir generate - do not edit`. A generate run first
-deletes only header-bearing `.fsh` files in its target subdirectory, then
-writes the new set - hand-authored FSH in the same tree is never touched, and
-re-running converges instead of stacking files.
+`// Generated by d2w fhir generate - do not edit`. A generate run first writes
+its target subdirectory, then deletes the header-bearing `.fsh` files in that
+subdirectory it did not just produce - hand-authored FSH in the same tree is
+never touched, and re-running converges instead of stacking files. Files whose
+content already matches are not rewritten, so a no-op regenerate leaves both the
+timestamps and `git status` untouched.
+
+## Toolchain performance
+
+Generation is seconds; the IG publisher is twenty minutes. The Sierra Leone demo
+(171 option sets, 1332 org units, 2664 instances) breaks down as: 15m27s
+generate, of which the template phase alone is 6m36s and spreadsheet generation
+1m41s; 1m44s validation over 3014 resources; 1m25s Jekyll; 25s for the final
+zip. On a cold machine the package cache dominates the front of that - the
+publisher fetches the core packages, `hl7.terminology.r4`, and
+`hl7.fhir.uv.extensions.r4` before it does any work, and a container started
+with `docker run --rm` throws them away again. Terminology round-trips to
+`tx.fhir.org` are the other repeated cost: every code the validator has not seen
+is a request. All three phases are serial - SUSHI, then the validator, then
+Jekyll - so nothing overlaps.
+
+Two mitigations ship in the scaffold:
+
+- **Package cache volume.** `make sushi` and `make build` mount the named volume
+  `fhir-ig-cache` at `/home/publisher/.fhir`, so the package downloads survive
+  the container. `make clean-all` removes the volume when you want the cold path
+  back.
+- **Terminology cache.** The publisher writes its tx cache into
+  `ig/input-cache/`. `make clean` deliberately leaves it alone (only
+  `clean-all` removes it), and `.gitignore` keeps it out of git. A warm tx cache
+  is what takes the validation phase from minutes to seconds on a re-run.
+
+**Iterate without the publisher.** `d2w fhir generate` plus `make sushi` is the
+edit loop - SUSHI alone compiles the FSH and tells you whether it is valid, in
+seconds rather than in a coffee break. `d2w fhir serve` (roadmap) is the rest of
+that loop. `make build` is a release step, not an inner-loop step.
+
+Two upstream quirks worth knowing when reading a publisher run:
+
+- **The QA summary contradicts its own link checker.** The same run prints
+  `... 1099935 links, 0 broken links (0%)` from the HTML checker and
+  `Errors: 0, Warnings: 6710, Info: 177, Broken Links: 15425` in the QA summary.
+  The 15,425 are not broken links at all: they are the
+  "canonical link and is therefore unsafe with regard to versions" warning, one
+  per page carrying the `publisher.url`. Dropping `publisher.url` removes the
+  whole class.
+- **`Error generating combined package: .../output/package.tgz (No such file or
+  directory)`, exit 0.** An upstream call-ordering defect, not a project
+  problem: `PublisherGenerator.genCombinedPackage()` opens `output/package.tgz`,
+  but since publisher 2.2.9 it runs *before* `npm.finish()` writes that file
+  (commit `f868684`, "generate combined package before shutting down the
+  terminology system", moved the call). The exception is swallowed and logged.
+  There is nothing an IG author can add to fix it - the publisher clears
+  `output/` at startup, so a stale file cannot satisfy it either, and it
+  reproduces on single-language IGs unrelated to this project. Only
+  `output/package-combined.tgz` is lost; `output/package.tgz` itself is written
+  correctly a moment later. Unreported upstream as of publisher 2.3.0.
 
 ## Validation
 
@@ -254,7 +349,7 @@ depend on the package so `d2w fhir` is present by default.
 
 The components:
 
-- `scaffold/` - the ten files `d2w fhir init` writes (`InitOptions`,
+- `scaffold/` - the eleven files `d2w fhir init` writes (`InitOptions`,
   `ScaffoldFile`, `ScaffoldReport`).
 - `resources/option_sets/` - the CodeSystem/ValueSet pair per option set,
   plus `max_slug_length` (validation previews the same id bound) and the
@@ -338,8 +433,7 @@ boundary.
   (org units), terminology (option sets), and foundation artifacts are
   instance-level with instance-linked ids (uid-derived, stable regardless of
   which form uses them), because org units and option sets are reused across the
-  board and `fhir serve` / `fhir proxy` operate on the instance's single
-  namespace. Data sets and event programs are added INTO the project as targets
+  board and `fhir serve` operates on the instance's single namespace. Data sets and event programs are added INTO the project as targets
   - `[generate.data_sets]` and `[generate.event_programs]` `include_ids` lists,
   multiple supported - each contributing its Questionnaire artifacts, with
   target dependency closures unioned into the shared option-set selection.
@@ -352,12 +446,16 @@ boundary.
   project - a packaging choice, not a namespace choice.
 - `d2w fhir ui` / `browser`: a tree-widget explorer over the generated IG and
   hierarchy, modelled on the security plugin's offline d3 sharing explorer.
-- `d2w fhir serve`: serve the generated IG as a FHIR service (FastAPI per repo
-  convention) - read-only endpoints over the generated resources with a
-  generated `CapabilityStatement`.
-- `d2w fhir proxy`: a live translation service in front of a DHIS2 instance -
-  option sets and other supported resources answered as FHIR on the fly from the
-  live instance instead of from pre-generated files.
+- `d2w fhir serve`: one verb, two modes (FastAPI per repo convention, read-only
+  endpoints with a generated `CapabilityStatement`). The default serves the
+  compiled IG resources out of `fsh-generated`; `--live` translates on the fly
+  from the instance the project points at, answering option sets and the other
+  supported resources without a generate-and-compile round trip. Same routes,
+  same shapes - the flag only decides where a resource comes from, which is also
+  what makes it the fast half of the edit loop.
+- `d2w fhir push`: outbound delivery of the generated resources into a real FHIR
+  system - transaction bundles against a target server, with the identifier
+  systems above as the reconciliation key.
 - `d2w fhir build`: pack the IG into a real deployable package to build
   middleware on. Buildpack targets are python (pydantic + FastAPI) and rust
   (axum + utoipa), both codegenning their types from the IG's

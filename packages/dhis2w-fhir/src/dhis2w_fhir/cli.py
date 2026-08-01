@@ -33,6 +33,14 @@ def init_command(
     name: Annotated[str | None, typer.Option("--name", help="SUSHI name (default: derived from --id).")] = None,
     title: Annotated[str | None, typer.Option("--title", help="IG title (default: derived from --name).")] = None,
     publisher: Annotated[str, typer.Option("--publisher", help="Publisher name.")] = "Example Organisation",
+    publisher_url: Annotated[
+        str | None,
+        typer.Option(
+            "--publisher-url",
+            help="Publisher home page. Omit it unless you have a real site: the IG publisher links it from "
+            "every generated page, and pointing it at the canonical yields one broken link per page.",
+        ),
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite scaffold files that already exist.")] = False,
 ) -> None:
     """Scaffold a dockerized SUSHI IG project with a fhir.toml for `d2w fhir generate`."""
@@ -46,6 +54,7 @@ def init_command(
         name=resolved_name,
         title=title or f"{resolved_name} Implementation Guide",
         publisher=publisher,
+        publisher_url=publisher_url,
     )
     report = asyncio.run(service.init_project(directory, options, force=force))
     if is_json_output():
@@ -212,7 +221,7 @@ def validate_command(
     for report_format in selected_formats:
         destination = stem.with_name(f"{stem.name}.{report_format}")
         if report_format == "md":
-            destination.write_text(render_validation_markdown(report, target), encoding="utf-8")
+            destination.write_text(render_validation_markdown(report, target, generated_at), encoding="utf-8")
         elif report_format == "csv":
             destination.write_text(render_validation_csv(report), encoding="utf-8")
         else:

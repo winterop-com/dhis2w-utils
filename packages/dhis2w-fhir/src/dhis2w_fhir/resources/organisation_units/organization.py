@@ -81,7 +81,9 @@ def build_organisation_unit_profiles(config: GenerateConfig) -> FshArtifact:
         relative_path="organization/profiles.fsh",
         kind="profile",
         fsh_name=names.organization_profile,
-        content=_ENVIRONMENT.get_template("profiles.fsh.jinja").render(names=names),
+        content=_ENVIRONMENT.get_template("profiles.fsh.jinja").render(
+            names=names, boundary_extension_url=BOUNDARY_EXTENSION_URL
+        ),
     )
 
 

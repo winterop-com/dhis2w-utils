@@ -8,6 +8,10 @@ valid FHIR code fall back to the UID with a note in the report.
 Concept codes are unique within a set by construction: a first pass computes
 each option's desired code, a second assigns them in sortOrder and falls back
 to the option UID whenever the desired code is already taken.
+
+With `naming.source = "uid"` the slug is the option-set UID verbatim: FHIR ids
+and file names both permit mixed case, so the emitted id reads straight back to
+the DHIS2 object. Name-sourced slugs are kebab-cased as usual.
 """
 
 from __future__ import annotations
@@ -95,7 +99,7 @@ def build_option_set_artifacts(option_sets: list[OptionSetIn], config: GenerateC
     slug_limit = max_slug_length(config)
     for option_set in sorted(option_sets, key=lambda item: (item.name, item.uid)):
         if config.naming.source == "uid":
-            slug = option_set.uid.lower()
+            slug = option_set.uid
             base_name = f"{config.naming.prefix}{config.naming.option_set}{option_set.uid}"
         else:
             slug = kebab(option_set.name)
@@ -228,27 +232,11 @@ def _render_option_set(
         slug=slug,
         title=quote(option_set.name),
         description=description,
-        identifiers=_business_identifiers(option_set, config),
+        option_set_uid=option_set.uid,
+        option_set_code=code_or_uid(option_set.code, option_set.uid),
+        property_base=f"{config.identifier_system_base}/property",
         declarations=[declaration for declaration in _PROPERTY_DECLARATIONS if declaration.code in used_property_codes],
         concepts=concepts,
         title_translations=name_translations(option_set.translations, config.locales),
         translation_extension_url=TRANSLATION_EXTENSION_URL,
     )
-
-
-class _BusinessIdentifier(BaseModel):
-    """One `^identifier` pair on a generated CodeSystem/ValueSet: the system URI and the value."""
-
-    model_config = ConfigDict(frozen=True)
-
-    system: str
-    value: str
-
-
-def _business_identifiers(option_set: OptionSetIn, config: GenerateConfig) -> list[_BusinessIdentifier]:
-    """Both DHIS2 identifiers of the source option set, the code slot falling back to the UID."""
-    base = config.identifier_system_base
-    return [
-        _BusinessIdentifier(system=f"{base}/id/option-set", value=option_set.uid),
-        _BusinessIdentifier(system=f"{base}/id/option-set-code", value=code_or_uid(option_set.code, option_set.uid)),
-    ]

@@ -1,0 +1,17 @@
+{% for system in naming_systems %}
+{% if not loop.first %}
+
+{% endif %}
+Instance: {{ system.name }}
+InstanceOf: NamingSystem
+Title: "{{ system.title }}"
+Description: "{{ system.description }}"
+Usage: #definition
+* name = "{{ system.name }}"
+* status = #active
+* kind = #identifier
+* date = "{{ declared_date }}"
+* uniqueId[0].type = #uri
+* uniqueId[0].value = "{{ system.url }}"
+* uniqueId[0].preferred = true
+{% endfor %}

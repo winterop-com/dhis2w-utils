@@ -4,6 +4,8 @@ set -euo pipefail
 
 # Scaffold a complete dockerized SUSHI IG project (fhir.toml, sushi-config.yaml,
 # ig.ini, a hand-authored aliases.fsh stub, Makefile, Dockerfile) into ./demo-ig.
+# --publisher-url is deliberately omitted: the IG publisher links it from every generated
+# page, so aiming it at the canonical of an unpublished IG warns once per page.
 d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo --publisher "Demo Org"
 
 # Generation reads its config from the nearest fhir.toml (walking up from $PWD),

@@ -24,6 +24,7 @@ Id: {{ names.period_type_code_system_id }}
 Title: "DHIS2 period types"
 Description: "The period types DHIS2 registers, each with the ISO period format it is written in."
 * ^status = #active
+* ^experimental = true
 * ^content = #complete
 * ^caseSensitive = true
 * ^valueSet = Canonical({{ names.period_type_value_set }})
@@ -36,4 +37,5 @@ Id: {{ names.period_type_value_set_id }}
 Title: "DHIS2 period types"
 Description: "The period types DHIS2 registers, each with the ISO period format it is written in."
 * ^status = #active
+* ^experimental = true
 * include codes from system {{ names.period_type_code_system }}
