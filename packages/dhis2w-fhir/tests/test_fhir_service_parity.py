@@ -181,7 +181,7 @@ async def test_validate_codes_across_majors(
     context = service.resolve_validation_context()
     report = await service.validate_codes(resolve_profile("probe"), context.config)
 
-    # Default uid mode: the sweep error stands, the option code finding is informational.
+    # Default id mode: the sweep error stands, the option code finding is informational.
     assert report.error_count == 1
     assert report.info_count == 1
     assert {finding.resource_type for finding in report.findings} == {"options", "dataElements"}

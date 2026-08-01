@@ -131,15 +131,15 @@ def _sweep_collections(raw: dict[str, object]) -> list[MetadataCollectionIn]:
     return collections
 
 
-def resolve_code_source(config: GenerateConfig, override: str | None) -> Literal["uid", "code"]:
+def resolve_code_source(config: GenerateConfig, override: str | None) -> Literal["id", "code"]:
     """Effective concept code source for a validate run: the CLI/MCP override, else the configured value."""
     if override is None:
         return config.concept_code_source
-    if override == "uid":
-        return "uid"
+    if override == "id":
+        return "id"
     if override == "code":
         return "code"
-    raise ValueError(f"code_source must be 'uid' or 'code', not {override!r}")
+    raise ValueError(f"code_source must be 'id' or 'code', not {override!r}")
 
 
 async def validate_codes(
@@ -468,7 +468,7 @@ def _boundary_feature(geometry: dict[str, object], uid: str, name: str, level: i
     feature = {
         "type": "Feature",
         "geometry": geometry,
-        "properties": {"dhis2Uid": uid, "name": name, "level": level},
+        "properties": {"dhis2Id": uid, "name": name, "level": level},
     }
     return json.dumps(feature, separators=(",", ":"), sort_keys=True)
 

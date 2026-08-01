@@ -15,19 +15,19 @@ publisher = "{{ publisher }}"
 # Base URI for the DHIS2 identifier systems. `generate foundation` writes it into
 # foundation/d2-aliases.fsh ($DHIS2-OU, $DHIS2-OU-CODE) and the option-set business identifiers.
 identifier_system_base = "http://dhis2.org/fhir"
-# Concept code source for option sets: "uid" (option UID, DHIS2 code as property)
+# Concept code source for option sets: "id" (option UID, DHIS2 code as property)
 # or "code" (DHIS2 code when FHIR-valid, UID as property; invalid codes fall back).
-concept_code_source = "uid"
+concept_code_source = "id"
 # translation locales to emit (BCP-47 or DHIS2-style tags; empty = all found on the instance)
 locales = []
 
 [generate.naming]
-# What file names, ids, and FSH names derive from: "uid" (stable, collision-free,
+# What file names, ids, and FSH names derive from: "id" (stable, collision-free,
 # script-agnostic - DHIS2 names are often non-latin or non-unique) or "name"
 # (human-readable slugs, truncated/disambiguated when needed).
-source = "uid"
+source = "id"
 # Tokens composing FSH artifact names; ids derive from the kebab of each non-empty token.
-# Defaults read by context: D2OSQdm5fPK5Ra9CS / d2-os-Qdm5fPK5Ra9-cs (uid source).
+# Defaults read by context: D2OSQdm5fPK5Ra9CS / d2-os-Qdm5fPK5Ra9-cs (id source).
 prefix = "D2"                       # "" drops the prefix (profiles keep a D2 token:
                                     # a profile cannot share its parent resource's name)
 option_set = "OS"                   # e.g. "OptionSet"; "" drops the token

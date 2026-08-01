@@ -81,12 +81,12 @@ def test_uid_source_is_default() -> None:
 
 
 def test_code_source_uses_codes_with_uid_property() -> None:
-    """concept_code_source="code": valid codes become concept codes, UIDs become dhis2-uid properties."""
+    """concept_code_source="code": valid codes become concept codes, UIDs become dhis2-id properties."""
     config = GenerateConfig(concept_code_source="code")
     build = build_option_set_artifacts([_BIRTH_TYPE], config)
     content = build.artifacts[0].content
     assert '* #NB "Natural Birth"' in content
-    assert "* #NB ^property[+].code = #dhis2-uid" in content
+    assert "* #NB ^property[+].code = #dhis2-id" in content
     assert "* #NB ^property[=].valueCode = #kRRUtYaGett" in content
     assert "Concept codes are DHIS2 option codes." in content
     assert '* #GVcG84DTFOB "Unplanned Cesarean"' in content
@@ -117,11 +117,11 @@ def test_generated_terminology_is_marked_experimental() -> None:
 
 
 def test_every_concept_carries_the_complementary_identifier() -> None:
-    """No concept goes without the pair: uid mode adds dhis2-code, code mode adds dhis2-uid."""
+    """No concept goes without the pair: id mode adds dhis2-code, code mode adds dhis2-id."""
     uid_mode = build_option_set_artifacts([_BIRTH_TYPE], GenerateConfig()).artifacts[0].content
     assert uid_mode.count("^property[+].code = #dhis2-code") == 4
     code_mode = build_option_set_artifacts([_BIRTH_TYPE], GenerateConfig(concept_code_source="code"))
-    assert code_mode.artifacts[0].content.count("^property[+].code = #dhis2-uid") == 4
+    assert code_mode.artifacts[0].content.count("^property[+].code = #dhis2-id") == 4
 
 
 def test_colliding_concept_codes_fall_back_to_the_uid() -> None:

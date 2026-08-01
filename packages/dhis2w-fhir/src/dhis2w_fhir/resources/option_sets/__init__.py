@@ -2,14 +2,14 @@
 
 Every concept carries both DHIS2 identifiers: whichever one is the concept
 code, the other rides along as a concept property (`dhis2-code` or
-`dhis2-uid`). With `concept_code_source = "code"`, options whose code is not a
+`dhis2-id`). With `concept_code_source = "code"`, options whose code is not a
 valid FHIR code fall back to the UID with a note in the report.
 
 Concept codes are unique within a set by construction: a first pass computes
 each option's desired code, a second assigns them in sortOrder and falls back
 to the option UID whenever the desired code is already taken.
 
-With `naming.source = "uid"` the slug is the option-set UID verbatim: FHIR ids
+With `naming.source = "id"` the slug is the option-set UID verbatim: FHIR ids
 and file names both permit mixed case, so the emitted id reads straight back to
 the DHIS2 object. Name-sourced slugs are kebab-cased as usual.
 """
@@ -81,7 +81,7 @@ class _PropertyDeclaration(BaseModel):
 
 _PROPERTY_DECLARATIONS = (
     _PropertyDeclaration(code="dhis2-code", description="DHIS2 option code.", type="string"),
-    _PropertyDeclaration(code="dhis2-uid", description="DHIS2 option UID.", type="code"),
+    _PropertyDeclaration(code="dhis2-id", description="DHIS2 option UID.", type="code"),
 )
 
 
@@ -98,7 +98,7 @@ def build_option_set_artifacts(option_sets: list[OptionSetIn], config: GenerateC
     collided: list[str] = []
     slug_limit = max_slug_length(config)
     for option_set in sorted(option_sets, key=lambda item: (item.name, item.uid)):
-        if config.naming.source == "uid":
+        if config.naming.source == "id":
             slug = option_set.uid
             base_name = f"{config.naming.prefix}{config.naming.option_set}{option_set.uid}"
         else:
@@ -172,7 +172,7 @@ def _desired_code(option: OptionIn, option_set: OptionSetIn, config: GenerateCon
 def _concept_for(option: OptionIn, assigned: _DesiredCode, config: GenerateConfig) -> _Concept:
     """Build the concept for one option, carrying the complementary DHIS2 identifier as a property.
 
-    Every concept carries the pair: in code mode the UID rides along as `dhis2-uid`, in uid mode
+    Every concept carries the pair: in code mode the UID rides along as `dhis2-id`, in id mode
     the DHIS2 code rides along as `dhis2-code` - falling back to the UID when there is no usable code.
     """
     designations = name_translations(option.translations, config.locales)
@@ -180,7 +180,7 @@ def _concept_for(option: OptionIn, assigned: _DesiredCode, config: GenerateConfi
         return _Concept(
             code=assigned.code,
             display=option.name,
-            property_code="dhis2-uid",
+            property_code="dhis2-id",
             property_line=f"^property[=].valueCode = #{option.uid}",
             designations=designations,
         )

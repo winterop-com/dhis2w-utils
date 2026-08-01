@@ -7,8 +7,8 @@ Description: "An organisation unit imported from DHIS2."
 * identifier ^slicing.discriminator.type = #value
 * identifier ^slicing.discriminator.path = "system"
 * identifier ^slicing.rules = #open
-* identifier contains dhis2uid 1..1 and dhis2code 1..1
-* identifier[dhis2uid].system = $DHIS2-OU
+* identifier contains dhis2id 1..1 and dhis2code 1..1
+* identifier[dhis2id].system = $DHIS2-OU
 * identifier[dhis2code].system = $DHIS2-OU-CODE
 * active 1..1
 * type 1..*
@@ -25,8 +25,8 @@ Description: "The physical place of a DHIS2 organisation unit."
 * identifier ^slicing.discriminator.type = #value
 * identifier ^slicing.discriminator.path = "system"
 * identifier ^slicing.rules = #open
-* identifier contains dhis2uid 1..1 and dhis2code 1..1
-* identifier[dhis2uid].system = $DHIS2-OU
+* identifier contains dhis2id 1..1 and dhis2code 1..1
+* identifier[dhis2id].system = $DHIS2-OU
 * identifier[dhis2code].system = $DHIS2-OU-CODE
 * name 1..1
 * status 1..1

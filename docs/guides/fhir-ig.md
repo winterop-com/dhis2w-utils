@@ -97,7 +97,7 @@ publisher = "Example Organisation"
 ```toml
 [generate]
 identifier_system_base = "http://dhis2.org/fhir"
-concept_code_source = "uid"
+concept_code_source = "id"
 locales = []
 ```
 
@@ -113,12 +113,12 @@ registrations with HL7.
 
 **`concept_code_source`** picks what a terminology concept's code is:
 
-- `"uid"` (default) - the DHIS2 UID is the concept code, and the DHIS2 code
+- `"id"` (default) - the DHIS2 UID is the concept code, and the DHIS2 code
   rides along as a `dhis2-code` concept property.
 - `"code"` - they swap: the DHIS2 code is the concept code (when it is a valid
-  FHIR `code`), and the UID rides along as a `dhis2-uid` property.
+  FHIR `code`), and the UID rides along as a `dhis2-id` property.
 
-**The uid-first, then-code workflow.** Start on `"uid"`. UIDs are unique,
+**The id-first, then-code workflow.** Start on `"id"`. UIDs are unique,
 stable, and always FHIR-valid, so generation cannot fail on them - you get a
 compiling IG on day one, whatever state the instance's codes are in. DHIS2 codes
 are the friendlier concept codes, but they are optional in DHIS2, frequently
@@ -135,7 +135,7 @@ That reports what switching would cost right now: every option whose code is
 missing, invalid, or duplicated inside its set, at error/warning severity. Fix
 those in DHIS2, re-run until the option findings are clean, then set
 `concept_code_source = "code"` and regenerate. In the meantime, running plain
-`d2w fhir validate` in uid mode reports the same findings as `info` - they are a
+`d2w fhir validate` in id mode reports the same findings as `info` - they are a
 readiness signal, not a defect, because generation is not reading those codes yet.
 
 **`locales`** picks which translation locales reach the generated artifacts. It
@@ -147,7 +147,7 @@ the default - emits every locale found on the instance. See
 
 ```toml
 [generate.naming]
-source = "uid"
+source = "id"
 prefix = "D2"
 option_set = "OS"
 organisation_unit = "OU"
@@ -156,8 +156,8 @@ organisation_unit = "OU"
 **`source`** decides what the **option-set** artifacts are named after - their
 file names, FHIR ids, and FSH names:
 
-- `"uid"` (default) - stable, collision-free, script-agnostic. DHIS2 names are
-  often non-latin or non-unique, so uid-sourced ids never truncate or collide.
+- `"id"` (default) - stable, collision-free, script-agnostic. DHIS2 names are
+  often non-latin or non-unique, so id-sourced ids never truncate or collide.
   You get `terminology/Qdm5fPK5Ra9.fsh`, `D2OSQdm5fPK5Ra9CS`, id
   `d2-os-Qdm5fPK5Ra9-cs`. The UID keeps its own case: FHIR ids and file names
   both permit mixed case, so the id reads straight back to the DHIS2 object.
@@ -316,8 +316,8 @@ EpisodeOfCare, MeasureReport identifiers will follow it).
   `{base}/id/<kind>` holds the UID and `{base}/id/<kind>-code` holds the code.
   Both slices are always emitted, on the Organization and on the Location alike.
 - **Terminology concepts** carry the complementary identifier as a concept
-  property: in uid mode every concept gets `dhis2-code`, in code mode every
-  concept gets `dhis2-uid`. No concept goes without the pair.
+  property: in id mode every concept gets `dhis2-code`, in code mode every
+  concept gets `dhis2-id`. No concept goes without the pair.
 - **Option-set CodeSystems and ValueSets** carry the source set's own pair as
   `^identifier` business identifiers, referenced through the `$DHIS2-OS` /
   `$DHIS2-OS-CODE` aliases (`{base}/id/option-set` and
@@ -433,7 +433,7 @@ translations is far too heavy for a check that only looks at codes.
 ## Validation
 
 ```
-d2w fhir validate [--code-source uid|code] [--report STEM] [--format md,csv,pdf] [--all] [--no-fail]
+d2w fhir validate [--code-source id|code] [--report STEM] [--format md,csv,pdf] [--all] [--no-fail]
 ```
 
 Two passes, one finding shape:
@@ -451,7 +451,7 @@ Two passes, one finding shape:
 The option-pass findings are gated on the effective code source - the
 `--code-source` flag when given, otherwise `concept_code_source` from
 `fhir.toml`. In `code` mode, `invalid-code`, `missing-code`, and `duplicate-code`
-carry their real severities. In `uid` mode they are downgraded to `info` and
+carry their real severities. In `id` mode they are downgraded to `info` and
 their message says so, because generation is not reading those codes yet. The
 instance-wide sweep keeps its severities either way.
 

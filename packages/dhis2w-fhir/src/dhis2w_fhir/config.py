@@ -64,7 +64,7 @@ class NamingConfig(BaseModel):
     group-set artifacts follow the same scheme (`OUG`, `OUGS`).
     """
 
-    source: Literal["uid", "name"] = "uid"
+    source: Literal["id", "name"] = "id"
     prefix: str = "D2"
     option_set: str = "OS"
     organisation_unit: str = "OU"
@@ -86,7 +86,7 @@ class GenerateConfig(BaseModel):
     """Generation behaviour - the `[generate]` table of `fhir.toml`."""
 
     identifier_system_base: str = "http://dhis2.org/fhir"
-    concept_code_source: Literal["uid", "code"] = "uid"
+    concept_code_source: Literal["id", "code"] = "id"
     locales: list[str] = Field(default_factory=list)
     naming: NamingConfig = Field(default_factory=NamingConfig)
     option_sets: OptionSetSelection = Field(default_factory=OptionSetSelection)

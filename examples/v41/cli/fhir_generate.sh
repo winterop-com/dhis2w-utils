@@ -44,7 +44,7 @@ d2w fhir generate all
 # --report takes a path stem, --format narrows the set (e.g. --format md,csv).
 d2w fhir validate
 
-# Readiness probe for switching concept_code_source from "uid" to "code": reports
+# Readiness probe for switching concept_code_source from "id" to "code": reports
 # what the switch would cost right now, at error severity instead of info.
 d2w fhir validate --code-source code --no-fail
 

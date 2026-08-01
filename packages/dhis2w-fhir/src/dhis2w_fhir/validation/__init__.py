@@ -8,7 +8,7 @@ Two passes share one finding shape:
 - a deep option-set pass over the same projections the terminology emitter
   consumes, previewing exactly what `concept_code_source = "code"` generation
   would do. With `naming.source = "name"` it also previews which option-set
-  names yield truncated or disambiguated ids (uid-sourced ids never overflow).
+  names yield truncated or disambiguated ids (id-sourced ids never overflow).
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ _SEVERITY_RANK = {"error": 0, "warning": 1, "info": 2}
 _CODE_MODE_CATEGORIES = frozenset({"invalid-code", "missing-code", "duplicate-code"})
 
 #: Appended to a downgraded option finding so the report says why it is only informational.
-_UID_MODE_SUFFIX = " (informational in uid mode; will matter when switching to code mode)"
+_UID_MODE_SUFFIX = " (informational in id mode; will matter when switching to code mode)"
 
 #: The one collection where a missing code is a finding: every unit must carry both identifiers.
 _CODE_REQUIRED_COLLECTION = "organisationUnits"
@@ -47,7 +47,7 @@ def build_code_validation(
     option_sets: list[OptionSetIn],
     collections: list[MetadataCollectionIn],
     config: GenerateConfig,
-    code_source: Literal["uid", "code"] | None = None,
+    code_source: Literal["id", "code"] | None = None,
 ) -> FhirValidationReport:
     """Run both validation passes; findings sort by severity, resource type, then name."""
     effective_source = code_source or config.concept_code_source
@@ -150,11 +150,11 @@ def _option_set_naming_findings(option_set: OptionSetIn, config: GenerateConfig)
 
 
 def _option_findings(
-    option_set: OptionSetIn, code_source: Literal["uid", "code"], locales: list[str]
+    option_set: OptionSetIn, code_source: Literal["id", "code"], locales: list[str]
 ) -> list[ValidationFinding]:
     """Deep option checks: invalid, missing, spaced, and duplicated codes within one set.
 
-    In uid mode the code-shaped findings are downgraded to info: generation is not reading the
+    In id mode the code-shaped findings are downgraded to info: generation is not reading the
     DHIS2 codes yet, so they are a readiness signal for switching to code mode, not a defect.
     """
     findings = _raw_option_findings(option_set, locales)
@@ -164,12 +164,12 @@ def _option_findings(
 
 
 def _downgraded(finding: ValidationFinding) -> ValidationFinding:
-    """Re-issue one option finding as info, saying why it does not bite in uid mode."""
+    """Re-issue one option finding as info, saying why it does not bite in id mode."""
     return finding.model_copy(update={"severity": "info", "message": finding.message + _UID_MODE_SUFFIX})
 
 
 def _raw_option_findings(option_set: OptionSetIn, locales: list[str]) -> list[ValidationFinding]:
-    """Deep option checks at their code-mode severities, before any uid-mode downgrade."""
+    """Deep option checks at their code-mode severities, before any id-mode downgrade."""
     findings: list[ValidationFinding] = []
     valid_codes = Counter(
         option.code for option in option_set.options if option.code is not None and is_valid_fhir_code(option.code)

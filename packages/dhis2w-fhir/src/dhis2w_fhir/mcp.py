@@ -30,8 +30,8 @@ def register(mcp: Any) -> None:
     ) -> FhirValidationReport:
         """Check a DHIS2 instance's codes for FHIR-safety - instance-wide sweep plus a deep option-set pass.
 
-        `code_source` ("uid" or "code") overrides the project's `concept_code_source` for this run:
-        in uid mode the option code findings are informational, in code mode they are defects.
+        `code_source` ("id" or "code") overrides the project's `concept_code_source` for this run:
+        in id mode the option code findings are informational, in code mode they are defects.
         """
         if project_directory:
             project = load_project(Path(project_directory))

@@ -83,11 +83,11 @@ Options worth calling out from `fhir.toml.example`:
 ```toml
 [generate]
 identifier_system_base = "http://dhis2.org/fhir"
-concept_code_source = "uid"         # "uid" or "code"
+concept_code_source = "id"          # "id" or "code"
 locales = []                        # BCP-47 or DHIS2 tags; empty = every locale found
 
 [generate.naming]
-source = "uid"                      # "uid" or "name"
+source = "id"                       # "id" or "name"
 prefix = "D2"                       # "" drops it; profiles keep a D2 token
 option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
 organisation_unit = "OU"            # e.g. "OrgUnit" -> D2OrgUnitLevelCS
@@ -106,7 +106,7 @@ terminology = false
 URLs as a NamingSystem in `foundation/d2-naming-systems.fsh`, and derives the
 `^property` URIs the terminology concepts carry.
 
-The full configuration reference, with the uid-first-then-code workflow and the
+The full configuration reference, with the id-first-then-code workflow and the
 canonical naming-token registry, is in the
 [FHIR IG guide](../guides/fhir-ig.md).
 
@@ -160,9 +160,9 @@ stay within FHIR's 64-character id limit: an over-long option-set name is
 truncated and suffixed with the set's UID (noted in the report), which also
 keeps bounded ids unique. Every concept
 carries **both** DHIS2 identifiers: with the default
-`concept_code_source = "uid"` the option UID is the concept code and the
+`concept_code_source = "id"` the option UID is the concept code and the
 DHIS2 option code rides along as a `dhis2-code` concept property; with
-`"code"` they swap (the UID becomes a `dhis2-uid` property). The code path is
+`"code"` they swap (the UID becomes a `dhis2-id` property). The code path is
 gated by a FHIR `code`-datatype validity check; an option whose code is
 missing or invalid falls back to the UID with a note in the report, so
 generation is total and never silently drops a concept.
@@ -172,7 +172,7 @@ generation is total and never silently drops a concept.
 Under `ig/input/fsh/organization/`:
 
 - `profiles.fsh` - `D2Organization` and `D2Location`. Both are `^status = #active`
-  and both slice `identifier` on `system` into `dhis2uid 1..1` and
+  and both slice `identifier` on `system` into `dhis2id 1..1` and
   `dhis2code 1..1`. `Organization.type` binds to the level ValueSet
   **extensible**, not required: an IG that adds group-set codings later must not
   be made non-conformant by the binding. `D2Location` also declares the
@@ -302,7 +302,7 @@ warn, spaced-but-valid codes are infos). The sweep passes `defaults=EXCLUDE`, so
 DHIS2's auto-generated default category objects stay out of the counts.
 
 The option-pass severities are gated on the effective code source - the
-`--code-source` flag, else `concept_code_source`. In uid mode `invalid-code`,
+`--code-source` flag, else `concept_code_source`. In id mode `invalid-code`,
 `missing-code`, and `duplicate-code` downgrade to `info` with the reason in the
 message: generation is not reading those codes yet, so they are a readiness
 signal for switching to code mode rather than a defect. The instance-wide sweep
@@ -431,7 +431,7 @@ boundary.
 - Instance-scoped projects with form targets: a project IS the FHIR home of one
   DHIS2 instance - fhir.toml carries the profile and canonical, and the registry
   (org units), terminology (option sets), and foundation artifacts are
-  instance-level with instance-linked ids (uid-derived, stable regardless of
+  instance-level with instance-linked ids (id-derived, stable regardless of
   which form uses them), because org units and option sets are reused across the
   board and `fhir serve` operates on the instance's single namespace. Data sets and event programs are added INTO the project as targets
   - `[generate.data_sets]` and `[generate.event_programs]` `include_ids` lists,

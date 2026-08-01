@@ -40,8 +40,8 @@ Title: "Location - Sierra Leone"
 Description: "DHIS2 organisation unit Sierra Leone (ImspTQPwCqd), level 1 - physical location."
 Usage: #definition
 * id = "ImspTQPwCqd"
-* identifier[dhis2uid].system = $DHIS2-OU
-* identifier[dhis2uid].value = "ImspTQPwCqd"
+* identifier[dhis2id].system = $DHIS2-OU
+* identifier[dhis2id].value = "ImspTQPwCqd"
 * identifier[dhis2code].system = $DHIS2-OU-CODE
 * identifier[dhis2code].value = "SL"
 * name = "Sierra Leone"
@@ -55,8 +55,8 @@ Title: "Organization - Bo"
 Description: "DHIS2 organisation unit Bo (O6uvpzGd5pu), level 2."
 Usage: #definition
 * id = "O6uvpzGd5pu"
-* identifier[dhis2uid].system = $DHIS2-OU
-* identifier[dhis2uid].value = "O6uvpzGd5pu"
+* identifier[dhis2id].system = $DHIS2-OU
+* identifier[dhis2id].value = "O6uvpzGd5pu"
 * identifier[dhis2code].system = $DHIS2-OU-CODE
 * identifier[dhis2code].value = "O6uvpzGd5pu"
 * name = "Bo"
@@ -76,8 +76,8 @@ Title: "Location - Bo"
 Description: "DHIS2 organisation unit Bo (O6uvpzGd5pu), level 2 - physical location."
 Usage: #definition
 * id = "O6uvpzGd5pu"
-* identifier[dhis2uid].system = $DHIS2-OU
-* identifier[dhis2uid].value = "O6uvpzGd5pu"
+* identifier[dhis2id].system = $DHIS2-OU
+* identifier[dhis2id].value = "O6uvpzGd5pu"
 * identifier[dhis2code].system = $DHIS2-OU-CODE
 * identifier[dhis2code].value = "O6uvpzGd5pu"
 * name = "Bo"
@@ -95,7 +95,7 @@ def test_profiles_artifact() -> None:
     assert artifact.relative_path == "organization/profiles.fsh"
     assert "Profile: D2Organization" in artifact.content
     assert artifact.content.count("* ^status = #active") == 2
-    assert artifact.content.count("* identifier contains dhis2uid 1..1 and dhis2code 1..1") == 2
+    assert artifact.content.count("* identifier contains dhis2id 1..1 and dhis2code 1..1") == 2
     assert artifact.content.count('* identifier ^slicing.discriminator.path = "system"') == 2
     assert "* type from D2OULevelVS (extensible)" in artifact.content
     assert "* partOf only Reference(D2Organization)" in artifact.content

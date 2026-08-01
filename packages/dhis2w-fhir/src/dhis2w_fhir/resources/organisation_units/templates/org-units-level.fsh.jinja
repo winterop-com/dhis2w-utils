@@ -10,8 +10,8 @@ Title: {{ organization.title_literal }}
 Description: {{ organization.description_literal }}
 Usage: #definition
 * id = "{{ organization.uid }}"
-* identifier[dhis2uid].system = $DHIS2-OU
-* identifier[dhis2uid].value = "{{ organization.uid }}"
+* identifier[dhis2id].system = $DHIS2-OU
+* identifier[dhis2id].value = "{{ organization.uid }}"
 * identifier[dhis2code].system = $DHIS2-OU-CODE
 * identifier[dhis2code].value = {{ organization.identifier_code_literal }}
 * name = {{ organization.name_literal }}
@@ -48,8 +48,8 @@ Title: {{ location.title_literal }}
 Description: {{ location.description_literal }}
 Usage: #definition
 * id = "{{ location.uid }}"
-* identifier[dhis2uid].system = $DHIS2-OU
-* identifier[dhis2uid].value = "{{ location.uid }}"
+* identifier[dhis2id].system = $DHIS2-OU
+* identifier[dhis2id].value = "{{ location.uid }}"
 * identifier[dhis2code].system = $DHIS2-OU-CODE
 * identifier[dhis2code].value = {{ location.identifier_code_literal }}
 * name = {{ location.name_literal }}

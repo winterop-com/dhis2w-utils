@@ -189,7 +189,7 @@ def validate_command(
         str | None,
         typer.Option(
             "--code-source",
-            help="Override [generate] concept_code_source for this run: uid or code. In uid mode the option "
+            help="Override [generate] concept_code_source for this run: id or code. In id mode the option "
             "code findings are informational; run with code to see what switching would cost.",
         ),
     ] = None,
@@ -209,8 +209,8 @@ def validate_command(
     from dhis2w_fhir.validation.report import render_validation_csv, render_validation_markdown
 
     selected_formats = _parse_report_formats(formats)
-    if code_source is not None and code_source not in {"uid", "code"}:
-        raise typer.BadParameter("code_source must be 'uid' or 'code'")
+    if code_source is not None and code_source not in {"id", "code"}:
+        raise typer.BadParameter("code_source must be 'id' or 'code'")
     context = service.resolve_validation_context()
     report = asyncio.run(service.validate_codes(context.generation.profile, context.config, code_source))
     project_config = find_project_fhir_config()

@@ -93,7 +93,7 @@ def test_spaced_code_is_info() -> None:
 
 
 def test_uid_mode_downgrades_the_code_findings() -> None:
-    """In uid mode the option code findings are informational - generation is not reading codes yet."""
+    """In id mode the option code findings are informational - generation is not reading codes yet."""
     options = [
         OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Bad"),
         OptionIn(uid="Op2aaaaaaaa", name="NoCode"),
@@ -129,12 +129,12 @@ def test_code_source_override_wins_over_the_config() -> None:
     """The explicit code_source argument overrides `concept_code_source` in both directions."""
     sets = [_set("Aa1aaaaaaaa", "Sex", [OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Bad")])]
     assert build_code_validation(sets, [], _CONFIG, "code").error_count == 1
-    assert build_code_validation(sets, [], _CODE_MODE, "uid").error_count == 0
-    assert build_code_validation(sets, [], _CODE_MODE, "uid").info_count == 1
+    assert build_code_validation(sets, [], _CODE_MODE, "id").error_count == 0
+    assert build_code_validation(sets, [], _CODE_MODE, "id").info_count == 1
 
 
 def test_sweep_severities_ignore_the_code_source() -> None:
-    """The instance-wide sweep keeps its severities in uid mode - only the option pass is gated."""
+    """The instance-wide sweep keeps its severities in id mode - only the option pass is gated."""
     collection = MetadataCollectionIn(
         resource="dataElements", items=[MetadataItemIn(uid="De1aaaaaaaa", name="Bad", code=" X ")]
     )
@@ -165,7 +165,7 @@ def test_organisation_units_without_a_code_warn() -> None:
 
 
 def test_name_derived_checks_only_in_name_mode() -> None:
-    """Long names raise findings only when naming derives from names; uid mode never overflows."""
+    """Long names raise findings only when naming derives from names; id mode never overflows."""
     long_name = "Residence of the malaria case/s that prompted foci investigation"
     sets = [_set("Cc3cccccccc", long_name, [])]
     assert build_code_validation(sets, [], _CONFIG).findings == []

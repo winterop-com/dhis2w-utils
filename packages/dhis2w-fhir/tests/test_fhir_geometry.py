@@ -102,7 +102,7 @@ def test_boundary_payload_is_a_geojson_feature() -> None:
     assert feature == {
         "type": "Feature",
         "geometry": geometry,
-        "properties": {"dhis2Uid": "Pnt1aaaaaaa", "name": "Unit Pnt1aaaaaaa", "level": 2},
+        "properties": {"dhis2Id": "Pnt1aaaaaaa", "name": "Unit Pnt1aaaaaaa", "level": 2},
     }
     # Compact and key-sorted, so a regenerate with unchanged metadata is byte-identical.
     assert ", " not in mapped.boundary_geojson

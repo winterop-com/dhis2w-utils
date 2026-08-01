@@ -50,7 +50,7 @@ def test_fhir_toml_round_trips() -> None:
     config = FhirProjectConfig.model_validate(raw)
     assert config.ig.id == "dhis2.fhir.test"
     assert config.profile is None
-    assert config.generate.concept_code_source == "uid"
+    assert config.generate.concept_code_source == "id"
     assert config.generate.naming.prefix == "D2"
     assert config.generate.organisation_units.root is None
 
@@ -60,7 +60,7 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     raw = tomllib.loads(_by_path()["fhir.toml.example"])
     config = FhirProjectConfig.model_validate(raw)
     assert config == FhirProjectConfig.model_validate(tomllib.loads(_by_path()["fhir.toml"]))
-    assert config.generate.naming.source == "uid"
+    assert config.generate.naming.source == "id"
     assert config.generate.naming.option_set == "OS"
     assert config.generate.naming.organisation_unit == "OU"
     assert config.generate.organisation_units.terminology is False
