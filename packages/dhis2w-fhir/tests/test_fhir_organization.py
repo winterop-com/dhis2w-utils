@@ -41,7 +41,7 @@ Usage: #example
 * identifier[dhis2uid].value = "O6uvpzGd5pu"
 * name = "Bo"
 * alias = "Bo District"
-* type = D2OrgUnitLevelCS#level-2 "Level 2"
+* type = D2OULevelCS#level-2 "Level 2"
 * partOf = Reference(OrganizationImspTQPwCqd)
 * telecom[+].system = #phone
 * telecom[=].value = "+232 76 000000"
@@ -78,7 +78,7 @@ def test_level_terminology_covers_observed_levels() -> None:
     artifact = build_org_unit_level_terminology([2, 1, 2, 3], _CONFIG)
     assert artifact.content.count("* #level-") == 3
     assert '* #level-1 "Level 1"' in artifact.content
-    assert "ValueSet: D2OrgUnitLevelVS" in artifact.content
+    assert "ValueSet: D2OULevelVS" in artifact.content
 
 
 def test_instances_golden_per_level_files() -> None:
@@ -113,23 +113,23 @@ def test_org_unit_terminology_properties() -> None:
     """The optional CodeSystem carries level/parent/dhis2-code concept properties."""
     artifact = build_org_unit_terminology([_ROOT, _DISTRICT], _CONFIG)
     content = artifact.content
-    assert "CodeSystem: D2OrgUnitCS" in content
+    assert "CodeSystem: D2OUCS" in content
     assert "* #O6uvpzGd5pu ^property[+].code = #level" in content
     assert "* #O6uvpzGd5pu ^property[=].valueInteger = 2" in content
     assert "* #O6uvpzGd5pu ^property[+].code = #parent" in content
     assert "* #O6uvpzGd5pu ^property[=].valueCode = #ImspTQPwCqd" in content
     assert "* #ImspTQPwCqd ^property[+].code = #dhis2-code" in content
-    assert "ValueSet: D2OrgUnitVS" in content
+    assert "ValueSet: D2OUVS" in content
 
 
 def test_naming_tokens_are_configurable() -> None:
-    """Custom naming tokens flow into names and ids (e.g. org_unit "OU" -> D2OULevelCS / d2-ou-level-cs)."""
-    config = GenerateConfig(naming=NamingConfig(org_unit="OU"))
+    """Custom naming tokens flow into names and ids (e.g. org_unit "OrgUnit" -> D2OrgUnitLevelCS)."""
+    config = GenerateConfig(naming=NamingConfig(org_unit="OrgUnit"))
     levels = build_org_unit_level_terminology([1], config)
-    assert "CodeSystem: D2OULevelCS" in levels.content
-    assert "Id: d2-ou-level-cs" in levels.content
+    assert "CodeSystem: D2OrgUnitLevelCS" in levels.content
+    assert "Id: d2-org-unit-level-cs" in levels.content
     instance = build_org_unit_instances([_ROOT], config).artifacts[0].content
-    assert "* type = D2OULevelCS#level-1" in instance
+    assert "* type = D2OrgUnitLevelCS#level-1" in instance
 
 
 def test_empty_prefix_keeps_profile_token() -> None:
@@ -138,5 +138,5 @@ def test_empty_prefix_keeps_profile_token() -> None:
     profiles = build_org_unit_profiles(config)
     assert "Profile: D2Organization" in profiles.content
     levels = build_org_unit_level_terminology([1], config)
-    assert "CodeSystem: OrgUnitLevelCS" in levels.content
-    assert "Id: org-unit-level-cs" in levels.content
+    assert "CodeSystem: OULevelCS" in levels.content
+    assert "Id: ou-level-cs" in levels.content

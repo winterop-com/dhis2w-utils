@@ -67,15 +67,16 @@ def _validate_fsh_token(value: str, *, allow_empty: bool) -> str:
 class NamingConfig(BaseModel):
     """Configurable FSH naming tokens - the `[generate.naming]` table of `fhir.toml`.
 
-    Artifact names concatenate the pascal tokens (`D2` + `OptionSet` + `BirthType` + `CS`);
-    ids join the kebab of each non-empty token (`d2-option-set-birth-type-cs`). `prefix`
-    and `option_set` may be empty to drop them; `org_unit` must stay non-empty or the
-    org-unit artifact names would degenerate to bare `CS`/`LevelCS`.
+    Artifact names concatenate the pascal tokens (`D2` + `OS` + `BirthType` + `CS`);
+    ids join the kebab of each non-empty token (`d2-os-birth-type-cs`). `prefix` and
+    `option_set` may be empty to drop them; `org_unit` must stay non-empty or the
+    org-unit artifact names would degenerate to bare `CS`/`LevelCS`. Future group /
+    group-set artifacts follow the same scheme (`OUG`, `OUGS`).
     """
 
     prefix: str = "D2"
-    option_set: str = "OptionSet"
-    org_unit: str = "OrgUnit"
+    option_set: str = "OS"
+    org_unit: str = "OU"
 
     @field_validator("prefix", "option_set")
     @classmethod

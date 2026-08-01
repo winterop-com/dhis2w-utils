@@ -68,8 +68,8 @@ concept_code_source = "uid"         # "uid" or "code"
 
 [generate.naming]
 prefix = "D2"                       # "" drops it; profiles keep a D2 token
-option_set = "OptionSet"            # "" drops the token
-org_unit = "OrgUnit"                # e.g. "OU" -> D2OULevelCS / d2-ou-level-cs
+option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
+org_unit = "OU"                     # e.g. "OrgUnit" -> D2OrgUnitLevelCS
 
 [generate.option_sets]
 include_names = []
@@ -82,16 +82,17 @@ terminology = false
 ```
 
 Artifact names concatenate the pascal naming tokens
-(`D2` + `OptionSet` + `BirthType` + `CS`); ids join the kebab of each
-non-empty token (`d2-option-set-birth-type-cs`), so renaming or dropping a
-token reshapes the whole IG consistently. The two profile names always carry
+(`D2` + `OS` + `BirthType` + `CS` - short tokens read by context); ids join
+the kebab of each non-empty token (`d2-os-birth-type-cs`), so renaming or
+dropping a token reshapes the whole IG consistently. The two profile names always carry
 a token (default `D2`) because FSH cannot name a profile identically to its
 parent core resource.
 
 ## Option sets -> terminology
 
 One file per option set under `ig/input/fsh/terminology/`: a
-`Dhis2OptionSet<Name>CS` CodeSystem plus a matching ValueSet. Artifact ids
+`D2OS<Name>CS` CodeSystem plus a matching ValueSet (naming tokens
+configurable). Artifact ids
 stay within FHIR's 64-character id limit: an over-long option-set name is
 truncated and suffixed with the set's UID (noted in the report), which also
 keeps bounded ids unique. Every concept
@@ -164,7 +165,8 @@ the boundary.
 
 - Org unit groups / group sets: DHIS2 classifications beyond the level
   hierarchy (facility type, ownership, ...) mapped to additional
-  `Organization.type` codings from group-set CodeSystems - the lao-v1
+  `Organization.type` codings from group-set CodeSystems (tokens `OUG` /
+  `OUGS`, same scheme) - the lao-v1
   inspiration IG already classifies provinces/districts/villages by group
   membership.
 - Categories / category options: structurally close to option sets, mapped to

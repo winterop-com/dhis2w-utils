@@ -58,8 +58,8 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     raw = tomllib.loads(_by_path()["fhir.toml.example"])
     config = FhirProjectConfig.model_validate(raw)
     assert config == FhirProjectConfig.model_validate(tomllib.loads(_by_path()["fhir.toml"]))
-    assert config.generate.naming.option_set == "OptionSet"
-    assert config.generate.naming.org_unit == "OrgUnit"
+    assert config.generate.naming.option_set == "OS"
+    assert config.generate.naming.org_unit == "OU"
     assert config.generate.org_units.terminology is False
 
 

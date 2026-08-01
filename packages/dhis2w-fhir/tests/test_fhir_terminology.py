@@ -13,8 +13,8 @@ _BIRTH_TYPE = OptionSetInput(
     ],
 )
 
-_EXPECTED_UID_SOURCE = """CodeSystem: D2OptionSetBirthTypeCS
-Id: d2-option-set-birth-type-cs
+_EXPECTED_UID_SOURCE = """CodeSystem: D2OSBirthTypeCS
+Id: d2-os-birth-type-cs
 Title: "Birth type"
 Description: "DHIS2 option set Birth type (Xa1b2c3d4e5). Concept codes are DHIS2 option UIDs."
 * ^status = #active
@@ -31,12 +31,12 @@ Description: "DHIS2 option set Birth type (Xa1b2c3d4e5). Concept codes are DHIS2
 * #EBE0c8sZazS ^property[=].valueString = "CS"
 * #GVcG84DTFOB "Unplanned Cesarean"
 
-ValueSet: D2OptionSetBirthTypeVS
-Id: d2-option-set-birth-type-vs
+ValueSet: D2OSBirthTypeVS
+Id: d2-os-birth-type-vs
 Title: "Birth type"
 Description: "DHIS2 option set Birth type (Xa1b2c3d4e5). Concept codes are DHIS2 option UIDs."
 * ^status = #active
-* include codes from system D2OptionSetBirthTypeCS
+* include codes from system D2OSBirthTypeCS
 """
 
 
@@ -46,7 +46,7 @@ def test_uid_source_golden() -> None:
     assert len(build.artifacts) == 1
     artifact = build.artifacts[0]
     assert artifact.relative_path == "terminology/birth-type.fsh"
-    assert artifact.fsh_name == "D2OptionSetBirthType"
+    assert artifact.fsh_name == "D2OSBirthType"
     assert artifact.content == _EXPECTED_UID_SOURCE
     assert build.notes == []
 

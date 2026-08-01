@@ -41,12 +41,11 @@ concept_code_source = "uid"
 
 [generate.naming]
 # Tokens composing FSH artifact names; ids derive from the kebab of each non-empty token.
-# Examples: prefix "D2" -> D2OptionSetSexCS / d2-option-set-sex-cs;
-#           org_unit "OU" -> D2OULevelCS / d2-ou-level-cs.
+# Defaults read by context: D2OSSexCS / d2-os-sex-cs, D2OULevelCS / d2-ou-level-cs.
 prefix = "D2"                       # "" drops the prefix (profiles keep a D2 token:
                                     # a profile cannot share its parent resource's name)
-option_set = "OptionSet"            # "" drops the token from option-set names
-org_unit = "OrgUnit"                # must stay non-empty (e.g. "OU")
+option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
+org_unit = "OU"                     # must stay non-empty (e.g. "OrgUnit")
 
 [generate.option_sets]
 include_names = []                  # exact optionSet names to include (empty = all)

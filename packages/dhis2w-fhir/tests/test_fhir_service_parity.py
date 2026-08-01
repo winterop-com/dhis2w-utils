@@ -76,7 +76,7 @@ async def test_generate_option_sets_across_majors(
     assert report.written_files == ["terminology/birth-type.fsh"]
     content = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "birth-type.fsh").read_text(encoding="utf-8")
     assert content.startswith(GENERATED_HEADER)
-    assert "CodeSystem: D2OptionSetBirthTypeCS" in content
+    assert "CodeSystem: D2OSBirthTypeCS" in content
 
 
 @respx.mock
