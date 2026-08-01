@@ -25,6 +25,20 @@ class _Concept(BaseModel):
     property_line: str | None = None
 
 
+# FHIR ids allow at most 64 characters. The longest emitted id is
+# `dhis2-option-set-<slug>-cs`/`-vs`, so the slug itself is bounded to fit.
+_MAX_FHIR_ID_LENGTH = 64
+_ID_PREFIX = "dhis2-option-set-"
+_ID_SUFFIX = "-vs"
+_MAX_SLUG_LENGTH = _MAX_FHIR_ID_LENGTH - len(_ID_PREFIX) - len(_ID_SUFFIX)
+
+
+def _bounded_slug(slug: str, uid: str) -> str:
+    """Truncate an over-long slug and append the UID so bounded slugs stay unique."""
+    head_length = _MAX_SLUG_LENGTH - len(uid) - 1
+    return f"{slug[:head_length].rstrip('-')}-{uid.lower()}"
+
+
 def build_option_set_artifacts(option_sets: list[OptionSetInput], config: GenerateConfig) -> FshBuild:
     """Build one `terminology/<slug>.fsh` artifact per option set, stable-sorted for clean diffs."""
     build = FshBuild()
@@ -32,8 +46,13 @@ def build_option_set_artifacts(option_sets: list[OptionSetInput], config: Genera
     for option_set in sorted(option_sets, key=lambda item: (item.name, item.uid)):
         slug = kebab(option_set.name)
         base_name = f"Dhis2OptionSet{pascal(option_set.name)}"
-        if slug in used_slugs:
-            slug = f"{slug}-{option_set.uid.lower()}"
+        if len(slug) > _MAX_SLUG_LENGTH:
+            slug = _bounded_slug(slug, option_set.uid)
+            build.notes.append(
+                f"option set {option_set.uid}: name {option_set.name!r} exceeds the FHIR id length; using {slug!r}"
+            )
+        elif slug in used_slugs:
+            slug = _bounded_slug(slug, option_set.uid)
             base_name = f"{base_name}{option_set.uid}"
             build.notes.append(f"option set {option_set.uid}: name {option_set.name!r} is not unique; using {slug!r}")
         used_slugs.add(slug)

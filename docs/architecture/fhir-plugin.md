@@ -64,7 +64,10 @@ terminology = false                 # also emit DHIS2OrgUnitCS/VS
 ## Option sets -> terminology
 
 One file per option set under `ig/input/fsh/terminology/`: a
-`Dhis2OptionSet<Name>CS` CodeSystem plus a matching ValueSet. Every concept
+`Dhis2OptionSet<Name>CS` CodeSystem plus a matching ValueSet. Artifact ids
+stay within FHIR's 64-character id limit: an over-long option-set name is
+truncated and suffixed with the set's UID (noted in the report), which also
+keeps bounded ids unique. Every concept
 carries **both** DHIS2 identifiers: with the default
 `concept_code_source = "uid"` the option UID is the concept code and the
 DHIS2 option code rides along as a `dhis2-code` concept property; with

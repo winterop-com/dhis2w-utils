@@ -99,6 +99,19 @@ def test_slug_collision_gets_uid_suffix() -> None:
     assert any("not unique" in note for note in build.notes)
 
 
+def test_long_name_slug_is_bounded_to_fhir_id_limit() -> None:
+    """A very long option-set name yields ids within FHIR's 64-character limit, disambiguated by UID."""
+    long_name = "Residence of the malaria case/s that prompted foci investigation"
+    option_set = OptionSetInput(uid="Cc3cccccccc", name=long_name, options=[])
+    build = build_option_set_artifacts([option_set], GenerateConfig())
+    artifact = build.artifacts[0]
+    for line in artifact.content.splitlines():
+        if line.startswith("Id: "):
+            assert len(line.removeprefix("Id: ")) <= 64, line
+    assert "cc3cccccccc" in artifact.relative_path
+    assert any("exceeds the FHIR id length" in note for note in build.notes)
+
+
 def test_sets_sorted_by_name() -> None:
     """Output artifacts come in (name, uid) order regardless of input order."""
     build = build_option_set_artifacts(
