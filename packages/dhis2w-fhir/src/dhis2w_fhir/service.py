@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile, resolve
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, load_project
+from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
@@ -32,7 +34,9 @@ if TYPE_CHECKING:
     from dhis2w_client.generated.v42.schemas import OptionSet, OrganisationUnit
 
 _STREAM_PAGE_SIZE = 500
-_ORGANISATION_UNIT_FIELDS = "id,code,name,shortName,level,path,parent[id],geometry,contactPerson,email,phoneNumber"
+_ORGANISATION_UNIT_FIELDS = (
+    "id,code,name,shortName,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,closedDate"
+)
 
 
 class GenerateReport(BaseModel):
@@ -53,6 +57,7 @@ class GenerateReport(BaseModel):
 class GenerateAllReport(BaseModel):
     """Outcome of `d2w fhir generate all`."""
 
+    foundation: GenerateReport
     option_sets: GenerateReport
     organisation_units: GenerateReport
 
@@ -122,17 +127,31 @@ def _sweep_collections(raw: dict[str, object]) -> list[MetadataCollectionIn]:
     return collections
 
 
-async def validate_codes(profile: Profile, config: GenerateConfig) -> FhirValidationReport:
+def resolve_code_source(config: GenerateConfig, override: str | None) -> Literal["uid", "code"]:
+    """Effective concept code source for a validate run: the CLI/MCP override, else the configured value."""
+    if override is None:
+        return config.concept_code_source
+    if override == "uid":
+        return "uid"
+    if override == "code":
+        return "code"
+    raise ValueError(f"code_source must be 'uid' or 'code', not {override!r}")
+
+
+async def validate_codes(
+    profile: Profile, config: GenerateConfig, code_source: str | None = None
+) -> FhirValidationReport:
     """Check the whole instance's codes (sweep) plus the option sets in depth, without writing anything."""
+    effective_source = resolve_code_source(config, code_source)
     async with open_client(profile) as client:
-        raw = await client.get_raw("/api/metadata", params={"fields": "id,name,code"})
+        raw = await client.get_raw("/api/metadata", params={"fields": "id,name,code", "defaults": "EXCLUDE"})
         models = await client.resources.option_sets.list(
             fields="id,code,name,options[id,code,name,sortOrder]",
             order=["name:asc"],
             paging=False,
         )
     option_sets = [_option_set_input(model) for model in models]
-    return build_code_validation(option_sets, _sweep_collections(raw), config)
+    return build_code_validation(option_sets, _sweep_collections(raw), config, effective_source)
 
 
 async def init_project(directory: Path, options: InitOptions, *, force: bool = False) -> ScaffoldReport:
@@ -147,6 +166,19 @@ async def init_project(directory: Path, options: InitOptions, *, force: bool = F
         destination.write_text(scaffold_file.content, encoding="utf-8")
         report.created_files.append(scaffold_file.relative_path)
     return report
+
+
+async def generate_foundation(project: FhirProject) -> GenerateReport:
+    """Generate the instance-independent `foundation/` artifacts: DHIS2 identifier aliases and D2Period."""
+    artifacts = build_foundation_artifacts(project.config.generate)
+    sync = sync_artifacts(project.fsh_directory, "foundation", artifacts)
+    return GenerateReport(
+        project_root=project.project_root,
+        target_directory="foundation",
+        deleted_files=sync.deleted,
+        written_files=sync.written,
+        unchanged_count=len(sync.unchanged),
+    )
 
 
 async def generate_option_sets(profile: Profile, project: FhirProject) -> GenerateReport:
@@ -182,10 +214,9 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
         filters.append(f"path:like:{selection.root}")
     if selection.max_level is not None:
         filters.append(f"level:le:{selection.max_level}")
-    notes: list[str] = []
     organisation_units: list[OrganisationUnitIn] = []
-    polygon_units: list[str] = []
-    malformed_units: list[str] = []
+    tally = GeometryTally()
+    today = datetime.now(tz=UTC).date()
     async with open_client(profile) as client:
         page = 1
         while True:
@@ -198,26 +229,13 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
                 paging=True,
             )
             for model in models:
-                mapped = _organisation_unit_input(model, polygon_units, malformed_units)
+                mapped = _organisation_unit_input(model, tally, today)
                 if mapped is not None:
                     organisation_units.append(mapped)
             if len(models) < _STREAM_PAGE_SIZE:
                 break
             page += 1
-    if polygon_units:
-        notes.append(
-            aggregate_note(
-                f"{len(polygon_units)} organisation units have Polygon geometry; Location.position uses the "
-                "boundary centroid",
-                polygon_units,
-            )
-        )
-    if malformed_units:
-        notes.append(
-            aggregate_note(
-                f"{len(malformed_units)} organisation units have malformed geometry; skipped", malformed_units
-            )
-        )
+    notes: list[str] = tally.to_notes()
     generate_config = project.config.generate
     artifacts: list[FshArtifact] = [build_organisation_unit_profiles(generate_config)]
     if organisation_units:
@@ -250,10 +268,11 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
 
 
 async def generate_all(profile: Profile, project: FhirProject) -> GenerateAllReport:
-    """Generate option-set terminology and organisation-unit instances in one run."""
+    """Generate the foundation artifacts, option-set terminology, and organisation-unit instances in one run."""
+    foundation = await generate_foundation(project)
     option_sets = await generate_option_sets(profile, project)
     organisation_units = await generate_organisation_units(profile, project)
-    return GenerateAllReport(option_sets=option_sets, organisation_units=organisation_units)
+    return GenerateAllReport(foundation=foundation, option_sets=option_sets, organisation_units=organisation_units)
 
 
 def _apply_option_set_selection(inputs: list[OptionSetIn], project: FhirProject, notes: list[str]) -> list[OptionSetIn]:
@@ -369,51 +388,114 @@ def _absolute_ring_area(ring: list[GeoPoint]) -> float:
     return abs(doubled_area / 2)
 
 
+class GeometryTally(BaseModel):
+    """Per-run tally of the geometry outcomes worth a note: no position, or nothing usable at all.
+
+    Point and Polygon/MultiPolygon geometry is nominal - a position (the coordinates, or the
+    shoelace centroid) plus the boundary extension - and the report's position and boundary
+    counters already say how many units took that path, so neither raises a note.
+    """
+
+    other_geometry_units: list[str] = Field(default_factory=list)
+    other_geometry_types: set[str] = Field(default_factory=set)
+    malformed_units: list[str] = Field(default_factory=list)
+
+    def to_notes(self) -> list[str]:
+        """Roll the tally up into one aggregate note per noteworthy geometry outcome."""
+        notes: list[str] = []
+        if self.other_geometry_units:
+            type_names = ", ".join(sorted(self.other_geometry_types))
+            notes.append(
+                aggregate_note(
+                    f"{len(self.other_geometry_units)} organisation units have {type_names} geometry; embedded "
+                    "without position",
+                    self.other_geometry_units,
+                )
+            )
+        if self.malformed_units:
+            notes.append(
+                aggregate_note(
+                    f"{len(self.malformed_units)} organisation units have malformed geometry; no position or "
+                    "boundary emitted",
+                    self.malformed_units,
+                )
+            )
+        return notes
+
+
+def _geometry_positions(geometry: dict[str, object]) -> list[GeoPoint]:
+    """Collect every position in a GeoJSON geometry, descending into GeometryCollection members."""
+    positions: list[GeoPoint] = []
+    if geometry.get("type") == "GeometryCollection":
+        members = geometry.get("geometries")
+        if isinstance(members, list):
+            for member in members:
+                if isinstance(member, dict):
+                    positions.extend(_geometry_positions(member))
+        return positions
+    _walk_positions(geometry.get("coordinates"), positions)
+    return positions
+
+
+def _boundary_feature(geometry: dict[str, object], uid: str, name: str, level: int) -> str:
+    """Wrap a GeoJSON geometry in the compact Feature the boundary extension carries."""
+    feature = {
+        "type": "Feature",
+        "geometry": geometry,
+        "properties": {"dhis2Uid": uid, "name": name, "level": level},
+    }
+    return json.dumps(feature, separators=(",", ":"), sort_keys=True)
+
+
+def _is_closed(model: OrganisationUnit, today: date) -> bool:
+    """Check whether the unit's DHIS2 `closedDate` has passed - DHIS2 sends a date at midnight."""
+    closed_date = model.closedDate
+    return closed_date is not None and closed_date.date() <= today
+
+
 def _organisation_unit_input(
     model: OrganisationUnit,
-    polygon_units: list[str],
-    malformed_units: list[str],
+    tally: GeometryTally,
+    today: date,
 ) -> OrganisationUnitIn | None:
     """Map a generated OrganisationUnit into the emitter projection; None when it lacks a UID."""
     uid = model.id
     if not uid:
         return None
-    label = f"{model.name or uid} ({uid})"
+    name = model.name or uid
+    label = f"{name} ({uid})"
+    path = model.path or f"/{uid}"
+    level = model.level if model.level is not None else len([part for part in path.split("/") if part])
     position: GeoPoint | None = None
     boundary_geojson: str | None = None
     geometry = model.geometry
     if isinstance(geometry, dict):
         geometry_type = str(geometry.get("type"))
-        positions: list[GeoPoint] = []
-        coordinates = geometry.get("coordinates")
-        _walk_positions(coordinates, positions)
+        positions = _geometry_positions(geometry)
         if not positions:
-            malformed_units.append(label)
-        elif geometry_type == "Point":
-            position = positions[0]
-        elif geometry_type in {"Polygon", "MultiPolygon"}:
-            polygon_units.append(label)
-            position = _polygon_centroid(geometry_type, coordinates, positions)
+            tally.malformed_units.append(label)
         else:
-            malformed_units.append(label)
-        if position is not None:
-            boundary_geojson = json.dumps(geometry, separators=(",", ":"), sort_keys=True)
-    latitude = position.latitude if position is not None else None
-    longitude = position.longitude if position is not None else None
-    path = model.path or f"/{uid}"
-    level = model.level if model.level is not None else len([part for part in path.split("/") if part])
+            boundary_geojson = _boundary_feature(geometry, uid, name, level)
+            if geometry_type == "Point":
+                position = positions[0]
+            elif geometry_type in {"Polygon", "MultiPolygon"}:
+                position = _polygon_centroid(geometry_type, geometry.get("coordinates"), positions)
+            else:
+                tally.other_geometry_units.append(label)
+                tally.other_geometry_types.add(geometry_type)
     return OrganisationUnitIn(
         uid=uid,
-        name=model.name or uid,
+        name=name,
         short_name=model.shortName,
         code=model.code,
         level=level,
         path=path,
         parent_uid=model.parent.id if model.parent is not None else None,
-        latitude=latitude,
-        longitude=longitude,
+        latitude=position.latitude if position is not None else None,
+        longitude=position.longitude if position is not None else None,
         boundary_geojson=boundary_geojson,
         contact_person=model.contactPerson,
         email=model.email,
         phone_number=model.phoneNumber,
+        closed=_is_closed(model, today),
     )

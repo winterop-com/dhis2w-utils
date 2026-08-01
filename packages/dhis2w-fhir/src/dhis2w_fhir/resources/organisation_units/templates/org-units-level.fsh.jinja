@@ -8,15 +8,11 @@ Instance: Organization{{ organization.uid }}
 InstanceOf: {{ organization.profile }}
 Title: {{ organization.title_literal }}
 Description: {{ organization.description_literal }}
-Usage: #example
+Usage: #definition
 * identifier[dhis2uid].system = $DHIS2-OU
-* identifier[dhis2uid].type = $V2-0203#RI
 * identifier[dhis2uid].value = "{{ organization.uid }}"
-{% if organization.code_literal is not none %}
 * identifier[dhis2code].system = $DHIS2-OU-CODE
-* identifier[dhis2code].type = $V2-0203#XX
-* identifier[dhis2code].value = {{ organization.code_literal }}
-{% endif %}
+* identifier[dhis2code].value = {{ organization.identifier_code_literal }}
 * name = {{ organization.name_literal }}
 {% if organization.alias_literal is not none %}
 * alias = {{ organization.alias_literal }}
@@ -36,14 +32,19 @@ Usage: #example
 {% if organization.contact_literal is not none %}
 * contact[+].name.text = {{ organization.contact_literal }}
 {% endif %}
-* active = true
+* active = {{ "false" if organization.closed else "true" }}
 
 Instance: Location{{ location.uid }}
 InstanceOf: {{ location.profile }}
 Title: {{ location.title_literal }}
-Usage: #example
+Description: {{ location.description_literal }}
+Usage: #definition
+* identifier[dhis2uid].system = $DHIS2-OU
+* identifier[dhis2uid].value = "{{ location.uid }}"
+* identifier[dhis2code].system = $DHIS2-OU-CODE
+* identifier[dhis2code].value = {{ location.identifier_code_literal }}
 * name = {{ location.name_literal }}
-* status = #active
+* status = {{ "#inactive" if location.closed else "#active" }}
 {% if location.position is not none %}
 * position.latitude = {{ location.position.latitude }}
 * position.longitude = {{ location.position.longitude }}
@@ -52,6 +53,8 @@ Usage: #example
 * extension[+].url = "{{ boundary_extension_url }}"
 * extension[=].valueAttachment.contentType = #application/geo+json
 * extension[=].valueAttachment.data = "{{ location.boundary_data }}"
+* extension[=].valueAttachment.title = {{ location.boundary_title_literal }}
+* extension[=].valueAttachment.size = {{ location.boundary_size }}
 {% endif %}
 * managingOrganization = Reference(Organization{{ location.uid }})
 {% if location.parent_uid is not none %}

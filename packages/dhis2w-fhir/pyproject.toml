@@ -17,6 +17,7 @@ classifiers = [
 dependencies = [
     "dhis2w-core>=1.3.0,<2.0",
     "fastmcp>=3.4.4",
+    "fpdf2>=2.8.7",
     "jinja2>=3.1.6",
     "pydantic>=2.13.4",
     "rich>=15.0.0",

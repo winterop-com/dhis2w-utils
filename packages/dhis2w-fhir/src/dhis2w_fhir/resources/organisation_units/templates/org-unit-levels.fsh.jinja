@@ -5,6 +5,7 @@ Description: "Hierarchy levels of the DHIS2 organisation unit tree."
 * ^status = #active
 * ^content = #complete
 * ^caseSensitive = true
+* ^valueSet = Canonical({{ names.level_value_set }})
 {% for level in levels %}
 * #level-{{ level }} "Level {{ level }}"
 {% endfor %}

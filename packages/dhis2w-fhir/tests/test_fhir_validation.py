@@ -10,6 +10,7 @@ from dhis2w_fhir.validation.schemas import (
 )
 
 _CONFIG = GenerateConfig()
+_CODE_MODE = GenerateConfig(concept_code_source="code")
 
 
 def _set(uid: str, name: str, options: list[OptionIn]) -> OptionSetIn:
@@ -20,8 +21,8 @@ def _set(uid: str, name: str, options: list[OptionIn]) -> OptionSetIn:
 def _validate(
     option_sets: list[OptionSetIn], collections: list[MetadataCollectionIn] | None = None
 ) -> FhirValidationReport:
-    """Run validation with defaults."""
-    return build_code_validation(option_sets, collections or [], _CONFIG)
+    """Run validation in code mode - the severities the option findings carry when they bite."""
+    return build_code_validation(option_sets, collections or [], _CODE_MODE)
 
 
 def test_clean_instance_has_no_findings() -> None:
@@ -86,6 +87,78 @@ def test_spaced_code_is_info() -> None:
     report = _validate([_set("Aa1aaaaaaaa", "Sex", [OptionIn(uid="Op1aaaaaaaa", code="two words", name="S")])])
     assert [finding.category for finding in report.findings] == ["spaced-code"]
     assert report.info_count == 1
+
+
+def test_uid_mode_downgrades_the_code_findings() -> None:
+    """In uid mode the option code findings are informational - generation is not reading codes yet."""
+    options = [
+        OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Bad"),
+        OptionIn(uid="Op2aaaaaaaa", name="NoCode"),
+        OptionIn(uid="Op3aaaaaaaa", code="X", name="One"),
+        OptionIn(uid="Op4aaaaaaaa", code="X", name="Two"),
+    ]
+    report = build_code_validation([_set("Aa1aaaaaaaa", "Sex", options)], [], _CONFIG)
+    assert {finding.severity for finding in report.findings} == {"info"}
+    assert sorted(finding.category for finding in report.findings) == [
+        "duplicate-code",
+        "duplicate-code",
+        "invalid-code",
+        "missing-code",
+    ]
+    assert report.error_count == 0
+    assert report.warning_count == 0
+    assert all(finding.message.endswith("switching to code mode)") for finding in report.findings)
+
+
+def test_code_mode_keeps_the_code_findings_biting() -> None:
+    """In code mode the same option findings keep their error/warning severities."""
+    options = [
+        OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Bad"),
+        OptionIn(uid="Op2aaaaaaaa", name="NoCode"),
+    ]
+    report = build_code_validation([_set("Aa1aaaaaaaa", "Sex", options)], [], _CODE_MODE)
+    assert report.error_count == 1
+    assert report.warning_count == 1
+    assert not any("switching to code mode" in finding.message for finding in report.findings)
+
+
+def test_code_source_override_wins_over_the_config() -> None:
+    """The explicit code_source argument overrides `concept_code_source` in both directions."""
+    sets = [_set("Aa1aaaaaaaa", "Sex", [OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Bad")])]
+    assert build_code_validation(sets, [], _CONFIG, "code").error_count == 1
+    assert build_code_validation(sets, [], _CODE_MODE, "uid").error_count == 0
+    assert build_code_validation(sets, [], _CODE_MODE, "uid").info_count == 1
+
+
+def test_sweep_severities_ignore_the_code_source() -> None:
+    """The instance-wide sweep keeps its severities in uid mode - only the option pass is gated."""
+    collection = MetadataCollectionIn(
+        resource="dataElements", items=[MetadataItemIn(uid="De1aaaaaaaa", name="Bad", code=" X ")]
+    )
+    assert build_code_validation([], [collection], _CONFIG).error_count == 1
+    assert build_code_validation([], [collection], _CODE_MODE).error_count == 1
+
+
+def test_organisation_units_without_a_code_warn() -> None:
+    """Every organisation unit should carry both identifiers, so a missing code is a finding there only."""
+    report = build_code_validation(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="organisationUnits",
+                items=[
+                    MetadataItemIn(uid="Ou1aaaaaaaa", name="Coded", code="SL"),
+                    MetadataItemIn(uid="Ou2aaaaaaaa", name="Uncoded"),
+                ],
+            ),
+            MetadataCollectionIn(resource="dataElements", items=[MetadataItemIn(uid="De1aaaaaaaa", name="NoCode")]),
+        ],
+        _CONFIG,
+    )
+    assert [(finding.severity, finding.category, finding.uid) for finding in report.findings] == [
+        ("warning", "missing-code", "Ou2aaaaaaaa")
+    ]
+    assert "falls back to the UID" in report.findings[0].message
 
 
 def test_name_derived_checks_only_in_name_mode() -> None:

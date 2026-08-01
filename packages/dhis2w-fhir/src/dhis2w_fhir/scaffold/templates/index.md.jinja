@@ -3,7 +3,8 @@
 This Implementation Guide is generated from DHIS2 metadata with `d2w fhir`.
 
 - Option sets are represented as CodeSystem/ValueSet pairs under Terminology.
-- Organisation units are represented as Organization instances (with Location
-  instances where the source has Point geometry).
+- Every organisation unit is represented as an Organization plus a Location;
+  geometry is embedded losslessly as GeoJSON via the location-boundary-geojson
+  extension.
 
 See the Artifacts page for the full list.

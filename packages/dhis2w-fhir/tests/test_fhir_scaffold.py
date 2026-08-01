@@ -27,6 +27,7 @@ def test_scaffold_covers_expected_files() -> None:
         "fhir.toml.example",
         "ig/sushi-config.yaml",
         "ig/ig.ini",
+        "ig/fsh.ini",
         "ig/input/fsh/aliases.fsh",
         "ig/input/pagecontent/index.md",
         "ig/input/ignoreWarnings.txt",
@@ -70,12 +71,18 @@ def test_ig_ini_points_at_sushi_output() -> None:
     assert "ig = fsh-generated/resources/ImplementationGuide-dhis2.fhir.test.json" in _by_path()["ig/ig.ini"]
 
 
-def test_aliases_use_identifier_system_base() -> None:
-    """The aliases file defines the DHIS2 identifier systems and V2-0203."""
+def test_fsh_ini_raises_the_sushi_timeout() -> None:
+    """fsh.ini lifts the publisher's internal SUSHI timeout past a real instance's compile time."""
+    assert _by_path()["ig/fsh.ini"] == "[FSH]\ntimeout = 900\n"
+
+
+def test_scaffolded_aliases_are_hand_space() -> None:
+    """The scaffolded aliases file is a hand-authored stub; the DHIS2 systems are generated instead."""
     aliases = _by_path()["ig/input/fsh/aliases.fsh"]
-    assert "Alias: $DHIS2-OU = http://dhis2.org/fhir/id/org-unit" in aliases
-    assert "Alias: $DHIS2-OU-CODE = http://dhis2.org/fhir/id/org-unit-code" in aliases
-    assert "Alias: $V2-0203 = http://terminology.hl7.org/CodeSystem/v2-0203" in aliases
+    assert "Hand-authored FSH aliases live here" in aliases
+    assert "Alias: $DHIS2-OU =" not in aliases
+    assert "Alias: $DHIS2-OU-CODE =" not in aliases
+    assert "foundation/d2-aliases.fsh" in aliases
 
 
 def test_makefile_uses_real_tabs() -> None:

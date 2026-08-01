@@ -9963,7 +9963,7 @@ $ d2w fhir init [OPTIONS] [directory]
 
 ### `d2w fhir validate`
 
-Check the instance&#x27;s codes for FHIR-safety; writes a Markdown report grouped by type. Exits 1 on errors.
+Check the instance&#x27;s codes for FHIR-safety; writes md/csv/pdf reports grouped by type. Exits 1 on errors.
 
 **Usage**:
 
@@ -9973,7 +9973,9 @@ $ d2w fhir validate [OPTIONS]
 
 **Options**:
 
-* `--report <file>`: Markdown report path (default: fhir-validate-report.md in the project root or current directory).
+* `--report <file>`: Report path stem, without extension (default: fhir-validate-report in the project root or current directory).
+* `--format <str>`: Comma-separated report formats to write: md, csv, pdf.  [default: md,csv,pdf]
+* `--code-source <str>`: Override  concept_code_source for this run: uid or code. In uid mode the option code findings are informational; run with code to see what switching would cost.
 * `--all`: List info-level findings individually instead of rolled up.
 * `--no-fail`: Exit 0 even when errors are found.
 * `--help`: Show this message and exit.
@@ -9994,9 +9996,24 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
+* `foundation`: Generate the DHIS2 identifier aliases and...
 * `option-sets`: Generate CodeSystem/ValueSet FSH from...
 * `org-units`: Generate Organization/Location FSH from...
-* `all`: Generate option-set terminology and...
+* `all`: Generate the foundation artifacts,...
+
+#### `d2w fhir generate foundation`
+
+Generate the DHIS2 identifier aliases and the D2Period extension into the nearest FHIR project.
+
+**Usage**:
+
+```console
+$ d2w fhir generate foundation [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
 
 #### `d2w fhir generate option-sets`
 
@@ -10028,7 +10045,7 @@ $ d2w fhir generate org-units [OPTIONS]
 
 #### `d2w fhir generate all`
 
-Generate option-set terminology and organisation-unit instances in one run.
+Generate the foundation artifacts, option-set terminology, and organisation-unit instances in one run.
 
 **Usage**:
 

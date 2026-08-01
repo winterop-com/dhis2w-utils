@@ -5,6 +5,7 @@ Description: "DHIS2 organisation units. Concept codes are DHIS2 organisation uni
 * ^status = #active
 * ^content = #complete
 * ^caseSensitive = true
+* ^valueSet = Canonical({{ names.organisation_unit_value_set }})
 * ^property[+].code = #level
 * ^property[=].description = "DHIS2 organisation unit hierarchy level."
 * ^property[=].type = #integer

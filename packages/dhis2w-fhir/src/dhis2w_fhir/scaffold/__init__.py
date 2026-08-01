@@ -19,9 +19,6 @@ _ENVIRONMENT = Environment(
     lstrip_blocks=True,
 )
 
-#: The DHIS2 identifier base the scaffolded aliases file declares.
-_DEFAULT_IDENTIFIER_SYSTEM_BASE = "http://dhis2.org/fhir"
-
 
 def build_scaffold_files(options: InitOptions) -> list[ScaffoldFile]:
     """Build every file `d2w fhir init` writes, path-relative to the project root."""
@@ -30,12 +27,8 @@ def build_scaffold_files(options: InitOptions) -> list[ScaffoldFile]:
         _render("fhir.toml.example", "fhir.toml.example.jinja", options),
         _render("ig/sushi-config.yaml", "sushi-config.yaml.jinja", options, year=datetime.now(tz=UTC).year),
         _render("ig/ig.ini", "ig.ini.jinja", options),
-        _render(
-            "ig/input/fsh/aliases.fsh",
-            "aliases.fsh.jinja",
-            options,
-            identifier_system_base=_DEFAULT_IDENTIFIER_SYSTEM_BASE,
-        ),
+        _render("ig/fsh.ini", "fsh.ini.jinja", options),
+        _render("ig/input/fsh/aliases.fsh", "aliases.fsh.jinja", options),
         _render("ig/input/pagecontent/index.md", "index.md.jinja", options),
         _render("ig/input/ignoreWarnings.txt", "ignoreWarnings.txt.jinja", options),
         _render("Makefile", "Makefile.jinja", options),

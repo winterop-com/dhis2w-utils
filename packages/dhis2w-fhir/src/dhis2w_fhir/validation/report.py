@@ -1,7 +1,9 @@
-"""Markdown rendering of the FHIR-safety validation report, findings grouped by resource type."""
+"""Markdown and CSV rendering of the FHIR-safety validation report, findings grouped by resource type."""
 
 from __future__ import annotations
 
+import csv
+import io
 from collections import defaultdict
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
@@ -47,6 +49,30 @@ def render_validation_markdown(report: FhirValidationReport, target: str) -> str
         target=target,
         groups=_group_findings(report.findings),
     )
+
+
+#: The CSV header row - one column per `ValidationFinding` field, in declaration order.
+CSV_HEADER = ("severity", "category", "resource_type", "uid", "name", "code", "message")
+
+
+def render_validation_csv(report: FhirValidationReport) -> str:
+    """Render the validation report as CSV, one row per finding in report order."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(CSV_HEADER)
+    for finding in report.findings:
+        writer.writerow(
+            [
+                finding.severity,
+                finding.category,
+                finding.resource_type,
+                finding.uid,
+                finding.name,
+                finding.code or "",
+                finding.message,
+            ]
+        )
+    return buffer.getvalue()
 
 
 def _group_findings(findings: list[ValidationFinding]) -> list[_ReportGroup]:

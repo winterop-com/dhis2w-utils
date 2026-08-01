@@ -35,15 +35,20 @@ def kebab(value: str, fallback: str = "generated") -> str:
     return "-".join(part.lower() for part in parts) or fallback
 
 
+def escape_fsh_string(value: str) -> str:
+    r"""Escape the two characters a double-quoted FSH string literal cannot carry raw: `\` and `"`."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def quote(value: str) -> str:
     """Render a double-quoted FSH string literal, escaping backslashes/quotes and flattening newlines."""
     flattened = " ".join((value or "").split())
-    return '"' + flattened.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return f'"{escape_fsh_string(flattened)}"'
 
 
 def fsh_code(value: str) -> str:
-    """Render a `#code` token, using the quoted `#"..."` form when the code contains spaces."""
-    return f'#"{value}"' if " " in value else f"#{value}"
+    """Render a `#code` token, using the escaped, quoted `#"..."` form when the code contains spaces."""
+    return f'#"{escape_fsh_string(value)}"' if " " in value else f"#{value}"
 
 
 _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
@@ -62,3 +67,12 @@ def is_valid_fhir_code(value: str | None) -> bool:
 def is_valid_fhir_id(value: str) -> bool:
     """Check `value` against the R4 `id` datatype: ASCII letters/digits/hyphen/dot, 1-64 characters."""
     return _FHIR_ID_PATTERN.match(value) is not None
+
+
+def code_or_uid(code: str | None, uid: str) -> str:
+    """The DHIS2 code when it is a usable FHIR code, else the UID.
+
+    Every generated artifact exposes both DHIS2 identifiers, so the code slot is never empty:
+    until an instance carries a real code on every object, the code slot repeats the UID.
+    """
+    return code if code is not None and is_valid_fhir_code(code) else uid

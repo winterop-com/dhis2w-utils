@@ -20,9 +20,14 @@ _EXPECTED_UID_SOURCE = """CodeSystem: D2OSBirthTypeCS
 Id: d2-os-birth-type-cs
 Title: "Birth type"
 Description: "DHIS2 option set Birth type (Xa1b2c3d4e5). Concept codes are DHIS2 option UIDs."
+* ^identifier[+].system = "http://dhis2.org/fhir/id/option-set"
+* ^identifier[=].value = "Xa1b2c3d4e5"
+* ^identifier[+].system = "http://dhis2.org/fhir/id/option-set-code"
+* ^identifier[=].value = "Xa1b2c3d4e5"
 * ^status = #active
 * ^content = #complete
 * ^caseSensitive = true
+* ^valueSet = Canonical(D2OSBirthTypeVS)
 * ^property[+].code = #dhis2-code
 * ^property[=].description = "DHIS2 option code."
 * ^property[=].type = #string
@@ -33,11 +38,17 @@ Description: "DHIS2 option set Birth type (Xa1b2c3d4e5). Concept codes are DHIS2
 * #EBE0c8sZazS ^property[+].code = #dhis2-code
 * #EBE0c8sZazS ^property[=].valueString = "CS"
 * #GVcG84DTFOB "Unplanned Cesarean"
+* #GVcG84DTFOB ^property[+].code = #dhis2-code
+* #GVcG84DTFOB ^property[=].valueString = "GVcG84DTFOB"
 
 ValueSet: D2OSBirthTypeVS
 Id: d2-os-birth-type-vs
 Title: "Birth type"
 Description: "DHIS2 option set Birth type (Xa1b2c3d4e5). Concept codes are DHIS2 option UIDs."
+* ^identifier[+].system = "http://dhis2.org/fhir/id/option-set"
+* ^identifier[=].value = "Xa1b2c3d4e5"
+* ^identifier[+].system = "http://dhis2.org/fhir/id/option-set-code"
+* ^identifier[=].value = "Xa1b2c3d4e5"
 * ^status = #active
 * include codes from system D2OSBirthTypeCS
 """
@@ -77,6 +88,42 @@ def test_code_source_uses_codes_with_uid_property() -> None:
     assert "Concept codes are DHIS2 option codes." in content
     assert '* #GVcG84DTFOB "Unplanned Cesarean"' in content
     assert any("has no code" in note for note in build.notes)
+
+
+def test_option_set_business_identifiers_use_the_configured_base() -> None:
+    """The CS/VS pair carries both DHIS2 identifiers of the source set under the configured base URI."""
+    config = GenerateConfig(identifier_system_base="https://example.org/dhis2/")
+    coded = OptionSetIn(uid="Ys9d8f7g6h5", code="BIRTH", name="Sample", options=[])
+    content = build_option_set_artifacts([coded], config).artifacts[0].content
+    assert content.count('* ^identifier[+].system = "https://example.org/dhis2/id/option-set"') == 2
+    assert content.count('* ^identifier[+].system = "https://example.org/dhis2/id/option-set-code"') == 2
+    assert content.count('* ^identifier[=].value = "Ys9d8f7g6h5"') == 2
+    assert content.count('* ^identifier[=].value = "BIRTH"') == 2
+
+
+def test_every_concept_carries_the_complementary_identifier() -> None:
+    """No concept goes without the pair: uid mode adds dhis2-code, code mode adds dhis2-uid."""
+    uid_mode = build_option_set_artifacts([_BIRTH_TYPE], GenerateConfig()).artifacts[0].content
+    assert uid_mode.count("^property[+].code = #dhis2-code") == 4
+    code_mode = build_option_set_artifacts([_BIRTH_TYPE], GenerateConfig(concept_code_source="code"))
+    assert code_mode.artifacts[0].content.count("^property[+].code = #dhis2-uid") == 4
+
+
+def test_colliding_concept_codes_fall_back_to_the_uid() -> None:
+    """Two options sharing one DHIS2 code cannot repeat a concept code, so the later one uses its UID."""
+    option_set = OptionSetIn(
+        uid="Ys9d8f7g6h5",
+        name="Dup",
+        options=[
+            OptionIn(uid="Op1aaaaaaaa", code="X", name="One", sort_order=1),
+            OptionIn(uid="Op2aaaaaaaa", code="X", name="Two", sort_order=2),
+        ],
+    )
+    build = build_option_set_artifacts([option_set], GenerateConfig(concept_code_source="code"))
+    content = build.artifacts[0].content
+    assert '* #X "One"' in content
+    assert '* #Op2aaaaaaaa "Two"' in content
+    assert any("1 option codes collided; fell back to the UID: X (Op2aaaaaaaa)" in note for note in build.notes)
 
 
 def test_code_source_rejects_invalid_fhir_codes() -> None:

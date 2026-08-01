@@ -23,11 +23,19 @@ def register(mcp: Any) -> None:
     """Register the `fhir_*` tools on `mcp`."""
 
     @mcp.tool(annotations=_READ)
-    async def fhir_validate(profile: str | None = None, project_directory: str | None = None) -> FhirValidationReport:
-        """Check a DHIS2 instance's codes for FHIR-safety - instance-wide sweep plus a deep option-set pass."""
+    async def fhir_validate(
+        profile: str | None = None,
+        project_directory: str | None = None,
+        code_source: str | None = None,
+    ) -> FhirValidationReport:
+        """Check a DHIS2 instance's codes for FHIR-safety - instance-wide sweep plus a deep option-set pass.
+
+        `code_source` ("uid" or "code") overrides the project's `concept_code_source` for this run:
+        in uid mode the option code findings are informational, in code mode they are defects.
+        """
         if project_directory:
             project = load_project(Path(project_directory))
             generation = service.resolve_generation_profile(project, profile)
-            return await service.validate_codes(generation.profile, project.config.generate)
+            return await service.validate_codes(generation.profile, project.config.generate, code_source)
         context = service.resolve_validation_context(profile)
-        return await service.validate_codes(context.generation.profile, context.config)
+        return await service.validate_codes(context.generation.profile, context.config, code_source)

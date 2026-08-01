@@ -1,11 +1,11 @@
 """FSH emission for DHIS2 organisation units: profiles, level terminology, and per-level instances.
 
 Point geometry lands in `Location.position`; Polygon/MultiPolygon geometry
-contributes its area-weighted centroid. Every unit with usable geometry also
-carries the full GeoJSON through the standard `location-boundary-geojson`
-extension. An optional toggle emits the whole selection as a
-CodeSystem/ValueSet with `level`, `parent`, and `dhis2-code` concept
-properties.
+contributes its area-weighted centroid; every other geometry type is embedded
+without a position. Every unit with usable geometry carries the full GeoJSON
+Feature through the standard `location-boundary-geojson` extension. An
+optional toggle emits the whole selection as a CodeSystem/ValueSet with
+`level`, `parent`, and `dhis2-code` concept properties.
 """
 
 from __future__ import annotations

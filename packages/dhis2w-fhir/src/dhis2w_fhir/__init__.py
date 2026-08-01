@@ -18,7 +18,15 @@ from dhis2w_fhir.config import (
     load_project,
     write_fhir_config,
 )
+from dhis2w_fhir.foundation import FoundationNaming, build_foundation_artifacts
 from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.period import (
+    PERIOD_TYPE_DEFINITIONS,
+    PERIOD_TYPE_NAMES,
+    PeriodTypeDefinition,
+    PeriodValue,
+    parse_period,
+)
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, max_slug_length
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn, OptionSetSelection
 from dhis2w_fhir.resources.organisation_units import (
@@ -36,6 +44,8 @@ from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, ScaffoldReport
 from dhis2w_fhir.service import GenerateAllReport, GenerateReport
 from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
+from dhis2w_fhir.validation.pdf import render_validation_pdf
+from dhis2w_fhir.validation.report import render_validation_csv
 from dhis2w_fhir.validation.schemas import (
     FhirValidationReport,
     MetadataCollectionIn,
@@ -55,9 +65,12 @@ from dhis2w_fhir.writer import (
 __all__ = [
     "FHIR_CONFIG_FILENAME",
     "GENERATED_HEADER",
+    "PERIOD_TYPE_DEFINITIONS",
+    "PERIOD_TYPE_NAMES",
     "FhirProject",
     "FhirProjectConfig",
     "FhirValidationReport",
+    "FoundationNaming",
     "FshArtifact",
     "FshBuild",
     "GenerateAllReport",
@@ -75,12 +88,15 @@ __all__ = [
     "OptionSetSelection",
     "OrganisationUnitIn",
     "OrganisationUnitSelection",
+    "PeriodTypeDefinition",
+    "PeriodValue",
     "ScaffoldFile",
     "ScaffoldReport",
     "SyncReport",
     "ValidationFinding",
     "aggregate_note",
     "build_code_validation",
+    "build_foundation_artifacts",
     "build_option_set_artifacts",
     "build_organisation_unit_instances",
     "build_organisation_unit_level_terminology",
@@ -92,7 +108,10 @@ __all__ = [
     "load_fhir_config",
     "load_project",
     "max_slug_length",
+    "parse_period",
+    "render_validation_csv",
     "render_validation_markdown",
+    "render_validation_pdf",
     "sync_artifacts",
     "write_artifacts",
     "write_fhir_config",

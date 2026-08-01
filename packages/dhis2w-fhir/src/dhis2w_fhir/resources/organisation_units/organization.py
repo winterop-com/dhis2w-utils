@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_fhir.names import quote
+from dhis2w_fhir.names import code_or_uid, quote
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.resources.organisation_units.location import (
     BOUNDARY_EXTENSION_URL,
@@ -52,10 +52,11 @@ class OrganizationInstance(BaseModel):
     title_literal: str
     description_literal: str
     name_literal: str
-    code_literal: str | None = None
+    identifier_code_literal: str
     alias_literal: str | None = None
     level: int
     level_code_system: str
+    closed: bool = False
     parent_uid: str | None = None
     phone_literal: str | None = None
     email_literal: str | None = None
@@ -139,10 +140,11 @@ def _build_organization_instance(
         title_literal=quote(f"Organization - {organisation_unit.name}"),
         description_literal=quote(description),
         name_literal=quote(organisation_unit.name),
-        code_literal=quote(organisation_unit.code) if organisation_unit.code is not None else None,
+        identifier_code_literal=quote(code_or_uid(organisation_unit.code, organisation_unit.uid)),
         alias_literal=alias_literal,
         level=organisation_unit.level,
         level_code_system=names.level_code_system,
+        closed=organisation_unit.closed,
         parent_uid=parent_uid,
         phone_literal=quote(organisation_unit.phone_number) if organisation_unit.phone_number is not None else None,
         email_literal=quote(organisation_unit.email) if organisation_unit.email is not None else None,

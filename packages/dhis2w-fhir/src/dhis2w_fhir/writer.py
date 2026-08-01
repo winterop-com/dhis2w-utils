@@ -22,7 +22,7 @@ class FshArtifact(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     relative_path: str
-    kind: Literal["terminology-pair", "profile", "instances"]
+    kind: Literal["aliases", "extension", "terminology-pair", "profile", "instances"]
     fsh_name: str
     content: str
 

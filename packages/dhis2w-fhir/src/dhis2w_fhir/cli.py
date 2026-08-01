@@ -89,6 +89,20 @@ def _render_generate_report(title: str, report: GenerateReport, generation: Gene
         typer.secho(f"note: {note}", err=True, fg=typer.colors.YELLOW)
 
 
+@generate_app.command("foundation")
+def generate_foundation_command() -> None:
+    """Generate the DHIS2 identifier aliases and the D2Period extension into the nearest FHIR project."""
+    from dhis2w_fhir import service
+
+    project = load_project()
+    generation = service.resolve_generation_profile(project)
+    report = asyncio.run(service.generate_foundation(project))
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    _render_generate_report("fhir generate foundation", report, generation)
+
+
 @generate_app.command("option-sets")
 def generate_option_sets_command() -> None:
     """Generate CodeSystem/ValueSet FSH from DHIS2 option sets into the nearest FHIR project."""
@@ -119,7 +133,7 @@ def generate_organisation_units_command() -> None:
 
 @generate_app.command("all")
 def generate_all_command() -> None:
-    """Generate option-set terminology and organisation-unit instances in one run."""
+    """Generate the foundation artifacts, option-set terminology, and organisation-unit instances in one run."""
     from dhis2w_fhir import service
 
     project = load_project()
@@ -128,18 +142,46 @@ def generate_all_command() -> None:
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
+    _render_generate_report("fhir generate foundation", report.foundation, generation)
     _render_generate_report("fhir generate option-sets", report.option_sets, generation)
     _render_generate_report("fhir generate org-units", report.organisation_units, generation)
 
 
+#: The report formats `--format` accepts, in the order they are written.
+_REPORT_FORMATS = ("md", "csv", "pdf")
+
+
+def _parse_report_formats(value: str) -> list[str]:
+    """Parse the `--format` comma list into the canonical write order, rejecting unknown names."""
+    requested = {item.strip().lower() for item in value.split(",") if item.strip()}
+    unknown = sorted(requested - set(_REPORT_FORMATS))
+    if unknown:
+        raise typer.BadParameter(f"unknown format(s): {', '.join(unknown)} (choose from md, csv, pdf)")
+    if not requested:
+        raise typer.BadParameter("at least one format is required (choose from md, csv, pdf)")
+    return [name for name in _REPORT_FORMATS if name in requested]
+
+
 @app.command("validate")
 def validate_command(
-    report_path: Annotated[
+    report_stem: Annotated[
         Path | None,
         typer.Option(
             "--report",
             dir_okay=False,
-            help="Markdown report path (default: fhir-validate-report.md in the project root or current directory).",
+            help="Report path stem, without extension "
+            "(default: fhir-validate-report in the project root or current directory).",
+        ),
+    ] = None,
+    formats: Annotated[
+        str, typer.Option("--format", help="Comma-separated report formats to write: md, csv, pdf.")
+    ] = "md,csv,pdf",
+    code_source: Annotated[
+        str | None,
+        typer.Option(
+            "--code-source",
+            help="Override [generate] concept_code_source for this run: uid or code. In uid mode the option "
+            "code findings are informational; run with code to see what switching would cost.",
         ),
     ] = None,
     show_all: Annotated[
@@ -147,20 +189,35 @@ def validate_command(
     ] = False,
     no_fail: Annotated[bool, typer.Option("--no-fail", help="Exit 0 even when errors are found.")] = False,
 ) -> None:
-    """Check the instance's codes for FHIR-safety; writes a Markdown report grouped by type. Exits 1 on errors."""
+    """Check the instance's codes for FHIR-safety; writes md/csv/pdf reports grouped by type. Exits 1 on errors."""
     from collections import Counter
+    from datetime import UTC, datetime
 
     from dhis2w_core.cli_output import ColumnSpec, render_list
 
-    from dhis2w_fhir import find_project_fhir_config, render_validation_markdown, service
+    from dhis2w_fhir import find_project_fhir_config, service
+    from dhis2w_fhir.validation.pdf import render_validation_pdf
+    from dhis2w_fhir.validation.report import render_validation_csv, render_validation_markdown
 
+    selected_formats = _parse_report_formats(formats)
+    if code_source is not None and code_source not in {"uid", "code"}:
+        raise typer.BadParameter("code_source must be 'uid' or 'code'")
     context = service.resolve_validation_context()
-    report = asyncio.run(service.validate_codes(context.generation.profile, context.config))
+    report = asyncio.run(service.validate_codes(context.generation.profile, context.config, code_source))
     project_config = find_project_fhir_config()
     default_directory = project_config.parent if project_config else Path.cwd()
-    destination = report_path or default_directory / "fhir-validate-report.md"
+    stem = report_stem or default_directory / "fhir-validate-report"
     target = f"{context.generation.name} ({context.generation.profile.base_url})"
-    destination.write_text(render_validation_markdown(report, target), encoding="utf-8")
+    generated_at = datetime.now(tz=UTC)
+    for report_format in selected_formats:
+        destination = stem.with_name(f"{stem.name}.{report_format}")
+        if report_format == "md":
+            destination.write_text(render_validation_markdown(report, target), encoding="utf-8")
+        elif report_format == "csv":
+            destination.write_text(render_validation_csv(report), encoding="utf-8")
+        else:
+            destination.write_bytes(render_validation_pdf(report, target, generated_at))
+        typer.secho(f"wrote {destination}", err=True)
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
     else:
@@ -175,7 +232,7 @@ def validate_command(
                 DetailRow("errors", str(report.error_count)),
                 DetailRow("warnings", str(report.warning_count)),
                 DetailRow("infos", str(report.info_count)),
-                DetailRow("report", str(destination)),
+                DetailRow("code source", service.resolve_code_source(context.config, code_source)),
             ],
         )
         detailed = [finding for finding in report.findings if show_all or finding.severity in {"error", "warning"}]

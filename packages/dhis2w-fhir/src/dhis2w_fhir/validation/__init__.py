@@ -14,7 +14,7 @@ Two passes share one finding shape:
 from __future__ import annotations
 
 from collections import Counter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from dhis2w_fhir.names import is_valid_fhir_code, kebab, pascal
 from dhis2w_fhir.resources.option_sets import max_slug_length
@@ -32,18 +32,29 @@ _MAX_FHIR_NAME_LENGTH = 255
 
 _SEVERITY_RANK = {"error": 0, "warning": 1, "info": 2}
 
+#: Option-pass categories that only bite once generation actually reads DHIS2 codes.
+_CODE_MODE_CATEGORIES = frozenset({"invalid-code", "missing-code", "duplicate-code"})
+
+#: Appended to a downgraded option finding so the report says why it is only informational.
+_UID_MODE_SUFFIX = " (informational in uid mode; will matter when switching to code mode)"
+
+#: The one collection where a missing code is a finding: every unit must carry both identifiers.
+_CODE_REQUIRED_COLLECTION = "organisationUnits"
+
 
 def build_code_validation(
     option_sets: list[OptionSetIn],
     collections: list[MetadataCollectionIn],
     config: GenerateConfig,
+    code_source: Literal["uid", "code"] | None = None,
 ) -> FhirValidationReport:
     """Run both validation passes; findings sort by severity, resource type, then name."""
+    effective_source = code_source or config.concept_code_source
     findings: list[ValidationFinding] = []
     option_count = 0
     for option_set in sorted(option_sets, key=lambda item: (item.name, item.uid)):
         option_count += len(option_set.options)
-        findings.extend(_option_findings(option_set))
+        findings.extend(_option_findings(option_set, effective_source))
         findings.extend(_option_set_naming_findings(option_set, config))
     object_count = 0
     for collection in sorted(collections, key=lambda item: item.resource):
@@ -64,9 +75,22 @@ def _collection_findings(collection: MetadataCollectionIn) -> list[ValidationFin
     findings: list[ValidationFinding] = []
     code_counts = Counter(item.code for item in collection.items if item.code is not None)
     for item in sorted(collection.items, key=lambda entry: entry.uid):
-        if item.code is None:
-            continue
         name = item.name or item.uid
+        if item.code is None:
+            if collection.resource == _CODE_REQUIRED_COLLECTION:
+                findings.append(
+                    ValidationFinding(
+                        severity="warning",
+                        category="missing-code",
+                        resource_type=collection.resource,
+                        uid=item.uid,
+                        name=name,
+                        code=None,
+                        message="organisation unit has no code; every unit should carry both the UID and a code "
+                        "identifier; the code identifier currently falls back to the UID",
+                    )
+                )
+            continue
         if not is_valid_fhir_code(item.code):
             findings.append(
                 ValidationFinding(
@@ -122,8 +146,25 @@ def _option_set_naming_findings(option_set: OptionSetIn, config: GenerateConfig)
     return findings
 
 
-def _option_findings(option_set: OptionSetIn) -> list[ValidationFinding]:
-    """Deep option checks: invalid, missing, spaced, and duplicated codes within one set."""
+def _option_findings(option_set: OptionSetIn, code_source: Literal["uid", "code"]) -> list[ValidationFinding]:
+    """Deep option checks: invalid, missing, spaced, and duplicated codes within one set.
+
+    In uid mode the code-shaped findings are downgraded to info: generation is not reading the
+    DHIS2 codes yet, so they are a readiness signal for switching to code mode, not a defect.
+    """
+    findings = _raw_option_findings(option_set)
+    if code_source == "code":
+        return findings
+    return [_downgraded(finding) if finding.category in _CODE_MODE_CATEGORIES else finding for finding in findings]
+
+
+def _downgraded(finding: ValidationFinding) -> ValidationFinding:
+    """Re-issue one option finding as info, saying why it does not bite in uid mode."""
+    return finding.model_copy(update={"severity": "info", "message": finding.message + _UID_MODE_SUFFIX})
+
+
+def _raw_option_findings(option_set: OptionSetIn) -> list[ValidationFinding]:
+    """Deep option checks at their code-mode severities, before any uid-mode downgrade."""
     findings: list[ValidationFinding] = []
     valid_codes = Counter(
         option.code for option in option_set.options if option.code is not None and is_valid_fhir_code(option.code)

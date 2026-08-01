@@ -144,10 +144,15 @@ async def test_validate_codes_across_majors(
     context = service.resolve_validation_context()
     report = await service.validate_codes(resolve_profile("probe"), context.config)
 
-    assert report.error_count == 2
+    # Default uid mode: the sweep error stands, the option code finding is informational.
+    assert report.error_count == 1
+    assert report.info_count == 1
     assert {finding.resource_type for finding in report.findings} == {"options", "dataElements"}
     assert report.resource_type_count == 1
     assert report.object_count == 1
+
+    in_code_mode = await service.validate_codes(resolve_profile("probe"), context.config, "code")
+    assert in_code_mode.error_count == 2
 
 
 @respx.mock

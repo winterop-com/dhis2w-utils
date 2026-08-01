@@ -1,6 +1,9 @@
 DOCKER_IMAGE := fhir-ig
 IG_DIR := ig
-TX_SERVER ?= n/a
+# n/a disables terminology validation for offline builds, but current IG publisher versions
+# NPE on required bindings that need a server (e.g. Attachment.contentType on the GeoJSON
+# boundary extension) - use n/a only if your content has no such bindings.
+TX_SERVER ?= http://tx.fhir.org
 # Override to run d2w from a checkout or straight from a git ref (no local install):
 #   make generate D2W="uv run --project /path/to/dhis2w-utils d2w"
 #   make generate D2W="uvx --from 'git+ssh://git@github.com/winterop-com/dhis2w-utils.git@main#     #subdirectory=packages/dhis2w-cli' --with 'dhis2w-fhir @ git+ssh://git@github.com/#     winterop-com/dhis2w-utils.git@main#subdirectory=packages/dhis2w-fhir' d2w"
@@ -20,7 +23,7 @@ upgrade:  ## Rebuild the image from scratch, pulling the latest SUSHI + IG publi
 generate:  ## Regenerate FSH from DHIS2 metadata
 	$(D2W) fhir generate all
 
-validate:  ## Check the DHIS2 instance's codes/names for FHIR-safety (exit 1 on errors)
+validate:  ## Check the DHIS2 instance's codes/names for FHIR-safety (writes md/csv/pdf; exit 1 on errors)
 	$(D2W) fhir validate
 
 sushi:  ## Compile FSH to FHIR resources

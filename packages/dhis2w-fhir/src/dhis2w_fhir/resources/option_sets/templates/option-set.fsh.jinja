@@ -2,9 +2,14 @@ CodeSystem: {{ base_name }}CS
 Id: {{ id_stem }}{{ slug }}-cs
 Title: {{ title }}
 Description: {{ description }}
+{% for identifier in identifiers %}
+* ^identifier[+].system = "{{ identifier.system }}"
+* ^identifier[=].value = "{{ identifier.value }}"
+{% endfor %}
 * ^status = #active
 * ^content = #complete
 * ^caseSensitive = true
+* ^valueSet = Canonical({{ base_name }}VS)
 {% for declaration in declarations %}
 * ^property[+].code = #{{ declaration.code }}
 * ^property[=].description = "{{ declaration.description }}"
@@ -22,5 +27,9 @@ ValueSet: {{ base_name }}VS
 Id: {{ id_stem }}{{ slug }}-vs
 Title: {{ title }}
 Description: {{ description }}
+{% for identifier in identifiers %}
+* ^identifier[+].system = "{{ identifier.system }}"
+* ^identifier[=].value = "{{ identifier.value }}"
+{% endfor %}
 * ^status = #active
 * include codes from system {{ base_name }}CS

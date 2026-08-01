@@ -625,6 +625,7 @@ Check a DHIS2 instance's codes for FHIR-safety - instance-wide sweep plus a deep
 | --- | --- | --- | --- |
 | `profile` | `string` | no | — |
 | `project_directory` | `string` | no | — |
+| `code_source` | `string` | no | — |
 
 ## `files`
 

@@ -39,8 +39,9 @@ class OrganisationUnitIn(BaseModel):
 
     `latitude`/`longitude` hold the Point coordinates, or the area-weighted centroid for
     Polygon/MultiPolygon geometry; GeoJSON stores `[longitude, latitude]`, so the mapper
-    must swap. `boundary_geojson` carries the compact GeoJSON geometry of every unit whose
-    geometry parses, Points included.
+    must swap. `boundary_geojson` carries the compact GeoJSON Feature wrapping the geometry
+    of every unit whose geometry parses, Points and non-positional types included.
+    `closed` is true for a unit whose DHIS2 `closedDate` has passed.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -58,3 +59,4 @@ class OrganisationUnitIn(BaseModel):
     contact_person: str | None = None
     email: str | None = None
     phone_number: str | None = None
+    closed: bool = False

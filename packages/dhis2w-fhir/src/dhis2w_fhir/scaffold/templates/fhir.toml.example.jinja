@@ -12,7 +12,8 @@ title = "{{ title }}"
 publisher = "{{ publisher }}"
 
 [generate]
-# Base URI for DHIS2 identifier systems in aliases.fsh ($DHIS2-OU etc).
+# Base URI for the DHIS2 identifier systems. `generate foundation` writes it into
+# foundation/d2-aliases.fsh ($DHIS2-OU, $DHIS2-OU-CODE) and the option-set business identifiers.
 identifier_system_base = "http://dhis2.org/fhir"
 # Concept code source for option sets: "uid" (option UID, DHIS2 code as property)
 # or "code" (DHIS2 code when FHIR-valid, UID as property; invalid codes fall back).
