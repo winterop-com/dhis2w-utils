@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, load_project
 from dhis2w_fhir.foundation import build_foundation_artifacts
+from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
@@ -34,8 +35,11 @@ if TYPE_CHECKING:
     from dhis2w_client.generated.v42.schemas import OptionSet, OrganisationUnit
 
 _STREAM_PAGE_SIZE = 500
+_TRANSLATION_FIELDS = "translations[locale,property,value]"
+_OPTION_SET_FIELDS = f"id,code,name,{_TRANSLATION_FIELDS},options[id,code,name,sortOrder,{_TRANSLATION_FIELDS}]"
 _ORGANISATION_UNIT_FIELDS = (
-    "id,code,name,shortName,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,closedDate"
+    "id,code,name,shortName,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,closedDate,"
+    f"{_TRANSLATION_FIELDS}"
 )
 
 
@@ -146,7 +150,7 @@ async def validate_codes(
     async with open_client(profile) as client:
         raw = await client.get_raw("/api/metadata", params={"fields": "id,name,code", "defaults": "EXCLUDE"})
         models = await client.resources.option_sets.list(
-            fields="id,code,name,options[id,code,name,sortOrder]",
+            fields=_OPTION_SET_FIELDS,
             order=["name:asc"],
             paging=False,
         )
@@ -186,7 +190,7 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
     config = project.config.generate
     async with open_client(profile) as client:
         models = await client.resources.option_sets.list(
-            fields="id,code,name,options[id,code,name,sortOrder]",
+            fields=_OPTION_SET_FIELDS,
             order=["name:asc"],
             paging=False,
         )
@@ -287,6 +291,21 @@ def _apply_option_set_selection(inputs: list[OptionSetIn], project: FhirProject,
     return selected
 
 
+def _translation_inputs(raw_translations: object) -> list[TranslationIn]:
+    """Wrap the raw DHIS2 translation dicts into the shared projection, dropping entries missing any key."""
+    if not isinstance(raw_translations, list):
+        return []
+    translations: list[TranslationIn] = []
+    for raw in raw_translations:
+        if not isinstance(raw, dict):
+            continue
+        locale, property_name, value = raw.get("locale"), raw.get("property"), raw.get("value")
+        if not isinstance(locale, str) or not isinstance(property_name, str) or not isinstance(value, str):
+            continue
+        translations.append(TranslationIn(locale=locale, property=property_name, value=value))
+    return translations
+
+
 def _option_set_input(model: OptionSet) -> OptionSetIn:
     """Map a generated OptionSet (with inline option dicts) into the emitter projection."""
     options = [
@@ -295,12 +314,19 @@ def _option_set_input(model: OptionSet) -> OptionSetIn:
             code=raw.get("code"),
             name=str(raw.get("name") or raw["id"]),
             sort_order=raw.get("sortOrder"),
+            translations=_translation_inputs(raw.get("translations")),
         )
         for raw in model.options or []
         if isinstance(raw, dict) and raw.get("id")
     ]
     uid = model.id or ""
-    return OptionSetIn(uid=uid, code=model.code, name=model.name or uid, options=options)
+    return OptionSetIn(
+        uid=uid,
+        code=model.code,
+        name=model.name or uid,
+        options=options,
+        translations=_translation_inputs(model.translations),
+    )
 
 
 #: Below this absolute shoelace area a ring is degenerate and its vertices are simply averaged.
@@ -498,4 +524,5 @@ def _organisation_unit_input(
         email=model.email,
         phone_number=model.phoneNumber,
         closed=_is_closed(model, today),
+        translations=_translation_inputs(model.translations),
     )

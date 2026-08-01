@@ -93,6 +93,7 @@ publisher = "Example Organisation"
 [generate]
 identifier_system_base = "http://dhis2.org/fhir"
 concept_code_source = "uid"
+locales = []
 ```
 
 **`identifier_system_base`** is the base URI for the DHIS2 identifier systems.
@@ -128,6 +129,11 @@ those in DHIS2, re-run until the option findings are clean, then set
 `concept_code_source = "code"` and regenerate. In the meantime, running plain
 `d2w fhir validate` in uid mode reports the same findings as `info` - they are a
 readiness signal, not a defect, because generation is not reading those codes yet.
+
+**`locales`** picks which translation locales reach the generated artifacts. It
+takes BCP-47 or DHIS2-style tags (`"lo"`, `"km"`, `"pt_BR"`) and an empty list -
+the default - emits every locale found on the instance. See
+[Locales and translations](#locales-and-translations).
 
 ### `[generate.naming]`
 
@@ -348,6 +354,48 @@ The first two rows are nominal behaviour, not warnings: the run's `positions` an
 `boundaries` counters say how many units took them. The last two each raise one
 aggregate note per run, because something a consumer might expect is genuinely
 absent.
+
+## Locales and translations
+
+DHIS2 carries a translation as a `{locale, property, value}` triple, where the
+locale is a Java-style tag (`lo`, `km`, `pt_BR`) and the property names what is
+translated (`NAME`, `SHORT_NAME`, `DESCRIPTION`). Generation fetches those
+triples alongside the objects and lands them in the FHIR artifacts.
+
+```toml
+[generate]
+locales = []            # BCP-47 or DHIS2-style tags; empty means all found on the instance
+```
+
+Tags are normalised to BCP-47 before anything compares or emits them - `pt_BR`
+becomes `pt-BR`, `LO` becomes `lo` - so `fhir.toml` may spell them either way.
+Within one artifact, translations come out sorted by locale, and a locale that
+appears twice keeps its first value; regenerating an unchanged instance produces
+an unchanged file.
+
+**What each artifact gets.** FHIR has two places for a translated string, and
+which one applies is a property of the target, not a choice:
+
+| Target | Emitted as |
+| --- | --- |
+| Option CodeSystem concepts | `^designation[+].language` / `^designation[=].value` |
+| Option-set CodeSystem and ValueSet titles | `^title.extension` translation extension |
+| `Organization.name`, `Location.name` | `name.extension` translation extension |
+| Org-unit CodeSystem concepts (`terminology = true`) | `^designation` |
+
+The translation extension is the standard
+`http://hl7.org/fhir/StructureDefinition/translation`, with its `lang` and
+`content` sub-extensions. Designations are terminology's own mechanism and need
+no extension.
+
+**Only `NAME` translations are emitted.** `SHORT_NAME` and `DESCRIPTION`
+translations are fetched and ignored; carrying them is roadmap work.
+
+**`fhir validate` does not sweep translations.** The deep option-set pass reads
+them, so an option or option-set finding shows the local-language name after the
+primary one (`Natural Birth [in Birth type] / ການເກີດແບບທຳມະຊາດ`). The
+instance-wide sweep does not: asking `/api/metadata` for every object's
+translations is far too heavy for a check that only looks at codes.
 
 ## Validation
 

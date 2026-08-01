@@ -28,6 +28,10 @@ d2w fhir generate option-sets
 # Narrow the tree with [generate.organisation_units] root / max_level.
 d2w fhir generate org-units
 
+# DHIS2 NAME translations ride along with both targets: as CodeSystem concept
+# designations, and as HL7 translation extensions on titles and instance names.
+# Narrow them with [generate] locales = ["lo", "km"] (empty = every locale found).
+
 # Or all three in one run. Re-running replaces previously generated files
 # (identified by their header line); hand-authored .fsh files are never touched.
 d2w fhir generate all

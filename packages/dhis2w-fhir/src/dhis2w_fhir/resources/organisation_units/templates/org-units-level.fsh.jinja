@@ -14,6 +14,13 @@ Usage: #definition
 * identifier[dhis2code].system = $DHIS2-OU-CODE
 * identifier[dhis2code].value = {{ organization.identifier_code_literal }}
 * name = {{ organization.name_literal }}
+{% for translation in organization.name_translations %}
+* name.extension[+].url = "{{ translation_extension_url }}"
+* name.extension[=].extension[+].url = "lang"
+* name.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* name.extension[=].extension[+].url = "content"
+* name.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
 {% if organization.alias_literal is not none %}
 * alias = {{ organization.alias_literal }}
 {% endif %}
@@ -44,6 +51,13 @@ Usage: #definition
 * identifier[dhis2code].system = $DHIS2-OU-CODE
 * identifier[dhis2code].value = {{ location.identifier_code_literal }}
 * name = {{ location.name_literal }}
+{% for translation in location.name_translations %}
+* name.extension[+].url = "{{ translation_extension_url }}"
+* name.extension[=].extension[+].url = "lang"
+* name.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* name.extension[=].extension[+].url = "content"
+* name.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
 * status = {{ "#inactive" if location.closed else "#active" }}
 {% if location.position is not none %}
 * position.latitude = {{ location.position.latitude }}

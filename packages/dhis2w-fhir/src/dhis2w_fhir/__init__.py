@@ -19,6 +19,7 @@ from dhis2w_fhir.config import (
     write_fhir_config,
 )
 from dhis2w_fhir.foundation import FoundationNaming, build_foundation_artifacts
+from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, normalize_locale
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.period import (
     PERIOD_TYPE_DEFINITIONS,
@@ -67,6 +68,7 @@ __all__ = [
     "GENERATED_HEADER",
     "PERIOD_TYPE_DEFINITIONS",
     "PERIOD_TYPE_NAMES",
+    "TRANSLATION_EXTENSION_URL",
     "FhirProject",
     "FhirProjectConfig",
     "FhirValidationReport",
@@ -93,6 +95,7 @@ __all__ = [
     "ScaffoldFile",
     "ScaffoldReport",
     "SyncReport",
+    "TranslationIn",
     "ValidationFinding",
     "aggregate_note",
     "build_code_validation",
@@ -108,6 +111,8 @@ __all__ = [
     "load_fhir_config",
     "load_project",
     "max_slug_length",
+    "name_translations",
+    "normalize_locale",
     "parse_period",
     "render_validation_csv",
     "render_validation_markdown",

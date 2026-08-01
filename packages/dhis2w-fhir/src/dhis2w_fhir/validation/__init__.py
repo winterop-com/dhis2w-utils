@@ -16,9 +16,10 @@ from __future__ import annotations
 from collections import Counter
 from typing import TYPE_CHECKING, Literal
 
+from dhis2w_fhir.i18n import TranslationIn, name_translations
 from dhis2w_fhir.names import is_valid_fhir_code, kebab, pascal
 from dhis2w_fhir.resources.option_sets import max_slug_length
-from dhis2w_fhir.resources.option_sets.schemas import OptionSetIn
+from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.validation.report import render_validation_markdown
 from dhis2w_fhir.validation.schemas import FhirValidationReport, MetadataCollectionIn, ValidationFinding
 
@@ -54,7 +55,7 @@ def build_code_validation(
     option_count = 0
     for option_set in sorted(option_sets, key=lambda item: (item.name, item.uid)):
         option_count += len(option_set.options)
-        findings.extend(_option_findings(option_set, effective_source))
+        findings.extend(_option_findings(option_set, effective_source, config.locales))
         findings.extend(_option_set_naming_findings(option_set, config))
     object_count = 0
     for collection in sorted(collections, key=lambda item: item.resource):
@@ -132,6 +133,7 @@ def _option_set_naming_findings(option_set: OptionSetIn, config: GenerateConfig)
                 "long-fsh-name",
                 "generated FSH name exceeds the 255-character R4 name constraint (cnl-0); shorten the option set "
                 "name or the naming tokens",
+                config.locales,
             )
         )
     if len(kebab(option_set.name)) > max_slug_length(config):
@@ -141,18 +143,21 @@ def _option_set_naming_findings(option_set: OptionSetIn, config: GenerateConfig)
                 "info",
                 "long-name",
                 "name exceeds the FHIR id length; generated ids are truncated with the UID suffix",
+                config.locales,
             )
         )
     return findings
 
 
-def _option_findings(option_set: OptionSetIn, code_source: Literal["uid", "code"]) -> list[ValidationFinding]:
+def _option_findings(
+    option_set: OptionSetIn, code_source: Literal["uid", "code"], locales: list[str]
+) -> list[ValidationFinding]:
     """Deep option checks: invalid, missing, spaced, and duplicated codes within one set.
 
     In uid mode the code-shaped findings are downgraded to info: generation is not reading the
     DHIS2 codes yet, so they are a readiness signal for switching to code mode, not a defect.
     """
-    findings = _raw_option_findings(option_set)
+    findings = _raw_option_findings(option_set, locales)
     if code_source == "code":
         return findings
     return [_downgraded(finding) if finding.category in _CODE_MODE_CATEGORIES else finding for finding in findings]
@@ -163,7 +168,7 @@ def _downgraded(finding: ValidationFinding) -> ValidationFinding:
     return finding.model_copy(update={"severity": "info", "message": finding.message + _UID_MODE_SUFFIX})
 
 
-def _raw_option_findings(option_set: OptionSetIn) -> list[ValidationFinding]:
+def _raw_option_findings(option_set: OptionSetIn, locales: list[str]) -> list[ValidationFinding]:
     """Deep option checks at their code-mode severities, before any uid-mode downgrade."""
     findings: list[ValidationFinding] = []
     valid_codes = Counter(
@@ -174,12 +179,11 @@ def _raw_option_findings(option_set: OptionSetIn) -> list[ValidationFinding]:
             findings.append(
                 _option_finding(
                     option_set,
-                    option.uid,
-                    option.name,
-                    None,
+                    option,
                     "warning",
                     "missing-code",
                     "option has no code; code-source generation falls back to the UID",
+                    locales,
                 )
             )
             continue
@@ -187,13 +191,12 @@ def _raw_option_findings(option_set: OptionSetIn) -> list[ValidationFinding]:
             findings.append(
                 _option_finding(
                     option_set,
-                    option.uid,
-                    option.name,
-                    option.code,
+                    option,
                     "error",
                     "invalid-code",
                     "code is not a valid FHIR code (whitespace at the edges or doubled inside); "
                     "code-source generation falls back to the UID",
+                    locales,
                 )
             )
             continue
@@ -201,38 +204,44 @@ def _raw_option_findings(option_set: OptionSetIn) -> list[ValidationFinding]:
             findings.append(
                 _option_finding(
                     option_set,
-                    option.uid,
-                    option.name,
-                    option.code,
+                    option,
                     "error",
                     "duplicate-code",
                     f"code appears on more than one option in {option_set.name!r}; a CodeSystem cannot repeat "
                     "concept codes",
+                    locales,
                 )
             )
         if " " in option.code:
             findings.append(
                 _option_finding(
                     option_set,
-                    option.uid,
-                    option.name,
-                    option.code,
+                    option,
                     "info",
                     "spaced-code",
                     'code contains spaces; FHIR-valid but emitted in the quoted #"..." form',
+                    locales,
                 )
             )
     return findings
 
 
-def _set_finding(option_set: OptionSetIn, severity: str, category: str, message: str) -> ValidationFinding:
+def _translated_name(name: str, translations: list[TranslationIn], locales: list[str]) -> str:
+    """Suffix a finding name with the subject's first configured name translation, when it has one."""
+    selected = name_translations(translations, locales)
+    return f"{name} / {selected[0].value}" if selected else name
+
+
+def _set_finding(
+    option_set: OptionSetIn, severity: str, category: str, message: str, locales: list[str]
+) -> ValidationFinding:
     """Build one option-set-level finding."""
     return ValidationFinding(
         severity=severity,  # type: ignore[arg-type]
         category=category,
         resource_type="optionSets",
         uid=option_set.uid,
-        name=option_set.name,
+        name=_translated_name(option_set.name, option_set.translations, locales),
         code=option_set.code,
         message=message,
     )
@@ -240,20 +249,19 @@ def _set_finding(option_set: OptionSetIn, severity: str, category: str, message:
 
 def _option_finding(
     option_set: OptionSetIn,
-    option_uid: str,
-    option_name: str,
-    code: str | None,
+    option: OptionIn,
     severity: str,
     category: str,
     message: str,
+    locales: list[str],
 ) -> ValidationFinding:
     """Build one option-level finding, carrying the owning set in the name."""
     return ValidationFinding(
         severity=severity,  # type: ignore[arg-type]
         category=category,
         resource_type="options",
-        uid=option_uid,
-        name=f"{option_name} [in {option_set.name}]",
-        code=code,
+        uid=option.uid,
+        name=_translated_name(f"{option.name} [in {option_set.name}]", option.translations, locales),
+        code=option.code,
         message=message,
     )

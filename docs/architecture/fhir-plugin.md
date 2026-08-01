@@ -169,6 +169,24 @@ The tree is fetched with a 500-per-page loop ordered by `path:asc` (stable
 output), filtered by `[generate.organisation_units]` `root` (DHIS2 `path:like`) and
 `max_level`.
 
+## Translations
+
+DHIS2 holds a translation as a `{locale, property, value}` triple with a
+Java-style locale tag. `i18n.py` is the shared leaf over them: `TranslationIn`
+is the projection the service wraps the raw dicts into at the fetch boundary,
+`normalize_locale` renders the tag as BCP-47 (`pt_BR` -> `pt-BR`), and
+`name_translations` selects the `NAME` entries, filters them to
+`[generate] locales` (empty = all), deduplicates by locale, and sorts - so an
+unchanged instance regenerates an unchanged file. Emission splits by what FHIR
+offers on the target: CodeSystem concepts (options and, with
+`terminology = true`, organisation units) take `^designation`, while the
+option-set CS/VS titles and the `Organization.name` / `Location.name` of every
+instance take the standard
+`http://hl7.org/fhir/StructureDefinition/translation` extension with its `lang`
+and `content` sub-extensions. Only `NAME` is emitted. The deep option-set
+validation pass suffixes a finding's name with the subject's first matching
+translation; the instance-wide sweep does not fetch translations at all.
+
 ## Regeneration contract
 
 Every generated file starts with the header line
@@ -222,7 +240,9 @@ There is no central models module: a component's pydantic models sit in its
 own `schemas.py`.
 
 Flat modules carry what every component shares: `names.py` (slug, FSH
-literal, and URI helpers), `notes.py` (the one aggregate-note formatter),
+literal, and URI helpers), `i18n.py` (the `TranslationIn` projection, locale
+normalisation, and NAME selection), `notes.py` (the one aggregate-note
+formatter),
 `writer.py` (the `FshArtifact` / `FshBuild` contract every emitter returns,
 plus the header-aware sync that writes it), and `config.py` (the `fhir.toml`
 document - `IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`,
@@ -302,13 +322,34 @@ boundary.
   CodeSystem/ValueSet pairs the same way.
 - Questionnaire generation from programs / program stages (valueType mapping
   tables exist in the lao-v1 generator).
-- Translations as FHIR designations / translation extensions.
+- `SHORT_NAME` and `DESCRIPTION` translations: `NAME` is emitted today, and the
+  other two need a target apiece (`Organization.alias`, `^description`) before
+  they can follow. Validation's instance-wide sweep stays translation-free until
+  there is a cheaper way to ask `/api/metadata` for them than fetching every
+  object's full translation list.
 - Data layer: dataset -> `Questionnaire` + `MeasureReport` (summary), events ->
   `QuestionnaireResponse`, tracker -> `Patient` + `EpisodeOfCare` (see
   `docs/project/fhir-data-mapping.md` when committed).
 - Curated real-world `Usage: #example` instances per profile - especially once
   the data layer lands, where a worked `QuestionnaireResponse` says more than a
   profile ever does.
+- Instance-scoped projects with form targets: a project IS the FHIR home of one
+  DHIS2 instance - fhir.toml carries the profile and canonical, and the registry
+  (org units), terminology (option sets), and foundation artifacts are
+  instance-level with instance-linked ids (uid-derived, stable regardless of
+  which form uses them), because org units and option sets are reused across the
+  board and `fhir serve` / `fhir proxy` operate on the instance's single
+  namespace. Data sets and event programs are added INTO the project as targets
+  - `[generate.data_sets]` and `[generate.event_programs]` `include_ids` lists,
+  multiple supported - each contributing its Questionnaire artifacts, with
+  target dependency closures unioned into the shared option-set selection.
+  `d2w fhir init --data-set <uid>` / `--event <uid>` are repeatable seeders of
+  those lists that also derive sensible IG identity on first init. Safeguards:
+  the flag declares the shape and the live `programType` must agree (a
+  `WITH_REGISTRATION` uid under `--event` fails loudly by name; event programs
+  assert their single-stage invariant; config carries only UIDs, never a cached
+  type). `fhir build` may still cut per-form deployables from the instance
+  project - a packaging choice, not a namespace choice.
 - `d2w fhir ui` / `browser`: a tree-widget explorer over the generated IG and
   hierarchy, modelled on the security plugin's offline d3 sharing explorer.
 - `d2w fhir serve`: serve the generated IG as a FHIR service (FastAPI per repo

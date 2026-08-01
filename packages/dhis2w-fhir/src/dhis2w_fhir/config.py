@@ -19,6 +19,7 @@ from typing import Literal
 import tomli_w
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from dhis2w_fhir.i18n import normalize_locale
 from dhis2w_fhir.names import strip_trailing_slash
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetSelection
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitSelection
@@ -86,11 +87,18 @@ class GenerateConfig(BaseModel):
 
     identifier_system_base: str = "http://dhis2.org/fhir"
     concept_code_source: Literal["uid", "code"] = "uid"
+    locales: list[str] = Field(default_factory=list)
     naming: NamingConfig = Field(default_factory=NamingConfig)
     option_sets: OptionSetSelection = Field(default_factory=OptionSetSelection)
     organisation_units: OrganisationUnitSelection = Field(default_factory=OrganisationUnitSelection)
 
     _normalize_identifier_base = field_validator("identifier_system_base")(strip_trailing_slash)
+
+    @field_validator("locales")
+    @classmethod
+    def _normalize_locales(cls, value: list[str]) -> list[str]:
+        """Accept BCP-47 or DHIS2-style tags and hold them in the BCP-47 form the emitters compare against."""
+        return [normalize_locale(locale) for locale in value]
 
 
 class FhirProjectConfig(BaseModel):

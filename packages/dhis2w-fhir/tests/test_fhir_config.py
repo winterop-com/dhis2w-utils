@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from dhis2w_fhir.config import (
     FhirProjectConfig,
+    GenerateConfig,
     IgConfig,
     NoFhirProjectError,
     find_project_fhir_config,
@@ -83,3 +84,13 @@ def test_load_project_derives_directories(tmp_path: Path) -> None:
     project = load_project(tmp_path)
     assert project.project_root == tmp_path.resolve()
     assert project.fsh_directory == tmp_path.resolve() / "ig" / "input" / "fsh"
+
+
+def test_locales_default_to_every_locale_found() -> None:
+    """An absent `[generate] locales` means every translation locale on the instance is emitted."""
+    assert GenerateConfig().locales == []
+
+
+def test_locales_are_normalized_to_bcp47() -> None:
+    """Java-style DHIS2 tags in fhir.toml are held in the BCP-47 form the emitters compare against."""
+    assert GenerateConfig(locales=["pt_BR", "LO", "km"]).locales == ["pt-BR", "lo", "km"]

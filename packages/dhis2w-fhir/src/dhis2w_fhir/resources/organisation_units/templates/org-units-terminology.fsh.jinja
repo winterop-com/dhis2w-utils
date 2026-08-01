@@ -27,6 +27,10 @@ Description: "DHIS2 organisation units. Concept codes are DHIS2 organisation uni
 * #{{ concept.uid }} ^property[+].code = #dhis2-code
 * #{{ concept.uid }} ^property[=].valueString = {{ concept.code_literal }}
 {% endif %}
+{% for designation in concept.designations %}
+* #{{ concept.uid }} ^designation[+].language = #{{ designation.locale }}
+* #{{ concept.uid }} ^designation[=].value = {{ designation.value_literal }}
+{% endfor %}
 {% endfor %}
 
 ValueSet: {{ names.organisation_unit_value_set }}

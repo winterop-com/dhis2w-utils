@@ -15,8 +15,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations
 from dhis2w_fhir.names import code_or_uid, fsh_code, is_valid_fhir_code, join_id_tokens, kebab, pascal, quote
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
@@ -43,7 +44,7 @@ _ID_SUFFIX = "-vs"
 
 
 class _Concept(BaseModel):
-    """One emitted concept: its code plus the companion-identifier property, if any."""
+    """One emitted concept: its code, the companion-identifier property, and its name designations."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -51,6 +52,7 @@ class _Concept(BaseModel):
     display: str
     property_code: str | None = None
     property_line: str | None = None
+    designations: list[TranslationIn] = Field(default_factory=list)
 
     @property
     def token(self) -> str:
@@ -169,18 +171,21 @@ def _concept_for(option: OptionIn, assigned: _DesiredCode, config: GenerateConfi
     Every concept carries the pair: in code mode the UID rides along as `dhis2-uid`, in uid mode
     the DHIS2 code rides along as `dhis2-code` - falling back to the UID when there is no usable code.
     """
+    designations = name_translations(option.translations, config.locales)
     if config.concept_code_source == "code":
         return _Concept(
             code=assigned.code,
             display=option.name,
             property_code="dhis2-uid",
             property_line=f"^property[=].valueCode = #{option.uid}",
+            designations=designations,
         )
     return _Concept(
         code=assigned.code,
         display=option.name,
         property_code="dhis2-code",
         property_line=f"^property[=].valueString = {quote(code_or_uid(option.code, option.uid))}",
+        designations=designations,
     )
 
 
@@ -226,6 +231,8 @@ def _render_option_set(
         identifiers=_business_identifiers(option_set, config),
         declarations=[declaration for declaration in _PROPERTY_DECLARATIONS if declaration.code in used_property_codes],
         concepts=concepts,
+        title_translations=name_translations(option_set.translations, config.locales),
+        translation_extension_url=TRANSLATION_EXTENSION_URL,
     )
 
 

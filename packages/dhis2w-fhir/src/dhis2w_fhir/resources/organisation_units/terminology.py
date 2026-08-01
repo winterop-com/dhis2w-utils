@@ -10,8 +10,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.i18n import TranslationIn, name_translations
 from dhis2w_fhir.names import quote
 from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
@@ -40,6 +41,7 @@ class _OrganisationUnitConcept(BaseModel):
     level: int
     parent_uid: str | None = None
     code_literal: str | None = None
+    designations: list[TranslationIn] = Field(default_factory=list)
 
 
 def build_organisation_unit_level_terminology(levels: list[int], config: GenerateConfig) -> FshArtifact:
@@ -66,6 +68,7 @@ def build_organisation_unit_terminology(
             level=organisation_unit.level,
             parent_uid=organisation_unit.parent_uid,
             code_literal=quote(organisation_unit.code) if organisation_unit.code is not None else None,
+            designations=name_translations(organisation_unit.translations, config.locales),
         )
         for organisation_unit in sorted(organisation_units, key=lambda item: (item.path, item.uid))
     ]

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from dhis2w_fhir.i18n import TranslationIn
 
 
 class OrganisationUnitSelection(BaseModel):
@@ -60,3 +62,4 @@ class OrganisationUnitIn(BaseModel):
     email: str | None = None
     phone_number: str | None = None
     closed: bool = False
+    translations: list[TranslationIn] = Field(default_factory=list)

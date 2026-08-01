@@ -44,6 +44,43 @@ _ORGANISATION_UNITS_PAYLOAD = {
 }
 
 
+_TRANSLATED_OPTION_SETS_PAYLOAD = {
+    "optionSets": [
+        {
+            "id": "Xa1b2c3d4e5",
+            "name": "Birth type",
+            "translations": [
+                {"locale": "lo", "property": "NAME", "value": "ປະເພດການເກີດ"},
+                {"locale": "lo", "property": "SHORT_NAME", "value": "ປະເພດ"},
+                {"property": "NAME", "value": "no locale"},
+            ],
+            "options": [
+                {
+                    "id": "kRRUtYaGett",
+                    "code": "NB",
+                    "name": "Natural Birth",
+                    "sortOrder": 1,
+                    "translations": [{"locale": "lo", "property": "NAME", "value": "ການເກີດແບບທຳມະຊາດ"}],
+                }
+            ],
+        }
+    ]
+}
+
+_TRANSLATED_ORGANISATION_UNITS_PAYLOAD = {
+    "organisationUnits": [
+        {
+            "id": "ImspTQPwCqd",
+            "name": "Sierra Leone",
+            "level": 1,
+            "path": "/ImspTQPwCqd",
+            "code": "SL",
+            "translations": [{"locale": "lo", "property": "NAME", "value": "ຊຽຣາລີໂອນ"}],
+        }
+    ]
+}
+
+
 async def _scaffold_project(directory: Path) -> None:
     """Scaffold a minimal project so generate targets have a fhir.toml + ig tree."""
     options = InitOptions(
@@ -153,6 +190,40 @@ async def test_validate_codes_across_majors(
 
     in_code_mode = await service.validate_codes(resolve_profile("probe"), context.config, "code")
     assert in_code_mode.error_count == 2
+
+
+@respx.mock
+async def test_translations_are_requested_and_mapped(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Both fetches ask for translations, and the wire entries reach the emitted FSH as designations."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path)
+    option_sets = respx.get(f"{_HOST}/api/optionSets").mock(
+        return_value=httpx.Response(200, json=_TRANSLATED_OPTION_SETS_PAYLOAD)
+    )
+    organisation_units = respx.get(f"{_HOST}/api/organisationUnits").mock(
+        return_value=httpx.Response(200, json=_TRANSLATED_ORGANISATION_UNITS_PAYLOAD)
+    )
+
+    await service.generate_option_sets(resolve_profile("probe"), load_project(tmp_path))
+    await service.generate_organisation_units(resolve_profile("probe"), load_project(tmp_path))
+
+    option_set_fields = option_sets.calls.last.request.url.params["fields"]
+    assert "translations[locale,property,value]" in option_set_fields
+    assert "options[id,code,name,sortOrder,translations[locale,property,value]]" in option_set_fields
+    assert "translations[locale,property,value]" in organisation_units.calls.last.request.url.params["fields"]
+
+    terminology = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "xa1b2c3d4e5.fsh").read_text(encoding="utf-8")
+    assert '* ^title.extension[=].extension[=].valueString = "ປະເພດການເກີດ"' in terminology
+    assert "* #kRRUtYaGett ^designation[+].language = #lo" in terminology
+    assert '* #kRRUtYaGett ^designation[=].value = "ການເກີດແບບທຳມະຊາດ"' in terminology
+    instances = (tmp_path / "ig" / "input" / "fsh" / "organization" / "org-units-level-1.fsh").read_text(
+        encoding="utf-8"
+    )
+    assert instances.count('* name.extension[=].extension[=].valueString = "ຊຽຣາລີໂອນ"') == 2
 
 
 @respx.mock

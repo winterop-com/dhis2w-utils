@@ -16,8 +16,9 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations
 from dhis2w_fhir.names import code_or_uid, quote
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.resources.organisation_units.location import (
@@ -52,6 +53,7 @@ class OrganizationInstance(BaseModel):
     title_literal: str
     description_literal: str
     name_literal: str
+    name_translations: list[TranslationIn] = Field(default_factory=list)
     identifier_code_literal: str
     alias_literal: str | None = None
     level: int
@@ -96,8 +98,10 @@ def build_organisation_unit_instances(organisation_units: list[OrganisationUnitI
     for level in sorted(by_level):
         pairs = [
             OrganisationUnitInstancePair(
-                organization=_build_organization_instance(organisation_unit, names, selected_uids, orphaned),
-                location=build_location_instance(organisation_unit, names, selected_uids),
+                organization=_build_organization_instance(
+                    organisation_unit, names, selected_uids, orphaned, config.locales
+                ),
+                location=build_location_instance(organisation_unit, names, selected_uids, config.locales),
             )
             for organisation_unit in sorted(by_level[level], key=lambda item: (item.path, item.uid))
         ]
@@ -106,7 +110,11 @@ def build_organisation_unit_instances(organisation_units: list[OrganisationUnitI
                 relative_path=f"organization/org-units-level-{level}.fsh",
                 kind="instances",
                 fsh_name=f"OrgUnitsLevel{level}",
-                content=template.render(pairs=pairs, boundary_extension_url=BOUNDARY_EXTENSION_URL),
+                content=template.render(
+                    pairs=pairs,
+                    boundary_extension_url=BOUNDARY_EXTENSION_URL,
+                    translation_extension_url=TRANSLATION_EXTENSION_URL,
+                ),
             )
         )
     if orphaned:
@@ -119,7 +127,11 @@ def build_organisation_unit_instances(organisation_units: list[OrganisationUnitI
 
 
 def _build_organization_instance(
-    organisation_unit: OrganisationUnitIn, names: OrganisationUnitNaming, selected_uids: set[str], orphaned: list[str]
+    organisation_unit: OrganisationUnitIn,
+    names: OrganisationUnitNaming,
+    selected_uids: set[str],
+    orphaned: list[str],
+    locales: list[str],
 ) -> OrganizationInstance:
     """Build the Organization view, noting units whose parent falls outside the selection."""
     parent_uid: str | None = None
@@ -140,6 +152,7 @@ def _build_organization_instance(
         title_literal=quote(f"Organization - {organisation_unit.name}"),
         description_literal=quote(description),
         name_literal=quote(organisation_unit.name),
+        name_translations=name_translations(organisation_unit.translations, locales),
         identifier_code_literal=quote(code_or_uid(organisation_unit.code, organisation_unit.uid)),
         alias_literal=alias_literal,
         level=organisation_unit.level,

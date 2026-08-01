@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import base64
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.i18n import TranslationIn, name_translations
 from dhis2w_fhir.names import code_or_uid, quote
 from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
 from dhis2w_fhir.resources.organisation_units.schemas import GeoPoint, OrganisationUnitIn
@@ -24,6 +25,7 @@ class LocationInstance(BaseModel):
     title_literal: str
     description_literal: str
     name_literal: str
+    name_translations: list[TranslationIn] = Field(default_factory=list)
     identifier_code_literal: str
     closed: bool = False
     position: GeoPoint | None = None
@@ -34,7 +36,10 @@ class LocationInstance(BaseModel):
 
 
 def build_location_instance(
-    organisation_unit: OrganisationUnitIn, names: OrganisationUnitNaming, selected_uids: set[str]
+    organisation_unit: OrganisationUnitIn,
+    names: OrganisationUnitNaming,
+    selected_uids: set[str],
+    locales: list[str],
 ) -> LocationInstance:
     """Build the Location view - always emitted; position/boundary attach when geometry exists."""
     position: GeoPoint | None = None
@@ -59,6 +64,7 @@ def build_location_instance(
         title_literal=quote(f"Location - {organisation_unit.name}"),
         description_literal=quote(description),
         name_literal=quote(organisation_unit.name),
+        name_translations=name_translations(organisation_unit.translations, locales),
         identifier_code_literal=quote(code_or_uid(organisation_unit.code, organisation_unit.uid)),
         closed=organisation_unit.closed,
         position=position,

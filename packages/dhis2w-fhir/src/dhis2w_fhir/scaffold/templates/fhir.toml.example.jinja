@@ -18,6 +18,8 @@ identifier_system_base = "http://dhis2.org/fhir"
 # Concept code source for option sets: "uid" (option UID, DHIS2 code as property)
 # or "code" (DHIS2 code when FHIR-valid, UID as property; invalid codes fall back).
 concept_code_source = "uid"
+# translation locales to emit (BCP-47 or DHIS2-style tags; empty = all found on the instance)
+locales = []
 
 [generate.naming]
 # What file names, ids, and FSH names derive from: "uid" (stable, collision-free,

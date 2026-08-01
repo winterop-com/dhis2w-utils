@@ -2,6 +2,13 @@ CodeSystem: {{ base_name }}CS
 Id: {{ id_stem }}{{ slug }}-cs
 Title: {{ title }}
 Description: {{ description }}
+{% for translation in title_translations %}
+* ^title.extension[+].url = "{{ translation_extension_url }}"
+* ^title.extension[=].extension[+].url = "lang"
+* ^title.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* ^title.extension[=].extension[+].url = "content"
+* ^title.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
 {% for identifier in identifiers %}
 * ^identifier[+].system = "{{ identifier.system }}"
 * ^identifier[=].value = "{{ identifier.value }}"
@@ -21,12 +28,23 @@ Description: {{ description }}
 * {{ concept.token }} ^property[+].code = #{{ concept.property_code }}
 * {{ concept.token }} {{ concept.property_line }}
 {% endif %}
+{% for designation in concept.designations %}
+* {{ concept.token }} ^designation[+].language = #{{ designation.locale }}
+* {{ concept.token }} ^designation[=].value = {{ designation.value_literal }}
+{% endfor %}
 {% endfor %}
 
 ValueSet: {{ base_name }}VS
 Id: {{ id_stem }}{{ slug }}-vs
 Title: {{ title }}
 Description: {{ description }}
+{% for translation in title_translations %}
+* ^title.extension[+].url = "{{ translation_extension_url }}"
+* ^title.extension[=].extension[+].url = "lang"
+* ^title.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* ^title.extension[=].extension[+].url = "content"
+* ^title.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
 {% for identifier in identifiers %}
 * ^identifier[+].system = "{{ identifier.system }}"
 * ^identifier[=].value = "{{ identifier.value }}"

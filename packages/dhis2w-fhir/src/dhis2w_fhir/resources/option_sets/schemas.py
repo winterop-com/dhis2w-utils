@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.i18n import TranslationIn
+
 
 class OptionSetSelection(BaseModel):
     """Which DHIS2 option sets to generate - the `[generate.option_sets]` table of `fhir.toml`.
@@ -23,6 +25,7 @@ class OptionIn(BaseModel):
     code: str | None = None
     name: str
     sort_order: int | None = None
+    translations: list[TranslationIn] = Field(default_factory=list)
 
 
 class OptionSetIn(BaseModel):
@@ -34,3 +37,4 @@ class OptionSetIn(BaseModel):
     code: str | None = None
     name: str
     options: list[OptionIn] = Field(default_factory=list)
+    translations: list[TranslationIn] = Field(default_factory=list)
