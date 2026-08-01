@@ -12,7 +12,7 @@ D2W ?= d2w
 # re-downloads the core + template packages, which is the bulk of a cold build's wall clock.
 CACHE_VOLUME := fhir-ig-cache
 
-.PHONY: help setup upgrade generate validate sushi build clean clean-all
+.PHONY: cache-init help setup upgrade generate validate sushi build clean clean-all
 
 help:  ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "%-12s %s\n", $$1, $$2}'
@@ -29,11 +29,14 @@ generate:  ## Regenerate FSH from DHIS2 metadata
 validate:  ## Check the DHIS2 instance's codes/names for FHIR-safety (writes md/csv/pdf; exit 1 on errors)
 	$(D2W) fhir validate
 
-sushi:  ## Compile FSH to FHIR resources
+cache-init:  ## Ensure the shared package-cache volume is writable by the publisher user
+	docker run --rm -u root -v $(CACHE_VOLUME):/home/publisher/.fhir --entrypoint sh $(DOCKER_IMAGE) -c "mkdir -p /home/publisher/.fhir/packages && chown -R 1001:1001 /home/publisher/.fhir"
+
+sushi: cache-init  ## Compile FSH to FHIR resources
 	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig -v $(CACHE_VOLUME):/home/publisher/.fhir \
 		$(DOCKER_IMAGE) sushi .
 
-build:  ## Run the full IG publisher
+build: cache-init  ## Run the full IG publisher
 	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig -v $(CACHE_VOLUME):/home/publisher/.fhir \
 		$(DOCKER_IMAGE) \
 		java -Xmx4g -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx $(TX_SERVER)

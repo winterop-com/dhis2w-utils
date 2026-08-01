@@ -129,9 +129,13 @@ def test_gitignore_covers_the_publisher_side_products() -> None:
 
 
 def test_makefile_mounts_the_package_cache_volume() -> None:
-    """Both container targets mount the named volume, so a rebuild does not re-download the packages."""
+    """Container targets mount the named volume, and cache-init makes it writable for the publisher user."""
     makefile = _by_path()["Makefile"]
-    assert makefile.count("-v $(CACHE_VOLUME):/home/publisher/.fhir") == 2
+    assert makefile.count("-v $(CACHE_VOLUME):/home/publisher/.fhir") == 3
+    assert "cache-init:" in makefile
+    assert "sushi: cache-init" in makefile
+    assert "build: cache-init" in makefile
+    assert "chown -R 1001:1001 /home/publisher/.fhir" in makefile
     assert "CACHE_VOLUME := fhir-ig-cache" in makefile
 
 
