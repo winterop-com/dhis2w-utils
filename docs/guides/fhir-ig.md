@@ -183,6 +183,8 @@ consistently.
 | `prefix` | `D2` | May be empty to drop it entirely. |
 | `option_set` | `OS` | May be empty. Try `OptionSet` for a verbose IG. |
 | `organisation_unit` | `OU` | Must stay non-empty. `OrgUnit` gives `D2OrgUnitLevelCS`. |
+| `data_set` | `DS` | May be empty. Names a data set's Questionnaire (`D2DSBfMAe6Itzgt`). |
+| `program` | `PR` | May be empty. Names an event program's Questionnaire (`D2PRVBqh0ynB2wv`). |
 
 **The empty-prefix caveat.** Setting `prefix = ""` drops the token from
 terminology names (`OULevelCS`, id `ou-level-cs`), but the two organisation-unit
@@ -210,7 +212,7 @@ as `{prefix}{token}`, and ids derive from the kebab of prefix plus token
 | `DE` | data element | `IND` | indicator |
 | `DEG` | data element group | `INDG` | indicator group |
 | `DEGS` | data element group set | `INDGS` | indicator group set |
-| `DS` | data set | `PR` | program |
+| `DS` | data set (in code) | `PR` | program (in code) |
 | `CAT` | category | `PS` | program stage |
 | `PI` | program indicator | `TET` | tracked entity type |
 | `PIG` | program indicator group | `TEI` | tracked entity |
@@ -224,18 +226,36 @@ as `{prefix}{token}`, and ids derive from the kebab of prefix plus token
 
 ```toml
 [generate.option_sets]
-include_ids = []        # optionSet UIDs to include; absent or empty means all
+# include_ids = ["Qdm5fPK5Ra9"]     # optionSet UIDs to include; absent means all
 ```
 
 UIDs only - DHIS2 option-set names are not unique. An entry matching nothing is
-reported as a note rather than silently ignored.
+reported as a note rather than silently ignored. A narrowed list is still unioned
+with whatever the configured data sets and event programs bind their data elements
+to, so a questionnaire never points at a ValueSet the IG does not contain
+(see [Data set and event program forms](#data-set-and-event-program-forms)).
+
+### `[generate.data_sets]` and `[generate.event_programs]`
+
+```toml
+[generate.data_sets]
+# include_ids = ["BfMAe6Itzgt"]     # data set UIDs; absent means none
+
+[generate.event_programs]
+# include_ids = ["VBqh0ynB2wv"]     # event program UIDs; absent means none
+```
+
+The data-definition targets. Unlike the terminology and registry selections, an
+absent or empty list means **none**: a form is added to a project deliberately, one
+UID at a time. `d2w fhir init --data-set <uid> --event <uid>` seeds these lists
+while scaffolding.
 
 ### `[generate.organisation_units]`
 
 ```toml
 [generate.organisation_units]
-root = ""               # organisation unit root UID; empty means the entire tree
-max_level = 0           # 0 means no level cap
+# root = "ImspTQPwCqd"  # organisation unit root UID; absent means the entire tree
+# max_level = 4         # absent means no level cap
 terminology = false     # also emit the org-unit CodeSystem/ValueSet
 ```
 
@@ -249,10 +269,11 @@ for flows that want the hierarchy as codes rather than as resources.
 ## Generate targets
 
 ```
-d2w fhir generate foundation     Identifier aliases + the D2Period extension
+d2w fhir generate foundation     Identifier aliases + the D2Period / D2FormType extensions
 d2w fhir generate option-sets    Option sets -> CodeSystem/ValueSet pairs
+d2w fhir generate questionnaires Data sets + event programs -> Questionnaire instances
 d2w fhir generate org-units      Org units -> Organization/Location instances
-d2w fhir generate all            All three, in that order
+d2w fhir generate all            All four, in that order
 ```
 
 Each target owns one subdirectory of `ig/input/fsh/` and syncs it: writes what
@@ -270,6 +291,8 @@ never touches DHIS2:
 - **`d2-naming-systems.fsh`** - one `NamingSystem` per alias URL, declaring what
   a DHIS2 identifier under it means. See [Identifiers](#identifiers).
 - **`d2-period.fsh`** - the `D2Period` extension plus its terminology.
+- **`d2-form-type.fsh`** - the `D2FormType` extension plus its terminology. See
+  [Data set and event program forms](#data-set-and-event-program-forms).
 
 ### The D2Period extension
 
@@ -323,10 +346,13 @@ EpisodeOfCare, MeasureReport identifiers will follow it).
   `$DHIS2-OS-CODE` aliases (`{base}/id/option-set` and
   `{base}/id/option-set-code`).
 
+- **Questionnaires** carry the source data set's or event program's pair through
+  `$DHIS2-DS` / `$DHIS2-DS-CODE` and `$DHIS2-PROGRAM` / `$DHIS2-PROGRAM-CODE`.
+
 **Every system is declared as a NamingSystem.** `foundation/d2-naming-systems.fsh`
-emits one `NamingSystem` per identifier system - `D2OrgUnitIdentifierSystem`,
-`D2OrgUnitCodeIdentifierSystem`, `D2OptionSetIdentifierSystem`,
-`D2OptionSetCodeIdentifierSystem` - each `kind = #identifier` with a single
+emits one `NamingSystem` per identifier system - a UID system and a code system for
+each of the organisation unit, option set, data set, program, data element, and
+category option combo - each `kind = #identifier` with a single
 preferred `uri` uniqueId and a description of the convention, the code slot's UID
 fall-back included. Without them, a validator meeting `{base}/id/org-unit` has no
 definition to resolve and warns on every artifact carrying one. Because R4 makes
@@ -351,6 +377,101 @@ Concept codes are unique within a set by construction. Options are ordered by
 option falls back to its UID, aggregated into one note. A CodeSystem that
 repeats a concept code will not compile, so this is enforced rather than warned
 about.
+
+### Data set and event program forms
+
+A DHIS2 data set and a DHIS2 event program are both *data-capture forms*, and FHIR
+already has that resource: `Questionnaire`. `d2w fhir generate questionnaires`
+writes one `questionnaires/<UID>.fsh` per configured target, plus two support
+CodeSystem/ValueSet pairs.
+
+```toml
+[generate.data_sets]
+include_ids = ["BfMAe6Itzgt"]       # Child Health
+
+[generate.event_programs]
+include_ids = ["VBqh0ynB2wv"]       # Malaria case registration
+```
+
+```bash
+# Or seed those lists while scaffolding - repeatable, and entirely offline:
+# the UIDs are written to fhir.toml as given, never checked against an instance.
+d2w fhir init my-ig --data-set BfMAe6Itzgt --data-set Nyh6laLdBEJ --event VBqh0ynB2wv
+```
+
+**Targets are explicit.** Every other selection defaults to "everything on the
+instance"; these two default to nothing. A form is a deliberate addition to a
+project, and generating all 26 data sets of a demo database is never what you meant.
+
+**What one form becomes.** The instance is `Usage: #definition` with the bare UID as
+its `id` and `<canonical>/Questionnaire/<uid>` as its `url`, `subjectType = #Location`
+(a DHIS2 form is answered *for an organisation unit*), and both DHIS2 identifiers -
+`$DHIS2-DS` / `$DHIS2-DS-CODE` for a data set, `$DHIS2-PROGRAM` /
+`$DHIS2-PROGRAM-CODE` for an event program. `Questionnaire.name` composes from the
+naming tokens (`D2DSBfMAe6Itzgt`, `D2PRVBqh0ynB2wv`) and `title` is the DHIS2 name.
+
+| DHIS2 | FHIR |
+| --- | --- |
+| Section | `item` with `type = #group`, `linkId` the section UID |
+| Data element | child `item`, `linkId` the DE UID, `text` its form name (else its name) |
+| `valueType` | the item `type` (see the table below) |
+| Data element with an option set | `type = #choice` plus `answerValueSet` pointing at that set's generated ValueSet |
+| Compulsory program-stage element | `required = true` |
+| Non-default category combo | the question becomes a `#group` with one child per category option combo, `linkId` `<deUid>.<cocUid>` |
+
+| DHIS2 `valueType` | item `type` |
+| --- | --- |
+| `TEXT` | `string` |
+| `LONG_TEXT` | `text` |
+| `NUMBER`, `PERCENTAGE`, `UNIT_INTERVAL` | `decimal` |
+| `INTEGER` and its positive / negative / zero-or-positive variants | `integer` |
+| `BOOLEAN`, `TRUE_ONLY` | `boolean` |
+| `DATE` | `date` |
+| `DATETIME` | `dateTime` |
+| `TIME` | `time` |
+| `ORGANISATION_UNIT` | `reference` |
+| anything else | `string` |
+
+A section holding a disaggregated data element also carries the standard
+`questionnaire-itemControl` extension coded `#gtable`, which is how a renderer knows
+to lay that section out as the DHIS2 data-entry grid it is - questions as rows,
+category option combos as columns.
+
+**The support terminology.** `questionnaires/data-elements.fsh` publishes every data
+element the generated questionnaires reference as one `D2DECS` CodeSystem (plus its
+ValueSet), and `questionnaires/category-option-combos.fsh` does the same for every
+category option combo as `D2COCCS`. Each item's `code` points into them, so a
+response can be read back to DHIS2 without consulting the questionnaire. Both live
+in the `questionnaires/` directory rather than `terminology/`, which is what keeps
+the option-set target from deleting them on its next run.
+
+**The option-set closure.** When `[generate.option_sets] include_ids` narrows the
+terminology and a configured form binds a question to an option set outside that
+list, the set is added anyway and the run says so in a note. An empty list already
+means every option set, so the union is a no-op there.
+
+**Safeguards, loud rather than silent.** A UID under `[generate.event_programs]`
+whose live `programType` is `WITH_REGISTRATION` fails the run by name: tracker
+programs need `Patient` and `EpisodeOfCare`, not a bare Questionnaire, and that
+generator is not written yet. An event program with more than one program stage
+fails the same way rather than quietly generating the first stage. A configured UID
+the instance answers nothing for is reported as a note. Data elements no section
+references are emitted after the sectioned ones, also with a note.
+
+**`D2FormType`, and where this is going.** Every generated Questionnaire states
+which kind of DHIS2 form it came from twice: as `Questionnaire.code`
+(`D2FormTypeCS#aggregate` or `#event`) and through the `D2FormType` extension, whose
+context covers `Questionnaire` **and** `QuestionnaireResponse`. That second context
+is the point. The captured data is the next layer: a data value set becomes a
+`QuestionnaireResponse` against the form's `Questionnaire`, carrying its DHIS2
+reporting period through the `D2Period` extension (`iso`, `type`, the resolved
+dates) and its organisation unit through `subject`, and answering item by item on
+the same `linkId`s - including the `<deUid>.<cocUid>` link ids the disaggregated
+groups define, which is exactly a DHIS2 data value's `(dataElement,
+categoryOptionCombo)` key. `MeasureReport` is a later, lossier projection over the
+same data - a summary for indicator-shaped consumers - not a replacement for the
+response. `D2FormType` on the response is what tells a consumer which of those
+shapes it is holding without re-reading the questionnaire.
 
 ### `org-units`
 

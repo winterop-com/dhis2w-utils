@@ -28,6 +28,31 @@ class IdentifierSystemSubject(BaseModel):
 IDENTIFIER_SYSTEM_SUBJECTS = (
     IdentifierSystemSubject(segment="org-unit", token="OrgUnit", label="organisation unit"),
     IdentifierSystemSubject(segment="option-set", token="OptionSet", label="option set"),
+    IdentifierSystemSubject(segment="data-set", token="DataSet", label="data set"),
+    IdentifierSystemSubject(segment="program", token="Program", label="program"),
+    IdentifierSystemSubject(segment="data-element", token="DataElement", label="data element"),
+    IdentifierSystemSubject(
+        segment="category-option-combo", token="CategoryOptionCombo", label="category option combo"
+    ),
+)
+
+
+class FormTypeDefinition(BaseModel):
+    """One DHIS2 form kind as a concept of the D2FormType terminology."""
+
+    model_config = ConfigDict(frozen=True)
+
+    code: str
+    display: str
+
+
+#: Every DHIS2 form kind a Questionnaire can be generated from. `tracker` and `tracker-event`
+#: are declared ahead of their generators so the terminology is stable once those land.
+FORM_TYPE_DEFINITIONS: tuple[FormTypeDefinition, ...] = (
+    FormTypeDefinition(code="aggregate", display="Aggregate data set form"),
+    FormTypeDefinition(code="event", display="Event program form"),
+    FormTypeDefinition(code="tracker", display="Tracker registration form"),
+    FormTypeDefinition(code="tracker-event", display="Tracker program stage form"),
 )
 
 
@@ -93,3 +118,33 @@ class FoundationNaming(BaseModel):
     def period_type_value_set_id(self) -> str:
         """FHIR id of the period-type ValueSet (e.g. `d2-period-type-vs`)."""
         return join_id_tokens(self.definition_prefix, "period", "type", "vs")
+
+    @property
+    def form_type_extension(self) -> str:
+        """FSH name of the form-type Extension (e.g. `D2FormType`)."""
+        return f"{self.definition_prefix}FormType"
+
+    @property
+    def form_type_extension_id(self) -> str:
+        """FHIR id of the form-type Extension (e.g. `d2-form-type`)."""
+        return join_id_tokens(self.definition_prefix, "form", "type")
+
+    @property
+    def form_type_code_system(self) -> str:
+        """FSH name of the form-type CodeSystem (e.g. `D2FormTypeCS`)."""
+        return f"{self.definition_prefix}FormTypeCS"
+
+    @property
+    def form_type_code_system_id(self) -> str:
+        """FHIR id of the form-type CodeSystem (e.g. `d2-form-type-cs`)."""
+        return join_id_tokens(self.definition_prefix, "form", "type", "cs")
+
+    @property
+    def form_type_value_set(self) -> str:
+        """FSH name of the form-type ValueSet (e.g. `D2FormTypeVS`)."""
+        return f"{self.definition_prefix}FormTypeVS"
+
+    @property
+    def form_type_value_set_id(self) -> str:
+        """FHIR id of the form-type ValueSet (e.g. `d2-form-type-vs`)."""
+        return join_id_tokens(self.definition_prefix, "form", "type", "vs")

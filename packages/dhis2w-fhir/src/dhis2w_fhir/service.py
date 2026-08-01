@@ -25,6 +25,15 @@ from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_terminology,
 )
 from dhis2w_fhir.resources.organisation_units.schemas import GeoPoint, OrganisationUnitIn
+from dhis2w_fhir.resources.questionnaires import build_questionnaire_artifacts
+from dhis2w_fhir.resources.questionnaires.schemas import (
+    CategoryComboIn,
+    CategoryOptionComboIn,
+    FormKind,
+    QuestionnaireItemIn,
+    QuestionnaireSectionIn,
+    QuestionnaireSourceIn,
+)
 from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
 from dhis2w_fhir.validation import build_code_validation
@@ -32,7 +41,8 @@ from dhis2w_fhir.validation.schemas import FhirValidationReport, MetadataCollect
 from dhis2w_fhir.writer import FshArtifact, sync_artifacts
 
 if TYPE_CHECKING:
-    from dhis2w_client.generated.v42.schemas import OptionSet, OrganisationUnit
+    from dhis2w_client import Dhis2Client
+    from dhis2w_client.generated.v42.schemas import DataSet, OptionSet, OrganisationUnit, Program
 
 _STREAM_PAGE_SIZE = 500
 _TRANSLATION_FIELDS = "translations[locale,property,value]"
@@ -41,6 +51,20 @@ _ORGANISATION_UNIT_FIELDS = (
     "id,code,name,shortName,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,closedDate,"
     f"{_TRANSLATION_FIELDS}"
 )
+_QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
+    "dataElement[id,name,formName,valueType,optionSet[id],"
+    "categoryCombo[id,name,isDefault,categoryOptionCombos[id,name,code]]]"
+)
+_DATA_SET_FIELDS = (
+    f"id,name,code,sections[id,name,dataElements[id]],dataSetElements[{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
+)
+_EVENT_PROGRAM_FIELDS = (
+    "id,name,code,programType,programStages[id,name,programStageSections[id,name,dataElements[id]],"
+    f"programStageDataElements[compulsory,{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]]"
+)
+
+#: The only DHIS2 program type the questionnaire target maps today.
+_EVENT_PROGRAM_TYPE = "WITHOUT_REGISTRATION"
 
 
 class GenerateReport(BaseModel):
@@ -52,6 +76,7 @@ class GenerateReport(BaseModel):
     written_files: list[str] = Field(default_factory=list)
     unchanged_count: int = 0
     option_set_count: int = 0
+    questionnaire_count: int = 0
     organisation_unit_count: int = 0
     position_count: int = 0
     boundary_count: int = 0
@@ -63,7 +88,12 @@ class GenerateAllReport(BaseModel):
 
     foundation: GenerateReport
     option_sets: GenerateReport
+    questionnaires: GenerateReport
     organisation_units: GenerateReport
+
+
+class UnsupportedProgramError(ValueError):
+    """Raised when a configured event program is a shape the questionnaire target does not map."""
 
 
 class GenerationProfile(BaseModel):
@@ -188,15 +218,16 @@ async def generate_foundation(project: FhirProject) -> GenerateReport:
 async def generate_option_sets(profile: Profile, project: FhirProject) -> GenerateReport:
     """Generate one CodeSystem/ValueSet FSH file per configured option set into `terminology/`."""
     config = project.config.generate
+    notes: list[str] = []
     async with open_client(profile) as client:
         models = await client.resources.option_sets.list(
             fields=_OPTION_SET_FIELDS,
             order=["name:asc"],
             paging=False,
         )
+        closure = await _option_set_closure(client, config, notes)
     inputs = [_option_set_input(model) for model in models]
-    notes: list[str] = []
-    inputs = _apply_option_set_selection(inputs, project, notes)
+    inputs = _apply_option_set_selection(inputs, config, closure, notes)
     build = build_option_set_artifacts(inputs, config)
     sync = sync_artifacts(project.fsh_directory, "terminology", build.artifacts)
     return GenerateReport(
@@ -206,6 +237,27 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
         option_set_count=len(inputs),
+        notes=[*notes, *build.notes],
+    )
+
+
+async def generate_questionnaires(profile: Profile, project: FhirProject) -> GenerateReport:
+    """Generate one Questionnaire FSH file per configured data set / event program into `questionnaires/`."""
+    config = project.config.generate
+    notes: list[str] = []
+    sources: list[QuestionnaireSourceIn] = []
+    if config.data_sets.include_ids or config.event_programs.include_ids:
+        async with open_client(profile) as client:
+            sources = await _fetch_questionnaire_sources(client, config, notes)
+    build = build_questionnaire_artifacts(sources, config, project.config.ig.canonical)
+    sync = sync_artifacts(project.fsh_directory, "questionnaires", build.artifacts)
+    return GenerateReport(
+        project_root=project.project_root,
+        target_directory="questionnaires",
+        deleted_files=sync.deleted,
+        written_files=sync.written,
+        unchanged_count=len(sync.unchanged),
+        questionnaire_count=len(sources),
         notes=[*notes, *build.notes],
     )
 
@@ -272,23 +324,269 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
 
 
 async def generate_all(profile: Profile, project: FhirProject) -> GenerateAllReport:
-    """Generate the foundation artifacts, option-set terminology, and organisation-unit instances in one run."""
+    """Generate the foundation, option-set terminology, questionnaires, and organisation-unit instances in one run."""
     foundation = await generate_foundation(project)
     option_sets = await generate_option_sets(profile, project)
+    questionnaires = await generate_questionnaires(profile, project)
     organisation_units = await generate_organisation_units(profile, project)
-    return GenerateAllReport(foundation=foundation, option_sets=option_sets, organisation_units=organisation_units)
+    return GenerateAllReport(
+        foundation=foundation,
+        option_sets=option_sets,
+        questionnaires=questionnaires,
+        organisation_units=organisation_units,
+    )
 
 
-def _apply_option_set_selection(inputs: list[OptionSetIn], project: FhirProject, notes: list[str]) -> list[OptionSetIn]:
-    """Filter option sets by the configured UID include list, noting entries that matched nothing."""
-    selection = project.config.generate.option_sets
+def _apply_option_set_selection(
+    inputs: list[OptionSetIn], config: GenerateConfig, closure: set[str], notes: list[str]
+) -> list[OptionSetIn]:
+    """Filter option sets by the configured UIDs plus the target closure, noting entries that matched nothing."""
+    selection = config.option_sets
     if not selection.include_ids:
         return inputs
-    wanted_ids = set(selection.include_ids)
+    configured_ids = set(selection.include_ids)
+    wanted_ids = configured_ids | closure
     selected = [item for item in inputs if item.uid in wanted_ids]
-    for uid in sorted(wanted_ids - {item.uid for item in selected}):
+    selected_ids = {item.uid for item in selected}
+    for uid in sorted(configured_ids - selected_ids):
         notes.append(f"include_ids entry {uid!r} matched no option set")
     return selected
+
+
+async def _option_set_closure(client: Dhis2Client, config: GenerateConfig, notes: list[str]) -> set[str]:
+    """Collect the option sets the configured data sets and event programs bind their data elements to.
+
+    An empty `[generate.option_sets] include_ids` already means every option set, so the
+    closure is a no-op there and the targets are not fetched a second time.
+    """
+    if not config.option_sets.include_ids:
+        return set()
+    if not (config.data_sets.include_ids or config.event_programs.include_ids):
+        return set()
+    sources = await _fetch_questionnaire_sources(client, config, [])
+    closure = {
+        item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid is not None
+    }
+    added = sorted(closure - set(config.option_sets.include_ids))
+    if added:
+        notes.append(
+            aggregate_note(
+                f"{len(added)} option sets added by the data set / event program closure",
+                added,
+            )
+        )
+    return closure
+
+
+async def _fetch_questionnaire_sources(
+    client: Dhis2Client, config: GenerateConfig, notes: list[str]
+) -> list[QuestionnaireSourceIn]:
+    """Fetch every configured data set and event program as the Questionnaire projection."""
+    sources: list[QuestionnaireSourceIn] = []
+    data_set_ids = config.data_sets.include_ids
+    if data_set_ids:
+        data_sets = await client.resources.data_sets.list(
+            fields=_DATA_SET_FIELDS,
+            filters=[_uid_filter(data_set_ids)],
+            order=["name:asc"],
+            paging=False,
+        )
+        sources.extend(_data_set_source(model, notes) for model in data_sets)
+        _note_unmatched(data_set_ids, {model.id for model in data_sets}, "data_sets", "data set", notes)
+    event_program_ids = config.event_programs.include_ids
+    if event_program_ids:
+        programs = await client.resources.programs.list(
+            fields=_EVENT_PROGRAM_FIELDS,
+            filters=[_uid_filter(event_program_ids)],
+            order=["name:asc"],
+            paging=False,
+        )
+        sources.extend(_event_program_source(model, notes) for model in programs)
+        _note_unmatched(event_program_ids, {model.id for model in programs}, "event_programs", "event program", notes)
+    return sources
+
+
+def _uid_filter(uids: list[str]) -> str:
+    """The DHIS2 metadata filter selecting exactly the configured UIDs."""
+    return f"id:in:[{','.join(uids)}]"
+
+
+def _note_unmatched(
+    configured_ids: list[str], found_ids: set[str | None], table: str, label: str, notes: list[str]
+) -> None:
+    """Note the configured UIDs the instance answered nothing for, rather than dropping them silently."""
+    missing = [uid for uid in configured_ids if uid not in found_ids]
+    if missing:
+        notes.append(
+            aggregate_note(f"{len(missing)} [generate.{table}] include_ids entries matched no {label}", missing)
+        )
+
+
+def _data_set_source(model: DataSet, notes: list[str]) -> QuestionnaireSourceIn:
+    """Map a generated DataSet into the Questionnaire projection, joining sections to their data elements."""
+    uid = model.id or ""
+    items: list[QuestionnaireItemIn] = []
+    for element in model.dataSetElements or []:
+        reference = element.dataElement
+        if reference is None or not reference.id:
+            continue
+        items.append(_questionnaire_item(reference.model_dump(), compulsory=False))
+    return _questionnaire_source(
+        uid=uid,
+        name=model.name or uid,
+        code=model.code,
+        kind="aggregate",
+        items=items,
+        raw_sections=model.sections,
+        notes=notes,
+    )
+
+
+def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSourceIn:
+    """Map a generated Program into the Questionnaire projection, refusing every shape but a single-stage event."""
+    uid = model.id or ""
+    name = model.name or uid
+    program_type = str(model.programType) if model.programType is not None else "unknown"
+    if program_type != _EVENT_PROGRAM_TYPE:
+        raise UnsupportedProgramError(
+            f"program {name!r} ({uid}) has programType {program_type}; tracker programs are not implemented yet"
+        )
+    stages = [stage for stage in model.programStages or [] if isinstance(stage, dict)]
+    if len(stages) > 1:
+        raise UnsupportedProgramError(
+            f"event program {name!r} ({uid}) has {len(stages)} program stages; "
+            "only single-stage event programs are implemented"
+        )
+    items: list[QuestionnaireItemIn] = []
+    raw_sections: object = None
+    if stages:
+        stage = stages[0]
+        for entry in stage.get("programStageDataElements") or []:
+            if not isinstance(entry, dict):
+                continue
+            reference = entry.get("dataElement")
+            if not isinstance(reference, dict) or not reference.get("id"):
+                continue
+            items.append(_questionnaire_item(reference, compulsory=bool(entry.get("compulsory"))))
+        raw_sections = stage.get("programStageSections")
+    return _questionnaire_source(
+        uid=uid,
+        name=name,
+        code=model.code,
+        kind="event",
+        items=items,
+        raw_sections=raw_sections,
+        notes=notes,
+    )
+
+
+def _questionnaire_source(
+    uid: str,
+    name: str,
+    code: str | None,
+    kind: FormKind,
+    items: list[QuestionnaireItemIn],
+    raw_sections: object,
+    notes: list[str],
+) -> QuestionnaireSourceIn:
+    """Split one form's data elements into its sections plus whatever the sections leave out."""
+    sections = _questionnaire_sections(raw_sections, items)
+    sectioned_ids = {item.uid for section in sections for item in section.items}
+    flat_items = [item for item in items if item.uid not in sectioned_ids]
+    if sections and flat_items:
+        label = "data set" if kind == "aggregate" else "event program"
+        notes.append(
+            aggregate_note(
+                f"{label} {name!r} ({uid}) has {len(flat_items)} data elements outside its sections; "
+                "emitted after the sectioned ones",
+                [f"{item.name} ({item.uid})" for item in flat_items],
+            )
+        )
+    return QuestionnaireSourceIn(uid=uid, name=name, code=code, kind=kind, sections=sections, flat_items=flat_items)
+
+
+def _questionnaire_sections(raw_sections: object, items: list[QuestionnaireItemIn]) -> list[QuestionnaireSectionIn]:
+    """Join the wire sections, which reference data elements by id alone, to the fetched item detail."""
+    if not isinstance(raw_sections, list):
+        return []
+    items_by_uid = {item.uid: item for item in items}
+    sections: list[QuestionnaireSectionIn] = []
+    for raw in raw_sections:
+        if not isinstance(raw, dict):
+            continue
+        uid = _optional_text(raw.get("id"))
+        if uid is None:
+            continue
+        members = raw.get("dataElements")
+        member_ids = (
+            [_optional_text(entry.get("id")) for entry in members if isinstance(entry, dict)]
+            if isinstance(members, list)
+            else []
+        )
+        sections.append(
+            QuestionnaireSectionIn(
+                uid=uid,
+                name=_optional_text(raw.get("name")) or uid,
+                items=[items_by_uid[member_id] for member_id in member_ids if member_id in items_by_uid],
+            )
+        )
+    return sections
+
+
+def _questionnaire_item(raw: dict[str, object], *, compulsory: bool) -> QuestionnaireItemIn:
+    """Map one wire data element into the question projection the emitter consumes."""
+    uid = _optional_text(raw.get("id")) or ""
+    option_set = raw.get("optionSet")
+    option_set_uid = _optional_text(option_set.get("id")) if isinstance(option_set, dict) else None
+    return QuestionnaireItemIn(
+        uid=uid,
+        name=_optional_text(raw.get("name")) or uid,
+        form_name=_optional_text(raw.get("formName")),
+        value_type=_optional_text(raw.get("valueType")) or "",
+        option_set_uid=option_set_uid,
+        compulsory=compulsory,
+        category_combo=_category_combo_input(raw.get("categoryCombo")),
+    )
+
+
+def _category_combo_input(raw: object) -> CategoryComboIn | None:
+    """Map one wire category combo, option combos included; None when the data element carries none."""
+    if not isinstance(raw, dict):
+        return None
+    uid = _optional_text(raw.get("id"))
+    if uid is None:
+        return None
+    raw_combos = raw.get("categoryOptionCombos")
+    option_combos: list[CategoryOptionComboIn] = []
+    for entry in raw_combos if isinstance(raw_combos, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        combo_uid = _optional_text(entry.get("id"))
+        if combo_uid is None:
+            continue
+        option_combos.append(
+            CategoryOptionComboIn(
+                uid=combo_uid,
+                name=_optional_text(entry.get("name")) or combo_uid,
+                code=_optional_text(entry.get("code")),
+            )
+        )
+    return CategoryComboIn(
+        uid=uid,
+        name=_optional_text(raw.get("name")) or uid,
+        is_default=bool(raw.get("isDefault")),
+        option_combos=option_combos,
+    )
+
+
+def _optional_text(value: object) -> str | None:
+    """The wire value when it is a non-empty string, else None."""
+    return value if isinstance(value, str) and value else None
+
+
+def _source_items(source: QuestionnaireSourceIn) -> list[QuestionnaireItemIn]:
+    """Every question one source carries, sectioned and unsectioned alike."""
+    return [item for section in source.sections for item in section.items] + list(source.flat_items)
 
 
 def _translation_inputs(raw_translations: object) -> list[TranslationIn]:

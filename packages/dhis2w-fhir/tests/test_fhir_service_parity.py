@@ -157,6 +157,85 @@ async def test_generate_organisation_units_across_majors(
     assert "Instance: LocationImspTQPwCqd" in level_one
 
 
+_QUESTIONNAIRE_DATA_SETS_PAYLOAD = {
+    "dataSets": [
+        {
+            "id": "BfMAe6Itzgt",
+            "name": "Child Health",
+            "code": "DS_359711",
+            "sections": [{"id": "Sec1aaaaaaa", "name": "Immunization", "dataElements": [{"id": "De1aaaaaaaa"}]}],
+            "dataSetElements": [
+                {
+                    "dataElement": {
+                        "id": "De1aaaaaaaa",
+                        "name": "BCG doses given",
+                        "valueType": "INTEGER_ZERO_OR_POSITIVE",
+                        "categoryCombo": {"id": "bjDvmb4bfuf", "name": "default", "isDefault": True},
+                    }
+                }
+            ],
+        }
+    ]
+}
+
+_QUESTIONNAIRE_PROGRAMS_PAYLOAD = {
+    "programs": [
+        {
+            "id": "VBqh0ynB2wv",
+            "name": "Malaria case registration",
+            "programType": "WITHOUT_REGISTRATION",
+            "programStages": [
+                {
+                    "id": "pTo4uMt3xur",
+                    "programStageSections": [],
+                    "programStageDataElements": [
+                        {
+                            "compulsory": True,
+                            "dataElement": {"id": "qrur9Dvnyt5", "name": "Age in years", "valueType": "INTEGER"},
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+}
+
+
+@respx.mock
+async def test_generate_questionnaires_across_majors(
+    wire_version: str,
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`generate_questionnaires` maps data sets and event programs on every DHIS2 major."""
+    mock_system_info(wire_version)
+    await _scaffold_project(tmp_path)
+    (tmp_path / "fhir.toml").write_text(
+        (tmp_path / "fhir.toml").read_text(encoding="utf-8")
+        + '\n[generate.data_sets]\ninclude_ids = ["BfMAe6Itzgt"]\n'
+        + '\n[generate.event_programs]\ninclude_ids = ["VBqh0ynB2wv"]\n',
+        encoding="utf-8",
+    )
+    data_sets = respx.get(f"{_HOST}/api/dataSets").mock(
+        return_value=httpx.Response(200, json=_QUESTIONNAIRE_DATA_SETS_PAYLOAD)
+    )
+    programs = respx.get(f"{_HOST}/api/programs").mock(
+        return_value=httpx.Response(200, json=_QUESTIONNAIRE_PROGRAMS_PAYLOAD)
+    )
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert data_sets.called
+    assert programs.called
+    assert report.questionnaire_count == 2
+    assert "questionnaires/BfMAe6Itzgt.fsh" in report.written_files
+    assert "questionnaires/VBqh0ynB2wv.fsh" in report.written_files
+    content = (tmp_path / "ig" / "input" / "fsh" / "questionnaires" / "VBqh0ynB2wv.fsh").read_text(encoding="utf-8")
+    assert content.startswith(GENERATED_HEADER)
+    assert "* code = D2FormTypeCS#event" in content
+
+
 @respx.mock
 async def test_validate_codes_across_majors(
     wire_version: str,

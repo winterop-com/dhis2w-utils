@@ -86,6 +86,27 @@ def test_load_project_derives_directories(tmp_path: Path) -> None:
     assert project.fsh_directory == tmp_path.resolve() / "ig" / "input" / "fsh"
 
 
+def test_data_definition_tables_parse(tmp_path: Path) -> None:
+    """`[generate.data_sets]` and `[generate.event_programs]` load as UID include lists."""
+    path = tmp_path / "fhir.toml"
+    path.write_text(
+        _MINIMAL_TOML
+        + '\n[generate.data_sets]\ninclude_ids = ["BfMAe6Itzgt"]\n'
+        + '\n[generate.event_programs]\ninclude_ids = ["VBqh0ynB2wv"]\n',
+        encoding="utf-8",
+    )
+    config = load_fhir_config(path)
+    assert config.generate.data_sets.include_ids == ["BfMAe6Itzgt"]
+    assert config.generate.event_programs.include_ids == ["VBqh0ynB2wv"]
+
+
+def test_questionnaire_naming_tokens_default_to_the_registry() -> None:
+    """The data-set and program tokens default to the canonical registry's DS / PR, and may be dropped."""
+    assert GenerateConfig().naming.data_set == "DS"
+    assert GenerateConfig().naming.program == "PR"
+    assert GenerateConfig.model_validate({"naming": {"data_set": "", "program": ""}}).naming.data_set == ""
+
+
 def test_locales_default_to_every_locale_found() -> None:
     """An absent `[generate] locales` means every translation locale on the instance is emitted."""
     assert GenerateConfig().locales == []

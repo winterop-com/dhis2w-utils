@@ -1,0 +1,36 @@
+Instance: Questionnaire{{ questionnaire.uid }}
+InstanceOf: Questionnaire
+Title: {{ questionnaire.title_literal }}
+Description: {{ questionnaire.description_literal }}
+Usage: #definition
+* id = "{{ questionnaire.uid }}"
+* extension[{{ questionnaire.form_type_extension }}].valueCode = #{{ questionnaire.form_type_code }}
+* url = "{{ questionnaire.url }}"
+* identifier[+].system = {{ questionnaire.identifier_system }}
+* identifier[=].value = "{{ questionnaire.uid }}"
+* identifier[+].system = {{ questionnaire.identifier_code_system }}
+* identifier[=].value = {{ questionnaire.identifier_code_literal }}
+* name = "{{ questionnaire.name }}"
+* title = {{ questionnaire.title_element_literal }}
+* status = #active
+* experimental = true
+* subjectType = #Location
+* code = {{ questionnaire.form_type_code_system }}#{{ questionnaire.form_type_code }}
+{% for item in questionnaire.items %}
+* {{ item.new_path }}.linkId = "{{ item.link_id }}"
+{% if item.code_token is not none %}
+* {{ item.path }}.code = {{ item.code_token }}
+{% endif %}
+* {{ item.path }}.text = {{ item.text_literal }}
+* {{ item.path }}.type = #{{ item.type_code }}
+{% if item.answer_value_set is not none %}
+* {{ item.path }}.answerValueSet = Canonical({{ item.answer_value_set }})
+{% endif %}
+{% if item.required %}
+* {{ item.path }}.required = true
+{% endif %}
+{% if item.item_control %}
+* {{ item.path }}.extension[+].url = "{{ item_control_extension_url }}"
+* {{ item.path }}.extension[=].valueCodeableConcept = {{ item_control_code_system_url }}#gtable
+{% endif %}
+{% endfor %}

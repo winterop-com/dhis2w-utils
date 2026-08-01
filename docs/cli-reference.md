@@ -9959,6 +9959,8 @@ $ d2w fhir init [OPTIONS] [directory]
 * `--title <str>`: IG title (default: derived from --name).
 * `--publisher <str>`: Publisher name.  [default: Example Organisation]
 * `--publisher-url <str>`: Publisher home page. Omit it unless you have a real site: the IG publisher links it from every generated page, and pointing it at the canonical yields one broken link per page.
+* `--data-set <str>`: Data set UID to seed  include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
+* `--event <str>`: Event program UID to seed  include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--force`: Overwrite scaffold files that already exist.
 * `--help`: Show this message and exit.
 
@@ -9999,8 +10001,9 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 
 * `foundation`: Generate the DHIS2 identifier aliases and...
 * `option-sets`: Generate CodeSystem/ValueSet FSH from...
+* `questionnaires`: Generate Questionnaire FSH from the...
 * `org-units`: Generate Organization/Location FSH from...
-* `all`: Generate the foundation artifacts,...
+* `all`: Generate the foundation, option-set...
 
 #### `d2w fhir generate foundation`
 
@@ -10030,6 +10033,20 @@ $ d2w fhir generate option-sets [OPTIONS]
 
 * `--help`: Show this message and exit.
 
+#### `d2w fhir generate questionnaires`
+
+Generate Questionnaire FSH from the configured DHIS2 data sets and event programs.
+
+**Usage**:
+
+```console
+$ d2w fhir generate questionnaires [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
 #### `d2w fhir generate org-units`
 
 Generate Organization/Location FSH from DHIS2 organisation units into the nearest FHIR project.
@@ -10046,7 +10063,7 @@ $ d2w fhir generate org-units [OPTIONS]
 
 #### `d2w fhir generate all`
 
-Generate the foundation artifacts, option-set terminology, and organisation-unit instances in one run.
+Generate the foundation, option-set terminology, questionnaires, and organisation-unit instances in one run.
 
 **Usage**:
 

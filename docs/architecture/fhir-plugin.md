@@ -2,14 +2,15 @@
 
 `d2w fhir` turns DHIS2 metadata into a FHIR Implementation Guide source tree:
 a SUSHI project whose FSH (FHIR Shorthand) files are generated from
-`/api/optionSets` and `/api/organisationUnits`.
+`/api/optionSets`, `/api/organisationUnits`, `/api/dataSets`, and `/api/programs`.
 
 ```
 d2w fhir init [DIRECTORY]           Scaffold a dockerized SUSHI IG project
-d2w fhir generate foundation        Identifier aliases + the D2Period extension
+d2w fhir generate foundation        Identifier aliases + the D2Period / D2FormType extensions
 d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
+d2w fhir generate questionnaires    Data sets + event programs -> Questionnaire instances
 d2w fhir generate org-units         Org units -> Organization/Location instances
-d2w fhir generate all               All three targets in one run
+d2w fhir generate all               All four targets in one run
 d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
 ```
 
@@ -91,15 +92,28 @@ source = "id"                       # "id" or "name"
 prefix = "D2"                       # "" drops it; profiles keep a D2 token
 option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
 organisation_unit = "OU"            # e.g. "OrgUnit" -> D2OrgUnitLevelCS
+data_set = "DS"                     # data set Questionnaire names
+program = "PR"                      # event program Questionnaire names
 
 [generate.option_sets]
-include_ids = []                    # UIDs; absent or empty = all
+# include_ids = ["Qdm5fPK5Ra9"]     # UIDs; absent = all
+
+[generate.data_sets]
+# include_ids = ["BfMAe6Itzgt"]     # UIDs; absent = none
+
+[generate.event_programs]
+# include_ids = ["VBqh0ynB2wv"]     # UIDs; absent = none
 
 [generate.organisation_units]
-root = ""
-max_level = 0
+# root = "ImspTQPwCqd"
+# max_level = 4
 terminology = false
 ```
+
+The data-definition selections invert the default: absent means *none*, because a
+form is added to a project one UID at a time. `fhir.toml.example` shows every
+unset-by-default key as a commented, real-shaped example rather than a magic
+placeholder, so the file parses to exactly the defaults.
 
 `identifier_system_base` is live: `generate foundation` writes it into
 `foundation/d2-aliases.fsh` as the `$DHIS2-*` aliases, declares each of those
@@ -118,18 +132,22 @@ consistently. With `naming.source = "name"` the same set reads `D2OSBirthTypeCS`
 / `d2-os-birth-type-cs`. The two profile names always carry a token (default
 `D2`) because FSH cannot name a profile identically to its parent core resource.
 
-## Foundation -> identifier systems and D2Period
+## Foundation -> identifier systems, D2Period, and D2FormType
 
 `generate foundation` writes `ig/input/fsh/foundation/`, the part of the IG that
 depends on `fhir.toml` alone and never opens a client:
 
 - `d2-aliases.fsh` - `$DHIS2-OU` / `$DHIS2-OU-CODE` / `$DHIS2-OS` /
-  `$DHIS2-OS-CODE`, built from `identifier_system_base`. Generating these rather
+  `$DHIS2-OS-CODE` / `$DHIS2-DS` / `$DHIS2-DS-CODE` / `$DHIS2-PROGRAM` /
+  `$DHIS2-PROGRAM-CODE` / `$DHIS2-DE` / `$DHIS2-COC`, built from
+  `identifier_system_base`. Generating these rather
   than scaffolding them is what frees `ig/input/fsh/aliases.fsh` to be a pure
   hand-authored stub.
-- `d2-naming-systems.fsh` - one `NamingSystem` per alias URL
-  (`D2OrgUnitIdentifierSystem`, `D2OrgUnitCodeIdentifierSystem`,
-  `D2OptionSetIdentifierSystem`, `D2OptionSetCodeIdentifierSystem`), each
+- `d2-naming-systems.fsh` - one `NamingSystem` per identifier system: a UID and a
+  code declaration for each of the organisation unit, option set, data set,
+  program, data element, and category option combo
+  (`D2OrgUnitIdentifierSystem`, `D2OptionSetCodeIdentifierSystem`,
+  `D2DataSetIdentifierSystem`, ...), each
   `kind = #identifier` with a single preferred `uri` uniqueId and a description
   stating the convention, including the code slot's UID fall-back. Without them
   the validator has no definition behind a DHIS2 `identifier.system` and warns on
@@ -137,6 +155,12 @@ depends on `fhir.toml` alone and never opens a client:
   declarations carry a pinned date rather than a run timestamp - a generated one
   would rewrite the file on every run.
 - `d2-period.fsh` - the `D2Period` extension plus `D2PeriodTypeCS`/`VS`.
+- `d2-form-type.fsh` - the `D2FormType` extension plus `D2FormTypeCS`/`VS`
+  (`aggregate`, `event`, `tracker`, `tracker-event`). Its context covers
+  `Questionnaire` *and* `QuestionnaireResponse`: the form states what kind of DHIS2
+  form it is, and so does every response captured against it, which is what lets a
+  consumer branch without re-reading the questionnaire. The two tracker codes are
+  declared ahead of their generators so the terminology does not churn later.
 
 `D2Period` exists because a FHIR `Period` is a pair of instants while a DHIS2
 period is a *typed* interval: `202401` is the January instance of the `Monthly`
@@ -166,6 +190,42 @@ DHIS2 option code rides along as a `dhis2-code` concept property; with
 gated by a FHIR `code`-datatype validity check; an option whose code is
 missing or invalid falls back to the UID with a note in the report, so
 generation is total and never silently drops a concept.
+
+## Data sets and event programs -> Questionnaires
+
+`generate questionnaires` writes `ig/input/fsh/questionnaires/`: one
+`<UID>.fsh` per configured target (`[generate.data_sets]` /
+`[generate.event_programs]` `include_ids`, absent = none - a data definition is
+explicit opt-in, unlike the terminology and registry selections), plus
+`data-elements.fsh` (`D2DECS`/`VS`) and `category-option-combos.fsh`
+(`D2COCCS`/`VS`) over everything those forms reference. The two support pairs live
+in the questionnaire sync directory, not `terminology/`, so the option-set target's
+cleanup can never delete them.
+
+One Questionnaire is `Usage: #definition`, `id` the bare UID, `url` the IG canonical
+plus `/Questionnaire/<uid>`, `subjectType = #Location` (a DHIS2 form is answered for
+an organisation unit), `experimental`, both DHIS2 identifiers (`$DHIS2-DS` /
+`$DHIS2-PROGRAM` and their code slots), and `name` composed from the naming tokens
+(`D2DSBfMAe6Itzgt`). Sections become `#group` items; data elements become questions
+whose type comes from the DHIS2 `valueType` table, or `#choice` plus an
+`answerValueSet` when the element is option-set bound; a compulsory program-stage
+element is `required`; a non-default category combo turns the question into a group
+with one child per option combo, `linkId` `<deUid>.<cocUid>` - the same key a DHIS2
+data value carries. A section holding such a group also carries the standard
+`questionnaire-itemControl` extension coded `#gtable`, which is the DHIS2 data-entry
+grid stated in FHIR terms.
+
+The service refuses what it cannot map rather than guessing: a configured program
+whose live `programType` is not `WITHOUT_REGISTRATION` raises by name (tracker
+programs need `Patient` / `EpisodeOfCare`, not a bare Questionnaire), and so does an
+event program with more than one stage. Configured UIDs that resolve to nothing, and
+data elements no section references, are aggregate notes.
+
+The option-set closure keeps the IG internally consistent: when
+`[generate.option_sets] include_ids` narrows the terminology, the option sets the
+configured targets bind to are unioned in and listed in a note. An empty include
+list already means every option set, so the closure short-circuits and the targets
+are not fetched twice.
 
 ## Organisation units -> instances
 
@@ -354,6 +414,13 @@ The components:
 - `resources/option_sets/` - the CodeSystem/ValueSet pair per option set,
   plus `max_slug_length` (validation previews the same id bound) and the
   `OptionSetIn` / `OptionIn` / `OptionSetSelection` schemas.
+- `resources/questionnaires/` - the Questionnaire instance per data set / event
+  program plus the two support terminology pairs, with `TargetSelection`, the
+  `QuestionnaireSourceIn` / `QuestionnaireSectionIn` / `QuestionnaireItemIn` /
+  `CategoryComboIn` / `CategoryOptionComboIn` projections, and `QuestionnaireNaming`
+  deriving every name from the `DS` / `PR` / `DE` / `COC` tokens. Item nesting is
+  resolved in Python into a flat list of view-models carrying their FSH soft-index
+  paths (`item[=].item[+]`), so the template stays a layout, not a recursion.
 - `resources/organisation_units/` - split by FHIR resource: `naming.py`
   derives every artifact name and id from the `[generate.naming]` tokens,
   `organization.py` builds the profiles artifact and the Organization
@@ -372,7 +439,8 @@ The components:
 `scaffold/` and `validation/` stay top level.
 
 Dependencies point one way: `config.py` composes the per-component selection
-tables (`OptionSetSelection`, `OrganisationUnitSelection`), and no component
+tables (`OptionSetSelection`, `OrganisationUnitSelection`, and the shared
+`TargetSelection` behind both data-definition tables), and no component
 imports `config.py` at runtime - an emitter receives its `GenerateConfig` as
 a parameter and annotates it under `TYPE_CHECKING`. `dhis2w_fhir/__init__.py`
 re-exports the whole public surface, so `from dhis2w_fhir import
@@ -389,7 +457,8 @@ layout.
 
 The service opens the version-neutral
 `dhis2w_core.client_context.open_client` and maps generated `OptionSet` /
-`OrganisationUnit` schemas into the `*In` projections at the boundary.
+`OrganisationUnit` / `DataSet` / `Program` schemas into the `*In` projections at
+the boundary.
 Geometry becomes a frozen `GeoPoint`: Point coordinates directly, and for
 Polygon/MultiPolygon the area-weighted (shoelace) centroid of the outer ring
 with the largest absolute area - not a bounding-box midpoint, which lands
@@ -415,35 +484,33 @@ boundary.
   membership.
 - Categories / category options: structurally close to option sets, mapped to
   CodeSystem/ValueSet pairs the same way.
-- Questionnaire generation from programs / program stages (valueType mapping
-  tables exist in the lao-v1 generator).
+- Tracker programs as Questionnaires: `WITH_REGISTRATION` programs need
+  `Patient` + `EpisodeOfCare` alongside the per-stage forms, and the
+  `tracker` / `tracker-event` codes are already in `D2FormTypeCS` waiting for them.
+  Multi-stage event programs land with them.
 - `SHORT_NAME` and `DESCRIPTION` translations: `NAME` is emitted today, and the
   other two need a target apiece (`Organization.alias`, `^description`) before
   they can follow. Validation's instance-wide sweep stays translation-free until
   there is a cheaper way to ask `/api/metadata` for them than fetching every
   object's full translation list.
-- Data layer: dataset -> `Questionnaire` + `MeasureReport` (summary), events ->
-  `QuestionnaireResponse`, tracker -> `Patient` + `EpisodeOfCare` (see
+- Data layer: the captured values behind the generated forms - a data value set as
+  a `QuestionnaireResponse` answering the data set's `Questionnaire` on the same
+  `linkId`s (including the `<deUid>.<cocUid>` ones the disaggregated groups define),
+  its period through `D2Period` and its org unit through `subject`, with
+  `MeasureReport` as the later lossy summary projection over the same data; events
+  -> `QuestionnaireResponse`, tracker -> `Patient` + `EpisodeOfCare` (see
   `docs/project/fhir-data-mapping.md` when committed).
 - Curated real-world `Usage: #example` instances per profile - especially once
   the data layer lands, where a worked `QuestionnaireResponse` says more than a
   profile ever does.
-- Instance-scoped projects with form targets: a project IS the FHIR home of one
-  DHIS2 instance - fhir.toml carries the profile and canonical, and the registry
-  (org units), terminology (option sets), and foundation artifacts are
-  instance-level with instance-linked ids (id-derived, stable regardless of
-  which form uses them), because org units and option sets are reused across the
-  board and `fhir serve` operates on the instance's single namespace. Data sets and event programs are added INTO the project as targets
-  - `[generate.data_sets]` and `[generate.event_programs]` `include_ids` lists,
-  multiple supported - each contributing its Questionnaire artifacts, with
-  target dependency closures unioned into the shared option-set selection.
-  `d2w fhir init --data-set <uid>` / `--event <uid>` are repeatable seeders of
-  those lists that also derive sensible IG identity on first init. Safeguards:
-  the flag declares the shape and the live `programType` must agree (a
-  `WITH_REGISTRATION` uid under `--event` fails loudly by name; event programs
-  assert their single-stage invariant; config carries only UIDs, never a cached
-  type). `fhir build` may still cut per-form deployables from the instance
-  project - a packaging choice, not a namespace choice.
+- Instance-scoped project identity: `d2w fhir init --data-set <uid>` / `--event
+  <uid>` seed the target lists offline today; deriving the IG identity (id,
+  canonical, title) from the instance and its named targets on first init needs a
+  live call, which `init` deliberately does not make yet. `fhir build` may still cut
+  per-form deployables out of the instance project - a packaging choice, not a
+  namespace choice, because the registry (org units), terminology (option sets), and
+  foundation artifacts stay instance-level with instance-linked ids whichever form
+  uses them.
 - `d2w fhir ui` / `browser`: a tree-widget explorer over the generated IG and
   hierarchy, modelled on the security plugin's offline d3 sharing explorer.
 - `d2w fhir serve`: one verb, two modes (FastAPI per repo convention, read-only

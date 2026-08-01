@@ -10,12 +10,17 @@ def _by_path(config: GenerateConfig) -> dict[str, str]:
     return {artifact.relative_path: artifact.content for artifact in build_foundation_artifacts(config)}
 
 
+#: The DHIS2 object kinds that carry an identifier system, each yielding a UID and a code declaration.
+_IDENTIFIER_SYSTEM_COUNT = 12
+
+
 def test_foundation_covers_expected_files() -> None:
-    """The target emits the aliases, the NamingSystem declarations, and the period extension."""
+    """The target emits the aliases, the NamingSystems, and the period and form-type extensions."""
     assert set(_by_path(GenerateConfig())) == {
         "foundation/d2-aliases.fsh",
         "foundation/d2-naming-systems.fsh",
         "foundation/d2-period.fsh",
+        "foundation/d2-form-type.fsh",
     }
 
 
@@ -33,18 +38,35 @@ def test_aliases_come_from_the_configured_identifier_base() -> None:
     assert "Alias: $DHIS2-OS = https://example.org/dhis2/id/option-set" in aliases
 
 
+def test_data_definition_aliases_are_emitted() -> None:
+    """The questionnaire target's identifier systems are aliased alongside the terminology ones."""
+    aliases = _by_path(GenerateConfig())["foundation/d2-aliases.fsh"]
+    assert "Alias: $DHIS2-DS = http://dhis2.org/fhir/id/data-set" in aliases
+    assert "Alias: $DHIS2-DS-CODE = http://dhis2.org/fhir/id/data-set-code" in aliases
+    assert "Alias: $DHIS2-PROGRAM = http://dhis2.org/fhir/id/program" in aliases
+    assert "Alias: $DHIS2-PROGRAM-CODE = http://dhis2.org/fhir/id/program-code" in aliases
+    assert "Alias: $DHIS2-DE = http://dhis2.org/fhir/id/data-element" in aliases
+    assert "Alias: $DHIS2-COC = http://dhis2.org/fhir/id/category-option-combo" in aliases
+
+
 def test_naming_systems_declare_every_identifier_system() -> None:
     """Each `$DHIS2-*` alias URL is declared by a NamingSystem, so consumers can resolve what it means."""
     content = _by_path(GenerateConfig())["foundation/d2-naming-systems.fsh"]
-    assert content.count("InstanceOf: NamingSystem") == 4
-    assert content.count("* kind = #identifier") == 4
-    assert content.count("* uniqueId[0].preferred = true") == 4
+    assert content.count("InstanceOf: NamingSystem") == _IDENTIFIER_SYSTEM_COUNT
+    assert content.count("* kind = #identifier") == _IDENTIFIER_SYSTEM_COUNT
+    assert content.count("* uniqueId[0].preferred = true") == _IDENTIFIER_SYSTEM_COUNT
     assert "Instance: D2OrgUnitIdentifierSystem" in content
     assert "Instance: D2OrgUnitCodeIdentifierSystem" in content
     assert "Instance: D2OptionSetIdentifierSystem" in content
     assert "Instance: D2OptionSetCodeIdentifierSystem" in content
+    assert "Instance: D2DataSetIdentifierSystem" in content
+    assert "Instance: D2ProgramCodeIdentifierSystem" in content
+    assert "Instance: D2DataElementIdentifierSystem" in content
+    assert "Instance: D2CategoryOptionComboIdentifierSystem" in content
     assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/org-unit"' in content
     assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/option-set-code"' in content
+    assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/data-set"' in content
+    assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/category-option-combo"' in content
     assert "this slot repeats the UID" in content
 
 
@@ -53,7 +75,36 @@ def test_naming_system_date_is_fixed_so_regeneration_is_byte_stable() -> None:
     first = _by_path(GenerateConfig())["foundation/d2-naming-systems.fsh"]
     second = _by_path(GenerateConfig())["foundation/d2-naming-systems.fsh"]
     assert first == second
-    assert first.count('* date = "2026-08-01"') == 4
+    assert first.count('* date = "2026-08-01"') == _IDENTIFIER_SYSTEM_COUNT
+
+
+def test_form_type_extension_binds_both_questionnaire_resources() -> None:
+    """D2FormType is contexted on Questionnaire and QuestionnaireResponse with a required code binding."""
+    form_type = _by_path(GenerateConfig())["foundation/d2-form-type.fsh"]
+    assert "Extension: D2FormType" in form_type
+    assert "Id: d2-form-type" in form_type
+    assert '* ^context[=].expression = "Questionnaire"' in form_type
+    assert '* ^context[=].expression = "QuestionnaireResponse"' in form_type
+    assert form_type.count("* ^context[+].type = #element") == 2
+    assert "* value[x] only code" in form_type
+    assert "* valueCode 1..1" in form_type
+    assert "* valueCode from D2FormTypeVS (required)" in form_type
+
+
+def test_form_type_terminology_covers_every_form_kind() -> None:
+    """The form-type pair publishes all four DHIS2 form kinds and points back at its ValueSet."""
+    form_type = _by_path(GenerateConfig())["foundation/d2-form-type.fsh"]
+    assert "CodeSystem: D2FormTypeCS" in form_type
+    assert "Id: d2-form-type-cs" in form_type
+    assert "* ^valueSet = Canonical(D2FormTypeVS)" in form_type
+    assert form_type.count("* ^experimental = true") == 2
+    assert '* #aggregate "Aggregate data set form"' in form_type
+    assert '* #event "Event program form"' in form_type
+    assert '* #tracker "Tracker registration form"' in form_type
+    assert '* #tracker-event "Tracker program stage form"' in form_type
+    assert "ValueSet: D2FormTypeVS" in form_type
+    assert "Id: d2-form-type-vs" in form_type
+    assert "* include codes from system D2FormTypeCS" in form_type
 
 
 def test_period_terminology_is_marked_experimental() -> None:
@@ -103,3 +154,5 @@ def test_prefix_token_flows_into_the_foundation_names() -> None:
     bare = _by_path(GenerateConfig(naming=NamingConfig(prefix="")))["foundation/d2-period.fsh"]
     assert "Extension: D2Period" in bare
     assert "Id: d2-period" in bare
+    bare_form_type = _by_path(GenerateConfig(naming=NamingConfig(prefix="")))["foundation/d2-form-type.fsh"]
+    assert "Extension: D2FormType" in bare_form_type

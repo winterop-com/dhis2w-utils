@@ -1,11 +1,12 @@
-"""FSH emission for the foundation layer: the DHIS2 identifier systems and the D2Period extension.
+"""FSH emission for the foundation layer: the DHIS2 identifier systems, D2Period, and D2FormType.
 
 These artifacts depend on `fhir.toml` alone, never on a DHIS2 instance. `d2-aliases.fsh`
 turns `[generate] identifier_system_base` into the `$DHIS2-*` aliases every instance file
 references; `d2-naming-systems.fsh` declares each of those URLs as a NamingSystem, so a
 consumer meeting a DHIS2 identifier can resolve what it means; `d2-period.fsh` defines the
 reporting-period Extension plus the period-type CodeSystem/ValueSet backing its required
-binding.
+binding; `d2-form-type.fsh` defines the form-type Extension every generated Questionnaire
+carries, plus its own CodeSystem/ValueSet pair.
 """
 
 from __future__ import annotations
@@ -15,7 +16,9 @@ from typing import TYPE_CHECKING
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 
 from dhis2w_fhir.foundation.schemas import (
+    FORM_TYPE_DEFINITIONS,
     IDENTIFIER_SYSTEM_SUBJECTS,
+    FormTypeDefinition,
     FoundationNaming,
     NamingSystemDeclaration,
 )
@@ -25,7 +28,13 @@ from dhis2w_fhir.writer import FshArtifact
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
-__all__ = ["FoundationNaming", "NamingSystemDeclaration", "build_foundation_artifacts"]
+__all__ = [
+    "FORM_TYPE_DEFINITIONS",
+    "FormTypeDefinition",
+    "FoundationNaming",
+    "NamingSystemDeclaration",
+    "build_foundation_artifacts",
+]
 
 #: The `NamingSystem.date` every declaration carries. R4 makes the element mandatory, and a
 #: generated timestamp would rewrite the file on every run - this is the date the DHIS2
@@ -53,6 +62,9 @@ def build_foundation_artifacts(config: GenerateConfig) -> list[FshArtifact]:
         declared_date=_IDENTIFIER_SYSTEM_DECLARED_DATE,
     )
     period = _ENVIRONMENT.get_template("d2-period.fsh.jinja").render(names=names, period_types=PERIOD_TYPE_DEFINITIONS)
+    form_type = _ENVIRONMENT.get_template("d2-form-type.fsh.jinja").render(
+        names=names, form_types=FORM_TYPE_DEFINITIONS
+    )
     return [
         FshArtifact(
             relative_path="foundation/d2-aliases.fsh",
@@ -71,6 +83,12 @@ def build_foundation_artifacts(config: GenerateConfig) -> list[FshArtifact]:
             kind="extension",
             fsh_name=names.period_extension,
             content=period,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-form-type.fsh",
+            kind="extension",
+            fsh_name=names.form_type_extension,
+            content=form_type,
         ),
     ]
 

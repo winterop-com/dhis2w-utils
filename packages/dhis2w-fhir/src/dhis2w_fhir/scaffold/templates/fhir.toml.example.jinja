@@ -18,8 +18,8 @@ identifier_system_base = "http://dhis2.org/fhir"
 # Concept code source for option sets: "id" (option UID, DHIS2 code as property)
 # or "code" (DHIS2 code when FHIR-valid, UID as property; invalid codes fall back).
 concept_code_source = "id"
-# translation locales to emit (BCP-47 or DHIS2-style tags; empty = all found on the instance)
-locales = []
+# Translation locales to emit (BCP-47 or DHIS2-style tags; absent = every locale found).
+# locales = ["lo", "en"]
 
 [generate.naming]
 # What file names, ids, and FSH names derive from: "id" (stable, collision-free,
@@ -32,12 +32,25 @@ prefix = "D2"                       # "" drops the prefix (profiles keep a D2 to
                                     # a profile cannot share its parent resource's name)
 option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
 organisation_unit = "OU"            # must stay non-empty (e.g. "OrgUnit")
+data_set = "DS"                     # data set Questionnaire names; "" drops the token
+program = "PR"                      # event program Questionnaire names; "" drops the token
 
 [generate.option_sets]
-include_ids = []                    # optionSet UIDs to include (absent or empty = all)
+# optionSet UIDs to include (absent = all).
+# include_ids = ["Qdm5fPK5Ra9"]
+
+[generate.data_sets]
+# Data set UIDs to emit as Questionnaires (absent = none - data definitions are opt-in).
+# include_ids = ["BfMAe6Itzgt"]
+
+[generate.event_programs]
+# Event program UIDs to emit as Questionnaires (absent = none - data definitions are opt-in).
+# include_ids = ["VBqh0ynB2wv"]
 
 [generate.organisation_units]
-root = ""                           # organisation unit root UID (empty = entire tree)
-max_level = 0                       # 0 = no level cap
+# Scope to a subtree (org unit UID; absent = entire tree).
+# root = "ImspTQPwCqd"
+# Deepest hierarchy level to emit (absent = no level cap).
+# max_level = 4
 terminology = false                 # also emit the org-unit CodeSystem/ValueSet
                                     # with level/parent/dhis2-code properties

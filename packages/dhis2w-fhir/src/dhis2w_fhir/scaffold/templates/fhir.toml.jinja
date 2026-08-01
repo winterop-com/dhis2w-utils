@@ -9,3 +9,13 @@ canonical = "{{ canonical }}"
 name = "{{ name }}"
 title = "{{ title }}"
 publisher = "{{ publisher }}"
+{% if data_set_ids %}
+
+[generate.data_sets]
+include_ids = [{% for uid in data_set_ids %}"{{ uid }}"{{ ", " if not loop.last }}{% endfor %}]
+{% endif %}
+{% if event_program_ids %}
+
+[generate.event_programs]
+include_ids = [{% for uid in event_program_ids %}"{{ uid }}"{{ ", " if not loop.last }}{% endfor %}]
+{% endif %}

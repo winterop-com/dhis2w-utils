@@ -49,6 +49,30 @@ def test_init_force_overwrites(workdir: Path) -> None:
     assert "[ig]" in marker.read_text(encoding="utf-8")
 
 
+def test_init_seeds_data_definition_targets(workdir: Path) -> None:
+    """Repeatable `--data-set` / `--event` seed the include lists, offline, with no instance call."""
+    import tomllib
+
+    result = _runner.invoke(
+        build_app(),
+        [
+            "fhir",
+            "init",
+            "project",
+            "--data-set",
+            "BfMAe6Itzgt",
+            "--data-set",
+            "Nyh6laLdBEJ",
+            "--event",
+            "VBqh0ynB2wv",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    raw = tomllib.loads((workdir / "project" / "fhir.toml").read_text(encoding="utf-8"))
+    assert raw["generate"]["data_sets"]["include_ids"] == ["BfMAe6Itzgt", "Nyh6laLdBEJ"]
+    assert raw["generate"]["event_programs"]["include_ids"] == ["VBqh0ynB2wv"]
+
+
 def test_init_json_output(workdir: Path) -> None:  # noqa: ARG001
     """`--json` emits the ScaffoldReport as JSON."""
     result = _runner.invoke(build_app(), ["--json", "fhir", "init", "project"])

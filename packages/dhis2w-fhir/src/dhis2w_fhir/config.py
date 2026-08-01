@@ -23,6 +23,7 @@ from dhis2w_fhir.i18n import normalize_locale
 from dhis2w_fhir.names import strip_trailing_slash
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetSelection
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitSelection
+from dhis2w_fhir.resources.questionnaires.schemas import TargetSelection
 
 FHIR_CONFIG_FILENAME = "fhir.toml"
 
@@ -58,21 +59,24 @@ class NamingConfig(BaseModel):
     """Configurable FSH naming tokens - the `[generate.naming]` table of `fhir.toml`.
 
     Artifact names concatenate the pascal tokens (`D2` + `OS` + `BirthType` + `CS`);
-    ids join the kebab of each non-empty token (`d2-os-birth-type-cs`). `prefix` and
-    `option_set` may be empty to drop them; `organisation_unit` must stay non-empty or the
-    org-unit artifact names would degenerate to bare `CS`/`LevelCS`. Future group /
-    group-set artifacts follow the same scheme (`OUG`, `OUGS`).
+    ids join the kebab of each non-empty token (`d2-os-birth-type-cs`). `prefix`,
+    `option_set`, `data_set`, and `program` may be empty to drop them; `organisation_unit`
+    must stay non-empty or the org-unit artifact names would degenerate to bare
+    `CS`/`LevelCS`. Future group / group-set artifacts follow the same scheme
+    (`OUG`, `OUGS`).
     """
 
     source: Literal["id", "name"] = "id"
     prefix: str = "D2"
     option_set: str = "OS"
     organisation_unit: str = "OU"
+    data_set: str = "DS"
+    program: str = "PR"
 
-    @field_validator("prefix", "option_set")
+    @field_validator("prefix", "option_set", "data_set", "program")
     @classmethod
     def _optional_token(cls, value: str) -> str:
-        """Prefix and option_set may be empty or a FSH-name-safe token."""
+        """Prefix, option_set, data_set, and program may be empty or a FSH-name-safe token."""
         return _validate_fsh_token(value, allow_empty=True)
 
     @field_validator("organisation_unit")
@@ -91,6 +95,8 @@ class GenerateConfig(BaseModel):
     naming: NamingConfig = Field(default_factory=NamingConfig)
     option_sets: OptionSetSelection = Field(default_factory=OptionSetSelection)
     organisation_units: OrganisationUnitSelection = Field(default_factory=OrganisationUnitSelection)
+    data_sets: TargetSelection = Field(default_factory=TargetSelection)
+    event_programs: TargetSelection = Field(default_factory=TargetSelection)
 
     _normalize_identifier_base = field_validator("identifier_system_base")(strip_trailing_slash)
 

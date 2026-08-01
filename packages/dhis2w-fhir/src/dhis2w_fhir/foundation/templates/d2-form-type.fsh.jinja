@@ -1,0 +1,33 @@
+Extension: {{ names.form_type_extension }}
+Id: {{ names.form_type_extension_id }}
+Title: "DHIS2 form type"
+Description: "The kind of DHIS2 form a Questionnaire came from, carried on the responses captured against it."
+* ^status = #active
+* ^context[+].type = #element
+* ^context[=].expression = "Questionnaire"
+* ^context[+].type = #element
+* ^context[=].expression = "QuestionnaireResponse"
+* value[x] only code
+* valueCode 1..1
+* valueCode from {{ names.form_type_value_set }} (required)
+
+CodeSystem: {{ names.form_type_code_system }}
+Id: {{ names.form_type_code_system_id }}
+Title: "DHIS2 form types"
+Description: "The DHIS2 form kinds a Questionnaire is generated from."
+* ^status = #active
+* ^experimental = true
+* ^content = #complete
+* ^caseSensitive = true
+* ^valueSet = Canonical({{ names.form_type_value_set }})
+{% for form_type in form_types %}
+* #{{ form_type.code }} "{{ form_type.display }}"
+{% endfor %}
+
+ValueSet: {{ names.form_type_value_set }}
+Id: {{ names.form_type_value_set_id }}
+Title: "DHIS2 form types"
+Description: "The DHIS2 form kinds a Questionnaire is generated from."
+* ^status = #active
+* ^experimental = true
+* include codes from system {{ names.form_type_code_system }}

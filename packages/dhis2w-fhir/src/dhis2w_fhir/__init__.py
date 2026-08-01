@@ -19,6 +19,8 @@ from dhis2w_fhir.config import (
     write_fhir_config,
 )
 from dhis2w_fhir.foundation import (
+    FORM_TYPE_DEFINITIONS,
+    FormTypeDefinition,
     FoundationNaming,
     NamingSystemDeclaration,
     build_foundation_artifacts,
@@ -46,9 +48,23 @@ from dhis2w_fhir.resources.organisation_units.schemas import (
     OrganisationUnitIn,
     OrganisationUnitSelection,
 )
+from dhis2w_fhir.resources.questionnaires import (
+    ITEM_CONTROL_CODE_SYSTEM_URL,
+    ITEM_CONTROL_EXTENSION_URL,
+    build_questionnaire_artifacts,
+)
+from dhis2w_fhir.resources.questionnaires.schemas import (
+    CategoryComboIn,
+    CategoryOptionComboIn,
+    QuestionnaireItemIn,
+    QuestionnaireNaming,
+    QuestionnaireSectionIn,
+    QuestionnaireSourceIn,
+    TargetSelection,
+)
 from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, ScaffoldReport
-from dhis2w_fhir.service import GenerateAllReport, GenerateReport
+from dhis2w_fhir.service import GenerateAllReport, GenerateReport, UnsupportedProgramError
 from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
 from dhis2w_fhir.validation.pdf import render_validation_pdf
 from dhis2w_fhir.validation.report import render_validation_csv
@@ -71,13 +87,19 @@ from dhis2w_fhir.writer import (
 
 __all__ = [
     "FHIR_CONFIG_FILENAME",
+    "FORM_TYPE_DEFINITIONS",
     "GENERATED_HEADER",
+    "ITEM_CONTROL_CODE_SYSTEM_URL",
+    "ITEM_CONTROL_EXTENSION_URL",
     "PERIOD_TYPE_DEFINITIONS",
     "PERIOD_TYPE_NAMES",
     "TRANSLATION_EXTENSION_URL",
+    "CategoryComboIn",
+    "CategoryOptionComboIn",
     "FhirProject",
     "FhirProjectConfig",
     "FhirValidationReport",
+    "FormTypeDefinition",
     "FoundationNaming",
     "FshArtifact",
     "FshBuild",
@@ -99,11 +121,17 @@ __all__ = [
     "OrganisationUnitSelection",
     "PeriodTypeDefinition",
     "PeriodValue",
+    "QuestionnaireItemIn",
+    "QuestionnaireNaming",
+    "QuestionnaireSectionIn",
+    "QuestionnaireSourceIn",
     "ScaffoldFile",
     "ScaffoldReport",
     "SeverityBreakdown",
     "SyncReport",
+    "TargetSelection",
     "TranslationIn",
+    "UnsupportedProgramError",
     "ValidationFinding",
     "aggregate_note",
     "build_code_validation",
@@ -114,6 +142,7 @@ __all__ = [
     "build_organisation_unit_level_terminology",
     "build_organisation_unit_profiles",
     "build_organisation_unit_terminology",
+    "build_questionnaire_artifacts",
     "build_scaffold_files",
     "clean_generated_files",
     "find_project_fhir_config",

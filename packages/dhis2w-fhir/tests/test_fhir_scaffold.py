@@ -63,7 +63,44 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     assert config.generate.naming.source == "id"
     assert config.generate.naming.option_set == "OS"
     assert config.generate.naming.organisation_unit == "OU"
+    assert config.generate.naming.data_set == "DS"
+    assert config.generate.naming.program == "PR"
     assert config.generate.organisation_units.terminology is False
+    assert config.generate.data_sets.include_ids == []
+    assert config.generate.event_programs.include_ids == []
+
+
+def test_fhir_toml_example_comments_out_the_unset_placeholders() -> None:
+    """Values that mean "unset" are shown as commented real-shaped examples, not as magic empties."""
+    example = _by_path()["fhir.toml.example"]
+    assert '# root = "ImspTQPwCqd"' in example
+    assert "# max_level = 4" in example
+    assert '# locales = ["lo", "en"]' in example
+    assert '# include_ids = ["Qdm5fPK5Ra9"]' in example
+    assert '# include_ids = ["BfMAe6Itzgt"]' in example
+    assert '# include_ids = ["VBqh0ynB2wv"]' in example
+    assert "\nroot =" not in example
+    assert "\nmax_level =" not in example
+    assert "\nlocales =" not in example
+    assert "\ninclude_ids =" not in example
+
+
+def test_data_definition_targets_are_seeded_into_fhir_toml() -> None:
+    """`--data-set` / `--event` UIDs land in the scaffolded fhir.toml as include lists."""
+    options = _OPTIONS.model_copy(
+        update={"data_set_ids": ["BfMAe6Itzgt", "Nyh6laLdBEJ"], "event_program_ids": ["VBqh0ynB2wv"]}
+    )
+    files = {file.relative_path: file.content for file in build_scaffold_files(options)}
+    config = FhirProjectConfig.model_validate(tomllib.loads(files["fhir.toml"]))
+    assert config.generate.data_sets.include_ids == ["BfMAe6Itzgt", "Nyh6laLdBEJ"]
+    assert config.generate.event_programs.include_ids == ["VBqh0ynB2wv"]
+
+
+def test_unseeded_fhir_toml_carries_no_target_tables() -> None:
+    """Without the seeding flags the minimal fhir.toml stays free of data-definition tables."""
+    body = _by_path()["fhir.toml"]
+    assert "[generate.data_sets]" not in body
+    assert "[generate.event_programs]" not in body
 
 
 def test_ig_ini_points_at_sushi_output() -> None:

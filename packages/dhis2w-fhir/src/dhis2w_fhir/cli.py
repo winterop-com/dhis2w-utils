@@ -41,6 +41,22 @@ def init_command(
             "every generated page, and pointing it at the canonical yields one broken link per page.",
         ),
     ] = None,
+    data_set_ids: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--data-set",
+            help="Data set UID to seed [generate.data_sets] include_ids with (repeatable). Offline: the UID is "
+            "written to fhir.toml as given, never checked against an instance.",
+        ),
+    ] = None,
+    event_program_ids: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--event",
+            help="Event program UID to seed [generate.event_programs] include_ids with (repeatable). Offline: "
+            "the UID is written to fhir.toml as given, never checked against an instance.",
+        ),
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite scaffold files that already exist.")] = False,
 ) -> None:
     """Scaffold a dockerized SUSHI IG project with a fhir.toml for `d2w fhir generate`."""
@@ -55,6 +71,8 @@ def init_command(
         title=title or f"{resolved_name} Implementation Guide",
         publisher=publisher,
         publisher_url=publisher_url,
+        data_set_ids=data_set_ids or [],
+        event_program_ids=event_program_ids or [],
     )
     report = asyncio.run(service.init_project(directory, options, force=force))
     if is_json_output():
@@ -87,6 +105,8 @@ def _render_generate_report(title: str, report: GenerateReport, generation: Gene
     ]
     if report.option_set_count:
         rows.append(DetailRow("option sets", str(report.option_set_count)))
+    if report.questionnaire_count:
+        rows.append(DetailRow("questionnaires", str(report.questionnaire_count)))
     if report.organisation_unit_count:
         rows.append(DetailRow("org units", str(report.organisation_unit_count)))
     if report.position_count:
@@ -126,6 +146,20 @@ def generate_option_sets_command() -> None:
     _render_generate_report("fhir generate option-sets", report, generation)
 
 
+@generate_app.command("questionnaires")
+def generate_questionnaires_command() -> None:
+    """Generate Questionnaire FSH from the configured DHIS2 data sets and event programs."""
+    from dhis2w_fhir import service
+
+    project = load_project()
+    generation = service.resolve_generation_profile(project)
+    report = asyncio.run(service.generate_questionnaires(generation.profile, project))
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    _render_generate_report("fhir generate questionnaires", report, generation)
+
+
 @generate_app.command("org-units")
 def generate_organisation_units_command() -> None:
     """Generate Organization/Location FSH from DHIS2 organisation units into the nearest FHIR project."""
@@ -142,7 +176,7 @@ def generate_organisation_units_command() -> None:
 
 @generate_app.command("all")
 def generate_all_command() -> None:
-    """Generate the foundation artifacts, option-set terminology, and organisation-unit instances in one run."""
+    """Generate the foundation, option-set terminology, questionnaires, and organisation-unit instances in one run."""
     from dhis2w_fhir import service
 
     project = load_project()
@@ -153,6 +187,7 @@ def generate_all_command() -> None:
         return
     _render_generate_report("fhir generate foundation", report.foundation, generation)
     _render_generate_report("fhir generate option-sets", report.option_sets, generation)
+    _render_generate_report("fhir generate questionnaires", report.questionnaires, generation)
     _render_generate_report("fhir generate org-units", report.organisation_units, generation)
 
 
