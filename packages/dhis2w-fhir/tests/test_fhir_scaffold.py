@@ -81,4 +81,6 @@ def test_makefile_uses_real_tabs() -> None:
     makefile = _by_path()["Makefile"]
     assert "\tdocker build -t $(DOCKER_IMAGE) ." in makefile
     assert "\tdocker build --pull --no-cache -t $(DOCKER_IMAGE) ." in makefile
-    assert "\td2w fhir generate all" in makefile
+    assert "\t$(D2W) fhir generate all" in makefile
+    assert "\t$(D2W) fhir validate" in makefile
+    assert "D2W ?= d2w" in makefile

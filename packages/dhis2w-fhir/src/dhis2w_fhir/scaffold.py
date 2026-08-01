@@ -107,8 +107,12 @@ _IGNORE_WARNINGS = """== Suppressed Messages ==
 _MAKEFILE = """DOCKER_IMAGE := fhir-ig
 IG_DIR := ig
 TX_SERVER ?= n/a
+# Override to run d2w from a checkout or straight from a git ref:
+#   make generate D2W="uv run --project /path/to/dhis2w-utils d2w"
+#   make generate D2W="uvx --from 'git+ssh://git@github.com/winterop-com/dhis2w-utils.git@main#subdirectory=packages/dhis2w-cli' --with 'dhis2w-fhir @ git+ssh://git@github.com/winterop-com/dhis2w-utils.git@main#subdirectory=packages/dhis2w-fhir' d2w"
+D2W ?= d2w
 
-.PHONY: help setup upgrade generate sushi build clean clean-all
+.PHONY: help setup upgrade generate validate sushi build clean clean-all
 
 help:  ## Show available targets
 \t@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "%-12s %s\\n", $$1, $$2}'
@@ -120,7 +124,10 @@ upgrade:  ## Rebuild the image from scratch, pulling the latest SUSHI + IG publi
 \tdocker build --pull --no-cache -t $(DOCKER_IMAGE) .
 
 generate:  ## Regenerate FSH from DHIS2 metadata
-\td2w fhir generate all
+\t$(D2W) fhir generate all
+
+validate:  ## Check the DHIS2 instance's codes/names for FHIR-safety (exit 1 on errors)
+\t$(D2W) fhir validate
 
 sushi:  ## Compile FSH to FHIR resources
 \tdocker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig $(DOCKER_IMAGE) sushi .
