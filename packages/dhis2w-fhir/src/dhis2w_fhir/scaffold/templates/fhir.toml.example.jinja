@@ -1,0 +1,60 @@
+# fhir.toml.example - every option `d2w fhir generate` understands, with its default.
+# Copy what you need into fhir.toml; omitted options keep these defaults.
+
+# DHIS2 profile to read metadata from. Explicit `-p` / `DHIS2_PROFILE` wins over this.
+# profile = "myserver"
+
+[ig]
+id = "{{ ig_id }}"
+canonical = "{{ canonical }}"
+name = "{{ name }}"
+title = "{{ title }}"
+publisher = "{{ publisher }}"
+# IG life cycle: "draft" while building; "active" for production - drives the
+# sushi-config status and the status and experimental flags of every generated artifact.
+status = "{{ status }}"
+
+[generate]
+# Base URI for the DHIS2 identifier systems. `generate foundation` writes it into
+# foundation/d2-aliases.fsh ($DHIS2-OU, $DHIS2-OU-CODE) and the option-set business identifiers.
+identifier_system_base = "http://dhis2.org/fhir"
+# Concept code source for option sets: "id" (option UID, DHIS2 code as property)
+# or "code" (DHIS2 code when FHIR-valid, UID as property; invalid codes fall back).
+concept_code_source = "id"
+# Translation locales to emit (BCP-47 or DHIS2-style tags; absent = every locale found).
+# locales = ["lo", "en"]
+
+[generate.naming]
+# What file names, ids, and FSH names derive from: "id" (stable, collision-free,
+# script-agnostic - DHIS2 names are often non-latin or non-unique) or "name"
+# (human-readable slugs, truncated/disambiguated when needed).
+source = "id"
+# Tokens composing FSH artifact names; ids derive from the kebab of each non-empty token.
+# Defaults read by context: D2OS_Qdm5fPK5Ra9_CS / d2-os-Qdm5fPK5Ra9-cs (id source).
+prefix = "D2"                       # "" drops the prefix (profiles keep a D2 token:
+                                    # a profile cannot share its parent resource's name)
+option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
+organisation_unit = "OU"            # must stay non-empty (e.g. "OrgUnit")
+data_set = "DS"                     # data set Questionnaire names; "" drops the token
+program = "PR"                      # event program Questionnaire names; "" drops the token
+
+[generate.option_sets]
+# optionSet UIDs to include (absent = all).
+# include_ids = ["Qdm5fPK5Ra9"]
+
+[generate.data_sets]
+# Data set UIDs to emit as Questionnaires (absent or empty = all data sets).
+# include_ids = ["BfMAe6Itzgt"]
+
+[generate.event_programs]
+# Event program UIDs to emit as Questionnaires (absent or empty = all event programs;
+# tracker programs are skipped until tracker generation lands).
+# include_ids = ["VBqh0ynB2wv"]
+
+[generate.organisation_units]
+# Scope to a subtree (org unit UID; absent = entire tree).
+# root = "ImspTQPwCqd"
+# Deepest hierarchy level to emit (absent = no level cap).
+# max_level = 4
+terminology = false                 # also emit the org-unit CodeSystem/ValueSet
+                                    # with level/parent/dhis2-code properties

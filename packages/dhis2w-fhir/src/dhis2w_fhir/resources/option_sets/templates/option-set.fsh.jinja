@@ -1,0 +1,56 @@
+CodeSystem: {{ base_name }}_CS
+Id: {{ id_stem }}{{ slug }}-cs
+Title: {{ title }}
+Description: {{ description }}
+{% for translation in title_translations %}
+* ^title.extension[+].url = "{{ translation_extension_url }}"
+* ^title.extension[=].extension[+].url = "lang"
+* ^title.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* ^title.extension[=].extension[+].url = "content"
+* ^title.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
+* ^identifier[+].system = $DHIS2-OS
+* ^identifier[=].value = "{{ option_set_uid }}"
+* ^identifier[+].system = $DHIS2-OS-CODE
+* ^identifier[=].value = "{{ option_set_code }}"
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^content = #complete
+* ^caseSensitive = true
+* ^valueSet = Canonical({{ base_name }}_VS)
+{% for declaration in declarations %}
+* ^property[+].code = #{{ declaration.code }}
+* ^property[=].uri = "{{ property_base }}/{{ declaration.code }}"
+* ^property[=].description = "{{ declaration.description }}"
+* ^property[=].type = #{{ declaration.type }}
+{% endfor %}
+{% for concept in concepts %}
+* {{ concept.token }} {{ concept.display_literal }}
+{% if concept.property_code is not none %}
+* {{ concept.token }} ^property[+].code = #{{ concept.property_code }}
+* {{ concept.token }} {{ concept.property_line }}
+{% endif %}
+{% for designation in concept.designations %}
+* {{ concept.token }} ^designation[+].language = #{{ designation.locale }}
+* {{ concept.token }} ^designation[=].value = {{ designation.value_literal }}
+{% endfor %}
+{% endfor %}
+
+ValueSet: {{ base_name }}_VS
+Id: {{ id_stem }}{{ slug }}-vs
+Title: {{ title }}
+Description: {{ description }}
+{% for translation in title_translations %}
+* ^title.extension[+].url = "{{ translation_extension_url }}"
+* ^title.extension[=].extension[+].url = "lang"
+* ^title.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* ^title.extension[=].extension[+].url = "content"
+* ^title.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
+* ^identifier[+].system = $DHIS2-OS
+* ^identifier[=].value = "{{ option_set_uid }}"
+* ^identifier[+].system = $DHIS2-OS-CODE
+* ^identifier[=].value = "{{ option_set_code }}"
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* include codes from system {{ base_name }}_CS

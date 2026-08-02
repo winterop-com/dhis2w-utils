@@ -1,0 +1,24 @@
+# fhir.toml - configuration for `d2w fhir generate` (scaffolded by `d2w fhir init`).
+# Only the essentials live here; every available option is documented in fhir.toml.example.
+
+# profile = "myserver"              # optional: DHIS2 profile to read metadata from
+
+[ig]
+id = "{{ ig_id }}"
+canonical = "{{ canonical }}"
+name = "{{ name }}"
+title = "{{ title }}"
+publisher = "{{ publisher }}"
+# "draft" while building; "active" for production - drives the sushi-config status
+# and the status and experimental flag on every generated CodeSystem/ValueSet/Questionnaire.
+status = "{{ status }}"
+{% if data_set_ids %}
+
+[generate.data_sets]
+include_ids = [{% for uid in data_set_ids %}"{{ uid }}"{{ ", " if not loop.last }}{% endfor %}]
+{% endif %}
+{% if event_program_ids %}
+
+[generate.event_programs]
+include_ids = [{% for uid in event_program_ids %}"{{ uid }}"{{ ", " if not loop.last }}{% endfor %}]
+{% endif %}

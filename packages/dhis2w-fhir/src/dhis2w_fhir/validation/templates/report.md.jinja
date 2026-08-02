@@ -1,0 +1,26 @@
+# FHIR-safety validation report
+
+Target: {{ target }}
+
+Generated: {{ generated_at }}
+
+- resource types swept: {{ report.resource_type_count }} ({{ report.object_count }} objects)
+- option sets (deep pass): {{ report.option_set_count }} ({{ report.option_count }} options)
+- findings: {{ report.error_count }} errors, {{ report.warning_count }} warnings, {{ report.info_count }} infos
+
+{% if not groups %}
+No findings - every code is FHIR-safe.
+{% else %}
+{% for group in groups %}
+## {{ group.resource_type }}
+
+{{ group.breakdown }}
+
+| Severity | Category | Object | Code | Detail |
+| --- | --- | --- | --- | --- |
+{% for row in group.rows %}
+| {{ row.severity }} | {{ row.category }} | {{ row.object_label }} | `{{ row.code }}` | {{ row.message }} |
+{% endfor %}
+
+{% endfor %}
+{% endif %}

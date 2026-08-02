@@ -53,6 +53,7 @@ nav:
       - Walkthrough: walkthrough.md
       - More guides:
           - Visualizations: guides/visualizations.md
+          - FHIR IG generation: guides/fhir-ig.md
           - Playwright PAT helper: pat-helper.md
           - Manual testing: manual-testing.md
       - Examples index: examples.md
@@ -105,6 +106,7 @@ nav:
           - Route plugin: architecture/route-plugin.md
           - Security plugin: architecture/security-plugin.md
           - Doctor plugin: architecture/doctor-plugin.md
+          - FHIR plugin: architecture/fhir-plugin.md
   - Client:
       - Introduction: client/index.md
       - Tutorial: guides/client-tutorial.md

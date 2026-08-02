@@ -1,0 +1,26 @@
+CodeSystem: {{ terminology.code_system }}
+Id: {{ terminology.code_system_id }}
+Title: {{ terminology.title_literal }}
+Description: {{ terminology.description_literal }}
+* ^status = #{{ terminology.ig_status }}
+* ^experimental = {{ "true" if terminology.experimental else "false" }}
+* ^content = #complete
+* ^caseSensitive = true
+* ^valueSet = Canonical({{ terminology.value_set }})
+* ^property[+].code = #dhis2-code
+* ^property[=].uri = "{{ terminology.property_base }}/dhis2-code"
+* ^property[=].description = {{ terminology.property_description_literal }}
+* ^property[=].type = #string
+{% for concept in terminology.concepts %}
+* #{{ concept.uid }} {{ concept.display_literal }}
+* #{{ concept.uid }} ^property[+].code = #dhis2-code
+* #{{ concept.uid }} ^property[=].valueString = {{ concept.code_literal }}
+{% endfor %}
+
+ValueSet: {{ terminology.value_set }}
+Id: {{ terminology.value_set_id }}
+Title: {{ terminology.title_literal }}
+Description: {{ terminology.description_literal }}
+* ^status = #{{ terminology.ig_status }}
+* ^experimental = {{ "true" if terminology.experimental else "false" }}
+* include codes from system {{ terminology.code_system }}

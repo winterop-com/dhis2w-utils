@@ -1,0 +1,20 @@
+id: {{ ig_id }}
+canonical: {{ canonical }}
+name: {{ name }}
+title: {{ title }}
+description: {{ title }}, generated from DHIS2 metadata by d2w fhir.
+status: {{ status }}
+version: 0.1.0
+fhirVersion: 4.0.1
+copyrightYear: {{ year }}+
+releaseLabel: ci-build
+license: CC0-1.0
+publisher:
+  name: {{ publisher }}
+{% if publisher_url %}
+  url: {{ publisher_url }}
+{% endif %}
+
+menu:
+  Home: index.html
+  Artifacts: artifacts.html

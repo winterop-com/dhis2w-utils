@@ -1,0 +1,42 @@
+Extension: {{ names.period_extension }}
+Id: {{ names.period_extension_id }}
+Title: "DHIS2 reporting period"
+Description: "A DHIS2 reporting period: its ISO identifier, its period type, and the dates it covers."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "Element"
+* extension contains
+    iso 1..1 and
+    type 1..1 and
+    period 0..1
+* extension[iso] ^short = "The DHIS2 ISO period identifier (e.g. 202401)."
+* extension[iso].value[x] only string
+* extension[iso].valueString 1..1
+* extension[type] ^short = "The DHIS2 period type this identifier is expressed in."
+* extension[type].value[x] only code
+* extension[type].valueCode 1..1
+* extension[type].valueCode from {{ names.period_type_value_set }} (required)
+* extension[period] ^short = "The date range the ISO period resolves to."
+* extension[period].value[x] only Period
+
+CodeSystem: {{ names.period_type_code_system }}
+Id: {{ names.period_type_code_system_id }}
+Title: "DHIS2 period types"
+Description: "The period types DHIS2 registers, each with the ISO period format it is written in."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^content = #complete
+* ^caseSensitive = true
+* ^valueSet = Canonical({{ names.period_type_value_set }})
+{% for period_type in period_types %}
+* #{{ period_type.name }} "{{ period_type.display }}"
+{% endfor %}
+
+ValueSet: {{ names.period_type_value_set }}
+Id: {{ names.period_type_value_set_id }}
+Title: "DHIS2 period types"
+Description: "The period types DHIS2 registers, each with the ISO period format it is written in."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* include codes from system {{ names.period_type_code_system }}

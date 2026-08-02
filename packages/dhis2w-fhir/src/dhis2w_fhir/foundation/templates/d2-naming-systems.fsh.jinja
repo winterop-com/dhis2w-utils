@@ -1,0 +1,18 @@
+{# R4 NamingSystem has no experimental element, so these declarations carry none. #}
+{% for system in naming_systems %}
+{% if not loop.first %}
+
+{% endif %}
+Instance: {{ system.name }}
+InstanceOf: NamingSystem
+Title: "{{ system.title }}"
+Description: "{{ system.description }}"
+Usage: #definition
+* name = "{{ system.name }}"
+* status = #{{ ig_status }}
+* kind = #identifier
+* date = "{{ declared_date }}"
+* uniqueId[0].type = #uri
+* uniqueId[0].value = "{{ system.url }}"
+* uniqueId[0].preferred = true
+{% endfor %}
