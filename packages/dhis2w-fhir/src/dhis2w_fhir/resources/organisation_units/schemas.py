@@ -43,7 +43,8 @@ class OrganisationUnitIn(BaseModel):
     Polygon/MultiPolygon geometry; GeoJSON stores `[longitude, latitude]`, so the mapper
     must swap. `boundary_geojson` carries the compact GeoJSON Feature wrapping the geometry
     of every unit whose geometry parses, Points and non-positional types included.
-    `closed` is true for a unit whose DHIS2 `closedDate` has passed.
+    `closed` is true for a unit whose DHIS2 `closedDate` has passed. `description` is the
+    DHIS2 free text, which the narrative pages carry into the unit's intro page.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -52,6 +53,7 @@ class OrganisationUnitIn(BaseModel):
     name: str
     short_name: str | None = None
     code: str | None = None
+    description: str | None = None
     level: int
     path: str
     parent_uid: str | None = None

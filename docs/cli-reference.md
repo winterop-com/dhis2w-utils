@@ -10005,6 +10005,7 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 * `questionnaires`: Generate Questionnaire FSH from the...
 * `examples`: Generate example QuestionnaireResponses...
 * `org-units`: Generate Organization/Location FSH from...
+* `pages`: Generate the narrative site pages and the...
 * `all`: Generate the foundation, terminology,...
 
 #### `d2w fhir generate foundation`
@@ -10077,9 +10078,23 @@ $ d2w fhir generate org-units [OPTIONS]
 
 * `--help`: Show this message and exit.
 
+#### `d2w fhir generate pages`
+
+Generate the narrative site pages and the per-artifact intros into ig/input/pagecontent/.
+
+**Usage**:
+
+```console
+$ d2w fhir generate pages [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
 #### `d2w fhir generate all`
 
-Generate the foundation, terminology, questionnaires, example responses, and org-unit instances.
+Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages.
 
 **Usage**:
 

@@ -3,6 +3,7 @@
 import tomllib
 
 from dhis2w_fhir.config import FhirProjectConfig
+from dhis2w_fhir.resources.pages import SITE_PAGE_FILENAMES
 from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions
 
@@ -42,6 +43,27 @@ def test_canonical_has_no_trailing_slash() -> None:
     files = _by_path()
     assert "canonical: http://example.org/fhir\n" in files["ig/sushi-config.yaml"]
     assert "http://example.org/fhir/\n" not in files["ig/sushi-config.yaml"]
+
+
+def test_menu_links_every_generated_site_page() -> None:
+    """The scaffolded menu carries Home, the five generated site pages in page order, and Artifacts."""
+    menu = _by_path()["ig/sushi-config.yaml"].split("menu:\n", 1)[1]
+    assert menu == (
+        "  Home: index.html\n"
+        "  Forms: forms.html\n"
+        "  Registry: registry.html\n"
+        "  Terminology: terminology.html\n"
+        "  Identifiers: identifiers.html\n"
+        "  Periods: periods.html\n"
+        "  Artifacts: artifacts.html\n"
+    )
+    for filename in SITE_PAGE_FILENAMES:
+        assert f": {filename.removesuffix('.md')}.html\n" in menu
+
+
+def test_sushi_config_declares_no_pages_block() -> None:
+    """SUSHI auto-includes everything under pagecontent, so the scaffold states no `pages:` at all."""
+    assert "pages:" not in _by_path()["ig/sushi-config.yaml"]
 
 
 def test_fhir_toml_round_trips() -> None:

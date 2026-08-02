@@ -1,0 +1,32 @@
+# Terminology
+
+Every DHIS2 option set is published as a `CodeSystem` holding its options as concepts, plus
+a `ValueSet` including that whole system - the pair a `#choice` question is answered from.
+Concept codes are DHIS2 option {{ "codes" if terminology.concept_code_source == "code" else "UIDs" }}, and the
+other DHIS2 identifier rides along on every concept as a property.
+
+## Option sets
+
+{% if terminology.option_sets %}
+| Option set | Concepts | Code fallback |
+| --- | ---: | --- |
+{% for option_set in terminology.option_sets %}
+| [{{ option_set.cell_name }}]({{ option_set.page_link }}) | {{ option_set.concept_count }} | {{ "yes" if option_set.code_fallback else "no" }} |
+{% endfor %}
+
+A "yes" in the fallback column means at least one option in that set has no usable DHIS2
+code, or its code was already taken inside the set, so that concept is coded by its DHIS2
+UID instead. `d2w fhir validate` names each one.
+{% else %}
+No option sets are selected for this guide.
+{% endif %}
+
+## Support terminology
+
+Beyond the option sets, the guide publishes the CodeSystems the generated resources code
+themselves against:
+
+{% for code_system in terminology.support_code_systems %}
+- [{{ code_system.label }}]({{ code_system.page_link }}) (`{{ code_system.fsh_name }}`) -
+  {{ code_system.description }}
+{% endfor %}

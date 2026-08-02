@@ -3,8 +3,10 @@
 Scaffolding and generation are CLI-only by design: they write a file tree
 onto the machine the MCP server happens to run on, which is the wrong shape
 for an agent protocol (the same judgment as the browser plugin and the
-security audit runner). The one data-shaped question - "are this instance's
-codes FHIR-safe?" - is exposed as the read-only `fhir_validate`.
+security audit runner). `fhir generate pages` is no exception - it writes
+markdown into `ig/input/pagecontent/`, so it ships as a CLI command with no
+MCP tool. The one data-shaped question - "are this instance's codes
+FHIR-safe?" - is exposed as the read-only `fhir_validate`.
 """
 
 from __future__ import annotations

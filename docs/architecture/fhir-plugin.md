@@ -11,7 +11,8 @@ d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate questionnaires    Data sets + event programs -> Questionnaire instances
 d2w fhir generate examples          Example QuestionnaireResponses against those Questionnaires
 d2w fhir generate org-units         Org units -> Organization/Location instances
-d2w fhir generate all               All five targets in one run
+d2w fhir generate pages             Narrative site pages + per-artifact intros
+d2w fhir generate all               All six targets in one run
 d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
 ```
 
@@ -25,7 +26,7 @@ page: quickstart, the complete `fhir.toml` reference, and the regeneration
 contract.
 
 MCP exposes only the read surface: `fhir_validate` (`readOnlyHint`).
-Scaffolding and generation are CLI-only by design - they write a file tree
+Scaffolding and generation - the page generation included - are CLI-only by design - they write a file tree
 onto whatever machine the MCP server runs on, the wrong shape for an agent
 protocol (the same judgment as the browser plugin and the security audit
 runner).
@@ -45,9 +46,11 @@ ig/sushi-config.yaml        SUSHI IG identity (id, canonical, publisher)
 ig/ig.ini                   IG publisher entry point (fhir2.base.template)
 ig/fsh.ini                  Raises the publisher's internal SUSHI timeout to 900s
 ig/input/fsh/aliases.fsh    Hand-authored alias stub (never regenerated)
-ig/input/pagecontent/index.md   Includes the four publisher fragments
-                            (cross-version-analysis, dependency-table,
-                            globals-table, ip-statements)
+ig/input/pagecontent/index.md   Hand-authored home page; includes the four
+                            publisher fragments (cross-version-analysis,
+                            dependency-table, globals-table, ip-statements).
+                            `generate pages` writes its siblings and never
+                            touches this file.
 ig/input/ignoreWarnings.txt
 ```
 
@@ -56,6 +59,11 @@ ig/input/ignoreWarnings.txt
 links that URL from every generated page, so pointing it at the canonical of an
 IG that is not yet published produces one broken link per page - 15,425 of them
 on the Sierra Leone demo. Omitting it is the default.
+
+Its `menu:` names the five generated site pages between `Home` and `Artifacts`, and
+it carries no `pages:` section: SUSHI publishes every markdown file under
+`ig/input/pagecontent/` on its own, so a page added by `generate pages` needs no
+configuration to appear.
 
 It carries no `groups:` section. SUSHI's grouping matches by exact resource
 reference, with no wildcard and no FSH-side `groupingId`, so grouping a real
@@ -380,6 +388,46 @@ The tree is fetched with a 500-per-page loop ordered by `path:asc` (stable
 output), filtered by `[generate.organisation_units]` `root` (DHIS2 `path:like`) and
 `max_level`.
 
+## Narrative pages -> pagecontent
+
+`generate pages` owns one sync directory outside the FSH tree,
+`ig/input/pagecontent/`, and writes markdown rather than FSH. SUSHI publishes
+everything it finds there without a `pages:` block, and the IG publisher injects a
+`<Type>-<id>-intro.md` into the top of the matching artifact page - so the same
+directory carries both halves of the narrative layer:
+
+```
+pagecontent/forms.md                     Data set + event program catalog
+pagecontent/registry.md                  Organisation unit registry summary
+pagecontent/terminology.md               Option sets + the support CodeSystems
+pagecontent/identifiers.md               The two identifier slices + NamingSystems
+pagecontent/periods.md                   D2Period + every DHIS2 period type
+pagecontent/Questionnaire-<UID>-intro.md One per generated Questionnaire
+pagecontent/CodeSystem-<id>-intro.md     Option sets carrying a DHIS2 description
+pagecontent/Organization-<UID>-intro.md  Org units carrying a DHIS2 description
+```
+
+The five site pages are the scaffolded menu: `Home`, `Forms`, `Registry`,
+`Terminology`, `Identifiers`, `Periods`, `Artifacts`. The two intro kinds that are
+gated on a DHIS2 description emit nothing when there is none - most organisation
+units have no description, and an intro page repeating the title would be noise.
+
+The target adds no endpoint. `PagesIn` is the three projections the other targets
+already fetch - `QuestionnaireSourceIn`, `OptionSetIn`, `OrganisationUnitIn` - so a
+page can never disagree with the FSH about what was generated. Link targets are
+derived rather than reconstructed: `option_set_identities` is the one place an option
+set's slug and `CodeSystem-<id>` are decided, read by the emitter for its file names
+and by the terminology page for its links, and `periods.md` tabulates
+`PERIOD_TYPE_DEFINITIONS` with examples resolved through `recent_periods` +
+`parse_period` from a pinned reference date, so a regenerate never moves with the
+calendar.
+
+Markdown is the reason `names.markdown_text` exists. The same publisher quirk that
+forced `page_text` onto the FSH page furniture applies to page bodies, and a markdown
+table adds a second escape: `&`, then `<` and `>`, then `|` as `\|` with whitespace
+flattened in table-cell context. Every DHIS2-derived string on a page goes through it;
+the FSH layer is untouched by it.
+
 ## Translations
 
 DHIS2 holds a translation as a `{locale, property, value}` triple with a
@@ -400,11 +448,13 @@ translation; the instance-wide sweep does not fetch translations at all.
 
 ## Regeneration contract
 
-Every generated file starts with the header line
-`// Generated by d2w fhir generate - do not edit`. A generate run first writes
-its target subdirectory, then deletes the header-bearing `.fsh` files in that
-subdirectory it did not just produce - hand-authored FSH in the same tree is
-never touched, and re-running converges instead of stacking files. Files whose
+Every generated file starts with a header line chosen by extension:
+`// Generated by d2w fhir generate - do not edit` for FSH, and the HTML comment
+`<!-- Generated by d2w fhir generate - do not edit -->` for the markdown pages,
+which renders invisibly. A generate run first writes its target subdirectory, then
+deletes the header-bearing `.fsh` / `.md` files in that subdirectory it did not just
+produce - hand-authored FSH and the hand-authored `pagecontent/index.md` in the same
+trees are never touched, and re-running converges instead of stacking files. Files whose
 content already matches are not rewritten, so a no-op regenerate leaves both the
 timestamps and `git status` untouched.
 
@@ -569,6 +619,10 @@ The components:
   seeded `build_synthetic_responses`, and the answer typing (including the R4
   temporal normalisations). It depends on `resources/questionnaires/` for the
   source projection and naming, never the other way round.
+- `resources/pages/` - the narrative markdown layer: the five site pages, the
+  per-artifact intros, `PagesIn` (the fetched-input view the pages render from),
+  and the per-page view-models. It reads the other components' naming helpers and
+  projections and is read by none of them.
 - `resources/organisation_units/` - split by FHIR resource: `naming.py`
   derives every artifact name and id from the `[generate.naming]` tokens,
   `organization.py` builds the profiles artifact and the Organization
@@ -595,8 +649,8 @@ a parameter and annotates it under `TYPE_CHECKING`. `dhis2w_fhir/__init__.py`
 re-exports the whole public surface, so `from dhis2w_fhir import
 GenerateConfig` keeps working however the components are arranged.
 
-No FSH, TOML, YAML, or Markdown body is assembled by string concatenation in
-Python. Every component ships a `templates/` directory of jinja2 templates
+No FSH, TOML, YAML, or Markdown body - the narrative pages and their intros
+included - is assembled by string concatenation in Python. Every component ships a `templates/` directory of jinja2 templates
 loaded through a `PackageLoader` scoped to that subpackage
 (`StrictUndefined`, `trim_blocks`, `lstrip_blocks`, `keep_trailing_newline`
 - the same settings `dhis2w-codegen` uses, so control tags never leak blank
@@ -661,7 +715,9 @@ boundary.
 - An `init` mode that refreshes the scaffold-managed support files
   (`ig/input/ignoreWarnings.txt`, `ig/input/pagecontent/index.md`) in an existing
   project without touching `fhir.toml` or hand-edited content - a project created
-  before a scaffold improvement keeps stale support files otherwise.
+  before a scaffold improvement keeps stale support files otherwise. The
+  `sushi-config.yaml` menu is one of those files: a project scaffolded before the
+  site pages landed keeps its old two-entry menu until the refresh mode rewrites it.
 - `d2w fhir ui` / `browser`: a tree-widget explorer over the generated IG and
   hierarchy, modelled on the security plugin's offline d3 sharing explorer.
 - `d2w fhir serve`: one verb, two modes (FastAPI per repo convention, read-only

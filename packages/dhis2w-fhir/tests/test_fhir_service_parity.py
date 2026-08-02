@@ -12,7 +12,14 @@ from pathlib import Path
 import httpx
 import respx
 from dhis2w_core.profile import resolve_profile
-from dhis2w_fhir import GENERATED_HEADER, InitOptions, load_project, service
+from dhis2w_fhir import (
+    GENERATED_HEADER,
+    GENERATED_MARKDOWN_HEADER,
+    InitOptions,
+    clean_generated_files,
+    load_project,
+    service,
+)
 
 _HOST = "https://dhis2.example"
 
@@ -326,6 +333,64 @@ async def test_generate_is_idempotent(
     assert second.unchanged_count == 1
     terminology = tmp_path / "ig" / "input" / "fsh" / "terminology"
     assert sorted(path.name for path in terminology.glob("*.fsh")) == ["Xa1b2c3d4e5.fsh"]
+
+
+def _mock_page_endpoints() -> None:
+    """Mock every endpoint the pages target reads: option sets, data sets, programs, and org units."""
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_QUESTIONNAIRE_DATA_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_QUESTIONNAIRE_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORGANISATION_UNITS_PAYLOAD))
+
+
+@respx.mock
+async def test_generate_pages_across_majors(
+    wire_version: str,
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`generate_pages` writes the site pages and the Questionnaire intros into pagecontent on every major."""
+    mock_system_info(wire_version)
+    await _scaffold_project(tmp_path)
+    _mock_page_endpoints()
+
+    report = await service.generate_pages(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.target_base == "ig/input"
+    assert report.target_directory == "pagecontent"
+    assert report.page_count == 5
+    assert report.intro_count == 2
+    assert "pagecontent/forms.md" in report.written_files
+    assert "pagecontent/Questionnaire-BfMAe6Itzgt-intro.md" in report.written_files
+    forms = (tmp_path / "ig" / "input" / "pagecontent" / "forms.md").read_text(encoding="utf-8")
+    assert forms.startswith(GENERATED_MARKDOWN_HEADER)
+    assert "[Child Health](Questionnaire-BfMAe6Itzgt.html)" in forms
+
+
+@respx.mock
+async def test_generate_pages_spares_the_hand_authored_index(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The scaffolded index.md survives a clean-and-regenerate cycle, and a second run writes nothing."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path)
+    _mock_page_endpoints()
+    index = tmp_path / "ig" / "input" / "pagecontent" / "index.md"
+    scaffolded = index.read_text(encoding="utf-8")
+
+    first = await service.generate_pages(resolve_profile("probe"), load_project(tmp_path))
+    clean_generated_files(index.parent)
+    second = await service.generate_pages(resolve_profile("probe"), load_project(tmp_path))
+    third = await service.generate_pages(resolve_profile("probe"), load_project(tmp_path))
+
+    assert first.written_files == second.written_files
+    assert third.written_files == []
+    assert third.deleted_files == []
+    assert third.unchanged_count == len(first.written_files)
+    assert index.read_text(encoding="utf-8") == scaffolded
 
 
 def test_polygon_centroid_of_a_square() -> None:

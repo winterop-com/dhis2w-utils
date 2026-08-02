@@ -1,0 +1,28 @@
+Generated from the DHIS2 {{ intro.kind_label }} {{ intro.form.name }} ({{ intro.form.uid }}).
+
+{% if intro.form.description %}
+{{ intro.form.description }}
+
+{% endif %}
+| Property | Value |
+| --- | --- |
+| DHIS2 id | `{{ intro.form.uid }}` |
+| DHIS2 code | `{{ intro.form.code }}` |
+{% if intro.form.kind == "aggregate" %}
+| Period type | {{ intro.form.period_type }} |
+{% endif %}
+| Form type | `{{ intro.form_type_code }}` |
+| Questions | {{ intro.form.question_count }} |
+
+{% if intro.form.sections or intro.form.unsectioned_question_count %}
+| Section | Questions |
+| --- | ---: |
+{% for section in intro.form.sections %}
+| {{ section.name }} | {{ section.question_count }} |
+{% endfor %}
+{% if intro.form.unsectioned_question_count %}
+| Outside any section | {{ intro.form.unsectioned_question_count }} |
+{% endif %}
+{% else %}
+This form asks no questions.
+{% endif %}

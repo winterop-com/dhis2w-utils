@@ -1,0 +1,34 @@
+# Identifiers
+
+A DHIS2 object is named twice: by its UID, which is always present and never changes, and by
+its code, which is optional and human-chosen. Every resource in this guide carries both, so
+a consumer can reconcile against whichever one its own system holds.
+
+## The two identifier slices
+
+Each generated instance slices `identifier` on the identifier system into exactly two:
+
+- `dhis2id` - always the DHIS2 UID, under `{{ identifiers.identifier_system_base }}/id/<object-kind>`.
+- `dhis2code` - the DHIS2 code, under `{{ identifiers.identifier_system_base }}/id/<object-kind>-code`.
+  DHIS2 codes are optional and may hold characters FHIR does not allow in a code, so this
+  slot repeats the UID whenever the object has no usable code. That is what lets the slice be
+  mandatory and consumers skip the absence check; `d2w fhir validate` reports every object
+  taking the fall-back, which is how the codes get filled in upstream over time.
+
+The same pair reaches terminology as concept properties rather than as identifiers. Concept
+codes are DHIS2 option {{ "codes" if identifiers.concept_code_source == "code" else "UIDs" }}, so the other
+identifier rides along on the concept:
+
+- `{{ identifiers.identifier_system_base }}/property/dhis2-id` - the DHIS2 UID of the concept's source object.
+- `{{ identifiers.identifier_system_base }}/property/dhis2-code` - its DHIS2 code, falling back to the UID.
+
+## Identifier systems
+
+Every system named above is declared as a `NamingSystem`, so a consumer meeting a DHIS2
+identifier can look up what it means:
+
+| NamingSystem | Unique id (uri) |
+| --- | --- |
+{% for naming_system in identifiers.naming_systems %}
+| `{{ naming_system.name }}` | `{{ naming_system.url }}` |
+{% endfor %}

@@ -58,6 +58,24 @@ def page_text(value: str) -> str:
     return quote(escaped)
 
 
+def markdown_text(value: str, *, table_cell: bool = False) -> str:
+    r"""Render metadata-derived text for a generated markdown page, HTML-escaping the markup characters.
+
+    The IG publisher runs the page through Jekyll and then strict-parses the HTML, so a DHIS2
+    name holding `<` - "Mortality < 5 years by gender" is a real one - has to arrive escaped,
+    exactly as `page_text` escapes it for the FSH page furniture. `&` goes first so the
+    ampersands this function itself introduces are not escaped twice.
+
+    `table_cell = True` additionally escapes `|` as `\|` and flattens whitespace, which is what
+    keeps a name holding a pipe or a description holding a newline inside its own table cell.
+    Body text keeps its line structure, with CRLF normalised to LF so paragraph breaks survive.
+    """
+    escaped = (value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    if table_cell:
+        return " ".join(escaped.replace("|", "\\|").split())
+    return escaped.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def fsh_code(value: str) -> str:
     """Render a `#code` token, using the escaped, quoted `#"..."` form when the code contains spaces."""
     return f'#"{escape_fsh_string(value)}"' if " " in value else f"#{value}"
