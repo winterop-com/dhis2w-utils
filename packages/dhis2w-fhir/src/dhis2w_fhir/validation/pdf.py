@@ -16,6 +16,7 @@ from fpdf.enums import TableCellFillMode, TextEmphasis
 from fpdf.fonts import FontFace
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_fhir.validation.report import display_code
 from dhis2w_fhir.validation.schemas import FhirValidationReport, SeverityBreakdown, ValidationFinding
 
 if TYPE_CHECKING:
@@ -56,10 +57,8 @@ class _TypeSection(BaseModel):
 
 
 def _code_cell(code: str | None) -> str:
-    """Render the code column: a missing code as `-`, a code that is the empty string as `(empty)`."""
-    if code is None:
-        return "-"
-    return code or "(empty)"
+    """Render the code column: a missing code as `-`, an empty one as `(empty)`, invisibles made visible."""
+    return display_code(code)
 
 
 def render_validation_pdf(report: FhirValidationReport, target: str, generated_at: datetime) -> bytes:

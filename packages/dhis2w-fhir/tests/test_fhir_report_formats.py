@@ -7,7 +7,12 @@ import io
 from datetime import UTC, datetime
 
 from dhis2w_fhir.validation.pdf import _code_cell, render_validation_pdf
-from dhis2w_fhir.validation.report import CSV_HEADER, render_validation_csv, render_validation_markdown
+from dhis2w_fhir.validation.report import (
+    CSV_HEADER,
+    display_code,
+    render_validation_csv,
+    render_validation_markdown,
+)
 from dhis2w_fhir.validation.schemas import FhirValidationReport, SeverityBreakdown, ValidationFinding
 
 _GENERATED_AT = datetime(2026, 8, 1, 12, 0, tzinfo=UTC)
@@ -25,7 +30,7 @@ def _finding(severity: str, resource_type: str, name: str, code: str | None = "X
         uid="Uid1aaaaaaa",
         name=name,
         code=code,
-        message="code is not a valid FHIR code (whitespace at the edges or doubled inside)",
+        message="code is not a valid FHIR code: code has leading whitespace",
     )
 
 
@@ -57,7 +62,7 @@ def test_csv_header_and_rows() -> None:
         "Uid1aaaaaaa",
         "Male [in Sex]",
         "X",
-        "code is not a valid FHIR code (whitespace at the edges or doubled inside)",
+        "code is not a valid FHIR code: code has leading whitespace",
     ]
 
 
@@ -100,14 +105,46 @@ def test_pdf_of_a_clean_report() -> None:
     assert payload.startswith(b"%PDF")
 
 
-def test_markdown_flattens_newlines_inside_a_code() -> None:
-    """A DHIS2 code carrying a literal newline (play 2.42 has them) must not split the Markdown row."""
+def test_markdown_escapes_a_newline_inside_a_code() -> None:
+    """A DHIS2 code carrying a literal newline (play 2.42 has them) prints its escape on one row."""
     report = FhirValidationReport(findings=[_finding("error", "categoryOptions", "Blue", code="BLUE\nBLUE")])
     markdown = render_validation_markdown(report, "probe", _GENERATED_AT)
     table_rows = [line for line in markdown.splitlines() if line.startswith("| error |")]
     assert len(table_rows) == 1
-    assert "`BLUE BLUE`" in table_rows[0]
+    assert "`BLUE\\nBLUE`" in table_rows[0]
     assert "BLUE\nBLUE" not in markdown
+
+
+def test_csv_keeps_the_raw_code_a_report_displays_escaped() -> None:
+    """The CSV is for machines: the code column carries the raw value, newline and all."""
+    report = FhirValidationReport(findings=[_finding("error", "categoryOptions", "Blue", code="BLUE\nBLUE")])
+    rows = list(csv.reader(io.StringIO(render_validation_csv(report))))
+    assert rows[1][5] == "BLUE\nBLUE"
+
+
+def test_pdf_renders_a_code_carrying_a_newline() -> None:
+    """The same code renders through the PDF table without breaking the run."""
+    report = FhirValidationReport(findings=[_finding("error", "categoryOptions", "Blue", code="BLUE\nBLUE")])
+    assert render_validation_pdf(report, "probe", _GENERATED_AT).startswith(b"%PDF")
+
+
+def test_display_code_makes_the_invisible_visible() -> None:
+    """Control characters print as their escape and edge spaces are quoted onto the page."""
+    assert display_code(None) == "-"
+    assert display_code("") == "(empty)"
+    assert display_code("ANC-01") == "ANC-01"
+    assert display_code("BLUE\nBLUE") == "BLUE\\nBLUE"
+    assert display_code("BLUE\r\nBLUE") == "BLUE\\r\\nBLUE"
+    assert display_code("tab\there") == "tab\\there"
+    assert display_code(" M ") == '" M "'
+    assert display_code(" M") == '" M"'
+
+
+def test_markdown_quotes_a_code_with_edge_spaces() -> None:
+    """A code padded with spaces renders quoted, so the padding is on the page."""
+    report = FhirValidationReport(findings=[_finding("error", "options", "Male [in Sex]", code=" M ")])
+    markdown = render_validation_markdown(report, "probe", _GENERATED_AT)
+    assert '`" M "`' in markdown
 
 
 def test_markdown_flattens_newlines_inside_a_name() -> None:

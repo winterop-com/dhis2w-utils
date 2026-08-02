@@ -1,6 +1,14 @@
 """Unit tests for dhis2w_fhir.names slug and escaping helpers."""
 
-from dhis2w_fhir.names import code_or_uid, fsh_code, is_valid_fhir_code, kebab, pascal, quote
+from dhis2w_fhir.names import (
+    code_or_uid,
+    describe_code_defect,
+    fsh_code,
+    is_valid_fhir_code,
+    kebab,
+    pascal,
+    quote,
+)
 
 
 def test_pascal_collapses_punctuation() -> None:
@@ -67,3 +75,33 @@ def test_is_valid_fhir_code() -> None:
     assert not is_valid_fhir_code("trailing ")
     assert not is_valid_fhir_code("double  space")
     assert not is_valid_fhir_code("tab\tinside")
+
+
+def test_describe_code_defect_is_none_for_a_valid_code() -> None:
+    """A code the R4 datatype accepts carries no defect."""
+    assert describe_code_defect("ANC-01") is None
+    assert describe_code_defect("two words") is None
+
+
+def test_describe_code_defect_names_each_defect() -> None:
+    """Every defect the helper knows about gets its own phrase."""
+    assert describe_code_defect("") == "code is empty"
+    assert describe_code_defect("BLUE\nBLUE") == "code contains a line break"
+    assert describe_code_defect("BLUE\rBLUE") == "code contains a line break"
+    assert describe_code_defect("tab\tinside") == "code contains a tab"
+    assert describe_code_defect(" M") == "code has leading whitespace"
+    assert describe_code_defect("M ") == "code has trailing whitespace"
+    assert describe_code_defect("double  space") == "code contains consecutive spaces"
+
+
+def test_describe_code_defect_reports_the_first_applicable_defect() -> None:
+    """A code carrying several defects reports the one earliest in the fixed order."""
+    assert describe_code_defect(" BLUE\nBLUE") == "code contains a line break"
+    assert describe_code_defect(" tab\there ") == "code contains a tab"
+    assert describe_code_defect(" double  space") == "code has leading whitespace"
+    assert describe_code_defect("double  space ") == "code has trailing whitespace"
+
+
+def test_describe_code_defect_falls_through_to_the_generic_phrase() -> None:
+    """Whitespace outside the named list still yields a phrase rather than None."""
+    assert describe_code_defect("non\xa0breaking") == "code contains whitespace"

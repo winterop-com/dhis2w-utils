@@ -592,6 +592,12 @@ written by default, and each written path is echoed.
   type with severity-tinted rows. Typeset in Noto Sans with a Noto Sans Lao
   fallback, so Lao-script DHIS2 names render rather than dropping to boxes.
 
+The human-facing renderings - the Markdown and PDF reports and the terminal
+findings table - print a code with its control characters escaped (`BLUE\nBLUE`
+reads on one line) and wrap a code with leading or trailing spaces in double
+quotes (`" M "`), so an invisible character is visible; the CSV and the JSON
+report carry the raw code.
+
 ### Exit codes
 
 Exit 1 when there are errors, which makes it a CI gate. `--no-fail` exits 0

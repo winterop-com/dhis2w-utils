@@ -47,6 +47,23 @@ class _ReportGroup(BaseModel):
     rows: list[_ReportRow] = Field(default_factory=list)
 
 
+def display_code(code: str | None) -> str:
+    r"""Render a DHIS2 code for human eyes: `-` when absent, `(empty)` when blank, invisibles made visible.
+
+    Control characters print as their escape (`BLUE\nBLUE` on one line, not two), and a value with
+    a leading or trailing space is wrapped in double quotes so the edge space is on the page. Only
+    the human-facing renderers call this: the CSV and the JSON finding carry the raw code.
+    """
+    if code is None:
+        return "-"
+    if not code:
+        return "(empty)"
+    escaped = code.replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
+    if code.startswith(" ") or code.endswith(" "):
+        return f'"{escaped}"'
+    return escaped
+
+
 def render_validation_markdown(report: FhirValidationReport, target: str, generated_at: datetime) -> str:
     """Render the validation report as Markdown, findings grouped by resource type."""
     return _ENVIRONMENT.get_template("report.md.jinja").render(
@@ -102,16 +119,21 @@ def _report_row(finding: ValidationFinding) -> _ReportRow:
         severity=finding.severity,
         category=finding.category,
         object_label=f"{_table_cell(finding.name)} ({finding.uid})",
-        code=_table_cell(finding.code) if finding.code else "-",
+        code=_code_cell(finding.code),
         message=finding.message,
     )
 
 
-def _table_cell(value: str) -> str:
-    r"""Make a code or name safe for a Markdown table cell: escape pipes, flatten line breaks to a space.
+def _code_cell(code: str | None) -> str:
+    """Render the code column: the human-facing display form, pipes escaped for the table."""
+    return display_code(code).replace("|", "\\|")
 
-    A DHIS2 code or name may carry a literal newline (play 2.42 has category options such as
-    `BLUE\nBLUE`), which would otherwise split the row and garble every column after it.
+
+def _table_cell(value: str) -> str:
+    r"""Make a name safe for a Markdown table cell: escape pipes, flatten line breaks to a space.
+
+    A DHIS2 name may carry a literal newline (play 2.42 has category options such as `BLUE\nBLUE`),
+    which would otherwise split the row and garble every column after it.
     """
     flattened = value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
     return flattened.replace("|", "\\|")

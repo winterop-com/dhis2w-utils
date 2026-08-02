@@ -241,7 +241,7 @@ def validate_command(
 
     from dhis2w_fhir import find_project_fhir_config, service
     from dhis2w_fhir.validation.pdf import render_validation_pdf
-    from dhis2w_fhir.validation.report import render_validation_csv, render_validation_markdown
+    from dhis2w_fhir.validation.report import display_code, render_validation_csv, render_validation_markdown
 
     selected_formats = _parse_report_formats(formats)
     if code_source is not None and code_source not in {"id", "code"}:
@@ -289,7 +289,7 @@ def validate_command(
                         "category": finding.category,
                         "type": finding.resource_type,
                         "object": f"{finding.name} ({finding.uid})",
-                        "code": finding.code or "-",
+                        "code": display_code(finding.code),
                         "message": finding.message,
                     }
                     for finding in detailed

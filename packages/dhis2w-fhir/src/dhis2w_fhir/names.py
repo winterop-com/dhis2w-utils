@@ -64,6 +64,31 @@ def is_valid_fhir_code(value: str | None) -> bool:
     return bool(value) and _FHIR_CODE_PATTERN.match(value or "") is not None
 
 
+def describe_code_defect(code: str) -> str | None:
+    r"""Name the first R4 `code` defect the value carries, or None when it is a valid code.
+
+    The checks run in a fixed order, so a code carrying several defects reports the one that
+    explains the invisible character best: a line break beats the leading space it sits behind.
+    A code that is invalid for whitespace outside this list (a form feed, a non-breaking space)
+    falls through to the generic phrase.
+    """
+    if is_valid_fhir_code(code):
+        return None
+    if not code:
+        return "code is empty"
+    if "\n" in code or "\r" in code:
+        return "code contains a line break"
+    if "\t" in code:
+        return "code contains a tab"
+    if code != code.lstrip():
+        return "code has leading whitespace"
+    if code != code.rstrip():
+        return "code has trailing whitespace"
+    if "  " in code:
+        return "code contains consecutive spaces"
+    return "code contains whitespace"
+
+
 def is_valid_fhir_id(value: str) -> bool:
     """Check `value` against the R4 `id` datatype: ASCII letters/digits/hyphen/dot, 1-64 characters."""
     return _FHIR_ID_PATTERN.match(value) is not None

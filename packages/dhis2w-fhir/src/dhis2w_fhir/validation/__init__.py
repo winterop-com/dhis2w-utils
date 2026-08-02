@@ -17,7 +17,7 @@ from collections import Counter
 from typing import TYPE_CHECKING, Literal
 
 from dhis2w_fhir.i18n import TranslationIn, name_translations
-from dhis2w_fhir.names import is_valid_fhir_code, kebab, pascal
+from dhis2w_fhir.names import describe_code_defect, is_valid_fhir_code, kebab, pascal
 from dhis2w_fhir.resources.option_sets import max_slug_length
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.validation.report import render_validation_markdown
@@ -92,7 +92,8 @@ def _collection_findings(collection: MetadataCollectionIn) -> list[ValidationFin
                     )
                 )
             continue
-        if not is_valid_fhir_code(item.code):
+        defect = describe_code_defect(item.code)
+        if defect is not None:
             findings.append(
                 ValidationFinding(
                     severity="error",
@@ -101,7 +102,7 @@ def _collection_findings(collection: MetadataCollectionIn) -> list[ValidationFin
                     uid=item.uid,
                     name=name,
                     code=item.code,
-                    message="code is not a valid FHIR code (whitespace at the edges or doubled inside)",
+                    message=f"code is not a valid FHIR code: {defect}",
                 )
             )
         elif code_counts[item.code] > 1:
@@ -187,15 +188,15 @@ def _raw_option_findings(option_set: OptionSetIn, locales: list[str]) -> list[Va
                 )
             )
             continue
-        if not is_valid_fhir_code(option.code):
+        defect = describe_code_defect(option.code)
+        if defect is not None:
             findings.append(
                 _option_finding(
                     option_set,
                     option,
                     "error",
                     "invalid-code",
-                    "code is not a valid FHIR code (whitespace at the edges or doubled inside); "
-                    "code-source generation falls back to the UID",
+                    f"code is not a valid FHIR code: {defect}; code-source generation falls back to the UID",
                     locales,
                 )
             )

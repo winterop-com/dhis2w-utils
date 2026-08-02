@@ -67,6 +67,23 @@ def test_option_invalid_code_is_an_error() -> None:
     assert report.error_count == 1
 
 
+def test_invalid_code_findings_name_the_defect() -> None:
+    """The invalid-code message says which defect the code carries, on both passes."""
+    report = _validate(
+        [_set("Aa1aaaaaaaa", "Sex", [OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Male")])],
+        [
+            MetadataCollectionIn(
+                resource="categoryOptions", items=[MetadataItemIn(uid="Co1aaaaaaaa", name="Blue", code="BLUE\nBLUE")]
+            )
+        ],
+    )
+    messages = {finding.resource_type: finding.message for finding in report.findings}
+    assert messages["categoryOptions"] == "code is not a valid FHIR code: code contains a line break"
+    assert messages["options"] == (
+        "code is not a valid FHIR code: code has leading whitespace; code-source generation falls back to the UID"
+    )
+
+
 def test_option_missing_code_is_a_warning() -> None:
     """An option without a code warns about the UID fallback."""
     report = _validate([_set("Aa1aaaaaaaa", "Sex", [OptionIn(uid="Op1aaaaaaaa", name="Male")])])
