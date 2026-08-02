@@ -56,6 +56,35 @@ FORM_TYPE_DEFINITIONS: tuple[FormTypeDefinition, ...] = (
 )
 
 
+class ResponseProfileDeclaration(BaseModel):
+    """One QuestionnaireResponse profile as the responses template renders it.
+
+    `period_required` marks the aggregate contract, whose response reports for a DHIS2
+    reporting period; `authored_required` marks the event contract, whose response reports
+    the moment the event occurred. The two flags are what the shared template branches on.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    profile_id: str
+    form_type_code: str
+    title: str
+    description: str
+    period_required: bool = False
+    authored_required: bool = False
+
+    @property
+    def title_literal(self) -> str:
+        """The title as the page-facing FSH `Title:` literal, markup characters HTML-escaped."""
+        return page_text(self.title)
+
+    @property
+    def description_literal(self) -> str:
+        """The description as the page-facing FSH `Description:` literal, markup characters HTML-escaped."""
+        return page_text(self.description)
+
+
 class NamingSystemDeclaration(BaseModel):
     """One DHIS2 identifier system as the NamingSystem instance the foundation template renders."""
 
@@ -158,3 +187,33 @@ class FoundationNaming(BaseModel):
     def form_type_value_set_id(self) -> str:
         """FHIR id of the form-type ValueSet (e.g. `d2-form-type-vs`)."""
         return join_id_tokens(self.definition_prefix, "form", "type", "vs")
+
+    @property
+    def aggregate_response_profile(self) -> str:
+        """FSH name of the aggregate QuestionnaireResponse profile (e.g. `D2AggregateResponse`)."""
+        return f"{self.definition_prefix}AggregateResponse"
+
+    @property
+    def aggregate_response_profile_id(self) -> str:
+        """FHIR id of the aggregate QuestionnaireResponse profile (e.g. `d2-aggregate-response`)."""
+        return join_id_tokens(self.definition_prefix, "aggregate", "response")
+
+    @property
+    def event_response_profile(self) -> str:
+        """FSH name of the event QuestionnaireResponse profile (e.g. `D2EventResponse`)."""
+        return f"{self.definition_prefix}EventResponse"
+
+    @property
+    def event_response_profile_id(self) -> str:
+        """FHIR id of the event QuestionnaireResponse profile (e.g. `d2-event-response`)."""
+        return join_id_tokens(self.definition_prefix, "event", "response")
+
+    @property
+    def capture_server(self) -> str:
+        """FSH name of the capture CapabilityStatement instance (e.g. `D2CaptureServer`)."""
+        return f"{self.definition_prefix}CaptureServer"
+
+    @property
+    def capture_server_id(self) -> str:
+        """FHIR id of the capture CapabilityStatement instance (e.g. `d2-capture-server`)."""
+        return join_id_tokens(self.definition_prefix, "capture", "server")

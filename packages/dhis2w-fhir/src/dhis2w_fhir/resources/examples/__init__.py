@@ -53,9 +53,18 @@ if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
 __all__ = [
+    "BOOLEAN_VALUE_TYPES",
     "COMPLETED_STATUS",
+    "DECIMAL_VALUE_TYPES",
+    "DEFAULT_ANSWER_ELEMENT",
     "EXAMPLES_DIRECTORY",
+    "INTEGER_VALUE_TYPES",
     "MAXIMUM_EXAMPLES_PER_TARGET",
+    "MULTI_VALUE_TYPE",
+    "ORGANISATION_UNIT_VALUE_TYPE",
+    "STATUS_BY_EVENT_STATUS",
+    "TEMPORAL_ANSWER_ELEMENTS",
+    "URI_VALUE_TYPE",
     "ExampleAnswerIn",
     "ExampleOptionIn",
     "ExampleOptionSetIn",
@@ -63,6 +72,7 @@ __all__ = [
     "ExampleSelection",
     "ExampleSource",
     "SyntheticBuild",
+    "answer_element",
     "build_example_artifacts",
     "build_synthetic_responses",
     "response_status_code",
@@ -77,7 +87,7 @@ COMPLETED_STATUS = "completed"
 
 #: How a DHIS2 event status reads as a `QuestionnaireResponse.status`. A scheduled, overdue, or
 #: visited event has still been captured against the form, so it reads as completed too.
-_STATUS_BY_EVENT_STATUS = {
+STATUS_BY_EVENT_STATUS = {
     "COMPLETED": COMPLETED_STATUS,
     "ACTIVE": "in-progress",
     "SKIPPED": "stopped",
@@ -87,28 +97,31 @@ _STATUS_BY_EVENT_STATUS = {
 }
 
 #: DHIS2 value types answered as a FHIR integer.
-_INTEGER_VALUE_TYPES = frozenset({"INTEGER", "INTEGER_POSITIVE", "INTEGER_NEGATIVE", "INTEGER_ZERO_OR_POSITIVE"})
+INTEGER_VALUE_TYPES = frozenset({"INTEGER", "INTEGER_POSITIVE", "INTEGER_NEGATIVE", "INTEGER_ZERO_OR_POSITIVE"})
 
 #: DHIS2 value types answered as a FHIR decimal.
-_DECIMAL_VALUE_TYPES = frozenset({"NUMBER", "PERCENTAGE", "UNIT_INTERVAL"})
+DECIMAL_VALUE_TYPES = frozenset({"NUMBER", "PERCENTAGE", "UNIT_INTERVAL"})
 
 #: DHIS2 value types answered as a FHIR boolean.
-_BOOLEAN_VALUE_TYPES = frozenset({"BOOLEAN", "TRUE_ONLY"})
+BOOLEAN_VALUE_TYPES = frozenset({"BOOLEAN", "TRUE_ONLY"})
 
 #: The FHIR answer element each temporal DHIS2 value type takes. `AGE` is a date on the wire -
 #: DHIS2 stores the date of birth and renders the age from it.
-_TEMPORAL_ANSWER_ELEMENTS = {
+TEMPORAL_ANSWER_ELEMENTS = {
     "DATE": "valueDate",
     "DATETIME": "valueDateTime",
     "TIME": "valueTime",
     "AGE": "valueDate",
 }
 
+#: The answer elements a temporal question lands on, which each normalise their own R4 primitive.
+_TEMPORAL_ELEMENTS = frozenset(TEMPORAL_ANSWER_ELEMENTS.values())
+
 #: The DHIS2 value type answered as a FHIR uri.
-_URI_VALUE_TYPE = "URL"
+URI_VALUE_TYPE = "URL"
 
 #: The DHIS2 value type holding several option codes in one comma-separated wire value.
-_MULTI_VALUE_TYPE = "MULTI_TEXT"
+MULTI_VALUE_TYPE = "MULTI_TEXT"
 
 #: The separator DHIS2 joins a MULTI_TEXT value's option codes with.
 _MULTI_VALUE_SEPARATOR = ","
@@ -120,7 +133,7 @@ _MULTI_VALUE_SEPARATOR = ","
 _UNSYNTHESIZABLE_VALUE_TYPES = frozenset({"FILE_RESOURCE", "IMAGE", "GEOJSON", "REFERENCE", "TRACKER_ASSOCIATE"})
 
 #: The DHIS2 value type answered as a reference to the organisation unit's Location instance.
-_ORGANISATION_UNIT_VALUE_TYPE = "ORGANISATION_UNIT"
+ORGANISATION_UNIT_VALUE_TYPE = "ORGANISATION_UNIT"
 
 # The R4 primitive patterns (https://hl7.org/fhir/R4/datatypes.html#primitive) the temporal
 # answers are checked against. They are stricter than what DHIS2 stores, so a value that does
@@ -140,7 +153,7 @@ _TRUE_LITERALS = frozenset({"true", "1"})
 _FALSE_LITERALS = frozenset({"false", "0"})
 
 #: The answer element everything unmapped - and everything that will not cast - falls back to.
-_DEFAULT_ANSWER_ELEMENT = "valueString"
+DEFAULT_ANSWER_ELEMENT = "valueString"
 
 #: How many days back a synthetic event may have occurred.
 _SYNTHETIC_EVENT_WINDOW_DAYS = 30
@@ -184,7 +197,7 @@ def response_status_code(event_status: str | None) -> str:
     """The `QuestionnaireResponse.status` one DHIS2 event status maps onto, defaulting to completed."""
     if event_status is None:
         return COMPLETED_STATUS
-    return _STATUS_BY_EVENT_STATUS.get(event_status.upper(), COMPLETED_STATUS)
+    return STATUS_BY_EVENT_STATUS.get(event_status.upper(), COMPLETED_STATUS)
 
 
 class _PeriodExtensionView(BaseModel):
@@ -225,6 +238,7 @@ class _ExampleView(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     instance_id: str
+    instance_of: str
     questionnaire_url: str
     title_literal: str
     description_literal: str
@@ -456,13 +470,13 @@ def _synthetic_value(
         return None
     if item.option_set_uid is not None and option_set is not None and option_set.options:
         return _synthetic_option_value(value_type, option_set, generator)
-    if value_type == _ORGANISATION_UNIT_VALUE_TYPE:
+    if value_type == ORGANISATION_UNIT_VALUE_TYPE:
         return organisation_unit_uid
-    if value_type in _INTEGER_VALUE_TYPES:
+    if value_type in INTEGER_VALUE_TYPES:
         return str(generator.randrange(_SYNTHETIC_INTEGER_BOUND))
     if value_type == "UNIT_INTERVAL":
         return str(round(generator.uniform(0, 1), _SYNTHETIC_UNIT_INTERVAL_PLACES))
-    if value_type in _DECIMAL_VALUE_TYPES:
+    if value_type in DECIMAL_VALUE_TYPES:
         return str(round(generator.uniform(0, _SYNTHETIC_PERCENTAGE_BOUND), _SYNTHETIC_DECIMAL_PLACES))
     if value_type == "TRUE_ONLY":
         return "true"
@@ -476,7 +490,7 @@ def _synthetic_value(
         return f"{_pick_hour(generator)}:00:00"
     if value_type == "AGE":
         return _seeded_birth_date(generator).isoformat()
-    if value_type == _URI_VALUE_TYPE:
+    if value_type == URI_VALUE_TYPE:
         return f"{_SYNTHETIC_URL_HOST}/{instance_id}"
     if value_type == "COORDINATE":
         return _seeded_coordinate(generator)
@@ -486,7 +500,7 @@ def _synthetic_value(
 def _synthetic_option_value(value_type: str, option_set: ExampleOptionSetIn, generator: random.Random) -> str:
     """Pick one option's stored value, or the comma-joined pair a MULTI_TEXT question captures."""
     stored = [option.code or option.uid for option in option_set.options]
-    if value_type != _MULTI_VALUE_TYPE:
+    if value_type != MULTI_VALUE_TYPE:
         return stored[generator.randrange(len(stored))]
     wanted = min(_SYNTHETIC_MULTI_SELECTIONS, len(stored))
     return _MULTI_VALUE_SEPARATOR.join(generator.sample(stored, wanted))
@@ -566,6 +580,7 @@ def _example_view(
     authored = _authored(response, tally)
     return _ExampleView(
         instance_id=response.instance_id,
+        instance_of=_response_profile(source.kind, foundation),
         questionnaire_url=f"{canonical}/Questionnaire/{source.uid}",
         title_literal=page_text(f"Example response - {source.name}"),
         description_literal=page_text(
@@ -579,6 +594,11 @@ def _example_view(
         authored=authored,
         items=_item_views(source, answers),
     )
+
+
+def _response_profile(kind: FormKind, foundation: FoundationNaming) -> str:
+    """The QuestionnaireResponse profile one form kind's examples declare themselves against."""
+    return foundation.aggregate_response_profile if kind == "aggregate" else foundation.event_response_profile
 
 
 def _authored(response: ExampleResponseIn, tally: _ExampleTally) -> str | None:
@@ -625,7 +645,7 @@ def _typed_answers(
 ) -> list[_Answer]:
     """Cast one captured value onto the FHIR answer type its value type asks for - several for MULTI_TEXT."""
     if item.option_set_uid is not None:
-        selected = value.split(_MULTI_VALUE_SEPARATOR) if item.value_type == _MULTI_VALUE_TYPE else [value]
+        selected = value.split(_MULTI_VALUE_SEPARATOR) if item.value_type == MULTI_VALUE_TYPE else [value]
         return [
             _coding_answer(item.option_set_uid, part.strip(), option_sets_by_uid, config, names)
             or _fallback(item, part.strip(), tally)
@@ -634,23 +654,46 @@ def _typed_answers(
     return [_typed_answer(item, value, tally)]
 
 
+def answer_element(value_type: str) -> str:
+    """The FHIR `value[x]` element one DHIS2 value type answers on, when the question binds no option set.
+
+    An option-set-bound question answers as a `valueCoding` into that set's CodeSystem whatever
+    its value type, so this is the typing of everything else - and the single table the capture
+    page documents the contract from.
+    """
+    if value_type in INTEGER_VALUE_TYPES:
+        return "valueInteger"
+    if value_type in DECIMAL_VALUE_TYPES:
+        return "valueDecimal"
+    if value_type in BOOLEAN_VALUE_TYPES:
+        return "valueBoolean"
+    temporal = TEMPORAL_ANSWER_ELEMENTS.get(value_type)
+    if temporal is not None:
+        return temporal
+    if value_type == URI_VALUE_TYPE:
+        return "valueUri"
+    if value_type == ORGANISATION_UNIT_VALUE_TYPE:
+        return "valueReference"
+    return DEFAULT_ANSWER_ELEMENT
+
+
 def _typed_answer(item: QuestionnaireItemIn, value: str, tally: _ExampleTally) -> _Answer:
     """Cast one DHIS2 value string onto the FHIR answer type its data element's value type asks for."""
     text = value.strip()
-    if item.value_type in _INTEGER_VALUE_TYPES:
+    element = answer_element(item.value_type)
+    if element == "valueInteger":
         return _integer_answer(item, text, tally)
-    if item.value_type in _DECIMAL_VALUE_TYPES:
+    if element == "valueDecimal":
         return _decimal_answer(item, text, tally)
-    if item.value_type in _BOOLEAN_VALUE_TYPES:
+    if element == "valueBoolean":
         return _boolean_answer(item, text, tally)
-    temporal = _TEMPORAL_ANSWER_ELEMENTS.get(item.value_type)
-    if temporal is not None:
-        return _temporal_answer(item, text, temporal, tally)
-    if item.value_type == _URI_VALUE_TYPE:
-        return _Answer(element="valueUri", literal=quote(text))
-    if item.value_type == _ORGANISATION_UNIT_VALUE_TYPE:
-        return _Answer(element="valueReference", literal=f"Reference(Location-{text})")
-    return _Answer(element=_DEFAULT_ANSWER_ELEMENT, literal=quote(value))
+    if element in _TEMPORAL_ELEMENTS:
+        return _temporal_answer(item, text, element, tally)
+    if element == "valueUri":
+        return _Answer(element=element, literal=quote(text))
+    if element == "valueReference":
+        return _Answer(element=element, literal=f"Reference(Location-{text})")
+    return _Answer(element=DEFAULT_ANSWER_ELEMENT, literal=quote(value))
 
 
 def _temporal_answer(item: QuestionnaireItemIn, text: str, element: str, tally: _ExampleTally) -> _Answer:
@@ -742,7 +785,7 @@ def _option_for(option_set: ExampleOptionSetIn, value: str) -> ExampleOptionIn |
 def _fallback(item: QuestionnaireItemIn, value: str, tally: _ExampleTally) -> _Answer:
     """Answer as a plain string and tally why, so a run says how much it could not type."""
     tally.untyped_values.append(f"{item.name} ({item.uid}) = {value!r}")
-    return _Answer(element=_DEFAULT_ANSWER_ELEMENT, literal=quote(value))
+    return _Answer(element=DEFAULT_ANSWER_ELEMENT, literal=quote(value))
 
 
 def _item_views(source: QuestionnaireSourceIn, answers: dict[str, list[_Answer]]) -> list[_ItemView]:

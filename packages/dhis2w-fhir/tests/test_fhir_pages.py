@@ -1,4 +1,4 @@
-"""Tests for the pages target: the five site pages, the per-artifact intros, and markdown escaping."""
+"""Tests for the pages target: the six site pages, the per-artifact intros, and markdown escaping."""
 
 from __future__ import annotations
 
@@ -6,17 +6,21 @@ import re
 
 from dhis2w_fhir import (
     GenerateConfig,
+    NamingConfig,
     OptionIn,
     OptionSetIn,
     OrganisationUnitIn,
+    build_foundation_artifacts,
     build_option_set_artifacts,
     build_organisation_unit_instances,
     build_questionnaire_artifacts,
 )
 from dhis2w_fhir.names import markdown_text
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
+from dhis2w_fhir.resources.examples import STATUS_BY_EVENT_STATUS
 from dhis2w_fhir.resources.pages import INTRO_SUFFIX, PAGES_DIRECTORY, SITE_PAGE_FILENAMES, build_page_artifacts
 from dhis2w_fhir.resources.pages.schemas import PagesIn
+from dhis2w_fhir.resources.questionnaires import ITEM_TYPES_BY_VALUE_TYPE
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
@@ -104,15 +108,15 @@ def _pages_input() -> PagesIn:
 
 def _pages(config: GenerateConfig | None = None) -> dict[str, str]:
     """Build the page artifacts and index them by file name."""
-    build = build_page_artifacts(_pages_input(), config or GenerateConfig())
+    build = build_page_artifacts(_pages_input(), config or GenerateConfig(), _CANONICAL)
     return {
         artifact.relative_path.removeprefix(f"{PAGES_DIRECTORY}/"): artifact.content for artifact in build.artifacts
     }
 
 
 def test_every_site_page_is_emitted_once() -> None:
-    """The five site pages are always emitted, each into the pagecontent sync directory."""
-    build = build_page_artifacts(_pages_input(), GenerateConfig())
+    """The six site pages are always emitted, each into the pagecontent sync directory."""
+    build = build_page_artifacts(_pages_input(), GenerateConfig(), _CANONICAL)
     site_pages = [
         artifact.relative_path for artifact in build.artifacts if not artifact.relative_path.endswith(INTRO_SUFFIX)
     ]
@@ -214,6 +218,128 @@ def test_periods_page_examples_are_pinned_to_the_reference_date() -> None:
     periods = _pages()["periods.md"]
     assert "| `Monthly` | `202512` | 2025-12-01 to 2025-12-31 |" in periods
     assert "| `Yearly` | `2025` | 2025-01-01 to 2025-12-31 |" in periods
+
+
+def test_capture_page_names_both_response_contracts() -> None:
+    """capture.md opens on the single-response rule and links the profile page of each form kind."""
+    capture = _pages()["capture.md"]
+    assert capture.startswith("# Capturing data\n")
+    assert "one `QuestionnaireResponse` per form submission" in capture
+    assert "accepts a single response per request" in capture
+    assert "| Aggregate | [D2AggregateResponse](StructureDefinition-d2-aggregate-response.html) |" in capture
+    assert "| Event | [D2EventResponse](StructureDefinition-d2-event-response.html) |" in capture
+
+
+def test_capture_page_works_an_aggregate_response_through_every_step() -> None:
+    """The aggregate walk-through pins the canonical URL, the period, the form type, and the subject."""
+    capture = _pages()["capture.md"]
+    assert '"questionnaire": "http://example.org/fhir/Questionnaire/YFTk3VdO9av"' in capture
+    assert '"url": "http://example.org/fhir/StructureDefinition/d2-period"' in capture
+    assert '{ "url": "iso",    "valueString": "202512" }' in capture
+    assert '{ "url": "type",   "valueCode":   "Monthly" }' in capture
+    assert '"start": "2025-12-01", "end": "2025-12-31"' in capture
+    assert "[Periods](periods.html)" in capture
+    assert "`D2FormType` extension is fixed" in capture
+    assert "to `#aggregate` by the profile, coded from `D2FormType_CS`" in capture
+    assert '"subject": { "reference": "Location/ImspTQPwCqd" }' in capture
+    assert "[Registry](registry.html)" in capture
+    assert "`D2Location`" in capture
+
+
+def test_capture_page_spells_out_the_link_id_grammar_and_the_required_rule() -> None:
+    """Both linkId grammars are stated and worked on the fixture's own data elements."""
+    capture = _pages()["capture.md"]
+    assert "- `<dataElementId>` - a data element that is not disaggregated." in capture
+    assert "- `<dataElementId>.<categoryOptionComboId>` - one cell of a data element disaggregated" in capture
+    assert "| `De1aaaaaaaa.Coc1aaaaaaa` | `<dataElementId>.<categoryOptionComboId>` |" in capture
+    assert "| `De2aaaaaaaa` | `<dataElementId>` | Gender | `valueCoding` | no |" in capture
+    assert "compulsory data element operand" in capture
+    assert "makes only that one cell mandatory" in capture
+
+
+def test_capture_page_works_an_event_response_and_maps_every_event_status() -> None:
+    """The event walk-through names authored, drops the period, and tabulates the status map."""
+    capture = _pages()["capture.md"]
+    assert '"questionnaire": "http://example.org/fhir/Questionnaire/VBqh0ynB2wv"' in capture
+    assert "`D2FormType` is fixed to `#event`" in capture
+    assert "`authored` is mandatory" in capture
+    assert "| `qrur9Dvnyt5` | `<dataElementId>` | Age in years | `valueInteger` | no |" in capture
+    for event_status, response_status in STATUS_BY_EVENT_STATUS.items():
+        assert f"| `{event_status}` | `{response_status}` |" in capture
+
+
+def test_capture_page_tabulates_every_value_type_the_item_table_maps() -> None:
+    """The answer typing table is the same table the examples answer from, so neither can drift."""
+    capture = _pages()["capture.md"]
+    for value_type, item_type in ITEM_TYPES_BY_VALUE_TYPE.items():
+        assert f"| `{value_type}` | `{item_type}` |" in capture
+    assert "| `TRUE_ONLY` | `boolean` | `valueBoolean` | Always `true`" in capture
+    assert "| `MULTI_TEXT` | `string` | `valueCoding` |" in capture
+    assert "| `URL` | `url` | `valueUri` |" in capture
+    assert "| `ORGANISATION_UNIT` | `reference` | `valueReference` |" in capture
+    assert "`hh:mm:ss` - seconds are mandatory in FHIR" in capture
+    assert "so send `Z` when you mean UTC" in capture
+
+
+def test_capture_page_states_the_coded_answer_and_validation_rules() -> None:
+    """Coded answers name the option set's CodeSystem, and the page closes on the validation workflow."""
+    capture = _pages()["capture.md"]
+    assert "## Coded answers" in capture
+    assert "`system` is the canonical URL of that option set's generated `CodeSystem`" in capture
+    assert "`code` is the concept code exactly as this guide generated it" in capture
+    assert "as concept properties" in capture
+    assert "## Validating before you send" in capture
+    assert "standard FHIR validator before sending" in capture
+    assert "[D2CaptureServer](CapabilityStatement-d2-capture-server.html)" in capture
+
+
+def test_capture_page_escapes_metadata_derived_names() -> None:
+    """The worked form's name reaches the publisher's strict HTML parse escaped, like every other page."""
+    capture = _pages()["capture.md"]
+    assert "**Mortality &lt; 5 years by gender** (`YFTk3VdO9av`)" in capture
+    assert "Mortality < 5 years" not in capture
+
+
+def test_capture_page_link_targets_match_the_emitted_artifacts() -> None:
+    """Every profile and CapabilityStatement the capture page links is an id the foundation target emits."""
+    capture = _pages()["capture.md"]
+    foundation = {
+        match: artifact.relative_path
+        for artifact in build_foundation_artifacts(GenerateConfig(), ig_status="draft")
+        for match in re.findall(r"^(?:Id: |\* id = \")([a-z0-9-]+)", artifact.content, re.M)
+    }
+    for artifact_id in ("d2-aggregate-response", "d2-event-response", "d2-capture-server"):
+        assert artifact_id in foundation
+    assert "(StructureDefinition-d2-aggregate-response.html)" in capture
+    assert "(StructureDefinition-d2-event-response.html)" in capture
+    assert "(CapabilityStatement-d2-capture-server.html)" in capture
+    for page in ("periods.html", "registry.html", "terminology.html", "identifiers.html"):
+        assert f"({page})" in capture
+        assert f"{page.removesuffix('.html')}.md" in SITE_PAGE_FILENAMES
+
+
+def test_capture_page_naming_tokens_flow_into_every_contract_name() -> None:
+    """A renamed prefix renames the profiles, the extensions, and the capture server the page points at."""
+    capture = _pages(GenerateConfig(naming=NamingConfig(prefix="Dhis2")))["capture.md"]
+    assert "[Dhis2AggregateResponse](StructureDefinition-dhis2-aggregate-response.html)" in capture
+    assert "[Dhis2EventResponse](StructureDefinition-dhis2-event-response.html)" in capture
+    assert "[Dhis2CaptureServer](CapabilityStatement-dhis2-capture-server.html)" in capture
+    assert "`Dhis2Location`" in capture
+    assert "/StructureDefinition/dhis2-period" in capture
+
+
+def test_capture_page_is_byte_stable_across_builds() -> None:
+    """The page pins its period example to the reference date, so a no-op regenerate rewrites nothing."""
+    assert _pages()["capture.md"] == _pages()["capture.md"]
+
+
+def test_capture_page_survives_an_instance_with_neither_form_kind() -> None:
+    """A run selecting no forms still publishes the contract, saying only that no example is worked."""
+    build = build_page_artifacts(PagesIn(), GenerateConfig(), _CANONICAL)
+    capture = next(artifact.content for artifact in build.artifacts if artifact.relative_path.endswith("capture.md"))
+    assert "This guide publishes no data set questionnaire" in capture
+    assert "This guide publishes no event program questionnaire" in capture
+    assert "| DHIS2 value type | Item type | Answer element | Literal |" in capture
 
 
 def test_every_questionnaire_gets_an_intro() -> None:

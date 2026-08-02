@@ -194,3 +194,84 @@ class PeriodsView(BaseModel):
     period_type_code_system_id: str
     period_type_value_set: str
     period_types: list[PeriodTypeRow] = Field(default_factory=list)
+
+
+class CaptureLinkRow(BaseModel):
+    """One worked `linkId` of the capture page's example: what it answers and how it is typed."""
+
+    model_config = ConfigDict(frozen=True)
+
+    link_id: str
+    label: str
+    grammar: str
+    answer_element: str
+    required: bool
+
+
+class CapturePeriodExample(BaseModel):
+    """The worked D2Period of the capture page's aggregate example, resolved by the ISO parser."""
+
+    model_config = ConfigDict(frozen=True)
+
+    iso: str
+    period_type: str
+    start_date: str
+    end_date: str
+
+
+class CaptureFormExample(BaseModel):
+    """One selected form worked end to end on the capture page: its Questionnaire and some of its linkIds."""
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    name: str
+    questionnaire_url: str
+    form_type_code: FormKind
+    period: CapturePeriodExample | None = None
+    links: list[CaptureLinkRow] = Field(default_factory=list)
+
+
+class EventStatusRow(BaseModel):
+    """One DHIS2 event status and the `QuestionnaireResponse.status` a capture client sends for it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    event_status: str
+    response_status: str
+
+
+class ValueLiteralRow(BaseModel):
+    """One DHIS2 value type as the capture page tabulates it: item type, answer element, literal rule."""
+
+    model_config = ConfigDict(frozen=True)
+
+    value_type: str
+    item_type: str
+    answer_element: str
+    literal_rule: str
+
+
+class CaptureView(BaseModel):
+    """The capture page: the two response contracts, one worked example each, and the answer typing rules."""
+
+    model_config = ConfigDict(frozen=True)
+
+    canonical: str
+    period_extension: str
+    period_extension_id: str
+    form_type_extension: str
+    form_type_code_system: str
+    aggregate_profile: str
+    aggregate_profile_id: str
+    event_profile: str
+    event_profile_id: str
+    capture_server: str
+    capture_server_id: str
+    location_profile: str
+    organisation_unit_uid: str
+    organisation_unit_name: str
+    aggregate: CaptureFormExample | None = None
+    event: CaptureFormExample | None = None
+    event_statuses: list[EventStatusRow] = Field(default_factory=list)
+    value_literals: list[ValueLiteralRow] = Field(default_factory=list)

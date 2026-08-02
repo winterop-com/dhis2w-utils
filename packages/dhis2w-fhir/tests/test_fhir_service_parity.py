@@ -335,6 +335,35 @@ async def test_generate_is_idempotent(
     assert sorted(path.name for path in terminology.glob("*.fsh")) == ["Xa1b2c3d4e5.fsh"]
 
 
+@respx.mock
+async def test_generate_all_is_byte_stable_across_two_runs(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Every target - the capture contract included - writes nothing on a second run of unchanged metadata."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path)
+    _mock_page_endpoints()
+
+    first = await service.generate_all(resolve_profile("probe"), load_project(tmp_path))
+    second = await service.generate_all(resolve_profile("probe"), load_project(tmp_path))
+
+    assert "foundation/d2-responses.fsh" in first.foundation.written_files
+    assert "foundation/d2-capture-server.fsh" in first.foundation.written_files
+    assert "pagecontent/capture.md" in first.pages.written_files
+    for report in (
+        second.foundation,
+        second.option_sets,
+        second.questionnaires,
+        second.examples,
+        second.organisation_units,
+        second.pages,
+    ):
+        assert report.written_files == []
+        assert report.deleted_files == []
+
+
 def _mock_page_endpoints() -> None:
     """Mock every endpoint the pages target reads: option sets, data sets, programs, and org units."""
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
@@ -359,7 +388,7 @@ async def test_generate_pages_across_majors(
 
     assert report.target_base == "ig/input"
     assert report.target_directory == "pagecontent"
-    assert report.page_count == 5
+    assert report.page_count == 6
     assert report.intro_count == 2
     assert "pagecontent/forms.md" in report.written_files
     assert "pagecontent/Questionnaire-BfMAe6Itzgt-intro.md" in report.written_files

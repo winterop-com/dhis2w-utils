@@ -81,6 +81,7 @@ _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
 )
 _DATA_SET_FIELDS = (
     "id,name,code,description,periodType,sections[id,name,dataElements[id]],"
+    "compulsoryDataElementOperands[dataElement[id],categoryOptionCombo[id]],"
     f"dataSetElements[{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
 )
 _EVENT_PROGRAM_FIELDS = (
@@ -656,7 +657,7 @@ async def generate_pages(profile: Profile, project: FhirProject) -> GenerateRepo
         option_sets=_selected_option_sets([_option_set_input(model) for model in models], sources, config, notes),
         organisation_units=organisation_units,
     )
-    build = build_page_artifacts(pages, config)
+    build = build_page_artifacts(pages, config, project.config.ig.canonical)
     sync = sync_artifacts(project.ig_directory / PAGES_BASE_SUBDIRECTORY, PAGES_DIRECTORY, build.artifacts)
     intro_count = sum(1 for artifact in build.artifacts if artifact.relative_path.endswith(INTRO_SUFFIX))
     return GenerateReport(
@@ -831,14 +832,19 @@ def _data_set_source(model: DataSet, notes: list[str]) -> QuestionnaireSourceIn:
     the example responses - fetched by a separate request - answer the questionnaire's items in
     the questionnaire's own order, which the FHIR validator requires. Section membership is
     joined by UID and keeps the section's own sort order, which DHIS2 does hold.
+
+    `compulsoryDataElementOperands` is what makes a data set's questions mandatory, at either of
+    two grains: an operand naming a data element alone requires the whole element, an operand
+    naming a category option combo too requires that single disaggregated cell.
     """
     uid = model.id or ""
+    compulsory = _compulsory_operands(model)
     items: list[QuestionnaireItemIn] = []
     for element in model.dataSetElements or []:
         reference = element.dataElement
         if reference is None or not reference.id:
             continue
-        items.append(_questionnaire_item(reference.model_dump(), compulsory=False))
+        items.append(_marked_required(_questionnaire_item(reference.model_dump(), compulsory=False), compulsory))
     items.sort(key=lambda item: (item.name, item.uid))
     return _questionnaire_source(
         uid=uid,
@@ -851,6 +857,60 @@ def _data_set_source(model: DataSet, notes: list[str]) -> QuestionnaireSourceIn:
         raw_sections=model.sections,
         notes=notes,
     )
+
+
+class _CompulsoryOperands(BaseModel):
+    """One data set's compulsory operands, split by the grain each of them makes mandatory.
+
+    `data_element_uids` holds the operands naming a data element alone - the whole question is
+    mandatory, every disaggregated cell of it included. `operand_keys` holds the operands that
+    also name a category option combo, keyed `<dataElementUid>.<categoryOptionComboUid>` - the
+    very `linkId` the questionnaire gives that cell - so only that one child question is.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    data_element_uids: frozenset[str] = frozenset()
+    operand_keys: frozenset[str] = frozenset()
+
+
+def _compulsory_operands(model: DataSet) -> _CompulsoryOperands:
+    """Read a data set's compulsory operands off the wire, split by whether they name an option combo."""
+    data_element_uids: set[str] = set()
+    operand_keys: set[str] = set()
+    for operand in model.compulsoryDataElementOperands or []:
+        if not isinstance(operand, dict):
+            continue
+        reference = operand.get("dataElement")
+        data_element_uid = _optional_text(reference.get("id")) if isinstance(reference, dict) else None
+        if data_element_uid is None:
+            continue
+        option_combo = operand.get("categoryOptionCombo")
+        option_combo_uid = _optional_text(option_combo.get("id")) if isinstance(option_combo, dict) else None
+        if option_combo_uid is None:
+            data_element_uids.add(data_element_uid)
+        else:
+            operand_keys.add(f"{data_element_uid}.{option_combo_uid}")
+    return _CompulsoryOperands(data_element_uids=frozenset(data_element_uids), operand_keys=frozenset(operand_keys))
+
+
+def _marked_required(item: QuestionnaireItemIn, compulsory: _CompulsoryOperands) -> QuestionnaireItemIn:
+    """Carry a data set's compulsory operands onto one question: the whole element, or single cells of it."""
+    category_combo = item.category_combo
+    option_combos = category_combo.option_combos if category_combo is not None else []
+    if item.uid in compulsory.data_element_uids:
+        return item.model_copy(
+            update={
+                "compulsory": True,
+                "required_option_combo_uids": [option_combo.uid for option_combo in option_combos],
+            }
+        )
+    required_uids = [
+        option_combo.uid
+        for option_combo in option_combos
+        if f"{item.uid}.{option_combo.uid}" in compulsory.operand_keys
+    ]
+    return item.model_copy(update={"required_option_combo_uids": required_uids}) if required_uids else item
 
 
 def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSourceIn:

@@ -147,7 +147,7 @@ consistently. With `naming.source = "name"` the same set reads `D2OS_BirthType_C
 / `d2-os-birth-type-cs`. The two profile names always carry a token (default
 `D2`) because FSH cannot name a profile identically to its parent core resource.
 
-## Foundation -> identifier systems, D2Period, and D2FormType
+## Foundation -> identifier systems, D2Period, and the capture contract
 
 `generate foundation` writes `ig/input/fsh/foundation/`, the part of the IG that
 depends on `fhir.toml` alone and never opens a client:
@@ -176,6 +176,30 @@ depends on `fhir.toml` alone and never opens a client:
   form it is, and so does every response captured against it, which is what lets a
   consumer branch without re-reading the questionnaire. The two tracker codes are
   declared ahead of their generators so the terminology does not churn later.
+- `d2-responses.fsh` - the `D2AggregateResponse` and `D2EventResponse` profiles on
+  `QuestionnaireResponse`, one per form kind. Each slices the extensions its kind has
+  to carry (`D2Period` 1..1 on the aggregate one, `D2FormType` 1..1 on both, fixed to
+  the kind's own code), requires `questionnaire`, requires `subject` and restricts it
+  to `Reference(D2Location)`, and the event one additionally requires `authored`. The
+  slice names are the extension names, which is what lets an instance address them as
+  `extension[D2Period]` the way the examples already did against the bare resource.
+- `d2-capture-server.fsh` - the `D2CaptureServer` CapabilityStatement,
+  `kind = #requirements` so R4 forbids `software` and `implementation`. It declares
+  `create` on `QuestionnaireResponse` with both response profiles as
+  `supportedProfile`, and `read` + `search-type` on `Questionnaire`, `CodeSystem`,
+  `ValueSet`, `Location`, and `Organization`. R4 makes `CapabilityStatement.date`
+  mandatory, so it takes a pinned literal for the same byte-stability reason the
+  NamingSystem declarations do.
+
+The two response profiles are the reason `foundation` reads
+`OrganisationUnitNaming`: `subject only Reference(<location profile>)` has to name
+the very profile the org-unit target emits, under whatever `[generate.naming]` prefix
+is configured. `naming.py` is a leaf module, so the dependency adds no cycle. The
+profiles are only half the contract - the other half is that every generated example
+declares `InstanceOf: D2AggregateResponse` / `InstanceOf: D2EventResponse` instead of
+the bare resource, so SUSHI and the publisher validate the examples against the
+profiles on every run and a profile that drifts from what generation produces fails
+the build.
 
 `D2Period` exists because a FHIR `Period` is a pair of instants while a DHIS2
 period is a *typed* interval: `202401` is the January instance of the `Monthly`
@@ -402,15 +426,29 @@ pagecontent/registry.md                  Organisation unit registry summary
 pagecontent/terminology.md               Option sets + the support CodeSystems
 pagecontent/identifiers.md               The two identifier slices + NamingSystems
 pagecontent/periods.md                   D2Period + every DHIS2 period type
+pagecontent/capture.md                   The capture contract, worked per form kind
 pagecontent/Questionnaire-<UID>-intro.md One per generated Questionnaire
 pagecontent/CodeSystem-<id>-intro.md     Option sets carrying a DHIS2 description
 pagecontent/Organization-<UID>-intro.md  Org units carrying a DHIS2 description
 ```
 
-The five site pages are the scaffolded menu: `Home`, `Forms`, `Registry`,
-`Terminology`, `Identifiers`, `Periods`, `Artifacts`. The two intro kinds that are
-gated on a DHIS2 description emit nothing when there is none - most organisation
-units have no description, and an intro page repeating the title would be noise.
+The six site pages are the scaffolded menu: `Home`, `Forms`, `Registry`,
+`Terminology`, `Identifiers`, `Periods`, `Capture`, `Artifacts`. The two intro kinds
+that are gated on a DHIS2 description emit nothing when there is none - most
+organisation units have no description, and an intro page repeating the title would
+be noise.
+
+`capture.md` is the narrative half of the capture contract. It works an aggregate and
+an event response step by step against forms this project actually selected, with a
+real ISO period resolved through `parse_period` from the pinned reference date and a
+real organisation unit off the registry, then tabulates the answer typing for every
+DHIS2 value type. That table is not written twice: the value type to answer element
+mapping is `answer_element` in `resources/examples`, which `_typed_answer` dispatches
+on and the page reads directly, and the event status table is the examples component's
+own `STATUS_BY_EVENT_STATUS`. Only the prose spelling rule per value type is the
+page's own. `build_page_artifacts` takes the IG canonical for this page alone - the
+capture contract has to state the canonical URL rule a client resolves a Questionnaire
+by, and that lives in `[ig]` rather than `[generate]`.
 
 The target adds no endpoint. `PagesIn` is the three projections the other targets
 already fetch - `QuestionnaireSourceIn`, `OptionSetIn`, `OrganisationUnitIn` - so a
@@ -619,10 +657,11 @@ The components:
   seeded `build_synthetic_responses`, and the answer typing (including the R4
   temporal normalisations). It depends on `resources/questionnaires/` for the
   source projection and naming, never the other way round.
-- `resources/pages/` - the narrative markdown layer: the five site pages, the
+- `resources/pages/` - the narrative markdown layer: the six site pages, the
   per-artifact intros, `PagesIn` (the fetched-input view the pages render from),
   and the per-page view-models. It reads the other components' naming helpers and
-  projections and is read by none of them.
+  projections - including the examples component's answer typing, which
+  `capture.md` tabulates rather than restates - and is read by none of them.
 - `resources/organisation_units/` - split by FHIR resource: `naming.py`
   derives every artifact name and id from the `[generate.naming]` tokens,
   `organization.py` builds the profiles artifact and the Organization

@@ -19,12 +19,15 @@ from dhis2w_fhir.config import (
     write_fhir_config,
 )
 from dhis2w_fhir.foundation import (
+    CAPTURE_SERVER_READ_RESOURCE_TYPES,
     FORM_TYPE_DEFINITIONS,
     FormTypeDefinition,
     FoundationNaming,
     NamingSystemDeclaration,
+    ResponseProfileDeclaration,
     build_foundation_artifacts,
     build_naming_system_declarations,
+    build_response_profile_declarations,
 )
 from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, normalize_locale
 from dhis2w_fhir.names import markdown_text
@@ -40,6 +43,7 @@ from dhis2w_fhir.period import (
 from dhis2w_fhir.resources.examples import (
     EXAMPLES_DIRECTORY,
     SyntheticBuild,
+    answer_element,
     build_example_artifacts,
     build_synthetic_responses,
     response_status_code,
@@ -86,9 +90,13 @@ from dhis2w_fhir.resources.pages import (
 )
 from dhis2w_fhir.resources.pages.schemas import PagesIn
 from dhis2w_fhir.resources.questionnaires import (
+    BOUNDS_BY_VALUE_TYPE,
     ITEM_CONTROL_CODE_SYSTEM_URL,
     ITEM_CONTROL_EXTENSION_URL,
     ITEM_TYPES_BY_VALUE_TYPE,
+    MAXIMUM_VALUE_EXTENSION_URL,
+    MINIMUM_VALUE_EXTENSION_URL,
+    NumericBounds,
     build_questionnaire_artifacts,
     domain_code,
     is_multi_valued,
@@ -129,6 +137,8 @@ from dhis2w_fhir.writer import (
 )
 
 __all__ = [
+    "BOUNDS_BY_VALUE_TYPE",
+    "CAPTURE_SERVER_READ_RESOURCE_TYPES",
     "EXAMPLES_DIRECTORY",
     "FHIR_CONFIG_FILENAME",
     "FORM_TYPE_DEFINITIONS",
@@ -138,6 +148,8 @@ __all__ = [
     "ITEM_CONTROL_CODE_SYSTEM_URL",
     "ITEM_CONTROL_EXTENSION_URL",
     "ITEM_TYPES_BY_VALUE_TYPE",
+    "MAXIMUM_VALUE_EXTENSION_URL",
+    "MINIMUM_VALUE_EXTENSION_URL",
     "PAGES_BASE_SUBDIRECTORY",
     "PAGES_DIRECTORY",
     "PERIOD_TYPE_DEFINITIONS",
@@ -169,6 +181,7 @@ __all__ = [
     "NamingConfig",
     "NamingSystemDeclaration",
     "NoFhirProjectError",
+    "NumericBounds",
     "OptionIn",
     "OptionSetIdentity",
     "OptionSetIdentityPlan",
@@ -183,6 +196,7 @@ __all__ = [
     "QuestionnaireNaming",
     "QuestionnaireSectionIn",
     "QuestionnaireSourceIn",
+    "ResponseProfileDeclaration",
     "ScaffoldFile",
     "ScaffoldReport",
     "SeverityBreakdown",
@@ -193,6 +207,7 @@ __all__ = [
     "UnsupportedProgramError",
     "ValidationFinding",
     "aggregate_note",
+    "answer_element",
     "build_code_validation",
     "build_example_artifacts",
     "build_foundation_artifacts",
@@ -204,6 +219,7 @@ __all__ = [
     "build_organisation_unit_profiles",
     "build_organisation_unit_terminology",
     "build_questionnaire_artifacts",
+    "build_response_profile_declarations",
     "build_scaffold_files",
     "build_synthetic_responses",
     "clean_generated_files",

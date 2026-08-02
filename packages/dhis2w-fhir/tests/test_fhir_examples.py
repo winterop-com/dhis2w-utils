@@ -22,6 +22,7 @@ from dhis2w_fhir import (
     ExampleSelection,
     GenerateConfig,
     InitOptions,
+    NamingConfig,
     build_example_artifacts,
     build_synthetic_responses,
     load_project,
@@ -118,7 +119,7 @@ _OPTION_SETS = [
 ]
 
 _SYNTHETIC_DATA_SET_GOLDEN = """Instance: QuestionnaireResponse-BfMAe6Itzgt-example-1
-InstanceOf: QuestionnaireResponse
+InstanceOf: D2AggregateResponse
 Title: "Example response - Child Health"
 Description: "Example QuestionnaireResponse against the DHIS2 data set Child Health (BfMAe6Itzgt)."
 Usage: #example
@@ -153,7 +154,7 @@ Usage: #example
 """
 
 _SYNTHETIC_EVENT_GOLDEN = """Instance: QuestionnaireResponse-VBqh0ynB2wv-example-1
-InstanceOf: QuestionnaireResponse
+InstanceOf: D2EventResponse
 Title: "Example response - Malaria case registration"
 Description: "Example QuestionnaireResponse against the DHIS2 event program Malaria case registration (VBqh0ynB2wv)."
 Usage: #example
@@ -362,6 +363,22 @@ def test_synthetic_data_set_example_is_a_stable_golden() -> None:
 def test_synthetic_event_example_is_a_stable_golden() -> None:
     """An event program carries `authored` and no D2Period, and answers its flat questions."""
     assert _synthetic([_EVENT_PROGRAM])[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"] == _SYNTHETIC_EVENT_GOLDEN
+
+
+def test_each_example_declares_the_response_profile_of_its_form_kind() -> None:
+    """An example is a contract check: it declares the profile its form kind's responses have to meet."""
+    artifacts = _synthetic([_DATA_SET, _EVENT_PROGRAM])
+    assert "InstanceOf: D2AggregateResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/BfMAe6Itzgt-1.fsh"]
+    assert "InstanceOf: D2EventResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"]
+    assert not any("InstanceOf: QuestionnaireResponse" in content for content in artifacts.values())
+
+
+def test_the_declared_response_profile_follows_the_naming_prefix() -> None:
+    """A renamed prefix renames the profiles, so the examples have to follow it or stop validating."""
+    config = GenerateConfig(naming=NamingConfig(prefix="Dhis2"))
+    artifacts = _synthetic([_DATA_SET, _EVENT_PROGRAM], config=config)
+    assert "InstanceOf: Dhis2AggregateResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/BfMAe6Itzgt-1.fsh"]
+    assert "InstanceOf: Dhis2EventResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"]
 
 
 def test_example_page_titles_escape_markup() -> None:

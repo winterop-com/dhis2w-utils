@@ -55,6 +55,7 @@ def test_menu_links_every_generated_site_page() -> None:
         "  Terminology: terminology.html\n"
         "  Identifiers: identifiers.html\n"
         "  Periods: periods.html\n"
+        "  Capture: capture.html\n"
         "  Artifacts: artifacts.html\n"
     )
     for filename in SITE_PAGE_FILENAMES:

@@ -27,6 +27,15 @@ class TargetSelection(BaseModel):
     include_ids: list[str] = Field(default_factory=list)
 
 
+class NumericBounds(BaseModel):
+    """The inclusive range one DHIS2 numeric value type admits, either end open when DHIS2 leaves it open."""
+
+    model_config = ConfigDict(frozen=True)
+
+    minimum_value: int | None = None
+    maximum_value: int | None = None
+
+
 class CategoryOptionComboIn(BaseModel):
     """One category option combo of a data element's disaggregation."""
 
@@ -53,6 +62,10 @@ class QuestionnaireItemIn(BaseModel):
 
     `domain_type` is the DHIS2 `AGGREGATE` / `TRACKER` split, carried as a concept property on
     the data-element support CodeSystem. It is empty when the instance sent none.
+
+    A DHIS2 form makes a question mandatory at two grains, and the projection carries both:
+    `compulsory` marks the data element itself, and `required_option_combo_uids` marks the
+    single disaggregated cells a data set names through a compulsory operand.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -64,6 +77,7 @@ class QuestionnaireItemIn(BaseModel):
     domain_type: str = ""
     option_set_uid: str | None = None
     compulsory: bool = False
+    required_option_combo_uids: list[str] = Field(default_factory=list)
     category_combo: CategoryComboIn | None = None
 
 

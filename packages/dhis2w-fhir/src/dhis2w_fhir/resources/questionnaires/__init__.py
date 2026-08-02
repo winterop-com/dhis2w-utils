@@ -30,6 +30,7 @@ from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import code_or_uid, page_text, quote
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryOptionComboIn,
+    NumericBounds,
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
@@ -41,13 +42,17 @@ if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
 __all__ = [
+    "BOUNDS_BY_VALUE_TYPE",
     "DATA_DICTIONARY_DIRECTORY",
     "DATA_SET_DIRECTORY",
     "EVENT_PROGRAM_DIRECTORY",
     "ITEM_CONTROL_CODE_SYSTEM_URL",
     "ITEM_CONTROL_EXTENSION_URL",
     "ITEM_TYPES_BY_VALUE_TYPE",
+    "MAXIMUM_VALUE_EXTENSION_URL",
+    "MINIMUM_VALUE_EXTENSION_URL",
     "QUESTIONNAIRE_DIRECTORIES",
+    "NumericBounds",
     "build_questionnaire_artifacts",
     "domain_code",
     "is_multi_valued",
@@ -70,6 +75,10 @@ ITEM_CONTROL_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/questionna
 
 #: The CodeSystem the item-control extension's CodeableConcept is coded from (`#gtable` here).
 ITEM_CONTROL_CODE_SYSTEM_URL = "http://hl7.org/fhir/questionnaire-item-control"
+
+#: The standard R4 extensions constraining the range a numeric question's answer may take.
+MINIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/minValue"
+MAXIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/maxValue"
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.resources.questionnaires", "templates"),
@@ -128,6 +137,24 @@ ITEM_TYPES_BY_VALUE_TYPE = {
     "TRACKER_ASSOCIATE": "string",
 }
 
+#: The range each bounded DHIS2 numeric value type admits, as the `minValue` / `maxValue`
+#: extensions a question carries. Only the value types whose name *is* a constraint appear:
+#: `INTEGER` and `NUMBER` are unbounded in DHIS2, so a bound on them would invent a rule the
+#: instance does not enforce. A guard test asserts every key is a member of the generated
+#: `ValueType` enum across v41, v42, and v43.
+BOUNDS_BY_VALUE_TYPE = {
+    "INTEGER_POSITIVE": NumericBounds(minimum_value=1),
+    "INTEGER_ZERO_OR_POSITIVE": NumericBounds(minimum_value=0),
+    "INTEGER_NEGATIVE": NumericBounds(maximum_value=-1),
+    "PERCENTAGE": NumericBounds(minimum_value=0, maximum_value=100),
+    "UNIT_INTERVAL": NumericBounds(minimum_value=0, maximum_value=1),
+}
+
+#: The `value[x]` element a bound lands on, keyed by the item type the question answers as. A
+#: question answering as anything else - a `#choice` bound to an option set, say - takes no
+#: bound at all, because there is no numeric element on it to constrain.
+_BOUND_ELEMENTS_BY_ITEM_TYPE = {"integer": "valueInteger", "decimal": "valueDecimal"}
+
 #: What an unmapped value type answers as - reached only by a DHIS2 value type newer than the
 #: generated enums, since the table above covers every member of all three.
 _DEFAULT_ITEM_TYPE = "string"
@@ -157,6 +184,16 @@ _PROFILES_BY_KIND = {
 }
 
 
+class _BoundView(BaseModel):
+    """One `minValue` / `maxValue` extension on a question: its url and the typed literal it carries."""
+
+    model_config = ConfigDict(frozen=True)
+
+    url: str
+    element: str
+    literal: str
+
+
 class _ItemView(BaseModel):
     """One emitted Questionnaire item, its FSH soft-index paths already resolved."""
 
@@ -172,6 +209,7 @@ class _ItemView(BaseModel):
     required: bool = False
     repeats: bool = False
     item_control: bool = False
+    bounds: list[_BoundView] = Field(default_factory=list)
 
 
 class _QuestionnaireView(BaseModel):
@@ -340,6 +378,7 @@ def _data_element_views(item: QuestionnaireItemIn, names: QuestionnaireNaming, d
                 answer_value_set=_answer_value_set(item, names),
                 required=item.compulsory,
                 repeats=is_multi_valued(item.value_type, _item_type(item)),
+                bounds=_bound_views(item.value_type, _item_type(item)),
             )
         ]
     views = [
@@ -364,9 +403,25 @@ def _data_element_views(item: QuestionnaireItemIn, names: QuestionnaireNaming, d
                 code_token=f"{names.category_option_combo_code_system}#{option_combo.uid} {quote(option_combo.name)}",
                 text_literal=quote(option_combo.name),
                 type_code=_value_type_item_type(item.value_type),
+                required=option_combo.uid in item.required_option_combo_uids,
                 repeats=is_multi_valued(item.value_type, _value_type_item_type(item.value_type)),
+                bounds=_bound_views(item.value_type, _value_type_item_type(item.value_type)),
             )
         )
+    return views
+
+
+def _bound_views(value_type: str, item_type: str) -> list[_BoundView]:
+    """The `minValue` / `maxValue` extensions one question carries, typed by the item type it answers as."""
+    bounds = BOUNDS_BY_VALUE_TYPE.get(value_type)
+    element = _BOUND_ELEMENTS_BY_ITEM_TYPE.get(item_type)
+    if bounds is None or element is None:
+        return []
+    views: list[_BoundView] = []
+    if bounds.minimum_value is not None:
+        views.append(_BoundView(url=MINIMUM_VALUE_EXTENSION_URL, element=element, literal=str(bounds.minimum_value)))
+    if bounds.maximum_value is not None:
+        views.append(_BoundView(url=MAXIMUM_VALUE_EXTENSION_URL, element=element, literal=str(bounds.maximum_value)))
     return views
 
 

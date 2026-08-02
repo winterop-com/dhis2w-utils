@@ -19,7 +19,7 @@ from dhis2w_fhir import (
     load_project,
     service,
 )
-from dhis2w_fhir.resources.questionnaires import ITEM_TYPES_BY_VALUE_TYPE
+from dhis2w_fhir.resources.questionnaires import BOUNDS_BY_VALUE_TYPE, ITEM_TYPES_BY_VALUE_TYPE
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
@@ -307,6 +307,186 @@ def test_compulsory_event_question_is_required() -> None:
     assert '* item[+].linkId = "qrur9Dvnyt5"' in content
     assert '* item[=].text = "Age (years)"' in content
     assert "* item[=].required = true" in content
+
+
+def _operand_payload(operands: list[dict[str, object]]) -> dict[str, object]:
+    """One data set holding a plain and a disaggregated data element, plus the given compulsory operands."""
+    return {
+        "dataSets": [
+            {
+                "id": "BfMAe6Itzgt",
+                "name": "Child Health",
+                "sections": [],
+                "compulsoryDataElementOperands": operands,
+                "dataSetElements": [
+                    {"dataElement": {"id": "De1aaaaaaaa", "name": "BCG doses given", "valueType": "INTEGER"}},
+                    {
+                        "dataElement": {
+                            "id": "De2aaaaaaaa",
+                            "name": "Measles doses given",
+                            "valueType": "INTEGER",
+                            "categoryCombo": {
+                                "id": "CcAaBbCcDdE",
+                                "name": "EPI/nutrition age",
+                                "isDefault": False,
+                                "categoryOptionCombos": [
+                                    {"id": "Coc1aaaaaaa", "name": "<1y"},
+                                    {"id": "Coc2aaaaaaa", "name": ">1y"},
+                                ],
+                            },
+                        }
+                    },
+                ],
+            }
+        ]
+    }
+
+
+async def _generated_data_set(tmp_path: Path, operands: list[dict[str, object]]) -> str:
+    """Generate the operand fixture's questionnaire and read the emitted FSH back."""
+    await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_operand_payload(operands)))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+    return (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "BfMAe6Itzgt.fsh").read_text(encoding="utf-8")
+
+
+@respx.mock
+async def test_the_data_set_fetch_asks_for_the_compulsory_operands(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Required flags come off `compulsoryDataElementOperands`, so the projection has to request it."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
+    data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_operand_payload([])))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+
+    await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    fields = data_sets.calls.last.request.url.params["fields"]
+    assert "compulsoryDataElementOperands[dataElement[id],categoryOptionCombo[id]]" in fields
+
+
+@respx.mock
+async def test_an_operand_without_an_option_combo_requires_a_plain_question(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """An operand naming a data element alone makes that whole question mandatory."""
+    mock_system_info("v42")
+
+    content = await _generated_data_set(tmp_path, [{"dataElement": {"id": "De1aaaaaaaa"}}])
+
+    plain = content.split('* item[+].linkId = "De2aaaaaaaa"')[0]
+    disaggregated = content.split('* item[+].linkId = "De2aaaaaaaa"')[1]
+    assert "* item[=].required = true" in plain
+    assert "required" not in disaggregated
+
+
+@respx.mock
+async def test_an_operand_without_an_option_combo_requires_every_cell_of_a_disaggregated_question(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The same operand on a disaggregated element requires the group and every option combo under it."""
+    mock_system_info("v42")
+
+    content = await _generated_data_set(tmp_path, [{"dataElement": {"id": "De2aaaaaaaa"}}])
+
+    disaggregated = content.split('* item[+].linkId = "De2aaaaaaaa"')[1]
+    assert "* item[=].required = true" in disaggregated
+    assert disaggregated.count("* item[=].item[=].required = true") == 2
+
+
+@respx.mock
+async def test_an_operand_with_an_option_combo_requires_only_that_cell(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """An operand naming a category option combo makes only that one child question mandatory."""
+    mock_system_info("v42")
+
+    content = await _generated_data_set(
+        tmp_path,
+        [{"dataElement": {"id": "De2aaaaaaaa"}, "categoryOptionCombo": {"id": "Coc2aaaaaaa"}}],
+    )
+
+    disaggregated = content.split('* item[+].linkId = "De2aaaaaaaa"')[1]
+    first_cell = disaggregated.split('* item[=].item[+].linkId = "De2aaaaaaaa.Coc2aaaaaaa"')[0]
+    second_cell = disaggregated.split('* item[=].item[+].linkId = "De2aaaaaaaa.Coc2aaaaaaa"')[1]
+    assert "required" not in first_cell
+    assert "* item[=].item[=].required = true" in second_cell
+    assert content.count("required = true") == 1
+
+
+@pytest.mark.parametrize(
+    ("value_type", "minimum", "maximum"),
+    [
+        ("INTEGER_POSITIVE", "valueInteger = 1", None),
+        ("INTEGER_ZERO_OR_POSITIVE", "valueInteger = 0", None),
+        ("INTEGER_NEGATIVE", None, "valueInteger = -1"),
+        ("PERCENTAGE", "valueDecimal = 0", "valueDecimal = 100"),
+        ("UNIT_INTERVAL", "valueDecimal = 0", "valueDecimal = 1"),
+        ("INTEGER", None, None),
+        ("NUMBER", None, None),
+        ("TEXT", None, None),
+    ],
+)
+def test_a_bounded_value_type_carries_its_range_as_min_and_max_extensions(
+    value_type: str, minimum: str | None, maximum: str | None
+) -> None:
+    """A DHIS2 value type that *is* a constraint states that constraint on the item; the rest state none."""
+    source = QuestionnaireSourceIn(
+        uid="Ds1aaaaaaaa",
+        name="Types",
+        kind="aggregate",
+        flat_items=[QuestionnaireItemIn(uid="De9aaaaaaaa", name="Value", value_type=value_type)],
+    )
+    content = _artifacts([source])["data-sets/Ds1aaaaaaaa.fsh"]
+    for url, literal in (("minValue", minimum), ("maxValue", maximum)):
+        declaration = f'* item[=].extension[+].url = "http://hl7.org/fhir/StructureDefinition/{url}"'
+        if literal is None:
+            assert url not in content
+            continue
+        assert declaration in content
+        assert f"* item[=].extension[=].{literal}" in content
+
+
+def test_a_category_option_combo_child_carries_its_parents_bounds() -> None:
+    """A disaggregated cell shares its data element's value type, so it shares the value type's bounds."""
+    source = QuestionnaireSourceIn(
+        uid="Ds1aaaaaaaa",
+        name="Types",
+        kind="aggregate",
+        flat_items=[
+            QuestionnaireItemIn(uid="De9aaaaaaaa", name="Coverage", value_type="PERCENTAGE", category_combo=_AGE_COMBO)
+        ],
+    )
+    content = _artifacts([source])["data-sets/Ds1aaaaaaaa.fsh"]
+    assert content.count('* item[=].item[=].extension[+].url = "http://hl7.org/fhir/StructureDefinition/minValue"') == 2
+    assert content.count("* item[=].item[=].extension[=].valueDecimal = 100") == 2
+    group = content.split('* item[=].item[+].linkId = "De9aaaaaaaa.Coc1aaaaaaa"')[0]
+    assert "minValue" not in group
+
+
+def test_an_option_set_bound_question_takes_no_numeric_bounds() -> None:
+    """A `#choice` item has no numeric element to constrain, so no bound is emitted on it."""
+    source = QuestionnaireSourceIn(
+        uid="Ds1aaaaaaaa",
+        name="Types",
+        kind="aggregate",
+        flat_items=[
+            QuestionnaireItemIn(uid="De9aaaaaaaa", name="Band", value_type="PERCENTAGE", option_set_uid="Os1aaaaaaaa")
+        ],
+    )
+    content = _artifacts([source])["data-sets/Ds1aaaaaaaa.fsh"]
+    assert "* item[=].type = #choice" in content
+    assert "minValue" not in content
 
 
 @pytest.mark.parametrize(
@@ -858,6 +1038,23 @@ def test_the_item_type_table_maps_nothing_dhis2_does_not_have() -> None:
     """The table is exactly the union of the three trees - a stale key would document a type that is gone."""
     known = set().union(*(_generated_value_types(version) for version in ("v41", "v42", "v43")))
     assert set(ITEM_TYPES_BY_VALUE_TYPE) == known
+
+
+def test_every_bounded_value_type_is_a_value_type_dhis2_has() -> None:
+    """A bound on a value type no generated tree knows would constrain a question that cannot exist."""
+    known = set().union(*(_generated_value_types(version) for version in ("v41", "v42", "v43")))
+    unknown = sorted(set(BOUNDS_BY_VALUE_TYPE) - known)
+    assert unknown == [], f"BOUNDS_BY_VALUE_TYPE keys no generated ValueType enum holds: {unknown}"
+
+
+def test_every_bounded_value_type_answers_as_a_number() -> None:
+    """A bound is a numeric constraint, so a bounded value type has to answer as an integer or a decimal."""
+    unnumbered = sorted(
+        value_type
+        for value_type in BOUNDS_BY_VALUE_TYPE
+        if ITEM_TYPES_BY_VALUE_TYPE[value_type] not in {"integer", "decimal"}
+    )
+    assert unnumbered == [], f"BOUNDS_BY_VALUE_TYPE keys that do not answer as a number: {unnumbered}"
 
 
 def test_multi_text_is_a_repeating_choice() -> None:

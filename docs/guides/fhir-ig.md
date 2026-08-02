@@ -336,6 +336,11 @@ never touches DHIS2:
 - **`d2-period.fsh`** - the `D2Period` extension plus its terminology.
 - **`d2-form-type.fsh`** - the `D2FormType` extension plus its terminology. See
   [Data set and event program forms](#data-set-and-event-program-forms).
+- **`d2-responses.fsh`** - the `D2AggregateResponse` and `D2EventResponse` profiles
+  every captured `QuestionnaireResponse` has to meet. See
+  [The capture contract](#the-capture-contract).
+- **`d2-capture-server.fsh`** - the `D2CaptureServer` CapabilityStatement stating
+  the interactions a server accepting those responses supports.
 
 ### The D2Period extension
 
@@ -704,6 +709,60 @@ The first two rows are nominal behaviour, not warnings: the run's `positions` an
 aggregate note per run, because something a consumer might expect is genuinely
 absent.
 
+## The capture contract
+
+The whole point of publishing the forms is that somebody else can capture data
+against them. Three artifacts make the IG a complete contract for that, so a third
+party needs the published guide and nothing else - no access to this repo, no access
+to the DHIS2 instance's metadata API, no conversation.
+
+**Two profiles**, in `foundation/d2-responses.fsh`, one per form kind:
+
+| Profile | Parent | What it pins |
+| --- | --- | --- |
+| `D2AggregateResponse` | `QuestionnaireResponse` | `D2Period` 1..1, `D2FormType` 1..1 fixed to `#aggregate`, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
+| `D2EventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#event`, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
+
+Both follow the `[generate.naming]` prefix, and both take `^status` /
+`^experimental` from the `[ig] status` dial like every other definitional artifact.
+`foundation/d2-capture-server.fsh` sits beside them: a `D2CaptureServer`
+CapabilityStatement of `kind = #requirements`, declaring `create` on
+`QuestionnaireResponse` with both profiles as `supportedProfile`, plus `read` and
+`search-type` on the `Questionnaire`, `CodeSystem`, `ValueSet`, `Location`, and
+`Organization` resources a client resolves a form from. Its `date` is a fixed
+literal, for the same byte-stability reason the NamingSystem declarations pin
+theirs - R4 makes the element mandatory and a generated timestamp would rewrite the
+file on every run.
+
+**The Capture page**, `pagecontent/capture.md`, is the prose half. It walks an
+aggregate response and an event response step by step against forms actually
+selected in this project - the canonical URL rule, the `D2Period` extension worked
+with a real ISO period, the `subject` reference to a real organisation unit, the two
+`linkId` grammars (`<dataElementId>` and `<dataElementId>.<categoryOptionComboId>`),
+the required rules, the event status map - and closes with a table typing every
+DHIS2 value type onto its item type, answer element, and literal spelling, then the
+coded-answer rule and the validation workflow. The typing table is built from the
+very tables the example emitter answers from, so the page and the examples cannot
+disagree about how a value is spelled.
+
+**The examples are the contract check.** Every generated example declares itself
+`InstanceOf: D2AggregateResponse` or `InstanceOf: D2EventResponse` rather than the
+bare resource, so `make sushi` and the IG publisher validate each one against the
+contract on every run. A profile that stops describing what generation produces
+fails the build instead of shipping.
+
+Two more things a capture client reads off the Questionnaire itself. **Required
+questions**: a data set's `compulsoryDataElementOperands` become `required = true`
+at the grain DHIS2 states them - an operand naming a data element alone marks the
+whole question and every disaggregated cell under it, an operand also naming a
+category option combo marks only that one cell. **Numeric bounds**: a value type
+that *is* a constraint carries it as standard `minValue` / `maxValue` extensions on
+the item - `INTEGER_POSITIVE` from 1, `INTEGER_ZERO_OR_POSITIVE` from 0,
+`INTEGER_NEGATIVE` up to -1, `PERCENTAGE` 0 to 100, `UNIT_INTERVAL` 0 to 1, typed
+`valueInteger` on an integer item and `valueDecimal` on a decimal one. `INTEGER` and
+`NUMBER` carry none, because DHIS2 bounds neither. Disaggregated cells share their
+data element's value type, so they carry the same bounds.
+
 ## Site pages and intros
 
 `d2w fhir generate pages` writes the guide's prose. It is the last target `generate
@@ -715,10 +774,11 @@ ig/input/pagecontent/registry.md      Organisation unit registry summary
 ig/input/pagecontent/terminology.md   Option sets + the support CodeSystems
 ig/input/pagecontent/identifiers.md   The two identifier slices + NamingSystems
 ig/input/pagecontent/periods.md       D2Period + every DHIS2 period type
+ig/input/pagecontent/capture.md       How a third party captures data against the forms
 ```
 
-Those five are the site menu, which `d2w fhir init` scaffolds as `Home`, `Forms`,
-`Registry`, `Terminology`, `Identifiers`, `Periods`, `Artifacts`. There is no
+Those six are the site menu, which `d2w fhir init` scaffolds as `Home`, `Forms`,
+`Registry`, `Terminology`, `Identifiers`, `Periods`, `Capture`, `Artifacts`. There is no
 `pages:` block in `sushi-config.yaml` and there does not need to be: SUSHI publishes
 every markdown file under `pagecontent/` on its own.
 

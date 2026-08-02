@@ -1,0 +1,193 @@
+# Capturing data
+
+A capture client sends one `QuestionnaireResponse` per form submission: one filled-in data set
+form for one organisation unit and one reporting period, or one event of an event program. A
+capture endpoint accepts a single response per request - there is no bundle, no batch, and no
+partial submission that a later request completes. Everything the response has to carry is
+stated by one of the two profiles below, so a client can be written, and validated, against
+this guide alone.
+
+| Form kind | Profile | What one response is |
+| --- | --- | --- |
+| Aggregate | [{{ capture.aggregate_profile }}](StructureDefinition-{{ capture.aggregate_profile_id }}.html) | One data set form, for one organisation unit and one reporting period. |
+| Event | [{{ capture.event_profile }}](StructureDefinition-{{ capture.event_profile_id }}.html) | One event of an event program, at one organisation unit. |
+
+## An aggregate response, step by step
+
+{% if capture.aggregate is none %}
+This guide publishes no data set questionnaire, so there is no worked aggregate example here.
+The steps below still hold for any `{{ capture.aggregate_profile }}`.
+
+{% else %}
+The steps are worked against **{{ capture.aggregate.name }}** (`{{ capture.aggregate.uid }}`).
+
+{% endif %}
+**1. Point at the Questionnaire.** `questionnaire` is the canonical URL of the form being
+answered, which is always `{{ capture.canonical }}/Questionnaire/<dhis2Uid>` - the DHIS2 UID of
+the data set, unchanged:
+
+{% if capture.aggregate is not none %}
+```
+"questionnaire": "{{ capture.aggregate.questionnaire_url }}"
+```
+
+{% endif %}
+**2. Say which period the values report.** The `{{ capture.period_extension }}` extension
+carries the DHIS2 reporting period: its ISO identifier and its period type, both mandatory, and
+optionally the dates that period resolves to. It is what makes the response a DHIS2 report
+rather than an undated form. See [Periods](periods.html) for every registered period type and
+the ISO grammar each is written in.
+
+{% if capture.aggregate is not none and capture.aggregate.period is not none %}
+```
+"extension": [{
+  "url": "{{ capture.canonical }}/StructureDefinition/{{ capture.period_extension_id }}",
+  "extension": [
+    { "url": "iso",    "valueString": "{{ capture.aggregate.period.iso }}" },
+    { "url": "type",   "valueCode":   "{{ capture.aggregate.period.period_type }}" },
+    { "url": "period", "valuePeriod": { "start": "{{ capture.aggregate.period.start_date }}", "end": "{{ capture.aggregate.period.end_date }}" } }
+  ]
+}]
+```
+
+{% endif %}
+**3. Say which kind of form it is.** The `{{ capture.form_type_extension }}` extension is fixed
+to `#aggregate` by the profile, coded from `{{ capture.form_type_code_system }}`. Send it
+anyway - it is what lets a receiver route the response without resolving the Questionnaire.
+
+**4. Name the organisation unit.** `subject` is a reference to the `Location` of the DHIS2
+organisation unit the values were captured at, and the profile restricts it to
+`{{ capture.location_profile }}`. Every published unit has one; see
+[Registry](registry.html) for the hierarchy and its identifiers.
+
+{% if capture.organisation_unit_uid %}
+```
+"subject": { "reference": "Location/{{ capture.organisation_unit_uid }}" }
+```
+
+Written out, that is {{ capture.organisation_unit_name }} (`{{ capture.organisation_unit_uid }}`).
+
+{% endif %}
+**5. Answer one item per `linkId`.** The response mirrors the Questionnaire's item tree, and
+every question is addressed by the `linkId` the Questionnaire gave it. There are exactly two
+grammars:
+
+- `<dataElementId>` - a data element that is not disaggregated.
+- `<dataElementId>.<categoryOptionComboId>` - one cell of a data element disaggregated
+  by a non-default category combo. The parent data element is a `#group` item and each option
+  combo is a child question under it. That dotted key is exactly the key a DHIS2 data value
+  carries, so nothing has to be reconstructed on either side.
+
+{% if capture.aggregate is not none and capture.aggregate.links %}
+| `linkId` | Grammar | Answers | Answer element | Required |
+| --- | --- | --- | --- | --- |
+{% for link in capture.aggregate.links %}
+| `{{ link.link_id }}` | `{{ link.grammar }}` | {{ link.label }} | `{{ link.answer_element }}` | {{ "yes" if link.required else "no" }} |
+{% endfor %}
+
+{% endif %}
+**6. Fill in every required question.** An item carrying `required = true` has to be answered.
+For a data set that is what a DHIS2 compulsory data element operand means: an operand naming a
+data element alone makes the whole question mandatory, every disaggregated cell of it included,
+while an operand naming a category option combo too makes only that one cell mandatory. Read
+the flag off the Questionnaire rather than inferring it.
+
+**7. Type each answer.** The `value[x]` element an answer lands on is fixed by the data
+element's DHIS2 value type - see [the answer typing table](#answer-typing) below.
+
+## An event response, step by step
+
+{% if capture.event is none %}
+This guide publishes no event program questionnaire, so there is no worked event example here.
+The steps below still hold for any `{{ capture.event_profile }}`.
+
+{% else %}
+The steps are worked against **{{ capture.event.name }}** (`{{ capture.event.uid }}`).
+
+{% endif %}
+An event response follows the same shape, with three differences:
+
+- `{{ capture.form_type_extension }}` is fixed to `#event`, and there is no
+  `{{ capture.period_extension }}` - an event happens at a moment, not over a reporting period.
+- `authored` is mandatory: it is when the event occurred, as an R4 `dateTime`. DHIS2 serves
+  `occurredAt` without a zone offset, and FHIR requires one on any `dateTime` carrying a time,
+  so send `Z` when the stored timestamp is UTC.
+- `questionnaire` is `{{ capture.canonical }}/Questionnaire/<dhis2Uid>` with the UID of the
+  event *program*.
+
+{% if capture.event is not none %}
+```
+"questionnaire": "{{ capture.event.questionnaire_url }}"
+```
+
+{% endif %}
+{% if capture.event is not none and capture.event.links %}
+| `linkId` | Grammar | Answers | Answer element | Required |
+| --- | --- | --- | --- | --- |
+{% for link in capture.event.links %}
+| `{{ link.link_id }}` | `{{ link.grammar }}` | {{ link.label }} | `{{ link.answer_element }}` | {{ "yes" if link.required else "no" }} |
+{% endfor %}
+
+{% endif %}
+`status` says how far the capture got. A DHIS2 event status maps onto a
+`QuestionnaireResponse.status` one for one:
+
+| DHIS2 event status | `QuestionnaireResponse.status` |
+| --- | --- |
+{% for status in capture.event_statuses %}
+| `{{ status.event_status }}` | `{{ status.response_status }}` |
+{% endfor %}
+
+Anything else reads as `completed`, and an aggregate response is always `completed` - a
+reported period is a finished one.
+
+## Answer typing
+
+Every answer is typed from the DHIS2 value type of the data element the `linkId` names. A
+disaggregated cell shares its parent data element's value type, so a `#group` and all its
+children are typed alike. A question bound to an option set is a `#choice` whatever its value
+type, and answers as a `valueCoding` - see [Coded answers](#coded-answers).
+
+| DHIS2 value type | Item type | Answer element | Literal |
+| --- | --- | --- | --- |
+{% for row in capture.value_literals %}
+| `{{ row.value_type }}` | `{{ row.item_type }}` | `{{ row.answer_element }}` | {{ row.literal_rule }} |
+{% endfor %}
+
+A numeric question whose value type *is* a constraint - a positive integer, a percentage, a
+unit interval - carries that constraint as `minValue` / `maxValue` extensions on the item, so a
+client can range-check before sending rather than after being rejected.
+
+## Coded answers
+
+A question bound to a DHIS2 option set answers as a `valueCoding`:
+
+- `system` is the canonical URL of that option set's generated `CodeSystem`.
+- `code` is the concept code exactly as this guide generated it - do not re-derive it from the
+  DHIS2 option, and do not send a display-only string.
+
+Both DHIS2 identifiers of the option ride along on the concept, as concept properties, so a
+client holding either the UID or the DHIS2 code can resolve the concept from the CodeSystem
+without a second lookup. [Terminology](terminology.html) catalogs every published option set
+and [Identifiers](identifiers.html) states the property URIs.
+
+A `MULTI_TEXT` question captures several selections at once: the item carries
+`repeats = true`, and the response sends one `answer` entry per selection, each its own
+`valueCoding`.
+
+## Validating before you send
+
+Validate every response against its profile with the standard FHIR validator before sending
+it. The two profiles are the contract, and the examples published beside them are validated on
+every regeneration of this guide, so a response that validates locally is a response the
+receiver will accept:
+
+- [{{ capture.aggregate_profile }}](StructureDefinition-{{ capture.aggregate_profile_id }}.html)
+  for a data set submission.
+- [{{ capture.event_profile }}](StructureDefinition-{{ capture.event_profile_id }}.html) for an
+  event submission.
+
+[{{ capture.capture_server }}](CapabilityStatement-{{ capture.capture_server_id }}.html) states
+the interactions a server accepting these responses supports: one `create` per
+`QuestionnaireResponse`, plus read and search over the Questionnaires, terminology, and
+registry a client resolves a form from.

@@ -1,0 +1,26 @@
+Instance: {{ names.capture_server }}
+InstanceOf: CapabilityStatement
+Title: {{ title_literal }}
+Description: {{ description_literal }}
+Usage: #definition
+* id = "{{ names.capture_server_id }}"
+* name = "{{ names.capture_server }}"
+* status = #{{ ig_status }}
+* experimental = {{ "true" if experimental else "false" }}
+// R4 makes CapabilityStatement.date mandatory. A generated timestamp would rewrite the file on
+// every run, so the date is pinned and regeneration stays byte-stable.
+* date = "{{ declared_date }}"
+* kind = #requirements
+* fhirVersion = #4.0.1
+* format[+] = #json
+* rest.mode = #server
+* rest.documentation = "{{ rest_documentation }}"
+* rest.resource[+].type = #QuestionnaireResponse
+* rest.resource[=].interaction[+].code = #create
+* rest.resource[=].supportedProfile[+] = Canonical({{ names.aggregate_response_profile }})
+* rest.resource[=].supportedProfile[+] = Canonical({{ names.event_response_profile }})
+{% for resource_type in read_resource_types %}
+* rest.resource[+].type = #{{ resource_type }}
+* rest.resource[=].interaction[+].code = #read
+* rest.resource[=].interaction[+].code = #search-type
+{% endfor %}
