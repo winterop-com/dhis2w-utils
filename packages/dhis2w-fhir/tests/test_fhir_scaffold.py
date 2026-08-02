@@ -50,7 +50,6 @@ def test_fhir_toml_round_trips() -> None:
     config = FhirProjectConfig.model_validate(raw)
     assert config.ig.id == "dhis2.fhir.test"
     assert config.ig.status == "draft"
-    assert config.ig.experimental is True
     assert config.profile is None
     assert config.generate.concept_code_source == "id"
     assert config.generate.naming.prefix == "D2"
@@ -136,7 +135,6 @@ def test_ig_status_drives_sushi_config_and_fhir_toml() -> None:
     assert "status: active\n" in active["ig/sushi-config.yaml"]
     config = FhirProjectConfig.model_validate(tomllib.loads(active["fhir.toml"]))
     assert config.ig.status == "active"
-    assert config.ig.experimental is False
 
 
 def test_publisher_url_is_omitted_unless_given() -> None:

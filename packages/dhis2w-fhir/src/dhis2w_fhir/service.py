@@ -204,7 +204,7 @@ async def init_project(directory: Path, options: InitOptions, *, force: bool = F
 
 async def generate_foundation(project: FhirProject) -> GenerateReport:
     """Generate the instance-independent `foundation/` artifacts: DHIS2 identifier aliases and D2Period."""
-    artifacts = build_foundation_artifacts(project.config.generate, experimental=project.config.ig.experimental)
+    artifacts = build_foundation_artifacts(project.config.generate, ig_status=project.config.ig.status)
     sync = sync_artifacts(project.fsh_directory, "foundation", artifacts)
     return GenerateReport(
         project_root=project.project_root,
@@ -228,7 +228,7 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
         closure = await _option_set_closure(client, config, notes)
     inputs = [_option_set_input(model) for model in models]
     inputs = _apply_option_set_selection(inputs, config, closure, notes)
-    build = build_option_set_artifacts(inputs, config, experimental=project.config.ig.experimental)
+    build = build_option_set_artifacts(inputs, config, ig_status=project.config.ig.status)
     sync = sync_artifacts(project.fsh_directory, "terminology", build.artifacts)
     return GenerateReport(
         project_root=project.project_root,
@@ -250,7 +250,7 @@ async def generate_questionnaires(profile: Profile, project: FhirProject) -> Gen
         async with open_client(profile) as client:
             sources = await _fetch_questionnaire_sources(client, config, notes)
     build = build_questionnaire_artifacts(
-        sources, config, project.config.ig.canonical, experimental=project.config.ig.experimental
+        sources, config, project.config.ig.canonical, ig_status=project.config.ig.status
     )
     sync = sync_artifacts(project.fsh_directory, "questionnaires", build.artifacts)
     return GenerateReport(
@@ -295,14 +295,14 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
             page += 1
     notes: list[str] = tally.to_notes()
     generate_config = project.config.generate
-    experimental = project.config.ig.experimental
-    artifacts: list[FshArtifact] = [build_organisation_unit_profiles(generate_config, experimental=experimental)]
+    ig_status = project.config.ig.status
+    artifacts: list[FshArtifact] = [build_organisation_unit_profiles(generate_config, ig_status=ig_status)]
     if organisation_units:
         artifacts.append(
             build_organisation_unit_level_terminology(
                 [organisation_unit.level for organisation_unit in organisation_units],
                 generate_config,
-                experimental=experimental,
+                ig_status=ig_status,
             )
         )
         instances = build_organisation_unit_instances(organisation_units, generate_config)
@@ -310,7 +310,7 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
         notes.extend(instances.notes)
         if selection.terminology:
             artifacts.append(
-                build_organisation_unit_terminology(organisation_units, generate_config, experimental=experimental)
+                build_organisation_unit_terminology(organisation_units, generate_config, ig_status=ig_status)
             )
     else:
         notes.append("no organisation units matched the configured selection")

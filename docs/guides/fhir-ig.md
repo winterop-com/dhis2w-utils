@@ -94,13 +94,18 @@ publisher = "Example Organisation"
 status = "draft"                           # draft while building; active for production
 ```
 
-**`status`** is `draft` or `active`, and it drives two things at once: the
-`status` of `sushi-config.yaml`, and the `experimental` flag every generated
-definitional resource carries. A draft IG publishes its profiles, extensions,
-CodeSystems, ValueSets, and Questionnaires with `experimental = true`; flip to
-`active` and regenerate, and they all read `experimental = false`. The flag is
-always populated, because the Shareable profiles require it to be present.
-`d2w fhir init --status active` scaffolds an active project directly.
+**`status`** is `draft` or `active`, and it drives three things at once: the
+`status` of `sushi-config.yaml`, the publication `status` every generated
+definitional resource carries, and their `experimental` flag. A draft IG
+publishes its profiles, extensions, CodeSystems, ValueSets, NamingSystems, and
+Questionnaires with `status = draft` and `experimental = true`; flip to `active`
+and regenerate, and they all read `status = active` and `experimental = false`.
+The flag is always populated, because the Shareable profiles require it to be
+present; NamingSystem instances take the `status` but no flag, R4 gives them no
+`experimental` element. The Organization and Location instances are data, not
+definitions: their `active` / `status` states whether the organisation unit is
+closed and has nothing to do with this dial. `d2w fhir init --status active`
+scaffolds an active project directly.
 
 ### `[generate]`
 

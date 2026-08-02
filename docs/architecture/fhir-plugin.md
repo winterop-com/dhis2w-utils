@@ -204,7 +204,7 @@ cleanup can never delete them.
 
 One Questionnaire is `Usage: #definition`, `id` the bare UID, `url` the IG canonical
 plus `/Questionnaire/<uid>`, `subjectType = #Location` (a DHIS2 form is answered for
-an organisation unit), `experimental`, both DHIS2 identifiers (`$DHIS2-DS` /
+an organisation unit), `status` and `experimental`, both DHIS2 identifiers (`$DHIS2-DS` /
 `$DHIS2-PROGRAM` and their code slots), and `name` composed from the naming tokens
 (`D2DS_BfMAe6Itzgt`). Sections become `#group` items; data elements become questions
 whose type comes from the DHIS2 `valueType` table, or `#choice` plus an
@@ -231,9 +231,9 @@ are not fetched twice.
 
 Under `ig/input/fsh/organization/`:
 
-- `profiles.fsh` - `D2Organization` and `D2Location`. Both are `^status = #active`
-  and both slice `identifier` on `system` into `dhis2id 1..1` and
-  `dhis2code 1..1`. `Organization.type` binds to the level ValueSet
+- `profiles.fsh` - `D2Organization` and `D2Location`. Both take their `^status`
+  from `[ig] status` and both slice `identifier` on `system` into `dhis2id 1..1`
+  and `dhis2code 1..1`. `Organization.type` binds to the level ValueSet
   **extensible**, not required: an IG that adds group-set codings later must not
   be made non-conformant by the binding. `D2Location` also declares the
   `location-boundary-geojson` extension as a named `boundary 0..1` slice, so the
@@ -266,10 +266,14 @@ Every generated CodeSystem also points back at its ValueSet through `^valueSet`
 and gives each concept property a `<base>/property/<code>` URI so the property has
 a defined meaning outside this IG. Every generated definitional resource - the two
 profiles, the two extensions, every CodeSystem/ValueSet pair, every Questionnaire -
-carries an `experimental` flag derived from `[ig] status`: `true` while the IG is
-`draft`, `false` once it is `active`. The flag is always populated, because
-ShareableCodeSystem / ShareableValueSet make it mandatory. NamingSystem instances
-carry none: R4 NamingSystem has no `experimental` element.
+states its publication `status` and its `experimental` flag from `[ig] status`:
+`#draft` and `true` while the IG is `draft`, `#active` and `false` once it is
+`active`. The flag is always populated, because ShareableCodeSystem /
+ShareableValueSet make it mandatory. NamingSystem instances take the `status` -
+R4 gives them the same publication-status codes - but no `experimental` element,
+which R4 NamingSystem does not have. The Organization and Location instances are
+outside this: their `active` / `status` carries the organisation unit's
+closedDate, a different question with the same element names.
 
 The tree is fetched with a 500-per-page loop ordered by `path:asc` (stable
 output), filtered by `[generate.organisation_units]` `root` (DHIS2 `path:like`) and

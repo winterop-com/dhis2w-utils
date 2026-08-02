@@ -16,6 +16,7 @@ from dhis2w_fhir.i18n import TranslationIn, name_translations
 from dhis2w_fhir.names import quote
 from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact
 
 if TYPE_CHECKING:
@@ -45,12 +46,15 @@ class _OrganisationUnitConcept(BaseModel):
 
 
 def build_organisation_unit_level_terminology(
-    levels: list[int], config: GenerateConfig, *, experimental: bool
+    levels: list[int], config: GenerateConfig, *, ig_status: IgStatus
 ) -> FshArtifact:
     """Build `organization/org-unit-levels.fsh` covering the levels observed in the selection."""
     names = OrganisationUnitNaming.from_naming(config.naming)
     content = _ENVIRONMENT.get_template("org-unit-levels.fsh.jinja").render(
-        names=names, levels=sorted(set(levels)), experimental=experimental
+        names=names,
+        levels=sorted(set(levels)),
+        ig_status=ig_status,
+        experimental=experimental_for_status(ig_status),
     )
     return FshArtifact(
         relative_path="organization/org-unit-levels.fsh",
@@ -61,7 +65,7 @@ def build_organisation_unit_level_terminology(
 
 
 def build_organisation_unit_terminology(
-    organisation_units: list[OrganisationUnitIn], config: GenerateConfig, *, experimental: bool
+    organisation_units: list[OrganisationUnitIn], config: GenerateConfig, *, ig_status: IgStatus
 ) -> FshArtifact:
     """Build the optional `organization/org-units-terminology.fsh` CodeSystem/ValueSet over the selection."""
     names = OrganisationUnitNaming.from_naming(config.naming)
@@ -80,7 +84,8 @@ def build_organisation_unit_terminology(
         names=names,
         concepts=concepts,
         property_base=f"{config.identifier_system_base}/property",
-        experimental=experimental,
+        ig_status=ig_status,
+        experimental=experimental_for_status(ig_status),
     )
     return FshArtifact(
         relative_path="organization/org-units-terminology.fsh",

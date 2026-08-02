@@ -6,8 +6,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from dhis2w_fhir.config import IgStatus
 from dhis2w_fhir.names import strip_trailing_slash
+from dhis2w_fhir.status import IgStatus
 
 
 class InitOptions(BaseModel):

@@ -3,11 +3,12 @@
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.period import PERIOD_TYPE_DEFINITIONS
+from dhis2w_fhir.status import IgStatus
 
 
-def _by_path(config: GenerateConfig, *, experimental: bool = True) -> dict[str, str]:
+def _by_path(config: GenerateConfig, *, ig_status: IgStatus = "draft") -> dict[str, str]:
     """Build the foundation artifacts and index them by relative path."""
-    artifacts = build_foundation_artifacts(config, experimental=experimental)
+    artifacts = build_foundation_artifacts(config, ig_status=ig_status)
     return {artifact.relative_path: artifact.content for artifact in artifacts}
 
 
@@ -108,19 +109,34 @@ def test_form_type_terminology_covers_every_form_kind() -> None:
     assert "* include codes from system D2FormType_CS" in form_type
 
 
-def test_period_artifacts_derive_experimental_from_the_ig_status() -> None:
-    """The extension and its period-type pair all carry ^experimental: true while draft, false once active."""
+def test_period_artifacts_derive_their_publication_state_from_the_ig_status() -> None:
+    """The extension and its period-type pair carry ^status and ^experimental straight off `[ig] status`."""
     draft = _by_path(GenerateConfig())["foundation/d2-period.fsh"]
+    assert draft.count("* ^status = #draft") == 3
     assert draft.count("* ^experimental = true") == 3
-    active = _by_path(GenerateConfig(), experimental=False)["foundation/d2-period.fsh"]
+    active = _by_path(GenerateConfig(), ig_status="active")["foundation/d2-period.fsh"]
+    assert active.count("* ^status = #active") == 3
     assert active.count("* ^experimental = false") == 3
+    assert "* ^status = #draft" not in active
     assert "* ^experimental = true" not in active
 
 
-def test_form_type_artifacts_derive_experimental_from_the_ig_status() -> None:
+def test_form_type_artifacts_derive_their_publication_state_from_the_ig_status() -> None:
     """The form-type extension and its pair follow the same derivation."""
-    active = _by_path(GenerateConfig(), experimental=False)["foundation/d2-form-type.fsh"]
+    draft = _by_path(GenerateConfig())["foundation/d2-form-type.fsh"]
+    assert draft.count("* ^status = #draft") == 3
+    assert draft.count("* ^experimental = true") == 3
+    active = _by_path(GenerateConfig(), ig_status="active")["foundation/d2-form-type.fsh"]
+    assert active.count("* ^status = #active") == 3
     assert active.count("* ^experimental = false") == 3
+
+
+def test_naming_systems_derive_their_status_from_the_ig_status() -> None:
+    """NamingSystem.status shares the publication-status codes, so it follows `[ig] status` too."""
+    draft = _by_path(GenerateConfig())["foundation/d2-naming-systems.fsh"]
+    assert draft.count("* status = #draft") == _IDENTIFIER_SYSTEM_COUNT
+    active = _by_path(GenerateConfig(), ig_status="active")["foundation/d2-naming-systems.fsh"]
+    assert active.count("* status = #active") == _IDENTIFIER_SYSTEM_COUNT
 
 
 def test_naming_systems_carry_no_experimental_element() -> None:

@@ -9,8 +9,8 @@ set -euo pipefail
 d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo --publisher "Demo Org"
 
 # The IG scaffolds as [ig] status = "draft", which is also the sushi-config status and
-# the experimental flag on every generated definitional resource. Pass --status active
-# for a production IG, or edit [ig] status in fhir.toml and regenerate.
+# the status and experimental flag on every generated definitional resource. Pass
+# --status active for a production IG, or edit [ig] status in fhir.toml and regenerate.
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" --status active
 

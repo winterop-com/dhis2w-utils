@@ -154,17 +154,17 @@ _DATA_SET = QuestionnaireSourceIn(
 
 def _emitted_contents(config: GenerateConfig) -> list[str]:
     """Every FSH file the emitters produce for one naming configuration."""
-    contents = [artifact.content for artifact in build_foundation_artifacts(config, experimental=True)]
+    contents = [artifact.content for artifact in build_foundation_artifacts(config, ig_status="draft")]
     contents += [
-        artifact.content for artifact in build_option_set_artifacts([_OPTION_SET], config, experimental=True).artifacts
+        artifact.content for artifact in build_option_set_artifacts([_OPTION_SET], config, ig_status="draft").artifacts
     ]
-    contents.append(build_organisation_unit_profiles(config, experimental=True).content)
-    contents.append(build_organisation_unit_level_terminology([1], config, experimental=True).content)
-    contents.append(build_organisation_unit_terminology([_ORGANISATION_UNIT], config, experimental=True).content)
+    contents.append(build_organisation_unit_profiles(config, ig_status="draft").content)
+    contents.append(build_organisation_unit_level_terminology([1], config, ig_status="draft").content)
+    contents.append(build_organisation_unit_terminology([_ORGANISATION_UNIT], config, ig_status="draft").content)
     contents += [
         artifact.content
         for artifact in build_questionnaire_artifacts(
-            [_DATA_SET], config, "http://example.org/fhir", experimental=True
+            [_DATA_SET], config, "http://example.org/fhir", ig_status="draft"
         ).artifacts
     ]
     return contents
@@ -186,7 +186,7 @@ def test_every_declared_fsh_name_matches_cnl_0() -> None:
 
 def test_questionnaire_name_matches_cnl_0() -> None:
     """Questionnaire.name is a computational name too, so the underscored form must satisfy cnl-0."""
-    build = build_questionnaire_artifacts([_DATA_SET], GenerateConfig(), "http://example.org/fhir", experimental=True)
+    build = build_questionnaire_artifacts([_DATA_SET], GenerateConfig(), "http://example.org/fhir", ig_status="draft")
     content = next(
         artifact.content for artifact in build.artifacts if artifact.relative_path.endswith("BfMAe6Itzgt.fsh")
     )

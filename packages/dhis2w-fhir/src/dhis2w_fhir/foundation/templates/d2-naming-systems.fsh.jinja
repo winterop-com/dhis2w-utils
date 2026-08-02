@@ -9,7 +9,7 @@ Title: "{{ system.title }}"
 Description: "{{ system.description }}"
 Usage: #definition
 * name = "{{ system.name }}"
-* status = #active
+* status = #{{ ig_status }}
 * kind = #identifier
 * date = "{{ declared_date }}"
 * uniqueId[0].type = #uri

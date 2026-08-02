@@ -2,7 +2,7 @@ CodeSystem: {{ names.organisation_unit_code_system }}
 Id: {{ names.terminology_id('cs') }}
 Title: "DHIS2 Organisation Units"
 Description: "DHIS2 organisation units. Concept codes are DHIS2 organisation unit UIDs."
-* ^status = #active
+* ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * ^content = #complete
 * ^caseSensitive = true
@@ -41,6 +41,6 @@ ValueSet: {{ names.organisation_unit_value_set }}
 Id: {{ names.terminology_id('vs') }}
 Title: "DHIS2 Organisation Units"
 Description: "All DHIS2 organisation units in the generated selection."
-* ^status = #active
+* ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * include codes from system {{ names.organisation_unit_code_system }}

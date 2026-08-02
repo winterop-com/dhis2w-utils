@@ -23,6 +23,7 @@ from dhis2w_fhir.foundation.schemas import (
     NamingSystemDeclaration,
 )
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
+from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact
 
 if TYPE_CHECKING:
@@ -51,21 +52,23 @@ _ENVIRONMENT = Environment(
 )
 
 
-def build_foundation_artifacts(config: GenerateConfig, *, experimental: bool) -> list[FshArtifact]:
+def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -> list[FshArtifact]:
     """Build the `foundation/` artifacts: the DHIS2 identifier systems and the D2Period extension."""
     names = FoundationNaming.from_naming(config.naming)
+    experimental = experimental_for_status(ig_status)
     aliases = _ENVIRONMENT.get_template("d2-aliases.fsh.jinja").render(
         identifier_system_base=config.identifier_system_base
     )
     naming_systems = _ENVIRONMENT.get_template("d2-naming-systems.fsh.jinja").render(
         naming_systems=build_naming_system_declarations(config),
         declared_date=_IDENTIFIER_SYSTEM_DECLARED_DATE,
+        ig_status=ig_status,
     )
     period = _ENVIRONMENT.get_template("d2-period.fsh.jinja").render(
-        names=names, period_types=PERIOD_TYPE_DEFINITIONS, experimental=experimental
+        names=names, period_types=PERIOD_TYPE_DEFINITIONS, ig_status=ig_status, experimental=experimental
     )
     form_type = _ENVIRONMENT.get_template("d2-form-type.fsh.jinja").render(
-        names=names, form_types=FORM_TYPE_DEFINITIONS, experimental=experimental
+        names=names, form_types=FORM_TYPE_DEFINITIONS, ig_status=ig_status, experimental=experimental
     )
     return [
         FshArtifact(

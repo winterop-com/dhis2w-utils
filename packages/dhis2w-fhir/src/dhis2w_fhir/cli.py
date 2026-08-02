@@ -12,8 +12,8 @@ from dhis2w_core.cli_output import DetailRow, is_json_output, render_detail
 from dhis2w_fhir import GenerateReport, load_project
 
 if TYPE_CHECKING:
-    from dhis2w_fhir.config import IgStatus
     from dhis2w_fhir.service import GenerationProfile
+    from dhis2w_fhir.status import IgStatus
 
 app = typer.Typer(help="FHIR Implementation Guide generation from DHIS2 metadata.", no_args_is_help=True)
 generate_app = typer.Typer(
@@ -38,8 +38,8 @@ def init_command(
         str,
         typer.Option(
             "--status",
-            help="IG life cycle, draft or active. Drives the sushi-config status and the experimental flag on "
-            "every generated definitional resource.",
+            help="IG life cycle, draft or active. Drives the sushi-config status and the status and "
+            "experimental flag on every generated definitional resource.",
         ),
     ] = "draft",
     publisher_url: Annotated[

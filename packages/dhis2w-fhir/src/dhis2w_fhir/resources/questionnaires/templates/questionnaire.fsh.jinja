@@ -12,7 +12,7 @@ Usage: #definition
 * identifier[=].value = {{ questionnaire.identifier_code_literal }}
 * name = "{{ questionnaire.name }}"
 * title = {{ questionnaire.title_element_literal }}
-* status = #active
+* status = #{{ questionnaire.ig_status }}
 * experimental = {{ "true" if questionnaire.experimental else "false" }}
 * subjectType = #Location
 * code = {{ questionnaire.form_type_code_system }}#{{ questionnaire.form_type_code }}

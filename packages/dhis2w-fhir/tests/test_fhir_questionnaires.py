@@ -27,6 +27,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireSourceIn,
     TargetSelection,
 )
+from dhis2w_fhir.status import IgStatus
 from typer.testing import CliRunner
 
 _HOST = "https://dhis2.example"
@@ -160,18 +161,28 @@ _runner = CliRunner()
 
 
 def _artifacts(
-    sources: list[QuestionnaireSourceIn], config: GenerateConfig | None = None, *, experimental: bool = True
+    sources: list[QuestionnaireSourceIn], config: GenerateConfig | None = None, *, ig_status: IgStatus = "draft"
 ) -> dict[str, str]:
     """Build the questionnaire artifacts and index them by relative path."""
-    build = build_questionnaire_artifacts(sources, config or GenerateConfig(), _CANONICAL, experimental=experimental)
+    build = build_questionnaire_artifacts(sources, config or GenerateConfig(), _CANONICAL, ig_status=ig_status)
     return {artifact.relative_path: artifact.content for artifact in build.artifacts}
 
 
-def test_questionnaire_artifacts_derive_experimental_from_the_ig_status() -> None:
-    """An active IG publishes its questionnaires and their support terminology as non-experimental."""
-    active = _artifacts([_DATA_SET], experimental=False)
+def test_questionnaire_artifacts_derive_their_publication_state_from_the_ig_status() -> None:
+    """A draft IG publishes draft, experimental questionnaires and support terminology; an active IG neither."""
+    draft = _artifacts([_DATA_SET])
+    assert "* status = #draft" in draft["questionnaires/BfMAe6Itzgt.fsh"]
+    assert "* experimental = true" in draft["questionnaires/BfMAe6Itzgt.fsh"]
+    assert draft["questionnaires/data-elements.fsh"].count("* ^status = #draft") == 2
+    assert draft["questionnaires/data-elements.fsh"].count("* ^experimental = true") == 2
+    assert draft["questionnaires/category-option-combos.fsh"].count("* ^status = #draft") == 2
+    assert draft["questionnaires/category-option-combos.fsh"].count("* ^experimental = true") == 2
+    active = _artifacts([_DATA_SET], ig_status="active")
+    assert "* status = #active" in active["questionnaires/BfMAe6Itzgt.fsh"]
     assert "* experimental = false" in active["questionnaires/BfMAe6Itzgt.fsh"]
+    assert active["questionnaires/data-elements.fsh"].count("* ^status = #active") == 2
     assert active["questionnaires/data-elements.fsh"].count("* ^experimental = false") == 2
+    assert active["questionnaires/category-option-combos.fsh"].count("* ^status = #active") == 2
     assert active["questionnaires/category-option-combos.fsh"].count("* ^experimental = false") == 2
 
 
@@ -187,7 +198,7 @@ def test_data_set_questionnaire_identity() -> None:
     assert '* identifier[+].system = $DHIS2-DS-CODE\n* identifier[=].value = "DS_359711"' in content
     assert '* name = "D2DS_BfMAe6Itzgt"' in content
     assert '* title = "Child Health"' in content
-    assert "* status = #active" in content
+    assert "* status = #draft" in content
     assert "* experimental = true" in content
     assert "* subjectType = #Location" in content
 

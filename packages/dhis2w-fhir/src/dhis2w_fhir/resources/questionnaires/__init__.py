@@ -32,6 +32,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireNaming,
     QuestionnaireSourceIn,
 )
+from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, FshBuild
 
 if TYPE_CHECKING:
@@ -130,8 +131,13 @@ class _QuestionnaireView(BaseModel):
     form_type_extension: str
     form_type_code_system: str
     form_type_code: str
-    experimental: bool
+    ig_status: IgStatus
     items: list[_ItemView] = Field(default_factory=list)
+
+    @property
+    def experimental(self) -> bool:
+        """Whether the Questionnaire is experimental - derived from the IG status."""
+        return experimental_for_status(self.ig_status)
 
 
 class _SupportConcept(BaseModel):
@@ -157,12 +163,17 @@ class _SupportTerminologyView(BaseModel):
     description_literal: str
     property_base: str
     property_description_literal: str
-    experimental: bool
+    ig_status: IgStatus
     concepts: list[_SupportConcept] = Field(default_factory=list)
+
+    @property
+    def experimental(self) -> bool:
+        """Whether the support pair is experimental - derived from the IG status."""
+        return experimental_for_status(self.ig_status)
 
 
 def build_questionnaire_artifacts(
-    sources: list[QuestionnaireSourceIn], config: GenerateConfig, canonical: str, *, experimental: bool
+    sources: list[QuestionnaireSourceIn], config: GenerateConfig, canonical: str, *, ig_status: IgStatus
 ) -> FshBuild:
     """Build one `questionnaires/<UID>.fsh` per target plus the data-element and option-combo support pairs."""
     build = FshBuild()
@@ -173,7 +184,7 @@ def build_questionnaire_artifacts(
     template = _ENVIRONMENT.get_template("questionnaire.fsh.jinja")
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
         _collect_referenced_objects(source, data_elements, option_combos)
-        view = _questionnaire_view(source, names, foundation, canonical, experimental=experimental)
+        view = _questionnaire_view(source, names, foundation, canonical, ig_status=ig_status)
         build.artifacts.append(
             FshArtifact(
                 relative_path=f"questionnaires/{source.uid}.fsh",
@@ -187,9 +198,9 @@ def build_questionnaire_artifacts(
             )
         )
     if data_elements:
-        build.artifacts.append(_data_element_terminology(data_elements, names, config, experimental=experimental))
+        build.artifacts.append(_data_element_terminology(data_elements, names, config, ig_status=ig_status))
     if option_combos:
-        build.artifacts.append(_option_combo_terminology(option_combos, names, config, experimental=experimental))
+        build.artifacts.append(_option_combo_terminology(option_combos, names, config, ig_status=ig_status))
     return build
 
 
@@ -199,7 +210,7 @@ def _questionnaire_view(
     foundation: FoundationNaming,
     canonical: str,
     *,
-    experimental: bool,
+    ig_status: IgStatus,
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders."""
     profile = _PROFILES_BY_KIND[source.kind]
@@ -216,7 +227,7 @@ def _questionnaire_view(
         form_type_extension=foundation.form_type_extension,
         form_type_code_system=foundation.form_type_code_system,
         form_type_code=source.kind,
-        experimental=experimental,
+        ig_status=ig_status,
         items=_item_views(source, names),
     )
 
@@ -340,7 +351,7 @@ def _data_element_terminology(
     names: QuestionnaireNaming,
     config: GenerateConfig,
     *,
-    experimental: bool,
+    ig_status: IgStatus,
 ) -> FshArtifact:
     """Build `questionnaires/data-elements.fsh` over every data element the questionnaires reference."""
     concepts = [
@@ -363,7 +374,7 @@ def _data_element_terminology(
         description_literal=quote(description),
         property_base=f"{config.identifier_system_base}/property",
         property_description_literal=quote("DHIS2 data element code."),
-        experimental=experimental,
+        ig_status=ig_status,
         concepts=concepts,
     )
     return FshArtifact(
@@ -379,7 +390,7 @@ def _option_combo_terminology(
     names: QuestionnaireNaming,
     config: GenerateConfig,
     *,
-    experimental: bool,
+    ig_status: IgStatus,
 ) -> FshArtifact:
     """Build `questionnaires/category-option-combos.fsh` over every option combo the questionnaires disaggregate by."""
     concepts = [
@@ -403,7 +414,7 @@ def _option_combo_terminology(
         description_literal=quote(description),
         property_base=f"{config.identifier_system_base}/property",
         property_description_literal=quote("DHIS2 category option combo code."),
-        experimental=experimental,
+        ig_status=ig_status,
         concepts=concepts,
     )
     return FshArtifact(

@@ -90,11 +90,11 @@ Usage: #definition
 
 
 def test_profiles_artifact() -> None:
-    """Both profiles are active, slice the two DHIS2 identifiers, and bind level extensibly."""
-    artifact = build_organisation_unit_profiles(_CONFIG, experimental=True)
+    """Both profiles slice the two DHIS2 identifiers and bind level extensibly."""
+    artifact = build_organisation_unit_profiles(_CONFIG, ig_status="draft")
     assert artifact.relative_path == "organization/profiles.fsh"
     assert "Profile: D2Organization" in artifact.content
-    assert artifact.content.count("* ^status = #active") == 2
+    assert artifact.content.count("* ^status = #draft") == 2
     assert artifact.content.count("* identifier contains dhis2id 1..1 and dhis2code 1..1") == 2
     assert artifact.content.count('* identifier ^slicing.discriminator.path = "system"') == 2
     assert "* type from D2OU_Level_VS (extensible)" in artifact.content
@@ -105,20 +105,31 @@ def test_profiles_artifact() -> None:
     assert "* partOf only Reference(D2Location)" in artifact.content
 
 
-def test_organisation_unit_artifacts_derive_experimental_from_the_ig_status() -> None:
-    """Profiles, the level pair, and the whole-selection pair all follow the IG status."""
-    profiles = build_organisation_unit_profiles(_CONFIG, experimental=False)
+def test_organisation_unit_artifacts_derive_their_publication_state_from_the_ig_status() -> None:
+    """Profiles, the level pair, and the whole-selection pair all take ^status and ^experimental from it."""
+    draft_profiles = build_organisation_unit_profiles(_CONFIG, ig_status="draft")
+    assert draft_profiles.content.count("* ^status = #draft") == 2
+    assert draft_profiles.content.count("* ^experimental = true") == 2
+    profiles = build_organisation_unit_profiles(_CONFIG, ig_status="active")
+    assert profiles.content.count("* ^status = #active") == 2
     assert profiles.content.count("* ^experimental = false") == 2
-    assert build_organisation_unit_profiles(_CONFIG, experimental=True).content.count("* ^experimental = true") == 2
-    levels = build_organisation_unit_level_terminology([1], _CONFIG, experimental=False)
+    draft_levels = build_organisation_unit_level_terminology([1], _CONFIG, ig_status="draft")
+    assert draft_levels.content.count("* ^status = #draft") == 2
+    assert draft_levels.content.count("* ^experimental = true") == 2
+    levels = build_organisation_unit_level_terminology([1], _CONFIG, ig_status="active")
+    assert levels.content.count("* ^status = #active") == 2
     assert levels.content.count("* ^experimental = false") == 2
-    selection = build_organisation_unit_terminology([_ROOT], _CONFIG, experimental=False)
+    draft_selection = build_organisation_unit_terminology([_ROOT], _CONFIG, ig_status="draft")
+    assert draft_selection.content.count("* ^status = #draft") == 2
+    assert draft_selection.content.count("* ^experimental = true") == 2
+    selection = build_organisation_unit_terminology([_ROOT], _CONFIG, ig_status="active")
+    assert selection.content.count("* ^status = #active") == 2
     assert selection.content.count("* ^experimental = false") == 2
 
 
 def test_location_profile_declares_the_boundary_extension() -> None:
     """D2Location declares the GeoJSON boundary extension its instances carry, rather than leaving it loose."""
-    content = build_organisation_unit_profiles(_CONFIG, experimental=True).content
+    content = build_organisation_unit_profiles(_CONFIG, ig_status="draft").content
     assert (
         "* extension contains http://hl7.org/fhir/StructureDefinition/location-boundary-geojson named boundary 0..1"
         in content
@@ -134,7 +145,7 @@ def test_instances_carry_the_bare_uid_as_their_resource_id() -> None:
 
 def test_level_terminology_covers_observed_levels() -> None:
     """The level CodeSystem lists each observed level once, sorted."""
-    artifact = build_organisation_unit_level_terminology([2, 1, 2, 3], _CONFIG, experimental=True)
+    artifact = build_organisation_unit_level_terminology([2, 1, 2, 3], _CONFIG, ig_status="draft")
     assert artifact.content.count("* #level-") == 3
     assert '* #level-1 "Level 1"' in artifact.content
     assert "ValueSet: D2OU_Level_VS" in artifact.content
@@ -229,7 +240,7 @@ def test_boundary_extension_emitted_for_point_geometry() -> None:
 
 def test_organisation_unit_terminology_properties() -> None:
     """The optional CodeSystem carries level/parent/dhis2-code concept properties."""
-    artifact = build_organisation_unit_terminology([_ROOT, _DISTRICT], _CONFIG, experimental=True)
+    artifact = build_organisation_unit_terminology([_ROOT, _DISTRICT], _CONFIG, ig_status="draft")
     content = artifact.content
     assert "CodeSystem: D2OU_CS" in content
     assert "* #O6uvpzGd5pu ^property[+].code = #level" in content
@@ -243,7 +254,7 @@ def test_organisation_unit_terminology_properties() -> None:
 def test_naming_tokens_are_configurable() -> None:
     """Custom naming tokens flow into names and ids (e.g. organisation_unit "OrgUnit" -> D2OrgUnit_Level_CS)."""
     config = GenerateConfig(naming=NamingConfig(organisation_unit="OrgUnit"))
-    levels = build_organisation_unit_level_terminology([1], config, experimental=True)
+    levels = build_organisation_unit_level_terminology([1], config, ig_status="draft")
     assert "CodeSystem: D2OrgUnit_Level_CS" in levels.content
     assert "Id: d2-org-unit-level-cs" in levels.content
     instance = build_organisation_unit_instances([_ROOT], config).artifacts[0].content
@@ -253,8 +264,8 @@ def test_naming_tokens_are_configurable() -> None:
 def test_empty_prefix_keeps_profile_token() -> None:
     """With an empty prefix, terminology goes bare but profiles keep the D2 token (cannot shadow Organization)."""
     config = GenerateConfig(naming=NamingConfig(prefix=""))
-    profiles = build_organisation_unit_profiles(config, experimental=True)
+    profiles = build_organisation_unit_profiles(config, ig_status="draft")
     assert "Profile: D2Organization" in profiles.content
-    levels = build_organisation_unit_level_terminology([1], config, experimental=True)
+    levels = build_organisation_unit_level_terminology([1], config, ig_status="draft")
     assert "CodeSystem: OU_Level_CS" in levels.content
     assert "Id: ou-level-cs" in levels.content

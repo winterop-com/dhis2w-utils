@@ -34,6 +34,7 @@ from dhis2w_fhir.names import (
 )
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
+from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, FshBuild
 
 if TYPE_CHECKING:
@@ -109,7 +110,7 @@ def max_slug_length(config: GenerateConfig) -> int:
 
 
 def build_option_set_artifacts(
-    option_sets: list[OptionSetIn], config: GenerateConfig, *, experimental: bool
+    option_sets: list[OptionSetIn], config: GenerateConfig, *, ig_status: IgStatus
 ) -> FshBuild:
     """Build one `terminology/<slug>.fsh` artifact per option set, stable-sorted for clean diffs."""
     build = FshBuild()
@@ -132,7 +133,7 @@ def build_option_set_artifacts(
                 base_name = join_name_segments(base_name, option_set.uid)
                 collided.append(option_set.name)
         used_slugs.add(slug)
-        content = _render_option_set(option_set, base_name, slug, config, build.notes, experimental=experimental)
+        content = _render_option_set(option_set, base_name, slug, config, build.notes, ig_status=ig_status)
         build.artifacts.append(
             FshArtifact(
                 relative_path=f"terminology/{slug}.fsh",
@@ -240,7 +241,7 @@ def _render_option_set(
     config: GenerateConfig,
     notes: list[str],
     *,
-    experimental: bool,
+    ig_status: IgStatus,
 ) -> str:
     """Render the CodeSystem + ValueSet FSH for one option set."""
     ordered = sorted(option_set.options, key=lambda item: (item.sort_order is None, item.sort_order or 0, item.uid))
@@ -261,5 +262,6 @@ def _render_option_set(
         concepts=concepts,
         title_translations=name_translations(option_set.translations, config.locales),
         translation_extension_url=TRANSLATION_EXTENSION_URL,
-        experimental=experimental,
+        ig_status=ig_status,
+        experimental=experimental_for_status(ig_status),
     )

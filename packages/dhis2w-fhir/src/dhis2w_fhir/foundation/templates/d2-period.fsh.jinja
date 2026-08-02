@@ -2,7 +2,7 @@ Extension: {{ names.period_extension }}
 Id: {{ names.period_extension_id }}
 Title: "DHIS2 reporting period"
 Description: "A DHIS2 reporting period: its ISO identifier, its period type, and the dates it covers."
-* ^status = #active
+* ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * ^context[+].type = #element
 * ^context[=].expression = "Element"
@@ -24,7 +24,7 @@ CodeSystem: {{ names.period_type_code_system }}
 Id: {{ names.period_type_code_system_id }}
 Title: "DHIS2 period types"
 Description: "The period types DHIS2 registers, each with the ISO period format it is written in."
-* ^status = #active
+* ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * ^content = #complete
 * ^caseSensitive = true
@@ -37,6 +37,6 @@ ValueSet: {{ names.period_type_value_set }}
 Id: {{ names.period_type_value_set_id }}
 Title: "DHIS2 period types"
 Description: "The period types DHIS2 registers, each with the ISO period format it is written in."
-* ^status = #active
+* ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * include codes from system {{ names.period_type_code_system }}

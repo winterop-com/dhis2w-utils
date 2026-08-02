@@ -28,6 +28,7 @@ from dhis2w_fhir.resources.organisation_units.location import (
 )
 from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, FshBuild
 
 if TYPE_CHECKING:
@@ -74,7 +75,7 @@ class OrganisationUnitInstancePair(BaseModel):
     location: LocationInstance
 
 
-def build_organisation_unit_profiles(config: GenerateConfig, *, experimental: bool) -> FshArtifact:
+def build_organisation_unit_profiles(config: GenerateConfig, *, ig_status: IgStatus) -> FshArtifact:
     """Build the static `organization/profiles.fsh` defining the Organization and Location profiles."""
     names = OrganisationUnitNaming.from_naming(config.naming)
     return FshArtifact(
@@ -82,7 +83,10 @@ def build_organisation_unit_profiles(config: GenerateConfig, *, experimental: bo
         kind="profile",
         fsh_name=names.organization_profile,
         content=_ENVIRONMENT.get_template("profiles.fsh.jinja").render(
-            names=names, boundary_extension_url=BOUNDARY_EXTENSION_URL, experimental=experimental
+            names=names,
+            boundary_extension_url=BOUNDARY_EXTENSION_URL,
+            ig_status=ig_status,
+            experimental=experimental_for_status(ig_status),
         ),
     )
 
