@@ -46,6 +46,18 @@ def quote(value: str) -> str:
     return f'"{escape_fsh_string(flattened)}"'
 
 
+def page_text(value: str) -> str:
+    """Render an IG page title or description as a quoted FSH literal, HTML-escaping the markup characters.
+
+    The `fhir2.base.template` breadcrumb pastes a resource's page title straight into HTML and the
+    publisher then strict-parses the result, so a DHIS2 name holding `<` aborts the build. Only the
+    page-facing `Title:` / `Description:` lines take this: the element-level `* title` / `* name`
+    carry the DHIS2 text verbatim, because those are data rather than page furniture.
+    """
+    escaped = (value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return quote(escaped)
+
+
 def fsh_code(value: str) -> str:
     """Render a `#code` token, using the escaped, quoted `#"..."` form when the code contains spaces."""
     return f'#"{escape_fsh_string(value)}"' if " " in value else f"#{value}"

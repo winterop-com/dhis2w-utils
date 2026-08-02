@@ -10003,8 +10003,9 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 * `foundation`: Generate the DHIS2 identifier aliases and...
 * `option-sets`: Generate CodeSystem/ValueSet FSH from...
 * `questionnaires`: Generate Questionnaire FSH from the...
+* `examples`: Generate example QuestionnaireResponses...
 * `org-units`: Generate Organization/Location FSH from...
-* `all`: Generate the foundation, option-set...
+* `all`: Generate the foundation, terminology,...
 
 #### `d2w fhir generate foundation`
 
@@ -10048,6 +10049,20 @@ $ d2w fhir generate questionnaires [OPTIONS]
 
 * `--help`: Show this message and exit.
 
+#### `d2w fhir generate examples`
+
+Generate example QuestionnaireResponses for the configured data sets and event programs.
+
+**Usage**:
+
+```console
+$ d2w fhir generate examples [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
 #### `d2w fhir generate org-units`
 
 Generate Organization/Location FSH from DHIS2 organisation units into the nearest FHIR project.
@@ -10064,7 +10079,7 @@ $ d2w fhir generate org-units [OPTIONS]
 
 #### `d2w fhir generate all`
 
-Generate the foundation, option-set terminology, questionnaires, and organisation-unit instances in one run.
+Generate the foundation, terminology, questionnaires, example responses, and org-unit instances.
 
 **Usage**:
 

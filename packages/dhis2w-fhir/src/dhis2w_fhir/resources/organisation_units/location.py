@@ -7,7 +7,7 @@ import base64
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.i18n import TranslationIn, name_translations
-from dhis2w_fhir.names import code_or_uid, quote
+from dhis2w_fhir.names import code_or_uid, page_text, quote
 from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
 from dhis2w_fhir.resources.organisation_units.schemas import GeoPoint, OrganisationUnitIn
 
@@ -61,8 +61,8 @@ def build_location_instance(
     return LocationInstance(
         uid=organisation_unit.uid,
         profile=names.location_profile,
-        title_literal=quote(f"Location - {organisation_unit.name}"),
-        description_literal=quote(description),
+        title_literal=page_text(f"Location - {organisation_unit.name}"),
+        description_literal=page_text(description),
         name_literal=quote(organisation_unit.name),
         name_translations=name_translations(organisation_unit.translations, locales),
         identifier_code_literal=quote(code_or_uid(organisation_unit.code, organisation_unit.uid)),

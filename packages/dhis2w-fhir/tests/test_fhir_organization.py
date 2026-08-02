@@ -269,3 +269,12 @@ def test_empty_prefix_keeps_profile_token() -> None:
     levels = build_organisation_unit_level_terminology([1], config, ig_status="draft")
     assert "CodeSystem: OU_Level_CS" in levels.content
     assert "Id: ou-level-cs" in levels.content
+
+
+def test_org_unit_page_titles_escape_markup_while_the_element_name_stays_raw() -> None:
+    """The Organization/Location page metadata escapes markup; `name` carries the DHIS2 text verbatim."""
+    unit = _ROOT.model_copy(update={"name": "Region <A> & <B>"})
+    content = build_organisation_unit_instances([unit], _CONFIG).artifacts[0].content
+    assert 'Title: "Organization - Region &lt;A&gt; &amp; &lt;B&gt;"' in content
+    assert 'Title: "Location - Region &lt;A&gt; &amp; &lt;B&gt;"' in content
+    assert content.count('* name = "Region <A> & <B>"') == 2

@@ -9,7 +9,7 @@ from __future__ import annotations
 import datetime
 
 import pytest
-from dhis2w_fhir.period import PERIOD_TYPE_DEFINITIONS, PERIOD_TYPE_NAMES, parse_period
+from dhis2w_fhir.period import PERIOD_TYPE_DEFINITIONS, PERIOD_TYPE_NAMES, parse_period, recent_periods
 
 #: (iso, period type, start, end) for every registered type, at least two cases each.
 _CASES = [
@@ -150,3 +150,48 @@ def test_definitions_carry_the_iso_format_in_the_display() -> None:
     assert by_name["Monthly"].display == "Monthly (yyyyMM)"
     assert by_name["FinancialApril"].iso_format == "yyyyApril"
     assert by_name["BiMonthly"].display == "BiMonthly (yyyyMMB)"
+
+
+@pytest.mark.parametrize("period_type", PERIOD_TYPE_NAMES)
+def test_recent_periods_round_trips_through_the_parser(period_type: str) -> None:
+    """Every ISO the enumerator emits parses back to its own type, ends before today, and is newest-first."""
+    today = datetime.date(2026, 8, 2)
+    isos = recent_periods(period_type, 3, today)
+    assert len(isos) == 3
+    parsed = [parse_period(iso) for iso in isos]
+    assert [value.period_type for value in parsed] == [period_type] * 3
+    assert all(value.end_date < today for value in parsed)
+    assert [value.end_date for value in parsed] == sorted((value.end_date for value in parsed), reverse=True)
+    assert len(set(isos)) == 3
+
+
+@pytest.mark.parametrize(
+    ("period_type", "today", "expected"),
+    [
+        ("Monthly", datetime.date(2026, 8, 2), ["202607", "202606", "202605"]),
+        ("Monthly", datetime.date(2026, 1, 1), ["202512", "202511", "202510"]),
+        ("Quarterly", datetime.date(2026, 8, 2), ["2026Q2", "2026Q1", "2025Q4"]),
+        ("Yearly", datetime.date(2026, 8, 2), ["2025", "2024", "2023"]),
+        ("Daily", datetime.date(2026, 3, 2), ["20260301", "20260228", "20260227"]),
+        ("Weekly", datetime.date(2026, 1, 8), ["2026W1", "2025W52", "2025W51"]),
+        ("BiWeekly", datetime.date(2026, 8, 2), ["2026BiW15", "2026BiW14", "2026BiW13"]),
+        ("BiMonthly", datetime.date(2026, 8, 2), ["202603B", "202602B", "202601B"]),
+        ("SixMonthly", datetime.date(2026, 8, 2), ["2026S1", "2025S2", "2025S1"]),
+        ("SixMonthlyApril", datetime.date(2026, 8, 2), ["2025AprilS2", "2025AprilS1", "2024AprilS2"]),
+        ("SixMonthlyNov", datetime.date(2026, 8, 2), ["2026NovS1", "2025NovS2", "2025NovS1"]),
+        ("QuarterlyNov", datetime.date(2026, 8, 2), ["2026NovQ3", "2026NovQ2", "2026NovQ1"]),
+        ("FinancialApril", datetime.date(2026, 8, 2), ["2025April", "2024April", "2023April"]),
+        ("FinancialNov", datetime.date(2026, 8, 2), ["2025Nov", "2024Nov", "2023Nov"]),
+    ],
+)
+def test_recent_periods_names_the_newest_completed_periods(
+    period_type: str, today: datetime.date, expected: list[str]
+) -> None:
+    """The enumerator answers the three newest periods whose end date is already past."""
+    assert recent_periods(period_type, 3, today) == expected
+
+
+@pytest.mark.parametrize(("period_type", "count"), [("Monthly", 0), ("Monthly", -1), ("NotAPeriodType", 3), ("", 3)])
+def test_recent_periods_answers_nothing_it_cannot_enumerate(period_type: str, count: int) -> None:
+    """An unregistered period type or a non-positive count yields nothing rather than raising."""
+    assert recent_periods(period_type, count, datetime.date(2026, 8, 2)) == []

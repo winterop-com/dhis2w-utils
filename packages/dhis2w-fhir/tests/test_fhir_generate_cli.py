@@ -78,11 +78,12 @@ def test_generate_organisation_units_json(fhir_project: Path) -> None:  # noqa: 
 
 
 def test_generate_all_renders_every_report(fhir_project: Path) -> None:  # noqa: ARG001
-    """`d2w fhir generate all` renders the foundation, option-set, questionnaire, and org-unit sub-reports."""
+    """`d2w fhir generate all` renders the foundation, terminology, questionnaire, example, and org-unit reports."""
     report = GenerateAllReport(
         foundation=_report("foundation"),
         option_sets=_report("terminology"),
         questionnaires=_report("questionnaires"),
+        examples=_report("examples", example_count=2),
         organisation_units=_report("organization"),
     )
     mock = AsyncMock(return_value=report)
@@ -92,6 +93,7 @@ def test_generate_all_renders_every_report(fhir_project: Path) -> None:  # noqa:
     assert "foundation" in result.output
     assert "option-sets" in result.output
     assert "questionnaires" in result.output
+    assert "examples" in result.output
     assert "org-units" in result.output
 
 

@@ -120,6 +120,8 @@ def _render_generate_report(title: str, report: GenerateReport, generation: Gene
         rows.append(DetailRow("option sets", str(report.option_set_count)))
     if report.questionnaire_count:
         rows.append(DetailRow("questionnaires", str(report.questionnaire_count)))
+    if report.example_count:
+        rows.append(DetailRow("examples", str(report.example_count)))
     if report.organisation_unit_count:
         rows.append(DetailRow("org units", str(report.organisation_unit_count)))
     if report.position_count:
@@ -173,6 +175,20 @@ def generate_questionnaires_command() -> None:
     _render_generate_report("fhir generate questionnaires", report, generation)
 
 
+@generate_app.command("examples")
+def generate_examples_command() -> None:
+    """Generate example QuestionnaireResponses for the configured data sets and event programs."""
+    from dhis2w_fhir import service
+
+    project = load_project()
+    generation = service.resolve_generation_profile(project)
+    report = asyncio.run(service.generate_examples(generation.profile, project))
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    _render_generate_report("fhir generate examples", report, generation)
+
+
 @generate_app.command("org-units")
 def generate_organisation_units_command() -> None:
     """Generate Organization/Location FSH from DHIS2 organisation units into the nearest FHIR project."""
@@ -189,7 +205,7 @@ def generate_organisation_units_command() -> None:
 
 @generate_app.command("all")
 def generate_all_command() -> None:
-    """Generate the foundation, option-set terminology, questionnaires, and organisation-unit instances in one run."""
+    """Generate the foundation, terminology, questionnaires, example responses, and org-unit instances."""
     from dhis2w_fhir import service
 
     project = load_project()
@@ -201,6 +217,7 @@ def generate_all_command() -> None:
     _render_generate_report("fhir generate foundation", report.foundation, generation)
     _render_generate_report("fhir generate option-sets", report.option_sets, generation)
     _render_generate_report("fhir generate questionnaires", report.questionnaires, generation)
+    _render_generate_report("fhir generate examples", report.examples, generation)
     _render_generate_report("fhir generate org-units", report.organisation_units, generation)
 
 

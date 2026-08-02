@@ -23,7 +23,7 @@ below.
 
 ## Index
 
-73 entries grouped by area. **Status tags** carry the result of the most
+75 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED]** upstream on all of v41/v42/v43,
 **[FIXED v43]** on v43 only (still present on older majors), **[PARTIAL]**
@@ -110,6 +110,8 @@ the bottom of the file and keep their numbers.
 - [#40](#40-v43-e1055-enrollment-error-message-says-categorycombo-but-actually-fires-on-enrollmentcategorycombo) — `E1055` names `categoryCombo` but fires on `enrollmentCategoryCombo`
 - [#41](#41-v43-e8023--e8024-strict-cocaoc-matching-on-post-apidatavaluesets--forcetrue-doesnt-bypass) — Strict `E8023` / `E8024` COC/AOC matching on dataValueSets; `force=true` doesn't bypass
 - [#49](#49-v43-datavaluefollowuprequestperiod-is-typed-as-an-object-but-the-wire-accepts-a-string) — v43 OAS types `DataValueFollowUpRequest.period` as an object; wire accepts a string
+- [#62](#62-tracker-occurredat-and-datetime-data-values-are-zone-less-local-timestamps-under-fields-typed-instant) — Tracker `occurredAt` and `DATETIME` data values are zone-less local timestamps
+- [#63](#63-datasetdatasetelements-is-serialised-in-a-different-order-on-every-request) — `DataSet.dataSetElements` is serialised in a different order on every request
 
 ### v41-specific
 
@@ -2547,6 +2549,113 @@ curl -s -u admin:district -X POST \
 **Workaround in this repo:** `d2w apps add` (and `apps_install_from_hub`) resolve the id against the configured catalog before installing — `_resolve_install_target` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/apps/service.py` accepts either a version id (installs as-is) or an app id (resolves to the app's latest version), and raises a clear `InstallTargetError` when the id matches neither. Manual fallback: `d2w apps hub-list` for a version id, or read the app's `versions[].id` from `apps.dhis2.org/api/v1/apps/{appId}`.
 
 **How to know it's fixed:** `POST /api/appHub/{appId}` (app id, not version id) returns a clear 400/404 naming the id-kind mismatch instead of a proxied apps.dhis2.org 404.
+
+**Verifier:** none yet.
+
+---
+
+### 62. Tracker `occurredAt` and `DATETIME` data values are zone-less local timestamps under fields typed `Instant`
+
+DHIS2 serves `TrackerEvent.occurredAt` (and the `DATETIME` data values beside it)
+as `2025-12-30T00:00:00.000` - a wall-clock string with no `Z` and no offset -
+while its OpenAPI types the field as `Instant`. An instant without a zone is not
+an instant: two clients in different time zones read the same string as two
+different moments, and there is nothing on the wire that says which one is right.
+
+**Observed on:** v42 (`play.im.dhis2.org/dev-2-42`, `2.42.6-SNAPSHOT`, 2026-08-02).
+The `Instant` alias is emitted on all of v41/v42/v43, so the same shape holds there.
+
+**Repro:**
+
+```bash
+curl -s -u admin:district \
+  'https://play.im.dhis2.org/dev-2-42/api/tracker/events?program=VBqh0ynB2wv&pageSize=1&fields=event,occurredAt'
+# {"instances":[{"event":"a0a8030c32a","occurredAt":"2025-12-30T00:00:00.000"}]}
+```
+
+**Expected:** a field the OpenAPI declares as `Instant` serialises with a zone -
+`2025-12-30T00:00:00.000Z` or `2025-12-30T00:00:00.000+02:00` - so the value is
+unambiguous, matches `java.time.Instant`, and matches the ISO-8601 instant every
+other system means by the word.
+
+**Actual:** the offset is dropped. Callers must guess the server's zone, or assume
+one.
+
+**Impact:** the string cannot be used as a FHIR `dateTime` at all. R4 requires an
+offset whenever a `dateTime` carries a time
+(https://hl7.org/fhir/R4/datatypes.html#dateTime), so feeding the DHIS2 value
+straight through fails validation - `fsh-sushi` rejects it with
+`Cannot assign string value: 2025-12-30T00:00:00.000. Value does not match element
+type: dateTime`. The same applies to every other consumer that types the field
+strictly rather than as free text.
+
+**Workaround in this repo:** `zoned_date_time` in
+`packages/dhis2w-fhir/src/dhis2w_fhir/resources/examples/__init__.py` appends `Z`
+whenever the value carries a time but no offset, and is applied to both the
+example response's `authored` and its `DATETIME` answers. That asserts UTC, which
+is a guess - the right fix is upstream. A value that still does not match the R4
+primitive after normalising is answered as a string (or, for `authored`, dropped)
+with an aggregate note, so a run never emits an invalid literal.
+
+**How to know it's fixed:** `GET /api/tracker/events?fields=occurredAt` returns a
+timestamp ending in `Z` or an explicit `+HH:MM` / `-HH:MM` offset.
+
+**Verifier:** none yet.
+
+---
+
+### 63. `DataSet.dataSetElements` is serialised in a different order on every request
+
+`GET /api/dataSets?fields=dataSetElements[...]` returns the same data set's members in a
+different order each time it is called. `DataSet.dataSetElements` is a Java `Set` with no
+sort-order column behind it, so the serialised order is whatever the hash iteration order
+happens to be for that request. Sections are unaffected - `DataSet.sections` and
+`Section.dataElements` both carry a real sort order and come back stable - and so are
+`ProgramStage.programStageDataElements`, which have a `sortOrder`.
+
+**Observed on:** v42 (`play.im.dhis2.org/dev-2-42`, `2.42.6-SNAPSHOT`, 2026-08-02). The field
+is a `Set` on all of v41/v42/v43.
+
+**Repro:**
+
+```bash
+# Four identical requests, four different orders:
+for i in 1 2 3 4; do
+  curl -s -u admin:district \
+    'https://play.im.dhis2.org/dev-2-42/api/dataSets.json?filter=id:eq:YFTk3VdO9av&fields=dataSetElements%5BdataElement%5Bid%5D%5D&paging=false' \
+    | python3 -c "import sys,json;print([e['dataElement']['id'] for e in json.load(sys.stdin)['dataSets'][0]['dataSetElements']][:4])"
+done
+# ['jVDAvs6kIAP', 'USBq0VHSkZq', 'f7n9E0hX8qk', 'Vp12ncSU1Av']
+# ['f7n9E0hX8qk', 'lXolhoWewYH', 'eY5ehpbEsB7', 'r6nrJANOqMw']
+# ['lXolhoWewYH', 'Ix2HsbDMLea', 'f7n9E0hX8qk', 'r6nrJANOqMw']
+# ['FTRrcoaog83', 'LjNlMTl9Nq9', 'USBq0VHSkZq', 'MSZuQ1mTsia']
+
+# The section-based ordering, by contrast, is stable across the same four calls:
+curl -s -u admin:district \
+  'https://play.im.dhis2.org/dev-2-42/api/dataSets.json?filter=id:eq:BfMAe6Itzgt&fields=sections%5Bid,dataElements%5Bid%5D%5D&paging=false'
+```
+
+**Expected:** a deterministic order - either a real `sortOrder` on the join (which the data
+entry app clearly needs anyway for an unsectioned data set) or, failing that, a stable
+tie-break such as the data element UID.
+
+**Actual:** hash iteration order, which changes per request even against an unchanged data set.
+
+**Impact:** any tool that renders a data set's data elements in wire order produces different
+output on every run, which defeats content-addressed caching and makes a committed artifact
+churn for no reason. It also makes two separate reads of the same data set disagree with each
+other, so a document generated from one read cannot reference the other by position.
+
+**Workaround in this repo:** `_data_set_source` in
+`packages/dhis2w-fhir/src/dhis2w_fhir/service.py` sorts the mapped members by name and UID
+before building the questionnaire projection. That makes `d2w fhir generate questionnaires`
+byte-stable across runs and lets `d2w fhir generate examples` - a separate fetch - answer the
+questionnaire's items in the questionnaire's own order, which the FHIR validator requires
+(`QuestionnaireResponse: Structural Error: items are out of order`). Section membership is
+joined by UID and keeps the section's own sort order.
+
+**How to know it's fixed:** four consecutive `GET /api/dataSets?fields=dataSetElements[...]`
+calls against an unchanged data set return the members in the same order.
 
 **Verifier:** none yet.
 

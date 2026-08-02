@@ -5,8 +5,8 @@
 {% endif %}
 Instance: {{ system.name }}
 InstanceOf: NamingSystem
-Title: "{{ system.title }}"
-Description: "{{ system.description }}"
+Title: {{ system.title_literal }}
+Description: {{ system.description_literal }}
 Usage: #definition
 * name = "{{ system.name }}"
 * status = #{{ ig_status }}

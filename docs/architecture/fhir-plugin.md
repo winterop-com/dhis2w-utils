@@ -9,8 +9,9 @@ d2w fhir init [DIRECTORY]           Scaffold a dockerized SUSHI IG project
 d2w fhir generate foundation        Identifier aliases + the D2Period / D2FormType extensions
 d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate questionnaires    Data sets + event programs -> Questionnaire instances
+d2w fhir generate examples          Example QuestionnaireResponses against those Questionnaires
 d2w fhir generate org-units         Org units -> Organization/Location instances
-d2w fhir generate all               All four targets in one run
+d2w fhir generate all               All five targets in one run
 d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
 ```
 
@@ -44,7 +45,9 @@ ig/sushi-config.yaml        SUSHI IG identity (id, canonical, publisher)
 ig/ig.ini                   IG publisher entry point (fhir2.base.template)
 ig/fsh.ini                  Raises the publisher's internal SUSHI timeout to 900s
 ig/input/fsh/aliases.fsh    Hand-authored alias stub (never regenerated)
-ig/input/pagecontent/index.md
+ig/input/pagecontent/index.md   Includes the four publisher fragments
+                            (cross-version-analysis, dependency-table,
+                            globals-table, ip-statements)
 ig/input/ignoreWarnings.txt
 ```
 
@@ -103,6 +106,10 @@ program = "PR"                      # event program Questionnaire names
 
 [generate.event_programs]
 # include_ids = ["VBqh0ynB2wv"]     # UIDs; absent or empty = all
+
+[generate.examples]
+per_target = 1                      # example responses per questionnaire target; 0 disables
+source = "synthetic"                # "synthetic" (generated) or "instance" (real values)
 
 [generate.organisation_units]
 # root = "ImspTQPwCqd"
@@ -166,11 +173,16 @@ depends on `fhir.toml` alone and never opens a client:
 period is a *typed* interval: `202401` is the January instance of the `Monthly`
 type, and the type is what makes it comparable and round-trippable. The extension
 carries `iso` (string, 1..1), `type` (code, 1..1, required-bound to the period
-type ValueSet) and `period` (Period, 0..1), on an `Element` context so the data
-layer can hang it off anything. `dhis2w_fhir.period` holds the matching parser:
-`parse_period("2024BiW2")` returns the type and the resolved dates for all
-twenty-three period types DHIS2 registers, transcribed from `Period.Input.of`
-and `DateUnitPeriodTypeParser` in dhis2-core.
+type ValueSet) and `period` (Period, 0..1). Its context names the two resources
+that actually carry it - `QuestionnaireResponse` and `MeasureReport` - rather than
+a bare `Element`, which the publisher's QA reads as an unbounded extension.
+`dhis2w_fhir.period` holds the matching parser: `parse_period("2024BiW2")` returns
+the type and the resolved dates for all twenty-three period types DHIS2 registers,
+transcribed from `Period.Input.of` and `DateUnitPeriodTypeParser` in dhis2-core.
+`recent_periods` is its inverse, built *on* the parser rather than beside it: each
+type declares only how its ISO strings are spelled for a year, the parser decides
+which of those exist and when they end, and the enumerator keeps the ones already
+past. That is what keeps the two from drifting apart.
 
 ## Option sets -> terminology
 
@@ -203,6 +215,11 @@ data-dictionary/data-elements.fsh        D2DE_CS / _VS over every referenced ele
 data-dictionary/category-option-combos.fsh   D2COC_CS / _VS over every option combo
 ```
 
+`D2DE_CS` carries two concept properties: `dhis2-code` (the DHIS2 code, falling back to the
+UID) and `domain` - a `code` valued `#aggregate` or `#tracker` from the data element's DHIS2
+`domainType`, omitted along with its declaration when the instance answers none. Both take a
+`<identifier_system_base>/property/<code>` URI, the same scheme the option-set terminology uses.
+
 The targets are `[generate.data_sets]` / `[generate.event_programs]` `include_ids`,
 absent or empty = all, exactly like the terminology and registry selections. The
 service makes one `sync_artifacts` call per directory, each swept against its own
@@ -218,8 +235,9 @@ an organisation unit), `status` and `experimental`, both DHIS2 identifiers (`$DH
 `$DHIS2-PROGRAM` and their code slots), and `name` composed from the naming tokens
 (`D2DS_BfMAe6Itzgt`). Sections become `#group` items; data elements become questions
 whose type comes from the DHIS2 `valueType` table, or `#choice` plus an
-`answerValueSet` when the element is option-set bound; a compulsory program-stage
-element is `required`; a non-default category combo turns the question into a group
+`answerValueSet` when the element is option-set bound; a `MULTI_TEXT` question is that
+`#choice` plus `repeats = true`, which is the whole of what MULTI_TEXT means; a compulsory
+program-stage element is `required`; a non-default category combo turns the question into a group
 with one child per option combo, `linkId` `<deUid>.<cocUid>` - the same key a DHIS2
 data value carries. A section holding such a group also carries the standard
 `questionnaire-itemControl` extension coded `#gtable`, which is the DHIS2 data-entry
@@ -244,6 +262,57 @@ selected targets bind to are unioned in and listed in a note - including in targ
 all-mode, where the closure covers every form on the instance. An empty option-set
 include list already means every option set, so the closure short-circuits there and
 the targets are not fetched twice.
+
+## Example responses -> QuestionnaireResponse instances
+
+`generate examples` owns one sync directory, `ig/input/fsh/examples/`, holding one
+`Usage: #example` QuestionnaireResponse per example, named `<targetUID>-<n>.fsh`.
+The targets are the questionnaire targets - the same `_fetch_questionnaire_sources`
+call, so all-mode and the skip rules behave identically and no example can point at
+a Questionnaire the IG lacks.
+
+`[generate.examples]` carries `per_target` (0 disables the target, which still
+sweeps the directory clean) and `source`. The two sources meet at one emitter:
+each produces a list of `ExampleResponseIn` - identity, organisation unit, status,
+optional period, optional `authored`, and a flat list of
+`(dataElement, categoryOptionCombo, value)` answers holding DHIS2 wire strings -
+and `build_example_artifacts` does the typing, the structure mirroring, and the
+rendering once.
+
+- **`synthetic`** is the default, and deliberately so: an example is published,
+  and real values off a production instance would travel with it. No data endpoint
+  is called. `build_synthetic_responses` seeds a `random.Random` with the leading
+  64 bits of `sha256("<targetUID>:<n>")` - never `hash()`, which is salted per
+  process - so a regenerate is byte-identical across machines and restarts. Every
+  question is answered and every option combo of a disaggregated element filled;
+  `TRUE_ONLY` is always `true`; an option-set-bound question draws a real concept
+  from the set the IG publishes. The only value that moves with the calendar is the
+  anchor: a data-set example takes the newest completed period of its period type,
+  and its temporal values are drawn from that window.
+- **`instance`** reads the server. Data sets walk `recent_periods(periodType, 6,
+  today)` newest-first against `GET /api/dataValueSets` (root org unit,
+  `children=true`) and stop at the first period holding values, which are then
+  grouped by the DHIS2 reporting key `(orgUnit, period, attributeOptionCombo)`,
+  richest group first. Event programs read `GET /api/tracker/events` ordered
+  `occurredAt:desc`, tolerating both the `instances` and `events` envelope keys at
+  the boundary. A target the instance answers nothing for is one aggregate note,
+  never a failure.
+
+The emitted items mirror the questionnaire exactly - section groups nest their
+questions, a disaggregated element nests one child per option combo under
+`<deUid>.<cocUid>` - but only the branches an answer reaches are emitted, so a
+partial data value set produces a partial, still-valid response. Answers are cast
+from the data element's `valueType`; an option code resolves to a `valueCoding`
+into that set's CodeSystem with the concept code `concept_code_source` selects.
+Anything that will not cast falls back to `valueString` and is counted, as is a
+captured value for a data element the form does not ask for.
+
+Two normalisations happen at the FHIR edge rather than being left to fail in
+SUSHI: a zone-less DHIS2 timestamp gains `Z` (BUGS.md #62 - R4 requires an offset
+on a `dateTime` that carries a time, and DHIS2 serves local timestamps under
+fields its OpenAPI types as `Instant`), and a bare `HH:MM` gains its seconds. A
+temporal value that still does not match the R4 primitive is answered as a string,
+and an unusable `occurredAt` drops `authored` entirely - with a note either way.
 
 ## Organisation units -> instances
 
@@ -355,7 +424,28 @@ edit loop - SUSHI alone compiles the FSH and tells you whether it is valid, in
 seconds rather than in a coffee break. `d2w fhir serve` (roadmap) is the rest of
 that loop. `make build` is a release step, not an inner-loop step.
 
-Two upstream quirks worth knowing when reading a publisher run:
+Three upstream quirks worth knowing when reading a publisher run:
+
+- **`fhir2.base.template` pastes page titles into the breadcrumb unescaped, and
+  the publisher then strict-parses the result.** A resource whose FSH `Title:`
+  holds a `<` - the play 2.42 data set "Mortality < 5 years by gender"
+  (`YFTk3VdO9av`) is a real one - aborts the build with `Unable to Parse HTML -
+  node 'b' has unexpected content`. `names.page_text` is the workaround: the
+  page-facing `Title:` / `Description:` lines of every generated instance
+  HTML-escape `&`, `<`, and `>` before quoting, while the element-level
+  `* title` / `* name` keep the DHIS2 text verbatim, because those are data
+  rather than page furniture.
+
+    A second surface reads that element-level title and is **accepted as-is**:
+    `Questionnaire-<uid>.change.history.html` builds its `<h2>` from
+    `Questionnaire.title`, so the same name still yields
+    `Unable to Parse HTML - node 'h2' has unexpected content` and one
+    `Build Errors : 1 / 0 / 0` line. The build completes, QA reports zero errors,
+    and only that page is malformed. Escaping the element would fix the page by
+    corrupting the data - the IG would then disagree with the instance about what
+    the data set is called - so the data stays byte-true and `d2w fhir validate`
+    warns on the name instead (`template-hostile-name`), which puts the fix where
+    it belongs: in DHIS2.
 
 - **The QA summary contradicts its own link checker.** The same run prints
   `... 1099935 links, 0 broken links (0%)` from the HTML checker and
@@ -386,6 +476,13 @@ warn) plus the deep option-set pass previewing `concept_code_source =
 "code"` generation (invalid/duplicate option codes are errors, missing codes
 warn, spaced-but-valid codes are infos). The sweep passes `defaults=EXCLUDE`, so
 DHIS2's auto-generated default category objects stay out of the counts.
+
+Both passes additionally raise `template-hostile-name` (warning, in either code
+source) on any object whose **name** holds `<`, `>`, or `&` - the characters the
+publisher's template injects into HTML unescaped. That one is about the published
+pages rather than about codes, which is why it does not move with `--code-source`;
+the sweep covers every metadata object and the deep pass covers option names, which
+the sweep excludes.
 
 The option-pass severities are gated on the effective code source - the
 `--code-source` flag, else `concept_code_source`. In id mode `invalid-code`,
@@ -441,7 +538,10 @@ The components:
   plus `max_slug_length` (validation previews the same id bound) and the
   `OptionSetIn` / `OptionIn` / `OptionSetSelection` schemas.
 - `resources/questionnaires/` - the Questionnaire instance per data set / event
-  program plus the two support terminology pairs, the three sync directory names
+  program plus the two support terminology pairs, the exported
+  `ITEM_TYPES_BY_VALUE_TYPE` table mapping every DHIS2 `valueType` on v41/v42/v43 to its
+  FHIR item type (guarded by a test that reads the three generated `ValueType` enums, so a
+  codegen refresh cannot introduce a silent `string`), the three sync directory names
   (`DATA_SET_DIRECTORY` / `EVENT_PROGRAM_DIRECTORY` / `DATA_DICTIONARY_DIRECTORY`,
   collected as `QUESTIONNAIRE_DIRECTORIES`), with `TargetSelection`, the
   `QuestionnaireSourceIn` / `QuestionnaireSectionIn` / `QuestionnaireItemIn` /
@@ -449,6 +549,12 @@ The components:
   deriving every name from the `DS` / `PR` / `DE` / `COC` tokens. Item nesting is
   resolved in Python into a flat list of view-models carrying their FSH soft-index
   paths (`item[=].item[+]`), so the template stays a layout, not a recursion.
+- `resources/examples/` - the `Usage: #example` QuestionnaireResponse per example,
+  its `EXAMPLES_DIRECTORY` sync directory, the `ExampleSelection` /
+  `ExampleResponseIn` / `ExampleAnswerIn` / `ExampleOptionSetIn` projections, the
+  seeded `build_synthetic_responses`, and the answer typing (including the R4
+  temporal normalisations). It depends on `resources/questionnaires/` for the
+  source projection and naming, never the other way round.
 - `resources/organisation_units/` - split by FHIR resource: `naming.py`
   derives every artifact name and id from the `[generate.naming]` tokens,
   `organization.py` builds the profiles artifact and the Organization
@@ -459,7 +565,8 @@ The components:
   aliases and the `D2Period` extension, with `FoundationNaming` deriving their
   names from the prefix token.
 - `period/` - the DHIS2 ISO period grammar: `PeriodValue`, the period-type
-  catalogue the CodeSystem is generated from, and `parse_period`.
+  catalogue the CodeSystem is generated from, `parse_period`, and the
+  `recent_periods` inverse the example target discovers data with.
 - `validation/` - the two check passes, `report.py` rendering the Markdown and
   CSV, `pdf.py` the PDF, and the finding/report schemas.
 
@@ -521,16 +628,14 @@ boundary.
   they can follow. Validation's instance-wide sweep stays translation-free until
   there is a cheaper way to ask `/api/metadata` for them than fetching every
   object's full translation list.
-- Data layer: the captured values behind the generated forms - a data value set as
-  a `QuestionnaireResponse` answering the data set's `Questionnaire` on the same
-  `linkId`s (including the `<deUid>.<cocUid>` ones the disaggregated groups define),
-  its period through `D2Period` and its org unit through `subject`, with
-  `MeasureReport` as the later lossy summary projection over the same data; events
-  -> `QuestionnaireResponse`, tracker -> `Patient` + `EpisodeOfCare` (see
+- Data layer beyond the examples: `generate examples` already maps a data value set
+  and an event onto a `QuestionnaireResponse`, but only a handful per target and
+  only as `Usage: #example`. Bulk export of the captured values as normative
+  content is the next step, with `MeasureReport` as the lossy summary projection
+  over the same data and tracker as `Patient` + `EpisodeOfCare` (see
   `docs/project/fhir-data-mapping.md` when committed).
-- Curated real-world `Usage: #example` instances per profile - especially once
-  the data layer lands, where a worked `QuestionnaireResponse` says more than a
-  profile ever does.
+- Curated `Usage: #example` instances for the profiles the example target does not
+  cover - `D2Organization` and `D2Location` publish no worked example yet.
 - Instance-scoped project identity: `d2w fhir init --data-set <uid>` / `--event
   <uid>` seed the target lists offline today; deriving the IG identity (id,
   canonical, title) from the instance and its named targets on first init needs a

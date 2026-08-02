@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_fhir.names import join_id_tokens
+from dhis2w_fhir.names import join_id_tokens, page_text
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import NamingConfig
@@ -65,6 +65,16 @@ class NamingSystemDeclaration(BaseModel):
     title: str
     description: str
     url: str
+
+    @property
+    def title_literal(self) -> str:
+        """The title as the page-facing FSH `Title:` literal, markup characters HTML-escaped."""
+        return page_text(self.title)
+
+    @property
+    def description_literal(self) -> str:
+        """The description as the page-facing FSH `Description:` literal, markup characters HTML-escaped."""
+        return page_text(self.description)
 
 
 class FoundationNaming(BaseModel):

@@ -145,13 +145,15 @@ def test_naming_systems_carry_no_experimental_element() -> None:
 
 
 def test_period_extension_shape() -> None:
-    """D2Period is element-scoped with the iso/type/period sub-extensions and a required type binding."""
+    """D2Period is contexted on the two resources that carry it, with iso/type/period and a required binding."""
     period = _by_path(GenerateConfig())["foundation/d2-period.fsh"]
     assert "Extension: D2Period" in period
     assert "Id: d2-period" in period
     assert 'Title: "DHIS2 reporting period"' in period
-    assert "* ^context[+].type = #element" in period
-    assert '* ^context[=].expression = "Element"' in period
+    assert period.count("* ^context[+].type = #element") == 2
+    assert '* ^context[=].expression = "QuestionnaireResponse"' in period
+    assert '* ^context[=].expression = "MeasureReport"' in period
+    assert '* ^context[=].expression = "Element"' not in period
     assert "    iso 1..1 and" in period
     assert "    type 1..1 and" in period
     assert "    period 0..1" in period

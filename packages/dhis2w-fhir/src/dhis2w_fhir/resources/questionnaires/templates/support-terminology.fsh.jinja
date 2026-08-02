@@ -11,10 +11,20 @@ Description: {{ terminology.description_literal }}
 * ^property[=].uri = "{{ terminology.property_base }}/dhis2-code"
 * ^property[=].description = {{ terminology.property_description_literal }}
 * ^property[=].type = #string
+{% if terminology.declares_domain %}
+* ^property[+].code = #domain
+* ^property[=].uri = "{{ terminology.property_base }}/domain"
+* ^property[=].description = "DHIS2 data element domain type."
+* ^property[=].type = #code
+{% endif %}
 {% for concept in terminology.concepts %}
 * #{{ concept.uid }} {{ concept.display_literal }}
 * #{{ concept.uid }} ^property[+].code = #dhis2-code
 * #{{ concept.uid }} ^property[=].valueString = {{ concept.code_literal }}
+{% if concept.domain_code is not none %}
+* #{{ concept.uid }} ^property[+].code = #domain
+* #{{ concept.uid }} ^property[=].valueCode = #{{ concept.domain_code }}
+{% endif %}
 {% endfor %}
 
 ValueSet: {{ terminology.value_set }}

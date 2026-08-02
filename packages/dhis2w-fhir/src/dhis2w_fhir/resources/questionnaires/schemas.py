@@ -49,7 +49,11 @@ class CategoryComboIn(BaseModel):
 
 
 class QuestionnaireItemIn(BaseModel):
-    """One data element as a question: its value type, its option set, and its disaggregation."""
+    """One data element as a question: its value type, its domain, its option set, and its disaggregation.
+
+    `domain_type` is the DHIS2 `AGGREGATE` / `TRACKER` split, carried as a concept property on
+    the data-element support CodeSystem. It is empty when the instance sent none.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -57,6 +61,7 @@ class QuestionnaireItemIn(BaseModel):
     name: str
     form_name: str | None = None
     value_type: str
+    domain_type: str = ""
     option_set_uid: str | None = None
     compulsory: bool = False
     category_combo: CategoryComboIn | None = None
@@ -78,7 +83,8 @@ class QuestionnaireSourceIn(BaseModel):
     `sections` carries the form when it has them and `flat_items` carries the rest, so a
     sectioned form fills the first, an unsectioned form the second, and a form that mixes
     the two fills both (the service notes that). Both empty is a degenerate form with no
-    data elements.
+    data elements. `period_type` is the data set's DHIS2 reporting period type, which the
+    example target resolves its periods from; an event program carries none.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -87,6 +93,7 @@ class QuestionnaireSourceIn(BaseModel):
     name: str
     code: str | None = None
     kind: FormKind
+    period_type: str | None = None
     sections: list[QuestionnaireSectionIn] = Field(default_factory=list)
     flat_items: list[QuestionnaireItemIn] = Field(default_factory=list)
 
@@ -169,3 +176,7 @@ class QuestionnaireNaming(BaseModel):
     def option_set_value_set(self, option_set_uid: str) -> str:
         """FSH name of the option-set ValueSet an answer-bound item points at (id-sourced naming)."""
         return f"{join_name_segments(f'{self.prefix}{self.option_set}', option_set_uid)}_VS"
+
+    def option_set_code_system(self, option_set_uid: str) -> str:
+        """FSH name of the option-set CodeSystem an answered coding is coded from (id-sourced naming)."""
+        return f"{join_name_segments(f'{self.prefix}{self.option_set}', option_set_uid)}_CS"
