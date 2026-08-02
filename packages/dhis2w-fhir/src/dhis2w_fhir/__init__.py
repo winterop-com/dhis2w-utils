@@ -27,6 +27,7 @@ from dhis2w_fhir.foundation import (
     build_naming_system_declarations,
 )
 from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, normalize_locale
+from dhis2w_fhir.names import markdown_text
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.period import (
     PERIOD_TYPE_DEFINITIONS,
@@ -51,8 +52,20 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleResponseIn,
     ExampleSelection,
 )
-from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, max_slug_length, option_set_fsh_name
-from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn, OptionSetSelection
+from dhis2w_fhir.resources.option_sets import (
+    build_option_set_artifacts,
+    max_slug_length,
+    option_set_code_fallback,
+    option_set_fsh_name,
+    option_set_identities,
+)
+from dhis2w_fhir.resources.option_sets.schemas import (
+    OptionIn,
+    OptionSetIdentity,
+    OptionSetIdentityPlan,
+    OptionSetIn,
+    OptionSetSelection,
+)
 from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_instances,
     build_organisation_unit_level_terminology,
@@ -64,6 +77,14 @@ from dhis2w_fhir.resources.organisation_units.schemas import (
     OrganisationUnitIn,
     OrganisationUnitSelection,
 )
+from dhis2w_fhir.resources.pages import (
+    INTRO_SUFFIX,
+    PAGES_BASE_SUBDIRECTORY,
+    PAGES_DIRECTORY,
+    SITE_PAGE_FILENAMES,
+    build_page_artifacts,
+)
+from dhis2w_fhir.resources.pages.schemas import PagesIn
 from dhis2w_fhir.resources.questionnaires import (
     ITEM_CONTROL_CODE_SYSTEM_URL,
     ITEM_CONTROL_EXTENSION_URL,
@@ -96,10 +117,13 @@ from dhis2w_fhir.validation.schemas import (
 )
 from dhis2w_fhir.writer import (
     GENERATED_HEADER,
+    GENERATED_MARKDOWN_HEADER,
     FshArtifact,
     FshBuild,
     SyncReport,
     clean_generated_files,
+    generated_header,
+    is_generated_file,
     sync_artifacts,
     write_artifacts,
 )
@@ -109,11 +133,16 @@ __all__ = [
     "FHIR_CONFIG_FILENAME",
     "FORM_TYPE_DEFINITIONS",
     "GENERATED_HEADER",
+    "GENERATED_MARKDOWN_HEADER",
+    "INTRO_SUFFIX",
     "ITEM_CONTROL_CODE_SYSTEM_URL",
     "ITEM_CONTROL_EXTENSION_URL",
     "ITEM_TYPES_BY_VALUE_TYPE",
+    "PAGES_BASE_SUBDIRECTORY",
+    "PAGES_DIRECTORY",
     "PERIOD_TYPE_DEFINITIONS",
     "PERIOD_TYPE_NAMES",
+    "SITE_PAGE_FILENAMES",
     "TRANSLATION_EXTENSION_URL",
     "CategoryComboIn",
     "CategoryOptionComboIn",
@@ -141,10 +170,13 @@ __all__ = [
     "NamingSystemDeclaration",
     "NoFhirProjectError",
     "OptionIn",
+    "OptionSetIdentity",
+    "OptionSetIdentityPlan",
     "OptionSetIn",
     "OptionSetSelection",
     "OrganisationUnitIn",
     "OrganisationUnitSelection",
+    "PagesIn",
     "PeriodTypeDefinition",
     "PeriodValue",
     "QuestionnaireItemIn",
@@ -166,6 +198,7 @@ __all__ = [
     "build_foundation_artifacts",
     "build_naming_system_declarations",
     "build_option_set_artifacts",
+    "build_page_artifacts",
     "build_organisation_unit_instances",
     "build_organisation_unit_level_terminology",
     "build_organisation_unit_profiles",
@@ -176,13 +209,18 @@ __all__ = [
     "clean_generated_files",
     "domain_code",
     "find_project_fhir_config",
+    "generated_header",
+    "is_generated_file",
     "is_multi_valued",
     "load_fhir_config",
     "load_project",
+    "markdown_text",
     "max_slug_length",
     "name_translations",
     "normalize_locale",
+    "option_set_code_fallback",
     "option_set_fsh_name",
+    "option_set_identities",
     "parse_period",
     "recent_periods",
     "render_validation_csv",

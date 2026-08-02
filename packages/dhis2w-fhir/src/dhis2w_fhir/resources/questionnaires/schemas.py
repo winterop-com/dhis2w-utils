@@ -84,7 +84,8 @@ class QuestionnaireSourceIn(BaseModel):
     sectioned form fills the first, an unsectioned form the second, and a form that mixes
     the two fills both (the service notes that). Both empty is a degenerate form with no
     data elements. `period_type` is the data set's DHIS2 reporting period type, which the
-    example target resolves its periods from; an event program carries none.
+    example target resolves its periods from; an event program carries none. `description`
+    is the DHIS2 free text, which the narrative pages carry into the form's intro.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -92,6 +93,7 @@ class QuestionnaireSourceIn(BaseModel):
     uid: str
     name: str
     code: str | None = None
+    description: str | None = None
     kind: FormKind
     period_type: str | None = None
     sections: list[QuestionnaireSectionIn] = Field(default_factory=list)

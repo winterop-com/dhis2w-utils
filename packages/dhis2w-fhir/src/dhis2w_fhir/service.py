@@ -40,6 +40,13 @@ from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_terminology,
 )
 from dhis2w_fhir.resources.organisation_units.schemas import GeoPoint, OrganisationUnitIn
+from dhis2w_fhir.resources.pages import (
+    INTRO_SUFFIX,
+    PAGES_BASE_SUBDIRECTORY,
+    PAGES_DIRECTORY,
+    build_page_artifacts,
+)
+from dhis2w_fhir.resources.pages.schemas import PagesIn
 from dhis2w_fhir.resources.questionnaires import QUESTIONNAIRE_DIRECTORIES, build_questionnaire_artifacts
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
@@ -61,20 +68,23 @@ if TYPE_CHECKING:
 
 _STREAM_PAGE_SIZE = 500
 _TRANSLATION_FIELDS = "translations[locale,property,value]"
-_OPTION_SET_FIELDS = f"id,code,name,{_TRANSLATION_FIELDS},options[id,code,name,sortOrder,{_TRANSLATION_FIELDS}]"
+_OPTION_SET_FIELDS = (
+    f"id,code,name,description,{_TRANSLATION_FIELDS},options[id,code,name,sortOrder,{_TRANSLATION_FIELDS}]"
+)
 _ORGANISATION_UNIT_FIELDS = (
-    "id,code,name,shortName,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,closedDate,"
-    f"{_TRANSLATION_FIELDS}"
+    "id,code,name,shortName,description,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,"
+    f"closedDate,{_TRANSLATION_FIELDS}"
 )
 _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
     "dataElement[id,name,formName,valueType,domainType,optionSet[id],"
     "categoryCombo[id,name,isDefault,categoryOptionCombos[id,name,code]]]"
 )
 _DATA_SET_FIELDS = (
-    f"id,name,code,periodType,sections[id,name,dataElements[id]],dataSetElements[{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
+    "id,name,code,description,periodType,sections[id,name,dataElements[id]],"
+    f"dataSetElements[{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
 )
 _EVENT_PROGRAM_FIELDS = (
-    "id,name,code,programType,programStages[id,name,programStageSections[id,name,dataElements[id]],"
+    "id,name,code,description,programType,programStages[id,name,programStageSections[id,name,dataElements[id]],"
     f"programStageDataElements[compulsory,{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]]"
 )
 
@@ -99,6 +109,7 @@ class GenerateReport(BaseModel):
 
     project_root: Path
     target_directory: str
+    target_base: str = "ig/input/fsh"
     deleted_files: list[str] = Field(default_factory=list)
     written_files: list[str] = Field(default_factory=list)
     unchanged_count: int = 0
@@ -108,6 +119,8 @@ class GenerateReport(BaseModel):
     position_count: int = 0
     boundary_count: int = 0
     example_count: int = 0
+    page_count: int = 0
+    intro_count: int = 0
     notes: list[str] = Field(default_factory=list)
 
 
@@ -119,6 +132,7 @@ class GenerateAllReport(BaseModel):
     questionnaires: GenerateReport
     examples: GenerateReport
     organisation_units: GenerateReport
+    pages: GenerateReport
 
 
 class UnsupportedProgramError(ValueError):
@@ -254,9 +268,8 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
             order=["name:asc"],
             paging=False,
         )
-        closure = await _option_set_closure(client, config, notes)
-    inputs = [_option_set_input(model) for model in models]
-    inputs = _apply_option_set_selection(inputs, config, closure, notes)
+        sources = await _closure_sources(client, config)
+    inputs = _selected_option_sets([_option_set_input(model) for model in models], sources, config, notes)
     build = build_option_set_artifacts(inputs, config, ig_status=project.config.ig.status)
     sync = sync_artifacts(project.fsh_directory, "terminology", build.artifacts)
     return GenerateReport(
@@ -549,35 +562,44 @@ def _artifacts_under(artifacts: list[FshArtifact], directory: str) -> list[FshAr
     return [artifact for artifact in artifacts if artifact.relative_path.startswith(f"{directory}/")]
 
 
-async def generate_organisation_units(profile: Profile, project: FhirProject) -> GenerateReport:
-    """Generate Organization/Location instances (and optional terminology) into `organization/`."""
-    selection = project.config.generate.organisation_units
+async def _fetch_organisation_units(
+    client: Dhis2Client, config: GenerateConfig, tally: GeometryTally, today: date
+) -> list[OrganisationUnitIn]:
+    """Page the configured slice of the DHIS2 hierarchy into the emitter projection, ordered by path."""
+    selection = config.organisation_units
     filters: list[str] = []
     if selection.root is not None:
         filters.append(f"path:like:{selection.root}")
     if selection.max_level is not None:
         filters.append(f"level:le:{selection.max_level}")
     organisation_units: list[OrganisationUnitIn] = []
+    page = 1
+    while True:
+        models = await client.resources.organisation_units.list(
+            fields=_ORGANISATION_UNIT_FIELDS,
+            filters=filters or None,
+            order=["path:asc"],
+            page=page,
+            page_size=_STREAM_PAGE_SIZE,
+            paging=True,
+        )
+        for model in models:
+            mapped = _organisation_unit_input(model, tally, today)
+            if mapped is not None:
+                organisation_units.append(mapped)
+        if len(models) < _STREAM_PAGE_SIZE:
+            break
+        page += 1
+    return organisation_units
+
+
+async def generate_organisation_units(profile: Profile, project: FhirProject) -> GenerateReport:
+    """Generate Organization/Location instances (and optional terminology) into `organization/`."""
+    selection = project.config.generate.organisation_units
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
     async with open_client(profile) as client:
-        page = 1
-        while True:
-            models = await client.resources.organisation_units.list(
-                fields=_ORGANISATION_UNIT_FIELDS,
-                filters=filters or None,
-                order=["path:asc"],
-                page=page,
-                page_size=_STREAM_PAGE_SIZE,
-                paging=True,
-            )
-            for model in models:
-                mapped = _organisation_unit_input(model, tally, today)
-                if mapped is not None:
-                    organisation_units.append(mapped)
-            if len(models) < _STREAM_PAGE_SIZE:
-                break
-            page += 1
+        organisation_units = await _fetch_organisation_units(client, project.config.generate, tally, today)
     notes: list[str] = tally.to_notes()
     generate_config = project.config.generate
     ig_status = project.config.ig.status
@@ -615,31 +637,68 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
     )
 
 
+async def generate_pages(profile: Profile, project: FhirProject) -> GenerateReport:
+    """Generate the narrative site pages and the per-artifact intros into `ig/input/pagecontent/`."""
+    config = project.config.generate
+    notes: list[str] = []
+    tally = GeometryTally()
+    today = datetime.now(tz=UTC).date()
+    async with open_client(profile) as client:
+        sources = await _fetch_questionnaire_sources(client, config, notes)
+        models = await client.resources.option_sets.list(
+            fields=_OPTION_SET_FIELDS,
+            order=["name:asc"],
+            paging=False,
+        )
+        organisation_units = await _fetch_organisation_units(client, config, tally, today)
+    pages = PagesIn(
+        forms=sources,
+        option_sets=_selected_option_sets([_option_set_input(model) for model in models], sources, config, notes),
+        organisation_units=organisation_units,
+    )
+    build = build_page_artifacts(pages, config)
+    sync = sync_artifacts(project.ig_directory / PAGES_BASE_SUBDIRECTORY, PAGES_DIRECTORY, build.artifacts)
+    intro_count = sum(1 for artifact in build.artifacts if artifact.relative_path.endswith(INTRO_SUFFIX))
+    return GenerateReport(
+        project_root=project.project_root,
+        target_directory=PAGES_DIRECTORY,
+        target_base=f"ig/{PAGES_BASE_SUBDIRECTORY}",
+        deleted_files=sync.deleted,
+        written_files=sync.written,
+        unchanged_count=len(sync.unchanged),
+        page_count=len(build.artifacts) - intro_count,
+        intro_count=intro_count,
+        notes=[*notes, *build.notes],
+    )
+
+
 async def generate_all(profile: Profile, project: FhirProject) -> GenerateAllReport:
-    """Generate the foundation, terminology, questionnaires, example responses, and org-unit instances."""
+    """Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages."""
     foundation = await generate_foundation(project)
     option_sets = await generate_option_sets(profile, project)
     questionnaires = await generate_questionnaires(profile, project)
     examples = await generate_examples(profile, project)
     organisation_units = await generate_organisation_units(profile, project)
+    pages = await generate_pages(profile, project)
     return GenerateAllReport(
         foundation=foundation,
         option_sets=option_sets,
         questionnaires=questionnaires,
         examples=examples,
         organisation_units=organisation_units,
+        pages=pages,
     )
 
 
-def _apply_option_set_selection(
-    inputs: list[OptionSetIn], config: GenerateConfig, closure: set[str], notes: list[str]
+def _selected_option_sets(
+    inputs: list[OptionSetIn], sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[str]
 ) -> list[OptionSetIn]:
     """Filter option sets by the configured UIDs plus the target closure, noting entries that matched nothing."""
     selection = config.option_sets
     if not selection.include_ids:
         return inputs
     configured_ids = set(selection.include_ids)
-    wanted_ids = configured_ids | closure
+    wanted_ids = configured_ids | _option_set_closure(sources, config, notes)
     selected = [item for item in inputs if item.uid in wanted_ids]
     selected_ids = {item.uid for item in selected}
     for uid in sorted(configured_ids - selected_ids):
@@ -647,15 +706,19 @@ def _apply_option_set_selection(
     return selected
 
 
-async def _option_set_closure(client: Dhis2Client, config: GenerateConfig, notes: list[str]) -> set[str]:
-    """Collect the option sets the selected data sets and event programs bind their data elements to.
+async def _closure_sources(client: Dhis2Client, config: GenerateConfig) -> list[QuestionnaireSourceIn]:
+    """Fetch the questionnaire targets the option-set closure reads, or nothing when the closure is a no-op.
 
     An empty `[generate.option_sets] include_ids` already means every option set, so the
     closure is a no-op there and the targets are not fetched a second time.
     """
     if not config.option_sets.include_ids:
-        return set()
-    sources = await _fetch_questionnaire_sources(client, config, [])
+        return []
+    return await _fetch_questionnaire_sources(client, config, [])
+
+
+def _option_set_closure(sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[str]) -> set[str]:
+    """Collect the option sets the selected data sets and event programs bind their data elements to."""
     closure = {
         item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid is not None
     }
@@ -781,6 +844,7 @@ def _data_set_source(model: DataSet, notes: list[str]) -> QuestionnaireSourceIn:
         uid=uid,
         name=model.name or uid,
         code=model.code,
+        description=model.description,
         kind="aggregate",
         period_type=str(model.periodType) if model.periodType is not None else None,
         items=items,
@@ -821,6 +885,7 @@ def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSour
         uid=uid,
         name=name,
         code=model.code,
+        description=model.description,
         kind="event",
         items=items,
         raw_sections=raw_sections,
@@ -832,6 +897,7 @@ def _questionnaire_source(
     uid: str,
     name: str,
     code: str | None,
+    description: str | None,
     kind: FormKind,
     items: list[QuestionnaireItemIn],
     raw_sections: object,
@@ -855,6 +921,7 @@ def _questionnaire_source(
         uid=uid,
         name=name,
         code=code,
+        description=description,
         kind=kind,
         period_type=period_type,
         sections=sections,
@@ -994,6 +1061,7 @@ def _option_set_input(model: OptionSet) -> OptionSetIn:
         uid=uid,
         code=model.code,
         name=model.name or uid,
+        description=model.description,
         options=options,
         translations=_translation_inputs(model.translations),
     )
@@ -1184,6 +1252,7 @@ def _organisation_unit_input(
         name=name,
         short_name=model.shortName,
         code=model.code,
+        description=model.description,
         level=level,
         path=path,
         parent_uid=model.parent.id if model.parent is not None else None,

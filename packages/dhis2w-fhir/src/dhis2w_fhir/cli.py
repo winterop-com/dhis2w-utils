@@ -111,7 +111,7 @@ def _render_generate_report(title: str, report: GenerateReport, generation: Gene
     rows = [
         DetailRow("profile", f"{generation.name} ({generation.origin})"),
         DetailRow("project", str(report.project_root)),
-        DetailRow("target", f"ig/input/fsh/{report.target_directory}"),
+        DetailRow("target", f"{report.target_base}/{report.target_directory}"),
         DetailRow("files written", str(len(report.written_files))),
         DetailRow("unchanged", str(report.unchanged_count)),
         DetailRow("files deleted", str(len(report.deleted_files))),
@@ -128,6 +128,10 @@ def _render_generate_report(title: str, report: GenerateReport, generation: Gene
         rows.append(DetailRow("positions", str(report.position_count)))
     if report.boundary_count:
         rows.append(DetailRow("boundaries", str(report.boundary_count)))
+    if report.page_count:
+        rows.append(DetailRow("pages", str(report.page_count)))
+    if report.intro_count:
+        rows.append(DetailRow("intros", str(report.intro_count)))
     render_detail(title, rows)
     for note in report.notes:
         typer.secho(f"note: {note}", err=True, fg=typer.colors.YELLOW)
@@ -203,9 +207,23 @@ def generate_organisation_units_command() -> None:
     _render_generate_report("fhir generate org-units", report, generation)
 
 
+@generate_app.command("pages")
+def generate_pages_command() -> None:
+    """Generate the narrative site pages and the per-artifact intros into ig/input/pagecontent/."""
+    from dhis2w_fhir import service
+
+    project = load_project()
+    generation = service.resolve_generation_profile(project)
+    report = asyncio.run(service.generate_pages(generation.profile, project))
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    _render_generate_report("fhir generate pages", report, generation)
+
+
 @generate_app.command("all")
 def generate_all_command() -> None:
-    """Generate the foundation, terminology, questionnaires, example responses, and org-unit instances."""
+    """Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages."""
     from dhis2w_fhir import service
 
     project = load_project()
@@ -219,6 +237,7 @@ def generate_all_command() -> None:
     _render_generate_report("fhir generate questionnaires", report.questionnaires, generation)
     _render_generate_report("fhir generate examples", report.examples, generation)
     _render_generate_report("fhir generate org-units", report.organisation_units, generation)
+    _render_generate_report("fhir generate pages", report.pages, generation)
 
 
 #: The report formats `--format` accepts, in the order they are written.

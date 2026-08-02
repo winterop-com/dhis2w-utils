@@ -1,0 +1,35 @@
+# Registry
+
+The DHIS2 organisation unit hierarchy is published as a registry of paired resources: every
+unit is an `Organization` (the reporting entity) and a `Location` (the physical place), both
+carrying the DHIS2 UID and code identifiers, with `partOf` mirroring the DHIS2 hierarchy on
+both sides.
+
+| Measure | Count |
+| --- | ---: |
+| Organisation units | {{ registry.unit_count }} |
+| Units with a position | {{ registry.position_count }} |
+| Units with boundary geometry | {{ registry.boundary_count }} |
+
+{% if registry.root_uid %}
+The root of the published tree is **{{ registry.root_name }}** (`{{ registry.root_uid }}`).
+
+{% endif %}
+{% if registry.levels %}
+| Level | Units |
+| ---: | ---: |
+{% for level in registry.levels %}
+| {{ level.level }} | {{ level.unit_count }} |
+{% endfor %}
+
+{% else %}
+No organisation units matched the configured selection.
+
+{% endif %}
+Both halves of each pair are profiled: `{{ registry.organization_profile }}` slices the
+identifier into the DHIS2 UID and code, and types the unit by its hierarchy level;
+`{{ registry.location_profile }}` adds the position and carries the unit's full DHIS2
+geometry losslessly through the `location-boundary-geojson` extension. Walk the hierarchy in
+either direction through `partOf`: it points at the parent unit's `Organization` and
+`Location` respectively, and is absent exactly for the root and for any unit whose parent
+falls outside the published selection.

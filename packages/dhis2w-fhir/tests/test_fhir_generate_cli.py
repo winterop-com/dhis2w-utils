@@ -78,23 +78,48 @@ def test_generate_organisation_units_json(fhir_project: Path) -> None:  # noqa: 
 
 
 def test_generate_all_renders_every_report(fhir_project: Path) -> None:  # noqa: ARG001
-    """`d2w fhir generate all` renders the foundation, terminology, questionnaire, example, and org-unit reports."""
+    """`d2w fhir generate all` renders every target's report, with the narrative pages rendered last."""
     report = GenerateAllReport(
         foundation=_report("foundation"),
         option_sets=_report("terminology"),
         questionnaires=_report("questionnaires"),
         examples=_report("examples", example_count=2),
         organisation_units=_report("organization"),
+        pages=_report("pagecontent", target_base="ig/input", page_count=5, intro_count=3),
     )
     mock = AsyncMock(return_value=report)
     with patch("dhis2w_fhir.service.generate_all", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "generate", "all"])
     assert result.exit_code == 0, result.output
-    assert "foundation" in result.output
-    assert "option-sets" in result.output
-    assert "questionnaires" in result.output
-    assert "examples" in result.output
-    assert "org-units" in result.output
+    titles = ["foundation", "option-sets", "questionnaires", "examples", "org-units", "pages"]
+    positions = [result.output.index(f"fhir generate {title}") for title in titles]
+    assert positions == sorted(positions)
+    assert "ig/input/pagecontent" in result.output
+
+
+def test_generate_pages_renders_report(fhir_project: Path) -> None:  # noqa: ARG001
+    """`d2w fhir generate pages` renders the page and intro counts against the pagecontent target."""
+    mock = AsyncMock(
+        return_value=_report("pagecontent", target_base="ig/input", page_count=5, intro_count=4, notes=["a note"])
+    )
+    with patch("dhis2w_fhir.service.generate_pages", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate", "pages"])
+    assert result.exit_code == 0, result.output
+    assert "pages" in result.output
+    assert "intros" in result.output
+    assert "ig/input/pagecontent" in result.output
+    assert "a note" in result.output
+    mock.assert_awaited_once()
+
+
+def test_generate_pages_json(fhir_project: Path) -> None:  # noqa: ARG001
+    """`--json` emits the pages GenerateReport as JSON."""
+    mock = AsyncMock(return_value=_report("pagecontent", target_base="ig/input", page_count=5, intro_count=4))
+    with patch("dhis2w_fhir.service.generate_pages", new=mock):
+        result = _runner.invoke(build_app(), ["--json", "fhir", "generate", "pages"])
+    assert result.exit_code == 0, result.output
+    assert '"page_count": 5' in result.output
+    assert '"intro_count": 4' in result.output
 
 
 def test_generate_foundation_renders_report(fhir_project: Path) -> None:  # noqa: ARG001

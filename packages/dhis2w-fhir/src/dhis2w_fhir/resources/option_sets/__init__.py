@@ -33,14 +33,25 @@ from dhis2w_fhir.names import (
     quote,
 )
 from dhis2w_fhir.notes import aggregate_note
-from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
+from dhis2w_fhir.resources.option_sets.schemas import (
+    OptionIn,
+    OptionSetIdentity,
+    OptionSetIdentityPlan,
+    OptionSetIn,
+)
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, FshBuild
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
-__all__ = ["build_option_set_artifacts", "max_slug_length", "option_set_fsh_name"]
+__all__ = [
+    "build_option_set_artifacts",
+    "max_slug_length",
+    "option_set_code_fallback",
+    "option_set_fsh_name",
+    "option_set_identities",
+]
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.resources.option_sets", "templates"),
@@ -109,11 +120,14 @@ def max_slug_length(config: GenerateConfig) -> int:
     return _MAX_FHIR_ID_LENGTH - len(_id_stem(config)) - len(_ID_SUFFIX)
 
 
-def build_option_set_artifacts(
-    option_sets: list[OptionSetIn], config: GenerateConfig, *, ig_status: IgStatus
-) -> FshBuild:
-    """Build one `terminology/<slug>.fsh` artifact per option set, stable-sorted for clean diffs."""
-    build = FshBuild()
+def option_set_identities(option_sets: list[OptionSetIn], config: GenerateConfig) -> OptionSetIdentityPlan:
+    """Assign every option set its emitted slug, FSH name, and artifact ids, in emission order.
+
+    The one place the slug is decided: the emitter names its files from it and the narrative
+    pages link to `CodeSystem-<code_system_id>.html` from it, so the two cannot drift.
+    """
+    plan = OptionSetIdentityPlan()
+    id_stem = _id_stem(config)
     used_slugs: set[str] = set()
     truncated: list[str] = []
     collided: list[str] = []
@@ -133,29 +147,62 @@ def build_option_set_artifacts(
                 base_name = join_name_segments(base_name, option_set.uid)
                 collided.append(option_set.name)
         used_slugs.add(slug)
-        content = _render_option_set(option_set, base_name, slug, config, build.notes, ig_status=ig_status)
-        build.artifacts.append(
-            FshArtifact(
-                relative_path=f"terminology/{slug}.fsh",
-                kind="terminology-pair",
+        plan.identities.append(
+            OptionSetIdentity(
+                uid=option_set.uid,
+                name=option_set.name,
+                slug=slug,
                 fsh_name=base_name,
-                content=content,
+                code_system_id=f"{id_stem}{slug}-cs",
+                value_set_id=f"{id_stem}{slug}{_ID_SUFFIX}",
             )
         )
     if truncated:
-        build.notes.append(
+        plan.notes.append(
             aggregate_note(
                 f"{len(truncated)} option set names exceed the FHIR id length; ids truncated with a UID suffix",
                 truncated,
             )
         )
     if collided:
-        build.notes.append(
+        plan.notes.append(
             aggregate_note(
                 f"{len(collided)} option set names are not unique; ids disambiguated with a UID suffix", collided
             )
         )
+    return plan
+
+
+def build_option_set_artifacts(
+    option_sets: list[OptionSetIn], config: GenerateConfig, *, ig_status: IgStatus
+) -> FshBuild:
+    """Build one `terminology/<slug>.fsh` artifact per option set, stable-sorted for clean diffs."""
+    build = FshBuild()
+    plan = option_set_identities(option_sets, config)
+    by_uid = {option_set.uid: option_set for option_set in option_sets}
+    for identity in plan.identities:
+        option_set = by_uid[identity.uid]
+        content = _render_option_set(option_set, identity, config, build.notes, ig_status=ig_status)
+        build.artifacts.append(
+            FshArtifact(
+                relative_path=f"terminology/{identity.slug}.fsh",
+                kind="terminology-pair",
+                fsh_name=identity.fsh_name,
+                content=content,
+            )
+        )
+    build.notes.extend(plan.notes)
     return build
+
+
+def option_set_code_fallback(option_set: OptionSetIn, config: GenerateConfig) -> bool:
+    """Whether any concept of one set takes the UID because its DHIS2 code is unusable or already taken.
+
+    Always false in id mode: the UID is the concept code there by choice, not by fall-back.
+    """
+    if config.concept_code_source != "code":
+        return False
+    return any(not assigned.from_dhis2_code for assigned in _assigned_codes(option_set, config, []))
 
 
 def _id_stem(config: GenerateConfig) -> str:
@@ -214,45 +261,56 @@ def _concept_for(option: OptionIn, assigned: _DesiredCode, config: GenerateConfi
     )
 
 
-def _unique_concepts(
-    ordered: list[OptionIn], option_set: OptionSetIn, config: GenerateConfig, notes: list[str]
-) -> list[_Concept]:
-    """Assign concept codes in order, falling back to the UID whenever the desired code is already taken."""
+def _ordered_options(option_set: OptionSetIn) -> list[OptionIn]:
+    """One set's options in emission order: DHIS2 sort order first, then the UID for the unordered tail."""
+    return sorted(option_set.options, key=lambda item: (item.sort_order is None, item.sort_order or 0, item.uid))
+
+
+def _assigned_codes(option_set: OptionSetIn, config: GenerateConfig, notes: list[str]) -> list[_DesiredCode]:
+    """Assign concept codes in order, falling back to the UID whenever the desired code is unusable or taken."""
+    ordered = _ordered_options(option_set)
     desired = [_desired_code(option, option_set, config, notes) for option in ordered]
     taken: set[str] = set()
     collided: list[str] = []
-    concepts: list[_Concept] = []
+    assignments: list[_DesiredCode] = []
     for option, wanted in zip(ordered, desired, strict=True):
         assigned = wanted
         if wanted.code in taken:
             collided.append(f"{wanted.code} ({option.uid})")
             assigned = _DesiredCode(code=option.uid, from_dhis2_code=False)
         taken.add(assigned.code)
-        concepts.append(_concept_for(option, assigned, config))
+        assignments.append(assigned)
     if collided:
         notes.append(aggregate_note(f"{len(collided)} option codes collided; fell back to the UID", collided))
-    return concepts
+    return assignments
+
+
+def _unique_concepts(option_set: OptionSetIn, config: GenerateConfig, notes: list[str]) -> list[_Concept]:
+    """Build one set's concepts from the assigned codes, in emission order."""
+    assignments = _assigned_codes(option_set, config, notes)
+    return [
+        _concept_for(option, assigned, config)
+        for option, assigned in zip(_ordered_options(option_set), assignments, strict=True)
+    ]
 
 
 def _render_option_set(
     option_set: OptionSetIn,
-    base_name: str,
-    slug: str,
+    identity: OptionSetIdentity,
     config: GenerateConfig,
     notes: list[str],
     *,
     ig_status: IgStatus,
 ) -> str:
     """Render the CodeSystem + ValueSet FSH for one option set."""
-    ordered = sorted(option_set.options, key=lambda item: (item.sort_order is None, item.sort_order or 0, item.uid))
-    concepts = _unique_concepts(ordered, option_set, config, notes)
+    concepts = _unique_concepts(option_set, config, notes)
     used_property_codes = {concept.property_code for concept in concepts}
     code_kind = "option codes" if config.concept_code_source == "code" else "option UIDs"
     description = quote(f"DHIS2 option set {option_set.name} ({option_set.uid}). Concept codes are DHIS2 {code_kind}.")
     return _ENVIRONMENT.get_template("option-set.fsh.jinja").render(
-        base_name=base_name,
+        base_name=identity.fsh_name,
         id_stem=_id_stem(config),
-        slug=slug,
+        slug=identity.slug,
         title=quote(option_set.name),
         description=description,
         option_set_uid=option_set.uid,

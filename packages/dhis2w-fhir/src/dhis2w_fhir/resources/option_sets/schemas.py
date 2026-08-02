@@ -36,5 +36,31 @@ class OptionSetIn(BaseModel):
     uid: str
     code: str | None = None
     name: str
+    description: str | None = None
     options: list[OptionIn] = Field(default_factory=list)
     translations: list[TranslationIn] = Field(default_factory=list)
+
+
+class OptionSetIdentity(BaseModel):
+    """One option set's emitted slug plus the FSH name and artifact ids derived from it.
+
+    The narrative pages link an option set to its compiled `CodeSystem-<id>.html`, so the
+    slug assignment - truncation, collision suffixes, and the id stem the naming tokens
+    build - is computed once here and read by both the emitter and the pages.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    name: str
+    slug: str
+    fsh_name: str
+    code_system_id: str
+    value_set_id: str
+
+
+class OptionSetIdentityPlan(BaseModel):
+    """Every option set's identity in emission order, with the notes the slug assignment raised."""
+
+    identities: list[OptionSetIdentity] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)

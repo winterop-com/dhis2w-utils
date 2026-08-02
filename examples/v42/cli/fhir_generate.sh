@@ -70,9 +70,22 @@ d2w fhir generate org-units
 # designations, and as HL7 translation extensions on titles and instance names.
 # Narrow them with [generate] locales = ["lo", "km"] (empty = every locale found).
 
-# Or every target in one run (foundation, option-sets, questionnaires, examples, org-units).
-# Re-running replaces previously generated files
-# (identified by their header line); hand-authored .fsh files are never touched.
+# Pages: the IG's narrative layer, written as markdown into ig/input/pagecontent/
+# rather than as FSH. Five site pages - forms.md, registry.md, terminology.md,
+# identifiers.md, periods.md - which are the menu entries d2w fhir init scaffolds,
+# plus the per-artifact intros the IG publisher injects into an artifact page:
+# Questionnaire-<UID>-intro.md for every generated form, and CodeSystem-<id>-intro.md
+# / Organization-<UID>-intro.md for the option sets and org units carrying a DHIS2
+# description. Everything on these pages comes from the same metadata the FSH targets
+# fetch, so a page can never disagree with the resources it links.
+# The hand-authored ig/input/pagecontent/index.md is never touched: the sweep only
+# deletes markdown carrying the generated header comment.
+d2w fhir generate pages
+
+# Or every target in one run (foundation, option-sets, questionnaires, examples,
+# org-units, pages - pages last, so it sees everything the run generated).
+# Re-running replaces previously generated files (identified by their header line);
+# hand-authored .fsh and .md files are never touched.
 d2w fhir generate all
 
 # Preflight: check the instance's option-set codes and names for FHIR-safety

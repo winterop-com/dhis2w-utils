@@ -1,0 +1,34 @@
+# Periods
+
+A FHIR `Period` is a pair of instants. A DHIS2 reporting period is a *typed* interval:
+`202401` is the January instance of the `Monthly` type, and it is the type that makes the
+period comparable, enumerable, and round-trippable back into DHIS2. The
+`{{ periods.period_extension }}` extension carries all three facts.
+
+## The {{ periods.period_extension }} extension
+
+| Sub-extension | Cardinality | Type | What it holds |
+| --- | --- | --- | --- |
+| `iso` | 1..1 | `string` | The DHIS2 ISO period identifier, e.g. `202401`. |
+| `type` | 1..1 | `code` | The DHIS2 period type, bound to `{{ periods.period_type_value_set }}`. |
+| `period` | 0..1 | `Period` | The date range the ISO identifier resolves to. |
+
+Its context is the two resources that actually report over a period -
+`QuestionnaireResponse` and `MeasureReport` - rather than a bare element. The `type` binding
+is required, so a period this guide cannot resolve cannot be published.
+
+## Period types
+
+Every period type DHIS2 registers, with an example period and the dates that example covers.
+The examples are resolved by the same parser the generated resources use, so a period type
+and its ISO grammar can never disagree here.
+
+| Type | Example | Span |
+| --- | --- | --- |
+{% for period_type in periods.period_types %}
+| `{{ period_type.name }}` | `{{ period_type.example_iso }}` | {{ period_type.span }} |
+{% endfor %}
+
+The type codes above are the concepts of `{{ periods.period_type_code_system }}`; see
+[the CodeSystem](CodeSystem-{{ periods.period_type_code_system_id }}.html) for the ISO format
+each one is written in.

@@ -1,0 +1,49 @@
+{% macro catalog(forms, period_column) %}
+| Form | DHIS2 id | DHIS2 code |{% if period_column %} Period type |{% endif %} Sections | Questions |
+| --- | --- | --- |{% if period_column %} --- |{% endif %} ---: | ---: |
+{% for form in forms %}
+| [{{ form.cell_name }}]({{ form.page_link }}) | `{{ form.uid }}` | `{{ form.code }}` |{% if period_column %} {{ form.period_type }} |{% endif %} {{ form.section_count }} | {{ form.question_count }} |
+{% endfor %}
+{% endmacro %}
+{% macro breakdown(forms) %}
+{% for form in forms %}
+{% if not loop.first %}
+
+{% endif %}
+### {{ form.name }}
+
+{% for section in form.sections %}
+- {{ section.name }} ({{ section.question_count }} questions)
+{% endfor %}
+{% if form.unsectioned_question_count %}
+- Outside any section ({{ form.unsectioned_question_count }} questions)
+{% endif %}
+{% if not form.sections and not form.unsectioned_question_count %}
+This form asks no questions.
+{% endif %}
+{% endfor %}
+{% endmacro %}
+# Forms
+
+Every DHIS2 data-capture form this guide publishes is a `Questionnaire`: a data set or an
+event program states what is asked, its sections become `#group` items, and each data
+element becomes a question typed from its DHIS2 value type. The example
+`QuestionnaireResponse` instances answer these forms on the very link ids they define.
+
+## Data sets
+
+{% if data_sets %}
+{{ catalog(data_sets, true) }}
+{{ breakdown(data_sets) }}
+{% else %}
+No data sets are selected for this guide.
+
+{% endif %}
+## Event programs
+
+{% if event_programs %}
+{{ catalog(event_programs, false) }}
+{{ breakdown(event_programs) }}
+{% else %}
+No event programs are selected for this guide.
+{% endif %}
