@@ -170,6 +170,16 @@ def test_ignore_warnings_suppresses_the_accepted_classes() -> None:
     assert "%could usefully have an OID assigned%" in suppressed
     assert "%is deprecated with the note: 'Use additionalBinding extension or element instead'%" in suppressed
     assert "dhis2.org/fhir/id/" not in suppressed
+    assert "%/property/dhis2-id'%" in suppressed
+    assert "%/property/dhis2-code'%" in suppressed
+    assert "%/property/domain'%" in suppressed
+    assert "%The code 'aggregate' is not a valid code in this code system%" in suppressed
+    assert "%The code 'tracker' is not a valid code in this code system%" in suppressed
+    assert "%The type of property 'code' is 'code', but no ValueSet information was found%" in suppressed
+    assert (
+        "%There are multiple different potential matches for the url "
+        "'http://hl7.org/fhir/StructureDefinition/location-boundary-geojson'%"
+    ) in suppressed
     for line in suppressed.splitlines()[1:]:
         if line and not line.startswith("# "):
             assert line.startswith("%"), line

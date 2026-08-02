@@ -312,7 +312,21 @@ SUSHI: a zone-less DHIS2 timestamp gains `Z` (BUGS.md #62 - R4 requires an offse
 on a `dateTime` that carries a time, and DHIS2 serves local timestamps under
 fields its OpenAPI types as `Instant`), and a bare `HH:MM` gains its seconds. A
 temporal value that still does not match the R4 primitive is answered as a string,
-and an unusable `occurredAt` drops `authored` entirely - with a note either way.
+and an unusable `occurredAt` drops `authored` entirely - with a note either way. A
+third upstream quirk is handled a layer earlier, at the wire-parse boundary:
+`categoryOptionCombos` comes back in a different order on every request (BUGS.md
+#64, the same Java `Set` shape as `dataSetElements` in #63), so the option combos
+are sorted by name and UID once at parse time, giving the questionnaire's child
+items, the answers here, and the `D2COC_CS` concepts one shared order - which is
+what keeps a disaggregated example past the validator's
+`QuestionnaireResponse: Structural Error: items are out of order`.
+
+An answer to an `ORGANISATION_UNIT` question is a `valueReference` at
+`Location-<uid>`, matching the `#reference` item type the questionnaire declares
+and the `Location` instances the registry target publishes. `REFERENCE` and
+`TRACKER_ASSOCIATE` point at DHIS2 objects the IG publishes nothing for yet, so a
+synthetic example leaves them unanswered alongside the attachment and geometry
+types, in one aggregate note.
 
 ## Organisation units -> instances
 
@@ -644,6 +658,10 @@ boundary.
   namespace choice, because the registry (org units), terminology (option sets), and
   foundation artifacts stay instance-level with instance-linked ids whichever form
   uses them.
+- An `init` mode that refreshes the scaffold-managed support files
+  (`ig/input/ignoreWarnings.txt`, `ig/input/pagecontent/index.md`) in an existing
+  project without touching `fhir.toml` or hand-edited content - a project created
+  before a scaffold improvement keeps stale support files otherwise.
 - `d2w fhir ui` / `browser`: a tree-widget explorer over the generated IG and
   hierarchy, modelled on the security plugin's offline d3 sharing explorer.
 - `d2w fhir serve`: one verb, two modes (FastAPI per repo convention, read-only

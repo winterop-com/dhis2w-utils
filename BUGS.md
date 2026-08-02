@@ -23,7 +23,7 @@ below.
 
 ## Index
 
-75 entries grouped by area. **Status tags** carry the result of the most
+76 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED]** upstream on all of v41/v42/v43,
 **[FIXED v43]** on v43 only (still present on older majors), **[PARTIAL]**
@@ -112,6 +112,7 @@ the bottom of the file and keep their numbers.
 - [#49](#49-v43-datavaluefollowuprequestperiod-is-typed-as-an-object-but-the-wire-accepts-a-string) — v43 OAS types `DataValueFollowUpRequest.period` as an object; wire accepts a string
 - [#62](#62-tracker-occurredat-and-datetime-data-values-are-zone-less-local-timestamps-under-fields-typed-instant) — Tracker `occurredAt` and `DATETIME` data values are zone-less local timestamps
 - [#63](#63-datasetdatasetelements-is-serialised-in-a-different-order-on-every-request) — `DataSet.dataSetElements` is serialised in a different order on every request
+- [#64](#64-categorycombocategoryoptioncombos-is-serialised-in-a-different-order-on-every-request) — `CategoryCombo.categoryOptionCombos` is serialised in a different order on every request
 
 ### v41-specific
 
@@ -2656,6 +2657,67 @@ joined by UID and keeps the section's own sort order.
 
 **How to know it's fixed:** four consecutive `GET /api/dataSets?fields=dataSetElements[...]`
 calls against an unchanged data set return the members in the same order.
+
+**Verifier:** none yet.
+
+---
+
+### 64. `CategoryCombo.categoryOptionCombos` is serialised in a different order on every request
+
+`GET /api/dataSets?fields=dataSetElements[dataElement[categoryCombo[categoryOptionCombos[id]]]]`
+returns the same category combo's option combos in a different order each time it is called.
+`CategoryCombo.optionCombos` is a Java `Set` with no sort-order column behind it, so the
+serialised order is whatever the hash iteration order happens to be for that request. This is
+the same shape as #63 one level deeper in the projection, and it holds wherever the collection
+is expanded - `/api/categoryCombos` reads it the same way.
+
+**Observed on:** v42 (`play.im.dhis2.org/dev-2-42`, `2.42.6-SNAPSHOT`, 2026-08-02). The field
+is a `Set` on all of v41/v42/v43.
+
+**Repro:**
+
+```bash
+# Four identical requests, four different orders:
+for i in 1 2 3 4; do
+  curl -s -u admin:district \
+    'https://play.im.dhis2.org/dev-2-42/api/categoryCombos.json?filter=id:eq:O4VaNks6tta&fields=categoryOptionCombos%5Bid,name%5D&paging=false' \
+    | python3 -c "import sys,json;print([c['id'] for c in json.load(sys.stdin)['categoryCombos'][0]['categoryOptionCombos']][:4])"
+done
+# ['S34ULMcHMca', 'psbwp3CQEhs', 'Prlt0C1RF0s', 'wHBMVthqIX4']
+# ['Prlt0C1RF0s', 'wHBMVthqIX4', 'S34ULMcHMca', 'psbwp3CQEhs']
+# ['wHBMVthqIX4', 'S34ULMcHMca', 'psbwp3CQEhs', 'Prlt0C1RF0s']
+# ['psbwp3CQEhs', 'Prlt0C1RF0s', 'wHBMVthqIX4', 'S34ULMcHMca']
+
+# The same collection reached through a data set's data elements shuffles identically:
+curl -s -u admin:district \
+  'https://play.im.dhis2.org/dev-2-42/api/dataSets.json?filter=id:eq:BfMAe6Itzgt&fields=dataSetElements%5BdataElement%5BcategoryCombo%5BcategoryOptionCombos%5Bid%5D%5D%5D%5D&paging=false'
+```
+
+**Expected:** a deterministic order - the category cross-product has a natural one (the
+categories' own sort order, which is exactly the order the data entry app renders the grid
+columns in) or, failing that, a stable tie-break such as the option combo UID.
+
+**Actual:** hash iteration order, which changes per request even against an unchanged category
+combo.
+
+**Impact:** the same as #63, and worse for a disaggregated form: the option combos ARE the
+columns of a data-entry grid, so a tool rendering them in wire order produces a grid whose
+columns move on every run. Two separate reads of the same data set also disagree with each
+other about the column order, so a document generated from one read cannot answer the other
+by position.
+
+**Workaround in this repo:** `_option_combo_inputs` in
+`packages/dhis2w-fhir/src/dhis2w_fhir/service.py` sorts the mapped option combos by name and
+UID at the single wire-parse point, so the questionnaire's option-combo child items, the
+example responses answering them, and the `D2COC_CS` support concepts all read one order.
+Without it `d2w fhir generate questionnaires` was not byte-stable, and the FHIR validator
+rejected every disaggregated example with `QuestionnaireResponse: Structural Error: items are
+out of order` - `generate examples` fetches the metadata separately from
+`generate questionnaires`, so the two reads permuted against each other.
+
+**How to know it's fixed:** four consecutive
+`GET /api/categoryCombos?fields=categoryOptionCombos[id]` calls against an unchanged category
+combo return the option combos in the same order.
 
 **Verifier:** none yet.
 

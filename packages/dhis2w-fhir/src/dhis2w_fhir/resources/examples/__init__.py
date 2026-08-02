@@ -113,9 +113,14 @@ _MULTI_VALUE_TYPE = "MULTI_TEXT"
 #: The separator DHIS2 joins a MULTI_TEXT value's option codes with.
 _MULTI_VALUE_SEPARATOR = ","
 
-#: The value types a synthetic example leaves unanswered - an attachment or a geometry blob
-#: says nothing useful when it is invented, and inventing one would misrepresent the form.
-_UNSYNTHESIZABLE_VALUE_TYPES = frozenset({"FILE_RESOURCE", "IMAGE", "GEOJSON"})
+#: The value types an example leaves unanswered. An attachment or a geometry blob says nothing
+#: useful when it is invented, and inventing one would misrepresent the form. `REFERENCE` and
+#: `TRACKER_ASSOCIATE` point at DHIS2 objects the IG publishes no FHIR resource for, so an
+#: answer would name a target no consumer can resolve.
+_UNSYNTHESIZABLE_VALUE_TYPES = frozenset({"FILE_RESOURCE", "IMAGE", "GEOJSON", "REFERENCE", "TRACKER_ASSOCIATE"})
+
+#: The DHIS2 value type answered as a reference to the organisation unit's Location instance.
+_ORGANISATION_UNIT_VALUE_TYPE = "ORGANISATION_UNIT"
 
 # The R4 primitive patterns (https://hl7.org/fhir/R4/datatypes.html#primitive) the temporal
 # answers are checked against. They are stricter than what DHIS2 stores, so a value that does
@@ -344,8 +349,8 @@ def build_synthetic_responses(
     if unanswerable:
         build.notes.append(
             aggregate_note(
-                f"{len(unanswerable)} questions take an attachment or a geometry document; left unanswered "
-                "in the synthetic examples",
+                f"{len(unanswerable)} questions take an attachment, a geometry document, or a reference to a "
+                "DHIS2 object the IG does not publish; left unanswered in the synthetic examples",
                 sorted(set(unanswerable)),
             )
         )
@@ -371,7 +376,7 @@ def _synthetic_response(
     answers: list[ExampleAnswerIn] = []
     for key in _answerable_keys(source):
         option_set = option_sets_by_uid.get(key.item.option_set_uid or "")
-        value = _synthetic_value(key.item, option_set, generator, window, instance_id)
+        value = _synthetic_value(key.item, option_set, generator, window, instance_id, organisation_unit_uid)
         if value is None:
             unanswerable.append(f"{key.item.name} ({key.item.uid})")
             continue
@@ -443,6 +448,7 @@ def _synthetic_value(
     generator: random.Random,
     window: _SyntheticWindow,
     instance_id: str,
+    organisation_unit_uid: str,
 ) -> str | None:
     """Generate one DHIS2-shaped value string for a question; None when the type is not worth faking."""
     value_type = item.value_type
@@ -450,6 +456,8 @@ def _synthetic_value(
         return None
     if item.option_set_uid is not None and option_set is not None and option_set.options:
         return _synthetic_option_value(value_type, option_set, generator)
+    if value_type == _ORGANISATION_UNIT_VALUE_TYPE:
+        return organisation_unit_uid
     if value_type in _INTEGER_VALUE_TYPES:
         return str(generator.randrange(_SYNTHETIC_INTEGER_BOUND))
     if value_type == "UNIT_INTERVAL":
@@ -640,6 +648,8 @@ def _typed_answer(item: QuestionnaireItemIn, value: str, tally: _ExampleTally) -
         return _temporal_answer(item, text, temporal, tally)
     if item.value_type == _URI_VALUE_TYPE:
         return _Answer(element="valueUri", literal=quote(text))
+    if item.value_type == _ORGANISATION_UNIT_VALUE_TYPE:
+        return _Answer(element="valueReference", literal=f"Reference(Location-{text})")
     return _Answer(element=_DEFAULT_ANSWER_ELEMENT, literal=quote(value))
 
 
