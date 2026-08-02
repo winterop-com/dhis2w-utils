@@ -43,11 +43,12 @@ program = "PR"                      # event program Questionnaire names; "" drop
 # include_ids = ["Qdm5fPK5Ra9"]
 
 [generate.data_sets]
-# Data set UIDs to emit as Questionnaires (absent = none - data definitions are opt-in).
+# Data set UIDs to emit as Questionnaires (absent or empty = all data sets).
 # include_ids = ["BfMAe6Itzgt"]
 
 [generate.event_programs]
-# Event program UIDs to emit as Questionnaires (absent = none - data definitions are opt-in).
+# Event program UIDs to emit as Questionnaires (absent or empty = all event programs;
+# tracker programs are skipped until tracker generation lands).
 # include_ids = ["VBqh0ynB2wv"]
 
 [generate.organisation_units]

@@ -229,9 +229,9 @@ async def test_generate_questionnaires_across_majors(
     assert data_sets.called
     assert programs.called
     assert report.questionnaire_count == 2
-    assert "questionnaires/BfMAe6Itzgt.fsh" in report.written_files
-    assert "questionnaires/VBqh0ynB2wv.fsh" in report.written_files
-    content = (tmp_path / "ig" / "input" / "fsh" / "questionnaires" / "VBqh0ynB2wv.fsh").read_text(encoding="utf-8")
+    assert "data-sets/BfMAe6Itzgt.fsh" in report.written_files
+    assert "event-programs/VBqh0ynB2wv.fsh" in report.written_files
+    content = (tmp_path / "ig" / "input" / "fsh" / "event-programs" / "VBqh0ynB2wv.fsh").read_text(encoding="utf-8")
     assert content.startswith(GENERATED_HEADER)
     assert "* code = D2FormType_CS#event" in content
 

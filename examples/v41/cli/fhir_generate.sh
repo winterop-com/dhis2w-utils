@@ -14,9 +14,10 @@ d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/d
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" --status active
 
-# Data definitions are explicit opt-in, and --data-set / --event seed them at scaffold
-# time (repeatable, offline - the UIDs are written to fhir.toml, never checked against an
-# instance). On the play 2.42 demo: two data sets and one event program.
+# --data-set / --event narrow the data-definition targets at scaffold time (repeatable,
+# offline - the UIDs are written to fhir.toml, never checked against an instance). Leave
+# them out and generation covers the whole instance. On the play 2.42 demo: two data sets
+# and one event program.
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" \
 #     --data-set BfMAe6Itzgt --data-set Nyh6laLdBEJ --event VBqh0ynB2wv
@@ -36,13 +37,15 @@ d2w fhir generate foundation
 # property (set concept_code_source = "code" in fhir.toml to swap them).
 d2w fhir generate option-sets
 
-# Questionnaires: one Questionnaire per configured data set / event program under
-# ig/input/fsh/questionnaires/, plus the data-element and category-option-combo support
-# terminology. Sections become #group items, data elements become questions typed from
-# their DHIS2 valueType, option-set-bound elements answer from the option set's ValueSet,
-# and a non-default category combo becomes a group with one child per option combo.
-# Configure the targets with [generate.data_sets] / [generate.event_programs] include_ids;
-# with neither configured this target writes nothing.
+# Questionnaires: one Questionnaire per selected data set under ig/input/fsh/data-sets/
+# and per event program under ig/input/fsh/event-programs/, plus the shared data-element
+# and category-option-combo support terminology under ig/input/fsh/data-dictionary/.
+# Sections become #group items, data elements become questions typed from their DHIS2
+# valueType, option-set-bound elements answer from the option set's ValueSet, and a
+# non-default category combo becomes a group with one child per option combo.
+# Narrow the targets with [generate.data_sets] / [generate.event_programs] include_ids;
+# with neither configured this target covers the whole instance (tracker and multi-stage
+# programs are skipped with a note).
 d2w fhir generate questionnaires
 
 # Organisation units: one file per level under ig/input/fsh/organization/. Every

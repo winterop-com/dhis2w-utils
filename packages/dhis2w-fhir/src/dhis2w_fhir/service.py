@@ -25,7 +25,7 @@ from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_terminology,
 )
 from dhis2w_fhir.resources.organisation_units.schemas import GeoPoint, OrganisationUnitIn
-from dhis2w_fhir.resources.questionnaires import build_questionnaire_artifacts
+from dhis2w_fhir.resources.questionnaires import QUESTIONNAIRE_DIRECTORIES, build_questionnaire_artifacts
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
@@ -242,26 +242,32 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
 
 
 async def generate_questionnaires(profile: Profile, project: FhirProject) -> GenerateReport:
-    """Generate one Questionnaire FSH file per configured data set / event program into `questionnaires/`."""
+    """Generate one Questionnaire FSH file per selected data set / event program, split across three directories."""
     config = project.config.generate
     notes: list[str] = []
-    sources: list[QuestionnaireSourceIn] = []
-    if config.data_sets.include_ids or config.event_programs.include_ids:
-        async with open_client(profile) as client:
-            sources = await _fetch_questionnaire_sources(client, config, notes)
+    async with open_client(profile) as client:
+        sources = await _fetch_questionnaire_sources(client, config, notes)
     build = build_questionnaire_artifacts(
         sources, config, project.config.ig.canonical, ig_status=project.config.ig.status
     )
-    sync = sync_artifacts(project.fsh_directory, "questionnaires", build.artifacts)
+    syncs = [
+        sync_artifacts(project.fsh_directory, directory, _artifacts_under(build.artifacts, directory))
+        for directory in QUESTIONNAIRE_DIRECTORIES
+    ]
     return GenerateReport(
         project_root=project.project_root,
-        target_directory="questionnaires",
-        deleted_files=sync.deleted,
-        written_files=sync.written,
-        unchanged_count=len(sync.unchanged),
+        target_directory=", ".join(QUESTIONNAIRE_DIRECTORIES),
+        deleted_files=[name for sync in syncs for name in sync.deleted],
+        written_files=[path for sync in syncs for path in sync.written],
+        unchanged_count=sum(len(sync.unchanged) for sync in syncs),
         questionnaire_count=len(sources),
         notes=[*notes, *build.notes],
     )
+
+
+def _artifacts_under(artifacts: list[FshArtifact], directory: str) -> list[FshArtifact]:
+    """The artifacts one sync directory owns - each directory is swept against its own files alone."""
+    return [artifact for artifact in artifacts if artifact.relative_path.startswith(f"{directory}/")]
 
 
 async def generate_organisation_units(profile: Profile, project: FhirProject) -> GenerateReport:
@@ -361,14 +367,12 @@ def _apply_option_set_selection(
 
 
 async def _option_set_closure(client: Dhis2Client, config: GenerateConfig, notes: list[str]) -> set[str]:
-    """Collect the option sets the configured data sets and event programs bind their data elements to.
+    """Collect the option sets the selected data sets and event programs bind their data elements to.
 
     An empty `[generate.option_sets] include_ids` already means every option set, so the
     closure is a no-op there and the targets are not fetched a second time.
     """
     if not config.option_sets.include_ids:
-        return set()
-    if not (config.data_sets.include_ids or config.event_programs.include_ids):
         return set()
     sources = await _fetch_questionnaire_sources(client, config, [])
     closure = {
@@ -388,29 +392,74 @@ async def _option_set_closure(client: Dhis2Client, config: GenerateConfig, notes
 async def _fetch_questionnaire_sources(
     client: Dhis2Client, config: GenerateConfig, notes: list[str]
 ) -> list[QuestionnaireSourceIn]:
-    """Fetch every configured data set and event program as the Questionnaire projection."""
+    """Fetch the selected data sets and event programs as the Questionnaire projection.
+
+    An absent or empty `include_ids` selects everything the instance holds, matching the
+    terminology targets. The whole-instance sweep auto-selects the single-stage event
+    programs and notes the shapes it skips; an explicit list refuses them by name instead.
+    """
     sources: list[QuestionnaireSourceIn] = []
     data_set_ids = config.data_sets.include_ids
+    data_sets = await client.resources.data_sets.list(
+        fields=_DATA_SET_FIELDS,
+        filters=[_uid_filter(data_set_ids)] if data_set_ids else None,
+        order=["name:asc"],
+        paging=False,
+    )
+    sources.extend(_data_set_source(model, notes) for model in data_sets)
     if data_set_ids:
-        data_sets = await client.resources.data_sets.list(
-            fields=_DATA_SET_FIELDS,
-            filters=[_uid_filter(data_set_ids)],
-            order=["name:asc"],
-            paging=False,
-        )
-        sources.extend(_data_set_source(model, notes) for model in data_sets)
         _note_unmatched(data_set_ids, {model.id for model in data_sets}, "data_sets", "data set", notes)
     event_program_ids = config.event_programs.include_ids
+    programs = await client.resources.programs.list(
+        fields=_EVENT_PROGRAM_FIELDS,
+        filters=[_uid_filter(event_program_ids)] if event_program_ids else None,
+        order=["name:asc"],
+        paging=False,
+    )
     if event_program_ids:
-        programs = await client.resources.programs.list(
-            fields=_EVENT_PROGRAM_FIELDS,
-            filters=[_uid_filter(event_program_ids)],
-            order=["name:asc"],
-            paging=False,
-        )
         sources.extend(_event_program_source(model, notes) for model in programs)
         _note_unmatched(event_program_ids, {model.id for model in programs}, "event_programs", "event program", notes)
+    else:
+        sources.extend(_event_program_source(model, notes) for model in _single_stage_event_programs(programs, notes))
     return sources
+
+
+def _single_stage_event_programs(models: list[Program], notes: list[str]) -> list[Program]:
+    """Keep the single-stage event programs of a whole-instance sweep, noting the shapes it skips."""
+    supported: list[Program] = []
+    tracker: list[str] = []
+    multi_stage: list[str] = []
+    for model in models:
+        label = f"{model.name or model.id or ''} ({model.id or ''})"
+        if _program_type(model) != _EVENT_PROGRAM_TYPE:
+            tracker.append(label)
+        elif len(_program_stages(model)) > 1:
+            multi_stage.append(label)
+        else:
+            supported.append(model)
+    if tracker:
+        notes.append(
+            aggregate_note(f"{len(tracker)} tracker programs skipped (tracker generation not implemented)", tracker)
+        )
+    if multi_stage:
+        notes.append(
+            aggregate_note(
+                f"{len(multi_stage)} multi-stage event programs skipped "
+                "(only single-stage event programs are implemented)",
+                multi_stage,
+            )
+        )
+    return supported
+
+
+def _program_type(model: Program) -> str:
+    """The program's live `programType`, or `unknown` when the instance sent none."""
+    return str(model.programType) if model.programType is not None else "unknown"
+
+
+def _program_stages(model: Program) -> list[dict[str, object]]:
+    """The program's stages as the wire sends them."""
+    return [stage for stage in model.programStages or [] if isinstance(stage, dict)]
 
 
 def _uid_filter(uids: list[str]) -> str:
@@ -453,12 +502,12 @@ def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSour
     """Map a generated Program into the Questionnaire projection, refusing every shape but a single-stage event."""
     uid = model.id or ""
     name = model.name or uid
-    program_type = str(model.programType) if model.programType is not None else "unknown"
+    program_type = _program_type(model)
     if program_type != _EVENT_PROGRAM_TYPE:
         raise UnsupportedProgramError(
             f"program {name!r} ({uid}) has programType {program_type}; tracker programs are not implemented yet"
         )
-    stages = [stage for stage in model.programStages or [] if isinstance(stage, dict)]
+    stages = _program_stages(model)
     if len(stages) > 1:
         raise UnsupportedProgramError(
             f"event program {name!r} ({uid}) has {len(stages)} program stages; "
@@ -468,7 +517,8 @@ def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSour
     raw_sections: object = None
     if stages:
         stage = stages[0]
-        for entry in stage.get("programStageDataElements") or []:
+        raw_elements = stage.get("programStageDataElements")
+        for entry in raw_elements if isinstance(raw_elements, list) else []:
             if not isinstance(entry, dict):
                 continue
             reference = entry.get("dataElement")

@@ -246,7 +246,7 @@ token (`d2-deg-<uid>-cs`).
 
 UIDs only - DHIS2 option-set names are not unique. An entry matching nothing is
 reported as a note rather than silently ignored. A narrowed list is still unioned
-with whatever the configured data sets and event programs bind their data elements
+with whatever the selected data sets and event programs bind their data elements
 to, so a questionnaire never points at a ValueSet the IG does not contain
 (see [Data set and event program forms](#data-set-and-event-program-forms)).
 
@@ -254,16 +254,28 @@ to, so a questionnaire never points at a ValueSet the IG does not contain
 
 ```toml
 [generate.data_sets]
-# include_ids = ["BfMAe6Itzgt"]     # data set UIDs; absent means none
+# include_ids = ["BfMAe6Itzgt"]     # data set UIDs; absent means all
 
 [generate.event_programs]
-# include_ids = ["VBqh0ynB2wv"]     # event program UIDs; absent means none
+# include_ids = ["VBqh0ynB2wv"]     # event program UIDs; absent means all
 ```
 
-The data-definition targets. Unlike the terminology and registry selections, an
-absent or empty list means **none**: a form is added to a project deliberately, one
-UID at a time. `d2w fhir init --data-set <uid> --event <uid>` seeds these lists
-while scaffolding.
+The data-definition targets. They read like the terminology and registry selections:
+an absent or empty list means **all**, a non-empty list filters.
+`d2w fhir init --data-set <uid> --event <uid>` seeds these lists while scaffolding,
+which is how you narrow a project to the handful of forms you care about.
+
+The two modes differ on the program shapes the Questionnaire target cannot map yet:
+
+- **Absent or empty** (the whole instance): only single-stage
+  `WITHOUT_REGISTRATION` programs are picked up. Tracker programs and multi-stage
+  event programs are skipped, each shape reported as one aggregate note in the
+  generate report (`N tracker programs skipped (tracker generation not
+  implemented): ...`). Every data set on the instance is emitted.
+- **Non-empty** (an explicit list): a listed tracker or multi-stage program is a
+  loud failure naming the program, not a skip - you asked for that UID by name, so
+  the run stops instead of quietly leaving it out. UIDs the instance answers
+  nothing for stay an aggregate note.
 
 ### `[generate.organisation_units]`
 
@@ -291,8 +303,10 @@ d2w fhir generate org-units      Org units -> Organization/Location instances
 d2w fhir generate all            All four, in that order
 ```
 
-Each target owns one subdirectory of `ig/input/fsh/` and syncs it: writes what
-changed, leaves what did not, deletes generated files that no longer belong.
+Each target owns its subdirectories of `ig/input/fsh/` and syncs each one: writes
+what changed, leaves what did not, deletes generated files that no longer belong.
+`questionnaires` owns three (`data-sets/`, `event-programs/`, `data-dictionary/`);
+the other three own one each.
 
 ### `foundation`
 
@@ -397,8 +411,20 @@ about.
 
 A DHIS2 data set and a DHIS2 event program are both *data-capture forms*, and FHIR
 already has that resource: `Questionnaire`. `d2w fhir generate questionnaires`
-writes one `questionnaires/<UID>.fsh` per configured target, plus two support
-CodeSystem/ValueSet pairs.
+writes one file per selected target plus two support CodeSystem/ValueSet pairs,
+across three directories named for what they hold:
+
+```
+ig/input/fsh/data-sets/<UID>.fsh          One Questionnaire per data set
+ig/input/fsh/event-programs/<UID>.fsh     One Questionnaire per event program
+ig/input/fsh/data-dictionary/             The shared data-element and
+                                          category-option-combo terminology
+```
+
+The command keeps the name `questionnaires` - it says what it does, not where the
+files land. With no `[generate.data_sets]` / `[generate.event_programs]` table at
+all, every data set and every single-stage event program on the instance is a
+target; list UIDs to narrow it:
 
 ```toml
 [generate.data_sets]
@@ -452,26 +478,32 @@ A section holding a disaggregated data element also carries the standard
 to lay that section out as the DHIS2 data-entry grid it is - questions as rows,
 category option combos as columns.
 
-**The support terminology.** `questionnaires/data-elements.fsh` publishes every data
+**The support terminology.** `data-dictionary/data-elements.fsh` publishes every data
 element the generated questionnaires reference as one `D2DE_CS` CodeSystem (plus its
-ValueSet), and `questionnaires/category-option-combos.fsh` does the same for every
+ValueSet), and `data-dictionary/category-option-combos.fsh` does the same for every
 category option combo as `D2COC_CS`. Each item's `code` points into them, so a
 response can be read back to DHIS2 without consulting the questionnaire. Both live
-in the `questionnaires/` directory rather than `terminology/`, which is what keeps
-the option-set target from deleting them on its next run.
+under `data-dictionary/` rather than `terminology/`, which is what keeps the
+option-set target from deleting them on its next run. Each of the three directories
+is swept against its own files, so narrowing the data-set selection deletes only the
+data-set questionnaires that left it. If you generated with an earlier build, delete
+the leftover `ig/input/fsh/questionnaires/` directory by hand - nothing manages it
+any more.
 
 **The option-set closure.** When `[generate.option_sets] include_ids` narrows the
-terminology and a configured form binds a question to an option set outside that
-list, the set is added anyway and the run says so in a note. An empty list already
-means every option set, so the union is a no-op there.
+terminology and a selected form binds a question to an option set outside that
+list, the set is added anyway and the run says so in a note. An empty option-set list
+already means every option set, so the union is a no-op there.
 
-**Safeguards, loud rather than silent.** A UID under `[generate.event_programs]`
-whose live `programType` is `WITH_REGISTRATION` fails the run by name: tracker
-programs need `Patient` and `EpisodeOfCare`, not a bare Questionnaire, and that
-generator is not written yet. An event program with more than one program stage
-fails the same way rather than quietly generating the first stage. A configured UID
-the instance answers nothing for is reported as a note. Data elements no section
-references are emitted after the sectioned ones, also with a note.
+**Safeguards, loud when you named the UID.** A UID *listed* under
+`[generate.event_programs]` whose live `programType` is `WITH_REGISTRATION` fails the
+run by name: tracker programs need `Patient` and `EpisodeOfCare`, not a bare
+Questionnaire, and that generator is not written yet. A listed event program with
+more than one program stage fails the same way rather than quietly generating the
+first stage. A listed UID the instance answers nothing for is reported as a note.
+With an absent or empty list the whole instance is the target, so the same two shapes
+are skipped with one aggregate note each instead of stopping the run. Data elements
+no section references are emitted after the sectioned ones, also with a note.
 
 **`D2FormType`, and where this is going.** Every generated Questionnaire states
 which kind of DHIS2 form it came from twice: as `Questionnaire.code`

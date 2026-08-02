@@ -99,10 +99,10 @@ program = "PR"                      # event program Questionnaire names
 # include_ids = ["Qdm5fPK5Ra9"]     # UIDs; absent = all
 
 [generate.data_sets]
-# include_ids = ["BfMAe6Itzgt"]     # UIDs; absent = none
+# include_ids = ["BfMAe6Itzgt"]     # UIDs; absent or empty = all
 
 [generate.event_programs]
-# include_ids = ["VBqh0ynB2wv"]     # UIDs; absent = none
+# include_ids = ["VBqh0ynB2wv"]     # UIDs; absent or empty = all
 
 [generate.organisation_units]
 # root = "ImspTQPwCqd"
@@ -110,10 +110,10 @@ program = "PR"                      # event program Questionnaire names
 terminology = false
 ```
 
-The data-definition selections invert the default: absent means *none*, because a
-form is added to a project one UID at a time. `fhir.toml.example` shows every
-unset-by-default key as a commented, real-shaped example rather than a magic
-placeholder, so the file parses to exactly the defaults.
+Every selection reads the same way: absent or empty means *all*, a non-empty list
+filters. `fhir.toml.example` shows every unset-by-default key as a commented,
+real-shaped example rather than a magic placeholder, so the file parses to exactly
+the defaults.
 
 `identifier_system_base` is live: `generate foundation` writes it into
 `foundation/d2-aliases.fsh` as the `$DHIS2-*` aliases, declares each of those
@@ -193,14 +193,24 @@ generation is total and never silently drops a concept.
 
 ## Data sets and event programs -> Questionnaires
 
-`generate questionnaires` writes `ig/input/fsh/questionnaires/`: one
-`<UID>.fsh` per configured target (`[generate.data_sets]` /
-`[generate.event_programs]` `include_ids`, absent = none - a data definition is
-explicit opt-in, unlike the terminology and registry selections), plus
-`data-elements.fsh` (`D2DE_CS`/`_VS`) and `category-option-combos.fsh`
-(`D2COC_CS`/`_VS`) over everything those forms reference. The two support pairs live
-in the questionnaire sync directory, not `terminology/`, so the option-set target's
-cleanup can never delete them.
+`generate questionnaires` owns three sync directories under `ig/input/fsh/`, split
+by what the files describe rather than by which command wrote them:
+
+```
+data-sets/<UID>.fsh                      One Questionnaire per DHIS2 data set
+event-programs/<UID>.fsh                 One Questionnaire per DHIS2 event program
+data-dictionary/data-elements.fsh        D2DE_CS / _VS over every referenced element
+data-dictionary/category-option-combos.fsh   D2COC_CS / _VS over every option combo
+```
+
+The targets are `[generate.data_sets]` / `[generate.event_programs]` `include_ids`,
+absent or empty = all, exactly like the terminology and registry selections. The
+service makes one `sync_artifacts` call per directory, each swept against its own
+files alone, and merges the three reports into the single `GenerateReport` whose
+`target_directory` reads `data-sets, event-programs, data-dictionary`. The two
+support pairs live under `data-dictionary/`, not `terminology/`, so the option-set
+target's cleanup can never delete them. The command is still
+`d2w fhir generate questionnaires` - it names the action, not a folder.
 
 One Questionnaire is `Usage: #definition`, `id` the bare UID, `url` the IG canonical
 plus `/Questionnaire/<uid>`, `subjectType = #Location` (a DHIS2 form is answered for
@@ -215,17 +225,25 @@ data value carries. A section holding such a group also carries the standard
 `questionnaire-itemControl` extension coded `#gtable`, which is the DHIS2 data-entry
 grid stated in FHIR terms.
 
-The service refuses what it cannot map rather than guessing: a configured program
-whose live `programType` is not `WITHOUT_REGISTRATION` raises by name (tracker
-programs need `Patient` / `EpisodeOfCare`, not a bare Questionnaire), and so does an
-event program with more than one stage. Configured UIDs that resolve to nothing, and
-data elements no section references, are aggregate notes.
+The two selection modes handle the shapes the target cannot map differently, and the
+split is deliberate. When `include_ids` is **explicit**, the service refuses what it
+cannot map rather than guessing: a listed program whose live `programType` is not
+`WITHOUT_REGISTRATION` raises by name (tracker programs need `Patient` /
+`EpisodeOfCare`, not a bare Questionnaire), and so does a listed event program with
+more than one stage - the operator named that UID, so silence would be a lie. When
+`include_ids` is **absent or empty** the whole instance is the target, so refusing
+would make the mode unusable on any real database: the sweep auto-selects the
+single-stage `WITHOUT_REGISTRATION` programs and skips the rest, one aggregate note
+per skipped shape (`N tracker programs skipped ...`, `N multi-stage event programs
+skipped ...`). Listed UIDs that resolve to nothing, and data elements no section
+references, are aggregate notes in both modes.
 
 The option-set closure keeps the IG internally consistent: when
 `[generate.option_sets] include_ids` narrows the terminology, the option sets the
-configured targets bind to are unioned in and listed in a note. An empty include
-list already means every option set, so the closure short-circuits and the targets
-are not fetched twice.
+selected targets bind to are unioned in and listed in a note - including in target
+all-mode, where the closure covers every form on the instance. An empty option-set
+include list already means every option set, so the closure short-circuits there and
+the targets are not fetched twice.
 
 ## Organisation units -> instances
 
@@ -423,7 +441,9 @@ The components:
   plus `max_slug_length` (validation previews the same id bound) and the
   `OptionSetIn` / `OptionIn` / `OptionSetSelection` schemas.
 - `resources/questionnaires/` - the Questionnaire instance per data set / event
-  program plus the two support terminology pairs, with `TargetSelection`, the
+  program plus the two support terminology pairs, the three sync directory names
+  (`DATA_SET_DIRECTORY` / `EVENT_PROGRAM_DIRECTORY` / `DATA_DICTIONARY_DIRECTORY`,
+  collected as `QUESTIONNAIRE_DIRECTORIES`), with `TargetSelection`, the
   `QuestionnaireSourceIn` / `QuestionnaireSectionIn` / `QuestionnaireItemIn` /
   `CategoryComboIn` / `CategoryOptionComboIn` projections, and `QuestionnaireNaming`
   deriving every name from the `DS` / `PR` / `DE` / `COC` tokens. Item nesting is

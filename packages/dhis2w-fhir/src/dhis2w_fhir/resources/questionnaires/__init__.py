@@ -11,10 +11,12 @@ Every instance is `Usage: #definition` with the bare UID as its `id`, carries
 both DHIS2 identifiers, and states which kind of DHIS2 form it came from
 twice: through the `D2FormType` extension and as `Questionnaire.code`.
 
-Two support CodeSystem/ValueSet pairs travel with the questionnaires -
-one over every data element they reference, one over every category option
-combo - and live in the same sync directory so the terminology target can
-never delete them.
+The output splits by what it describes: `data-sets/<uid>.fsh`,
+`event-programs/<uid>.fsh`, and `data-dictionary/` for the two support
+CodeSystem/ValueSet pairs both form kinds share - one over every data element
+they reference, one over every category option combo. The support pairs live
+under this target's own directories, so the option-set terminology target's
+cleanup can never delete them.
 """
 
 from __future__ import annotations
@@ -38,7 +40,27 @@ from dhis2w_fhir.writer import FshArtifact, FshBuild
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
-__all__ = ["ITEM_CONTROL_CODE_SYSTEM_URL", "ITEM_CONTROL_EXTENSION_URL", "build_questionnaire_artifacts"]
+__all__ = [
+    "DATA_DICTIONARY_DIRECTORY",
+    "DATA_SET_DIRECTORY",
+    "EVENT_PROGRAM_DIRECTORY",
+    "ITEM_CONTROL_CODE_SYSTEM_URL",
+    "ITEM_CONTROL_EXTENSION_URL",
+    "QUESTIONNAIRE_DIRECTORIES",
+    "build_questionnaire_artifacts",
+]
+
+#: Sync directory holding one Questionnaire per DHIS2 data set.
+DATA_SET_DIRECTORY = "data-sets"
+
+#: Sync directory holding one Questionnaire per DHIS2 event program.
+EVENT_PROGRAM_DIRECTORY = "event-programs"
+
+#: Sync directory holding the support terminology both form kinds share.
+DATA_DICTIONARY_DIRECTORY = "data-dictionary"
+
+#: The three sync directories the questionnaire target owns, in report order.
+QUESTIONNAIRE_DIRECTORIES = (DATA_SET_DIRECTORY, EVENT_PROGRAM_DIRECTORY, DATA_DICTIONARY_DIRECTORY)
 
 #: The standard R4 extension declaring how a Questionnaire item is rendered.
 ITEM_CONTROL_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl"
@@ -175,7 +197,7 @@ class _SupportTerminologyView(BaseModel):
 def build_questionnaire_artifacts(
     sources: list[QuestionnaireSourceIn], config: GenerateConfig, canonical: str, *, ig_status: IgStatus
 ) -> FshBuild:
-    """Build one `questionnaires/<UID>.fsh` per target plus the data-element and option-combo support pairs."""
+    """Build one `data-sets/` or `event-programs/` file per target plus the `data-dictionary/` support pairs."""
     build = FshBuild()
     names = QuestionnaireNaming.from_naming(config.naming)
     foundation = FoundationNaming.from_naming(config.naming)
@@ -187,7 +209,7 @@ def build_questionnaire_artifacts(
         view = _questionnaire_view(source, names, foundation, canonical, ig_status=ig_status)
         build.artifacts.append(
             FshArtifact(
-                relative_path=f"questionnaires/{source.uid}.fsh",
+                relative_path=f"{_source_directory(source)}/{source.uid}.fsh",
                 kind="instances",
                 fsh_name=f"Questionnaire-{source.uid}",
                 content=template.render(
@@ -202,6 +224,11 @@ def build_questionnaire_artifacts(
     if option_combos:
         build.artifacts.append(_option_combo_terminology(option_combos, names, config, ig_status=ig_status))
     return build
+
+
+def _source_directory(source: QuestionnaireSourceIn) -> str:
+    """The sync directory one form kind is written to."""
+    return DATA_SET_DIRECTORY if source.kind == "aggregate" else EVENT_PROGRAM_DIRECTORY
 
 
 def _questionnaire_view(
@@ -353,7 +380,7 @@ def _data_element_terminology(
     *,
     ig_status: IgStatus,
 ) -> FshArtifact:
-    """Build `questionnaires/data-elements.fsh` over every data element the questionnaires reference."""
+    """Build `data-dictionary/data-elements.fsh` over every data element the questionnaires reference."""
     concepts = [
         _SupportConcept(
             uid=item.uid,
@@ -378,7 +405,7 @@ def _data_element_terminology(
         concepts=concepts,
     )
     return FshArtifact(
-        relative_path="questionnaires/data-elements.fsh",
+        relative_path=f"{DATA_DICTIONARY_DIRECTORY}/data-elements.fsh",
         kind="terminology-pair",
         fsh_name=names.data_element_code_system,
         content=_ENVIRONMENT.get_template("support-terminology.fsh.jinja").render(terminology=view),
@@ -392,7 +419,7 @@ def _option_combo_terminology(
     *,
     ig_status: IgStatus,
 ) -> FshArtifact:
-    """Build `questionnaires/category-option-combos.fsh` over every option combo the questionnaires disaggregate by."""
+    """Build `data-dictionary/category-option-combos.fsh` over every option combo the forms disaggregate by."""
     concepts = [
         _SupportConcept(
             uid=option_combo.uid,
@@ -418,7 +445,7 @@ def _option_combo_terminology(
         concepts=concepts,
     )
     return FshArtifact(
-        relative_path="questionnaires/category-option-combos.fsh",
+        relative_path=f"{DATA_DICTIONARY_DIRECTORY}/category-option-combos.fsh",
         kind="terminology-pair",
         fsh_name=names.category_option_combo_code_system,
         content=_ENVIRONMENT.get_template("support-terminology.fsh.jinja").render(terminology=view),

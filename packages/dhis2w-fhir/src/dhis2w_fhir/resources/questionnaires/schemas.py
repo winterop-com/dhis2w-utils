@@ -18,8 +18,10 @@ FormKind = Literal["aggregate", "event"]
 class TargetSelection(BaseModel):
     """Which DHIS2 objects a data-definition target covers - `[generate.data_sets]` / `[generate.event_programs]`.
 
-    UIDs only: names are not unique in DHIS2. An empty (or absent) list means none - a data
-    definition is explicit opt-in, unlike the terminology targets where empty means all.
+    UIDs only: names are not unique in DHIS2. An empty (or absent) list means all, as it does
+    for the terminology targets; a non-empty list filters. The two modes differ on the shapes
+    the questionnaire target cannot map: the whole-instance sweep skips tracker and multi-stage
+    programs with a note, while an explicitly listed one is refused by name.
     """
 
     include_ids: list[str] = Field(default_factory=list)
