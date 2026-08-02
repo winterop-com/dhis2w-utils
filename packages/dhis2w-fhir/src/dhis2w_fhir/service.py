@@ -16,6 +16,21 @@ from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, 
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.period import parse_period, recent_periods
+from dhis2w_fhir.resources.examples import (
+    COMPLETED_STATUS,
+    EXAMPLES_DIRECTORY,
+    build_example_artifacts,
+    build_synthetic_responses,
+    response_status_code,
+)
+from dhis2w_fhir.resources.examples.schemas import (
+    ExampleAnswerIn,
+    ExampleOptionIn,
+    ExampleOptionSetIn,
+    ExampleResponseIn,
+    ExampleSelection,
+)
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.resources.organisation_units import (
@@ -52,11 +67,11 @@ _ORGANISATION_UNIT_FIELDS = (
     f"{_TRANSLATION_FIELDS}"
 )
 _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
-    "dataElement[id,name,formName,valueType,optionSet[id],"
+    "dataElement[id,name,formName,valueType,domainType,optionSet[id],"
     "categoryCombo[id,name,isDefault,categoryOptionCombos[id,name,code]]]"
 )
 _DATA_SET_FIELDS = (
-    f"id,name,code,sections[id,name,dataElements[id]],dataSetElements[{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
+    f"id,name,code,periodType,sections[id,name,dataElements[id]],dataSetElements[{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
 )
 _EVENT_PROGRAM_FIELDS = (
     "id,name,code,programType,programStages[id,name,programStageSections[id,name,dataElements[id]],"
@@ -65,6 +80,18 @@ _EVENT_PROGRAM_FIELDS = (
 
 #: The only DHIS2 program type the questionnaire target maps today.
 _EVENT_PROGRAM_TYPE = "WITHOUT_REGISTRATION"
+
+#: The option-set projection the example target answers its codings from.
+_EXAMPLE_OPTION_SET_FIELDS = "id,options[id,code,name]"
+
+#: The tracker-event projection one example response is built from.
+_EXAMPLE_EVENT_FIELDS = "event,orgUnit,occurredAt,status,dataValues[dataElement,value]"
+
+#: How many candidate periods the data-value discovery tries before giving a data set up.
+_EXAMPLE_PERIOD_ATTEMPTS = 6
+
+#: The envelope keys the tracker events endpoint has answered under.
+_EVENT_ENVELOPE_KEYS = ("instances", "events")
 
 
 class GenerateReport(BaseModel):
@@ -80,6 +107,7 @@ class GenerateReport(BaseModel):
     organisation_unit_count: int = 0
     position_count: int = 0
     boundary_count: int = 0
+    example_count: int = 0
     notes: list[str] = Field(default_factory=list)
 
 
@@ -89,6 +117,7 @@ class GenerateAllReport(BaseModel):
     foundation: GenerateReport
     option_sets: GenerateReport
     questionnaires: GenerateReport
+    examples: GenerateReport
     organisation_units: GenerateReport
 
 
@@ -265,6 +294,256 @@ async def generate_questionnaires(profile: Profile, project: FhirProject) -> Gen
     )
 
 
+async def generate_examples(profile: Profile, project: FhirProject) -> GenerateReport:
+    """Generate one `Usage: #example` QuestionnaireResponse per configured example into `examples/`."""
+    config = project.config.generate
+    selection = config.examples
+    notes: list[str] = []
+    artifacts: list[FshArtifact] = []
+    example_count = 0
+    if selection.per_target > 0:
+        async with open_client(profile) as client:
+            sources = await _fetch_questionnaire_sources(client, config, notes)
+            option_sets = await _fetch_example_option_sets(client, sources)
+            responses = await _example_responses(client, sources, option_sets, selection, notes)
+        build = build_example_artifacts(sources, responses, option_sets, config, project.config.ig.canonical)
+        artifacts = build.artifacts
+        notes.extend(build.notes)
+        example_count = len(build.artifacts)
+    sync = sync_artifacts(project.fsh_directory, EXAMPLES_DIRECTORY, artifacts)
+    return GenerateReport(
+        project_root=project.project_root,
+        target_directory=EXAMPLES_DIRECTORY,
+        deleted_files=sync.deleted,
+        written_files=sync.written,
+        unchanged_count=len(sync.unchanged),
+        example_count=example_count,
+        notes=notes,
+    )
+
+
+async def _example_responses(
+    client: Dhis2Client,
+    sources: list[QuestionnaireSourceIn],
+    option_sets: list[ExampleOptionSetIn],
+    selection: ExampleSelection,
+    notes: list[str],
+) -> list[ExampleResponseIn]:
+    """Collect the example responses from whichever source the project configured."""
+    today = datetime.now(tz=UTC).date()
+    root_uid = await _root_organisation_unit_uid(client)
+    if root_uid is None:
+        notes.append("the instance has no level-1 organisation unit; no examples emitted")
+        return []
+    if selection.source == "instance":
+        return await _fetch_instance_responses(client, sources, selection.per_target, root_uid, notes)
+    synthetic = build_synthetic_responses(sources, option_sets, selection.per_target, root_uid, today)
+    notes.extend(synthetic.notes)
+    return synthetic.responses
+
+
+async def _root_organisation_unit_uid(client: Dhis2Client) -> str | None:
+    """The instance's root organisation unit - the one every example is subject to."""
+    roots = await client.resources.organisation_units.list(fields="id", filters=["level:eq:1"], paging=False)
+    return next((model.id for model in roots if model.id), None)
+
+
+async def _fetch_example_option_sets(
+    client: Dhis2Client, sources: list[QuestionnaireSourceIn]
+) -> list[ExampleOptionSetIn]:
+    """Fetch the options of every option set the selected forms bind a question to."""
+    bound_ids = sorted(
+        {item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid}
+    )
+    if not bound_ids:
+        return []
+    models = await client.resources.option_sets.list(
+        fields=_EXAMPLE_OPTION_SET_FIELDS,
+        filters=[_uid_filter(bound_ids)],
+        paging=False,
+    )
+    return [
+        ExampleOptionSetIn(
+            uid=model.id or "",
+            options=[
+                ExampleOptionIn(
+                    uid=str(raw["id"]),
+                    code=_optional_text(raw.get("code")),
+                    name=str(raw.get("name") or raw["id"]),
+                )
+                for raw in model.options or []
+                if isinstance(raw, dict) and raw.get("id")
+            ],
+        )
+        for model in models
+        if model.id
+    ]
+
+
+async def _fetch_instance_responses(
+    client: Dhis2Client,
+    sources: list[QuestionnaireSourceIn],
+    per_target: int,
+    root_uid: str,
+    notes: list[str],
+) -> list[ExampleResponseIn]:
+    """Read example responses off the instance: data value sets for data sets, events for programs."""
+    today = datetime.now(tz=UTC).date()
+    responses: list[ExampleResponseIn] = []
+    empty_targets: list[str] = []
+    for source in sorted(sources, key=lambda item: (item.name, item.uid)):
+        if source.kind == "aggregate":
+            found = await _fetch_data_value_responses(client, source, per_target, root_uid, today)
+        else:
+            found = await _fetch_event_responses(client, source, per_target)
+        if not found:
+            empty_targets.append(f"{source.name} ({source.uid})")
+        responses.extend(found)
+    if empty_targets:
+        notes.append(
+            aggregate_note(
+                f"{len(empty_targets)} questionnaire targets hold no data on the instance; no examples emitted",
+                empty_targets,
+            )
+        )
+    return responses
+
+
+async def _fetch_data_value_responses(
+    client: Dhis2Client,
+    source: QuestionnaireSourceIn,
+    per_target: int,
+    root_uid: str,
+    today: date,
+) -> list[ExampleResponseIn]:
+    """Walk back through the data set's completed periods until one answers with data values."""
+    for iso in recent_periods(source.period_type or "", _EXAMPLE_PERIOD_ATTEMPTS, today):
+        raw = await client.get_raw(
+            "/api/dataValueSets",
+            params={"dataSet": source.uid, "orgUnit": root_uid, "children": "true", "period": iso},
+        )
+        groups = _data_value_groups(raw, source.uid, iso)
+        if groups:
+            return groups[:per_target]
+    return []
+
+
+class _DataValueGroup(BaseModel):
+    """One `(orgUnit, period, attributeOptionCombo)` key of a data value set and the values under it."""
+
+    organisation_unit_uid: str
+    period_iso: str
+    attribute_option_combo_uid: str
+    answers: list[ExampleAnswerIn] = Field(default_factory=list)
+
+
+def _data_value_groups(raw: dict[str, object], data_set_uid: str, fallback_iso: str) -> list[ExampleResponseIn]:
+    """Group a data value set by its reporting key, richest group first, then by organisation unit."""
+    values = raw.get("dataValues")
+    grouped: dict[str, _DataValueGroup] = {}
+    for entry in values if isinstance(values, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        data_element_uid = _optional_text(entry.get("dataElement"))
+        value = entry.get("value")
+        if data_element_uid is None or not isinstance(value, str):
+            continue
+        organisation_unit_uid = _optional_text(entry.get("orgUnit")) or ""
+        period_iso = _optional_text(entry.get("period")) or fallback_iso
+        attribute_option_combo_uid = _optional_text(entry.get("attributeOptionCombo")) or ""
+        key = f"{organisation_unit_uid}.{period_iso}.{attribute_option_combo_uid}"
+        group = grouped.setdefault(
+            key,
+            _DataValueGroup(
+                organisation_unit_uid=organisation_unit_uid,
+                period_iso=period_iso,
+                attribute_option_combo_uid=attribute_option_combo_uid,
+            ),
+        )
+        group.answers.append(
+            ExampleAnswerIn(
+                data_element_uid=data_element_uid,
+                category_option_combo_uid=_optional_text(entry.get("categoryOptionCombo")),
+                value=value,
+            )
+        )
+    ordered = sorted(grouped.values(), key=lambda group: (-len(group.answers), group.organisation_unit_uid))
+    return [_data_value_response(group, data_set_uid) for group in ordered if group.organisation_unit_uid]
+
+
+def _data_value_response(group: _DataValueGroup, data_set_uid: str) -> ExampleResponseIn:
+    """Turn one grouped data value key into the example projection, resolving its period's dates."""
+    try:
+        period = parse_period(group.period_iso)
+    except ValueError:
+        period = None
+    return ExampleResponseIn(
+        instance_id=f"{data_set_uid}-{group.period_iso}-{group.organisation_unit_uid}",
+        target_uid=data_set_uid,
+        kind="aggregate",
+        organisation_unit_uid=group.organisation_unit_uid,
+        status_code=COMPLETED_STATUS,
+        period=period,
+        answers=group.answers,
+    )
+
+
+async def _fetch_event_responses(
+    client: Dhis2Client, source: QuestionnaireSourceIn, per_target: int
+) -> list[ExampleResponseIn]:
+    """Read the most recent events of one event program as example responses."""
+    raw = await client.get_raw(
+        "/api/tracker/events",
+        params={
+            "program": source.uid,
+            "pageSize": per_target,
+            "order": "occurredAt:desc",
+            "fields": _EXAMPLE_EVENT_FIELDS,
+        },
+    )
+    responses: list[ExampleResponseIn] = []
+    for entry in _event_entries(raw):
+        event_uid = _optional_text(entry.get("event"))
+        organisation_unit_uid = _optional_text(entry.get("orgUnit"))
+        if event_uid is None or organisation_unit_uid is None:
+            continue
+        responses.append(
+            ExampleResponseIn(
+                instance_id=event_uid,
+                target_uid=source.uid,
+                kind="event",
+                organisation_unit_uid=organisation_unit_uid,
+                status_code=response_status_code(_optional_text(entry.get("status"))),
+                authored=_optional_text(entry.get("occurredAt")),
+                answers=_event_answers(entry.get("dataValues")),
+            )
+        )
+    return responses
+
+
+def _event_entries(raw: dict[str, object]) -> list[dict[str, object]]:
+    """The event list of a tracker response, under whichever envelope key the instance answered with."""
+    for key in _EVENT_ENVELOPE_KEYS:
+        entries = raw.get(key)
+        if isinstance(entries, list):
+            return [entry for entry in entries if isinstance(entry, dict)]
+    return []
+
+
+def _event_answers(raw_values: object) -> list[ExampleAnswerIn]:
+    """Map one event's data values into the example projection; events carry no category option combo."""
+    answers: list[ExampleAnswerIn] = []
+    for entry in raw_values if isinstance(raw_values, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        data_element_uid = _optional_text(entry.get("dataElement"))
+        value = entry.get("value")
+        if data_element_uid is None or not isinstance(value, str):
+            continue
+        answers.append(ExampleAnswerIn(data_element_uid=data_element_uid, value=value))
+    return answers
+
+
 def _artifacts_under(artifacts: list[FshArtifact], directory: str) -> list[FshArtifact]:
     """The artifacts one sync directory owns - each directory is swept against its own files alone."""
     return [artifact for artifact in artifacts if artifact.relative_path.startswith(f"{directory}/")]
@@ -337,15 +616,17 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
 
 
 async def generate_all(profile: Profile, project: FhirProject) -> GenerateAllReport:
-    """Generate the foundation, option-set terminology, questionnaires, and organisation-unit instances in one run."""
+    """Generate the foundation, terminology, questionnaires, example responses, and org-unit instances."""
     foundation = await generate_foundation(project)
     option_sets = await generate_option_sets(profile, project)
     questionnaires = await generate_questionnaires(profile, project)
+    examples = await generate_examples(profile, project)
     organisation_units = await generate_organisation_units(profile, project)
     return GenerateAllReport(
         foundation=foundation,
         option_sets=option_sets,
         questionnaires=questionnaires,
+        examples=examples,
         organisation_units=organisation_units,
     )
 
@@ -479,7 +760,15 @@ def _note_unmatched(
 
 
 def _data_set_source(model: DataSet, notes: list[str]) -> QuestionnaireSourceIn:
-    """Map a generated DataSet into the Questionnaire projection, joining sections to their data elements."""
+    """Map a generated DataSet into the Questionnaire projection, joining sections to their data elements.
+
+    `dataSetElements` is a Java `Set` with no sort order, and DHIS2 serialises it in a different
+    order on every request (BUGS.md #63), so the members are ordered here by name and UID. Two
+    things depend on that: a regenerate of an unchanged data set produces an unchanged file, and
+    the example responses - fetched by a separate request - answer the questionnaire's items in
+    the questionnaire's own order, which the FHIR validator requires. Section membership is
+    joined by UID and keeps the section's own sort order, which DHIS2 does hold.
+    """
     uid = model.id or ""
     items: list[QuestionnaireItemIn] = []
     for element in model.dataSetElements or []:
@@ -487,11 +776,13 @@ def _data_set_source(model: DataSet, notes: list[str]) -> QuestionnaireSourceIn:
         if reference is None or not reference.id:
             continue
         items.append(_questionnaire_item(reference.model_dump(), compulsory=False))
+    items.sort(key=lambda item: (item.name, item.uid))
     return _questionnaire_source(
         uid=uid,
         name=model.name or uid,
         code=model.code,
         kind="aggregate",
+        period_type=str(model.periodType) if model.periodType is not None else None,
         items=items,
         raw_sections=model.sections,
         notes=notes,
@@ -545,6 +836,7 @@ def _questionnaire_source(
     items: list[QuestionnaireItemIn],
     raw_sections: object,
     notes: list[str],
+    period_type: str | None = None,
 ) -> QuestionnaireSourceIn:
     """Split one form's data elements into its sections plus whatever the sections leave out."""
     sections = _questionnaire_sections(raw_sections, items)
@@ -559,7 +851,15 @@ def _questionnaire_source(
                 [f"{item.name} ({item.uid})" for item in flat_items],
             )
         )
-    return QuestionnaireSourceIn(uid=uid, name=name, code=code, kind=kind, sections=sections, flat_items=flat_items)
+    return QuestionnaireSourceIn(
+        uid=uid,
+        name=name,
+        code=code,
+        kind=kind,
+        period_type=period_type,
+        sections=sections,
+        flat_items=flat_items,
+    )
 
 
 def _questionnaire_sections(raw_sections: object, items: list[QuestionnaireItemIn]) -> list[QuestionnaireSectionIn]:
@@ -600,6 +900,7 @@ def _questionnaire_item(raw: dict[str, object], *, compulsory: bool) -> Question
         name=_optional_text(raw.get("name")) or uid,
         form_name=_optional_text(raw.get("formName")),
         value_type=_optional_text(raw.get("valueType")) or "",
+        domain_type=_optional_text(raw.get("domainType")) or "",
         option_set_uid=option_set_uid,
         compulsory=compulsory,
         category_combo=_category_combo_input(raw.get("categoryCombo")),

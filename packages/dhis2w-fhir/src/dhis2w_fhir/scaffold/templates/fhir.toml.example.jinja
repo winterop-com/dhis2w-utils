@@ -51,6 +51,14 @@ program = "PR"                      # event program Questionnaire names; "" drop
 # tracker programs are skipped until tracker generation lands).
 # include_ids = ["VBqh0ynB2wv"]
 
+[generate.examples]
+# Example QuestionnaireResponses fetched from real instance data per questionnaire target;
+# 0 disables.
+per_target = 1
+# Where the answers come from. "synthetic": deterministic generated values, safe everywhere.
+# "instance": real values fetched from the server - demo servers only, review before publishing.
+source = "synthetic"
+
 [generate.organisation_units]
 # Scope to a subtree (org unit UID; absent = entire tree).
 # root = "ImspTQPwCqd"

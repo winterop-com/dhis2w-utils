@@ -277,6 +277,17 @@ The two modes differ on the program shapes the Questionnaire target cannot map y
   the run stops instead of quietly leaving it out. UIDs the instance answers
   nothing for stay an aggregate note.
 
+### `[generate.examples]`
+
+```toml
+[generate.examples]
+per_target = 1          # example QuestionnaireResponses per questionnaire target; 0 disables
+source = "synthetic"    # "synthetic" (generated values) or "instance" (real values off the server)
+```
+
+How many example responses each questionnaire target gets, and where their
+answers come from. See [Example responses](#example-responses).
+
 ### `[generate.organisation_units]`
 
 ```toml
@@ -299,14 +310,15 @@ for flows that want the hierarchy as codes rather than as resources.
 d2w fhir generate foundation     Identifier aliases + the D2Period / D2FormType extensions
 d2w fhir generate option-sets    Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate questionnaires Data sets + event programs -> Questionnaire instances
+d2w fhir generate examples       Example QuestionnaireResponses answering those Questionnaires
 d2w fhir generate org-units      Org units -> Organization/Location instances
-d2w fhir generate all            All four, in that order
+d2w fhir generate all            All five, in that order
 ```
 
 Each target owns its subdirectories of `ig/input/fsh/` and syncs each one: writes
 what changed, leaves what did not, deletes generated files that no longer belong.
 `questionnaires` owns three (`data-sets/`, `event-programs/`, `data-dictionary/`);
-the other three own one each.
+the other four own one each.
 
 ### `foundation`
 
@@ -338,8 +350,10 @@ type is what makes it comparable, aggregatable, and round-trippable.
 | `type` | `code` | 1..1 | The period type, bound (required) to `D2PeriodType_VS` |
 | `period` | `Period` | 0..1 | The date range the identifier resolves to |
 
-Its context is `Element`, so it attaches anywhere - the data layer will hang it
-off `MeasureReport`, `QuestionnaireResponse`, and `Observation` alike.
+Its context names exactly the two resources that carry it: `QuestionnaireResponse`
+(every example response against a data set form) and `MeasureReport` (the later
+summary projection). A context of bare `Element` would attach it anywhere, which
+the IG publisher's QA calls out as an unbounded extension.
 
 The `D2PeriodType_CS` CodeSystem publishes every period type DHIS2 registers,
 each displayed with its ISO format: `Daily (yyyyMMdd)`, `Monthly (yyyyMM)`,
@@ -356,6 +370,23 @@ parse_period("2024BiW2")
 # PeriodValue(iso='2024BiW2', period_type='BiWeekly',
 #             start_date=date(2024, 1, 15), end_date=date(2024, 1, 28))
 ```
+
+`recent_periods` is its inverse, and the example target's way of finding a period
+worth looking for data in: the most recent periods of a type whose end date is
+already past, newest first.
+
+```python
+import datetime
+from dhis2w_fhir.period import recent_periods
+
+recent_periods("Monthly", 3, datetime.date(2026, 8, 2))
+# ['202607', '202606', '202605']
+```
+
+It is written as an inverse rather than as a second transcription of the upstream
+month offsets: each type declares only how its ISO strings are spelled for a given
+year, and `parse_period` decides which of those exist and what dates they cover -
+so the two can never disagree.
 
 ### Identifiers
 
@@ -460,18 +491,52 @@ naming tokens (`D2DS_BfMAe6Itzgt`, `D2PR_VBqh0ynB2wv`) and `title` is the DHIS2 
 | Compulsory program-stage element | `required = true` |
 | Non-default category combo | the question becomes a `#group` with one child per category option combo, `linkId` `<deUid>.<cocUid>` |
 
-| DHIS2 `valueType` | item `type` |
-| --- | --- |
-| `TEXT` | `string` |
-| `LONG_TEXT` | `text` |
-| `NUMBER`, `PERCENTAGE`, `UNIT_INTERVAL` | `decimal` |
-| `INTEGER` and its positive / negative / zero-or-positive variants | `integer` |
-| `BOOLEAN`, `TRUE_ONLY` | `boolean` |
-| `DATE` | `date` |
-| `DATETIME` | `dateTime` |
-| `TIME` | `time` |
-| `ORGANISATION_UNIT` | `reference` |
-| anything else | `string` |
+Every DHIS2 value type is mapped explicitly - all 28 of them, which is the union of the
+`ValueType` enum across v41, v42, and v43 (`TRACKER_ASSOCIATE` exists on v41 and v42 only;
+v43 dropped it).
+
+| DHIS2 `valueType` | item `type` | Why |
+| --- | --- | --- |
+| `TEXT` | `string` | |
+| `LONG_TEXT` | `text` | Multi-line free text. |
+| `LETTER` | `string` | R4 has no single-character type. |
+| `PHONE_NUMBER` | `string` | R4 has no telecom item type. |
+| `EMAIL` | `string` | R4 has no email item type. |
+| `USERNAME` | `string` | A DHIS2 account name, not a FHIR reference. |
+| `MULTI_TEXT` | `choice` + `repeats` | Option-set bound by definition, and multi-select *is* its semantics. |
+| `NUMBER` | `decimal` | |
+| `PERCENTAGE` | `decimal` | |
+| `UNIT_INTERVAL` | `decimal` | |
+| `INTEGER` | `integer` | |
+| `INTEGER_POSITIVE` | `integer` | |
+| `INTEGER_NEGATIVE` | `integer` | |
+| `INTEGER_ZERO_OR_POSITIVE` | `integer` | |
+| `BOOLEAN` | `boolean` | |
+| `TRUE_ONLY` | `boolean` | Only ever `true` in DHIS2. |
+| `DATE` | `date` | |
+| `DATETIME` | `dateTime` | |
+| `TIME` | `time` | |
+| `AGE` | `date` | DHIS2 stores the date of birth; the age is rendered from it, so the date is the captured value. |
+| `URL` | `url` | |
+| `FILE_RESOURCE` | `attachment` | |
+| `IMAGE` | `attachment` | |
+| `GEOJSON` | `text` | A GeoJSON document, not a coordinate pair. |
+| `COORDINATE` | `string` | DHIS2's `[longitude,latitude]` string; no R4 item type expresses it. |
+| `ORGANISATION_UNIT` | `reference` | The one value type that resolves to a FHIR resource. |
+| `REFERENCE` | `string` | A bare UID until tracker generation lands. |
+| `TRACKER_ASSOCIATE` | `string` | v41/v42 only; a bare UID until tracker generation lands. |
+| anything else | `string` | Only reachable by a DHIS2 value type newer than the generated enums. |
+
+**The table is guarded, not aspirational.** A test reads the `ValueType` enum out of each of
+the three generated client trees and asserts that every member has an explicit entry, and that
+the table holds nothing the three trees do not. A codegen refresh that introduces a new DHIS2
+value type therefore fails the suite until someone decides what it maps to, instead of silently
+becoming a `string`. The `string` fallback stays anyway, so a live instance running ahead of
+the generated tree never crashes generation.
+
+**`MULTI_TEXT` carries `repeats = true`.** That is the whole difference between it and a plain
+option-set-bound question: DHIS2 stores a comma-separated list of option codes against one data
+element, and an example response answers such a question once per selected code.
 
 A section holding a disaggregated data element also carries the standard
 `questionnaire-itemControl` extension coded `#gtable`, which is how a renderer knows
@@ -505,11 +570,11 @@ With an absent or empty list the whole instance is the target, so the same two s
 are skipped with one aggregate note each instead of stopping the run. Data elements
 no section references are emitted after the sectioned ones, also with a note.
 
-**`D2FormType`, and where this is going.** Every generated Questionnaire states
-which kind of DHIS2 form it came from twice: as `Questionnaire.code`
-(`D2FormType_CS#aggregate` or `#event`) and through the `D2FormType` extension, whose
-context covers `Questionnaire` **and** `QuestionnaireResponse`. That second context
-is the point. The captured data is the next layer: a data value set becomes a
+**`D2FormType`.** Every generated Questionnaire states which kind of DHIS2 form it
+came from twice: as `Questionnaire.code` (`D2FormType_CS#aggregate` or `#event`) and
+through the `D2FormType` extension, whose context covers `Questionnaire` **and**
+`QuestionnaireResponse`. That second context is what
+[Example responses](#example-responses) uses: a data value set becomes a
 `QuestionnaireResponse` against the form's `Questionnaire`, carrying its DHIS2
 reporting period through the `D2Period` extension (`iso`, `type`, the resolved
 dates) and its organisation unit through `subject`, and answering item by item on
@@ -519,6 +584,87 @@ categoryOptionCombo)` key. `MeasureReport` is a later, lossier projection over t
 same data - a summary for indicator-shaped consumers - not a replacement for the
 response. `D2FormType` on the response is what tells a consumer which of those
 shapes it is holding without re-reading the questionnaire.
+
+### Example responses
+
+A `Questionnaire` says what a DHIS2 form asks. A `QuestionnaireResponse` says what
+an answer to it looks like, which is the thing an implementer actually reads before
+writing an integration. `d2w fhir generate examples` writes one
+`Usage: #example` response per example into its own directory:
+
+```
+ig/input/fsh/examples/<targetUID>-<n>.fsh
+```
+
+```toml
+[generate.examples]
+per_target = 1          # responses per questionnaire target; 0 disables the target entirely
+source = "synthetic"    # "synthetic" or "instance"
+```
+
+The targets are the same `[generate.data_sets]` / `[generate.event_programs]`
+selection the questionnaires use, with the same all-mode and skip rules - an
+example is always generated against a form the IG contains.
+
+**What one response carries.** `questionnaire` points at the target's canonical,
+`subject` at a `Location`, and `status` at how far the capture got. The response
+states its DHIS2 form kind through the same `D2FormType` extension the
+`Questionnaire` carries, and a data-set response additionally carries the full
+`D2Period` extension - the ISO identifier, the period type, and the resolved date
+range. Event responses carry `authored` instead, taken from the event's
+`occurredAt`.
+
+The items **mirror the questionnaire**: section groups nest their questions, and a
+disaggregated data element nests one child per category option combo under
+`<deUid>.<cocUid>` - the same key a DHIS2 data value carries. Answers are typed
+from the data element's `valueType` (integers to `valueInteger`, `NUMBER` /
+`PERCENTAGE` / `UNIT_INTERVAL` to `valueDecimal`, `BOOLEAN` / `TRUE_ONLY` to
+`valueBoolean`, the temporals to `valueDate` / `valueDateTime` / `valueTime`,
+option-set-bound questions to a `valueCoding` into that set's generated
+CodeSystem, everything else to `valueString`). A value that will not cast, or an
+option code no option carries, is answered as a string and counted in one
+aggregate note per run rather than emitted invalid.
+
+#### `source = "synthetic"` (the default)
+
+No data endpoint is called. Values are generated locally from a seed that is the
+leading 64 bits of `sha256("<targetUID>:<n>")` - not Python's `hash`, which is
+salted per process - so regenerating produces the same file, on any machine, in
+any interpreter. Every question is answered, every option combo of a
+disaggregated element is filled, `TRUE_ONLY` is always `true`, and an
+option-set-bound question picks a real concept from the set the IG publishes.
+
+The one thing that is *not* stable across days is the anchor: a data-set example
+takes the newest **completed** period of the data set's period type, and dates
+inside the response are drawn from that period's window. Regenerate in a new
+month and the period moves; everything else stays byte-identical.
+
+#### `source = "instance"`
+
+Answers come from the values the server actually holds.
+
+- **Data sets** walk back through the six newest completed periods of the data
+  set's period type, calling `GET /api/dataValueSets` for the root organisation
+  unit and its descendants, and stop at the first period that answers with data
+  values. Those values are grouped by their DHIS2 reporting key - `(orgUnit,
+  period, attributeOptionCombo)` - richest group first, and each group becomes one
+  response with id `<dataSetUID>-<period>-<orgUnitUID>`.
+- **Event programs** read the most recent events from `GET /api/tracker/events`
+  ordered by `occurredAt:desc`. Each event becomes one response keyed by the event
+  UID, with the DHIS2 event status mapped onto the response status (`COMPLETED` to
+  `completed`, `ACTIVE` to `in-progress`, `SKIPPED` to `stopped`, and the
+  scheduled / overdue / visited states to `completed`).
+
+A target the instance holds nothing for is one aggregate note, never a failure -
+a demo database whose newest data predates the six-period window simply yields no
+example for that data set.
+
+**The production-instance caveat.** Instance-sourced examples embed real captured
+values, real organisation units, and real reporting periods into a document you
+are about to publish. That is exactly what you want from a demo server and
+exactly what you do not want from a production one. `synthetic` is the default for
+that reason: switching to `instance` is a deliberate act, and the generated
+`examples/` directory is worth reading before the IG leaves your machine.
 
 ### `org-units`
 
@@ -613,6 +759,35 @@ Two passes, one finding shape:
   units additionally warn when they carry no code at all.
 - a **deep option-set pass** previewing exactly what code-mode generation would
   do, over the same projections the emitter consumes.
+
+Both passes also check the object's **name**, for one thing that has nothing to do
+with codes - see below.
+
+### `template-hostile-name`
+
+A warning on any metadata object whose **name** contains `<`, `>`, or `&`.
+
+The IG publisher's `fhir2.base.template` writes a resource's title into breadcrumbs
+and change-history headings without HTML-escaping it, and then strict-parses the
+page it just produced. A DHIS2 name holding `<` therefore produces a malformed page:
+the Sierra Leone demo's `Mortality < 5 years by gender` (`YFTk3VdO9av`) renders
+`<h2 id="root">: Mortality < 5 years by gender - Change History</h2>` and the
+publisher logs `Unable to Parse HTML - node 'h2' has unexpected content`.
+
+Generation escapes what it owns - the FSH `Title:` and `Description:` lines that
+become page metadata all HTML-escape those three characters. It deliberately does
+**not** touch the resource's own `title` and `name` elements: those are DHIS2 data,
+they are what a consumer reads back, and silently substituting entities into them
+would make the IG disagree with the instance. So the change-history surface stays
+malformed for such a name, and the fix is to change the name in DHIS2 - which is
+what this warning is for.
+
+The check runs in both passes and at warning severity in either code source: it is
+about the pages the IG publishes, not about what generation reads. The sweep covers
+every metadata object; the deep option-set pass covers option names, which the sweep
+excludes and which land in concept displays and page tables. The offending name is
+printed through the same renderer the code column uses, so an invisible character in
+it is visible on the page.
 
 ### Severity and `--code-source`
 

@@ -19,6 +19,7 @@ from dhis2w_fhir import (
     load_project,
     service,
 )
+from dhis2w_fhir.resources.questionnaires import ITEM_TYPES_BY_VALUE_TYPE
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
@@ -326,8 +327,19 @@ def test_compulsory_event_question_is_required() -> None:
         ("PERCENTAGE", "decimal"),
         ("UNIT_INTERVAL", "decimal"),
         ("ORGANISATION_UNIT", "reference"),
-        ("FILE_RESOURCE", "string"),
+        ("LETTER", "string"),
+        ("PHONE_NUMBER", "string"),
+        ("EMAIL", "string"),
+        ("USERNAME", "string"),
+        ("AGE", "date"),
+        ("URL", "url"),
+        ("FILE_RESOURCE", "attachment"),
+        ("IMAGE", "attachment"),
+        ("GEOJSON", "text"),
         ("COORDINATE", "string"),
+        ("REFERENCE", "string"),
+        ("TRACKER_ASSOCIATE", "string"),
+        ("A_VALUE_TYPE_FROM_THE_FUTURE", "string"),
     ],
 )
 def test_value_type_maps_onto_the_item_type(value_type: str, item_type: str) -> None:
@@ -706,3 +718,130 @@ def fhir_questionnaire_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     )
     monkeypatch.chdir(tmp_path)
     return tmp_path
+
+
+def test_page_titles_escape_markup_while_the_element_title_stays_raw() -> None:
+    """A DHIS2 name holding `<` aborts the IG publisher's HTML parse, so only the page metadata escapes it."""
+    source = _DATA_SET.model_copy(update={"name": "Mortality < 5 years by gender"})
+    content = _artifacts([source])["data-sets/BfMAe6Itzgt.fsh"]
+    assert 'Title: "Questionnaire - Mortality &lt; 5 years by gender"' in content
+    assert "Mortality &lt; 5 years by gender (BfMAe6Itzgt)" in content
+    assert '* title = "Mortality < 5 years by gender"' in content
+
+
+@respx.mock
+async def test_a_data_sets_unsectioned_elements_are_ordered_independently_of_the_wire(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """DHIS2 shuffles `dataSetElements` per request (BUGS.md #63), so the emitter orders them itself."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path, data_sets='"Ds3aaaaaaaa"')
+    elements = [
+        {"dataElement": {"id": "Deczzzzzzzz", "name": "Zebra count", "valueType": "INTEGER"}},
+        {"dataElement": {"id": "Debzzzzzzzz", "name": "Antelope count", "valueType": "INTEGER"}},
+        {"dataElement": {"id": "Deazzzzzzzz", "name": "Marmot count", "valueType": "INTEGER"}},
+    ]
+    shuffled = {"dataSets": [{"id": "Ds3aaaaaaaa", "name": "Wildlife", "sections": [], "dataSetElements": elements}]}
+    reversed_order = {
+        "dataSets": [{"id": "Ds3aaaaaaaa", "name": "Wildlife", "sections": [], "dataSetElements": elements[::-1]}]
+    }
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=shuffled))
+    await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+    first = (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "Ds3aaaaaaaa.fsh").read_text(encoding="utf-8")
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=reversed_order))
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    second = (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "Ds3aaaaaaaa.fsh").read_text(encoding="utf-8")
+    assert report.written_files == []
+    assert first == second
+    assert first.index("Debzzzzzzzz") < first.index("Deazzzzzzzz") < first.index("Deczzzzzzzz")
+
+
+def _generated_value_types(version: str) -> set[str]:
+    """The members of one generated tree's ValueType enum, found by the two members every version holds."""
+    import enum
+    import importlib
+
+    module = importlib.import_module(f"dhis2w_client.generated.{version}.enums")
+    enums = [
+        candidate
+        for candidate in vars(module).values()
+        if isinstance(candidate, type)
+        and issubclass(candidate, enum.Enum)
+        and {"TEXT", "TRUE_ONLY"} <= set(candidate.__members__)
+    ]
+    assert len(enums) == 1, f"expected exactly one ValueType enum in {version}, found {len(enums)}"
+    return set(enums[0].__members__)
+
+
+@pytest.mark.parametrize("version", ["v41", "v42", "v43"])
+def test_every_generated_value_type_has_an_explicit_item_type(version: str) -> None:
+    """A codegen refresh that adds a DHIS2 value type must be a mapping decision, not a silent string.
+
+    `TRACKER_ASSOCIATE` is v41/v42 only - v43 dropped it - so the table is the union of the three.
+    """
+    unmapped = sorted(_generated_value_types(version) - set(ITEM_TYPES_BY_VALUE_TYPE))
+    assert unmapped == [], f"{version} ValueType members with no entry in ITEM_TYPES_BY_VALUE_TYPE: {unmapped}"
+
+
+def test_the_item_type_table_maps_nothing_dhis2_does_not_have() -> None:
+    """The table is exactly the union of the three trees - a stale key would document a type that is gone."""
+    known = set().union(*(_generated_value_types(version) for version in ("v41", "v42", "v43")))
+    assert set(ITEM_TYPES_BY_VALUE_TYPE) == known
+
+
+def test_multi_text_is_a_repeating_choice() -> None:
+    """MULTI_TEXT *is* multiple selection, so its item repeats; a single-valued choice does not."""
+    source = QuestionnaireSourceIn(
+        uid="Ds4aaaaaaaa",
+        name="Symptoms",
+        kind="aggregate",
+        flat_items=[
+            QuestionnaireItemIn(
+                uid="De6aaaaaaaa", name="Symptoms seen", value_type="MULTI_TEXT", option_set_uid="Os1aaaaaaaa"
+            ),
+            QuestionnaireItemIn(uid="De7aaaaaaaa", name="Sex", value_type="TEXT", option_set_uid="Os2aaaaaaaa"),
+        ],
+    )
+    content = _artifacts([source])["data-sets/Ds4aaaaaaaa.fsh"]
+    multi = content.split('* item[+].linkId = "De7aaaaaaaa"')[0]
+    single = content.split('* item[+].linkId = "De7aaaaaaaa"')[1]
+    assert "* item[=].type = #choice" in multi
+    assert "* item[=].repeats = true" in multi
+    assert "* item[=].type = #choice" in single
+    assert "repeats" not in single
+
+
+def test_a_multi_text_element_without_an_option_set_does_not_repeat() -> None:
+    """MULTI_TEXT is option-set-bound by definition; one without a set is malformed and takes no repeats."""
+    source = QuestionnaireSourceIn(
+        uid="Ds5aaaaaaaa",
+        name="Broken",
+        kind="aggregate",
+        flat_items=[QuestionnaireItemIn(uid="De8aaaaaaaa", name="Loose multi", value_type="MULTI_TEXT")],
+    )
+    assert "repeats" not in _artifacts([source])["data-sets/Ds5aaaaaaaa.fsh"]
+
+
+def test_data_element_concepts_carry_their_dhis2_domain_type() -> None:
+    """The DE CodeSystem declares a `domain` property and codes each concept aggregate or tracker."""
+    aggregate = _BCG.model_copy(update={"domain_type": "AGGREGATE"})
+    tracker = QuestionnaireItemIn(uid="De9aaaaaaaa", name="Tracker element", value_type="TEXT", domain_type="TRACKER")
+    source = QuestionnaireSourceIn(uid="Ds6aaaaaaaa", name="Mixed", kind="aggregate", flat_items=[aggregate, tracker])
+    content = _artifacts([source])["data-dictionary/data-elements.fsh"]
+    assert "* ^property[+].code = #domain" in content
+    assert '* ^property[=].uri = "http://dhis2.org/fhir/property/domain"' in content
+    assert '* ^property[=].description = "DHIS2 data element domain type."' in content
+    assert "* ^property[=].type = #code" in content
+    assert "* #De1aaaaaaaa ^property[=].valueCode = #aggregate" in content
+    assert "* #De9aaaaaaaa ^property[=].valueCode = #tracker" in content
+
+
+def test_the_domain_property_is_absent_when_dhis2_sends_no_domain_type() -> None:
+    """An instance answering no domainType leaves the property off the concepts and off the CodeSystem header."""
+    content = _artifacts([_DATA_SET])["data-dictionary/data-elements.fsh"]
+    assert "#domain" not in content

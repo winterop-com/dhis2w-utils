@@ -19,7 +19,7 @@ from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescap
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations
-from dhis2w_fhir.names import code_or_uid, quote
+from dhis2w_fhir.names import code_or_uid, page_text, quote
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.resources.organisation_units.location import (
     BOUNDARY_EXTENSION_URL,
@@ -155,8 +155,8 @@ def _build_organization_instance(
     return OrganizationInstance(
         uid=organisation_unit.uid,
         profile=names.organization_profile,
-        title_literal=quote(f"Organization - {organisation_unit.name}"),
-        description_literal=quote(description),
+        title_literal=page_text(f"Organization - {organisation_unit.name}"),
+        description_literal=page_text(description),
         name_literal=quote(organisation_unit.name),
         name_translations=name_translations(organisation_unit.translations, locales),
         identifier_code_literal=quote(code_or_uid(organisation_unit.code, organisation_unit.uid)),

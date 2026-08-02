@@ -1,0 +1,25 @@
+Instance: QuestionnaireResponse-{{ example.instance_id }}
+InstanceOf: QuestionnaireResponse
+Title: {{ example.title_literal }}
+Description: {{ example.description_literal }}
+Usage: #example
+* id = "{{ example.instance_id }}"
+* extension[{{ example.form_type_extension }}].valueCode = #{{ example.form_type_code }}
+{% if example.period is not none %}
+* extension[{{ example.period.extension }}].extension[iso].valueString = "{{ example.period.iso }}"
+* extension[{{ example.period.extension }}].extension[type].valueCode = #{{ example.period.period_type }}
+* extension[{{ example.period.extension }}].extension[period].valuePeriod.start = "{{ example.period.start_date }}"
+* extension[{{ example.period.extension }}].extension[period].valuePeriod.end = "{{ example.period.end_date }}"
+{% endif %}
+* questionnaire = "{{ example.questionnaire_url }}"
+* status = #{{ example.status_code }}
+* subject = Reference(Location-{{ example.organisation_unit_uid }})
+{% if example.authored is not none %}
+* authored = "{{ example.authored }}"
+{% endif %}
+{% for item in example.items %}
+* {{ item.new_path }}.linkId = "{{ item.link_id }}"
+{% for answer in item.answers %}
+* {{ item.path }}.answer[+].{{ answer.element }} = {{ answer.literal }}
+{% endfor %}
+{% endfor %}

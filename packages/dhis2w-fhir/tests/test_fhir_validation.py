@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+import pytest
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
@@ -9,6 +10,7 @@ from dhis2w_fhir.validation.schemas import (
     FhirValidationReport,
     MetadataCollectionIn,
     MetadataItemIn,
+    ValidationFinding,
 )
 
 _CONFIG = GenerateConfig()
@@ -226,3 +228,126 @@ def test_markdown_report_clean() -> None:
     """A clean report says so instead of rendering empty tables."""
     markdown = render_validation_markdown(_validate([]), "probe", _GENERATED_AT)
     assert "No findings" in markdown
+
+
+#: The play 2.42 data set whose name aborts the IG publisher's HTML parse.
+_MORTALITY_NAME = "Mortality < 5 years by gender"
+
+
+def _hostile(report: FhirValidationReport) -> list[ValidationFinding]:
+    """The template-hostile-name findings of one report, in report order."""
+    return [finding for finding in report.findings if finding.category == "template-hostile-name"]
+
+
+def test_a_template_hostile_name_is_one_warning_naming_the_character_and_the_consequence() -> None:
+    """The real play 2.42 data set name yields exactly one warning saying what breaks and why."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="dataSets",
+                items=[MetadataItemIn(uid="YFTk3VdO9av", name=_MORTALITY_NAME, code="DS_MORT")],
+            )
+        ],
+    )
+    findings = _hostile(report)
+    assert len(findings) == 1
+    assert findings[0].severity == "warning"
+    assert findings[0].resource_type == "dataSets"
+    assert findings[0].uid == "YFTk3VdO9av"
+    assert findings[0].name == _MORTALITY_NAME
+    assert findings[0].message == (
+        f"name {_MORTALITY_NAME} contains '<' which the IG publisher template injects into HTML "
+        "unescaped; pages for this resource render malformed until the name is changed"
+    )
+
+
+def test_a_clean_name_raises_no_template_finding() -> None:
+    """A name with no HTML-significant character is not a finding at all."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="dataSets",
+                items=[MetadataItemIn(uid="BfMAe6Itzgt", name="Child Health", code="DS_CH")],
+            )
+        ],
+    )
+    assert _hostile(report) == []
+
+
+@pytest.mark.parametrize(
+    ("name", "character"),
+    [
+        (_MORTALITY_NAME, "<"),
+        ("A > B comparison", ">"),
+        ("Cases & deaths", "&"),
+        ("<b>bold</b>", "<"),
+        ("Under 5 &amp; over", "&"),
+    ],
+)
+def test_every_html_significant_character_is_flagged(name: str, character: str) -> None:
+    """All three of `<`, `>`, and `&` break the template, and the message names the one it found first."""
+    report = _validate(
+        [], [MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="Ds1aaaaaaaa", name=name)])]
+    )
+    findings = _hostile(report)
+    assert len(findings) == 1
+    assert f"contains {character!r}" in findings[0].message
+
+
+def test_option_names_are_checked_by_the_deep_pass() -> None:
+    """Options are excluded from the sweep, so the deep pass covers the names that land in page tables."""
+    report = _validate(
+        [
+            _set(
+                "Os1aaaaaaaa",
+                "Age band",
+                [
+                    OptionIn(uid="Op1aaaaaaaa", code="LT5", name="< 5 years"),
+                    OptionIn(uid="Op2aaaaaaaa", code="GE5", name="5 years and over"),
+                ],
+            )
+        ]
+    )
+    findings = _hostile(report)
+    assert len(findings) == 1
+    assert findings[0].resource_type == "options"
+    assert findings[0].uid == "Op1aaaaaaaa"
+    assert findings[0].name == "< 5 years [in Age band]"
+    assert "contains '<'" in findings[0].message
+
+
+def test_an_option_set_name_is_flagged_once_by_the_sweep_alone() -> None:
+    """The sweep already covers optionSets, so the deep pass must not report the same set a second time."""
+    report = build_code_validation(
+        [_set("Os1aaaaaaaa", _MORTALITY_NAME, [OptionIn(uid="Op1aaaaaaaa", code="M", name="Male")])],
+        [MetadataCollectionIn(resource="optionSets", items=[MetadataItemIn(uid="Os1aaaaaaaa", name=_MORTALITY_NAME)])],
+        _CONFIG,
+    )
+    findings = _hostile(report)
+    assert len(findings) == 1
+    assert findings[0].resource_type == "optionSets"
+
+
+@pytest.mark.parametrize("code_source", ["id", "code"])
+def test_the_template_warning_is_independent_of_the_code_source(code_source: str) -> None:
+    """The finding is about published pages, not about codes, so id mode does not downgrade it."""
+    report = build_code_validation(
+        [_set("Os1aaaaaaaa", "Age band", [OptionIn(uid="Op1aaaaaaaa", code="LT5", name="< 5 years")])],
+        [MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="Ds1aaaaaaaa", name=_MORTALITY_NAME)])],
+        _CONFIG,
+        code_source,  # type: ignore[arg-type]
+    )
+    findings = _hostile(report)
+    assert [finding.severity for finding in findings] == ["warning", "warning"]
+    assert not any("informational in id mode" in finding.message for finding in findings)
+
+
+def test_an_invisible_character_in_a_name_is_rendered_visibly() -> None:
+    """The message reuses the code renderer, so a line break in a name prints as an escape."""
+    report = _validate(
+        [],
+        [MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="Ds1aaaaaaaa", name="A <b>\nB")])],
+    )
+    assert "name A <b>\\nB contains" in _hostile(report)[0].message
