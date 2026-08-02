@@ -176,7 +176,7 @@ def build_questionnaire_artifacts(
             FshArtifact(
                 relative_path=f"questionnaires/{source.uid}.fsh",
                 kind="instances",
-                fsh_name=f"Questionnaire{source.uid}",
+                fsh_name=f"Questionnaire-{source.uid}",
                 content=template.render(
                     questionnaire=view,
                     item_control_extension_url=ITEM_CONTROL_EXTENSION_URL,

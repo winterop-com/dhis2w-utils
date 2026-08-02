@@ -146,15 +146,15 @@ async def test_generate_organisation_units_across_majors(
     level_two = (tmp_path / "ig" / "input" / "fsh" / "organization" / "org-units-level-2.fsh").read_text(
         encoding="utf-8"
     )
-    assert "* partOf = Reference(OrganizationImspTQPwCqd)" in level_two
+    assert "* partOf = Reference(Organization-ImspTQPwCqd)" in level_two
     assert "* position.latitude = 7.9647" in level_two
     assert "* position.longitude = -11.7383" in level_two
     assert '* extension[+].url = "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson"' in level_two
-    assert "* partOf = Reference(LocationImspTQPwCqd)" in level_two
+    assert "* partOf = Reference(Location-ImspTQPwCqd)" in level_two
     level_one = (tmp_path / "ig" / "input" / "fsh" / "organization" / "org-units-level-1.fsh").read_text(
         encoding="utf-8"
     )
-    assert "Instance: LocationImspTQPwCqd" in level_one
+    assert "Instance: Location-ImspTQPwCqd" in level_one
 
 
 _QUESTIONNAIRE_DATA_SETS_PAYLOAD = {

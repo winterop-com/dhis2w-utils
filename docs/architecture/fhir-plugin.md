@@ -242,7 +242,7 @@ Under `ig/input/fsh/organization/`:
 - `org-unit-levels.fsh` - `D2OULevelCS`/`VS` covering the levels observed in the
   selection.
 - `org-units-level-<n>.fsh` - one file per hierarchy level. Every unit becomes an
-  `Organization<UID>` *and* a `Location<UID>` - the FHIR pair of legal entity and
+  `Organization-<UID>` *and* a `Location-<UID>` - the FHIR pair of legal entity and
   physical place - each carrying both identifier slices, with `partOf` mirroring
   the hierarchy on both sides (omitted for the root or when the parent falls
   outside the selection - noted, never silent). A unit whose `closedDate` has

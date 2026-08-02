@@ -168,7 +168,7 @@ def _artifacts(sources: list[QuestionnaireSourceIn], config: GenerateConfig | No
 def test_data_set_questionnaire_identity() -> None:
     """A data set becomes a definitional Questionnaire keyed by its bare UID, with both DHIS2 identifiers."""
     content = _artifacts([_DATA_SET])["questionnaires/BfMAe6Itzgt.fsh"]
-    assert "Instance: QuestionnaireBfMAe6Itzgt" in content
+    assert "Instance: Questionnaire-BfMAe6Itzgt" in content
     assert "InstanceOf: Questionnaire" in content
     assert "Usage: #definition" in content
     assert '* id = "BfMAe6Itzgt"' in content
@@ -185,7 +185,7 @@ def test_data_set_questionnaire_identity() -> None:
 def test_event_program_questionnaire_identity() -> None:
     """An event program takes the program identifier systems and the PR naming token."""
     content = _artifacts([_EVENT_PROGRAM])["questionnaires/VBqh0ynB2wv.fsh"]
-    assert "Instance: QuestionnaireVBqh0ynB2wv" in content
+    assert "Instance: Questionnaire-VBqh0ynB2wv" in content
     assert "* identifier[+].system = $DHIS2-PROGRAM" in content
     assert "* identifier[+].system = $DHIS2-PROGRAM-CODE" in content
     assert '* name = "D2PRVBqh0ynB2wv"' in content

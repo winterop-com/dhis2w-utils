@@ -191,7 +191,7 @@ def test_instances_carry_name_translation_extensions() -> None:
     """Both the Organization and the Location name gain one translation extension per NAME translation."""
     content = build_organisation_unit_instances([_BO], GenerateConfig()).artifacts[0].content
     assert content.count(_EXPECTED_NAME_EXTENSIONS) == 2
-    organization, location = content.split("\nInstance: Location", maxsplit=1)
+    organization, location = content.split("\nInstance: Location-", maxsplit=1)
     assert _EXPECTED_NAME_EXTENSIONS in organization
     assert _EXPECTED_NAME_EXTENSIONS in location
 

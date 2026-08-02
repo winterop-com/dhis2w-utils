@@ -34,7 +34,7 @@ _ORPHAN = OrganisationUnitIn(
 )
 _CONFIG = GenerateConfig()
 
-_EXPECTED_ROOT_LOCATION = """Instance: LocationImspTQPwCqd
+_EXPECTED_ROOT_LOCATION = """Instance: Location-ImspTQPwCqd
 InstanceOf: D2Location
 Title: "Location - Sierra Leone"
 Description: "DHIS2 organisation unit Sierra Leone (ImspTQPwCqd), level 1 - physical location."
@@ -46,10 +46,10 @@ Usage: #definition
 * identifier[dhis2code].value = "SL"
 * name = "Sierra Leone"
 * status = #active
-* managingOrganization = Reference(OrganizationImspTQPwCqd)
+* managingOrganization = Reference(Organization-ImspTQPwCqd)
 """
 
-_EXPECTED_DISTRICT = """Instance: OrganizationO6uvpzGd5pu
+_EXPECTED_DISTRICT = """Instance: Organization-O6uvpzGd5pu
 InstanceOf: D2Organization
 Title: "Organization - Bo"
 Description: "DHIS2 organisation unit Bo (O6uvpzGd5pu), level 2."
@@ -62,7 +62,7 @@ Usage: #definition
 * name = "Bo"
 * alias = "Bo District"
 * type = D2OULevelCS#level-2 "Level 2"
-* partOf = Reference(OrganizationImspTQPwCqd)
+* partOf = Reference(Organization-ImspTQPwCqd)
 * telecom[+].system = #phone
 * telecom[=].value = "+232 76 000000"
 * telecom[+].system = #email
@@ -70,7 +70,7 @@ Usage: #definition
 * contact[+].name.text = "A. Person"
 * active = true
 
-Instance: LocationO6uvpzGd5pu
+Instance: Location-O6uvpzGd5pu
 InstanceOf: D2Location
 Title: "Location - Bo"
 Description: "DHIS2 organisation unit Bo (O6uvpzGd5pu), level 2 - physical location."
@@ -84,8 +84,8 @@ Usage: #definition
 * status = #active
 * position.latitude = 7.9647
 * position.longitude = -11.7383
-* managingOrganization = Reference(OrganizationO6uvpzGd5pu)
-* partOf = Reference(LocationImspTQPwCqd)
+* managingOrganization = Reference(Organization-O6uvpzGd5pu)
+* partOf = Reference(Location-ImspTQPwCqd)
 """
 
 

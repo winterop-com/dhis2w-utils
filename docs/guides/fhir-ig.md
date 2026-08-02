@@ -167,7 +167,7 @@ file names, FHIR ids, and FSH names:
   two names collide. Both are reported as notes.
 
 Organisation-unit instances and files are outside `source` by construction:
-they are always UID-based (`Organization<UID>` / `Location<UID>` in
+they are always UID-based (`Organization-<UID>` / `Location-<UID>` in
 `org-units-level-<n>.fsh`, each resource `id` the bare UID), because a hierarchy
 of thousands of units has neither unique names nor stable ones.
 
