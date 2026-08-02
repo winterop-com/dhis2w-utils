@@ -91,7 +91,7 @@ locales = []                        # BCP-47 or DHIS2 tags; empty = every locale
 source = "id"                       # "id" or "name"
 prefix = "D2"                       # "" drops it; profiles keep a D2 token
 option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
-organisation_unit = "OU"            # e.g. "OrgUnit" -> D2OrgUnitLevelCS
+organisation_unit = "OU"            # e.g. "OrgUnit" -> D2OrgUnit_Level_CS
 data_set = "DS"                     # data set Questionnaire names
 program = "PR"                      # event program Questionnaire names
 
@@ -124,11 +124,11 @@ The full configuration reference, with the id-first-then-code workflow and the
 canonical naming-token registry, is in the
 [FHIR IG guide](../guides/fhir-ig.md).
 
-Artifact names concatenate the pascal naming tokens
-(`D2` + `OS` + `Qdm5fPK5Ra9` + `CS` - short tokens read by context); ids join
-the kebab of each non-empty token, with the UID kept verbatim
+Artifact names merge the prefix and kind tokens and underscore the segments
+after them (`D2` + `OS` + `_Qdm5fPK5Ra9` + `_CS` - short tokens read by context);
+ids join the kebab of each non-empty token, with the UID kept verbatim
 (`d2-os-Qdm5fPK5Ra9-cs`), so renaming or dropping a token reshapes the whole IG
-consistently. With `naming.source = "name"` the same set reads `D2OSBirthTypeCS`
+consistently. With `naming.source = "name"` the same set reads `D2OS_BirthType_CS`
 / `d2-os-birth-type-cs`. The two profile names always carry a token (default
 `D2`) because FSH cannot name a profile identically to its parent core resource.
 
@@ -154,8 +154,8 @@ depends on `fhir.toml` alone and never opens a client:
   every artifact that carries one. R4 makes `NamingSystem.date` mandatory, so the
   declarations carry a pinned date rather than a run timestamp - a generated one
   would rewrite the file on every run.
-- `d2-period.fsh` - the `D2Period` extension plus `D2PeriodTypeCS`/`VS`.
-- `d2-form-type.fsh` - the `D2FormType` extension plus `D2FormTypeCS`/`VS`
+- `d2-period.fsh` - the `D2Period` extension plus `D2PeriodType_CS`/`_VS`.
+- `d2-form-type.fsh` - the `D2FormType` extension plus `D2FormType_CS`/`_VS`
   (`aggregate`, `event`, `tracker`, `tracker-event`). Its context covers
   `Questionnaire` *and* `QuestionnaireResponse`: the form states what kind of DHIS2
   form it is, and so does every response captured against it, which is what lets a
@@ -175,7 +175,7 @@ and `DateUnitPeriodTypeParser` in dhis2-core.
 ## Option sets -> terminology
 
 One file per option set under `ig/input/fsh/terminology/`: a
-`D2OS<UID>CS` CodeSystem plus a matching ValueSet (naming tokens configurable).
+`D2OS_<UID>_CS` CodeSystem plus a matching ValueSet (naming tokens configurable).
 The file name and the id keep the UID's own case (`terminology/Qdm5fPK5Ra9.fsh`,
 `d2-os-Qdm5fPK5Ra9-cs`) - FHIR ids permit mixed case, so the id reads straight
 back to the DHIS2 object. With `naming.source = "name"` the artifacts take
@@ -197,8 +197,8 @@ generation is total and never silently drops a concept.
 `<UID>.fsh` per configured target (`[generate.data_sets]` /
 `[generate.event_programs]` `include_ids`, absent = none - a data definition is
 explicit opt-in, unlike the terminology and registry selections), plus
-`data-elements.fsh` (`D2DECS`/`VS`) and `category-option-combos.fsh`
-(`D2COCCS`/`VS`) over everything those forms reference. The two support pairs live
+`data-elements.fsh` (`D2DE_CS`/`_VS`) and `category-option-combos.fsh`
+(`D2COC_CS`/`_VS`) over everything those forms reference. The two support pairs live
 in the questionnaire sync directory, not `terminology/`, so the option-set target's
 cleanup can never delete them.
 
@@ -206,7 +206,7 @@ One Questionnaire is `Usage: #definition`, `id` the bare UID, `url` the IG canon
 plus `/Questionnaire/<uid>`, `subjectType = #Location` (a DHIS2 form is answered for
 an organisation unit), `experimental`, both DHIS2 identifiers (`$DHIS2-DS` /
 `$DHIS2-PROGRAM` and their code slots), and `name` composed from the naming tokens
-(`D2DSBfMAe6Itzgt`). Sections become `#group` items; data elements become questions
+(`D2DS_BfMAe6Itzgt`). Sections become `#group` items; data elements become questions
 whose type comes from the DHIS2 `valueType` table, or `#choice` plus an
 `answerValueSet` when the element is option-set bound; a compulsory program-stage
 element is `required`; a non-default category combo turns the question into a group
@@ -239,7 +239,7 @@ Under `ig/input/fsh/organization/`:
   `location-boundary-geojson` extension as a named `boundary 0..1` slice, so the
   profile states the geometry contract its instances carry instead of leaving the
   extension loose.
-- `org-unit-levels.fsh` - `D2OULevelCS`/`VS` covering the levels observed in the
+- `org-unit-levels.fsh` - `D2OU_Level_CS`/`_VS` covering the levels observed in the
   selection.
 - `org-units-level-<n>.fsh` - one file per hierarchy level. Every unit becomes an
   `Organization-<UID>` *and* a `Location-<UID>` - the FHIR pair of legal entity and
@@ -253,7 +253,7 @@ Under `ig/input/fsh/organization/`:
   keep their `Organization` / `Location` prefixes, which is the namespace that
   keeps the two unique within one file.
 - `org-units-terminology.fsh` (only with `terminology = true`) - the whole
-  selection as one `D2OUCS` with `level` / `parent` / `dhis2-code` concept
+  selection as one `D2OU_CS` with `level` / `parent` / `dhis2-code` concept
   properties, for flows that want the hierarchy as codes instead of resources.
 
 Every artifact representing a DHIS2 object exposes both DHIS2 identifiers
@@ -262,10 +262,14 @@ missing or not FHIR-valid - so `dhis2code` can be `1..1` and consumers never
 special-case absence. `d2w fhir validate` warns on every organisation unit
 without a code, which is what drives those fall-backs out over time. Every
 identifier system those slots name is declared by a foundation NamingSystem.
-Every generated CodeSystem also points back at its ValueSet through `^valueSet`,
-carries `^experimental = true` (ShareableCodeSystem / ShareableValueSet make it
-mandatory), and gives each concept property a `<base>/property/<code>` URI so the
-property has a defined meaning outside this IG.
+Every generated CodeSystem also points back at its ValueSet through `^valueSet`
+and gives each concept property a `<base>/property/<code>` URI so the property has
+a defined meaning outside this IG. Every generated definitional resource - the two
+profiles, the two extensions, every CodeSystem/ValueSet pair, every Questionnaire -
+carries an `experimental` flag derived from `[ig] status`: `true` while the IG is
+`draft`, `false` once it is `active`. The flag is always populated, because
+ShareableCodeSystem / ShareableValueSet make it mandatory. NamingSystem instances
+carry none: R4 NamingSystem has no `experimental` element.
 
 The tree is fetched with a 500-per-page loop ordered by `path:asc` (stable
 output), filtered by `[generate.organisation_units]` `root` (DHIS2 `path:like`) and
@@ -486,7 +490,7 @@ boundary.
   CodeSystem/ValueSet pairs the same way.
 - Tracker programs as Questionnaires: `WITH_REGISTRATION` programs need
   `Patient` + `EpisodeOfCare` alongside the per-stage forms, and the
-  `tracker` / `tracker-event` codes are already in `D2FormTypeCS` waiting for them.
+  `tracker` / `tracker-event` codes are already in `D2FormType_CS` waiting for them.
   Multi-stage event programs land with them.
 - `SHORT_NAME` and `DESCRIPTION` translations: `NAME` is emitted today, and the
   other two need a target apiece (`Organization.alias`, `^description`) before

@@ -49,6 +49,8 @@ def test_fhir_toml_round_trips() -> None:
     raw = tomllib.loads(_by_path()["fhir.toml"])
     config = FhirProjectConfig.model_validate(raw)
     assert config.ig.id == "dhis2.fhir.test"
+    assert config.ig.status == "draft"
+    assert config.ig.experimental is True
     assert config.profile is None
     assert config.generate.concept_code_source == "id"
     assert config.generate.naming.prefix == "D2"
@@ -120,6 +122,21 @@ def test_scaffolded_aliases_are_hand_space() -> None:
     assert "Alias: $DHIS2-OU =" not in aliases
     assert "Alias: $DHIS2-OU-CODE =" not in aliases
     assert "foundation/d2-aliases.fsh" in aliases
+
+
+def test_ig_status_drives_sushi_config_and_fhir_toml() -> None:
+    """The IG status is scaffolded into both documents, so sushi-config and generation agree."""
+    assert 'status = "draft"' in _by_path()["fhir.toml"]
+    assert "status: draft\n" in _by_path()["ig/sushi-config.yaml"]
+    active = {
+        file.relative_path: file.content
+        for file in build_scaffold_files(_OPTIONS.model_copy(update={"status": "active"}))
+    }
+    assert 'status = "active"' in active["fhir.toml"]
+    assert "status: active\n" in active["ig/sushi-config.yaml"]
+    config = FhirProjectConfig.model_validate(tomllib.loads(active["fhir.toml"]))
+    assert config.ig.status == "active"
+    assert config.ig.experimental is False
 
 
 def test_publisher_url_is_omitted_unless_given() -> None:

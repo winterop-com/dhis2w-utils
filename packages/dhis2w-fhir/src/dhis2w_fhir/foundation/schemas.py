@@ -101,8 +101,8 @@ class FoundationNaming(BaseModel):
 
     @property
     def period_type_code_system(self) -> str:
-        """FSH name of the period-type CodeSystem (e.g. `D2PeriodTypeCS`)."""
-        return f"{self.definition_prefix}PeriodTypeCS"
+        """FSH name of the period-type CodeSystem (e.g. `D2PeriodType_CS`)."""
+        return f"{self.definition_prefix}PeriodType_CS"
 
     @property
     def period_type_code_system_id(self) -> str:
@@ -111,8 +111,8 @@ class FoundationNaming(BaseModel):
 
     @property
     def period_type_value_set(self) -> str:
-        """FSH name of the period-type ValueSet (e.g. `D2PeriodTypeVS`)."""
-        return f"{self.definition_prefix}PeriodTypeVS"
+        """FSH name of the period-type ValueSet (e.g. `D2PeriodType_VS`)."""
+        return f"{self.definition_prefix}PeriodType_VS"
 
     @property
     def period_type_value_set_id(self) -> str:
@@ -131,8 +131,8 @@ class FoundationNaming(BaseModel):
 
     @property
     def form_type_code_system(self) -> str:
-        """FSH name of the form-type CodeSystem (e.g. `D2FormTypeCS`)."""
-        return f"{self.definition_prefix}FormTypeCS"
+        """FSH name of the form-type CodeSystem (e.g. `D2FormType_CS`)."""
+        return f"{self.definition_prefix}FormType_CS"
 
     @property
     def form_type_code_system_id(self) -> str:
@@ -141,8 +141,8 @@ class FoundationNaming(BaseModel):
 
     @property
     def form_type_value_set(self) -> str:
-        """FSH name of the form-type ValueSet (e.g. `D2FormTypeVS`)."""
-        return f"{self.definition_prefix}FormTypeVS"
+        """FSH name of the form-type ValueSet (e.g. `D2FormType_VS`)."""
+        return f"{self.definition_prefix}FormType_VS"
 
     @property
     def form_type_value_set_id(self) -> str:

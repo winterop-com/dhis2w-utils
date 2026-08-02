@@ -22,7 +22,16 @@ from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescap
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations
-from dhis2w_fhir.names import code_or_uid, fsh_code, is_valid_fhir_code, join_id_tokens, kebab, pascal, quote
+from dhis2w_fhir.names import (
+    code_or_uid,
+    fsh_code,
+    is_valid_fhir_code,
+    join_id_tokens,
+    join_name_segments,
+    kebab,
+    pascal,
+    quote,
+)
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.writer import FshArtifact, FshBuild
@@ -30,7 +39,7 @@ from dhis2w_fhir.writer import FshArtifact, FshBuild
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
-__all__ = ["build_option_set_artifacts", "max_slug_length"]
+__all__ = ["build_option_set_artifacts", "max_slug_length", "option_set_fsh_name"]
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.resources.option_sets", "templates"),
@@ -85,12 +94,23 @@ _PROPERTY_DECLARATIONS = (
 )
 
 
+def option_set_fsh_name(config: GenerateConfig, segment: str) -> str:
+    """FSH name stem for one option set: the merged naming tokens, then the UID or the pascal name.
+
+    The emitted CodeSystem and ValueSet append `_CS` and `_VS` to it, so `D2OS_BirthType`
+    names the pair `D2OS_BirthType_CS` / `D2OS_BirthType_VS`.
+    """
+    return join_name_segments(f"{config.naming.prefix}{config.naming.option_set}", segment)
+
+
 def max_slug_length(config: GenerateConfig) -> int:
     """Longest slug that keeps every emitted id within the FHIR id limit."""
     return _MAX_FHIR_ID_LENGTH - len(_id_stem(config)) - len(_ID_SUFFIX)
 
 
-def build_option_set_artifacts(option_sets: list[OptionSetIn], config: GenerateConfig) -> FshBuild:
+def build_option_set_artifacts(
+    option_sets: list[OptionSetIn], config: GenerateConfig, *, experimental: bool
+) -> FshBuild:
     """Build one `terminology/<slug>.fsh` artifact per option set, stable-sorted for clean diffs."""
     build = FshBuild()
     used_slugs: set[str] = set()
@@ -100,19 +120,19 @@ def build_option_set_artifacts(option_sets: list[OptionSetIn], config: GenerateC
     for option_set in sorted(option_sets, key=lambda item: (item.name, item.uid)):
         if config.naming.source == "id":
             slug = option_set.uid
-            base_name = f"{config.naming.prefix}{config.naming.option_set}{option_set.uid}"
+            base_name = option_set_fsh_name(config, option_set.uid)
         else:
             slug = kebab(option_set.name)
-            base_name = f"{config.naming.prefix}{config.naming.option_set}{pascal(option_set.name)}"
+            base_name = option_set_fsh_name(config, pascal(option_set.name))
             if len(slug) > slug_limit:
                 slug = _bounded_slug(slug, option_set.uid, slug_limit)
                 truncated.append(option_set.name)
             elif slug in used_slugs:
                 slug = _bounded_slug(slug, option_set.uid, slug_limit)
-                base_name = f"{base_name}{option_set.uid}"
+                base_name = join_name_segments(base_name, option_set.uid)
                 collided.append(option_set.name)
         used_slugs.add(slug)
-        content = _render_option_set(option_set, base_name, slug, config, build.notes)
+        content = _render_option_set(option_set, base_name, slug, config, build.notes, experimental=experimental)
         build.artifacts.append(
             FshArtifact(
                 relative_path=f"terminology/{slug}.fsh",
@@ -219,6 +239,8 @@ def _render_option_set(
     slug: str,
     config: GenerateConfig,
     notes: list[str],
+    *,
+    experimental: bool,
 ) -> str:
     """Render the CodeSystem + ValueSet FSH for one option set."""
     ordered = sorted(option_set.options, key=lambda item: (item.sort_order is None, item.sort_order or 0, item.uid))
@@ -239,4 +261,5 @@ def _render_option_set(
         concepts=concepts,
         title_translations=name_translations(option_set.translations, config.locales),
         translation_extension_url=TRANSLATION_EXTENSION_URL,
+        experimental=experimental,
     )

@@ -9958,6 +9958,7 @@ $ d2w fhir init [OPTIONS] [directory]
 * `--name <str>`: SUSHI name (default: derived from --id).
 * `--title <str>`: IG title (default: derived from --name).
 * `--publisher <str>`: Publisher name.  [default: Example Organisation]
+* `--status <str>`: IG life cycle, draft or active. Drives the sushi-config status and the experimental flag on every generated definitional resource.  [default: draft]
 * `--publisher-url <str>`: Publisher home page. Omit it unless you have a real site: the IG publisher links it from every generated page, and pointing it at the canonical yields one broken link per page.
 * `--data-set <str>`: Data set UID to seed  include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--event <str>`: Event program UID to seed  include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.

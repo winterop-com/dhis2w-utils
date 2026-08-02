@@ -45,6 +45,7 @@ def _render(relative_path: str, template_name: str, options: InitOptions, **extr
         name=options.name,
         title=options.title,
         publisher=options.publisher,
+        status=options.status,
         publisher_url=options.publisher_url,
         data_set_ids=options.data_set_ids,
         event_program_ids=options.event_program_ids,

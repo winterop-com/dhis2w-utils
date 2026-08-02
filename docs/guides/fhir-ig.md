@@ -81,7 +81,8 @@ profile = "myserver"    # optional: which d2w profile to read metadata from
 
 ### `[ig]` - SUSHI identity
 
-Straight through to `sushi-config.yaml`. All five keys are required.
+Straight through to `sushi-config.yaml`. The five identity keys are required;
+`status` defaults to `draft`.
 
 ```toml
 [ig]
@@ -90,7 +91,16 @@ canonical = "https://example.org/fhir"     # canonical base URL; trailing slash 
 name = "OrgExampleDhis2"                   # SUSHI name (computational, no spaces)
 title = "Example DHIS2 Implementation Guide"
 publisher = "Example Organisation"
+status = "draft"                           # draft while building; active for production
 ```
+
+**`status`** is `draft` or `active`, and it drives two things at once: the
+`status` of `sushi-config.yaml`, and the `experimental` flag every generated
+definitional resource carries. A draft IG publishes its profiles, extensions,
+CodeSystems, ValueSets, and Questionnaires with `experimental = true`; flip to
+`active` and regenerate, and they all read `experimental = false`. The flag is
+always populated, because the Shareable profiles require it to be present.
+`d2w fhir init --status active` scaffolds an active project directly.
 
 ### `[generate]`
 
@@ -158,11 +168,11 @@ file names, FHIR ids, and FSH names:
 
 - `"id"` (default) - stable, collision-free, script-agnostic. DHIS2 names are
   often non-latin or non-unique, so id-sourced ids never truncate or collide.
-  You get `terminology/Qdm5fPK5Ra9.fsh`, `D2OSQdm5fPK5Ra9CS`, id
+  You get `terminology/Qdm5fPK5Ra9.fsh`, `D2OS_Qdm5fPK5Ra9_CS`, id
   `d2-os-Qdm5fPK5Ra9-cs`. The UID keeps its own case: FHIR ids and file names
   both permit mixed case, so the id reads straight back to the DHIS2 object.
 - `"name"` - human-readable slugs (`terminology/birth-type.fsh`,
-  `D2OSBirthTypeCS`, `d2-os-birth-type-cs`), truncated with a UID suffix when a
+  `D2OS_BirthType_CS`, `d2-os-birth-type-cs`), truncated with a UID suffix when a
   name overflows FHIR's 64-character id limit and disambiguated the same way when
   two names collide. Both are reported as notes.
 
@@ -171,10 +181,10 @@ they are always UID-based (`Organization-<UID>` / `Location-<UID>` in
 `org-units-level-<n>.fsh`, each resource `id` the bare UID), because a hierarchy
 of thousands of units has neither unique names nor stable ones.
 
-**The tokens** compose artifact names by concatenation and ids by kebab-joining
-each non-empty token. With the defaults, an option set becomes
-`D2` + `OS` + `Qdm5fPK5Ra9` + `CS` = `D2OSQdm5fPK5Ra9CS`, id
-`d2-os-Qdm5fPK5Ra9-cs`; on `source = "name"` the same set reads `D2OSBirthTypeCS`
+**The tokens** compose artifact names by merging the prefix and kind token and
+underscoring the segments after it, and ids by kebab-joining each non-empty token. With the defaults, an option set becomes
+`D2` + `OS` + `_Qdm5fPK5Ra9` + `_CS` = `D2OS_Qdm5fPK5Ra9_CS`, id
+`d2-os-Qdm5fPK5Ra9-cs`; on `source = "name"` the same set reads `D2OS_BirthType_CS`
 / `d2-os-birth-type-cs`. Rename or drop a token and the whole IG follows
 consistently.
 
@@ -182,12 +192,12 @@ consistently.
 | --- | --- | --- |
 | `prefix` | `D2` | May be empty to drop it entirely. |
 | `option_set` | `OS` | May be empty. Try `OptionSet` for a verbose IG. |
-| `organisation_unit` | `OU` | Must stay non-empty. `OrgUnit` gives `D2OrgUnitLevelCS`. |
-| `data_set` | `DS` | May be empty. Names a data set's Questionnaire (`D2DSBfMAe6Itzgt`). |
-| `program` | `PR` | May be empty. Names an event program's Questionnaire (`D2PRVBqh0ynB2wv`). |
+| `organisation_unit` | `OU` | Must stay non-empty. `OrgUnit` gives `D2OrgUnit_Level_CS`. |
+| `data_set` | `DS` | May be empty. Names a data set's Questionnaire (`D2DS_BfMAe6Itzgt`). |
+| `program` | `PR` | May be empty. Names an event program's Questionnaire (`D2PR_VBqh0ynB2wv`). |
 
 **The empty-prefix caveat.** Setting `prefix = ""` drops the token from
-terminology names (`OULevelCS`, id `ou-level-cs`), but the two organisation-unit
+terminology names (`OU_Level_CS`, id `ou-level-cs`), but the two organisation-unit
 profiles and the `D2Period` extension keep a `D2` token anyway. FSH cannot name a
 profile identically to its parent core resource, nor an extension identically to
 a core datatype: `Profile: Organization` and `Extension: Period` are both
@@ -198,8 +208,8 @@ illegal. Those definitions fall back to `D2` rather than fail.
 Keys are added to `[generate.naming]` as each generator lands, with these
 defaults. Only `option_set` and `organisation_unit` exist in code today; the rest
 are the decided defaults for the generators still to come. Every token composes
-as `{prefix}{token}`, and ids derive from the kebab of prefix plus token
-(`d2-deg-<uid>-cs`).
+as `{prefix}{token}_<segment>_CS`, and ids derive from the kebab of prefix plus
+token (`d2-deg-<uid>-cs`).
 
 | Token | DHIS2 object | Token | DHIS2 object |
 | --- | --- | --- | --- |
@@ -306,13 +316,13 @@ type is what makes it comparable, aggregatable, and round-trippable.
 | Sub-extension | Type | Cardinality | Meaning |
 | --- | --- | --- | --- |
 | `iso` | `string` | 1..1 | The DHIS2 ISO period identifier, e.g. `202401` |
-| `type` | `code` | 1..1 | The period type, bound (required) to `D2PeriodTypeVS` |
+| `type` | `code` | 1..1 | The period type, bound (required) to `D2PeriodType_VS` |
 | `period` | `Period` | 0..1 | The date range the identifier resolves to |
 
 Its context is `Element`, so it attaches anywhere - the data layer will hang it
 off `MeasureReport`, `QuestionnaireResponse`, and `Observation` alike.
 
-The `D2PeriodTypeCS` CodeSystem publishes every period type DHIS2 registers,
+The `D2PeriodType_CS` CodeSystem publishes every period type DHIS2 registers,
 each displayed with its ISO format: `Daily (yyyyMMdd)`, `Monthly (yyyyMM)`,
 `FinancialApril (yyyyApril)`, and so on through the weekly variants, the
 bi-weekly and bi-monthly types, the November-anchored financial types, and the
@@ -408,7 +418,7 @@ its `id` and `<canonical>/Questionnaire/<uid>` as its `url`, `subjectType = #Loc
 (a DHIS2 form is answered *for an organisation unit*), and both DHIS2 identifiers -
 `$DHIS2-DS` / `$DHIS2-DS-CODE` for a data set, `$DHIS2-PROGRAM` /
 `$DHIS2-PROGRAM-CODE` for an event program. `Questionnaire.name` composes from the
-naming tokens (`D2DSBfMAe6Itzgt`, `D2PRVBqh0ynB2wv`) and `title` is the DHIS2 name.
+naming tokens (`D2DS_BfMAe6Itzgt`, `D2PR_VBqh0ynB2wv`) and `title` is the DHIS2 name.
 
 | DHIS2 | FHIR |
 | --- | --- |
@@ -438,9 +448,9 @@ to lay that section out as the DHIS2 data-entry grid it is - questions as rows,
 category option combos as columns.
 
 **The support terminology.** `questionnaires/data-elements.fsh` publishes every data
-element the generated questionnaires reference as one `D2DECS` CodeSystem (plus its
+element the generated questionnaires reference as one `D2DE_CS` CodeSystem (plus its
 ValueSet), and `questionnaires/category-option-combos.fsh` does the same for every
-category option combo as `D2COCCS`. Each item's `code` points into them, so a
+category option combo as `D2COC_CS`. Each item's `code` points into them, so a
 response can be read back to DHIS2 without consulting the questionnaire. Both live
 in the `questionnaires/` directory rather than `terminology/`, which is what keeps
 the option-set target from deleting them on its next run.
@@ -460,7 +470,7 @@ references are emitted after the sectioned ones, also with a note.
 
 **`D2FormType`, and where this is going.** Every generated Questionnaire states
 which kind of DHIS2 form it came from twice: as `Questionnaire.code`
-(`D2FormTypeCS#aggregate` or `#event`) and through the `D2FormType` extension, whose
+(`D2FormType_CS#aggregate` or `#event`) and through the `D2FormType` extension, whose
 context covers `Questionnaire` **and** `QuestionnaireResponse`. That second context
 is the point. The captured data is the next layer: a data value set becomes a
 `QuestionnaireResponse` against the form's `Questionnaire`, carrying its DHIS2

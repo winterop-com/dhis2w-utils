@@ -35,7 +35,7 @@ from dhis2w_fhir.period import (
     PeriodValue,
     parse_period,
 )
-from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, max_slug_length
+from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, max_slug_length, option_set_fsh_name
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn, OptionSetSelection
 from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_instances,
@@ -151,6 +151,7 @@ __all__ = [
     "max_slug_length",
     "name_translations",
     "normalize_locale",
+    "option_set_fsh_name",
     "parse_period",
     "render_validation_csv",
     "render_validation_markdown",

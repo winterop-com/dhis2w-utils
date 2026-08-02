@@ -51,7 +51,7 @@ _ENVIRONMENT = Environment(
 )
 
 
-def build_foundation_artifacts(config: GenerateConfig) -> list[FshArtifact]:
+def build_foundation_artifacts(config: GenerateConfig, *, experimental: bool) -> list[FshArtifact]:
     """Build the `foundation/` artifacts: the DHIS2 identifier systems and the D2Period extension."""
     names = FoundationNaming.from_naming(config.naming)
     aliases = _ENVIRONMENT.get_template("d2-aliases.fsh.jinja").render(
@@ -61,9 +61,11 @@ def build_foundation_artifacts(config: GenerateConfig) -> list[FshArtifact]:
         naming_systems=build_naming_system_declarations(config),
         declared_date=_IDENTIFIER_SYSTEM_DECLARED_DATE,
     )
-    period = _ENVIRONMENT.get_template("d2-period.fsh.jinja").render(names=names, period_types=PERIOD_TYPE_DEFINITIONS)
+    period = _ENVIRONMENT.get_template("d2-period.fsh.jinja").render(
+        names=names, period_types=PERIOD_TYPE_DEFINITIONS, experimental=experimental
+    )
     form_type = _ENVIRONMENT.get_template("d2-form-type.fsh.jinja").render(
-        names=names, form_types=FORM_TYPE_DEFINITIONS
+        names=names, form_types=FORM_TYPE_DEFINITIONS, experimental=experimental
     )
     return [
         FshArtifact(

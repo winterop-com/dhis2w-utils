@@ -8,6 +8,12 @@ set -euo pipefail
 # page, so aiming it at the canonical of an unpublished IG warns once per page.
 d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo --publisher "Demo Org"
 
+# The IG scaffolds as [ig] status = "draft", which is also the sushi-config status and
+# the experimental flag on every generated definitional resource. Pass --status active
+# for a production IG, or edit [ig] status in fhir.toml and regenerate.
+# d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
+#     --publisher "Demo Org" --status active
+
 # Data definitions are explicit opt-in, and --data-set / --event seed them at scaffold
 # time (repeatable, offline - the UIDs are written to fhir.toml, never checked against an
 # instance). On the play 2.42 demo: two data sets and one event program.

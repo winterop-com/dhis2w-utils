@@ -12,6 +12,7 @@ from dhis2w_core.cli_output import DetailRow, is_json_output, render_detail
 from dhis2w_fhir import GenerateReport, load_project
 
 if TYPE_CHECKING:
+    from dhis2w_fhir.config import IgStatus
     from dhis2w_fhir.service import GenerationProfile
 
 app = typer.Typer(help="FHIR Implementation Guide generation from DHIS2 metadata.", no_args_is_help=True)
@@ -33,6 +34,14 @@ def init_command(
     name: Annotated[str | None, typer.Option("--name", help="SUSHI name (default: derived from --id).")] = None,
     title: Annotated[str | None, typer.Option("--title", help="IG title (default: derived from --name).")] = None,
     publisher: Annotated[str, typer.Option("--publisher", help="Publisher name.")] = "Example Organisation",
+    status: Annotated[
+        str,
+        typer.Option(
+            "--status",
+            help="IG life cycle, draft or active. Drives the sushi-config status and the experimental flag on "
+            "every generated definitional resource.",
+        ),
+    ] = "draft",
     publisher_url: Annotated[
         str | None,
         typer.Option(
@@ -63,6 +72,9 @@ def init_command(
     from dhis2w_fhir import InitOptions, service
     from dhis2w_fhir.names import pascal
 
+    if status not in {"draft", "active"}:
+        raise typer.BadParameter("status must be 'draft' or 'active'")
+    ig_status: IgStatus = "active" if status == "active" else "draft"
     resolved_name = name or pascal(ig_id)
     options = InitOptions(
         ig_id=ig_id,
@@ -70,6 +82,7 @@ def init_command(
         name=resolved_name,
         title=title or f"{resolved_name} Implementation Guide",
         publisher=publisher,
+        status=ig_status,
         publisher_url=publisher_url,
         data_set_ids=data_set_ids or [],
         event_program_ids=event_program_ids or [],

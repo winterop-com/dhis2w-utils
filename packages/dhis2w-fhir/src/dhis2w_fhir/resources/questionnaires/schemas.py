@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.names import join_id_tokens
+from dhis2w_fhir.names import join_id_tokens, join_name_segments
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import NamingConfig
@@ -121,13 +121,13 @@ class QuestionnaireNaming(BaseModel):
         return self.data_set if kind == "aggregate" else self.program
 
     def questionnaire_name(self, kind: FormKind, uid: str) -> str:
-        """Computational `Questionnaire.name` for one source (e.g. `D2DSBfMAe6Itzgt`, `D2PRVBqh0ynB2wv`)."""
-        return f"{self.prefix}{self.source_token(kind)}{uid}"
+        """Computational `Questionnaire.name` for one source (e.g. `D2DS_BfMAe6Itzgt`, `D2PR_VBqh0ynB2wv`)."""
+        return join_name_segments(f"{self.prefix}{self.source_token(kind)}", uid)
 
     @property
     def data_element_code_system(self) -> str:
-        """FSH name of the data-element support CodeSystem (e.g. `D2DECS`)."""
-        return f"{self.prefix}DECS"
+        """FSH name of the data-element support CodeSystem (e.g. `D2DE_CS`)."""
+        return f"{self.prefix}DE_CS"
 
     @property
     def data_element_code_system_id(self) -> str:
@@ -136,8 +136,8 @@ class QuestionnaireNaming(BaseModel):
 
     @property
     def data_element_value_set(self) -> str:
-        """FSH name of the data-element support ValueSet (e.g. `D2DEVS`)."""
-        return f"{self.prefix}DEVS"
+        """FSH name of the data-element support ValueSet (e.g. `D2DE_VS`)."""
+        return f"{self.prefix}DE_VS"
 
     @property
     def data_element_value_set_id(self) -> str:
@@ -146,8 +146,8 @@ class QuestionnaireNaming(BaseModel):
 
     @property
     def category_option_combo_code_system(self) -> str:
-        """FSH name of the category-option-combo support CodeSystem (e.g. `D2COCCS`)."""
-        return f"{self.prefix}COCCS"
+        """FSH name of the category-option-combo support CodeSystem (e.g. `D2COC_CS`)."""
+        return f"{self.prefix}COC_CS"
 
     @property
     def category_option_combo_code_system_id(self) -> str:
@@ -156,8 +156,8 @@ class QuestionnaireNaming(BaseModel):
 
     @property
     def category_option_combo_value_set(self) -> str:
-        """FSH name of the category-option-combo support ValueSet (e.g. `D2COCVS`)."""
-        return f"{self.prefix}COCVS"
+        """FSH name of the category-option-combo support ValueSet (e.g. `D2COC_VS`)."""
+        return f"{self.prefix}COC_VS"
 
     @property
     def category_option_combo_value_set_id(self) -> str:
@@ -166,4 +166,4 @@ class QuestionnaireNaming(BaseModel):
 
     def option_set_value_set(self, option_set_uid: str) -> str:
         """FSH name of the option-set ValueSet an answer-bound item points at (id-sourced naming)."""
-        return f"{self.prefix}{self.option_set}{option_set_uid}VS"
+        return f"{join_name_segments(f'{self.prefix}{self.option_set}', option_set_uid)}_VS"

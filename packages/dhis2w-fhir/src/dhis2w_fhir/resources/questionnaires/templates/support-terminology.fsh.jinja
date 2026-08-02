@@ -3,7 +3,7 @@ Id: {{ terminology.code_system_id }}
 Title: {{ terminology.title_literal }}
 Description: {{ terminology.description_literal }}
 * ^status = #active
-* ^experimental = true
+* ^experimental = {{ "true" if terminology.experimental else "false" }}
 * ^content = #complete
 * ^caseSensitive = true
 * ^valueSet = Canonical({{ terminology.value_set }})
@@ -22,5 +22,5 @@ Id: {{ terminology.value_set_id }}
 Title: {{ terminology.title_literal }}
 Description: {{ terminology.description_literal }}
 * ^status = #active
-* ^experimental = true
+* ^experimental = {{ "true" if terminology.experimental else "false" }}
 * include codes from system {{ terminology.code_system }}

@@ -1,4 +1,4 @@
-CodeSystem: {{ base_name }}CS
+CodeSystem: {{ base_name }}_CS
 Id: {{ id_stem }}{{ slug }}-cs
 Title: {{ title }}
 Description: {{ description }}
@@ -14,10 +14,10 @@ Description: {{ description }}
 * ^identifier[+].system = $DHIS2-OS-CODE
 * ^identifier[=].value = "{{ option_set_code }}"
 * ^status = #active
-* ^experimental = true
+* ^experimental = {{ "true" if experimental else "false" }}
 * ^content = #complete
 * ^caseSensitive = true
-* ^valueSet = Canonical({{ base_name }}VS)
+* ^valueSet = Canonical({{ base_name }}_VS)
 {% for declaration in declarations %}
 * ^property[+].code = #{{ declaration.code }}
 * ^property[=].uri = "{{ property_base }}/{{ declaration.code }}"
@@ -36,7 +36,7 @@ Description: {{ description }}
 {% endfor %}
 {% endfor %}
 
-ValueSet: {{ base_name }}VS
+ValueSet: {{ base_name }}_VS
 Id: {{ id_stem }}{{ slug }}-vs
 Title: {{ title }}
 Description: {{ description }}
@@ -52,5 +52,5 @@ Description: {{ description }}
 * ^identifier[+].system = $DHIS2-OS-CODE
 * ^identifier[=].value = "{{ option_set_code }}"
 * ^status = #active
-* ^experimental = true
-* include codes from system {{ base_name }}CS
+* ^experimental = {{ "true" if experimental else "false" }}
+* include codes from system {{ base_name }}_CS

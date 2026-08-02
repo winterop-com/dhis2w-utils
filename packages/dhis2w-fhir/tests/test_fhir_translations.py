@@ -158,13 +158,13 @@ def test_name_translations_deduplicates_by_locale_keeping_the_first() -> None:
 
 def test_option_concepts_carry_name_designations() -> None:
     """Each option's NAME translations follow its property lines as CodeSystem concept designations."""
-    content = build_option_set_artifacts([_BIRTH_TYPE], _NAME_SOURCE).artifacts[0].content
+    content = build_option_set_artifacts([_BIRTH_TYPE], _NAME_SOURCE, experimental=True).artifacts[0].content
     assert _EXPECTED_CONCEPT_DESIGNATIONS in content
 
 
 def test_option_set_titles_carry_translation_extensions_on_both_artifacts() -> None:
     """The set's NAME translations follow the Description line on the CodeSystem and the ValueSet alike."""
-    content = build_option_set_artifacts([_BIRTH_TYPE], _NAME_SOURCE).artifacts[0].content
+    content = build_option_set_artifacts([_BIRTH_TYPE], _NAME_SOURCE, experimental=True).artifacts[0].content
     assert content.count(_EXPECTED_TITLE_EXTENSIONS) == 2
     code_system, value_set = content.split("\nValueSet: ", maxsplit=1)
     assert _EXPECTED_TITLE_EXTENSIONS in code_system
@@ -173,7 +173,7 @@ def test_option_set_titles_carry_translation_extensions_on_both_artifacts() -> N
 
 def test_configured_locales_filter_the_emitted_translations() -> None:
     """With `locales = ["lo"]` the Khmer designations and title extensions drop out."""
-    content = build_option_set_artifacts([_BIRTH_TYPE], _LAO_ONLY).artifacts[0].content
+    content = build_option_set_artifacts([_BIRTH_TYPE], _LAO_ONLY, experimental=True).artifacts[0].content
     assert _LAO_BIRTH_TYPE in content
     assert _KHMER_BIRTH_TYPE not in content
     assert _LAO_NATURAL_BIRTH in content
@@ -182,7 +182,7 @@ def test_configured_locales_filter_the_emitted_translations() -> None:
 
 def test_short_name_and_description_translations_are_not_emitted() -> None:
     """Only NAME translations reach the artifacts in this batch."""
-    content = build_option_set_artifacts([_BIRTH_TYPE], _NAME_SOURCE).artifacts[0].content
+    content = build_option_set_artifacts([_BIRTH_TYPE], _NAME_SOURCE, experimental=True).artifacts[0].content
     assert 'ປະເພດ"' not in content
     assert "ຄຳອະທິບາຍ" not in content
 
@@ -198,7 +198,7 @@ def test_instances_carry_name_translation_extensions() -> None:
 
 def test_organisation_unit_terminology_concepts_carry_designations() -> None:
     """The whole-selection CodeSystem carries each unit's NAME translations as concept designations."""
-    content = build_organisation_unit_terminology([_BO], GenerateConfig()).content
+    content = build_organisation_unit_terminology([_BO], GenerateConfig(), experimental=True).content
     assert _EXPECTED_TERMINOLOGY_DESIGNATIONS in content
 
 

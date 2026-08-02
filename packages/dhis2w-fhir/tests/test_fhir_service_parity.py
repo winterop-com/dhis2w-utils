@@ -113,7 +113,7 @@ async def test_generate_option_sets_across_majors(
     assert report.written_files == ["terminology/Xa1b2c3d4e5.fsh"]
     content = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "Xa1b2c3d4e5.fsh").read_text(encoding="utf-8")
     assert content.startswith(GENERATED_HEADER)
-    assert "CodeSystem: D2OSXa1b2c3d4e5CS" in content
+    assert "CodeSystem: D2OS_Xa1b2c3d4e5_CS" in content
     assert 'Title: "Birth type"' in content
 
 
@@ -233,7 +233,7 @@ async def test_generate_questionnaires_across_majors(
     assert "questionnaires/VBqh0ynB2wv.fsh" in report.written_files
     content = (tmp_path / "ig" / "input" / "fsh" / "questionnaires" / "VBqh0ynB2wv.fsh").read_text(encoding="utf-8")
     assert content.startswith(GENERATED_HEADER)
-    assert "* code = D2FormTypeCS#event" in content
+    assert "* code = D2FormType_CS#event" in content
 
 
 @respx.mock

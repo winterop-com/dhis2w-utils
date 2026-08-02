@@ -32,6 +32,10 @@ class NoFhirProjectError(LookupError):
     """Raised when no `fhir.toml` is found walking up from the working directory."""
 
 
+#: Where the IG is in its life cycle: `draft` while it is being built, `active` in production.
+IgStatus = Literal["draft", "active"]
+
+
 class IgConfig(BaseModel):
     """SUSHI IG identity - the `[ig]` table of `fhir.toml`."""
 
@@ -40,8 +44,14 @@ class IgConfig(BaseModel):
     name: str
     title: str
     publisher: str
+    status: IgStatus = "draft"
 
     _normalize_canonical = field_validator("canonical")(strip_trailing_slash)
+
+    @property
+    def experimental(self) -> bool:
+        """Whether generated artifacts are experimental - a draft IG's are, an active IG's are not."""
+        return self.status == "draft"
 
 
 def _validate_fsh_token(value: str, *, allow_empty: bool) -> str:
@@ -58,12 +68,12 @@ def _validate_fsh_token(value: str, *, allow_empty: bool) -> str:
 class NamingConfig(BaseModel):
     """Configurable FSH naming tokens - the `[generate.naming]` table of `fhir.toml`.
 
-    Artifact names concatenate the pascal tokens (`D2` + `OS` + `BirthType` + `CS`);
-    ids join the kebab of each non-empty token (`d2-os-birth-type-cs`). `prefix`,
-    `option_set`, `data_set`, and `program` may be empty to drop them; `organisation_unit`
-    must stay non-empty or the org-unit artifact names would degenerate to bare
-    `CS`/`LevelCS`. Future group / group-set artifacts follow the same scheme
-    (`OUG`, `OUGS`).
+    Artifact names merge the prefix and kind tokens and underscore the rest
+    (`D2` + `OS` + `_BirthType` + `_CS`); ids join the kebab of each non-empty token
+    (`d2-os-birth-type-cs`). `prefix`, `option_set`, `data_set`, and `program` may be
+    empty to drop them; `organisation_unit` must stay non-empty or the org-unit artifact
+    names would degenerate to bare `_CS`/`_Level_CS`. Future group / group-set artifacts
+    follow the same scheme (`OUG`, `OUGS`).
     """
 
     source: Literal["id", "name"] = "id"

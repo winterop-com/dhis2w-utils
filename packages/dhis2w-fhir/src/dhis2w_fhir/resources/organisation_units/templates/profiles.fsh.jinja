@@ -4,6 +4,7 @@ Id: {{ names.organization_profile_id }}
 Title: "DHIS2 Organization"
 Description: "An organisation unit imported from DHIS2."
 * ^status = #active
+* ^experimental = {{ "true" if experimental else "false" }}
 * identifier ^slicing.discriminator.type = #value
 * identifier ^slicing.discriminator.path = "system"
 * identifier ^slicing.rules = #open
@@ -22,6 +23,7 @@ Id: {{ names.location_profile_id }}
 Title: "DHIS2 Location"
 Description: "The physical place of a DHIS2 organisation unit."
 * ^status = #active
+* ^experimental = {{ "true" if experimental else "false" }}
 * identifier ^slicing.discriminator.type = #value
 * identifier ^slicing.discriminator.path = "system"
 * identifier ^slicing.rules = #open

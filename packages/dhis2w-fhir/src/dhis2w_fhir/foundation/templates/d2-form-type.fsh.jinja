@@ -3,6 +3,7 @@ Id: {{ names.form_type_extension_id }}
 Title: "DHIS2 form type"
 Description: "The kind of DHIS2 form a Questionnaire came from, carried on the responses captured against it."
 * ^status = #active
+* ^experimental = {{ "true" if experimental else "false" }}
 * ^context[+].type = #element
 * ^context[=].expression = "Questionnaire"
 * ^context[+].type = #element
@@ -16,7 +17,7 @@ Id: {{ names.form_type_code_system_id }}
 Title: "DHIS2 form types"
 Description: "The DHIS2 form kinds a Questionnaire is generated from."
 * ^status = #active
-* ^experimental = true
+* ^experimental = {{ "true" if experimental else "false" }}
 * ^content = #complete
 * ^caseSensitive = true
 * ^valueSet = Canonical({{ names.form_type_value_set }})
@@ -29,5 +30,5 @@ Id: {{ names.form_type_value_set_id }}
 Title: "DHIS2 form types"
 Description: "The DHIS2 form kinds a Questionnaire is generated from."
 * ^status = #active
-* ^experimental = true
+* ^experimental = {{ "true" if experimental else "false" }}
 * include codes from system {{ names.form_type_code_system }}

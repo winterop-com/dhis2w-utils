@@ -159,10 +159,20 @@ _EVENT_PROGRAMS_PAYLOAD = {
 _runner = CliRunner()
 
 
-def _artifacts(sources: list[QuestionnaireSourceIn], config: GenerateConfig | None = None) -> dict[str, str]:
+def _artifacts(
+    sources: list[QuestionnaireSourceIn], config: GenerateConfig | None = None, *, experimental: bool = True
+) -> dict[str, str]:
     """Build the questionnaire artifacts and index them by relative path."""
-    build = build_questionnaire_artifacts(sources, config or GenerateConfig(), _CANONICAL)
+    build = build_questionnaire_artifacts(sources, config or GenerateConfig(), _CANONICAL, experimental=experimental)
     return {artifact.relative_path: artifact.content for artifact in build.artifacts}
+
+
+def test_questionnaire_artifacts_derive_experimental_from_the_ig_status() -> None:
+    """An active IG publishes its questionnaires and their support terminology as non-experimental."""
+    active = _artifacts([_DATA_SET], experimental=False)
+    assert "* experimental = false" in active["questionnaires/BfMAe6Itzgt.fsh"]
+    assert active["questionnaires/data-elements.fsh"].count("* ^experimental = false") == 2
+    assert active["questionnaires/category-option-combos.fsh"].count("* ^experimental = false") == 2
 
 
 def test_data_set_questionnaire_identity() -> None:
@@ -175,7 +185,7 @@ def test_data_set_questionnaire_identity() -> None:
     assert '* url = "http://example.org/fhir/Questionnaire/BfMAe6Itzgt"' in content
     assert '* identifier[+].system = $DHIS2-DS\n* identifier[=].value = "BfMAe6Itzgt"' in content
     assert '* identifier[+].system = $DHIS2-DS-CODE\n* identifier[=].value = "DS_359711"' in content
-    assert '* name = "D2DSBfMAe6Itzgt"' in content
+    assert '* name = "D2DS_BfMAe6Itzgt"' in content
     assert '* title = "Child Health"' in content
     assert "* status = #active" in content
     assert "* experimental = true" in content
@@ -188,7 +198,7 @@ def test_event_program_questionnaire_identity() -> None:
     assert "Instance: Questionnaire-VBqh0ynB2wv" in content
     assert "* identifier[+].system = $DHIS2-PROGRAM" in content
     assert "* identifier[+].system = $DHIS2-PROGRAM-CODE" in content
-    assert '* name = "D2PRVBqh0ynB2wv"' in content
+    assert '* name = "D2PR_VBqh0ynB2wv"' in content
     assert '* identifier[=].value = "VBqh0ynB2wv"' in content
 
 
@@ -198,9 +208,9 @@ def test_form_type_is_carried_by_extension_and_code() -> None:
     aggregate = artifacts["questionnaires/BfMAe6Itzgt.fsh"]
     event = artifacts["questionnaires/VBqh0ynB2wv.fsh"]
     assert "* extension[D2FormType].valueCode = #aggregate" in aggregate
-    assert "* code = D2FormTypeCS#aggregate" in aggregate
+    assert "* code = D2FormType_CS#aggregate" in aggregate
     assert "* extension[D2FormType].valueCode = #event" in event
-    assert "* code = D2FormTypeCS#event" in event
+    assert "* code = D2FormType_CS#event" in event
 
 
 def test_sections_become_group_items_holding_their_data_elements() -> None:
@@ -210,7 +220,7 @@ def test_sections_become_group_items_holding_their_data_elements() -> None:
     assert '* item[=].text = "Immunization"' in content
     assert "* item[=].type = #group" in content
     assert '* item[=].item[+].linkId = "De1aaaaaaaa"' in content
-    assert '* item[=].item[=].code = D2DECS#De1aaaaaaaa "BCG doses given"' in content
+    assert '* item[=].item[=].code = D2DE_CS#De1aaaaaaaa "BCG doses given"' in content
     assert '* item[=].item[=].text = "BCG"' in content
     assert "* item[=].item[=].type = #integer" in content
 
@@ -219,10 +229,10 @@ def test_disaggregated_data_element_becomes_a_group_of_option_combos() -> None:
     """A non-default category combo turns the question into a group with one child per option combo."""
     content = _artifacts([_DATA_SET])["questionnaires/BfMAe6Itzgt.fsh"]
     assert '* item[=].item[+].linkId = "De2aaaaaaaa"' in content
-    assert '* item[=].item[=].code = D2DECS#De2aaaaaaaa "Measles doses given"' in content
+    assert '* item[=].item[=].code = D2DE_CS#De2aaaaaaaa "Measles doses given"' in content
     assert "* item[=].item[=].type = #group" in content
     assert '* item[=].item[=].item[+].linkId = "De2aaaaaaaa.Coc1aaaaaaa"' in content
-    assert '* item[=].item[=].item[=].code = D2COCCS#Coc1aaaaaaa "<1y"' in content
+    assert '* item[=].item[=].item[=].code = D2COC_CS#Coc1aaaaaaa "<1y"' in content
     assert '* item[=].item[=].item[=].text = "<1y"' in content
     assert "* item[=].item[=].item[=].type = #integer" in content
     assert '* item[=].item[=].item[+].linkId = "De2aaaaaaaa.Coc2aaaaaaa"' in content
@@ -248,7 +258,7 @@ def test_option_set_bound_question_is_a_choice_answered_from_the_option_set_valu
     """An optionSet on the data element makes the item a #choice bound to that set's generated ValueSet."""
     content = _artifacts([_DATA_SET])["questionnaires/BfMAe6Itzgt.fsh"]
     assert "* item[=].item[=].type = #choice" in content
-    assert "* item[=].item[=].answerValueSet = Canonical(D2OSOs1aaaaaaaaVS)" in content
+    assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content
 
 
 def test_compulsory_event_question_is_required() -> None:
@@ -295,27 +305,27 @@ def test_value_type_maps_onto_the_item_type(value_type: str, item_type: str) -> 
 def test_data_element_support_terminology_lists_every_referenced_element() -> None:
     """The DE CodeSystem covers every data element in any questionnaire and points back at its ValueSet."""
     content = _artifacts([_DATA_SET, _EVENT_PROGRAM])["questionnaires/data-elements.fsh"]
-    assert "CodeSystem: D2DECS" in content
+    assert "CodeSystem: D2DE_CS" in content
     assert "Id: d2-de-cs" in content
     assert "* ^experimental = true" in content
-    assert "* ^valueSet = Canonical(D2DEVS)" in content
+    assert "* ^valueSet = Canonical(D2DE_VS)" in content
     assert '* ^property[=].uri = "http://dhis2.org/fhir/property/dhis2-code"' in content
     assert '* #De1aaaaaaaa "BCG doses given"' in content
     assert '* #De1aaaaaaaa ^property[=].valueString = "De1aaaaaaaa"' in content
     assert '* #qrur9Dvnyt5 "Age in years"' in content
-    assert "ValueSet: D2DEVS" in content
+    assert "ValueSet: D2DE_VS" in content
     assert "Id: d2-de-vs" in content
-    assert "* include codes from system D2DECS" in content
+    assert "* include codes from system D2DE_CS" in content
 
 
 def test_category_option_combo_support_terminology_falls_back_to_the_uid() -> None:
     """The COC CodeSystem carries each combo's DHIS2 code, repeating the UID when there is none."""
     content = _artifacts([_DATA_SET])["questionnaires/category-option-combos.fsh"]
-    assert "CodeSystem: D2COCCS" in content
+    assert "CodeSystem: D2COC_CS" in content
     assert "Id: d2-coc-cs" in content
     assert '* #Coc1aaaaaaa ^property[=].valueString = "U1"' in content
     assert '* #Coc2aaaaaaa ^property[=].valueString = "Coc2aaaaaaa"' in content
-    assert "ValueSet: D2COCVS" in content
+    assert "ValueSet: D2COC_VS" in content
 
 
 def test_support_terminology_is_only_emitted_when_referenced() -> None:
@@ -331,9 +341,9 @@ def test_naming_tokens_flow_into_the_questionnaire_names() -> None:
     """Custom data_set / program / prefix tokens rename the questionnaires and their support terminology."""
     config = GenerateConfig(naming=NamingConfig(prefix="Dhis2", data_set="DataSet", program="Program"))
     artifacts = _artifacts([_DATA_SET, _EVENT_PROGRAM], config)
-    assert '* name = "Dhis2DataSetBfMAe6Itzgt"' in artifacts["questionnaires/BfMAe6Itzgt.fsh"]
-    assert '* name = "Dhis2ProgramVBqh0ynB2wv"' in artifacts["questionnaires/VBqh0ynB2wv.fsh"]
-    assert "CodeSystem: Dhis2DECS" in artifacts["questionnaires/data-elements.fsh"]
+    assert '* name = "Dhis2DataSet_BfMAe6Itzgt"' in artifacts["questionnaires/BfMAe6Itzgt.fsh"]
+    assert '* name = "Dhis2Program_VBqh0ynB2wv"' in artifacts["questionnaires/VBqh0ynB2wv.fsh"]
+    assert "CodeSystem: Dhis2DE_CS" in artifacts["questionnaires/data-elements.fsh"]
     assert "Id: dhis2-de-cs" in artifacts["questionnaires/data-elements.fsh"]
     assert "Extension: Dhis2FormType" not in artifacts["questionnaires/BfMAe6Itzgt.fsh"]
     assert "* extension[Dhis2FormType].valueCode = #aggregate" in artifacts["questionnaires/BfMAe6Itzgt.fsh"]

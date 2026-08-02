@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Literal
 
 from dhis2w_fhir.i18n import TranslationIn, name_translations
 from dhis2w_fhir.names import describe_code_defect, is_valid_fhir_code, kebab, pascal
-from dhis2w_fhir.resources.option_sets import max_slug_length
+from dhis2w_fhir.resources.option_sets import max_slug_length, option_set_fsh_name
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.validation.report import render_validation_markdown
 from dhis2w_fhir.validation.schemas import FhirValidationReport, MetadataCollectionIn, ValidationFinding
@@ -125,7 +125,7 @@ def _option_set_naming_findings(option_set: OptionSetIn, config: GenerateConfig)
     if config.naming.source != "name":
         return []
     findings: list[ValidationFinding] = []
-    fsh_name = f"{config.naming.prefix}{config.naming.option_set}{pascal(option_set.name)}VS"
+    fsh_name = f"{option_set_fsh_name(config, pascal(option_set.name))}_VS"
     if len(fsh_name) > _MAX_FHIR_NAME_LENGTH:
         findings.append(
             _set_finding(

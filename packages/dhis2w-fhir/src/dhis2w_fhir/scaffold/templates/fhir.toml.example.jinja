@@ -10,6 +10,9 @@ canonical = "{{ canonical }}"
 name = "{{ name }}"
 title = "{{ title }}"
 publisher = "{{ publisher }}"
+# IG life cycle: "draft" while building; "active" for production - drives the
+# sushi-config status and the terminology experimental flags.
+status = "{{ status }}"
 
 [generate]
 # Base URI for the DHIS2 identifier systems. `generate foundation` writes it into
@@ -27,7 +30,7 @@ concept_code_source = "id"
 # (human-readable slugs, truncated/disambiguated when needed).
 source = "id"
 # Tokens composing FSH artifact names; ids derive from the kebab of each non-empty token.
-# Defaults read by context: D2OSQdm5fPK5Ra9CS / d2-os-Qdm5fPK5Ra9-cs (id source).
+# Defaults read by context: D2OS_Qdm5fPK5Ra9_CS / d2-os-Qdm5fPK5Ra9-cs (id source).
 prefix = "D2"                       # "" drops the prefix (profiles keep a D2 token:
                                     # a profile cannot share its parent resource's name)
 option_set = "OS"                   # e.g. "OptionSet"; "" drops the token

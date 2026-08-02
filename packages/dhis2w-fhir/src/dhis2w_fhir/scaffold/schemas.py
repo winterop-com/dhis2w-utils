@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from dhis2w_fhir.config import IgStatus
 from dhis2w_fhir.names import strip_trailing_slash
 
 
@@ -22,6 +23,7 @@ class InitOptions(BaseModel):
     name: str
     title: str
     publisher: str
+    status: IgStatus = "draft"
     publisher_url: str | None = None
     data_set_ids: list[str] = Field(default_factory=list)
     event_program_ids: list[str] = Field(default_factory=list)

@@ -5,9 +5,10 @@ from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.period import PERIOD_TYPE_DEFINITIONS
 
 
-def _by_path(config: GenerateConfig) -> dict[str, str]:
+def _by_path(config: GenerateConfig, *, experimental: bool = True) -> dict[str, str]:
     """Build the foundation artifacts and index them by relative path."""
-    return {artifact.relative_path: artifact.content for artifact in build_foundation_artifacts(config)}
+    artifacts = build_foundation_artifacts(config, experimental=experimental)
+    return {artifact.relative_path: artifact.content for artifact in artifacts}
 
 
 #: The DHIS2 object kinds that carry an identifier system, each yielding a UID and a code declaration.
@@ -88,28 +89,43 @@ def test_form_type_extension_binds_both_questionnaire_resources() -> None:
     assert form_type.count("* ^context[+].type = #element") == 2
     assert "* value[x] only code" in form_type
     assert "* valueCode 1..1" in form_type
-    assert "* valueCode from D2FormTypeVS (required)" in form_type
+    assert "* valueCode from D2FormType_VS (required)" in form_type
 
 
 def test_form_type_terminology_covers_every_form_kind() -> None:
     """The form-type pair publishes all four DHIS2 form kinds and points back at its ValueSet."""
     form_type = _by_path(GenerateConfig())["foundation/d2-form-type.fsh"]
-    assert "CodeSystem: D2FormTypeCS" in form_type
+    assert "CodeSystem: D2FormType_CS" in form_type
     assert "Id: d2-form-type-cs" in form_type
-    assert "* ^valueSet = Canonical(D2FormTypeVS)" in form_type
-    assert form_type.count("* ^experimental = true") == 2
+    assert "* ^valueSet = Canonical(D2FormType_VS)" in form_type
+    assert form_type.count("* ^experimental = true") == 3
     assert '* #aggregate "Aggregate data set form"' in form_type
     assert '* #event "Event program form"' in form_type
     assert '* #tracker "Tracker registration form"' in form_type
     assert '* #tracker-event "Tracker program stage form"' in form_type
-    assert "ValueSet: D2FormTypeVS" in form_type
+    assert "ValueSet: D2FormType_VS" in form_type
     assert "Id: d2-form-type-vs" in form_type
-    assert "* include codes from system D2FormTypeCS" in form_type
+    assert "* include codes from system D2FormType_CS" in form_type
 
 
-def test_period_terminology_is_marked_experimental() -> None:
-    """The period-type pair carries ^experimental, which ShareableCodeSystem/ValueSet require."""
-    assert _by_path(GenerateConfig())["foundation/d2-period.fsh"].count("* ^experimental = true") == 2
+def test_period_artifacts_derive_experimental_from_the_ig_status() -> None:
+    """The extension and its period-type pair all carry ^experimental: true while draft, false once active."""
+    draft = _by_path(GenerateConfig())["foundation/d2-period.fsh"]
+    assert draft.count("* ^experimental = true") == 3
+    active = _by_path(GenerateConfig(), experimental=False)["foundation/d2-period.fsh"]
+    assert active.count("* ^experimental = false") == 3
+    assert "* ^experimental = true" not in active
+
+
+def test_form_type_artifacts_derive_experimental_from_the_ig_status() -> None:
+    """The form-type extension and its pair follow the same derivation."""
+    active = _by_path(GenerateConfig(), experimental=False)["foundation/d2-form-type.fsh"]
+    assert active.count("* ^experimental = false") == 3
+
+
+def test_naming_systems_carry_no_experimental_element() -> None:
+    """R4 NamingSystem has no experimental element, so the declarations must not grow one."""
+    assert "experimental" not in _by_path(GenerateConfig())["foundation/d2-naming-systems.fsh"]
 
 
 def test_period_extension_shape() -> None:
@@ -124,17 +140,17 @@ def test_period_extension_shape() -> None:
     assert "    type 1..1 and" in period
     assert "    period 0..1" in period
     assert "* extension[iso].value[x] only string" in period
-    assert "* extension[type].valueCode from D2PeriodTypeVS (required)" in period
+    assert "* extension[type].valueCode from D2PeriodType_VS (required)" in period
     assert "* extension[period].value[x] only Period" in period
 
 
 def test_period_type_terminology_lists_every_type() -> None:
     """The period-type CodeSystem publishes every registered type and points back at its ValueSet."""
     period = _by_path(GenerateConfig())["foundation/d2-period.fsh"]
-    assert "CodeSystem: D2PeriodTypeCS" in period
+    assert "CodeSystem: D2PeriodType_CS" in period
     assert "Id: d2-period-type-cs" in period
-    assert "* ^valueSet = Canonical(D2PeriodTypeVS)" in period
-    assert "ValueSet: D2PeriodTypeVS" in period
+    assert "* ^valueSet = Canonical(D2PeriodType_VS)" in period
+    assert "ValueSet: D2PeriodType_VS" in period
     assert "Id: d2-period-type-vs" in period
     for definition in PERIOD_TYPE_DEFINITIONS:
         assert f'* #{definition.name} "{definition.display}"' in period
@@ -146,7 +162,7 @@ def test_prefix_token_flows_into_the_foundation_names() -> None:
     custom = _by_path(GenerateConfig(naming=NamingConfig(prefix="Dhis2")))["foundation/d2-period.fsh"]
     assert "Extension: Dhis2Period" in custom
     assert "Id: dhis2-period" in custom
-    assert "CodeSystem: Dhis2PeriodTypeCS" in custom
+    assert "CodeSystem: Dhis2PeriodType_CS" in custom
     assert (
         "Instance: Dhis2OrgUnitIdentifierSystem"
         in (_by_path(GenerateConfig(naming=NamingConfig(prefix="Dhis2")))["foundation/d2-naming-systems.fsh"])

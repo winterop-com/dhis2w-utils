@@ -44,10 +44,14 @@ class _OrganisationUnitConcept(BaseModel):
     designations: list[TranslationIn] = Field(default_factory=list)
 
 
-def build_organisation_unit_level_terminology(levels: list[int], config: GenerateConfig) -> FshArtifact:
+def build_organisation_unit_level_terminology(
+    levels: list[int], config: GenerateConfig, *, experimental: bool
+) -> FshArtifact:
     """Build `organization/org-unit-levels.fsh` covering the levels observed in the selection."""
     names = OrganisationUnitNaming.from_naming(config.naming)
-    content = _ENVIRONMENT.get_template("org-unit-levels.fsh.jinja").render(names=names, levels=sorted(set(levels)))
+    content = _ENVIRONMENT.get_template("org-unit-levels.fsh.jinja").render(
+        names=names, levels=sorted(set(levels)), experimental=experimental
+    )
     return FshArtifact(
         relative_path="organization/org-unit-levels.fsh",
         kind="terminology-pair",
@@ -57,7 +61,7 @@ def build_organisation_unit_level_terminology(levels: list[int], config: Generat
 
 
 def build_organisation_unit_terminology(
-    organisation_units: list[OrganisationUnitIn], config: GenerateConfig
+    organisation_units: list[OrganisationUnitIn], config: GenerateConfig, *, experimental: bool
 ) -> FshArtifact:
     """Build the optional `organization/org-units-terminology.fsh` CodeSystem/ValueSet over the selection."""
     names = OrganisationUnitNaming.from_naming(config.naming)
@@ -76,6 +80,7 @@ def build_organisation_unit_terminology(
         names=names,
         concepts=concepts,
         property_base=f"{config.identifier_system_base}/property",
+        experimental=experimental,
     )
     return FshArtifact(
         relative_path="organization/org-units-terminology.fsh",

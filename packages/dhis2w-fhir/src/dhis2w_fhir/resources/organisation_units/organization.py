@@ -74,7 +74,7 @@ class OrganisationUnitInstancePair(BaseModel):
     location: LocationInstance
 
 
-def build_organisation_unit_profiles(config: GenerateConfig) -> FshArtifact:
+def build_organisation_unit_profiles(config: GenerateConfig, *, experimental: bool) -> FshArtifact:
     """Build the static `organization/profiles.fsh` defining the Organization and Location profiles."""
     names = OrganisationUnitNaming.from_naming(config.naming)
     return FshArtifact(
@@ -82,7 +82,7 @@ def build_organisation_unit_profiles(config: GenerateConfig) -> FshArtifact:
         kind="profile",
         fsh_name=names.organization_profile,
         content=_ENVIRONMENT.get_template("profiles.fsh.jinja").render(
-            names=names, boundary_extension_url=BOUNDARY_EXTENSION_URL
+            names=names, boundary_extension_url=BOUNDARY_EXTENSION_URL, experimental=experimental
         ),
     )
 

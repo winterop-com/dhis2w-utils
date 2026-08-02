@@ -73,6 +73,16 @@ def test_init_seeds_data_definition_targets(workdir: Path) -> None:
     assert raw["generate"]["event_programs"]["include_ids"] == ["VBqh0ynB2wv"]
 
 
+def test_init_status_flag(workdir: Path) -> None:
+    """`--status active` lands in fhir.toml and sushi-config; anything else is a usage error."""
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--status", "active"])
+    assert result.exit_code == 0, result.output
+    assert 'status = "active"' in (workdir / "project" / "fhir.toml").read_text(encoding="utf-8")
+    assert "status: active" in (workdir / "project" / "ig" / "sushi-config.yaml").read_text(encoding="utf-8")
+    rejected = _runner.invoke(build_app(), ["fhir", "init", "other", "--status", "retired"])
+    assert rejected.exit_code != 0
+
+
 def test_init_json_output(workdir: Path) -> None:  # noqa: ARG001
     """`--json` emits the ScaffoldReport as JSON."""
     result = _runner.invoke(build_app(), ["--json", "fhir", "init", "project"])

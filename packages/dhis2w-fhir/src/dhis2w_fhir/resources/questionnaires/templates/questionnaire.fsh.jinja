@@ -13,7 +13,7 @@ Usage: #definition
 * name = "{{ questionnaire.name }}"
 * title = {{ questionnaire.title_element_literal }}
 * status = #active
-* experimental = true
+* experimental = {{ "true" if questionnaire.experimental else "false" }}
 * subjectType = #Location
 * code = {{ questionnaire.form_type_code_system }}#{{ questionnaire.form_type_code }}
 {% for item in questionnaire.items %}

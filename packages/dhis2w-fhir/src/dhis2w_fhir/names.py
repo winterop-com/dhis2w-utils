@@ -59,6 +59,15 @@ def join_id_tokens(*tokens: str) -> str:
     return "-".join(_CAMEL_BOUNDARY.sub("-", token).lower() for token in tokens if token)
 
 
+def join_name_segments(*segments: str) -> str:
+    """Join non-empty FSH name segments with underscores (`D2OS` + `BirthType` -> `D2OS_BirthType`).
+
+    Dropping the empty segments is what keeps a name cnl-0 valid when a naming token is
+    configured empty: an absent prefix yields `BirthType`, never a leading `_BirthType`.
+    """
+    return "_".join(segment for segment in segments if segment)
+
+
 def is_valid_fhir_code(value: str | None) -> bool:
     """Check `value` against the R4 `code` datatype: non-empty, single internal spaces only."""
     return bool(value) and _FHIR_CODE_PATTERN.match(value or "") is not None

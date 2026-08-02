@@ -3,7 +3,7 @@ Id: {{ names.terminology_id('level', 'cs') }}
 Title: "DHIS2 Organisation Unit Levels"
 Description: "Hierarchy levels of the DHIS2 organisation unit tree."
 * ^status = #active
-* ^experimental = true
+* ^experimental = {{ "true" if experimental else "false" }}
 * ^content = #complete
 * ^caseSensitive = true
 * ^valueSet = Canonical({{ names.level_value_set }})
@@ -16,5 +16,5 @@ Id: {{ names.terminology_id('level', 'vs') }}
 Title: "DHIS2 Organisation Unit Levels"
 Description: "Hierarchy levels of the DHIS2 organisation unit tree."
 * ^status = #active
-* ^experimental = true
+* ^experimental = {{ "true" if experimental else "false" }}
 * include codes from system {{ names.level_code_system }}

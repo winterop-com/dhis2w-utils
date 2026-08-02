@@ -130,6 +130,7 @@ class _QuestionnaireView(BaseModel):
     form_type_extension: str
     form_type_code_system: str
     form_type_code: str
+    experimental: bool
     items: list[_ItemView] = Field(default_factory=list)
 
 
@@ -156,11 +157,12 @@ class _SupportTerminologyView(BaseModel):
     description_literal: str
     property_base: str
     property_description_literal: str
+    experimental: bool
     concepts: list[_SupportConcept] = Field(default_factory=list)
 
 
 def build_questionnaire_artifacts(
-    sources: list[QuestionnaireSourceIn], config: GenerateConfig, canonical: str
+    sources: list[QuestionnaireSourceIn], config: GenerateConfig, canonical: str, *, experimental: bool
 ) -> FshBuild:
     """Build one `questionnaires/<UID>.fsh` per target plus the data-element and option-combo support pairs."""
     build = FshBuild()
@@ -171,7 +173,7 @@ def build_questionnaire_artifacts(
     template = _ENVIRONMENT.get_template("questionnaire.fsh.jinja")
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
         _collect_referenced_objects(source, data_elements, option_combos)
-        view = _questionnaire_view(source, names, foundation, canonical)
+        view = _questionnaire_view(source, names, foundation, canonical, experimental=experimental)
         build.artifacts.append(
             FshArtifact(
                 relative_path=f"questionnaires/{source.uid}.fsh",
@@ -185,9 +187,9 @@ def build_questionnaire_artifacts(
             )
         )
     if data_elements:
-        build.artifacts.append(_data_element_terminology(data_elements, names, config))
+        build.artifacts.append(_data_element_terminology(data_elements, names, config, experimental=experimental))
     if option_combos:
-        build.artifacts.append(_option_combo_terminology(option_combos, names, config))
+        build.artifacts.append(_option_combo_terminology(option_combos, names, config, experimental=experimental))
     return build
 
 
@@ -196,6 +198,8 @@ def _questionnaire_view(
     names: QuestionnaireNaming,
     foundation: FoundationNaming,
     canonical: str,
+    *,
+    experimental: bool,
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders."""
     profile = _PROFILES_BY_KIND[source.kind]
@@ -212,6 +216,7 @@ def _questionnaire_view(
         form_type_extension=foundation.form_type_extension,
         form_type_code_system=foundation.form_type_code_system,
         form_type_code=source.kind,
+        experimental=experimental,
         items=_item_views(source, names),
     )
 
@@ -331,7 +336,11 @@ def _collect_referenced_objects(
 
 
 def _data_element_terminology(
-    data_elements: dict[str, QuestionnaireItemIn], names: QuestionnaireNaming, config: GenerateConfig
+    data_elements: dict[str, QuestionnaireItemIn],
+    names: QuestionnaireNaming,
+    config: GenerateConfig,
+    *,
+    experimental: bool,
 ) -> FshArtifact:
     """Build `questionnaires/data-elements.fsh` over every data element the questionnaires reference."""
     concepts = [
@@ -354,6 +363,7 @@ def _data_element_terminology(
         description_literal=quote(description),
         property_base=f"{config.identifier_system_base}/property",
         property_description_literal=quote("DHIS2 data element code."),
+        experimental=experimental,
         concepts=concepts,
     )
     return FshArtifact(
@@ -365,7 +375,11 @@ def _data_element_terminology(
 
 
 def _option_combo_terminology(
-    option_combos: dict[str, CategoryOptionComboIn], names: QuestionnaireNaming, config: GenerateConfig
+    option_combos: dict[str, CategoryOptionComboIn],
+    names: QuestionnaireNaming,
+    config: GenerateConfig,
+    *,
+    experimental: bool,
 ) -> FshArtifact:
     """Build `questionnaires/category-option-combos.fsh` over every option combo the questionnaires disaggregate by."""
     concepts = [
@@ -389,6 +403,7 @@ def _option_combo_terminology(
         description_literal=quote(description),
         property_base=f"{config.identifier_system_base}/property",
         property_description_literal=quote("DHIS2 category option combo code."),
+        experimental=experimental,
         concepts=concepts,
     )
     return FshArtifact(

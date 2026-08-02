@@ -48,23 +48,23 @@ class OrganisationUnitNaming(BaseModel):
 
     @property
     def level_code_system(self) -> str:
-        """FSH name of the org-unit-level CodeSystem (e.g. `D2OrgUnitLevelCS`, `D2OULevelCS`)."""
-        return f"{self.prefix}{self.organisation_unit}LevelCS"
+        """FSH name of the org-unit-level CodeSystem (e.g. `D2OrgUnit_Level_CS`, `D2OU_Level_CS`)."""
+        return f"{self.prefix}{self.organisation_unit}_Level_CS"
 
     @property
     def level_value_set(self) -> str:
-        """FSH name of the org-unit-level ValueSet."""
-        return f"{self.prefix}{self.organisation_unit}LevelVS"
+        """FSH name of the org-unit-level ValueSet (e.g. `D2OU_Level_VS`)."""
+        return f"{self.prefix}{self.organisation_unit}_Level_VS"
 
     @property
     def organisation_unit_code_system(self) -> str:
-        """FSH name of the optional whole-selection CodeSystem."""
-        return f"{self.prefix}{self.organisation_unit}CS"
+        """FSH name of the optional whole-selection CodeSystem (e.g. `D2OU_CS`)."""
+        return f"{self.prefix}{self.organisation_unit}_CS"
 
     @property
     def organisation_unit_value_set(self) -> str:
-        """FSH name of the optional whole-selection ValueSet."""
-        return f"{self.prefix}{self.organisation_unit}VS"
+        """FSH name of the optional whole-selection ValueSet (e.g. `D2OU_VS`)."""
+        return f"{self.prefix}{self.organisation_unit}_VS"
 
     @property
     def organization_profile_id(self) -> str:
