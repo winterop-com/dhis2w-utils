@@ -27,7 +27,7 @@ from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescap
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import FoundationNaming
-from dhis2w_fhir.names import code_or_uid, quote
+from dhis2w_fhir.names import code_or_uid, page_text, quote
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryOptionComboIn,
     QuestionnaireItemIn,
@@ -46,8 +46,11 @@ __all__ = [
     "EVENT_PROGRAM_DIRECTORY",
     "ITEM_CONTROL_CODE_SYSTEM_URL",
     "ITEM_CONTROL_EXTENSION_URL",
+    "ITEM_TYPES_BY_VALUE_TYPE",
     "QUESTIONNAIRE_DIRECTORIES",
     "build_questionnaire_artifacts",
+    "domain_code",
+    "is_multi_valued",
 ]
 
 #: Sync directory holding one Questionnaire per DHIS2 data set.
@@ -77,26 +80,60 @@ _ENVIRONMENT = Environment(
     lstrip_blocks=True,
 )
 
-#: The FHIR `Questionnaire.item.type` each DHIS2 value type answers as; anything absent is a string.
-_ITEM_TYPES_BY_VALUE_TYPE = {
+#: The FHIR `Questionnaire.item.type` each DHIS2 value type answers as. Every member of the
+#: generated `ValueType` enum on v41, v42, and v43 has an entry here, and a guard test asserts
+#: that - so a codegen refresh introducing a new DHIS2 value type is a deliberate mapping
+#: decision rather than a silent fall-through to string. The keys stay plain strings, and
+#: `_DEFAULT_ITEM_TYPE` still catches an unknown value at runtime: an instance ahead of the
+#: generated tree must not crash generation.
+ITEM_TYPES_BY_VALUE_TYPE = {
+    # Text and text-shaped values. R4 offers no finer item type than `string` for a letter, a
+    # phone number, an email, or a username, so they are mapped explicitly rather than by default.
     "TEXT": "string",
     "LONG_TEXT": "text",
+    "LETTER": "string",
+    "PHONE_NUMBER": "string",
+    "EMAIL": "string",
+    "USERNAME": "string",
+    "MULTI_TEXT": "string",
+    # Numbers.
     "NUMBER": "decimal",
     "INTEGER": "integer",
     "INTEGER_POSITIVE": "integer",
     "INTEGER_NEGATIVE": "integer",
     "INTEGER_ZERO_OR_POSITIVE": "integer",
+    "PERCENTAGE": "decimal",
+    "UNIT_INTERVAL": "decimal",
+    # Booleans.
     "BOOLEAN": "boolean",
     "TRUE_ONLY": "boolean",
+    # Temporals. `AGE` is a date on the wire - DHIS2 stores the date of birth and renders the
+    # age from it, so the age is a display concern and the date is the captured value.
     "DATE": "date",
     "DATETIME": "dateTime",
     "TIME": "time",
-    "PERCENTAGE": "decimal",
-    "UNIT_INTERVAL": "decimal",
+    "AGE": "date",
+    # Web and binary values.
+    "URL": "url",
+    "FILE_RESOURCE": "attachment",
+    "IMAGE": "attachment",
+    # Geography. GeoJSON is a document, not a coordinate pair; `COORDINATE` is DHIS2's
+    # `[lon,lat]` string, which no R4 item type expresses.
+    "GEOJSON": "text",
+    "COORDINATE": "string",
+    # References. Only the organisation unit resolves to a FHIR resource today; the two
+    # tracker-phase oddities carry a bare UID until tracker generation lands.
     "ORGANISATION_UNIT": "reference",
+    "REFERENCE": "string",
+    "TRACKER_ASSOCIATE": "string",
 }
 
+#: What an unmapped value type answers as - reached only by a DHIS2 value type newer than the
+#: generated enums, since the table above covers every member of all three.
 _DEFAULT_ITEM_TYPE = "string"
+
+#: The one DHIS2 value type that captures several answers to a single question.
+_MULTI_VALUE_TYPE = "MULTI_TEXT"
 
 
 class _FormKindProfile(BaseModel):
@@ -133,6 +170,7 @@ class _ItemView(BaseModel):
     code_token: str | None = None
     answer_value_set: str | None = None
     required: bool = False
+    repeats: bool = False
     item_control: bool = False
 
 
@@ -170,6 +208,7 @@ class _SupportConcept(BaseModel):
     uid: str
     display_literal: str
     code_literal: str
+    domain_code: str | None = None
 
 
 class _SupportTerminologyView(BaseModel):
@@ -192,6 +231,11 @@ class _SupportTerminologyView(BaseModel):
     def experimental(self) -> bool:
         """Whether the support pair is experimental - derived from the IG status."""
         return experimental_for_status(self.ig_status)
+
+    @property
+    def declares_domain(self) -> bool:
+        """Whether any concept carries a domain, and the CodeSystem must therefore declare the property."""
+        return any(concept.domain_code is not None for concept in self.concepts)
 
 
 def build_questionnaire_artifacts(
@@ -245,9 +289,9 @@ def _questionnaire_view(
         uid=source.uid,
         name=names.questionnaire_name(source.kind, source.uid),
         url=f"{canonical}/Questionnaire/{source.uid}",
-        title_literal=quote(f"Questionnaire - {source.name}"),
+        title_literal=page_text(f"Questionnaire - {source.name}"),
         title_element_literal=quote(source.name),
-        description_literal=quote(f"DHIS2 {profile.label} {source.name} ({source.uid}) as a data capture form."),
+        description_literal=page_text(f"DHIS2 {profile.label} {source.name} ({source.uid}) as a data capture form."),
         identifier_system=profile.identifier_system,
         identifier_code_system=profile.identifier_code_system,
         identifier_code_literal=quote(code_or_uid(source.code, source.uid)),
@@ -295,6 +339,7 @@ def _data_element_views(item: QuestionnaireItemIn, names: QuestionnaireNaming, d
                 type_code=_item_type(item),
                 answer_value_set=_answer_value_set(item, names),
                 required=item.compulsory,
+                repeats=is_multi_valued(item.value_type, _item_type(item)),
             )
         ]
     views = [
@@ -319,6 +364,7 @@ def _data_element_views(item: QuestionnaireItemIn, names: QuestionnaireNaming, d
                 code_token=f"{names.category_option_combo_code_system}#{option_combo.uid} {quote(option_combo.name)}",
                 text_literal=quote(option_combo.name),
                 type_code=_value_type_item_type(item.value_type),
+                repeats=is_multi_valued(item.value_type, _value_type_item_type(item.value_type)),
             )
         )
     return views
@@ -336,9 +382,24 @@ def _item_type(item: QuestionnaireItemIn) -> str:
     return _value_type_item_type(item.value_type)
 
 
+def domain_code(domain_type: str) -> str | None:
+    """The `domain` concept code one DHIS2 `domainType` carries (`aggregate`, `tracker`), or None when absent."""
+    return domain_type.strip().lower() or None
+
+
+def is_multi_valued(value_type: str, item_type: str) -> bool:
+    """Whether a question captures several answers - `MULTI_TEXT` bound to its option set, and only that.
+
+    `MULTI_TEXT` *is* multiple selection: DHIS2 stores a comma-separated list of option codes
+    against one data element. The type is option-set-bound by definition, so an item that
+    somehow answers as anything but `#choice` is a malformed data element and takes no `repeats`.
+    """
+    return value_type == _MULTI_VALUE_TYPE and item_type == "choice"
+
+
 def _value_type_item_type(value_type: str) -> str:
     """Map a DHIS2 value type onto the FHIR item type it answers as, defaulting to a string."""
-    return _ITEM_TYPES_BY_VALUE_TYPE.get(value_type, _DEFAULT_ITEM_TYPE)
+    return ITEM_TYPES_BY_VALUE_TYPE.get(value_type, _DEFAULT_ITEM_TYPE)
 
 
 def _answer_value_set(item: QuestionnaireItemIn, names: QuestionnaireNaming) -> str | None:
@@ -386,6 +447,7 @@ def _data_element_terminology(
             uid=item.uid,
             display_literal=quote(item.name),
             code_literal=quote(code_or_uid(None, item.uid)),
+            domain_code=domain_code(item.domain_type),
         )
         for item in sorted(data_elements.values(), key=lambda item: (item.name, item.uid))
     ]

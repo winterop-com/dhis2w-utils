@@ -2,6 +2,7 @@
 
 import re
 
+import pytest
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.names import (
@@ -11,6 +12,7 @@ from dhis2w_fhir.names import (
     is_valid_fhir_code,
     join_name_segments,
     kebab,
+    page_text,
     pascal,
     quote,
 )
@@ -193,3 +195,28 @@ def test_questionnaire_name_matches_cnl_0() -> None:
     name = next(line for line in content.splitlines() if line.startswith("* name = ")).split('"')[1]
     assert name == "D2DS_BfMAe6Itzgt"
     assert _CNL_0.match(name)
+
+
+#: A real play-2.42 data set name. Its `<` is what aborts the IG publisher's HTML parse.
+_MORTALITY_NAME = "Mortality < 5 years by gender"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (_MORTALITY_NAME, '"Mortality &lt; 5 years by gender"'),
+        ("A > B", '"A &gt; B"'),
+        ("Cases & deaths", '"Cases &amp; deaths"'),
+        ("<b>&amp;</b>", '"&lt;b&gt;&amp;amp;&lt;/b&gt;"'),
+        ('He said "hi"', '"He said \\"hi\\""'),
+        ("", '""'),
+    ],
+)
+def test_page_text_escapes_markup_before_quoting(value: str, expected: str) -> None:
+    """A page title's markup characters become entities, ampersand first so an entity is not double-escaped."""
+    assert page_text(value) == expected
+
+
+def test_page_text_leaves_ordinary_names_alone() -> None:
+    """A name with no markup character reads exactly as `quote` renders it."""
+    assert page_text("Child Health") == quote("Child Health")

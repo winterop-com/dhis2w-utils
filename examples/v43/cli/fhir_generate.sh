@@ -48,6 +48,17 @@ d2w fhir generate option-sets
 # programs are skipped with a note).
 d2w fhir generate questionnaires
 
+# Examples: one Usage: #example QuestionnaireResponse per configured example under
+# ig/input/fsh/examples/<targetUID>-<n>.fsh, answering its Questionnaire on the same link
+# ids (section groups nested, disaggregated elements one child per <deUid>.<cocUid>), with
+# the D2FormType extension and - for data sets - the full D2Period extension.
+# [generate.examples] per_target sets how many each target gets (0 disables) and source
+# picks where the answers come from. The default "synthetic" generates them locally from a
+# SHA-256 seed, so nothing off the instance is published and a regenerate is byte-stable.
+# Set source = "instance" to read real data value sets and tracker events instead - demo
+# servers only: those values land in the published IG, so review examples/ before shipping.
+d2w fhir generate examples
+
 # Organisation units: one file per level under ig/input/fsh/organization/. Every
 # unit becomes an Organization AND a Location, both carrying the UID and code
 # identifiers, with partOf mirroring the hierarchy. Geometry is embedded as a
@@ -59,7 +70,7 @@ d2w fhir generate org-units
 # designations, and as HL7 translation extensions on titles and instance names.
 # Narrow them with [generate] locales = ["lo", "km"] (empty = every locale found).
 
-# Or every target in one run (foundation, option-sets, questionnaires, org-units).
+# Or every target in one run (foundation, option-sets, questionnaires, examples, org-units).
 # Re-running replaces previously generated files
 # (identified by their header line); hand-authored .fsh files are never touched.
 d2w fhir generate all

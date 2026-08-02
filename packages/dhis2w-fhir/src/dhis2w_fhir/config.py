@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dhis2w_fhir.i18n import normalize_locale
 from dhis2w_fhir.names import strip_trailing_slash
+from dhis2w_fhir.resources.examples.schemas import ExampleSelection
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetSelection
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitSelection
 from dhis2w_fhir.resources.questionnaires.schemas import TargetSelection
@@ -99,6 +100,7 @@ class GenerateConfig(BaseModel):
     organisation_units: OrganisationUnitSelection = Field(default_factory=OrganisationUnitSelection)
     data_sets: TargetSelection = Field(default_factory=TargetSelection)
     event_programs: TargetSelection = Field(default_factory=TargetSelection)
+    examples: ExampleSelection = Field(default_factory=ExampleSelection)
 
     _normalize_identifier_base = field_validator("identifier_system_base")(strip_trailing_slash)
 

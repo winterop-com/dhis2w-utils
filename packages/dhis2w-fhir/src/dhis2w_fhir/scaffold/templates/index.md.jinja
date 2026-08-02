@@ -6,6 +6,8 @@ This Implementation Guide is generated from DHIS2 metadata with `d2w fhir`.
 - Every organisation unit is represented as an Organization plus a Location;
   geometry is embedded losslessly as GeoJSON via the location-boundary-geojson
   extension.
+- Data sets and event programs are represented as Questionnaires, each with
+  example QuestionnaireResponses answering it on the same link ids.
 
 See the Artifacts page for the full list.
 
@@ -16,6 +18,10 @@ See the Artifacts page for the full list.
 ### Dependencies
 
 {% raw %}{% include dependency-table.xhtml %}{% endraw %}
+
+### Globals
+
+{% raw %}{% include globals-table.xhtml %}{% endraw %}
 
 ### IP statements
 

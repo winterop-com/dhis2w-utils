@@ -69,6 +69,8 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     assert config.generate.organisation_units.terminology is False
     assert config.generate.data_sets.include_ids == []
     assert config.generate.event_programs.include_ids == []
+    assert config.generate.examples.per_target == 1
+    assert config.generate.examples.source == "synthetic"
 
 
 def test_fhir_toml_example_comments_out_the_unset_placeholders() -> None:
@@ -152,11 +154,12 @@ def test_publisher_url_is_emitted_when_given() -> None:
 
 
 def test_index_page_includes_the_standard_ig_fragments() -> None:
-    """The index page pulls in the three fragments the publisher generates into Jekyll's _includes."""
+    """The index page pulls in the four fragments the publisher generates into Jekyll's _includes."""
     index = _by_path()["ig/input/pagecontent/index.md"]
     assert "{% include ip-statements.xhtml %}" in index
     assert "{% include cross-version-analysis.xhtml %}" in index
     assert "{% include dependency-table.xhtml %}" in index
+    assert "{% include globals-table.xhtml %}" in index
 
 
 def test_ignore_warnings_suppresses_the_accepted_classes() -> None:
