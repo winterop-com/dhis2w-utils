@@ -761,6 +761,72 @@ async def test_a_data_sets_unsectioned_elements_are_ordered_independently_of_the
     assert first.index("Debzzzzzzzz") < first.index("Deazzzzzzzz") < first.index("Deczzzzzzzz")
 
 
+#: One category combo's option combos, deliberately not in (name, uid) order on the wire.
+_SHUFFLED_OPTION_COMBOS = [
+    {"id": "Cocczzzzzzz", "name": "Zebra"},
+    {"id": "Cocazzzzzzz", "name": "Antelope", "code": "ANT"},
+    {"id": "Cocbzzzzzzz", "name": "Marmot"},
+]
+
+
+def _disaggregated_payload(option_combos: list[dict[str, str]]) -> dict[str, object]:
+    """One data set whose single data element disaggregates by the given option combos."""
+    return {
+        "dataSets": [
+            {
+                "id": "Ds3aaaaaaaa",
+                "name": "Wildlife",
+                "sections": [],
+                "dataSetElements": [
+                    {
+                        "dataElement": {
+                            "id": "Deazzzzzzzz",
+                            "name": "Sightings",
+                            "valueType": "INTEGER",
+                            "categoryCombo": {
+                                "id": "CcAaBbCcDdE",
+                                "name": "Species",
+                                "isDefault": False,
+                                "categoryOptionCombos": option_combos,
+                            },
+                        }
+                    }
+                ],
+            }
+        ]
+    }
+
+
+@respx.mock
+async def test_category_option_combos_are_ordered_independently_of_the_wire(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """DHIS2 shuffles `categoryOptionCombos` per request (BUGS.md #64), so the emitter orders them itself."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path, data_sets='"Ds3aaaaaaaa"')
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/dataSets").mock(
+        return_value=httpx.Response(200, json=_disaggregated_payload(_SHUFFLED_OPTION_COMBOS))
+    )
+    await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+    fsh = tmp_path / "ig" / "input" / "fsh"
+    first = (fsh / "data-sets" / "Ds3aaaaaaaa.fsh").read_text(encoding="utf-8")
+    terminology = (fsh / "data-dictionary" / "category-option-combos.fsh").read_text(encoding="utf-8")
+    respx.get(f"{_HOST}/api/dataSets").mock(
+        return_value=httpx.Response(200, json=_disaggregated_payload(_SHUFFLED_OPTION_COMBOS[::-1]))
+    )
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    second = (fsh / "data-sets" / "Ds3aaaaaaaa.fsh").read_text(encoding="utf-8")
+    assert report.written_files == []
+    assert first == second
+    assert first.index("Cocazzzzzzz") < first.index("Cocbzzzzzzz") < first.index("Cocczzzzzzz")
+    assert terminology.index("Cocazzzzzzz") < terminology.index("Cocbzzzzzzz") < terminology.index("Cocczzzzzzz")
+
+
 def _generated_value_types(version: str) -> set[str]:
     """The members of one generated tree's ValueType enum, found by the two members every version holds."""
     import enum

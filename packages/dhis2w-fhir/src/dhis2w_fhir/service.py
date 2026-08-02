@@ -914,7 +914,25 @@ def _category_combo_input(raw: object) -> CategoryComboIn | None:
     uid = _optional_text(raw.get("id"))
     if uid is None:
         return None
-    raw_combos = raw.get("categoryOptionCombos")
+    return CategoryComboIn(
+        uid=uid,
+        name=_optional_text(raw.get("name")) or uid,
+        is_default=bool(raw.get("isDefault")),
+        option_combos=_option_combo_inputs(raw.get("categoryOptionCombos")),
+    )
+
+
+def _option_combo_inputs(raw_combos: object) -> list[CategoryOptionComboIn]:
+    """Map one category combo's wire option combos into the projection, ordered by name and UID.
+
+    `CategoryCombo.categoryOptionCombos` is a Java `Set` with no sort order, and DHIS2
+    serialises it in a different order on every request (BUGS.md #64). This is the single
+    point every consumer reads its order from - the questionnaire's option-combo child items,
+    the example responses answering them, and the `D2COC_CS` support concepts - so a
+    regenerate of an unchanged form produces an unchanged file, and the examples, fetched by
+    a separate request, answer the questionnaire's items in the questionnaire's own order,
+    which the FHIR validator requires.
+    """
     option_combos: list[CategoryOptionComboIn] = []
     for entry in raw_combos if isinstance(raw_combos, list) else []:
         if not isinstance(entry, dict):
@@ -929,12 +947,8 @@ def _category_combo_input(raw: object) -> CategoryComboIn | None:
                 code=_optional_text(entry.get("code")),
             )
         )
-    return CategoryComboIn(
-        uid=uid,
-        name=_optional_text(raw.get("name")) or uid,
-        is_default=bool(raw.get("isDefault")),
-        option_combos=option_combos,
-    )
+    option_combos.sort(key=lambda option_combo: (option_combo.name, option_combo.uid))
+    return option_combos
 
 
 def _optional_text(value: object) -> str | None:

@@ -832,6 +832,9 @@ _WIDE_TYPES = QuestionnaireSourceIn(
         QuestionnaireItemIn(uid="Defile00000", name="Scan", value_type="FILE_RESOURCE"),
         QuestionnaireItemIn(uid="Deimage0000", name="Photo", value_type="IMAGE"),
         QuestionnaireItemIn(uid="Degeo000000", name="Catchment", value_type="GEOJSON"),
+        QuestionnaireItemIn(uid="Deorg000000", name="Reporting unit", value_type="ORGANISATION_UNIT"),
+        QuestionnaireItemIn(uid="Deref000000", name="Related object", value_type="REFERENCE"),
+        QuestionnaireItemIn(uid="Detrk000000", name="Linked case", value_type="TRACKER_ASSOCIATE"),
     ],
 )
 
@@ -891,13 +894,104 @@ def test_a_stored_multi_text_value_splits_into_one_coding_per_option() -> None:
     assert build.notes == []
 
 
-def test_attachment_and_geometry_questions_are_left_unanswered_with_one_note() -> None:
-    """An invented attachment or catchment polygon would misrepresent the form, so neither is faked."""
+def test_unanswerable_questions_are_left_unanswered_with_one_note() -> None:
+    """An invented attachment, catchment polygon, or DHIS2 object reference misrepresents the form."""
     synthetic = build_synthetic_responses([_WIDE_TYPES], [_WIDE_OPTION_SET], 1, _ROOT_ORG_UNIT, _TODAY)
     content = _wide_content()
-    for uid in ("Defile00000", "Deimage0000", "Degeo000000"):
+    for uid in ("Defile00000", "Deimage0000", "Degeo000000", "Deref000000", "Detrk000000"):
         assert uid not in content
     assert synthetic.notes == [
-        "3 questions take an attachment or a geometry document; left unanswered in the synthetic examples: "
-        "Catchment (Degeo000000), Photo (Deimage0000), Scan (Defile00000)"
+        "5 questions take an attachment, a geometry document, or a reference to a DHIS2 object the IG does "
+        "not publish; left unanswered in the synthetic examples: Catchment (Degeo000000), "
+        "Linked case (Detrk000000), Photo (Deimage0000), Related object (Deref000000), Scan (Defile00000)"
     ]
+
+
+def test_an_organisation_unit_question_answers_as_a_location_reference() -> None:
+    """An ORGANISATION_UNIT item is `#reference` in the questionnaire, so its answer is a Reference."""
+    content = _wide_content()
+    assert '* item[+].linkId = "Deorg000000"' in content
+    assert f"* item[=].answer[+].valueReference = Reference(Location-{_ROOT_ORG_UNIT})" in content
+    assert f"* subject = Reference(Location-{_ROOT_ORG_UNIT})" in content
+
+
+def test_a_captured_organisation_unit_value_answers_as_that_units_location() -> None:
+    """An instance-sourced ORGANISATION_UNIT value names the Location of the unit it stored."""
+    response = ExampleResponseIn(
+        instance_id="Ds7aaaaaaaa-202606-Ou1aaaaaaaa",
+        target_uid="Ds7aaaaaaaa",
+        kind="aggregate",
+        organisation_unit_uid="Ou1aaaaaaaa",
+        status_code="completed",
+        period=parse_period("202606"),
+        answers=[ExampleAnswerIn(data_element_uid="Deorg000000", value="Ou2aaaaaaaa")],
+    )
+    build = build_example_artifacts([_WIDE_TYPES], [response], [_WIDE_OPTION_SET], GenerateConfig(), _CANONICAL)
+    assert "* item[=].answer[+].valueReference = Reference(Location-Ou2aaaaaaaa)" in build.artifacts[0].content
+    assert build.notes == []
+
+
+#: One category combo's option combos, deliberately not in (name, uid) order on the wire.
+_SHUFFLED_OPTION_COMBOS = [
+    {"id": "Cocczzzzzzz", "name": "Zebra"},
+    {"id": "Cocazzzzzzz", "name": "Antelope", "code": "ANT"},
+    {"id": "Cocbzzzzzzz", "name": "Marmot"},
+]
+
+
+def _disaggregated_payload(option_combos: list[dict[str, str]]) -> dict[str, object]:
+    """One data set whose single data element disaggregates by the given option combos."""
+    return {
+        "dataSets": [
+            {
+                "id": "BfMAe6Itzgt",
+                "name": "Species survey",
+                "periodType": "Monthly",
+                "sections": [],
+                "dataSetElements": [
+                    {
+                        "dataElement": {
+                            "id": "Deazzzzzzzz",
+                            "name": "Sightings",
+                            "valueType": "INTEGER",
+                            "categoryCombo": {
+                                "id": "CcAaBbCcDdE",
+                                "name": "Species",
+                                "isDefault": False,
+                                "categoryOptionCombos": option_combos,
+                            },
+                        }
+                    }
+                ],
+            }
+        ]
+    }
+
+
+@respx.mock
+async def test_example_answers_follow_the_questionnaires_option_combo_order(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """DHIS2 shuffles `categoryOptionCombos` per request (BUGS.md #64), so both fetches read one order."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path)
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json={"optionSets": []}))
+    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ROOT_PAYLOAD))
+    respx.get(f"{_HOST}/api/dataSets").mock(
+        return_value=httpx.Response(200, json=_disaggregated_payload(_SHUFFLED_OPTION_COMBOS))
+    )
+    await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
+    example = tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "BfMAe6Itzgt-1.fsh"
+    first = example.read_text(encoding="utf-8")
+    respx.get(f"{_HOST}/api/dataSets").mock(
+        return_value=httpx.Response(200, json=_disaggregated_payload(_SHUFFLED_OPTION_COMBOS[::-1]))
+    )
+
+    report = await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.written_files == []
+    assert example.read_text(encoding="utf-8") == first
+    assert first.index("Cocazzzzzzz") < first.index("Cocbzzzzzzz") < first.index("Cocczzzzzzz")
