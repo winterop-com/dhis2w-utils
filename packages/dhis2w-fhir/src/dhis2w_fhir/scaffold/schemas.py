@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dhis2w_fhir.names import strip_trailing_slash
 from dhis2w_fhir.status import IgStatus
+
+_NON_PROJECT_NAME_CHARACTERS = re.compile(r"[^a-z0-9]+")
+
+
+def normalize_project_name(ig_id: str) -> str:
+    """Normalise an IG id into a PEP 508 project name (`dhis2.fhir.sldemo` -> `dhis2-fhir-sldemo`)."""
+    return _NON_PROJECT_NAME_CHARACTERS.sub("-", ig_id.lower()).strip("-")
 
 
 class InitOptions(BaseModel):

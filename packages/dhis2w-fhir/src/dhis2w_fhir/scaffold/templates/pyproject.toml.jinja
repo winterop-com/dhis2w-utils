@@ -1,0 +1,20 @@
+# pyproject.toml - this IG project is a uv project (scaffolded by `d2w fhir init`).
+# `uv sync` installs the toolchain into .venv, and every make target drives it through
+# `uv run d2w`. Commit uv.lock: it pins the exact d2w build this IG was generated with,
+# so a regenerate is reproducible on any machine. Move the pin deliberately with
+# `uv lock --upgrade`.
+
+[project]
+name = "{{ project_name }}"
+version = "0.1.0"
+description = "FHIR IG project scaffolded by d2w fhir init"
+requires-python = ">=3.13"
+dependencies = [
+    "dhis2w-cli",
+    "dhis2w-fhir",
+]
+
+[tool.uv.sources]
+# dhis2w-fhir has no PyPI release yet, so it resolves from git. Delete this entry once
+# dhis2w-fhir is published; dhis2w-cli already comes from PyPI.
+dhis2w-fhir = { git = "https://github.com/winterop-com/dhis2w-utils", subdirectory = "packages/dhis2w-fhir", branch = "main" }

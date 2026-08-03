@@ -38,10 +38,13 @@ runner).
 ```
 fhir.toml                   Minimal generation config (committed; no secrets)
 fhir.toml.example           Every available option with its default, documented
+pyproject.toml              The project's own uv project: dhis2w-cli + dhis2w-fhir,
+                            pinned by a committed uv.lock and run through `uv run d2w`
 Makefile                    setup / upgrade / generate / validate / sushi / build /
-                            clean / clean-all / help via docker
+                            refresh / clean / clean-all / help via docker
 Dockerfile                  ghcr.io/fhir/ig-publisher-localdev + fsh-sushi
-.gitignore                  The build output, caches, and publisher side products
+.gitignore                  The build output, caches, publisher side products, and
+                            .venv - never uv.lock, which is the pinned toolchain
 ig/sushi-config.yaml        SUSHI IG identity (id, canonical, publisher)
 ig/ig.ini                   IG publisher entry point (fhir2.base.template)
 ig/fsh.ini                  Raises the publisher's internal SUSHI timeout to 900s
@@ -658,8 +661,9 @@ depend on the package so `d2w fhir` is present by default.
 
 The components:
 
-- `scaffold/` - the eleven files `d2w fhir init` writes (`InitOptions`,
-  `ScaffoldFile`, `ScaffoldReport`).
+- `scaffold/` - the twelve files `d2w fhir init` writes (`InitOptions`,
+  `ScaffoldFile`, `ScaffoldReport`, and `normalize_project_name`, which turns the
+  IG id into the PEP 508 name of the scaffolded `pyproject.toml`).
 - `resources/option_sets/` - the CodeSystem/ValueSet pair per option set,
   plus `max_slug_length` (validation previews the same id bound) and the
   `OptionSetIn` / `OptionIn` / `OptionSetSelection` schemas.

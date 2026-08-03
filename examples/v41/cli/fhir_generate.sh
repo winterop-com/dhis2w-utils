@@ -3,7 +3,8 @@
 set -euo pipefail
 
 # Scaffold a complete dockerized SUSHI IG project (fhir.toml, sushi-config.yaml,
-# ig.ini, a hand-authored aliases.fsh stub, Makefile, Dockerfile) into ./demo-ig.
+# ig.ini, a hand-authored aliases.fsh stub, pyproject.toml, Makefile, Dockerfile)
+# into ./demo-ig.
 # --publisher-url is deliberately omitted: the IG publisher links it from every generated
 # page, so aiming it at the canonical of an unpublished IG warns once per page.
 d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo --publisher "Demo Org"
@@ -26,6 +27,12 @@ d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/d
 # so run from inside the project. The DHIS2 profile comes from -p/DHIS2_PROFILE,
 # falling back to the optional `profile` key in fhir.toml.
 cd demo-ig
+
+# The project pins its own toolchain: pyproject.toml declares dhis2w-cli + dhis2w-fhir,
+# uv sync writes .venv and the committed uv.lock, and the make targets run `uv run d2w`
+# against that pin. The bare `d2w` calls below do the same work with whatever d2w is on
+# PATH; inside a scaffolded project, prefer `uv run d2w` or the make targets.
+# uv sync
 
 # Foundation: the $DHIS2-OU aliases built from [generate] identifier_system_base,
 # plus the D2Period extension and its period-type CodeSystem/ValueSet, under
