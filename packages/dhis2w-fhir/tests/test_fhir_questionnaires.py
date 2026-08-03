@@ -19,6 +19,8 @@ from dhis2w_fhir import (
     load_project,
     service,
 )
+from dhis2w_fhir.resources.option_sets import option_set_identities
+from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.questionnaires import BOUNDS_BY_VALUE_TYPE, ITEM_TYPES_BY_VALUE_TYPE
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
@@ -186,14 +188,52 @@ _MULTI_STAGE_PROGRAM = {
 _ALL_DATA_SETS_PAYLOAD = {"dataSets": [*_DATA_SETS_PAYLOAD["dataSets"], _SECOND_DATA_SET]}
 _ALL_PROGRAMS_PAYLOAD = {"programs": [*_EVENT_PROGRAMS_PAYLOAD["programs"], _TRACKER_PROGRAM, _MULTI_STAGE_PROGRAM]}
 
+#: The instance's option sets as the identity plan reads them - the one the fixture forms bind, and a peer.
+_OPTION_SETS_PAYLOAD = {
+    "optionSets": [
+        {"id": "Os1aaaaaaaa", "name": "Gender"},
+        {"id": "Os2aaaaaaaa", "name": "Severity"},
+    ]
+}
+
+
+def _mock_option_sets() -> None:
+    """Mock the option-set fetch every questionnaire run assigns its option-set names from."""
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+
+
 _runner = CliRunner()
 
 
+def _bound_plan(sources: list[QuestionnaireSourceIn], config: GenerateConfig) -> OptionSetIdentityPlan:
+    """The identity plan the service hands the emitter: every option set these forms bind, named by its UID."""
+    uids = sorted(
+        {
+            item.option_set_uid
+            for source in sources
+            for item in [*(item for section in source.sections for item in section.items), *source.flat_items]
+            if item.option_set_uid
+        }
+    )
+    return option_set_identities([OptionSetIn(uid=uid, name=uid) for uid in uids], config)
+
+
 def _artifacts(
-    sources: list[QuestionnaireSourceIn], config: GenerateConfig | None = None, *, ig_status: IgStatus = "draft"
+    sources: list[QuestionnaireSourceIn],
+    config: GenerateConfig | None = None,
+    *,
+    ig_status: IgStatus = "draft",
+    option_set_plan: OptionSetIdentityPlan | None = None,
 ) -> dict[str, str]:
     """Build the questionnaire artifacts and index them by relative path."""
-    build = build_questionnaire_artifacts(sources, config or GenerateConfig(), _CANONICAL, ig_status=ig_status)
+    resolved = config or GenerateConfig()
+    build = build_questionnaire_artifacts(
+        sources,
+        resolved,
+        _CANONICAL,
+        ig_status=ig_status,
+        option_set_plan=option_set_plan or _bound_plan(sources, resolved),
+    )
     return {artifact.relative_path: artifact.content for artifact in build.artifacts}
 
 
@@ -347,6 +387,7 @@ async def _generated_data_set(tmp_path: Path, operands: list[dict[str, object]])
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_operand_payload(operands)))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    _mock_option_sets()
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
     return (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "BfMAe6Itzgt.fsh").read_text(encoding="utf-8")
 
@@ -362,6 +403,7 @@ async def test_the_data_set_fetch_asks_for_the_compulsory_operands(
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_operand_payload([])))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    _mock_option_sets()
 
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
@@ -608,6 +650,7 @@ async def test_generate_questionnaires_writes_the_target_directory(
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"', event_programs='"VBqh0ynB2wv"')
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
+    _mock_option_sets()
 
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
@@ -643,6 +686,7 @@ async def test_an_absent_selection_covers_the_whole_instance(
     await _scaffold_project(tmp_path)
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_ALL_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
+    _mock_option_sets()
 
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
@@ -680,6 +724,7 @@ async def test_each_directory_is_swept_against_its_own_files(
 
     respx.get(f"{_HOST}/api/dataSets").mock(side_effect=_data_sets)
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
+    _mock_option_sets()
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
 
@@ -744,6 +789,7 @@ async def test_an_unmatched_target_uid_is_noted(
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt", "Missing1234"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    _mock_option_sets()
 
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
@@ -775,6 +821,7 @@ async def test_a_form_mixing_sectioned_and_unsectioned_elements_is_noted(
     }
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=payload))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    _mock_option_sets()
 
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
@@ -839,7 +886,7 @@ async def test_generate_all_without_selection_tables_still_emits_questionnaires(
     """`generate all` on a project with no selection tables generates for the whole instance."""
     mock_system_info("v42")
     await _scaffold_project(tmp_path)
-    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json={"optionSets": []}))
+    _mock_option_sets()
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json={"organisationUnits": []}))
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_ALL_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
@@ -928,6 +975,7 @@ async def test_a_data_sets_unsectioned_elements_are_ordered_independently_of_the
         "dataSets": [{"id": "Ds3aaaaaaaa", "name": "Wildlife", "sections": [], "dataSetElements": elements[::-1]}]
     }
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    _mock_option_sets()
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=shuffled))
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
     first = (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "Ds3aaaaaaaa.fsh").read_text(encoding="utf-8")
@@ -987,6 +1035,7 @@ async def test_category_option_combos_are_ordered_independently_of_the_wire(
     mock_system_info("v42")
     await _scaffold_project(tmp_path, data_sets='"Ds3aaaaaaaa"')
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    _mock_option_sets()
     respx.get(f"{_HOST}/api/dataSets").mock(
         return_value=httpx.Response(200, json=_disaggregated_payload(_SHUFFLED_OPTION_COMBOS))
     )
@@ -1108,3 +1157,88 @@ def test_the_domain_property_is_absent_when_dhis2_sends_no_domain_type() -> None
     """An instance answering no domainType leaves the property off the concepts and off the CodeSystem header."""
     content = _artifacts([_DATA_SET])["data-dictionary/data-elements.fsh"]
     assert "#domain" not in content
+
+
+def test_a_disaggregated_option_bound_question_binds_every_cell_to_the_option_set() -> None:
+    """A cell asks its data element's question one option combo at a time, so it keeps the choice binding."""
+    source = QuestionnaireSourceIn(
+        uid="Ds7aaaaaaaa",
+        name="Coded grid",
+        kind="aggregate",
+        flat_items=[
+            QuestionnaireItemIn(
+                uid="De9aaaaaaaa",
+                name="Outcome",
+                value_type="PERCENTAGE",
+                option_set_uid="Os1aaaaaaaa",
+                category_combo=_AGE_COMBO,
+            )
+        ],
+    )
+    content = _artifacts([source])["data-sets/Ds7aaaaaaaa.fsh"]
+    cells = content.split('* item[+].linkId = "De9aaaaaaaa"')[1]
+    assert cells.count("* item[=].item[=].type = #choice") == 2
+    assert cells.count("* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)") == 2
+    assert '* item[=].item[+].linkId = "De9aaaaaaaa.Coc1aaaaaaa"' in cells
+    assert "* item[=].type = #group" in cells
+    assert "minValue" not in content
+    assert "maxValue" not in content
+
+
+def test_a_disaggregated_multi_text_question_repeats_on_every_cell() -> None:
+    """MULTI_TEXT is multiple selection whatever the disaggregation, so each cell repeats like the plain item does."""
+    source = QuestionnaireSourceIn(
+        uid="Ds8aaaaaaaa",
+        name="Symptom grid",
+        kind="aggregate",
+        flat_items=[
+            QuestionnaireItemIn(
+                uid="De9aaaaaaaa",
+                name="Symptoms seen",
+                value_type="MULTI_TEXT",
+                option_set_uid="Os1aaaaaaaa",
+                category_combo=_AGE_COMBO,
+            )
+        ],
+    )
+    content = _artifacts([source])["data-sets/Ds8aaaaaaaa.fsh"]
+    assert content.count("* item[=].item[=].repeats = true") == 2
+    assert content.count("* item[=].item[=].type = #choice") == 2
+    assert "* item[=].repeats = true" not in content
+
+
+def test_an_option_set_the_plan_omits_falls_back_to_the_uid_name_with_one_note() -> None:
+    """The closure puts every bound set into the plan; a gap still emits a name, and the run says which."""
+    build = build_questionnaire_artifacts(
+        [_DATA_SET], GenerateConfig(), _CANONICAL, ig_status="draft", option_set_plan=OptionSetIdentityPlan()
+    )
+    content = next(
+        artifact.content for artifact in build.artifacts if artifact.relative_path.endswith("BfMAe6Itzgt.fsh")
+    )
+    assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content
+    assert build.notes == [
+        "1 option sets a question binds are absent from the option-set selection; their answerValueSet "
+        "names are derived from the UID: Os1aaaaaaaa"
+    ]
+
+
+@respx.mock
+async def test_the_questionnaire_target_plans_option_set_names_over_the_whole_selection(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A slug is assigned against its peers, so the target reads every selected set, not just the bound ones."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    option_sets = respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert option_sets.called
+    assert option_sets.calls.last.request.url.params["fields"] == "id,name"
+    assert report.notes == []
+    content = (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "BfMAe6Itzgt.fsh").read_text(encoding="utf-8")
+    assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content

@@ -1,5 +1,6 @@
 """Unit tests for FHIR-safety validation: instance-wide sweep, deep option pass, markdown report."""
 
+import re
 from datetime import UTC, datetime
 
 import pytest
@@ -351,3 +352,43 @@ def test_an_invisible_character_in_a_name_is_rendered_visibly() -> None:
         [MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="Ds1aaaaaaaa", name="A <b>\nB")])],
     )
     assert "name A <b>\\nB contains" in _hostile(report)[0].message
+
+
+#: A DHIS2 name carrying both characters a Markdown table cannot take raw: a pipe and a line break.
+_HOSTILE_CELL_NAME = "A|B\nC"
+
+
+def test_a_markdown_row_survives_a_pipe_and_a_line_break_in_the_message() -> None:
+    """The detail column quotes the DHIS2 name back, so it takes the same cell escaping the name column does."""
+    finding = ValidationFinding(
+        severity="warning",
+        category="template-hostile-name",
+        resource_type="dataElements",
+        uid="De1aaaaaaaa",
+        name=_HOSTILE_CELL_NAME,
+        message=f"name {_HOSTILE_CELL_NAME} contains '<' which the IG publisher template injects unescaped",
+    )
+    markdown = render_validation_markdown(FhirValidationReport(findings=[finding]), "probe", _GENERATED_AT)
+
+    rows = [line for line in markdown.splitlines() if line.startswith("| warning |")]
+    assert len(rows) == 1
+    assert len(re.split(r"(?<!\\)\|", rows[0])) == 7
+    assert rows[0].count("A\\|B C") == 2
+    assert "\n" not in rows[0]
+
+
+def test_a_markdown_row_escapes_the_uid_beside_the_name() -> None:
+    """Both halves of the object column are DHIS2 text, so both are made table-safe."""
+    finding = ValidationFinding(
+        severity="error",
+        category="invalid-code",
+        resource_type="dataElements",
+        uid="De1|aaaaaaa",
+        name="Plain",
+        message="code is not a valid FHIR code",
+    )
+    markdown = render_validation_markdown(FhirValidationReport(findings=[finding]), "probe", _GENERATED_AT)
+
+    row = next(line for line in markdown.splitlines() if line.startswith("| error |"))
+    assert "Plain (De1\\|aaaaaaa)" in row
+    assert len(re.split(r"(?<!\\)\|", row)) == 7

@@ -62,10 +62,12 @@ from dhis2w_fhir.resources.option_sets import (
     option_set_code_fallback,
     option_set_fsh_name,
     option_set_identities,
+    option_set_identity_index,
 )
 from dhis2w_fhir.resources.option_sets.schemas import (
     OptionIn,
     OptionSetIdentity,
+    OptionSetIdentityIndex,
     OptionSetIdentityPlan,
     OptionSetIn,
     OptionSetSelection,
@@ -184,6 +186,7 @@ __all__ = [
     "NumericBounds",
     "OptionIn",
     "OptionSetIdentity",
+    "OptionSetIdentityIndex",
     "OptionSetIdentityPlan",
     "OptionSetIn",
     "OptionSetSelection",
@@ -237,6 +240,7 @@ __all__ = [
     "option_set_code_fallback",
     "option_set_fsh_name",
     "option_set_identities",
+    "option_set_identity_index",
     "parse_period",
     "recent_periods",
     "render_validation_csv",

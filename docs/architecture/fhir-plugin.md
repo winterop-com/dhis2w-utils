@@ -233,7 +233,22 @@ DHIS2 option code rides along as a `dhis2-code` concept property; with
 `"code"` they swap (the UID becomes a `dhis2-id` property). The code path is
 gated by a FHIR `code`-datatype validity check; an option whose code is
 missing or invalid falls back to the UID with a note in the report, so
-generation is total and never silently drops a concept.
+generation is total. Concept codes are unique within a set by construction: the
+codes are assigned in DHIS2 sort order and a taken code falls back to the option's
+UID; where that UID is taken too - a peer carries it as its own DHIS2 code - the
+option is skipped with its own aggregate note rather than emitted as a duplicate
+concept the publisher would reject.
+
+Names are decided once, for the whole selection, by `option_set_identities`:
+truncation and collision suffixes both depend on the peers a set is assigned
+against, so a per-set name cannot be reconstructed from a UID. The resulting
+`OptionSetIdentityPlan` is the boundary object every other target reads option-set
+names from - the terminology emitter for its files, a question's `answerValueSet`,
+an example's answer coding, and the narrative pages' `CodeSystem-<id>` links. The
+service builds the plan from the identical selection in each generate path, so a
+`name`-sourced run's `Canonical(D2OS_Sex_Aa1aaaaaaaa_VS)` names the ValueSet that
+same run writes. A bound set the plan somehow omits still emits a UID-derived name
+and is reported by an aggregate note, never left dangling.
 
 ## Data sets and event programs -> Questionnaires
 
@@ -271,7 +286,10 @@ whose type comes from the DHIS2 `valueType` table, or `#choice` plus an
 `#choice` plus `repeats = true`, which is the whole of what MULTI_TEXT means; a compulsory
 program-stage element is `required`; a non-default category combo turns the question into a group
 with one child per option combo, `linkId` `<deUid>.<cocUid>` - the same key a DHIS2
-data value carries. A section holding such a group also carries the standard
+data value carries. A cell asks the element's own question one option combo at a time, so
+each child takes the element's effective item type, its `answerValueSet`, its `repeats`, and
+its bounds; only the `linkId`, the text, and the code differ. A section holding such a group
+also carries the standard
 `questionnaire-itemControl` extension coded `#gtable`, which is the DHIS2 data-entry
 grid stated in FHIR terms.
 
@@ -454,8 +472,9 @@ The target adds no endpoint. `PagesIn` is the three projections the other target
 already fetch - `QuestionnaireSourceIn`, `OptionSetIn`, `OrganisationUnitIn` - so a
 page can never disagree with the FSH about what was generated. Link targets are
 derived rather than reconstructed: `option_set_identities` is the one place an option
-set's slug and `CodeSystem-<id>` are decided, read by the emitter for its file names
-and by the terminology page for its links, and `periods.md` tabulates
+set's slug and `CodeSystem-<id>` are decided, read by the emitter for its file names,
+by the questionnaire and example targets for their option-set names, and by the
+terminology page for its links, and `periods.md` tabulates
 `PERIOD_TYPE_DEFINITIONS` with examples resolved through `recent_periods` +
 `parse_period` from a pinned reference date, so a regenerate never moves with the
 calendar.
@@ -648,7 +667,8 @@ The components:
   collected as `QUESTIONNAIRE_DIRECTORIES`), with `TargetSelection`, the
   `QuestionnaireSourceIn` / `QuestionnaireSectionIn` / `QuestionnaireItemIn` /
   `CategoryComboIn` / `CategoryOptionComboIn` projections, and `QuestionnaireNaming`
-  deriving every name from the `DS` / `PR` / `DE` / `COC` tokens. Item nesting is
+  deriving every name from the `DS` / `PR` / `DE` / `COC` tokens - option-set names
+  are not among them, they come in on the `OptionSetIdentityPlan`. Item nesting is
   resolved in Python into a flat list of view-models carrying their FSH soft-index
   paths (`item[=].item[+]`), so the template stays a layout, not a recursion.
 - `resources/examples/` - the `Usage: #example` QuestionnaireResponse per example,

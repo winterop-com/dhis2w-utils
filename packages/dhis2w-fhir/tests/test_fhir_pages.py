@@ -18,6 +18,7 @@ from dhis2w_fhir import (
 from dhis2w_fhir.names import markdown_text
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
 from dhis2w_fhir.resources.examples import STATUS_BY_EVENT_STATUS
+from dhis2w_fhir.resources.option_sets import option_set_identities
 from dhis2w_fhir.resources.pages import INTRO_SUFFIX, PAGES_DIRECTORY, SITE_PAGE_FILENAMES, build_page_artifacts
 from dhis2w_fhir.resources.pages.schemas import PagesIn
 from dhis2w_fhir.resources.questionnaires import ITEM_TYPES_BY_VALUE_TYPE
@@ -379,7 +380,13 @@ def test_organization_intro_is_gated_on_the_dhis2_description() -> None:
 def test_questionnaire_link_targets_match_the_emitted_instances() -> None:
     """Every forms.md link names the Questionnaire instance the questionnaire target actually emits."""
     config = GenerateConfig()
-    build = build_questionnaire_artifacts([_DATA_SET, _EVENT_PROGRAM], config, _CANONICAL, ig_status="draft")
+    build = build_questionnaire_artifacts(
+        [_DATA_SET, _EVENT_PROGRAM],
+        config,
+        _CANONICAL,
+        ig_status="draft",
+        option_set_plan=option_set_identities([_DESCRIBED_OPTION_SET, _PLAIN_OPTION_SET], config),
+    )
     forms = _pages()["forms.md"]
     instance_names = [artifact.fsh_name for artifact in build.artifacts if artifact.kind == "instances"]
     assert instance_names

@@ -58,9 +58,38 @@ class OptionSetIdentity(BaseModel):
     code_system_id: str
     value_set_id: str
 
+    @property
+    def code_system_name(self) -> str:
+        """FSH name of the emitted CodeSystem (e.g. `D2OS_BirthType_CS`)."""
+        return f"{self.fsh_name}_CS"
+
+    @property
+    def value_set_name(self) -> str:
+        """FSH name of the emitted ValueSet (e.g. `D2OS_BirthType_VS`)."""
+        return f"{self.fsh_name}_VS"
+
 
 class OptionSetIdentityPlan(BaseModel):
-    """Every option set's identity in emission order, with the notes the slug assignment raised."""
+    """Every option set's identity in emission order, with the notes the slug assignment raised.
+
+    The plan is the boundary object every target reads option-set names from: the terminology
+    emitter names its artifacts from it, the questionnaires bind `answerValueSet` to it, the
+    examples code their answers from it, and the narrative pages link to it.
+    """
 
     identities: list[OptionSetIdentity] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+
+
+class OptionSetIdentityIndex(BaseModel):
+    """One plan indexed by option-set UID, with a UID-derived entry for every bound set it omits.
+
+    `unplanned_uids` names the option sets a question binds that the plan does not hold. The
+    target closure puts every bound set into the selection, so the list is empty on a normal
+    run and a target reports whatever lands in it rather than emitting a dangling name.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    identities: dict[str, OptionSetIdentity] = Field(default_factory=dict)
+    unplanned_uids: list[str] = Field(default_factory=list)

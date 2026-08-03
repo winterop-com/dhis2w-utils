@@ -41,10 +41,11 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleSelection,
     ExampleSource,
 )
+from dhis2w_fhir.resources.option_sets import option_set_identity_index
+from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
     FormKind,
     QuestionnaireItemIn,
-    QuestionnaireNaming,
     QuestionnaireSourceIn,
 )
 from dhis2w_fhir.writer import FshArtifact, FshBuild
@@ -141,6 +142,15 @@ ORGANISATION_UNIT_VALUE_TYPE = "ORGANISATION_UNIT"
 _FHIR_DATE_PATTERN = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
 _FHIR_DATE_TIME_PATTERN = re.compile(r"^\d{4}(-\d{2}(-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2}))?)?)?$")
 _FHIR_TIME_PATTERN = re.compile(r"^\d{2}:\d{2}:\d{2}(\.\d+)?$")
+
+# The plain decimal and integer forms an FSH numeric literal may take. They are deliberately
+# narrower than what `float()` and `int()` accept: FSH writes a numeric answer unquoted, so
+# `NaN`, `Infinity`, and an exponent (`1e3`) are not numbers a FHIR primitive can carry, a
+# leading `+` or a leading zero (`01.5`) is not the canonical lexical form, and `int()` would
+# additionally read the underscores and surrounding whitespace of `1_0` as ten. A value that
+# does not match is answered as a string rather than emitted as an invalid literal.
+_FSH_DECIMAL_PATTERN = re.compile(r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?$")
+_FSH_INTEGER_PATTERN = re.compile(r"^-?(0|[1-9][0-9]*)$")
 
 #: The zone FHIR requires on a dateTime that carries a time, and DHIS2 leaves off (BUGS.md #62).
 _ASSUMED_ZONE = "Z"
@@ -308,11 +318,17 @@ def build_example_artifacts(
     option_sets: list[ExampleOptionSetIn],
     config: GenerateConfig,
     canonical: str,
+    *,
+    option_set_plan: OptionSetIdentityPlan,
 ) -> FshBuild:
-    """Build one `examples/<targetUid>-<n>.fsh` QuestionnaireResponse per example response."""
+    """Build one `examples/<targetUid>-<n>.fsh` QuestionnaireResponse per example response.
+
+    `option_set_plan` is the identity plan the terminology target emits from, so a coded answer
+    names the CodeSystem the same run writes under either naming source.
+    """
     build = FshBuild()
-    names = QuestionnaireNaming.from_naming(config.naming)
     foundation = FoundationNaming.from_naming(config.naming)
+    index = option_set_identity_index(option_set_plan, _bound_option_set_uids(sources), config)
     sources_by_uid = {source.uid: source for source in sources}
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
     template = _ENVIRONMENT.get_template("questionnaire-response.fsh.jinja")
@@ -324,7 +340,9 @@ def build_example_artifacts(
             continue
         ordinal = ordinals.get(response.target_uid, 0) + 1
         ordinals[response.target_uid] = ordinal
-        view = _example_view(response, source, option_sets_by_uid, config, names, foundation, canonical, tally)
+        view = _example_view(
+            response, source, option_sets_by_uid, config, index.identities, foundation, canonical, tally
+        )
         build.artifacts.append(
             FshArtifact(
                 relative_path=f"{EXAMPLES_DIRECTORY}/{response.target_uid}-{ordinal}.fsh",
@@ -334,7 +352,20 @@ def build_example_artifacts(
             )
         )
     build.notes.extend(tally.to_notes())
+    if index.unplanned_uids:
+        build.notes.append(
+            aggregate_note(
+                f"{len(index.unplanned_uids)} option sets a question binds are absent from the option-set "
+                "selection; their answer coding systems are derived from the UID",
+                index.unplanned_uids,
+            )
+        )
     return build
+
+
+def _bound_option_set_uids(sources: list[QuestionnaireSourceIn]) -> list[str]:
+    """Every option set the given forms bind a question to."""
+    return [item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid]
 
 
 class SyntheticBuild(BaseModel):
@@ -563,7 +594,7 @@ def _example_view(
     source: QuestionnaireSourceIn,
     option_sets_by_uid: dict[str, ExampleOptionSetIn],
     config: GenerateConfig,
-    names: QuestionnaireNaming,
+    identities: dict[str, OptionSetIdentity],
     foundation: FoundationNaming,
     canonical: str,
     tally: _ExampleTally,
@@ -581,7 +612,7 @@ def _example_view(
         )
     elif source.kind == "aggregate":
         tally.periodless_data_sets.append(f"{source.name} ({source.uid})")
-    answers = _answers_by_link_id(response, source, option_sets_by_uid, config, names, tally)
+    answers = _answers_by_link_id(response, source, option_sets_by_uid, config, identities, tally)
     authored = _authored(response, tally)
     return _ExampleView(
         instance_id=response.instance_id,
@@ -630,7 +661,7 @@ def _answers_by_link_id(
     source: QuestionnaireSourceIn,
     option_sets_by_uid: dict[str, ExampleOptionSetIn],
     config: GenerateConfig,
-    names: QuestionnaireNaming,
+    identities: dict[str, OptionSetIdentity],
     tally: _ExampleTally,
 ) -> dict[str, list[_Answer]]:
     """Type every captured value and index it by the questionnaire `linkId` it answers."""
@@ -644,7 +675,7 @@ def _answers_by_link_id(
         link_id = captured.data_element_uid
         if _is_disaggregated(item) and captured.category_option_combo_uid is not None:
             link_id = f"{link_id}.{captured.category_option_combo_uid}"
-        answers[link_id] = _typed_answers(item, captured.value, option_sets_by_uid, config, names, tally)
+        answers[link_id] = _typed_answers(item, captured.value, option_sets_by_uid, config, identities, tally)
     return answers
 
 
@@ -653,14 +684,14 @@ def _typed_answers(
     value: str,
     option_sets_by_uid: dict[str, ExampleOptionSetIn],
     config: GenerateConfig,
-    names: QuestionnaireNaming,
+    identities: dict[str, OptionSetIdentity],
     tally: _ExampleTally,
 ) -> list[_Answer]:
     """Cast one captured value onto the FHIR answer type its value type asks for - several for MULTI_TEXT."""
     if item.option_set_uid is not None:
         selected = value.split(_MULTI_VALUE_SEPARATOR) if item.value_type == MULTI_VALUE_TYPE else [value]
         return [
-            _coding_answer(item.option_set_uid, part.strip(), option_sets_by_uid, config, names)
+            _coding_answer(item.option_set_uid, part.strip(), option_sets_by_uid, config, identities)
             or _fallback(item, part.strip(), tally)
             for part in selected
         ]
@@ -744,18 +775,15 @@ def _seconds_precision(value: str) -> str:
 
 
 def _integer_answer(item: QuestionnaireItemIn, text: str, tally: _ExampleTally) -> _Answer:
-    """Answer an integer question, falling back to a string when the stored value is not one."""
-    try:
-        return _Answer(element="valueInteger", literal=str(int(text)))
-    except ValueError:
+    """Answer an integer question, falling back to a string when the stored value is not a plain integer."""
+    if not _FSH_INTEGER_PATTERN.match(text):
         return _fallback(item, text, tally)
+    return _Answer(element="valueInteger", literal=str(int(text)))
 
 
 def _decimal_answer(item: QuestionnaireItemIn, text: str, tally: _ExampleTally) -> _Answer:
-    """Answer a decimal question, keeping the stored precision but refusing what will not parse."""
-    try:
-        float(text)
-    except ValueError:
+    """Answer a decimal question, keeping the stored precision but refusing what is not a plain decimal."""
+    if not _FSH_DECIMAL_PATTERN.match(text):
         return _fallback(item, text, tally)
     return _Answer(element="valueDecimal", literal=text)
 
@@ -775,7 +803,7 @@ def _coding_answer(
     value: str,
     option_sets_by_uid: dict[str, ExampleOptionSetIn],
     config: GenerateConfig,
-    names: QuestionnaireNaming,
+    identities: dict[str, OptionSetIdentity],
 ) -> _Answer | None:
     """Answer an option-set question as a Coding into that set's CodeSystem; None when unmappable."""
     option_set = option_sets_by_uid.get(option_set_uid)
@@ -783,7 +811,7 @@ def _coding_answer(
     if option is None:
         return None
     concept_code = option.uid if config.concept_code_source == "id" else code_or_uid(option.code, option.uid)
-    system = names.option_set_code_system(option_set_uid)
+    system = identities[option_set_uid].code_system_name
     return _Answer(element="valueCoding", literal=f"{system}{fsh_code(concept_code)} {quote(option.name)}")
 
 

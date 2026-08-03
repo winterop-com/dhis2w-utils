@@ -36,6 +36,8 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleOptionSetIn,
     ExampleResponseIn,
 )
+from dhis2w_fhir.resources.option_sets import option_set_identities
+from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
@@ -327,6 +329,14 @@ _EVENTS_PAYLOAD = {
 _runner = CliRunner()
 
 
+def _plan(option_sets: list[ExampleOptionSetIn], config: GenerateConfig | None = None) -> OptionSetIdentityPlan:
+    """The identity plan the service hands the emitter: the fetched option sets, named by their UIDs."""
+    return option_set_identities(
+        [OptionSetIn(uid=option_set.uid, name=option_set.uid) for option_set in option_sets],
+        config or GenerateConfig(),
+    )
+
+
 def _synthetic(
     sources: list[QuestionnaireSourceIn],
     option_sets: list[ExampleOptionSetIn] | None = None,
@@ -335,9 +345,15 @@ def _synthetic(
 ) -> dict[str, str]:
     """Build the synthetic example artifacts for `sources` and index them by relative path."""
     resolved_option_sets = _OPTION_SETS if option_sets is None else option_sets
+    resolved_config = config or GenerateConfig()
     synthetic = build_synthetic_responses(sources, resolved_option_sets, per_target, _ROOT_ORG_UNIT, _TODAY)
     build = build_example_artifacts(
-        sources, synthetic.responses, resolved_option_sets, config or GenerateConfig(), _CANONICAL
+        sources,
+        synthetic.responses,
+        resolved_option_sets,
+        resolved_config,
+        _CANONICAL,
+        option_set_plan=_plan(resolved_option_sets, resolved_config),
     )
     return {artifact.relative_path: artifact.content for artifact in build.artifacts}
 
@@ -439,7 +455,9 @@ def test_an_option_value_answers_as_the_configured_concept_code(code_source: str
     """The stored DHIS2 option code resolves to whichever concept code the option-set terminology emits."""
     config = GenerateConfig.model_validate({"concept_code_source": code_source})
     response = _aggregate_response([ExampleAnswerIn(data_element_uid="De3aaaaaaaa", value="F")])
-    build = build_example_artifacts([_DATA_SET], [response], _OPTION_SETS, config, _CANONICAL)
+    build = build_example_artifacts(
+        [_DATA_SET], [response], _OPTION_SETS, config, _CANONICAL, option_set_plan=_plan(_OPTION_SETS, config)
+    )
     assert f"* item[=].item[=].answer[+].valueCoding = {coding}" in build.artifacts[0].content
     assert build.notes == []
 
@@ -447,7 +465,9 @@ def test_an_option_value_answers_as_the_configured_concept_code(code_source: str
 def test_an_unmappable_option_value_falls_back_to_a_string_with_one_note() -> None:
     """A stored value no option carries is answered as a string, and the run says how many did that."""
     response = _aggregate_response([ExampleAnswerIn(data_element_uid="De3aaaaaaaa", value="X")])
-    build = build_example_artifacts([_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
     assert '* item[=].item[=].answer[+].valueString = "X"' in build.artifacts[0].content
     assert build.notes == [
         "1 example answers could not be cast to their FHIR type; answered as strings: Gender (De3aaaaaaaa) = 'X'"
@@ -478,7 +498,9 @@ def test_a_value_that_will_not_cast_is_answered_as_a_string(data_element_uid: st
             )
         ]
     )
-    build = build_example_artifacts([_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
     content = build.artifacts[0].content
     assert expected in content or expected.replace("item[=].item[=]", "item[=].item[=].item[=]") in content
 
@@ -491,7 +513,9 @@ def test_a_value_for_a_data_element_outside_the_form_is_skipped_with_a_note() ->
             ExampleAnswerIn(data_element_uid="De7aaaaaaaa", value="kept"),
         ]
     )
-    build = build_example_artifacts([_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
     assert "Dexaaaaaaaa" not in build.artifacts[0].content
     assert '* item[=].item[=].answer[+].valueString = "kept"' in build.artifacts[0].content
     assert build.notes == [
@@ -542,7 +566,9 @@ def test_a_zoneless_occurrence_is_zoned_rather_than_emitted_invalid() -> None:
         status_code="completed",
         authored="2025-12-30T00:00:00.000",
     )
-    build = build_example_artifacts([_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
     assert '* authored = "2025-12-30T00:00:00.000Z"' in build.artifacts[0].content
 
 
@@ -556,7 +582,9 @@ def test_an_unusable_occurrence_is_dropped_with_a_note() -> None:
         status_code="completed",
         authored="last tuesday",
     )
-    build = build_example_artifacts([_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
     assert "* authored" not in build.artifacts[0].content
     assert "InstanceOf: QuestionnaireResponse\n" in build.artifacts[0].content
     assert "InstanceOf: D2EventResponse" not in build.artifacts[0].content
@@ -572,7 +600,9 @@ def test_a_data_set_without_a_period_type_carries_no_period_extension() -> None:
         flat_items=[QuestionnaireItemIn(uid="De9aaaaaaaa", name="Count", value_type="INTEGER")],
     )
     synthetic = build_synthetic_responses([source], [], 1, _ROOT_ORG_UNIT, _TODAY)
-    build = build_example_artifacts([source], synthetic.responses, [], GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [source], synthetic.responses, [], GenerateConfig(), _CANONICAL, option_set_plan=_plan([])
+    )
     assert "D2Period" not in build.artifacts[0].content
     assert "InstanceOf: QuestionnaireResponse\n" in build.artifacts[0].content
     assert "InstanceOf: D2AggregateResponse" not in build.artifacts[0].content
@@ -908,7 +938,14 @@ def test_a_stored_multi_text_value_splits_into_one_coding_per_option() -> None:
         period=parse_period("202606"),
         answers=[ExampleAnswerIn(data_element_uid="Demulti0000", value="F,O")],
     )
-    build = build_example_artifacts([_WIDE_TYPES], [response], [_WIDE_OPTION_SET], GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_WIDE_TYPES],
+        [response],
+        [_WIDE_OPTION_SET],
+        GenerateConfig(),
+        _CANONICAL,
+        option_set_plan=_plan([_WIDE_OPTION_SET]),
+    )
     content = build.artifacts[0].content
     assert '* item[=].answer[+].valueCoding = D2OS_Os1aaaaaaaa_CS#Op1aaaaaaaa "Female"' in content
     assert '* item[=].answer[+].valueCoding = D2OS_Os1aaaaaaaa_CS#Op3aaaaaaaa "Other"' in content
@@ -947,7 +984,14 @@ def test_a_captured_organisation_unit_value_answers_as_that_units_location() -> 
         period=parse_period("202606"),
         answers=[ExampleAnswerIn(data_element_uid="Deorg000000", value="Ou2aaaaaaaa")],
     )
-    build = build_example_artifacts([_WIDE_TYPES], [response], [_WIDE_OPTION_SET], GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_WIDE_TYPES],
+        [response],
+        [_WIDE_OPTION_SET],
+        GenerateConfig(),
+        _CANONICAL,
+        option_set_plan=_plan([_WIDE_OPTION_SET]),
+    )
     assert "* item[=].answer[+].valueReference = Reference(Location-Ou2aaaaaaaa)" in build.artifacts[0].content
     assert build.notes == []
 
@@ -1016,3 +1060,49 @@ async def test_example_answers_follow_the_questionnaires_option_combo_order(
     assert report.written_files == []
     assert example.read_text(encoding="utf-8") == first
     assert first.index("Cocazzzzzzz") < first.index("Cocbzzzzzzz") < first.index("Cocczzzzzzz")
+
+
+def _answered(data_element_uid: str, value: str) -> str:
+    """The FSH of one hand-built data-set response answering a single question."""
+    response = _aggregate_response([ExampleAnswerIn(data_element_uid=data_element_uid, value=value)])
+    build = build_example_artifacts(
+        [_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
+    return build.artifacts[0].content
+
+
+@pytest.mark.parametrize(
+    ("value", "literal"),
+    [
+        ("-3", "-3"),
+        ("0", "0"),
+        ("19.5", "19.5"),
+        ("0.25", "0.25"),
+        ("12.50", "12.50"),
+    ],
+)
+def test_a_plain_decimal_is_answered_at_its_stored_precision(value: str, literal: str) -> None:
+    """An R4 decimal is written unquoted, so a stored value that already is one is carried through verbatim."""
+    assert f"* item[=].item[=].answer[+].valueDecimal = {literal}" in _answered("De4aaaaaaaa", value)
+
+
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity", "1e3", "+1", "01.5", "1_0", ".5", "5."])
+def test_a_decimal_form_r4_cannot_carry_is_answered_as_a_string(value: str) -> None:
+    """`float()` reads all of these; none of them is a decimal literal FHIR admits, so they stay text."""
+    content = _answered("De4aaaaaaaa", value)
+    assert f'* item[=].item[=].answer[+].valueString = "{value}"' in content
+    assert "valueDecimal" not in content
+
+
+@pytest.mark.parametrize(("value", "literal"), [("-3", "-3"), ("0", "0"), ("42", "42")])
+def test_a_plain_integer_is_answered_as_a_number(value: str, literal: str) -> None:
+    """A stored integer answers as one, in the canonical form."""
+    assert f"* item[=].item[=].answer[+].valueInteger = {literal}" in _answered("De1aaaaaaaa", value)
+
+
+@pytest.mark.parametrize("value", ["1_0", "+1", "01", " 1 0", "1e3", "NaN", "19.5"])
+def test_an_integer_form_r4_cannot_carry_is_answered_as_a_string(value: str) -> None:
+    """`int()` reads underscores and edge whitespace as digits, which is not a lexical form FHIR admits."""
+    content = _answered("De1aaaaaaaa", value)
+    assert "valueInteger" not in content
+    assert "answer[+].valueString" in content

@@ -31,8 +31,8 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleResponseIn,
     ExampleSelection,
 )
-from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
-from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
+from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, option_set_identities
+from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_instances,
     build_organisation_unit_level_terminology,
@@ -71,6 +71,9 @@ _TRANSLATION_FIELDS = "translations[locale,property,value]"
 _OPTION_SET_FIELDS = (
     f"id,code,name,description,{_TRANSLATION_FIELDS},options[id,code,name,sortOrder,{_TRANSLATION_FIELDS}]"
 )
+
+#: The option-set projection the identity plan is assigned from - a slug needs the UID and the name alone.
+_OPTION_SET_IDENTITY_FIELDS = "id,name"
 _ORGANISATION_UNIT_FIELDS = (
     "id,code,name,shortName,description,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,"
     f"closedDate,{_TRANSLATION_FIELDS}"
@@ -290,8 +293,13 @@ async def generate_questionnaires(profile: Profile, project: FhirProject) -> Gen
     notes: list[str] = []
     async with open_client(profile) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
+        option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
     build = build_questionnaire_artifacts(
-        sources, config, project.config.ig.canonical, ig_status=project.config.ig.status
+        sources,
+        config,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+        option_set_plan=option_set_plan,
     )
     syncs = [
         sync_artifacts(project.fsh_directory, directory, _artifacts_under(build.artifacts, directory))
@@ -319,8 +327,16 @@ async def generate_examples(profile: Profile, project: FhirProject) -> GenerateR
         async with open_client(profile) as client:
             sources = await _fetch_questionnaire_sources(client, config, notes)
             option_sets = await _fetch_example_option_sets(client, sources)
+            option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
             responses = await _example_responses(client, sources, option_sets, selection, notes)
-        build = build_example_artifacts(sources, responses, option_sets, config, project.config.ig.canonical)
+        build = build_example_artifacts(
+            sources,
+            responses,
+            option_sets,
+            config,
+            project.config.ig.canonical,
+            option_set_plan=option_set_plan,
+        )
         artifacts = build.artifacts
         notes.extend(build.notes)
         example_count = len(build.artifacts)
@@ -705,6 +721,26 @@ def _selected_option_sets(
     for uid in sorted(configured_ids - selected_ids):
         notes.append(f"include_ids entry {uid!r} matched no option set")
     return selected
+
+
+async def _fetch_option_set_identity_plan(
+    client: Dhis2Client, config: GenerateConfig, sources: list[QuestionnaireSourceIn]
+) -> OptionSetIdentityPlan:
+    """Assign the option-set identities for one generate run, off the very selection the terminology target emits.
+
+    A slug is assigned against its peers - truncation and collision suffixes both depend on the
+    whole list - so every target that names an option set has to plan over the identical
+    selection. The projection is narrower than the terminology target's because a slug is
+    decided by the UID and the name alone. The selection notes belong to the terminology
+    target's report, so they are not raised a second time here.
+    """
+    models = await client.resources.option_sets.list(
+        fields=_OPTION_SET_IDENTITY_FIELDS,
+        order=["name:asc"],
+        paging=False,
+    )
+    inputs = [OptionSetIn(uid=model.id or "", name=model.name or model.id or "") for model in models]
+    return option_set_identities(_selected_option_sets(inputs, sources, config, []), config)
 
 
 async def _closure_sources(client: Dhis2Client, config: GenerateConfig) -> list[QuestionnaireSourceIn]:

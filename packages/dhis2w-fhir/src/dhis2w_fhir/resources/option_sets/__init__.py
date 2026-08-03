@@ -7,7 +7,9 @@ valid FHIR code fall back to the UID with a note in the report.
 
 Concept codes are unique within a set by construction: a first pass computes
 each option's desired code, a second assigns them in sortOrder and falls back
-to the option UID whenever the desired code is already taken.
+to the option UID whenever the desired code is already taken. An option whose
+UID fall-back is taken too - a peer carries that UID as its DHIS2 code - is
+skipped with a note rather than emitted as a duplicate concept.
 
 With `naming.source = "id"` the slug is the option-set UID verbatim: FHIR ids
 and file names both permit mixed case, so the emitted id reads straight back to
@@ -36,6 +38,7 @@ from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.resources.option_sets.schemas import (
     OptionIn,
     OptionSetIdentity,
+    OptionSetIdentityIndex,
     OptionSetIdentityPlan,
     OptionSetIn,
 )
@@ -51,6 +54,7 @@ __all__ = [
     "option_set_code_fallback",
     "option_set_fsh_name",
     "option_set_identities",
+    "option_set_identity_index",
 ]
 
 _ENVIRONMENT = Environment(
@@ -173,6 +177,22 @@ def option_set_identities(option_sets: list[OptionSetIn], config: GenerateConfig
     return plan
 
 
+def option_set_identity_index(
+    plan: OptionSetIdentityPlan, bound_uids: list[str], config: GenerateConfig
+) -> OptionSetIdentityIndex:
+    """Index one plan by UID, deriving an identity from the UID alone for every bound set it omits.
+
+    Every target that names an option set - the questionnaires binding `answerValueSet`, the
+    examples coding an answer - resolves through this index, so a run's option-set names are
+    decided once, by `option_set_identities`, and read everywhere else.
+    """
+    identities = {identity.uid: identity for identity in plan.identities}
+    unplanned = sorted({uid for uid in bound_uids if uid not in identities})
+    for uid in unplanned:
+        identities[uid] = _uid_option_set_identity(uid, config)
+    return OptionSetIdentityIndex(identities=identities, unplanned_uids=unplanned)
+
+
 def build_option_set_artifacts(
     option_sets: list[OptionSetIn], config: GenerateConfig, *, ig_status: IgStatus
 ) -> FshBuild:
@@ -203,6 +223,23 @@ def option_set_code_fallback(option_set: OptionSetIn, config: GenerateConfig) ->
     if config.concept_code_source != "code":
         return False
     return any(not assigned.from_dhis2_code for assigned in _assigned_codes(option_set, config, []))
+
+
+def _uid_option_set_identity(uid: str, config: GenerateConfig) -> OptionSetIdentity:
+    """One option set's identity from its UID alone - what the index falls back to when the plan omits it.
+
+    A UID the plan does not hold cannot be slug-assigned against its peers, so it takes the UID
+    as its slug and as its name segment, which is what `naming.source = "id"` assigns anyway.
+    """
+    id_stem = _id_stem(config)
+    return OptionSetIdentity(
+        uid=uid,
+        name=uid,
+        slug=uid,
+        fsh_name=option_set_fsh_name(config, uid),
+        code_system_id=f"{id_stem}{uid}-cs",
+        value_set_id=f"{id_stem}{uid}{_ID_SUFFIX}",
+    )
 
 
 def _id_stem(config: GenerateConfig) -> str:
@@ -237,7 +274,17 @@ def _desired_code(option: OptionIn, option_set: OptionSetIn, config: GenerateCon
     return _DesiredCode(code=option.uid, from_dhis2_code=False)
 
 
-def _concept_for(option: OptionIn, assigned: _DesiredCode, config: GenerateConfig) -> _Concept:
+class _AssignedCode(BaseModel):
+    """One option that received a unique concept code, and the code it received."""
+
+    model_config = ConfigDict(frozen=True)
+
+    option: OptionIn
+    code: str
+    from_dhis2_code: bool
+
+
+def _concept_for(option: OptionIn, assigned: _AssignedCode, config: GenerateConfig) -> _Concept:
     """Build the concept for one option, carrying the complementary DHIS2 identifier as a property.
 
     Every concept carries the pair: in code mode the UID rides along as `dhis2-id`, in id mode
@@ -266,32 +313,43 @@ def _ordered_options(option_set: OptionSetIn) -> list[OptionIn]:
     return sorted(option_set.options, key=lambda item: (item.sort_order is None, item.sort_order or 0, item.uid))
 
 
-def _assigned_codes(option_set: OptionSetIn, config: GenerateConfig, notes: list[str]) -> list[_DesiredCode]:
-    """Assign concept codes in order, falling back to the UID whenever the desired code is unusable or taken."""
+def _assigned_codes(option_set: OptionSetIn, config: GenerateConfig, notes: list[str]) -> list[_AssignedCode]:
+    """Assign concept codes in order, falling back to the UID whenever the desired code is unusable or taken.
+
+    Concept codes are unique within a CodeSystem, so an option whose UID fall-back is itself
+    taken - a peer carries that UID as its DHIS2 code - has no code left to take and is skipped
+    rather than emitted as a duplicate concept.
+    """
     ordered = _ordered_options(option_set)
     desired = [_desired_code(option, option_set, config, notes) for option in ordered]
     taken: set[str] = set()
     collided: list[str] = []
-    assignments: list[_DesiredCode] = []
+    skipped: list[str] = []
+    assignments: list[_AssignedCode] = []
     for option, wanted in zip(ordered, desired, strict=True):
-        assigned = wanted
-        if wanted.code in taken:
+        code = wanted.code
+        from_dhis2_code = wanted.from_dhis2_code
+        if code in taken:
+            code = option.uid
+            from_dhis2_code = False
+            if code in taken:
+                skipped.append(f"{wanted.code} ({option.uid})")
+                continue
             collided.append(f"{wanted.code} ({option.uid})")
-            assigned = _DesiredCode(code=option.uid, from_dhis2_code=False)
-        taken.add(assigned.code)
-        assignments.append(assigned)
+        taken.add(code)
+        assignments.append(_AssignedCode(option=option, code=code, from_dhis2_code=from_dhis2_code))
     if collided:
         notes.append(aggregate_note(f"{len(collided)} option codes collided; fell back to the UID", collided))
+    if skipped:
+        notes.append(
+            aggregate_note(f"{len(skipped)} options could not receive a unique concept code; skipped", skipped)
+        )
     return assignments
 
 
 def _unique_concepts(option_set: OptionSetIn, config: GenerateConfig, notes: list[str]) -> list[_Concept]:
     """Build one set's concepts from the assigned codes, in emission order."""
-    assignments = _assigned_codes(option_set, config, notes)
-    return [
-        _concept_for(option, assigned, config)
-        for option, assigned in zip(_ordered_options(option_set), assignments, strict=True)
-    ]
+    return [_concept_for(assigned.option, assigned, config) for assigned in _assigned_codes(option_set, config, notes)]
 
 
 def _render_option_set(
@@ -308,7 +366,8 @@ def _render_option_set(
     code_kind = "option codes" if config.concept_code_source == "code" else "option UIDs"
     description = quote(f"DHIS2 option set {option_set.name} ({option_set.uid}). Concept codes are DHIS2 {code_kind}.")
     return _ENVIRONMENT.get_template("option-set.fsh.jinja").render(
-        base_name=identity.fsh_name,
+        code_system_name=identity.code_system_name,
+        value_set_name=identity.value_set_name,
         id_stem=_id_stem(config),
         slug=identity.slug,
         title=quote(option_set.name),

@@ -181,6 +181,12 @@ file names, FHIR ids, and FSH names:
   name overflows FHIR's 64-character id limit and disambiguated the same way when
   two names collide. Both are reported as notes.
 
+Whichever source is set, the names are assigned once over the whole option-set
+selection - a truncation or a collision suffix depends on the peers a set is
+assigned against - and every other target reads that assignment. A question's
+`answerValueSet` and an example's answer coding therefore name the very CodeSystem
+and ValueSet the same run writes, under `"name"` exactly as under `"id"`.
+
 Organisation-unit instances and files are outside `source` by construction:
 they are always UID-based (`Organization-<UID>` / `Location-<UID>` in
 `org-units-level-<n>.fsh`, each resource `id` the bare UID), because a hierarchy
@@ -496,7 +502,7 @@ naming tokens (`D2DS_BfMAe6Itzgt`, `D2PR_VBqh0ynB2wv`) and `title` is the DHIS2 
 | `valueType` | the item `type` (see the table below) |
 | Data element with an option set | `type = #choice` plus `answerValueSet` pointing at that set's generated ValueSet |
 | Compulsory program-stage element | `required = true` |
-| Non-default category combo | the question becomes a `#group` with one child per category option combo, `linkId` `<deUid>.<cocUid>` |
+| Non-default category combo | the question becomes a `#group` with one child per category option combo, `linkId` `<deUid>.<cocUid>`; each child asks the element's own question, so it repeats the element's item type, `answerValueSet`, `repeats`, and bounds |
 
 Every DHIS2 value type is mapped explicitly - all 28 of them, which is the union of the
 `ValueType` enum across v41, v42, and v43 (`TRACKER_ASSOCIATE` exists on v41 and v42 only;

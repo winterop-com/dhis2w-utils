@@ -118,9 +118,9 @@ def _report_row(finding: ValidationFinding) -> _ReportRow:
     return _ReportRow(
         severity=finding.severity,
         category=finding.category,
-        object_label=f"{_table_cell(finding.name)} ({finding.uid})",
+        object_label=f"{_table_cell(finding.name)} ({_table_cell(finding.uid)})",
         code=_code_cell(finding.code),
-        message=finding.message,
+        message=_table_cell(finding.message),
     )
 
 
@@ -130,10 +130,12 @@ def _code_cell(code: str | None) -> str:
 
 
 def _table_cell(value: str) -> str:
-    r"""Make a name safe for a Markdown table cell: escape pipes, flatten line breaks to a space.
+    r"""Make one cell safe for a Markdown table: escape pipes, flatten line breaks to a space.
 
-    A DHIS2 name may carry a literal newline (play 2.42 has category options such as `BLUE\nBLUE`),
-    which would otherwise split the row and garble every column after it.
+    Every cell carrying DHIS2 text goes through this - the name, the UID, and the message, which
+    quotes the offending name back. A DHIS2 name may carry a literal newline (play 2.42 has
+    category options such as `BLUE\nBLUE`) or a pipe, either of which would otherwise split the
+    row and garble every column after it.
     """
     flattened = value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
     return flattened.replace("|", "\\|")

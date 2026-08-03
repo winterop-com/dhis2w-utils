@@ -117,11 +117,11 @@ class QuestionnaireSourceIn(BaseModel):
 class QuestionnaireNaming(BaseModel):
     """Derived FSH names and ids for questionnaire artifacts under the configurable naming tokens.
 
-    Holds the four tokens it needs rather than the whole `[generate.naming]` table, so the
+    Holds the three tokens it needs rather than the whole `[generate.naming]` table, so the
     emitter stays a leaf of the config document instead of a dependency of it. The data-element
     and category-option-combo support terminology takes the registry's fixed `DE` / `COC`
-    tokens under the same prefix; `option_set` is here because an answer-bound item points at
-    the option-set ValueSet the terminology target emits.
+    tokens under the same prefix. Option-set names are not here at all: they are decided by
+    `option_set_identities` over the whole selection and read from the identity plan.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -129,17 +129,11 @@ class QuestionnaireNaming(BaseModel):
     prefix: str
     data_set: str
     program: str
-    option_set: str
 
     @classmethod
     def from_naming(cls, naming: NamingConfig) -> QuestionnaireNaming:
         """Project the `[generate.naming]` table onto the tokens questionnaire artifacts use."""
-        return cls(
-            prefix=naming.prefix,
-            data_set=naming.data_set,
-            program=naming.program,
-            option_set=naming.option_set,
-        )
+        return cls(prefix=naming.prefix, data_set=naming.data_set, program=naming.program)
 
     def source_token(self, kind: FormKind) -> str:
         """The naming token one form kind composes its name from (`DS` for a data set, `PR` for a program)."""
@@ -188,11 +182,3 @@ class QuestionnaireNaming(BaseModel):
     def category_option_combo_value_set_id(self) -> str:
         """FHIR id of the category-option-combo support ValueSet (e.g. `d2-coc-vs`)."""
         return join_id_tokens(self.prefix, "coc", "vs")
-
-    def option_set_value_set(self, option_set_uid: str) -> str:
-        """FSH name of the option-set ValueSet an answer-bound item points at (id-sourced naming)."""
-        return f"{join_name_segments(f'{self.prefix}{self.option_set}', option_set_uid)}_VS"
-
-    def option_set_code_system(self, option_set_uid: str) -> str:
-        """FSH name of the option-set CodeSystem an answered coding is coded from (id-sourced naming)."""
-        return f"{join_name_segments(f'{self.prefix}{self.option_set}', option_set_uid)}_CS"

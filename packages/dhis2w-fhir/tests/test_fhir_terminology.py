@@ -1,8 +1,20 @@
-"""Golden tests for option-set CodeSystem/ValueSet FSH emission."""
+"""Golden tests for option-set CodeSystem/ValueSet FSH emission, and the names the other targets read."""
+
+import re
 
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
-from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
-from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
+from dhis2w_fhir.period import parse_period
+from dhis2w_fhir.resources.examples import build_example_artifacts
+from dhis2w_fhir.resources.examples.schemas import (
+    ExampleAnswerIn,
+    ExampleOptionIn,
+    ExampleOptionSetIn,
+    ExampleResponseIn,
+)
+from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, option_set_identities
+from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
+from dhis2w_fhir.resources.questionnaires import build_questionnaire_artifacts
+from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireItemIn, QuestionnaireSourceIn
 
 _NAME_SOURCE = GenerateConfig(naming=NamingConfig(source="name"))
 
@@ -225,3 +237,113 @@ def test_naming_tokens_flow_into_option_set_artifacts() -> None:
     content = build_option_set_artifacts([_BIRTH_TYPE], bare, ig_status="draft").artifacts[0].content
     assert "CodeSystem: BirthType_CS" in content
     assert "Id: birth-type-cs" in content
+
+
+#: Three options whose codes force the collision fall-back to collide too: the first takes the UID
+#: of the third as its DHIS2 code, and the third's own code is already taken by the second.
+_UNRESOLVABLE = OptionSetIn(
+    uid="Ys9d8f7g6h5",
+    name="Dup",
+    options=[
+        OptionIn(uid="Op1aaaaaaaa", code="Op2aaaaaaaa", name="One", sort_order=1),
+        OptionIn(uid="Op3aaaaaaaa", code="DUP", name="Two", sort_order=2),
+        OptionIn(uid="Op2aaaaaaaa", code="DUP", name="Three", sort_order=3),
+    ],
+)
+
+
+def _declared_concepts(content: str) -> list[str]:
+    """The concept declaration lines of one CodeSystem - the `* #<code> "<display>"` lines alone."""
+    return [line for line in content.splitlines() if re.match(r'^\* #\S+ "', line)]
+
+
+def test_a_uid_fallback_that_is_itself_taken_skips_the_option() -> None:
+    """A concept code is unique within a set, so an option with no code left to take is skipped, not repeated."""
+    build = build_option_set_artifacts([_UNRESOLVABLE], GenerateConfig(concept_code_source="code"), ig_status="draft")
+    content = build.artifacts[0].content
+    assert content.count('* #Op2aaaaaaaa "') == 1
+    assert '* #Op2aaaaaaaa "One"' in content
+    assert '"Three"' not in content
+    assert build.notes == ["1 options could not receive a unique concept code; skipped: DUP (Op2aaaaaaaa)"]
+
+
+def test_a_skipped_option_leaves_the_value_set_consistent_with_the_emitted_concepts() -> None:
+    """The ValueSet takes the whole CodeSystem, so the pair covers exactly the concepts that were emitted."""
+    content = (
+        build_option_set_artifacts([_UNRESOLVABLE], GenerateConfig(concept_code_source="code"), ig_status="draft")
+        .artifacts[0]
+        .content
+    )
+    code_system, _, value_set = content.partition("\nValueSet: ")
+    assert _declared_concepts(code_system) == ['* #Op2aaaaaaaa "One"', '* #DUP "Two"']
+    assert _declared_concepts(value_set) == []
+    assert "* include codes from system D2OS_Ys9d8f7g6h5_CS" in value_set
+
+
+#: Two option sets whose names kebab to the same slug, so the later one takes a UID suffix - the
+#: case that proves a bound question reads the plan rather than pascal-casing the name itself.
+_SEX_PEER = OptionSetIn(uid="Bb2bbbbbbbb", name="SEX", options=[OptionIn(uid="Op2aaaaaaaa", code="M", name="Male")])
+_SEX = OptionSetIn(uid="Aa1aaaaaaaa", name="Sex", options=[OptionIn(uid="Op1aaaaaaaa", code="F", name="Female")])
+
+_BOUND_FORM = QuestionnaireSourceIn(
+    uid="Ds1aaaaaaaa",
+    name="Demographics",
+    kind="aggregate",
+    flat_items=[QuestionnaireItemIn(uid="De1aaaaaaaa", name="Gender", value_type="TEXT", option_set_uid="Aa1aaaaaaaa")],
+)
+
+_BOUND_RESPONSE = ExampleResponseIn(
+    instance_id="Ds1aaaaaaaa-1",
+    target_uid="Ds1aaaaaaaa",
+    kind="aggregate",
+    organisation_unit_uid="Ou1aaaaaaaa",
+    status_code="completed",
+    period=parse_period("202606"),
+    answers=[ExampleAnswerIn(data_element_uid="De1aaaaaaaa", value="F")],
+)
+
+_BOUND_EXAMPLE_OPTION_SETS = [
+    ExampleOptionSetIn(uid="Aa1aaaaaaaa", options=[ExampleOptionIn(uid="Op1aaaaaaaa", code="F", name="Female")])
+]
+
+
+def test_name_sourced_option_set_names_are_read_by_the_questionnaire_and_the_example() -> None:
+    """An option set is named once, over the whole selection: the bound question and the coded answer read it."""
+    plan = option_set_identities([_SEX, _SEX_PEER], _NAME_SOURCE)
+    terminology = build_option_set_artifacts([_SEX, _SEX_PEER], _NAME_SOURCE, ig_status="draft")
+    identity = next(item for item in plan.identities if item.uid == "Aa1aaaaaaaa")
+    emitted = "\n".join(artifact.content for artifact in terminology.artifacts)
+    assert identity.value_set_name == "D2OS_Sex_Aa1aaaaaaaa_VS"
+    assert f"CodeSystem: {identity.code_system_name}\n" in emitted
+    assert f"ValueSet: {identity.value_set_name}\n" in emitted
+
+    questionnaire = _option_bound_questionnaire(plan)
+    assert f"* item[=].answerValueSet = Canonical({identity.value_set_name})" in questionnaire
+    assert "D2OS_Aa1aaaaaaaa_VS" not in questionnaire
+
+    example = _option_bound_example(plan)
+    assert f'* item[=].answer[+].valueCoding = {identity.code_system_name}#Op1aaaaaaaa "Female"' in example
+    assert "D2OS_Aa1aaaaaaaa_CS" not in example
+
+
+def _option_bound_questionnaire(plan: OptionSetIdentityPlan) -> str:
+    """The name-sourced Questionnaire FSH of the option-bound fixture form."""
+    build = build_questionnaire_artifacts(
+        [_BOUND_FORM], _NAME_SOURCE, "http://example.org/fhir", ig_status="draft", option_set_plan=plan
+    )
+    assert build.notes == []
+    return next(artifact.content for artifact in build.artifacts if artifact.relative_path.endswith("Ds1aaaaaaaa.fsh"))
+
+
+def _option_bound_example(plan: OptionSetIdentityPlan) -> str:
+    """The name-sourced QuestionnaireResponse FSH answering the option-bound fixture question."""
+    build = build_example_artifacts(
+        [_BOUND_FORM],
+        [_BOUND_RESPONSE],
+        _BOUND_EXAMPLE_OPTION_SETS,
+        _NAME_SOURCE,
+        "http://example.org/fhir",
+        option_set_plan=plan,
+    )
+    assert build.notes == []
+    return build.artifacts[0].content

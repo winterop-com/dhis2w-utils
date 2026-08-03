@@ -17,7 +17,7 @@ from dhis2w_fhir.names import (
     quote,
 )
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
-from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
+from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_level_terminology,
     build_organisation_unit_profiles,
@@ -166,7 +166,7 @@ def _emitted_contents(config: GenerateConfig) -> list[str]:
     contents += [
         artifact.content
         for artifact in build_questionnaire_artifacts(
-            [_DATA_SET], config, "http://example.org/fhir", ig_status="draft"
+            [_DATA_SET], config, "http://example.org/fhir", ig_status="draft", option_set_plan=OptionSetIdentityPlan()
         ).artifacts
     ]
     return contents
@@ -188,7 +188,13 @@ def test_every_declared_fsh_name_matches_cnl_0() -> None:
 
 def test_questionnaire_name_matches_cnl_0() -> None:
     """Questionnaire.name is a computational name too, so the underscored form must satisfy cnl-0."""
-    build = build_questionnaire_artifacts([_DATA_SET], GenerateConfig(), "http://example.org/fhir", ig_status="draft")
+    build = build_questionnaire_artifacts(
+        [_DATA_SET],
+        GenerateConfig(),
+        "http://example.org/fhir",
+        ig_status="draft",
+        option_set_plan=OptionSetIdentityPlan(),
+    )
     content = next(
         artifact.content for artifact in build.artifacts if artifact.relative_path.endswith("BfMAe6Itzgt.fsh")
     )
