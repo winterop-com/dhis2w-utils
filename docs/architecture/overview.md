@@ -22,6 +22,7 @@ Each shippable unit of code is a `uv` workspace member under `packages/`:
 | `dhis2w-codegen` | Version-aware client generator. | _workspace-only_ |
 | `dhis2w-bench` | Local-LLM benchmark harness (coding, mcp-bridge, full-mcp suites). | _workspace-only_ |
 | `dhis2w-mcp-router` | Domain-neutral MCP router: search + dispatch meta-tools over upstream MCP servers. | [`dhis2w-mcp-router`](https://pypi.org/project/dhis2w-mcp-router/) |
+| `dhis2w-fhir` | FHIR IG generation from DHIS2 metadata. Builds on `dhis2w-core` and mounts `d2w fhir` plus the `fhir_*` MCP tools through the `dhis2.plugins` entry point. | [`dhis2w-fhir`](https://pypi.org/project/dhis2w-fhir/) |
 
 New surfaces (a future FastAPI web UI, an HTTP webhook receiver, a TUI) land as new members. No edits required to existing ones.
 

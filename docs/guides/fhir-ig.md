@@ -88,9 +88,10 @@ Generation reads its config from the nearest `fhir.toml`, discovered by walking
 up from the working directory - the same idiom as `.dhis2/profiles.toml`. The
 profile it connects with is resolved in this order, first match wins:
 
-1. the `DHIS2_PROFILE` environment variable,
-2. the `profile` key in `fhir.toml`,
-3. the default profile from your `profiles.toml`.
+1. the global `-p` / `--profile` option on the `d2w` command,
+2. the `DHIS2_PROFILE` environment variable,
+3. the `profile` key in `fhir.toml`,
+4. the default profile from your `profiles.toml`.
 
 Credentials never live in `fhir.toml`. It is committed project config: it names
 a profile, and the profile store holds the secret.
@@ -248,9 +249,10 @@ illegal. Those definitions fall back to `D2` rather than fail.
 #### The canonical token registry
 
 Keys are added to `[generate.naming]` as each generator lands, with these
-defaults. Only `option_set` and `organisation_unit` exist in code today; the rest
-are the decided defaults for the generators still to come. Every token composes
-as `{prefix}{token}_<segment>_CS`, and ids derive from the kebab of prefix plus
+defaults. `NamingConfig` carries four of them today - `option_set`,
+`organisation_unit`, `data_set`, and `program`; the rest are the decided defaults
+for the generators still to come. Every token composes as
+`{prefix}{token}_<segment>_CS`, and ids derive from the kebab of prefix plus
 token (`d2-deg-<uid>-cs`).
 
 | Token | DHIS2 object | Token | DHIS2 object |
@@ -323,7 +325,9 @@ source = "synthetic"    # "synthetic" (generated values) or "instance" (real val
 ```
 
 How many example responses each questionnaire target gets, and where their
-answers come from. See [Example responses](#example-responses).
+answers come from. `per_target` is bounded by `MAXIMUM_EXAMPLES_PER_TARGET` = 10,
+so it validates in `0..10` - a larger value is a config error, not a
+thousand-file run. See [Example responses](#example-responses).
 
 ### `[generate.organisation_units]`
 
@@ -977,6 +981,13 @@ Exit 1 when there are errors, which makes it a CI gate. `--no-fail` exits 0
 regardless. `--all` lists info findings individually instead of rolling them up
 per category.
 
+Every `d2w fhir` command honours the global `--json` / `-j` flag, emitting that
+run's report as JSON on stdout in place of the Rich tables - `d2w --json fhir
+generate all` gives the per-target file lists and counts, `d2w --json fhir
+validate` the full findings list. Notes and the `wrote <path>` lines stay on
+stderr, so stdout is a clean document either way. On `validate` it pairs with the
+exit-1 gate: CI reads the findings off stdout and the job still fails on errors.
+
 MCP exposes the same check as the read-only `fhir_validate` tool, taking
 `profile`, `project_directory`, and `code_source`. It returns the report; file
 writing stays CLI-only.
@@ -988,6 +999,7 @@ make setup      Build the SUSHI + IG publisher docker image
 make upgrade    Rebuild it from scratch, pulling the latest of both
 make generate   d2w fhir generate all
 make validate   d2w fhir validate
+make cache-init Make the shared package-cache volume writable by the publisher user
 make sushi      Compile FSH to FHIR resources
 make build      Run the full IG publisher
 make refresh    Force-refresh everything: clean-all, upgrade, generate, validate, sushi, build
@@ -1040,7 +1052,9 @@ re-pay is cached, and the scaffold wires both caches up for you:
   `docker run --rm` throws the container away, `make sushi` and `make build`
   mount the named volume `fhir-ig-cache` there. Without it every run
   re-downloads the core packages, `hl7.terminology.r4`, and
-  `hl7.fhir.uv.extensions.r4` before doing any work.
+  `hl7.fhir.uv.extensions.r4` before doing any work. Both targets depend on
+  `make cache-init`, which chowns that volume to the publisher's non-root user -
+  a fresh docker volume is root-owned, and the publisher cannot write to it.
 - **The terminology cache** is `ig/input-cache/`, written by the publisher and
   ignored by git. `make clean` deliberately leaves it in place; a warm tx cache
   takes the validation phase from minutes to seconds, because every code the
@@ -1084,5 +1098,7 @@ point.
 
 - [FHIR plugin architecture](../architecture/fhir-plugin.md) - how the package is
   laid out and why.
+- [`dhis2w_fhir` API reference](../api/fhir.md) - the importable surface: the period
+  grammar, the `fhir.toml` models, and the artifact builders.
 - [`examples/v42/cli/fhir_generate.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/fhir_generate.sh) -
   the same flow as a runnable script.

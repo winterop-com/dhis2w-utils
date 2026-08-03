@@ -19,9 +19,10 @@ class _FhirPlugin(BaseModel):
 
     name: str = "fhir"
     description: str = (
-        "FHIR Implementation Guide generation: scaffold a SUSHI project (`d2w fhir init`), generate FSH from "
-        "DHIS2 option sets and organisation units (`d2w fhir generate`), and check a DHIS2 instance's codes "
-        "for FHIR-safety (`d2w fhir validate`)."
+        "FHIR Implementation Guide generation: scaffold a SUSHI project as a pinned uv project "
+        "(`d2w fhir init`), then generate FSH from DHIS2 metadata - terminology, the org-unit registry, "
+        "questionnaires with example responses, and the narrative pages (`d2w fhir generate`). "
+        "`d2w fhir validate` checks an instance's codes for FHIR-safety and writes md/csv/pdf reports."
     )
 
     def register_cli(self, app: Any) -> None:

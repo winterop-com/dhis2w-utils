@@ -54,6 +54,7 @@ nav:
       - More guides:
           - Visualizations: guides/visualizations.md
           - FHIR IG generation: guides/fhir-ig.md
+          - FHIR API reference: api/fhir.md
           - Playwright PAT helper: pat-helper.md
           - Manual testing: manual-testing.md
       - Examples index: examples.md

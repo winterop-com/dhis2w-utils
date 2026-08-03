@@ -54,7 +54,7 @@ def init_command(
         list[str] | None,
         typer.Option(
             "--data-set",
-            help="Data set UID to seed [generate.data_sets] include_ids with (repeatable). Offline: the UID is "
+            help="Data set UID to seed `\\[generate.data_sets]` include_ids with (repeatable). Offline: the UID is "
             "written to fhir.toml as given, never checked against an instance.",
         ),
     ] = None,
@@ -62,7 +62,7 @@ def init_command(
         list[str] | None,
         typer.Option(
             "--event",
-            help="Event program UID to seed [generate.event_programs] include_ids with (repeatable). Offline: "
+            help="Event program UID to seed `\\[generate.event_programs]` include_ids with (repeatable). Offline: "
             "the UID is written to fhir.toml as given, never checked against an instance.",
         ),
     ] = None,
@@ -273,7 +273,7 @@ def validate_command(
         str | None,
         typer.Option(
             "--code-source",
-            help="Override [generate] concept_code_source for this run: id or code. In id mode the option "
+            help="Override `\\[generate]` concept_code_source for this run: id or code. In id mode the option "
             "code findings are informational; run with code to see what switching would cost.",
         ),
     ] = None,

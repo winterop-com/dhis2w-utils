@@ -47,7 +47,7 @@ def test_canonical_has_no_trailing_slash() -> None:
 
 
 def test_menu_links_every_generated_site_page() -> None:
-    """The scaffolded menu carries Home, the five generated site pages in page order, and Artifacts."""
+    """The scaffolded menu carries Home, the six generated site pages in page order, and Artifacts."""
     menu = _by_path()["ig/sushi-config.yaml"].split("menu:\n", 1)[1]
     assert menu == (
         "  Home: index.html\n"

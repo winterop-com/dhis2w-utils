@@ -45,6 +45,7 @@ jobs:
           - dhis2w-mcp
           - dhis2w-mcp-bridge
           - dhis2w-mcp-router
+          - dhis2w-fhir
     steps:
       - uses: actions/checkout@v7
 
@@ -120,6 +121,7 @@ jobs:
           - dhis2w-mcp
           - dhis2w-mcp-bridge
           - dhis2w-mcp-router
+          - dhis2w-fhir
     steps:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -151,7 +153,7 @@ jobs:
         # newer-style sdist/wheel filenames.
         run: |
           VERSION="${{ steps.version.outputs.value }}"
-          PACKAGES="dhis2w-client dhis2w-ql dhis2w-core dhis2w-cli dhis2w-browser dhis2w-mcp dhis2w-mcp-bridge dhis2w-mcp-router"
+          PACKAGES="dhis2w-client dhis2w-ql dhis2w-core dhis2w-cli dhis2w-browser dhis2w-mcp dhis2w-mcp-bridge dhis2w-mcp-router dhis2w-fhir"
           for pkg in $PACKAGES; do
             normalized="${pkg//-/_}"
             for i in $(seq 1 36); do
