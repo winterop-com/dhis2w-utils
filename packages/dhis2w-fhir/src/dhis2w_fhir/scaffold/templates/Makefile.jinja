@@ -12,7 +12,7 @@ D2W ?= d2w
 # re-downloads the core + template packages, which is the bulk of a cold build's wall clock.
 CACHE_VOLUME := fhir-ig-cache
 
-.PHONY: cache-init help setup upgrade generate validate sushi build clean clean-all
+.PHONY: cache-init help setup upgrade generate validate sushi build refresh clean clean-all
 
 help:  ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "%-12s %s\n", $$1, $$2}'
@@ -48,3 +48,10 @@ clean:  ## Remove build output (keeps ig/input-cache, the terminology cache the 
 clean-all: clean  ## Also remove the terminology cache and the FHIR package cache volume
 	rm -rf $(IG_DIR)/input-cache
 	-docker volume rm $(CACHE_VOLUME)
+
+refresh:  ## Force-refresh everything: wipe all caches and output, pull latest tooling, regenerate, rebuild
+	$(MAKE) clean-all
+	$(MAKE) upgrade
+	$(MAKE) generate
+	$(MAKE) sushi
+	$(MAKE) build
