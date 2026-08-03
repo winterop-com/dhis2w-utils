@@ -8,19 +8,20 @@ Every POST / PUT / PATCH / DELETE through `/api/*` returns one of DHIS2's WebMes
 
 ```python
 from dhis2w_client import WebMessageResponse
+
 response = await route_service.add_route(profile, payload)
 
-response.httpStatus           # "Created"
-response.httpStatusCode       # 201
-response.status               # "OK"
+response.httpStatus  # "Created"
+response.httpStatusCode  # 201
+response.status  # "OK"
 
-response.created_uid          # "abc123uid12" — pulls response.uid, closes BUGS.md #4f
-report = response.object_report()          # typed ObjectReport when the inner is a create/update
-counts = response.import_count()           # typed ImportCount for /api/dataValueSets imports
-full_report = response.import_report()     # typed ImportReport for /api/metadata bulk imports
-conflicts = response.conflicts()           # list[Conflict] — /api/dataValueSets + /api/tracker rejections (response.conflicts[])
-rows = response.conflict_rows()            # list[ConflictRow] — unified view across /api/dataValueSets AND /api/metadata
-rejected = response.rejected_indexes()     # list[int] — indexes in the payload array DHIS2 refused
+response.created_uid  # "abc123uid12" — pulls response.uid, closes BUGS.md #4f
+report = response.object_report()  # typed ObjectReport when the inner is a create/update
+counts = response.import_count()  # typed ImportCount for /api/dataValueSets imports
+full_report = response.import_report()  # typed ImportReport for /api/metadata bulk imports
+conflicts = response.conflicts()  # list[Conflict] — /api/dataValueSets + /api/tracker rejections (response.conflicts[])
+rows = response.conflict_rows()  # list[ConflictRow] — unified view across /api/dataValueSets AND /api/metadata
+rejected = response.rejected_indexes()  # list[int] — indexes in the payload array DHIS2 refused
 ```
 
 Available subtypes: `ObjectReport`, `ImportCount`, `ImportReport`, `ErrorReport`, `Stats`, `TypeReport`, `Conflict`, `ConflictRow` — all exported from `dhis2w_client`.
@@ -67,9 +68,12 @@ assert isinstance(scheme, HttpBasicAuthScheme)
 route = await client.resources.routes.get("abc123uid12")
 scheme = auth_scheme_from_route(route)
 match scheme:
-    case HttpBasicAuthScheme(username=u):      ...
-    case ApiTokenAuthScheme(token=t):          ...
-    case OAuth2ClientCredentialsAuthScheme():  ...
+    case HttpBasicAuthScheme(username=u):
+        ...
+    case ApiTokenAuthScheme(token=t):
+        ...
+    case OAuth2ClientCredentialsAuthScheme():
+        ...
 ```
 
 | `type` value | Class | Use for |
@@ -133,8 +137,8 @@ Status enums use `StrEnum` so they round-trip through JSON cleanly:
 ```python
 from dhis2w_client.generated.v42.tracker import EnrollmentStatus, EventStatus
 
-EnrollmentStatus.ACTIVE      # "ACTIVE"  -> "ACTIVE" in JSON
-EventStatus("SCHEDULE")      # parses from DHIS2's wire value
+EnrollmentStatus.ACTIVE  # "ACTIVE"  -> "ACTIVE" in JSON
+EventStatus("SCHEDULE")  # parses from DHIS2's wire value
 ```
 
 ### TrackedEntityType — metadata vs instance
@@ -143,7 +147,7 @@ A `TrackerTrackedEntity` carries `trackedEntityType: str | None` as a UID refere
 
 ```python
 entity = await client.resources.tracked_entity_types.get("tet01234567")
-entity.name          # "Person", "Patient", ...
+entity.name  # "Person", "Patient", ...
 ```
 
 Join via `TrackerTrackedEntity.trackedEntityType` (UID) → `client.resources.tracked_entity_types.get(uid)`.
@@ -160,9 +164,9 @@ from dhis2w_client.generated.v42.enums import (
     ValueType,
 )
 
-AggregationType.SUM              # -> "SUM"
+AggregationType.SUM  # -> "SUM"
 ValueType.INTEGER_ZERO_OR_POSITIVE  # -> "INTEGER_ZERO_OR_POSITIVE"
-DataElementDomain("AGGREGATE")    # parses from DHIS2's wire value
+DataElementDomain("AGGREGATE")  # parses from DHIS2's wire value
 ```
 
 The codegen dedupes by the DHIS2 Java class (`org.hisp.dhis.common.ValueType` etc.) so `ValueType` on `DataElement`, `Program`, `ProgramTrackedEntityAttribute`, and every other resource refers to the same enum class. Collision resolution (e.g. `org.hisp.dhis.event.EventStatus` vs `org.hisp.dhis.mapping.EventStatus`) prefixes the ambiguous class with the penultimate package segment.

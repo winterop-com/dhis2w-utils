@@ -40,11 +40,13 @@ fhir.toml                   Minimal generation config (committed; no secrets)
 fhir.toml.example           Every available option with its default, documented
 pyproject.toml              The project's own uv project: dhis2w-cli + dhis2w-fhir,
                             pinned by a committed uv.lock and run through `uv run d2w`
-Makefile                    setup / upgrade / generate / validate / sushi / build /
-                            refresh / clean / clean-all / help via docker
+Makefile                    setup / upgrade / generate / validate / cache-init /
+                            sushi / build / refresh / clean / clean-all / help via
+                            docker. cache-init makes the shared package-cache volume
+                            writable by the publisher user; sushi and build depend on it
 Dockerfile                  ghcr.io/fhir/ig-publisher-localdev + fsh-sushi
-.gitignore                  The build output, caches, publisher side products, and
-                            .venv - never uv.lock, which is the pinned toolchain
+.gitignore                  The build output, caches, publisher side products,
+                            reports/, and .venv - never uv.lock, the pinned toolchain
 ig/sushi-config.yaml        SUSHI IG identity (id, canonical, publisher)
 ig/ig.ini                   IG publisher entry point (fhir2.base.template)
 ig/fsh.ini                  Raises the publisher's internal SUSHI timeout to 900s
@@ -63,7 +65,7 @@ links that URL from every generated page, so pointing it at the canonical of an
 IG that is not yet published produces one broken link per page - 15,425 of them
 on the Sierra Leone demo. Omitting it is the default.
 
-Its `menu:` names the five generated site pages between `Home` and `Artifacts`, and
+Its `menu:` names the six generated site pages between `Home` and `Artifacts`, and
 it carries no `pages:` section: SUSHI publishes every markdown file under
 `ig/input/pagecontent/` on its own, so a page added by `generate pages` needs no
 configuration to appear.
@@ -217,7 +219,9 @@ transcribed from `Period.Input.of` and `DateUnitPeriodTypeParser` in dhis2-core.
 `recent_periods` is its inverse, built *on* the parser rather than beside it: each
 type declares only how its ISO strings are spelled for a year, the parser decides
 which of those exist and when they end, and the enumerator keeps the ones already
-past. That is what keeps the two from drifting apart.
+past. That is what keeps the two from drifting apart. Both are part of the
+package's importable surface - see the
+[`dhis2w_fhir` API reference](../api/fhir.md).
 
 ## Option sets -> terminology
 
@@ -327,7 +331,9 @@ call, so all-mode and the skip rules behave identically and no example can point
 a Questionnaire the IG lacks.
 
 `[generate.examples]` carries `per_target` (0 disables the target, which still
-sweeps the directory clean) and `source`. The two sources meet at one emitter:
+sweeps the directory clean; the ceiling is `MAXIMUM_EXAMPLES_PER_TARGET` = 10, so
+the field validates in 0..10 and a larger value is a config error rather than a
+thousand-file run) and `source`. The two sources meet at one emitter:
 each produces a list of `ExampleResponseIn` - identity, organisation unit, status,
 optional period, optional `authored`, and a flat list of
 `(dataElement, categoryOptionCombo, value)` answers holding DHIS2 wire strings -
@@ -366,15 +372,18 @@ cast falls back to `valueString` and is counted, as is a captured value for a da
 element the form does not ask for.
 
 Two normalisations happen at the FHIR edge rather than being left to fail in
-SUSHI: a zone-less DHIS2 timestamp gains `Z` (BUGS.md #62 - R4 requires an offset
-on a `dateTime` that carries a time, and DHIS2 serves local timestamps under
-fields its OpenAPI types as `Instant`), and a bare `HH:MM` gains its seconds. A
-temporal value that still does not match the R4 primitive is answered as a string,
+SUSHI: a zone-less DHIS2 timestamp gains `Z`
+([BUGS.md #62](../project/upstream-quirks.md#62-tracker-occurredat-and-datetime-data-values-are-zone-less-local-timestamps-under-fields-typed-instant) -
+R4 requires an offset on a `dateTime` that carries a time, and DHIS2 serves local
+timestamps under fields its OpenAPI types as `Instant`), and a bare `HH:MM` gains
+its seconds. A temporal value that still does not match the R4 primitive is answered as a string,
 and an unusable `occurredAt` drops `authored` entirely - with a note either way. A
 third upstream quirk is handled a layer earlier, at the wire-parse boundary:
-`categoryOptionCombos` comes back in a different order on every request (BUGS.md
-#64, the same Java `Set` shape as `dataSetElements` in #63), so the option combos
-are sorted by name and UID once at parse time, giving the questionnaire's child
+`categoryOptionCombos` comes back in a different order on every request
+([BUGS.md #64](../project/upstream-quirks.md#64-categorycombocategoryoptioncombos-is-serialised-in-a-different-order-on-every-request),
+the same Java `Set` shape as `dataSetElements` in
+[#63](../project/upstream-quirks.md#63-datasetdatasetelements-is-serialised-in-a-different-order-on-every-request)),
+so the option combos are sorted by name and UID once at parse time, giving the questionnaire's child
 items, the answers here, and the `D2COC_CS` concepts one shared order - which is
 what keeps a disaggregated example past the validator's
 `QuestionnaireResponse: Structural Error: items are out of order`.
@@ -769,8 +778,7 @@ boundary.
   and an event onto a `QuestionnaireResponse`, but only a handful per target and
   only as `Usage: #example`. Bulk export of the captured values as normative
   content is the next step, with `MeasureReport` as the lossy summary projection
-  over the same data and tracker as `Patient` + `EpisodeOfCare` (see
-  `docs/project/fhir-data-mapping.md` when committed).
+  over the same data and tracker as `Patient` + `EpisodeOfCare`.
 - Curated `Usage: #example` instances for the profiles the example target does not
   cover - `D2Organization` and `D2Location` publish no worked example yet.
 - Instance-scoped project identity: `d2w fhir init --data-set <uid>` / `--event

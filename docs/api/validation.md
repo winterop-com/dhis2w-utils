@@ -54,13 +54,9 @@ async with open_client(profile_from_env()) as client:
     print(f"status={envelope.status}  imported={count.imported if count else '?'}")
 
     # Or target one predictor by UID.
-    envelope = await client.predictors.run_one(
-        "PrdSumBCG01", start_date="2024-04-01", end_date="2024-04-30"
-    )
+    envelope = await client.predictors.run_one("PrdSumBCG01", start_date="2024-04-01", end_date="2024-04-30")
     # Or a PredictorGroup.
-    envelope = await client.predictors.run_group(
-        "PdGImmun001", start_date="2024-04-01", end_date="2024-06-30"
-    )
+    envelope = await client.predictors.run_group("PdGImmun001", start_date="2024-04-01", end_date="2024-06-30")
 ```
 
 ## Related examples

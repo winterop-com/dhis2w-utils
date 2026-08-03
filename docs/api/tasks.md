@@ -20,9 +20,7 @@ async with open_client(profile_from_env()) as client:
     # 1. Kick off an analytics resource-table refresh via the raw HTTP path.
     #    DHIS2 returns a WebMessage envelope; `.task_ref()` extracts the
     #    `(job_type, uid)` tuple await_completion takes.
-    raw = await client.post_raw(
-        "/api/resourceTables/analytics", params={"lastYears": 1}
-    )
+    raw = await client.post_raw("/api/resourceTables/analytics", params={"lastYears": 1})
     envelope = WebMessageResponse.model_validate(raw)
     ref = envelope.task_ref()
     if ref is None:

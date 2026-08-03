@@ -34,9 +34,14 @@ cd demo-ig
 # PATH; inside a scaffolded project, prefer `uv run d2w` or the make targets.
 # uv sync
 
-# Foundation: the $DHIS2-OU aliases built from [generate] identifier_system_base,
-# plus the D2Period extension and its period-type CodeSystem/ValueSet, under
-# ig/input/fsh/foundation/. Reads fhir.toml only - it never opens a DHIS2 client.
+# Foundation: the $DHIS2-* aliases built from [generate] identifier_system_base and
+# the NamingSystem declaring each of those URLs, the D2Period extension with its
+# period-type CodeSystem/ValueSet, the D2FormType extension with its own pair, and the
+# capture contract a third party builds against - d2-responses.fsh carries the
+# D2AggregateResponse and D2EventResponse QuestionnaireResponse profiles, one per form
+# kind, and d2-capture-server.fsh the D2CaptureServer CapabilityStatement stating the
+# interactions a server accepting them supports. All under ig/input/fsh/foundation/.
+# Reads fhir.toml only - it never opens a DHIS2 client.
 d2w fhir generate foundation
 
 # Option sets: one CodeSystem/ValueSet pair per set under ig/input/fsh/terminology/.
@@ -78,9 +83,9 @@ d2w fhir generate org-units
 # Narrow them with [generate] locales = ["lo", "km"] (empty = every locale found).
 
 # Pages: the IG's narrative layer, written as markdown into ig/input/pagecontent/
-# rather than as FSH. Five site pages - forms.md, registry.md, terminology.md,
-# identifiers.md, periods.md - which are the menu entries d2w fhir init scaffolds,
-# plus the per-artifact intros the IG publisher injects into an artifact page:
+# rather than as FSH. Six site pages - forms.md, registry.md, terminology.md,
+# identifiers.md, periods.md, capture.md - which are the menu entries d2w fhir init
+# scaffolds, plus the per-artifact intros the IG publisher injects into an artifact page:
 # Questionnaire-<UID>-intro.md for every generated form, and CodeSystem-<id>-intro.md
 # / Organization-<UID>-intro.md for the option sets and org units carrying a DHIS2
 # description. Everything on these pages comes from the same metadata the FSH targets

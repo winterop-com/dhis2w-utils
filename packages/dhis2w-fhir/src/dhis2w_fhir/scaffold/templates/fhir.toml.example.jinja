@@ -16,7 +16,10 @@ status = "{{ status }}"
 
 [generate]
 # Base URI for the DHIS2 identifier systems. `generate foundation` writes it into
-# foundation/d2-aliases.fsh ($DHIS2-OU, $DHIS2-OU-CODE) and the option-set business identifiers.
+# foundation/d2-aliases.fsh as one alias family per DHIS2 object - $DHIS2-OU, $DHIS2-OS,
+# $DHIS2-DS, $DHIS2-PROGRAM, $DHIS2-DE, $DHIS2-COC - each with a -CODE sibling where the
+# object carries a DHIS2 code ($DHIS2-OU-CODE, $DHIS2-OS-CODE, $DHIS2-DS-CODE,
+# $DHIS2-PROGRAM-CODE), and into the business identifiers every generated instance carries.
 identifier_system_base = "http://dhis2.org/fhir"
 # Concept code source for option sets: "id" (option UID, DHIS2 code as property)
 # or "code" (DHIS2 code when FHIR-valid, UID as property; invalid codes fall back).
@@ -52,8 +55,9 @@ program = "PR"                      # event program Questionnaire names; "" drop
 # include_ids = ["VBqh0ynB2wv"]
 
 [generate.examples]
-# Example QuestionnaireResponses fetched from real instance data per questionnaire target;
-# 0 disables.
+# Example QuestionnaireResponses per questionnaire target, generated locally by default -
+# no data endpoint is called unless `source` below opts in. 0 disables the target, 10 is
+# the ceiling.
 per_target = 1
 # Where the answers come from. "synthetic": deterministic generated values, safe everywhere.
 # "instance": real values fetched from the server - demo servers only, review before publishing.

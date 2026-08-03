@@ -16,7 +16,7 @@ DHIS2 ships nine canonical calendars — the names are the values DHIS2 accepts 
 
 ```python
 async with Dhis2Client(...) as client:
-    name = await client.system.calendar()        # "iso8601" by default
+    name = await client.system.calendar()  # "iso8601" by default
     await client.system.set_calendar(DhisCalendar.ETHIOPIAN)
 ```
 

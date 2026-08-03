@@ -115,7 +115,9 @@ Runs in <100ms.
 ```python
 # packages/dhis2w-mcp/tests/test_mcp_integration.py
 async def test_whoami_tool_returns_admin_user(
-    local_url, local_pat, monkeypatch,
+    local_url,
+    local_pat,
+    monkeypatch,
 ) -> None:
     if not local_pat:
         pytest.skip("DHIS2_PAT not set — run `make dhis2-run` to populate")

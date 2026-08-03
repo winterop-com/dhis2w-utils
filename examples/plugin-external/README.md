@@ -54,7 +54,7 @@ from dhis2w_mcp.server import build_server
 
 async with Client(build_server()) as client:
     result = await client.call_tool("hello_say", {"greeting": "Hei"})
-    print(result.structured_content)   # {"data": "Hei, admin admin!"}
+    print(result.structured_content)  # {"data": "Hei, admin admin!"}
 ```
 
 ## What to copy for your own plugin

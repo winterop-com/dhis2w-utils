@@ -70,14 +70,17 @@ Overridable via environment variables. Session-scoped fixtures in each member's 
 @pytest.fixture(scope="session")
 def local_url() -> str: ...
 
+
 @pytest.fixture(scope="session")
 def local_username() -> str: ...
+
 
 @pytest.fixture(scope="session")
 def local_password() -> str: ...
 
+
 @pytest.fixture(scope="session")
-def local_available(local_url: str) -> bool: ...   # probes /dhis-web-login/, gate for skips
+def local_available(local_url: str) -> bool: ...  # probes /dhis-web-login/, gate for skips
 ```
 
 Simple strings, not dataclasses — this sidesteps mypy's "duplicate conftest module" problem across workspace members.

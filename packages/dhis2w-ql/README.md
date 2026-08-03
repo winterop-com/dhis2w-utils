@@ -32,7 +32,7 @@ facilities = [
     {"name": "Bo District", "level": 2, "tags": []},
 ]
 
-expression = parse_expression('where(level = 4 and tags.count() > 0).name.select(upper())')
+expression = parse_expression("where(level = 4 and tags.count() > 0).name.select(upper())")
 print(Evaluator().evaluate(expression, facilities))
 # ['NGELEHUN CHC', 'KAILAHUN MCHP']
 ```

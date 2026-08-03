@@ -22,11 +22,11 @@ async def main() -> None:
     async with Dhis2Client(
         base_url="https://play.im.dhis2.org/dev-2-43",
         auth=BasicAuth("admin", "district"),
-        retry_policy=RetryPolicy(),                              # 429/5xx + connection errors
+        retry_policy=RetryPolicy(),  # 429/5xx + connection errors
         http_limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
     ) as client:
-        print(f"version_key  = {client.version_key}")            # 'v42' / 'v43' / 'v41'
-        print(f"raw_version  = {client.raw_version}")            # '2.43.0' etc.
+        print(f"version_key  = {client.version_key}")  # 'v42' / 'v43' / 'v41'
+        print(f"raw_version  = {client.raw_version}")  # '2.43.0' etc.
         me = await client.system.me()
         print(f"as {me.username} ({me.displayName})")
 

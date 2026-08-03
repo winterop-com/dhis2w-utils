@@ -13,8 +13,8 @@ from typing import Any, Protocol, runtime_checkable
 class Plugin(Protocol):
     """Dual-surface plugin descriptor registered with the CLI and/or MCP."""
 
-    name: str           # stable id, e.g. "system"
-    description: str    # one-line human-readable summary
+    name: str  # stable id, e.g. "system"
+    description: str  # one-line human-readable summary
 
     def register_cli(self, app: Any) -> None:
         """Mount this plugin's Typer sub-app on the root CLI."""

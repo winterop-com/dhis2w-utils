@@ -182,13 +182,16 @@ d2w metadata search s46m5MS0hxu --exact --resource dataElements \
 MCP side:
 
 ```python
-result = await mcp.call_tool("metadata_search", {
-    "query": "measles",
-    "resource": "dataElements",
-    "fields": "id,name,code,valueType",
-    "exact": False,
-    "page_size": 20,
-})
+result = await mcp.call_tool(
+    "metadata_search",
+    {
+        "query": "measles",
+        "resource": "dataElements",
+        "fields": "id,name,code,valueType",
+        "exact": False,
+        "page_size": 20,
+    },
+)
 # -> {"query": "measles", "hits": {"dataElements": [...]}, "total": 7}
 ```
 
@@ -230,16 +233,19 @@ result = await mcp.call_tool("metadata_usage", {"uid": "s46m5MS0hxu"})
 ## MCP example
 
 ```python
-await mcp.call_tool("metadata_list", {
-    "resource": "dataElements",
-    "fields": ":identifiable",
-    "filters": ["valueType:eq:INTEGER_POSITIVE", "domainType:eq:AGGREGATE"],
-    "root_junction": "AND",
-    "order": ["name:asc"],
-    "page_size": 25,
-    "translate": True,
-    "locale": "fr",
-})
+await mcp.call_tool(
+    "metadata_list",
+    {
+        "resource": "dataElements",
+        "fields": ":identifiable",
+        "filters": ["valueType:eq:INTEGER_POSITIVE", "domainType:eq:AGGREGATE"],
+        "root_junction": "AND",
+        "order": ["name:asc"],
+        "page_size": 25,
+        "translate": True,
+        "locale": "fr",
+    },
+)
 # -> [{"id": "...", "name": "...", "code": "...", ...}, ...]
 ```
 
@@ -282,11 +288,11 @@ for resource_name, items in bundle.resources():
         print(item.id, item.name)  # typed id + name
 
 # Helpers:
-bundle.all_uids()       # set[str] — every top-level UID
-bundle.summary()        # {dataElements: 12, indicators: 3, ...}
-bundle.total()          # total object count
-bundle.get_resource("dataElements")   # list[MetadataItem] or []
-bundle.has_resource("options")        # bool
+bundle.all_uids()  # set[str] — every top-level UID
+bundle.summary()  # {dataElements: 12, indicators: 3, ...}
+bundle.total()  # total object count
+bundle.get_resource("dataElements")  # list[MetadataItem] or []
+bundle.has_resource("options")  # bool
 ```
 
 Each item is a `MetadataItem` — `extra="allow"` pydantic model with typed
@@ -547,10 +553,15 @@ from dhis2w_core.v42.plugins.metadata import service
 
 async with Dhis2Client(url, auth) as client:
     bundle = await service.export_metadata(
-        profile, resources=["dataElements"], fields=":owner",
+        profile,
+        resources=["dataElements"],
+        fields=":owner",
     )
     report = await service.import_metadata(
-        profile, bundle, import_strategy="CREATE_AND_UPDATE", dry_run=True,
+        profile,
+        bundle,
+        import_strategy="CREATE_AND_UPDATE",
+        dry_run=True,
     )
     print(report.import_count())
 ```
@@ -623,7 +634,9 @@ for resource in diff.resources:
 
 # Or: file-on-disk vs live instance.
 live_diff = await service.diff_bundle_against_instance(
-    profile, bundle, bundle_label="baseline.json",
+    profile,
+    bundle,
+    bundle_label="baseline.json",
 )
 ```
 

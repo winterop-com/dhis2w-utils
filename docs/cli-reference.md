@@ -9960,8 +9960,8 @@ $ d2w fhir init [OPTIONS] [directory]
 * `--publisher <str>`: Publisher name.  [default: Example Organisation]
 * `--status <str>`: IG life cycle, draft or active. Drives the sushi-config status and the status and experimental flag on every generated definitional resource.  [default: draft]
 * `--publisher-url <str>`: Publisher home page. Omit it unless you have a real site: the IG publisher links it from every generated page, and pointing it at the canonical yields one broken link per page.
-* `--data-set <str>`: Data set UID to seed  include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
-* `--event <str>`: Event program UID to seed  include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
+* `--data-set <str>`: Data set UID to seed `[generate.data_sets]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
+* `--event <str>`: Event program UID to seed `[generate.event_programs]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--force`: Overwrite scaffold files that already exist.
 * `--help`: Show this message and exit.
 
@@ -9979,7 +9979,7 @@ $ d2w fhir validate [OPTIONS]
 
 * `--report <file>`: Report path stem, without extension (default: reports/fhir-validate-report under the project root or current directory).
 * `--format <str>`: Comma-separated report formats to write: md, csv, pdf.  [default: md,csv,pdf]
-* `--code-source <str>`: Override  concept_code_source for this run: id or code. In id mode the option code findings are informational; run with code to see what switching would cost.
+* `--code-source <str>`: Override `[generate]` concept_code_source for this run: id or code. In id mode the option code findings are informational; run with code to see what switching would cost.
 * `--all`: List info-level findings individually instead of rolled up.
 * `--no-fail`: Exit 0 even when errors are found.
 * `--help`: Show this message and exit.

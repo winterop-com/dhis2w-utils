@@ -111,6 +111,7 @@ Expect: still green. Generated files pass ruff + mypy + pyright without any manu
 import asyncio
 from dhis2w_client import Dhis2Client, BasicAuth
 
+
 async def main():
     async with Dhis2Client(
         base_url="http://localhost:8080",
@@ -128,6 +129,7 @@ async def main():
         if elements:
             de = await client.resources.data_elements.get(elements[0].id)
             print(de.name)
+
 
 asyncio.run(main())
 ```
@@ -172,11 +174,13 @@ Save this — DHIS2 shows it only once.
 import asyncio
 from dhis2w_client import Dhis2Client, PatAuth
 
+
 async def main():
     token = "d2p_..."
     async with Dhis2Client("http://localhost:8080", auth=PatAuth(token=token)) as client:
         me = await client.system.me()
         print(me.username)
+
 
 asyncio.run(main())
 ```

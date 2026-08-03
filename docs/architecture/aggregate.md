@@ -38,27 +38,39 @@ d2w data aggregate delete --de X --pe 202401 --ou Y
 
 ```python
 # Get
-await mcp.call_tool("data_aggregate_get", {
-    "data_set": "eigJ6l6i7u9",
-    "start_date": "2024-01-01",
-    "end_date": "2024-01-31",
-    "org_unit": "IWp9dQGM0bS",
-    "children": True,
-    "limit": 50,
-})
+await mcp.call_tool(
+    "data_aggregate_get",
+    {
+        "data_set": "eigJ6l6i7u9",
+        "start_date": "2024-01-01",
+        "end_date": "2024-01-31",
+        "org_unit": "IWp9dQGM0bS",
+        "children": True,
+        "limit": 50,
+    },
+)
 
 # Bulk push with dry-run
-await mcp.call_tool("data_aggregate_push", {
-    "data_values": [
-        {"dataElement": "X", "orgUnit": "Y", "period": "202401", "value": "42"},
-    ],
-    "dry_run": True,
-})
+await mcp.call_tool(
+    "data_aggregate_push",
+    {
+        "data_values": [
+            {"dataElement": "X", "orgUnit": "Y", "period": "202401", "value": "42"},
+        ],
+        "dry_run": True,
+    },
+)
 
 # Single set
-await mcp.call_tool("data_aggregate_set", {
-    "data_element": "X", "period": "202401", "org_unit": "Y", "value": "42",
-})
+await mcp.call_tool(
+    "data_aggregate_set",
+    {
+        "data_element": "X",
+        "period": "202401",
+        "org_unit": "Y",
+        "value": "42",
+    },
+)
 ```
 
 ## Important parameters

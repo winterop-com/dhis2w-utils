@@ -74,6 +74,7 @@ For in-process tests, you don't need stdio framing or subprocess:
 from fastmcp import Client
 from dhis2w_mcp.server import build_server
 
+
 async def test_x() -> None:
     server = build_server()
     async with Client(server) as client:

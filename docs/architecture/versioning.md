@@ -139,7 +139,9 @@ async with open_client(profile_from_env()) as client:
 For typed access to a v43-only model, import it directly. This bypasses the v42-pinned helper and works against any v43 instance:
 
 ```python
-from dhis2w_client.generated.v43.schemas.tracked_entity_attribute import TrackedEntityAttribute as TrackedEntityAttributeV43
+from dhis2w_client.generated.v43.schemas.tracked_entity_attribute import (
+    TrackedEntityAttribute as TrackedEntityAttributeV43,
+)
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import profile_from_env
 

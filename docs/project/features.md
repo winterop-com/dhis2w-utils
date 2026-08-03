@@ -67,7 +67,7 @@ Auto-generated typed CRUD for every metadata resource:
 
 ```python
 elements = await client.resources.data_elements.list(filter="name:ilike:malaria")
-element  = await client.resources.data_elements.get(uid)
+element = await client.resources.data_elements.get(uid)
 await client.resources.data_elements.create(payload)
 await client.resources.data_elements.patch(uid, operations)
 await client.resources.data_elements.delete(uid)

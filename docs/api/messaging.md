@@ -20,8 +20,8 @@ async with open_client(profile_from_env()) as client:
     conversation = await client.messaging.send(
         subject="Audit ping",
         text="Please confirm dataset X has been reviewed for May 2026.",
-        users=["abcdefghij"],          # user UIDs
-        user_groups=["GROUPxxxxxx"],   # optional
+        users=["abcdefghij"],  # user UIDs
+        user_groups=["GROUPxxxxxx"],  # optional
     )
     print(f"created  {conversation.id}  subject={conversation.subject!r}")
 

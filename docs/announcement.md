@@ -13,7 +13,7 @@ from dhis2w_client import BasicAuth, Dhis2Client
 
 async with Dhis2Client(base_url="...", auth=BasicAuth("admin", "district")) as client:
     me = await client.system.me()
-    print(me.username)   # typed, autocompleted, checked
+    print(me.username)  # typed, autocompleted, checked
 ```
 
 ## One core, four surfaces

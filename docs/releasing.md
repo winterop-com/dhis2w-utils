@@ -1,6 +1,6 @@
 # Releasing to PyPI
 
-The eight publishable workspace members ship to PyPI in lockstep — every release tags every package at the same version. The internal `dhis2w-codegen` and `dhis2w-bench` packages are workspace-only and do not ship. `dhis2w-mcp-router` first ships in 1.2.0; because it is new to PyPI, register its pending Trusted Publisher on pypi.org before that tag (see [First release of a new package](#first-release-of-a-new-package) below).
+The nine publishable workspace members ship to PyPI in lockstep — every release tags every package at the same version. The internal `dhis2w-codegen` and `dhis2w-bench` packages are workspace-only and do not ship. `dhis2w-mcp-router` first ships in 1.2.0 and `dhis2w-fhir` in 1.5.0; because each is new to PyPI, register its pending Trusted Publisher on pypi.org before that tag (see [First release of a new package](#first-release-of-a-new-package) below).
 
 | Package | PyPI |
 | --- | --- |
@@ -12,10 +12,11 @@ The eight publishable workspace members ship to PyPI in lockstep — every relea
 | `dhis2w-mcp` | https://pypi.org/project/dhis2w-mcp/ |
 | `dhis2w-mcp-bridge` | https://pypi.org/project/dhis2w-mcp-bridge/ |
 | `dhis2w-mcp-router` | https://pypi.org/project/dhis2w-mcp-router/ (from 1.2.0) |
+| `dhis2w-fhir` | https://pypi.org/project/dhis2w-fhir/ (from 1.5.0) |
 
 ## Versioning policy
 
-- **Lockstep.** All eight publishable packages share the same `version =` value in their `pyproject.toml`. Bump them together, never one at a time.
+- **Lockstep.** All nine publishable packages share the same `version =` value in their `pyproject.toml`. Bump them together, never one at a time.
 - **SemVer.** `MAJOR.MINOR.PATCH` for stable releases; pre-releases use SemVer suffixes (`0.6.0a1`, `0.6.0rc1`). Pre-1.0 means breaking changes can land on minor bumps.
 - **Inter-package deps** are pinned to `>=<current>,<<next-major>` (e.g. `dhis2w-client>=0.5.0,<0.6`). When the next minor lands, every consumer's pin needs the same shift.
 
@@ -43,7 +44,7 @@ The eight publishable workspace members ship to PyPI in lockstep — every relea
    git push origin main v0.6.0
    ```
 
-6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. Eight `build` jobs produce wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token), with `skip-existing` so a re-run after a partial publish is safe.
+6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. Nine `build` jobs produce wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token), with `skip-existing` so a re-run after a partial publish is safe.
 
 7. **Create the GitHub release** (the tag alone does not — the Releases page stays on the previous version otherwise):
 
