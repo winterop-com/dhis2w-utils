@@ -313,8 +313,8 @@ def test_makefile_uses_real_tabs() -> None:
 
 
 def test_makefile_drives_d2w_through_the_projects_own_environment() -> None:
-    """`uv run d2w` is the default, with the checkout and git-ref invocations kept as escape hatches."""
+    """`uv run d2w` is the default, with the checkout override on one comment line; the guide holds the rest."""
     makefile = _by_path()["Makefile"]
     assert "D2W ?= uv run d2w" in makefile
     assert 'D2W="uv run --project /path/to/dhis2w-utils d2w"' in makefile
-    assert 'D2W="uvx --from ' in makefile
+    assert "uvx" not in makefile
