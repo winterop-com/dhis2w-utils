@@ -26,8 +26,6 @@ from dhis2w_fhir.resources.examples import (
 )
 from dhis2w_fhir.resources.examples.schemas import (
     ExampleAnswerIn,
-    ExampleOptionIn,
-    ExampleOptionSetIn,
     ExampleResponseIn,
     ExampleSelection,
 )
@@ -94,9 +92,6 @@ _EVENT_PROGRAM_FIELDS = (
 
 #: The only DHIS2 program type the questionnaire target maps today.
 _EVENT_PROGRAM_TYPE = "WITHOUT_REGISTRATION"
-
-#: The option-set projection the example target answers its codings from.
-_EXAMPLE_OPTION_SET_FIELDS = "id,options[id,code,name]"
 
 #: The tracker-event projection one example response is built from.
 _EXAMPLE_EVENT_FIELDS = "event,orgUnit,occurredAt,status,dataValues[dataElement,value]"
@@ -355,7 +350,7 @@ async def generate_examples(profile: Profile, project: FhirProject) -> GenerateR
 async def _example_responses(
     client: Dhis2Client,
     sources: list[QuestionnaireSourceIn],
-    option_sets: list[ExampleOptionSetIn],
+    option_sets: list[OptionSetIn],
     selection: ExampleSelection,
     notes: list[str],
 ) -> list[ExampleResponseIn]:
@@ -378,36 +373,24 @@ async def _root_organisation_unit_uid(client: Dhis2Client) -> str | None:
     return next((model.id for model in roots if model.id), None)
 
 
-async def _fetch_example_option_sets(
-    client: Dhis2Client, sources: list[QuestionnaireSourceIn]
-) -> list[ExampleOptionSetIn]:
-    """Fetch the options of every option set the selected forms bind a question to."""
+async def _fetch_example_option_sets(client: Dhis2Client, sources: list[QuestionnaireSourceIn]) -> list[OptionSetIn]:
+    """Fetch every option set the selected forms bind a question to, in the emitter's own projection.
+
+    The examples target reads its concept codes out of the same assignment the terminology
+    target emits from, so it fetches the same projection: the assignment sorts the options by
+    DHIS2 sort order and names the set in its notes.
+    """
     bound_ids = sorted(
         {item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid}
     )
     if not bound_ids:
         return []
     models = await client.resources.option_sets.list(
-        fields=_EXAMPLE_OPTION_SET_FIELDS,
+        fields=_OPTION_SET_FIELDS,
         filters=[_uid_filter(bound_ids)],
         paging=False,
     )
-    return [
-        ExampleOptionSetIn(
-            uid=model.id or "",
-            options=[
-                ExampleOptionIn(
-                    uid=str(raw["id"]),
-                    code=_optional_text(raw.get("code")),
-                    name=str(raw.get("name") or raw["id"]),
-                )
-                for raw in model.options or []
-                if isinstance(raw, dict) and raw.get("id")
-            ],
-        )
-        for model in models
-        if model.id
-    ]
+    return [_option_set_input(model) for model in models if model.id]
 
 
 async def _fetch_instance_responses(

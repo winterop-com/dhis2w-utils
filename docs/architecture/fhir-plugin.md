@@ -234,10 +234,12 @@ DHIS2 option code rides along as a `dhis2-code` concept property; with
 gated by a FHIR `code`-datatype validity check; an option whose code is
 missing or invalid falls back to the UID with a note in the report, so
 generation is total. Concept codes are unique within a set by construction: the
-codes are assigned in DHIS2 sort order and a taken code falls back to the option's
-UID; where that UID is taken too - a peer carries it as its own DHIS2 code - the
-option is skipped with its own aggregate note rather than emitted as a duplicate
-concept the publisher would reject.
+codes are assigned in DHIS2 sort order by `concept_assignments` and a taken code
+falls back to the option's UID; where that UID is taken too - a peer carries it as
+its own DHIS2 code - the option is skipped with its own aggregate note rather than
+emitted as a duplicate concept the publisher would reject. Every target that names
+a concept reads that one assignment, so the examples cannot code an answer the
+CodeSystem has no concept for.
 
 Names are decided once, for the whole selection, by `option_set_identities`:
 truncation and collision suffixes both depend on the peers a set is assigned
@@ -353,9 +355,12 @@ questions, a disaggregated element nests one child per option combo under
 `<deUid>.<cocUid>` - but only the branches an answer reaches are emitted, so a
 partial data value set produces a partial, still-valid response. Answers are cast
 from the data element's `valueType`; an option code resolves to a `valueCoding`
-into that set's CodeSystem with the concept code `concept_code_source` selects.
-Anything that will not cast falls back to `valueString` and is counted, as is a
-captured value for a data element the form does not ask for.
+into that set's CodeSystem, carrying the very concept code `concept_assignments`
+handed the terminology target - fall-backs, collisions, and all - so an answer can
+only ever name a concept the run really wrote. An answer selecting an option that
+received no concept code is left unanswered and counted. Anything that will not
+cast falls back to `valueString` and is counted, as is a captured value for a data
+element the form does not ask for.
 
 Two normalisations happen at the FHIR edge rather than being left to fail in
 SUSHI: a zone-less DHIS2 timestamp gains `Z` (BUGS.md #62 - R4 requires an offset
@@ -673,9 +678,10 @@ The components:
   paths (`item[=].item[+]`), so the template stays a layout, not a recursion.
 - `resources/examples/` - the `Usage: #example` QuestionnaireResponse per example,
   its `EXAMPLES_DIRECTORY` sync directory, the `ExampleSelection` /
-  `ExampleResponseIn` / `ExampleAnswerIn` / `ExampleOptionSetIn` projections, the
-  seeded `build_synthetic_responses`, and the answer typing (including the R4
-  temporal normalisations). It depends on `resources/questionnaires/` for the
+  `ExampleResponseIn` / `ExampleAnswerIn` projections (the option sets come in on
+  the option-set component's own `OptionSetIn`), the seeded
+  `build_synthetic_responses`, and the answer typing (including the R4 temporal
+  normalisations and their calendar, clock, and offset checks). It depends on `resources/questionnaires/` for the
   source projection and naming, never the other way round.
 - `resources/pages/` - the narrative markdown layer: the six site pages, the
   per-artifact intros, `PagesIn` (the fetched-input view the pages render from),

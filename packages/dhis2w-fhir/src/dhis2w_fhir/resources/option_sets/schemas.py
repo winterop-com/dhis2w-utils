@@ -41,6 +41,34 @@ class OptionSetIn(BaseModel):
     translations: list[TranslationIn] = Field(default_factory=list)
 
 
+class ConceptAssignment(BaseModel):
+    """One option's concept code, or no code at all when the set had none left to give it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    option: OptionIn
+    code: str | None = None
+    from_dhis2_code: bool = False
+
+
+class ConceptAssignmentPlan(BaseModel):
+    """Every option of one set in emission order, its assigned concept code, and the notes assignment raised.
+
+    The one place a concept code is decided: the terminology emitter writes its concepts from
+    the plan and an example codes its answers from it, so an answer can only ever name a
+    concept the emitted CodeSystem actually holds.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    assignments: list[ConceptAssignment] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+    def code_for(self, option_uid: str) -> str | None:
+        """The concept code one option received; None when it was skipped or belongs to another set."""
+        return next((assignment.code for assignment in self.assignments if assignment.option.uid == option_uid), None)
+
+
 class OptionSetIdentity(BaseModel):
     """One option set's emitted slug plus the FSH name and artifact ids derived from it.
 

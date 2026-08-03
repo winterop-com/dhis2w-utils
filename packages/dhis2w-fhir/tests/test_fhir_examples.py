@@ -29,15 +29,17 @@ from dhis2w_fhir import (
     service,
 )
 from dhis2w_fhir.period import parse_period
-from dhis2w_fhir.resources.examples import EXAMPLES_DIRECTORY, response_status_code, zoned_date_time
-from dhis2w_fhir.resources.examples.schemas import (
-    ExampleAnswerIn,
-    ExampleOptionIn,
-    ExampleOptionSetIn,
-    ExampleResponseIn,
+from dhis2w_fhir.resources.examples import (
+    EXAMPLES_DIRECTORY,
+    _is_fhir_date,
+    _is_fhir_date_time,
+    _is_fhir_time,
+    response_status_code,
+    zoned_date_time,
 )
+from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
 from dhis2w_fhir.resources.option_sets import option_set_identities
-from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentityPlan, OptionSetIn
+from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
@@ -111,11 +113,12 @@ _EVENT_PROGRAM = QuestionnaireSourceIn(
 )
 
 _OPTION_SETS = [
-    ExampleOptionSetIn(
+    OptionSetIn(
         uid="Os1aaaaaaaa",
+        name="Gender",
         options=[
-            ExampleOptionIn(uid="Op1aaaaaaaa", code="F", name="Female"),
-            ExampleOptionIn(uid="Op2aaaaaaaa", code="M", name="Male"),
+            OptionIn(uid="Op1aaaaaaaa", code="F", name="Female", sort_order=1),
+            OptionIn(uid="Op2aaaaaaaa", code="M", name="Male", sort_order=2),
         ],
     )
 ]
@@ -329,7 +332,7 @@ _EVENTS_PAYLOAD = {
 _runner = CliRunner()
 
 
-def _plan(option_sets: list[ExampleOptionSetIn], config: GenerateConfig | None = None) -> OptionSetIdentityPlan:
+def _plan(option_sets: list[OptionSetIn], config: GenerateConfig | None = None) -> OptionSetIdentityPlan:
     """The identity plan the service hands the emitter: the fetched option sets, named by their UIDs."""
     return option_set_identities(
         [OptionSetIn(uid=option_set.uid, name=option_set.uid) for option_set in option_sets],
@@ -339,7 +342,7 @@ def _plan(option_sets: list[ExampleOptionSetIn], config: GenerateConfig | None =
 
 def _synthetic(
     sources: list[QuestionnaireSourceIn],
-    option_sets: list[ExampleOptionSetIn] | None = None,
+    option_sets: list[OptionSetIn] | None = None,
     per_target: int = 1,
     config: GenerateConfig | None = None,
 ) -> dict[str, str]:
@@ -481,6 +484,8 @@ def test_an_unmappable_option_value_falls_back_to_a_string_with_one_note() -> No
         ("De4aaaaaaaa", "12,5", '* item[=].item[=].answer[+].valueString = "12,5"'),
         ("De6aaaaaaaa", "yes", '* item[=].item[=].answer[+].valueString = "yes"'),
         ("De5aaaaaaaa", "last tuesday", '* item[=].item[=].answer[+].valueString = "last tuesday"'),
+        ("De5aaaaaaaa", "2026-99-99", '* item[=].item[=].answer[+].valueString = "2026-99-99"'),
+        ("De5aaaaaaaa", "2026-02-30", '* item[=].item[=].answer[+].valueString = "2026-02-30"'),
         ("De1aaaaaaaa", "7", "* item[=].item[=].answer[+].valueInteger = 7"),
         ("De4aaaaaaaa", "12.50", "* item[=].item[=].answer[+].valueDecimal = 12.50"),
         ("De6aaaaaaaa", "1", "* item[=].item[=].answer[+].valueBoolean = true"),
@@ -860,12 +865,13 @@ def fhir_example_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     return tmp_path
 
 
-_WIDE_OPTION_SET = ExampleOptionSetIn(
+_WIDE_OPTION_SET = OptionSetIn(
     uid="Os1aaaaaaaa",
+    name="Gender",
     options=[
-        ExampleOptionIn(uid="Op1aaaaaaaa", code="F", name="Female"),
-        ExampleOptionIn(uid="Op2aaaaaaaa", code="M", name="Male"),
-        ExampleOptionIn(uid="Op3aaaaaaaa", code="O", name="Other"),
+        OptionIn(uid="Op1aaaaaaaa", code="F", name="Female", sort_order=1),
+        OptionIn(uid="Op2aaaaaaaa", code="M", name="Male", sort_order=2),
+        OptionIn(uid="Op3aaaaaaaa", code="O", name="Other", sort_order=3),
     ],
 )
 
@@ -1106,3 +1112,80 @@ def test_an_integer_form_r4_cannot_carry_is_answered_as_a_string(value: str) -> 
     content = _answered("De1aaaaaaaa", value)
     assert "valueInteger" not in content
     assert "answer[+].valueString" in content
+
+
+@pytest.mark.parametrize(
+    ("value", "valid"),
+    [
+        ("2026", True),
+        ("2026-12", True),
+        ("2026-02-28", True),
+        ("2024-02-29", True),
+        ("2026-13", False),
+        ("2026-00", False),
+        ("2026-02-30", False),
+        ("2026-99-99", False),
+        ("26-01-01", False),
+    ],
+)
+def test_an_r4_date_must_be_a_real_date(value: str, valid: bool) -> None:
+    """The lexical shape is not enough: a date answer names a day the calendar actually has."""
+    assert _is_fhir_date(value) is valid
+
+
+@pytest.mark.parametrize(
+    ("value", "valid"),
+    [
+        ("23:59:59", True),
+        ("00:00:00", True),
+        ("12:00:00.500", True),
+        ("24:00:00", False),
+        ("25:99:99", False),
+        ("12:60:00", False),
+    ],
+)
+def test_an_r4_time_must_be_a_real_time(value: str, valid: bool) -> None:
+    """The lexical shape is not enough: a time answer names a reading the clock actually shows."""
+    assert _is_fhir_time(value) is valid
+
+
+@pytest.mark.parametrize(
+    ("value", "valid"),
+    [
+        ("2026", True),
+        ("2026-12", True),
+        ("2026-01-01", True),
+        ("2026-01-01T12:00:00Z", True),
+        ("2026-01-01T12:00:00.000Z", True),
+        ("2026-01-01T12:00:00+14:00", True),
+        ("2026-01-01T12:00:00-12:00", True),
+        ("2026-13", False),
+        ("2026-02-30", False),
+        ("2026-99-99", False),
+        ("2026-99-99T25:99:99+99:00", False),
+        ("2026-01-01T25:00:00Z", False),
+        ("2026-01-01T12:00:00+99:00", False),
+        ("2026-01-01T12:00:00+14:30", False),
+        ("2026-01-01T12:00:00-13:00", False),
+    ],
+)
+def test_an_r4_date_time_must_be_a_real_instant_in_a_real_zone(value: str, valid: bool) -> None:
+    """A dateTime clears the calendar, the clock, and an offset no zone on earth sits outside of."""
+    assert _is_fhir_date_time(value) is valid
+
+
+def test_an_occurrence_in_an_impossible_zone_is_dropped_with_a_note() -> None:
+    """An offset outside the inhabited range is no dateTime, so the occurrence is omitted rather than emitted."""
+    response = ExampleResponseIn(
+        instance_id="Ev1aaaaaaaa",
+        target_uid="VBqh0ynB2wv",
+        kind="event",
+        organisation_unit_uid="Ou1aaaaaaaa",
+        status_code="completed",
+        authored="2026-01-01T12:00:00+14:30",
+    )
+    build = build_example_artifacts(
+        [_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
+    assert "* authored" not in build.artifacts[0].content
+    assert any("base QuestionnaireResponse declared" in note for note in build.notes)

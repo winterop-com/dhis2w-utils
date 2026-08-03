@@ -51,13 +51,12 @@ from dhis2w_fhir.resources.examples import (
 )
 from dhis2w_fhir.resources.examples.schemas import (
     ExampleAnswerIn,
-    ExampleOptionIn,
-    ExampleOptionSetIn,
     ExampleResponseIn,
     ExampleSelection,
 )
 from dhis2w_fhir.resources.option_sets import (
     build_option_set_artifacts,
+    concept_assignments,
     max_slug_length,
     option_set_code_fallback,
     option_set_fsh_name,
@@ -65,6 +64,8 @@ from dhis2w_fhir.resources.option_sets import (
     option_set_identity_index,
 )
 from dhis2w_fhir.resources.option_sets.schemas import (
+    ConceptAssignment,
+    ConceptAssignmentPlan,
     OptionIn,
     OptionSetIdentity,
     OptionSetIdentityIndex,
@@ -160,9 +161,9 @@ __all__ = [
     "TRANSLATION_EXTENSION_URL",
     "CategoryComboIn",
     "CategoryOptionComboIn",
+    "ConceptAssignment",
+    "ConceptAssignmentPlan",
     "ExampleAnswerIn",
-    "ExampleOptionIn",
-    "ExampleOptionSetIn",
     "ExampleResponseIn",
     "ExampleSelection",
     "FhirProject",
@@ -226,6 +227,7 @@ __all__ = [
     "build_scaffold_files",
     "build_synthetic_responses",
     "clean_generated_files",
+    "concept_assignments",
     "domain_code",
     "find_project_fhir_config",
     "generated_header",

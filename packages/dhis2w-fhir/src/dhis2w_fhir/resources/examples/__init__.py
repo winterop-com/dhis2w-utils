@@ -27,7 +27,7 @@ from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescap
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import FoundationNaming
-from dhis2w_fhir.names import code_or_uid, fsh_code, page_text, quote
+from dhis2w_fhir.names import fsh_code, page_text, quote
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.period.parser import parse_period
 from dhis2w_fhir.period.recent import recent_periods
@@ -35,14 +35,18 @@ from dhis2w_fhir.period.schemas import PeriodValue
 from dhis2w_fhir.resources.examples.schemas import (
     MAXIMUM_EXAMPLES_PER_TARGET,
     ExampleAnswerIn,
-    ExampleOptionIn,
-    ExampleOptionSetIn,
     ExampleResponseIn,
     ExampleSelection,
     ExampleSource,
 )
-from dhis2w_fhir.resources.option_sets import option_set_identity_index
-from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
+from dhis2w_fhir.resources.option_sets import concept_assignments, option_set_identity_index
+from dhis2w_fhir.resources.option_sets.schemas import (
+    ConceptAssignmentPlan,
+    OptionIn,
+    OptionSetIdentity,
+    OptionSetIdentityPlan,
+    OptionSetIn,
+)
 from dhis2w_fhir.resources.questionnaires.schemas import (
     FormKind,
     QuestionnaireItemIn,
@@ -67,8 +71,6 @@ __all__ = [
     "TEMPORAL_ANSWER_ELEMENTS",
     "URI_VALUE_TYPE",
     "ExampleAnswerIn",
-    "ExampleOptionIn",
-    "ExampleOptionSetIn",
     "ExampleResponseIn",
     "ExampleSelection",
     "ExampleSource",
@@ -137,11 +139,25 @@ _UNSYNTHESIZABLE_VALUE_TYPES = frozenset({"FILE_RESOURCE", "IMAGE", "GEOJSON", "
 ORGANISATION_UNIT_VALUE_TYPE = "ORGANISATION_UNIT"
 
 # The R4 primitive patterns (https://hl7.org/fhir/R4/datatypes.html#primitive) the temporal
-# answers are checked against. They are stricter than what DHIS2 stores, so a value that does
-# not normalise into one is answered as a string rather than emitted invalid.
+# answers are lexically checked against. They are stricter than what DHIS2 stores, and they are
+# only the shape: `2026-99-99` and `25:99:99` match them, so every temporal answer clears the
+# calendar and the clock as well before it is emitted.
 _FHIR_DATE_PATTERN = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
 _FHIR_DATE_TIME_PATTERN = re.compile(r"^\d{4}(-\d{2}(-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2}))?)?)?$")
 _FHIR_TIME_PATTERN = re.compile(r"^\d{2}:\d{2}:\d{2}(\.\d+)?$")
+
+#: How many dash-separated parts a year-only and a year-month R4 date carry.
+_YEAR_ONLY_DATE_PARTS = 1
+_YEAR_MONTH_DATE_PARTS = 2
+
+#: The month numbers a year-month R4 date may name.
+_FIRST_MONTH = 1
+_LAST_MONTH = 12
+
+#: The UTC offsets an R4 dateTime may carry. The stdlib accepts anything under a full day, so
+#: the real-world span is enforced here: no zone sits west of -12:00 or east of +14:00.
+_EARLIEST_UTC_OFFSET = datetime.timedelta(hours=-12)
+_LATEST_UTC_OFFSET = datetime.timedelta(hours=14)
 
 # The plain decimal and integer forms an FSH numeric literal may take. They are deliberately
 # narrower than what `float()` and `int()` accept: FSH writes a numeric answer unquoted, so
@@ -269,6 +285,7 @@ class _ExampleTally(BaseModel):
 
     unknown_data_elements: list[str] = Field(default_factory=list)
     untyped_values: list[str] = Field(default_factory=list)
+    uncoded_options: list[str] = Field(default_factory=list)
     periodless_data_sets: list[str] = Field(default_factory=list)
     unauthored_responses: list[str] = Field(default_factory=list)
 
@@ -289,6 +306,14 @@ class _ExampleTally(BaseModel):
                     f"{len(self.untyped_values)} example answers could not be cast to their FHIR type; "
                     "answered as strings",
                     self.untyped_values,
+                )
+            )
+        if self.uncoded_options:
+            notes.append(
+                aggregate_note(
+                    f"{len(self.uncoded_options)} example answers select an option the CodeSystem holds no "
+                    "concept for; left unanswered",
+                    self.uncoded_options,
                 )
             )
         if self.periodless_data_sets:
@@ -315,7 +340,7 @@ class _ExampleTally(BaseModel):
 def build_example_artifacts(
     sources: list[QuestionnaireSourceIn],
     responses: list[ExampleResponseIn],
-    option_sets: list[ExampleOptionSetIn],
+    option_sets: list[OptionSetIn],
     config: GenerateConfig,
     canonical: str,
     *,
@@ -324,13 +349,16 @@ def build_example_artifacts(
     """Build one `examples/<targetUid>-<n>.fsh` QuestionnaireResponse per example response.
 
     `option_set_plan` is the identity plan the terminology target emits from, so a coded answer
-    names the CodeSystem the same run writes under either naming source.
+    names the CodeSystem the same run writes under either naming source. The concept codes come
+    from `concept_assignments`, once per set, for the same reason: an answer names a concept the
+    terminology target really wrote, fall-backs and all.
     """
     build = FshBuild()
     foundation = FoundationNaming.from_naming(config.naming)
     index = option_set_identity_index(option_set_plan, _bound_option_set_uids(sources), config)
     sources_by_uid = {source.uid: source for source in sources}
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
+    assignments = _concept_assignments_by_set(option_sets, config)
     template = _ENVIRONMENT.get_template("questionnaire-response.fsh.jinja")
     tally = _ExampleTally()
     ordinals: dict[str, int] = {}
@@ -341,7 +369,7 @@ def build_example_artifacts(
         ordinal = ordinals.get(response.target_uid, 0) + 1
         ordinals[response.target_uid] = ordinal
         view = _example_view(
-            response, source, option_sets_by_uid, config, index.identities, foundation, canonical, tally
+            response, source, option_sets_by_uid, assignments, index.identities, foundation, canonical, tally
         )
         build.artifacts.append(
             FshArtifact(
@@ -368,6 +396,18 @@ def _bound_option_set_uids(sources: list[QuestionnaireSourceIn]) -> list[str]:
     return [item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid]
 
 
+def _concept_assignments_by_set(
+    option_sets: list[OptionSetIn], config: GenerateConfig
+) -> dict[str, ConceptAssignmentPlan]:
+    """Run the shared concept-code assignment once per option set, indexed by UID.
+
+    The notes each plan raises stay on the plan and go unread here: a UID fall-back is a fact
+    about the CodeSystem, so the terminology target reports it, and the examples target reports
+    only what it alone sees - an answer whose option received no concept code.
+    """
+    return {option_set.uid: concept_assignments(option_set, config) for option_set in option_sets}
+
+
 class SyntheticBuild(BaseModel):
     """Result of generating synthetic responses: the responses plus what generation could not answer."""
 
@@ -377,7 +417,7 @@ class SyntheticBuild(BaseModel):
 
 def build_synthetic_responses(
     sources: list[QuestionnaireSourceIn],
-    option_sets: list[ExampleOptionSetIn],
+    option_sets: list[OptionSetIn],
     per_target: int,
     organisation_unit_uid: str,
     today: datetime.date,
@@ -409,7 +449,7 @@ def build_synthetic_responses(
 
 def _synthetic_response(
     source: QuestionnaireSourceIn,
-    option_sets_by_uid: dict[str, ExampleOptionSetIn],
+    option_sets_by_uid: dict[str, OptionSetIn],
     ordinal: int,
     organisation_unit_uid: str,
     today: datetime.date,
@@ -494,7 +534,7 @@ def _pick_hour(generator: random.Random) -> str:
 
 def _synthetic_value(
     item: QuestionnaireItemIn,
-    option_set: ExampleOptionSetIn | None,
+    option_set: OptionSetIn | None,
     generator: random.Random,
     window: _SyntheticWindow,
     instance_id: str,
@@ -533,7 +573,7 @@ def _synthetic_value(
     return f"Example {item.name}"
 
 
-def _synthetic_option_value(value_type: str, option_set: ExampleOptionSetIn, generator: random.Random) -> str:
+def _synthetic_option_value(value_type: str, option_set: OptionSetIn, generator: random.Random) -> str:
     """Pick one option's stored value, or the comma-joined pair a MULTI_TEXT question captures."""
     stored = [option.code or option.uid for option in option_set.options]
     if value_type != MULTI_VALUE_TYPE:
@@ -592,8 +632,8 @@ def _is_disaggregated(item: QuestionnaireItemIn) -> bool:
 def _example_view(
     response: ExampleResponseIn,
     source: QuestionnaireSourceIn,
-    option_sets_by_uid: dict[str, ExampleOptionSetIn],
-    config: GenerateConfig,
+    option_sets_by_uid: dict[str, OptionSetIn],
+    assignments: dict[str, ConceptAssignmentPlan],
     identities: dict[str, OptionSetIdentity],
     foundation: FoundationNaming,
     canonical: str,
@@ -612,7 +652,7 @@ def _example_view(
         )
     elif source.kind == "aggregate":
         tally.periodless_data_sets.append(f"{source.name} ({source.uid})")
-    answers = _answers_by_link_id(response, source, option_sets_by_uid, config, identities, tally)
+    answers = _answers_by_link_id(response, source, option_sets_by_uid, assignments, identities, tally)
     authored = _authored(response, tally)
     return _ExampleView(
         instance_id=response.instance_id,
@@ -650,7 +690,7 @@ def _authored(response: ExampleResponseIn, tally: _ExampleTally) -> str | None:
     if response.authored is None:
         return None
     normalized = zoned_date_time(response.authored.strip())
-    if _FHIR_DATE_TIME_PATTERN.match(normalized):
+    if _is_fhir_date_time(normalized):
         return normalized
     tally.unauthored_responses.append(f"{response.instance_id} = {response.authored!r}")
     return None
@@ -659,8 +699,8 @@ def _authored(response: ExampleResponseIn, tally: _ExampleTally) -> str | None:
 def _answers_by_link_id(
     response: ExampleResponseIn,
     source: QuestionnaireSourceIn,
-    option_sets_by_uid: dict[str, ExampleOptionSetIn],
-    config: GenerateConfig,
+    option_sets_by_uid: dict[str, OptionSetIn],
+    assignments: dict[str, ConceptAssignmentPlan],
     identities: dict[str, OptionSetIdentity],
     tally: _ExampleTally,
 ) -> dict[str, list[_Answer]]:
@@ -675,26 +715,26 @@ def _answers_by_link_id(
         link_id = captured.data_element_uid
         if _is_disaggregated(item) and captured.category_option_combo_uid is not None:
             link_id = f"{link_id}.{captured.category_option_combo_uid}"
-        answers[link_id] = _typed_answers(item, captured.value, option_sets_by_uid, config, identities, tally)
+        answers[link_id] = _typed_answers(item, captured.value, option_sets_by_uid, assignments, identities, tally)
     return answers
 
 
 def _typed_answers(
     item: QuestionnaireItemIn,
     value: str,
-    option_sets_by_uid: dict[str, ExampleOptionSetIn],
-    config: GenerateConfig,
+    option_sets_by_uid: dict[str, OptionSetIn],
+    assignments: dict[str, ConceptAssignmentPlan],
     identities: dict[str, OptionSetIdentity],
     tally: _ExampleTally,
 ) -> list[_Answer]:
     """Cast one captured value onto the FHIR answer type its value type asks for - several for MULTI_TEXT."""
     if item.option_set_uid is not None:
         selected = value.split(_MULTI_VALUE_SEPARATOR) if item.value_type == MULTI_VALUE_TYPE else [value]
-        return [
-            _coding_answer(item.option_set_uid, part.strip(), option_sets_by_uid, config, identities)
-            or _fallback(item, part.strip(), tally)
+        coded = [
+            _coded_answer(item, item.option_set_uid, part.strip(), option_sets_by_uid, assignments, identities, tally)
             for part in selected
         ]
+        return [answer for answer in coded if answer is not None]
     return [_typed_answer(item, value, tally)]
 
 
@@ -744,16 +784,65 @@ def _temporal_answer(item: QuestionnaireItemIn, text: str, element: str, tally: 
     """Answer a date / dateTime / time question, normalising DHIS2's spelling into the R4 primitive."""
     if element == "valueDate":
         normalized = text.partition("T")[0]
-        pattern = _FHIR_DATE_PATTERN
+        valid = _is_fhir_date(normalized)
     elif element == "valueDateTime":
         normalized = zoned_date_time(text)
-        pattern = _FHIR_DATE_TIME_PATTERN
+        valid = _is_fhir_date_time(normalized)
     else:
         normalized = _seconds_precision(text)
-        pattern = _FHIR_TIME_PATTERN
-    if not pattern.match(normalized):
+        valid = _is_fhir_time(normalized)
+    if not valid:
         return _fallback(item, text, tally)
     return _Answer(element=element, literal=quote(normalized))
+
+
+def _is_fhir_date(value: str) -> bool:
+    """Check an R4 `date`: the lexical shape, then the calendar at whatever precision it carries."""
+    return bool(_FHIR_DATE_PATTERN.match(value)) and _is_calendar_date(value)
+
+
+def _is_fhir_time(value: str) -> bool:
+    """Check an R4 `time`: the lexical shape, then a real reading of the clock (`24:00:00` is not one)."""
+    if not _FHIR_TIME_PATTERN.match(value):
+        return False
+    try:
+        datetime.time.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_fhir_date_time(value: str) -> bool:
+    """Check an R4 `dateTime`: the lexical shape, then a real instant inside the offsets R4 allows.
+
+    A date-only dateTime is exactly an R4 date, so it clears the calendar the same way. A value
+    carrying a time clears the calendar, the clock, and the zone in one parse, and then its
+    offset is bounded, which the stdlib leaves open all the way to a full day either side.
+    """
+    if not _FHIR_DATE_TIME_PATTERN.match(value):
+        return False
+    if "T" not in value:
+        return _is_calendar_date(value)
+    try:
+        parsed = datetime.datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    offset = parsed.utcoffset()
+    return offset is not None and _EARLIEST_UTC_OFFSET <= offset <= _LATEST_UTC_OFFSET
+
+
+def _is_calendar_date(value: str) -> bool:
+    """Check a lexically valid R4 date against the calendar: a bare year passes, a month must exist."""
+    parts = value.split("-")
+    if len(parts) == _YEAR_ONLY_DATE_PARTS:
+        return True
+    if len(parts) == _YEAR_MONTH_DATE_PARTS:
+        return _FIRST_MONTH <= int(parts[1]) <= _LAST_MONTH
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
 
 
 def zoned_date_time(value: str) -> str:
@@ -798,24 +887,35 @@ def _boolean_answer(item: QuestionnaireItemIn, text: str, tally: _ExampleTally) 
     return _fallback(item, text, tally)
 
 
-def _coding_answer(
+def _coded_answer(
+    item: QuestionnaireItemIn,
     option_set_uid: str,
     value: str,
-    option_sets_by_uid: dict[str, ExampleOptionSetIn],
-    config: GenerateConfig,
+    option_sets_by_uid: dict[str, OptionSetIn],
+    assignments: dict[str, ConceptAssignmentPlan],
     identities: dict[str, OptionSetIdentity],
+    tally: _ExampleTally,
 ) -> _Answer | None:
-    """Answer an option-set question as a Coding into that set's CodeSystem; None when unmappable."""
+    """Answer an option-set question as a Coding into that set's CodeSystem.
+
+    A value that maps to no option of the set is answered as a plain string. A value whose
+    option received no concept code is not answered at all: the CodeSystem holds nothing to
+    point at, so the answer is dropped and tallied rather than emitted as a dangling coding.
+    """
     option_set = option_sets_by_uid.get(option_set_uid)
     option = _option_for(option_set, value) if option_set is not None else None
-    if option is None:
+    if option_set is None or option is None:
+        return _fallback(item, value, tally)
+    plan = assignments.get(option_set_uid)
+    concept_code = plan.code_for(option.uid) if plan is not None else None
+    if concept_code is None:
+        tally.uncoded_options.append(f"{option.uid} in {option_set.name} ({option_set.uid})")
         return None
-    concept_code = option.uid if config.concept_code_source == "id" else code_or_uid(option.code, option.uid)
     system = identities[option_set_uid].code_system_name
     return _Answer(element="valueCoding", literal=f"{system}{fsh_code(concept_code)} {quote(option.name)}")
 
 
-def _option_for(option_set: ExampleOptionSetIn, value: str) -> ExampleOptionIn | None:
+def _option_for(option_set: OptionSetIn, value: str) -> OptionIn | None:
     """Resolve a stored DHIS2 value to its option - by code, which is what a data value holds, then by UID."""
     by_code = next((option for option in option_set.options if option.code == value), None)
     if by_code is not None:

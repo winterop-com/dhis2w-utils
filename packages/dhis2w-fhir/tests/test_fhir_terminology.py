@@ -5,16 +5,12 @@ import re
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.period import parse_period
 from dhis2w_fhir.resources.examples import build_example_artifacts
-from dhis2w_fhir.resources.examples.schemas import (
-    ExampleAnswerIn,
-    ExampleOptionIn,
-    ExampleOptionSetIn,
-    ExampleResponseIn,
-)
+from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, option_set_identities
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.questionnaires import build_questionnaire_artifacts
 from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireItemIn, QuestionnaireSourceIn
+from dhis2w_fhir.writer import FshBuild
 
 _NAME_SOURCE = GenerateConfig(naming=NamingConfig(source="name"))
 
@@ -302,10 +298,6 @@ _BOUND_RESPONSE = ExampleResponseIn(
     answers=[ExampleAnswerIn(data_element_uid="De1aaaaaaaa", value="F")],
 )
 
-_BOUND_EXAMPLE_OPTION_SETS = [
-    ExampleOptionSetIn(uid="Aa1aaaaaaaa", options=[ExampleOptionIn(uid="Op1aaaaaaaa", code="F", name="Female")])
-]
-
 
 def test_name_sourced_option_set_names_are_read_by_the_questionnaire_and_the_example() -> None:
     """An option set is named once, over the whole selection: the bound question and the coded answer read it."""
@@ -340,10 +332,115 @@ def _option_bound_example(plan: OptionSetIdentityPlan) -> str:
     build = build_example_artifacts(
         [_BOUND_FORM],
         [_BOUND_RESPONSE],
-        _BOUND_EXAMPLE_OPTION_SETS,
+        [_SEX],
         _NAME_SOURCE,
         "http://example.org/fhir",
         option_set_plan=plan,
     )
     assert build.notes == []
     return build.artifacts[0].content
+
+
+#: One option whose DHIS2 code is present but carries a double space, which R4 `code` forbids.
+_INVALID_CODE = OptionSetIn(
+    uid="Cc3cccccccc",
+    name="Sex",
+    options=[OptionIn(uid="Op1aaaaaaaa", code="M  F", name="Either", sort_order=1)],
+)
+
+#: Two options asking for the same code, so the second takes its UID and the first keeps the code.
+_COLLIDING = OptionSetIn(
+    uid="Dd4dddddddd",
+    name="Outcome",
+    options=[
+        OptionIn(uid="Op1aaaaaaaa", code="DUP", name="One", sort_order=1),
+        OptionIn(uid="Op2aaaaaaaa", code="DUP", name="Two", sort_order=2),
+    ],
+)
+
+#: An option whose UID fall-back is taken by a peer's DHIS2 code, so it receives no concept code
+#: at all. It leads the fetched order and trails the sort order, which is how an answer reaches it.
+_UNCODABLE = OptionSetIn(
+    uid="Ee5eeeeeeee",
+    name="Referral",
+    options=[
+        OptionIn(uid="Op3aaaaaaaa", code="SHARED", name="Third", sort_order=3),
+        OptionIn(uid="Op1aaaaaaaa", code="Op3aaaaaaaa", name="First", sort_order=1),
+        OptionIn(uid="Op2aaaaaaaa", code="SHARED", name="Second", sort_order=2),
+    ],
+)
+
+_CODE_SOURCE = GenerateConfig(concept_code_source="code")
+
+_CODED_FORM = QuestionnaireSourceIn(
+    uid="Ds2aaaaaaaa",
+    name="Referrals",
+    kind="aggregate",
+    flat_items=[QuestionnaireItemIn(uid="De1aaaaaaaa", name="Outcome", value_type="TEXT", option_set_uid="")],
+)
+
+_ANSWER_CODING_PATTERN = re.compile(r'valueCoding = \w+#(\S+) "')
+
+
+def _coded_example(option_set: OptionSetIn, value: str) -> FshBuild:
+    """The code-sourced example build answering one question bound to `option_set` with the stored `value`."""
+    form = _CODED_FORM.model_copy(
+        update={"flat_items": [_CODED_FORM.flat_items[0].model_copy(update={"option_set_uid": option_set.uid})]}
+    )
+    response = ExampleResponseIn(
+        instance_id=f"{form.uid}-1",
+        target_uid=form.uid,
+        kind="aggregate",
+        organisation_unit_uid="Ou1aaaaaaaa",
+        status_code="completed",
+        period=parse_period("202606"),
+        answers=[ExampleAnswerIn(data_element_uid="De1aaaaaaaa", value=value)],
+    )
+    return build_example_artifacts(
+        [form],
+        [response],
+        [option_set],
+        _CODE_SOURCE,
+        "http://example.org/fhir",
+        option_set_plan=option_set_identities([option_set], _CODE_SOURCE),
+    )
+
+
+def _emitted_concept_codes(option_set: OptionSetIn) -> list[str]:
+    """The concept codes the code-sourced CodeSystem of one set really carries, in emission order."""
+    content = build_option_set_artifacts([option_set], _CODE_SOURCE, ig_status="draft").artifacts[0].content
+    return [line.split(" ")[1].removeprefix("#") for line in _declared_concepts(content)]
+
+
+def test_a_code_mode_example_codes_an_unusable_code_as_the_uid_the_code_system_carries() -> None:
+    """An option whose DHIS2 code is no FHIR code is a concept under its UID, and the answer says so."""
+    build = _coded_example(_INVALID_CODE, "M  F")
+    assert build.notes == []
+    codings = _ANSWER_CODING_PATTERN.findall(build.artifacts[0].content)
+    assert codings == ["Op1aaaaaaaa"]
+    assert set(codings) <= set(_emitted_concept_codes(_INVALID_CODE))
+
+
+def test_a_code_mode_example_reads_the_uid_a_collided_option_fell_back_to() -> None:
+    """The second option of a code collision is a concept under its UID, so the answer codes the UID too."""
+    build = _coded_example(_COLLIDING, "Op2aaaaaaaa")
+    assert build.notes == []
+    codings = _ANSWER_CODING_PATTERN.findall(build.artifacts[0].content)
+    assert codings == ["Op2aaaaaaaa"]
+    assert _emitted_concept_codes(_COLLIDING) == ["DUP", "Op2aaaaaaaa"]
+    assert set(codings) <= set(_emitted_concept_codes(_COLLIDING))
+
+
+def test_an_answer_selecting_an_option_with_no_concept_code_is_left_unanswered() -> None:
+    """No concept was written for the option, so the example says nothing rather than name a stranger's code."""
+    build = _coded_example(_UNCODABLE, "SHARED")
+    content = build.artifacts[0].content
+    assert _ANSWER_CODING_PATTERN.findall(content) == []
+    assert "answer[" not in content
+    assert build.notes == [
+        "1 example answers select an option the CodeSystem holds no concept for; left unanswered: "
+        "Op3aaaaaaaa in Referral (Ee5eeeeeeee)"
+    ]
+    terminology = build_option_set_artifacts([_UNCODABLE], _CODE_SOURCE, ig_status="draft").artifacts[0].content
+    assert _declared_concepts(terminology) == ['* #Op3aaaaaaaa "First"', '* #SHARED "Second"']
+    assert '"Third"' not in terminology

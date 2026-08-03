@@ -449,7 +449,8 @@ Concept codes are unique within a set by construction. Options are ordered by
 `sortOrder`; each one asks for a code, and if that code is already taken the
 option falls back to its UID, aggregated into one note. A CodeSystem that
 repeats a concept code will not compile, so this is enforced rather than warned
-about.
+about. The example responses code their answers from the same assignment, so a
+`valueCoding` always names a concept this file really carries.
 
 ### Data set and event program forms
 
@@ -634,9 +635,12 @@ from the data element's `valueType` (integers to `valueInteger`, `NUMBER` /
 `PERCENTAGE` / `UNIT_INTERVAL` to `valueDecimal`, `BOOLEAN` / `TRUE_ONLY` to
 `valueBoolean`, the temporals to `valueDate` / `valueDateTime` / `valueTime`,
 option-set-bound questions to a `valueCoding` into that set's generated
-CodeSystem, everything else to `valueString`). A value that will not cast, or an
-option code no option carries, is answered as a string and counted in one
-aggregate note per run rather than emitted invalid.
+CodeSystem, everything else to `valueString`). A temporal answer clears the
+calendar, the clock, and the R4 offset range before it is emitted, so an
+impossible stored value never reaches the compiler. A value that will not cast, or
+an option code no option carries, is answered as a string and counted in one
+aggregate note per run rather than emitted invalid; an answer selecting an option
+the CodeSystem holds no concept for is left unanswered and counted the same way.
 
 #### `source = "synthetic"` (the default)
 
