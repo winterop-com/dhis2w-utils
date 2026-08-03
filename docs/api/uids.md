@@ -45,12 +45,18 @@ new_dataset_id = generate_uid()
 async with open_client(profile_from_env()) as client:
     # Create the DE with the pre-generated ID...
     await client.data_elements.create(
-        uid=new_de_id, name="My DE", short_name="MyDE", value_type="INTEGER",
+        uid=new_de_id,
+        name="My DE",
+        short_name="MyDE",
+        value_type="INTEGER",
     )
     # ...then create the DataSet that references it.
     await client.data_sets.create(
-        uid=new_dataset_id, name="My DS", short_name="MyDS",
-        period_type="Monthly", data_elements=[new_de_id],
+        uid=new_dataset_id,
+        name="My DS",
+        short_name="MyDS",
+        period_type="Monthly",
+        data_elements=[new_de_id],
     )
 ```
 

@@ -49,10 +49,7 @@ async with open_client(profile_from_env()) as client:
         tracked_entity_type="nEenWmSyUEp",
         attributes={"w75KJ2mc4zz": "Jane", "zDhUuAYrxNC": "Doe"},
     )
-    print(
-        f"TE={result.tracked_entity}  enrollment={result.enrollment}  "
-        f"status={result.response.status}"
-    )
+    print(f"TE={result.tracked_entity}  enrollment={result.enrollment}  status={result.response.status}")
 
     # 2. Add an event to the new enrollment.
     event = await client.tracker.add_event(
@@ -74,10 +71,7 @@ async with open_client(profile_from_env()) as client:
     # narrows the OU subtree (DESCENDANTS by default).
     rows = await client.tracker.outstanding("IpHINAT79UW", org_unit="ImspTQPwCqd")
     for row in rows:
-        print(
-            f"  enrollment={row.enrollment}  TE={row.tracked_entity}  "
-            f"missing={row.missing_stages}"
-        )
+        print(f"  enrollment={row.enrollment}  TE={row.tracked_entity}  missing={row.missing_stages}")
 ```
 
 ## Related examples

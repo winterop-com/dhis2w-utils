@@ -30,13 +30,13 @@ async with Dhis2Client(
 ```python
 Dhis2Client(
     base_url="https://...",
-    auth=AuthProvider,                       # Basic, PAT, OAuth2, or any Protocol impl
-    timeout=30.0,                            # read/write/pool timeout
-    connect_timeout=60.0,                    # connect timeout (cold-start friendly)
-    allow_version_fallback=False,            # nearest-lower generated module if exact missing
-    version=Dhis2.V42,                       # pin a specific generated module (None = auto-detect)
-    retry_policy=RetryPolicy(...),           # optional; retries on transient HTTP failures
-    http_limits=httpx.Limits(...),           # optional; connection-pool sizing
+    auth=AuthProvider,  # Basic, PAT, OAuth2, or any Protocol impl
+    timeout=30.0,  # read/write/pool timeout
+    connect_timeout=60.0,  # connect timeout (cold-start friendly)
+    allow_version_fallback=False,  # nearest-lower generated module if exact missing
+    version=Dhis2.V42,  # pin a specific generated module (None = auto-detect)
+    retry_policy=RetryPolicy(...),  # optional; retries on transient HTTP failures
+    http_limits=httpx.Limits(...),  # optional; connection-pool sizing
 )
 ```
 
@@ -84,9 +84,11 @@ The pool silently queues requests past its ceiling — you won't see the backpre
 tight = httpx.Limits(max_connections=15, max_keepalive_connections=5)
 sem = asyncio.Semaphore(10)
 
+
 async def bounded(uid: str):
     async with sem:
         return await client.resources.data_elements.get(uid)
+
 
 await asyncio.gather(*(bounded(u) for u in uids))
 ```
@@ -150,10 +152,10 @@ Typed `post` / `put` / `delete` variants will land when `query.py` grows a pydan
 ```python
 from dhis2w_client import generate_uid, generate_uids, is_valid_uid, UID_RE
 
-generate_uid()            # "aB3dEf5gH7i" — 11 chars, first is letter
-generate_uids(100)        # list[str] of 100 unique UIDs
-is_valid_uid("Penta1Dos") # False (too short)
-UID_RE.pattern            # '^[A-Za-z][A-Za-z0-9]{10}$'
+generate_uid()  # "aB3dEf5gH7i" — 11 chars, first is letter
+generate_uids(100)  # list[str] of 100 unique UIDs
+is_valid_uid("Penta1Dos")  # False (too short)
+UID_RE.pattern  # '^[A-Za-z][A-Za-z0-9]{10}$'
 ```
 
 Mirrors `dhis-2/dhis-api/src/main/java/org/hisp/dhis/common/CodeGenerator.java` — same 62-char alphabet (digits + upper + lower), same 11-char length, same letter-first constraint. Uses `secrets.choice` so UIDs are CSPRNG-strong (the `SecureRandom` path upstream). Avoids a `/api/system/id` round-trip when minting IDs for `/api/metadata` bulk payloads.

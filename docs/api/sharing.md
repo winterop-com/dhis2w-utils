@@ -15,11 +15,11 @@ DHIS2 packs four capabilities into an 8-char string:
 ```python
 from dhis2w_client import access_string, ACCESS_READ_METADATA, ACCESS_READ_WRITE_DATA
 
-access_string()                                 # '--------'
-access_string(metadata="rw")                    # 'rw------'
-access_string(metadata="r-", data="r-")         # 'r-r-----'
-ACCESS_READ_METADATA                            # 'r-------'
-ACCESS_READ_WRITE_DATA                          # 'rwrw----'
+access_string()  # '--------'
+access_string(metadata="rw")  # 'rw------'
+access_string(metadata="r-", data="r-")  # 'r-r-----'
+ACCESS_READ_METADATA  # 'r-------'
+ACCESS_READ_WRITE_DATA  # 'rwrw----'
 ```
 
 The four constants cover >95% of callsites; `access_string()` handles the rest without concatenation at the use site.

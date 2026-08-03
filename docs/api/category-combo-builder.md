@@ -8,14 +8,22 @@ from dhis2w_client import CategoryComboBuildSpec, CategorySpec, CategoryOptionSp
 spec = CategoryComboBuildSpec(
     name="Sex x Age",
     categories=[
-        CategorySpec(name="Sex", short_name="Sex", options=[
-            CategoryOptionSpec(name="Male", short_name="M"),
-            CategoryOptionSpec(name="Female", short_name="F"),
-        ]),
-        CategorySpec(name="Age band", short_name="Age", options=[
-            CategoryOptionSpec(name="<1y", short_name="<1y"),
-            CategoryOptionSpec(name=">=1y", short_name=">=1y"),
-        ]),
+        CategorySpec(
+            name="Sex",
+            short_name="Sex",
+            options=[
+                CategoryOptionSpec(name="Male", short_name="M"),
+                CategoryOptionSpec(name="Female", short_name="F"),
+            ],
+        ),
+        CategorySpec(
+            name="Age band",
+            short_name="Age",
+            options=[
+                CategoryOptionSpec(name="<1y", short_name="<1y"),
+                CategoryOptionSpec(name=">=1y", short_name=">=1y"),
+            ],
+        ),
     ],
 )
 result: CategoryComboBuildResult = await build_category_combo(client, spec)

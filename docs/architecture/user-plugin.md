@@ -62,7 +62,9 @@ from dhis2w_core.v42.plugins.user.service import UserInvite, UserNotFoundError
 
 users = await service.list_users(profile, filters=["disabled:eq:false"], page_size=10)
 user = await service.get_user(profile, "alice")  # username or UID
-envelope = await service.invite_user(profile, UserInvite(email="alice@example.com", firstName="Alice", surname="Example"))
+envelope = await service.invite_user(
+    profile, UserInvite(email="alice@example.com", firstName="Alice", surname="Example")
+)
 ```
 
 Both the CLI and the MCP tool call into these functions unchanged — exception handling + I/O formatting stays at the edges.

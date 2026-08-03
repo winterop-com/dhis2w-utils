@@ -36,6 +36,7 @@ from dhis2w_client.generated.v42.enums import VisualizationType
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import profile_from_env
 
+
 async def main():
     async with open_client(profile_from_env()) as client:
         spec = VisualizationSpec(
@@ -58,9 +59,9 @@ spec = VisualizationSpec(
     data_elements=["fClA2Erf6IO", "UOlfIjgN8X6"],
     periods=[f"2024{m:02d}" for m in range(1, 13)],
     organisation_units=["ImspTQPwCqd"],
-    category_dimension="pe",   # x-axis stays as time
-    series_dimension="dx",     # one line per data element
-    filter_dimension="ou",     # single root org unit
+    category_dimension="pe",  # x-axis stays as time
+    series_dimension="dx",  # one line per data element
+    filter_dimension="ou",  # single root org unit
 )
 ```
 
@@ -94,7 +95,7 @@ spec = VisualizationSpec(
     indicators=["OEWO2PpiUKx", "bASXd9ukRGD", "loEBZlcsTlx"],
     relative_periods=frozenset({RelativePeriod.LAST_12_MONTHS}),
     organisation_units=["ImspTQPwCqd"],
-    category_dimension="dx",   # indicators on rows, not filter
+    category_dimension="dx",  # indicators on rows, not filter
 )
 ```
 
@@ -138,7 +139,7 @@ Cloning is how most admin workflows iterate — find a chart that's 90% right, c
 
 ```python
 clone = await client.visualizations.clone(
-    "Qyuliufvfjl",               # source UID
+    "Qyuliufvfjl",  # source UID
     new_name="Penta1 doses — 2025 preview",
     new_description="Clone of the 2024 chart with the period bump",
 )

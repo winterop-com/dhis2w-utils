@@ -352,6 +352,7 @@ async with open_client(profile_from_env()) as client:
 
     # PATCH; partial update via RFC 6902 JSON Patch
     from dhis2w_client import ReplaceOp
+
     await client.resources.data_elements.patch(uid, [ReplaceOp(path="/shortName", value="Px")])
 
     # DELETE
@@ -421,8 +422,7 @@ async with open_client(profile_from_env()) as client:
     counts = response.import_count()
     if counts is not None:
         print(
-            f"  imported={counts.imported} updated={counts.updated} "
-            f"ignored={counts.ignored} deleted={counts.deleted}"
+            f"  imported={counts.imported} updated={counts.updated} ignored={counts.ignored} deleted={counts.deleted}"
         )
     for conflict in response.conflicts():
         print(f"  conflict: {conflict.property} = {conflict.value} [{conflict.errorCode}]")
@@ -554,8 +554,8 @@ async with open_client(profile_from_env()) as client:
     try:
         completion = await client.tasks.await_completion(
             ref,
-            timeout=300.0,        # seconds; pass None to wait forever
-            poll_interval=1.0,    # seconds between polls
+            timeout=300.0,  # seconds; pass None to wait forever
+            poll_interval=1.0,  # seconds between polls
         )
     except TaskTimeoutError as exc:
         print(f"task didn't finish in time: {exc}")
@@ -598,11 +598,11 @@ Every client ships a TTL-bounded in-memory cache for the high-repetition system-
 
 ```python
 async with open_client(profile_from_env()) as client:
-    info = await client.system.info()                       # primed; free
+    info = await client.system.info()  # primed; free
     default_cc = await client.system.default_category_combo_uid()  # fetched once; cached
-    title = await client.system.setting("applicationTitle")        # per-key cache
+    title = await client.system.setting("applicationTitle")  # per-key cache
 
-    client.system.invalidate_cache()                       # drop everything
+    client.system.invalidate_cache()  # drop everything
     # or: client.system.invalidate_cache(key="setting:applicationTitle")
 ```
 
@@ -615,10 +615,10 @@ DHIS2 UIDs are 11-char strings matching `^[A-Za-z][A-Za-z0-9]{10}$`. Instead of 
 ```python
 from dhis2w_client import UID_RE, generate_uid, generate_uids, is_valid_uid
 
-generate_uid()              # "aB3dEf5gH7i"
-generate_uids(100)          # list of 100 unique UIDs
-is_valid_uid("fClA2Erf6IO") # True
-UID_RE.pattern              # '^[A-Za-z][A-Za-z0-9]{10}$'
+generate_uid()  # "aB3dEf5gH7i"
+generate_uids(100)  # list of 100 unique UIDs
+is_valid_uid("fClA2Erf6IO")  # True
+UID_RE.pattern  # '^[A-Za-z][A-Za-z0-9]{10}$'
 ```
 
 Uses `secrets.choice` (CSPRNG), matches the `SecureRandom` path upstream. No client connection needed.

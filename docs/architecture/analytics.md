@@ -85,21 +85,27 @@ d2w analytics enrollments query <PROG_UID> \
 
 ```python
 # Aggregated query
-await mcp.call_tool("analytics_query", {
-    "dimensions": [
-        "dx:fbfJHSPpUQD;cYeuwXTCPkU",
-        "pe:LAST_12_MONTHS",
-        "ou:ImspTQPwCqd",
-    ],
-    "aggregation_type": "SUM",
-    "output_id_scheme": "NAME",
-    "include_num_den": True,
-})
+await mcp.call_tool(
+    "analytics_query",
+    {
+        "dimensions": [
+            "dx:fbfJHSPpUQD;cYeuwXTCPkU",
+            "pe:LAST_12_MONTHS",
+            "ou:ImspTQPwCqd",
+        ],
+        "aggregation_type": "SUM",
+        "output_id_scheme": "NAME",
+        "include_num_den": True,
+    },
+)
 
 # Raw
-await mcp.call_tool("analytics_query (shape=raw)", {
-    "dimensions": ["dx:fbfJHSPpUQD", "pe:LAST_3_MONTHS", "ou:ImspTQPwCqd"],
-})
+await mcp.call_tool(
+    "analytics_query (shape=raw)",
+    {
+        "dimensions": ["dx:fbfJHSPpUQD", "pe:LAST_3_MONTHS", "ou:ImspTQPwCqd"],
+    },
+)
 
 # Trigger rebuild
 await mcp.call_tool("maintenance_refresh_analytics", {"last_years": 2})

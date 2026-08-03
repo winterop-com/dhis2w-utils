@@ -34,8 +34,8 @@ d2w --profile play42 query explain "$(cat examples/d2ql/metadata-anc-elements.d2
 from dhis2w_ql import parse
 
 library = parse(open("examples/d2ql/library-immunisation.d2ql").read())
-print([d.name for d in library.definitions])           # ['MinLevel', 'isImmunisation', 'Aggregates']
-print([s.kind for s in library.terminal.stages])       # ['where', 'select', 'order', 'limit']
+print([d.name for d in library.definitions])  # ['MinLevel', 'isImmunisation', 'Aggregates']
+print([s.kind for s in library.terminal.stages])  # ['where', 'select', 'order', 'limit']
 ```
 
 ## The programs

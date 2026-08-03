@@ -50,6 +50,7 @@ Why: automation wants headless for speed; humans debugging a flow want to see it
 import asyncio
 from dhis2w_browser import PatOptions, create_pat
 
+
 async def main() -> None:
     token = await create_pat(
         "http://localhost:8080",
@@ -62,6 +63,7 @@ async def main() -> None:
         ),
     )
     print(token)  # d2p_...
+
 
 asyncio.run(main())
 ```

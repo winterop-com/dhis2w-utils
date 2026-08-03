@@ -26,7 +26,7 @@ async with Dhis2Client(...) as client:
         name="BCG coverage",
         short_name="BCG cov",
         indicator_type_uid="JkWynlWMjJR",  # "Number (Factor 1)"
-        numerator="#{s46m5MS0hxu}",        # BCG doses given
+        numerator="#{s46m5MS0hxu}",  # BCG doses given
         denominator="1",
         numerator_description="BCG doses given",
         legend_set_uids=["LsDoseBand1"],

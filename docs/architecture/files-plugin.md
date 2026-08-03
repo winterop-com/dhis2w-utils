@@ -98,7 +98,8 @@ from dhis2w_core.profile import profile_from_env
 async with open_client(profile_from_env()) as client:
     # Documents — external URL, no binary:
     external = await client.files.create_external_document(
-        name="Wiki", url="https://example.org",
+        name="Wiki",
+        url="https://example.org",
     )
 
     # Documents — binary (two-step fileResource -> link, typed Document returned):
@@ -108,7 +109,9 @@ async with open_client(profile_from_env()) as client:
 
     # File resources — standalone (pass-through MESSAGE_ATTACHMENT here):
     fr = await client.files.upload_file_resource(
-        b"...", filename="attachment.pdf", domain="MESSAGE_ATTACHMENT",
+        b"...",
+        filename="attachment.pdf",
+        domain="MESSAGE_ATTACHMENT",
     )
     data = await client.files.download_file_resource(fr.id)
 ```

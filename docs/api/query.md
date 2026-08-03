@@ -33,8 +33,10 @@ import asyncio
 from dhis2w_ql import InMemoryBinder, QueryEngine, parse
 
 rows = [{"id": "a1", "name": "ANC", "domainType": "AGGREGATE"}]
-engine = QueryEngine(parse('dataElements | where domainType = "AGGREGATE" | transform { code: id }'),
-                     InMemoryBinder({"dataElements": rows}))
+engine = QueryEngine(
+    parse('dataElements | where domainType = "AGGREGATE" | transform { code: id }'),
+    InMemoryBinder({"dataElements": rows}),
+)
 print(asyncio.run(engine.run_terminal()).rows)  # [{'code': 'a1'}]
 ```
 

@@ -9,6 +9,7 @@
 ```python
 from typing import Protocol, runtime_checkable
 
+
 @runtime_checkable
 class AuthProvider(Protocol):
     """Injects authentication headers into outgoing DHIS2 requests."""
@@ -32,6 +33,7 @@ HTTP Basic: `Authorization: Basic <base64(user:pass)>`. `refresh_if_needed` is a
 
 ```python
 from dhis2w_client import BasicAuth
+
 auth = BasicAuth(username="admin", password="district")
 ```
 
@@ -41,6 +43,7 @@ DHIS2 Personal Access Token: `Authorization: ApiToken <pat>`. Long-lived and rev
 
 ```python
 from dhis2w_client import PatAuth
+
 auth = PatAuth(token="d2pat_...")
 ```
 
@@ -58,6 +61,7 @@ The optional `xsrf_token` carries DHIS2's double-submit CSRF value: when set, `h
 
 ```python
 from dhis2w_client import SessionCookieAuth
+
 auth = SessionCookieAuth(cookie="JSESSIONID=abc123")
 # With CSRF protection (write-enabled sessions):
 auth = SessionCookieAuth(cookie="JSESSIONID=abc123", xsrf_token="a1b2c3d4-xsrf")
@@ -85,6 +89,7 @@ On subsequent calls:
 
 ```python
 from dhis2w_client import OAuth2Auth
+
 auth = OAuth2Auth(
     base_url="https://dhis2.example.org",
     client_id="dhis2-utils-local",

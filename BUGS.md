@@ -3136,7 +3136,8 @@ curl -sf -u admin:district 'https://play.im.dhis2.org/dev-2-42/api/systemSetting
 ```python
 # The generated OAS model can't validate the live response because of that one field:
 from dhis2w_client.generated.v42.oas import SystemSettings
-SystemSettings.model_validate(raw)   # raw = the JSON above
+
+SystemSettings.model_validate(raw)  # raw = the JSON above
 # pydantic ValidationError: keyAnalysisDisplayProperty
 #   Input should be 'NAME' or 'SHORTNAME' [input_value='name']
 ```
