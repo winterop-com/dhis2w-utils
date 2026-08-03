@@ -7,6 +7,7 @@ however the components are arranged internally.
 
 from dhis2w_fhir.config import (
     FHIR_CONFIG_FILENAME,
+    REPORTS_DIRECTORY,
     FhirProject,
     FhirProjectConfig,
     GenerateConfig,
@@ -144,6 +145,7 @@ __all__ = [
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
     "EXAMPLES_DIRECTORY",
     "FHIR_CONFIG_FILENAME",
+    "REPORTS_DIRECTORY",
     "FORM_TYPE_DEFINITIONS",
     "GENERATED_HEADER",
     "GENERATED_MARKDOWN_HEADER",

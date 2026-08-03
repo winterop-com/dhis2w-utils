@@ -186,14 +186,14 @@ def test_validate_renders_findings_and_exit_code(fhir_project: Path) -> None:
     assert "invalid-code" in result.output
     assert "spaced-code x1" in result.output
     assert "two words" not in result.output
-    markdown = fhir_project / "fhir-validate-report.md"
+    markdown = fhir_project / "reports" / "fhir-validate-report.md"
     assert "## options" in markdown.read_text(encoding="utf-8")
-    csv_report = fhir_project / "fhir-validate-report.csv"
+    csv_report = fhir_project / "reports" / "fhir-validate-report.csv"
     lines = csv_report.read_text(encoding="utf-8").splitlines()
     assert lines[0] == "severity,category,resource_type,uid,name,code,message"
     assert len(lines) == 3
     assert "error,invalid-code,options,Op1aaaaaaaa," in lines[1]
-    pdf_report = fhir_project / "fhir-validate-report.pdf"
+    pdf_report = fhir_project / "reports" / "fhir-validate-report.pdf"
     assert pdf_report.read_bytes().startswith(b"%PDF")
     for suffix in ("md", "csv", "pdf"):
         assert f"fhir-validate-report.{suffix}" in result.output

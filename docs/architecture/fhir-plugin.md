@@ -623,7 +623,7 @@ readiness probe for that switch.
 
 The terminal shows errors and warnings; infos roll up per category (`--all` lists
 them). Reports are written in three formats - `--report` takes a path *stem*
-(default `fhir-validate-report` beside `fhir.toml`) and `--format` a comma list
+(default `reports/fhir-validate-report` under the project root, gitignored by the scaffold) and `--format` a comma list
 of `md`, `csv`, `pdf`:
 
 - Markdown, grouped by resource type;

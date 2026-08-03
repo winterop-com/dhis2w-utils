@@ -949,9 +949,12 @@ instance-wide sweep keeps its severities either way.
 ### Report files
 
 `--report` takes a path **stem** without an extension - by default
-`fhir-validate-report` beside `fhir.toml`, or in the working directory when there
-is no project. `--format` takes a comma list of `md`, `csv`, `pdf`; all three are
-written by default, and each written path is echoed.
+`reports/fhir-validate-report` under the project root, or under the working
+directory when there is no project. The scaffolded `.gitignore` covers
+`reports/`: the reports are regenerable snapshots of instance state, so they
+stay out of git; pin one deliberately (`git add -f`) when handing it over.
+`--format` takes a comma list of `md`, `csv`, `pdf`; all three are written by
+default, and each written path is echoed.
 
 - **`.md`** - findings grouped under one section per resource type.
 - **`.csv`** - one row per finding, columns

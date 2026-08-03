@@ -9977,7 +9977,7 @@ $ d2w fhir validate [OPTIONS]
 
 **Options**:
 
-* `--report <file>`: Report path stem, without extension (default: fhir-validate-report in the project root or current directory).
+* `--report <file>`: Report path stem, without extension (default: reports/fhir-validate-report under the project root or current directory).
 * `--format <str>`: Comma-separated report formats to write: md, csv, pdf.  [default: md,csv,pdf]
 * `--code-source <str>`: Override  concept_code_source for this run: id or code. In id mode the option code findings are informational; run with code to see what switching would cost.
 * `--all`: List info-level findings individually instead of rolled up.
