@@ -22,7 +22,6 @@ class Sharing(BaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    external: bool | None = None
     owner: str | None = Field(default=None, description="Length/value max=2147483647.")
     public: str | None = Field(default=None, description="Length/value max=2147483647.")
     userGroups: Any | None = Field(default=None, description="Reference to Map. Read-only (inverse side).")

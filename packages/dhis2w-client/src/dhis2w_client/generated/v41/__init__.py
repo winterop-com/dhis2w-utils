@@ -47,7 +47,6 @@ from .schemas import (
     JobConfiguration,
     LegendSet,
     Map,
-    MapView,
     OAuth2Client,
     Option,
     OptionGroup,
@@ -91,7 +90,7 @@ from .schemas import (
 
 GENERATED = True
 VERSION_KEY = "v41"
-RAW_VERSION = "2.41.8.2"
+RAW_VERSION = "2.41.9"
 
 __all__ = [
     "GENERATED",
@@ -133,7 +132,6 @@ __all__ = [
     "JobConfiguration",
     "LegendSet",
     "Map",
-    "MapView",
     "OAuth2Client",
     "Option",
     "OptionGroup",

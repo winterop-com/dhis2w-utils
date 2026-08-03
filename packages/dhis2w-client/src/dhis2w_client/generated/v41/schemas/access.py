@@ -24,7 +24,6 @@ class Access(BaseModel):
 
     data: Any | None = Field(default=None, description="Reference to AccessData. Read-only (inverse side).")
     delete: bool | None = None
-    externalize: bool | None = None
     manage: bool | None = None
     read: bool | None = None
     update: bool | None = None
