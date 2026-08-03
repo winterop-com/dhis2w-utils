@@ -227,6 +227,22 @@ def test_makefile_mounts_the_package_cache_volume() -> None:
     assert "CACHE_VOLUME := fhir-ig-cache" in makefile
 
 
+def test_makefile_refresh_chains_the_full_force_rebuild() -> None:
+    """`refresh` wipes every cache, pulls the latest tooling, regenerates, and rebuilds - in that order."""
+    makefile = _by_path()["Makefile"]
+    refresh_recipe = makefile.split("refresh:")[1]
+    steps = [line.strip() for line in refresh_recipe.splitlines() if line.startswith("\t")]
+    assert steps == [
+        "$(MAKE) clean-all",
+        "$(MAKE) upgrade",
+        "$(MAKE) generate",
+        "$(MAKE) sushi",
+        "$(MAKE) build",
+    ]
+    phony_line = next(line for line in makefile.splitlines() if line.startswith(".PHONY:"))
+    assert " refresh " in phony_line
+
+
 def test_makefile_clean_keeps_the_terminology_cache() -> None:
     """`clean` drops the publisher's side products but leaves input-cache for the next build."""
     makefile = _by_path()["Makefile"]

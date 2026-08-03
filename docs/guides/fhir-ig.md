@@ -956,6 +956,7 @@ make generate   d2w fhir generate all
 make validate   d2w fhir validate
 make sushi      Compile FSH to FHIR resources
 make build      Run the full IG publisher
+make refresh    Force-refresh everything: clean-all, upgrade, generate, sushi, build
 make clean      Remove build output
 make clean-all  Also remove the terminology cache and the package cache volume
 make help       List the targets
