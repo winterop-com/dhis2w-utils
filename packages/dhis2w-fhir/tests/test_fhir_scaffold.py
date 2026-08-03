@@ -145,7 +145,7 @@ def test_ig_ini_points_at_sushi_output() -> None:
 
 def test_fsh_ini_raises_the_sushi_timeout() -> None:
     """fsh.ini lifts the publisher's internal SUSHI timeout past a real instance's compile time."""
-    assert _by_path()["ig/fsh.ini"] == "[FSH]\ntimeout = 900\n"
+    assert _by_path()["ig/fsh.ini"] == "[FSH]\ntimeout = 1800\n"
 
 
 def test_scaffolded_aliases_are_hand_space() -> None:

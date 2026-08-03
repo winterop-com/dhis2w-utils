@@ -1028,10 +1028,14 @@ make generate D2W="uvx --from 'git+ssh://git@github.com/winterop-com/dhis2w-util
 Two build knobs the scaffold sets for you, both because the defaults break on a
 real instance's IG:
 
-`ig/fsh.ini` raises the SUSHI timeout to 900 seconds. The IG publisher re-runs
+`ig/fsh.ini` raises the SUSHI timeout to 1800 seconds. The IG publisher re-runs
 SUSHI internally with a 300-second default, which an IG built from a real DHIS2
 instance - hundreds of CodeSystem/ValueSet pairs plus thousands of instances -
-overruns, and the publisher dies with exit 143.
+overruns, and the publisher dies with exit 143 in its very first phase. The
+generous ceiling is deliberate: the demo's internal SUSHI run normally takes
+about seven minutes, but it has been seen to stall in its export phase, and a
+timeout that fires kills the whole build after a long wait rather than letting
+a slow run finish.
 
 `TX_SERVER` picks the terminology server the publisher validates against; it
 defaults to `http://tx.fhir.org`. Setting `TX_SERVER=n/a` disables terminology
@@ -1052,7 +1056,8 @@ Measured on the Sierra Leone demo (171 option sets, 2,664 registry instances,
 | `validate` | 7s |
 | `sushi`, cold package cache | 9m05s |
 | `sushi`, warm package cache | 5m26s |
-| `build` | ~20m |
+| `build`, all three wire formats | 24m36s |
+| `build`, JSON only | 18m54s |
 
 Two things about that table matter more than the totals. The first is that the
 cold and warm `sushi` runs differ by three and a half minutes of pure package
@@ -1073,7 +1078,11 @@ publisher writes and renders every resource, so the registry - which is 2,664 of
 those 3,101 resources - sets the pace. The scaffolded `sushi-config.yaml`
 therefore publishes JSON only (`excludexml` and `excludettl`), because the two
 extra wire formats add a file and a rendered page per resource for content that
-consumers and the tooling read as JSON anyway. `[generate.organisation_units]
+consumers and the tooling read as JSON anyway. On the demo that is 5m42s off the
+build and half the output: 13,710 files and 466MB instead of 26,120 and 874MB,
+with the same 0 errors and 0 warnings. Together with dropping the duplicate
+SUSHI, a full regenerate-and-publish goes from about thirty minutes to under
+nineteen. `[generate.organisation_units]
 max_level` is the other lever, and it is a config change rather than a build
 flag: fewer levels, proportionally less of everything.
 

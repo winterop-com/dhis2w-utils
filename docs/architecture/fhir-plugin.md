@@ -49,7 +49,7 @@ Dockerfile                  ghcr.io/fhir/ig-publisher-localdev + fsh-sushi
                             reports/, and .venv - never uv.lock, the pinned toolchain
 ig/sushi-config.yaml        SUSHI IG identity (id, canonical, publisher)
 ig/ig.ini                   IG publisher entry point (fhir2.base.template)
-ig/fsh.ini                  Raises the publisher's internal SUSHI timeout to 900s
+ig/fsh.ini                  Raises the publisher's internal SUSHI timeout to 1800s
 ig/input/fsh/aliases.fsh    Hand-authored alias stub (never regenerated)
 ig/input/pagecontent/index.md   Hand-authored home page; includes the four
                             publisher fragments (cross-version-analysis,
