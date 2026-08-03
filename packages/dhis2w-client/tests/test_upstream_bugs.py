@@ -768,72 +768,6 @@ async def test_bug_6_live_verifier(local_url: str) -> None:
 
 @pytest.mark.upstream_bug
 @pytest.mark.slow
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DHIS2 fixed upstream — OAS now declares `id` (matching the wire) instead of `uid`. "
-        "Workaround removal pending: drop the `uid`->`id` rename in "
-        "`packages/dhis2w-codegen/src/dhis2w_codegen/emit.py`. See BUGS.md #7."
-    ),
-)
-async def test_bug_7_live_verifier(local_url: str) -> None:
-    """BUGS.md #7 — OAS names the primary key `uid` while wire JSON uses `id`.
-
-    Cross-version bug (v41/v42/v43). Every metadata resource schema in
-    `/api/openapi.json` declares `properties.uid`; the wire format uses
-    `id`. Codegen renames `uid` → `id` at emit time. This verifier
-    asserts the OAS still carries the misnaming on the OrganisationUnit
-    schema (a canonical metadata resource).
-    """
-    _skip_if_stack_unreachable(local_url)
-    async with Dhis2Client(local_url, auth=_live_auth(), allow_version_fallback=True) as client:
-        _skip_unless_version(client, _AnyVersion)
-        spec = await client.get_raw("/api/openapi.json")
-    org_unit = spec.get("components", {}).get("schemas", {}).get("OrganisationUnit") or {}
-    props = org_unit.get("properties") or {}
-    assert "uid" in props and "id" not in props, (
-        f"BUGS.md #7: expected OrganisationUnit schema to declare `uid` (not `id`). "
-        f"Got id-present={'id' in props}, uid-present={'uid' in props}. "
-        f"DHIS2 may have aligned the OAS with the wire format — verify upstream + drop "
-        f"the `uid`→`id` rename in `packages/dhis2w-codegen/src/dhis2w_codegen/emit.py`."
-    )
-
-
-@pytest.mark.upstream_bug
-@pytest.mark.slow
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DHIS2 fixed upstream — `UserRole.authorities` is now visible on `/api/schemas/userRole` "
-        "(the auto-pluralizer mangling was corrected). Workaround removal pending. "
-        "See BUGS.md #8."
-    ),
-)
-async def test_bug_8_live_verifier(local_url: str) -> None:
-    """BUGS.md #8 — `/api/schemas/userRole.properties.authorities.fieldName` is `"authoritys"`.
-
-    Cross-version bug (v41/v42/v43): DHIS2's auto-pluralizer mangles
-    `authority` -> `authoritys` for the `UserRole.authorities` property's
-    wire fieldName. The wire still accepts `authorities`, but anything
-    that walks the schema and uses fieldName as-is breaks.
-    """
-    _skip_if_stack_unreachable(local_url)
-    async with Dhis2Client(local_url, auth=_live_auth(), allow_version_fallback=True) as client:
-        _skip_unless_version(client, _AnyVersion)
-        schema = await client.get_raw("/api/schemas/userRole", params={"fields": "properties[name,fieldName]"})
-        authorities = next(
-            (p for p in schema.get("properties") or [] if p.get("name") == "authorities"),
-            None,
-        )
-    assert authorities is not None, "BUGS.md #8: expected to find a `authorities` property on UserRole schema."
-    assert authorities.get("fieldName") == "authoritys", (
-        f"BUGS.md #8: expected fieldName==`authoritys` (the misspelling), got {authorities.get('fieldName')!r}. "
-        f"DHIS2 may have fixed the auto-pluralizer — verify upstream + drop the alias workaround."
-    )
-
-
-@pytest.mark.upstream_bug
-@pytest.mark.slow
 async def test_bug_9_live_verifier(local_url: str) -> None:
     """BUGS.md #9 — TODO live verifier: DHIS2's strict OIDC property parser rejects entire provider config on typos
 
@@ -1309,44 +1243,6 @@ async def test_bug_21_live_verifier(local_url: str) -> None:
 
 @pytest.mark.upstream_bug
 @pytest.mark.slow
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DHIS2 fixed upstream — `/api/schemas/programRuleVariable` now reports the actual wire "
-        "field name `programRuleVariableSourceType` instead of the misleading short `sourceType`. "
-        "Workaround removal pending: remove the field-name override in the program-rule plugin's "
-        "seed payload. See BUGS.md #22."
-    ),
-)
-async def test_bug_22_live_verifier(local_url: str) -> None:
-    """BUGS.md #22 — `/api/schemas/programRuleVariable` lies about the source-type field name.
-
-    Cross-version bug (v41/v42/v43). The schema endpoint lists
-    `sourceType` as the property name, but POSTing with that name
-    silently drops the value. The actual wire field is the longer
-    `programRuleVariableSourceType`. This verifier asserts the schema
-    still reports the shorter (wrong) name.
-    """
-    _skip_if_stack_unreachable(local_url)
-    async with Dhis2Client(local_url, auth=_live_auth(), allow_version_fallback=True) as client:
-        _skip_unless_version(client, _AnyVersion)
-        schema = await client.get_raw(
-            "/api/schemas/programRuleVariable", params={"fields": "properties[name,fieldName]"}
-        )
-    props = schema.get("properties") or []
-    by_name = {p.get("name"): p.get("fieldName") for p in props}
-    assert "sourceType" in by_name and "programRuleVariableSourceType" not in by_name, (
-        f"BUGS.md #22: expected schema to report property `sourceType` (the misleading short "
-        f"name) and NOT `programRuleVariableSourceType`. Got names with `sourceType`="
-        f"{'sourceType' in by_name}, `programRuleVariableSourceType`="
-        f"{'programRuleVariableSourceType' in by_name}. DHIS2 may have aligned the schema with "
-        f"the wire — verify upstream + remove the field-name override in the program-rule "
-        f"plugin's seed payload."
-    )
-
-
-@pytest.mark.upstream_bug
-@pytest.mark.slow
 async def test_bug_23_live_verifier(local_url: str) -> None:
     """BUGS.md #23 — single-pass `/api/metadata` with DataSets trips Hibernate flush error.
 
@@ -1400,43 +1296,6 @@ async def test_bug_24_live_verifier(local_url: str) -> None:
         f"{excinfo.value.status_code}. DHIS2 may have loosened the constraint — verify "
         f"upstream + drop the `_disambiguate_common_names` rename in "
         f"`infra/scripts/seed/loader.py`."
-    )
-
-
-@pytest.mark.upstream_bug
-@pytest.mark.slow
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DHIS2 fixed upstream — `/api/dataSets/{uid}/metadata` no longer leaks the computed "
-        "read-only fields (`access` / `displayName` / `favorite` / `favorites` / `href`). "
-        "Workaround removal pending: drop the strip-on-export pass. See BUGS.md #25."
-    ),
-)
-async def test_bug_25_live_verifier(local_url: str) -> None:
-    """BUGS.md #25 — `/api/.../metadata` leaks computed read-only fields that confuse re-imports.
-
-    Cross-version bug. GETing `/api/dataSets/{uid}/metadata` returns
-    `access`, `displayName`, `favorite`, etc. — fields that the importer
-    rejects on re-POST. Workaround strips them. Read-only assertion.
-    """
-    _skip_if_stack_unreachable(local_url)
-    async with Dhis2Client(local_url, auth=_live_auth(), allow_version_fallback=True) as client:
-        _skip_unless_version(client, _AnyVersion)
-        sample = await client.get_raw("/api/dataSets", params={"fields": "id", "pageSize": "1"})
-        rows = sample.get("dataSets") or []
-        if not rows:
-            pytest.skip("seeded fixture has no DataSets")
-        ds_uid = rows[0]["id"]
-        bundle = await client.get_raw(f"/api/dataSets/{ds_uid}/metadata")
-    data_sets = bundle.get("dataSets") or []
-    ds_row = data_sets[0] if isinstance(data_sets[0], dict) else {}
-    leaked = {"access", "displayName", "favorite", "favorites", "href"} & ds_row.keys()
-    assert leaked, (
-        f"BUGS.md #25: expected at least one computed read-only field on the metadata bundle "
-        f"(`access` / `displayName` / `favorite` / `favorites` / `href`), got keys="
-        f"{sorted(ds_row.keys())}. DHIS2 may have stopped leaking computed fields — verify "
-        f"upstream + drop the strip-on-export workaround."
     )
 
 
@@ -1617,55 +1476,6 @@ async def test_bug_31_live_verifier(local_url: str) -> None:
         f"BUGS.md #31: expected lowercase `avg(1)` to parse OK, got status="
         f"{lower_body.get('status')!r}. The parser may have changed entirely."
     )
-
-
-@pytest.mark.upstream_bug
-@pytest.mark.slow
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DHIS2 fixed upstream — `POST /api/systemSettings/keyCalendar` now persists the new value. "
-        "Workaround docstring removal pending: drop the 'no-op on most builds' caveat on "
-        "`system.calendar.set`. See BUGS.md #32."
-    ),
-)
-async def test_bug_32_live_verifier(local_url: str) -> None:
-    """BUGS.md #32 — `POST /api/systemSettings/keyCalendar` returns 200 OK but never persists.
-
-    Cross-version bug. The write endpoint acknowledges success but the
-    setting reverts to its previous value on the next read. POSTs a new
-    value, reads back, asserts the read returns the original (not the
-    posted) value. Restores whatever was there before for cleanliness.
-    """
-    _skip_if_stack_unreachable(local_url)
-    async with Dhis2Client(local_url, auth=_live_auth(), allow_version_fallback=True) as client:
-        _skip_unless_version(client, _AnyVersion)
-        before = await client.get_raw("/api/systemSettings/keyCalendar")
-        original = before.get("keyCalendar", "iso8601") or "iso8601"
-        probe = "ethiopian" if original != "ethiopian" else "iso8601"
-        await client._request(  # noqa: SLF001
-            "POST",
-            "/api/systemSettings/keyCalendar",
-            content=probe.encode("utf-8"),
-            extra_headers={"Content-Type": "text/plain"},
-        )
-        try:
-            after = await client.get_raw("/api/systemSettings/keyCalendar")
-            stored = after.get("keyCalendar")
-            assert stored == original, (
-                f"BUGS.md #32: expected keyCalendar to revert to {original!r} (the bug), got "
-                f"{stored!r}. DHIS2 may have wired the setter properly — verify upstream + "
-                f"the docstring on `system.calendar.set` can drop the 'no-op on most builds' "
-                f"caveat."
-            )
-        finally:
-            with contextlib.suppress(Exception):
-                await client._request(  # noqa: SLF001
-                    "POST",
-                    "/api/systemSettings/keyCalendar",
-                    content=original.encode("utf-8"),
-                    extra_headers={"Content-Type": "text/plain"},
-                )
 
 
 @pytest.mark.upstream_bug

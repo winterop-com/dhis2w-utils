@@ -66,7 +66,7 @@ uv run d2w dev codegen diff v42 v43 --json    # machine-readable
 | `COMPLEX` | `Any` (preserves mixed-shape payloads via `ConfigDict(extra="allow")`) |
 | `CONSTANT` with `constants=[...]` | Generated `StrEnum` in `dhis2w_client.generated.v{N}.enums` (e.g. `ValueType.INTEGER_POSITIVE`, `DataElementDomain.AGGREGATE`). Accepts bare strings too — `StrEnum` is a `str` subclass. |
 
-The primary key that DHIS2's `/api/schemas` names `uid` is renamed to `id` on emit so generated models match the wire format (DHIS2's REST API uses `id` on every read/write — see BUGS.md #7). The `uid` spelling stays nowhere in generated code.
+The primary key that DHIS2's `/api/schemas` names `uid` is renamed to `id` on emit so generated models match the wire format (DHIS2's REST API uses `id` on every read/write). The `uid` spelling stays nowhere in generated code.
 
 For collection properties, the generator uses the singular `name + "s"` as the wire field rather than the `/api/schemas` `fieldName` (which is sometimes a Hibernate column alias like `sources` that doesn't match the JSON DHIS2 actually returns).
 

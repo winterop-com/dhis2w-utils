@@ -155,7 +155,7 @@ async def probe_login_config(client: Dhis2Client) -> ProbeResult:
 
 
 async def probe_userrole_schema_naming(client: Dhis2Client) -> ProbeResult:
-    """Check BUGS.md #8 — `/api/schemas/userRole` still mis-pluralizes `authorities` as `authoritys`."""
+    """Check whether `/api/schemas/userRole` still mis-pluralizes `authorities` as `authoritys`."""
     try:
         schema = await client.get_raw("/api/schemas/userRole")
     except Exception as exc:  # noqa: BLE001
@@ -164,7 +164,6 @@ async def probe_userrole_schema_naming(client: Dhis2Client) -> ProbeResult:
             category="bugs",
             status="fail",
             message=f"/api/schemas/userRole failed: {exc}",
-            bugs_ref="BUGS.md #8",
         )
     properties = schema.get("properties") or []
     candidate = next(
@@ -177,7 +176,6 @@ async def probe_userrole_schema_naming(client: Dhis2Client) -> ProbeResult:
             category="bugs",
             status="warn",
             message="UserRole authorities/authority field not found in schema",
-            bugs_ref="BUGS.md #8",
         )
     name = candidate.get("name")
     field_name = candidate.get("fieldName")
@@ -187,14 +185,12 @@ async def probe_userrole_schema_naming(client: Dhis2Client) -> ProbeResult:
             category="bugs",
             status="pass",
             message=f"schema still reports name={name!r} fieldName={field_name!r} (workaround still needed)",
-            bugs_ref="BUGS.md #8",
         )
     return ProbeResult(
         name="userrole-authorities-naming",
         category="bugs",
         status="warn",
         message=f"schema reports name={name!r} fieldName={field_name!r} — shape may have changed upstream",
-        bugs_ref="BUGS.md #8",
     )
 
 

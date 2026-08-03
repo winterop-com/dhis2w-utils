@@ -16,7 +16,7 @@ CRUD doesn't provide:
   `/api/expressions/description` path used by validation rules +
   predictors (reuses `client.validation.describe_expression`).
 
-Two DHIS2 quirks worked around under the hood (BUGS.md #22):
+Two DHIS2 wire quirks worked around under the hood:
 
 - POST bodies use `programRuleVariableSourceType` (not `sourceType`
   per `/api/schemas`). The generated model with `extra="allow"`
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from dhis2w_client.v42.validation import ExpressionContext, ExpressionDescription
 
 
-# Explicit fields selectors — BUGS.md #22's `fields=*` quirk means the
+# Explicit fields selectors — DHIS2's `fields=*` quirk means the
 # source-type property drops off generic selectors. Name every property
 # we want to surface so the typed models populate correctly.
 _VARIABLE_FIELDS: str = (
@@ -104,7 +104,8 @@ class ProgramRulesAccessor:
 
         Expression authors typically need this first when debugging a rule —
         "what values can my condition reference?" The typed model populates
-        `programRuleVariableSourceType` explicitly (see BUGS.md #22).
+        `programRuleVariableSourceType` explicitly, because `fields=*`
+        omits it.
         """
         raw = await self._client.get_raw(
             "/api/programRuleVariables",
@@ -124,7 +125,7 @@ class ProgramRulesAccessor:
         that collection. A direct filter on `/api/programRuleActions` would
         be cleaner but DHIS2 strips the `programRule` back-reference from
         action responses (same one-way-ownership pattern documented
-        alongside BUGS.md #22), so the rule-forward path is the only
+        in BUGS.md #22c), so the rule-forward path is the only
         reliable route.
         """
         rule = await self.get_rule(rule_uid)

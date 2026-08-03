@@ -797,16 +797,30 @@ boundary.
   site pages landed keeps its old two-entry menu until the refresh mode rewrites it.
 - `d2w fhir ui` / `browser`: a tree-widget explorer over the generated IG and
   hierarchy, modelled on the security plugin's offline d3 sharing explorer.
+  `serve` is its natural backend - the same loaded resources, one server.
 - `d2w fhir serve`: one verb, two modes (FastAPI per repo convention, read-only
   endpoints with a generated `CapabilityStatement`). The default serves the
-  compiled IG resources out of `fsh-generated`; `--live` translates on the fly
-  from the instance the project points at, answering option sets and the other
-  supported resources without a generate-and-compile round trip. Same routes,
-  same shapes - the flag only decides where a resource comes from, which is also
+  compiled IG resources out of `fsh-generated` - per-type reads, type-level
+  Bundles, `?url=` / `?_id=` search, and a `/metadata` CapabilityStatement
+  reflecting what is actually loaded; a missing `fsh-generated/` fails loud
+  ("run generate + sushi first"), never an empty server. Structured request
+  lines double as the observation layer: the log of what consumers actually ask
+  for prioritises what `--live` learns to translate first. `--live` translates
+  on the fly from the instance the project points at - its real work item is a
+  JSON builder path beside the FSH templates, fed by the same `*In` projections
+  and the identity single-sources (`option_set_identities`,
+  `concept_assignments`, the naming helpers), which is what keeps live-served
+  ids and canonicals byte-compatible with the generated IG; the same layer is
+  shared groundwork for `fhir build`'s conversion codegen. Same routes, same
+  shapes - the flag only decides where a resource comes from, which is also
   what makes it the fast half of the edit loop.
 - `d2w fhir push`: outbound delivery of the generated resources into a real FHIR
   system - transaction bundles against a target server, with the identifier
   systems above as the reconciliation key.
+- Deep validation per terminology source: validate's per-item deep pass covers
+  option sets today; each new terminology generation source (group sets,
+  categories, option groups) brings a matching deep pass when it lands, so the
+  cleanup loop keeps covering exactly what generation reads.
 - `d2w fhir build`: pack the IG into a real deployable package to build
   middleware on. Buildpack targets are python (pydantic + FastAPI) and rust
   (axum + utoipa), both codegenning their types from the IG's

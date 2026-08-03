@@ -78,9 +78,9 @@ release note. Not usually the right default for operators — run via
 
 Current `bugs` probes cover: DHIS2 version floor, `/api/me` auth,
 `/api/loginConfig` summary, `/.well-known/openid-configuration`,
-BUGS.md #1 (analytics `.json` suffix), #4 (OAuth2 endpoints), #8
-(UserRole `authorities` schema pluralization), #11 (custom-logo flag),
-#13 (`MOD_Z_SCORE` rejection).
+BUGS.md #1 (analytics `.json` suffix), #4 (OAuth2 endpoints), #11
+(custom-logo flag), #13 (`MOD_Z_SCORE` rejection), plus the UserRole
+`authorities` schema-pluralization probe.
 
 ## Statuses
 
