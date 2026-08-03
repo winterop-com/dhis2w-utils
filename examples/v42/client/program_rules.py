@@ -7,7 +7,7 @@ Covers every method on `ProgramRulesAccessor`:
 2. `get_rule(uid)` — single rule fetch.
 3. `variables_for(program_uid)` — variables in scope for expression
    authoring. Surfaces `programRuleVariableSourceType` even though
-   DHIS2's `fields=*` drops it (BUGS.md #22).
+   DHIS2's `fields=*` drops it.
 4. `actions_for(rule_uid)` — per-rule action list. Uses the rule-forward
    reference (action→rule back-ref is server-stripped; BUGS.md #22c).
 5. `where_de_is_used(de_uid)` — impact analysis before renaming a DE.

@@ -800,7 +800,7 @@ async def seed_play(client: Dhis2Client) -> None:
          session's cached OU scope refreshes (BUGS.md #26).
       4. Import everything except DataSets + Sections + DataEntryForms.
       5. Import the deferred DataSet trio on its own (BUGS.md #23).
-      6. Import the aggregate data values (chunked — BUGS.md #25).
+      6. Import the aggregate data values (chunked).
       7. Import the tracker sample.
       8. Attach the imported datasets + programs to the admin user so
          Data Entry + Tracker Capture pickers are populated on login.

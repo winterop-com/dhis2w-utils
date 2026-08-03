@@ -102,14 +102,14 @@ async def test_get_rule_returns_typed_model(server_version: str, mock_system_inf
     assert len(rule.programRuleActions) == 1
 
 
-# ---- variables_for + BUGS.md #22 quirk ---------------------------------------
+# ---- variables_for + the `fields=*` source-type quirk -------------------------
 
 
 @respx.mock
 async def test_variables_for_names_source_type_field_explicitly(
     server_version: str, mock_system_info: Callable[..., None]
 ) -> None:
-    """BUGS.md #22b — `fields=*` omits `programRuleVariableSourceType`, so we name it."""
+    """`fields=*` omits `programRuleVariableSourceType`, so the accessor names it."""
     mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/programRuleVariables").mock(
         return_value=httpx.Response(

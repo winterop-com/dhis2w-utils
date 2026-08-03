@@ -342,7 +342,6 @@ def _fields_for(
     reads and writes (the `uid` spelling rejects with 409 on POST). We
     rename at emit time so generated models match the wire format and
     callers can do `Model(id=...).model_dump()` without gymnastics.
-    See BUGS.md #7.
 
     CONSTANT properties resolve to a generated `StrEnum` class name from
     `enum_by_klass` so callers get `DataElement(domainType=DataElementDomain.AGGREGATE)`
@@ -426,7 +425,7 @@ def _wire_name_for(prop: SchemaProperty) -> str:
     For scalars `name` is the JSON wire key; `fieldName` is the Hibernate
     column or Java field name and only matches the wire shape when they
     happen to coincide. Prefer `name`, fall back to `fieldName` when
-    `name` is missing. Covers BUGS.md #7 (`name=id, fieldName=uid`),
+    `name` is missing. Covers the primary key (`name=id, fieldName=uid`),
     `OrganisationUnit.level/hierarchyLevel`, `CategoryOption.isDefault/default`,
     and the `repetition/eventRepetition` family.
     """
