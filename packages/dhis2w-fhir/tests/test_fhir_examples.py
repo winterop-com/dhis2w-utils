@@ -558,7 +558,9 @@ def test_an_unusable_occurrence_is_dropped_with_a_note() -> None:
     )
     build = build_example_artifacts([_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
     assert "* authored" not in build.artifacts[0].content
-    assert any("authored omitted" in note for note in build.notes)
+    assert "InstanceOf: QuestionnaireResponse\n" in build.artifacts[0].content
+    assert "InstanceOf: D2EventResponse" not in build.artifacts[0].content
+    assert any("base QuestionnaireResponse declared" in note for note in build.notes)
 
 
 def test_a_data_set_without_a_period_type_carries_no_period_extension() -> None:
@@ -572,7 +574,9 @@ def test_a_data_set_without_a_period_type_carries_no_period_extension() -> None:
     synthetic = build_synthetic_responses([source], [], 1, _ROOT_ORG_UNIT, _TODAY)
     build = build_example_artifacts([source], synthetic.responses, [], GenerateConfig(), _CANONICAL)
     assert "D2Period" not in build.artifacts[0].content
-    assert any("no resolvable reporting period" in note for note in build.notes)
+    assert "InstanceOf: QuestionnaireResponse\n" in build.artifacts[0].content
+    assert "InstanceOf: D2AggregateResponse" not in build.artifacts[0].content
+    assert any("base QuestionnaireResponse instead of the aggregate response profile" in note for note in build.notes)
 
 
 def test_config_defaults_to_one_synthetic_example_per_target() -> None:

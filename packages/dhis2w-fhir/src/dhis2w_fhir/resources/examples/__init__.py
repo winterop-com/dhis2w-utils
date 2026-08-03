@@ -148,6 +148,9 @@ _ASSUMED_ZONE = "Z"
 #: How many colon-separated parts a bare `HH:MM` time has, before FHIR's mandatory seconds.
 _MINUTE_ONLY_TIME_PARTS = 2
 
+#: What an example declares when a response profile's 1..1 element (D2Period, authored) is missing.
+_BASE_RESPONSE_RESOURCE = "QuestionnaireResponse"
+
 #: The DHIS2 wire spellings of a true and a false boolean value.
 _TRUE_LITERALS = frozenset({"true", "1"})
 _FALSE_LITERALS = frozenset({"false", "0"})
@@ -282,7 +285,8 @@ class _ExampleTally(BaseModel):
             notes.append(
                 aggregate_note(
                     f"{len(self.periodless_data_sets)} data sets have no resolvable reporting period; "
-                    "their examples carry no D2Period extension",
+                    "their examples carry no D2Period extension and declare the base QuestionnaireResponse "
+                    "instead of the aggregate response profile",
                     self.periodless_data_sets,
                 )
             )
@@ -290,7 +294,8 @@ class _ExampleTally(BaseModel):
             notes.append(
                 aggregate_note(
                     f"{len(self.unauthored_responses)} examples carry an occurrence timestamp FHIR cannot "
-                    "express as a dateTime; authored omitted",
+                    "express as a dateTime; authored omitted and the base QuestionnaireResponse declared "
+                    "instead of the event response profile",
                     self.unauthored_responses,
                 )
             )
@@ -580,7 +585,7 @@ def _example_view(
     authored = _authored(response, tally)
     return _ExampleView(
         instance_id=response.instance_id,
-        instance_of=_response_profile(source.kind, foundation),
+        instance_of=_response_profile(source.kind, foundation, period=period, authored=authored),
         questionnaire_url=f"{canonical}/Questionnaire/{source.uid}",
         title_literal=page_text(f"Example response - {source.name}"),
         description_literal=page_text(
@@ -596,9 +601,17 @@ def _example_view(
     )
 
 
-def _response_profile(kind: FormKind, foundation: FoundationNaming) -> str:
-    """The QuestionnaireResponse profile one form kind's examples declare themselves against."""
-    return foundation.aggregate_response_profile if kind == "aggregate" else foundation.event_response_profile
+def _response_profile(
+    kind: FormKind,
+    foundation: FoundationNaming,
+    *,
+    period: _PeriodExtensionView | None,
+    authored: str | None,
+) -> str:
+    """The declared instance type: the kind's response profile, or the base resource when a 1..1 element is missing."""
+    if kind == "aggregate":
+        return foundation.aggregate_response_profile if period is not None else _BASE_RESPONSE_RESOURCE
+    return foundation.event_response_profile if authored is not None else _BASE_RESPONSE_RESOURCE
 
 
 def _authored(response: ExampleResponseIn, tally: _ExampleTally) -> str | None:
