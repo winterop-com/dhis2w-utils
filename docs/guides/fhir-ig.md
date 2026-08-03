@@ -8,8 +8,9 @@ resources by the IG publisher.
 You get three things:
 
 - **`d2w fhir init`** scaffolds a complete, dockerized SUSHI project - config,
-  `sushi-config.yaml`, a Makefile, and a Dockerfile carrying SUSHI plus the IG
-  publisher. Nothing else to install but Docker.
+  `sushi-config.yaml`, a `pyproject.toml` pinning the d2w toolchain, a Makefile,
+  and a Dockerfile carrying SUSHI plus the IG publisher. Nothing else to install
+  but `uv` and Docker.
 - **`d2w fhir generate`** reads DHIS2 metadata and writes FSH into the project.
   Re-running converges: generated files are replaced, hand-authored FSH beside
   them is never touched.
@@ -22,30 +23,60 @@ connect, so one package serves v41, v42, and v43.
 ## Quickstart
 
 ```bash
-# 1. Scaffold a project.
+# 1. Scaffold a project. Any d2w runs this one command - `uv tool install dhis2w-cli`
+#    if you have none yet.
 d2w fhir init my-ig --id org.example.dhis2 --canonical https://example.org/fhir --publisher "Example Org"
 cd my-ig
 
-# 2. Point it at a DHIS2 instance. Either set `profile` in fhir.toml, or use the
+# 2. Install the project's own toolchain. The scaffolded pyproject.toml declares d2w,
+#    and uv sync writes .venv plus the uv.lock that pins it.
+uv sync
+
+# 3. Point it at a DHIS2 instance. Either set `profile` in fhir.toml, or use the
 #    environment / flag - see "Which DHIS2 instance" below.
-d2w profile add demo --url https://play.im.dhis2.org/stable-2-42-1 --username admin --password district
+uv run d2w profile add demo --url https://play.im.dhis2.org/stable-2-42-1 --username admin --password district
 
-# 3. Check the instance's codes before generating anything.
-d2w fhir validate
+# 4. Check the instance's codes before generating anything.
+make validate
 
-# 4. Generate the FSH.
-d2w fhir generate all
+# 5. Generate the FSH.
+make generate
 
-# 5. Compile it. `make setup` builds the docker image once; `make sushi` runs SUSHI;
+# 6. Compile it. `make setup` builds the docker image once; `make sushi` runs SUSHI;
 #    `make build` runs the full IG publisher.
 make setup
 make sushi
 make build
 ```
 
+Every make target drives `d2w` through `uv run`, so `make validate` and
+`make generate` are `uv run d2w fhir validate` / `uv run d2w fhir generate all`
+against the pinned build - spell either form, they do the same thing.
+
 The generated site lands in `ig/output/`. `make clean` removes build output;
 `make clean-all` also drops the caches. See
 [Build time and the two caches](#build-time-and-the-two-caches).
+
+## Pinned toolchain
+
+The scaffolded project is a `uv` project. `pyproject.toml` declares `dhis2w-cli`
+and `dhis2w-fhir`, `uv sync` resolves them into `.venv`, and **`uv.lock` is
+committed** - it is what makes a regenerate reproducible, because the FSH a
+project publishes is a function of the d2w build that wrote it. `.gitignore`
+covers `.venv/` and deliberately does not cover `uv.lock`.
+
+Move the pin when you want the newer toolchain, not by accident:
+
+```bash
+uv lock --upgrade
+uv sync
+make refresh        # regenerate and rebuild against the new pin
+```
+
+`dhis2w-fhir` has no PyPI release yet, so `[tool.uv.sources]` points it at the
+`packages/dhis2w-fhir` subdirectory of this repository on `main`, and the lock
+pins a concrete commit of it. Delete that entry once `dhis2w-fhir` is published;
+`dhis2w-cli` already resolves from PyPI.
 
 `init` also takes `--publisher-url`. Leave it off unless the publisher has a real
 home page: the IG publisher links that URL from every generated page, so aiming
@@ -956,20 +987,26 @@ make generate   d2w fhir generate all
 make validate   d2w fhir validate
 make sushi      Compile FSH to FHIR resources
 make build      Run the full IG publisher
-make refresh    Force-refresh everything: clean-all, upgrade, generate, sushi, build
+make refresh    Force-refresh everything: clean-all, upgrade, generate, validate, sushi, build
 make clean      Remove build output
 make clean-all  Also remove the terminology cache and the package cache volume
 make help       List the targets
 ```
 
-`generate` and `validate` call `d2w` through a `D2W` variable, so you can drive
-them from a checkout or straight from a git ref without installing anything:
+`refresh` runs `validate` with a leading dash - `-$(MAKE) validate`. A full
+rebuild wants fresh reports out of the instance every time, and validate exits 1
+whenever the instance carries code errors, which is by design and must not abort
+the rebuild. Every other step stops the chain on failure.
+
+`generate` and `validate` call `d2w` through a `D2W` variable, defaulting to
+`uv run d2w` - the [pinned toolchain](#pinned-toolchain). Override it to drive a
+checkout or a git ref instead:
 
 ```bash
 # From a local checkout of dhis2w-utils:
 make generate D2W="uv run --project /path/to/dhis2w-utils d2w"
 
-# Straight from a git ref, nothing installed:
+# Straight from a git ref, nothing installed, no uv sync:
 make generate D2W="uvx --from 'git+ssh://git@github.com/winterop-com/dhis2w-utils.git@main#subdirectory=packages/dhis2w-cli' --with 'dhis2w-fhir @ git+ssh://git@github.com/winterop-com/dhis2w-utils.git@main#subdirectory=packages/dhis2w-fhir' d2w"
 ```
 

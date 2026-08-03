@@ -5,7 +5,7 @@ import tomllib
 from dhis2w_fhir.config import FhirProjectConfig
 from dhis2w_fhir.resources.pages import SITE_PAGE_FILENAMES
 from dhis2w_fhir.scaffold import build_scaffold_files
-from dhis2w_fhir.scaffold.schemas import InitOptions
+from dhis2w_fhir.scaffold.schemas import InitOptions, normalize_project_name
 
 _OPTIONS = InitOptions(
     ig_id="dhis2.fhir.test",
@@ -32,6 +32,7 @@ def test_scaffold_covers_expected_files() -> None:
         "ig/input/fsh/aliases.fsh",
         "ig/input/pagecontent/index.md",
         "ig/input/ignoreWarnings.txt",
+        "pyproject.toml",
         "Makefile",
         "Dockerfile",
         ".gitignore",
@@ -216,6 +217,54 @@ def test_gitignore_covers_the_publisher_side_products() -> None:
     assert "ig/input-cache/" in ignored
 
 
+def test_gitignore_covers_the_virtualenv_but_not_the_lock() -> None:
+    """`.venv/` is machine-local; `uv.lock` is the pinned toolchain and belongs in git."""
+    ignored = _by_path()[".gitignore"].splitlines()
+    assert ".venv/" in ignored
+    assert "uv.lock" not in ignored
+
+
+def test_pyproject_declares_the_toolchain_project() -> None:
+    """The scaffolded pyproject is a uv project pinning both d2w packages on Python 3.13+."""
+    project = tomllib.loads(_by_path()["pyproject.toml"])
+    assert project["project"]["name"] == "dhis2-fhir-test"
+    assert project["project"]["version"] == "0.1.0"
+    assert project["project"]["description"] == "FHIR IG project scaffolded by d2w fhir init"
+    assert project["project"]["requires-python"] == ">=3.13"
+    assert project["project"]["dependencies"] == ["dhis2w-cli", "dhis2w-fhir"]
+
+
+def test_pyproject_sources_dhis2w_fhir_from_git_until_it_is_published() -> None:
+    """dhis2w-fhir resolves from the repository subdirectory on main; dhis2w-cli comes from PyPI."""
+    body = _by_path()["pyproject.toml"]
+    project = tomllib.loads(body)
+    source = project["tool"]["uv"]["sources"]["dhis2w-fhir"]
+    assert source == {
+        "git": "https://github.com/winterop-com/dhis2w-utils",
+        "subdirectory": "packages/dhis2w-fhir",
+        "branch": "main",
+    }
+    assert "dhis2w-cli" not in project["tool"]["uv"]["sources"]
+    assert "Delete this entry once" in body
+    assert "uv lock --upgrade" in body
+
+
+def test_project_name_is_normalised_from_the_ig_id() -> None:
+    """A dotted, underscored IG id becomes a PEP 508 project name."""
+    options = _OPTIONS.model_copy(update={"ig_id": "DHIS2.fhir_SL.demo"})
+    files = {file.relative_path: file.content for file in build_scaffold_files(options)}
+    assert tomllib.loads(files["pyproject.toml"])["project"]["name"] == "dhis2-fhir-sl-demo"
+
+
+def test_normalize_project_name_collapses_and_strips_separators() -> None:
+    """Runs of non-alphanumerics collapse to one hyphen and the edges carry none."""
+    assert normalize_project_name("dhis2.fhir.sldemo") == "dhis2-fhir-sldemo"
+    assert normalize_project_name("A..B") == "a-b"
+    assert normalize_project_name("x_y") == "x-y"
+    assert normalize_project_name("__leading.and.trailing__") == "leading-and-trailing"
+    assert normalize_project_name("Mixed CASE 42") == "mixed-case-42"
+
+
 def test_makefile_mounts_the_package_cache_volume() -> None:
     """Container targets mount the named volume, and cache-init makes it writable for the publisher user."""
     makefile = _by_path()["Makefile"]
@@ -228,7 +277,7 @@ def test_makefile_mounts_the_package_cache_volume() -> None:
 
 
 def test_makefile_refresh_chains_the_full_force_rebuild() -> None:
-    """`refresh` wipes every cache, pulls the latest tooling, regenerates, and rebuilds - in that order."""
+    """`refresh` wipes every cache, pulls the latest tooling, regenerates, revalidates, and rebuilds."""
     makefile = _by_path()["Makefile"]
     refresh_recipe = makefile.split("refresh:")[1]
     steps = [line.strip() for line in refresh_recipe.splitlines() if line.startswith("\t")]
@@ -236,6 +285,7 @@ def test_makefile_refresh_chains_the_full_force_rebuild() -> None:
         "$(MAKE) clean-all",
         "$(MAKE) upgrade",
         "$(MAKE) generate",
+        "-$(MAKE) validate",
         "$(MAKE) sushi",
         "$(MAKE) build",
     ]
@@ -260,4 +310,11 @@ def test_makefile_uses_real_tabs() -> None:
     assert "\tdocker build --pull --no-cache -t $(DOCKER_IMAGE) ." in makefile
     assert "\t$(D2W) fhir generate all" in makefile
     assert "\t$(D2W) fhir validate" in makefile
-    assert "D2W ?= d2w" in makefile
+
+
+def test_makefile_drives_d2w_through_the_projects_own_environment() -> None:
+    """`uv run d2w` is the default, with the checkout and git-ref invocations kept as escape hatches."""
+    makefile = _by_path()["Makefile"]
+    assert "D2W ?= uv run d2w" in makefile
+    assert 'D2W="uv run --project /path/to/dhis2w-utils d2w"' in makefile
+    assert 'D2W="uvx --from ' in makefile

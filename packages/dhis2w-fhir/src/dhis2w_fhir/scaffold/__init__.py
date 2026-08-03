@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 
-from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile
+from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, normalize_project_name
 
 __all__ = ["build_scaffold_files"]
 
@@ -31,6 +31,7 @@ def build_scaffold_files(options: InitOptions) -> list[ScaffoldFile]:
         _render("ig/input/fsh/aliases.fsh", "aliases.fsh.jinja", options),
         _render("ig/input/pagecontent/index.md", "index.md.jinja", options),
         _render("ig/input/ignoreWarnings.txt", "ignoreWarnings.txt.jinja", options),
+        _render("pyproject.toml", "pyproject.toml.jinja", options, project_name=normalize_project_name(options.ig_id)),
         _render("Makefile", "Makefile.jinja", options),
         _render("Dockerfile", "Dockerfile.jinja", options),
         _render(".gitignore", "gitignore.jinja", options),
