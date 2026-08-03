@@ -198,6 +198,7 @@ nav:
       - Changelog: project/changelog.md
       - Upstream DHIS2 quirks: project/upstream-quirks.md
       - Roadmap: roadmap.md
+      - FHIR roadmap + review guide: project/fhir-roadmap.md
 
 markdown_extensions:
   - admonition

@@ -534,17 +534,17 @@ timestamps and `git status` untouched.
 
 ## Toolchain performance
 
-Generation is seconds; the IG publisher is twenty minutes. The Sierra Leone demo
-(171 option sets, 1332 org units, 2664 instances) breaks down as: 15m27s
-generate, of which the template phase alone is 6m36s and spreadsheet generation
-1m41s; 1m44s validation over 3014 resources; 1m25s Jekyll; 25s for the final
-zip. On a cold machine the package cache dominates the front of that - the
-publisher fetches the core packages, `hl7.terminology.r4`, and
-`hl7.fhir.uv.extensions.r4` before it does any work, and a container started
-with `docker run --rm` throws them away again. Terminology round-trips to
-`tx.fhir.org` are the other repeated cost: every code the validator has not seen
-is a request. All three phases are serial - SUSHI, then the validator, then
-Jekyll - so nothing overlaps.
+Generation is seconds and the publisher is the better part of twenty minutes;
+the measured step-by-step table lives in the guide under
+[Build time and the two caches](../guides/fhir-ig.md#build-time-and-the-two-caches).
+Three structural facts explain the shape of it. The publisher runs **its own**
+SUSHI over the same FSH, so a chain that compiles first and then publishes pays
+for the compile twice - which is why `make refresh` goes straight from
+`validate` to `build`. The phases are serial, SUSHI then the validator then
+Jekyll, so nothing overlaps. And on a cold machine the package cache dominates
+the front of the run, because the publisher fetches the core packages,
+`hl7.terminology.r4`, and `hl7.fhir.uv.extensions.r4` before doing any work,
+while a container started with `docker run --rm` throws them away again.
 
 Two mitigations ship in the scaffold:
 
@@ -558,32 +558,14 @@ Two mitigations ship in the scaffold:
   is what takes the validation phase from minutes to seconds on a re-run.
 
 **Iterate without the publisher.** `d2w fhir generate` plus `make sushi` is the
-edit loop - SUSHI alone compiles the FSH and tells you whether it is valid, in
-seconds rather than in a coffee break. `d2w fhir serve` (roadmap) is the rest of
-that loop. `make build` is a release step, not an inner-loop step.
+edit loop - SUSHI alone compiles the FSH and tells you whether it is valid
+without rendering a site. `d2w fhir serve` (roadmap) is the rest of that loop.
+`make build` is a release step, not an inner-loop step.
 
-Three upstream quirks worth knowing when reading a publisher run:
-
-- **`fhir2.base.template` pastes page titles into the breadcrumb unescaped, and
-  the publisher then strict-parses the result.** A resource whose FSH `Title:`
-  holds a `<` - the play 2.42 data set "Mortality < 5 years by gender"
-  (`YFTk3VdO9av`) is a real one - aborts the build with `Unable to Parse HTML -
-  node 'b' has unexpected content`. `names.page_text` is the workaround: the
-  page-facing `Title:` / `Description:` lines of every generated instance
-  HTML-escape `&`, `<`, and `>` before quoting, while the element-level
-  `* title` / `* name` keep the DHIS2 text verbatim, because those are data
-  rather than page furniture.
-
-    A second surface reads that element-level title and is **accepted as-is**:
-    `Questionnaire-<uid>.change.history.html` builds its `<h2>` from
-    `Questionnaire.title`, so the same name still yields
-    `Unable to Parse HTML - node 'h2' has unexpected content` and one
-    `Build Errors : 1 / 0 / 0` line. The build completes, QA reports zero errors,
-    and only that page is malformed. Escaping the element would fix the page by
-    corrupting the data - the IG would then disagree with the instance about what
-    the data set is called - so the data stays byte-true and `d2w fhir validate`
-    warns on the name instead (`template-hostile-name`), which puts the fix where
-    it belongs: in DHIS2.
+The upstream DHIS2 and tooling quirks that shape this code - including the two
+that surface while reading a publisher run - are catalogued in
+[fhir roadmap and review guide, section 4](../project/fhir-roadmap.md#4-upstream-dhis2-and-tooling-quirks-that-shape-the-code).
+Two publisher behaviours worth knowing at the point you read its output:
 
 - **The QA summary contradicts its own link checker.** The same run prints
   `... 1099935 links, 0 broken links (0%)` from the HTML checker and
@@ -755,101 +737,11 @@ position and rolled into one note naming the types. Only geometry with unusable
 or empty coordinates is malformed, and that alone yields neither position nor
 boundary.
 
-## Roadmap
+## Roadmap and review material
 
-- Org unit groups / group sets: DHIS2 classifications beyond the level
-  hierarchy (facility type, ownership, ...) mapped to additional
-  `Organization.type` codings from group-set CodeSystems (tokens `OUG` /
-  `OUGS`, same scheme) - the lao-v1
-  inspiration IG already classifies provinces/districts/villages by group
-  membership.
-- Categories / category options: structurally close to option sets, mapped to
-  CodeSystem/ValueSet pairs the same way.
-- Tracker programs as Questionnaires: `WITH_REGISTRATION` programs need
-  `Patient` + `EpisodeOfCare` alongside the per-stage forms, and the
-  `tracker` / `tracker-event` codes are already in `D2FormType_CS` waiting for them.
-  Multi-stage event programs land with them.
-- `SHORT_NAME` and `DESCRIPTION` translations: `NAME` is emitted today, and the
-  other two need a target apiece (`Organization.alias`, `^description`) before
-  they can follow. Validation's instance-wide sweep stays translation-free until
-  there is a cheaper way to ask `/api/metadata` for them than fetching every
-  object's full translation list.
-- Data layer beyond the examples: `generate examples` already maps a data value set
-  and an event onto a `QuestionnaireResponse`, but only a handful per target and
-  only as `Usage: #example`. Bulk export of the captured values as normative
-  content is the next step, with `MeasureReport` as the lossy summary projection
-  over the same data and tracker as `Patient` + `EpisodeOfCare`.
-- Curated `Usage: #example` instances for the profiles the example target does not
-  cover - `D2Organization` and `D2Location` publish no worked example yet.
-- Instance-scoped project identity: `d2w fhir init --data-set <uid>` / `--event
-  <uid>` seed the target lists offline today; deriving the IG identity (id,
-  canonical, title) from the instance and its named targets on first init needs a
-  live call, which `init` deliberately does not make yet. `fhir build` may still cut
-  per-form deployables out of the instance project - a packaging choice, not a
-  namespace choice, because the registry (org units), terminology (option sets), and
-  foundation artifacts stay instance-level with instance-linked ids whichever form
-  uses them.
-- An `init` mode that refreshes the scaffold-managed support files
-  (`ig/input/ignoreWarnings.txt`, `ig/input/pagecontent/index.md`) in an existing
-  project without touching `fhir.toml` or hand-edited content - a project created
-  before a scaffold improvement keeps stale support files otherwise. The
-  `sushi-config.yaml` menu is one of those files: a project scaffolded before the
-  site pages landed keeps its old two-entry menu until the refresh mode rewrites it.
-- `d2w fhir ui` / `browser`: a tree-widget explorer over the generated IG and
-  hierarchy, modelled on the security plugin's offline d3 sharing explorer.
-  `serve` is its natural backend - the same loaded resources, one server.
-- `d2w fhir serve`: one verb, two modes (FastAPI per repo convention, read-only
-  endpoints with a generated `CapabilityStatement`). The default serves the
-  compiled IG resources out of `fsh-generated` - per-type reads, type-level
-  Bundles, `?url=` / `?_id=` search, and a `/metadata` CapabilityStatement
-  reflecting what is actually loaded; a missing `fsh-generated/` fails loud
-  ("run generate + sushi first"), never an empty server. Structured request
-  lines double as the observation layer: the log of what consumers actually ask
-  for prioritises what `--live` learns to translate first. `--live` translates
-  on the fly from the instance the project points at - its real work item is a
-  JSON builder path beside the FSH templates, fed by the same `*In` projections
-  and the identity single-sources (`option_set_identities`,
-  `concept_assignments`, the naming helpers), which is what keeps live-served
-  ids and canonicals byte-compatible with the generated IG; the same layer is
-  shared groundwork for `fhir build`'s conversion codegen. Same routes, same
-  shapes - the flag only decides where a resource comes from, which is also
-  what makes it the fast half of the edit loop.
-- `d2w fhir push`: outbound delivery of the generated resources into a real FHIR
-  system - transaction bundles against a target server, with the identifier
-  systems above as the reconciliation key.
-- Deep validation per terminology source: validate's per-item deep pass covers
-  option sets today; each new terminology generation source (group sets,
-  categories, option groups) brings a matching deep pass when it lands, so the
-  cleanup loop keeps covering exactly what generation reads.
-- `d2w fhir build`: pack the IG into a real deployable package to build
-  middleware on. Buildpack targets are python (pydantic + FastAPI) and rust
-  (axum + utoipa), both codegenning their types from the IG's
-  StructureDefinitions. Format conversion (DHIS2 wire <-> FHIR) is defined once
-  at a higher level - StructureMap resources in the IG, or a language-neutral
-  mapping manifest emitted by the generator - and each buildpack generates its
-  conversion layer from that shared source, never hand-written per language.
-
-### Terminology source candidates (DHIS2 group + item relationships)
-
-What else in DHIS2 is shaped like terminology, and which naming token each
-lands on. The full Group/GroupSet pattern repeats five times, and every GroupSet
-is also an analytics dimension - which is why these are worth emitting as
-terminology rather than as ad-hoc codings.
-
-| Pattern | Chain | Tokens |
-| --- | --- | --- |
-| Group / GroupSet | `organisationUnitGroupSet` -> `organisationUnitGroups` -> org units | `OUG` / `OUGS` |
-| Group / GroupSet | `dataElementGroupSet` -> `dataElementGroups` -> data elements | `DEG` / `DEGS` |
-| Group / GroupSet | `indicatorGroupSet` -> `indicatorGroups` -> indicators | `INDG` / `INDGS` |
-| Group / GroupSet | `categoryOptionGroupSet` -> `categoryOptionGroups` -> category options | `COG` / `COGS` |
-| Group / GroupSet | `optionGroupSet` -> `optionGroups` -> options (classifies options across option sets) | `OG` / `OGS` |
-| Group only | `programIndicatorGroup`, `validationRuleGroup`, `predictorGroup` | `PIG`, `VRG`, `PRED` |
-| Category model | `category` -> `categoryOptions`; `categoryCombo` -> `categories`; `categoryOptionCombo` -> `categoryOptions` | `CAT`, `CO`, `CC`, `COC`, `AOC` |
-| Adjacent | `legendSet` -> `legends` (threshold classifications; a CodeSystem with range properties) | `LS` |
-| Adjacent | `organisationUnitLevel` - already emitted | `OU` |
-
-`userGroup` is excluded: it is membership and ACL, not terminology.
-
-The category model is first priority - the data layer's `$DHIS2-CAT` /
-`$DHIS2-COC` stratifier codes depend on it. The full token registry these draw
-from is in the [FHIR IG guide](../guides/fhir-ig.md).
+Everything roadmap-shaped about this plugin - the near-term, mid-term, and
+long-term items, the terminology source candidates, the settled decisions behind
+the current design, the open decisions still needing an owner call, the four
+review dimensions, and the measured build numbers - lives in the
+[FHIR roadmap and review guide](../project/fhir-roadmap.md). This page describes
+what the package is; that page describes where it is going and what to look at.
