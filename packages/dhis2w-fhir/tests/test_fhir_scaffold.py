@@ -215,6 +215,7 @@ def test_gitignore_covers_the_publisher_side_products() -> None:
     assert "ig/Requirements-fromNarrative.json" in ignored
     assert "ig/translations/" in ignored
     assert "ig/input-cache/" in ignored
+    assert "reports/" in ignored
 
 
 def test_gitignore_covers_the_virtualenv_but_not_the_lock() -> None:

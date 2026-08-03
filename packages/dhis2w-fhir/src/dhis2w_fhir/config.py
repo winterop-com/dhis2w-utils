@@ -29,6 +29,9 @@ from dhis2w_fhir.status import IgStatus
 
 FHIR_CONFIG_FILENAME = "fhir.toml"
 
+#: Project directory validation reports land in - regenerable working artifacts, gitignored by the scaffold.
+REPORTS_DIRECTORY = "reports"
+
 
 class NoFhirProjectError(LookupError):
     """Raised when no `fhir.toml` is found walking up from the working directory."""

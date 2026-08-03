@@ -263,7 +263,7 @@ def validate_command(
             "--report",
             dir_okay=False,
             help="Report path stem, without extension "
-            "(default: fhir-validate-report in the project root or current directory).",
+            "(default: reports/fhir-validate-report under the project root or current directory).",
         ),
     ] = None,
     formats: Annotated[
@@ -288,7 +288,7 @@ def validate_command(
 
     from dhis2w_core.cli_output import ColumnSpec, render_list
 
-    from dhis2w_fhir import find_project_fhir_config, service
+    from dhis2w_fhir import REPORTS_DIRECTORY, find_project_fhir_config, service
     from dhis2w_fhir.validation.pdf import render_validation_pdf
     from dhis2w_fhir.validation.report import display_code, render_validation_csv, render_validation_markdown
 
@@ -299,7 +299,8 @@ def validate_command(
     report = asyncio.run(service.validate_codes(context.generation.profile, context.config, code_source))
     project_config = find_project_fhir_config()
     default_directory = project_config.parent if project_config else Path.cwd()
-    stem = report_stem or default_directory / "fhir-validate-report"
+    stem = report_stem or default_directory / REPORTS_DIRECTORY / "fhir-validate-report"
+    stem.parent.mkdir(parents=True, exist_ok=True)
     target = f"{context.generation.name} ({context.generation.profile.base_url})"
     generated_at = datetime.now(tz=UTC)
     for report_format in selected_formats:
