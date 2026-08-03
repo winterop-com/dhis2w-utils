@@ -50,5 +50,6 @@ refresh:  ## Force-refresh everything: wipe all caches and output, pull latest t
 # The leading dash keeps the rebuild going: validate exits 1 on instance code errors by design,
 # and a full refresh wants fresh reports out of it, not an abort.
 	-$(MAKE) validate
-	$(MAKE) sushi
+# No sushi step: the publisher runs its own SUSHI over the same FSH, so calling both
+# compiles everything twice - the single largest cost in the chain.
 	$(MAKE) build
