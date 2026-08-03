@@ -63,6 +63,14 @@ def test_menu_links_every_generated_site_page() -> None:
         assert f": {filename.removesuffix('.md')}.html\n" in menu
 
 
+def test_sushi_config_publishes_json_only() -> None:
+    """The two extra wire formats cost more build time than they earn on an instance-sized IG."""
+    config = _by_path()["ig/sushi-config.yaml"]
+    assert "parameters:\n" in config
+    assert '  excludexml: "true"' in config
+    assert '  excludettl: "true"' in config
+
+
 def test_sushi_config_declares_no_pages_block() -> None:
     """SUSHI auto-includes everything under pagecontent, so the scaffold states no `pages:` at all."""
     assert "pages:" not in _by_path()["ig/sushi-config.yaml"]
@@ -287,7 +295,6 @@ def test_makefile_refresh_chains_the_full_force_rebuild() -> None:
         "$(MAKE) upgrade",
         "$(MAKE) generate",
         "-$(MAKE) validate",
-        "$(MAKE) sushi",
         "$(MAKE) build",
     ]
     phony_line = next(line for line in makefile.splitlines() if line.startswith(".PHONY:"))

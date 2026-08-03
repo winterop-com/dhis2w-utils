@@ -42,10 +42,10 @@ make validate
 # 5. Generate the FSH.
 make generate
 
-# 6. Compile it. `make setup` builds the docker image once; `make sushi` runs SUSHI;
-#    `make build` runs the full IG publisher.
+# 6. Compile it. `make setup` builds the docker image once; `make build` runs the
+#    full IG publisher, which compiles the FSH with its own SUSHI on the way.
+#    `make sushi` is the standalone gate when you want the compile without a site.
 make setup
-make sushi
 make build
 ```
 
@@ -1002,7 +1002,7 @@ make validate   d2w fhir validate
 make cache-init Make the shared package-cache volume writable by the publisher user
 make sushi      Compile FSH to FHIR resources
 make build      Run the full IG publisher
-make refresh    Force-refresh everything: clean-all, upgrade, generate, validate, sushi, build
+make refresh    Force-refresh everything: clean-all, upgrade, generate, validate, build
 make clean      Remove build output
 make clean-all  Also remove the terminology cache and the package cache volume
 make help       List the targets
@@ -1043,10 +1043,42 @@ has no such bindings.
 
 ### Build time and the two caches
 
-A full `make build` on a real instance takes around twenty minutes - the Sierra
-Leone demo (171 option sets, 2664 instances) spends 15m on generation, 1m45s on
-validation, and 1m25s on Jekyll. Most of what a *repeat* build would otherwise
-re-pay is cached, and the scaffold wires both caches up for you:
+Measured on the Sierra Leone demo (171 option sets, 2,664 registry instances,
+3,101 resources in all), one step at a time:
+
+| Step | Time |
+| --- | --- |
+| `generate` | 16s |
+| `validate` | 7s |
+| `sushi`, cold package cache | 9m05s |
+| `sushi`, warm package cache | 5m26s |
+| `build` | ~20m |
+
+Two things about that table matter more than the totals. The first is that the
+cold and warm `sushi` runs differ by three and a half minutes of pure package
+download, which is what the package cache below buys back. The second is that
+the publisher runs **its own** SUSHI over the same FSH - about seven and a half
+minutes of a twenty minute build - so a chain that calls `make sushi` and then
+`make build` compiles everything twice. `make refresh` therefore goes straight
+from `validate` to `build`; run `make sushi` on its own when you want the fast
+gate without publishing a site.
+
+Terminology is not where the time goes, which is worth stating because it is the
+natural suspicion: connecting to `TX_SERVER` and opening the terminology cache
+cost about fourteen seconds together. A DHIS2-derived IG codes its concepts in
+its own CodeSystems, and the publisher resolves those internally.
+
+What is left after the duplicate SUSHI is dominated by sheer resource count: the
+publisher writes and renders every resource, so the registry - which is 2,664 of
+those 3,101 resources - sets the pace. The scaffolded `sushi-config.yaml`
+therefore publishes JSON only (`excludexml` and `excludettl`), because the two
+extra wire formats add a file and a rendered page per resource for content that
+consumers and the tooling read as JSON anyway. `[generate.organisation_units]
+max_level` is the other lever, and it is a config change rather than a build
+flag: fewer levels, proportionally less of everything.
+
+Most of what a *repeat* build would otherwise re-pay is cached, and the scaffold
+wires both caches up for you:
 
 - **The FHIR package cache** lives at `~/.fhir` inside the container. Because
   `docker run --rm` throws the container away, `make sushi` and `make build`
@@ -1063,8 +1095,9 @@ re-pay is cached, and the scaffold wires both caches up for you:
 `make clean-all` drops both when you want to reproduce a cold build.
 
 **Do not iterate on `make build`.** `d2w fhir generate all` followed by
-`make sushi` compiles the FSH and tells you whether it is valid in seconds. Run
-the publisher when you are ready to publish a site, not after every edit.
+`make sushi` compiles the FSH and tells you whether it is valid without paying
+for a published site. Run the publisher when you are ready to publish one, not
+after every edit.
 
 ## The regeneration contract
 
