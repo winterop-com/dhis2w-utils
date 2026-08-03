@@ -1,4 +1,4 @@
-"""Markdown emission for the IG's narrative layer: five site pages plus the per-artifact intros.
+"""Markdown emission for the IG's narrative layer: six site pages plus the per-artifact intros.
 
 SUSHI publishes everything under `ig/input/pagecontent/` without a `pages:`
 block, and the IG publisher injects a `<Type>-<id>-intro.md` into the top of
@@ -12,6 +12,12 @@ second endpoint, and every DHIS2-derived string goes through
 `names.markdown_text` on the way in: a data set called "Mortality < 5 years
 by gender" has to reach the publisher's strict HTML parse escaped, and a name
 holding a pipe has to stay inside its table cell.
+
+`capture.md` is the contract page: it states what a third party sends to
+capture data against the published forms, worked once per form kind off the
+selected metadata, and it derives its answer-typing table from the very
+tables the example emitter answers from - so the page and the examples can
+never disagree.
 """
 
 from __future__ import annotations
@@ -26,11 +32,17 @@ from dhis2w_fhir.names import code_or_uid, markdown_text
 from dhis2w_fhir.period.parser import parse_period
 from dhis2w_fhir.period.recent import recent_periods
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
+from dhis2w_fhir.resources.examples import MULTI_VALUE_TYPE, STATUS_BY_EVENT_STATUS, answer_element
 from dhis2w_fhir.resources.option_sets import option_set_code_fallback, option_set_identities
 from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
 from dhis2w_fhir.resources.pages.schemas import (
     PERIOD_EXAMPLE_REFERENCE_DATE,
+    CaptureFormExample,
+    CaptureLinkRow,
+    CapturePeriodExample,
+    CaptureView,
     CodeSystemIntroView,
+    EventStatusRow,
     FormRow,
     FormSectionRow,
     IdentifiersView,
@@ -44,7 +56,9 @@ from dhis2w_fhir.resources.pages.schemas import (
     RegistryView,
     SupportCodeSystemRow,
     TerminologyView,
+    ValueLiteralRow,
 )
+from dhis2w_fhir.resources.questionnaires import ITEM_TYPES_BY_VALUE_TYPE
 from dhis2w_fhir.resources.questionnaires.schemas import (
     FormKind,
     QuestionnaireItemIn,
@@ -75,13 +89,59 @@ PAGES_BASE_SUBDIRECTORY = "input"
 INTRO_SUFFIX = "-intro.md"
 
 #: The site pages, in menu order. Stable kebab file names: the scaffolded menu links them.
-SITE_PAGE_FILENAMES = ("forms.md", "registry.md", "terminology.md", "identifiers.md", "periods.md")
+SITE_PAGE_FILENAMES = ("forms.md", "registry.md", "terminology.md", "identifiers.md", "periods.md", "capture.md")
 
 #: How each form kind reads in prose on the pages it appears on.
 _KIND_LABELS: dict[FormKind, str] = {"aggregate": "data set", "event": "event program"}
 
 #: What a data set with no DHIS2 period type shows in the period-type column.
 _ABSENT_TEXT = "-"
+
+#: The literal rules the capture page states for the value types whose spelling is not obvious
+#: from the answer element alone. Everything else falls back to `_ELEMENT_LITERAL_RULES`.
+_VALUE_TYPE_LITERAL_RULES = {
+    "BOOLEAN": "`true` or `false`, unquoted JSON booleans.",
+    "TRUE_ONLY": "Always `true` - DHIS2 stores no false value, so an unticked box is simply absent.",
+    "DATE": "`YYYY-MM-DD`.",
+    "DATETIME": "`YYYY-MM-DDThh:mm:ss` plus a zone; DHIS2 stores local time, so send `Z` when you mean UTC.",
+    "TIME": "`hh:mm:ss` - seconds are mandatory in FHIR even where DHIS2 captures `hh:mm`.",
+    "AGE": "`YYYY-MM-DD`, the date of birth - DHIS2 renders the age from it, so the date is the captured value.",
+    "MULTI_TEXT": (
+        "Option-set bound, and the item repeats: send one `answer` per selection, each a "
+        "`valueCoding` into the set's CodeSystem."
+    ),
+    "URL": "An absolute URI.",
+    "ORGANISATION_UNIT": "`Location/<organisationUnitId>` - the Location this guide publishes for that unit.",
+    "COORDINATE": "The DHIS2 `[longitude,latitude]` string; no R4 item type expresses a coordinate pair.",
+    "GEOJSON": "The GeoJSON document as stored, carried verbatim in the string.",
+    "PERCENTAGE": "A decimal between 0 and 100, the bounds the item's `minValue` / `maxValue` state.",
+    "UNIT_INTERVAL": "A decimal between 0 and 1, the bounds the item's `minValue` / `maxValue` state.",
+    "FILE_RESOURCE": "An `Attachment`; the generated examples leave file answers empty rather than invent one.",
+    "IMAGE": "An `Attachment`; the generated examples leave image answers empty rather than invent one.",
+    "REFERENCE": "The bare DHIS2 UID - this guide publishes no FHIR resource for the referenced object.",
+    "TRACKER_ASSOCIATE": "The bare DHIS2 UID - this guide publishes no FHIR resource for the referenced object.",
+}
+
+#: The literal rule every remaining value type takes, from the answer element it lands on.
+_ELEMENT_LITERAL_RULES = {
+    "valueInteger": "A whole number; the item's `minValue` / `maxValue` state any bound the value type carries.",
+    "valueDecimal": "A decimal number.",
+    "valueString": "The stored DHIS2 text.",
+    "valueUri": "An absolute URI.",
+    "valueReference": "A reference to the resource this guide publishes for the referenced object.",
+}
+
+#: The answer element an item type fixes whatever the value type, because R4 admits only one.
+#: `#attachment` is the case that matters: the example emitter never invents a file, so its
+#: typing tables have no opinion, while the item type leaves a capture client exactly one choice.
+_ANSWER_ELEMENTS_BY_ITEM_TYPE = {"attachment": "valueAttachment"}
+
+#: How many worked `linkId` rows the capture page shows per form - enough to state both grammars.
+_CAPTURE_LINK_ROWS = 4
+
+#: The two `linkId` grammars a capture client answers on.
+_PLAIN_LINK_GRAMMAR = "<dataElementId>"
+_DISAGGREGATED_LINK_GRAMMAR = "<dataElementId>.<categoryOptionComboId>"
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.resources.pages", "templates"),
@@ -93,8 +153,8 @@ _ENVIRONMENT = Environment(
 )
 
 
-def build_page_artifacts(pages: PagesIn, config: GenerateConfig) -> FshBuild:
-    """Build the five site pages plus every per-artifact intro the fetched metadata earns."""
+def build_page_artifacts(pages: PagesIn, config: GenerateConfig, canonical: str) -> FshBuild:
+    """Build the six site pages plus every per-artifact intro the fetched metadata earns."""
     build = FshBuild()
     forms = [_form_row(source) for source in sorted(pages.forms, key=lambda item: (item.name, item.uid))]
     build.artifacts.append(_forms_page(forms))
@@ -102,6 +162,7 @@ def build_page_artifacts(pages: PagesIn, config: GenerateConfig) -> FshBuild:
     build.artifacts.append(_terminology_page(pages, config))
     build.artifacts.append(_identifiers_page(config))
     build.artifacts.append(_periods_page(config))
+    build.artifacts.append(_capture_page(pages, config, canonical))
     build.artifacts.extend(_questionnaire_intros(forms))
     build.artifacts.extend(_code_system_intros(pages, config))
     build.artifacts.extend(_organization_intros(pages.organisation_units))
@@ -276,6 +337,119 @@ def _period_type_row(period_type: str) -> PeriodTypeRow:
         name=period_type,
         example_iso=value.iso,
         span=f"{value.start_date.isoformat()} to {value.end_date.isoformat()}",
+    )
+
+
+def _capture_page(pages: PagesIn, config: GenerateConfig, canonical: str) -> FshArtifact:
+    """Build `capture.md`: what a capture client sends, worked once per form kind, and how answers are typed."""
+    foundation = FoundationNaming.from_naming(config.naming)
+    organisation_unit = min(pages.organisation_units, key=lambda item: (item.level, item.path, item.uid), default=None)
+    view = CaptureView(
+        canonical=canonical,
+        period_extension=foundation.period_extension,
+        period_extension_id=foundation.period_extension_id,
+        form_type_extension=foundation.form_type_extension,
+        form_type_code_system=foundation.form_type_code_system,
+        aggregate_profile=foundation.aggregate_response_profile,
+        aggregate_profile_id=foundation.aggregate_response_profile_id,
+        event_profile=foundation.event_response_profile,
+        event_profile_id=foundation.event_response_profile_id,
+        capture_server=foundation.capture_server,
+        capture_server_id=foundation.capture_server_id,
+        location_profile=OrganisationUnitNaming.from_naming(config.naming).location_profile,
+        organisation_unit_uid=organisation_unit.uid if organisation_unit is not None else "",
+        organisation_unit_name=markdown_text(organisation_unit.name) if organisation_unit is not None else "",
+        aggregate=_capture_form_example(pages.forms, "aggregate", canonical),
+        event=_capture_form_example(pages.forms, "event", canonical),
+        event_statuses=[
+            EventStatusRow(event_status=event_status, response_status=STATUS_BY_EVENT_STATUS[event_status])
+            for event_status in sorted(STATUS_BY_EVENT_STATUS)
+        ],
+        value_literals=[_value_literal_row(value_type) for value_type in sorted(ITEM_TYPES_BY_VALUE_TYPE)],
+    )
+    return _page("capture.md", "capture.md.jinja", capture=view)
+
+
+def _capture_form_example(
+    forms: list[QuestionnaireSourceIn], kind: FormKind, canonical: str
+) -> CaptureFormExample | None:
+    """Work one selected form of `kind` through the contract: its Questionnaire, its period, and its linkIds."""
+    candidates = [source for source in forms if source.kind == kind and _source_items(source)]
+    if not candidates:
+        return None
+    source = min(candidates, key=lambda item: (item.name, item.uid))
+    return CaptureFormExample(
+        uid=source.uid,
+        name=markdown_text(source.name),
+        questionnaire_url=f"{canonical}/Questionnaire/{source.uid}",
+        form_type_code=source.kind,
+        period=_capture_period(source),
+        links=_capture_links(source),
+    )
+
+
+def _capture_period(source: QuestionnaireSourceIn) -> CapturePeriodExample | None:
+    """The worked reporting period of one data set, pinned to the reference date so the page never moves."""
+    if not source.period_type:
+        return None
+    recent = recent_periods(source.period_type, 1, PERIOD_EXAMPLE_REFERENCE_DATE)
+    if not recent:
+        return None
+    value = parse_period(recent[0])
+    return CapturePeriodExample(
+        iso=value.iso,
+        period_type=value.period_type,
+        start_date=value.start_date.isoformat(),
+        end_date=value.end_date.isoformat(),
+    )
+
+
+def _capture_links(source: QuestionnaireSourceIn) -> list[CaptureLinkRow]:
+    """The first few worked `linkId`s of one form, both grammars represented where the form has both."""
+    rows: list[CaptureLinkRow] = []
+    for item in _source_items(source):
+        if _is_disaggregated(item) and item.category_combo is not None:
+            rows.extend(
+                CaptureLinkRow(
+                    link_id=f"{item.uid}.{option_combo.uid}",
+                    label=markdown_text(f"{item.name} / {option_combo.name}", table_cell=True),
+                    grammar=_DISAGGREGATED_LINK_GRAMMAR,
+                    answer_element=_answer_element_label(item),
+                    required=item.compulsory or option_combo.uid in item.required_option_combo_uids,
+                )
+                for option_combo in item.category_combo.option_combos
+            )
+            continue
+        rows.append(
+            CaptureLinkRow(
+                link_id=item.uid,
+                label=markdown_text(item.name, table_cell=True),
+                grammar=_PLAIN_LINK_GRAMMAR,
+                answer_element=_answer_element_label(item),
+                required=item.compulsory,
+            )
+        )
+    return rows[:_CAPTURE_LINK_ROWS]
+
+
+def _answer_element_label(item: QuestionnaireItemIn) -> str:
+    """The answer element one question takes: a coding when it binds an option set, else its value type's."""
+    return "valueCoding" if item.option_set_uid is not None else answer_element(item.value_type)
+
+
+def _value_literal_row(value_type: str) -> ValueLiteralRow:
+    """One row of the answer-typing table, read off the very tables the example emitter answers from."""
+    element = answer_element(value_type)
+    item_type = ITEM_TYPES_BY_VALUE_TYPE[value_type]
+    if value_type == MULTI_VALUE_TYPE:
+        answered_as = "valueCoding"
+    else:
+        answered_as = _ANSWER_ELEMENTS_BY_ITEM_TYPE.get(item_type) or element
+    return ValueLiteralRow(
+        value_type=value_type,
+        item_type=item_type,
+        answer_element=answered_as,
+        literal_rule=_VALUE_TYPE_LITERAL_RULES.get(value_type) or _ELEMENT_LITERAL_RULES[element],
     )
 
 

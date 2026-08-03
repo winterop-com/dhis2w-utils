@@ -22,19 +22,24 @@ from dhis2w_fhir import (
     ExampleSelection,
     GenerateConfig,
     InitOptions,
+    NamingConfig,
     build_example_artifacts,
     build_synthetic_responses,
     load_project,
     service,
 )
 from dhis2w_fhir.period import parse_period
-from dhis2w_fhir.resources.examples import EXAMPLES_DIRECTORY, response_status_code, zoned_date_time
-from dhis2w_fhir.resources.examples.schemas import (
-    ExampleAnswerIn,
-    ExampleOptionIn,
-    ExampleOptionSetIn,
-    ExampleResponseIn,
+from dhis2w_fhir.resources.examples import (
+    EXAMPLES_DIRECTORY,
+    _is_fhir_date,
+    _is_fhir_date_time,
+    _is_fhir_time,
+    response_status_code,
+    zoned_date_time,
 )
+from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
+from dhis2w_fhir.resources.option_sets import option_set_identities
+from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
@@ -108,17 +113,18 @@ _EVENT_PROGRAM = QuestionnaireSourceIn(
 )
 
 _OPTION_SETS = [
-    ExampleOptionSetIn(
+    OptionSetIn(
         uid="Os1aaaaaaaa",
+        name="Gender",
         options=[
-            ExampleOptionIn(uid="Op1aaaaaaaa", code="F", name="Female"),
-            ExampleOptionIn(uid="Op2aaaaaaaa", code="M", name="Male"),
+            OptionIn(uid="Op1aaaaaaaa", code="F", name="Female", sort_order=1),
+            OptionIn(uid="Op2aaaaaaaa", code="M", name="Male", sort_order=2),
         ],
     )
 ]
 
 _SYNTHETIC_DATA_SET_GOLDEN = """Instance: QuestionnaireResponse-BfMAe6Itzgt-example-1
-InstanceOf: QuestionnaireResponse
+InstanceOf: D2AggregateResponse
 Title: "Example response - Child Health"
 Description: "Example QuestionnaireResponse against the DHIS2 data set Child Health (BfMAe6Itzgt)."
 Usage: #example
@@ -153,7 +159,7 @@ Usage: #example
 """
 
 _SYNTHETIC_EVENT_GOLDEN = """Instance: QuestionnaireResponse-VBqh0ynB2wv-example-1
-InstanceOf: QuestionnaireResponse
+InstanceOf: D2EventResponse
 Title: "Example response - Malaria case registration"
 Description: "Example QuestionnaireResponse against the DHIS2 event program Malaria case registration (VBqh0ynB2wv)."
 Usage: #example
@@ -326,17 +332,31 @@ _EVENTS_PAYLOAD = {
 _runner = CliRunner()
 
 
+def _plan(option_sets: list[OptionSetIn], config: GenerateConfig | None = None) -> OptionSetIdentityPlan:
+    """The identity plan the service hands the emitter: the fetched option sets, named by their UIDs."""
+    return option_set_identities(
+        [OptionSetIn(uid=option_set.uid, name=option_set.uid) for option_set in option_sets],
+        config or GenerateConfig(),
+    )
+
+
 def _synthetic(
     sources: list[QuestionnaireSourceIn],
-    option_sets: list[ExampleOptionSetIn] | None = None,
+    option_sets: list[OptionSetIn] | None = None,
     per_target: int = 1,
     config: GenerateConfig | None = None,
 ) -> dict[str, str]:
     """Build the synthetic example artifacts for `sources` and index them by relative path."""
     resolved_option_sets = _OPTION_SETS if option_sets is None else option_sets
+    resolved_config = config or GenerateConfig()
     synthetic = build_synthetic_responses(sources, resolved_option_sets, per_target, _ROOT_ORG_UNIT, _TODAY)
     build = build_example_artifacts(
-        sources, synthetic.responses, resolved_option_sets, config or GenerateConfig(), _CANONICAL
+        sources,
+        synthetic.responses,
+        resolved_option_sets,
+        resolved_config,
+        _CANONICAL,
+        option_set_plan=_plan(resolved_option_sets, resolved_config),
     )
     return {artifact.relative_path: artifact.content for artifact in build.artifacts}
 
@@ -362,6 +382,22 @@ def test_synthetic_data_set_example_is_a_stable_golden() -> None:
 def test_synthetic_event_example_is_a_stable_golden() -> None:
     """An event program carries `authored` and no D2Period, and answers its flat questions."""
     assert _synthetic([_EVENT_PROGRAM])[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"] == _SYNTHETIC_EVENT_GOLDEN
+
+
+def test_each_example_declares_the_response_profile_of_its_form_kind() -> None:
+    """An example is a contract check: it declares the profile its form kind's responses have to meet."""
+    artifacts = _synthetic([_DATA_SET, _EVENT_PROGRAM])
+    assert "InstanceOf: D2AggregateResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/BfMAe6Itzgt-1.fsh"]
+    assert "InstanceOf: D2EventResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"]
+    assert not any("InstanceOf: QuestionnaireResponse" in content for content in artifacts.values())
+
+
+def test_the_declared_response_profile_follows_the_naming_prefix() -> None:
+    """A renamed prefix renames the profiles, so the examples have to follow it or stop validating."""
+    config = GenerateConfig(naming=NamingConfig(prefix="Dhis2"))
+    artifacts = _synthetic([_DATA_SET, _EVENT_PROGRAM], config=config)
+    assert "InstanceOf: Dhis2AggregateResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/BfMAe6Itzgt-1.fsh"]
+    assert "InstanceOf: Dhis2EventResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"]
 
 
 def test_example_page_titles_escape_markup() -> None:
@@ -422,7 +458,9 @@ def test_an_option_value_answers_as_the_configured_concept_code(code_source: str
     """The stored DHIS2 option code resolves to whichever concept code the option-set terminology emits."""
     config = GenerateConfig.model_validate({"concept_code_source": code_source})
     response = _aggregate_response([ExampleAnswerIn(data_element_uid="De3aaaaaaaa", value="F")])
-    build = build_example_artifacts([_DATA_SET], [response], _OPTION_SETS, config, _CANONICAL)
+    build = build_example_artifacts(
+        [_DATA_SET], [response], _OPTION_SETS, config, _CANONICAL, option_set_plan=_plan(_OPTION_SETS, config)
+    )
     assert f"* item[=].item[=].answer[+].valueCoding = {coding}" in build.artifacts[0].content
     assert build.notes == []
 
@@ -430,7 +468,9 @@ def test_an_option_value_answers_as_the_configured_concept_code(code_source: str
 def test_an_unmappable_option_value_falls_back_to_a_string_with_one_note() -> None:
     """A stored value no option carries is answered as a string, and the run says how many did that."""
     response = _aggregate_response([ExampleAnswerIn(data_element_uid="De3aaaaaaaa", value="X")])
-    build = build_example_artifacts([_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
     assert '* item[=].item[=].answer[+].valueString = "X"' in build.artifacts[0].content
     assert build.notes == [
         "1 example answers could not be cast to their FHIR type; answered as strings: Gender (De3aaaaaaaa) = 'X'"
@@ -444,6 +484,8 @@ def test_an_unmappable_option_value_falls_back_to_a_string_with_one_note() -> No
         ("De4aaaaaaaa", "12,5", '* item[=].item[=].answer[+].valueString = "12,5"'),
         ("De6aaaaaaaa", "yes", '* item[=].item[=].answer[+].valueString = "yes"'),
         ("De5aaaaaaaa", "last tuesday", '* item[=].item[=].answer[+].valueString = "last tuesday"'),
+        ("De5aaaaaaaa", "2026-99-99", '* item[=].item[=].answer[+].valueString = "2026-99-99"'),
+        ("De5aaaaaaaa", "2026-02-30", '* item[=].item[=].answer[+].valueString = "2026-02-30"'),
         ("De1aaaaaaaa", "7", "* item[=].item[=].answer[+].valueInteger = 7"),
         ("De4aaaaaaaa", "12.50", "* item[=].item[=].answer[+].valueDecimal = 12.50"),
         ("De6aaaaaaaa", "1", "* item[=].item[=].answer[+].valueBoolean = true"),
@@ -461,7 +503,9 @@ def test_a_value_that_will_not_cast_is_answered_as_a_string(data_element_uid: st
             )
         ]
     )
-    build = build_example_artifacts([_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
     content = build.artifacts[0].content
     assert expected in content or expected.replace("item[=].item[=]", "item[=].item[=].item[=]") in content
 
@@ -474,7 +518,9 @@ def test_a_value_for_a_data_element_outside_the_form_is_skipped_with_a_note() ->
             ExampleAnswerIn(data_element_uid="De7aaaaaaaa", value="kept"),
         ]
     )
-    build = build_example_artifacts([_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
     assert "Dexaaaaaaaa" not in build.artifacts[0].content
     assert '* item[=].item[=].answer[+].valueString = "kept"' in build.artifacts[0].content
     assert build.notes == [
@@ -525,7 +571,9 @@ def test_a_zoneless_occurrence_is_zoned_rather_than_emitted_invalid() -> None:
         status_code="completed",
         authored="2025-12-30T00:00:00.000",
     )
-    build = build_example_artifacts([_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
     assert '* authored = "2025-12-30T00:00:00.000Z"' in build.artifacts[0].content
 
 
@@ -539,9 +587,13 @@ def test_an_unusable_occurrence_is_dropped_with_a_note() -> None:
         status_code="completed",
         authored="last tuesday",
     )
-    build = build_example_artifacts([_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
     assert "* authored" not in build.artifacts[0].content
-    assert any("authored omitted" in note for note in build.notes)
+    assert "InstanceOf: QuestionnaireResponse\n" in build.artifacts[0].content
+    assert "InstanceOf: D2EventResponse" not in build.artifacts[0].content
+    assert any("base QuestionnaireResponse declared" in note for note in build.notes)
 
 
 def test_a_data_set_without_a_period_type_carries_no_period_extension() -> None:
@@ -553,9 +605,13 @@ def test_a_data_set_without_a_period_type_carries_no_period_extension() -> None:
         flat_items=[QuestionnaireItemIn(uid="De9aaaaaaaa", name="Count", value_type="INTEGER")],
     )
     synthetic = build_synthetic_responses([source], [], 1, _ROOT_ORG_UNIT, _TODAY)
-    build = build_example_artifacts([source], synthetic.responses, [], GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [source], synthetic.responses, [], GenerateConfig(), _CANONICAL, option_set_plan=_plan([])
+    )
     assert "D2Period" not in build.artifacts[0].content
-    assert any("no resolvable reporting period" in note for note in build.notes)
+    assert "InstanceOf: QuestionnaireResponse\n" in build.artifacts[0].content
+    assert "InstanceOf: D2AggregateResponse" not in build.artifacts[0].content
+    assert any("base QuestionnaireResponse instead of the aggregate response profile" in note for note in build.notes)
 
 
 def test_config_defaults_to_one_synthetic_example_per_target() -> None:
@@ -809,12 +865,13 @@ def fhir_example_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     return tmp_path
 
 
-_WIDE_OPTION_SET = ExampleOptionSetIn(
+_WIDE_OPTION_SET = OptionSetIn(
     uid="Os1aaaaaaaa",
+    name="Gender",
     options=[
-        ExampleOptionIn(uid="Op1aaaaaaaa", code="F", name="Female"),
-        ExampleOptionIn(uid="Op2aaaaaaaa", code="M", name="Male"),
-        ExampleOptionIn(uid="Op3aaaaaaaa", code="O", name="Other"),
+        OptionIn(uid="Op1aaaaaaaa", code="F", name="Female", sort_order=1),
+        OptionIn(uid="Op2aaaaaaaa", code="M", name="Male", sort_order=2),
+        OptionIn(uid="Op3aaaaaaaa", code="O", name="Other", sort_order=3),
     ],
 )
 
@@ -887,7 +944,14 @@ def test_a_stored_multi_text_value_splits_into_one_coding_per_option() -> None:
         period=parse_period("202606"),
         answers=[ExampleAnswerIn(data_element_uid="Demulti0000", value="F,O")],
     )
-    build = build_example_artifacts([_WIDE_TYPES], [response], [_WIDE_OPTION_SET], GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_WIDE_TYPES],
+        [response],
+        [_WIDE_OPTION_SET],
+        GenerateConfig(),
+        _CANONICAL,
+        option_set_plan=_plan([_WIDE_OPTION_SET]),
+    )
     content = build.artifacts[0].content
     assert '* item[=].answer[+].valueCoding = D2OS_Os1aaaaaaaa_CS#Op1aaaaaaaa "Female"' in content
     assert '* item[=].answer[+].valueCoding = D2OS_Os1aaaaaaaa_CS#Op3aaaaaaaa "Other"' in content
@@ -926,7 +990,14 @@ def test_a_captured_organisation_unit_value_answers_as_that_units_location() -> 
         period=parse_period("202606"),
         answers=[ExampleAnswerIn(data_element_uid="Deorg000000", value="Ou2aaaaaaaa")],
     )
-    build = build_example_artifacts([_WIDE_TYPES], [response], [_WIDE_OPTION_SET], GenerateConfig(), _CANONICAL)
+    build = build_example_artifacts(
+        [_WIDE_TYPES],
+        [response],
+        [_WIDE_OPTION_SET],
+        GenerateConfig(),
+        _CANONICAL,
+        option_set_plan=_plan([_WIDE_OPTION_SET]),
+    )
     assert "* item[=].answer[+].valueReference = Reference(Location-Ou2aaaaaaaa)" in build.artifacts[0].content
     assert build.notes == []
 
@@ -995,3 +1066,126 @@ async def test_example_answers_follow_the_questionnaires_option_combo_order(
     assert report.written_files == []
     assert example.read_text(encoding="utf-8") == first
     assert first.index("Cocazzzzzzz") < first.index("Cocbzzzzzzz") < first.index("Cocczzzzzzz")
+
+
+def _answered(data_element_uid: str, value: str) -> str:
+    """The FSH of one hand-built data-set response answering a single question."""
+    response = _aggregate_response([ExampleAnswerIn(data_element_uid=data_element_uid, value=value)])
+    build = build_example_artifacts(
+        [_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
+    return build.artifacts[0].content
+
+
+@pytest.mark.parametrize(
+    ("value", "literal"),
+    [
+        ("-3", "-3"),
+        ("0", "0"),
+        ("19.5", "19.5"),
+        ("0.25", "0.25"),
+        ("12.50", "12.50"),
+    ],
+)
+def test_a_plain_decimal_is_answered_at_its_stored_precision(value: str, literal: str) -> None:
+    """An R4 decimal is written unquoted, so a stored value that already is one is carried through verbatim."""
+    assert f"* item[=].item[=].answer[+].valueDecimal = {literal}" in _answered("De4aaaaaaaa", value)
+
+
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity", "1e3", "+1", "01.5", "1_0", ".5", "5."])
+def test_a_decimal_form_r4_cannot_carry_is_answered_as_a_string(value: str) -> None:
+    """`float()` reads all of these; none of them is a decimal literal FHIR admits, so they stay text."""
+    content = _answered("De4aaaaaaaa", value)
+    assert f'* item[=].item[=].answer[+].valueString = "{value}"' in content
+    assert "valueDecimal" not in content
+
+
+@pytest.mark.parametrize(("value", "literal"), [("-3", "-3"), ("0", "0"), ("42", "42")])
+def test_a_plain_integer_is_answered_as_a_number(value: str, literal: str) -> None:
+    """A stored integer answers as one, in the canonical form."""
+    assert f"* item[=].item[=].answer[+].valueInteger = {literal}" in _answered("De1aaaaaaaa", value)
+
+
+@pytest.mark.parametrize("value", ["1_0", "+1", "01", " 1 0", "1e3", "NaN", "19.5"])
+def test_an_integer_form_r4_cannot_carry_is_answered_as_a_string(value: str) -> None:
+    """`int()` reads underscores and edge whitespace as digits, which is not a lexical form FHIR admits."""
+    content = _answered("De1aaaaaaaa", value)
+    assert "valueInteger" not in content
+    assert "answer[+].valueString" in content
+
+
+@pytest.mark.parametrize(
+    ("value", "valid"),
+    [
+        ("2026", True),
+        ("2026-12", True),
+        ("2026-02-28", True),
+        ("2024-02-29", True),
+        ("2026-13", False),
+        ("2026-00", False),
+        ("2026-02-30", False),
+        ("2026-99-99", False),
+        ("26-01-01", False),
+    ],
+)
+def test_an_r4_date_must_be_a_real_date(value: str, valid: bool) -> None:
+    """The lexical shape is not enough: a date answer names a day the calendar actually has."""
+    assert _is_fhir_date(value) is valid
+
+
+@pytest.mark.parametrize(
+    ("value", "valid"),
+    [
+        ("23:59:59", True),
+        ("00:00:00", True),
+        ("12:00:00.500", True),
+        ("24:00:00", False),
+        ("25:99:99", False),
+        ("12:60:00", False),
+    ],
+)
+def test_an_r4_time_must_be_a_real_time(value: str, valid: bool) -> None:
+    """The lexical shape is not enough: a time answer names a reading the clock actually shows."""
+    assert _is_fhir_time(value) is valid
+
+
+@pytest.mark.parametrize(
+    ("value", "valid"),
+    [
+        ("2026", True),
+        ("2026-12", True),
+        ("2026-01-01", True),
+        ("2026-01-01T12:00:00Z", True),
+        ("2026-01-01T12:00:00.000Z", True),
+        ("2026-01-01T12:00:00+14:00", True),
+        ("2026-01-01T12:00:00-12:00", True),
+        ("2026-13", False),
+        ("2026-02-30", False),
+        ("2026-99-99", False),
+        ("2026-99-99T25:99:99+99:00", False),
+        ("2026-01-01T25:00:00Z", False),
+        ("2026-01-01T12:00:00+99:00", False),
+        ("2026-01-01T12:00:00+14:30", False),
+        ("2026-01-01T12:00:00-13:00", False),
+    ],
+)
+def test_an_r4_date_time_must_be_a_real_instant_in_a_real_zone(value: str, valid: bool) -> None:
+    """A dateTime clears the calendar, the clock, and an offset no zone on earth sits outside of."""
+    assert _is_fhir_date_time(value) is valid
+
+
+def test_an_occurrence_in_an_impossible_zone_is_dropped_with_a_note() -> None:
+    """An offset outside the inhabited range is no dateTime, so the occurrence is omitted rather than emitted."""
+    response = ExampleResponseIn(
+        instance_id="Ev1aaaaaaaa",
+        target_uid="VBqh0ynB2wv",
+        kind="event",
+        organisation_unit_uid="Ou1aaaaaaaa",
+        status_code="completed",
+        authored="2026-01-01T12:00:00+14:30",
+    )
+    build = build_example_artifacts(
+        [_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
+    assert "* authored" not in build.artifacts[0].content
+    assert any("base QuestionnaireResponse declared" in note for note in build.notes)

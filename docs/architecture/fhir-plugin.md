@@ -147,7 +147,7 @@ consistently. With `naming.source = "name"` the same set reads `D2OS_BirthType_C
 / `d2-os-birth-type-cs`. The two profile names always carry a token (default
 `D2`) because FSH cannot name a profile identically to its parent core resource.
 
-## Foundation -> identifier systems, D2Period, and D2FormType
+## Foundation -> identifier systems, D2Period, and the capture contract
 
 `generate foundation` writes `ig/input/fsh/foundation/`, the part of the IG that
 depends on `fhir.toml` alone and never opens a client:
@@ -176,6 +176,30 @@ depends on `fhir.toml` alone and never opens a client:
   form it is, and so does every response captured against it, which is what lets a
   consumer branch without re-reading the questionnaire. The two tracker codes are
   declared ahead of their generators so the terminology does not churn later.
+- `d2-responses.fsh` - the `D2AggregateResponse` and `D2EventResponse` profiles on
+  `QuestionnaireResponse`, one per form kind. Each slices the extensions its kind has
+  to carry (`D2Period` 1..1 on the aggregate one, `D2FormType` 1..1 on both, fixed to
+  the kind's own code), requires `questionnaire`, requires `subject` and restricts it
+  to `Reference(D2Location)`, and the event one additionally requires `authored`. The
+  slice names are the extension names, which is what lets an instance address them as
+  `extension[D2Period]` the way the examples already did against the bare resource.
+- `d2-capture-server.fsh` - the `D2CaptureServer` CapabilityStatement,
+  `kind = #requirements` so R4 forbids `software` and `implementation`. It declares
+  `create` on `QuestionnaireResponse` with both response profiles as
+  `supportedProfile`, and `read` + `search-type` on `Questionnaire`, `CodeSystem`,
+  `ValueSet`, `Location`, and `Organization`. R4 makes `CapabilityStatement.date`
+  mandatory, so it takes a pinned literal for the same byte-stability reason the
+  NamingSystem declarations do.
+
+The two response profiles are the reason `foundation` reads
+`OrganisationUnitNaming`: `subject only Reference(<location profile>)` has to name
+the very profile the org-unit target emits, under whatever `[generate.naming]` prefix
+is configured. `naming.py` is a leaf module, so the dependency adds no cycle. The
+profiles are only half the contract - the other half is that every generated example
+declares `InstanceOf: D2AggregateResponse` / `InstanceOf: D2EventResponse` instead of
+the bare resource, so SUSHI and the publisher validate the examples against the
+profiles on every run and a profile that drifts from what generation produces fails
+the build.
 
 `D2Period` exists because a FHIR `Period` is a pair of instants while a DHIS2
 period is a *typed* interval: `202401` is the January instance of the `Monthly`
@@ -209,7 +233,24 @@ DHIS2 option code rides along as a `dhis2-code` concept property; with
 `"code"` they swap (the UID becomes a `dhis2-id` property). The code path is
 gated by a FHIR `code`-datatype validity check; an option whose code is
 missing or invalid falls back to the UID with a note in the report, so
-generation is total and never silently drops a concept.
+generation is total. Concept codes are unique within a set by construction: the
+codes are assigned in DHIS2 sort order by `concept_assignments` and a taken code
+falls back to the option's UID; where that UID is taken too - a peer carries it as
+its own DHIS2 code - the option is skipped with its own aggregate note rather than
+emitted as a duplicate concept the publisher would reject. Every target that names
+a concept reads that one assignment, so the examples cannot code an answer the
+CodeSystem has no concept for.
+
+Names are decided once, for the whole selection, by `option_set_identities`:
+truncation and collision suffixes both depend on the peers a set is assigned
+against, so a per-set name cannot be reconstructed from a UID. The resulting
+`OptionSetIdentityPlan` is the boundary object every other target reads option-set
+names from - the terminology emitter for its files, a question's `answerValueSet`,
+an example's answer coding, and the narrative pages' `CodeSystem-<id>` links. The
+service builds the plan from the identical selection in each generate path, so a
+`name`-sourced run's `Canonical(D2OS_Sex_Aa1aaaaaaaa_VS)` names the ValueSet that
+same run writes. A bound set the plan somehow omits still emits a UID-derived name
+and is reported by an aggregate note, never left dangling.
 
 ## Data sets and event programs -> Questionnaires
 
@@ -247,7 +288,10 @@ whose type comes from the DHIS2 `valueType` table, or `#choice` plus an
 `#choice` plus `repeats = true`, which is the whole of what MULTI_TEXT means; a compulsory
 program-stage element is `required`; a non-default category combo turns the question into a group
 with one child per option combo, `linkId` `<deUid>.<cocUid>` - the same key a DHIS2
-data value carries. A section holding such a group also carries the standard
+data value carries. A cell asks the element's own question one option combo at a time, so
+each child takes the element's effective item type, its `answerValueSet`, its `repeats`, and
+its bounds; only the `linkId`, the text, and the code differ. A section holding such a group
+also carries the standard
 `questionnaire-itemControl` extension coded `#gtable`, which is the DHIS2 data-entry
 grid stated in FHIR terms.
 
@@ -311,9 +355,12 @@ questions, a disaggregated element nests one child per option combo under
 `<deUid>.<cocUid>` - but only the branches an answer reaches are emitted, so a
 partial data value set produces a partial, still-valid response. Answers are cast
 from the data element's `valueType`; an option code resolves to a `valueCoding`
-into that set's CodeSystem with the concept code `concept_code_source` selects.
-Anything that will not cast falls back to `valueString` and is counted, as is a
-captured value for a data element the form does not ask for.
+into that set's CodeSystem, carrying the very concept code `concept_assignments`
+handed the terminology target - fall-backs, collisions, and all - so an answer can
+only ever name a concept the run really wrote. An answer selecting an option that
+received no concept code is left unanswered and counted. Anything that will not
+cast falls back to `valueString` and is counted, as is a captured value for a data
+element the form does not ask for.
 
 Two normalisations happen at the FHIR edge rather than being left to fail in
 SUSHI: a zone-less DHIS2 timestamp gains `Z` (BUGS.md #62 - R4 requires an offset
@@ -402,22 +449,37 @@ pagecontent/registry.md                  Organisation unit registry summary
 pagecontent/terminology.md               Option sets + the support CodeSystems
 pagecontent/identifiers.md               The two identifier slices + NamingSystems
 pagecontent/periods.md                   D2Period + every DHIS2 period type
+pagecontent/capture.md                   The capture contract, worked per form kind
 pagecontent/Questionnaire-<UID>-intro.md One per generated Questionnaire
 pagecontent/CodeSystem-<id>-intro.md     Option sets carrying a DHIS2 description
 pagecontent/Organization-<UID>-intro.md  Org units carrying a DHIS2 description
 ```
 
-The five site pages are the scaffolded menu: `Home`, `Forms`, `Registry`,
-`Terminology`, `Identifiers`, `Periods`, `Artifacts`. The two intro kinds that are
-gated on a DHIS2 description emit nothing when there is none - most organisation
-units have no description, and an intro page repeating the title would be noise.
+The six site pages are the scaffolded menu: `Home`, `Forms`, `Registry`,
+`Terminology`, `Identifiers`, `Periods`, `Capture`, `Artifacts`. The two intro kinds
+that are gated on a DHIS2 description emit nothing when there is none - most
+organisation units have no description, and an intro page repeating the title would
+be noise.
+
+`capture.md` is the narrative half of the capture contract. It works an aggregate and
+an event response step by step against forms this project actually selected, with a
+real ISO period resolved through `parse_period` from the pinned reference date and a
+real organisation unit off the registry, then tabulates the answer typing for every
+DHIS2 value type. That table is not written twice: the value type to answer element
+mapping is `answer_element` in `resources/examples`, which `_typed_answer` dispatches
+on and the page reads directly, and the event status table is the examples component's
+own `STATUS_BY_EVENT_STATUS`. Only the prose spelling rule per value type is the
+page's own. `build_page_artifacts` takes the IG canonical for this page alone - the
+capture contract has to state the canonical URL rule a client resolves a Questionnaire
+by, and that lives in `[ig]` rather than `[generate]`.
 
 The target adds no endpoint. `PagesIn` is the three projections the other targets
 already fetch - `QuestionnaireSourceIn`, `OptionSetIn`, `OrganisationUnitIn` - so a
 page can never disagree with the FSH about what was generated. Link targets are
 derived rather than reconstructed: `option_set_identities` is the one place an option
-set's slug and `CodeSystem-<id>` are decided, read by the emitter for its file names
-and by the terminology page for its links, and `periods.md` tabulates
+set's slug and `CodeSystem-<id>` are decided, read by the emitter for its file names,
+by the questionnaire and example targets for their option-set names, and by the
+terminology page for its links, and `periods.md` tabulates
 `PERIOD_TYPE_DEFINITIONS` with examples resolved through `recent_periods` +
 `parse_period` from a pinned reference date, so a regenerate never moves with the
 calendar.
@@ -610,19 +672,22 @@ The components:
   collected as `QUESTIONNAIRE_DIRECTORIES`), with `TargetSelection`, the
   `QuestionnaireSourceIn` / `QuestionnaireSectionIn` / `QuestionnaireItemIn` /
   `CategoryComboIn` / `CategoryOptionComboIn` projections, and `QuestionnaireNaming`
-  deriving every name from the `DS` / `PR` / `DE` / `COC` tokens. Item nesting is
+  deriving every name from the `DS` / `PR` / `DE` / `COC` tokens - option-set names
+  are not among them, they come in on the `OptionSetIdentityPlan`. Item nesting is
   resolved in Python into a flat list of view-models carrying their FSH soft-index
   paths (`item[=].item[+]`), so the template stays a layout, not a recursion.
 - `resources/examples/` - the `Usage: #example` QuestionnaireResponse per example,
   its `EXAMPLES_DIRECTORY` sync directory, the `ExampleSelection` /
-  `ExampleResponseIn` / `ExampleAnswerIn` / `ExampleOptionSetIn` projections, the
-  seeded `build_synthetic_responses`, and the answer typing (including the R4
-  temporal normalisations). It depends on `resources/questionnaires/` for the
+  `ExampleResponseIn` / `ExampleAnswerIn` projections (the option sets come in on
+  the option-set component's own `OptionSetIn`), the seeded
+  `build_synthetic_responses`, and the answer typing (including the R4 temporal
+  normalisations and their calendar, clock, and offset checks). It depends on `resources/questionnaires/` for the
   source projection and naming, never the other way round.
-- `resources/pages/` - the narrative markdown layer: the five site pages, the
+- `resources/pages/` - the narrative markdown layer: the six site pages, the
   per-artifact intros, `PagesIn` (the fetched-input view the pages render from),
   and the per-page view-models. It reads the other components' naming helpers and
-  projections and is read by none of them.
+  projections - including the examples component's answer typing, which
+  `capture.md` tabulates rather than restates - and is read by none of them.
 - `resources/organisation_units/` - split by FHIR resource: `naming.py`
   derives every artifact name and id from the `[generate.naming]` tokens,
   `organization.py` builds the profiles artifact and the Organization

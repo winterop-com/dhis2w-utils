@@ -28,25 +28,6 @@ class ExampleSelection(BaseModel):
     source: ExampleSource = "synthetic"
 
 
-class ExampleOptionIn(BaseModel):
-    """One option of an option set a question is answered from."""
-
-    model_config = ConfigDict(frozen=True)
-
-    uid: str
-    code: str | None = None
-    name: str
-
-
-class ExampleOptionSetIn(BaseModel):
-    """The options of one option set the example answers resolve their codings against."""
-
-    model_config = ConfigDict(frozen=True)
-
-    uid: str
-    options: list[ExampleOptionIn] = Field(default_factory=list)
-
-
 class ExampleAnswerIn(BaseModel):
     """One captured value, keyed the way DHIS2 keys it: data element plus category option combo.
 

@@ -1,4 +1,4 @@
-CodeSystem: {{ base_name }}_CS
+CodeSystem: {{ code_system_name }}
 Id: {{ id_stem }}{{ slug }}-cs
 Title: {{ title }}
 Description: {{ description }}
@@ -17,7 +17,7 @@ Description: {{ description }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * ^content = #complete
 * ^caseSensitive = true
-* ^valueSet = Canonical({{ base_name }}_VS)
+* ^valueSet = Canonical({{ value_set_name }})
 {% for declaration in declarations %}
 * ^property[+].code = #{{ declaration.code }}
 * ^property[=].uri = "{{ property_base }}/{{ declaration.code }}"
@@ -36,7 +36,7 @@ Description: {{ description }}
 {% endfor %}
 {% endfor %}
 
-ValueSet: {{ base_name }}_VS
+ValueSet: {{ value_set_name }}
 Id: {{ id_stem }}{{ slug }}-vs
 Title: {{ title }}
 Description: {{ description }}
@@ -53,4 +53,4 @@ Description: {{ description }}
 * ^identifier[=].value = "{{ option_set_code }}"
 * ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
-* include codes from system {{ base_name }}_CS
+* include codes from system {{ code_system_name }}

@@ -1,0 +1,28 @@
+{% for profile in profiles %}
+Profile: {{ profile.name }}
+Parent: QuestionnaireResponse
+Id: {{ profile.profile_id }}
+Title: {{ profile.title_literal }}
+Description: {{ profile.description_literal }}
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+{% if profile.period_required %}
+* extension contains
+    {{ names.period_extension }} named {{ names.period_extension }} 1..1 and
+    {{ names.form_type_extension }} named {{ names.form_type_extension }} 1..1
+* extension[{{ names.period_extension }}] ^short = "The DHIS2 reporting period the values were captured for."
+{% else %}
+* extension contains {{ names.form_type_extension }} named {{ names.form_type_extension }} 1..1
+{% endif %}
+* extension[{{ names.form_type_extension }}] ^short = "The DHIS2 form kind this response answers."
+* extension[{{ names.form_type_extension }}].valueCode = #{{ profile.form_type_code }} (exactly)
+* questionnaire 1..1
+* subject 1..1
+* subject only Reference({{ location_profile }})
+{% if profile.authored_required %}
+* authored 1..1
+{% endif %}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}

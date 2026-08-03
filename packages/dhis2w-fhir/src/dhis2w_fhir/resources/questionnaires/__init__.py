@@ -28,8 +28,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import code_or_uid, page_text, quote
+from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.resources.option_sets import option_set_identity_index
+from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryOptionComboIn,
+    NumericBounds,
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
@@ -41,13 +45,17 @@ if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
 __all__ = [
+    "BOUNDS_BY_VALUE_TYPE",
     "DATA_DICTIONARY_DIRECTORY",
     "DATA_SET_DIRECTORY",
     "EVENT_PROGRAM_DIRECTORY",
     "ITEM_CONTROL_CODE_SYSTEM_URL",
     "ITEM_CONTROL_EXTENSION_URL",
     "ITEM_TYPES_BY_VALUE_TYPE",
+    "MAXIMUM_VALUE_EXTENSION_URL",
+    "MINIMUM_VALUE_EXTENSION_URL",
     "QUESTIONNAIRE_DIRECTORIES",
+    "NumericBounds",
     "build_questionnaire_artifacts",
     "domain_code",
     "is_multi_valued",
@@ -70,6 +78,10 @@ ITEM_CONTROL_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/questionna
 
 #: The CodeSystem the item-control extension's CodeableConcept is coded from (`#gtable` here).
 ITEM_CONTROL_CODE_SYSTEM_URL = "http://hl7.org/fhir/questionnaire-item-control"
+
+#: The standard R4 extensions constraining the range a numeric question's answer may take.
+MINIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/minValue"
+MAXIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/maxValue"
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.resources.questionnaires", "templates"),
@@ -128,6 +140,24 @@ ITEM_TYPES_BY_VALUE_TYPE = {
     "TRACKER_ASSOCIATE": "string",
 }
 
+#: The range each bounded DHIS2 numeric value type admits, as the `minValue` / `maxValue`
+#: extensions a question carries. Only the value types whose name *is* a constraint appear:
+#: `INTEGER` and `NUMBER` are unbounded in DHIS2, so a bound on them would invent a rule the
+#: instance does not enforce. A guard test asserts every key is a member of the generated
+#: `ValueType` enum across v41, v42, and v43.
+BOUNDS_BY_VALUE_TYPE = {
+    "INTEGER_POSITIVE": NumericBounds(minimum_value=1),
+    "INTEGER_ZERO_OR_POSITIVE": NumericBounds(minimum_value=0),
+    "INTEGER_NEGATIVE": NumericBounds(maximum_value=-1),
+    "PERCENTAGE": NumericBounds(minimum_value=0, maximum_value=100),
+    "UNIT_INTERVAL": NumericBounds(minimum_value=0, maximum_value=1),
+}
+
+#: The `value[x]` element a bound lands on, keyed by the item type the question answers as. A
+#: question answering as anything else - a `#choice` bound to an option set, say - takes no
+#: bound at all, because there is no numeric element on it to constrain.
+_BOUND_ELEMENTS_BY_ITEM_TYPE = {"integer": "valueInteger", "decimal": "valueDecimal"}
+
 #: What an unmapped value type answers as - reached only by a DHIS2 value type newer than the
 #: generated enums, since the table above covers every member of all three.
 _DEFAULT_ITEM_TYPE = "string"
@@ -157,6 +187,16 @@ _PROFILES_BY_KIND = {
 }
 
 
+class _BoundView(BaseModel):
+    """One `minValue` / `maxValue` extension on a question: its url and the typed literal it carries."""
+
+    model_config = ConfigDict(frozen=True)
+
+    url: str
+    element: str
+    literal: str
+
+
 class _ItemView(BaseModel):
     """One emitted Questionnaire item, its FSH soft-index paths already resolved."""
 
@@ -172,6 +212,7 @@ class _ItemView(BaseModel):
     required: bool = False
     repeats: bool = False
     item_control: bool = False
+    bounds: list[_BoundView] = Field(default_factory=list)
 
 
 class _QuestionnaireView(BaseModel):
@@ -239,18 +280,28 @@ class _SupportTerminologyView(BaseModel):
 
 
 def build_questionnaire_artifacts(
-    sources: list[QuestionnaireSourceIn], config: GenerateConfig, canonical: str, *, ig_status: IgStatus
+    sources: list[QuestionnaireSourceIn],
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    ig_status: IgStatus,
+    option_set_plan: OptionSetIdentityPlan,
 ) -> FshBuild:
-    """Build one `data-sets/` or `event-programs/` file per target plus the `data-dictionary/` support pairs."""
+    """Build one `data-sets/` or `event-programs/` file per target plus the `data-dictionary/` support pairs.
+
+    `option_set_plan` is the identity plan the terminology target emits from, so an
+    `answerValueSet` names the ValueSet the same run writes under either naming source.
+    """
     build = FshBuild()
     names = QuestionnaireNaming.from_naming(config.naming)
     foundation = FoundationNaming.from_naming(config.naming)
+    index = option_set_identity_index(option_set_plan, _bound_option_set_uids(sources), config)
     data_elements: dict[str, QuestionnaireItemIn] = {}
     option_combos: dict[str, CategoryOptionComboIn] = {}
     template = _ENVIRONMENT.get_template("questionnaire.fsh.jinja")
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
         _collect_referenced_objects(source, data_elements, option_combos)
-        view = _questionnaire_view(source, names, foundation, canonical, ig_status=ig_status)
+        view = _questionnaire_view(source, names, foundation, canonical, index.identities, ig_status=ig_status)
         build.artifacts.append(
             FshArtifact(
                 relative_path=f"{_source_directory(source)}/{source.uid}.fsh",
@@ -267,7 +318,25 @@ def build_questionnaire_artifacts(
         build.artifacts.append(_data_element_terminology(data_elements, names, config, ig_status=ig_status))
     if option_combos:
         build.artifacts.append(_option_combo_terminology(option_combos, names, config, ig_status=ig_status))
+    if index.unplanned_uids:
+        build.notes.append(
+            aggregate_note(
+                f"{len(index.unplanned_uids)} option sets a question binds are absent from the option-set "
+                "selection; their answerValueSet names are derived from the UID",
+                index.unplanned_uids,
+            )
+        )
     return build
+
+
+def _bound_option_set_uids(sources: list[QuestionnaireSourceIn]) -> list[str]:
+    """Every option set the given forms bind a question to."""
+    return [item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid]
+
+
+def _source_items(source: QuestionnaireSourceIn) -> list[QuestionnaireItemIn]:
+    """Every question one form carries, sectioned and unsectioned alike."""
+    return [item for section in source.sections for item in section.items] + list(source.flat_items)
 
 
 def _source_directory(source: QuestionnaireSourceIn) -> str:
@@ -280,6 +349,7 @@ def _questionnaire_view(
     names: QuestionnaireNaming,
     foundation: FoundationNaming,
     canonical: str,
+    identities: dict[str, OptionSetIdentity],
     *,
     ig_status: IgStatus,
 ) -> _QuestionnaireView:
@@ -299,11 +369,13 @@ def _questionnaire_view(
         form_type_code_system=foundation.form_type_code_system,
         form_type_code=source.kind,
         ig_status=ig_status,
-        items=_item_views(source, names),
+        items=_item_views(source, names, identities),
     )
 
 
-def _item_views(source: QuestionnaireSourceIn, names: QuestionnaireNaming) -> list[_ItemView]:
+def _item_views(
+    source: QuestionnaireSourceIn, names: QuestionnaireNaming, identities: dict[str, OptionSetIdentity]
+) -> list[_ItemView]:
     """Flatten the source's sections and unsectioned items into depth-first FSH item lines."""
     views: list[_ItemView] = []
     for section in source.sections:
@@ -318,16 +390,27 @@ def _item_views(source: QuestionnaireSourceIn, names: QuestionnaireNaming) -> li
             )
         )
         for item in section.items:
-            views.extend(_data_element_views(item, names, depth=1))
+            views.extend(_data_element_views(item, names, identities, depth=1))
     for item in source.flat_items:
-        views.extend(_data_element_views(item, names, depth=0))
+        views.extend(_data_element_views(item, names, identities, depth=0))
     return views
 
 
-def _data_element_views(item: QuestionnaireItemIn, names: QuestionnaireNaming, depth: int) -> list[_ItemView]:
-    """Build one data element's item lines: a question, or a group with one child per option combo."""
+def _data_element_views(
+    item: QuestionnaireItemIn, names: QuestionnaireNaming, identities: dict[str, OptionSetIdentity], depth: int
+) -> list[_ItemView]:
+    """Build one data element's item lines: a question, or a group with one child per option combo.
+
+    A disaggregated cell asks the very question its data element does, one category option combo
+    at a time, so every child takes the element's effective item type, its answer binding, and
+    its repeats - only the `linkId`, the text, and the code differ.
+    """
     code_token = f"{names.data_element_code_system}#{item.uid} {quote(item.name)}"
     text_literal = quote(item.form_name or item.name)
+    item_type = _item_type(item)
+    answer_value_set = _answer_value_set(item, identities)
+    repeats = is_multi_valued(item.value_type, item_type)
+    bounds = _bound_views(item.value_type, item_type)
     if not _is_disaggregated(item):
         return [
             _ItemView(
@@ -336,10 +419,11 @@ def _data_element_views(item: QuestionnaireItemIn, names: QuestionnaireNaming, d
                 link_id=item.uid,
                 code_token=code_token,
                 text_literal=text_literal,
-                type_code=_item_type(item),
-                answer_value_set=_answer_value_set(item, names),
+                type_code=item_type,
+                answer_value_set=answer_value_set,
                 required=item.compulsory,
-                repeats=is_multi_valued(item.value_type, _item_type(item)),
+                repeats=repeats,
+                bounds=bounds,
             )
         ]
     views = [
@@ -363,10 +447,27 @@ def _data_element_views(item: QuestionnaireItemIn, names: QuestionnaireNaming, d
                 link_id=f"{item.uid}.{option_combo.uid}",
                 code_token=f"{names.category_option_combo_code_system}#{option_combo.uid} {quote(option_combo.name)}",
                 text_literal=quote(option_combo.name),
-                type_code=_value_type_item_type(item.value_type),
-                repeats=is_multi_valued(item.value_type, _value_type_item_type(item.value_type)),
+                type_code=item_type,
+                answer_value_set=answer_value_set,
+                required=option_combo.uid in item.required_option_combo_uids,
+                repeats=repeats,
+                bounds=bounds,
             )
         )
+    return views
+
+
+def _bound_views(value_type: str, item_type: str) -> list[_BoundView]:
+    """The `minValue` / `maxValue` extensions one question carries, typed by the item type it answers as."""
+    bounds = BOUNDS_BY_VALUE_TYPE.get(value_type)
+    element = _BOUND_ELEMENTS_BY_ITEM_TYPE.get(item_type)
+    if bounds is None or element is None:
+        return []
+    views: list[_BoundView] = []
+    if bounds.minimum_value is not None:
+        views.append(_BoundView(url=MINIMUM_VALUE_EXTENSION_URL, element=element, literal=str(bounds.minimum_value)))
+    if bounds.maximum_value is not None:
+        views.append(_BoundView(url=MAXIMUM_VALUE_EXTENSION_URL, element=element, literal=str(bounds.maximum_value)))
     return views
 
 
@@ -402,11 +503,11 @@ def _value_type_item_type(value_type: str) -> str:
     return ITEM_TYPES_BY_VALUE_TYPE.get(value_type, _DEFAULT_ITEM_TYPE)
 
 
-def _answer_value_set(item: QuestionnaireItemIn, names: QuestionnaireNaming) -> str | None:
-    """The option-set ValueSet an option-set-bound question is answered from."""
+def _answer_value_set(item: QuestionnaireItemIn, identities: dict[str, OptionSetIdentity]) -> str | None:
+    """The option-set ValueSet an option-set-bound question is answered from, as the run names it."""
     if item.option_set_uid is None:
         return None
-    return names.option_set_value_set(item.option_set_uid)
+    return identities[item.option_set_uid].value_set_name
 
 
 def _new_path(depth: int) -> str:
@@ -425,8 +526,7 @@ def _collect_referenced_objects(
     option_combos: dict[str, CategoryOptionComboIn],
 ) -> None:
     """Record every data element and category option combo one source's items reference."""
-    items = [item for section in source.sections for item in section.items] + list(source.flat_items)
-    for item in items:
+    for item in _source_items(source):
         data_elements.setdefault(item.uid, item)
         if not _is_disaggregated(item) or item.category_combo is None:
             continue

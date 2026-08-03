@@ -32,6 +32,10 @@ Usage: #definition
 {% if item.repeats %}
 * {{ item.path }}.repeats = true
 {% endif %}
+{% for bound in item.bounds %}
+* {{ item.path }}.extension[+].url = "{{ bound.url }}"
+* {{ item.path }}.extension[=].{{ bound.element }} = {{ bound.literal }}
+{% endfor %}
 {% if item.item_control %}
 * {{ item.path }}.extension[+].url = "{{ item_control_extension_url }}"
 * {{ item.path }}.extension[=].valueCodeableConcept = {{ item_control_code_system_url }}#gtable
