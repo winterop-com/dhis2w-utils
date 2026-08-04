@@ -1,7 +1,11 @@
 # fhir.toml - configuration for `d2w fhir generate` (scaffolded by `d2w fhir init`).
 # Only the essentials live here; every available option is documented in fhir.toml.example.
 
+{% if profile %}
+profile = "{{ profile }}"           # DHIS2 profile to read metadata from
+{% else %}
 # profile = "myserver"              # optional: DHIS2 profile to read metadata from
+{% endif %}
 
 [ig]
 id = "{{ ig_id }}"

@@ -110,6 +110,7 @@ Every command and every flag, from `cli.py`.
 | `--publisher` | `Example Organisation` | Publisher name. |
 | `--status` | `draft` | `draft` or `active`. Rejected with `typer.BadParameter` otherwise. Drives the sushi-config status plus `^status` / `^experimental` on every generated definitional artifact. |
 | `--publisher-url` | unset | Publisher home page. Omitted by default because the publisher links it from every generated page. |
+| `--profile` | unset | DHIS2 profile seeding the top-level `profile` key of the scaffolded `fhir.toml`. Offline - written as given, never resolved against `profiles.toml`. Without it the key scaffolds commented out. |
 | `--data-set` | none | Repeatable data set UID seeding `[generate.data_sets] include_ids`. Offline - never checked against an instance. |
 | `--event` | none | Repeatable event program UID seeding `[generate.event_programs] include_ids`. Offline. |
 | `--force` | off | Overwrite scaffold files that already exist. Without it, existing files are reported as skipped. |
@@ -243,7 +244,7 @@ profile and per-wire-version system-info mocking.
 | `test_fhir_foundation.py` | Golden tests for the six foundation artifacts. | 22 |
 | `test_fhir_generate_cli.py` | `CliRunner` over `d2w fhir generate`, service mocked. | 14 |
 | `test_fhir_geometry.py` | Geometry to position and boundary payload. | 7 |
-| `test_fhir_init_cli.py` | `CliRunner` over `d2w fhir init`. | 6 |
+| `test_fhir_init_cli.py` | `CliRunner` over `d2w fhir init`. | 9 |
 | `test_fhir_mcp.py` | The FastMCP `fhir_validate` surface. | 2 |
 | `test_fhir_names.py` | `names.py` helpers and the cnl-0 shape of every emitted FSH name. | 18 |
 | `test_fhir_organization.py` | Org-unit profile, terminology, and instance emission. | 16 |

@@ -5,7 +5,7 @@ a SUSHI project whose FSH (FHIR Shorthand) files are generated from
 `/api/optionSets`, `/api/organisationUnits`, `/api/dataSets`, and `/api/programs`.
 
 ```
-d2w fhir init [DIRECTORY]           Scaffold a dockerized SUSHI IG project
+d2w fhir init [DIRECTORY]           Scaffold a dockerized SUSHI IG project (--profile seeds fhir.toml)
 d2w fhir generate foundation        Identifier aliases + the D2Period / D2FormType extensions
 d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate questionnaires    Data sets + event programs -> Questionnaire instances

@@ -32,8 +32,9 @@ cd my-ig
 #    and uv sync writes .venv plus the uv.lock that pins it.
 uv sync
 
-# 3. Point it at a DHIS2 instance. Either set `profile` in fhir.toml, or use the
-#    environment / flag - see "Which DHIS2 instance" below.
+# 3. Point it at a DHIS2 instance. Either set `profile` in fhir.toml - `d2w fhir init
+#    --profile demo` seeds it while scaffolding - or use the environment / flag. See
+#    "Which DHIS2 instance" below.
 uv run d2w profile add demo --url https://play.im.dhis2.org/stable-2-42-1 --username admin --password district
 
 # 4. Check the instance's codes before generating anything.
@@ -93,6 +94,9 @@ profile it connects with is resolved in this order, first match wins:
 3. the `profile` key in `fhir.toml`,
 4. the default profile from your `profiles.toml`.
 
+Write step 3 while scaffolding with `d2w fhir init --profile <name>`, or set the
+key by hand later - both land in the same place.
+
 Credentials never live in `fhir.toml`. It is committed project config: it names
 a profile, and the profile store holds the secret.
 
@@ -110,6 +114,12 @@ need from the example into `fhir.toml`; anything you omit keeps its default.
 ```toml
 profile = "myserver"    # optional: which d2w profile to read metadata from
 ```
+
+`d2w fhir init --profile myserver` seeds this key while scaffolding, so the
+project points at an instance from the first run. Scaffolding stays offline: the
+name is written as given and never resolved against `profiles.toml`. Without the
+flag the key is scaffolded commented out, and `d2w fhir generate` falls back to
+`--profile` / `DHIS2_PROFILE` / the default profile.
 
 ### `[ig]` - SUSHI identity
 

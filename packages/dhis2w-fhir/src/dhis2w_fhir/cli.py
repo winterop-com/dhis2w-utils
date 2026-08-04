@@ -50,6 +50,15 @@ def init_command(
             "every generated page, and pointing it at the canonical yields one broken link per page.",
         ),
     ] = None,
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            help="DHIS2 profile to seed the `profile` key of the scaffolded fhir.toml with, so "
+            "`d2w fhir generate` reads that instance without a flag. Offline: the name is written as "
+            "given, never resolved against profiles.toml.",
+        ),
+    ] = None,
     data_set_ids: Annotated[
         list[str] | None,
         typer.Option(
@@ -84,6 +93,7 @@ def init_command(
         publisher=publisher,
         status=ig_status,
         publisher_url=publisher_url,
+        profile=profile,
         data_set_ids=data_set_ids or [],
         event_program_ids=event_program_ids or [],
     )
@@ -103,7 +113,10 @@ def init_command(
         typer.echo(f"  created {relative_path}")
     for relative_path in report.skipped_files:
         typer.echo(f"  skipped {relative_path} (exists; use --force to overwrite)")
-    typer.secho("next: set `profile` in fhir.toml, then run `d2w fhir generate all`", err=True)
+    if profile:
+        typer.secho(f"next: run `d2w fhir generate all` (profile `{profile}`)", err=True)
+    else:
+        typer.secho("next: set `profile` in fhir.toml, then run `d2w fhir generate all`", err=True)
 
 
 def _render_generate_report(title: str, report: GenerateReport, generation: GenerationProfile) -> None:

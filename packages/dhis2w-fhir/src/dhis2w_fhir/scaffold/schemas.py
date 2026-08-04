@@ -21,9 +21,10 @@ def normalize_project_name(ig_id: str) -> str:
 class InitOptions(BaseModel):
     """Parameters for `d2w fhir init` scaffolding.
 
-    `data_set_ids` and `event_program_ids` seed the `[generate.data_sets]` and
-    `[generate.event_programs]` include lists of the scaffolded `fhir.toml`. Scaffolding is
-    offline: the UIDs are written as given and never checked against an instance.
+    `profile` seeds the top-level `profile` key, and `data_set_ids` / `event_program_ids` seed the
+    `[generate.data_sets]` and `[generate.event_programs]` include lists of the scaffolded
+    `fhir.toml`. Scaffolding is offline: the profile name and the UIDs are written as given and
+    never resolved or checked against an instance.
     """
 
     ig_id: str
@@ -33,6 +34,7 @@ class InitOptions(BaseModel):
     publisher: str
     status: IgStatus = "draft"
     publisher_url: str | None = None
+    profile: str | None = None
     data_set_ids: list[str] = Field(default_factory=list)
     event_program_ids: list[str] = Field(default_factory=list)
 
