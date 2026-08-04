@@ -320,6 +320,14 @@ def test_makefile_uses_real_tabs() -> None:
     assert "\t$(D2W) fhir validate" in makefile
 
 
+def test_makefile_publisher_heap_is_overridable() -> None:
+    """`JAVA_HEAP` is a `?=` default the build target reads, so a small docker VM can shrink the heap."""
+    makefile = _by_path()["Makefile"]
+    assert "JAVA_HEAP ?= 4g" in makefile
+    assert "java -Xmx$(JAVA_HEAP) -jar" in makefile
+    assert "-Xmx4g" not in makefile
+
+
 def test_makefile_drives_d2w_through_the_projects_own_environment() -> None:
     """`uv run d2w` is the default, with the checkout override on one comment line; the guide holds the rest."""
     makefile = _by_path()["Makefile"]

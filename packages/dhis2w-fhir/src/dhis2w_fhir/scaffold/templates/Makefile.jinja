@@ -1,6 +1,9 @@
 DOCKER_IMAGE := fhir-ig
 IG_DIR := ig
 TX_SERVER ?= http://tx.fhir.org
+# Publisher JVM heap. It needs roughly this much again for metaspace, JVM native memory, and
+# the OS, so keep the docker VM at JAVA_HEAP + ~2G or the kernel OOM-kills the build (exit 137).
+JAVA_HEAP ?= 4g
 # The toolchain uv.lock pins. Override to run a checkout: D2W="uv run --project /path/to/dhis2w-utils d2w"
 D2W ?= uv run d2w
 # Named volume for the FHIR package cache - the bulk of a cold build's wall clock.
@@ -33,7 +36,7 @@ sushi: cache-init  ## Compile FSH to FHIR resources
 build: cache-init  ## Run the full IG publisher
 	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig -v $(CACHE_VOLUME):/home/publisher/.fhir \
 		$(DOCKER_IMAGE) \
-		java -Xmx4g -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx $(TX_SERVER)
+		java -Xmx$(JAVA_HEAP) -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx $(TX_SERVER)
 
 clean:  ## Remove build output (keeps ig/input-cache, the terminology cache the next build reuses)
 	rm -rf $(IG_DIR)/fsh-generated $(IG_DIR)/output $(IG_DIR)/temp $(IG_DIR)/template \

@@ -1035,8 +1035,8 @@ make generate D2W="uv run --project /path/to/dhis2w-utils d2w"
 make generate D2W="uvx --from 'git+ssh://git@github.com/winterop-com/dhis2w-utils.git@main#subdirectory=packages/dhis2w-cli' --with 'dhis2w-fhir @ git+ssh://git@github.com/winterop-com/dhis2w-utils.git@main#subdirectory=packages/dhis2w-fhir' d2w"
 ```
 
-Two build knobs the scaffold sets for you, both because the defaults break on a
-real instance's IG:
+Three build knobs the scaffold sets for you, the first two because the defaults
+break on a real instance's IG:
 
 `ig/fsh.ini` raises the SUSHI timeout to 1800 seconds. The IG publisher re-runs
 SUSHI internally with a 300-second default, which an IG built from a real DHIS2
@@ -1054,6 +1054,49 @@ validation for an offline build, but current IG publisher versions throw a
 `Attachment.contentType` binding on the GeoJSON boundary extension is one of
 them, so an org-unit IG will not build offline. Use `n/a` only when your content
 has no such bindings.
+
+`JAVA_HEAP` is the publisher's JVM heap, `4g` by default. It is the knob to reach
+for when `make build` dies with **exit 137**:
+
+```
+Generating Summary Outputs (en)
+make: *** [build] Error 137
+```
+
+137 is `128 + 9` - SIGKILL, from the kernel's OOM killer, not from anything the
+publisher decided. The give-away is that `ig/output` is empty afterwards: the
+publisher writes the site in one pass at the very end, so a build killed during
+`Generate HTML Outputs` or `Generating Summary Outputs` - the peak-memory phases -
+leaves nothing behind at all. A real build error looks nothing like this: a Java
+stack trace, a different exit code, and partial output still on disk.
+
+The container carries no `--memory` limit, so it inherits whatever the docker VM
+has, and a 4 GB heap needs roughly 6 GB of room once metaspace, JVM native memory,
+and the OS are counted. Check what the machine actually gives docker:
+
+```bash
+docker info --format '{{.MemTotal}}'    # bytes available to the docker VM
+```
+
+Raising the VM's memory allocation is the better fix - the publisher wants the
+room on a large IG. Where you cannot, lower the heap to fit the box:
+
+```bash
+make build JAVA_HEAP=2g
+```
+
+The same lever reproduces the failure on a machine with plenty of memory: a
+deliberately starved `docker run --memory=3g` kills a 4 GB heap at exactly the
+phase above. To confirm a suspected OOM kill directly, drop `--rm` from the
+`build` recipe and inspect the dead container:
+
+```bash
+docker inspect <container> --format '{{.State.OOMKilled}}'   # true
+```
+
+Trimming the IG with the `[generate.data_sets]` / `[generate.event_programs]`
+include lists lowers the peak too, and is worth doing when a whole-instance IG is
+more than you actually publish.
 
 ### Build time and the two caches
 
