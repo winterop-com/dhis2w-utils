@@ -38,6 +38,15 @@ reference.
 
     [See the roadmap](../roadmap.md)
 
+- **FHIR roadmap + review guide**
+
+    ---
+
+    The `dhis2w-fhir` plan in one place: what exists, the settled and open
+    decisions, four review dimensions, and the build measurements.
+
+    [Open the FHIR guide](fhir-roadmap.md)
+
 - **Upstream DHIS2 quirks**
 
     ---
