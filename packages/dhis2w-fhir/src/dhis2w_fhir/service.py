@@ -187,6 +187,14 @@ def resolve_validation_context(explicit: str | None = None) -> ValidationContext
 #: Collections excluded from the instance-wide sweep: options get the deeper per-set pass.
 _SWEEP_EXCLUDED_COLLECTIONS = frozenset({"options", "system"})
 
+#: Every organisation unit emits an Organization and a Location, so the registry is twice the unit count.
+_INSTANCES_PER_ORGANISATION_UNIT = 2
+
+#: Registry instances past which the scaffolded `[FSH] timeout` is at risk. The Sierra Leone demo
+#: compiles its 2,664 registry instances in roughly seven minutes of the publisher's internal SUSHI
+#: run, which puts the 1800-second ceiling near this count.
+_SUSHI_TIMEOUT_RISK_INSTANCES = 10_000
+
 
 def _sweep_collections(raw: dict[str, object]) -> list[MetadataCollectionIn]:
     """Wrap the raw `/api/metadata?fields=id,name,code` body into typed sweep sources."""
@@ -593,6 +601,19 @@ async def _fetch_organisation_units(
     return organisation_units
 
 
+def _registry_scale_notes(organisation_unit_count: int) -> list[str]:
+    """Warn while generating when the registry is large enough to overrun the publisher's SUSHI timeout."""
+    instance_count = organisation_unit_count * _INSTANCES_PER_ORGANISATION_UNIT
+    if instance_count < _SUSHI_TIMEOUT_RISK_INSTANCES:
+        return []
+    return [
+        f"{organisation_unit_count} organisation units emit {instance_count} instances, which the IG "
+        "publisher's internal SUSHI run may not compile inside the `[FSH] timeout` of ig/fsh.ini - the "
+        "build then fails with exit 143. Narrow the registry with `[generate.organisation_units]` "
+        "max_level or root, or raise the timeout."
+    ]
+
+
 async def generate_organisation_units(profile: Profile, project: FhirProject) -> GenerateReport:
     """Generate Organization/Location instances (and optional terminology) into `organization/`."""
     selection = project.config.generate.organisation_units
@@ -621,6 +642,7 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
             )
     else:
         notes.append("no organisation units matched the configured selection")
+    notes.extend(_registry_scale_notes(len(organisation_units)))
     sync = sync_artifacts(project.fsh_directory, "organization", artifacts)
     return GenerateReport(
         project_root=project.project_root,

@@ -49,6 +49,7 @@ def _render(relative_path: str, template_name: str, options: InitOptions, **extr
         status=options.status,
         publisher_url=options.publisher_url,
         profile=options.profile,
+        sushi_timeout=options.sushi_timeout,
         data_set_ids=options.data_set_ids,
         event_program_ids=options.event_program_ids,
         **extra,

@@ -115,7 +115,12 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     TargetSelection,
 )
 from dhis2w_fhir.scaffold import build_scaffold_files
-from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, ScaffoldReport
+from dhis2w_fhir.scaffold.schemas import (
+    DEFAULT_SUSHI_TIMEOUT_SECONDS,
+    InitOptions,
+    ScaffoldFile,
+    ScaffoldReport,
+)
 from dhis2w_fhir.service import GenerateAllReport, GenerateReport, UnsupportedProgramError
 from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
 from dhis2w_fhir.validation.pdf import render_validation_pdf
@@ -143,6 +148,7 @@ from dhis2w_fhir.writer import (
 __all__ = [
     "BOUNDS_BY_VALUE_TYPE",
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
+    "DEFAULT_SUSHI_TIMEOUT_SECONDS",
     "EXAMPLES_DIRECTORY",
     "FHIR_CONFIG_FILENAME",
     "REPORTS_DIRECTORY",

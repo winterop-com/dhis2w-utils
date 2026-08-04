@@ -29,6 +29,13 @@ d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/d
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" --profile demo
 
+# --sushi-timeout sets [FSH] timeout in ig/fsh.ini, the ceiling the IG publisher gives its
+# internal SUSHI run. The 1800s default suits a demo-sized IG; a national org-unit registry
+# (two instances per unit) can compile well past it and fails the build with exit 143. Raise
+# it here, or narrow the registry with [generate.organisation_units] max_level / root.
+# d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
+#     --publisher "Demo Org" --sushi-timeout 5400
+
 # Generation reads its config from the nearest fhir.toml (walking up from $PWD),
 # so run from inside the project. The DHIS2 profile comes from -p/DHIS2_PROFILE,
 # falling back to the optional `profile` key in fhir.toml.

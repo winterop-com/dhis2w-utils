@@ -111,6 +111,7 @@ Every command and every flag, from `cli.py`.
 | `--status` | `draft` | `draft` or `active`. Rejected with `typer.BadParameter` otherwise. Drives the sushi-config status plus `^status` / `^experimental` on every generated definitional artifact. |
 | `--publisher-url` | unset | Publisher home page. Omitted by default because the publisher links it from every generated page. |
 | `--profile` | unset | DHIS2 profile seeding the top-level `profile` key of the scaffolded `fhir.toml`. Offline - written as given, never resolved against `profiles.toml`. Without it the key scaffolds commented out. |
+| `--sushi-timeout` | `1800` | Seconds written to `[FSH] timeout` of `ig/fsh.ini`. A registry whose SUSHI run overruns it fails the build with exit 143. |
 | `--data-set` | none | Repeatable data set UID seeding `[generate.data_sets] include_ids`. Offline - never checked against an instance. |
 | `--event` | none | Repeatable event program UID seeding `[generate.event_programs] include_ids`. Offline. |
 | `--force` | off | Overwrite scaffold files that already exist. Without it, existing files are reported as skipped. |
@@ -200,7 +201,7 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 | `fhir.toml.example` | Every option with its default, documented. |
 | `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` (JSON only), and the eight-entry `menu:`. No `pages:` and no `groups:`. |
 | `ig/ig.ini` | `template = fhir2.base.template`, pointing at the compiled ImplementationGuide JSON. |
-| `ig/fsh.ini` | `timeout = 1800` for the publisher's embedded SUSHI. |
+| `ig/fsh.ini` | `timeout = 1800` for the publisher's embedded SUSHI, settable with `--sushi-timeout`. |
 | `ig/input/fsh/aliases.fsh` | Hand-authored alias stub. Never regenerated - it carries no generated header. |
 | `ig/input/pagecontent/index.md` | Hand-authored home page. Never regenerated, for the same reason. |
 | `ig/input/ignoreWarnings.txt` | The suppression list, with base-independent substring patterns so a custom `identifier_system_base` stays covered. |
@@ -247,12 +248,12 @@ profile and per-wire-version system-info mocking.
 | `test_fhir_init_cli.py` | `CliRunner` over `d2w fhir init`. | 9 |
 | `test_fhir_mcp.py` | The FastMCP `fhir_validate` surface. | 2 |
 | `test_fhir_names.py` | `names.py` helpers and the cnl-0 shape of every emitted FSH name. | 18 |
-| `test_fhir_organization.py` | Org-unit profile, terminology, and instance emission. | 16 |
+| `test_fhir_organization.py` | Org-unit profile, terminology, and instance emission, plus the registry-scale note. | 17 |
 | `test_fhir_pages.py` | The six site pages, the intros, markdown escaping. | 28 |
 | `test_fhir_period.py` | Every registered period type, both ends of its range. | 8 |
 | `test_fhir_questionnaires.py` | Questionnaire emission, support terminology, service safeguards. | 48 |
 | `test_fhir_report_formats.py` | Markdown, CSV, and PDF renderings of the validation report. | 16 |
-| `test_fhir_scaffold.py` | Scaffold contents. | 30 |
+| `test_fhir_scaffold.py` | Scaffold contents. | 31 |
 | `test_fhir_service_parity.py` | The service against every DHIS2 major, respx-mocked, no live stack. | 14 |
 | `test_fhir_terminology.py` | Option-set emission and the names the other targets read from it. | 20 |
 | `test_fhir_translations.py` | Designations and the FHIR translation extension. | 13 |
@@ -554,7 +555,16 @@ Also not DHIS2. The publisher runs its own SUSHI over the same FSH, and that
 embedded run has been observed stalling in its export phase - a step that takes
 under a second when healthy - long enough to blow through the default timeout
 and kill the whole build. The scaffolded `ig/fsh.ini` therefore sets
-`timeout = 1800`.
+`timeout = 1800`, and `d2w fhir init --sushi-timeout` raises it for an instance
+that needs more.
+
+1800 was measured against the Sierra Leone demo. A national registry compiles
+well past it: 12,581 organisation units emit 25,162 instances - two per unit, an
+Organization and a Location - and the build dies half an hour in with exit 143.
+`generate_organisation_units` warns once a registry crosses
+`_SUSHI_TIMEOUT_RISK_INSTANCES`, naming the `[generate.organisation_units]`
+`max_level` / `root` dials, so the cost surfaces at generate time instead of at
+the end of a long build.
 
 ## 5. Open decisions
 
