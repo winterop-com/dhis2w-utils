@@ -9960,6 +9960,7 @@ $ d2w fhir init [OPTIONS] [directory]
 * `--publisher <str>`: Publisher name.  [default: Example Organisation]
 * `--status <str>`: IG life cycle, draft or active. Drives the sushi-config status and the status and experimental flag on every generated definitional resource.  [default: draft]
 * `--publisher-url <str>`: Publisher home page. Omit it unless you have a real site: the IG publisher links it from every generated page, and pointing it at the canonical yields one broken link per page.
+* `--profile <str>`: DHIS2 profile to seed the `profile` key of the scaffolded fhir.toml with, so `d2w fhir generate` reads that instance without a flag. Offline: the name is written as given, never resolved against profiles.toml.
 * `--data-set <str>`: Data set UID to seed `[generate.data_sets]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--event <str>`: Event program UID to seed `[generate.event_programs]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--force`: Overwrite scaffold files that already exist.

@@ -48,6 +48,7 @@ def _render(relative_path: str, template_name: str, options: InitOptions, **extr
         publisher=options.publisher,
         status=options.status,
         publisher_url=options.publisher_url,
+        profile=options.profile,
         data_set_ids=options.data_set_ids,
         event_program_ids=options.event_program_ids,
         **extra,

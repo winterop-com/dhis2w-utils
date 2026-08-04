@@ -73,6 +73,38 @@ def test_init_seeds_data_definition_targets(workdir: Path) -> None:
     assert raw["generate"]["event_programs"]["include_ids"] == ["VBqh0ynB2wv"]
 
 
+def test_init_seeds_profile(workdir: Path) -> None:
+    """`--profile` writes the `profile` key so generate reads that instance without a flag."""
+    import tomllib
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--profile", "sldemo"])
+    assert result.exit_code == 0, result.output
+    raw = tomllib.loads((workdir / "project" / "fhir.toml").read_text(encoding="utf-8"))
+    assert raw["profile"] == "sldemo"
+    assert "next: run `d2w fhir generate all` (profile `sldemo`)" in result.output
+
+
+def test_init_without_profile_leaves_key_commented(workdir: Path) -> None:
+    """Without `--profile` the key stays commented out, so fhir.toml parses with no profile set."""
+    import tomllib
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project"])
+    assert result.exit_code == 0, result.output
+    text = (workdir / "project" / "fhir.toml").read_text(encoding="utf-8")
+    assert '# profile = "myserver"' in text
+    assert "profile" not in tomllib.loads(text)
+
+
+def test_init_profile_is_offline(workdir: Path) -> None:
+    """An unknown profile name is written as given - init never resolves it against profiles.toml."""
+    import tomllib
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--profile", "no-such-profile"])
+    assert result.exit_code == 0, result.output
+    raw = tomllib.loads((workdir / "project" / "fhir.toml").read_text(encoding="utf-8"))
+    assert raw["profile"] == "no-such-profile"
+
+
 def test_init_status_flag(workdir: Path) -> None:
     """`--status active` lands in fhir.toml and sushi-config; anything else is a usage error."""
     result = _runner.invoke(build_app(), ["fhir", "init", "project", "--status", "active"])

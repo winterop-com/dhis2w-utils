@@ -23,6 +23,12 @@ d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/d
 #     --publisher "Demo Org" \
 #     --data-set BfMAe6Itzgt --data-set Nyh6laLdBEJ --event VBqh0ynB2wv
 
+# --profile seeds the `profile` key of the scaffolded fhir.toml, so the project points at
+# an instance from the first run instead of needing -p on every later command. Offline too:
+# the name is written as given, never resolved against profiles.toml.
+# d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
+#     --publisher "Demo Org" --profile demo
+
 # Generation reads its config from the nearest fhir.toml (walking up from $PWD),
 # so run from inside the project. The DHIS2 profile comes from -p/DHIS2_PROFILE,
 # falling back to the optional `profile` key in fhir.toml.
