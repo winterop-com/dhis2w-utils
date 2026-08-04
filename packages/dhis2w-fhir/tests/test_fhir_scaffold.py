@@ -253,18 +253,23 @@ def test_pyproject_declares_the_toolchain_project() -> None:
     assert project["project"]["dependencies"] == ["dhis2w-cli", "dhis2w-fhir"]
 
 
-def test_pyproject_sources_dhis2w_fhir_from_git_until_it_is_published() -> None:
-    """dhis2w-fhir resolves from the repository subdirectory on main; dhis2w-cli comes from PyPI."""
+def test_pyproject_sources_the_whole_toolchain_from_one_commit() -> None:
+    """Both packages resolve from the repository, so the CLI and its fhir plugin are the same build."""
     body = _by_path()["pyproject.toml"]
-    project = tomllib.loads(body)
-    source = project["tool"]["uv"]["sources"]["dhis2w-fhir"]
-    assert source == {
-        "git": "https://github.com/winterop-com/dhis2w-utils",
-        "subdirectory": "packages/dhis2w-fhir",
-        "branch": "main",
+    sources = tomllib.loads(body)["tool"]["uv"]["sources"]
+    assert sources == {
+        "dhis2w-cli": {
+            "git": "https://github.com/winterop-com/dhis2w-utils",
+            "subdirectory": "packages/dhis2w-cli",
+            "branch": "main",
+        },
+        "dhis2w-fhir": {
+            "git": "https://github.com/winterop-com/dhis2w-utils",
+            "subdirectory": "packages/dhis2w-fhir",
+            "branch": "main",
+        },
     }
-    assert "dhis2w-cli" not in project["tool"]["uv"]["sources"]
-    assert "Delete this entry once" in body
+    assert "Delete both entries once the packages are published" in body
     assert "uv lock --upgrade" in body
 
 

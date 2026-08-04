@@ -74,10 +74,12 @@ uv sync
 make refresh        # regenerate and rebuild against the new pin
 ```
 
-`dhis2w-fhir` has no PyPI release yet, so `[tool.uv.sources]` points it at the
-`packages/dhis2w-fhir` subdirectory of this repository on `main`, and the lock
-pins a concrete commit of it. Delete that entry once `dhis2w-fhir` is published;
-`dhis2w-cli` already resolves from PyPI.
+`[tool.uv.sources]` points both packages at their subdirectories of this
+repository on `main`, and the lock pins a concrete commit. Sourcing the whole
+toolchain from one commit is the point: `dhis2w-cli` carries the `d2w` binary
+while `dhis2w-fhir` carries the plugin behind `d2w fhir`, and a CLI paired with
+a plugin from a different build is not a combination anyone tests. Delete both
+entries once the packages are published, and they resolve from PyPI instead.
 
 `init` also takes `--publisher-url`. Leave it off unless the publisher has a real
 home page: the IG publisher links that URL from every generated page, so aiming

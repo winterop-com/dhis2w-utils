@@ -205,7 +205,7 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 | `ig/input/fsh/aliases.fsh` | Hand-authored alias stub. Never regenerated - it carries no generated header. |
 | `ig/input/pagecontent/index.md` | Hand-authored home page. Never regenerated, for the same reason. |
 | `ig/input/ignoreWarnings.txt` | The suppression list, with base-independent substring patterns so a custom `identifier_system_base` stays covered. |
-| `pyproject.toml` | The IG project as a uv project - `dhis2w-cli` from PyPI, `dhis2w-fhir` from git until it is published. |
+| `pyproject.toml` | The IG project as a uv project - `dhis2w-cli` and `dhis2w-fhir` both from git on `main`, so the CLI and its plugin are one build, until the packages are published. |
 | `Makefile` | `help / setup / upgrade / generate / validate / cache-init / sushi / build / clean / clean-all / refresh`, `D2W ?= uv run d2w`, `TX_SERVER ?= http://tx.fhir.org`, `JAVA_HEAP ?= 4g` (the publisher JVM heap - too large for the docker VM and the kernel OOM-kills the build with exit 137), and the `fhir-ig-cache` named volume. |
 | `Dockerfile` | `ghcr.io/fhir/ig-publisher-localdev` plus the latest `publisher.jar` and `fsh-sushi`. |
 | `.gitignore` | Build output, both caches, publisher side products, `reports/`, and `.venv/`. Never `uv.lock`. |
