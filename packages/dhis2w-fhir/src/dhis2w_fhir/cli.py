@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 from dhis2w_core.cli_output import DetailRow, is_json_output, render_detail
 
-from dhis2w_fhir import GenerateReport, load_project
+from dhis2w_fhir import DEFAULT_SUSHI_TIMEOUT_SECONDS, GenerateReport, load_project
 
 if TYPE_CHECKING:
     from dhis2w_fhir.service import GenerationProfile
@@ -59,6 +59,15 @@ def init_command(
             "given, never resolved against profiles.toml.",
         ),
     ] = None,
+    sushi_timeout: Annotated[
+        int,
+        typer.Option(
+            "--sushi-timeout",
+            help="Seconds the IG publisher gives its internal SUSHI run, written to `\\[FSH] timeout` of "
+            "ig/fsh.ini. Raise it for a large registry: an IG whose SUSHI run overruns the ceiling fails "
+            "the build with exit 143.",
+        ),
+    ] = DEFAULT_SUSHI_TIMEOUT_SECONDS,
     data_set_ids: Annotated[
         list[str] | None,
         typer.Option(
@@ -94,6 +103,7 @@ def init_command(
         status=ig_status,
         publisher_url=publisher_url,
         profile=profile,
+        sushi_timeout=sushi_timeout,
         data_set_ids=data_set_ids or [],
         event_program_ids=event_program_ids or [],
     )

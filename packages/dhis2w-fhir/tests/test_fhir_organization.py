@@ -278,3 +278,22 @@ def test_org_unit_page_titles_escape_markup_while_the_element_name_stays_raw() -
     assert 'Title: "Organization - Region &lt;A&gt; &amp; &lt;B&gt;"' in content
     assert 'Title: "Location - Region &lt;A&gt; &amp; &lt;B&gt;"' in content
     assert content.count('* name = "Region <A> & <B>"') == 2
+
+
+def test_registry_scale_note_fires_only_past_the_timeout_risk_threshold() -> None:
+    """A large registry warns at generate time, naming the dials and the exit code the build would die with."""
+    from dhis2w_fhir.service import (
+        _INSTANCES_PER_ORGANISATION_UNIT,
+        _SUSHI_TIMEOUT_RISK_INSTANCES,
+        _registry_scale_notes,
+    )
+
+    just_under = _SUSHI_TIMEOUT_RISK_INSTANCES // _INSTANCES_PER_ORGANISATION_UNIT - 1
+    assert _registry_scale_notes(just_under) == []
+    assert _registry_scale_notes(0) == []
+
+    note = _registry_scale_notes(12_581)
+    assert len(note) == 1
+    assert "12581 organisation units emit 25162 instances" in note[0]
+    assert "exit 143" in note[0]
+    assert "max_level" in note[0]

@@ -5,7 +5,7 @@ import tomllib
 from dhis2w_fhir.config import FhirProjectConfig
 from dhis2w_fhir.resources.pages import SITE_PAGE_FILENAMES
 from dhis2w_fhir.scaffold import build_scaffold_files
-from dhis2w_fhir.scaffold.schemas import InitOptions, normalize_project_name
+from dhis2w_fhir.scaffold.schemas import DEFAULT_SUSHI_TIMEOUT_SECONDS, InitOptions, normalize_project_name
 
 _OPTIONS = InitOptions(
     ig_id="dhis2.fhir.test",
@@ -145,7 +145,17 @@ def test_ig_ini_points_at_sushi_output() -> None:
 
 def test_fsh_ini_raises_the_sushi_timeout() -> None:
     """fsh.ini lifts the publisher's internal SUSHI timeout past a real instance's compile time."""
+    assert DEFAULT_SUSHI_TIMEOUT_SECONDS == 1800
     assert _by_path()["ig/fsh.ini"] == "[FSH]\ntimeout = 1800\n"
+
+
+def test_sushi_timeout_is_settable_at_scaffold_time() -> None:
+    """`--sushi-timeout` writes the ceiling a large registry needs, so fsh.ini need not be hand-edited."""
+    raised = {
+        file.relative_path: file.content
+        for file in build_scaffold_files(_OPTIONS.model_copy(update={"sushi_timeout": 5400}))
+    }
+    assert raised["ig/fsh.ini"] == "[FSH]\ntimeout = 5400\n"
 
 
 def test_scaffolded_aliases_are_hand_space() -> None:

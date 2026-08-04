@@ -1038,14 +1038,28 @@ make generate D2W="uvx --from 'git+ssh://git@github.com/winterop-com/dhis2w-util
 Three build knobs the scaffold sets for you, the first two because the defaults
 break on a real instance's IG:
 
-`ig/fsh.ini` raises the SUSHI timeout to 1800 seconds. The IG publisher re-runs
-SUSHI internally with a 300-second default, which an IG built from a real DHIS2
-instance - hundreds of CodeSystem/ValueSet pairs plus thousands of instances -
-overruns, and the publisher dies with exit 143 in its very first phase. The
-generous ceiling is deliberate: the demo's internal SUSHI run normally takes
-about seven minutes, but it has been seen to stall in its export phase, and a
-timeout that fires kills the whole build after a long wait rather than letting
-a slow run finish.
+`ig/fsh.ini` raises the SUSHI timeout to 1800 seconds, settable at scaffold time
+with `d2w fhir init --sushi-timeout`. The IG publisher re-runs SUSHI internally
+with a 300-second default, which an IG built from a real DHIS2 instance -
+hundreds of CodeSystem/ValueSet pairs plus thousands of instances - overruns, and
+the publisher dies with exit 143 in its very first phase. The generous ceiling is
+deliberate: the demo's internal SUSHI run normally takes about seven minutes, but
+it has been seen to stall in its export phase, and a timeout that fires kills the
+whole build after a long wait rather than letting a slow run finish.
+
+1800 seconds is not the ceiling for every instance. It was measured against the
+Sierra Leone demo's 2,664 registry instances, and a national hierarchy is far
+larger - a 12,581-unit registry emits 25,162 instances and blows straight through
+it, the build dying half an hour in with the same exit 143:
+
+```
+Sushi timeout exceeded: 1800 seconds
+Exception: Process exited with an error: 143 (Exit value: 143)
+```
+
+`d2w fhir generate org-units` warns as soon as a registry crosses the size where
+that becomes likely, so the problem surfaces in seconds rather than at the end of
+a long build. See [Registry scale](#registry-scale) for what to do about it.
 
 `TX_SERVER` picks the terminology server the publisher validates against; it
 defaults to `http://tx.fhir.org`. Setting `TX_SERVER=n/a` disables terminology
@@ -1097,6 +1111,65 @@ docker inspect <container> --format '{{.State.OOMKilled}}'   # true
 Trimming the IG with the `[generate.data_sets]` / `[generate.event_programs]`
 include lists lowers the peak too, and is worth doing when a whole-instance IG is
 more than you actually publish.
+
+### Registry scale
+
+The organisation-unit registry is usually the largest thing in the IG by a wide
+margin, because every unit emits **two** instances - an Organization and a
+Location. A national hierarchy dwarfs everything else put together:
+
+| Source | Instances |
+| --- | --- |
+| `organization/` (12,581 units) | 25,162 |
+| `examples/` | 162 |
+| `data-sets/` | 113 |
+| `event-programs/` | 49 |
+| `foundation/` | 13 |
+
+That registry is 38 MB of the 52 MB of FSH, and SUSHI compiles instances one at a
+time. It is what pushes a build past the `[FSH] timeout` and into exit 143.
+
+Levels are where the weight sits, because a hierarchy fans out at the bottom. In
+that same instance:
+
+| Level | Units |
+| --- | --- |
+| 1 | 4 |
+| 2 | 66 |
+| 3 | 894 |
+| 4 | 3,734 |
+| 5 | 20,464 |
+
+Level 5 alone is 81% of the registry. Cutting it with `max_level = 4` drops the
+IG from 25,162 registry instances to 4,698 - an 81% cut for one line of config:
+
+```toml
+[generate.organisation_units]
+max_level = 4          # or root = "<uid>" to publish one sub-hierarchy
+```
+
+`d2w fhir generate org-units` prints a warning once a registry is large enough to
+threaten the timeout, naming both dials:
+
+```
+note: 12581 organisation units emit 25162 instances, which the IG publisher's
+internal SUSHI run may not compile inside the `[FSH] timeout` of ig/fsh.ini - the
+build then fails with exit 143. Narrow the registry with
+`[generate.organisation_units]` max_level or root, or raise the timeout.
+```
+
+If you genuinely need every level, measure before guessing at a ceiling.
+`make sushi` runs SUSHI directly instead of through the publisher, so it has no
+timeout and will actually finish and tell you how long the compile takes:
+
+```bash
+time make sushi
+```
+
+Set `[FSH] timeout` above that with headroom. Budget for the publisher running
+its **own** SUSHI over the same FSH afterwards - that double compile is the
+single largest cost in the chain, so a 40-minute SUSHI run is not a 40-minute
+build.
 
 ### Build time and the two caches
 
