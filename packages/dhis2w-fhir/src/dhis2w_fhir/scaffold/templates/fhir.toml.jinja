@@ -16,6 +16,13 @@ publisher = "{{ publisher }}"
 # "draft" while building; "active" for production - drives the sushi-config status
 # and the status and experimental flag on every generated CodeSystem/ValueSet/Questionnaire.
 status = "{{ status }}"
+{% if max_level %}
+
+[generate.organisation_units]
+# Every unit emits two instances, an Organization and a Location, and a hierarchy fans out at
+# the bottom - so the deepest level is usually most of the IG, and most of its compile time.
+max_level = {{ max_level }}
+{% endif %}
 {% if data_set_ids %}
 
 [generate.data_sets]

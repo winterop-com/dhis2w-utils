@@ -105,6 +105,19 @@ def test_init_profile_is_offline(workdir: Path) -> None:
     assert raw["profile"] == "no-such-profile"
 
 
+def test_init_max_level_seeds_registry_cap(workdir: Path) -> None:
+    """`--max-level` lands in fhir.toml; a level below 1 is a usage error, not a silently empty registry."""
+    import tomllib
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--max-level", "4"])
+    assert result.exit_code == 0, result.output
+    raw = tomllib.loads((workdir / "project" / "fhir.toml").read_text(encoding="utf-8"))
+    assert raw["generate"]["organisation_units"]["max_level"] == 4
+
+    rejected = _runner.invoke(build_app(), ["fhir", "init", "other", "--max-level", "0"])
+    assert rejected.exit_code != 0
+
+
 def test_init_status_flag(workdir: Path) -> None:
     """`--status active` lands in fhir.toml and sushi-config; anything else is a usage error."""
     result = _runner.invoke(build_app(), ["fhir", "init", "project", "--status", "active"])
