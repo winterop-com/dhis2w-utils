@@ -68,6 +68,16 @@ def init_command(
             "the build with exit 143.",
         ),
     ] = DEFAULT_SUSHI_TIMEOUT_SECONDS,
+    max_level: Annotated[
+        int | None,
+        typer.Option(
+            "--max-level",
+            help="Deepest organisation-unit level to generate, seeding `\\[generate.organisation_units]` "
+            "max_level. Every unit emits two instances and a hierarchy fans out at the bottom, so this is "
+            "the dial that keeps a national registry inside the SUSHI timeout. Offline: the level is "
+            "written to fhir.toml as given, never checked against an instance.",
+        ),
+    ] = None,
     data_set_ids: Annotated[
         list[str] | None,
         typer.Option(
@@ -92,6 +102,8 @@ def init_command(
 
     if status not in {"draft", "active"}:
         raise typer.BadParameter("status must be 'draft' or 'active'")
+    if max_level is not None and max_level < 1:
+        raise typer.BadParameter("max-level must be 1 or greater")
     ig_status: IgStatus = "active" if status == "active" else "draft"
     resolved_name = name or pascal(ig_id)
     options = InitOptions(
@@ -104,6 +116,7 @@ def init_command(
         publisher_url=publisher_url,
         profile=profile,
         sushi_timeout=sushi_timeout,
+        max_level=max_level,
         data_set_ids=data_set_ids or [],
         event_program_ids=event_program_ids or [],
     )

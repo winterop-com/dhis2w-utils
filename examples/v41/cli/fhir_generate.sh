@@ -29,6 +29,12 @@ d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/d
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" --profile demo
 
+# --max-level caps the organisation-unit registry at that depth, seeding
+# [generate.organisation_units] max_level. Every unit emits two instances and a hierarchy fans
+# out at the bottom, so the deepest level is usually most of the IG and most of its compile time.
+# d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
+#     --publisher "Demo Org" --max-level 4
+
 # --sushi-timeout sets [FSH] timeout in ig/fsh.ini, the ceiling the IG publisher gives its
 # internal SUSHI run. The 1800s default suits a demo-sized IG; a national org-unit registry
 # (two instances per unit) can compile well past it and fails the build with exit 143. Raise

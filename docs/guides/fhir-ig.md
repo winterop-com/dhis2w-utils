@@ -1151,6 +1151,12 @@ IG from 25,162 registry instances to 4,698 - an 81% cut for one line of config:
 max_level = 4          # or root = "<uid>" to publish one sub-hierarchy
 ```
 
+`d2w fhir init --max-level 4` seeds that table while scaffolding, so a project
+that already knows its hierarchy is deep never generates the full registry once.
+Like the other seeding flags it is offline - the level is written as given and
+never checked against an instance - and a level below 1 is rejected rather than
+silently producing an empty registry.
+
 `d2w fhir generate org-units` prints a warning once a registry is large enough to
 threaten the timeout, naming both dials:
 
