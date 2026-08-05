@@ -2,10 +2,11 @@
 
 `dhis2w_fhir` is the package behind [`d2w fhir`](../guides/fhir-ig.md): the `fhir.toml`
 document, the emitters that turn DHIS2 metadata into an Implementation Guide - FSH for the
-definitional artifacts, R4 JSON for the organisation-unit registry - and the DHIS2 period
-grammar they share. It mounts onto the CLI and the MCP server through the
-`dhis2.plugins` entry point, and every component symbol re-exports from the top-level
-package, so `from dhis2w_fhir import GenerateConfig, parse_period` keeps working however
+definitional artifacts, pre-built R4 JSON for the organisation-unit registry and the
+option-set terminology - and the DHIS2 period grammar they share. It mounts onto the CLI
+and the MCP server through the `dhis2.plugins` entry point, and every component symbol
+re-exports from the top-level package, so
+`from dhis2w_fhir import GenerateConfig, parse_period` keeps working however
 the components are arranged internally. The R4 resource models are the one exception: they
 live in `dhis2w_fhir.r4`, which is FHIR's own vocabulary rather than part of the plugin
 surface.
@@ -17,10 +18,12 @@ surface.
 - Parse a DHIS2 ISO period into its type and date range, or walk backwards from a date
   (`parse_period`, `recent_periods`, `PERIOD_TYPE_DEFINITIONS`).
 - Build FSH artifacts without the CLI (`build_foundation_artifacts`,
-  `build_option_set_artifacts`, `build_questionnaire_artifacts`, `build_page_artifacts`)
-  and sync them to disk (`sync_artifacts`).
-- Build or read the registry's R4 documents (`dhis2w_fhir.r4.Organization`,
-  `dhis2w_fhir.r4.Location`) and sync them to disk (`sync_json_artifacts`).
+  `build_questionnaire_artifacts`, `build_page_artifacts`) and sync them to disk
+  (`sync_artifacts`).
+- Build the pre-built R4 documents - the registry (`dhis2w_fhir.r4.Organization`,
+  `dhis2w_fhir.r4.Location`) and the option-set terminology
+  (`build_option_set_artifacts`, `dhis2w_fhir.r4.CodeSystem`,
+  `dhis2w_fhir.r4.ValueSet`) - and sync them to disk (`sync_json_artifacts`).
 
 ## Worked example — parse a period, then walk backwards
 
@@ -49,8 +52,9 @@ recent_periods("Monthly", 3, datetime.date(2026, 8, 2))
 
 ### FHIR R4 resource schemas
 
-The models the pre-built registry JSON is serialised from. Every one is frozen,
-alias-aware, and closed to unknown keys, so
+The models every pre-built JSON document is serialised from - `Organization` and
+`Location` for the registry, `CodeSystem` and `ValueSet` for the option-set
+terminology. Every one is frozen, alias-aware, and closed to unknown keys, so
 `Model.model_validate(payload).model_dump_json(exclude_none=True, by_alias=True)`
 reproduces the input document key for key.
 

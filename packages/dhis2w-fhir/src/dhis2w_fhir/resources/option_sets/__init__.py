@@ -1,4 +1,10 @@
-"""FSH emission for DHIS2 option sets: one CodeSystem + ValueSet pair per set.
+"""Pre-built FHIR JSON for DHIS2 option sets: one CodeSystem and one ValueSet document per set.
+
+The pair ships as finished FHIR JSON in the predefined-resource tree, which the
+publisher loads verbatim, so a registry of hundreds of option sets never enters
+the FSH compile. SUSHI fishes a predefined resource by its `name` element, so
+each document carries the FSH-style name (`D2OS_BirthType_CS` / `_VS`) that a
+questionnaire's `Canonical(...)` binding resolves against.
 
 Every concept carries both DHIS2 identifiers: whichever one is the concept
 code, the other rides along as a concept property (`dhis2-code` or
@@ -20,21 +26,31 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations
+from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import (
     code_or_uid,
-    fsh_code,
+    flatten_whitespace,
     is_valid_fhir_code,
     join_id_tokens,
     join_name_segments,
     kebab,
     pascal,
-    quote,
 )
 from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.r4 import (
+    CodeSystem,
+    CodeSystemConcept,
+    CodeSystemConceptDesignation,
+    CodeSystemConceptProperty,
+    CodeSystemProperty,
+    Element,
+    Identifier,
+    ValueSet,
+    ValueSetCompose,
+    ValueSetInclude,
+)
 from dhis2w_fhir.resources.option_sets.schemas import (
     ConceptAssignment,
     ConceptAssignmentPlan,
@@ -45,12 +61,13 @@ from dhis2w_fhir.resources.option_sets.schemas import (
     OptionSetIn,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
-from dhis2w_fhir.writer import FshArtifact, FshBuild
+from dhis2w_fhir.writer import JsonArtifact, JsonBuild
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
 __all__ = [
+    "TERMINOLOGY_DIRECTORY",
     "build_option_set_artifacts",
     "concept_assignments",
     "max_slug_length",
@@ -60,57 +77,76 @@ __all__ = [
     "option_set_identity_index",
 ]
 
-_ENVIRONMENT = Environment(
-    loader=PackageLoader("dhis2w_fhir.resources.option_sets", "templates"),
-    autoescape=select_autoescape(default=False),
-    undefined=StrictUndefined,
-    keep_trailing_newline=True,
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
+#: The `ig/input/resources/` subdirectory the option-set pairs own outright - one JSON file per resource.
+TERMINOLOGY_DIRECTORY = "terminology"
 
 # FHIR ids allow at most 64 characters. The longest emitted id is
 # `<id-stem><slug>-cs`/`-vs`, so the slug is bounded against the actual stem.
 _MAX_FHIR_ID_LENGTH = 64
 _ID_SUFFIX = "-vs"
 
-
-class _Concept(BaseModel):
-    """One emitted concept: its code, the companion-identifier property, and its name designations."""
-
-    model_config = ConfigDict(frozen=True)
-
-    code: str
-    display: str
-    property_code: str | None = None
-    property_line: str | None = None
-    designations: list[TranslationIn] = Field(default_factory=list)
-
-    @property
-    def token(self) -> str:
-        """The `#code` token this concept is addressed by in FSH."""
-        return fsh_code(self.code)
-
-    @property
-    def display_literal(self) -> str:
-        """The concept display as a quoted FSH string literal."""
-        return quote(self.display)
-
-
-class _PropertyDeclaration(BaseModel):
-    """CodeSystem-level declaration of a concept property."""
-
-    model_config = ConfigDict(frozen=True)
-
-    code: str
-    description: str
-    type: str
-
-
+#: The concept-property declarations, each of which takes its `uri` from the configured identifier base.
 _PROPERTY_DECLARATIONS = (
-    _PropertyDeclaration(code="dhis2-code", description="DHIS2 option code.", type="string"),
-    _PropertyDeclaration(code="dhis2-id", description="DHIS2 option UID.", type="code"),
+    CodeSystemProperty(code="dhis2-code", description="DHIS2 option code.", type="string"),
+    CodeSystemProperty(code="dhis2-id", description="DHIS2 option UID.", type="code"),
 )
+
+
+class _OptionSetSystems(BaseModel):
+    """The absolute URLs a pre-built option-set pair references: its canonical base, identifiers, property base.
+
+    A pre-built resource carries what FSH resolves through `$DHIS2-OS` and a `Canonical(...)`
+    call, so the canonical of the IG and the configured identifier system base are resolved
+    once here and read straight off the model by the emitter.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    canonical: str
+    identifier_system: str
+    code_identifier_system: str
+    property_base: str
+
+    @classmethod
+    def from_config(cls, config: GenerateConfig, canonical: str) -> _OptionSetSystems:
+        """Derive the emitted URLs from the IG canonical plus the `[generate]` identifier system base."""
+        identifier_base = config.identifier_system_base
+        return cls(
+            canonical=canonical,
+            identifier_system=f"{identifier_base}/id/option-set",
+            code_identifier_system=f"{identifier_base}/id/option-set-code",
+            property_base=f"{identifier_base}/property",
+        )
+
+    def code_system_url(self, code_system_id: str) -> str:
+        """Canonical URL of one emitted CodeSystem."""
+        return f"{self.canonical}/CodeSystem/{code_system_id}"
+
+    def value_set_url(self, value_set_id: str) -> str:
+        """Canonical URL of one emitted ValueSet."""
+        return f"{self.canonical}/ValueSet/{value_set_id}"
+
+
+class _OptionSetPair(BaseModel):
+    """The two resources one DHIS2 option set emits, sharing its identity, title, and publication state."""
+
+    model_config = ConfigDict(frozen=True)
+
+    code_system: CodeSystem
+    value_set: ValueSet
+
+
+class _OptionSetNarrative(BaseModel):
+    """The elements both halves of a pair carry identically: identifiers, title, and publication state."""
+
+    model_config = ConfigDict(frozen=True)
+
+    identifiers: list[Identifier] = Field(default_factory=list)
+    title: str
+    title_element: Element | None = None
+    description: str
+    status: IgStatus
+    experimental: bool
 
 
 def option_set_fsh_name(config: GenerateConfig, segment: str) -> str:
@@ -197,23 +233,18 @@ def option_set_identity_index(
 
 
 def build_option_set_artifacts(
-    option_sets: list[OptionSetIn], config: GenerateConfig, *, ig_status: IgStatus
-) -> FshBuild:
-    """Build one `terminology/<slug>.fsh` artifact per option set, stable-sorted for clean diffs."""
-    build = FshBuild()
+    option_sets: list[OptionSetIn], config: GenerateConfig, canonical: str, *, ig_status: IgStatus
+) -> JsonBuild:
+    """Build one `terminology/CodeSystem-<id>.json` and `terminology/ValueSet-<id>.json` per option set."""
+    build = JsonBuild()
+    systems = _OptionSetSystems.from_config(config, canonical)
     plan = option_set_identities(option_sets, config)
     by_uid = {option_set.uid: option_set for option_set in option_sets}
     for identity in plan.identities:
         option_set = by_uid[identity.uid]
-        content = _render_option_set(option_set, identity, config, build.notes, ig_status=ig_status)
-        build.artifacts.append(
-            FshArtifact(
-                relative_path=f"terminology/{identity.slug}.fsh",
-                kind="terminology-pair",
-                fsh_name=identity.fsh_name,
-                content=content,
-            )
-        )
+        pair = _build_pair(option_set, identity, config, systems, build.notes, ig_status=ig_status)
+        build.artifacts.append(_json_artifact(f"CodeSystem-{identity.code_system_id}", pair.code_system))
+        build.artifacts.append(_json_artifact(f"ValueSet-{identity.value_set_id}", pair.value_set))
     build.notes.extend(plan.notes)
     return build
 
@@ -273,6 +304,97 @@ def concept_assignments(option_set: OptionSetIn, config: GenerateConfig) -> Conc
     return ConceptAssignmentPlan(assignments=assignments, notes=notes)
 
 
+def _json_artifact(stem: str, resource: CodeSystem | ValueSet) -> JsonArtifact:
+    """Serialise one resource as the terminology file the predefined-resource loader reads."""
+    return JsonArtifact(
+        relative_path=f"{TERMINOLOGY_DIRECTORY}/{stem}.json",
+        content=f"{resource.model_dump_json(exclude_none=True, by_alias=True, indent=2)}\n",
+    )
+
+
+def _build_pair(
+    option_set: OptionSetIn,
+    identity: OptionSetIdentity,
+    config: GenerateConfig,
+    systems: _OptionSetSystems,
+    notes: list[str],
+    *,
+    ig_status: IgStatus,
+) -> _OptionSetPair:
+    """Build the CodeSystem and the ValueSet of one option set, reporting what concept assignment raised."""
+    concepts = _unique_concepts(option_set, config, notes)
+    narrative = _narrative(option_set, config, systems, ig_status=ig_status)
+    code_system_url = systems.code_system_url(identity.code_system_id)
+    code_system = CodeSystem(
+        id=identity.code_system_id,
+        url=code_system_url,
+        identifier=narrative.identifiers,
+        name=identity.code_system_name,
+        title=narrative.title,
+        title_element=narrative.title_element,
+        description=narrative.description,
+        status=narrative.status,
+        experimental=narrative.experimental,
+        caseSensitive=True,
+        content="complete",
+        count=len(concepts),
+        valueSet=systems.value_set_url(identity.value_set_id),
+        property=_declarations(concepts, systems) or None,
+        concept=concepts or None,
+    )
+    value_set = ValueSet(
+        id=identity.value_set_id,
+        url=systems.value_set_url(identity.value_set_id),
+        identifier=narrative.identifiers,
+        name=identity.value_set_name,
+        title=narrative.title,
+        title_element=narrative.title_element,
+        description=narrative.description,
+        status=narrative.status,
+        experimental=narrative.experimental,
+        compose=ValueSetCompose(include=[ValueSetInclude(system=code_system_url)]),
+    )
+    return _OptionSetPair(code_system=code_system, value_set=value_set)
+
+
+def _narrative(
+    option_set: OptionSetIn, config: GenerateConfig, systems: _OptionSetSystems, *, ig_status: IgStatus
+) -> _OptionSetNarrative:
+    """The elements both halves share: both DHIS2 identifiers, the translated title, and the publication state."""
+    code_kind = "option codes" if config.concept_code_source == "code" else "option UIDs"
+    return _OptionSetNarrative(
+        identifiers=[
+            Identifier(system=systems.identifier_system, value=option_set.uid),
+            Identifier(
+                system=systems.code_identifier_system,
+                value=code_or_uid(option_set.code, option_set.uid),
+            ),
+        ],
+        title=flatten_whitespace(option_set.name),
+        title_element=translated_element(name_translations(option_set.translations, config.locales)),
+        description=flatten_whitespace(
+            f"DHIS2 option set {option_set.name} ({option_set.uid}). Concept codes are DHIS2 {code_kind}."
+        ),
+        status=ig_status,
+        experimental=experimental_for_status(ig_status),
+    )
+
+
+def _declarations(concepts: list[CodeSystemConcept], systems: _OptionSetSystems) -> list[CodeSystemProperty]:
+    """The CodeSystem-level declaration of every concept property the emitted concepts actually carry."""
+    carried = {
+        concept_property.code
+        for concept in concepts
+        for concept_property in concept.property or []
+        if concept_property.code is not None
+    }
+    return [
+        declaration.model_copy(update={"uri": f"{systems.property_base}/{declaration.code}"})
+        for declaration in _PROPERTY_DECLARATIONS
+        if declaration.code in carried
+    ]
+
+
 def _uid_option_set_identity(uid: str, config: GenerateConfig) -> OptionSetIdentity:
     """One option set's identity from its UID alone - what the index falls back to when the plan omits it.
 
@@ -322,27 +444,25 @@ def _desired_code(option: OptionIn, option_set: OptionSetIn, config: GenerateCon
     return _DesiredCode(code=option.uid, from_dhis2_code=False)
 
 
-def _concept_for(option: OptionIn, code: str, config: GenerateConfig) -> _Concept:
+def _concept_for(option: OptionIn, code: str, config: GenerateConfig) -> CodeSystemConcept:
     """Build the concept for one option, carrying the complementary DHIS2 identifier as a property.
 
     Every concept carries the pair: in code mode the UID rides along as `dhis2-id`, in id mode
     the DHIS2 code rides along as `dhis2-code` - falling back to the UID when there is no usable code.
     """
-    designations = name_translations(option.translations, config.locales)
+    designations = [
+        CodeSystemConceptDesignation(language=translation.locale, value=flatten_whitespace(translation.value))
+        for translation in name_translations(option.translations, config.locales)
+    ]
     if config.concept_code_source == "code":
-        return _Concept(
-            code=code,
-            display=option.name,
-            property_code="dhis2-id",
-            property_line=f"^property[=].valueCode = #{option.uid}",
-            designations=designations,
-        )
-    return _Concept(
+        carried = CodeSystemConceptProperty(code="dhis2-id", valueCode=option.uid)
+    else:
+        carried = CodeSystemConceptProperty(code="dhis2-code", valueString=code_or_uid(option.code, option.uid))
+    return CodeSystemConcept(
         code=code,
-        display=option.name,
-        property_code="dhis2-code",
-        property_line=f"^property[=].valueString = {quote(code_or_uid(option.code, option.uid))}",
-        designations=designations,
+        display=flatten_whitespace(option.name),
+        property=[carried],
+        designation=designations or None,
     )
 
 
@@ -351,7 +471,7 @@ def _ordered_options(option_set: OptionSetIn) -> list[OptionIn]:
     return sorted(option_set.options, key=lambda item: (item.sort_order is None, item.sort_order or 0, item.uid))
 
 
-def _unique_concepts(option_set: OptionSetIn, config: GenerateConfig, notes: list[str]) -> list[_Concept]:
+def _unique_concepts(option_set: OptionSetIn, config: GenerateConfig, notes: list[str]) -> list[CodeSystemConcept]:
     """Build one set's concepts from the assigned codes, in emission order, reporting what assignment raised."""
     plan = concept_assignments(option_set, config)
     notes.extend(plan.notes)
@@ -360,35 +480,3 @@ def _unique_concepts(option_set: OptionSetIn, config: GenerateConfig, notes: lis
         for assignment in plan.assignments
         if assignment.code is not None
     ]
-
-
-def _render_option_set(
-    option_set: OptionSetIn,
-    identity: OptionSetIdentity,
-    config: GenerateConfig,
-    notes: list[str],
-    *,
-    ig_status: IgStatus,
-) -> str:
-    """Render the CodeSystem + ValueSet FSH for one option set."""
-    concepts = _unique_concepts(option_set, config, notes)
-    used_property_codes = {concept.property_code for concept in concepts}
-    code_kind = "option codes" if config.concept_code_source == "code" else "option UIDs"
-    description = quote(f"DHIS2 option set {option_set.name} ({option_set.uid}). Concept codes are DHIS2 {code_kind}.")
-    return _ENVIRONMENT.get_template("option-set.fsh.jinja").render(
-        code_system_name=identity.code_system_name,
-        value_set_name=identity.value_set_name,
-        id_stem=_id_stem(config),
-        slug=identity.slug,
-        title=quote(option_set.name),
-        description=description,
-        option_set_uid=option_set.uid,
-        option_set_code=code_or_uid(option_set.code, option_set.uid),
-        property_base=f"{config.identifier_system_base}/property",
-        declarations=[declaration for declaration in _PROPERTY_DECLARATIONS if declaration.code in used_property_codes],
-        concepts=concepts,
-        title_translations=name_translations(option_set.translations, config.locales),
-        translation_extension_url=TRANSLATION_EXTENSION_URL,
-        ig_status=ig_status,
-        experimental=experimental_for_status(ig_status),
-    )

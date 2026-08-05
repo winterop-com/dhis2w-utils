@@ -48,7 +48,9 @@ use of a review day than reading files in alphabetical order.
 
 Every module under `packages/dhis2w-fhir/src/dhis2w_fhir/`, with what it owns.
 Flat modules carry what every component shares; each component subpackage owns
-its code, its `schemas.py`, and its `templates/` directory.
+its code, its `schemas.py`, and - when it emits FSH, TOML, YAML, or Markdown -
+its `templates/` directory. Components that emit only JSON build `r4.schemas`
+models and ship no templates.
 
 | Module | Purpose |
 | --- | --- |
@@ -59,7 +61,7 @@ its code, its `schemas.py`, and its `templates/` directory.
 | `service.py` | Orchestration: profile resolution, every DHIS2 fetch, the wire-to-projection mapping, geometry, and `GenerateReport` / `GenerateAllReport`. |
 | `config.py` | The `fhir.toml` document (`IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`, `FhirProject`) plus discovery, load, and save. |
 | `writer.py` | The generated-artifact contracts (`FshArtifact`, `FshBuild`, `JsonArtifact`, `JsonBuild`, `SyncReport`), the header-aware sync behind the FSH one, and the directory-owning `sync_json_artifacts` behind the JSON one. |
-| `r4/schemas.py` | The FHIR R4 models the pre-built registry JSON is serialised from: `Organization`, `Location`, and the shared elements (`FhirElement`, `Meta`, `Identifier`, `Coding`, `CodeableConcept`, `Reference`, `ContactPoint`, `HumanName`, `Attachment`, `Extension`, `NameElement`, `OrganizationContact`, `LocationPosition`) plus `BOUNDARY_EXTENSION_URL`. |
+| `r4/schemas.py` | The FHIR R4 models every pre-built JSON document is serialised from. The R4 roots: `FhirBase` (the pydantic carrier - frozen, alias-aware, `extra="forbid"` - not a FHIR type), `Element`, `BackboneElement`, `Resource`, `DomainResource`. The resources: `Organization`, `Location`, `CodeSystem`, `ValueSet`. The datatypes: `Meta`, `Identifier`, `Coding`, `CodeableConcept`, `Reference`, `ContactPoint`, `HumanName`, `Attachment`, `Extension`. The backbone elements: `OrganizationContact`, `LocationPosition`, `CodeSystemProperty`, `CodeSystemConcept`, `CodeSystemConceptProperty`, `CodeSystemConceptDesignation`, `ValueSetCompose`, `ValueSetInclude`. Plus `BOUNDARY_EXTENSION_URL`. |
 | `names.py` | Slug, FSH-literal, escaping, and URI helpers - `pascal`, `kebab`, `quote`, `page_text`, `markdown_text`, `fsh_code`, `join_id_tokens`, `join_name_segments`, `is_valid_fhir_code`, `describe_code_defect`, `is_valid_fhir_id`, `code_or_uid`. |
 | `i18n.py` | DHIS2 translations: the `TranslationIn` projection, `normalize_locale`, `name_translations`, and `TRANSLATION_EXTENSION_URL`. |
 | `notes.py` | `aggregate_note` - the one formatter for "N subjects, a capped sample, and the remainder". |
@@ -71,7 +73,7 @@ its code, its `schemas.py`, and its `templates/` directory.
 | `period/parser.py` | `parse_period` - length-dispatched ISO parsing transcribed from `Period.Input.of` and `DateUnitPeriodTypeParser`. |
 | `period/recent.py` | `recent_periods` - the inverse, built on the parser so the two cannot drift. |
 | `resources/__init__.py` | Re-export shim over the resource components. |
-| `resources/option_sets/__init__.py` | The CodeSystem/ValueSet pair per option set, `option_set_identities`, `option_set_identity_index`, `concept_assignments`, `max_slug_length`, `option_set_code_fallback`, `option_set_fsh_name`. |
+| `resources/option_sets/__init__.py` | The pre-built CodeSystem/ValueSet JSON pair per option set, `TERMINOLOGY_DIRECTORY`, `option_set_identities`, `option_set_identity_index`, `concept_assignments`, `max_slug_length`, `option_set_code_fallback`, `option_set_fsh_name`. |
 | `resources/option_sets/schemas.py` | `OptionSetSelection`, `OptionIn`, `OptionSetIn`, `ConceptAssignment`, `ConceptAssignmentPlan`, `OptionSetIdentity`, `OptionSetIdentityPlan`, `OptionSetIdentityIndex`. |
 | `resources/questionnaires/__init__.py` | One Questionnaire per form plus the two support terminology pairs; `ITEM_TYPES_BY_VALUE_TYPE`, `BOUNDS_BY_VALUE_TYPE`, `QUESTIONNAIRE_DIRECTORIES`, `domain_code`, `is_multi_valued`. |
 | `resources/questionnaires/schemas.py` | `TargetSelection`, `NumericBounds`, `CategoryOptionComboIn`, `CategoryComboIn`, `QuestionnaireItemIn`, `QuestionnaireSectionIn`, `QuestionnaireSourceIn`, `QuestionnaireNaming`, the `FormKind` alias. |
@@ -211,7 +213,7 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 | `pyproject.toml` | The IG project as a uv project - `dhis2w-cli` and `dhis2w-fhir` both from git on `main`, so the CLI and its plugin are one build, until the packages are published. |
 | `Makefile` | `help / setup / upgrade / generate / validate / cache-init / sushi / build / clean / clean-all / refresh`, `D2W ?= uv run d2w`, `TX_SERVER ?= http://tx.fhir.org`, `JAVA_HEAP ?= 4g` (the publisher JVM heap - too large for the docker VM and the kernel OOM-kills the build with exit 137), and the `fhir-ig-cache` named volume. |
 | `Dockerfile` | `ghcr.io/fhir/ig-publisher-localdev` plus the latest `publisher.jar` and `fsh-sushi`. |
-| `.gitignore` | Build output, both caches, publisher side products, `ig/input/resources/` (generated registry JSON, rebuilt in seconds), `reports/`, and `.venv/`. Never `uv.lock`, never `ig/input/fsh/`. |
+| `.gitignore` | Build output, both caches, publisher side products, `ig/input/resources/` (the generated registry and terminology JSON, rebuilt from the instance in a few minutes), `reports/`, and `.venv/`. Never `uv.lock`, never `ig/input/fsh/`. |
 
 ### 2.6 Every generated artifact kind and where it lands
 
@@ -223,7 +225,7 @@ Base directory is `<project_root>/ig/input/fsh/` for FSH,
 | Target | Directory | Files |
 | --- | --- | --- |
 | `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-responses.fsh`, `d2-capture-server.fsh` - six, always, with no client opened. |
-| `option-sets` | `terminology/` | One `<slug>.fsh` per selected option set, each a CodeSystem plus its ValueSet. |
+| `option-sets` | `resources/terminology/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected option set, ids `d2-os-<slug>-cs` / `-vs`, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. A Questionnaire's `Canonical(D2OS_<uid>_VS)` resolves against them, because SUSHI fishes a predefined resource by its `name` element. |
 | `questionnaires` | `data-sets/` | One `<uid>.fsh` Questionnaire per DHIS2 data set. |
 | `questionnaires` | `event-programs/` | One `<uid>.fsh` Questionnaire per single-stage event program. |
 | `questionnaires` | `data-dictionary/` | `data-elements.fsh` (`D2DE_CS` / `_VS`) and `category-option-combos.fsh` (`D2COC_CS` / `_VS`), emitted only when the run referenced any. |
@@ -232,16 +234,16 @@ Base directory is `<project_root>/ig/input/fsh/` for FSH,
 | `org-units` | `resources/registry/` | `Organization-<uid>.json` and `Location-<uid>.json` per selected unit, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. |
 | `pages` | `ig/input/pagecontent/` | `forms.md`, `registry.md`, `terminology.md`, `identifiers.md`, `periods.md`, `capture.md`, plus `Questionnaire-<UID>-intro.md` (always), `CodeSystem-<id>-intro.md` and `Organization-<UID>-intro.md` (only where DHIS2 carries a description). |
 
-Only `examples`, the three questionnaire directories, `registry`, and
-`pagecontent` have named constants (`EXAMPLES_DIRECTORY`,
-`QUESTIONNAIRE_DIRECTORIES`, `REGISTRY_DIRECTORY`, `PAGES_DIRECTORY`).
-`terminology`, `organization`, and `foundation` are repeated string literals
+Only `examples`, the three questionnaire directories, `registry`, `terminology`,
+and `pagecontent` have named constants (`EXAMPLES_DIRECTORY`,
+`QUESTIONNAIRE_DIRECTORIES`, `REGISTRY_DIRECTORY`, `TERMINOLOGY_DIRECTORY`,
+`PAGES_DIRECTORY`). `organization` and `foundation` are repeated string literals
 across the emitter and `service.py` - see Dimension D.
 
 ### 2.7 Test inventory
 
 `uv run pytest packages/dhis2w-fhir --collect-only -q | tail -1` reports
-**641 tests collected**. Twenty test files plus a `conftest.py` holding a probe
+**655 tests collected**. Twenty test files plus a `conftest.py` holding a probe
 profile and per-wire-version system-info mocking.
 
 | File | Covers | Tests |
@@ -258,11 +260,11 @@ profile and per-wire-version system-info mocking.
 | `test_fhir_pages.py` | The six site pages, the intros, markdown escaping. | 28 |
 | `test_fhir_period.py` | Every registered period type, both ends of its range. | 8 |
 | `test_fhir_questionnaires.py` | Questionnaire emission, support terminology, service safeguards. | 48 |
-| `test_fhir_r4_schemas.py` | The R4 models: byte-exact round trips of reference documents, the `_name` primitive extension, omitted optionals, and the closed-model guard. | 7 |
+| `test_fhir_r4_schemas.py` | The R4 models: byte-exact round trips of reference documents for all four resources, the `_name` and `_title` primitive extensions, omitted optionals, and the closed-model guard. | 12 |
 | `test_fhir_report_formats.py` | Markdown, CSV, and PDF renderings of the validation report. | 16 |
 | `test_fhir_scaffold.py` | Scaffold contents. | 35 |
 | `test_fhir_service_parity.py` | The service against every DHIS2 major, respx-mocked, no live stack. | 14 |
-| `test_fhir_terminology.py` | Option-set emission and the names the other targets read from it. | 20 |
+| `test_fhir_terminology.py` | Option-set JSON emission and the names the other targets read from it. | 26 |
 | `test_fhir_translations.py` | Designations and the FHIR translation extension. | 13 |
 | `test_fhir_validation.py` | Both validation passes and the markdown report. | 26 |
 | `test_fhir_writer.py` | Generated-file cleanup, writes, byte-stability, and the JSON directory sweep. | 17 |
@@ -475,9 +477,10 @@ Two boundary objects, each computed once per run and read by everything else.
   because truncation and collision suffixes both depend on the peers a set is
   assigned against - a per-set name cannot be reconstructed from a UID alone.
   The resulting `OptionSetIdentityPlan` is read by the terminology emitter for
-  its file names, by the questionnaire target for `answerValueSet`, by the
-  example target for its answer codings, and by the terminology page for its
-  `CodeSystem-<id>` links. `_fetch_option_set_identity_plan` builds the plan from
+  its file names and the `name` element it writes into each document, by the
+  questionnaire target for `answerValueSet`, by the example target for its answer
+  codings, and by the terminology page for its `CodeSystem-<id>` links.
+  `_fetch_option_set_identity_plan` builds the plan from
   the identical selection in each generate path, and
   `option_set_identity_index` reports any bound set the plan omits rather than
   emitting a dangling name.
@@ -492,34 +495,44 @@ rather than recomputing. Section 7 explains why this is stated as a decision
 rather than an implementation detail: every time a second code path recomputed
 one of them, it produced a real bug.
 
-### 3.16 The registry ships as predefined JSON, the definitions as FSH
+### 3.16 Bulk resources ship as predefined JSON, definitions as FSH
 
-FSH earns its keep where an artifact is authored: profiles, extensions,
-CodeSystem/ValueSet pairs, Questionnaires. The organisation-unit registry is none
-of those - it is bulk data, two resources per unit, no invariants and no slicing
-of its own to express - and it is the largest thing in the IG by a wide margin.
-So `d2w fhir generate org-units` writes it as R4 JSON under
-`ig/input/resources/registry/`, which SUSHI loads into the virtual
-`sushi-local#LOCAL` package as a *predefined resource*: no parse, no conversion,
-no per-instance compile cost. The definitional half of the same target stays FSH
-in `ig/input/fsh/organization/`.
+FSH earns its keep where an artifact is authored by hand and carries invariants,
+slicing, or a profile relationship to express: the two organisation-unit
+profiles, the `D2Period` and `D2FormType` extensions, the response profiles and
+the CapabilityStatement, and the Questionnaires whose item trees are the whole
+point of the file. Two things in the IG are none of that - they are bulk data,
+generated one-to-one from DHIS2 rows, and they are the two largest things in the
+guide by a wide margin:
 
-Three consequences the design accepts:
+- the **organisation-unit registry**, two resources per unit, written by
+  `generate org-units` into `ig/input/resources/registry/`;
+- the **option-set terminology**, a CodeSystem and a ValueSet per set, written by
+  `generate option-sets` into `ig/input/resources/terminology/`.
+
+Both go out as R4 JSON, which SUSHI loads into the virtual `sushi-local#LOCAL`
+package as *predefined resources*: no parse, no conversion, no per-resource
+compile cost. The definitional halves stay FSH in `ig/input/fsh/`.
+
+Four consequences the design accepts:
 
 - **The scaffolded `sushi-config.yaml` needs `path-resource` globs.** SUSHI
   recurses into sub-folders of `input/resources`; the IG Publisher does not. The
-  globs are what carry the sub-folder's resources into the published
+  globs are what carry each sub-folder's resources into the published
   ImplementationGuide.
 - **The sweep owns the directory instead of marking its files.** JSON has no
   comment syntax, so `sync_json_artifacts` deletes every unproduced `*.json` in
-  `registry/` rather than checking for a generated header. Nothing hand-authored
-  belongs there.
+  its directory rather than checking for a generated header. Nothing
+  hand-authored belongs in either one.
 - **`ig/input/resources/` is gitignored.** The reviewable diff after a metadata
-  change is the FSH one; a national registry is tens of thousands of JSON files
-  that `make generate` rebuilds in seconds.
-
-Option-set terminology stays FSH, which is why it dominates the compile. Whether
-it follows is an open question, not a plan.
+  change is the FSH one; a national registry plus its terminology is tens of
+  thousands of JSON files that `make generate` rebuilds in a few minutes.
+- **FSH names cross the boundary, not URLs.** A Questionnaire is FSH and binds
+  `answerValueSet = Canonical(D2OS_<uid>_VS)`, which resolves against a JSON
+  ValueSet because SUSHI fishes predefined resources by their `name` element.
+  Every emitted CodeSystem and ValueSet therefore carries the FSH-style name
+  `option_set_identities` handed the questionnaire target. That is load-bearing:
+  drop `name` from the emitted JSON and every form's binding dangles.
 
 ## 4. Upstream DHIS2 and tooling quirks that shape the code
 
@@ -596,13 +609,22 @@ and kill the whole build. The scaffolded `ig/fsh.ini` therefore sets
 `timeout = 1800`, and `d2w fhir init --sushi-timeout` raises it for an instance
 that needs more.
 
-What the compile pays for is FSH, and the registry is not FSH: `Organization` and
-`Location` instances are pre-built JSON that SUSHI loads as predefined resources,
-so a national hierarchy adds nothing to the run the timeout is guarding. On the
-Lao IG capped at `max_level = 4` the compile is **9m40s** for 337 FSH instances,
-of which 240 CodeSystems are **5m41s** - option-set terminology is the ceiling's
-real customer. Feeding SUSHI the same IG's 5,035 instances as FSH instead costs
-**23m22s**, which is the measure of what the predefined-resource path buys.
+What the compile pays for is FSH, and the two bulk halves of the IG are not FSH:
+the `Organization` / `Location` instances and the option-set CodeSystem /
+ValueSet pairs are pre-built JSON that SUSHI loads as predefined resources, so a
+national hierarchy and hundreds of option sets add nothing to the run the timeout
+is guarding. On the uncapped Lao IG the compile is **6m57s**. Writing that IG's
+235 option sets as FSH instead costs **10m15s**; taking a `max_level = 4` cut and
+writing its 4,698 registry instances as FSH too costs **23m22s** against the
+**9m40s** the same cut costs with the registry predefined. Those are the measure
+of what the predefined-resource path buys.
+
+What the compile does carry is five CodeSystems - `D2OU_Level_CS`,
+`D2PeriodType_CS`, `D2FormType_CS`, `D2DE_CS`, `D2COC_CS` - and the last two,
+the `data-dictionary` support pairs, are two files carrying 2.5MB of FSH between
+them. They are why predefined option-set terminology saves 3m18s rather than the
+whole of what SUSHI spends on CodeSystems, and the dials that reach them are
+`[generate.data_sets]` / `[generate.event_programs]`.
 
 Registry size lands on the IG publisher instead, which writes and renders a page
 per resource. `generate_organisation_units` warns once a registry passes
@@ -934,7 +956,7 @@ what is untested?
 
 **Where to start.**
 
-*Dead surface.* `dhis2w_fhir/__init__.py` re-exports 114 names in `__all__`.
+*Dead surface.* `dhis2w_fhir/__init__.py` re-exports 120 names in `__all__`.
 Check each against a real consumer: `write_artifacts` (only `sync_artifacts` is
 called by the service), `clean_generated_files`, `option_set_fsh_name`,
 `option_set_code_fallback`, `max_slug_length`, `domain_code`, `is_multi_valued`,
@@ -955,13 +977,13 @@ Check that every DHIS2-derived string on every output surface goes through
 exactly one of them, and that the CSV path - which deliberately carries raw
 values - is safe for the tools that read it.
 
-*Directory-name literals.* Section 2.6: `terminology`, `organization`, and
-`foundation` are repeated string literals across the emitters and `service.py`,
-while `examples`, the three questionnaire directories, and `pagecontent` are
-constants. A rename of one of the three literal directories has to be found by
+*Directory-name literals.* Section 2.6: `organization` and `foundation` are
+repeated string literals across the emitters and `service.py`, while `examples`,
+the three questionnaire directories, `registry`, `terminology`, and `pagecontent`
+are constants. A rename of one of the two literal directories has to be found by
 grep.
 
-*Test blind spots.* Compare the 603 collected tests against the surface. Known
+*Test blind spots.* Compare the 655 collected tests against the surface. Known
 thin spots to verify: `test_fhir_mcp.py` has 2 tests for the only MCP tool;
 `test_fhir_period.py` has 8 declarations covering 23 period types (parametrised,
 so check what the parametrisation actually spans); there is no test file named
@@ -979,7 +1001,7 @@ for `service.py` itself - the service is exercised through
 - A DHIS2 string that reaches an output surface through a path that applies the
   wrong escaping regime, or none. Section 7 records that this class has already
   produced one real bug.
-- The three literal directory names diverging between the emitter that writes
+- The two literal directory names diverging between the emitter that writes
   and the service call that sweeps - which would leave stale generated files
   undeleted rather than failing loudly.
 - `_swept_files` globs `*.fsh` and `*.md` **directly under** the target
@@ -1064,15 +1086,27 @@ repeated here.
 
 **Generation is not the cost.** On the Sierra Leone demo (171 option sets, 2,664
 registry instances, 3,101 resources in all), `d2w fhir generate all` is 16s and
-`d2w fhir validate` is 7s.
+`d2w fhir validate` is 7s. A national instance is larger: on the uncapped Lao
+instance `generate` writes the full output in a few minutes.
 
-**The compile scales with FSH, not with the hierarchy.** The registry is
-predefined JSON, so `make sushi` pays only for the terminology and the forms. On
-the Lao IG capped at `max_level = 4` that is **9m40s** for 337 FSH instances,
-with 240 CodeSystems accounting for **5m41s** of it. Option-set terminology is
-therefore the compile's dominant cost, and `[generate.option_sets] include_ids`
-is the dial that reaches it. Feeding SUSHI the same IG's 5,035 instances as FSH
-instead costs **23m22s** - the measure of what the predefined-resource path buys.
+**The compile scales with FSH, not with the hierarchy or the option-set count.**
+The registry and the option-set terminology are both predefined JSON, so
+`make sushi` pays only for the forms and the five CodeSystems that are FSH.
+On the uncapped Lao IG - 25,162 registry instances, 235 option sets, warm cache,
+0 errors and 0 warnings - that is **6m57s**. Writing the same 235 option sets as
+FSH instead costs **10m15s**, so predefined terminology is worth **3m18s** here.
+Taking a `max_level = 4` cut and writing its 4,698 registry instances as FSH too
+costs **23m22s** against **9m40s** with the registry predefined - the measure of
+what the predefined-resource path buys on the registry side.
+
+**The five CodeSystems that compile from FSH** are `D2OU_Level_CS`,
+`D2PeriodType_CS`, `D2FormType_CS`, `D2DE_CS`, and `D2COC_CS`. The last two are
+the `data-dictionary` support pairs - two files, 2.5MB of FSH - which is why
+predefined option-set terminology is worth 3m18s rather than everything SUSHI
+spends on CodeSystems. `[generate.data_sets]` and `[generate.event_programs]` are
+the dials that reach them. `[generate.option_sets] include_ids` does not move
+compile time at all: the terminology it selects is never compiled. It is a dial
+on what the IG *publishes*, not on what it costs to build.
 
 **A cold package cache costs about three and a half minutes** of pure FHIR
 package download, which is what the `fhir-ig-cache` named volume buys back.

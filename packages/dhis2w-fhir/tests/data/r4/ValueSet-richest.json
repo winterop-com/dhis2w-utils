@@ -1,0 +1,44 @@
+{
+  "resourceType": "ValueSet",
+  "status": "draft",
+  "name": "D2OS_b4P0xzW5wcD_VS",
+  "id": "d2-os-b4P0xzW5wcD-vs",
+  "title": "8p: 8programs",
+  "_title": {
+    "extension": [
+      {
+        "url": "http://hl7.org/fhir/StructureDefinition/translation",
+        "extension": [
+          {
+            "url": "lang",
+            "valueCode": "lo"
+          },
+          {
+            "url": "content",
+            "valueString": "8p: 8 ແຜນງານ"
+          }
+        ]
+      }
+    ]
+  },
+  "description": "DHIS2 option set 8p: 8programs (b4P0xzW5wcD). Concept codes are DHIS2 option UIDs.",
+  "url": "http://example.org/fhir/ValueSet/d2-os-b4P0xzW5wcD-vs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "b4P0xzW5wcD"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "8p"
+    }
+  ],
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/CodeSystem/d2-os-b4P0xzW5wcD-cs"
+      }
+    ]
+  }
+}

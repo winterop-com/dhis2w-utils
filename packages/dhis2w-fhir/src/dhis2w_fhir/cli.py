@@ -189,7 +189,7 @@ def generate_foundation_command() -> None:
 
 @generate_app.command("option-sets")
 def generate_option_sets_command() -> None:
-    """Generate CodeSystem/ValueSet FSH from DHIS2 option sets into the nearest FHIR project."""
+    """Generate CodeSystem/ValueSet JSON from DHIS2 option sets into the nearest FHIR project."""
     from dhis2w_fhir import service
 
     project = load_project()

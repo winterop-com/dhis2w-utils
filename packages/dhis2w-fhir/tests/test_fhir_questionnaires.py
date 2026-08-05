@@ -853,7 +853,12 @@ async def test_option_set_selection_unions_the_target_closure(
     report = await service.generate_option_sets(resolve_profile("probe"), load_project(tmp_path))
 
     assert report.option_set_count == 2
-    assert report.written_files == ["terminology/Os1aaaaaaaa.fsh", "terminology/Os2aaaaaaaa.fsh"]
+    assert report.written_files == [
+        "terminology/CodeSystem-d2-os-Os1aaaaaaaa-cs.json",
+        "terminology/CodeSystem-d2-os-Os2aaaaaaaa-cs.json",
+        "terminology/ValueSet-d2-os-Os1aaaaaaaa-vs.json",
+        "terminology/ValueSet-d2-os-Os2aaaaaaaa-vs.json",
+    ]
     assert any("closure" in note and "Os1aaaaaaaa" in note for note in report.notes)
 
 

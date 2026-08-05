@@ -1,0 +1,179 @@
+{
+  "resourceType": "CodeSystem",
+  "status": "draft",
+  "content": "complete",
+  "name": "D2OS_b4P0xzW5wcD_CS",
+  "id": "d2-os-b4P0xzW5wcD-cs",
+  "title": "8p: 8programs",
+  "_title": {
+    "extension": [
+      {
+        "url": "http://hl7.org/fhir/StructureDefinition/translation",
+        "extension": [
+          {
+            "url": "lang",
+            "valueCode": "lo"
+          },
+          {
+            "url": "content",
+            "valueString": "8p: 8 ແຜນງານ"
+          }
+        ]
+      }
+    ]
+  },
+  "description": "DHIS2 option set 8p: 8programs (b4P0xzW5wcD). Concept codes are DHIS2 option UIDs.",
+  "url": "http://example.org/fhir/CodeSystem/d2-os-b4P0xzW5wcD-cs",
+  "concept": [
+    {
+      "code": "s6eRzXxw4Rq",
+      "display": "I. Hygiene and health Promotion",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "1.0.0.0"
+        }
+      ],
+      "designation": [
+        {
+          "language": "lo",
+          "value": "I. ແຜນງານອະນາໄມ ແລະ ສົ່ງເສີມສຸຂະພາບ"
+        }
+      ]
+    },
+    {
+      "code": "k4vr65zdukc",
+      "display": "II. Health Prevention and communicable diseases control",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "2.0.0.0"
+        }
+      ],
+      "designation": [
+        {
+          "language": "lo",
+          "value": "II. ແຜນງານກັນພະຍາດ ແລະ ຄວບຄຸມພະຍາດຕິດຕໍ່"
+        }
+      ]
+    },
+    {
+      "code": "qsQeCWZ55LH",
+      "display": "III. Health Care and Rehabilitation",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "3.0.0.0"
+        }
+      ],
+      "designation": [
+        {
+          "language": "lo",
+          "value": "III. ແຜນງານ ປິ່ນປົວ ແລະ ຟື້ນຟູໜ້າທີ່ການ"
+        }
+      ]
+    },
+    {
+      "code": "u9w4ZSfsgQA",
+      "display": "IV. Consumers' protection for food, medicines and medical products",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "4.0.0.0"
+        }
+      ],
+      "designation": [
+        {
+          "language": "lo",
+          "value": "IV. ແຜນງານປົກປ້ອງຜູ້ບໍລິໂພກອາຫານ, ຢາ ແລະ ຜະລິດຕະພັນການແພດ"
+        }
+      ]
+    },
+    {
+      "code": "KPZirCqWdDj",
+      "display": "V. HRH management and development and health sciences research",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "5.0.0.0"
+        }
+      ],
+      "designation": [
+        {
+          "language": "lo",
+          "value": "V. ແຜນງານ ຄຸ້ມຄອງ, ພັດທະນາພະນັກງານ ແລະ ຄົ້ນຄ້ວາວິທະຍາສາດສາທາລະນະສຸກ"
+        }
+      ]
+    },
+    {
+      "code": "CNIhRoSsQTV",
+      "display": "VI. Health financing",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "6.0.0.0"
+        }
+      ],
+      "designation": [
+        {
+          "language": "lo",
+          "value": "VI. ແຜນງານການເງິນສາທາລະນະສຸກ"
+        }
+      ]
+    },
+    {
+      "code": "nRXe4KEceRt",
+      "display": "VII. Planning, Cooperation and Health informations",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "7.0.0.0"
+        }
+      ],
+      "designation": [
+        {
+          "language": "lo",
+          "value": "VII. ແຜນງານ ແຜນການ, ການຮ່ວມມື ແລະ ຂໍ້ມູນຂ່າວສານ ສາທາລະນະສຸກ"
+        }
+      ]
+    },
+    {
+      "code": "y7GMfdBNhG9",
+      "display": "VIII. Governance and Inspection",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "8.0.0.0"
+        }
+      ],
+      "designation": [
+        {
+          "language": "lo",
+          "value": "VIII. ແຜນງານ ບໍລິຫານຄຸ້ມຄອງ ແລະ ກວດກາ"
+        }
+      ]
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "b4P0xzW5wcD"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "8p"
+    }
+  ],
+  "experimental": true,
+  "caseSensitive": true,
+  "valueSet": "http://example.org/fhir/ValueSet/d2-os-b4P0xzW5wcD-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 option code.",
+      "type": "string"
+    }
+  ],
+  "count": 8
+}
