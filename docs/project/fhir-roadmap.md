@@ -64,10 +64,12 @@ models and ship no templates.
 | `r4/schemas.py` | The FHIR R4 models every pre-built JSON document is serialised from. The R4 roots: `FhirBase` (the pydantic carrier - frozen, alias-aware, `extra="forbid"` - not a FHIR type), `Element`, `BackboneElement`, `Resource`, `DomainResource`. The resources: `Organization`, `Location`, `CodeSystem`, `ValueSet`. The datatypes: `Meta`, `Identifier`, `Coding`, `CodeableConcept`, `Reference`, `ContactPoint`, `HumanName`, `Attachment`, `Extension`. The backbone elements: `OrganizationContact`, `LocationPosition`, `CodeSystemProperty`, `CodeSystemConcept`, `CodeSystemConceptProperty`, `CodeSystemConceptDesignation`, `ValueSetCompose`, `ValueSetInclude`. Plus `BOUNDARY_EXTENSION_URL`. |
 | `names.py` | Slug, FSH-literal, escaping, and URI helpers - `pascal`, `kebab`, `quote`, `page_text`, `markdown_text`, `fsh_code`, `join_id_tokens`, `join_name_segments`, `is_valid_fhir_code`, `describe_code_defect`, `is_valid_fhir_id`, `code_or_uid`. |
 | `i18n.py` | DHIS2 translations: the `TranslationIn` projection, `normalize_locale`, `name_translations`, and `TRANSLATION_EXTENSION_URL`. |
+| `attributes.py` | DHIS2 attribute values: the `AttributeValueIn` projection (attribute UID plus the string value, which is all DHIS2 sends) and `AttributeCodeIndex`, the `uid -> code` join whose `code_for` returns `None` for an uncoded attribute. |
 | `notes.py` | `aggregate_note` - the one formatter for "N subjects, a capped sample, and the remainder". |
 | `status.py` | `IgStatus` (`draft` / `active`) and `experimental_for_status`. A leaf, so every emitter imports it without reaching for `config.py`. |
-| `foundation/__init__.py` | The six instance-independent `foundation/` artifacts and the `NamingSystem` / response-profile declarations. |
+| `foundation/__init__.py` | The seven instance-independent `foundation/` artifacts and the `NamingSystem` / response-profile declarations. |
 | `foundation/schemas.py` | `FoundationNaming`, `IdentifierSystemSubject`, `FormTypeDefinition`, `ResponseProfileDeclaration`, `NamingSystemDeclaration`. |
+| `foundation/attribute_values.py` | The `D2AttributeValue` context list and sub-extension names, `attribute_value_extension_url`, and `attribute_value_extensions` - the one builder every resource emitter calls. The only `foundation/` module read at emit time rather than at definition time. |
 | `period/__init__.py` | Re-export surface for the period grammar. |
 | `period/schemas.py` | `PeriodValue`, `PeriodTypeDefinition`, and `PERIOD_TYPE_DEFINITIONS` - the 23 period types DHIS2 registers. |
 | `period/parser.py` | `parse_period` - length-dispatched ISO parsing transcribed from `Period.Input.of` and `DateUnitPeriodTypeParser`. |
@@ -224,7 +226,7 @@ Base directory is `<project_root>/ig/input/fsh/` for FSH,
 
 | Target | Directory | Files |
 | --- | --- | --- |
-| `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-responses.fsh`, `d2-capture-server.fsh` - six, always, with no client opened. |
+| `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-attribute-value.fsh`, `d2-responses.fsh`, `d2-capture-server.fsh` - seven, always, with no client opened. |
 | `option-sets` | `resources/terminology/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected option set, ids `d2-os-<slug>-cs` / `-vs`, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. A Questionnaire's `Canonical(D2OS_<uid>_VS)` resolves against them, because SUSHI fishes a predefined resource by its `name` element. |
 | `questionnaires` | `data-sets/` | One `<uid>.fsh` Questionnaire per DHIS2 data set. |
 | `questionnaires` | `event-programs/` | One `<uid>.fsh` Questionnaire per single-stage event program. |
@@ -243,14 +245,16 @@ across the emitter and `service.py` - see Dimension D.
 ### 2.7 Test inventory
 
 `uv run pytest packages/dhis2w-fhir --collect-only -q | tail -1` reports
-**655 tests collected**. Twenty test files plus a `conftest.py` holding a probe
+**696 tests collected**. Twenty-two test files plus a `conftest.py` holding a probe
 profile and per-wire-version system-info mocking.
 
 | File | Covers | Tests |
 | --- | --- | --- |
+| `test_fhir_attribute_extension.py` | The `D2AttributeValue` definition and its emission on all five contexted resource types, coded and uncoded branches each. | 17 |
+| `test_fhir_attribute_values.py` | Attribute values reaching the projections off the wire, and the `AttributeCodeIndex` join they resolve against. | 13 |
 | `test_fhir_config.py` | `fhir.toml` discovery, load, save. | 10 |
 | `test_fhir_examples.py` | Both example sources; the synthetic goldens are full-text assertions, which they can be because the seed is a SHA-256 of the target UID. | 45 |
-| `test_fhir_foundation.py` | Golden tests for the six foundation artifacts. | 22 |
+| `test_fhir_foundation.py` | Golden tests for the seven foundation artifacts. | 22 |
 | `test_fhir_generate_cli.py` | `CliRunner` over `d2w fhir generate`, service mocked. | 14 |
 | `test_fhir_geometry.py` | Geometry to position and boundary payload. | 7 |
 | `test_fhir_init_cli.py` | `CliRunner` over `d2w fhir init`. | 10 |
@@ -279,19 +283,20 @@ itself additionally calls `/api/system/info` on connect to bind the version tree
 
 | Endpoint | Called from | Projection |
 | --- | --- | --- |
-| `/api/optionSets` | `generate option-sets`, `generate examples`, `generate pages`, `validate` | `_OPTION_SET_FIELDS` - `id,code,name,description,translations[...],options[id,code,name,sortOrder,translations[...]]`, ordered `name:asc`, `paging=False`. |
+| `/api/optionSets` | `generate option-sets`, `generate examples`, `generate pages`, `validate` | `_OPTION_SET_FIELDS` - `id,code,name,description,translations[...],attributeValues[attribute[id],value],options[id,code,name,sortOrder,translations[...]]`, ordered `name:asc`, `paging=False`. |
 | `/api/optionSets` | `_fetch_option_set_identity_plan` | `_OPTION_SET_IDENTITY_FIELDS` = `id,name` - a slug needs the UID and the name alone. |
-| `/api/organisationUnits` | `generate org-units`, `generate pages` | `_ORGANISATION_UNIT_FIELDS`, ordered `path:asc`, paged 500 at a time, filtered by `path:like:<root>` and `level:le:<max_level>`. |
+| `/api/organisationUnits` | `generate org-units`, `generate pages` | `_ORGANISATION_UNIT_FIELDS`, translations and `attributeValues[attribute[id],value]` included, ordered `path:asc`, paged 500 at a time, filtered by `path:like:<root>` and `level:le:<max_level>`. |
 | `/api/organisationUnits` | `_root_organisation_unit_uid` | `fields=id`, `filters=["level:eq:1"]` - the root every example is subject to. |
-| `/api/dataSets` | `_fetch_questionnaire_sources` | `_DATA_SET_FIELDS` - sections, `compulsoryDataElementOperands`, and `dataSetElements[...]` with the shared `_QUESTIONNAIRE_DATA_ELEMENT_FIELDS`. Ordered `name:asc`, `paging=False`. |
-| `/api/programs` | `_fetch_questionnaire_sources` | `_EVENT_PROGRAM_FIELDS` - `programType`, stages, stage sections, and `programStageDataElements[compulsory,...]`. Ordered `name:asc`, `paging=False`. |
+| `/api/dataSets` | `_fetch_questionnaire_sources` | `_DATA_SET_FIELDS` - sections, `attributeValues[attribute[id],value]`, `compulsoryDataElementOperands`, and `dataSetElements[...]` with the shared `_QUESTIONNAIRE_DATA_ELEMENT_FIELDS`. Ordered `name:asc`, `paging=False`. |
+| `/api/programs` | `_fetch_questionnaire_sources` | `_EVENT_PROGRAM_FIELDS` - `programType`, `attributeValues[attribute[id],value]`, stages, stage sections, and `programStageDataElements[compulsory,...]`. Ordered `name:asc`, `paging=False`. |
+| `/api/attributes` | `resolve_attribute_code_index`, called by `generate option-sets`, `generate questionnaires`, and `generate org-units` | `_ATTRIBUTE_FIELDS` = `id,code`, `paging=False`. Unpaged deliberately: DHIS2 answers 50 attributes to a page by default, so a paged read would silently drop the tail of the `uid -> code` join on an instance defining more than one page. |
 | `/api/metadata` | `validate` | `get_raw` with `fields=id,name,code` and `defaults=EXCLUDE`. |
 | `/api/dataValueSets` | `generate examples` with `source = "instance"` | `get_raw` with `dataSet`, `orgUnit`, `children=true`, `period`, walking `recent_periods(periodType, 6, today)` newest-first. |
 | `/api/tracker/events` | `generate examples` with `source = "instance"` | `get_raw` with `program`, `pageSize`, `order=occurredAt:desc`, and `_EXAMPLE_EVENT_FIELDS`. |
 
-Note the shape of `generate all`: it opens and closes a client per target, and
-`/api/optionSets` is fetched by four of the six targets. That is a seam
-Dimension A owns.
+Note the shape of `generate all`: it opens and closes a client per target,
+`/api/optionSets` is fetched by four of the six targets, and `/api/attributes` by
+three. That is a seam Dimension A owns.
 
 ## 3. Settled decisions and why
 
@@ -499,7 +504,8 @@ one of them, it produced a real bug.
 
 FSH earns its keep where an artifact is authored by hand and carries invariants,
 slicing, or a profile relationship to express: the two organisation-unit
-profiles, the `D2Period` and `D2FormType` extensions, the response profiles and
+profiles, the `D2Period` / `D2FormType` / `D2AttributeValue` extensions, the
+response profiles and
 the CapabilityStatement, and the Questionnaires whose item trees are the whole
 point of the file. Two things in the IG are none of that - they are bulk data,
 generated one-to-one from DHIS2 rows, and they are the two largest things in the
@@ -956,7 +962,7 @@ what is untested?
 
 **Where to start.**
 
-*Dead surface.* `dhis2w_fhir/__init__.py` re-exports 120 names in `__all__`.
+*Dead surface.* `dhis2w_fhir/__init__.py` re-exports 129 names in `__all__`.
 Check each against a real consumer: `write_artifacts` (only `sync_artifacts` is
 called by the service), `clean_generated_files`, `option_set_fsh_name`,
 `option_set_code_fallback`, `max_slug_length`, `domain_code`, `is_multi_valued`,
@@ -983,7 +989,7 @@ the three questionnaire directories, `registry`, `terminology`, and `pagecontent
 are constants. A rename of one of the two literal directories has to be found by
 grep.
 
-*Test blind spots.* Compare the 655 collected tests against the surface. Known
+*Test blind spots.* Compare the 696 collected tests against the surface. Known
 thin spots to verify: `test_fhir_mcp.py` has 2 tests for the only MCP tool;
 `test_fhir_period.py` has 8 declarations covering 23 period types (parametrised,
 so check what the parametrisation actually spans); there is no test file named
@@ -1170,6 +1176,25 @@ commitment.
 
 ### 9.2 Mid-term
 
+- **Unique attribute values as identifiers.** Every attribute value rides the
+  `D2AttributeValue` extension today, whatever it holds. DHIS2 marks an
+  `Attribute` `unique`, and that flag is the only trustworthy signal that a value
+  identifies its object: on play 2.43 exactly three of eleven attributes are
+  unique (`IRID`, `KE code`, `TZ code`), while `PEPFAR_ID` and `NGOID` read like
+  identifiers by name and are not. A unique value belongs in `identifier` under
+  a per-attribute system, where `Organization?identifier=<system>|<value>`
+  resolves it on any FHIR server - an extension needs a custom SearchParameter to
+  be searchable at all. The system keys on the attribute UID rather than its
+  code: DHIS2 codes carry spaces (`KE code`, `Collection method`), so they are
+  neither URL-safe nor valid FHIR codes. Non-unique values keep the extension.
+- **Attribute values on CodeSystem concepts.** Data-element and option attribute
+  values have no `identifier` element to land in and no obvious carrier:
+  concepts already hold DHIS2 data as `CodeSystem.property`, which needs each
+  property declared up front, while `CodeSystem.concept` also accepts extensions.
+  Volume decides how much the choice costs - the Lao data-element CodeSystem
+  carries 45,880 concepts, against one or two values per organisation unit - so
+  this wants its own measurement rather than riding along with the resource-level
+  shape.
 - **Tracker programs as Questionnaires.** `WITH_REGISTRATION` programs need
   `Patient` plus the enrollment resource from open decision 5.2, alongside the
   per-stage forms. The `tracker` and `tracker-event` codes are already in

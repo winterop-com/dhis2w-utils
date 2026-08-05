@@ -107,10 +107,12 @@ async def test_generate_option_sets_across_majors(
     wire_version: str,
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`generate_option_sets` writes a CodeSystem/ValueSet pair per set against every DHIS2 major."""
     mock_system_info(wire_version)
+    mock_attributes()
     await _scaffold_project(tmp_path)
     route = respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
 
@@ -135,10 +137,12 @@ async def test_generate_organisation_units_across_majors(
     wire_version: str,
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`generate_organisation_units` writes profiles, level terminology, and per-level instances on every major."""
     mock_system_info(wire_version)
+    mock_attributes()
     await _scaffold_project(tmp_path)
     route = respx.get(f"{_HOST}/api/organisationUnits").mock(
         return_value=httpx.Response(200, json=_ORGANISATION_UNITS_PAYLOAD)
@@ -220,10 +224,12 @@ async def test_generate_questionnaires_across_majors(
     wire_version: str,
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`generate_questionnaires` maps data sets and event programs on every DHIS2 major."""
     mock_system_info(wire_version)
+    mock_attributes()
     await _scaffold_project(tmp_path)
     (tmp_path / "fhir.toml").write_text(
         (tmp_path / "fhir.toml").read_text(encoding="utf-8")
@@ -290,10 +296,12 @@ async def test_validate_codes_across_majors(
 async def test_translations_are_requested_and_mapped(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Both fetches ask for translations, and the wire entries reach the emitted FSH as designations."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path)
     option_sets = respx.get(f"{_HOST}/api/optionSets").mock(
         return_value=httpx.Response(200, json=_TRANSLATED_OPTION_SETS_PAYLOAD)
@@ -324,10 +332,12 @@ async def test_translations_are_requested_and_mapped(
 async def test_generate_is_idempotent(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A second generate run replaces the previously generated files instead of stacking new ones."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path)
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
 
@@ -353,10 +363,12 @@ async def test_generate_is_idempotent(
 async def test_generate_all_is_byte_stable_across_two_runs(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Every target - the capture contract included - writes nothing on a second run of unchanged metadata."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path)
     _mock_page_endpoints()
 

@@ -1,0 +1,22 @@
+Extension: {{ names.attribute_value_extension }}
+Id: {{ names.attribute_value_extension_id }}
+Title: "DHIS2 attribute value"
+Description: "One DHIS2 attribute value: the attribute it belongs to, the code DHIS2 gave that attribute, and the value the object holds."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+{% for resource_type in context_resource_types %}
+* ^context[+].type = #element
+* ^context[=].expression = "{{ resource_type }}"
+{% endfor %}
+* extension contains
+    {{ attribute_id_sub_extension }} 1..1 and
+    {{ attribute_code_sub_extension }} 0..1 and
+    {{ attribute_value_sub_extension }} 1..1
+* extension[{{ attribute_id_sub_extension }}] ^short = "The UID of the DHIS2 attribute the value belongs to."
+* extension[{{ attribute_id_sub_extension }}].value[x] only string
+* extension[{{ attribute_id_sub_extension }}].valueString 1..1
+* extension[{{ attribute_code_sub_extension }}] ^short = "The DHIS2 attribute's code, absent when the instance left it unset."
+* extension[{{ attribute_code_sub_extension }}].value[x] only string
+* extension[{{ attribute_value_sub_extension }}] ^short = "The value the DHIS2 object holds for the attribute, as DHIS2 sends it."
+* extension[{{ attribute_value_sub_extension }}].value[x] only string
+* extension[{{ attribute_value_sub_extension }}].valueString 1..1

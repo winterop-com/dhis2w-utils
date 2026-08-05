@@ -3,11 +3,11 @@
 `d2w fhir` turns DHIS2 metadata into a FHIR Implementation Guide source tree: a
 SUSHI project whose FSH (FHIR Shorthand) definitions and pre-built FHIR JSON
 resources are generated from `/api/optionSets`, `/api/organisationUnits`,
-`/api/dataSets`, and `/api/programs`.
+`/api/dataSets`, `/api/programs`, and `/api/attributes`.
 
 ```
 d2w fhir init [DIRECTORY]           Scaffold a dockerized SUSHI IG project (--profile seeds fhir.toml)
-d2w fhir generate foundation        Identifier aliases + the D2Period / D2FormType extensions
+d2w fhir generate foundation        Identifier aliases + the D2Period / D2FormType / D2AttributeValue extensions
 d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate questionnaires    Data sets + event programs -> Questionnaire instances
 d2w fhir generate examples          Example QuestionnaireResponses against those Questionnaires
@@ -198,6 +198,17 @@ depends on `fhir.toml` alone and never opens a client:
   form it is, and so does every response captured against it, which is what lets a
   consumer branch without re-reading the questionnaire. The two tracker codes are
   declared ahead of their generators so the terminology does not churn later.
+- `d2-attribute-value.fsh` - the `D2AttributeValue` extension, a complex extension of
+  `attributeId` (string, 1..1), `attributeCode` (string, 0..1) and `value` (string,
+  1..1), contexted on the five resource types that carry one: `Organization`,
+  `Location`, `CodeSystem`, `ValueSet`, `Questionnaire`. A DHIS2 attribute value is
+  an arbitrary key-value pair any metadata object may hold - a national registry id
+  on a facility, an external warehouse key - so it maps onto an extension rather than
+  onto any one FHIR element. `attributeCode` is optional because DHIS2 leaves most
+  attributes uncoded (eleven of twelve on the Lao instance), and an uncoded attribute
+  gets no sub-extension at all rather than an empty one. `value` is a string whatever
+  the attribute's declared `valueType`, because that is the only shape DHIS2 sends -
+  one real attribute carries a whole GeoJSON document that way.
 - `d2-responses.fsh` - the `D2AggregateResponse` and `D2EventResponse` profiles on
   `QuestionnaireResponse`, one per form kind. Each slices the extensions its kind has
   to carry (`D2Period` 1..1 on the aggregate one, `D2FormType` 1..1 on both, fixed to
@@ -240,6 +251,27 @@ past. That is what keeps the two from drifting apart. Both are part of the
 package's importable surface - see the
 [`dhis2w_fhir` API reference](../api/fhir.md).
 
+`D2AttributeValue` is defined in `foundation/` and *emitted* everywhere else, so
+the shared halves live in two leaf modules. `attributes.py` holds the projection
+`AttributeValueIn` (the attribute UID and the value, which is all DHIS2 sends:
+the wire shape is `{"attribute": {"id": "..."}, "value": "..."}`) and
+`AttributeCodeIndex`, the `uid -> code` mapping whose `code_for` returns `None`
+for an attribute the instance left uncoded. `foundation/attribute_values.py`
+holds the context list, the three sub-extension names, the canonical-URL helper,
+and `attribute_value_extensions`, the one builder every emitter calls - so the
+extension's structure is decided in one place and the Organization, Location,
+CodeSystem, ValueSet, and Questionnaire emitters only decide *where* the result
+hangs. The service resolves the index once per generate run through
+`resolve_attribute_code_index`, unpaged: DHIS2 pages `/api/attributes` 50 at a
+time by default, and an instance defining more than a page of them would
+otherwise lose the tail of the join with no error. Every target of one run
+therefore joins against the identical mapping, the same guarantee the option-set
+identity plan gives names. The Questionnaire emitter is the one that does not
+build R4 models - it renders FSH, so it projects each value onto a
+`_AttributeValueView` of quoted literals and the template writes the
+`extension[D2AttributeValue][+]` soft-index block, skipping the `attributeCode`
+line entirely when the code is `None`.
+
 ## Option sets -> terminology
 
 Two pre-built FHIR JSON documents per option set under
@@ -263,7 +295,10 @@ falls back to the option's UID; where that UID is taken too - a peer carries it 
 its own DHIS2 code - the option is skipped with its own aggregate note rather than
 emitted as a duplicate concept the publisher would reject. Every target that names
 a concept reads that one assignment, so the examples cannot code an answer the
-CodeSystem has no concept for.
+CodeSystem has no concept for. The set's own DHIS2 attribute values ride onto
+both halves of the pair as `D2AttributeValue` extensions; the values on the
+individual options do not, because a `CodeSystem.concept` has no carrier chosen
+for them yet.
 
 Names are decided once, for the whole selection, by `option_set_identities`:
 truncation and collision suffixes both depend on the peers a set is assigned
@@ -333,7 +368,10 @@ each child takes the element's effective item type, its `answerValueSet`, its `r
 its bounds; only the `linkId`, the text, and the code differ. A section holding such a group
 also carries the standard
 `questionnaire-itemControl` extension coded `#gtable`, which is the DHIS2 data-entry
-grid stated in FHIR terms.
+grid stated in FHIR terms. The source's own DHIS2 attribute values follow the
+`D2FormType` extension as `D2AttributeValue` extensions, in DHIS2's order; the
+data elements' attribute values do not travel, because they would land on
+`D2DE_CS` concepts.
 
 The two selection modes handle the shapes the target cannot map differently, and the
 split is deliberate. When `include_ids` is **explicit**, the service refuses what it
@@ -452,7 +490,14 @@ the bare UID. Each carries both identifier slices and its profile in `meta`, wit
 `partOf` mirroring the hierarchy on both sides as a relative reference
 (`Organization/<uid>`, `Location/<uid>`), omitted for the root or when the parent
 falls outside the selection - noted, never silent. A unit whose `closedDate` has
-passed carries `active: false` / `status: "inactive"`.
+passed carries `active: false` / `status: "inactive"`. Both halves also carry the
+unit's DHIS2 attribute values as `D2AttributeValue` extensions - 244 of the Lao
+instance's 300 organisation units have at least one, which makes the registry the
+densest carrier of them. On the Location the emission order is part of the
+byte-stability contract rather than incidental: `_extensions` puts the GeoJSON
+boundary first and the attribute values after it in DHIS2's own order, so a
+regenerate of an unchanged unit produces the identical file and
+`sync_json_artifacts` reports it unchanged.
 
 **Why JSON.** SUSHI loads `input/resources` and the sub-folders `path-resource`
 declares as *predefined resources*: they land in the virtual `sushi-local#LOCAL`
@@ -706,7 +751,9 @@ own `schemas.py`.
 
 Flat modules carry what every component shares: `names.py` (slug, FSH
 literal, and URI helpers), `i18n.py` (the `TranslationIn` projection, locale
-normalisation, and NAME selection), `notes.py` (the one aggregate-note
+normalisation, and NAME selection), `attributes.py` (the `AttributeValueIn`
+projection and the `AttributeCodeIndex` join every emitter reads an attribute's
+code from), `notes.py` (the one aggregate-note
 formatter),
 `writer.py` (the `FshArtifact` / `FshBuild` and `JsonArtifact` / `JsonBuild`
 contracts every emitter returns, plus the header-aware sync behind the first and
@@ -767,8 +814,11 @@ The components:
   only the profiles and the terminology go through jinja. Group / group-set
   emission lands here next.
 - `foundation/` - the instance-independent artifacts: the DHIS2 identifier
-  aliases and the `D2Period` extension, with `FoundationNaming` deriving their
-  names from the prefix token.
+  aliases, the `D2Period` / `D2FormType` / `D2AttributeValue` extensions, the
+  response profiles, and the CapabilityStatement, with `FoundationNaming` deriving
+  their names from the prefix token. `attribute_values.py` additionally holds the
+  `D2AttributeValue` builder the resource emitters call, which is why the only
+  definitional component is also imported at emit time.
 - `period/` - the DHIS2 ISO period grammar: `PeriodValue`, the period-type
   catalogue the CodeSystem is generated from, `parse_period`, and the
   `recent_periods` inverse the example target discovers data with.
@@ -806,8 +856,9 @@ all.
 
 The service opens the version-neutral
 `dhis2w_core.client_context.open_client` and maps generated `OptionSet` /
-`OrganisationUnit` / `DataSet` / `Program` schemas into the `*In` projections at
-the boundary.
+`OrganisationUnit` / `DataSet` / `Program` / `Attribute` schemas into the `*In`
+projections at the boundary, `attributeValues[attribute[id],value]` among the
+fields each of the first four asks for.
 Geometry becomes a frozen `GeoPoint`: Point coordinates directly, and for
 Polygon/MultiPolygon the area-weighted (shoelace) centroid of the outer ring
 with the largest absolute area - not a bounding-box midpoint, which lands

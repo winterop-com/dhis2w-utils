@@ -19,6 +19,7 @@ from dhis2w_fhir import (
     load_project,
     service,
 )
+from dhis2w_fhir.attributes import AttributeCodeIndex
 from dhis2w_fhir.resources.option_sets import option_set_identities
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.questionnaires import BOUNDS_BY_VALUE_TYPE, ITEM_TYPES_BY_VALUE_TYPE
@@ -224,6 +225,7 @@ def _artifacts(
     *,
     ig_status: IgStatus = "draft",
     option_set_plan: OptionSetIdentityPlan | None = None,
+    attribute_codes: AttributeCodeIndex | None = None,
 ) -> dict[str, str]:
     """Build the questionnaire artifacts and index them by relative path."""
     resolved = config or GenerateConfig()
@@ -233,6 +235,7 @@ def _artifacts(
         _CANONICAL,
         ig_status=ig_status,
         option_set_plan=option_set_plan or _bound_plan(sources, resolved),
+        attribute_codes=attribute_codes or AttributeCodeIndex(),
     )
     return {artifact.relative_path: artifact.content for artifact in build.artifacts}
 
@@ -396,10 +399,12 @@ async def _generated_data_set(tmp_path: Path, operands: list[dict[str, object]])
 async def test_the_data_set_fetch_asks_for_the_compulsory_operands(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Required flags come off `compulsoryDataElementOperands`, so the projection has to request it."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_operand_payload([])))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
@@ -415,10 +420,12 @@ async def test_the_data_set_fetch_asks_for_the_compulsory_operands(
 async def test_an_operand_without_an_option_combo_requires_a_plain_question(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """An operand naming a data element alone makes that whole question mandatory."""
     mock_system_info("v42")
+    mock_attributes()
 
     content = await _generated_data_set(tmp_path, [{"dataElement": {"id": "De1aaaaaaaa"}}])
 
@@ -432,10 +439,12 @@ async def test_an_operand_without_an_option_combo_requires_a_plain_question(
 async def test_an_operand_without_an_option_combo_requires_every_cell_of_a_disaggregated_question(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The same operand on a disaggregated element requires the group and every option combo under it."""
     mock_system_info("v42")
+    mock_attributes()
 
     content = await _generated_data_set(tmp_path, [{"dataElement": {"id": "De2aaaaaaaa"}}])
 
@@ -448,10 +457,12 @@ async def test_an_operand_without_an_option_combo_requires_every_cell_of_a_disag
 async def test_an_operand_with_an_option_combo_requires_only_that_cell(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """An operand naming a category option combo makes only that one child question mandatory."""
     mock_system_info("v42")
+    mock_attributes()
 
     content = await _generated_data_set(
         tmp_path,
@@ -643,10 +654,12 @@ async def _scaffold_project(directory: Path, **generate_lines: str) -> None:
 async def test_generate_questionnaires_writes_the_target_directory(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The target fetches the configured data sets and event programs and syncs its three directories."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"', event_programs='"VBqh0ynB2wv"')
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
@@ -679,10 +692,12 @@ async def test_generate_questionnaires_writes_the_target_directory(
 async def test_an_absent_selection_covers_the_whole_instance(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """No selection tables means all: every data set plus the single-stage event programs, the rest noted."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path)
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_ALL_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
@@ -711,10 +726,12 @@ async def test_an_absent_selection_covers_the_whole_instance(
 async def test_each_directory_is_swept_against_its_own_files(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Narrowing the selection deletes the questionnaires that left its own directory, and nothing else."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path)
 
     def _data_sets(request: httpx.Request) -> httpx.Response:
@@ -782,10 +799,12 @@ async def test_a_multi_stage_event_program_fails_loudly_by_name(
 async def test_an_unmatched_target_uid_is_noted(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A configured UID the instance answers nothing for is reported as a note, never dropped silently."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt", "Missing1234"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
@@ -801,10 +820,12 @@ async def test_an_unmatched_target_uid_is_noted(
 async def test_a_form_mixing_sectioned_and_unsectioned_elements_is_noted(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Data elements no section references are emitted after the sections, with one note naming them."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     payload = {
         "dataSets": [
@@ -834,10 +855,12 @@ async def test_a_form_mixing_sectioned_and_unsectioned_elements_is_noted(
 async def test_option_set_selection_unions_the_target_closure(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A narrowed option-set selection still emits the sets the configured targets bind their elements to."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path, option_sets='"Os2aaaaaaaa"', data_sets='"BfMAe6Itzgt"')
     option_sets_payload = {
         "optionSets": [
@@ -866,10 +889,12 @@ async def test_option_set_selection_unions_the_target_closure(
 async def test_option_set_closure_is_a_no_op_when_every_set_is_already_included(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """An empty include_ids already means all option sets, so the targets are not fetched a second time."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     respx.get(f"{_HOST}/api/optionSets").mock(
         return_value=httpx.Response(200, json={"optionSets": [{"id": "Os1aaaaaaaa", "name": "Gender"}]})
@@ -886,10 +911,12 @@ async def test_option_set_closure_is_a_no_op_when_every_set_is_already_included(
 async def test_generate_all_without_selection_tables_still_emits_questionnaires(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`generate all` on a project with no selection tables generates for the whole instance."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path)
     _mock_option_sets()
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json={"organisationUnits": []}))
@@ -965,10 +992,12 @@ def test_page_titles_escape_markup_while_the_element_title_stays_raw() -> None:
 async def test_a_data_sets_unsectioned_elements_are_ordered_independently_of_the_wire(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """DHIS2 shuffles `dataSetElements` per request (BUGS.md #63), so the emitter orders them itself."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"Ds3aaaaaaaa"')
     elements = [
         {"dataElement": {"id": "Deczzzzzzzz", "name": "Zebra count", "valueType": "INTEGER"}},
@@ -1034,10 +1063,12 @@ def _disaggregated_payload(option_combos: list[dict[str, str]]) -> dict[str, obj
 async def test_category_option_combos_are_ordered_independently_of_the_wire(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """DHIS2 shuffles `categoryOptionCombos` per request (BUGS.md #64), so the emitter orders them itself."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"Ds3aaaaaaaa"')
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
     _mock_option_sets()
@@ -1215,7 +1246,12 @@ def test_a_disaggregated_multi_text_question_repeats_on_every_cell() -> None:
 def test_an_option_set_the_plan_omits_falls_back_to_the_uid_name_with_one_note() -> None:
     """The closure puts every bound set into the plan; a gap still emits a name, and the run says which."""
     build = build_questionnaire_artifacts(
-        [_DATA_SET], GenerateConfig(), _CANONICAL, ig_status="draft", option_set_plan=OptionSetIdentityPlan()
+        [_DATA_SET],
+        GenerateConfig(),
+        _CANONICAL,
+        ig_status="draft",
+        option_set_plan=OptionSetIdentityPlan(),
+        attribute_codes=AttributeCodeIndex(),
     )
     content = next(
         artifact.content for artifact in build.artifacts if artifact.relative_path.endswith("BfMAe6Itzgt.fsh")
@@ -1231,10 +1267,12 @@ def test_an_option_set_the_plan_omits_falls_back_to_the_uid_name_with_one_note()
 async def test_the_questionnaire_target_plans_option_set_names_over_the_whole_selection(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A slug is assigned against its peers, so the target reads every selected set, not just the bound ones."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))

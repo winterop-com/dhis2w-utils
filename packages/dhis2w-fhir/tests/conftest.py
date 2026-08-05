@@ -1,4 +1,4 @@
-"""Shared fixtures for dhis2w-fhir tests: a probe profile and per-wire-version system-info mocking."""
+"""Shared fixtures for dhis2w-fhir tests: a probe profile, system-info mocking, and the attribute join."""
 
 from __future__ import annotations
 
@@ -25,6 +25,24 @@ def mock_system_info() -> Callable[..., None]:
     def _mock(version_key: str, base_url: str = "https://dhis2.example") -> None:
         respx.get(f"{base_url}/api/system/info").mock(
             return_value=httpx.Response(200, json={"version": _WIRE_VERSIONS[version_key]}),
+        )
+
+    return _mock
+
+
+@pytest.fixture
+def mock_attributes() -> Callable[..., None]:
+    """Return a helper that mocks `/api/attributes` to a `uid -> code` mapping (respx-active).
+
+    Every generate target that emits resources resolves the attribute code index off this
+    endpoint, so a target test leaving it unmocked fails on the unmatched request rather than
+    quietly emitting attribute extensions without their codes.
+    """
+
+    def _mock(codes: dict[str, str] | None = None, base_url: str = "https://dhis2.example") -> None:
+        attributes = [{"id": uid, "code": code} for uid, code in (codes or {}).items()]
+        respx.get(f"{base_url}/api/attributes").mock(
+            return_value=httpx.Response(200, json={"attributes": attributes}),
         )
 
     return _mock

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 
+from dhis2w_fhir.foundation.attribute_values import attribute_value_extension_url, attribute_value_extensions
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import code_or_uid, flatten_whitespace
 from dhis2w_fhir.notes import aggregate_note
@@ -47,6 +48,7 @@ from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, JsonArtifact, JsonBuild
 
 if TYPE_CHECKING:
+    from dhis2w_fhir.attributes import AttributeCodeIndex
     from dhis2w_fhir.config import GenerateConfig
     from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
 
@@ -80,10 +82,15 @@ def build_organisation_unit_profiles(config: GenerateConfig, *, ig_status: IgSta
 
 
 def build_organisation_unit_instances(
-    organisation_units: list[OrganisationUnitIn], config: GenerateConfig, canonical: str
+    organisation_units: list[OrganisationUnitIn],
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    attribute_codes: AttributeCodeIndex,
 ) -> JsonBuild:
     """Build one `registry/Organization-<uid>.json` and `registry/Location-<uid>.json` per organisation unit."""
     urls = OrganisationUnitInstanceUrls.from_config(config, canonical)
+    extension_url = attribute_value_extension_url(config, canonical)
     build = JsonBuild()
     selected_uids = {organisation_unit.uid for organisation_unit in organisation_units}
     by_level: defaultdict[int, list[OrganisationUnitIn]] = defaultdict(list)
@@ -92,8 +99,12 @@ def build_organisation_unit_instances(
     orphaned: list[str] = []
     for level in sorted(by_level):
         for organisation_unit in sorted(by_level[level], key=lambda item: (item.path, item.uid)):
-            organization = _build_organization(organisation_unit, urls, selected_uids, orphaned, config.locales)
-            location = build_location(organisation_unit, urls, selected_uids, config.locales)
+            organization = _build_organization(
+                organisation_unit, urls, selected_uids, orphaned, config.locales, attribute_codes, extension_url
+            )
+            location = build_location(
+                organisation_unit, urls, selected_uids, config.locales, attribute_codes, extension_url
+            )
             build.artifacts.append(_json_artifact(f"Organization-{organisation_unit.uid}", organization))
             build.artifacts.append(_json_artifact(f"Location-{organisation_unit.uid}", location))
     if orphaned:
@@ -119,6 +130,8 @@ def _build_organization(
     selected_uids: set[str],
     orphaned: list[str],
     locales: list[str],
+    attribute_codes: AttributeCodeIndex,
+    extension_url: str,
 ) -> Organization:
     """Build the Organization of one unit, noting units whose parent falls outside the selection."""
     uid = organisation_unit.uid
@@ -135,6 +148,8 @@ def _build_organization(
     return Organization(
         id=uid,
         meta=Meta(profile=[urls.organization_profile]),
+        extension=attribute_value_extensions(organisation_unit.attribute_values, attribute_codes, extension_url)
+        or None,
         identifier=[
             Identifier(system=urls.identifier_system, value=uid),
             Identifier(system=urls.code_identifier_system, value=code_or_uid(organisation_unit.code, uid)),

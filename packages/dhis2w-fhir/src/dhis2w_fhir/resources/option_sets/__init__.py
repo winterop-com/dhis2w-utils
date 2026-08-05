@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.foundation.attribute_values import attribute_value_extension_url, attribute_value_extensions
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import (
     code_or_uid,
@@ -46,6 +47,7 @@ from dhis2w_fhir.r4 import (
     CodeSystemConceptProperty,
     CodeSystemProperty,
     Element,
+    Extension,
     Identifier,
     ValueSet,
     ValueSetCompose,
@@ -64,6 +66,7 @@ from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import JsonArtifact, JsonBuild
 
 if TYPE_CHECKING:
+    from dhis2w_fhir.attributes import AttributeCodeIndex
     from dhis2w_fhir.config import GenerateConfig
 
 __all__ = [
@@ -142,6 +145,7 @@ class _OptionSetNarrative(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     identifiers: list[Identifier] = Field(default_factory=list)
+    extensions: list[Extension] = Field(default_factory=list)
     title: str
     title_element: Element | None = None
     description: str
@@ -233,16 +237,31 @@ def option_set_identity_index(
 
 
 def build_option_set_artifacts(
-    option_sets: list[OptionSetIn], config: GenerateConfig, canonical: str, *, ig_status: IgStatus
+    option_sets: list[OptionSetIn],
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    ig_status: IgStatus,
+    attribute_codes: AttributeCodeIndex,
 ) -> JsonBuild:
     """Build one `terminology/CodeSystem-<id>.json` and `terminology/ValueSet-<id>.json` per option set."""
     build = JsonBuild()
     systems = _OptionSetSystems.from_config(config, canonical)
+    extension_url = attribute_value_extension_url(config, canonical)
     plan = option_set_identities(option_sets, config)
     by_uid = {option_set.uid: option_set for option_set in option_sets}
     for identity in plan.identities:
         option_set = by_uid[identity.uid]
-        pair = _build_pair(option_set, identity, config, systems, build.notes, ig_status=ig_status)
+        pair = _build_pair(
+            option_set,
+            identity,
+            config,
+            systems,
+            build.notes,
+            ig_status=ig_status,
+            attribute_codes=attribute_codes,
+            extension_url=extension_url,
+        )
         build.artifacts.append(_json_artifact(f"CodeSystem-{identity.code_system_id}", pair.code_system))
         build.artifacts.append(_json_artifact(f"ValueSet-{identity.value_set_id}", pair.value_set))
     build.notes.extend(plan.notes)
@@ -320,13 +339,18 @@ def _build_pair(
     notes: list[str],
     *,
     ig_status: IgStatus,
+    attribute_codes: AttributeCodeIndex,
+    extension_url: str,
 ) -> _OptionSetPair:
     """Build the CodeSystem and the ValueSet of one option set, reporting what concept assignment raised."""
     concepts = _unique_concepts(option_set, config, notes)
-    narrative = _narrative(option_set, config, systems, ig_status=ig_status)
+    narrative = _narrative(
+        option_set, config, systems, ig_status=ig_status, attribute_codes=attribute_codes, extension_url=extension_url
+    )
     code_system_url = systems.code_system_url(identity.code_system_id)
     code_system = CodeSystem(
         id=identity.code_system_id,
+        extension=narrative.extensions or None,
         url=code_system_url,
         identifier=narrative.identifiers,
         name=identity.code_system_name,
@@ -344,6 +368,7 @@ def _build_pair(
     )
     value_set = ValueSet(
         id=identity.value_set_id,
+        extension=narrative.extensions or None,
         url=systems.value_set_url(identity.value_set_id),
         identifier=narrative.identifiers,
         name=identity.value_set_name,
@@ -358,9 +383,15 @@ def _build_pair(
 
 
 def _narrative(
-    option_set: OptionSetIn, config: GenerateConfig, systems: _OptionSetSystems, *, ig_status: IgStatus
+    option_set: OptionSetIn,
+    config: GenerateConfig,
+    systems: _OptionSetSystems,
+    *,
+    ig_status: IgStatus,
+    attribute_codes: AttributeCodeIndex,
+    extension_url: str,
 ) -> _OptionSetNarrative:
-    """The elements both halves share: both DHIS2 identifiers, the translated title, and the publication state."""
+    """The elements both halves share: both DHIS2 identifiers, the attribute values, the title, the state."""
     code_kind = "option codes" if config.concept_code_source == "code" else "option UIDs"
     return _OptionSetNarrative(
         identifiers=[
@@ -370,6 +401,7 @@ def _narrative(
                 value=code_or_uid(option_set.code, option_set.uid),
             ),
         ],
+        extensions=attribute_value_extensions(option_set.attribute_values, attribute_codes, extension_url),
         title=flatten_whitespace(option_set.name),
         title_element=translated_element(name_translations(option_set.translations, config.locales)),
         description=flatten_whitespace(

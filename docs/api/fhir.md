@@ -17,6 +17,8 @@ surface.
   `find_project_fhir_config`, `write_fhir_config`).
 - Parse a DHIS2 ISO period into its type and date range, or walk backwards from a date
   (`parse_period`, `recent_periods`, `PERIOD_TYPE_DEFINITIONS`).
+- Carry DHIS2 attribute values onto a generated resource (`AttributeValueIn`,
+  `AttributeCodeIndex`, `resolve_attribute_code_index`, `attribute_value_extensions`).
 - Build FSH artifacts without the CLI (`build_foundation_artifacts`,
   `build_questionnaire_artifacts`, `build_page_artifacts`) and sync them to disk
   (`sync_artifacts`).
@@ -49,6 +51,15 @@ recent_periods("Monthly", 3, datetime.date(2026, 8, 2))
 ### Project configuration
 
 ::: dhis2w_fhir.config
+
+### DHIS2 attribute values
+
+The projection every generated resource carries its DHIS2 attribute values on, plus
+the `uid -> code` index a generate run resolves once against `/api/attributes` and
+every emitter joins against. DHIS2 sends an attribute value as an attribute UID and a
+string, so the code is a lookup rather than part of the value.
+
+::: dhis2w_fhir.attributes
 
 ### FHIR R4 resource schemas
 

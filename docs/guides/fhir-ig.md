@@ -263,7 +263,8 @@ consistently.
 
 **The empty-prefix caveat.** Setting `prefix = ""` drops the token from
 terminology names (`OU_Level_CS`, id `ou-level-cs`), but the two organisation-unit
-profiles and the `D2Period` extension keep a `D2` token anyway. FSH cannot name a
+profiles and the three foundation extensions - `D2Period`, `D2FormType`,
+`D2AttributeValue` - keep a `D2` token anyway. FSH cannot name a
 profile identically to its parent core resource, nor an extension identically to
 a core datatype: `Profile: Organization` and `Extension: Period` are both
 illegal. Those definitions fall back to `D2` rather than fail.
@@ -296,7 +297,8 @@ token (`d2-deg-<uid>-cs`).
 | `VRG` | validation rule group | `PRED` | predictor |
 | `LS` | legend set | | |
 
-`D2Period` is a fixed name: it takes the prefix and no token of its own.
+`D2Period`, `D2FormType`, and `D2AttributeValue` are fixed names: each takes the
+prefix and no token of its own.
 
 ### `[generate.option_sets]`
 
@@ -370,7 +372,7 @@ for flows that want the hierarchy as codes rather than as resources.
 ## Generate targets
 
 ```
-d2w fhir generate foundation     Identifier aliases + the D2Period / D2FormType extensions
+d2w fhir generate foundation     Identifier aliases + the D2Period / D2FormType / D2AttributeValue extensions
 d2w fhir generate option-sets    Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate questionnaires Data sets + event programs -> Questionnaire instances
 d2w fhir generate examples       Example QuestionnaireResponses answering those Questionnaires
@@ -403,6 +405,9 @@ never touches DHIS2:
 - **`d2-period.fsh`** - the `D2Period` extension plus its terminology.
 - **`d2-form-type.fsh`** - the `D2FormType` extension plus its terminology. See
   [Data set and event program forms](#data-set-and-event-program-forms).
+- **`d2-attribute-value.fsh`** - the `D2AttributeValue` extension every resource
+  carrying DHIS2 attribute values points at. See
+  [The D2AttributeValue extension](#the-d2attributevalue-extension).
 - **`d2-responses.fsh`** - the `D2AggregateResponse` and `D2EventResponse` profiles
   every captured `QuestionnaireResponse` has to meet. See
   [The capture contract](#the-capture-contract).
@@ -461,6 +466,57 @@ It is written as an inverse rather than as a second transcription of the upstrea
 month offsets: each type declares only how its ISO strings are spelled for a given
 year, and `parse_period` decides which of those exist and what dates they cover -
 so the two can never disagree.
+
+### The D2AttributeValue extension
+
+A DHIS2 `Attribute` is the metadata extensibility point: any object can carry
+typed key-value pairs under `attributeValues`, and instances use them for the
+codes that tie DHIS2 to everything around it - a national registry id on a
+facility, an external warehouse key, an ICD-10 code on a data element. Those
+pairs are instance-specific by definition, so no FHIR element holds them and they
+travel as a complex extension instead.
+
+`D2AttributeValue` carries one such pair:
+
+| Sub-extension | Type | Cardinality | Meaning |
+| --- | --- | --- | --- |
+| `attributeId` | `string` | 1..1 | The UID of the DHIS2 attribute the value belongs to |
+| `attributeCode` | `string` | 0..1 | The attribute's DHIS2 code, absent when the instance left it unset |
+| `value` | `string` | 1..1 | The value the object holds, as DHIS2 sends it |
+
+Its `^context` names the five resource types that carry it: `Organization`,
+`Location`, `CodeSystem`, `ValueSet`, and `Questionnaire`.
+
+**`attributeCode` is optional because DHIS2 leaves most attributes uncoded.**
+On the Lao instance eleven of twelve attributes have no `code` at all. An
+uncoded attribute gets no `attributeCode` sub-extension rather than an empty
+one - an empty code would claim the instance coded that attribute.
+
+**`value` is a string whatever the attribute declares.** DHIS2 sends every
+attribute value as a string regardless of the attribute's `valueType`, and one
+real attribute on that instance carries a whole GeoJSON document that way. The
+extension takes the wire value as it stands rather than re-typing it.
+
+**The code is a join, resolved once per generate run.** The wire shape of an
+attribute value is `{"attribute": {"id": "..."}, "value": "..."}` - an id and
+nothing else, with no code, no name, and no value type. So each generate target
+calls `resolve_attribute_code_index`, which reads `id,code` for every attribute
+off `/api/attributes` **unpaged**: DHIS2 answers 50 attributes to a page by
+default, and an instance defining more than one page of them would otherwise
+lose the tail of the join silently. Attributes DHIS2 left without a code are
+absent from the index rather than present with an empty entry, which is what the
+optional `attributeCode` reads from.
+
+**Where the values land today.** Organisation units carry them on both halves of
+the registry pair, option sets on both the CodeSystem and the ValueSet, and data
+sets and event programs on their Questionnaire. Concept-level attribute values -
+those on individual data elements and options - are not emitted: a
+`CodeSystem.concept` has no carrier chosen for them yet, and that choice is its
+own decision, sized in
+[fhir roadmap section 9.2](../project/fhir-roadmap.md#92-mid-term). Nor is a
+value promoted to `identifier` when DHIS2 marks its attribute `unique`; every
+value rides the extension, and the identifier shape is the other half of that
+same roadmap entry.
 
 ### Identifiers
 
@@ -536,6 +592,12 @@ option falls back to its UID, aggregated into one note. A CodeSystem that
 repeats a concept code is invalid, so this is enforced rather than warned
 about. The example responses code their answers from the same assignment, so a
 `valueCoding` always names a concept this pair really carries.
+
+**Both halves carry the set's DHIS2 attribute values**, as one
+[`D2AttributeValue` extension](#the-d2attributevalue-extension) per value on the
+CodeSystem and the same list on the ValueSet. The values on the *options* inside
+the set are not emitted, because a `CodeSystem.concept` has no carrier chosen for
+them.
 
 The target owns `terminology/` outright and sweeps it: JSON left there by a
 previous run that this run does not produce is deleted, so renaming or dropping
@@ -688,6 +750,13 @@ same data - a summary for indicator-shaped consumers - not a replacement for the
 response. `D2FormType` on the response is what tells a consumer which of those
 shapes it is holding without re-reading the questionnaire.
 
+**Attribute values.** A data set's or event program's DHIS2 attribute values ride
+onto its Questionnaire as one
+[`D2AttributeValue` extension](#the-d2attributevalue-extension) each, in the order
+DHIS2 returned them. The data-element attribute values inside the form are not
+emitted; the `data-dictionary` CodeSystems carry concepts, which have no chosen
+carrier for them.
+
 ### Example responses
 
 A `Questionnaire` says what a DHIS2 form asks. A `QuestionnaireResponse` says what
@@ -792,6 +861,14 @@ two files per unit:
 (`Organization/<UID>`, `Location/<UID>`). A unit whose parent falls outside the
 selection omits `partOf` and is reported, never dropped silently. A unit whose
 `closedDate` has passed carries `active: false` and `status: "inactive"`.
+
+**Both halves carry the unit's DHIS2 attribute values**, as one
+[`D2AttributeValue` extension](#the-d2attributevalue-extension) per value. This is
+where they are densest on a real instance: 244 of 300 organisation units on the
+Lao instance carry at least one. On the Location the order is a contract - the
+GeoJSON boundary extension is emitted first and the attribute values follow it,
+in the order DHIS2 returned them, so a regenerate of an unchanged unit produces a
+byte-identical file and the sync reports it unchanged.
 
 **Why JSON rather than FSH.** SUSHI loads `input/resources` and the sub-folders
 declared in `sushi-config.yaml` as *predefined resources*: they go into a virtual

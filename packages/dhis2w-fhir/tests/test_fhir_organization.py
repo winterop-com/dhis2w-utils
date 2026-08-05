@@ -4,6 +4,7 @@ import base64
 import json
 from typing import Any
 
+from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.resources.organisation_units import (
@@ -57,6 +58,7 @@ _RICHEST = OrganisationUnitIn(
     phone_number="98770095, 0309342578",
     closed=False,
     translations=[TranslationIn(locale="lo", property="NAME", value="ຮໝນ ພໍ່ຕັ້ງ")],
+    attribute_values=[AttributeValueIn(attribute_uid="ihn1wb9eho8", value="KE03")],
 )
 
 _EXPECTED_ROOT_LOCATION = {
@@ -124,6 +126,7 @@ _ORGANIZATION_KEYS = [
     "resourceType",
     "id",
     "meta",
+    "extension",
     "identifier",
     "name",
     "_name",
@@ -157,9 +160,15 @@ def _documents(build: JsonBuild) -> dict[str, dict[str, Any]]:
     return {artifact.relative_path: json.loads(artifact.content) for artifact in build.artifacts}
 
 
-def _instances(organisation_units: list[OrganisationUnitIn], config: GenerateConfig = _CONFIG) -> JsonBuild:
+def _instances(
+    organisation_units: list[OrganisationUnitIn],
+    config: GenerateConfig = _CONFIG,
+    attribute_codes: AttributeCodeIndex | None = None,
+) -> JsonBuild:
     """Build the registry for one selection against the test canonical."""
-    return build_organisation_unit_instances(organisation_units, config, _CANONICAL)
+    return build_organisation_unit_instances(
+        organisation_units, config, _CANONICAL, attribute_codes=attribute_codes or AttributeCodeIndex()
+    )
 
 
 def test_profiles_artifact() -> None:
@@ -382,7 +391,11 @@ def test_naming_tokens_are_configurable() -> None:
 
 def test_instance_urls_follow_the_ig_canonical() -> None:
     """The profile and level-code URLs are the IG's own canonical, not the identifier system base."""
-    documents = _documents(build_organisation_unit_instances([_ROOT], _CONFIG, "https://ig.example/fhir"))
+    documents = _documents(
+        build_organisation_unit_instances(
+            [_ROOT], _CONFIG, "https://ig.example/fhir", attribute_codes=AttributeCodeIndex()
+        )
+    )
     organization = documents["registry/Organization-ImspTQPwCqd.json"]
     location = documents["registry/Location-ImspTQPwCqd.json"]
     assert organization["meta"]["profile"] == ["https://ig.example/fhir/StructureDefinition/d2-organization"]

@@ -5,6 +5,13 @@ Description: {{ questionnaire.description_literal }}
 Usage: #definition
 * id = "{{ questionnaire.uid }}"
 * extension[{{ questionnaire.form_type_extension }}].valueCode = #{{ questionnaire.form_type_code }}
+{% for attribute_value in questionnaire.attribute_values %}
+* extension[{{ questionnaire.attribute_value_extension }}][+].extension[{{ attribute_id_sub_extension }}].valueString = {{ attribute_value.attribute_id_literal }}
+{% if attribute_value.attribute_code_literal is not none %}
+* extension[{{ questionnaire.attribute_value_extension }}][=].extension[{{ attribute_code_sub_extension }}].valueString = {{ attribute_value.attribute_code_literal }}
+{% endif %}
+* extension[{{ questionnaire.attribute_value_extension }}][=].extension[{{ attribute_value_sub_extension }}].valueString = {{ attribute_value.value_literal }}
+{% endfor %}
 * url = "{{ questionnaire.url }}"
 * identifier[+].system = {{ questionnaire.identifier_system }}
 * identifier[=].value = "{{ questionnaire.uid }}"

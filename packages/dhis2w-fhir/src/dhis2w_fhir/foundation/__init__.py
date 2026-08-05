@@ -6,7 +6,8 @@ references; `d2-naming-systems.fsh` declares each of those URLs as a NamingSyste
 consumer meeting a DHIS2 identifier can resolve what it means; `d2-period.fsh` defines the
 reporting-period Extension plus the period-type CodeSystem/ValueSet backing its required
 binding; `d2-form-type.fsh` defines the form-type Extension every generated Questionnaire
-carries, plus its own CodeSystem/ValueSet pair.
+carries, plus its own CodeSystem/ValueSet pair; `d2-attribute-value.fsh` defines the complex
+Extension that carries a DHIS2 attribute value onto every resource that can hold one.
 
 Two more artifacts turn that vocabulary into a capture contract a third party can build
 against without reading DHIS2: `d2-responses.fsh` profiles the QuestionnaireResponse a
@@ -21,6 +22,14 @@ from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 
+from dhis2w_fhir.foundation.attribute_values import (
+    ATTRIBUTE_CODE_SUB_EXTENSION,
+    ATTRIBUTE_ID_SUB_EXTENSION,
+    ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES,
+    ATTRIBUTE_VALUE_SUB_EXTENSION,
+    attribute_value_extension_url,
+    attribute_value_extensions,
+)
 from dhis2w_fhir.foundation.schemas import (
     FORM_TYPE_DEFINITIONS,
     IDENTIFIER_SYSTEM_SUBJECTS,
@@ -39,12 +48,18 @@ if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
 __all__ = [
+    "ATTRIBUTE_CODE_SUB_EXTENSION",
+    "ATTRIBUTE_ID_SUB_EXTENSION",
+    "ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES",
+    "ATTRIBUTE_VALUE_SUB_EXTENSION",
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
     "FORM_TYPE_DEFINITIONS",
     "FormTypeDefinition",
     "FoundationNaming",
     "NamingSystemDeclaration",
     "ResponseProfileDeclaration",
+    "attribute_value_extension_url",
+    "attribute_value_extensions",
     "build_foundation_artifacts",
     "build_response_profile_declarations",
 ]
@@ -104,6 +119,15 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
     form_type = _ENVIRONMENT.get_template("d2-form-type.fsh.jinja").render(
         names=names, form_types=FORM_TYPE_DEFINITIONS, ig_status=ig_status, experimental=experimental
     )
+    attribute_value = _ENVIRONMENT.get_template("d2-attribute-value.fsh.jinja").render(
+        names=names,
+        context_resource_types=ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES,
+        attribute_id_sub_extension=ATTRIBUTE_ID_SUB_EXTENSION,
+        attribute_code_sub_extension=ATTRIBUTE_CODE_SUB_EXTENSION,
+        attribute_value_sub_extension=ATTRIBUTE_VALUE_SUB_EXTENSION,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     responses = _ENVIRONMENT.get_template("d2-responses.fsh.jinja").render(
         names=names,
         profiles=build_response_profile_declarations(config),
@@ -145,6 +169,12 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             kind="extension",
             fsh_name=names.form_type_extension,
             content=form_type,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-attribute-value.fsh",
+            kind="extension",
+            fsh_name=names.attribute_value_extension,
+            content=attribute_value,
         ),
         FshArtifact(
             relative_path="foundation/d2-responses.fsh",

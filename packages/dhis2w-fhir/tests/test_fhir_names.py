@@ -4,6 +4,7 @@ import json
 import re
 
 import pytest
+from dhis2w_fhir.attributes import AttributeCodeIndex
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.names import (
@@ -164,7 +165,12 @@ def _emitted_contents(config: GenerateConfig) -> list[str]:
     contents += [
         artifact.content
         for artifact in build_questionnaire_artifacts(
-            [_DATA_SET], config, "http://example.org/fhir", ig_status="draft", option_set_plan=OptionSetIdentityPlan()
+            [_DATA_SET],
+            config,
+            "http://example.org/fhir",
+            ig_status="draft",
+            option_set_plan=OptionSetIdentityPlan(),
+            attribute_codes=AttributeCodeIndex(),
         ).artifacts
     ]
     return contents
@@ -177,7 +183,9 @@ def _declared_names(content: str) -> list[str]:
 
 def _option_set_names(config: GenerateConfig) -> list[str]:
     """The `name` element of every pre-built option-set document - what SUSHI fishes the pair by."""
-    build = build_option_set_artifacts([_OPTION_SET], config, "http://example.org/fhir", ig_status="draft")
+    build = build_option_set_artifacts(
+        [_OPTION_SET], config, "http://example.org/fhir", ig_status="draft", attribute_codes=AttributeCodeIndex()
+    )
     return [json.loads(artifact.content)["name"] for artifact in build.artifacts]
 
 
@@ -199,6 +207,7 @@ def test_questionnaire_name_matches_cnl_0() -> None:
         "http://example.org/fhir",
         ig_status="draft",
         option_set_plan=OptionSetIdentityPlan(),
+        attribute_codes=AttributeCodeIndex(),
     )
     content = next(
         artifact.content for artifact in build.artifacts if artifact.relative_path.endswith("BfMAe6Itzgt.fsh")

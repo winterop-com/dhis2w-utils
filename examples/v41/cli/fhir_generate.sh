@@ -57,8 +57,10 @@ cd demo-ig
 
 # Foundation: the $DHIS2-* aliases built from [generate] identifier_system_base and
 # the NamingSystem declaring each of those URLs, the D2Period extension with its
-# period-type CodeSystem/ValueSet, the D2FormType extension with its own pair, and the
-# capture contract a third party builds against - d2-responses.fsh carries the
+# period-type CodeSystem/ValueSet, the D2FormType extension with its own pair, the
+# D2AttributeValue extension that carries DHIS2 attributeValues onto the Organization,
+# Location, CodeSystem, ValueSet and Questionnaire resources the other targets write,
+# and the capture contract a third party builds against - d2-responses.fsh carries the
 # D2AggregateResponse and D2EventResponse QuestionnaireResponse profiles, one per form
 # kind, and d2-capture-server.fsh the D2CaptureServer CapabilityStatement stating the
 # interactions a server accepting them supports. All under ig/input/fsh/foundation/.
@@ -103,6 +105,11 @@ d2w fhir generate examples
 # per unit, both carrying the UID and code identifiers, with partOf mirroring the
 # hierarchy as Organization/<uid> and Location/<uid> references. Geometry is embedded as
 # a GeoJSON Feature; Point and Polygon geometry also yield Location.position.
+# Both halves also carry the unit's DHIS2 attribute values as D2AttributeValue
+# extensions - on the Location the boundary extension comes first and the attribute
+# values follow it, so an unchanged unit regenerates byte-identically. Each generate
+# target resolves the attribute uid -> code join once, unpaged, off /api/attributes;
+# an attribute DHIS2 left uncoded emits no attributeCode sub-extension at all.
 # SUSHI loads input/resources and the sub-folders sushi-config.yaml declares as
 # predefined resources - no FSH conversion - which is why the registry and the
 # option-set terminology are both JSON.
@@ -115,6 +122,11 @@ d2w fhir generate org-units
 # DHIS2 NAME translations ride along with the option-set and org-unit targets: as CodeSystem concept
 # designations, and as HL7 translation extensions on titles and instance names.
 # Narrow them with [generate] locales = ["lo", "km"] (empty = every locale found).
+
+# DHIS2 attribute values ride along the same way, as D2AttributeValue extensions on the
+# option-set CodeSystem/ValueSet pair, the Organization/Location pair, and the data set
+# and event program Questionnaires. The values on individual data elements and options
+# stay behind: a CodeSystem concept has no carrier chosen for them yet.
 
 # Pages: the IG's narrative layer, written as markdown into ig/input/pagecontent/
 # rather than as FSH. Six site pages - forms.md, registry.md, terminology.md,

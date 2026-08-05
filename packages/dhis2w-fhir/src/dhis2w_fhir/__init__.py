@@ -5,6 +5,7 @@ surface over them, so `from dhis2w_fhir import GenerateConfig` keeps working
 however the components are arranged internally.
 """
 
+from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import (
     FHIR_CONFIG_FILENAME,
     REPORTS_DIRECTORY,
@@ -20,12 +21,18 @@ from dhis2w_fhir.config import (
     write_fhir_config,
 )
 from dhis2w_fhir.foundation import (
+    ATTRIBUTE_CODE_SUB_EXTENSION,
+    ATTRIBUTE_ID_SUB_EXTENSION,
+    ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES,
+    ATTRIBUTE_VALUE_SUB_EXTENSION,
     CAPTURE_SERVER_READ_RESOURCE_TYPES,
     FORM_TYPE_DEFINITIONS,
     FormTypeDefinition,
     FoundationNaming,
     NamingSystemDeclaration,
     ResponseProfileDeclaration,
+    attribute_value_extension_url,
+    attribute_value_extensions,
     build_foundation_artifacts,
     build_naming_system_declarations,
     build_response_profile_declarations,
@@ -123,7 +130,12 @@ from dhis2w_fhir.scaffold.schemas import (
     ScaffoldFile,
     ScaffoldReport,
 )
-from dhis2w_fhir.service import GenerateAllReport, GenerateReport, UnsupportedProgramError
+from dhis2w_fhir.service import (
+    GenerateAllReport,
+    GenerateReport,
+    UnsupportedProgramError,
+    resolve_attribute_code_index,
+)
 from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
 from dhis2w_fhir.validation.pdf import render_validation_pdf
 from dhis2w_fhir.validation.report import render_validation_csv
@@ -151,6 +163,10 @@ from dhis2w_fhir.writer import (
 )
 
 __all__ = [
+    "ATTRIBUTE_CODE_SUB_EXTENSION",
+    "ATTRIBUTE_ID_SUB_EXTENSION",
+    "ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES",
+    "ATTRIBUTE_VALUE_SUB_EXTENSION",
     "BOUNDS_BY_VALUE_TYPE",
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
     "DEFAULT_SUSHI_TIMEOUT_SECONDS",
@@ -174,6 +190,8 @@ __all__ = [
     "SITE_PAGE_FILENAMES",
     "TERMINOLOGY_DIRECTORY",
     "TRANSLATION_EXTENSION_URL",
+    "AttributeCodeIndex",
+    "AttributeValueIn",
     "CategoryComboIn",
     "CategoryOptionComboIn",
     "ConceptAssignment",
@@ -229,6 +247,8 @@ __all__ = [
     "ValidationFinding",
     "aggregate_note",
     "answer_element",
+    "attribute_value_extension_url",
+    "attribute_value_extensions",
     "build_code_validation",
     "build_example_artifacts",
     "build_foundation_artifacts",
@@ -265,6 +285,7 @@ __all__ = [
     "render_validation_csv",
     "render_validation_markdown",
     "render_validation_pdf",
+    "resolve_attribute_code_index",
     "response_status_code",
     "sync_artifacts",
     "sync_json_artifacts",

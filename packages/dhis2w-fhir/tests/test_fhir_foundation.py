@@ -17,12 +17,13 @@ _IDENTIFIER_SYSTEM_COUNT = 12
 
 
 def test_foundation_covers_expected_files() -> None:
-    """The target emits the aliases, the NamingSystems, the two extensions, and the capture contract."""
+    """The target emits the aliases, the NamingSystems, the three extensions, and the capture contract."""
     assert set(_by_path(GenerateConfig())) == {
         "foundation/d2-aliases.fsh",
         "foundation/d2-naming-systems.fsh",
         "foundation/d2-period.fsh",
         "foundation/d2-form-type.fsh",
+        "foundation/d2-attribute-value.fsh",
         "foundation/d2-responses.fsh",
         "foundation/d2-capture-server.fsh",
     }

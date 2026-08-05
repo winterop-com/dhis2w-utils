@@ -807,10 +807,12 @@ async def test_per_target_zero_disables_the_target_and_sweeps_its_directory(
 async def test_generate_all_runs_the_example_target_after_the_questionnaires(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`generate all` carries an example report whose responses answer the questionnaires it just wrote."""
     mock_system_info("v42")
+    mock_attributes()
     await _scaffold_project(tmp_path)
     _mock_metadata()
 

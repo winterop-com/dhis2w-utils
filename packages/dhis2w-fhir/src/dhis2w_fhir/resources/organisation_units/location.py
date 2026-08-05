@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 from typing import TYPE_CHECKING
 
+from dhis2w_fhir.foundation.attribute_values import attribute_value_extensions
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import code_or_uid, escape_markup, flatten_whitespace
 from dhis2w_fhir.r4 import (
@@ -19,6 +20,7 @@ from dhis2w_fhir.r4 import (
 )
 
 if TYPE_CHECKING:
+    from dhis2w_fhir.attributes import AttributeCodeIndex
     from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitInstanceUrls
     from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
 
@@ -31,6 +33,8 @@ def build_location(
     urls: OrganisationUnitInstanceUrls,
     selected_uids: set[str],
     locales: list[str],
+    attribute_codes: AttributeCodeIndex,
+    extension_url: str,
 ) -> Location:
     """Build the Location of one organisation unit - always emitted; position/boundary attach with geometry."""
     uid = organisation_unit.uid
@@ -54,16 +58,31 @@ def build_location(
         description=flatten_whitespace(escape_markup(description)),
         status="inactive" if organisation_unit.closed else "active",
         position=position,
-        extension=_boundary_extensions(organisation_unit),
+        extension=_extensions(organisation_unit, attribute_codes, extension_url) or None,
         managingOrganization=Reference(reference=f"Organization/{uid}"),
         partOf=Reference(reference=f"Location/{parent_uid}") if parent_uid is not None else None,
     )
 
 
-def _boundary_extensions(organisation_unit: OrganisationUnitIn) -> list[Extension] | None:
-    """The `location-boundary-geojson` extension carrying the unit's GeoJSON Feature, or None without geometry."""
+def _extensions(
+    organisation_unit: OrganisationUnitIn, attribute_codes: AttributeCodeIndex, extension_url: str
+) -> list[Extension]:
+    """A Location's extensions in emission order: the GeoJSON boundary, then one per DHIS2 attribute value.
+
+    The order is a contract rather than an accident. A regenerate of an unchanged unit has to
+    produce a byte-identical file for `sync_artifacts` to report it unchanged, so the boundary
+    always leads and the attribute values always follow it in the order DHIS2 returned them.
+    """
+    return [
+        *_boundary_extensions(organisation_unit),
+        *attribute_value_extensions(organisation_unit.attribute_values, attribute_codes, extension_url),
+    ]
+
+
+def _boundary_extensions(organisation_unit: OrganisationUnitIn) -> list[Extension]:
+    """The `location-boundary-geojson` extension carrying the unit's GeoJSON Feature, empty without geometry."""
     if organisation_unit.boundary_geojson is None:
-        return None
+        return []
     payload = organisation_unit.boundary_geojson.encode("utf-8")
     return [
         Extension(

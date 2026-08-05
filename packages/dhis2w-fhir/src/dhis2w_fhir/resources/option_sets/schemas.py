@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.attributes import AttributeValueIn
 from dhis2w_fhir.i18n import TranslationIn
 
 
@@ -39,6 +40,7 @@ class OptionSetIn(BaseModel):
     description: str | None = None
     options: list[OptionIn] = Field(default_factory=list)
     translations: list[TranslationIn] = Field(default_factory=list)
+    attribute_values: list[AttributeValueIn] = Field(default_factory=list)
 
 
 class ConceptAssignment(BaseModel):
