@@ -568,12 +568,17 @@ Organization and a Location - and the build dies half an hour in with exit 143.
 the end of a long build.
 
 Standalone `make sushi` on that IG - no publisher, so no timeout to hit - takes
-**207m10s** and finishes with 0 errors and 0 warnings. Against the demo's 5m26s
-for the same warm-cache step, an 8x resource count costs 38x the time. That rules
-out a larger `[FSH] timeout` as the fix at national scale: it would have to sit
-near 13,000 seconds, and the publisher's own SUSHI run doubles it into a
-seven-hour build. Trimming the registry is the only practical lever, which is why
-the warning names the dials rather than the ceiling.
+**207m10s** and finishes with 0 errors and 0 warnings. Capped at `max_level = 4`
+the same IG is 5,035 instances and takes **23m22s**, also clean. Per resource
+that is 105 ms for the demo, 254 ms capped, and 478 ms uncapped: the cost is not
+constant, so 5x the resources bought 9x the time.
+
+That superlinearity rules out a larger `[FSH] timeout` as the fix at national
+scale - it would have to sit near 13,000 seconds, and the publisher's own SUSHI
+run doubles it into a seven-hour build - while one level off the registry lands
+inside the scaffolded 1800-second default with no ceiling change at all. Trimming
+is the practical lever, which is why the warning names the dials rather than the
+ceiling, and why `d2w fhir init --max-level` seeds the cap at scaffold time.
 
 ## 5. Open decisions
 
