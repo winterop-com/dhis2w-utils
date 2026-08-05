@@ -14,6 +14,9 @@ v*/dump.sql.gz.codegen-backup
 
 # DHIS2 runtime data
 home/logs/
+# Which DHIS2 major last migrated the postgres volume, written by `up` / `up-fresh`
+# so `up` can refuse a major the volume's schema would fail Flyway validation against.
+home/.volume-major
 home/files/
 home/glowroot/
 home/credentials/
