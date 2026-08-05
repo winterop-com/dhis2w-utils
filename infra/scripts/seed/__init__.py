@@ -21,6 +21,7 @@ Orchestration:
 from __future__ import annotations
 
 from .event_program import build_event_program
+from .fhir_attributes import seed_fhir_attributes
 from .loader import (
     FIXTURE_DIR,
     SIERRA_LEONE_ROOT_UID,
@@ -57,5 +58,6 @@ __all__ = [
     "import_post_viz_metadata",
     "import_tracker",
     "load_metadata",
+    "seed_fhir_attributes",
     "seed_play",
 ]
