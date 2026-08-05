@@ -175,7 +175,7 @@ def _render_generate_report(title: str, report: GenerateReport, generation: Gene
 
 @generate_app.command("foundation")
 def generate_foundation_command() -> None:
-    """Generate the DHIS2 identifier aliases and the D2Period extension into the nearest FHIR project."""
+    """Generate the DHIS2 identifier aliases, the extensions, and the capture contract into the FHIR project."""
     from dhis2w_fhir import service
 
     project = load_project()

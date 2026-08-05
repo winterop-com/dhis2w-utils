@@ -17,6 +17,7 @@ from dhis2w_fhir import (
     build_organisation_unit_instances,
     build_questionnaire_artifacts,
 )
+from dhis2w_fhir.attributes import AttributeCodeIndex
 from dhis2w_fhir.names import markdown_text
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
 from dhis2w_fhir.resources.examples import STATUS_BY_EVENT_STATUS
@@ -388,6 +389,7 @@ def test_questionnaire_link_targets_match_the_emitted_instances() -> None:
         _CANONICAL,
         ig_status="draft",
         option_set_plan=option_set_identities([_DESCRIBED_OPTION_SET, _PLAIN_OPTION_SET], config),
+        attribute_codes=AttributeCodeIndex(),
     )
     forms = _pages()["forms.md"]
     instance_names = [artifact.fsh_name for artifact in build.artifacts if artifact.kind == "instances"]
@@ -400,7 +402,11 @@ def test_code_system_link_targets_match_the_emitted_ids() -> None:
     """Every terminology.md link names the CodeSystem id the option-set target actually emits."""
     config = GenerateConfig()
     build = build_option_set_artifacts(
-        [_DESCRIBED_OPTION_SET, _PLAIN_OPTION_SET], config, "http://example.org/fhir", ig_status="draft"
+        [_DESCRIBED_OPTION_SET, _PLAIN_OPTION_SET],
+        config,
+        "http://example.org/fhir",
+        ig_status="draft",
+        attribute_codes=AttributeCodeIndex(),
     )
     terminology = _pages()["terminology.md"]
     emitted_ids = [
@@ -415,7 +421,9 @@ def test_code_system_link_targets_match_the_emitted_ids() -> None:
 
 def test_organization_intro_names_the_emitted_instance() -> None:
     """The Organization intro file stem is the very registry file stem the org-unit target emits."""
-    build = build_organisation_unit_instances([_ROOT_UNIT, _CHILD_UNIT], GenerateConfig(), "http://example.org/fhir")
+    build = build_organisation_unit_instances(
+        [_ROOT_UNIT, _CHILD_UNIT], GenerateConfig(), "http://example.org/fhir", attribute_codes=AttributeCodeIndex()
+    )
     emitted = {Path(artifact.relative_path).stem for artifact in build.artifacts}
     assert "Organization-ImspTQPwCqd" in emitted
     assert f"Organization-ImspTQPwCqd{INTRO_SUFFIX}" in _pages()

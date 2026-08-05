@@ -189,6 +189,16 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "form", "type", "vs")
 
     @property
+    def attribute_value_extension(self) -> str:
+        """FSH name of the attribute-value Extension (e.g. `D2AttributeValue`)."""
+        return f"{self.definition_prefix}AttributeValue"
+
+    @property
+    def attribute_value_extension_id(self) -> str:
+        """FHIR id of the attribute-value Extension (e.g. `d2-attribute-value`)."""
+        return join_id_tokens(self.definition_prefix, "attribute", "value")
+
+    @property
     def aggregate_response_profile(self) -> str:
         """FSH name of the aggregate QuestionnaireResponse profile (e.g. `D2AggregateResponse`)."""
         return f"{self.definition_prefix}AggregateResponse"

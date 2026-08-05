@@ -174,6 +174,7 @@ class Organization(DomainResource):
     resourceType: Literal["Organization"] = "Organization"
     id: str | None = None
     meta: Meta | None = None
+    extension: list[Extension] | None = None
     identifier: list[Identifier] | None = None
     name: str | None = None
     name_element: Element | None = Field(
@@ -211,6 +212,7 @@ class CodeSystem(DomainResource):
 
     resourceType: Literal["CodeSystem"] = "CodeSystem"
     id: str | None = None
+    extension: list[Extension] | None = None
     url: str | None = None
     identifier: list[Identifier] | None = None
     name: str | None = None
@@ -234,6 +236,7 @@ class ValueSet(DomainResource):
 
     resourceType: Literal["ValueSet"] = "ValueSet"
     id: str | None = None
+    extension: list[Extension] | None = None
     url: str | None = None
     identifier: list[Identifier] | None = None
     name: str | None = None

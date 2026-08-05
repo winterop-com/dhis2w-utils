@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 import pytest
+from dhis2w_fhir.attributes import AttributeCodeIndex
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.i18n import TranslationIn, name_translations, normalize_locale
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
@@ -163,7 +164,9 @@ def test_name_translations_deduplicates_by_locale_keeping_the_first() -> None:
 
 def _option_set_documents(option_set: OptionSetIn, config: GenerateConfig) -> dict[str, dict[str, Any]]:
     """Every emitted option-set file, keyed by its relative path, parsed back into a plain JSON document."""
-    build = build_option_set_artifacts([option_set], config, "http://example.org/fhir", ig_status="draft")
+    build = build_option_set_artifacts(
+        [option_set], config, "http://example.org/fhir", ig_status="draft", attribute_codes=AttributeCodeIndex()
+    )
     return {artifact.relative_path: json.loads(artifact.content) for artifact in build.artifacts}
 
 
@@ -198,7 +201,9 @@ def test_short_name_and_description_translations_are_not_emitted() -> None:
 
 def test_instances_carry_name_translation_extensions() -> None:
     """Both the Organization and the Location name gain one translation extension per NAME translation."""
-    build = build_organisation_unit_instances([_BO], GenerateConfig(), "http://example.org/fhir")
+    build = build_organisation_unit_instances(
+        [_BO], GenerateConfig(), "http://example.org/fhir", attribute_codes=AttributeCodeIndex()
+    )
     documents = {artifact.relative_path: json.loads(artifact.content) for artifact in build.artifacts}
     assert documents["registry/Organization-O6uvpzGd5pu.json"]["name"] == "Bo"
     assert documents["registry/Organization-O6uvpzGd5pu.json"]["_name"] == _EXPECTED_NAME_ELEMENT

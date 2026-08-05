@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from dhis2w_fhir.attributes import AttributeValueIn
 from dhis2w_fhir.i18n import TranslationIn
 
 
@@ -65,3 +66,4 @@ class OrganisationUnitIn(BaseModel):
     phone_number: str | None = None
     closed: bool = False
     translations: list[TranslationIn] = Field(default_factory=list)
+    attribute_values: list[AttributeValueIn] = Field(default_factory=list)

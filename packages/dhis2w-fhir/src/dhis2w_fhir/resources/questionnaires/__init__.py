@@ -26,6 +26,11 @@ from typing import TYPE_CHECKING
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.foundation.attribute_values import (
+    ATTRIBUTE_CODE_SUB_EXTENSION,
+    ATTRIBUTE_ID_SUB_EXTENSION,
+    ATTRIBUTE_VALUE_SUB_EXTENSION,
+)
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import code_or_uid, page_text, quote
 from dhis2w_fhir.notes import aggregate_note
@@ -42,6 +47,7 @@ from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, FshBuild
 
 if TYPE_CHECKING:
+    from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
     from dhis2w_fhir.config import GenerateConfig
 
 __all__ = [
@@ -215,6 +221,20 @@ class _ItemView(BaseModel):
     bounds: list[_BoundView] = Field(default_factory=list)
 
 
+class _AttributeValueView(BaseModel):
+    """One DHIS2 attribute value as the FSH literals its D2AttributeValue extension is assigned from.
+
+    `attribute_code_literal` is None for an attribute the instance left uncoded, and the template
+    writes no `attributeCode` sub-extension at all for it.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    attribute_id_literal: str
+    attribute_code_literal: str | None = None
+    value_literal: str
+
+
 class _QuestionnaireView(BaseModel):
     """Everything the Questionnaire template needs for one source, every conditional resolved."""
 
@@ -232,7 +252,9 @@ class _QuestionnaireView(BaseModel):
     form_type_extension: str
     form_type_code_system: str
     form_type_code: str
+    attribute_value_extension: str
     ig_status: IgStatus
+    attribute_values: list[_AttributeValueView] = Field(default_factory=list)
     items: list[_ItemView] = Field(default_factory=list)
 
     @property
@@ -286,11 +308,14 @@ def build_questionnaire_artifacts(
     *,
     ig_status: IgStatus,
     option_set_plan: OptionSetIdentityPlan,
+    attribute_codes: AttributeCodeIndex,
 ) -> FshBuild:
     """Build one `data-sets/` or `event-programs/` file per target plus the `data-dictionary/` support pairs.
 
     `option_set_plan` is the identity plan the terminology target emits from, so an
     `answerValueSet` names the ValueSet the same run writes under either naming source.
+    `attribute_codes` is the run's `uid -> code` join, which the D2AttributeValue extensions
+    read the attribute code out of.
     """
     build = FshBuild()
     names = QuestionnaireNaming.from_naming(config.naming)
@@ -301,7 +326,9 @@ def build_questionnaire_artifacts(
     template = _ENVIRONMENT.get_template("questionnaire.fsh.jinja")
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
         _collect_referenced_objects(source, data_elements, option_combos)
-        view = _questionnaire_view(source, names, foundation, canonical, index.identities, ig_status=ig_status)
+        view = _questionnaire_view(
+            source, names, foundation, canonical, index.identities, ig_status=ig_status, attribute_codes=attribute_codes
+        )
         build.artifacts.append(
             FshArtifact(
                 relative_path=f"{_source_directory(source)}/{source.uid}.fsh",
@@ -311,6 +338,9 @@ def build_questionnaire_artifacts(
                     questionnaire=view,
                     item_control_extension_url=ITEM_CONTROL_EXTENSION_URL,
                     item_control_code_system_url=ITEM_CONTROL_CODE_SYSTEM_URL,
+                    attribute_id_sub_extension=ATTRIBUTE_ID_SUB_EXTENSION,
+                    attribute_code_sub_extension=ATTRIBUTE_CODE_SUB_EXTENSION,
+                    attribute_value_sub_extension=ATTRIBUTE_VALUE_SUB_EXTENSION,
                 ),
             )
         )
@@ -352,6 +382,7 @@ def _questionnaire_view(
     identities: dict[str, OptionSetIdentity],
     *,
     ig_status: IgStatus,
+    attribute_codes: AttributeCodeIndex,
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders."""
     profile = _PROFILES_BY_KIND[source.kind]
@@ -368,9 +399,28 @@ def _questionnaire_view(
         form_type_extension=foundation.form_type_extension,
         form_type_code_system=foundation.form_type_code_system,
         form_type_code=source.kind,
+        attribute_value_extension=foundation.attribute_value_extension,
         ig_status=ig_status,
+        attribute_values=_attribute_value_views(source.attribute_values, attribute_codes),
         items=_item_views(source, names, identities),
     )
+
+
+def _attribute_value_views(
+    attribute_values: list[AttributeValueIn], attribute_codes: AttributeCodeIndex
+) -> list[_AttributeValueView]:
+    """Project one form's DHIS2 attribute values onto their FSH literals, in the order DHIS2 returned them."""
+    views: list[_AttributeValueView] = []
+    for attribute_value in attribute_values:
+        code = attribute_codes.code_for(attribute_value.attribute_uid)
+        views.append(
+            _AttributeValueView(
+                attribute_id_literal=quote(attribute_value.attribute_uid),
+                attribute_code_literal=quote(code) if code is not None else None,
+                value_literal=quote(attribute_value.value),
+            )
+        )
+    return views
 
 
 def _item_views(

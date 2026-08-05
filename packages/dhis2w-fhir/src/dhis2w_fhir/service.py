@@ -12,6 +12,7 @@ from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile, resolve
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, load_project
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
@@ -67,19 +68,25 @@ from dhis2w_fhir.writer import FshArtifact, JsonArtifact, sync_artifacts, sync_j
 
 if TYPE_CHECKING:
     from dhis2w_client import Dhis2Client
-    from dhis2w_client.generated.v42.schemas import DataSet, OptionSet, OrganisationUnit, Program
+    from dhis2w_client.generated.v42.schemas import Attribute, DataSet, OptionSet, OrganisationUnit, Program
 
 _STREAM_PAGE_SIZE = 500
 _TRANSLATION_FIELDS = "translations[locale,property,value]"
+
+#: The attribute-value projection every metadata fetch carries: DHIS2 sends the attribute's UID
+#: and the value alone, and the attribute's code is joined from `AttributeCodeIndex` at emit time.
+_ATTRIBUTE_VALUE_FIELDS = "attributeValues[attribute[id],value]"
+
 _OPTION_SET_FIELDS = (
-    f"id,code,name,description,{_TRANSLATION_FIELDS},options[id,code,name,sortOrder,{_TRANSLATION_FIELDS}]"
+    f"id,code,name,description,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS},"
+    f"options[id,code,name,sortOrder,{_TRANSLATION_FIELDS}]"
 )
 
 #: The option-set projection the identity plan is assigned from - a slug needs the UID and the name alone.
 _OPTION_SET_IDENTITY_FIELDS = "id,name"
 _ORGANISATION_UNIT_FIELDS = (
     "id,code,name,shortName,description,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,"
-    f"closedDate,{_TRANSLATION_FIELDS}"
+    f"closedDate,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS}"
 )
 _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
     "dataElement[id,name,formName,valueType,domainType,optionSet[id],"
@@ -87,13 +94,18 @@ _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
 )
 _DATA_SET_FIELDS = (
     "id,name,code,description,periodType,sections[id,name,dataElements[id]],"
+    f"{_ATTRIBUTE_VALUE_FIELDS},"
     "compulsoryDataElementOperands[dataElement[id],categoryOptionCombo[id]],"
     f"dataSetElements[{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
 )
 _EVENT_PROGRAM_FIELDS = (
-    "id,name,code,description,programType,programStages[id,name,programStageSections[id,name,dataElements[id]],"
+    f"id,name,code,description,programType,{_ATTRIBUTE_VALUE_FIELDS},"
+    "programStages[id,name,programStageSections[id,name,dataElements[id]],"
     f"programStageDataElements[compulsory,{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]]"
 )
+
+#: The attribute projection the emit-time code join reads - an attribute's UID and its code.
+_ATTRIBUTE_FIELDS = "id,code"
 
 #: The only DHIS2 program type the questionnaire target maps today.
 _EVENT_PROGRAM_TYPE = "WITHOUT_REGISTRATION"
@@ -281,8 +293,15 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
             paging=False,
         )
         sources = await _closure_sources(client, config)
+        attribute_codes = await resolve_attribute_code_index(client)
     inputs = _selected_option_sets([_option_set_input(model) for model in models], sources, config, notes)
-    build = build_option_set_artifacts(inputs, config, project.config.ig.canonical, ig_status=project.config.ig.status)
+    build = build_option_set_artifacts(
+        inputs,
+        config,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+        attribute_codes=attribute_codes,
+    )
     sync = sync_json_artifacts(project.resources_directory, TERMINOLOGY_DIRECTORY, build.artifacts)
     return GenerateReport(
         project_root=project.project_root,
@@ -303,12 +322,14 @@ async def generate_questionnaires(profile: Profile, project: FhirProject) -> Gen
     async with open_client(profile) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
+        attribute_codes = await resolve_attribute_code_index(client)
     build = build_questionnaire_artifacts(
         sources,
         config,
         project.config.ig.canonical,
         ig_status=project.config.ig.status,
         option_set_plan=option_set_plan,
+        attribute_codes=attribute_codes,
     )
     syncs = [
         sync_artifacts(project.fsh_directory, directory, _artifacts_under(build.artifacts, directory))
@@ -627,6 +648,7 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
     today = datetime.now(tz=UTC).date()
     async with open_client(profile) as client:
         organisation_units = await _fetch_organisation_units(client, project.config.generate, tally, today)
+        attribute_codes = await resolve_attribute_code_index(client)
     notes: list[str] = tally.to_notes()
     generate_config = project.config.generate
     ig_status = project.config.ig.status
@@ -640,7 +662,9 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
                 ig_status=ig_status,
             )
         )
-        instances = build_organisation_unit_instances(organisation_units, generate_config, project.config.ig.canonical)
+        instances = build_organisation_unit_instances(
+            organisation_units, generate_config, project.config.ig.canonical, attribute_codes=attribute_codes
+        )
         registry = instances.artifacts
         notes.extend(instances.notes)
         if selection.terminology:
@@ -755,6 +779,21 @@ async def _fetch_option_set_identity_plan(
     )
     inputs = [OptionSetIn(uid=model.id or "", name=model.name or model.id or "") for model in models]
     return option_set_identities(_selected_option_sets(inputs, sources, config, []), config)
+
+
+async def resolve_attribute_code_index(client: Dhis2Client) -> AttributeCodeIndex:
+    """Resolve the `uid -> code` join for every DHIS2 attribute, once per generate run.
+
+    The projections carry an attribute value as the UID and value DHIS2 sent, so the index is
+    what turns one into a coded emission. It is fetched the way the option-set identity plan is:
+    once, off the whole instance, so every target of a run joins against the identical mapping.
+
+    Unpaged: DHIS2 answers 50 attributes to a page by default, and an instance defining more
+    than one page of them would otherwise lose the tail of the join silently. Attributes DHIS2
+    left without a code are absent from the index - most instances code few of theirs.
+    """
+    models: list[Attribute] = await client.resources.attributes.list(fields=_ATTRIBUTE_FIELDS, paging=False)
+    return AttributeCodeIndex(codes={model.id: model.code for model in models if model.id and model.code})
 
 
 async def _closure_sources(client: Dhis2Client, config: GenerateConfig) -> list[QuestionnaireSourceIn]:
@@ -905,6 +944,7 @@ def _data_set_source(model: DataSet, notes: list[str]) -> QuestionnaireSourceIn:
         period_type=str(model.periodType) if model.periodType is not None else None,
         items=items,
         raw_sections=model.sections,
+        attribute_values=_attribute_value_inputs(model.attributeValues),
         notes=notes,
     )
 
@@ -999,6 +1039,7 @@ def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSour
         kind="event",
         items=items,
         raw_sections=raw_sections,
+        attribute_values=_attribute_value_inputs(model.attributeValues),
         notes=notes,
     )
 
@@ -1011,6 +1052,7 @@ def _questionnaire_source(
     kind: FormKind,
     items: list[QuestionnaireItemIn],
     raw_sections: object,
+    attribute_values: list[AttributeValueIn],
     notes: list[str],
     period_type: str | None = None,
 ) -> QuestionnaireSourceIn:
@@ -1036,6 +1078,7 @@ def _questionnaire_source(
         period_type=period_type,
         sections=sections,
         flat_items=flat_items,
+        attribute_values=attribute_values,
     )
 
 
@@ -1153,6 +1196,28 @@ def _translation_inputs(raw_translations: object) -> list[TranslationIn]:
     return translations
 
 
+def _attribute_value_inputs(raw_attribute_values: object) -> list[AttributeValueIn]:
+    """Wrap the raw DHIS2 attribute values into the shared projection, dropping entries missing either half.
+
+    DHIS2 nests the attribute under `attribute[id]` and sends every value as a string, whatever
+    the attribute's declared value type, so the projection reads the UID out of the nested
+    reference and takes the value as it stands.
+    """
+    if not isinstance(raw_attribute_values, list):
+        return []
+    attribute_values: list[AttributeValueIn] = []
+    for raw in raw_attribute_values:
+        if not isinstance(raw, dict):
+            continue
+        attribute = raw.get("attribute")
+        attribute_uid = _optional_text(attribute.get("id")) if isinstance(attribute, dict) else None
+        value = raw.get("value")
+        if attribute_uid is None or not isinstance(value, str):
+            continue
+        attribute_values.append(AttributeValueIn(attribute_uid=attribute_uid, value=value))
+    return attribute_values
+
+
 def _option_set_input(model: OptionSet) -> OptionSetIn:
     """Map a generated OptionSet (with inline option dicts) into the emitter projection."""
     options = [
@@ -1174,6 +1239,7 @@ def _option_set_input(model: OptionSet) -> OptionSetIn:
         description=model.description,
         options=options,
         translations=_translation_inputs(model.translations),
+        attribute_values=_attribute_value_inputs(model.attributeValues),
     )
 
 
@@ -1374,4 +1440,5 @@ def _organisation_unit_input(
         phone_number=model.phoneNumber,
         closed=_is_closed(model, today),
         translations=_translation_inputs(model.translations),
+        attribute_values=_attribute_value_inputs(model.attributeValues),
     )

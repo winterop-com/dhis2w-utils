@@ -4,6 +4,7 @@ import json
 import re
 from typing import Any
 
+from dhis2w_fhir.attributes import AttributeCodeIndex
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.period import parse_period
@@ -127,7 +128,9 @@ _EXPECTED_UID_SOURCE_VALUE_SET = {
 
 def _build(option_sets: list[OptionSetIn], config: GenerateConfig, ig_status: IgStatus = "draft") -> JsonBuild:
     """Build the option-set terminology for one selection against the test canonical."""
-    return build_option_set_artifacts(option_sets, config, _CANONICAL, ig_status=ig_status)
+    return build_option_set_artifacts(
+        option_sets, config, _CANONICAL, ig_status=ig_status, attribute_codes=AttributeCodeIndex()
+    )
 
 
 def _documents(build: JsonBuild) -> dict[str, dict[str, Any]]:
@@ -235,7 +238,13 @@ def test_concept_property_declarations_carry_the_configured_uri() -> None:
 
 def test_urls_follow_the_ig_canonical() -> None:
     """The pair's own URLs and the ValueSet the CodeSystem points at are the IG canonical, not the identifier base."""
-    build = build_option_set_artifacts([_BIRTH_TYPE], GenerateConfig(), "https://ig.example/fhir", ig_status="draft")
+    build = build_option_set_artifacts(
+        [_BIRTH_TYPE],
+        GenerateConfig(),
+        "https://ig.example/fhir",
+        ig_status="draft",
+        attribute_codes=AttributeCodeIndex(),
+    )
     documents = _documents(build)
     code_system = documents["terminology/CodeSystem-d2-os-Xa1b2c3d4e5-cs.json"]
     value_set = documents["terminology/ValueSet-d2-os-Xa1b2c3d4e5-vs.json"]
@@ -477,7 +486,12 @@ def test_name_sourced_option_set_names_are_read_by_the_questionnaire_and_the_exa
 def _option_bound_questionnaire(plan: OptionSetIdentityPlan) -> str:
     """The name-sourced Questionnaire FSH of the option-bound fixture form."""
     build = build_questionnaire_artifacts(
-        [_BOUND_FORM], _NAME_SOURCE, _CANONICAL, ig_status="draft", option_set_plan=plan
+        [_BOUND_FORM],
+        _NAME_SOURCE,
+        _CANONICAL,
+        ig_status="draft",
+        option_set_plan=plan,
+        attribute_codes=AttributeCodeIndex(),
     )
     assert build.notes == []
     return next(artifact.content for artifact in build.artifacts if artifact.relative_path.endswith("Ds1aaaaaaaa.fsh"))

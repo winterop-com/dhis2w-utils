@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.attributes import AttributeValueIn
 from dhis2w_fhir.names import join_id_tokens, join_name_segments
 
 if TYPE_CHECKING:
@@ -112,6 +113,7 @@ class QuestionnaireSourceIn(BaseModel):
     period_type: str | None = None
     sections: list[QuestionnaireSectionIn] = Field(default_factory=list)
     flat_items: list[QuestionnaireItemIn] = Field(default_factory=list)
+    attribute_values: list[AttributeValueIn] = Field(default_factory=list)
 
 
 class QuestionnaireNaming(BaseModel):
