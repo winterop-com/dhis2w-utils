@@ -25,9 +25,12 @@ publisher = "Test Organisation"
 
 @pytest.fixture
 def fhir_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A working directory holding a fhir.toml and a default PAT profile."""
+    """A working directory holding a fhir.toml, a default PAT profile, and a non-default sibling."""
     config_dir = tmp_path / ".config" / "dhis2"
     config_dir.mkdir(parents=True)
+    # `secondary` exists purely so `test_generate_uses_fhir_toml_profile` has a profile the
+    # default resolution chain would never pick. Asserting against `probe` there would pass
+    # whether or not fhir.toml's `profile` key was honoured, since `probe` is also the default.
     (config_dir / "profiles.toml").write_text(
         """
 default = "probe"
@@ -36,6 +39,11 @@ default = "probe"
 base_url = "https://dhis2.example"
 auth = "pat"
 token = "d2p_test"
+
+[profiles.secondary]
+base_url = "https://secondary.example"
+auth = "pat"
+token = "d2p_secondary"
 """
     )
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -144,14 +152,16 @@ def test_generate_without_project_fails_with_hint(tmp_path: Path, monkeypatch: p
 def test_generate_uses_fhir_toml_profile(fhir_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A `profile` entry in fhir.toml is used when no explicit profile is given."""
     monkeypatch.delenv("DHIS2_PROFILE", raising=False)
-    (fhir_project / "fhir.toml").write_text(_FHIR_TOML + 'profile = "probe"\n', encoding="utf-8")
+    # `profile` is a top-level key of fhir.toml, so it has to precede the `[ig]` table - append it
+    # after and TOML reads it as `ig.profile`, which FhirProjectConfig drops on the floor.
+    (fhir_project / "fhir.toml").write_text('profile = "secondary"\n' + _FHIR_TOML, encoding="utf-8")
     mock = AsyncMock(return_value=_report("terminology"))
     with patch("dhis2w_fhir.service.generate_option_sets", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "generate", "option-sets"])
     assert result.exit_code == 0, result.output
     assert mock.await_args is not None
     profile = mock.await_args.args[0]
-    assert profile.base_url == "https://dhis2.example"
+    assert profile.base_url == "https://secondary.example"
 
 
 def _error_report() -> FhirValidationReport:
