@@ -566,6 +566,14 @@ Organization and a Location - and the build dies half an hour in with exit 143.
 `max_level` / `root` dials, so the cost surfaces at generate time instead of at
 the end of a long build.
 
+Standalone `make sushi` on that IG - no publisher, so no timeout to hit - takes
+**207m10s** and finishes with 0 errors and 0 warnings. Against the demo's 5m26s
+for the same warm-cache step, an 8x resource count costs 38x the time. That rules
+out a larger `[FSH] timeout` as the fix at national scale: it would have to sit
+near 13,000 seconds, and the publisher's own SUSHI run doubles it into a
+seven-hour build. Trimming the registry is the only practical lever, which is why
+the warning names the dials rather than the ceiling.
+
 ## 5. Open decisions
 
 Each needs an owner call. State the question, weigh the options, do not decide
