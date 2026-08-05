@@ -1,8 +1,9 @@
 # FHIR plugin
 
-`d2w fhir` turns DHIS2 metadata into a FHIR Implementation Guide source tree:
-a SUSHI project whose FSH (FHIR Shorthand) files are generated from
-`/api/optionSets`, `/api/organisationUnits`, `/api/dataSets`, and `/api/programs`.
+`d2w fhir` turns DHIS2 metadata into a FHIR Implementation Guide source tree: a
+SUSHI project whose FSH (FHIR Shorthand) definitions and pre-built FHIR JSON
+resources are generated from `/api/optionSets`, `/api/organisationUnits`,
+`/api/dataSets`, and `/api/programs`.
 
 ```
 d2w fhir init [DIRECTORY]           Scaffold a dockerized SUSHI IG project (--profile seeds fhir.toml)
@@ -72,8 +73,9 @@ it carries no `pages:` section: SUSHI publishes every markdown file under
 configuration to appear.
 
 Its `parameters:` block carries `excludexml` / `excludettl` (JSON is the only
-wire format worth a file and a rendered page per resource) plus a `path-resource`
-glob per predefined-resource sub-folder the scaffold reserves:
+wire format worth a file and a rendered page per resource) plus one
+`path-resource` glob per predefined-resource sub-folder - `registry/` for the
+org-unit instances, `terminology/` for the option-set pairs:
 
 ```yaml
   path-resource:
@@ -240,13 +242,13 @@ package's importable surface - see the
 
 ## Option sets -> terminology
 
-One file per option set under `ig/input/fsh/terminology/`: a
-`D2OS_<UID>_CS` CodeSystem plus a matching ValueSet (naming tokens configurable).
-The file name and the id keep the UID's own case (`terminology/Qdm5fPK5Ra9.fsh`,
-`d2-os-Qdm5fPK5Ra9-cs`) - FHIR ids permit mixed case, so the id reads straight
-back to the DHIS2 object. With `naming.source = "name"` the artifacts take
-kebab-cased name slugs instead, and ids
-stay within FHIR's 64-character id limit: an over-long option-set name is
+Two pre-built FHIR JSON documents per option set under
+`ig/input/resources/terminology/` - `CodeSystem-d2-os-<UID>-cs.json` and
+`ValueSet-d2-os-<UID>-vs.json` - carrying a `D2OS_<UID>_CS` CodeSystem plus a
+matching ValueSet (naming tokens configurable). The file name and the id keep the
+UID's own case - FHIR ids permit mixed case, so the id reads straight back to the
+DHIS2 object. With `naming.source = "name"` the artifacts take kebab-cased name
+slugs instead, and ids stay within FHIR's 64-character id limit: an over-long option-set name is
 truncated and suffixed with the set's UID (noted in the report), which also
 keeps bounded ids unique. Every concept
 carries **both** DHIS2 identifiers: with the default
@@ -274,6 +276,21 @@ service builds the plan from the identical selection in each generate path, so a
 same run writes. A bound set the plan somehow omits still emits a UID-derived name
 and is reported by an aggregate note, never left dangling.
 
+The pair ships as predefined resources: `sync_json_artifacts` writes them into
+`ig/input/resources/terminology/`, `sushi-config.yaml` declares
+`path-resource: input/resources/terminology/*`, and the publisher loads them
+verbatim into `sushi-local#LOCAL` with no FSH parse. That is what keeps hundreds
+of option sets out of the compile - see
+[Toolchain performance](#toolchain-performance).
+
+**The FSH name is what carries across the FSH/JSON boundary.** A Questionnaire is
+FSH and binds its question with `answerValueSet = Canonical(D2OS_<UID>_VS)`, an
+FSH name rather than a URL, and it resolves against a JSON document because SUSHI
+fishes predefined resources by their `name` element. Every emitted CodeSystem and
+ValueSet carries exactly the FSH name `option_set_identities` handed the
+questionnaire target, which is why one plan serving both emitters is load-bearing
+rather than tidy.
+
 ## Data sets and event programs -> Questionnaires
 
 `generate questionnaires` owns three sync directories under `ig/input/fsh/`, split
@@ -296,8 +313,9 @@ absent or empty = all, exactly like the terminology and registry selections. The
 service makes one `sync_artifacts` call per directory, each swept against its own
 files alone, and merges the three reports into the single `GenerateReport` whose
 `target_directory` reads `data-sets, event-programs, data-dictionary`. The two
-support pairs live under `data-dictionary/`, not `terminology/`, so the option-set
-target's cleanup can never delete them. The command is still
+support pairs are FSH under `ig/input/fsh/data-dictionary/`, a different tree
+from the option-set target's `ig/input/resources/terminology/`, so its cleanup
+can never reach them. The command is still
 `d2w fhir generate questionnaires` - it names the action, not a folder.
 
 One Questionnaire is `Usage: #definition`, `id` the bare UID, `url` the IG canonical
@@ -453,9 +471,9 @@ building one out of text. Every model is `frozen`, alias-aware, and
 the document key for key.
 
 `ig/input/resources/` is gitignored by the scaffold. It is generated output that
-`make generate` rebuilds in seconds, and a national hierarchy puts tens of
-thousands of files there; `ig/input/fsh/` stays committed, so the reviewable diff
-is the definitional one.
+`make generate` rebuilds from the instance in a few minutes, and a national
+hierarchy plus its option-set terminology puts tens of thousands of files there;
+`ig/input/fsh/` stays committed, so the reviewable diff is the definitional one.
 
 Every artifact representing a DHIS2 object exposes both DHIS2 identifiers
 wherever FHIR has a slot, and the code slot repeats the UID when the DHIS2 code is
@@ -463,9 +481,10 @@ missing or not FHIR-valid - so `dhis2code` can be `1..1` and consumers never
 special-case absence. `d2w fhir validate` warns on every organisation unit
 without a code, which is what drives those fall-backs out over time. Every
 identifier system those slots name is declared by a foundation NamingSystem.
-Every generated CodeSystem also points back at its ValueSet through `^valueSet`
-and gives each concept property a `<base>/property/<code>` URI so the property has
-a defined meaning outside this IG. Every generated definitional resource - the two
+Every generated CodeSystem also points back at its ValueSet through `valueSet`
+(spelled `^valueSet` in the FSH ones) and gives each concept property a
+`<base>/property/<code>` URI so the property has a defined meaning outside this
+IG. Every generated definitional resource - the two
 profiles, the two extensions, every CodeSystem/ValueSet pair, every Questionnaire -
 states its publication `status` and its `experimental` flag from `[ig] status`:
 `#draft` and `true` while the IG is `draft`, `#active` and `false` once it is
@@ -545,12 +564,15 @@ is the projection the service wraps the raw dicts into at the fetch boundary,
 `[generate] locales` (empty = all), deduplicates by locale, and sorts - so an
 unchanged instance regenerates an unchanged file. Emission splits by what FHIR
 offers on the target: CodeSystem concepts (options and, with
-`terminology = true`, organisation units) take `^designation`, while the
+`terminology = true`, organisation units) take designations, while the
 option-set CS/VS titles and the `Organization.name` / `Location.name` of every
 instance take the standard
 `http://hl7.org/fhir/StructureDefinition/translation` extension with its `lang`
-and `content` sub-extensions. Only `NAME` is emitted. The deep option-set
-validation pass suffixes a finding's name with the subject's first matching
+and `content` sub-extensions. In the pre-built JSON that extension hangs off the
+`_x` sibling of the primitive - `_title` on a CodeSystem or ValueSet, `_name` on
+an Organization or Location - carried by `r4.Element`, the R4 root a primitive's
+extensions hang from, and built by `i18n.translated_element`. Only `NAME` is
+emitted. The deep option-set validation pass suffixes a finding's name with the subject's first matching
 translation; the instance-wide sweep does not fetch translations at all.
 
 ## Regeneration contract
@@ -565,22 +587,24 @@ trees are never touched, and re-running converges instead of stacking files. Fil
 content already matches are not rewritten, so a no-op regenerate leaves both the
 timestamps and `git status` untouched.
 
-JSON has no comment syntax, so a header cannot mark the registry files.
-`sync_json_artifacts` owns `ig/input/resources/registry/` outright instead: it
-deletes every `*.json` in that directory the run did not produce, without an
-`is_generated_file` check, and leaves files of other extensions and nested
-sub-directories alone. The directory is gitignored, so nothing hand-authored
+JSON has no comment syntax, so a header cannot mark the pre-built files.
+`sync_json_artifacts` owns its directory outright instead - `registry/` for the
+org-unit target, `terminology/` for the option-set target: it deletes every
+`*.json` in that directory the run did not produce, without an `is_generated_file`
+check, and leaves files of other extensions and nested
+sub-directories alone. Both directories are gitignored, so nothing hand-authored
 belongs there.
 
 ## Toolchain performance
 
-Generation is seconds and the toolchain is minutes; the measured numbers live in
-the guide under
+Generation is the cheap half and the toolchain is where the minutes go; the
+measured numbers live in the guide under
 [Build time and the two caches](../guides/fhir-ig.md#build-time-and-the-two-caches).
-Four structural facts explain the shape of it. The registry is predefined JSON,
-so the compile scales with the terminology and the forms rather than with the
-hierarchy - and the publisher's rendering pass, which writes a page per resource,
-is where registry size lands instead. The publisher runs **its own**
+Four structural facts explain the shape of it. The registry and the option-set
+terminology are both predefined JSON, so the compile scales with the forms and
+the five CodeSystems that are FSH rather than with the hierarchy or the
+option-set count - and the publisher's rendering pass, which writes a page per
+resource, is where that volume lands instead. The publisher runs **its own**
 SUSHI over the same FSH, so a chain that compiles first and then publishes pays
 for the compile twice - which is why `make refresh` goes straight from
 `validate` to `build`. The phases are serial, SUSHI then the validator then
@@ -701,9 +725,13 @@ The components:
 - `scaffold/` - the twelve files `d2w fhir init` writes (`InitOptions`,
   `ScaffoldFile`, `ScaffoldReport`, and `normalize_project_name`, which turns the
   IG id into the PEP 508 name of the scaffolded `pyproject.toml`).
-- `resources/option_sets/` - the CodeSystem/ValueSet pair per option set,
-  plus `max_slug_length` (validation previews the same id bound) and the
-  `OptionSetIn` / `OptionIn` / `OptionSetSelection` schemas.
+- `resources/option_sets/` - the pre-built CodeSystem/ValueSet pair per option
+  set, its `TERMINOLOGY_DIRECTORY` sync directory, `option_set_identities` and the
+  `OptionSetIdentityPlan` / `OptionSetIdentityIndex` every other target reads
+  option-set names from, plus `max_slug_length` (validation previews the same id
+  bound) and the `OptionSetIn` / `OptionIn` / `OptionSetSelection` schemas. It
+  builds `r4.schemas` models and ships no templates - JSON is a data structure,
+  not a text layout.
 - `resources/questionnaires/` - the Questionnaire instance per data set / event
   program plus the two support terminology pairs, the exported
   `ITEM_TYPES_BY_VALUE_TYPE` table mapping every DHIS2 `valueType` on v41/v42/v43 to its
@@ -760,7 +788,7 @@ re-exports the whole public surface, so `from dhis2w_fhir import
 GenerateConfig` keeps working however the components are arranged.
 
 No FSH, TOML, YAML, or Markdown body - the narrative pages and their intros
-included - is assembled by string concatenation in Python. Every component ships a `templates/` directory of jinja2 templates
+included - is assembled by string concatenation in Python. Every component that emits one ships a `templates/` directory of jinja2 templates
 loaded through a `PackageLoader` scoped to that subpackage
 (`StrictUndefined`, `trim_blocks`, `lstrip_blocks`, `keep_trailing_newline`
 - the same settings `dhis2w-codegen` uses, so control tags never leak blank
@@ -769,10 +797,12 @@ conditional into a pydantic view-model and renders; the templates hold the
 layout.
 
 JSON is the exception, and for the same reason: it is a data structure, not a
-text layout. The registry documents are built as `r4.schemas` models and
-serialised with `model_dump_json(exclude_none=True, by_alias=True, indent=2)`,
-which is byte-stable for the same input and cannot emit a malformed document the
-way a template can.
+text layout. The registry and terminology documents are built as `r4.schemas`
+models and serialised with
+`model_dump_json(exclude_none=True, by_alias=True, indent=2)`, which is
+byte-stable for the same input and cannot emit a malformed document the way a
+template can. `resources/option_sets/` therefore has no `templates/` directory at
+all.
 
 The service opens the version-neutral
 `dhis2w_core.client_context.open_client` and maps generated `OptionSet` /

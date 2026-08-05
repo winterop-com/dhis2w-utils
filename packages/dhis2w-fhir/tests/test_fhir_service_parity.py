@@ -118,11 +118,16 @@ async def test_generate_option_sets_across_majors(
 
     assert route.called
     assert report.option_set_count == 1
-    assert report.written_files == ["terminology/Xa1b2c3d4e5.fsh"]
-    content = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "Xa1b2c3d4e5.fsh").read_text(encoding="utf-8")
-    assert content.startswith(GENERATED_HEADER)
-    assert "CodeSystem: D2OS_Xa1b2c3d4e5_CS" in content
-    assert 'Title: "Birth type"' in content
+    assert report.target_base == "ig/input"
+    assert report.target_directory == "resources/terminology"
+    assert report.written_files == [
+        "terminology/CodeSystem-d2-os-Xa1b2c3d4e5-cs.json",
+        "terminology/ValueSet-d2-os-Xa1b2c3d4e5-vs.json",
+    ]
+    terminology = tmp_path / "ig" / "input" / "resources" / "terminology"
+    code_system = json.loads((terminology / "CodeSystem-d2-os-Xa1b2c3d4e5-cs.json").read_text(encoding="utf-8"))
+    assert code_system["name"] == "D2OS_Xa1b2c3d4e5_CS"
+    assert code_system["title"] == "Birth type"
 
 
 @respx.mock
@@ -305,10 +310,10 @@ async def test_translations_are_requested_and_mapped(
     assert "options[id,code,name,sortOrder,translations[locale,property,value]]" in option_set_fields
     assert "translations[locale,property,value]" in organisation_units.calls.last.request.url.params["fields"]
 
-    terminology = (tmp_path / "ig" / "input" / "fsh" / "terminology" / "Xa1b2c3d4e5.fsh").read_text(encoding="utf-8")
-    assert '* ^title.extension[=].extension[=].valueString = "ປະເພດການເກີດ"' in terminology
-    assert "* #kRRUtYaGett ^designation[+].language = #lo" in terminology
-    assert '* #kRRUtYaGett ^designation[=].value = "ການເກີດແບບທຳມະຊາດ"' in terminology
+    terminology = tmp_path / "ig" / "input" / "resources" / "terminology"
+    code_system = json.loads((terminology / "CodeSystem-d2-os-Xa1b2c3d4e5-cs.json").read_text(encoding="utf-8"))
+    assert code_system["_title"]["extension"][0]["extension"][1]["valueString"] == "ປະເພດການເກີດ"
+    assert code_system["concept"][0]["designation"] == [{"language": "lo", "value": "ການເກີດແບບທຳມະຊາດ"}]
     registry = tmp_path / "ig" / "input" / "resources" / "registry"
     for stem in ("Organization-ImspTQPwCqd", "Location-ImspTQPwCqd"):
         document = json.loads((registry / f"{stem}.json").read_text(encoding="utf-8"))
@@ -330,12 +335,18 @@ async def test_generate_is_idempotent(
     second = await service.generate_option_sets(resolve_profile("probe"), load_project(tmp_path))
 
     assert first.deleted_files == []
-    assert first.written_files == ["terminology/Xa1b2c3d4e5.fsh"]
+    assert first.written_files == [
+        "terminology/CodeSystem-d2-os-Xa1b2c3d4e5-cs.json",
+        "terminology/ValueSet-d2-os-Xa1b2c3d4e5-vs.json",
+    ]
     assert second.written_files == []
     assert second.deleted_files == []
-    assert second.unchanged_count == 1
-    terminology = tmp_path / "ig" / "input" / "fsh" / "terminology"
-    assert sorted(path.name for path in terminology.glob("*.fsh")) == ["Xa1b2c3d4e5.fsh"]
+    assert second.unchanged_count == 2
+    terminology = tmp_path / "ig" / "input" / "resources" / "terminology"
+    assert sorted(path.name for path in terminology.glob("*.json")) == [
+        "CodeSystem-d2-os-Xa1b2c3d4e5-cs.json",
+        "ValueSet-d2-os-Xa1b2c3d4e5-vs.json",
+    ]
 
 
 @respx.mock

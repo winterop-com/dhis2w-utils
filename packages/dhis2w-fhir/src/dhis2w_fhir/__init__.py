@@ -56,6 +56,7 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleSelection,
 )
 from dhis2w_fhir.resources.option_sets import (
+    TERMINOLOGY_DIRECTORY,
     build_option_set_artifacts,
     concept_assignments,
     max_slug_length,
@@ -171,6 +172,7 @@ __all__ = [
     "PERIOD_TYPE_NAMES",
     "REGISTRY_DIRECTORY",
     "SITE_PAGE_FILENAMES",
+    "TERMINOLOGY_DIRECTORY",
     "TRANSLATION_EXTENSION_URL",
     "CategoryComboIn",
     "CategoryOptionComboIn",

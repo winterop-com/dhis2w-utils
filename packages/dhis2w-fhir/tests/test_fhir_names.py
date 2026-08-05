@@ -1,5 +1,6 @@
-"""Unit tests for dhis2w_fhir.names helpers and the cnl-0 shape of every emitted FSH name."""
+"""Unit tests for dhis2w_fhir.names helpers and the cnl-0 shape of every emitted computational name."""
 
+import json
 import re
 
 import pytest
@@ -157,9 +158,6 @@ _DATA_SET = QuestionnaireSourceIn(
 def _emitted_contents(config: GenerateConfig) -> list[str]:
     """Every FSH file the emitters produce for one naming configuration."""
     contents = [artifact.content for artifact in build_foundation_artifacts(config, ig_status="draft")]
-    contents += [
-        artifact.content for artifact in build_option_set_artifacts([_OPTION_SET], config, ig_status="draft").artifacts
-    ]
     contents.append(build_organisation_unit_profiles(config, ig_status="draft").content)
     contents.append(build_organisation_unit_level_terminology([1], config, ig_status="draft").content)
     contents.append(build_organisation_unit_terminology([_ORGANISATION_UNIT], config, ig_status="draft").content)
@@ -177,10 +175,17 @@ def _declared_names(content: str) -> list[str]:
     return [line.split(": ", 1)[1].strip() for line in content.splitlines() if line.startswith(_DECLARATION_KEYWORDS)]
 
 
+def _option_set_names(config: GenerateConfig) -> list[str]:
+    """The `name` element of every pre-built option-set document - what SUSHI fishes the pair by."""
+    build = build_option_set_artifacts([_OPTION_SET], config, "http://example.org/fhir", ig_status="draft")
+    return [json.loads(artifact.content)["name"] for artifact in build.artifacts]
+
+
 def test_every_declared_fsh_name_matches_cnl_0() -> None:
     """Underscored names stay within R4 cnl-0: an upper-case letter, then letters, digits, and underscores."""
     for config in (GenerateConfig(), GenerateConfig(naming=NamingConfig(source="name"))):
         declared = [name for content in _emitted_contents(config) for name in _declared_names(content)]
+        declared += _option_set_names(config)
         assert declared
         for name in declared:
             assert _CNL_0.match(name), name

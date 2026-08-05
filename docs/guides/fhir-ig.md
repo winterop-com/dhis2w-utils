@@ -218,19 +218,28 @@ file names, FHIR ids, and FSH names:
 
 - `"id"` (default) - stable, collision-free, script-agnostic. DHIS2 names are
   often non-latin or non-unique, so id-sourced ids never truncate or collide.
-  You get `terminology/Qdm5fPK5Ra9.fsh`, `D2OS_Qdm5fPK5Ra9_CS`, id
-  `d2-os-Qdm5fPK5Ra9-cs`. The UID keeps its own case: FHIR ids and file names
-  both permit mixed case, so the id reads straight back to the DHIS2 object.
-- `"name"` - human-readable slugs (`terminology/birth-type.fsh`,
-  `D2OS_BirthType_CS`, `d2-os-birth-type-cs`), truncated with a UID suffix when a
-  name overflows FHIR's 64-character id limit and disambiguated the same way when
-  two names collide. Both are reported as notes.
+  You get id `d2-os-Qdm5fPK5Ra9-cs`, name `D2OS_Qdm5fPK5Ra9_CS`, file
+  `terminology/CodeSystem-d2-os-Qdm5fPK5Ra9-cs.json`. The UID keeps its own case:
+  FHIR ids and file names both permit mixed case, so the id reads straight back to
+  the DHIS2 object.
+- `"name"` - human-readable slugs (id `d2-os-birth-type-cs`, name
+  `D2OS_BirthType_CS`, file `terminology/CodeSystem-d2-os-birth-type-cs.json`),
+  truncated with a UID suffix when a name overflows FHIR's 64-character id limit
+  and disambiguated the same way when two names collide. Both are reported as
+  notes.
 
 Whichever source is set, the names are assigned once over the whole option-set
 selection - a truncation or a collision suffix depends on the peers a set is
 assigned against - and every other target reads that assignment. A question's
 `answerValueSet` and an example's answer coding therefore name the very CodeSystem
 and ValueSet the same run writes, under `"name"` exactly as under `"id"`.
+
+The FSH name is load-bearing across the FSH/JSON boundary. A questionnaire binds
+its question with `answerValueSet = Canonical(D2OS_Qdm5fPK5Ra9_VS)` - an FSH
+name, not a URL - and the ValueSet it resolves to is pre-built JSON that never
+enters the FSH compile. That resolves because SUSHI fishes a predefined resource
+by its `name` element, and every emitted CodeSystem and ValueSet carries exactly
+the FSH name the binding asks for.
 
 Organisation-unit instances and files are outside `source` by construction:
 they are always UID-based (`registry/Organization-<UID>.json` and
@@ -373,9 +382,10 @@ d2w fhir generate all            All six, in that order
 Each target owns its subdirectories and syncs each one: writes what changed, leaves
 what did not, deletes generated files that no longer belong. `questionnaires` owns
 three under `ig/input/fsh/` (`data-sets/`, `event-programs/`, `data-dictionary/`);
-`foundation`, `option-sets`, and `examples` own one each; `org-units` owns two -
-`ig/input/fsh/organization/` for its profiles and terminology and
-`ig/input/resources/registry/` for the pre-built instance JSON; `pages` owns
+`foundation` and `examples` own one each under `ig/input/fsh/`; `option-sets` owns
+`ig/input/resources/terminology/` for its pre-built CodeSystem and ValueSet JSON;
+`org-units` owns two - `ig/input/fsh/organization/` for its profiles and terminology
+and `ig/input/resources/registry/` for the pre-built instance JSON; `pages` owns
 `ig/input/pagecontent/`, which holds markdown rather than FSH.
 
 ### `foundation`
@@ -384,9 +394,10 @@ Writes `foundation/`, the part of the IG that depends on `fhir.toml` alone and
 never touches DHIS2:
 
 - **`d2-aliases.fsh`** - the `$DHIS2-OU`, `$DHIS2-OU-CODE`, `$DHIS2-OS`, and
-  `$DHIS2-OS-CODE` aliases, built from `identifier_system_base`. The instance and
-  terminology files reference these, so this target is a prerequisite for a
-  compiling IG.
+  `$DHIS2-OS-CODE` aliases, built from `identifier_system_base`. The
+  organisation-unit profiles and the Questionnaire files reference these, so this
+  target is a prerequisite for a compiling IG. The pre-built JSON resolves the
+  same URLs itself and writes them out in full.
 - **`d2-naming-systems.fsh`** - one `NamingSystem` per alias URL, declaring what
   a DHIS2 identifier under it means. See [Identifiers](#identifiers).
 - **`d2-period.fsh`** - the `D2Period` extension plus its terminology.
@@ -465,9 +476,10 @@ EpisodeOfCare, MeasureReport identifiers will follow it).
   property: in id mode every concept gets `dhis2-code`, in code mode every
   concept gets `dhis2-id`. No concept goes without the pair.
 - **Option-set CodeSystems and ValueSets** carry the source set's own pair as
-  `^identifier` business identifiers, referenced through the `$DHIS2-OS` /
-  `$DHIS2-OS-CODE` aliases (`{base}/id/option-set` and
-  `{base}/id/option-set-code`).
+  `identifier` business identifiers, under `{base}/id/option-set` and
+  `{base}/id/option-set-code` - the same two URLs the `$DHIS2-OS` /
+  `$DHIS2-OS-CODE` aliases name, written out in full because these resources
+  ship as JSON rather than FSH.
 
 - **Questionnaires** carry the source data set's or event program's pair through
   `$DHIS2-DS` / `$DHIS2-DS-CODE` and `$DHIS2-PROGRAM` / `$DHIS2-PROGRAM-CODE`.
@@ -492,15 +504,42 @@ code precisely so those fall-backs get replaced with real codes over time.
 
 ### `option-sets`
 
-One file per option set under `terminology/`: a CodeSystem plus its ValueSet,
-the CodeSystem pointing back at the ValueSet through `^valueSet`.
+Two pre-built FHIR JSON documents per option set, into
+`ig/input/resources/terminology/`:
+
+```
+ig/input/resources/terminology/CodeSystem-d2-os-<UID>-cs.json
+ig/input/resources/terminology/ValueSet-d2-os-<UID>-vs.json
+```
+
+The CodeSystem points back at the ValueSet through `valueSet`, and the ValueSet
+includes the CodeSystem's URL through `compose.include`. A 235-option-set
+instance emits roughly 470 files; `generate` writes the full output in a few
+minutes.
+
+These are predefined resources: the publisher loads them verbatim and they never
+enter the FSH compile. `sushi-config.yaml` declares `path-resource:
+input/resources/terminology/*` so SUSHI recurses into the sub-folder, and
+`ig/input/resources/` is gitignored the way generated output should be. See
+[Build time and the two caches](#build-time-and-the-two-caches) for what that is
+worth.
+
+**Questionnaires bind by FSH name.** A question reads
+`answerValueSet = Canonical(D2OS_<UID>_VS)` and resolves to one of these JSON
+documents, because SUSHI fishes a predefined resource by its `name` element and
+every emitted CodeSystem and ValueSet carries exactly the FSH name the binding
+asks for.
 
 Concept codes are unique within a set by construction. Options are ordered by
 `sortOrder`; each one asks for a code, and if that code is already taken the
 option falls back to its UID, aggregated into one note. A CodeSystem that
-repeats a concept code will not compile, so this is enforced rather than warned
+repeats a concept code is invalid, so this is enforced rather than warned
 about. The example responses code their answers from the same assignment, so a
-`valueCoding` always names a concept this file really carries.
+`valueCoding` always names a concept this pair really carries.
+
+The target owns `terminology/` outright and sweeps it: JSON left there by a
+previous run that this run does not produce is deleted, so renaming or dropping
+an option set converges rather than accumulating.
 
 ### Data set and event program forms
 
@@ -611,13 +650,13 @@ category option combos as columns.
 element the generated questionnaires reference as one `D2DE_CS` CodeSystem (plus its
 ValueSet), and `data-dictionary/category-option-combos.fsh` does the same for every
 category option combo as `D2COC_CS`. Each item's `code` points into them, so a
-response can be read back to DHIS2 without consulting the questionnaire. Both live
-under `data-dictionary/` rather than `terminology/`, which is what keeps the
-option-set target from deleting them on its next run. Each of the three directories
-is swept against its own files, so narrowing the data-set selection deletes only the
-data-set questionnaires that left it. If you generated with an earlier build, delete
-the leftover `ig/input/fsh/questionnaires/` directory by hand - nothing manages it
-any more.
+response can be read back to DHIS2 without consulting the questionnaire. These two
+are FSH, under `ig/input/fsh/data-dictionary/` - a different tree from the pre-built
+option-set JSON in `ig/input/resources/terminology/`, and two files that carry
+enough concepts to dominate what the FSH compile costs (see
+[Build time and the two caches](#build-time-and-the-two-caches)). Each of the three
+directories is swept against its own files, so narrowing the data-set selection
+deletes only the data-set questionnaires that left it.
 
 **The option-set closure.** When `[generate.option_sets] include_ids` narrows the
 terminology and a selected form binds a question to an option set outside that
@@ -757,12 +796,12 @@ selection omits `partOf` and is reported, never dropped silently. A unit whose
 **Why JSON rather than FSH.** SUSHI loads `input/resources` and the sub-folders
 declared in `sushi-config.yaml` as *predefined resources*: they go into a virtual
 package, `sushi-local#LOCAL`, exactly as written, with no FSH parse and no
-conversion step. The registry is by far the largest thing in the IG, and this is
-what keeps it out of the compile entirely - see
+conversion step. The registry and the option-set terminology are the two largest
+things in the IG, and this is what keeps both out of the compile entirely - see
 [Registry scale](#registry-scale) for the measurements.
 
-That is also why the scaffolded `sushi-config.yaml` declares its `path-resource`
-globs:
+That is also why the scaffolded `sushi-config.yaml` declares a `path-resource`
+glob for each of the two:
 
 ```yaml
 parameters:
@@ -775,10 +814,11 @@ SUSHI recurses into sub-folders of `input/resources` on its own; the IG Publishe
 does not. The globs are what put the resources a sub-folder holds into the
 published ImplementationGuide.
 
-**The registry is not committed.** The scaffolded `.gitignore` covers
-`ig/input/resources/`, because it is generated output - thousands of files, and
-`make generate` rebuilds them in seconds. `ig/input/fsh/` is committed, so the
-FSH diff after a metadata change is still there to review.
+**The pre-built resources are not committed.** The scaffolded `.gitignore` covers
+`ig/input/resources/` - both the registry and the terminology - because it is
+generated output: thousands of files, and `make generate` rebuilds them all in a
+few minutes. `ig/input/fsh/` is committed, so the FSH diff after a metadata
+change is still there to review.
 
 **Geometry is embedded losslessly.** Whatever shape DHIS2 holds, the full GeoJSON
 travels into the Location through the standard `location-boundary-geojson`
@@ -924,9 +964,9 @@ which one applies is a property of the target, not a choice:
 
 | Target | Emitted as |
 | --- | --- |
-| Option CodeSystem concepts | `^designation[+].language` / `^designation[=].value` |
-| Option-set CodeSystem and ValueSet titles | `^title.extension` translation extension |
-| `Organization.name`, `Location.name` | `name.extension` translation extension |
+| Option CodeSystem concepts | `concept.designation[].language` / `.value` |
+| Option-set CodeSystem and ValueSet titles | `_title.extension` translation extension |
+| `Organization.name`, `Location.name` | `_name.extension` translation extension |
 | Org-unit CodeSystem concepts (`terminology = true`) | `^designation` |
 
 The translation extension is the standard
@@ -1077,9 +1117,9 @@ break on a real instance's IG:
 
 `ig/fsh.ini` raises the SUSHI timeout to 1800 seconds, settable at scaffold time
 with `d2w fhir init --sushi-timeout`. The IG publisher re-runs SUSHI internally
-with a 300-second default, which the hundreds of CodeSystem/ValueSet pairs an IG
-built from a real DHIS2 instance carries overrun, and the publisher then dies
-with exit 143 in its very first phase:
+with a 300-second default, which the FSH an IG built from a real DHIS2 instance
+carries overruns easily - a national instance compiles in minutes, not seconds -
+and the publisher then dies with exit 143 in its very first phase:
 
 ```
 Sushi timeout exceeded: 1800 seconds
@@ -1089,7 +1129,7 @@ Exception: Process exited with an error: 143 (Exit value: 143)
 The generous ceiling is deliberate: the embedded run has been seen to stall in
 its export phase, and a timeout that fires kills the whole build after a long
 wait rather than letting a slow run finish. Raise it with `--sushi-timeout` for
-an instance whose terminology is large enough to need more.
+an instance whose FSH is large enough to need more.
 
 `TX_SERVER` picks the terminology server the publisher validates against; it
 defaults to `http://tx.fhir.org`. Setting `TX_SERVER=n/a` disables terminology
@@ -1206,47 +1246,60 @@ actually costs:
 time make sushi
 ```
 
-On the Lao IG capped at `max_level = 4`, that is **9m40s** - the cost of the 337
-FSH instances left once the 4,698 registry instances are predefined JSON. Feeding
-SUSHI the whole 5,035 as FSH instead costs **23m22s**, which is the measure of
-what the predefined-resource path buys. Of the 9m40s, 240 CodeSystems account
-for **5m41s**: that is option-set terminology, and the registry dial does not
-reach it. [Build time](#build-time-and-the-two-caches) has the rest of the
-picture.
+On the uncapped Lao IG, that is **6m57s** - 25,162 registry instances and 235
+option sets, none of which the compile ever sees. The registry dial does not
+reach that number at all, because predefined resources are not a compile input.
+
+The counterfactual is what puts a figure on it. Take a `max_level = 4` cut of the
+same IG and hold everything else identical, including writing the option-set
+terminology as FSH, so the registry is the only variable: its 4,698 registry
+instances cost **23m22s** compiled from FSH and **9m40s** loaded as predefined
+JSON. [Build time and the two caches](#build-time-and-the-two-caches) has the
+rest of the picture.
 
 ### Build time and the two caches
 
-Generation is seconds; the toolchain is minutes. On the Sierra Leone demo (171
-option sets, 2,664 registry instances, 3,101 resources in all):
+Generation is the cheap half; the toolchain is where the minutes go. On the
+Sierra Leone demo (171 option sets, 2,664 registry instances, 3,101 resources in
+all):
 
 | Step | Time |
 | --- | --- |
 | `generate` | 16s |
 | `validate` | 7s |
 
-`make sushi` compiles FSH, so what it pays for is the terminology and the forms -
-the registry reaches it as predefined JSON and costs nothing. Both rows below are
-the same Lao instance with the same 337 FSH instances, differing only in how big
-the registry is:
+A national instance is larger: on the uncapped Lao instance `generate` writes the
+full output in a few minutes.
 
-| Registry | Registry resources | `sushi`, warm cache |
-| --- | --- | --- |
-| `max_level = 4` | 4,698 | 9m40s |
-| uncapped | 25,162 | 10m15s |
+`make sushi` compiles FSH, so what it pays for is the forms and the five
+CodeSystems that are FSH. The registry and the option-set terminology reach it as
+predefined JSON and cost nothing. On the uncapped Lao instance - 25,162 registry
+instances, 235 option sets, warm cache, 0 errors and 0 warnings - `make sushi` is
+**6m57s**.
 
-**Thirty-five seconds for five times the registry.** That is the property worth
-knowing: registry size is no longer a compile input, so `max_level` is not a
-build-time dial. Reach for it when you want a smaller *published* IG, because the
-publisher still renders a page per resource - not to make the compile finish.
+| What ships as predefined JSON | `sushi`, warm cache |
+| --- | --- |
+| the registry and the option-set terminology | 6m57s |
+| the registry alone, with the same 235 option sets written as FSH | 10m15s |
 
-What the compile does pay for is terminology. Of that 9m40s, **240 CodeSystems
-account for 5m41s** - more than half, and they are option sets, one
-CodeSystem/ValueSet pair each, all of it FSH. `[generate.option_sets] include_ids`
-is the dial that moves this number.
+**Predefined terminology is worth 3m18s on this IG**, and predefined registry is
+worth more than that again (see [Registry scale](#registry-scale)). Registry size
+is not a compile input either way, so `max_level` is not a build-time dial. Reach
+for it when you want a smaller *published* IG, because the publisher still renders
+a page per resource - not to make the compile finish.
+
+**Five CodeSystems compile from FSH**, and they are what that 6m57s buys:
+`D2OU_Level_CS`, `D2PeriodType_CS`, `D2FormType_CS`, `D2DE_CS`, and
+`D2COC_CS`. The last two are the `data-dictionary` support pairs - every data
+element and every category option combo the generated forms reference. Two files,
+2.5MB of FSH between them, which is why predefined option-set terminology saves
+3m18s rather than everything SUSHI spends on CodeSystems. The dials that reach
+those two are `[generate.data_sets]` and `[generate.event_programs]`: fewer forms
+means fewer data elements and fewer category option combos to publish.
 
 **Docker is not where the time goes**, which is worth stating because it is the
-next thing anyone suspects. The 23m22s all-FSH compile of that same IG - the
-counterfactual from [Registry scale](#registry-scale) - three ways:
+next thing anyone suspects. The 23m22s all-FSH compile from
+[Registry scale](#registry-scale) - three ways:
 
 | Run | Time |
 | --- | --- |
@@ -1319,9 +1372,10 @@ Every generated file opens with a header line, chosen by extension:
 
 A generate run writes its target subdirectory and then deletes only the
 header-bearing `.fsh` / `.md` files in that subdirectory that it did not just
-produce. JSON carries no comment syntax, so `ig/input/resources/registry/` cannot
-be marked that way: the registry target owns that directory outright and deletes
-every `*.json` in it the run did not produce. Put nothing of your own there.
+produce. JSON carries no comment syntax, so neither
+`ig/input/resources/registry/` nor `ig/input/resources/terminology/` can be
+marked that way: each target owns its directory outright and deletes every
+`*.json` in it the run did not produce. Put nothing of your own there.
 
 Three consequences worth relying on:
 
@@ -1339,8 +1393,9 @@ Three consequences worth relying on:
 
 Commit `ig/input/fsh/` and `ig/input/pagecontent/`. Reviewing that diff after a
 metadata change is the point. `ig/input/resources/` stays out of git - the
-scaffolded `.gitignore` covers it, because a national registry is thousands of
-JSON files that `make generate` rebuilds in seconds.
+scaffolded `.gitignore` covers it, because a national registry plus its
+terminology is thousands of JSON files that `make generate` rebuilds from the
+instance in a few minutes.
 
 ## See also
 

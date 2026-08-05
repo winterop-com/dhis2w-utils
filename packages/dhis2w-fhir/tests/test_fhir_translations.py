@@ -1,6 +1,7 @@
 """Golden tests for DHIS2 translations flowing into designations and FHIR translation extensions."""
 
 import json
+from typing import Any
 
 import pytest
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
@@ -60,26 +61,28 @@ _BO = OrganisationUnitIn(
     ],
 )
 
-_EXPECTED_CONCEPT_DESIGNATIONS = f"""* #kRRUtYaGett "Natural Birth"
-* #kRRUtYaGett ^property[+].code = #dhis2-code
-* #kRRUtYaGett ^property[=].valueString = "NB"
-* #kRRUtYaGett ^designation[+].language = #km
-* #kRRUtYaGett ^designation[=].value = "{_KHMER_NATURAL_BIRTH}"
-* #kRRUtYaGett ^designation[+].language = #lo
-* #kRRUtYaGett ^designation[=].value = "{_LAO_NATURAL_BIRTH}"
-"""
+_EXPECTED_CONCEPT = {
+    "code": "kRRUtYaGett",
+    "display": "Natural Birth",
+    "property": [{"code": "dhis2-code", "valueString": "NB"}],
+    "designation": [
+        {"language": "km", "value": _KHMER_NATURAL_BIRTH},
+        {"language": "lo", "value": _LAO_NATURAL_BIRTH},
+    ],
+}
 
-_EXPECTED_TITLE_EXTENSIONS = f"""* ^title.extension[+].url = "http://hl7.org/fhir/StructureDefinition/translation"
-* ^title.extension[=].extension[+].url = "lang"
-* ^title.extension[=].extension[=].valueCode = #km
-* ^title.extension[=].extension[+].url = "content"
-* ^title.extension[=].extension[=].valueString = "{_KHMER_BIRTH_TYPE}"
-* ^title.extension[+].url = "http://hl7.org/fhir/StructureDefinition/translation"
-* ^title.extension[=].extension[+].url = "lang"
-* ^title.extension[=].extension[=].valueCode = #lo
-* ^title.extension[=].extension[+].url = "content"
-* ^title.extension[=].extension[=].valueString = "{_LAO_BIRTH_TYPE}"
-"""
+_EXPECTED_TITLE_ELEMENT = {
+    "extension": [
+        {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [{"url": "lang", "valueCode": "km"}, {"url": "content", "valueString": _KHMER_BIRTH_TYPE}],
+        },
+        {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [{"url": "lang", "valueCode": "lo"}, {"url": "content", "valueString": _LAO_BIRTH_TYPE}],
+        },
+    ]
+}
 
 _EXPECTED_NAME_ELEMENT = {
     "extension": [
@@ -158,35 +161,39 @@ def test_name_translations_deduplicates_by_locale_keeping_the_first() -> None:
     assert [(item.locale, item.value) for item in selected] == [("pt-BR", "Primeiro")]
 
 
+def _option_set_documents(option_set: OptionSetIn, config: GenerateConfig) -> dict[str, dict[str, Any]]:
+    """Every emitted option-set file, keyed by its relative path, parsed back into a plain JSON document."""
+    build = build_option_set_artifacts([option_set], config, "http://example.org/fhir", ig_status="draft")
+    return {artifact.relative_path: json.loads(artifact.content) for artifact in build.artifacts}
+
+
 def test_option_concepts_carry_name_designations() -> None:
-    """Each option's NAME translations follow its property lines as CodeSystem concept designations."""
-    content = build_option_set_artifacts([_BIRTH_TYPE], _NAME_SOURCE, ig_status="draft").artifacts[0].content
-    assert _EXPECTED_CONCEPT_DESIGNATIONS in content
+    """Each option's NAME translations ride along with its property as CodeSystem concept designations."""
+    documents = _option_set_documents(_BIRTH_TYPE, _NAME_SOURCE)
+    assert documents["terminology/CodeSystem-d2-os-birth-type-cs.json"]["concept"] == [_EXPECTED_CONCEPT]
 
 
 def test_option_set_titles_carry_translation_extensions_on_both_artifacts() -> None:
-    """The set's NAME translations follow the Description line on the CodeSystem and the ValueSet alike."""
-    content = build_option_set_artifacts([_BIRTH_TYPE], _NAME_SOURCE, ig_status="draft").artifacts[0].content
-    assert content.count(_EXPECTED_TITLE_EXTENSIONS) == 2
-    code_system, value_set = content.split("\nValueSet: ", maxsplit=1)
-    assert _EXPECTED_TITLE_EXTENSIONS in code_system
-    assert _EXPECTED_TITLE_EXTENSIONS in value_set
+    """The set's NAME translations reach the `_title` sibling of the CodeSystem and the ValueSet alike."""
+    documents = _option_set_documents(_BIRTH_TYPE, _NAME_SOURCE)
+    assert documents["terminology/CodeSystem-d2-os-birth-type-cs.json"]["_title"] == _EXPECTED_TITLE_ELEMENT
+    assert documents["terminology/ValueSet-d2-os-birth-type-vs.json"]["_title"] == _EXPECTED_TITLE_ELEMENT
 
 
 def test_configured_locales_filter_the_emitted_translations() -> None:
     """With `locales = ["lo"]` the Khmer designations and title extensions drop out."""
-    content = build_option_set_artifacts([_BIRTH_TYPE], _LAO_ONLY, ig_status="draft").artifacts[0].content
-    assert _LAO_BIRTH_TYPE in content
-    assert _KHMER_BIRTH_TYPE not in content
-    assert _LAO_NATURAL_BIRTH in content
-    assert _KHMER_NATURAL_BIRTH not in content
+    emitted = json.dumps(_option_set_documents(_BIRTH_TYPE, _LAO_ONLY), ensure_ascii=False)
+    assert _LAO_BIRTH_TYPE in emitted
+    assert _KHMER_BIRTH_TYPE not in emitted
+    assert _LAO_NATURAL_BIRTH in emitted
+    assert _KHMER_NATURAL_BIRTH not in emitted
 
 
 def test_short_name_and_description_translations_are_not_emitted() -> None:
     """Only NAME translations reach the artifacts in this batch."""
-    content = build_option_set_artifacts([_BIRTH_TYPE], _NAME_SOURCE, ig_status="draft").artifacts[0].content
-    assert 'ປະເພດ"' not in content
-    assert "ຄຳອະທິບາຍ" not in content
+    emitted = json.dumps(_option_set_documents(_BIRTH_TYPE, _NAME_SOURCE), ensure_ascii=False)
+    assert '"ປະເພດ"' not in emitted
+    assert "ຄຳອະທິບາຍ" not in emitted
 
 
 def test_instances_carry_name_translation_extensions() -> None:

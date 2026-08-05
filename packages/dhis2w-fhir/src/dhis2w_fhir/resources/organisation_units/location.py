@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 from typing import TYPE_CHECKING
 
-from dhis2w_fhir.i18n import name_translations, translated_name_element
+from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import code_or_uid, escape_markup, flatten_whitespace
 from dhis2w_fhir.r4 import (
     BOUNDARY_EXTENSION_URL,
@@ -50,7 +50,7 @@ def build_location(
             Identifier(system=urls.code_identifier_system, value=code_or_uid(organisation_unit.code, uid)),
         ],
         name=flatten_whitespace(organisation_unit.name),
-        name_element=translated_name_element(name_translations(organisation_unit.translations, locales)),
+        name_element=translated_element(name_translations(organisation_unit.translations, locales)),
         description=flatten_whitespace(escape_markup(description)),
         status="inactive" if organisation_unit.closed else "active",
         position=position,

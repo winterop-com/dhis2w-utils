@@ -29,7 +29,11 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleResponseIn,
     ExampleSelection,
 )
-from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, option_set_identities
+from dhis2w_fhir.resources.option_sets import (
+    TERMINOLOGY_DIRECTORY,
+    build_option_set_artifacts,
+    option_set_identities,
+)
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.organisation_units import (
     REGISTRY_DIRECTORY,
@@ -267,7 +271,7 @@ async def generate_foundation(project: FhirProject) -> GenerateReport:
 
 
 async def generate_option_sets(profile: Profile, project: FhirProject) -> GenerateReport:
-    """Generate one CodeSystem/ValueSet FSH file per configured option set into `terminology/`."""
+    """Generate one pre-built CodeSystem and ValueSet document per configured option set into `terminology/`."""
     config = project.config.generate
     notes: list[str] = []
     async with open_client(profile) as client:
@@ -278,11 +282,12 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
         )
         sources = await _closure_sources(client, config)
     inputs = _selected_option_sets([_option_set_input(model) for model in models], sources, config, notes)
-    build = build_option_set_artifacts(inputs, config, ig_status=project.config.ig.status)
-    sync = sync_artifacts(project.fsh_directory, "terminology", build.artifacts)
+    build = build_option_set_artifacts(inputs, config, project.config.ig.canonical, ig_status=project.config.ig.status)
+    sync = sync_json_artifacts(project.resources_directory, TERMINOLOGY_DIRECTORY, build.artifacts)
     return GenerateReport(
         project_root=project.project_root,
-        target_directory="terminology",
+        target_base="ig/input",
+        target_directory=f"resources/{TERMINOLOGY_DIRECTORY}",
         deleted_files=sync.deleted,
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),

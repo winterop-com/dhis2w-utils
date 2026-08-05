@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -398,13 +399,18 @@ def test_questionnaire_link_targets_match_the_emitted_instances() -> None:
 def test_code_system_link_targets_match_the_emitted_ids() -> None:
     """Every terminology.md link names the CodeSystem id the option-set target actually emits."""
     config = GenerateConfig()
-    build = build_option_set_artifacts([_DESCRIBED_OPTION_SET, _PLAIN_OPTION_SET], config, ig_status="draft")
+    build = build_option_set_artifacts(
+        [_DESCRIBED_OPTION_SET, _PLAIN_OPTION_SET], config, "http://example.org/fhir", ig_status="draft"
+    )
     terminology = _pages()["terminology.md"]
-    emitted_ids = [re.search(r"^Id: (.+)$", artifact.content, re.M) for artifact in build.artifacts]
+    emitted_ids = [
+        json.loads(artifact.content)["id"]
+        for artifact in build.artifacts
+        if artifact.relative_path.startswith("terminology/CodeSystem-")
+    ]
     assert len(emitted_ids) == 2
-    for match in emitted_ids:
-        assert match is not None
-        assert f"](CodeSystem-{match.group(1)}.html)" in terminology
+    for emitted_id in emitted_ids:
+        assert f"](CodeSystem-{emitted_id}.html)" in terminology
 
 
 def test_organization_intro_names_the_emitted_instance() -> None:

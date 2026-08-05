@@ -37,9 +37,10 @@ d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/d
 #     --publisher "Demo Org" --max-level 4
 
 # --sushi-timeout sets [FSH] timeout in ig/fsh.ini, the ceiling the IG publisher gives its
-# internal SUSHI run. That run compiles the FSH - the profiles, the option-set terminology
-# and the forms - and an IG whose FSH overruns the ceiling fails the build with exit 143.
-# The registry is not FSH, so it is not what the ceiling is guarding.
+# internal SUSHI run. That run compiles the FSH - the profiles, the extensions, the forms
+# and the data-dictionary support terminology - and an IG whose FSH overruns the ceiling
+# fails the build with exit 143. Neither the registry nor the option-set terminology is
+# FSH, so neither is what the ceiling is guarding.
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" --sushi-timeout 5400
 
@@ -64,7 +65,12 @@ cd demo-ig
 # Reads fhir.toml only - it never opens a DHIS2 client.
 d2w fhir generate foundation
 
-# Option sets: one CodeSystem/ValueSet pair per set under ig/input/fsh/terminology/.
+# Option sets: one CodeSystem and one ValueSet per set as pre-built FHIR JSON under
+# ig/input/resources/terminology/ - CodeSystem-d2-os-<uid>-cs.json and
+# ValueSet-d2-os-<uid>-vs.json. SUSHI loads them as predefined resources, so hundreds of
+# option sets never enter the FSH compile. Each document carries the FSH-style name
+# (D2OS_<uid>_CS / _VS) that a Questionnaire's answerValueSet = Canonical(...) binding
+# resolves against, because SUSHI fishes a predefined resource by its name element.
 # Concept codes are DHIS2 option UIDs; the DHIS2 code rides along as a dhis2-code
 # property (set concept_code_source = "code" in fhir.toml to swap them).
 d2w fhir generate option-sets
@@ -98,9 +104,11 @@ d2w fhir generate examples
 # hierarchy as Organization/<uid> and Location/<uid> references. Geometry is embedded as
 # a GeoJSON Feature; Point and Polygon geometry also yield Location.position.
 # SUSHI loads input/resources and the sub-folders sushi-config.yaml declares as
-# predefined resources - no FSH conversion - which is why the registry is JSON.
-# ig/input/resources/ is gitignored by the scaffold: it is generated output, rebuilt in
-# seconds, while ig/input/fsh/ is committed and is the diff worth reviewing.
+# predefined resources - no FSH conversion - which is why the registry and the
+# option-set terminology are both JSON.
+# ig/input/resources/ is gitignored by the scaffold: it is generated output, rebuilt from
+# the instance in a few minutes, while ig/input/fsh/ is committed and is the diff worth
+# reviewing.
 # Narrow the tree with [generate.organisation_units] root / max_level.
 d2w fhir generate org-units
 
@@ -123,8 +131,9 @@ d2w fhir generate pages
 # Or every target in one run (foundation, option-sets, questionnaires, examples,
 # org-units, pages - pages last, so it sees everything the run generated).
 # Re-running replaces previously generated .fsh and .md files (identified by their header
-# line); hand-authored ones are never touched. JSON carries no header, so the registry
-# target owns ig/input/resources/registry/ outright and clears what it did not write.
+# line); hand-authored ones are never touched. JSON carries no header, so each JSON target
+# owns its directory outright and clears what it did not write - option-sets owns
+# ig/input/resources/terminology/, org-units owns ig/input/resources/registry/.
 d2w fhir generate all
 
 # Preflight: check the instance's option-set codes and names for FHIR-safety
