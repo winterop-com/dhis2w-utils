@@ -28,14 +28,16 @@ build: ## build supporting images (postgres + glowroot-installer)
 	@echo ">>> Building supporting images"
 	@$(COMPOSE) build
 
-up: ## start the base stack in the background (keeps volumes)
+up: ## start the base stack in the background (keeps volumes; refuses a different major than the volume holds)
 	@echo ">>> Starting DHIS2 $(DHIS2_VERSION) + pgAdmin"
+	@scripts/_check_volume_major.sh $(DHIS2_VERSION)
 	@$(COMPOSE) up -d --remove-orphans
 
 up-fresh: ## wipe volumes + logs, then start the base stack (always pulls the pinned image fresh)
 	@echo ">>> Fresh start for DHIS2 $(DHIS2_VERSION)"
 	@rm -rf home/logs/*
 	@$(COMPOSE) down -v
+	@printf '%s' "$(DHIS2_VERSION)" > home/.volume-major
 	# `--pull always` so codegen + e2e-dump builds always regenerate against the
 	# exact registry image for the pin, never a stale local cache.
 	@$(COMPOSE) up -d --pull always --remove-orphans
@@ -47,6 +49,7 @@ down: ## stop the stack (keeps volumes)
 clean: ## nuke everything — stop, remove volumes, wipe runtime data
 	@echo ">>> Wiping stack + volumes + logs"
 	@$(COMPOSE) down -v --remove-orphans
+	@rm -f home/.volume-major
 	@rm -rf home/logs/* home/glowroot
 
 ps: ## show container state
