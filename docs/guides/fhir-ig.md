@@ -1134,13 +1134,14 @@ time. It is what pushes a build past the `[FSH] timeout` and into exit 143.
 Levels are where the weight sits, because a hierarchy fans out at the bottom. In
 that same instance:
 
-| Level | Units |
-| --- | --- |
-| 1 | 4 |
-| 2 | 66 |
-| 3 | 894 |
-| 4 | 3,734 |
-| 5 | 20,464 |
+| Level | Units | Instances |
+| --- | --- | --- |
+| 1 | 2 | 4 |
+| 2 | 33 | 66 |
+| 3 | 447 | 894 |
+| 4 | 1,867 | 3,734 |
+| 5 | 10,232 | 20,464 |
+| **total** | **12,581** | **25,162** |
 
 Level 5 alone is 81% of the registry. Cutting it with `max_level = 4` drops the
 IG from 25,162 registry instances to 4,698 - an 81% cut for one line of config:
@@ -1168,10 +1169,16 @@ timeout and will actually finish and tell you how long the compile takes:
 time make sushi
 ```
 
-Set `[FSH] timeout` above that with headroom. Budget for the publisher running
-its **own** SUSHI over the same FSH afterwards - that double compile is the
-single largest cost in the chain, so a 40-minute SUSHI run is not a 40-minute
-build.
+Set `[FSH] timeout` above that with headroom, and budget for the publisher
+running its **own** SUSHI over the same FSH afterwards - that double compile is
+the single largest cost in the chain.
+
+Past a certain size, though, a larger ceiling stops being an answer. The
+25,499-instance IG above compiles in **3h27m**, so it would need a timeout near
+13,000 seconds and a build near seven hours, every time. At that scale the
+registry dials are the fix and the timeout is not: `max_level = 4` takes the same
+IG to 4,698 registry instances. Raising the ceiling alone only buys a slower
+failure.
 
 ### Build time and the two caches
 
@@ -1187,8 +1194,22 @@ Measured on the Sierra Leone demo (171 option sets, 2,664 registry instances,
 | `build`, all three wire formats | 24m36s |
 | `build`, JSON only | 18m54s |
 
-Two things about that table matter more than the totals. The first is that the
-cold and warm `sushi` runs differ by three and a half minutes of pure package
+Resource count is what moves those numbers, and it moves them steeply. The same
+warm `sushi` step measured against a Lao national IG, whose registry carries
+12,581 organisation units:
+
+| Step | Sierra Leone demo (3,101 resources) | Lao national (25,985 resources) |
+| --- | --- | --- |
+| `sushi`, warm cache | 5m26s | 207m10s |
+
+An 8x resource count costs 38x the time, so this does not scale the way a first
+guess suggests. The long run finishes clean - 0 errors, 0 warnings - so it is
+throughput, not content. It peaked at 2.9 GiB inside a container offered 15.8
+GiB, which is why an IG this size hits the SUSHI timeout (exit 143) long before
+it hits an OOM kill (exit 137).
+
+Two things about the demo table matter more than the totals. The first is that
+the cold and warm `sushi` runs differ by three and a half minutes of pure package
 download, which is what the package cache below buys back. The second is that
 the publisher runs **its own** SUSHI over the same FSH - about seven and a half
 minutes of a twenty minute build - so a chain that calls `make sushi` and then
