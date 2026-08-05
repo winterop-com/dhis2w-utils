@@ -1,4 +1,4 @@
-"""Derived FSH names and ids for organisation-unit artifacts under the configurable naming tokens."""
+"""Derived FSH names, ids, and absolute URLs for organisation-unit artifacts under the naming tokens."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict
 from dhis2w_fhir.names import join_id_tokens
 
 if TYPE_CHECKING:
-    from dhis2w_fhir.config import NamingConfig
+    from dhis2w_fhir.config import GenerateConfig, NamingConfig
 
 _PROFILE_FALLBACK_PREFIX = "D2"
 
@@ -79,3 +79,33 @@ class OrganisationUnitNaming(BaseModel):
     def terminology_id(self, *suffix_tokens: str) -> str:
         """FHIR id for an org-unit terminology artifact (e.g. `d2-org-unit-level-cs`, `d2-ou-cs`)."""
         return join_id_tokens(self.prefix, self.organisation_unit, *suffix_tokens)
+
+
+class OrganisationUnitInstanceUrls(BaseModel):
+    """The absolute URLs a pre-built Organization/Location references: its profile, level codes, identifiers.
+
+    A pre-built resource carries what FSH resolves through `InstanceOf`, `$DHIS2-OU`, and a
+    CodeSystem name, so the canonical of the IG and the configured identifier system base are
+    resolved once here and read straight off the model by both emitters.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    organization_profile: str
+    location_profile: str
+    level_code_system: str
+    identifier_system: str
+    code_identifier_system: str
+
+    @classmethod
+    def from_config(cls, config: GenerateConfig, canonical: str) -> OrganisationUnitInstanceUrls:
+        """Derive the instance URLs from the IG canonical plus the `[generate]` identifier system base."""
+        names = OrganisationUnitNaming.from_naming(config.naming)
+        identifier_base = config.identifier_system_base
+        return cls(
+            organization_profile=f"{canonical}/StructureDefinition/{names.organization_profile_id}",
+            location_profile=f"{canonical}/StructureDefinition/{names.location_profile_id}",
+            level_code_system=f"{canonical}/CodeSystem/{names.terminology_id('level', 'cs')}",
+            identifier_system=f"{identifier_base}/id/org-unit",
+            code_identifier_system=f"{identifier_base}/id/org-unit-code",
+        )

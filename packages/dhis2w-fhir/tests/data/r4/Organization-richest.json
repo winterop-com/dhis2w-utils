@@ -1,0 +1,68 @@
+{
+  "resourceType": "Organization",
+  "id": "mOsABqg3Cqw",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "mOsABqg3Cqw"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OUL4HC20170839"
+    }
+  ],
+  "name": "HC Photang",
+  "_name": {
+    "extension": [
+      {
+        "url": "http://hl7.org/fhir/StructureDefinition/translation",
+        "extension": [
+          {
+            "url": "lang",
+            "valueCode": "lo"
+          },
+          {
+            "url": "content",
+            "valueString": "ຮໝນ ພໍ່ຕັ້ງ"
+          }
+        ]
+      }
+    ]
+  },
+  "alias": [
+    "Photang Health Center"
+  ],
+  "type": [
+    {
+      "coding": [
+        {
+          "code": "level-4",
+          "system": "http://example.org/fhir/CodeSystem/d2-ou-level-cs",
+          "display": "Level 4"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/djhtLGN3IvA"
+  },
+  "telecom": [
+    {
+      "system": "phone",
+      "value": "98770095, 0309342578"
+    }
+  ],
+  "contact": [
+    {
+      "name": {
+        "text": "ທ. ເພັດສະໄໝ ເທບສົມບັດ, ນ. ຄຳປະສົງນິນທະສອນ, ຈັນທະລອນ ລາດນິຍົມ"
+      }
+    }
+  ],
+  "active": true
+}

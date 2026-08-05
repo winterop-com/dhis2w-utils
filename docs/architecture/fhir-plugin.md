@@ -46,7 +46,8 @@ Makefile                    setup / upgrade / generate / validate / cache-init /
                             writable by the publisher user; sushi and build depend on it
 Dockerfile                  ghcr.io/fhir/ig-publisher-localdev + fsh-sushi
 .gitignore                  The build output, caches, publisher side products,
-                            reports/, and .venv - never uv.lock, the pinned toolchain
+                            ig/input/resources/, reports/, and .venv - never uv.lock,
+                            the pinned toolchain
 ig/sushi-config.yaml        SUSHI IG identity (id, canonical, publisher)
 ig/ig.ini                   IG publisher entry point (fhir2.base.template)
 ig/fsh.ini                  Raises the publisher's internal SUSHI timeout to 1800s
@@ -69,6 +70,20 @@ Its `menu:` names the six generated site pages between `Home` and `Artifacts`, a
 it carries no `pages:` section: SUSHI publishes every markdown file under
 `ig/input/pagecontent/` on its own, so a page added by `generate pages` needs no
 configuration to appear.
+
+Its `parameters:` block carries `excludexml` / `excludettl` (JSON is the only
+wire format worth a file and a rendered page per resource) plus a `path-resource`
+glob per predefined-resource sub-folder the scaffold reserves:
+
+```yaml
+  path-resource:
+    - input/resources/registry/*
+    - input/resources/terminology/*
+```
+
+SUSHI recurses into sub-folders of `input/resources` and loads what it finds into
+the virtual `sushi-local#LOCAL` package; the IG Publisher does not recurse. The
+globs are what carry those resources into the published ImplementationGuide.
 
 It carries no `groups:` section. SUSHI's grouping matches by exact resource
 reference, with no wildcard and no FSH-side `groupingId`, so grouping a real
@@ -389,7 +404,7 @@ what keeps a disaggregated example past the validator's
 `QuestionnaireResponse: Structural Error: items are out of order`.
 
 An answer to an `ORGANISATION_UNIT` question is a `valueReference` at
-`Location-<uid>`, matching the `#reference` item type the questionnaire declares
+`Location/<uid>`, matching the `#reference` item type the questionnaire declares
 and the `Location` instances the registry target publishes. `REFERENCE` and
 `TRACKER_ASSOCIATE` point at DHIS2 objects the IG publishes nothing for yet, so a
 synthetic example leaves them unanswered alongside the attachment and geometry
@@ -397,7 +412,7 @@ types, in one aggregate note.
 
 ## Organisation units -> instances
 
-Under `ig/input/fsh/organization/`:
+The definitional half is FSH, under `ig/input/fsh/organization/`:
 
 - `profiles.fsh` - `D2Organization` and `D2Location`. Both take their `^status`
   from `[ig] status` and both slice `identifier` on `system` into `dhis2id 1..1`
@@ -409,20 +424,38 @@ Under `ig/input/fsh/organization/`:
   extension loose.
 - `org-unit-levels.fsh` - `D2OU_Level_CS`/`_VS` covering the levels observed in the
   selection.
-- `org-units-level-<n>.fsh` - one file per hierarchy level. Every unit becomes an
-  `Organization-<UID>` *and* a `Location-<UID>` - the FHIR pair of legal entity and
-  physical place - each carrying both identifier slices, with `partOf` mirroring
-  the hierarchy on both sides (omitted for the root or when the parent falls
-  outside the selection - noted, never silent). A unit whose `closedDate` has
-  passed emits `active = false` / `status = #inactive`. Instances are
-  `Usage: #definition`: they are the IG's normative content, not illustrative
-  examples. Each one pins `id` to the bare UID, so the compiled files and URLs
-  read `Organization-<uid>.json` / `Location-<uid>.json`; the FSH instance names
-  keep their `Organization` / `Location` prefixes, which is the namespace that
-  keeps the two unique within one file.
 - `org-units-terminology.fsh` (only with `terminology = true`) - the whole
   selection as one `D2OU_CS` with `level` / `parent` / `dhis2-code` concept
   properties, for flows that want the hierarchy as codes instead of resources.
+
+The registry itself is pre-built R4 JSON, under `ig/input/resources/registry/` -
+`Organization-<uid>.json` and `Location-<uid>.json`, two files per unit, `id`
+the bare UID. Each carries both identifier slices and its profile in `meta`, with
+`partOf` mirroring the hierarchy on both sides as a relative reference
+(`Organization/<uid>`, `Location/<uid>`), omitted for the root or when the parent
+falls outside the selection - noted, never silent. A unit whose `closedDate` has
+passed carries `active: false` / `status: "inactive"`.
+
+**Why JSON.** SUSHI loads `input/resources` and the sub-folders `path-resource`
+declares as *predefined resources*: they land in the virtual `sushi-local#LOCAL`
+package exactly as written, with no FSH parse and no conversion pass. The
+registry is the largest thing in the IG and it is pure data - no profiling, no
+invariants, nothing FSH's authoring conveniences buy - so the compile has nothing
+to do with it. The measured cost of the alternative is in the guide under
+[Registry scale](../guides/fhir-ig.md#registry-scale).
+
+The documents are serialised from the pydantic models in `dhis2w_fhir/r4/` -
+`Organization`, `Location`, and the element types they compose - rather than
+rendered from a template, because JSON is a data structure and jinja would be
+building one out of text. Every model is `frozen`, alias-aware, and
+`extra="forbid"`, so a round trip through
+`model_validate` / `model_dump_json(exclude_none=True, by_alias=True)` reproduces
+the document key for key.
+
+`ig/input/resources/` is gitignored by the scaffold. It is generated output that
+`make generate` rebuilds in seconds, and a national hierarchy puts tens of
+thousands of files there; `ig/input/fsh/` stays committed, so the reviewable diff
+is the definitional one.
 
 Every artifact representing a DHIS2 object exposes both DHIS2 identifiers
 wherever FHIR has a slot, and the code slot repeats the UID when the DHIS2 code is
@@ -532,12 +565,22 @@ trees are never touched, and re-running converges instead of stacking files. Fil
 content already matches are not rewritten, so a no-op regenerate leaves both the
 timestamps and `git status` untouched.
 
+JSON has no comment syntax, so a header cannot mark the registry files.
+`sync_json_artifacts` owns `ig/input/resources/registry/` outright instead: it
+deletes every `*.json` in that directory the run did not produce, without an
+`is_generated_file` check, and leaves files of other extensions and nested
+sub-directories alone. The directory is gitignored, so nothing hand-authored
+belongs there.
+
 ## Toolchain performance
 
-Generation is seconds and the publisher is the better part of twenty minutes;
-the measured step-by-step table lives in the guide under
+Generation is seconds and the toolchain is minutes; the measured numbers live in
+the guide under
 [Build time and the two caches](../guides/fhir-ig.md#build-time-and-the-two-caches).
-Three structural facts explain the shape of it. The publisher runs **its own**
+Four structural facts explain the shape of it. The registry is predefined JSON,
+so the compile scales with the terminology and the forms rather than with the
+hierarchy - and the publisher's rendering pass, which writes a page per resource,
+is where registry size lands instead. The publisher runs **its own**
 SUSHI over the same FSH, so a chain that compiles first and then publishes pays
 for the compile twice - which is why `make refresh` goes straight from
 `validate` to `build`. The phases are serial, SUSHI then the validator then
@@ -641,8 +684,11 @@ Flat modules carry what every component shares: `names.py` (slug, FSH
 literal, and URI helpers), `i18n.py` (the `TranslationIn` projection, locale
 normalisation, and NAME selection), `notes.py` (the one aggregate-note
 formatter),
-`writer.py` (the `FshArtifact` / `FshBuild` contract every emitter returns,
-plus the header-aware sync that writes it), and `config.py` (the `fhir.toml`
+`writer.py` (the `FshArtifact` / `FshBuild` and `JsonArtifact` / `JsonBuild`
+contracts every emitter returns, plus the header-aware sync behind the first and
+the directory-owning sync behind the second), `r4/schemas.py` (the FHIR R4
+resource and element models the pre-built JSON is serialised from), and
+`config.py` (the `fhir.toml`
 document - `IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`,
 `FhirProject` - with discovery, load, and save). `service.py` holds the
 shared orchestration and its own `GenerateReport` / `GenerateAllReport`;
@@ -685,10 +731,13 @@ The components:
   `capture.md` tabulates rather than restates - and is read by none of them.
 - `resources/organisation_units/` - split by FHIR resource: `naming.py`
   derives every artifact name and id from the `[generate.naming]` tokens,
-  `organization.py` builds the profiles artifact and the Organization
-  instances, `location.py` the Location instances (position, boundary
-  extension, `partOf`), `terminology.py` the level pair and the optional
-  whole-selection pair. Group / group-set emission lands here next.
+  `organization.py` builds the profiles artifact, the `REGISTRY_DIRECTORY`
+  constant, and the Organization instances, `location.py` the Location instances
+  (position, boundary extension, `partOf`), `terminology.py` the level pair and
+  the optional whole-selection pair. The two instance builders return
+  `r4.schemas` models that `organization.py` serialises into `JsonArtifact`s;
+  only the profiles and the terminology go through jinja. Group / group-set
+  emission lands here next.
 - `foundation/` - the instance-independent artifacts: the DHIS2 identifier
   aliases and the `D2Period` extension, with `FoundationNaming` deriving their
   names from the prefix token.
@@ -698,8 +747,9 @@ The components:
 - `validation/` - the two check passes, `report.py` rendering the Markdown and
   CSV, `pdf.py` the PDF, and the finding/report schemas.
 
-`resources/` is reserved for DHIS2 resource domains, which is why
-`scaffold/` and `validation/` stay top level.
+`resources/` is reserved for DHIS2 resource domains, which is why `scaffold/`,
+`validation/`, and `r4/` stay top level - the last of those is FHIR's own R4
+vocabulary, shared by whichever resource domain emits JSON.
 
 Dependencies point one way: `config.py` composes the per-component selection
 tables (`OptionSetSelection`, `OrganisationUnitSelection`, and the shared
@@ -717,6 +767,12 @@ loaded through a `PackageLoader` scoped to that subpackage
 lines and rebuilds stay byte-stable). The Python side resolves every
 conditional into a pydantic view-model and renders; the templates hold the
 layout.
+
+JSON is the exception, and for the same reason: it is a data structure, not a
+text layout. The registry documents are built as `r4.schemas` models and
+serialised with `model_dump_json(exclude_none=True, by_alias=True, indent=2)`,
+which is byte-stable for the same input and cannot emit a malformed document the
+way a template can.
 
 The service opens the version-neutral
 `dhis2w_core.client_context.open_client` and maps generated `OptionSet` /

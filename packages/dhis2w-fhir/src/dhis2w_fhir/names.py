@@ -40,22 +40,30 @@ def escape_fsh_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def flatten_whitespace(value: str) -> str:
+    """Collapse every run of whitespace into single spaces - the one-line form an element value carries."""
+    return " ".join((value or "").split())
+
+
 def quote(value: str) -> str:
     """Render a double-quoted FSH string literal, escaping backslashes/quotes and flattening newlines."""
-    flattened = " ".join((value or "").split())
-    return f'"{escape_fsh_string(flattened)}"'
+    return f'"{escape_fsh_string(flatten_whitespace(value))}"'
 
 
-def page_text(value: str) -> str:
-    """Render an IG page title or description as a quoted FSH literal, HTML-escaping the markup characters.
+def escape_markup(value: str) -> str:
+    """HTML-escape the three markup characters IG page furniture cannot carry raw.
 
     The `fhir2.base.template` breadcrumb pastes a resource's page title straight into HTML and the
     publisher then strict-parses the result, so a DHIS2 name holding `<` aborts the build. Only the
-    page-facing `Title:` / `Description:` lines take this: the element-level `* title` / `* name`
-    carry the DHIS2 text verbatim, because those are data rather than page furniture.
+    page-facing text takes this: the element-level `name` and `alias` carry the DHIS2 text verbatim,
+    because those are data rather than page furniture.
     """
-    escaped = (value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    return quote(escaped)
+    return (value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def page_text(value: str) -> str:
+    """Render an IG page title or description as a quoted FSH literal, HTML-escaping the markup characters."""
+    return quote(escape_markup(value))
 
 
 def markdown_text(value: str, *, table_cell: bool = False) -> str:

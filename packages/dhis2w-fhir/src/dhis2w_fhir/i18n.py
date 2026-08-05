@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_fhir.names import quote
+from dhis2w_fhir.names import flatten_whitespace, quote
+from dhis2w_fhir.r4 import Extension, NameElement
 
 #: The standard R4 extension carrying a translated string alongside the primary one.
 TRANSLATION_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/translation"
@@ -55,3 +56,21 @@ def name_translations(translations: list[TranslationIn], locales: list[str]) -> 
             continue
         selected[locale] = translation.model_copy(update={"locale": locale})
     return [selected[locale] for locale in sorted(selected)]
+
+
+def translated_name_element(translations: list[TranslationIn]) -> NameElement | None:
+    """The `_name` sibling carrying one standard translation extension per NAME translation, or None for zero."""
+    if not translations:
+        return None
+    return NameElement(
+        extension=[
+            Extension(
+                url=TRANSLATION_EXTENSION_URL,
+                extension=[
+                    Extension(url="lang", valueCode=translation.locale),
+                    Extension(url="content", valueString=flatten_whitespace(translation.value)),
+                ],
+            )
+            for translation in translations
+        ]
+    )

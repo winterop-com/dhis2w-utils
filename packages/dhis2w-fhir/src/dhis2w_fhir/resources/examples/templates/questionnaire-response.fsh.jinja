@@ -13,7 +13,7 @@ Usage: #example
 {% endif %}
 * questionnaire = "{{ example.questionnaire_url }}"
 * status = #{{ example.status_code }}
-* subject = Reference(Location-{{ example.organisation_unit_uid }})
+* subject = Reference(Location/{{ example.organisation_unit_uid }})
 {% if example.authored is not none %}
 * authored = "{{ example.authored }}"
 {% endif %}

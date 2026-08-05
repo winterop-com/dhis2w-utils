@@ -2,8 +2,8 @@
 
 `d2w fhir` turns a DHIS2 instance's metadata into a FHIR Implementation Guide
 source tree: a [SUSHI](https://fshschool.org/docs/sushi/) project whose FSH
-(FHIR Shorthand) files are generated from the DHIS2 API and compiled to FHIR
-resources by the IG publisher.
+(FHIR Shorthand) definitions and pre-built registry JSON are generated from the
+DHIS2 API and published as FHIR resources by the IG publisher.
 
 You get three things:
 
@@ -11,9 +11,10 @@ You get three things:
   `sushi-config.yaml`, a `pyproject.toml` pinning the d2w toolchain, a Makefile,
   and a Dockerfile carrying SUSHI plus the IG publisher. Nothing else to install
   but `uv` and Docker.
-- **`d2w fhir generate`** reads DHIS2 metadata and writes FSH into the project.
-  Re-running converges: generated files are replaced, hand-authored FSH beside
-  them is never touched.
+- **`d2w fhir generate`** reads DHIS2 metadata and writes the IG source into the
+  project: FSH for the definitional artifacts, pre-built FHIR JSON for the
+  organisation-unit registry. Re-running converges: generated files are replaced,
+  hand-authored FSH beside them is never touched.
 - **`d2w fhir validate`** checks the instance's codes for FHIR-safety before you
   generate anything, and writes a report in Markdown, CSV, and PDF.
 
@@ -40,7 +41,7 @@ uv run d2w profile add demo --url https://play.im.dhis2.org/stable-2-42-1 --user
 # 4. Check the instance's codes before generating anything.
 make validate
 
-# 5. Generate the FSH.
+# 5. Generate the IG source.
 make generate
 
 # 6. Compile it. `make setup` builds the docker image once; `make build` runs the
@@ -232,9 +233,9 @@ assigned against - and every other target reads that assignment. A question's
 and ValueSet the same run writes, under `"name"` exactly as under `"id"`.
 
 Organisation-unit instances and files are outside `source` by construction:
-they are always UID-based (`Organization-<UID>` / `Location-<UID>` in
-`org-units-level-<n>.fsh`, each resource `id` the bare UID), because a hierarchy
-of thousands of units has neither unique names nor stable ones.
+they are always UID-based (`registry/Organization-<UID>.json` and
+`registry/Location-<UID>.json`, each resource `id` the bare UID), because a
+hierarchy of thousands of units has neither unique names nor stable ones.
 
 **The tokens** compose artifact names by merging the prefix and kind token and
 underscoring the segments after it, and ids by kebab-joining each non-empty token. With the defaults, an option set becomes
@@ -372,8 +373,10 @@ d2w fhir generate all            All six, in that order
 Each target owns its subdirectories and syncs each one: writes what changed, leaves
 what did not, deletes generated files that no longer belong. `questionnaires` owns
 three under `ig/input/fsh/` (`data-sets/`, `event-programs/`, `data-dictionary/`);
-the other four FSH targets own one each; `pages` owns `ig/input/pagecontent/`, which
-holds markdown rather than FSH.
+`foundation`, `option-sets`, and `examples` own one each; `org-units` owns two -
+`ig/input/fsh/organization/` for its profiles and terminology and
+`ig/input/resources/registry/` for the pre-built instance JSON; `pages` owns
+`ig/input/pagecontent/`, which holds markdown rather than FSH.
 
 ### `foundation`
 
@@ -732,18 +735,50 @@ that reason: switching to `instance` is a deliberate act, and the generated
 
 ### `org-units`
 
-Under `organization/`:
+This target writes two trees. The definitional half is FSH under
+`ig/input/fsh/organization/`:
 
 - **`profiles.fsh`** - the `D2Organization` and `D2Location` profiles.
 - **`org-unit-levels.fsh`** - the level CodeSystem/ValueSet backing
   `Organization.type`, covering the levels actually present in the selection.
-- **`org-units-level-<n>.fsh`** - one file per hierarchy level. Every unit
-  becomes an `Organization` (the legal entity) *and* a `Location` (the physical
-  place), with `partOf` mirroring the DHIS2 hierarchy on both. A unit whose
-  parent falls outside the selection omits `partOf` and is reported, never
-  dropped silently. A unit whose `closedDate` has passed is emitted with
-  `active = false` and `status = #inactive`.
 - **`org-units-terminology.fsh`** - only with `terminology = true`.
+
+The registry itself is pre-built FHIR JSON under `ig/input/resources/registry/`,
+two files per unit:
+
+- **`Organization-<UID>.json`** - the legal entity.
+- **`Location-<UID>.json`** - the physical place.
+
+`partOf` mirrors the DHIS2 hierarchy on both, as a relative reference
+(`Organization/<UID>`, `Location/<UID>`). A unit whose parent falls outside the
+selection omits `partOf` and is reported, never dropped silently. A unit whose
+`closedDate` has passed carries `active: false` and `status: "inactive"`.
+
+**Why JSON rather than FSH.** SUSHI loads `input/resources` and the sub-folders
+declared in `sushi-config.yaml` as *predefined resources*: they go into a virtual
+package, `sushi-local#LOCAL`, exactly as written, with no FSH parse and no
+conversion step. The registry is by far the largest thing in the IG, and this is
+what keeps it out of the compile entirely - see
+[Registry scale](#registry-scale) for the measurements.
+
+That is also why the scaffolded `sushi-config.yaml` declares its `path-resource`
+globs:
+
+```yaml
+parameters:
+  path-resource:
+    - input/resources/registry/*
+    - input/resources/terminology/*
+```
+
+SUSHI recurses into sub-folders of `input/resources` on its own; the IG Publisher
+does not. The globs are what put the resources a sub-folder holds into the
+published ImplementationGuide.
+
+**The registry is not committed.** The scaffolded `.gitignore` covers
+`ig/input/resources/`, because it is generated output - thousands of files, and
+`make generate` rebuilds them in seconds. `ig/input/fsh/` is committed, so the
+FSH diff after a metadata change is still there to review.
 
 **Geometry is embedded losslessly.** Whatever shape DHIS2 holds, the full GeoJSON
 travels into the Location through the standard `location-boundary-geojson`
@@ -1042,26 +1077,19 @@ break on a real instance's IG:
 
 `ig/fsh.ini` raises the SUSHI timeout to 1800 seconds, settable at scaffold time
 with `d2w fhir init --sushi-timeout`. The IG publisher re-runs SUSHI internally
-with a 300-second default, which an IG built from a real DHIS2 instance -
-hundreds of CodeSystem/ValueSet pairs plus thousands of instances - overruns, and
-the publisher dies with exit 143 in its very first phase. The generous ceiling is
-deliberate: the demo's internal SUSHI run normally takes about seven minutes, but
-it has been seen to stall in its export phase, and a timeout that fires kills the
-whole build after a long wait rather than letting a slow run finish.
-
-1800 seconds is not the ceiling for every instance. It was measured against the
-Sierra Leone demo's 2,664 registry instances, and a national hierarchy is far
-larger - a 12,581-unit registry emits 25,162 instances and blows straight through
-it, the build dying half an hour in with the same exit 143:
+with a 300-second default, which the hundreds of CodeSystem/ValueSet pairs an IG
+built from a real DHIS2 instance carries overrun, and the publisher then dies
+with exit 143 in its very first phase:
 
 ```
 Sushi timeout exceeded: 1800 seconds
 Exception: Process exited with an error: 143 (Exit value: 143)
 ```
 
-`d2w fhir generate org-units` warns as soon as a registry crosses the size where
-that becomes likely, so the problem surfaces in seconds rather than at the end of
-a long build. See [Registry scale](#registry-scale) for what to do about it.
+The generous ceiling is deliberate: the embedded run has been seen to stall in
+its export phase, and a timeout that fires kills the whole build after a long
+wait rather than letting a slow run finish. Raise it with `--sushi-timeout` for
+an instance whose terminology is large enough to need more.
 
 `TX_SERVER` picks the terminology server the publisher validates against; it
 defaults to `http://tx.fhir.org`. Setting `TX_SERVER=n/a` disables terminology
@@ -1122,14 +1150,16 @@ Location. A national hierarchy dwarfs everything else put together:
 
 | Source | Instances |
 | --- | --- |
-| `organization/` (12,581 units) | 25,162 |
+| `resources/registry/` (12,581 units) | 25,162 |
 | `examples/` | 162 |
 | `data-sets/` | 113 |
 | `event-programs/` | 49 |
 | `foundation/` | 13 |
 
-That registry is 38 MB of the 52 MB of FSH, and SUSHI compiles instances one at a
-time. It is what pushes a build past the `[FSH] timeout` and into exit 143.
+Every one of those 25,162 is pre-built JSON, which SUSHI loads as a predefined
+resource rather than compiling, so the registry stays out of the FSH compile
+entirely. What it does reach is the IG publisher, which writes and renders a page
+per resource - so the registry is what sets the wall clock of `make build`.
 
 Levels are where the weight sits, because a hierarchy fans out at the bottom. In
 that same instance:
@@ -1157,74 +1187,66 @@ Like the other seeding flags it is offline - the level is written as given and
 never checked against an instance - and a level below 1 is rejected rather than
 silently producing an empty registry.
 
-`d2w fhir generate org-units` prints a warning once a registry is large enough to
-threaten the timeout, naming both dials:
+`d2w fhir generate org-units` prints a warning once a registry passes 10,000
+instances, naming both dials:
 
 ```
-note: 12581 organisation units emit 25162 instances, which the IG publisher's
-internal SUSHI run may not compile inside the `[FSH] timeout` of ig/fsh.ini - the
-build then fails with exit 143. Narrow the registry with
-`[generate.organisation_units]` max_level or root, or raise the timeout.
+note: 12581 organisation units emit 25162 instances. They ship as pre-built JSON
+so SUSHI never compiles them, but the IG publisher renders a page per resource,
+so they set the wall clock of `make build`. Narrow the registry with
+`[generate.organisation_units]` max_level or root if the build is longer than you
+want.
 ```
 
-If you genuinely need every level, measure before guessing at a ceiling.
-`make sushi` runs SUSHI directly instead of through the publisher, so it has no
-timeout and will actually finish and tell you how long the compile takes:
+Measure before guessing at a level. `make sushi` runs SUSHI directly instead of
+through the publisher, so it has no timeout and tells you what the compile
+actually costs:
 
 ```bash
 time make sushi
 ```
 
-Set `[FSH] timeout` above that with headroom, and budget for the publisher
-running its **own** SUSHI over the same FSH afterwards - that double compile is
-the single largest cost in the chain.
-
-Past a certain size, though, a larger ceiling stops being an answer. The
-25,499-instance IG above compiles in **3h27m**, so it would need a timeout near
-13,000 seconds and a build near seven hours, every time. The same IG capped at
-`max_level = 4` is 5,035 instances and compiles in **23m22s** - comfortably
-inside the scaffolded 1800-second default, with no ceiling change at all. At that
-scale the registry dial is the fix and the timeout is not; raising the ceiling
-alone only buys a slower failure. [Build time](#build-time-and-the-two-caches)
-has both measurements.
+On the Lao IG capped at `max_level = 4`, that is **9m40s** - the cost of the 337
+FSH instances left once the 4,698 registry instances are predefined JSON. Feeding
+SUSHI the whole 5,035 as FSH instead costs **23m22s**, which is the measure of
+what the predefined-resource path buys. Of the 9m40s, 240 CodeSystems account
+for **5m41s**: that is option-set terminology, and the registry dial does not
+reach it. [Build time](#build-time-and-the-two-caches) has the rest of the
+picture.
 
 ### Build time and the two caches
 
-Measured on the Sierra Leone demo (171 option sets, 2,664 registry instances,
-3,101 resources in all), one step at a time:
+Generation is seconds; the toolchain is minutes. On the Sierra Leone demo (171
+option sets, 2,664 registry instances, 3,101 resources in all):
 
 | Step | Time |
 | --- | --- |
 | `generate` | 16s |
 | `validate` | 7s |
-| `sushi`, cold package cache | 9m05s |
-| `sushi`, warm package cache | 5m26s |
-| `build`, all three wire formats | 24m36s |
-| `build`, JSON only | 18m54s |
 
-Resource count is what moves those numbers, and it moves them steeply. The same
-warm `sushi` step, measured against a Lao national IG at two registry depths:
+`make sushi` compiles FSH, so what it pays for is the terminology and the forms -
+the registry reaches it as predefined JSON and costs nothing. Both rows below are
+the same Lao instance with the same 337 FSH instances, differing only in how big
+the registry is:
 
-| IG | Resources | `sushi`, warm cache | Per resource |
-| --- | --- | --- | --- |
-| Sierra Leone demo | 3,101 | 5m26s | 105 ms |
-| Lao, `max_level = 4` | 5,521 | 23m22s | 254 ms |
-| Lao, full registry | 25,985 | 207m10s | 478 ms |
+| Registry | Registry resources | `sushi`, warm cache |
+| --- | --- | --- |
+| `max_level = 4` | 4,698 | 9m40s |
+| uncapped | 25,162 | 10m15s |
 
-The per-resource column is the point: it is not a constant. Each resource costs
-more as the IG grows, so 5x the resources bought 9x the time between the last two
-rows, and capping the registry one level bought back **8.9x** - three and a half
-hours down to twenty-three minutes. Both runs finish clean, 0 errors and 0
-warnings, so this is throughput rather than content.
+**Thirty-five seconds for five times the registry.** That is the property worth
+knowing: registry size is no longer a compile input, so `max_level` is not a
+build-time dial. Reach for it when you want a smaller *published* IG, because the
+publisher still renders a page per resource - not to make the compile finish.
 
-That superlinearity is why guessing at these numbers is a bad idea, and why
-`max_level` is the lever that matters. Memory scales far more gently: the full
-run peaked at 2.9 GiB inside a container offered 15.8 GiB, the capped one at 1.9
-GiB, which is why an IG this size meets the SUSHI timeout (exit 143) long before
-an OOM kill (exit 137).
+What the compile does pay for is terminology. Of that 9m40s, **240 CodeSystems
+account for 5m41s** - more than half, and they are option sets, one
+CodeSystem/ValueSet pair each, all of it FSH. `[generate.option_sets] include_ids`
+is the dial that moves this number.
 
 **Docker is not where the time goes**, which is worth stating because it is the
-next thing anyone suspects. The same capped IG, three ways:
+next thing anyone suspects. The 23m22s all-FSH compile of that same IG - the
+counterfactual from [Registry scale](#registry-scale) - three ways:
 
 | Run | Time |
 | --- | --- |
@@ -1237,34 +1259,32 @@ memory and writes once at the end, so there is no sustained file traffic across
 the mount to punish. Dropping the container altogether saves about 22%, and that
 figure covers host-vs-VM CPU and a different JS runtime together. The remaining
 ~78% is SUSHI's own work, so a native toolchain is not the answer to a slow
-build: the uncapped IG would still take some two and three quarter hours.
+build.
 
-Two things about the demo table matter more than the totals. The first is that
-the cold and warm `sushi` runs differ by three and a half minutes of pure package
-download, which is what the package cache below buys back. The second is that
-the publisher runs **its own** SUSHI over the same FSH - about seven and a half
-minutes of a twenty minute build - so a chain that calls `make sushi` and then
+Two structural facts matter more than any single total. The first is that a cold
+package cache costs about three and a half minutes of pure download, which is
+what the package cache below buys back. The second is that the publisher runs
+**its own** SUSHI over the same FSH, so a chain that calls `make sushi` and then
 `make build` compiles everything twice. `make refresh` therefore goes straight
 from `validate` to `build`; run `make sushi` on its own when you want the fast
 gate without publishing a site.
 
-Terminology is not where the time goes, which is worth stating because it is the
-natural suspicion: connecting to `TX_SERVER` and opening the terminology cache
-cost about fourteen seconds together. A DHIS2-derived IG codes its concepts in
-its own CodeSystems, and the publisher resolves those internally.
+Terminology *service* time is not where the publisher's time goes, which is worth
+stating because it is the natural suspicion: connecting to `TX_SERVER` and
+opening the terminology cache cost about fourteen seconds together. A
+DHIS2-derived IG codes its concepts in its own CodeSystems, and the publisher
+resolves those internally.
 
-What is left after the duplicate SUSHI is dominated by sheer resource count: the
-publisher writes and renders every resource, so the registry - which is 2,664 of
-those 3,101 resources - sets the pace. The scaffolded `sushi-config.yaml`
-therefore publishes JSON only (`excludexml` and `excludettl`), because the two
-extra wire formats add a file and a rendered page per resource for content that
-consumers and the tooling read as JSON anyway. On the demo that is 5m42s off the
-build and half the output: 13,710 files and 466MB instead of 26,120 and 874MB,
-with the same 0 errors and 0 warnings. Together with dropping the duplicate
-SUSHI, a full regenerate-and-publish goes from about thirty minutes to under
-nineteen. `[generate.organisation_units]
-max_level` is the other lever, and it is a config change rather than a build
-flag: fewer levels, proportionally less of everything.
+What the publisher does pay for is sheer resource count: it writes and renders
+every resource, so the registry - 2,664 of the demo's 3,101 resources - sets the
+pace. The scaffolded `sushi-config.yaml` therefore publishes JSON only
+(`excludexml` and `excludettl`), because the two extra wire formats add a file
+and a rendered page per resource for content that consumers and the tooling read
+as JSON anyway. On the demo that halves the output: 13,710 files and 466MB
+instead of 26,120 and 874MB, with the same 0 errors and 0 warnings.
+`[generate.organisation_units] max_level` is the other lever on that pass, and it
+is a config change rather than a build flag: fewer levels, proportionally less of
+everything.
 
 Most of what a *repeat* build would otherwise re-pay is cached, and the scaffold
 wires both caches up for you:
@@ -1299,7 +1319,11 @@ Every generated file opens with a header line, chosen by extension:
 
 A generate run writes its target subdirectory and then deletes only the
 header-bearing `.fsh` / `.md` files in that subdirectory that it did not just
-produce. Three consequences worth relying on:
+produce. JSON carries no comment syntax, so `ig/input/resources/registry/` cannot
+be marked that way: the registry target owns that directory outright and deletes
+every `*.json` in it the run did not produce. Put nothing of your own there.
+
+Three consequences worth relying on:
 
 - **Hand-authored content is safe.** Drop your own `.fsh` files anywhere in
   `ig/input/fsh/`, or your own markdown in `ig/input/pagecontent/`, including
@@ -1313,8 +1337,10 @@ produce. Three consequences worth relying on:
 - **Unchanged output is not rewritten.** Files whose content matches keep their
   timestamps, so a no-op regenerate leaves a clean `git status`.
 
-Commit the generated tree. Reviewing the FSH diff after a metadata change is the
-point.
+Commit `ig/input/fsh/` and `ig/input/pagecontent/`. Reviewing that diff after a
+metadata change is the point. `ig/input/resources/` stays out of git - the
+scaffolded `.gitignore` covers it, because a national registry is thousands of
+JSON files that `make generate` rebuilds in seconds.
 
 ## See also
 

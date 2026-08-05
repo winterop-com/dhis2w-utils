@@ -6,6 +6,7 @@ accessors: `/api/optionSets` and `/api/organisationUnits`.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 
@@ -146,22 +147,23 @@ async def test_generate_organisation_units_across_majors(
     assert report.boundary_count == 1
     assert report.written_files == [
         "organization/org-unit-levels.fsh",
-        "organization/org-units-level-1.fsh",
-        "organization/org-units-level-2.fsh",
         "organization/profiles.fsh",
+        "registry/Location-ImspTQPwCqd.json",
+        "registry/Location-O6uvpzGd5pu.json",
+        "registry/Organization-ImspTQPwCqd.json",
+        "registry/Organization-O6uvpzGd5pu.json",
     ]
-    level_two = (tmp_path / "ig" / "input" / "fsh" / "organization" / "org-units-level-2.fsh").read_text(
-        encoding="utf-8"
+    registry = tmp_path / "ig" / "input" / "resources" / "registry"
+    district_organization = json.loads((registry / "Organization-O6uvpzGd5pu.json").read_text(encoding="utf-8"))
+    district_location = json.loads((registry / "Location-O6uvpzGd5pu.json").read_text(encoding="utf-8"))
+    assert district_organization["meta"]["profile"] == ["http://example.org/fhir/StructureDefinition/d2-organization"]
+    assert district_organization["partOf"] == {"reference": "Organization/ImspTQPwCqd"}
+    assert district_location["position"] == {"longitude": -11.7383, "latitude": 7.9647}
+    assert district_location["extension"][0]["url"] == (
+        "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson"
     )
-    assert "* partOf = Reference(Organization-ImspTQPwCqd)" in level_two
-    assert "* position.latitude = 7.9647" in level_two
-    assert "* position.longitude = -11.7383" in level_two
-    assert '* extension[+].url = "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson"' in level_two
-    assert "* partOf = Reference(Location-ImspTQPwCqd)" in level_two
-    level_one = (tmp_path / "ig" / "input" / "fsh" / "organization" / "org-units-level-1.fsh").read_text(
-        encoding="utf-8"
-    )
-    assert "Instance: Location-ImspTQPwCqd" in level_one
+    assert district_location["partOf"] == {"reference": "Location/ImspTQPwCqd"}
+    assert (registry / "Location-ImspTQPwCqd.json").is_file()
 
 
 _QUESTIONNAIRE_DATA_SETS_PAYLOAD = {
@@ -307,10 +309,10 @@ async def test_translations_are_requested_and_mapped(
     assert '* ^title.extension[=].extension[=].valueString = "ປະເພດການເກີດ"' in terminology
     assert "* #kRRUtYaGett ^designation[+].language = #lo" in terminology
     assert '* #kRRUtYaGett ^designation[=].value = "ການເກີດແບບທຳມະຊາດ"' in terminology
-    instances = (tmp_path / "ig" / "input" / "fsh" / "organization" / "org-units-level-1.fsh").read_text(
-        encoding="utf-8"
-    )
-    assert instances.count('* name.extension[=].extension[=].valueString = "ຊຽຣາລີໂອນ"') == 2
+    registry = tmp_path / "ig" / "input" / "resources" / "registry"
+    for stem in ("Organization-ImspTQPwCqd", "Location-ImspTQPwCqd"):
+        document = json.loads((registry / f"{stem}.json").read_text(encoding="utf-8"))
+        assert document["_name"]["extension"][0]["extension"][1]["valueString"] == "ຊຽຣາລີໂອນ"
 
 
 @respx.mock

@@ -6,8 +6,10 @@ from dhis2w_fhir.writer import (
     GENERATED_HEADER,
     GENERATED_MARKDOWN_HEADER,
     FshArtifact,
+    JsonArtifact,
     clean_generated_files,
     sync_artifacts,
+    sync_json_artifacts,
     write_artifacts,
 )
 
@@ -20,6 +22,11 @@ def _artifact(relative_path: str, content: str = "CodeSystem: X\n") -> FshArtifa
 def _page(relative_path: str, content: str = "# Forms\n") -> FshArtifact:
     """Build a small markdown page artifact for writer tests."""
     return FshArtifact(relative_path=relative_path, kind="page", fsh_name="forms.md", content=content)
+
+
+def _json(relative_path: str, content: str = '{"resourceType": "Organization"}\n') -> JsonArtifact:
+    """Build a small JSON artifact for writer tests."""
+    return JsonArtifact(relative_path=relative_path, content=content)
 
 
 def test_write_prepends_header(tmp_path: Path) -> None:
@@ -120,3 +127,69 @@ def test_page_sync_is_byte_stable_on_a_second_run(tmp_path: Path) -> None:
     assert second.written == []
     assert second.deleted == []
     assert second.unchanged == ["pagecontent/forms.md", "pagecontent/registry.md"]
+
+
+def test_json_sync_writes_new_files_verbatim(tmp_path: Path) -> None:
+    """A new JSON artifact is reported in written and lands on disk with no header prepended."""
+    report = sync_json_artifacts(tmp_path, "registry", [_json("registry/Organization-abc123.json")])
+    assert report.written == ["registry/Organization-abc123.json"]
+    destination = tmp_path / "registry" / "Organization-abc123.json"
+    assert destination.read_text(encoding="utf-8") == '{"resourceType": "Organization"}\n'
+
+
+def test_json_sync_is_byte_stable_on_a_second_run(tmp_path: Path) -> None:
+    """Byte-identical content on a second run reports unchanged and leaves the file's timestamp alone."""
+    artifacts = [_json("registry/Organization-abc123.json")]
+    sync_json_artifacts(tmp_path, "registry", artifacts)
+    written_stat = (tmp_path / "registry" / "Organization-abc123.json").stat().st_mtime_ns
+    report = sync_json_artifacts(tmp_path, "registry", artifacts)
+    assert report.written == []
+    assert report.deleted == []
+    assert report.unchanged == ["registry/Organization-abc123.json"]
+    assert (tmp_path / "registry" / "Organization-abc123.json").stat().st_mtime_ns == written_stat
+
+
+def test_json_sync_rewrites_changed_content(tmp_path: Path) -> None:
+    """Content that differs from disk is rewritten and reported in written."""
+    sync_json_artifacts(tmp_path, "registry", [_json("registry/Organization-abc123.json")])
+    changed = _json("registry/Organization-abc123.json", '{"resourceType": "Organization", "id": "abc123"}\n')
+    report = sync_json_artifacts(tmp_path, "registry", [changed])
+    assert report.written == ["registry/Organization-abc123.json"]
+    assert report.unchanged == []
+    destination = tmp_path / "registry" / "Organization-abc123.json"
+    assert destination.read_text(encoding="utf-8") == '{"resourceType": "Organization", "id": "abc123"}\n'
+
+
+def test_json_sync_deletes_stale_json_by_name(tmp_path: Path) -> None:
+    """A JSON file the build no longer produces is deleted and its name appears in deleted."""
+    first = [_json("registry/keep.json"), _json("registry/stale.json")]
+    sync_json_artifacts(tmp_path, "registry", first)
+    report = sync_json_artifacts(tmp_path, "registry", [_json("registry/keep.json")])
+    assert report.deleted == ["stale.json"]
+    assert not (tmp_path / "registry" / "stale.json").exists()
+    assert (tmp_path / "registry" / "keep.json").exists()
+
+
+def test_json_sync_leaves_other_extensions_alone(tmp_path: Path) -> None:
+    """A non-JSON file in the owned directory survives the sweep."""
+    (tmp_path / "registry").mkdir()
+    (tmp_path / "registry" / "notes.txt").write_text("Keep me.\n", encoding="utf-8")
+    report = sync_json_artifacts(tmp_path, "registry", [_json("registry/keep.json")])
+    assert report.deleted == []
+    assert (tmp_path / "registry" / "notes.txt").read_text(encoding="utf-8") == "Keep me.\n"
+
+
+def test_json_sync_sweeps_only_the_target_subdirectory(tmp_path: Path) -> None:
+    """A JSON file in a different subdirectory is outside the owned directory and survives."""
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "other.json").write_text('{"resourceType": "Patient"}\n', encoding="utf-8")
+    report = sync_json_artifacts(tmp_path, "registry", [_json("registry/keep.json")])
+    assert report.deleted == []
+    assert (tmp_path / "elsewhere" / "other.json").exists()
+
+
+def test_json_sync_creates_nested_parent_directories(tmp_path: Path) -> None:
+    """A nested relative path creates every parent directory on the way down."""
+    report = sync_json_artifacts(tmp_path, "registry", [_json("registry/organizations/Organization-abc123.json")])
+    assert report.written == ["registry/organizations/Organization-abc123.json"]
+    assert (tmp_path / "registry" / "organizations" / "Organization-abc123.json").is_file()

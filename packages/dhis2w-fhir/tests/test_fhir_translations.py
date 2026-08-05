@@ -1,5 +1,7 @@
 """Golden tests for DHIS2 translations flowing into designations and FHIR translation extensions."""
 
+import json
+
 import pytest
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.i18n import TranslationIn, name_translations, normalize_locale
@@ -79,18 +81,18 @@ _EXPECTED_TITLE_EXTENSIONS = f"""* ^title.extension[+].url = "http://hl7.org/fhi
 * ^title.extension[=].extension[=].valueString = "{_LAO_BIRTH_TYPE}"
 """
 
-_EXPECTED_NAME_EXTENSIONS = f"""* name = "Bo"
-* name.extension[+].url = "http://hl7.org/fhir/StructureDefinition/translation"
-* name.extension[=].extension[+].url = "lang"
-* name.extension[=].extension[=].valueCode = #km
-* name.extension[=].extension[+].url = "content"
-* name.extension[=].extension[=].valueString = "{_KHMER_BO}"
-* name.extension[+].url = "http://hl7.org/fhir/StructureDefinition/translation"
-* name.extension[=].extension[+].url = "lang"
-* name.extension[=].extension[=].valueCode = #lo
-* name.extension[=].extension[+].url = "content"
-* name.extension[=].extension[=].valueString = "{_LAO_BO}"
-"""
+_EXPECTED_NAME_ELEMENT = {
+    "extension": [
+        {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [{"url": "lang", "valueCode": "km"}, {"url": "content", "valueString": _KHMER_BO}],
+        },
+        {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [{"url": "lang", "valueCode": "lo"}, {"url": "content", "valueString": _LAO_BO}],
+        },
+    ]
+}
 
 _EXPECTED_TERMINOLOGY_DESIGNATIONS = f"""* #O6uvpzGd5pu ^designation[+].language = #km
 * #O6uvpzGd5pu ^designation[=].value = "{_KHMER_BO}"
@@ -189,11 +191,12 @@ def test_short_name_and_description_translations_are_not_emitted() -> None:
 
 def test_instances_carry_name_translation_extensions() -> None:
     """Both the Organization and the Location name gain one translation extension per NAME translation."""
-    content = build_organisation_unit_instances([_BO], GenerateConfig()).artifacts[0].content
-    assert content.count(_EXPECTED_NAME_EXTENSIONS) == 2
-    organization, location = content.split("\nInstance: Location-", maxsplit=1)
-    assert _EXPECTED_NAME_EXTENSIONS in organization
-    assert _EXPECTED_NAME_EXTENSIONS in location
+    build = build_organisation_unit_instances([_BO], GenerateConfig(), "http://example.org/fhir")
+    documents = {artifact.relative_path: json.loads(artifact.content) for artifact in build.artifacts}
+    assert documents["registry/Organization-O6uvpzGd5pu.json"]["name"] == "Bo"
+    assert documents["registry/Organization-O6uvpzGd5pu.json"]["_name"] == _EXPECTED_NAME_ELEMENT
+    assert documents["registry/Location-O6uvpzGd5pu.json"]["name"] == "Bo"
+    assert documents["registry/Location-O6uvpzGd5pu.json"]["_name"] == _EXPECTED_NAME_ELEMENT
 
 
 def test_organisation_unit_terminology_concepts_carry_designations() -> None:

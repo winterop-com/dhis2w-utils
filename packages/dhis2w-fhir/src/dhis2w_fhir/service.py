@@ -32,6 +32,7 @@ from dhis2w_fhir.resources.examples.schemas import (
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, option_set_identities
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.organisation_units import (
+    REGISTRY_DIRECTORY,
     build_organisation_unit_instances,
     build_organisation_unit_level_terminology,
     build_organisation_unit_profiles,
@@ -58,7 +59,7 @@ from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
 from dhis2w_fhir.validation import build_code_validation
 from dhis2w_fhir.validation.schemas import FhirValidationReport, MetadataCollectionIn, MetadataItemIn
-from dhis2w_fhir.writer import FshArtifact, sync_artifacts
+from dhis2w_fhir.writer import FshArtifact, JsonArtifact, sync_artifacts, sync_json_artifacts
 
 if TYPE_CHECKING:
     from dhis2w_client import Dhis2Client
@@ -190,10 +191,10 @@ _SWEEP_EXCLUDED_COLLECTIONS = frozenset({"options", "system"})
 #: Every organisation unit emits an Organization and a Location, so the registry is twice the unit count.
 _INSTANCES_PER_ORGANISATION_UNIT = 2
 
-#: Registry instances past which the scaffolded `[FSH] timeout` is at risk. The Sierra Leone demo
-#: compiles its 2,664 registry instances in roughly seven minutes of the publisher's internal SUSHI
-#: run, which puts the 1800-second ceiling near this count.
-_SUSHI_TIMEOUT_RISK_INSTANCES = 10_000
+#: Registry instances past which the IG publisher's rendering pass dominates the build. The registry
+#: itself never reaches SUSHI - it ships as pre-built JSON - but the publisher still renders a page
+#: per resource, so the wall clock of `make build` tracks this count.
+_REGISTRY_RENDER_COST_INSTANCES = 10_000
 
 
 def _sweep_collections(raw: dict[str, object]) -> list[MetadataCollectionIn]:
@@ -602,20 +603,20 @@ async def _fetch_organisation_units(
 
 
 def _registry_scale_notes(organisation_unit_count: int) -> list[str]:
-    """Warn while generating when the registry is large enough to overrun the publisher's SUSHI timeout."""
+    """Warn while generating when the registry is large enough to dominate the publisher's rendering pass."""
     instance_count = organisation_unit_count * _INSTANCES_PER_ORGANISATION_UNIT
-    if instance_count < _SUSHI_TIMEOUT_RISK_INSTANCES:
+    if instance_count < _REGISTRY_RENDER_COST_INSTANCES:
         return []
     return [
-        f"{organisation_unit_count} organisation units emit {instance_count} instances, which the IG "
-        "publisher's internal SUSHI run may not compile inside the `[FSH] timeout` of ig/fsh.ini - the "
-        "build then fails with exit 143. Narrow the registry with `[generate.organisation_units]` "
-        "max_level or root, or raise the timeout."
+        f"{organisation_unit_count} organisation units emit {instance_count} instances. They ship as "
+        "pre-built JSON so SUSHI never compiles them, but the IG publisher renders a page per resource, "
+        "so they set the wall clock of `make build`. Narrow the registry with "
+        "`[generate.organisation_units]` max_level or root if the build is longer than you want."
     ]
 
 
 async def generate_organisation_units(profile: Profile, project: FhirProject) -> GenerateReport:
-    """Generate Organization/Location instances (and optional terminology) into `organization/`."""
+    """Generate the profiles and terminology into `organization/`, and the instance registry into `registry/`."""
     selection = project.config.generate.organisation_units
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
@@ -625,6 +626,7 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
     generate_config = project.config.generate
     ig_status = project.config.ig.status
     artifacts: list[FshArtifact] = [build_organisation_unit_profiles(generate_config, ig_status=ig_status)]
+    registry: list[JsonArtifact] = []
     if organisation_units:
         artifacts.append(
             build_organisation_unit_level_terminology(
@@ -633,8 +635,8 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
                 ig_status=ig_status,
             )
         )
-        instances = build_organisation_unit_instances(organisation_units, generate_config)
-        artifacts.extend(instances.artifacts)
+        instances = build_organisation_unit_instances(organisation_units, generate_config, project.config.ig.canonical)
+        registry = instances.artifacts
         notes.extend(instances.notes)
         if selection.terminology:
             artifacts.append(
@@ -644,12 +646,14 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
         notes.append("no organisation units matched the configured selection")
     notes.extend(_registry_scale_notes(len(organisation_units)))
     sync = sync_artifacts(project.fsh_directory, "organization", artifacts)
+    registry_sync = sync_json_artifacts(project.resources_directory, REGISTRY_DIRECTORY, registry)
     return GenerateReport(
         project_root=project.project_root,
-        target_directory="organization",
-        deleted_files=sync.deleted,
-        written_files=sync.written,
-        unchanged_count=len(sync.unchanged),
+        target_base="ig/input",
+        target_directory=f"fsh/organization, resources/{REGISTRY_DIRECTORY}",
+        deleted_files=[*sync.deleted, *registry_sync.deleted],
+        written_files=[*sync.written, *registry_sync.written],
+        unchanged_count=len(sync.unchanged) + len(registry_sync.unchanged),
         organisation_unit_count=len(organisation_units),
         position_count=sum(1 for organisation_unit in organisation_units if organisation_unit.latitude is not None),
         boundary_count=sum(

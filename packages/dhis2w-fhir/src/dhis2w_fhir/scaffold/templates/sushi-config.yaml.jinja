@@ -18,9 +18,15 @@ publisher:
 # The publisher writes every resource as JSON, XML and Turtle, plus a rendered page per
 # format. A DHIS2-derived IG publishes thousands of instances, so the two extra formats
 # cost far more build time than they earn; JSON is what consumers and the tooling read.
+# SUSHI recurses into sub-folders of input/resources, the IG Publisher does not. The
+# pre-built JSON d2w writes lands two levels down, so each sub-folder is declared as a
+# path-resource glob to put those resources in the ImplementationGuide.
 parameters:
   excludexml: "true"
   excludettl: "true"
+  path-resource:
+    - input/resources/registry/*
+    - input/resources/terminology/*
 
 menu:
   Home: index.html

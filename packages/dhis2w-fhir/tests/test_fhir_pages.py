@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from dhis2w_fhir import (
     GenerateConfig,
@@ -407,13 +408,9 @@ def test_code_system_link_targets_match_the_emitted_ids() -> None:
 
 
 def test_organization_intro_names_the_emitted_instance() -> None:
-    """The Organization intro file stem is the very instance name the registry target emits."""
-    build = build_organisation_unit_instances([_ROOT_UNIT, _CHILD_UNIT], GenerateConfig())
-    emitted = {
-        match
-        for artifact in build.artifacts
-        for match in re.findall(r"^Instance: (Organization-\S+)$", artifact.content, re.M)
-    }
+    """The Organization intro file stem is the very registry file stem the org-unit target emits."""
+    build = build_organisation_unit_instances([_ROOT_UNIT, _CHILD_UNIT], GenerateConfig(), "http://example.org/fhir")
+    emitted = {Path(artifact.relative_path).stem for artifact in build.artifacts}
     assert "Organization-ImspTQPwCqd" in emitted
     assert f"Organization-ImspTQPwCqd{INTRO_SUFFIX}" in _pages()
 

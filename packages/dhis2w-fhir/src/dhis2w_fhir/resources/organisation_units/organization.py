@@ -1,8 +1,13 @@
-"""FSH emission for the organisation-unit profiles and the per-level Organization/Location instance files.
+"""The organisation-unit profiles in FSH, and the registry of pre-built Organization/Location JSON.
 
 Each organisation unit becomes an Organization instance with DHIS2 UID/code
 identifier slices plus a Location instance - the FHIR pair of legal entity
 and physical place - with `partOf` mirroring the hierarchy on both sides.
+
+The two profiles are FSH, because a profile is a StructureDefinition SUSHI
+derives from its parent. The instances are written as finished FHIR JSON into
+the predefined-resource tree, which the publisher loads verbatim: a registry
+of thousands of units never enters the FSH compile at all.
 
 Artifact names honour the configurable `[generate.naming]` tokens. The two
 profile names always carry a token (falling back to `D2` when the prefix is
@@ -16,23 +21,37 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
-from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations
-from dhis2w_fhir.names import code_or_uid, page_text, quote
+from dhis2w_fhir.i18n import name_translations, translated_name_element
+from dhis2w_fhir.names import code_or_uid, flatten_whitespace
 from dhis2w_fhir.notes import aggregate_note
-from dhis2w_fhir.resources.organisation_units.location import (
+from dhis2w_fhir.r4 import (
     BOUNDARY_EXTENSION_URL,
-    LocationInstance,
-    build_location_instance,
+    CodeableConcept,
+    Coding,
+    ContactPoint,
+    HumanName,
+    Identifier,
+    Location,
+    Meta,
+    Organization,
+    OrganizationContact,
+    Reference,
 )
-from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
-from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+from dhis2w_fhir.resources.organisation_units.location import build_location
+from dhis2w_fhir.resources.organisation_units.naming import (
+    OrganisationUnitInstanceUrls,
+    OrganisationUnitNaming,
+)
 from dhis2w_fhir.status import IgStatus, experimental_for_status
-from dhis2w_fhir.writer import FshArtifact, FshBuild
+from dhis2w_fhir.writer import FshArtifact, JsonArtifact, JsonBuild
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
+    from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+
+#: The `ig/input/resources/` subdirectory the registry owns outright - one JSON file per resource.
+REGISTRY_DIRECTORY = "registry"
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.resources.organisation_units", "templates"),
@@ -42,37 +61,6 @@ _ENVIRONMENT = Environment(
     trim_blocks=True,
     lstrip_blocks=True,
 )
-
-
-class OrganizationInstance(BaseModel):
-    """Everything the FSH template needs for one Organization instance, every conditional already resolved."""
-
-    model_config = ConfigDict(frozen=True)
-
-    uid: str
-    profile: str
-    title_literal: str
-    description_literal: str
-    name_literal: str
-    name_translations: list[TranslationIn] = Field(default_factory=list)
-    identifier_code_literal: str
-    alias_literal: str | None = None
-    level: int
-    level_code_system: str
-    closed: bool = False
-    parent_uid: str | None = None
-    phone_literal: str | None = None
-    email_literal: str | None = None
-    contact_literal: str | None = None
-
-
-class OrganisationUnitInstancePair(BaseModel):
-    """One organisation unit as the Organization/Location pair a per-level file renders."""
-
-    model_config = ConfigDict(frozen=True)
-
-    organization: OrganizationInstance
-    location: LocationInstance
 
 
 def build_organisation_unit_profiles(config: GenerateConfig, *, ig_status: IgStatus) -> FshArtifact:
@@ -91,38 +79,23 @@ def build_organisation_unit_profiles(config: GenerateConfig, *, ig_status: IgSta
     )
 
 
-def build_organisation_unit_instances(organisation_units: list[OrganisationUnitIn], config: GenerateConfig) -> FshBuild:
-    """Build one `organization/org-units-level-<n>.fsh` per level, each unit an Organization (+ Location)."""
-    names = OrganisationUnitNaming.from_naming(config.naming)
-    build = FshBuild()
+def build_organisation_unit_instances(
+    organisation_units: list[OrganisationUnitIn], config: GenerateConfig, canonical: str
+) -> JsonBuild:
+    """Build one `registry/Organization-<uid>.json` and `registry/Location-<uid>.json` per organisation unit."""
+    urls = OrganisationUnitInstanceUrls.from_config(config, canonical)
+    build = JsonBuild()
     selected_uids = {organisation_unit.uid for organisation_unit in organisation_units}
     by_level: defaultdict[int, list[OrganisationUnitIn]] = defaultdict(list)
     for organisation_unit in organisation_units:
         by_level[organisation_unit.level].append(organisation_unit)
     orphaned: list[str] = []
-    template = _ENVIRONMENT.get_template("org-units-level.fsh.jinja")
     for level in sorted(by_level):
-        pairs = [
-            OrganisationUnitInstancePair(
-                organization=_build_organization_instance(
-                    organisation_unit, names, selected_uids, orphaned, config.locales
-                ),
-                location=build_location_instance(organisation_unit, names, selected_uids, config.locales),
-            )
-            for organisation_unit in sorted(by_level[level], key=lambda item: (item.path, item.uid))
-        ]
-        build.artifacts.append(
-            FshArtifact(
-                relative_path=f"organization/org-units-level-{level}.fsh",
-                kind="instances",
-                fsh_name=f"OrgUnitsLevel{level}",
-                content=template.render(
-                    pairs=pairs,
-                    boundary_extension_url=BOUNDARY_EXTENSION_URL,
-                    translation_extension_url=TRANSLATION_EXTENSION_URL,
-                ),
-            )
-        )
+        for organisation_unit in sorted(by_level[level], key=lambda item: (item.path, item.uid)):
+            organization = _build_organization(organisation_unit, urls, selected_uids, orphaned, config.locales)
+            location = build_location(organisation_unit, urls, selected_uids, config.locales)
+            build.artifacts.append(_json_artifact(f"Organization-{organisation_unit.uid}", organization))
+            build.artifacts.append(_json_artifact(f"Location-{organisation_unit.uid}", location))
     if orphaned:
         build.notes.append(
             aggregate_note(
@@ -132,42 +105,69 @@ def build_organisation_unit_instances(organisation_units: list[OrganisationUnitI
     return build
 
 
-def _build_organization_instance(
+def _json_artifact(stem: str, resource: Organization | Location) -> JsonArtifact:
+    """Serialise one resource as the registry file the predefined-resource loader reads."""
+    return JsonArtifact(
+        relative_path=f"{REGISTRY_DIRECTORY}/{stem}.json",
+        content=f"{resource.model_dump_json(exclude_none=True, by_alias=True, indent=2)}\n",
+    )
+
+
+def _build_organization(
     organisation_unit: OrganisationUnitIn,
-    names: OrganisationUnitNaming,
+    urls: OrganisationUnitInstanceUrls,
     selected_uids: set[str],
     orphaned: list[str],
     locales: list[str],
-) -> OrganizationInstance:
-    """Build the Organization view, noting units whose parent falls outside the selection."""
+) -> Organization:
+    """Build the Organization of one unit, noting units whose parent falls outside the selection."""
+    uid = organisation_unit.uid
     parent_uid: str | None = None
     if organisation_unit.parent_uid is not None:
         if organisation_unit.parent_uid in selected_uids:
             parent_uid = organisation_unit.parent_uid
         else:
-            orphaned.append(f"{organisation_unit.name} ({organisation_unit.uid})")
-    alias_literal: str | None = None
+            orphaned.append(f"{organisation_unit.name} ({uid})")
+    alias: list[str] | None = None
     if organisation_unit.short_name is not None and organisation_unit.short_name != organisation_unit.name:
-        alias_literal = quote(organisation_unit.short_name)
-    description = (
-        f"DHIS2 organisation unit {organisation_unit.name} ({organisation_unit.uid}), level {organisation_unit.level}."
+        alias = [flatten_whitespace(organisation_unit.short_name)]
+    level = organisation_unit.level
+    return Organization(
+        id=uid,
+        meta=Meta(profile=[urls.organization_profile]),
+        identifier=[
+            Identifier(system=urls.identifier_system, value=uid),
+            Identifier(system=urls.code_identifier_system, value=code_or_uid(organisation_unit.code, uid)),
+        ],
+        name=flatten_whitespace(organisation_unit.name),
+        name_element=translated_name_element(name_translations(organisation_unit.translations, locales)),
+        alias=alias,
+        type=[
+            CodeableConcept(
+                coding=[
+                    Coding(system=urls.level_code_system, code=f"level-{level}", display=f"Level {level}"),
+                ]
+            )
+        ],
+        partOf=Reference(reference=f"Organization/{parent_uid}") if parent_uid is not None else None,
+        telecom=_telecom(organisation_unit) or None,
+        contact=_contact(organisation_unit),
+        active=not organisation_unit.closed,
     )
-    return OrganizationInstance(
-        uid=organisation_unit.uid,
-        profile=names.organization_profile,
-        title_literal=page_text(f"Organization - {organisation_unit.name}"),
-        description_literal=page_text(description),
-        name_literal=quote(organisation_unit.name),
-        name_translations=name_translations(organisation_unit.translations, locales),
-        identifier_code_literal=quote(code_or_uid(organisation_unit.code, organisation_unit.uid)),
-        alias_literal=alias_literal,
-        level=organisation_unit.level,
-        level_code_system=names.level_code_system,
-        closed=organisation_unit.closed,
-        parent_uid=parent_uid,
-        phone_literal=quote(organisation_unit.phone_number) if organisation_unit.phone_number is not None else None,
-        email_literal=quote(organisation_unit.email) if organisation_unit.email is not None else None,
-        contact_literal=quote(organisation_unit.contact_person)
-        if organisation_unit.contact_person is not None
-        else None,
-    )
+
+
+def _telecom(organisation_unit: OrganisationUnitIn) -> list[ContactPoint]:
+    """The unit's DHIS2 phone number then email as contact points, either of which may be absent."""
+    points: list[ContactPoint] = []
+    if organisation_unit.phone_number is not None:
+        points.append(ContactPoint(system="phone", value=flatten_whitespace(organisation_unit.phone_number)))
+    if organisation_unit.email is not None:
+        points.append(ContactPoint(system="email", value=flatten_whitespace(organisation_unit.email)))
+    return points
+
+
+def _contact(organisation_unit: OrganisationUnitIn) -> list[OrganizationContact] | None:
+    """The unit's DHIS2 contact person as a contact party, or None when the unit names nobody."""
+    if organisation_unit.contact_person is None:
+        return None
+    return [OrganizationContact(name=HumanName(text=flatten_whitespace(organisation_unit.contact_person)))]

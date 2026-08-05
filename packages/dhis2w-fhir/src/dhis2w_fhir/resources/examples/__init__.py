@@ -776,7 +776,7 @@ def _typed_answer(item: QuestionnaireItemIn, value: str, tally: _ExampleTally) -
     if element == "valueUri":
         return _Answer(element=element, literal=quote(text))
     if element == "valueReference":
-        return _Answer(element=element, literal=f"Reference(Location-{text})")
+        return _Answer(element=element, literal=f"Reference(Location/{text})")
     return _Answer(element=DEFAULT_ANSWER_ELEMENT, literal=quote(value))
 
 

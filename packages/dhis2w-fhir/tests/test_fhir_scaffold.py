@@ -2,6 +2,7 @@
 
 import tomllib
 
+import yaml
 from dhis2w_fhir.config import FhirProjectConfig
 from dhis2w_fhir.resources.pages import SITE_PAGE_FILENAMES
 from dhis2w_fhir.scaffold import build_scaffold_files
@@ -69,6 +70,16 @@ def test_sushi_config_publishes_json_only() -> None:
     assert "parameters:\n" in config
     assert '  excludexml: "true"' in config
     assert '  excludettl: "true"' in config
+
+
+def test_sushi_config_declares_the_prebuilt_resource_subfolders() -> None:
+    """SUSHI recurses into input/resources sub-folders; the IG Publisher reads only the declared globs."""
+    parameters = yaml.safe_load(_by_path()["ig/sushi-config.yaml"])["parameters"]
+    assert parameters == {
+        "excludexml": "true",
+        "excludettl": "true",
+        "path-resource": ["input/resources/registry/*", "input/resources/terminology/*"],
+    }
 
 
 def test_sushi_config_declares_no_pages_block() -> None:
@@ -250,6 +261,11 @@ def test_gitignore_covers_the_publisher_side_products() -> None:
     assert "ig/translations/" in ignored
     assert "ig/input-cache/" in ignored
     assert "reports/" in ignored
+
+
+def test_gitignore_covers_the_prebuilt_resource_output() -> None:
+    """`d2w fhir generate` rewrites input/resources in seconds, a file per resource, so git never sees it."""
+    assert "ig/input/resources/" in _by_path()[".gitignore"].splitlines()
 
 
 def test_gitignore_covers_the_virtualenv_but_not_the_lock() -> None:

@@ -75,6 +75,7 @@ from dhis2w_fhir.resources.option_sets.schemas import (
     OptionSetSelection,
 )
 from dhis2w_fhir.resources.organisation_units import (
+    REGISTRY_DIRECTORY,
     build_organisation_unit_instances,
     build_organisation_unit_level_terminology,
     build_organisation_unit_profiles,
@@ -137,11 +138,14 @@ from dhis2w_fhir.writer import (
     GENERATED_MARKDOWN_HEADER,
     FshArtifact,
     FshBuild,
+    JsonArtifact,
+    JsonBuild,
     SyncReport,
     clean_generated_files,
     generated_header,
     is_generated_file,
     sync_artifacts,
+    sync_json_artifacts,
     write_artifacts,
 )
 
@@ -165,6 +169,7 @@ __all__ = [
     "PAGES_DIRECTORY",
     "PERIOD_TYPE_DEFINITIONS",
     "PERIOD_TYPE_NAMES",
+    "REGISTRY_DIRECTORY",
     "SITE_PAGE_FILENAMES",
     "TRANSLATION_EXTENSION_URL",
     "CategoryComboIn",
@@ -187,6 +192,8 @@ __all__ = [
     "GeoPoint",
     "IgConfig",
     "InitOptions",
+    "JsonArtifact",
+    "JsonBuild",
     "MetadataCollectionIn",
     "MetadataItemIn",
     "NamingConfig",
@@ -258,6 +265,7 @@ __all__ = [
     "render_validation_pdf",
     "response_status_code",
     "sync_artifacts",
+    "sync_json_artifacts",
     "write_artifacts",
     "write_fhir_config",
     "zoned_date_time",

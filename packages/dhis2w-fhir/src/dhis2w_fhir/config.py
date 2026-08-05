@@ -145,6 +145,11 @@ class FhirProject(BaseModel):
         """The FSH source directory (`<project_root>/ig/input/fsh`)."""
         return self.ig_directory / "input" / "fsh"
 
+    @property
+    def resources_directory(self) -> Path:
+        """The predefined-resource directory (`<project_root>/ig/input/resources`), loaded without a FSH compile."""
+        return self.ig_directory / "input" / "resources"
+
 
 def find_project_fhir_config(start: Path | None = None) -> Path | None:
     """Walk up from `start` (defaulting to `$PWD`) looking for `fhir.toml`."""

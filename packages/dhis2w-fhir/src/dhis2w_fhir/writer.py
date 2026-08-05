@@ -1,13 +1,21 @@
 """The generated-artifact contract plus the disk I/O behind it: header bookkeeping, sync, and writes.
 
-`FshArtifact` is what every emitter returns and what this module writes; the
-components depend on it rather than on each other. Every file this package
-writes starts with a generated header chosen by extension - the FSH line
-comment for `.fsh`, the HTML comment markdown renders invisibly for `.md` -
-and cleanup deletes only files carrying one of those two first lines, so
-hand-authored FSH and the hand-authored `pagecontent/index.md` in the same
-trees are never touched. Sync compares content before writing, so an
-unchanged run leaves timestamps and diffs quiet.
+Two output formats travel through this module, each with its own way of telling
+generated files from hand-authored ones.
+
+`FshArtifact` is what every FSH emitter returns. Those files start with a
+generated header chosen by extension - the FSH line comment for `.fsh`, the HTML
+comment markdown renders invisibly for `.md` - and cleanup deletes only files
+carrying one of those two first lines, so hand-authored FSH and the
+hand-authored `pagecontent/index.md` in the same trees are never touched.
+
+`JsonArtifact` carries a pre-built FHIR JSON document. JSON has no comment
+syntax, so a header cannot mark those files: the content is written verbatim and
+`sync_json_artifacts` instead owns its target directory outright, deleting every
+`*.json` in it that the current build did not produce.
+
+Both syncs compare content before writing, so an unchanged run leaves timestamps
+and diffs quiet.
 """
 
 from __future__ import annotations
@@ -29,10 +37,26 @@ class FshArtifact(BaseModel):
     content: str
 
 
+class JsonArtifact(BaseModel):
+    """One generated JSON file: a path relative to the sync base directory and its serialised document."""
+
+    model_config = ConfigDict(frozen=True)
+
+    relative_path: str
+    content: str
+
+
 class FshBuild(BaseModel):
     """Result of a pure FSH build step: artifacts plus human-facing notes (skips, fallbacks)."""
 
     artifacts: list[FshArtifact] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class JsonBuild(BaseModel):
+    """Result of a pre-built FHIR JSON build step: artifacts plus human-facing notes (skips, fallbacks)."""
+
+    artifacts: list[JsonArtifact] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
 
 
@@ -55,6 +79,9 @@ _MARKDOWN_SUFFIX = ".md"
 
 #: The file kinds a sweep considers, so a hand-authored file of any other extension is never read.
 _SWEPT_PATTERNS = ("*.fsh", "*.md")
+
+#: The extension a JSON sweep deletes; every other file in the target directory is left alone.
+_JSON_SWEPT_PATTERN = "*.json"
 
 
 def generated_header(relative_path: str) -> str:
@@ -118,6 +145,34 @@ def sync_artifacts(base_directory: Path, target_subdirectory: str, artifacts: li
             if is_generated_file(path):
                 path.unlink()
                 report.deleted.append(path.name)
+    return report
+
+
+def sync_json_artifacts(base_directory: Path, target_subdirectory: str, artifacts: list[JsonArtifact]) -> SyncReport:
+    """Write changed/new JSON verbatim and delete every unproduced `*.json` in the target directory this fully owns.
+
+    JSON carries no comment syntax, so a generated header cannot mark these files and there is no
+    `is_generated_file` check on the sweep: `target_subdirectory` belongs entirely to the generator, and any
+    hand-authored `.json` placed there is deleted. Files of other extensions and nested subdirectories survive.
+    """
+    report = SyncReport()
+    produced: set[str] = set()
+    for artifact in sorted(artifacts, key=lambda item: item.relative_path):
+        destination = base_directory / artifact.relative_path
+        produced.add(destination.name)
+        if destination.exists() and destination.read_text(encoding="utf-8") == artifact.content:
+            report.unchanged.append(artifact.relative_path)
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(artifact.content, encoding="utf-8")
+        report.written.append(artifact.relative_path)
+    target = base_directory / target_subdirectory
+    if target.is_dir():
+        for path in sorted(target.glob(_JSON_SWEPT_PATTERN)):
+            if path.name in produced:
+                continue
+            path.unlink()
+            report.deleted.append(path.name)
     return report
 
 
