@@ -29,6 +29,8 @@ dev = [
   "hypothesis>=6.163.1",
   "pytest-xdist>=3.8.0",
   "textual>=8.2.8",
+  "pyyaml>=6.0.3",
+  "types-pyyaml>=6.0.12.20260724",
 ]
 
 [tool.ruff]

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FHIR IG generation — scaffold a SUSHI project, then generate FSH from DHIS2 metadata.
+# FHIR IG generation — scaffold a SUSHI project, then generate the IG source from DHIS2 metadata.
 set -euo pipefail
 
 # Scaffold a complete dockerized SUSHI IG project (fhir.toml, sushi-config.yaml,
@@ -31,14 +31,15 @@ d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/d
 
 # --max-level caps the organisation-unit registry at that depth, seeding
 # [generate.organisation_units] max_level. Every unit emits two instances and a hierarchy fans
-# out at the bottom, so the deepest level is usually most of the IG and most of its compile time.
+# out at the bottom, so the deepest level is usually most of the IG - and the IG publisher
+# renders a page per resource, so that is what sets the wall clock of `make build`.
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" --max-level 4
 
 # --sushi-timeout sets [FSH] timeout in ig/fsh.ini, the ceiling the IG publisher gives its
-# internal SUSHI run. The 1800s default suits a demo-sized IG; a national org-unit registry
-# (two instances per unit) can compile well past it and fails the build with exit 143. Raise
-# it here, or narrow the registry with [generate.organisation_units] max_level / root.
+# internal SUSHI run. That run compiles the FSH - the profiles, the option-set terminology
+# and the forms - and an IG whose FSH overruns the ceiling fails the build with exit 143.
+# The registry is not FSH, so it is not what the ceiling is guarding.
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" --sushi-timeout 5400
 
@@ -90,10 +91,16 @@ d2w fhir generate questionnaires
 # servers only: those values land in the published IG, so review examples/ before shipping.
 d2w fhir generate examples
 
-# Organisation units: one file per level under ig/input/fsh/organization/. Every
-# unit becomes an Organization AND a Location, both carrying the UID and code
-# identifiers, with partOf mirroring the hierarchy. Geometry is embedded as a
-# GeoJSON Feature; Point and Polygon geometry also yield Location.position.
+# Organisation units: the D2Organization / D2Location profiles and the level CodeSystem
+# under ig/input/fsh/organization/, and the registry itself as pre-built FHIR JSON under
+# ig/input/resources/registry/ - one Organization-<uid>.json and one Location-<uid>.json
+# per unit, both carrying the UID and code identifiers, with partOf mirroring the
+# hierarchy as Organization/<uid> and Location/<uid> references. Geometry is embedded as
+# a GeoJSON Feature; Point and Polygon geometry also yield Location.position.
+# SUSHI loads input/resources and the sub-folders sushi-config.yaml declares as
+# predefined resources - no FSH conversion - which is why the registry is JSON.
+# ig/input/resources/ is gitignored by the scaffold: it is generated output, rebuilt in
+# seconds, while ig/input/fsh/ is committed and is the diff worth reviewing.
 # Narrow the tree with [generate.organisation_units] root / max_level.
 d2w fhir generate org-units
 
@@ -115,8 +122,9 @@ d2w fhir generate pages
 
 # Or every target in one run (foundation, option-sets, questionnaires, examples,
 # org-units, pages - pages last, so it sees everything the run generated).
-# Re-running replaces previously generated files (identified by their header line);
-# hand-authored .fsh and .md files are never touched.
+# Re-running replaces previously generated .fsh and .md files (identified by their header
+# line); hand-authored ones are never touched. JSON carries no header, so the registry
+# target owns ig/input/resources/registry/ outright and clears what it did not write.
 d2w fhir generate all
 
 # Preflight: check the instance's option-set codes and names for FHIR-safety

@@ -64,8 +64,8 @@ def init_command(
         typer.Option(
             "--sushi-timeout",
             help="Seconds the IG publisher gives its internal SUSHI run, written to `\\[FSH] timeout` of "
-            "ig/fsh.ini. Raise it for a large registry: an IG whose SUSHI run overruns the ceiling fails "
-            "the build with exit 143.",
+            "ig/fsh.ini. The registry ships as pre-built JSON and never reaches SUSHI, so this bounds the "
+            "FSH targets: an IG whose SUSHI run overruns the ceiling fails the build with exit 143.",
         ),
     ] = DEFAULT_SUSHI_TIMEOUT_SECONDS,
     max_level: Annotated[
@@ -74,7 +74,7 @@ def init_command(
             "--max-level",
             help="Deepest organisation-unit level to generate, seeding `\\[generate.organisation_units]` "
             "max_level. Every unit emits two instances and a hierarchy fans out at the bottom, so this is "
-            "the dial that keeps a national registry inside the SUSHI timeout. Offline: the level is "
+            "the dial that bounds how many resources the IG publisher renders. Offline: the level is "
             "written to fhir.toml as given, never checked against an instance.",
         ),
     ] = None,

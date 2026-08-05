@@ -136,7 +136,7 @@ Usage: #example
 * extension[D2Period].extension[period].valuePeriod.end = "2026-07-31"
 * questionnaire = "http://example.org/fhir/Questionnaire/BfMAe6Itzgt"
 * status = #completed
-* subject = Reference(Location-ImspTQPwCqd)
+* subject = Reference(Location/ImspTQPwCqd)
 * item[+].linkId = "Sec1aaaaaaa"
 * item[=].item[+].linkId = "De1aaaaaaaa"
 * item[=].item[=].answer[+].valueInteger = 12
@@ -167,7 +167,7 @@ Usage: #example
 * extension[D2FormType].valueCode = #event
 * questionnaire = "http://example.org/fhir/Questionnaire/VBqh0ynB2wv"
 * status = #completed
-* subject = Reference(Location-ImspTQPwCqd)
+* subject = Reference(Location/ImspTQPwCqd)
 * authored = "2026-07-30T14:00:00Z"
 * item[+].linkId = "qrur9Dvnyt5"
 * item[=].answer[+].valueInteger = 905
@@ -691,7 +691,7 @@ async def test_instance_mode_walks_back_to_the_newest_period_holding_data(
     assert "Instance: QuestionnaireResponse-BfMAe6Itzgt-202606-Ou1aaaaaaaa" in content
     assert '* extension[D2Period].extension[iso].valueString = "202606"' in content
     assert '* extension[D2Period].extension[period].valuePeriod.end = "2026-06-30"' in content
-    assert "* subject = Reference(Location-Ou1aaaaaaaa)" in content
+    assert "* subject = Reference(Location/Ou1aaaaaaaa)" in content
     assert '* item[=].item[=].item[+].linkId = "De1aaaaaaaa.Coc1aaaaaaa"' in content
     assert "* item[=].item[=].item[=].answer[+].valueInteger = 11" in content
     assert '* item[=].item[=].answer[+].valueCoding = D2OS_Os1aaaaaaaa_CS#Op1aaaaaaaa "Female"' in content
@@ -975,8 +975,18 @@ def test_an_organisation_unit_question_answers_as_a_location_reference() -> None
     """An ORGANISATION_UNIT item is `#reference` in the questionnaire, so its answer is a Reference."""
     content = _wide_content()
     assert '* item[+].linkId = "Deorg000000"' in content
-    assert f"* item[=].answer[+].valueReference = Reference(Location-{_ROOT_ORG_UNIT})" in content
-    assert f"* subject = Reference(Location-{_ROOT_ORG_UNIT})" in content
+    assert f"* item[=].answer[+].valueReference = Reference(Location/{_ROOT_ORG_UNIT})" in content
+    assert f"* subject = Reference(Location/{_ROOT_ORG_UNIT})" in content
+
+
+def test_every_location_reference_is_a_relative_reference_rather_than_an_instance_name() -> None:
+    """A reference reads `Location/<uid>`, the wire form, so it stands on its own once the Locations ship as JSON."""
+    content = _wide_content()
+    targets = re.findall(r"Reference\((Location[^)]*)\)", content)
+    assert targets
+    assert all(target.startswith("Location/") for target in targets)
+    assert f"Reference(Location-{_ROOT_ORG_UNIT})" not in content
+    assert "Location-" not in content
 
 
 def test_a_captured_organisation_unit_value_answers_as_that_units_location() -> None:
@@ -998,7 +1008,7 @@ def test_a_captured_organisation_unit_value_answers_as_that_units_location() -> 
         _CANONICAL,
         option_set_plan=_plan([_WIDE_OPTION_SET]),
     )
-    assert "* item[=].answer[+].valueReference = Reference(Location-Ou2aaaaaaaa)" in build.artifacts[0].content
+    assert "* item[=].answer[+].valueReference = Reference(Location/Ou2aaaaaaaa)" in build.artifacts[0].content
     assert build.notes == []
 
 

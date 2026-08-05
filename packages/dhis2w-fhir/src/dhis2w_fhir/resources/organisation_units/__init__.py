@@ -1,4 +1,4 @@
-"""FSH emission for DHIS2 organisation units: profiles, level terminology, and per-level instances.
+"""Emission for DHIS2 organisation units: FSH profiles and terminology, plus the pre-built JSON registry.
 
 Point geometry lands in `Location.position`; Polygon/MultiPolygon geometry
 contributes its area-weighted centroid; every other geometry type is embedded
@@ -10,7 +10,13 @@ optional toggle emits the whole selection as a CodeSystem/ValueSet with
 
 from __future__ import annotations
 
+from dhis2w_fhir.resources.organisation_units.location import BOUNDARY_CONTENT_TYPE, build_location
+from dhis2w_fhir.resources.organisation_units.naming import (
+    OrganisationUnitInstanceUrls,
+    OrganisationUnitNaming,
+)
 from dhis2w_fhir.resources.organisation_units.organization import (
+    REGISTRY_DIRECTORY,
     build_organisation_unit_instances,
     build_organisation_unit_profiles,
 )
@@ -20,6 +26,11 @@ from dhis2w_fhir.resources.organisation_units.terminology import (
 )
 
 __all__ = [
+    "BOUNDARY_CONTENT_TYPE",
+    "REGISTRY_DIRECTORY",
+    "OrganisationUnitInstanceUrls",
+    "OrganisationUnitNaming",
+    "build_location",
     "build_organisation_unit_instances",
     "build_organisation_unit_level_terminology",
     "build_organisation_unit_profiles",

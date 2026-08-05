@@ -1,75 +1,78 @@
-"""Location instance rendering for organisation units: position, boundary extension, and partOf."""
+"""Location emission for organisation units: position, the boundary attachment, and the hierarchy links."""
 
 from __future__ import annotations
 
 import base64
+from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, Field
+from dhis2w_fhir.i18n import name_translations, translated_name_element
+from dhis2w_fhir.names import code_or_uid, escape_markup, flatten_whitespace
+from dhis2w_fhir.r4 import (
+    BOUNDARY_EXTENSION_URL,
+    Attachment,
+    Extension,
+    Identifier,
+    Location,
+    LocationPosition,
+    Meta,
+    Reference,
+)
 
-from dhis2w_fhir.i18n import TranslationIn, name_translations
-from dhis2w_fhir.names import code_or_uid, page_text, quote
-from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
-from dhis2w_fhir.resources.organisation_units.schemas import GeoPoint, OrganisationUnitIn
+if TYPE_CHECKING:
+    from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitInstanceUrls
+    from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
 
-#: The standard R4 extension carrying a Location's boundary as a GeoJSON attachment.
-BOUNDARY_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson"
-
-
-class LocationInstance(BaseModel):
-    """Everything the FSH template needs for one Location instance, every conditional already resolved."""
-
-    model_config = ConfigDict(frozen=True)
-
-    uid: str
-    profile: str
-    title_literal: str
-    description_literal: str
-    name_literal: str
-    name_translations: list[TranslationIn] = Field(default_factory=list)
-    identifier_code_literal: str
-    closed: bool = False
-    position: GeoPoint | None = None
-    boundary_data: str | None = None
-    boundary_title_literal: str | None = None
-    boundary_size: int | None = None
-    parent_uid: str | None = None
+#: The media type the GeoJSON Feature travels under inside the boundary attachment.
+BOUNDARY_CONTENT_TYPE = "application/geo+json"
 
 
-def build_location_instance(
+def build_location(
     organisation_unit: OrganisationUnitIn,
-    names: OrganisationUnitNaming,
+    urls: OrganisationUnitInstanceUrls,
     selected_uids: set[str],
     locales: list[str],
-) -> LocationInstance:
-    """Build the Location view - always emitted; position/boundary attach when geometry exists."""
-    position: GeoPoint | None = None
+) -> Location:
+    """Build the Location of one organisation unit - always emitted; position/boundary attach with geometry."""
+    uid = organisation_unit.uid
+    position: LocationPosition | None = None
     if organisation_unit.latitude is not None and organisation_unit.longitude is not None:
-        position = GeoPoint(longitude=organisation_unit.longitude, latitude=organisation_unit.latitude)
-    boundary_data: str | None = None
-    boundary_title_literal: str | None = None
-    boundary_size: int | None = None
-    if organisation_unit.boundary_geojson is not None:
-        payload = organisation_unit.boundary_geojson.encode("utf-8")
-        boundary_data = base64.b64encode(payload).decode("ascii")
-        boundary_title_literal = quote(f"{organisation_unit.name} ({organisation_unit.uid})")
-        boundary_size = len(payload)
+        position = LocationPosition(longitude=organisation_unit.longitude, latitude=organisation_unit.latitude)
     parent_uid = organisation_unit.parent_uid if organisation_unit.parent_uid in selected_uids else None
     description = (
-        f"DHIS2 organisation unit {organisation_unit.name} ({organisation_unit.uid}), "
+        f"DHIS2 organisation unit {organisation_unit.name} ({uid}), "
         f"level {organisation_unit.level} - physical location."
     )
-    return LocationInstance(
-        uid=organisation_unit.uid,
-        profile=names.location_profile,
-        title_literal=page_text(f"Location - {organisation_unit.name}"),
-        description_literal=page_text(description),
-        name_literal=quote(organisation_unit.name),
-        name_translations=name_translations(organisation_unit.translations, locales),
-        identifier_code_literal=quote(code_or_uid(organisation_unit.code, organisation_unit.uid)),
-        closed=organisation_unit.closed,
+    return Location(
+        id=uid,
+        meta=Meta(profile=[urls.location_profile]),
+        identifier=[
+            Identifier(system=urls.identifier_system, value=uid),
+            Identifier(system=urls.code_identifier_system, value=code_or_uid(organisation_unit.code, uid)),
+        ],
+        name=flatten_whitespace(organisation_unit.name),
+        name_element=translated_name_element(name_translations(organisation_unit.translations, locales)),
+        description=flatten_whitespace(escape_markup(description)),
+        status="inactive" if organisation_unit.closed else "active",
         position=position,
-        boundary_data=boundary_data,
-        boundary_title_literal=boundary_title_literal,
-        boundary_size=boundary_size,
-        parent_uid=parent_uid,
+        extension=_boundary_extensions(organisation_unit),
+        managingOrganization=Reference(reference=f"Organization/{uid}"),
+        partOf=Reference(reference=f"Location/{parent_uid}") if parent_uid is not None else None,
     )
+
+
+def _boundary_extensions(organisation_unit: OrganisationUnitIn) -> list[Extension] | None:
+    """The `location-boundary-geojson` extension carrying the unit's GeoJSON Feature, or None without geometry."""
+    if organisation_unit.boundary_geojson is None:
+        return None
+    payload = organisation_unit.boundary_geojson.encode("utf-8")
+    return [
+        Extension(
+            url=BOUNDARY_EXTENSION_URL,
+            valueAttachment=Attachment(
+                contentType=BOUNDARY_CONTENT_TYPE,
+                data=base64.b64encode(payload).decode("ascii"),
+                title=flatten_whitespace(f"{organisation_unit.name} ({organisation_unit.uid})"),
+                size=len(payload),
+            ),
+        )
+    ]

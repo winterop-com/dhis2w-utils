@@ -58,7 +58,8 @@ its code, its `schemas.py`, and its `templates/` directory.
 | `mcp.py` | The FastMCP registration - one tool, `fhir_validate`, annotated `readOnlyHint`. |
 | `service.py` | Orchestration: profile resolution, every DHIS2 fetch, the wire-to-projection mapping, geometry, and `GenerateReport` / `GenerateAllReport`. |
 | `config.py` | The `fhir.toml` document (`IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`, `FhirProject`) plus discovery, load, and save. |
-| `writer.py` | The generated-artifact contract (`FshArtifact`, `FshBuild`, `SyncReport`) and the header-aware sync that writes it. |
+| `writer.py` | The generated-artifact contracts (`FshArtifact`, `FshBuild`, `JsonArtifact`, `JsonBuild`, `SyncReport`), the header-aware sync behind the FSH one, and the directory-owning `sync_json_artifacts` behind the JSON one. |
+| `r4/schemas.py` | The FHIR R4 models the pre-built registry JSON is serialised from: `Organization`, `Location`, and the shared elements (`FhirElement`, `Meta`, `Identifier`, `Coding`, `CodeableConcept`, `Reference`, `ContactPoint`, `HumanName`, `Attachment`, `Extension`, `NameElement`, `OrganizationContact`, `LocationPosition`) plus `BOUNDARY_EXTENSION_URL`. |
 | `names.py` | Slug, FSH-literal, escaping, and URI helpers - `pascal`, `kebab`, `quote`, `page_text`, `markdown_text`, `fsh_code`, `join_id_tokens`, `join_name_segments`, `is_valid_fhir_code`, `describe_code_defect`, `is_valid_fhir_id`, `code_or_uid`. |
 | `i18n.py` | DHIS2 translations: the `TranslationIn` projection, `normalize_locale`, `name_translations`, and `TRANSLATION_EXTENSION_URL`. |
 | `notes.py` | `aggregate_note` - the one formatter for "N subjects, a capped sample, and the remainder". |
@@ -76,10 +77,10 @@ its code, its `schemas.py`, and its `templates/` directory.
 | `resources/questionnaires/schemas.py` | `TargetSelection`, `NumericBounds`, `CategoryOptionComboIn`, `CategoryComboIn`, `QuestionnaireItemIn`, `QuestionnaireSectionIn`, `QuestionnaireSourceIn`, `QuestionnaireNaming`, the `FormKind` alias. |
 | `resources/examples/__init__.py` | The `Usage: #example` QuestionnaireResponse per example, `build_synthetic_responses`, `answer_element`, `zoned_date_time`, `response_status_code`, and the whole answer-typing layer. |
 | `resources/examples/schemas.py` | `ExampleSelection`, `ExampleAnswerIn`, `ExampleResponseIn`, `ExampleSource`, `MAXIMUM_EXAMPLES_PER_TARGET`. |
-| `resources/organisation_units/__init__.py` | Re-exports the four org-unit builders. |
-| `resources/organisation_units/naming.py` | `OrganisationUnitNaming` - every org-unit artifact name and id from the naming tokens. A leaf, which is why `foundation/` can read it without a cycle. |
-| `resources/organisation_units/organization.py` | The `profiles.fsh` artifact and the per-level Organization instances. |
-| `resources/organisation_units/location.py` | The Location instances - position, `partOf`, and the base64 GeoJSON boundary attachment; `BOUNDARY_EXTENSION_URL`. |
+| `resources/organisation_units/__init__.py` | Re-exports the five org-unit builders, `REGISTRY_DIRECTORY`, and `BOUNDARY_CONTENT_TYPE`. |
+| `resources/organisation_units/naming.py` | `OrganisationUnitNaming` and `OrganisationUnitInstanceUrls` - every org-unit artifact name, id, and instance URL from the naming tokens. A leaf, which is why `foundation/` can read it without a cycle. |
+| `resources/organisation_units/organization.py` | The `profiles.fsh` artifact, `REGISTRY_DIRECTORY`, and `build_organisation_unit_instances` - the `Organization` models plus the `JsonArtifact` serialisation of both halves of the registry. |
+| `resources/organisation_units/location.py` | The `Location` models - position, `partOf`, and the base64 GeoJSON boundary attachment; `BOUNDARY_CONTENT_TYPE`. |
 | `resources/organisation_units/terminology.py` | The level CodeSystem/ValueSet and the optional whole-selection pair. |
 | `resources/organisation_units/schemas.py` | `OrganisationUnitSelection`, `GeoPoint`, `OrganisationUnitIn`. |
 | `resources/pages/__init__.py` | The six site pages, the per-artifact intros, `SITE_PAGE_FILENAMES`, `PAGES_DIRECTORY`, `PAGES_BASE_SUBDIRECTORY`, `INTRO_SUFFIX`. |
@@ -91,8 +92,9 @@ its code, its `schemas.py`, and its `templates/` directory.
 | `validation/pdf.py` | `render_validation_pdf` - cover page, clickable contents, per-type sections, Noto Sans with a Noto Sans Lao fallback vendored under `validation/fonts/`. |
 | `validation/schemas.py` | `MetadataItemIn`, `MetadataCollectionIn`, `ValidationFinding`, `SeverityBreakdown`, `FhirValidationReport`, `pluralize`. |
 
-`resources/` is reserved for DHIS2 resource domains, which is why `scaffold/`
-and `validation/` stay top level.
+`resources/` is reserved for DHIS2 resource domains, which is why `scaffold/`,
+`validation/`, and `r4/` stay top level - `r4/` is FHIR's own vocabulary rather
+than a DHIS2 one.
 
 ### 2.2 The CLI surface
 
@@ -111,8 +113,8 @@ Every command and every flag, from `cli.py`.
 | `--status` | `draft` | `draft` or `active`. Rejected with `typer.BadParameter` otherwise. Drives the sushi-config status plus `^status` / `^experimental` on every generated definitional artifact. |
 | `--publisher-url` | unset | Publisher home page. Omitted by default because the publisher links it from every generated page. |
 | `--profile` | unset | DHIS2 profile seeding the top-level `profile` key of the scaffolded `fhir.toml`. Offline - written as given, never resolved against `profiles.toml`. Without it the key scaffolds commented out. |
-| `--sushi-timeout` | `1800` | Seconds written to `[FSH] timeout` of `ig/fsh.ini`. A registry whose SUSHI run overruns it fails the build with exit 143. |
-| `--max-level` | unset | Deepest organisation-unit level, seeding `[generate.organisation_units] max_level`. The dial that keeps a national registry inside the SUSHI timeout. Below 1 is a `typer.BadParameter`. |
+| `--sushi-timeout` | `1800` | Seconds written to `[FSH] timeout` of `ig/fsh.ini`, the ceiling the publisher gives its embedded SUSHI run. An IG whose FSH overruns it fails the build with exit 143. |
+| `--max-level` | unset | Deepest organisation-unit level, seeding `[generate.organisation_units] max_level`. The dial on the registry's share of the publisher's rendering pass. Below 1 is a `typer.BadParameter`. |
 | `--data-set` | none | Repeatable data set UID seeding `[generate.data_sets] include_ids`. Offline - never checked against an instance. |
 | `--event` | none | Repeatable event program UID seeding `[generate.event_programs] include_ids`. Offline. |
 | `--force` | off | Overwrite scaffold files that already exist. Without it, existing files are reported as skipped. |
@@ -200,7 +202,7 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 | --- | --- |
 | `fhir.toml` | The minimal committed config - the profile pointer, `[ig]`, and the seeded target lists when `--data-set` / `--event` were given. |
 | `fhir.toml.example` | Every option with its default, documented. |
-| `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` (JSON only), and the eight-entry `menu:`. No `pages:` and no `groups:`. |
+| `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` (JSON only), the `path-resource` globs for `input/resources/registry/*` and `input/resources/terminology/*` (SUSHI recurses into those sub-folders, the IG Publisher does not), and the eight-entry `menu:`. No `pages:` and no `groups:`. |
 | `ig/ig.ini` | `template = fhir2.base.template`, pointing at the compiled ImplementationGuide JSON. |
 | `ig/fsh.ini` | `timeout = 1800` for the publisher's embedded SUSHI, settable with `--sushi-timeout`. |
 | `ig/input/fsh/aliases.fsh` | Hand-authored alias stub. Never regenerated - it carries no generated header. |
@@ -209,13 +211,14 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 | `pyproject.toml` | The IG project as a uv project - `dhis2w-cli` and `dhis2w-fhir` both from git on `main`, so the CLI and its plugin are one build, until the packages are published. |
 | `Makefile` | `help / setup / upgrade / generate / validate / cache-init / sushi / build / clean / clean-all / refresh`, `D2W ?= uv run d2w`, `TX_SERVER ?= http://tx.fhir.org`, `JAVA_HEAP ?= 4g` (the publisher JVM heap - too large for the docker VM and the kernel OOM-kills the build with exit 137), and the `fhir-ig-cache` named volume. |
 | `Dockerfile` | `ghcr.io/fhir/ig-publisher-localdev` plus the latest `publisher.jar` and `fsh-sushi`. |
-| `.gitignore` | Build output, both caches, publisher side products, `reports/`, and `.venv/`. Never `uv.lock`. |
+| `.gitignore` | Build output, both caches, publisher side products, `ig/input/resources/` (generated registry JSON, rebuilt in seconds), `reports/`, and `.venv/`. Never `uv.lock`, never `ig/input/fsh/`. |
 
 ### 2.6 Every generated artifact kind and where it lands
 
-Base directory is `<project_root>/ig/input/fsh/` for FSH and
-`<project_root>/ig/input/` for pages. Each row is one `sync_artifacts` sweep
-target.
+Base directory is `<project_root>/ig/input/fsh/` for FSH,
+`<project_root>/ig/input/resources/` for the pre-built JSON, and
+`<project_root>/ig/input/` for pages. Each row is one sweep target -
+`sync_artifacts` for FSH and markdown, `sync_json_artifacts` for JSON.
 
 | Target | Directory | Files |
 | --- | --- | --- |
@@ -225,41 +228,44 @@ target.
 | `questionnaires` | `event-programs/` | One `<uid>.fsh` Questionnaire per single-stage event program. |
 | `questionnaires` | `data-dictionary/` | `data-elements.fsh` (`D2DE_CS` / `_VS`) and `category-option-combos.fsh` (`D2COC_CS` / `_VS`), emitted only when the run referenced any. |
 | `examples` | `examples/` | One `<targetUid>-<n>.fsh` QuestionnaireResponse per example. |
-| `org-units` | `organization/` | `profiles.fsh` always; then `org-unit-levels.fsh`, one `org-units-level-<n>.fsh` per observed level, and `org-units-terminology.fsh` only with `terminology = true`. |
+| `org-units` | `organization/` | `profiles.fsh` always; then `org-unit-levels.fsh`, and `org-units-terminology.fsh` only with `terminology = true`. |
+| `org-units` | `resources/registry/` | `Organization-<uid>.json` and `Location-<uid>.json` per selected unit, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. |
 | `pages` | `ig/input/pagecontent/` | `forms.md`, `registry.md`, `terminology.md`, `identifiers.md`, `periods.md`, `capture.md`, plus `Questionnaire-<UID>-intro.md` (always), `CodeSystem-<id>-intro.md` and `Organization-<UID>-intro.md` (only where DHIS2 carries a description). |
 
-Only `examples`, the three questionnaire directories, and `pagecontent` have
-named constants (`EXAMPLES_DIRECTORY`, `QUESTIONNAIRE_DIRECTORIES`,
-`PAGES_DIRECTORY`). `terminology`, `organization`, and `foundation` are repeated
-string literals across the emitter and `service.py` - see Dimension D.
+Only `examples`, the three questionnaire directories, `registry`, and
+`pagecontent` have named constants (`EXAMPLES_DIRECTORY`,
+`QUESTIONNAIRE_DIRECTORIES`, `REGISTRY_DIRECTORY`, `PAGES_DIRECTORY`).
+`terminology`, `organization`, and `foundation` are repeated string literals
+across the emitter and `service.py` - see Dimension D.
 
 ### 2.7 Test inventory
 
 `uv run pytest packages/dhis2w-fhir --collect-only -q | tail -1` reports
-**603 tests collected**. Nineteen test files plus a `conftest.py` holding a probe
+**641 tests collected**. Twenty test files plus a `conftest.py` holding a probe
 profile and per-wire-version system-info mocking.
 
 | File | Covers | Tests |
 | --- | --- | --- |
 | `test_fhir_config.py` | `fhir.toml` discovery, load, save. | 10 |
-| `test_fhir_examples.py` | Both example sources; the synthetic goldens are full-text assertions, which they can be because the seed is a SHA-256 of the target UID. | 44 |
+| `test_fhir_examples.py` | Both example sources; the synthetic goldens are full-text assertions, which they can be because the seed is a SHA-256 of the target UID. | 45 |
 | `test_fhir_foundation.py` | Golden tests for the six foundation artifacts. | 22 |
 | `test_fhir_generate_cli.py` | `CliRunner` over `d2w fhir generate`, service mocked. | 14 |
 | `test_fhir_geometry.py` | Geometry to position and boundary payload. | 7 |
 | `test_fhir_init_cli.py` | `CliRunner` over `d2w fhir init`. | 10 |
 | `test_fhir_mcp.py` | The FastMCP `fhir_validate` surface. | 2 |
 | `test_fhir_names.py` | `names.py` helpers and the cnl-0 shape of every emitted FSH name. | 18 |
-| `test_fhir_organization.py` | Org-unit profile, terminology, and instance emission, plus the registry-scale note. | 17 |
+| `test_fhir_organization.py` | Org-unit profile, terminology, and registry JSON emission, plus the registry-scale note. | 27 |
 | `test_fhir_pages.py` | The six site pages, the intros, markdown escaping. | 28 |
 | `test_fhir_period.py` | Every registered period type, both ends of its range. | 8 |
 | `test_fhir_questionnaires.py` | Questionnaire emission, support terminology, service safeguards. | 48 |
+| `test_fhir_r4_schemas.py` | The R4 models: byte-exact round trips of reference documents, the `_name` primitive extension, omitted optionals, and the closed-model guard. | 7 |
 | `test_fhir_report_formats.py` | Markdown, CSV, and PDF renderings of the validation report. | 16 |
-| `test_fhir_scaffold.py` | Scaffold contents. | 33 |
+| `test_fhir_scaffold.py` | Scaffold contents. | 35 |
 | `test_fhir_service_parity.py` | The service against every DHIS2 major, respx-mocked, no live stack. | 14 |
 | `test_fhir_terminology.py` | Option-set emission and the names the other targets read from it. | 20 |
 | `test_fhir_translations.py` | Designations and the FHIR translation extension. | 13 |
 | `test_fhir_validation.py` | Both validation passes and the markdown report. | 26 |
-| `test_fhir_writer.py` | Generated-file cleanup, writes, byte-stability. | 10 |
+| `test_fhir_writer.py` | Generated-file cleanup, writes, byte-stability, and the JSON directory sweep. | 17 |
 
 The per-file counts above are `def test_` / `async def test_` declarations; the
 collected total is higher because several files parametrise.
@@ -359,9 +365,11 @@ different job:
   `join_name_segments` drops empty segments, which is what keeps a name cnl-0
   valid when a token is configured empty (an absent prefix yields `BirthType`,
   never `_BirthType`).
-- **Instance names hyphenate** - `Organization-<uid>`, `Location-<uid>`,
-  `Questionnaire-<uid>`. The prefix is the namespace that keeps an Organization
-  and a Location unique inside one file.
+- **Instance names and registry filenames hyphenate** - `Questionnaire-<uid>`,
+  `Organization-<uid>.json`, `Location-<uid>.json`. The resource-type prefix is
+  the namespace that keeps the Organization and the Location of one unit
+  distinct, and relative references spell the same pair with a slash
+  (`Organization/<uid>`, `Location/<uid>`).
 - **Ids kebab, with the UID kept verbatim** - `d2-os-Qdm5fPK5Ra9-cs`.
   `join_id_tokens` splits camel case so `OrgUnit` becomes `org-unit`. FHIR ids
   permit mixed case, so the id reads straight back to the DHIS2 object.
@@ -484,6 +492,35 @@ rather than recomputing. Section 7 explains why this is stated as a decision
 rather than an implementation detail: every time a second code path recomputed
 one of them, it produced a real bug.
 
+### 3.16 The registry ships as predefined JSON, the definitions as FSH
+
+FSH earns its keep where an artifact is authored: profiles, extensions,
+CodeSystem/ValueSet pairs, Questionnaires. The organisation-unit registry is none
+of those - it is bulk data, two resources per unit, no invariants and no slicing
+of its own to express - and it is the largest thing in the IG by a wide margin.
+So `d2w fhir generate org-units` writes it as R4 JSON under
+`ig/input/resources/registry/`, which SUSHI loads into the virtual
+`sushi-local#LOCAL` package as a *predefined resource*: no parse, no conversion,
+no per-instance compile cost. The definitional half of the same target stays FSH
+in `ig/input/fsh/organization/`.
+
+Three consequences the design accepts:
+
+- **The scaffolded `sushi-config.yaml` needs `path-resource` globs.** SUSHI
+  recurses into sub-folders of `input/resources`; the IG Publisher does not. The
+  globs are what carry the sub-folder's resources into the published
+  ImplementationGuide.
+- **The sweep owns the directory instead of marking its files.** JSON has no
+  comment syntax, so `sync_json_artifacts` deletes every unproduced `*.json` in
+  `registry/` rather than checking for a generated header. Nothing hand-authored
+  belongs there.
+- **`ig/input/resources/` is gitignored.** The reviewable diff after a metadata
+  change is the FSH one; a national registry is tens of thousands of JSON files
+  that `make generate` rebuilds in seconds.
+
+Option-set terminology stays FSH, which is why it dominates the compile. Whether
+it follows is an open question, not a plan.
+
 ## 4. Upstream DHIS2 and tooling quirks that shape the code
 
 Three DHIS2 quirks are catalogued in the repository-root `BUGS.md`, rendered on
@@ -559,26 +596,20 @@ and kill the whole build. The scaffolded `ig/fsh.ini` therefore sets
 `timeout = 1800`, and `d2w fhir init --sushi-timeout` raises it for an instance
 that needs more.
 
-1800 was measured against the Sierra Leone demo. A national registry compiles
-well past it: 12,581 organisation units emit 25,162 instances - two per unit, an
-Organization and a Location - and the build dies half an hour in with exit 143.
-`generate_organisation_units` warns once a registry crosses
-`_SUSHI_TIMEOUT_RISK_INSTANCES`, naming the `[generate.organisation_units]`
-`max_level` / `root` dials, so the cost surfaces at generate time instead of at
-the end of a long build.
+What the compile pays for is FSH, and the registry is not FSH: `Organization` and
+`Location` instances are pre-built JSON that SUSHI loads as predefined resources,
+so a national hierarchy adds nothing to the run the timeout is guarding. On the
+Lao IG capped at `max_level = 4` the compile is **9m40s** for 337 FSH instances,
+of which 240 CodeSystems are **5m41s** - option-set terminology is the ceiling's
+real customer. Feeding SUSHI the same IG's 5,035 instances as FSH instead costs
+**23m22s**, which is the measure of what the predefined-resource path buys.
 
-Standalone `make sushi` on that IG - no publisher, so no timeout to hit - takes
-**207m10s** and finishes with 0 errors and 0 warnings. Capped at `max_level = 4`
-the same IG is 5,035 instances and takes **23m22s**, also clean. Per resource
-that is 105 ms for the demo, 254 ms capped, and 478 ms uncapped: the cost is not
-constant, so 5x the resources bought 9x the time.
-
-That superlinearity rules out a larger `[FSH] timeout` as the fix at national
-scale - it would have to sit near 13,000 seconds, and the publisher's own SUSHI
-run doubles it into a seven-hour build - while one level off the registry lands
-inside the scaffolded 1800-second default with no ceiling change at all. Trimming
-is the practical lever, which is why the warning names the dials rather than the
-ceiling, and why `d2w fhir init --max-level` seeds the cap at scaffold time.
+Registry size lands on the IG publisher instead, which writes and renders a page
+per resource. `generate_organisation_units` warns once a registry passes
+`_REGISTRY_RENDER_COST_INSTANCES` (10,000), naming the
+`[generate.organisation_units]` `max_level` / `root` dials, so the cost surfaces
+at generate time rather than at the end of a long build - and
+`d2w fhir init --max-level` seeds the cap at scaffold time.
 
 ## 5. Open decisions
 
@@ -810,7 +841,7 @@ section, and the generated `capture.md` behind
 - **Option resolution is by code then UID.** `_option_for` matches an option by
   DHIS2 code first and falls back to UID. A set holding an option whose code
   equals another option's UID resolves ambiguously.
-- **The `Location` reference is a bare `Reference(Location-<uid>)` string** in
+- **The `Location` reference is a bare `Reference(Location/<uid>)` string** in
   `_typed_answer` for `ORGANISATION_UNIT` answers, with no check that the unit
   is inside the emitted selection. Under
   `[generate.organisation_units] max_level`, a data element answering with a
@@ -1031,38 +1062,44 @@ are and are not worth pulling. The full step-by-step table lives in the
 [FHIR IG guide](../guides/fhir-ig.md#build-time-and-the-two-caches); it is not
 repeated here.
 
-**The measurements**, on the Sierra Leone demo (171 option sets, 2,664 registry
-instances, 3,101 resources in all):
+**Generation is not the cost.** On the Sierra Leone demo (171 option sets, 2,664
+registry instances, 3,101 resources in all), `d2w fhir generate all` is 16s and
+`d2w fhir validate` is 7s.
 
-- `d2w fhir generate all` - 16s. `d2w fhir validate` - 7s. Generation is not the
-  cost.
-- `make sushi` - 5m26s warm, 9m05s cold. The three-and-a-half-minute delta is
-  pure FHIR package download, which is what the `fhir-ig-cache` named volume
-  buys back.
-- `make build` - 24m36s publishing all three wire formats, 18m54s publishing
-  JSON only.
-- Full regenerate-and-publish chain - about 30 minutes before, under 19 minutes
-  after.
-- Output - 26,120 files and 874MB before, 13,710 files and 466MB after.
-- QA throughout - 0 errors, 0 warnings.
+**The compile scales with FSH, not with the hierarchy.** The registry is
+predefined JSON, so `make sushi` pays only for the terminology and the forms. On
+the Lao IG capped at `max_level = 4` that is **9m40s** for 337 FSH instances,
+with 240 CodeSystems accounting for **5m41s** of it. Option-set terminology is
+therefore the compile's dominant cost, and `[generate.option_sets] include_ids`
+is the dial that reaches it. Feeding SUSHI the same IG's 5,035 instances as FSH
+instead costs **23m22s** - the measure of what the predefined-resource path buys.
 
-**The root cause of the largest saving.** The IG publisher runs **its own**
-embedded SUSHI over the same FSH, roughly seven and a half minutes of a twenty
-minute build. A chain that calls `make sushi` and then `make build` therefore
-compiled everything twice. The scaffolded `make refresh` goes straight from
-`validate` to `build`; `make sushi` stays as the standalone fast gate for the
-edit loop.
+**A cold package cache costs about three and a half minutes** of pure FHIR
+package download, which is what the `fhir-ig-cache` named volume buys back.
 
-**Terminology is not where the time goes.** Connecting to `TX_SERVER` and
-opening the terminology cache cost about fourteen seconds together. A
-DHIS2-derived IG codes its concepts in its own CodeSystems and the publisher
-resolves those internally. This is not worth optimising - recorded here so it is
-not re-investigated.
+**The publisher runs its own embedded SUSHI** over the same FSH, so a chain that
+calls `make sushi` and then `make build` compiles everything twice. The scaffolded
+`make refresh` goes straight from `validate` to `build`; `make sushi` stays as the
+standalone fast gate for the edit loop.
 
-**The remaining untouched lever** is `[generate.organisation_units] max_level`.
-The registry is 2,664 of the 3,101 resources, so it sets the pace for both SUSHI
-and the publisher, and it is a config change rather than a build flag: fewer
-levels, proportionally less of everything. Nothing has measured how much.
+**Terminology service time is not where the publisher's time goes.** Connecting
+to `TX_SERVER` and opening the terminology cache cost about fourteen seconds
+together. A DHIS2-derived IG codes its concepts in its own CodeSystems and the
+publisher resolves those internally. This is not worth optimising - recorded here
+so it is not re-investigated.
+
+**Publishing JSON only halves the output.** `excludexml` and `excludettl` in the
+scaffolded `sushi-config.yaml` take the demo from 26,120 files and 874MB to
+13,710 and 466MB, with the same 0 errors and 0 warnings, because the two extra
+wire formats add a file and a rendered page per resource for content that
+consumers and the tooling read as JSON anyway.
+
+**The lever on the publisher's rendering pass** is
+`[generate.organisation_units] max_level`. The registry is 2,664 of the demo's
+3,101 resources and the publisher renders a page per resource, so registry depth
+sets the wall clock of `make build`. It is a config change rather than a build
+flag: fewer levels, proportionally less of everything. Nothing has measured how
+much.
 
 ## 9. Roadmap
 
