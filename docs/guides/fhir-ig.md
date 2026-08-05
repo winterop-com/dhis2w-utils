@@ -1181,10 +1181,12 @@ the single largest cost in the chain.
 
 Past a certain size, though, a larger ceiling stops being an answer. The
 25,499-instance IG above compiles in **3h27m**, so it would need a timeout near
-13,000 seconds and a build near seven hours, every time. At that scale the
-registry dials are the fix and the timeout is not: `max_level = 4` takes the same
-IG to 4,698 registry instances. Raising the ceiling alone only buys a slower
-failure.
+13,000 seconds and a build near seven hours, every time. The same IG capped at
+`max_level = 4` is 5,035 instances and compiles in **23m22s** - comfortably
+inside the scaffolded 1800-second default, with no ceiling change at all. At that
+scale the registry dial is the fix and the timeout is not; raising the ceiling
+alone only buys a slower failure. [Build time](#build-time-and-the-two-caches)
+has both measurements.
 
 ### Build time and the two caches
 
@@ -1201,18 +1203,41 @@ Measured on the Sierra Leone demo (171 option sets, 2,664 registry instances,
 | `build`, JSON only | 18m54s |
 
 Resource count is what moves those numbers, and it moves them steeply. The same
-warm `sushi` step measured against a Lao national IG, whose registry carries
-12,581 organisation units:
+warm `sushi` step, measured against a Lao national IG at two registry depths:
 
-| Step | Sierra Leone demo (3,101 resources) | Lao national (25,985 resources) |
-| --- | --- | --- |
-| `sushi`, warm cache | 5m26s | 207m10s |
+| IG | Resources | `sushi`, warm cache | Per resource |
+| --- | --- | --- | --- |
+| Sierra Leone demo | 3,101 | 5m26s | 105 ms |
+| Lao, `max_level = 4` | 5,521 | 23m22s | 254 ms |
+| Lao, full registry | 25,985 | 207m10s | 478 ms |
 
-An 8x resource count costs 38x the time, so this does not scale the way a first
-guess suggests. The long run finishes clean - 0 errors, 0 warnings - so it is
-throughput, not content. It peaked at 2.9 GiB inside a container offered 15.8
-GiB, which is why an IG this size hits the SUSHI timeout (exit 143) long before
-it hits an OOM kill (exit 137).
+The per-resource column is the point: it is not a constant. Each resource costs
+more as the IG grows, so 5x the resources bought 9x the time between the last two
+rows, and capping the registry one level bought back **8.9x** - three and a half
+hours down to twenty-three minutes. Both runs finish clean, 0 errors and 0
+warnings, so this is throughput rather than content.
+
+That superlinearity is why guessing at these numbers is a bad idea, and why
+`max_level` is the lever that matters. Memory scales far more gently: the full
+run peaked at 2.9 GiB inside a container offered 15.8 GiB, the capped one at 1.9
+GiB, which is why an IG this size meets the SUSHI timeout (exit 143) long before
+an OOM kill (exit 137).
+
+**Docker is not where the time goes**, which is worth stating because it is the
+next thing anyone suspects. The same capped IG, three ways:
+
+| Run | Time |
+| --- | --- |
+| `make sushi` as scaffolded, IG bind-mounted into the container | 23m22s |
+| the same container, IG copied onto its internal filesystem | 23m27s |
+| SUSHI run natively on the host, warm package cache | 18m16s |
+
+The bind mount costs **5 seconds on a 23-minute run** - SUSHI holds everything in
+memory and writes once at the end, so there is no sustained file traffic across
+the mount to punish. Dropping the container altogether saves about 22%, and that
+figure covers host-vs-VM CPU and a different JS runtime together. The remaining
+~78% is SUSHI's own work, so a native toolchain is not the answer to a slow
+build: the uncapped IG would still take some two and three quarter hours.
 
 Two things about the demo table matter more than the totals. The first is that
 the cold and warm `sushi` runs differ by three and a half minutes of pure package
