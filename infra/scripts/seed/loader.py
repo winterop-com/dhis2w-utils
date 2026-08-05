@@ -800,9 +800,11 @@ async def seed_play(client: Dhis2Client) -> None:
          session's cached OU scope refreshes (BUGS.md #26).
       4. Import everything except DataSets + Sections + DataEntryForms.
       5. Import the deferred DataSet trio on its own (BUGS.md #23).
-      6. Import the aggregate data values (chunked).
-      7. Import the tracker sample.
-      8. Attach the imported datasets + programs to the admin user so
+      6. Seed the FHIR attribute fixtures — the option set, data set
+         and org unit targets all exist by this point.
+      7. Import the aggregate data values (chunked).
+      8. Import the tracker sample.
+      9. Attach the imported datasets + programs to the admin user so
          Data Entry + Tracker Capture pickers are populated on login.
     """
     _log(">>> Loading typed metadata bundle")
@@ -856,6 +858,12 @@ async def seed_play(client: Dhis2Client) -> None:
 
     _log(">>> Importing deferred DataSet / Section / DataEntryForm (pass 3/3)")
     _print_counts("deferred", await import_deferred_metadata(client, bundle))
+
+    _log(">>> Seeding FHIR attribute fixtures (option set + data set + org unit)")
+    from .fhir_attributes import seed_fhir_attributes  # noqa: PLC0415
+
+    attribute_value_count = await seed_fhir_attributes(client)
+    print(f"    attribute values attached: {attribute_value_count}", flush=True)
 
     _log(">>> Building supervision-visit event program")
     from .event_program import build_event_program  # noqa: PLC0415
