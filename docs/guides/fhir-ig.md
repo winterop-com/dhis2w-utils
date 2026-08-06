@@ -1280,6 +1280,38 @@ excludes and which land in concept displays and page tables. The offending name 
 printed through the same renderer the code column uses, so an invisible character in
 it is visible on the page.
 
+### `template-hostile-code`
+
+An **error** on any metadata object whose **code** contains `<`, `>`, or `&`.
+
+Same three characters, a much worse outcome, which is why this one is an error and
+its sibling above is a warning. A code becomes an identifier value on the resources
+generated from that object, and the publisher writes identifier values into a table
+cell without escaping them and then strict-parses the page it just produced. A real
+one - an option set coded `ENTO - IRS < 6 Months` - fails the build with:
+
+```
+Publishing Content Failed: Unable to process page .../CodeSystem-d2-os-csRsm0D7guY-cs.html
+Caused by: org.hl7.fhir.exceptions.FHIRFormatError: Unable to Parse HTML - node 'td'
+has unexpected content ' ' at line 215 column 197
+```
+
+It fails in the publisher's last pass, after every resource has been rendered, so on
+a large IG a single hostile code costs you the entire build before it says so. That
+is the whole reason to spend a `validate` on it: the same finding takes seconds.
+
+The rest of the DHIS2 text that reaches a page is safe. The publisher escapes concept
+displays, concept designations, `dhis2-code` property values, and translation
+extensions, all of which carry a raw `<` through a build without complaint. The
+identifier table is the one place it does not, and a code is the one DHIS2 field that
+reaches it - so this check reads codes and nothing else.
+
+Generation does not escape its way around this, for the same reason it leaves names
+alone: an identifier value is what a consumer matches on to find the DHIS2 object,
+and an IG that answers `ENTO - IRS &lt; 6 Months` to a lookup for
+`ENTO - IRS < 6 Months` disagrees with the instance it describes. The fix is to
+change the code in DHIS2.
+
 ### Severity and `--code-source`
 
 The option-pass findings are gated on the effective code source - the
@@ -1634,6 +1666,12 @@ than the content: a file written shortly before the container read it can come
 back truncated across a Docker bind mount, and the same bytes register cleanly on
 a re-run. Re-run before looking for anything to fix. A genuinely malformed
 resource fails every time and on the same files.
+
+**`Unable to process page ...`** is not a SUSHI error at all - it comes from the
+publisher's own final pass, so the clock on it is the whole build. Read the
+`Caused by:` line under it: `Unable to Parse HTML - node 'td' has unexpected
+content` is a DHIS2 code carrying `<` into an identifier value, which
+[`template-hostile-code`](#template-hostile-code) reports in seconds instead.
 
 **`Duplicate definition of ...`** means the same identity reached SUSHI twice,
 once compiled from FSH and once as a predefined resource. Generation sweeps the

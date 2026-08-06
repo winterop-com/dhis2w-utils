@@ -486,3 +486,66 @@ def test_a_markdown_row_escapes_the_uid_beside_the_name() -> None:
     row = next(line for line in markdown.splitlines() if line.startswith("| error |"))
     assert "Plain (De1\\|aaaaaaa)" in row
     assert len(re.split(r"(?<!\\)\|", row)) == 7
+
+
+#: The option-set code that aborts the publisher on a real national instance.
+_HOSTILE_CODE = "ENTO - IRS < 6 Months"
+
+
+def _hostile_code(report: FhirValidationReport) -> list[ValidationFinding]:
+    """The template-hostile-code findings of one report, in report order."""
+    return [finding for finding in report.findings if finding.category == "template-hostile-code"]
+
+
+def test_a_template_hostile_code_is_an_error_because_it_aborts_the_build() -> None:
+    """A code carrying `<` rides an identifier value the publisher writes raw, which kills the build."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="optionSets",
+                items=[MetadataItemIn(uid="csRsm0D7guY", name="MAL ENTO: IRS 6 Months", code=_HOSTILE_CODE)],
+            )
+        ],
+    )
+    findings = _hostile_code(report)
+    assert len(findings) == 1
+    assert findings[0].severity == "error"
+    assert findings[0].resource_type == "optionSets"
+    assert findings[0].uid == "csRsm0D7guY"
+    assert findings[0].code == _HOSTILE_CODE
+    assert "identifier value" in findings[0].message
+    # A clean name means the cosmetic sibling stays silent - the two findings are independent.
+    assert _hostile(report) == []
+
+
+def test_a_clean_code_and_an_absent_code_raise_no_template_finding() -> None:
+    """The check reads a code when there is one and is silent otherwise."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="optionSets",
+                items=[
+                    MetadataItemIn(uid="Aa1aaaaaaaa", name="Sex", code="SEX"),
+                    MetadataItemIn(uid="Bb2bbbbbbbb", name="Age", code=None),
+                ],
+            )
+        ],
+    )
+    assert _hostile_code(report) == []
+
+
+def test_a_hostile_name_and_a_hostile_code_on_one_object_are_two_findings() -> None:
+    """They describe different failures - a malformed page and an aborted build - so neither absorbs the other."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="optionSets",
+                items=[MetadataItemIn(uid="csRsm0D7guY", name=_MORTALITY_NAME, code=_HOSTILE_CODE)],
+            )
+        ],
+    )
+    assert [finding.severity for finding in _hostile(report)] == ["warning"]
+    assert [finding.severity for finding in _hostile_code(report)] == ["error"]

@@ -16,6 +16,10 @@ Three passes share one finding shape:
 Every pass also checks the object's NAME for the HTML-significant characters the IG
 publisher's template injects unescaped (`template-hostile-name`). That check is about
 the published pages rather than about codes, so it is a warning in either code source.
+Its sibling `template-hostile-code` checks the object's CODE for the same characters
+and is an error in either code source, because a code reaches the identifier table the
+publisher writes raw and then strict-parses: that one aborts the build rather than
+rendering a malformed page.
 
 ## What the deep passes do not repeat, and why
 
@@ -196,6 +200,27 @@ def _template_hostile_finding(resource_type: str, uid: str, name: str, code: str
     )
 
 
+def _template_hostile_code_finding(
+    resource_type: str, uid: str, name: str, code: str | None
+) -> ValidationFinding | None:
+    """Flag one object whose code carries a character that aborts the publisher rather than deforming a page."""
+    character = _template_hostile_character(code or "")
+    if character is None:
+        return None
+    return ValidationFinding(
+        severity="error",
+        category="template-hostile-code",
+        resource_type=resource_type,
+        uid=uid,
+        name=name,
+        code=code,
+        message=f"code {display_code(code or '')} contains {character!r}; the code rides an identifier value, "
+        "which the IG publisher writes into a table cell unescaped and then strict-parses, so `make build` "
+        "aborts with \"Unable to Parse HTML - node 'td' has unexpected content\" once every resource is "
+        "rendered; change the code in DHIS2",
+    )
+
+
 def _template_hostile_option_findings(option_set: OptionSetIn, locales: list[str]) -> list[ValidationFinding]:
     """Flag the option names the sweep cannot see - options are excluded from it, and land in page tables."""
     findings: list[ValidationFinding] = []
@@ -225,6 +250,9 @@ def _collection_findings(collection: MetadataCollectionIn) -> list[ValidationFin
         hostile = _template_hostile_finding(collection.resource, item.uid, name, item.code)
         if hostile is not None:
             findings.append(hostile)
+        hostile_code = _template_hostile_code_finding(collection.resource, item.uid, name, item.code)
+        if hostile_code is not None:
+            findings.append(hostile_code)
         if item.code is None:
             if collection.resource == _CODE_REQUIRED_COLLECTION:
                 findings.append(
