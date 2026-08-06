@@ -1282,13 +1282,16 @@ it is visible on the page.
 
 ### `template-hostile-code`
 
-An **error** on any metadata object whose **code** contains `<`, `>`, or `&`.
+An **error** on a code containing `<`, and a **warning** on one containing `>` or
+`&` - raised only on the collections whose codes become identifier values:
+`optionSets`, `categories`, `organisationUnits`, `dataSets`, and `programs`.
 
-Same three characters, a much worse outcome, which is why this one is an error and
-its sibling above is a warning. A code becomes an identifier value on the resources
-generated from that object, and the publisher writes identifier values into a table
-cell without escaping them and then strict-parses the page it just produced. A real
-one - an option set coded `ENTO - IRS < 6 Months` - fails the build with:
+Same characters as the sibling above, a much worse outcome, which is why `<` here is
+an error and a hostile *name* is only ever a warning. A code from one of those five
+collections becomes an identifier value on the resources generated from that object,
+and the publisher writes identifier values into a table cell without escaping them
+and then strict-parses the page it just produced. A real one - an option set coded
+`ENTO - IRS < 6 Months` - fails the build with:
 
 ```
 Publishing Content Failed: Unable to process page .../CodeSystem-d2-os-csRsm0D7guY-cs.html
@@ -1305,6 +1308,17 @@ displays, concept designations, `dhis2-code` property values, and translation
 extensions, all of which carry a raw `<` through a build without complaint. The
 identifier table is the one place it does not, and a code is the one DHIS2 field that
 reaches it - so this check reads codes and nothing else.
+
+Both restrictions are there to keep the error honest, because an error on this check
+means "your build will fail". A dashboard is never generated, so a dashboard coded
+`CHAS S&E HIV` costs nothing and is not a finding; a data element carries its code as
+a concept code or a `dhis2-code` property, both of which the publisher escapes, so it
+is not a finding either. And `<` is the only character seen to abort a build - it
+opens a tag - while `>` is text to an HTML parser and a bare `&` is widely tolerated,
+so those two are reported without claiming to be fatal. On the national instance this
+was found on, the unrestricted form of the check raised 23 errors across dashboards,
+data elements, and program indicators; exactly one of them was the object that
+actually failed the build.
 
 Generation does not escape its way around this, for the same reason it leaves names
 alone: an identifier value is what a consumer matches on to find the DHIS2 object,

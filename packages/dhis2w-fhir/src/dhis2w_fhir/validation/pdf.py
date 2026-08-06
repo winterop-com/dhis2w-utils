@@ -186,6 +186,7 @@ class _ValidationPdf(FPDF):
 
     def render_table_of_contents(self, pdf: FPDF, outline: list[OutlineSection]) -> None:
         """Render the clickable contents: one row per resource type with its finding breakdown."""
+        start_page = pdf.page
         pdf.set_xy(pdf.l_margin, pdf.t_margin)
         pdf.set_font(_FONT_FAMILY, "B", 14)
         pdf.multi_cell(0, 9, "Contents", new_x="LMARGIN", new_y="NEXT")
@@ -204,6 +205,13 @@ class _ValidationPdf(FPDF):
             pdf.set_text_color(*_MUTED)
             pdf.multi_cell(0, 6, "No findings - every code is FHIR-safe.", new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(*_INK)
+        # fpdf reserves a fixed page count for the placeholder and requires the render to fill it
+        # exactly, so the row estimate being conservative is itself an error: an instance with more
+        # resource types than fit the estimate reserves a page the rows do not reach. Pad out
+        # whatever was over-reserved rather than tightening the estimate, which cannot be exact -
+        # a row's height depends on the fallback font the resource type's glyphs select.
+        while pdf.page - start_page + 1 < _contents_pages(self.sections):
+            pdf.add_page()
 
     def render_no_findings(self) -> None:
         """State the clean result on its own page when the instance produced no findings at all."""

@@ -829,17 +829,27 @@ the sweep covers every metadata object and the deep option-set pass covers optio
 names, which the sweep excludes.
 
 Its sibling `template-hostile-code` reads the object's **code** for the same three
-characters and is an **error**, because the two failures are not the same size. A
-name deforms the page it appears on; a code rides an identifier value, and the
-publisher writes identifier values into a table cell unescaped and then
-strict-parses the page it just produced, so the build aborts with `Unable to Parse
-HTML - node 'td' has unexpected content`. It aborts in the publisher's final pass,
-after every resource has been rendered, which is what makes catching it in a
-seconds-long `validate` worth an error rather than a warning. The publisher escapes
-the other DHIS2 text that reaches a page - concept displays, designations,
-`dhis2-code` property values, translation extensions all survive a raw `<` - so the
-identifier table is the single carrier, and the code is the single field that
-reaches it.
+characters, because the two failures are not the same size. A name deforms the page
+it appears on; a code rides an identifier value, and the publisher writes identifier
+values into a table cell unescaped and then strict-parses the page it just produced,
+so the build aborts with `Unable to Parse HTML - node 'td' has unexpected content`.
+It aborts in the publisher's final pass, after every resource has been rendered,
+which is what makes catching it in a seconds-long `validate` worth an error rather
+than a warning. The publisher escapes the other DHIS2 text that reaches a page -
+concept displays, designations, `dhis2-code` property values, translation extensions
+all survive a raw `<` - so the identifier table is the single carrier, and the code
+is the single field that reaches it.
+
+**The check is doubly restricted, and both restrictions are load-bearing**, because
+an error here asserts that a build will fail. It fires only on
+`_CODE_IDENTIFIER_COLLECTIONS` - `optionSets`, `categories`, `organisationUnits`,
+`dataSets`, `programs` - the five whose objects emit a resource carrying the code as
+an identifier value; every other collection either emits nothing or carries its code
+through an escaped surface. And only `<` is an error: it opens a tag, which is the
+failure that was observed, while `>` is text to an HTML parser and a bare `&` is
+widely tolerated, so both are warnings rather than claims. Unrestricted, the check
+raised 23 errors on the national instance it was written against - dashboards, data
+elements, program indicators - of which one was the object that failed the build.
 
 **What the deep passes do not repeat, and why** is stated in
 `validation/__init__.py`'s own module docstring, and it is the reason the deep

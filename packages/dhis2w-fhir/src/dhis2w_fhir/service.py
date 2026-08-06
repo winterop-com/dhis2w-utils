@@ -230,6 +230,13 @@ _INSTANCES_PER_ORGANISATION_UNIT = 2
 #: per resource, so the wall clock of `make build` tracks this count.
 _REGISTRY_RENDER_COST_INSTANCES = 10_000
 
+#: Read timeout for the validate sweep's single `/api/metadata` request. The client's 30 s default
+#: is sized for an ordinary API read; a whole-instance metadata read is a different shape of request
+#: and needs its own ceiling. Measured on a national instance: 13 MB over 58 s, so the default fails
+#: it every time and `d2w fhir validate` cannot run at all against exactly the instances whose size
+#: makes its findings worth having.
+_SWEEP_TIMEOUT_SECONDS = 600.0
+
 
 def _sweep_collections(raw: dict[str, object]) -> list[MetadataCollectionIn]:
     """Wrap the raw `/api/metadata?fields=id,name,code` body into typed sweep sources."""
@@ -262,7 +269,7 @@ async def validate_codes(
 ) -> FhirValidationReport:
     """Check the whole instance's codes (sweep) plus the option sets in depth, without writing anything."""
     effective_source = resolve_code_source(config, code_source)
-    async with open_client(profile) as client:
+    async with open_client(profile, timeout=_SWEEP_TIMEOUT_SECONDS) as client:
         raw = await client.get_raw("/api/metadata", params={"fields": "id,name,code", "defaults": "EXCLUDE"})
         models = await client.resources.option_sets.list(
             fields=_OPTION_SET_FIELDS,

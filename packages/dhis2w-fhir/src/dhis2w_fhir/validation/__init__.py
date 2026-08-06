@@ -104,6 +104,18 @@ _ATTRIBUTE_COLLECTION = "attributes"
 #: `title` / `name` elements stay byte-true DHIS2 data - which is the surface that stays broken.
 _TEMPLATE_HOSTILE_CHARACTERS = ("<", ">", "&")
 
+#: The swept collections whose objects emit a resource carrying the DHIS2 code as an identifier value -
+#: option sets and categories on both halves of their CodeSystem/ValueSet pair, organisation units on both
+#: their Organization and Location, data sets and event programs on their Questionnaire. Every other
+#: collection either emits nothing or carries its code as a concept code or a `dhis2-code` property, both
+#: of which the publisher escapes. A dashboard code holding '<' costs nothing, so it is not a finding.
+_CODE_IDENTIFIER_COLLECTIONS = frozenset({"optionSets", "categories", "organisationUnits", "dataSets", "programs"})
+
+#: The one hostile character observed to abort a build from an identifier value: it opens a tag, and the
+#: publisher's strict parse of the page it just wrote fails on the malformed cell. '>' is text to an HTML
+#: parser and a bare '&' is widely tolerated, so neither is claimed to be fatal without having seen it.
+_BUILD_ABORTING_CHARACTER = "<"
+
 
 def build_code_validation(
     option_sets: list[OptionSetIn],
@@ -203,21 +215,30 @@ def _template_hostile_finding(resource_type: str, uid: str, name: str, code: str
 def _template_hostile_code_finding(
     resource_type: str, uid: str, name: str, code: str | None
 ) -> ValidationFinding | None:
-    """Flag one object whose code carries a character that aborts the publisher rather than deforming a page."""
+    """Flag one object whose code reaches an identifier value, the one page surface written unescaped."""
+    if resource_type not in _CODE_IDENTIFIER_COLLECTIONS:
+        return None
     character = _template_hostile_character(code or "")
     if character is None:
         return None
+    aborts = character == _BUILD_ABORTING_CHARACTER
+    consequence = (
+        "so `make build` aborts with \"Unable to Parse HTML - node 'td' has unexpected content\", and it "
+        "aborts in the publisher's last pass, once every resource has already been rendered"
+        if aborts
+        else "so this code lands on a page surface the publisher does not escape; only '<' is confirmed to "
+        "abort a build, which is why this is a warning and '<' is an error"
+    )
     return ValidationFinding(
-        severity="error",
+        severity="error" if aborts else "warning",
         category="template-hostile-code",
         resource_type=resource_type,
         uid=uid,
         name=name,
         code=code,
-        message=f"code {display_code(code or '')} contains {character!r}; the code rides an identifier value, "
-        "which the IG publisher writes into a table cell unescaped and then strict-parses, so `make build` "
-        "aborts with \"Unable to Parse HTML - node 'td' has unexpected content\" once every resource is "
-        "rendered; change the code in DHIS2",
+        message=f"code {display_code(code or '')} contains {character!r}; a {resource_type} code becomes an "
+        f"identifier value, which the IG publisher writes into a table cell unescaped and then strict-parses, "
+        f"{consequence}; change the code in DHIS2",
     )
 
 

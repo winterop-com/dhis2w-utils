@@ -7,6 +7,7 @@ import pytest
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
+from dhis2w_fhir.validation.pdf import render_validation_pdf
 from dhis2w_fhir.validation.schemas import (
     FhirValidationReport,
     MetadataCollectionIn,
@@ -519,6 +520,41 @@ def test_a_template_hostile_code_is_an_error_because_it_aborts_the_build() -> No
     assert _hostile(report) == []
 
 
+def test_a_hostile_code_on_a_collection_that_emits_no_identifier_is_not_a_finding() -> None:
+    """A dashboard is never generated, so its code reaches no page and costs nothing."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="dashboards",
+                items=[MetadataItemIn(uid="upvQqwKmR0P", name="Dashboard", code="CHAS S&E HIV")],
+            ),
+            MetadataCollectionIn(
+                resource="dataElements",
+                items=[MetadataItemIn(uid="imGvvLi8joq", name="Element", code="SC_BR_Outbreaks<R_Q3")],
+            ),
+        ],
+    )
+    assert _hostile_code(report) == []
+
+
+def test_an_unconfirmed_hostile_character_in_a_code_is_a_warning_not_an_error() -> None:
+    """Only `<` has been seen to abort a build, so `&` and `>` do not claim to."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="organisationUnits",
+                items=[
+                    MetadataItemIn(uid="Aa1aaaaaaaa", name="Facility", code="A&E"),
+                    MetadataItemIn(uid="Bb2bbbbbbbb", name="Ward", code="OVER>5"),
+                ],
+            )
+        ],
+    )
+    assert [finding.severity for finding in _hostile_code(report)] == ["warning", "warning"]
+
+
 def test_a_clean_code_and_an_absent_code_raise_no_template_finding() -> None:
     """The check reads a code when there is one and is silent otherwise."""
     report = _validate(
@@ -549,3 +585,23 @@ def test_a_hostile_name_and_a_hostile_code_on_one_object_are_two_findings() -> N
     )
     assert [finding.severity for finding in _hostile(report)] == ["warning"]
     assert [finding.severity for finding in _hostile_code(report)] == ["error"]
+
+
+@pytest.mark.parametrize("resource_type_count", [1, 29, 30, 31, 45, 60, 61])
+def test_the_pdf_renders_at_every_contents_page_boundary(resource_type_count: int) -> None:
+    """The contents placeholder reserves whole pages, and the render has to fill exactly what it reserved."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource=f"collection{index:03d}",
+                items=[MetadataItemIn(uid=f"Uid{index:08d}", name="Object", code=" leading space is not a code")],
+            )
+            for index in range(resource_type_count)
+        ],
+    )
+    assert len({finding.resource_type for finding in report.findings}) == resource_type_count
+
+    rendered = render_validation_pdf(report, target="probe", generated_at=datetime(2026, 1, 1, tzinfo=UTC))
+
+    assert rendered.startswith(b"%PDF")
