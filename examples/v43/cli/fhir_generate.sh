@@ -84,8 +84,8 @@ d2w fhir generate option-sets
 # valueType, option-set-bound elements answer from the option set's ValueSet, and a
 # non-default category combo becomes a group with one child per option combo.
 # Narrow the targets with [generate.data_sets] / [generate.event_programs] include_ids;
-# with neither configured this target covers the whole instance (tracker and multi-stage
-# programs are skipped with a note).
+# with neither configured this target covers the whole instance (tracker programs are
+# skipped with a note).
 d2w fhir generate questionnaires
 
 # Examples: one Usage: #example QuestionnaireResponse per configured example under

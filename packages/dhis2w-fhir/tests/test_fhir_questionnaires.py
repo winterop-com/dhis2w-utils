@@ -175,19 +175,9 @@ _TRACKER_PROGRAM = {
     "programStages": [{"id": "A03MvHHogjR", "programStageDataElements": []}],
 }
 
-_MULTI_STAGE_PROGRAM = {
-    "id": "Pr2aaaaaaaa",
-    "name": "Two stage event",
-    "programType": "WITHOUT_REGISTRATION",
-    "programStages": [
-        {"id": "Ps1aaaaaaaa", "programStageDataElements": []},
-        {"id": "Ps2aaaaaaaa", "programStageDataElements": []},
-    ],
-}
-
-#: The whole instance as the all-mode sweep sees it: two data sets, and three programs of three shapes.
+#: The whole instance as the all-mode sweep sees it: two data sets, an event program, and a tracker program.
 _ALL_DATA_SETS_PAYLOAD = {"dataSets": [*_DATA_SETS_PAYLOAD["dataSets"], _SECOND_DATA_SET]}
-_ALL_PROGRAMS_PAYLOAD = {"programs": [*_EVENT_PROGRAMS_PAYLOAD["programs"], _TRACKER_PROGRAM, _MULTI_STAGE_PROGRAM]}
+_ALL_PROGRAMS_PAYLOAD = {"programs": [*_EVENT_PROGRAMS_PAYLOAD["programs"], _TRACKER_PROGRAM]}
 
 #: The instance's option sets as the identity plan reads them - the one the fixture forms bind, and a peer.
 _OPTION_SETS_PAYLOAD = {
@@ -717,8 +707,6 @@ async def test_an_absent_selection_covers_the_whole_instance(
     ]
     assert [note for note in report.notes if "skipped" in note] == [
         "1 tracker programs skipped (tracker generation not implemented): Child Programme (IpHINAT79UW)",
-        "1 multi-stage event programs skipped (only single-stage event programs are implemented): "
-        "Two stage event (Pr2aaaaaaaa)",
     ]
 
 
@@ -774,25 +762,6 @@ async def test_a_tracker_program_fails_loudly_by_name(
     assert "IpHINAT79UW" in str(raised.value)
     assert "WITH_REGISTRATION" in str(raised.value)
     assert "tracker programs are not implemented yet" in str(raised.value)
-
-
-@respx.mock
-async def test_a_multi_stage_event_program_fails_loudly_by_name(
-    probe_profile: None,  # noqa: ARG001
-    mock_system_info: Callable[..., None],
-    tmp_path: Path,
-) -> None:
-    """An event program with more than one stage is refused rather than silently losing a stage."""
-    mock_system_info("v42")
-    await _scaffold_project(tmp_path, event_programs='"Pr2aaaaaaaa"')
-    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
-    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_MULTI_STAGE_PROGRAM]}))
-
-    with pytest.raises(UnsupportedProgramError) as raised:
-        await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
-
-    assert "Two stage event" in str(raised.value)
-    assert "2 program stages" in str(raised.value)
 
 
 @respx.mock
