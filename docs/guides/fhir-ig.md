@@ -1263,8 +1263,10 @@ the Sierra Leone demo's `Mortality < 5 years by gender` (`YFTk3VdO9av`) renders
 `<h2 id="root">: Mortality < 5 years by gender - Change History</h2>` and the
 publisher logs `Unable to Parse HTML - node 'h2' has unexpected content`.
 
-Generation escapes what it owns - the FSH `Title:` and `Description:` lines that
-become page metadata all HTML-escape those three characters. It deliberately does
+Generation escapes what it owns - every page-facing title and description it writes
+HTML-escapes those three characters, the FSH `Title:` and `Description:` lines and
+the `title` and `description` of a pre-defined JSON resource alike, because both
+shapes reach the same template. It deliberately does
 **not** touch the resource's own `title` and `name` elements: those are DHIS2 data,
 they are what a consumer reads back, and silently substituting entities into them
 would make the IG disagree with the instance. So the change-history surface stays

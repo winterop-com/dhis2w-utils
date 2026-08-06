@@ -36,10 +36,10 @@ from dhis2w_fhir.names import (
     FHIR_ID_MAX_LENGTH,
     bounded_slug,
     code_or_uid,
-    flatten_whitespace,
     join_id_tokens,
     join_name_segments,
     kebab,
+    page_string,
     pascal,
 )
 from dhis2w_fhir.notes import aggregate_note
@@ -313,9 +313,9 @@ def _narrative(
             Identifier(system=systems.code_identifier_system, value=code_or_uid(category.code, category.uid)),
         ],
         extensions=attribute_value_extensions(category.attribute_values, attribute_codes, extension_url),
-        title=flatten_whitespace(category.name),
+        title=page_string(category.name),
         title_element=translated_element(name_translations(category.translations, config.locales)),
-        description=flatten_whitespace(
+        description=page_string(
             f"DHIS2 category {category.name} ({category.uid}). Concept codes are DHIS2 {code_kind}."
         ),
         status=ig_status,

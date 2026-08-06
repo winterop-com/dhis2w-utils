@@ -39,6 +39,7 @@ from dhis2w_fhir.names import (
     join_id_tokens,
     join_name_segments,
     kebab,
+    page_string,
     pascal,
 )
 from dhis2w_fhir.notes import aggregate_note
@@ -409,9 +410,9 @@ def _narrative(
             ),
         ],
         extensions=attribute_value_extensions(option_set.attribute_values, attribute_codes, extension_url),
-        title=flatten_whitespace(option_set.name),
+        title=page_string(option_set.name),
         title_element=translated_element(name_translations(option_set.translations, config.locales)),
-        description=flatten_whitespace(
+        description=page_string(
             f"DHIS2 option set {option_set.name} ({option_set.uid}). Concept codes are DHIS2 {code_kind}."
         ),
         status=ig_status,

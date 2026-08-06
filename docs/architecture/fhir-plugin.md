@@ -358,6 +358,17 @@ verbatim into `sushi-local#LOCAL` with no FSH parse. That is what keeps hundreds
 of option sets out of the compile - see
 [Toolchain performance](#toolchain-performance).
 
+Writing JSON makes the target owner of two directories rather than one. A
+definition SUSHI compiles from FSH and a predefined resource of the same identity
+are a duplicate, and SUSHI rejects the pair, so the target follows
+`sync_json_artifacts` with `clean_generated_files` over
+`ig/input/fsh/terminology/`. Only a file carrying the generated header is removed,
+which leaves anything hand-authored in that directory alone. Every page-facing
+`title` and `description` it writes goes through `page_string`, the JSON
+counterpart of the `page_text` the FSH emitters use: a predefined resource reaches
+the same breadcrumb template an FSH-authored one does, so it takes the same
+HTML-escaping.
+
 **The FSH name is what carries across the FSH/JSON boundary.** A Questionnaire is
 FSH and binds its question with `answerValueSet = Canonical(D2OS_<UID>_VS)`, an
 FSH name rather than a URL, and it resolves against a JSON document because SUSHI

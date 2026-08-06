@@ -146,6 +146,32 @@ async def test_generate_option_sets_across_majors(
 
 
 @respx.mock
+async def test_generate_option_sets_sweeps_terminology_fsh_it_no_longer_writes(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Generated terminology FSH is removed: SUSHI refuses a definition duplicating a pre-defined resource."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path)
+    fsh_terminology = tmp_path / "ig" / "input" / "fsh" / "terminology"
+    fsh_terminology.mkdir(parents=True, exist_ok=True)
+    superseded = fsh_terminology / "Xa1b2c3d4e5.fsh"
+    superseded.write_text(f"{GENERATED_HEADER}\n\nCodeSystem: D2OS_Xa1b2c3d4e5_CS\n", encoding="utf-8")
+    hand_authored = fsh_terminology / "notes.fsh"
+    hand_authored.write_text("// mine\n", encoding="utf-8")
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+
+    report = await service.generate_option_sets(resolve_profile("probe"), load_project(tmp_path))
+
+    assert not superseded.exists()
+    assert hand_authored.read_text(encoding="utf-8") == "// mine\n"
+    assert "Xa1b2c3d4e5.fsh" in report.deleted_files
+
+
+@respx.mock
 async def test_generate_categories_across_majors(
     wire_version: str,
     probe_profile: None,  # noqa: ARG001

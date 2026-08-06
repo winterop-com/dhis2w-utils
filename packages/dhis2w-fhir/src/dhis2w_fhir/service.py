@@ -66,7 +66,7 @@ from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
 from dhis2w_fhir.validation import build_code_validation
 from dhis2w_fhir.validation.schemas import FhirValidationReport, MetadataCollectionIn, MetadataItemIn
-from dhis2w_fhir.writer import FshArtifact, JsonArtifact, sync_artifacts, sync_json_artifacts
+from dhis2w_fhir.writer import FshArtifact, JsonArtifact, clean_generated_files, sync_artifacts, sync_json_artifacts
 
 if TYPE_CHECKING:
     from dhis2w_client import Dhis2Client
@@ -321,11 +321,16 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
         attribute_codes=attribute_codes,
     )
     sync = sync_json_artifacts(project.resources_directory, TERMINOLOGY_DIRECTORY, build.artifacts)
+    # The target writes JSON, so it also owns keeping its FSH directory empty of generated files: a
+    # project whose terminology was written as FSH would otherwise hold both shapes, and SUSHI refuses
+    # a definition that duplicates a pre-defined resource. Only header-bearing files are removed, so a
+    # hand-authored file in that directory is left alone.
+    superseded = clean_generated_files(project.fsh_directory / TERMINOLOGY_DIRECTORY)
     return GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",
         target_directory=f"resources/{TERMINOLOGY_DIRECTORY}",
-        deleted_files=sync.deleted,
+        deleted_files=[*sync.deleted, *superseded],
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
         option_set_count=len(inputs),

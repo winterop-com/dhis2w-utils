@@ -66,6 +66,15 @@ def page_text(value: str) -> str:
     return quote(escape_markup(value))
 
 
+def page_string(value: str) -> str:
+    """Render an IG page title or description as a one-line JSON string, HTML-escaping the markup characters.
+
+    The JSON counterpart of `page_text`: a pre-defined resource reaches the same breadcrumb template
+    the FSH-authored ones do, so its `title` and `description` take the same escaping.
+    """
+    return flatten_whitespace(escape_markup(value))
+
+
 def markdown_text(value: str, *, table_cell: bool = False) -> str:
     r"""Render metadata-derived text for a generated markdown page, HTML-escaping the markup characters.
 

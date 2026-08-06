@@ -241,3 +241,24 @@ def test_selection_defaults_to_every_category() -> None:
     """An absent `[generate.categories]` include list selects the whole instance."""
     assert CategorySelection().include_ids == []
     assert GenerateConfig().categories.include_ids == []
+
+
+def test_page_furniture_escapes_the_markup_characters_the_publisher_parses() -> None:
+    """A name holding `<` aborts the IG publisher: `fhir2.base.template` pastes the title into HTML raw."""
+    hostile = CategoryIn(
+        uid="Xa1b2c3d4e5",
+        name="Age (<5 >5) & up",
+        options=[OptionIn(uid="Op1aaaaaaaa", code="LT5", name="<5", sort_order=0)],
+    )
+
+    documents = _documents(_build([hostile], GenerateConfig()))
+
+    for document in documents.values():
+        assert document["title"] == "Age (&lt;5 &gt;5) &amp; up"
+        for character in "<>":
+            assert character not in document["title"]
+            assert character not in document["description"]
+    # The other half of the rule: a concept display is data a consumer reads back, not page
+    # furniture, so it carries the DHIS2 text verbatim.
+    code_system = documents["categories/CodeSystem-d2-cat-Xa1b2c3d4e5-cs.json"]
+    assert [concept["display"] for concept in code_system["concept"]] == ["<5"]
