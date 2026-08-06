@@ -1613,6 +1613,35 @@ wires both caches up for you:
 for a published site. Run the publisher when you are ready to publish one, not
 after every edit.
 
+### When the publisher stops on `Exit value: <n>`
+
+`Publishing Content Failed: Process exited with an error: 4 (Exit value: 4)` is
+not an exit code in the sense 137 and 143 are. The publisher runs SUSHI
+internally, SUSHI exits with the number of errors it counted, and the publisher
+reports that number and stops. So the digit is a count: read the `Sushi: error`
+lines above it, not the number itself. The build produces no pages, and the
+publisher's own clock will be short, because it never reached its own work.
+
+Two are worth recognising on sight.
+
+**`Failed to register resource at path: .../input/resources/...`** covers every
+way `fhir-package-loader` can fail to read one predefined resource, malformed
+JSON and a failed read alike, and it does not say which happened. Check it
+against the count SUSHI reports a few lines later - `Loaded virtual package
+sushi-local#LOCAL with N resources` - and compare N with the file count under
+`ig/input/resources/`. If the named files are valid JSON, the read failed rather
+than the content: a file written shortly before the container read it can come
+back truncated across a Docker bind mount, and the same bytes register cleanly on
+a re-run. Re-run before looking for anything to fix. A genuinely malformed
+resource fails every time and on the same files.
+
+**`Duplicate definition of ...`** means the same identity reached SUSHI twice,
+once compiled from FSH and once as a predefined resource. Generation sweeps the
+FSH it supersedes, so this points at generated FSH left behind by a version of
+the plugin that wrote a target in the other shape. `d2w fhir generate all` clears
+it and reports the files in `deleted_files`; the count in that report is the
+confirmation.
+
 ## The regeneration contract
 
 Every generated file opens with a header line, chosen by extension:
