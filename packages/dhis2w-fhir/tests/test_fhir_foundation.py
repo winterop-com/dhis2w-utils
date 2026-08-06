@@ -13,7 +13,7 @@ def _by_path(config: GenerateConfig, *, ig_status: IgStatus = "draft") -> dict[s
 
 
 #: The DHIS2 object kinds that carry an identifier system, each yielding a UID and a code declaration.
-_IDENTIFIER_SYSTEM_COUNT = 12
+_IDENTIFIER_SYSTEM_COUNT = 14
 
 
 def test_foundation_covers_expected_files() -> None:

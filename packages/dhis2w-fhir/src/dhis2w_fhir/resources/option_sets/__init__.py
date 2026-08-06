@@ -31,12 +31,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from dhis2w_fhir.foundation.attribute_values import attribute_value_extension_url, attribute_value_extensions
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import (
+    FHIR_ID_MAX_LENGTH,
+    bounded_slug,
     code_or_uid,
     flatten_whitespace,
     is_valid_fhir_code,
     join_id_tokens,
     join_name_segments,
     kebab,
+    page_string,
     pascal,
 )
 from dhis2w_fhir.notes import aggregate_note
@@ -56,6 +59,7 @@ from dhis2w_fhir.r4 import (
 from dhis2w_fhir.resources.option_sets.schemas import (
     ConceptAssignment,
     ConceptAssignmentPlan,
+    ConceptSourceIn,
     OptionIn,
     OptionSetIdentity,
     OptionSetIdentityIndex,
@@ -71,6 +75,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "TERMINOLOGY_DIRECTORY",
+    "build_concepts",
     "build_option_set_artifacts",
     "concept_assignments",
     "max_slug_length",
@@ -83,9 +88,8 @@ __all__ = [
 #: The `ig/input/resources/` subdirectory the option-set pairs own outright - one JSON file per resource.
 TERMINOLOGY_DIRECTORY = "terminology"
 
-# FHIR ids allow at most 64 characters. The longest emitted id is
-# `<id-stem><slug>-cs`/`-vs`, so the slug is bounded against the actual stem.
-_MAX_FHIR_ID_LENGTH = 64
+# The longest emitted id is `<id-stem><slug>-cs`/`-vs`, so the slug is bounded
+# against the actual stem and the FHIR id limit.
 _ID_SUFFIX = "-vs"
 
 #: The concept-property declarations, each of which takes its `uri` from the configured identifier base.
@@ -164,7 +168,7 @@ def option_set_fsh_name(config: GenerateConfig, segment: str) -> str:
 
 def max_slug_length(config: GenerateConfig) -> int:
     """Longest slug that keeps every emitted id within the FHIR id limit."""
-    return _MAX_FHIR_ID_LENGTH - len(_id_stem(config)) - len(_ID_SUFFIX)
+    return FHIR_ID_MAX_LENGTH - len(_id_stem(config)) - len(_ID_SUFFIX)
 
 
 def option_set_identities(option_sets: list[OptionSetIn], config: GenerateConfig) -> OptionSetIdentityPlan:
@@ -187,10 +191,10 @@ def option_set_identities(option_sets: list[OptionSetIn], config: GenerateConfig
             slug = kebab(option_set.name)
             base_name = option_set_fsh_name(config, pascal(option_set.name))
             if len(slug) > slug_limit:
-                slug = _bounded_slug(slug, option_set.uid, slug_limit)
+                slug = bounded_slug(slug, option_set.uid, slug_limit)
                 truncated.append(option_set.name)
             elif slug in used_slugs:
-                slug = _bounded_slug(slug, option_set.uid, slug_limit)
+                slug = bounded_slug(slug, option_set.uid, slug_limit)
                 base_name = join_name_segments(base_name, option_set.uid)
                 collided.append(option_set.name)
         used_slugs.add(slug)
@@ -282,10 +286,10 @@ def option_set_code_fallback(option_set: OptionSetIn, config: GenerateConfig) ->
     )
 
 
-def concept_assignments(option_set: OptionSetIn, config: GenerateConfig) -> ConceptAssignmentPlan:
-    """Assign one set's concept codes in emission order, falling back to the UID when the desired code is taken.
+def concept_assignments(source: ConceptSourceIn, config: GenerateConfig) -> ConceptAssignmentPlan:
+    """Assign one source's concept codes in emission order, falling back to the UID when the code is taken.
 
-    Concept codes are unique within a CodeSystem, so an option whose UID fall-back is itself
+    Concept codes are unique within a CodeSystem, so a member whose UID fall-back is itself
     taken - a peer carries that UID as its DHIS2 code - has no code left to take and receives
     none: the terminology emitter skips it rather than emit a duplicate concept, and an example
     leaves the answer that selects it unanswered rather than point at a concept nobody wrote.
@@ -294,9 +298,9 @@ def concept_assignments(option_set: OptionSetIn, config: GenerateConfig) -> Conc
     never disagree. The notes ride along on the plan; a consumer that is not the terminology
     target discards them, because that is where a fall-back belongs in the report.
     """
-    ordered = _ordered_options(option_set)
+    ordered = _ordered_options(source)
     notes: list[str] = []
-    desired = [_desired_code(option, option_set, config, notes) for option in ordered]
+    desired = [_desired_code(option, source, config, notes) for option in ordered]
     taken: set[str] = set()
     collided: list[str] = []
     skipped: list[str] = []
@@ -315,10 +319,14 @@ def concept_assignments(option_set: OptionSetIn, config: GenerateConfig) -> Conc
         taken.add(code)
         assignments.append(ConceptAssignment(option=option, code=code, from_dhis2_code=from_dhis2_code))
     if collided:
-        notes.append(aggregate_note(f"{len(collided)} option codes collided; fell back to the UID", collided))
+        notes.append(
+            aggregate_note(f"{len(collided)} {source.member_label} codes collided; fell back to the UID", collided)
+        )
     if skipped:
         notes.append(
-            aggregate_note(f"{len(skipped)} options could not receive a unique concept code; skipped", skipped)
+            aggregate_note(
+                f"{len(skipped)} {source.member_label}s could not receive a unique concept code; skipped", skipped
+            )
         )
     return ConceptAssignmentPlan(assignments=assignments, notes=notes)
 
@@ -343,7 +351,7 @@ def _build_pair(
     extension_url: str,
 ) -> _OptionSetPair:
     """Build the CodeSystem and the ValueSet of one option set, reporting what concept assignment raised."""
-    concepts = _unique_concepts(option_set, config, notes)
+    concepts = build_concepts(option_set, config, notes)
     narrative = _narrative(
         option_set, config, systems, ig_status=ig_status, attribute_codes=attribute_codes, extension_url=extension_url
     )
@@ -402,9 +410,9 @@ def _narrative(
             ),
         ],
         extensions=attribute_value_extensions(option_set.attribute_values, attribute_codes, extension_url),
-        title=flatten_whitespace(option_set.name),
+        title=page_string(option_set.name),
         title_element=translated_element(name_translations(option_set.translations, config.locales)),
-        description=flatten_whitespace(
+        description=page_string(
             f"DHIS2 option set {option_set.name} ({option_set.uid}). Concept codes are DHIS2 {code_kind}."
         ),
         status=ig_status,
@@ -450,12 +458,6 @@ def _id_stem(config: GenerateConfig) -> str:
     return f"{joined}-" if joined else ""
 
 
-def _bounded_slug(slug: str, uid: str, limit: int) -> str:
-    """Truncate an over-long slug and append the UID so bounded slugs stay unique."""
-    head_length = limit - len(uid) - 1
-    return f"{slug[:head_length].rstrip('-')}-{uid.lower()}"
-
-
 class _DesiredCode(BaseModel):
     """The concept code one option asks for before uniqueness is enforced."""
 
@@ -465,19 +467,22 @@ class _DesiredCode(BaseModel):
     from_dhis2_code: bool
 
 
-def _desired_code(option: OptionIn, option_set: OptionSetIn, config: GenerateConfig, notes: list[str]) -> _DesiredCode:
-    """Pick the concept code an option wants: its DHIS2 code in code mode when FHIR-valid, else the UID."""
+def _desired_code(option: OptionIn, source: ConceptSourceIn, config: GenerateConfig, notes: list[str]) -> _DesiredCode:
+    """Pick the concept code a member wants: its DHIS2 code in code mode when FHIR-valid, else the UID."""
     if config.concept_code_source != "code":
         return _DesiredCode(code=option.uid, from_dhis2_code=False)
     if is_valid_fhir_code(option.code):
         return _DesiredCode(code=option.code or "", from_dhis2_code=True)
     detail = "no code" if option.code is None else f"code {option.code!r} is not a valid FHIR code"
-    notes.append(f"option set {option_set.name!r}: option {option.uid} has {detail}; falling back to the UID")
+    notes.append(
+        f"{source.source_label} {source.name!r}: {source.member_label} {option.uid} has {detail}; "
+        "falling back to the UID"
+    )
     return _DesiredCode(code=option.uid, from_dhis2_code=False)
 
 
 def _concept_for(option: OptionIn, code: str, config: GenerateConfig) -> CodeSystemConcept:
-    """Build the concept for one option, carrying the complementary DHIS2 identifier as a property.
+    """Build the concept for one member, carrying the complementary DHIS2 identifier as a property.
 
     Every concept carries the pair: in code mode the UID rides along as `dhis2-id`, in id mode
     the DHIS2 code rides along as `dhis2-code` - falling back to the UID when there is no usable code.
@@ -498,14 +503,14 @@ def _concept_for(option: OptionIn, code: str, config: GenerateConfig) -> CodeSys
     )
 
 
-def _ordered_options(option_set: OptionSetIn) -> list[OptionIn]:
-    """One set's options in emission order: DHIS2 sort order first, then the UID for the unordered tail."""
-    return sorted(option_set.options, key=lambda item: (item.sort_order is None, item.sort_order or 0, item.uid))
+def _ordered_options(source: ConceptSourceIn) -> list[OptionIn]:
+    """One source's members in emission order: DHIS2 sort order first, then the UID for the unordered tail."""
+    return sorted(source.options, key=lambda item: (item.sort_order is None, item.sort_order or 0, item.uid))
 
 
-def _unique_concepts(option_set: OptionSetIn, config: GenerateConfig, notes: list[str]) -> list[CodeSystemConcept]:
-    """Build one set's concepts from the assigned codes, in emission order, reporting what assignment raised."""
-    plan = concept_assignments(option_set, config)
+def build_concepts(source: ConceptSourceIn, config: GenerateConfig, notes: list[str]) -> list[CodeSystemConcept]:
+    """Build one source's concepts from the assigned codes, in emission order, reporting what assignment raised."""
+    plan = concept_assignments(source, config)
     notes.extend(plan.notes)
     return [
         _concept_for(assignment.option, assignment.code, config)

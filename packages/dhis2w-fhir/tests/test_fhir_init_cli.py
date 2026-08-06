@@ -133,3 +133,114 @@ def test_init_json_output(workdir: Path) -> None:  # noqa: ARG001
     result = _runner.invoke(build_app(), ["--json", "fhir", "init", "project"])
     assert result.exit_code == 0, result.output
     assert '"created_files"' in result.output
+
+
+def _scaffold(workdir: Path) -> Path:
+    """Scaffold a project to refresh and return its directory."""
+    assert _runner.invoke(build_app(), ["fhir", "init", "project", "--id", "dhis2.fhir.test"]).exit_code == 0
+    return workdir / "project"
+
+
+def test_init_refresh_rewrites_an_untouched_support_file(workdir: Path) -> None:
+    """A support file the user never touched is brought up to the current scaffold."""
+    project = _scaffold(workdir)
+    ignored = project / ".gitignore"
+    ignored.write_text("reports/\nig/output/\n", encoding="utf-8")
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert "refreshed .gitignore" in result.output
+    assert "ig/input/resources/" in ignored.read_text(encoding="utf-8").splitlines()
+
+
+def test_init_refresh_skips_a_file_the_user_edited(workdir: Path) -> None:
+    """An edited file stays byte-identical and is named as skipped, not silently overwritten."""
+    project = _scaffold(workdir)
+    index = project / "ig" / "input" / "pagecontent" / "index.md"
+    edited = "# Sierra Leone Demo\n\nOur own narrative.\n"
+    index.write_text(edited, encoding="utf-8")
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert index.read_text(encoding="utf-8") == edited
+    assert "skipped ig/input/pagecontent/index.md" in result.output
+
+
+def test_init_refresh_gives_a_stale_sushi_config_its_path_resource_block(workdir: Path) -> None:
+    """A project scaffolded before path-resource existed publishes an IG missing registry and terminology."""
+    project = _scaffold(workdir)
+    sushi_config = project / "ig" / "sushi-config.yaml"
+    dropped = {"  path-resource:", "    - input/resources/registry/*", "    - input/resources/terminology/*"}
+    stale = [line for line in sushi_config.read_text(encoding="utf-8").splitlines() if line not in dropped]
+    sushi_config.write_text("\n".join(stale) + "\n", encoding="utf-8")
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert "refreshed ig/sushi-config.yaml" in result.output
+    assert "  path-resource:" in sushi_config.read_text(encoding="utf-8")
+
+
+def test_init_refresh_keeps_an_edited_sushi_config(workdir: Path) -> None:
+    """The same file, hand-tuned, keeps the user's version - a refresh never merges."""
+    project = _scaffold(workdir)
+    sushi_config = project / "ig" / "sushi-config.yaml"
+    edited = sushi_config.read_text(encoding="utf-8").replace("version: 0.1.0", "version: 2.0.0")
+    sushi_config.write_text(edited, encoding="utf-8")
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert sushi_config.read_text(encoding="utf-8") == edited
+    assert "skipped ig/sushi-config.yaml" in result.output
+
+
+def test_init_refresh_never_writes_fhir_toml(workdir: Path) -> None:
+    """fhir.toml holds the IG identity, the profile, and the generation tables - all the user's."""
+    project = _scaffold(workdir)
+    config_path = project / "fhir.toml"
+    body = config_path.read_text(encoding="utf-8") + '\n[generate]\nconcept_code_source = "code"\n'
+    config_path.write_text(body, encoding="utf-8")
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert config_path.read_text(encoding="utf-8") == body
+    assert "fhir.toml is yours" in result.output
+
+
+def test_init_refresh_rejects_force(workdir: Path) -> None:
+    """--force overwrites what you edited and --refresh protects it; asking for both is a usage error."""
+    project = _scaffold(workdir)
+    marker = project / "Makefile"
+    marker.write_text("# customized\n", encoding="utf-8")
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh", "--force"])
+
+    assert result.exit_code != 0
+    assert marker.read_text(encoding="utf-8") == "# customized\n"
+
+
+def test_init_refresh_requires_an_existing_project(workdir: Path) -> None:
+    """Refreshing a directory with no fhir.toml points at the command that scaffolds one."""
+    (workdir / "empty").mkdir()
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "empty", "--refresh"])
+
+    assert result.exit_code == 1
+    assert "d2w fhir init" in result.output
+    assert not (workdir / "empty" / "Makefile").exists()
+
+
+def test_init_refresh_json_output(workdir: Path) -> None:
+    """`--json` emits the refresh report, so a script can read what each file did."""
+    _scaffold(workdir)
+
+    result = _runner.invoke(build_app(), ["--json", "fhir", "init", "project", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert '"refreshed_files"' in result.output
+    assert '"unchanged_files"' in result.output
+    assert '"edited_files"' in result.output

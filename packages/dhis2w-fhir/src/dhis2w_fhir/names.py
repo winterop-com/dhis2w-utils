@@ -66,6 +66,15 @@ def page_text(value: str) -> str:
     return quote(escape_markup(value))
 
 
+def page_string(value: str) -> str:
+    """Render an IG page title or description as a one-line JSON string, HTML-escaping the markup characters.
+
+    The JSON counterpart of `page_text`: a pre-defined resource reaches the same breadcrumb template
+    the FSH-authored ones do, so its `title` and `description` take the same escaping.
+    """
+    return flatten_whitespace(escape_markup(value))
+
+
 def markdown_text(value: str, *, table_cell: bool = False) -> str:
     r"""Render metadata-derived text for a generated markdown page, HTML-escaping the markup characters.
 
@@ -139,6 +148,16 @@ def describe_code_defect(code: str) -> str | None:
 def is_valid_fhir_id(value: str) -> bool:
     """Check `value` against the R4 `id` datatype: ASCII letters/digits/hyphen/dot, 1-64 characters."""
     return _FHIR_ID_PATTERN.match(value) is not None
+
+
+#: The R4 `id` length limit every emitted artifact id is bounded against.
+FHIR_ID_MAX_LENGTH = 64
+
+
+def bounded_slug(slug: str, uid: str, limit: int) -> str:
+    """Truncate an over-long slug and append the UID so bounded slugs stay unique."""
+    head_length = limit - len(uid) - 1
+    return f"{slug[:head_length].rstrip('-')}-{uid.lower()}"
 
 
 def code_or_uid(code: str | None, uid: str) -> str:

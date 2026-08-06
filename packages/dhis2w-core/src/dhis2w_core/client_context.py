@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import httpx
 from dhis2w_client import AuthProvider, Dhis2, Dhis2Client, RetryPolicy
@@ -111,6 +112,7 @@ async def open_client(
     retry_policy: RetryPolicy | None = None,
     http_limits: httpx.Limits | None = None,
     system_cache_ttl: float | None = 300.0,
+    timeout: float | None = None,
 ) -> AsyncGenerator[Dhis2Client]:
     """Open a connected Dhis2Client for `profile` — yields inside `async with`.
 
@@ -127,6 +129,14 @@ async def open_client(
     to tune the connection pool for high-concurrency workloads (or to clamp
     it down against a small DHIS2 instance). See
     `docs/architecture/client.md` for sizing guidance.
+
+    `timeout` (default None) overrides the client's per-read timeout, in
+    seconds, for callers that make one deliberately large request. The
+    client's own 30 s default fits an ordinary API read and is what `None`
+    keeps; a whole-instance read is a different shape of request and sets
+    its own ceiling. `dhis2w-fhir`'s validate sweep is the worked example —
+    `/api/metadata?fields=id,name,code` is 13 MB and 58 s on a national
+    instance, so the default would fail it every time.
 
     `system_cache_ttl` (default 300 s) caps how long cached system-level
     reads (`client.system.info()`, default categoryCombo UID, per-key
@@ -149,6 +159,9 @@ async def open_client(
     """
     auth = build_auth(profile, profile_name=profile_name, scope=scope)
     bound_tree = current_bound_version_tree()
+    # Passed as kwargs rather than a value so `None` means "whatever the client's own default is",
+    # with no second copy of that number living here to drift away from it.
+    overrides: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
     async with Dhis2Client(
         profile.base_url,
         auth=auth,
@@ -157,5 +170,6 @@ async def open_client(
         retry_policy=retry_policy,
         http_limits=http_limits,
         system_cache_ttl=system_cache_ttl,
+        **overrides,
     ) as client:
         yield client

@@ -48,6 +48,19 @@ from dhis2w_fhir.period import (
     parse_period,
     recent_periods,
 )
+from dhis2w_fhir.resources.categories import (
+    CATEGORY_DIRECTORY,
+    build_category_artifacts,
+    category_fsh_name,
+    category_identities,
+    max_category_slug_length,
+)
+from dhis2w_fhir.resources.categories.schemas import (
+    CategoryIdentity,
+    CategoryIdentityPlan,
+    CategoryIn,
+    CategorySelection,
+)
 from dhis2w_fhir.resources.examples import (
     EXAMPLES_DIRECTORY,
     SyntheticBuild,
@@ -64,6 +77,7 @@ from dhis2w_fhir.resources.examples.schemas import (
 )
 from dhis2w_fhir.resources.option_sets import (
     TERMINOLOGY_DIRECTORY,
+    build_concepts,
     build_option_set_artifacts,
     concept_assignments,
     max_slug_length,
@@ -75,6 +89,7 @@ from dhis2w_fhir.resources.option_sets import (
 from dhis2w_fhir.resources.option_sets.schemas import (
     ConceptAssignment,
     ConceptAssignmentPlan,
+    ConceptSourceIn,
     OptionIn,
     OptionSetIdentity,
     OptionSetIdentityIndex,
@@ -169,6 +184,7 @@ __all__ = [
     "ATTRIBUTE_VALUE_SUB_EXTENSION",
     "BOUNDS_BY_VALUE_TYPE",
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
+    "CATEGORY_DIRECTORY",
     "DEFAULT_SUSHI_TIMEOUT_SECONDS",
     "EXAMPLES_DIRECTORY",
     "FHIR_CONFIG_FILENAME",
@@ -193,9 +209,14 @@ __all__ = [
     "AttributeCodeIndex",
     "AttributeValueIn",
     "CategoryComboIn",
+    "CategoryIdentity",
+    "CategoryIdentityPlan",
+    "CategoryIn",
     "CategoryOptionComboIn",
+    "CategorySelection",
     "ConceptAssignment",
     "ConceptAssignmentPlan",
+    "ConceptSourceIn",
     "ExampleAnswerIn",
     "ExampleResponseIn",
     "ExampleSelection",
@@ -249,7 +270,9 @@ __all__ = [
     "answer_element",
     "attribute_value_extension_url",
     "attribute_value_extensions",
+    "build_category_artifacts",
     "build_code_validation",
+    "build_concepts",
     "build_example_artifacts",
     "build_foundation_artifacts",
     "build_naming_system_declarations",
@@ -263,6 +286,8 @@ __all__ = [
     "build_response_profile_declarations",
     "build_scaffold_files",
     "build_synthetic_responses",
+    "category_fsh_name",
+    "category_identities",
     "clean_generated_files",
     "concept_assignments",
     "domain_code",
@@ -273,6 +298,7 @@ __all__ = [
     "load_fhir_config",
     "load_project",
     "markdown_text",
+    "max_category_slug_length",
     "max_slug_length",
     "name_translations",
     "normalize_locale",

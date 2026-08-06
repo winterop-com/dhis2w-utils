@@ -56,7 +56,7 @@ models and ship no templates.
 | --- | --- |
 | `__init__.py` | The one stable import surface: re-exports every component symbol with an explicit `__all__`. |
 | `plugin.py` | The `dhis2.plugins` entry-point descriptor - `register_cli` mounts `d2w fhir`, `register_mcp` registers `fhir_*`. |
-| `cli.py` | The Typer sub-app: `init`, the six `generate` sub-commands, and `validate`. |
+| `cli.py` | The Typer sub-app: `init` (including its `--refresh` mode), the seven `generate` sub-commands, and `validate`. |
 | `mcp.py` | The FastMCP registration - one tool, `fhir_validate`, annotated `readOnlyHint`. |
 | `service.py` | Orchestration: profile resolution, every DHIS2 fetch, the wire-to-projection mapping, geometry, and `GenerateReport` / `GenerateAllReport`. |
 | `config.py` | The `fhir.toml` document (`IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`, `FhirProject`) plus discovery, load, and save. |
@@ -76,7 +76,9 @@ models and ship no templates.
 | `period/recent.py` | `recent_periods` - the inverse, built on the parser so the two cannot drift. |
 | `resources/__init__.py` | Re-export shim over the resource components. |
 | `resources/option_sets/__init__.py` | The pre-built CodeSystem/ValueSet JSON pair per option set, `TERMINOLOGY_DIRECTORY`, `option_set_identities`, `option_set_identity_index`, `concept_assignments`, `max_slug_length`, `option_set_code_fallback`, `option_set_fsh_name`. |
-| `resources/option_sets/schemas.py` | `OptionSetSelection`, `OptionIn`, `OptionSetIn`, `ConceptAssignment`, `ConceptAssignmentPlan`, `OptionSetIdentity`, `OptionSetIdentityPlan`, `OptionSetIdentityIndex`. |
+| `resources/option_sets/schemas.py` | `OptionSetSelection`, `OptionIn`, `ConceptSourceIn` (the concept-source projection categories share), `OptionSetIn`, `ConceptAssignment`, `ConceptAssignmentPlan`, `OptionSetIdentity`, `OptionSetIdentityPlan`, `OptionSetIdentityIndex`. |
+| `resources/categories/__init__.py` | The pre-built CodeSystem/ValueSet JSON pair per DHIS2 category, `CATEGORY_DIRECTORY`, `build_category_artifacts`, `category_identities`, `category_fsh_name`, `max_category_slug_length`. Concepts are built by the option-set component's `build_concepts`, so both terminology sources assign concept codes in one place. |
+| `resources/categories/schemas.py` | `CategorySelection`, `CategoryIn` (a `ConceptSourceIn`), `CategoryIdentity`, `CategoryIdentityPlan`. |
 | `resources/questionnaires/__init__.py` | One Questionnaire per form plus the two support terminology pairs; `ITEM_TYPES_BY_VALUE_TYPE`, `BOUNDS_BY_VALUE_TYPE`, `QUESTIONNAIRE_DIRECTORIES`, `domain_code`, `is_multi_valued`. |
 | `resources/questionnaires/schemas.py` | `TargetSelection`, `NumericBounds`, `CategoryOptionComboIn`, `CategoryComboIn`, `QuestionnaireItemIn`, `QuestionnaireSectionIn`, `QuestionnaireSourceIn`, `QuestionnaireNaming`, the `FormKind` alias. |
 | `resources/examples/__init__.py` | The `Usage: #example` QuestionnaireResponse per example, `build_synthetic_responses`, `answer_element`, `zoned_date_time`, `response_status_code`, and the whole answer-typing layer. |
@@ -89,12 +91,13 @@ models and ship no templates.
 | `resources/organisation_units/schemas.py` | `OrganisationUnitSelection`, `GeoPoint`, `OrganisationUnitIn`. |
 | `resources/pages/__init__.py` | The six site pages, the per-artifact intros, `SITE_PAGE_FILENAMES`, `PAGES_DIRECTORY`, `PAGES_BASE_SUBDIRECTORY`, `INTRO_SUFFIX`. |
 | `resources/pages/schemas.py` | `PagesIn` plus one view-model per page (`FormRow`, `RegistryView`, `TerminologyView`, `IdentifiersView`, `PeriodsView`, `CaptureView`, and the intro views). |
-| `scaffold/__init__.py` | `build_scaffold_files` - the twelve files `d2w fhir init` writes. |
-| `scaffold/schemas.py` | `InitOptions`, `ScaffoldFile`, `ScaffoldReport`, `normalize_project_name`. |
-| `validation/__init__.py` | `build_code_validation` - the instance-wide sweep and the deep option-set pass. |
+| `scaffold/__init__.py` | `build_scaffold_files` - the twelve files `d2w fhir init` writes - plus `SUSHI_CONFIG_RELATIVE_PATH` and `FSH_INI_RELATIVE_PATH`, the two files a refresh recovers values from. |
+| `scaffold/schemas.py` | `InitOptions`, `ScaffoldFile`, `ProjectScaffoldState`, `ScaffoldReport` (created / skipped / refreshed / unchanged / edited), `normalize_project_name`, `DEFAULT_SUSHI_TIMEOUT_SECONDS`. |
+| `scaffold/refresh.py` | `d2w fhir init --refresh`: `read_project_scaffold_state` recovering the scaffold inputs off disk, `preserves_every_line` deciding whether a rewrite loses a line, and `refresh_project`. Not re-exported from the package - it is a CLI path, not library surface. |
+| `validation/__init__.py` | `build_code_validation` - the instance-wide sweep, the deep option-set pass, and the deep attribute pass. Its module docstring carries "What the deep passes do not repeat, and why". |
 | `validation/report.py` | Markdown and CSV rendering, `display_code`, `CSV_HEADER`. |
 | `validation/pdf.py` | `render_validation_pdf` - cover page, clickable contents, per-type sections, Noto Sans with a Noto Sans Lao fallback vendored under `validation/fonts/`. |
-| `validation/schemas.py` | `MetadataItemIn`, `MetadataCollectionIn`, `ValidationFinding`, `SeverityBreakdown`, `FhirValidationReport`, `pluralize`. |
+| `validation/schemas.py` | `MetadataItemIn`, `MetadataCollectionIn`, `ValidationFinding`, `SeverityBreakdown`, `FhirValidationReport` (option-set, option, attribute, resource-type, and object counts plus the findings), `pluralize`. |
 
 `resources/` is reserved for DHIS2 resource domains, which is why `scaffold/`,
 `validation/`, and `r4/` stay top level - `r4/` is FHIR's own vocabulary rather
@@ -122,11 +125,22 @@ Every command and every flag, from `cli.py`.
 | `--data-set` | none | Repeatable data set UID seeding `[generate.data_sets] include_ids`. Offline - never checked against an instance. |
 | `--event` | none | Repeatable event program UID seeding `[generate.event_programs] include_ids`. Offline. |
 | `--force` | off | Overwrite scaffold files that already exist. Without it, existing files are reported as skipped. |
+| `--refresh` | off | Re-render the scaffold for an existing project, writing a file only where the render reproduces every line already on disk. Identity comes off the project itself; `fhir.toml` is never written. Passing it with `--force` is a `typer.BadParameter`. |
 
-**`d2w fhir generate <target>`** - six sub-commands, none taking a flag of its
-own: `foundation`, `option-sets`, `questionnaires`, `examples`, `org-units`,
-`pages`, and `all` (which runs the six in that order and prints six reports).
-Every one of them calls `load_project()` and then
+**`d2w fhir init --refresh`** takes the same `DIRECTORY` and ignores every
+identity flag - the inputs come from `read_project_scaffold_state`, not from the
+command line. `refresh_project` reports each scaffold file as `created` (the
+project lacked it), `refreshed` (the render is a superset of what is on disk, so
+rewriting loses nothing), `unchanged`, or `edited` (rendered by the CLI as
+`skipped (you edited it; your version stays)`). The accepted consequence: a
+scaffold line the user deliberately deleted leaves the file a subsequence of the
+render, so a refresh restores it. A directory with no `fhir.toml` exits 1 with
+`NoFhirProjectError`.
+
+**`d2w fhir generate <target>`** - seven sub-commands, none taking a flag of its
+own: `foundation`, `option-sets`, `categories`, `questionnaires`, `examples`,
+`org-units`, `pages`, and `all` (which runs the seven in that order and prints
+seven reports). Every one of them calls `load_project()` and then
 `service.resolve_generation_profile(project)`. `--json` (the global
 `is_json_output()` switch) dumps the report model instead of the Rich table.
 
@@ -186,10 +200,12 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 | `[generate.naming] source` | `id` / `name` | `id` | |
 | `[generate.naming] prefix` | string | `D2` | May be empty. Letter-leading alphanumeric otherwise. |
 | `[generate.naming] option_set` | string | `OS` | May be empty. |
+| `[generate.naming] category` | string | `CAT` | May be empty. Names a category's `D2CAT_<slug>_CS` / `_VS` pair. There is deliberately no `category_option` key - category options are concepts, and concepts have no token. |
 | `[generate.naming] organisation_unit` | string | `OU` | Must stay non-empty - an empty token degenerates the org-unit names to bare `_CS` / `_Level_CS`. |
 | `[generate.naming] data_set` | string | `DS` | May be empty. |
 | `[generate.naming] program` | string | `PR` | May be empty. |
 | `[generate.option_sets] include_ids` | list of string | `[]` | Empty means all. |
+| `[generate.categories] include_ids` | list of string | `[]` | Empty means all, DHIS2's own `default` category included. No closure - nothing generated today binds a category. |
 | `[generate.organisation_units] root` | string or absent | `None` | `""` is coerced to unset. Filters with DHIS2 `path:like`. |
 | `[generate.organisation_units] max_level` | int or absent | `None` | `0` is coerced to unset. Filters with `level:le`. |
 | `[generate.organisation_units] terminology` | bool | `false` | Also emit the whole-selection CodeSystem/ValueSet. |
@@ -206,7 +222,7 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 | --- | --- |
 | `fhir.toml` | The minimal committed config - the profile pointer, `[ig]`, and the seeded target lists when `--data-set` / `--event` were given. |
 | `fhir.toml.example` | Every option with its default, documented. |
-| `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` (JSON only), the `path-resource` globs for `input/resources/registry/*` and `input/resources/terminology/*` (SUSHI recurses into those sub-folders, the IG Publisher does not), and the eight-entry `menu:`. No `pages:` and no `groups:`. |
+| `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` (JSON only), the `path-resource` globs for `input/resources/registry/*`, `input/resources/terminology/*`, and `input/resources/categories/*` (SUSHI recurses into those sub-folders, the IG Publisher does not, so a missing glob drops that sub-folder from the published guide), and the eight-entry `menu:`. No `pages:` and no `groups:`. Also the one file recording the publisher URL and the copyright year, which is why a refresh reads its inputs from it. |
 | `ig/ig.ini` | `template = fhir2.base.template`, pointing at the compiled ImplementationGuide JSON. |
 | `ig/fsh.ini` | `timeout = 1800` for the publisher's embedded SUSHI, settable with `--sushi-timeout`. |
 | `ig/input/fsh/aliases.fsh` | Hand-authored alias stub. Never regenerated - it carries no generated header. |
@@ -228,6 +244,7 @@ Base directory is `<project_root>/ig/input/fsh/` for FSH,
 | --- | --- | --- |
 | `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-attribute-value.fsh`, `d2-responses.fsh`, `d2-capture-server.fsh` - seven, always, with no client opened. |
 | `option-sets` | `resources/terminology/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected option set, ids `d2-os-<slug>-cs` / `-vs`, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. A Questionnaire's `Canonical(D2OS_<uid>_VS)` resolves against them, because SUSHI fishes a predefined resource by its `name` element. |
+| `categories` | `resources/categories/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected category, ids `d2-cat-<slug>-cs` / `-vs`, concepts being that category's category options in their DHIS2 `categoryOptions` order. Its own directory because `sync_json_artifacts` owns its target outright. |
 | `questionnaires` | `data-sets/` | One `<uid>.fsh` Questionnaire per DHIS2 data set. |
 | `questionnaires` | `event-programs/` | One `<uid>.fsh` Questionnaire per single-stage event program. |
 | `questionnaires` | `data-dictionary/` | `data-elements.fsh` (`D2DE_CS` / `_VS`) and `category-option-combos.fsh` (`D2COC_CS` / `_VS`), emitted only when the run referenced any. |
@@ -237,40 +254,41 @@ Base directory is `<project_root>/ig/input/fsh/` for FSH,
 | `pages` | `ig/input/pagecontent/` | `forms.md`, `registry.md`, `terminology.md`, `identifiers.md`, `periods.md`, `capture.md`, plus `Questionnaire-<UID>-intro.md` (always), `CodeSystem-<id>-intro.md` and `Organization-<UID>-intro.md` (only where DHIS2 carries a description). |
 
 Only `examples`, the three questionnaire directories, `registry`, `terminology`,
-and `pagecontent` have named constants (`EXAMPLES_DIRECTORY`,
+`categories`, and `pagecontent` have named constants (`EXAMPLES_DIRECTORY`,
 `QUESTIONNAIRE_DIRECTORIES`, `REGISTRY_DIRECTORY`, `TERMINOLOGY_DIRECTORY`,
-`PAGES_DIRECTORY`). `organization` and `foundation` are repeated string literals
-across the emitter and `service.py` - see Dimension D.
+`CATEGORY_DIRECTORY`, `PAGES_DIRECTORY`). `organization` and `foundation` are
+repeated string literals across the emitter and `service.py` - see Dimension D.
 
 ### 2.7 Test inventory
 
 `uv run pytest packages/dhis2w-fhir --collect-only -q | tail -1` reports
-**696 tests collected**. Twenty-two test files plus a `conftest.py` holding a probe
+**739 tests collected**. Twenty-three test files plus a `conftest.py` holding a probe
 profile and per-wire-version system-info mocking.
 
 | File | Covers | Tests |
 | --- | --- | --- |
 | `test_fhir_attribute_extension.py` | The `D2AttributeValue` definition and its emission on all five contexted resource types, coded and uncoded branches each. | 17 |
 | `test_fhir_attribute_values.py` | Attribute values reaching the projections off the wire, and the `AttributeCodeIndex` join they resolve against. | 13 |
+| `test_fhir_categories.py` | Category JSON emission: the pair per category, the shared concept assignment, the identity plan, and the `[generate.categories]` selection. | 12 |
 | `test_fhir_config.py` | `fhir.toml` discovery, load, save. | 10 |
 | `test_fhir_examples.py` | Both example sources; the synthetic goldens are full-text assertions, which they can be because the seed is a SHA-256 of the target UID. | 45 |
 | `test_fhir_foundation.py` | Golden tests for the seven foundation artifacts. | 22 |
-| `test_fhir_generate_cli.py` | `CliRunner` over `d2w fhir generate`, service mocked. | 14 |
+| `test_fhir_generate_cli.py` | `CliRunner` over `d2w fhir generate`, service mocked. | 15 |
 | `test_fhir_geometry.py` | Geometry to position and boundary payload. | 7 |
-| `test_fhir_init_cli.py` | `CliRunner` over `d2w fhir init`. | 10 |
+| `test_fhir_init_cli.py` | `CliRunner` over `d2w fhir init`, the `--refresh` mode included. | 18 |
 | `test_fhir_mcp.py` | The FastMCP `fhir_validate` surface. | 2 |
 | `test_fhir_names.py` | `names.py` helpers and the cnl-0 shape of every emitted FSH name. | 18 |
 | `test_fhir_organization.py` | Org-unit profile, terminology, and registry JSON emission, plus the registry-scale note. | 27 |
 | `test_fhir_pages.py` | The six site pages, the intros, markdown escaping. | 28 |
 | `test_fhir_period.py` | Every registered period type, both ends of its range. | 8 |
-| `test_fhir_questionnaires.py` | Questionnaire emission, support terminology, service safeguards. | 48 |
+| `test_fhir_questionnaires.py` | Questionnaire emission, support terminology, service safeguards. | 47 |
 | `test_fhir_r4_schemas.py` | The R4 models: byte-exact round trips of reference documents for all four resources, the `_name` and `_title` primitive extensions, omitted optionals, and the closed-model guard. | 12 |
 | `test_fhir_report_formats.py` | Markdown, CSV, and PDF renderings of the validation report. | 16 |
-| `test_fhir_scaffold.py` | Scaffold contents. | 35 |
-| `test_fhir_service_parity.py` | The service against every DHIS2 major, respx-mocked, no live stack. | 14 |
+| `test_fhir_scaffold.py` | Scaffold contents, plus `preserves_every_line`, the state recovery, and every refresh outcome. | 47 |
+| `test_fhir_service_parity.py` | The service against every DHIS2 major, respx-mocked, no live stack. | 15 |
 | `test_fhir_terminology.py` | Option-set JSON emission and the names the other targets read from it. | 26 |
 | `test_fhir_translations.py` | Designations and the FHIR translation extension. | 13 |
-| `test_fhir_validation.py` | Both validation passes and the markdown report. | 26 |
+| `test_fhir_validation.py` | All three validation passes and the markdown report. | 33 |
 | `test_fhir_writer.py` | Generated-file cleanup, writes, byte-stability, and the JSON directory sweep. | 17 |
 
 The per-file counts above are `def test_` / `async def test_` declarations; the
@@ -285,18 +303,19 @@ itself additionally calls `/api/system/info` on connect to bind the version tree
 | --- | --- | --- |
 | `/api/optionSets` | `generate option-sets`, `generate examples`, `generate pages`, `validate` | `_OPTION_SET_FIELDS` - `id,code,name,description,translations[...],attributeValues[attribute[id],value],options[id,code,name,sortOrder,translations[...]]`, ordered `name:asc`, `paging=False`. |
 | `/api/optionSets` | `_fetch_option_set_identity_plan` | `_OPTION_SET_IDENTITY_FIELDS` = `id,name` - a slug needs the UID and the name alone. |
+| `/api/categories` | `generate categories` | `_CATEGORY_FIELDS` - `id,code,name,description,translations[...],attributeValues[attribute[id],value],categoryOptions[id,code,name,translations[...]]`, ordered `name:asc`, `paging=False`. `categoryOptions` is a DHIS2 list rather than a set, so the answer's order is the category's own sort order. |
 | `/api/organisationUnits` | `generate org-units`, `generate pages` | `_ORGANISATION_UNIT_FIELDS`, translations and `attributeValues[attribute[id],value]` included, ordered `path:asc`, paged 500 at a time, filtered by `path:like:<root>` and `level:le:<max_level>`. |
 | `/api/organisationUnits` | `_root_organisation_unit_uid` | `fields=id`, `filters=["level:eq:1"]` - the root every example is subject to. |
 | `/api/dataSets` | `_fetch_questionnaire_sources` | `_DATA_SET_FIELDS` - sections, `attributeValues[attribute[id],value]`, `compulsoryDataElementOperands`, and `dataSetElements[...]` with the shared `_QUESTIONNAIRE_DATA_ELEMENT_FIELDS`. Ordered `name:asc`, `paging=False`. |
 | `/api/programs` | `_fetch_questionnaire_sources` | `_EVENT_PROGRAM_FIELDS` - `programType`, `attributeValues[attribute[id],value]`, stages, stage sections, and `programStageDataElements[compulsory,...]`. Ordered `name:asc`, `paging=False`. |
-| `/api/attributes` | `resolve_attribute_code_index`, called by `generate option-sets`, `generate questionnaires`, and `generate org-units` | `_ATTRIBUTE_FIELDS` = `id,code`, `paging=False`. Unpaged deliberately: DHIS2 answers 50 attributes to a page by default, so a paged read would silently drop the tail of the `uid -> code` join on an instance defining more than one page. |
+| `/api/attributes` | `resolve_attribute_code_index`, called by `generate option-sets`, `generate categories`, `generate questionnaires`, and `generate org-units` | `_ATTRIBUTE_FIELDS` = `id,code`, `paging=False`. Unpaged deliberately: DHIS2 answers 50 attributes to a page by default, so a paged read would silently drop the tail of the `uid -> code` join on an instance defining more than one page. |
 | `/api/metadata` | `validate` | `get_raw` with `fields=id,name,code` and `defaults=EXCLUDE`. |
 | `/api/dataValueSets` | `generate examples` with `source = "instance"` | `get_raw` with `dataSet`, `orgUnit`, `children=true`, `period`, walking `recent_periods(periodType, 6, today)` newest-first. |
 | `/api/tracker/events` | `generate examples` with `source = "instance"` | `get_raw` with `program`, `pageSize`, `order=occurredAt:desc`, and `_EXAMPLE_EVENT_FIELDS`. |
 
 Note the shape of `generate all`: it opens and closes a client per target,
-`/api/optionSets` is fetched by four of the six targets, and `/api/attributes` by
-three. That is a seam Dimension A owns.
+`/api/optionSets` is fetched by four of the seven targets, and `/api/attributes`
+by four. That is a seam Dimension A owns.
 
 ## 3. Settled decisions and why
 
@@ -493,7 +512,15 @@ Two boundary objects, each computed once per run and read by everything else.
   order, with the collision and skip rules in one place. The terminology emitter
   writes its concepts from the plan and the example emitter codes its answers
   from the same plan, so an answer can only ever name a concept the CodeSystem
-  really carries.
+  really carries. `build_concepts` wraps it, and the category emitter calls that
+  same wrapper - a category's options are concepts exactly as an option set's
+  are, so the fall-back and skip rules are decided once for both sources rather
+  than transcribed a second time.
+
+`category_identities` is the same shape as `option_set_identities`, one level
+across: slugs, FSH names, and artifact ids assigned once over the whole category
+selection, because truncation and collision suffixes depend on the peers a
+category is assigned against.
 
 The emitter, the pages, the questionnaires, and the examples all read those two
 rather than recomputing. Section 7 explains why this is stated as a decision
@@ -507,16 +534,19 @@ slicing, or a profile relationship to express: the two organisation-unit
 profiles, the `D2Period` / `D2FormType` / `D2AttributeValue` extensions, the
 response profiles and
 the CapabilityStatement, and the Questionnaires whose item trees are the whole
-point of the file. Two things in the IG are none of that - they are bulk data,
-generated one-to-one from DHIS2 rows, and they are the two largest things in the
-guide by a wide margin:
+point of the file. Three things in the IG are none of that - they are bulk data,
+generated one-to-one from DHIS2 rows, and the first two are the largest things in
+the guide by a wide margin:
 
 - the **organisation-unit registry**, two resources per unit, written by
   `generate org-units` into `ig/input/resources/registry/`;
 - the **option-set terminology**, a CodeSystem and a ValueSet per set, written by
-  `generate option-sets` into `ig/input/resources/terminology/`.
+  `generate option-sets` into `ig/input/resources/terminology/`;
+- the **category terminology**, a CodeSystem and a ValueSet per category with its
+  category options as concepts, written by `generate categories` into
+  `ig/input/resources/categories/`.
 
-Both go out as R4 JSON, which SUSHI loads into the virtual `sushi-local#LOCAL`
+All three go out as R4 JSON, which SUSHI loads into the virtual `sushi-local#LOCAL`
 package as *predefined resources*: no parse, no conversion, no per-resource
 compile cost. The definitional halves stay FSH in `ig/input/fsh/`.
 
@@ -525,11 +555,14 @@ Four consequences the design accepts:
 - **The scaffolded `sushi-config.yaml` needs `path-resource` globs.** SUSHI
   recurses into sub-folders of `input/resources`; the IG Publisher does not. The
   globs are what carry each sub-folder's resources into the published
-  ImplementationGuide.
+  ImplementationGuide. A project whose `sushi-config.yaml` predates a glob
+  compiles cleanly and publishes a guide short of that sub-folder's resources -
+  which is what `d2w fhir init --refresh` is for.
 - **The sweep owns the directory instead of marking its files.** JSON has no
   comment syntax, so `sync_json_artifacts` deletes every unproduced `*.json` in
-  its directory rather than checking for a generated header. Nothing
-  hand-authored belongs in either one.
+  its directory rather than checking for a generated header. That is also why each
+  JSON target gets a directory to itself: two sharing one would delete each
+  other's documents. Nothing hand-authored belongs in any of them.
 - **`ig/input/resources/` is gitignored.** The reviewable diff after a metadata
   change is the FSH one; a national registry plus its terminology is tens of
   thousands of JSON files that `make generate` rebuilds in a few minutes.
@@ -781,7 +814,8 @@ ordering helpers `_data_set_source` and `_option_combo_inputs` (the BUGS #63 and
 #64 workarounds), and `_fetch_organisation_units`' 500-per-page `path:asc` loop.
 
 *The identity and assignment single-sources.* `option_set_identities`,
-`option_set_identity_index`, `concept_assignments`, and
+`option_set_identity_index`, `concept_assignments`, `build_concepts` (shared by
+the option-set and category emitters), `category_identities`, and
 `_fetch_option_set_identity_plan` - the function that has to plan over the
 identical selection in every generate path.
 
@@ -798,8 +832,8 @@ calendar.
 **Risks already suspected.**
 
 - `generate all` opens and closes a client per target
-  (`open_client` appears six times in `service.py`), and `/api/optionSets` is
-  fetched by four of the six with two different field lists. A server holding
+  (`open_client` appears seven times in `service.py`), and `/api/optionSets` is
+  fetched by four of the seven with two different field lists. A server holding
   one client and one cache is a different shape than what the code assumes.
 - `_fetch_option_set_identity_plan` refetches `/api/optionSets` with a narrower
   projection *and* refetches the questionnaire sources through `_closure_sources`
@@ -915,13 +949,20 @@ right for a `/api/metadata` sweep against a slow instance is the question.
 `_selected_option_sets` (`include_ids` entries that matched nothing). All three
 report "not found", none distinguish "not visible to this user".
 
-*Validation coverage.* `validation/__init__.py`. The instance-wide sweep covers
-every metadata collection except `options` and `system`. The deep per-item pass
-covers **option sets only** - `build_code_validation` iterates `option_sets` and
-nothing else. Everything the questionnaire target reads and emits into the FSH
-gets only the shallow code check: data element names, category option combo
-names and codes, data set and program names and codes, section names,
-organisation unit names beyond the code warning.
+*Validation coverage.* `validation/__init__.py`, and its module docstring section
+"What the deep passes do not repeat, and why". The instance-wide sweep covers
+every metadata collection `/api/metadata` returns except `options` and `system`,
+and it applies **both** checks - the R4 code check and `template-hostile-name` -
+to every object in every one of them: `dataElements`, `categoryOptionCombos`,
+`dataSets`, `programs`, `sections`, `programStageSections`, `organisationUnits`,
+`attributes`. So the questionnaire target's sources are covered instance-wide
+rather than left to a deep pass. The three deep passes exist for what the sweep
+structurally cannot do: option sets (peer-dependent concept codes and
+name-sourced slugs, plus the `options` collection the sweep excludes) and
+attributes (the emit-time decision to omit `attributeCode`). The reviewer's
+question is whether that division survives a live instance: does the sweep really
+reach every collection an emitter reads, and is there a peer-dependent or
+emit-time outcome that has no deep pass?
 
 *The below-floor question.* See open decision 5.7. It belongs to this dimension
 because it is a live-instance concern, and because `dhis2w-fhir` is
@@ -947,11 +988,12 @@ copies. A below-floor fallback would be the first thing to test that claim.
 - **Notes never distinguish absence from invisibility.** `include_ids entry 'X'
   matched no option set` is what a permission-limited user sees for an option set
   they cannot read, which sends the operator to the wrong fix.
-- **`validate` under-reports what generation will do.** The gap above means a
-  category option combo with an invalid code, or a data element with a
-  template-hostile name, is caught by the shallow sweep only for the fields the
-  sweep fetches (`id,name,code`) and never by a pass that mirrors what the
-  emitter does with them.
+- **The sweep sees `id,name,code` and nothing else.** A category option combo
+  with an invalid code and a data element with a template-hostile name are both
+  caught, because those are the fields the sweep fetches. Anything an emitter
+  derives from a *different* field - a `formName`, a `shortName`, a `valueType` -
+  is outside every pass by construction. Whether that is the right line is the
+  reviewer's question.
 - **No timeout or concurrency knobs are exposed.** `open_client` accepts
   `http_limits` and `retry_policy`; nothing in `dhis2w-fhir` surfaces either to
   `fhir.toml` or to a flag.
@@ -963,7 +1005,7 @@ what is untested?
 
 **Where to start.**
 
-*Dead surface.* `dhis2w_fhir/__init__.py` re-exports 129 names in `__all__`.
+*Dead surface.* `dhis2w_fhir/__init__.py` re-exports 140 names in `__all__`.
 Check each against a real consumer: `write_artifacts` (only `sync_artifacts` is
 called by the service), `clean_generated_files`, `option_set_fsh_name`,
 `option_set_code_fallback`, `max_slug_length`, `domain_code`, `is_multi_valued`,
@@ -990,7 +1032,7 @@ the three questionnaire directories, `registry`, `terminology`, and `pagecontent
 are constants. A rename of one of the two literal directories has to be found by
 grep.
 
-*Test blind spots.* Compare the 696 collected tests against the surface. Known
+*Test blind spots.* Compare the 739 collected tests against the surface. Known
 thin spots to verify: `test_fhir_mcp.py` has 2 tests for the only MCP tool;
 `test_fhir_period.py` has 8 declarations covering 23 period types (parametrised,
 so check what the parametrisation actually spans); there is no test file named
@@ -1205,27 +1247,31 @@ commitment.
   `Organization.type` codings from group-set CodeSystems, tokens `OUG` / `OUGS`
   under the same scheme. The lao-v1 inspiration IG already classifies
   provinces, districts, and villages by group membership.
-- **Categories and category options.** Structurally close to option sets, mapped
-  to CodeSystem/ValueSet pairs the same way. First priority among the terminology
-  sources below: the data layer's `$DHIS2-CAT` / `$DHIS2-COC` stratifier codes
-  depend on it.
-- **Deep validation per terminology source.** `validate`'s per-item deep pass
-  covers option sets today. Each new terminology generation source brings a
-  matching deep pass when it lands, so the cleanup loop keeps covering exactly
-  what generation reads. Dimension C names this as a present gap, not only a
-  future one.
+- **The rest of the category model.** `generate categories` publishes each
+  category with its category options as concepts, under the `CAT` token. What is
+  left of the model is the combination layer - `categoryCombo`,
+  `categoryOptionCombo`, and the attribute option combo - whose `CC` / `COC` /
+  `AOC` tokens are already reserved. Category option combos reach the IG today
+  only as `D2COC_CS`, the data-dictionary support pair a form's disaggregated
+  children code against; publishing them as terminology in their own right is the
+  step that lets the data layer carry `$DHIS2-COC` stratifier codes. The reserved
+  `CO` token belongs here too, for an artifact that publishes category options
+  standalone rather than as concepts inside their category.
+- **Deep validation per terminology source.** `validate` runs three passes today:
+  the instance-wide sweep, a deep option-set pass, and a deep attribute pass. The
+  sweep is the broad coverage and it is genuinely instance-wide - both the R4 code
+  check and `template-hostile-name` apply to every object in every `/api/metadata`
+  collection - so a deep pass is warranted only where the sweep structurally
+  cannot see the outcome: a value assigned against an object's peers, or a
+  decision the emitter makes at emit time. What remains is one such pass per
+  terminology source added in future, decided on that test rather than added by
+  reflex. `validation/__init__.py`'s module docstring records the two passes
+  deliberately not written and why.
 - **`SHORT_NAME` and `DESCRIPTION` translations.** `NAME` is emitted today; the
   other two need a target apiece (`Organization.alias`, `^description`) before
   they can follow. Validation's instance-wide sweep stays translation-free until
   there is a cheaper way to ask `/api/metadata` for them than fetching every
   object's full translation list.
-- **An `init` refresh mode** for the scaffold-managed support files
-  (`ig/input/ignoreWarnings.txt`, `ig/input/pagecontent/index.md`,
-  `ig/sushi-config.yaml`'s `menu:`) in an existing project, without touching
-  `fhir.toml` or hand-edited content. A project created before a scaffold
-  improvement keeps stale support files otherwise - a project scaffolded before
-  the site pages landed keeps its old two-entry menu until the refresh mode
-  rewrites it.
 - **Instance-scoped project identity.** `d2w fhir init --data-set <uid>` /
   `--event <uid>` seed the target lists offline today. Deriving the IG identity
   (id, canonical, title) from the instance and its named targets on first init
@@ -1275,7 +1321,8 @@ terminology rather than as ad-hoc codings.
 | Group / GroupSet | `categoryOptionGroupSet` -> `categoryOptionGroups` -> category options | `COG` / `COGS` |
 | Group / GroupSet | `optionGroupSet` -> `optionGroups` -> options (classifies options across option sets) | `OG` / `OGS` |
 | Group only | `programIndicatorGroup`, `validationRuleGroup`, `predictorGroup` | `PIG`, `VRG`, `PRED` |
-| Category model | `category` -> `categoryOptions`; `categoryCombo` -> `categories`; `categoryOptionCombo` -> `categoryOptions` | `CAT`, `CO`, `CC`, `COC`, `AOC` |
+| Category model | `category` -> `categoryOptions` - already emitted | `CAT` |
+| Category model | `categoryCombo` -> `categories`; `categoryOptionCombo` -> `categoryOptions`; the attribute option combo | `CC`, `COC`, `AOC`, and `CO` for standalone category options |
 | Adjacent | `legendSet` -> `legends` (threshold classifications; a CodeSystem with range properties) | `LS` |
 | Adjacent | `organisationUnitLevel` - already emitted | `OU` |
 

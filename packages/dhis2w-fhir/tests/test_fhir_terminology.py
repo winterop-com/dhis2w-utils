@@ -613,3 +613,29 @@ def test_an_answer_selecting_an_option_with_no_concept_code_is_left_unanswered()
     code_system = _code_systems(_build([_UNCODABLE], _CODE_SOURCE))[0]
     assert _concept_codes(code_system) == ["Op3aaaaaaaa", "SHARED"]
     assert _displays(code_system) == ["First", "Second"]
+
+
+def test_page_furniture_escapes_the_markup_characters_the_publisher_parses() -> None:
+    """A name holding `<` aborts the IG publisher: `fhir2.base.template` pastes the title into HTML raw."""
+    hostile = OptionSetIn(
+        uid="Xa1b2c3d4e5",
+        code="AGE",
+        name="HIV: Age (<5 - 49) & over",
+        options=[OptionIn(uid="Op1aaaaaaaa", code="LT5", name="<5", sort_order=1)],
+    )
+    build = build_option_set_artifacts(
+        [hostile],
+        GenerateConfig(),
+        "http://example.org/fhir",
+        ig_status="draft",
+        attribute_codes=AttributeCodeIndex(),
+    )
+    code_system = json.loads(next(a.content for a in build.artifacts if "CodeSystem" in a.relative_path))
+    assert code_system["title"] == "HIV: Age (&lt;5 - 49) &amp; over"
+    assert "&lt;5" in code_system["description"]
+    for character in "<>":
+        assert character not in code_system["title"]
+        assert character not in code_system["description"]
+    # The other half of the rule: a concept display is data a consumer reads back, not page
+    # furniture, so it carries the DHIS2 text verbatim.
+    assert _displays(code_system) == ["<5"]

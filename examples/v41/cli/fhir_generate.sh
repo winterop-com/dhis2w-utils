@@ -44,6 +44,20 @@ d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/d
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" --sushi-timeout 5400
 
+# --refresh brings an existing project's scaffold-managed files up to date. The IG identity
+# comes off the project itself - fhir.toml, ig/fsh.ini, ig/sushi-config.yaml - and a file is
+# rewritten only when the current scaffold render reproduces every line already on disk, in
+# order. So a refresh adds what the scaffold gained (a new path-resource glob, a new
+# .gitignore entry, a new menu entry) and never drops a line you wrote; a file carrying
+# anything the scaffold would not produce is left byte-identical and reported as skipped.
+# fhir.toml is never written, and --force is rejected alongside it. The consequence to know:
+# a scaffold line you deliberately deleted comes back, because a deletion leaves the file a
+# subset of the render. Comment such a line out instead of removing it.
+# The case it exists for: a project scaffolded before the categories path-resource glob
+# landed compiles fine - SUSHI recurses into input/resources on its own - while the IG
+# publisher, which does not recurse, drops those resources from the published guide.
+# cd demo-ig && d2w fhir init . --refresh
+
 # Generation reads its config from the nearest fhir.toml (walking up from $PWD),
 # so run from inside the project. The DHIS2 profile comes from -p/DHIS2_PROFILE,
 # falling back to the optional `profile` key in fhir.toml.
@@ -76,6 +90,16 @@ d2w fhir generate foundation
 # Concept codes are DHIS2 option UIDs; the DHIS2 code rides along as a dhis2-code
 # property (set concept_code_source = "code" in fhir.toml to swap them).
 d2w fhir generate option-sets
+
+# Categories: the same CodeSystem/ValueSet pair per DHIS2 category, its concepts being that
+# category's category options, as pre-built FHIR JSON under ig/input/resources/categories/ -
+# CodeSystem-d2-cat-<uid>-cs.json and ValueSet-d2-cat-<uid>-vs.json. A category is one axis
+# of a disaggregation (Sex, EPI/nutrition age), so this is the terminology the disaggregated
+# half of the data layer codes against. Concepts keep the category's own categoryOptions
+# order, carry the complementary DHIS2 identifier as a dhis2-code / dhis2-id property, and
+# the category's own attributeValues ride along as D2AttributeValue extensions on both halves.
+# Narrow the set with [generate.categories] include_ids (absent or empty = every category).
+d2w fhir generate categories
 
 # Questionnaires: one Questionnaire per selected data set under ig/input/fsh/data-sets/
 # and per event program under ig/input/fsh/event-programs/, plus the shared data-element
@@ -140,12 +164,13 @@ d2w fhir generate org-units
 # deletes markdown carrying the generated header comment.
 d2w fhir generate pages
 
-# Or every target in one run (foundation, option-sets, questionnaires, examples,
+# Or every target in one run (foundation, option-sets, categories, questionnaires, examples,
 # org-units, pages - pages last, so it sees everything the run generated).
 # Re-running replaces previously generated .fsh and .md files (identified by their header
 # line); hand-authored ones are never touched. JSON carries no header, so each JSON target
 # owns its directory outright and clears what it did not write - option-sets owns
-# ig/input/resources/terminology/, org-units owns ig/input/resources/registry/.
+# ig/input/resources/terminology/, categories owns ig/input/resources/categories/, and
+# org-units owns ig/input/resources/registry/.
 d2w fhir generate all
 
 # Preflight: check the instance's option-set codes and names for FHIR-safety

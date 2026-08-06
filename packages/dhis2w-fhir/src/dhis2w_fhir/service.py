@@ -18,6 +18,8 @@ from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.period import parse_period, recent_periods
+from dhis2w_fhir.resources.categories import CATEGORY_DIRECTORY, build_category_artifacts
+from dhis2w_fhir.resources.categories.schemas import CategoryIn
 from dhis2w_fhir.resources.examples import (
     COMPLETED_STATUS,
     EXAMPLES_DIRECTORY,
@@ -64,11 +66,18 @@ from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
 from dhis2w_fhir.validation import build_code_validation
 from dhis2w_fhir.validation.schemas import FhirValidationReport, MetadataCollectionIn, MetadataItemIn
-from dhis2w_fhir.writer import FshArtifact, JsonArtifact, sync_artifacts, sync_json_artifacts
+from dhis2w_fhir.writer import FshArtifact, JsonArtifact, clean_generated_files, sync_artifacts, sync_json_artifacts
 
 if TYPE_CHECKING:
     from dhis2w_client import Dhis2Client
-    from dhis2w_client.generated.v42.schemas import Attribute, DataSet, OptionSet, OrganisationUnit, Program
+    from dhis2w_client.generated.v42.schemas import (
+        Attribute,
+        Category,
+        DataSet,
+        OptionSet,
+        OrganisationUnit,
+        Program,
+    )
 
 _STREAM_PAGE_SIZE = 500
 _TRANSLATION_FIELDS = "translations[locale,property,value]"
@@ -84,6 +93,13 @@ _OPTION_SET_FIELDS = (
 
 #: The option-set projection the identity plan is assigned from - a slug needs the UID and the name alone.
 _OPTION_SET_IDENTITY_FIELDS = "id,name"
+
+#: The category projection the terminology target emits from. `categoryOptions` is a DHIS2 list
+#: rather than a set, so the order the instance answers with is the category's own sort order.
+_CATEGORY_FIELDS = (
+    f"id,code,name,description,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS},"
+    f"categoryOptions[id,code,name,{_TRANSLATION_FIELDS}]"
+)
 _ORGANISATION_UNIT_FIELDS = (
     "id,code,name,shortName,description,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,"
     f"closedDate,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS}"
@@ -130,6 +146,7 @@ class GenerateReport(BaseModel):
     written_files: list[str] = Field(default_factory=list)
     unchanged_count: int = 0
     option_set_count: int = 0
+    category_count: int = 0
     questionnaire_count: int = 0
     organisation_unit_count: int = 0
     position_count: int = 0
@@ -145,6 +162,7 @@ class GenerateAllReport(BaseModel):
 
     foundation: GenerateReport
     option_sets: GenerateReport
+    categories: GenerateReport
     questionnaires: GenerateReport
     examples: GenerateReport
     organisation_units: GenerateReport
@@ -212,6 +230,13 @@ _INSTANCES_PER_ORGANISATION_UNIT = 2
 #: per resource, so the wall clock of `make build` tracks this count.
 _REGISTRY_RENDER_COST_INSTANCES = 10_000
 
+#: Read timeout for the validate sweep's single `/api/metadata` request. The client's 30 s default
+#: is sized for an ordinary API read; a whole-instance metadata read is a different shape of request
+#: and needs its own ceiling. Measured on a national instance: 13 MB over 58 s, so the default fails
+#: it every time and `d2w fhir validate` cannot run at all against exactly the instances whose size
+#: makes its findings worth having.
+_SWEEP_TIMEOUT_SECONDS = 600.0
+
 
 def _sweep_collections(raw: dict[str, object]) -> list[MetadataCollectionIn]:
     """Wrap the raw `/api/metadata?fields=id,name,code` body into typed sweep sources."""
@@ -244,7 +269,7 @@ async def validate_codes(
 ) -> FhirValidationReport:
     """Check the whole instance's codes (sweep) plus the option sets in depth, without writing anything."""
     effective_source = resolve_code_source(config, code_source)
-    async with open_client(profile) as client:
+    async with open_client(profile, timeout=_SWEEP_TIMEOUT_SECONDS) as client:
         raw = await client.get_raw("/api/metadata", params={"fields": "id,name,code", "defaults": "EXCLUDE"})
         models = await client.resources.option_sets.list(
             fields=_OPTION_SET_FIELDS,
@@ -303,15 +328,99 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
         attribute_codes=attribute_codes,
     )
     sync = sync_json_artifacts(project.resources_directory, TERMINOLOGY_DIRECTORY, build.artifacts)
+    # The target writes JSON, so it also owns keeping its FSH directory empty of generated files: a
+    # project whose terminology was written as FSH would otherwise hold both shapes, and SUSHI refuses
+    # a definition that duplicates a pre-defined resource. Only header-bearing files are removed, so a
+    # hand-authored file in that directory is left alone.
+    superseded = clean_generated_files(project.fsh_directory / TERMINOLOGY_DIRECTORY)
     return GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",
         target_directory=f"resources/{TERMINOLOGY_DIRECTORY}",
-        deleted_files=sync.deleted,
+        deleted_files=[*sync.deleted, *superseded],
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
         option_set_count=len(inputs),
         notes=[*notes, *build.notes],
+    )
+
+
+async def generate_categories(profile: Profile, project: FhirProject) -> GenerateReport:
+    """Generate one pre-built CodeSystem and ValueSet document per configured category into `categories/`."""
+    config = project.config.generate
+    notes: list[str] = []
+    async with open_client(profile) as client:
+        models = await client.resources.categories.list(
+            fields=_CATEGORY_FIELDS,
+            order=["name:asc"],
+            paging=False,
+        )
+        attribute_codes = await resolve_attribute_code_index(client)
+    inputs = _selected_categories([_category_input(model) for model in models], config, notes)
+    build = build_category_artifacts(
+        inputs,
+        config,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+        attribute_codes=attribute_codes,
+    )
+    sync = sync_json_artifacts(project.resources_directory, CATEGORY_DIRECTORY, build.artifacts)
+    return GenerateReport(
+        project_root=project.project_root,
+        target_base="ig/input",
+        target_directory=f"resources/{CATEGORY_DIRECTORY}",
+        deleted_files=sync.deleted,
+        written_files=sync.written,
+        unchanged_count=len(sync.unchanged),
+        category_count=len(inputs),
+        notes=[*notes, *build.notes],
+    )
+
+
+def _selected_categories(inputs: list[CategoryIn], config: GenerateConfig, notes: list[str]) -> list[CategoryIn]:
+    """Filter categories by the configured UIDs, noting entries that matched nothing.
+
+    An absent or empty `[generate.categories] include_ids` selects every category the instance
+    holds, matching the option-set selection. A category is not pulled in by a closure the way
+    an option set is: nothing generated today binds a category, so the list stands on its own.
+    """
+    selection = config.categories
+    if not selection.include_ids:
+        return inputs
+    configured_ids = set(selection.include_ids)
+    selected = [item for item in inputs if item.uid in configured_ids]
+    selected_ids = {item.uid for item in selected}
+    for uid in sorted(configured_ids - selected_ids):
+        notes.append(f"include_ids entry {uid!r} matched no category")
+    return selected
+
+
+def _category_input(model: Category) -> CategoryIn:
+    """Map a generated Category (with inline category-option dicts) into the emitter projection.
+
+    DHIS2 holds `categoryOptions` as an ordered list, so each option's index in the answer is
+    carried across as its sort order and the emitted concepts keep the category's own order.
+    """
+    options = [
+        OptionIn(
+            uid=str(raw["id"]),
+            code=raw.get("code"),
+            name=str(raw.get("name") or raw["id"]),
+            sort_order=index,
+            translations=_translation_inputs(raw.get("translations")),
+        )
+        for index, raw in enumerate(model.categoryOptions or [])
+        if isinstance(raw, dict) and raw.get("id")
+    ]
+    uid = model.id or ""
+    return CategoryIn(
+        uid=uid,
+        code=model.code,
+        name=model.name or uid,
+        description=model.description,
+        options=options,
+        translations=_translation_inputs(model.translations),
+        attribute_values=_attribute_value_inputs(model.attributeValues),
     )
 
 
@@ -731,6 +840,7 @@ async def generate_all(profile: Profile, project: FhirProject) -> GenerateAllRep
     """Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages."""
     foundation = await generate_foundation(project)
     option_sets = await generate_option_sets(profile, project)
+    categories = await generate_categories(profile, project)
     questionnaires = await generate_questionnaires(profile, project)
     examples = await generate_examples(profile, project)
     organisation_units = await generate_organisation_units(profile, project)
@@ -738,6 +848,7 @@ async def generate_all(profile: Profile, project: FhirProject) -> GenerateAllRep
     return GenerateAllReport(
         foundation=foundation,
         option_sets=option_sets,
+        categories=categories,
         questionnaires=questionnaires,
         examples=examples,
         organisation_units=organisation_units,

@@ -10,7 +10,8 @@ You get three things:
 - **`d2w fhir init`** scaffolds a complete, dockerized SUSHI project - config,
   `sushi-config.yaml`, a `pyproject.toml` pinning the d2w toolchain, a Makefile,
   and a Dockerfile carrying SUSHI plus the IG publisher. Nothing else to install
-  but `uv` and Docker.
+  but `uv` and Docker. `--refresh` brings an existing project's scaffold-managed
+  files up to date; see [Refreshing a project's scaffold](#refreshing-a-projects-scaffold).
 - **`d2w fhir generate`** reads DHIS2 metadata and writes the IG source into the
   project: FSH for the definitional artifacts, pre-built FHIR JSON for the
   organisation-unit registry. Re-running converges: generated files are replaced,
@@ -85,6 +86,66 @@ entries once the packages are published, and they resolve from PyPI instead.
 `init` also takes `--publisher-url`. Leave it off unless the publisher has a real
 home page: the IG publisher links that URL from every generated page, so aiming
 it at the canonical of an unpublished IG produces one QA warning per page.
+
+## Refreshing a project's scaffold
+
+The scaffold grows. A `path-resource` glob lands in `ig/sushi-config.yaml`, an
+entry lands in `.gitignore`, a menu entry lands beside the others - and a project
+scaffolded before that carries none of them. `--refresh` re-renders the scaffold
+for an existing project and writes what it safely can:
+
+```bash
+cd my-ig
+d2w fhir init . --refresh
+```
+
+**The rule is one sentence: a file is rewritten only when the current scaffold
+render reproduces every line already on disk, in order.** So a refresh can only
+add what the scaffold gained, and no line you wrote is ever dropped. A file
+holding a single line the scaffold would not produce is left byte-identical and
+reported instead.
+
+The IG identity comes off the project itself, never from defaults: `[ig]` and the
+selection tables from `fhir.toml`, the SUSHI timeout from `ig/fsh.ini`, and the
+publisher URL plus the copyright year from `ig/sushi-config.yaml` - the two values
+no other file records. So the comparison is against the scaffold *this* project
+would produce today.
+
+**`fhir.toml` is never written.** It is your configuration, and a refresh skips it
+outright rather than comparing it.
+
+Every file gets one of four outcomes, all of them printed:
+
+| Outcome | Meaning |
+| --- | --- |
+| `created` | A scaffold file the project did not have. Written. |
+| `refreshed` | The render carries every line on disk plus more. Rewritten. |
+| `unchanged` | Already byte-identical to the current scaffold. |
+| `skipped` | Carries a line the scaffold would not produce. Your version stays. |
+
+**A scaffold line you deliberately deleted comes back.** That is the price of the
+rule: deleting a line leaves every remaining line still present in the render, in
+order, which is exactly the shape a refresh rewrites. To keep a scaffold line out, change it into
+something the scaffold would not produce - comment it out, or edit it - rather
+than removing it. To go the other way and take the scaffold's version of a
+skipped file, delete the file and refresh again; it comes back as `created`.
+
+`--refresh` and `--force` are mutually exclusive, and the run stops if you pass
+both. `--force` rewrites every scaffold file including the ones you edited;
+`--refresh` rewrites only what it can rewrite without losing an edit. They are
+opposite answers to the same question.
+
+The scaffolded [`make refresh`](#the-scaffolded-makefile) is a different verb on
+the same word: it rebuilds the IG from the instance. `init --refresh` touches the
+scaffold and never the generated output.
+
+The case this exists for is concrete. A project scaffolded before `path-resource`
+covered a predefined-resource sub-folder keeps a `sushi-config.yaml` without that
+glob. SUSHI loads the pre-built JSON regardless - it recurses into sub-folders of
+`input/resources` on its own - so `make sushi` stays green and nothing looks
+wrong. The IG Publisher does not recurse, so it drops those resources from the
+published guide: an IG silently missing its registry and its terminology. A
+refresh adds the glob.
 
 ## Which DHIS2 instance
 
@@ -210,11 +271,12 @@ the default - emits every locale found on the instance. See
 source = "id"
 prefix = "D2"
 option_set = "OS"
+category = "CAT"
 organisation_unit = "OU"
 ```
 
-**`source`** decides what the **option-set** artifacts are named after - their
-file names, FHIR ids, and FSH names:
+**`source`** decides what the **option-set** and **category** artifacts are named
+after - their file names, FHIR ids, and FSH names:
 
 - `"id"` (default) - stable, collision-free, script-agnostic. DHIS2 names are
   often non-latin or non-unique, so id-sourced ids never truncate or collide.
@@ -228,11 +290,17 @@ file names, FHIR ids, and FSH names:
   and disambiguated the same way when two names collide. Both are reported as
   notes.
 
+Categories read the same way with their own token: id `d2-cat-O5P6e8yu1T6-cs`,
+name `D2CAT_O5P6e8yu1T6_CS`, file
+`categories/CodeSystem-d2-cat-O5P6e8yu1T6-cs.json` under `"id"`, and
+`d2-cat-sex-cs` / `D2CAT_Sex_CS` under `"name"`.
+
 Whichever source is set, the names are assigned once over the whole option-set
 selection - a truncation or a collision suffix depends on the peers a set is
 assigned against - and every other target reads that assignment. A question's
 `answerValueSet` and an example's answer coding therefore name the very CodeSystem
-and ValueSet the same run writes, under `"name"` exactly as under `"id"`.
+and ValueSet the same run writes, under `"name"` exactly as under `"id"`. The
+category assignment works the same way over the whole category selection.
 
 The FSH name is load-bearing across the FSH/JSON boundary. A questionnaire binds
 its question with `answerValueSet = Canonical(D2OS_Qdm5fPK5Ra9_VS)` - an FSH
@@ -257,6 +325,7 @@ consistently.
 | --- | --- | --- |
 | `prefix` | `D2` | May be empty to drop it entirely. |
 | `option_set` | `OS` | May be empty. Try `OptionSet` for a verbose IG. |
+| `category` | `CAT` | May be empty. Names a category's pair (`D2CAT_Sex_CS` / `_VS`). |
 | `organisation_unit` | `OU` | Must stay non-empty. `OrgUnit` gives `D2OrgUnit_Level_CS`. |
 | `data_set` | `DS` | May be empty. Names a data set's Questionnaire (`D2DS_BfMAe6Itzgt`). |
 | `program` | `PR` | May be empty. Names an event program's Questionnaire (`D2PR_VBqh0ynB2wv`). |
@@ -272,7 +341,7 @@ illegal. Those definitions fall back to `D2` rather than fail.
 #### The canonical token registry
 
 Keys are added to `[generate.naming]` as each generator lands, with these
-defaults. `NamingConfig` carries four of them today - `option_set`,
+defaults. `NamingConfig` carries five of them today - `option_set`, `category`,
 `organisation_unit`, `data_set`, and `program`; the rest are the decided defaults
 for the generators still to come. Every token composes as
 `{prefix}{token}_<segment>_CS`, and ids derive from the kebab of prefix plus
@@ -300,6 +369,14 @@ token (`d2-deg-<uid>-cs`).
 `D2Period`, `D2FormType`, and `D2AttributeValue` are fixed names: each takes the
 prefix and no token of its own.
 
+**`CO` is reserved, and there is deliberately no `category_option` key.** A
+category's options are the concepts inside that category's CodeSystem, exactly as
+an option set's options are concepts inside its own - and options have no token of
+their own either, for the same reason: a concept is not an artifact, so nothing
+names it. `CO` stays in the registry above for a future artifact that publishes
+category options in their own right. Setting a `category_option` key in
+`[generate.naming]` would configure nothing.
+
 ### `[generate.option_sets]`
 
 ```toml
@@ -312,6 +389,22 @@ reported as a note rather than silently ignored. A narrowed list is still unione
 with whatever the selected data sets and event programs bind their data elements
 to, so a questionnaire never points at a ValueSet the IG does not contain
 (see [Data set and event program forms](#data-set-and-event-program-forms)).
+
+### `[generate.categories]`
+
+```toml
+[generate.categories]
+# include_ids = ["O5P6e8yu1T6"]     # category UIDs to include; absent means all
+```
+
+Reads exactly like `[generate.option_sets]`: UIDs only, absent or empty means
+every category on the instance, a non-empty list filters, and an entry matching
+nothing is reported as a note. There is no closure - nothing generated today
+binds a category, so the list stands on its own rather than being unioned with
+what the forms reference.
+
+DHIS2's own `default` category is a category like any other here: it is emitted
+by default and it can be named in `include_ids` or left out by naming the others.
 
 ### `[generate.data_sets]` and `[generate.event_programs]`
 
@@ -373,21 +466,28 @@ for flows that want the hierarchy as codes rather than as resources.
 ```
 d2w fhir generate foundation     Identifier aliases + the D2Period / D2FormType / D2AttributeValue extensions
 d2w fhir generate option-sets    Option sets -> CodeSystem/ValueSet pairs
+d2w fhir generate categories     Categories -> CodeSystem/ValueSet pairs
 d2w fhir generate questionnaires Data sets + event programs -> Questionnaire instances
 d2w fhir generate examples       Example QuestionnaireResponses answering those Questionnaires
 d2w fhir generate org-units      Org units -> Organization/Location instances
 d2w fhir generate pages          Narrative site pages + per-artifact intros
-d2w fhir generate all            All six, in that order
+d2w fhir generate all            All seven, in that order
 ```
 
 Each target owns its subdirectories and syncs each one: writes what changed, leaves
 what did not, deletes generated files that no longer belong. `questionnaires` owns
 three under `ig/input/fsh/` (`data-sets/`, `event-programs/`, `data-dictionary/`);
 `foundation` and `examples` own one each under `ig/input/fsh/`; `option-sets` owns
-`ig/input/resources/terminology/` for its pre-built CodeSystem and ValueSet JSON;
-`org-units` owns two - `ig/input/fsh/organization/` for its profiles and terminology
-and `ig/input/resources/registry/` for the pre-built instance JSON; `pages` owns
-`ig/input/pagecontent/`, which holds markdown rather than FSH.
+`ig/input/resources/terminology/` and `categories` owns
+`ig/input/resources/categories/`, each for its pre-built CodeSystem and ValueSet
+JSON; `org-units` owns two - `ig/input/fsh/organization/` for its profiles and
+terminology and `ig/input/resources/registry/` for the pre-built instance JSON;
+`pages` owns `ig/input/pagecontent/`, which holds markdown rather than FSH.
+
+The three JSON targets each get a directory of their own rather than sharing one,
+because a JSON sync owns its target outright: it deletes every `*.json` in that
+directory the run did not produce. Two targets pointed at one directory would
+delete each other's documents on every run.
 
 ### `foundation`
 
@@ -601,6 +701,49 @@ them.
 The target owns `terminology/` outright and sweeps it: JSON left there by a
 previous run that this run does not produce is deleted, so renaming or dropping
 an option set converges rather than accumulating.
+
+### `categories`
+
+A DHIS2 category is one axis of a disaggregation - Sex, EPI/nutrition age - and
+its category options are the values along that axis. That is the shape of an
+option set and its options, so a category emits the same pair, built by the same
+concept-code assignment, into its own predefined-resource directory:
+
+```
+ig/input/resources/categories/CodeSystem-d2-cat-<UID>-cs.json
+ig/input/resources/categories/ValueSet-d2-cat-<UID>-vs.json
+```
+
+This is the terminology the disaggregated half of the data layer codes against.
+Each pair carries the `CAT` naming token (`D2CAT_Sex_CS` / `D2CAT_Sex_VS`), the
+category's own DHIS2 UID and code as `identifier` business identifiers, and the
+category's DHIS2 attribute values as
+[`D2AttributeValue` extensions](#the-d2attributevalue-extension) on both halves.
+
+**The concepts are the category options.** They keep the category's own
+`categoryOptions` order - DHIS2 holds that field as an ordered list, so the order
+the instance answers with is the sort order - and each concept carries the
+complementary DHIS2 identifier as a `dhis2-code` or `dhis2-id` property, exactly
+as an option set's concepts do. Under `concept_code_source = "code"` the same
+fall-backs apply: an option whose code is not a valid FHIR code takes its UID with
+a note, and an option with no code left to take is skipped with its own note
+rather than emitted as a duplicate concept.
+
+**A dedicated directory, not a shared one.** `categories/` is separate from
+`terminology/` because each JSON sync deletes every `*.json` in its target that
+the run did not produce. Sharing one directory would have the two targets deleting
+each other's documents.
+
+**The scaffolded `sushi-config.yaml` declares the glob.** Its `path-resource`
+block names `input/resources/categories/*` alongside the registry and terminology
+globs. SUSHI recurses into sub-folders of `input/resources` on its own; the IG
+Publisher does not, so without that line the pairs compile fine and are dropped
+from the published guide. A project scaffolded before the glob existed picks it up
+with [`d2w fhir init --refresh`](#refreshing-a-projects-scaffold).
+
+Narrow the selection with
+[`[generate.categories]` `include_ids`](#generatecategories) - absent or empty
+means every category, DHIS2's own `default` category included.
 
 ### Data set and event program forms
 
@@ -877,23 +1020,27 @@ things in the IG, and this is what keeps both out of the compile entirely - see
 [Registry scale](#registry-scale) for the measurements.
 
 That is also why the scaffolded `sushi-config.yaml` declares a `path-resource`
-glob for each of the two:
+glob for each predefined-resource sub-folder:
 
 ```yaml
 parameters:
   path-resource:
     - input/resources/registry/*
     - input/resources/terminology/*
+    - input/resources/categories/*
 ```
 
 SUSHI recurses into sub-folders of `input/resources` on its own; the IG Publisher
 does not. The globs are what put the resources a sub-folder holds into the
-published ImplementationGuide.
+published ImplementationGuide, and a project whose `sushi-config.yaml` is missing
+one publishes a guide silently short of that sub-folder's resources -
+[`d2w fhir init --refresh`](#refreshing-a-projects-scaffold) is what adds a glob
+the scaffold gained.
 
 **The pre-built resources are not committed.** The scaffolded `.gitignore` covers
-`ig/input/resources/` - both the registry and the terminology - because it is
-generated output: thousands of files, and `make generate` rebuilds them all in a
-few minutes. `ig/input/fsh/` is committed, so the FSH diff after a metadata
+`ig/input/resources/` - the registry, the option-set terminology, and the
+categories alike - because it is generated output: thousands of files, and
+`make generate` rebuilds them all in a few minutes. `ig/input/fsh/` is committed, so the FSH diff after a metadata
 change is still there to review.
 
 **Geometry is embedded losslessly.** Whatever shape DHIS2 holds, the full GeoJSON
@@ -1065,7 +1212,7 @@ translations is far too heavy for a check that only looks at codes.
 d2w fhir validate [--code-source id|code] [--report STEM] [--format md,csv,pdf] [--all] [--no-fail]
 ```
 
-Two passes, one finding shape:
+Three passes, one finding shape:
 
 - an **instance-wide sweep** over `GET /api/metadata?fields=id,name,code`
   (`defaults=EXCLUDE`, so DHIS2's auto-generated default category objects stay
@@ -1073,10 +1220,37 @@ Two passes, one finding shape:
   datatype: invalid codes are errors, per-type duplicates warn. Organisation
   units additionally warn when they carry no code at all.
 - a **deep option-set pass** previewing exactly what code-mode generation would
-  do, over the same projections the emitter consumes.
+  do, over the same projections the emitter consumes. Under
+  `naming.source = "name"` it also previews the ids: which names overflow the FHIR
+  id limit, and which ones **collide** with a peer and get a UID suffix that stops
+  the id reading back to the name. The collision half is assigned over the whole
+  selection, because whether a name yields a readable id depends on the other
+  names in the run.
+- a **deep attribute pass** over the sweep's own `attributes` collection, naming
+  every DHIS2 attribute the instance left uncoded. The emitter omits the
+  `attributeCode` sub-extension entirely for such an attribute, so its values ride
+  a bare UID on all five contexted resource types - `Organization`, `Location`,
+  `CodeSystem`, `ValueSet`, `Questionnaire`. That is the IG working as designed
+  and most instances code few of their attributes, so it is `info`: a coverage
+  signal about how legible the extension is to a consumer who does not hold the
+  DHIS2 instance.
 
-Both passes also check the object's **name**, for one thing that has nothing to do
+Every pass also checks the object's **name**, for one thing that has nothing to do
 with codes - see below.
+
+**The sweep is the broad coverage.** Both the R4 code check and
+`template-hostile-name` apply to every object in every
+collection `/api/metadata` returns - `dataElements`, `categoryOptionCombos`,
+`dataSets`, `programs`, `sections`, `programStageSections`, `organisationUnits`,
+`attributes` and the rest. The deep passes exist for what the sweep structurally
+cannot see: the objects it excludes (`options`), the outcomes that depend on an
+object's peers (a concept code assigned against its set, a slug assigned against
+its peers), and the emit-time decisions it does not model (an attribute value's
+missing code).
+
+The report carries the counts each pass covered - option sets, options,
+attributes, resource types, and objects - in the Markdown and PDF reports and in
+the terminal table alike.
 
 ### `template-hostile-name`
 
@@ -1089,20 +1263,68 @@ the Sierra Leone demo's `Mortality < 5 years by gender` (`YFTk3VdO9av`) renders
 `<h2 id="root">: Mortality < 5 years by gender - Change History</h2>` and the
 publisher logs `Unable to Parse HTML - node 'h2' has unexpected content`.
 
-Generation escapes what it owns - the FSH `Title:` and `Description:` lines that
-become page metadata all HTML-escape those three characters. It deliberately does
+Generation escapes what it owns - every page-facing title and description it writes
+HTML-escapes those three characters, the FSH `Title:` and `Description:` lines and
+the `title` and `description` of a pre-defined JSON resource alike, because both
+shapes reach the same template. It deliberately does
 **not** touch the resource's own `title` and `name` elements: those are DHIS2 data,
 they are what a consumer reads back, and silently substituting entities into them
 would make the IG disagree with the instance. So the change-history surface stays
 malformed for such a name, and the fix is to change the name in DHIS2 - which is
 what this warning is for.
 
-The check runs in both passes and at warning severity in either code source: it is
+The check runs in every pass and at warning severity in either code source: it is
 about the pages the IG publishes, not about what generation reads. The sweep covers
 every metadata object; the deep option-set pass covers option names, which the sweep
 excludes and which land in concept displays and page tables. The offending name is
 printed through the same renderer the code column uses, so an invisible character in
 it is visible on the page.
+
+### `template-hostile-code`
+
+An **error** on a code containing `<`, and a **warning** on one containing `>` or
+`&` - raised only on the collections whose codes become identifier values:
+`optionSets`, `categories`, `organisationUnits`, `dataSets`, and `programs`.
+
+Same characters as the sibling above, a much worse outcome, which is why `<` here is
+an error and a hostile *name* is only ever a warning. A code from one of those five
+collections becomes an identifier value on the resources generated from that object,
+and the publisher writes identifier values into a table cell without escaping them
+and then strict-parses the page it just produced. A real one - an option set coded
+`ENTO - IRS < 6 Months` - fails the build with:
+
+```
+Publishing Content Failed: Unable to process page .../CodeSystem-d2-os-csRsm0D7guY-cs.html
+Caused by: org.hl7.fhir.exceptions.FHIRFormatError: Unable to Parse HTML - node 'td'
+has unexpected content ' ' at line 215 column 197
+```
+
+It fails in the publisher's last pass, after every resource has been rendered, so on
+a large IG a single hostile code costs you the entire build before it says so. That
+is the whole reason to spend a `validate` on it: the same finding takes seconds.
+
+The rest of the DHIS2 text that reaches a page is safe. The publisher escapes concept
+displays, concept designations, `dhis2-code` property values, and translation
+extensions, all of which carry a raw `<` through a build without complaint. The
+identifier table is the one place it does not, and a code is the one DHIS2 field that
+reaches it - so this check reads codes and nothing else.
+
+Both restrictions are there to keep the error honest, because an error on this check
+means "your build will fail". A dashboard is never generated, so a dashboard coded
+`CHAS S&E HIV` costs nothing and is not a finding; a data element carries its code as
+a concept code or a `dhis2-code` property, both of which the publisher escapes, so it
+is not a finding either. And `<` is the only character seen to abort a build - it
+opens a tag - while `>` is text to an HTML parser and a bare `&` is widely tolerated,
+so those two are reported without claiming to be fatal. On the national instance this
+was found on, the unrestricted form of the check raised 23 errors across dashboards,
+data elements, and program indicators; exactly one of them was the object that
+actually failed the build.
+
+Generation does not escape its way around this, for the same reason it leaves names
+alone: an identifier value is what a consumer matches on to find the DHIS2 object,
+and an IG that answers `ENTO - IRS &lt; 6 Months` to a lookup for
+`ENTO - IRS < 6 Months` disagrees with the instance it describes. The fix is to
+change the code in DHIS2.
 
 ### Severity and `--code-source`
 
@@ -1437,6 +1659,41 @@ wires both caches up for you:
 for a published site. Run the publisher when you are ready to publish one, not
 after every edit.
 
+### When the publisher stops on `Exit value: <n>`
+
+`Publishing Content Failed: Process exited with an error: 4 (Exit value: 4)` is
+not an exit code in the sense 137 and 143 are. The publisher runs SUSHI
+internally, SUSHI exits with the number of errors it counted, and the publisher
+reports that number and stops. So the digit is a count: read the `Sushi: error`
+lines above it, not the number itself. The build produces no pages, and the
+publisher's own clock will be short, because it never reached its own work.
+
+Two are worth recognising on sight.
+
+**`Failed to register resource at path: .../input/resources/...`** covers every
+way `fhir-package-loader` can fail to read one predefined resource, malformed
+JSON and a failed read alike, and it does not say which happened. Check it
+against the count SUSHI reports a few lines later - `Loaded virtual package
+sushi-local#LOCAL with N resources` - and compare N with the file count under
+`ig/input/resources/`. If the named files are valid JSON, the read failed rather
+than the content: a file written shortly before the container read it can come
+back truncated across a Docker bind mount, and the same bytes register cleanly on
+a re-run. Re-run before looking for anything to fix. A genuinely malformed
+resource fails every time and on the same files.
+
+**`Unable to process page ...`** is not a SUSHI error at all - it comes from the
+publisher's own final pass, so the clock on it is the whole build. Read the
+`Caused by:` line under it: `Unable to Parse HTML - node 'td' has unexpected
+content` is a DHIS2 code carrying `<` into an identifier value, which
+[`template-hostile-code`](#template-hostile-code) reports in seconds instead.
+
+**`Duplicate definition of ...`** means the same identity reached SUSHI twice,
+once compiled from FSH and once as a predefined resource. Generation sweeps the
+FSH it supersedes, so this points at generated FSH left behind by a version of
+the plugin that wrote a target in the other shape. `d2w fhir generate all` clears
+it and reports the files in `deleted_files`; the count in that report is the
+confirmation.
+
 ## The regeneration contract
 
 Every generated file opens with a header line, chosen by extension:
@@ -1448,10 +1705,12 @@ Every generated file opens with a header line, chosen by extension:
 
 A generate run writes its target subdirectory and then deletes only the
 header-bearing `.fsh` / `.md` files in that subdirectory that it did not just
-produce. JSON carries no comment syntax, so neither
-`ig/input/resources/registry/` nor `ig/input/resources/terminology/` can be
-marked that way: each target owns its directory outright and deletes every
-`*.json` in it the run did not produce. Put nothing of your own there.
+produce. JSON carries no comment syntax, so none of
+`ig/input/resources/registry/`, `ig/input/resources/terminology/`, or
+`ig/input/resources/categories/` can be marked that way: each target owns its
+directory outright and deletes every `*.json` in it the run did not produce.
+That is also why each of the three has a directory to itself. Put nothing of your
+own there.
 
 Three consequences worth relying on:
 

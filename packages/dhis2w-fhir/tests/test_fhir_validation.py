@@ -1,4 +1,4 @@
-"""Unit tests for FHIR-safety validation: instance-wide sweep, deep option pass, markdown report."""
+"""Unit tests for FHIR-safety validation: instance-wide sweep, deep option/attribute passes, reports."""
 
 import re
 from datetime import UTC, datetime
@@ -7,6 +7,7 @@ import pytest
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
+from dhis2w_fhir.validation.pdf import render_validation_pdf
 from dhis2w_fhir.validation.schemas import (
     FhirValidationReport,
     MetadataCollectionIn,
@@ -182,6 +183,100 @@ def test_organisation_units_without_a_code_warn() -> None:
         ("warning", "missing-code", "Ou2aaaaaaaa")
     ]
     assert "falls back to the UID" in report.findings[0].message
+
+
+#: The naming config whose slugs come from option-set names - the only name-sourced identity emitted.
+_NAME_SOURCED = GenerateConfig(naming=NamingConfig(source="name"))
+
+
+def _attributes(*items: MetadataItemIn) -> MetadataCollectionIn:
+    """Build the sweep's `attributes` collection - the only source the deep attribute pass reads."""
+    return MetadataCollectionIn(resource="attributes", items=list(items))
+
+
+def test_an_uncoded_attribute_is_informational_and_names_every_context() -> None:
+    """An uncoded attribute emits a D2AttributeValue without its code on all five contexted types."""
+    report = build_code_validation(
+        [],
+        [
+            _attributes(
+                MetadataItemIn(uid="AtrFhirOpS1", name="FHIR code system URI", code="FHIR_CODE_SYSTEM_URI"),
+                MetadataItemIn(uid="AtrFhirDsQ1", name="FHIR questionnaire source form"),
+            )
+        ],
+        _CONFIG,
+    )
+    assert [(finding.severity, finding.category, finding.uid) for finding in report.findings] == [
+        ("info", "missing-code", "AtrFhirDsQ1")
+    ]
+    assert report.findings[0].resource_type == "attributes"
+    assert "attributeCode sub-extension" in report.findings[0].message
+    for resource_type in ("Organization", "Location", "CodeSystem", "ValueSet", "Questionnaire"):
+        assert resource_type in report.findings[0].message
+
+
+def test_the_attribute_pass_reads_the_sweep_and_nothing_else() -> None:
+    """The pass needs no request of its own, so an instance whose sweep holds no attributes finds none."""
+    report = build_code_validation(
+        [],
+        [MetadataCollectionIn(resource="dataElements", items=[MetadataItemIn(uid="De1aaaaaaaa", name="Uncoded")])],
+        _CONFIG,
+    )
+    assert report.findings == []
+    assert report.attribute_count == 0
+
+
+def test_the_report_counts_the_attributes_the_deep_pass_visited() -> None:
+    """The report states its deep coverage, so a partial check cannot read as a full one."""
+    report = build_code_validation(
+        [],
+        [_attributes(MetadataItemIn(uid="At1aaaaaaaa", name="One", code="ONE"), MetadataItemIn(uid="At2aaaaaaaa"))],
+        _CONFIG,
+    )
+    assert report.attribute_count == 2
+    markdown = render_validation_markdown(report, "probe", _GENERATED_AT)
+    assert "- attributes (deep pass): 2" in markdown
+
+
+@pytest.mark.parametrize("code_source", ["id", "code"])
+def test_the_attribute_finding_is_independent_of_the_code_source(code_source: str) -> None:
+    """The attribute code rides in a valueString, not a concept code, so the code source never gates it."""
+    report = build_code_validation(
+        [],
+        [_attributes(MetadataItemIn(uid="At1aaaaaaaa", name="Uncoded"))],
+        _CONFIG,
+        code_source,  # type: ignore[arg-type]
+    )
+    assert [finding.severity for finding in report.findings] == ["info"]
+    assert "informational in id mode" not in report.findings[0].message
+
+
+def test_colliding_option_set_names_are_flagged_in_name_mode() -> None:
+    """Two names that slug alike take a UID suffix, so the generated id stops reading back to the name."""
+    sets = [
+        _set("Os1aaaaaaaa", "Vaccine type", []),
+        _set("Os2aaaaaaaa", "Vaccine Type", []),
+        _set("Os3aaaaaaaa", "Gender", []),
+    ]
+    report = build_code_validation(sets, [], _NAME_SOURCED)
+    flagged = [(finding.category, finding.uid) for finding in report.findings]
+    assert flagged == [("duplicate-name", "Os2aaaaaaaa"), ("duplicate-name", "Os1aaaaaaaa")]
+    assert "vaccine-type" in report.findings[0].message
+    assert report.info_count == 2
+
+
+def test_colliding_option_set_names_are_silent_in_id_mode() -> None:
+    """Id-sourced slugs are the UID verbatim, so no two of them can collide."""
+    sets = [_set("Os1aaaaaaaa", "Vaccine type", []), _set("Os2aaaaaaaa", "Vaccine Type", [])]
+    assert build_code_validation(sets, [], _CONFIG).findings == []
+
+
+def test_an_over_long_colliding_name_is_reported_once() -> None:
+    """An over-long slug already takes the UID suffix for its length, so it is not also a collision."""
+    long_name = "Residence of the malaria case/s that prompted foci investigation"
+    sets = [_set("Cc3cccccccc", long_name, []), _set("Cc4cccccccc", long_name, [])]
+    report = build_code_validation(sets, [], _NAME_SOURCED)
+    assert [finding.category for finding in report.findings] == ["long-name", "long-name"]
 
 
 def test_name_derived_checks_only_in_name_mode() -> None:
@@ -392,3 +487,121 @@ def test_a_markdown_row_escapes_the_uid_beside_the_name() -> None:
     row = next(line for line in markdown.splitlines() if line.startswith("| error |"))
     assert "Plain (De1\\|aaaaaaa)" in row
     assert len(re.split(r"(?<!\\)\|", row)) == 7
+
+
+#: The option-set code that aborts the publisher on a real national instance.
+_HOSTILE_CODE = "ENTO - IRS < 6 Months"
+
+
+def _hostile_code(report: FhirValidationReport) -> list[ValidationFinding]:
+    """The template-hostile-code findings of one report, in report order."""
+    return [finding for finding in report.findings if finding.category == "template-hostile-code"]
+
+
+def test_a_template_hostile_code_is_an_error_because_it_aborts_the_build() -> None:
+    """A code carrying `<` rides an identifier value the publisher writes raw, which kills the build."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="optionSets",
+                items=[MetadataItemIn(uid="csRsm0D7guY", name="MAL ENTO: IRS 6 Months", code=_HOSTILE_CODE)],
+            )
+        ],
+    )
+    findings = _hostile_code(report)
+    assert len(findings) == 1
+    assert findings[0].severity == "error"
+    assert findings[0].resource_type == "optionSets"
+    assert findings[0].uid == "csRsm0D7guY"
+    assert findings[0].code == _HOSTILE_CODE
+    assert "identifier value" in findings[0].message
+    # A clean name means the cosmetic sibling stays silent - the two findings are independent.
+    assert _hostile(report) == []
+
+
+def test_a_hostile_code_on_a_collection_that_emits_no_identifier_is_not_a_finding() -> None:
+    """A dashboard is never generated, so its code reaches no page and costs nothing."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="dashboards",
+                items=[MetadataItemIn(uid="upvQqwKmR0P", name="Dashboard", code="CHAS S&E HIV")],
+            ),
+            MetadataCollectionIn(
+                resource="dataElements",
+                items=[MetadataItemIn(uid="imGvvLi8joq", name="Element", code="SC_BR_Outbreaks<R_Q3")],
+            ),
+        ],
+    )
+    assert _hostile_code(report) == []
+
+
+def test_an_unconfirmed_hostile_character_in_a_code_is_a_warning_not_an_error() -> None:
+    """Only `<` has been seen to abort a build, so `&` and `>` do not claim to."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="organisationUnits",
+                items=[
+                    MetadataItemIn(uid="Aa1aaaaaaaa", name="Facility", code="A&E"),
+                    MetadataItemIn(uid="Bb2bbbbbbbb", name="Ward", code="OVER>5"),
+                ],
+            )
+        ],
+    )
+    assert [finding.severity for finding in _hostile_code(report)] == ["warning", "warning"]
+
+
+def test_a_clean_code_and_an_absent_code_raise_no_template_finding() -> None:
+    """The check reads a code when there is one and is silent otherwise."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="optionSets",
+                items=[
+                    MetadataItemIn(uid="Aa1aaaaaaaa", name="Sex", code="SEX"),
+                    MetadataItemIn(uid="Bb2bbbbbbbb", name="Age", code=None),
+                ],
+            )
+        ],
+    )
+    assert _hostile_code(report) == []
+
+
+def test_a_hostile_name_and_a_hostile_code_on_one_object_are_two_findings() -> None:
+    """They describe different failures - a malformed page and an aborted build - so neither absorbs the other."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="optionSets",
+                items=[MetadataItemIn(uid="csRsm0D7guY", name=_MORTALITY_NAME, code=_HOSTILE_CODE)],
+            )
+        ],
+    )
+    assert [finding.severity for finding in _hostile(report)] == ["warning"]
+    assert [finding.severity for finding in _hostile_code(report)] == ["error"]
+
+
+@pytest.mark.parametrize("resource_type_count", [1, 29, 30, 31, 45, 60, 61])
+def test_the_pdf_renders_at_every_contents_page_boundary(resource_type_count: int) -> None:
+    """The contents placeholder reserves whole pages, and the render has to fill exactly what it reserved."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource=f"collection{index:03d}",
+                items=[MetadataItemIn(uid=f"Uid{index:08d}", name="Object", code=" leading space is not a code")],
+            )
+            for index in range(resource_type_count)
+        ],
+    )
+    assert len({finding.resource_type for finding in report.findings}) == resource_type_count
+
+    rendered = render_validation_pdf(report, target="probe", generated_at=datetime(2026, 1, 1, tzinfo=UTC))
+
+    assert rendered.startswith(b"%PDF")

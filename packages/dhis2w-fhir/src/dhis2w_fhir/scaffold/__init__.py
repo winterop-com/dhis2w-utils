@@ -8,7 +8,13 @@ from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescap
 
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, normalize_project_name
 
-__all__ = ["build_scaffold_files"]
+__all__ = ["FSH_INI_RELATIVE_PATH", "SUSHI_CONFIG_RELATIVE_PATH", "build_scaffold_files"]
+
+#: The SUSHI project configuration, and the one file recording the publisher URL and the copyright year.
+SUSHI_CONFIG_RELATIVE_PATH = "ig/sushi-config.yaml"
+
+#: The IG publisher's FSH settings, and the one file recording the SUSHI timeout.
+FSH_INI_RELATIVE_PATH = "ig/fsh.ini"
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.scaffold", "templates"),
@@ -20,14 +26,20 @@ _ENVIRONMENT = Environment(
 )
 
 
-def build_scaffold_files(options: InitOptions) -> list[ScaffoldFile]:
-    """Build every file `d2w fhir init` writes, path-relative to the project root."""
+def build_scaffold_files(options: InitOptions, *, copyright_year: int | None = None) -> list[ScaffoldFile]:
+    """Build every file `d2w fhir init` writes, path-relative to the project root.
+
+    `copyright_year` dates the sushi-config copyright and defaults to the current year. A refresh
+    passes the year already in the project, so the comparison against the file on disk is faithful
+    for a project scaffolded in an earlier year.
+    """
+    year = copyright_year if copyright_year is not None else datetime.now(tz=UTC).year
     return [
         _render("fhir.toml", "fhir.toml.jinja", options),
         _render("fhir.toml.example", "fhir.toml.example.jinja", options),
-        _render("ig/sushi-config.yaml", "sushi-config.yaml.jinja", options, year=datetime.now(tz=UTC).year),
+        _render(SUSHI_CONFIG_RELATIVE_PATH, "sushi-config.yaml.jinja", options, year=year),
         _render("ig/ig.ini", "ig.ini.jinja", options),
-        _render("ig/fsh.ini", "fsh.ini.jinja", options),
+        _render(FSH_INI_RELATIVE_PATH, "fsh.ini.jinja", options),
         _render("ig/input/fsh/aliases.fsh", "aliases.fsh.jinja", options),
         _render("ig/input/pagecontent/index.md", "index.md.jinja", options),
         _render("ig/input/ignoreWarnings.txt", "ignoreWarnings.txt.jinja", options),

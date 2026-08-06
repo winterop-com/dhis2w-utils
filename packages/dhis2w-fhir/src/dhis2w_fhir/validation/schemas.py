@@ -79,6 +79,7 @@ class FhirValidationReport(BaseModel):
 
     option_set_count: int = 0
     option_count: int = 0
+    attribute_count: int = 0
     resource_type_count: int = 0
     object_count: int = 0
     findings: list[ValidationFinding] = Field(default_factory=list)
