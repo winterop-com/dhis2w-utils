@@ -1219,6 +1219,15 @@ Three passes, one finding shape:
   out of it). Every metadata object's code is checked against the R4 `code`
   datatype: invalid codes are errors, per-type duplicates warn. Organisation
   units additionally warn when they carry no code at all.
+
+    Two of those branches cannot fire against an instance DHIS2 itself built, and
+    are kept as nets for metadata that reached the database another way. DHIS2
+    enforces code uniqueness per class and answers 409 to a bundle carrying two
+    objects of one class with the same code, so `duplicate-code` has nothing to
+    find; and it stores an empty-string code as no code at all - reporting
+    `created: 1` and then returning the object with no `code` key - so the
+    `code is empty` defect never reaches the sweep either. Both are recorded as
+    upstream quirks (BUGS.md #65, #66).
 - a **deep option-set pass** previewing exactly what code-mode generation would
   do, over the same projections the emitter consumes. Under
   `naming.source = "name"` it also previews the ids: which names overflow the FHIR
