@@ -859,29 +859,17 @@ async def _fetch_questionnaire_sources(
 
 
 def _single_stage_event_programs(models: list[Program], notes: list[str]) -> list[Program]:
-    """Keep the single-stage event programs of a whole-instance sweep, noting the shapes it skips."""
+    """Keep the event programs of a whole-instance sweep, noting the tracker programs it skips."""
     supported: list[Program] = []
     tracker: list[str] = []
-    multi_stage: list[str] = []
     for model in models:
-        label = f"{model.name or model.id or ''} ({model.id or ''})"
         if _program_type(model) != _EVENT_PROGRAM_TYPE:
-            tracker.append(label)
-        elif len(_program_stages(model)) > 1:
-            multi_stage.append(label)
+            tracker.append(f"{model.name or model.id or ''} ({model.id or ''})")
         else:
             supported.append(model)
     if tracker:
         notes.append(
             aggregate_note(f"{len(tracker)} tracker programs skipped (tracker generation not implemented)", tracker)
-        )
-    if multi_stage:
-        notes.append(
-            aggregate_note(
-                f"{len(multi_stage)} multi-stage event programs skipped "
-                "(only single-stage event programs are implemented)",
-                multi_stage,
-            )
         )
     return supported
 
@@ -1004,7 +992,7 @@ def _marked_required(item: QuestionnaireItemIn, compulsory: _CompulsoryOperands)
 
 
 def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSourceIn:
-    """Map a generated Program into the Questionnaire projection, refusing every shape but a single-stage event."""
+    """Map a generated Program into the Questionnaire projection, refusing tracker programs."""
     uid = model.id or ""
     name = model.name or uid
     program_type = _program_type(model)
@@ -1013,11 +1001,6 @@ def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSour
             f"program {name!r} ({uid}) has programType {program_type}; tracker programs are not implemented yet"
         )
     stages = _program_stages(model)
-    if len(stages) > 1:
-        raise UnsupportedProgramError(
-            f"event program {name!r} ({uid}) has {len(stages)} program stages; "
-            "only single-stage event programs are implemented"
-        )
     items: list[QuestionnaireItemIn] = []
     raw_sections: object = None
     if stages:

@@ -670,8 +670,9 @@ schedule of activities, which is closer to how a program's stages are meant to
 be followed.
 
 **Depends on it.** All tracker generation, and the `tracker` / `tracker-event`
-codes already sitting in `D2FormType_CS` waiting for their generators. Also
-multi-stage event programs, which land with tracker.
+codes already sitting in `D2FormType_CS` waiting for their generators. Multiple
+program stages come with it: `WITHOUT_REGISTRATION` carries exactly one stage, so
+every multi-stage program is a tracker program.
 
 ### 5.3 The extraction mechanism
 

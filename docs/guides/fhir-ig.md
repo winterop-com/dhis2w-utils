@@ -330,15 +330,14 @@ which is how you narrow a project to the handful of forms you care about.
 
 The two modes differ on the program shapes the Questionnaire target cannot map yet:
 
-- **Absent or empty** (the whole instance): only single-stage
-  `WITHOUT_REGISTRATION` programs are picked up. Tracker programs and multi-stage
-  event programs are skipped, each shape reported as one aggregate note in the
-  generate report (`N tracker programs skipped (tracker generation not
+- **Absent or empty** (the whole instance): `WITHOUT_REGISTRATION` programs are
+  picked up. Tracker programs are skipped and reported as one aggregate note in
+  the generate report (`N tracker programs skipped (tracker generation not
   implemented): ...`). Every data set on the instance is emitted.
-- **Non-empty** (an explicit list): a listed tracker or multi-stage program is a
-  loud failure naming the program, not a skip - you asked for that UID by name, so
-  the run stops instead of quietly leaving it out. UIDs the instance answers
-  nothing for stay an aggregate note.
+- **Non-empty** (an explicit list): a listed tracker program is a loud failure
+  naming the program, not a skip - you asked for that UID by name, so the run
+  stops instead of quietly leaving it out. UIDs the instance answers nothing for
+  stay an aggregate note.
 
 ### `[generate.examples]`
 

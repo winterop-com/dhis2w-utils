@@ -377,14 +377,13 @@ The two selection modes handle the shapes the target cannot map differently, and
 split is deliberate. When `include_ids` is **explicit**, the service refuses what it
 cannot map rather than guessing: a listed program whose live `programType` is not
 `WITHOUT_REGISTRATION` raises by name (tracker programs need `Patient` /
-`EpisodeOfCare`, not a bare Questionnaire), and so does a listed event program with
-more than one stage - the operator named that UID, so silence would be a lie. When
+`EpisodeOfCare`, not a bare Questionnaire) - the operator named that UID, so
+silence would be a lie. When
 `include_ids` is **absent or empty** the whole instance is the target, so refusing
 would make the mode unusable on any real database: the sweep auto-selects the
-single-stage `WITHOUT_REGISTRATION` programs and skips the rest, one aggregate note
-per skipped shape (`N tracker programs skipped ...`, `N multi-stage event programs
-skipped ...`). Listed UIDs that resolve to nothing, and data elements no section
-references, are aggregate notes in both modes.
+`WITHOUT_REGISTRATION` programs and skips the tracker ones, as a single aggregate
+note (`N tracker programs skipped ...`). Listed UIDs that resolve to nothing, and
+data elements no section references, are aggregate notes in both modes.
 
 The option-set closure keeps the IG internally consistent: when
 `[generate.option_sets] include_ids` narrows the terminology, the option sets the

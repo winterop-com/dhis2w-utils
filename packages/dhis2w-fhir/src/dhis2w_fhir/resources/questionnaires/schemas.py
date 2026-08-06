@@ -21,8 +21,8 @@ class TargetSelection(BaseModel):
 
     UIDs only: names are not unique in DHIS2. An empty (or absent) list means all, as it does
     for the terminology targets; a non-empty list filters. The two modes differ on the shapes
-    the questionnaire target cannot map: the whole-instance sweep skips tracker and multi-stage
-    programs with a note, while an explicitly listed one is refused by name.
+    the questionnaire target cannot map: the whole-instance sweep skips tracker programs with a
+    note, while an explicitly listed one is refused by name.
     """
 
     include_ids: list[str] = Field(default_factory=list)
