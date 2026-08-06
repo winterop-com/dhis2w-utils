@@ -162,6 +162,7 @@ class _ValidationPdf(FPDF):
             ("Objects swept", str(report.object_count)),
             ("Option sets (deep pass)", str(report.option_set_count)),
             ("Options (deep pass)", str(report.option_count)),
+            ("Attributes (deep pass)", str(report.attribute_count)),
             ("Errors", str(report.error_count)),
             ("Warnings", str(report.warning_count)),
             ("Infos", str(report.info_count)),

@@ -58,9 +58,34 @@ class ScaffoldFile(BaseModel):
     content: str
 
 
+class ProjectScaffoldState(BaseModel):
+    """The scaffold inputs of an existing project, recovered from the project's own files.
+
+    `d2w fhir init --refresh` compares against the scaffold *this* project would produce, so the
+    inputs come off disk: the IG identity from the `[ig]` table of `fhir.toml`, the SUSHI timeout
+    from `ig/fsh.ini`, and the publisher URL plus `copyright_year` from `ig/sushi-config.yaml` -
+    the two values no other file in the project records.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    options: InitOptions
+    copyright_year: int
+
+
 class ScaffoldReport(BaseModel):
-    """Outcome of `d2w fhir init`."""
+    """Outcome of `d2w fhir init`.
+
+    Scaffolding a project reports through `created_files` (written) and `skipped_files` (left
+    alone because the file exists). A refresh reports through `created_files` (a scaffold file the
+    project lacks), `refreshed_files` (rewritten from the current scaffold), `unchanged_files`
+    (already current), and `edited_files` (carrying content the scaffold would not produce, so the
+    user's version stays).
+    """
 
     directory: Path
     created_files: list[str] = Field(default_factory=list)
     skipped_files: list[str] = Field(default_factory=list)
+    refreshed_files: list[str] = Field(default_factory=list)
+    unchanged_files: list[str] = Field(default_factory=list)
+    edited_files: list[str] = Field(default_factory=list)

@@ -37,6 +37,19 @@ _OPTION_SETS_PAYLOAD = {
     ]
 }
 
+_CATEGORIES_PAYLOAD = {
+    "categories": [
+        {
+            "id": "O5P6e8yu1T6",
+            "name": "Sex",
+            "categoryOptions": [
+                {"id": "TNYQzTHdoxL", "code": "F", "name": "Female"},
+                {"id": "apsOixVZlf1", "code": "M", "name": "Male"},
+            ],
+        }
+    ]
+}
+
 _ORGANISATION_UNITS_PAYLOAD = {
     "organisationUnits": [
         {"id": "ImspTQPwCqd", "name": "Sierra Leone", "level": 1, "path": "/ImspTQPwCqd", "code": "SL"},
@@ -130,6 +143,37 @@ async def test_generate_option_sets_across_majors(
     code_system = json.loads((terminology / "CodeSystem-d2-os-Xa1b2c3d4e5-cs.json").read_text(encoding="utf-8"))
     assert code_system["name"] == "D2OS_Xa1b2c3d4e5_CS"
     assert code_system["title"] == "Birth type"
+
+
+@respx.mock
+async def test_generate_categories_across_majors(
+    wire_version: str,
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`generate_categories` writes a CodeSystem/ValueSet pair per category against every DHIS2 major."""
+    mock_system_info(wire_version)
+    mock_attributes()
+    await _scaffold_project(tmp_path)
+    route = respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
+
+    report = await service.generate_categories(resolve_profile("probe"), load_project(tmp_path))
+
+    assert route.called
+    assert report.category_count == 1
+    assert report.target_base == "ig/input"
+    assert report.target_directory == "resources/categories"
+    assert report.written_files == [
+        "categories/CodeSystem-d2-cat-O5P6e8yu1T6-cs.json",
+        "categories/ValueSet-d2-cat-O5P6e8yu1T6-vs.json",
+    ]
+    categories = tmp_path / "ig" / "input" / "resources" / "categories"
+    code_system = json.loads((categories / "CodeSystem-d2-cat-O5P6e8yu1T6-cs.json").read_text(encoding="utf-8"))
+    assert code_system["name"] == "D2CAT_O5P6e8yu1T6_CS"
+    assert code_system["title"] == "Sex"
+    assert [concept["code"] for concept in code_system["concept"]] == ["TNYQzTHdoxL", "apsOixVZlf1"]
 
 
 @respx.mock
@@ -381,6 +425,7 @@ async def test_generate_all_is_byte_stable_across_two_runs(
     for report in (
         second.foundation,
         second.option_sets,
+        second.categories,
         second.questionnaires,
         second.examples,
         second.organisation_units,
@@ -393,6 +438,7 @@ async def test_generate_all_is_byte_stable_across_two_runs(
 def _mock_page_endpoints() -> None:
     """Mock every endpoint the pages target reads: option sets, data sets, programs, and org units."""
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_QUESTIONNAIRE_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_QUESTIONNAIRE_PROGRAMS_PAYLOAD))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORGANISATION_UNITS_PAYLOAD))

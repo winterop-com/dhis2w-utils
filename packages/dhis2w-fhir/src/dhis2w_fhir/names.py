@@ -141,6 +141,16 @@ def is_valid_fhir_id(value: str) -> bool:
     return _FHIR_ID_PATTERN.match(value) is not None
 
 
+#: The R4 `id` length limit every emitted artifact id is bounded against.
+FHIR_ID_MAX_LENGTH = 64
+
+
+def bounded_slug(slug: str, uid: str, limit: int) -> str:
+    """Truncate an over-long slug and append the UID so bounded slugs stay unique."""
+    head_length = limit - len(uid) - 1
+    return f"{slug[:head_length].rstrip('-')}-{uid.lower()}"
+
+
 def code_or_uid(code: str | None, uid: str) -> str:
     """The DHIS2 code when it is a usable FHIR code, else the UID.
 

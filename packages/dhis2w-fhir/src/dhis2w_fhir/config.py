@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dhis2w_fhir.i18n import normalize_locale
 from dhis2w_fhir.names import strip_trailing_slash
+from dhis2w_fhir.resources.categories.schemas import CategorySelection
 from dhis2w_fhir.resources.examples.schemas import ExampleSelection
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetSelection
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitSelection
@@ -66,23 +67,24 @@ class NamingConfig(BaseModel):
 
     Artifact names merge the prefix and kind tokens and underscore the rest
     (`D2` + `OS` + `_BirthType` + `_CS`); ids join the kebab of each non-empty token
-    (`d2-os-birth-type-cs`). `prefix`, `option_set`, `data_set`, and `program` may be
-    empty to drop them; `organisation_unit` must stay non-empty or the org-unit artifact
-    names would degenerate to bare `_CS`/`_Level_CS`. Future group / group-set artifacts
-    follow the same scheme (`OUG`, `OUGS`).
+    (`d2-os-birth-type-cs`). `prefix`, `option_set`, `category`, `data_set`, and `program`
+    may be empty to drop them; `organisation_unit` must stay non-empty or the org-unit
+    artifact names would degenerate to bare `_CS`/`_Level_CS`. Future group / group-set
+    artifacts follow the same scheme (`OUG`, `OUGS`).
     """
 
     source: Literal["id", "name"] = "id"
     prefix: str = "D2"
     option_set: str = "OS"
+    category: str = "CAT"
     organisation_unit: str = "OU"
     data_set: str = "DS"
     program: str = "PR"
 
-    @field_validator("prefix", "option_set", "data_set", "program")
+    @field_validator("prefix", "option_set", "category", "data_set", "program")
     @classmethod
     def _optional_token(cls, value: str) -> str:
-        """Prefix, option_set, data_set, and program may be empty or a FSH-name-safe token."""
+        """Prefix, option_set, category, data_set, and program may be empty or a FSH-name-safe token."""
         return _validate_fsh_token(value, allow_empty=True)
 
     @field_validator("organisation_unit")
@@ -100,6 +102,7 @@ class GenerateConfig(BaseModel):
     locales: list[str] = Field(default_factory=list)
     naming: NamingConfig = Field(default_factory=NamingConfig)
     option_sets: OptionSetSelection = Field(default_factory=OptionSetSelection)
+    categories: CategorySelection = Field(default_factory=CategorySelection)
     organisation_units: OrganisationUnitSelection = Field(default_factory=OrganisationUnitSelection)
     data_sets: TargetSelection = Field(default_factory=TargetSelection)
     event_programs: TargetSelection = Field(default_factory=TargetSelection)

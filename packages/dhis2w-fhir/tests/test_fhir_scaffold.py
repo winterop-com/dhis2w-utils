@@ -1,11 +1,14 @@
-"""Unit tests for `d2w fhir init` scaffold contents."""
+"""Unit tests for `d2w fhir init` scaffold contents and the `--refresh` comparison."""
 
 import tomllib
+from pathlib import Path
 
+import pytest
 import yaml
-from dhis2w_fhir.config import FhirProjectConfig
+from dhis2w_fhir.config import FhirProjectConfig, NoFhirProjectError
 from dhis2w_fhir.resources.pages import SITE_PAGE_FILENAMES
 from dhis2w_fhir.scaffold import build_scaffold_files
+from dhis2w_fhir.scaffold.refresh import preserves_every_line, read_project_scaffold_state, refresh_project
 from dhis2w_fhir.scaffold.schemas import DEFAULT_SUSHI_TIMEOUT_SECONDS, InitOptions, normalize_project_name
 
 _OPTIONS = InitOptions(
@@ -16,10 +19,26 @@ _OPTIONS = InitOptions(
     publisher="Test Organisation",
 )
 
+#: The path-resource declaration a project scaffolded before it existed does not carry.
+_PATH_RESOURCE_LINES = {
+    "  path-resource:",
+    "    - input/resources/registry/*",
+    "    - input/resources/terminology/*",
+    "    - input/resources/categories/*",
+}
+
 
 def _by_path() -> dict[str, str]:
     """Build the scaffold and index it by relative path."""
     return {file.relative_path: file.content for file in build_scaffold_files(_OPTIONS)}
+
+
+def _write_project(directory: Path, options: InitOptions = _OPTIONS, *, copyright_year: int | None = None) -> None:
+    """Write a full scaffold into `directory`, standing in for a project `d2w fhir init` created."""
+    for file in build_scaffold_files(options, copyright_year=copyright_year):
+        destination = directory / file.relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(file.content, encoding="utf-8")
 
 
 def test_scaffold_covers_expected_files() -> None:
@@ -78,7 +97,11 @@ def test_sushi_config_declares_the_prebuilt_resource_subfolders() -> None:
     assert parameters == {
         "excludexml": "true",
         "excludettl": "true",
-        "path-resource": ["input/resources/registry/*", "input/resources/terminology/*"],
+        "path-resource": [
+            "input/resources/registry/*",
+            "input/resources/terminology/*",
+            "input/resources/categories/*",
+        ],
     }
 
 
@@ -381,3 +404,146 @@ def test_makefile_drives_d2w_through_the_projects_own_environment() -> None:
     assert "D2W ?= uv run d2w" in makefile
     assert 'D2W="uv run --project /path/to/dhis2w-utils d2w"' in makefile
     assert "uvx" not in makefile
+
+
+def test_preserves_every_line_accepts_additions_and_rejects_anything_else() -> None:
+    """A refresh may add lines the scaffold gained; a line the scaffold would not produce blocks the rewrite."""
+    assert preserves_every_line("a\nb\n", "a\nnew\nb\n")
+    assert preserves_every_line("a\nb\n", "a\nb\n")
+    assert preserves_every_line("", "a\n")
+    assert not preserves_every_line("a\nmine\n", "a\nb\n")
+    assert not preserves_every_line("b\na\n", "a\nb\n")
+    assert not preserves_every_line("a\nb\n", "")
+
+
+def test_refresh_requires_a_project(tmp_path: Path) -> None:
+    """A directory with no fhir.toml has no project to refresh, and the error names the command that makes one."""
+    with pytest.raises(NoFhirProjectError, match="d2w fhir init"):
+        refresh_project(tmp_path)
+
+
+def test_refresh_of_an_untouched_project_writes_nothing(tmp_path: Path) -> None:
+    """Every support file of a current project compares equal, and fhir.toml is not compared at all."""
+    _write_project(tmp_path)
+
+    report = refresh_project(tmp_path)
+
+    assert report.created_files == []
+    assert report.refreshed_files == []
+    assert report.edited_files == []
+    assert len(report.unchanged_files) == 11
+    assert "fhir.toml" not in report.unchanged_files
+
+
+def test_refresh_adds_the_path_resource_block_to_a_stale_sushi_config(tmp_path: Path) -> None:
+    """SUSHI recurses into the pre-built sub-folders and the publisher does not, so the globs must land."""
+    _write_project(tmp_path)
+    sushi_config = tmp_path / "ig" / "sushi-config.yaml"
+    stale = [line for line in sushi_config.read_text(encoding="utf-8").splitlines() if line not in _PATH_RESOURCE_LINES]
+    sushi_config.write_text("\n".join(stale) + "\n", encoding="utf-8")
+
+    report = refresh_project(tmp_path)
+
+    assert report.refreshed_files == ["ig/sushi-config.yaml"]
+    parameters = yaml.safe_load(sushi_config.read_text(encoding="utf-8"))["parameters"]
+    assert parameters["path-resource"] == [
+        "input/resources/registry/*",
+        "input/resources/terminology/*",
+        "input/resources/categories/*",
+    ]
+
+
+def test_refresh_leaves_an_edited_sushi_config_alone(tmp_path: Path) -> None:
+    """The same file, once the user has written a line of their own into it, is left byte-identical."""
+    _write_project(tmp_path)
+    sushi_config = tmp_path / "ig" / "sushi-config.yaml"
+    edited = sushi_config.read_text(encoding="utf-8").replace("releaseLabel: ci-build", "releaseLabel: release")
+    sushi_config.write_text(edited, encoding="utf-8")
+
+    report = refresh_project(tmp_path)
+
+    assert report.edited_files == ["ig/sushi-config.yaml"]
+    assert sushi_config.read_text(encoding="utf-8") == edited
+
+
+def test_refresh_adds_the_prebuilt_resource_entry_to_a_stale_gitignore(tmp_path: Path) -> None:
+    """The generated input/resources tree is rewritten in seconds, so a stale .gitignore gains the entry."""
+    _write_project(tmp_path)
+    ignored = tmp_path / ".gitignore"
+    ignored.write_text("reports/\nig/output/\n.venv/\n", encoding="utf-8")
+
+    report = refresh_project(tmp_path)
+
+    assert report.refreshed_files == [".gitignore"]
+    assert "ig/input/resources/" in ignored.read_text(encoding="utf-8").splitlines()
+
+
+def test_refresh_never_writes_fhir_toml(tmp_path: Path) -> None:
+    """fhir.toml is the user's configuration: a refresh neither compares it nor writes it."""
+    _write_project(tmp_path)
+    config_path = tmp_path / "fhir.toml"
+    body = config_path.read_text(encoding="utf-8") + '\n[generate]\nconcept_code_source = "code"\n'
+    config_path.write_text(body, encoding="utf-8")
+
+    report = refresh_project(tmp_path)
+
+    assert config_path.read_text(encoding="utf-8") == body
+    reported = report.created_files + report.refreshed_files + report.unchanged_files + report.edited_files
+    assert "fhir.toml" not in reported
+
+
+def test_refresh_creates_a_scaffold_file_the_project_lacks(tmp_path: Path) -> None:
+    """A file the scaffold gained after the project was created has no user content to lose."""
+    _write_project(tmp_path)
+    (tmp_path / "ig" / "input" / "ignoreWarnings.txt").unlink()
+
+    report = refresh_project(tmp_path)
+
+    assert report.created_files == ["ig/input/ignoreWarnings.txt"]
+    assert (tmp_path / "ig" / "input" / "ignoreWarnings.txt").read_text(encoding="utf-8").startswith("== Suppressed")
+
+
+def test_refresh_reads_the_identity_back_off_disk(tmp_path: Path) -> None:
+    """The comparison renders the scaffold this project would produce, from its own [ig] table."""
+    options = _OPTIONS.model_copy(update={"ig_id": "dhis2.fhir.sldemo", "publisher": "Winterop", "status": "active"})
+    _write_project(tmp_path, options)
+
+    state = read_project_scaffold_state(tmp_path)
+
+    assert state.options.ig_id == "dhis2.fhir.sldemo"
+    assert state.options.publisher == "Winterop"
+    assert state.options.status == "active"
+    assert refresh_project(tmp_path).edited_files == []
+
+
+def test_refresh_keeps_the_copyright_year_the_project_was_scaffolded_in(tmp_path: Path) -> None:
+    """Only sushi-config records the year, so it is recovered from there and the file stays current."""
+    _write_project(tmp_path, copyright_year=2024)
+
+    state = read_project_scaffold_state(tmp_path)
+
+    assert state.copyright_year == 2024
+    assert "ig/sushi-config.yaml" in refresh_project(tmp_path).unchanged_files
+    assert "copyrightYear: 2024+" in (tmp_path / "ig" / "sushi-config.yaml").read_text(encoding="utf-8")
+
+
+def test_refresh_keeps_the_publisher_url_no_other_file_records(tmp_path: Path) -> None:
+    """fhir.toml carries no publisher URL, so it is recovered from sushi-config or the refresh would drop it."""
+    _write_project(tmp_path, _OPTIONS.model_copy(update={"publisher_url": "https://test.example"}))
+
+    state = read_project_scaffold_state(tmp_path)
+
+    assert state.options.publisher_url == "https://test.example"
+    assert "ig/sushi-config.yaml" in refresh_project(tmp_path).unchanged_files
+    assert "  url: https://test.example\n" in (tmp_path / "ig" / "sushi-config.yaml").read_text(encoding="utf-8")
+
+
+def test_refresh_keeps_the_sushi_timeout_no_other_file_records(tmp_path: Path) -> None:
+    """The `\\[FSH] timeout` lives only in fsh.ini, so a raised ceiling survives the refresh."""
+    _write_project(tmp_path, _OPTIONS.model_copy(update={"sushi_timeout": 5400}))
+
+    state = read_project_scaffold_state(tmp_path)
+
+    assert state.options.sushi_timeout == 5400
+    assert "ig/fsh.ini" in refresh_project(tmp_path).unchanged_files
+    assert (tmp_path / "ig" / "fsh.ini").read_text(encoding="utf-8") == "[FSH]\ntimeout = 5400\n"

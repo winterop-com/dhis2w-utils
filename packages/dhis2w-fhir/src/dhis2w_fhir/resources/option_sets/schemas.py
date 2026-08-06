@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.attributes import AttributeValueIn
@@ -29,10 +31,22 @@ class OptionIn(BaseModel):
     translations: list[TranslationIn] = Field(default_factory=list)
 
 
-class OptionSetIn(BaseModel):
-    """The option-set projection consumed by the emitter, options included."""
+class ConceptSourceIn(BaseModel):
+    """A DHIS2 object whose ordered members become the concepts of one emitted CodeSystem.
+
+    An option set and a category are the same shape - a named, coded, translated parent
+    holding an ordered list of named, coded, translated members - so concept-code assignment
+    is written once against this projection and every terminology emitter reads it.
+
+    `source_label` and `member_label` are how a note names the source and one of its members,
+    so a fall-back raised while assigning a category's codes reads `category` / `category option`
+    rather than borrowing the option-set wording. Each concrete projection declares its own.
+    """
 
     model_config = ConfigDict(frozen=True)
+
+    source_label: ClassVar[str]
+    member_label: ClassVar[str]
 
     uid: str
     code: str | None = None
@@ -41,6 +55,13 @@ class OptionSetIn(BaseModel):
     options: list[OptionIn] = Field(default_factory=list)
     translations: list[TranslationIn] = Field(default_factory=list)
     attribute_values: list[AttributeValueIn] = Field(default_factory=list)
+
+
+class OptionSetIn(ConceptSourceIn):
+    """The option-set projection consumed by the emitter, options included."""
+
+    source_label: ClassVar[str] = "option set"
+    member_label: ClassVar[str] = "option"
 
 
 class ConceptAssignment(BaseModel):

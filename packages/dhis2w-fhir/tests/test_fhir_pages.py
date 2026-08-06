@@ -18,6 +18,7 @@ from dhis2w_fhir import (
     build_questionnaire_artifacts,
 )
 from dhis2w_fhir.attributes import AttributeCodeIndex
+from dhis2w_fhir.foundation.schemas import IDENTIFIER_SYSTEM_SUBJECTS
 from dhis2w_fhir.names import markdown_text
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
 from dhis2w_fhir.resources.examples import STATUS_BY_EVENT_STATUS
@@ -193,16 +194,18 @@ def test_terminology_page_reports_a_code_fallback_in_code_mode() -> None:
     assert "| [Gender &amp; age band](CodeSystem-d2-os-Os1aaaaaaaa-cs.html) | 2 | no |" in terminology
 
 
-def test_identifiers_page_tabulates_the_twelve_naming_systems() -> None:
+def test_identifiers_page_tabulates_every_naming_system() -> None:
     """identifiers.md explains the two identifier slices and lists every declared NamingSystem."""
     identifiers = _pages()["identifiers.md"]
     assert "`dhis2id`" in identifiers
     assert "`dhis2code`" in identifiers
     assert "`http://dhis2.org/fhir/property/dhis2-code`" in identifiers
     rows = [line for line in identifiers.splitlines() if line.startswith("| `D2")]
-    assert len(rows) == 12
+    # Two rows per identifier-system subject: the UID system and the code system.
+    assert len(rows) == 2 * len(IDENTIFIER_SYSTEM_SUBJECTS)
     assert "| `D2OrgUnitIdentifierSystem` | `http://dhis2.org/fhir/id/org-unit` |" in identifiers
     assert "| `D2CategoryOptionComboCodeIdentifierSystem` | " in identifiers
+    assert "| `D2CategoryIdentifierSystem` | `http://dhis2.org/fhir/id/category` |" in identifiers
 
 
 def test_periods_page_documents_the_extension_and_every_registered_period_type() -> None:

@@ -1,6 +1,6 @@
 """FHIR-safety validation of DHIS2 metadata: are the instance's codes usable in FHIR?
 
-Two passes share one finding shape:
+Three passes share one finding shape:
 
 - an instance-wide sweep over `/api/metadata?fields=id,name,code` - every
   metadata object's code checked against the R4 `code` datatype, duplicates
@@ -8,11 +8,45 @@ Two passes share one finding shape:
 - a deep option-set pass over the same projections the terminology emitter
   consumes, previewing exactly what `concept_code_source = "code"` generation
   would do. With `naming.source = "name"` it also previews which option-set
-  names yield truncated or disambiguated ids (id-sourced ids never overflow).
+  names yield truncated or disambiguated ids (id-sourced ids never overflow);
+- a deep attribute pass over the sweep's own `attributes` collection, previewing
+  which DHIS2 attributes emit a `D2AttributeValue` extension that carries no
+  `attributeCode`.
 
-Both passes also check the object's NAME for the HTML-significant characters the IG
+Every pass also checks the object's NAME for the HTML-significant characters the IG
 publisher's template injects unescaped (`template-hostile-name`). That check is about
 the published pages rather than about codes, so it is a warning in either code source.
+
+## What the deep passes do not repeat, and why
+
+The deep passes cover what the sweep structurally cannot: the objects it excludes
+(`options`), the peer-dependent outcomes it cannot compute (a concept code assigned
+against its set, a slug assigned against its peers), and the emit-time decisions it
+does not model (an attribute value's missing code). Everything else generation reads
+is already covered instance-wide by the sweep, or is safe by construction:
+
+- **Concept codes.** Option sets are the only terminology source that puts a DHIS2
+  code in a concept-code slot, and only under `concept_code_source = "code"`. The
+  data-element pair, the category-option-combo pair, the org-unit pair, and the
+  org-unit level pair all code their concepts by DHIS2 UID (or by `level-<n>`),
+  which is a valid R4 code and unique by construction; a DHIS2 code rides along as
+  the `dhis2-code` concept property, which is a `string` and takes any value.
+- **Names.** Every metadata collection the emitters read is a top-level collection
+  of `/api/metadata` - `dataElements`, `categoryOptionCombos`, `dataSets`,
+  `programs`, `sections`, `programStageSections`, `organisationUnits`, `attributes`
+  - so the sweep already checks each object's `name`, the text that becomes a
+  resource `title` / `name` and a concept `display`. The other DHIS2 text the
+  emitters read (`formName`, `shortName`, `description`) lands in resource data
+  elements rather than in the page furniture the publisher's template injects raw.
+- **Generated ids.** Every emitted resource id is a DHIS2 UID except the
+  option-set slug, which is the one name-sourced identity and is checked here.
+
+The one source that is deliberately left to the sweep is the organisation-unit
+registry. A deep pass over it would need the paged `_fetch_organisation_units` read
+- the single unbounded read in the plugin - and would find nothing the sweep does
+not already report: the registry's ids and concept codes are UIDs, its names and
+codes are swept, and `organisationUnits` is the one collection where the sweep
+already treats a missing code as a finding.
 """
 
 from __future__ import annotations
@@ -20,12 +54,21 @@ from __future__ import annotations
 from collections import Counter
 from typing import TYPE_CHECKING, Literal
 
+from dhis2w_fhir.foundation.attribute_values import (
+    ATTRIBUTE_CODE_SUB_EXTENSION,
+    ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES,
+)
 from dhis2w_fhir.i18n import TranslationIn, name_translations
 from dhis2w_fhir.names import describe_code_defect, is_valid_fhir_code, kebab, pascal
 from dhis2w_fhir.resources.option_sets import max_slug_length, option_set_fsh_name
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.validation.report import display_code, render_validation_markdown
-from dhis2w_fhir.validation.schemas import FhirValidationReport, MetadataCollectionIn, ValidationFinding
+from dhis2w_fhir.validation.schemas import (
+    FhirValidationReport,
+    MetadataCollectionIn,
+    MetadataItemIn,
+    ValidationFinding,
+)
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
@@ -46,6 +89,10 @@ _UID_MODE_SUFFIX = " (informational in id mode; will matter when switching to co
 #: The one collection where a missing code is a finding: every unit must carry both identifiers.
 _CODE_REQUIRED_COLLECTION = "organisationUnits"
 
+#: The sweep collection the deep attribute pass reads - the same objects `resolve_attribute_code_index`
+#: builds the emit-time `uid -> code` join from, so the pass needs no request of its own.
+_ATTRIBUTE_COLLECTION = "attributes"
+
 #: The characters an object's NAME cannot carry, in the order they are reported. The IG publisher's
 #: `fhir2.base.template` writes a resource's title into breadcrumbs and change-history headings
 #: without escaping and then strict-parses the result, so one of these in a DHIS2 name yields a
@@ -60,7 +107,7 @@ def build_code_validation(
     config: GenerateConfig,
     code_source: Literal["id", "code"] | None = None,
 ) -> FhirValidationReport:
-    """Run both validation passes; findings sort by severity, resource type, then name."""
+    """Run all three validation passes; findings sort by severity, resource type, then name."""
     effective_source = code_source or config.concept_code_source
     findings: list[ValidationFinding] = []
     option_count = 0
@@ -69,18 +116,55 @@ def build_code_validation(
         findings.extend(_option_findings(option_set, effective_source, config.locales))
         findings.extend(_option_set_naming_findings(option_set, config))
         findings.extend(_template_hostile_option_findings(option_set, config.locales))
+    findings.extend(_option_set_slug_findings(option_sets, config))
     object_count = 0
     for collection in sorted(collections, key=lambda item: item.resource):
         object_count += len(collection.items)
         findings.extend(_collection_findings(collection))
+    attributes = _swept_attributes(collections)
+    findings.extend(_attribute_findings(attributes))
     findings.sort(key=lambda finding: (_SEVERITY_RANK[finding.severity], finding.resource_type, finding.name))
     return FhirValidationReport(
         option_set_count=len(option_sets),
         option_count=option_count,
+        attribute_count=len(attributes),
         resource_type_count=len(collections),
         object_count=object_count,
         findings=findings,
     )
+
+
+def _swept_attributes(collections: list[MetadataCollectionIn]) -> list[MetadataItemIn]:
+    """The DHIS2 attributes the sweep fetched - the deep attribute pass reads no further."""
+    matching = [collection for collection in collections if collection.resource == _ATTRIBUTE_COLLECTION]
+    return [item for collection in matching for item in collection.items]
+
+
+def _attribute_findings(attributes: list[MetadataItemIn]) -> list[ValidationFinding]:
+    """Deep attribute pass: which attributes emit a D2AttributeValue extension carrying no code.
+
+    The emitter writes the `attributeCode` sub-extension only for an attribute the instance
+    coded, so an uncoded one leaves every value it carries resolvable by DHIS2 UID alone. That
+    is the emitted IG working as designed - most instances code few of their attributes - so it
+    is informational: a coverage signal about how legible the extension is to a consumer who
+    does not hold the DHIS2 instance, not a defect that breaks a build.
+    """
+    contexts = ", ".join(ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES)
+    return [
+        ValidationFinding(
+            severity="info",
+            category="missing-code",
+            resource_type=_ATTRIBUTE_COLLECTION,
+            uid=attribute.uid,
+            name=attribute.name or attribute.uid,
+            code=None,
+            message=f"attribute has no code; every D2AttributeValue extension carrying it omits the "
+            f"{ATTRIBUTE_CODE_SUB_EXTENSION} sub-extension, so a consumer resolves the value by the "
+            f"attribute UID alone on {contexts}",
+        )
+        for attribute in sorted(attributes, key=lambda item: item.uid)
+        if attribute.code is None
+    ]
 
 
 def _template_hostile_character(name: str) -> str | None:
@@ -212,6 +296,35 @@ def _option_set_naming_findings(option_set: OptionSetIn, config: GenerateConfig)
             )
         )
     return findings
+
+
+def _option_set_slug_findings(option_sets: list[OptionSetIn], config: GenerateConfig) -> list[ValidationFinding]:
+    """Name-sourced slug collisions - the half of the naming check that needs the whole selection.
+
+    `option_set_identities` assigns a slug against its peers, so whether one name yields a
+    readable id depends on the other names in the run. A per-set check cannot see that; this
+    one groups the selection by slug and reports the names the emitter will disambiguate with
+    a UID suffix. Over-long slugs are excluded: they take the suffix for their length, which
+    `long-name` already reports, so a name would otherwise be flagged twice for one id.
+    """
+    if config.naming.source != "name":
+        return []
+    limit = max_slug_length(config)
+    within_limit = [option_set for option_set in option_sets if len(kebab(option_set.name)) <= limit]
+    slug_counts = Counter(kebab(option_set.name) for option_set in within_limit)
+    return [
+        _set_finding(
+            option_set,
+            "info",
+            "duplicate-name",
+            f"name slugs to {display_code(kebab(option_set.name))}, which "
+            f"{slug_counts[kebab(option_set.name)]} option sets in the selection share; generated ids are "
+            "disambiguated with the UID suffix, so they no longer read back to the name",
+            config.locales,
+        )
+        for option_set in sorted(within_limit, key=lambda item: (item.name, item.uid))
+        if slug_counts[kebab(option_set.name)] > 1
+    ]
 
 
 def _option_findings(

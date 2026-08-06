@@ -1,4 +1,4 @@
-"""Unit tests for FHIR-safety validation: instance-wide sweep, deep option pass, markdown report."""
+"""Unit tests for FHIR-safety validation: instance-wide sweep, deep option/attribute passes, reports."""
 
 import re
 from datetime import UTC, datetime
@@ -182,6 +182,100 @@ def test_organisation_units_without_a_code_warn() -> None:
         ("warning", "missing-code", "Ou2aaaaaaaa")
     ]
     assert "falls back to the UID" in report.findings[0].message
+
+
+#: The naming config whose slugs come from option-set names - the only name-sourced identity emitted.
+_NAME_SOURCED = GenerateConfig(naming=NamingConfig(source="name"))
+
+
+def _attributes(*items: MetadataItemIn) -> MetadataCollectionIn:
+    """Build the sweep's `attributes` collection - the only source the deep attribute pass reads."""
+    return MetadataCollectionIn(resource="attributes", items=list(items))
+
+
+def test_an_uncoded_attribute_is_informational_and_names_every_context() -> None:
+    """An uncoded attribute emits a D2AttributeValue without its code on all five contexted types."""
+    report = build_code_validation(
+        [],
+        [
+            _attributes(
+                MetadataItemIn(uid="AtrFhirOpS1", name="FHIR code system URI", code="FHIR_CODE_SYSTEM_URI"),
+                MetadataItemIn(uid="AtrFhirDsQ1", name="FHIR questionnaire source form"),
+            )
+        ],
+        _CONFIG,
+    )
+    assert [(finding.severity, finding.category, finding.uid) for finding in report.findings] == [
+        ("info", "missing-code", "AtrFhirDsQ1")
+    ]
+    assert report.findings[0].resource_type == "attributes"
+    assert "attributeCode sub-extension" in report.findings[0].message
+    for resource_type in ("Organization", "Location", "CodeSystem", "ValueSet", "Questionnaire"):
+        assert resource_type in report.findings[0].message
+
+
+def test_the_attribute_pass_reads_the_sweep_and_nothing_else() -> None:
+    """The pass needs no request of its own, so an instance whose sweep holds no attributes finds none."""
+    report = build_code_validation(
+        [],
+        [MetadataCollectionIn(resource="dataElements", items=[MetadataItemIn(uid="De1aaaaaaaa", name="Uncoded")])],
+        _CONFIG,
+    )
+    assert report.findings == []
+    assert report.attribute_count == 0
+
+
+def test_the_report_counts_the_attributes_the_deep_pass_visited() -> None:
+    """The report states its deep coverage, so a partial check cannot read as a full one."""
+    report = build_code_validation(
+        [],
+        [_attributes(MetadataItemIn(uid="At1aaaaaaaa", name="One", code="ONE"), MetadataItemIn(uid="At2aaaaaaaa"))],
+        _CONFIG,
+    )
+    assert report.attribute_count == 2
+    markdown = render_validation_markdown(report, "probe", _GENERATED_AT)
+    assert "- attributes (deep pass): 2" in markdown
+
+
+@pytest.mark.parametrize("code_source", ["id", "code"])
+def test_the_attribute_finding_is_independent_of_the_code_source(code_source: str) -> None:
+    """The attribute code rides in a valueString, not a concept code, so the code source never gates it."""
+    report = build_code_validation(
+        [],
+        [_attributes(MetadataItemIn(uid="At1aaaaaaaa", name="Uncoded"))],
+        _CONFIG,
+        code_source,  # type: ignore[arg-type]
+    )
+    assert [finding.severity for finding in report.findings] == ["info"]
+    assert "informational in id mode" not in report.findings[0].message
+
+
+def test_colliding_option_set_names_are_flagged_in_name_mode() -> None:
+    """Two names that slug alike take a UID suffix, so the generated id stops reading back to the name."""
+    sets = [
+        _set("Os1aaaaaaaa", "Vaccine type", []),
+        _set("Os2aaaaaaaa", "Vaccine Type", []),
+        _set("Os3aaaaaaaa", "Gender", []),
+    ]
+    report = build_code_validation(sets, [], _NAME_SOURCED)
+    flagged = [(finding.category, finding.uid) for finding in report.findings]
+    assert flagged == [("duplicate-name", "Os2aaaaaaaa"), ("duplicate-name", "Os1aaaaaaaa")]
+    assert "vaccine-type" in report.findings[0].message
+    assert report.info_count == 2
+
+
+def test_colliding_option_set_names_are_silent_in_id_mode() -> None:
+    """Id-sourced slugs are the UID verbatim, so no two of them can collide."""
+    sets = [_set("Os1aaaaaaaa", "Vaccine type", []), _set("Os2aaaaaaaa", "Vaccine Type", [])]
+    assert build_code_validation(sets, [], _CONFIG).findings == []
+
+
+def test_an_over_long_colliding_name_is_reported_once() -> None:
+    """An over-long slug already takes the UID suffix for its length, so it is not also a collision."""
+    long_name = "Residence of the malaria case/s that prompted foci investigation"
+    sets = [_set("Cc3cccccccc", long_name, []), _set("Cc4cccccccc", long_name, [])]
+    report = build_code_validation(sets, [], _NAME_SOURCED)
+    assert [finding.category for finding in report.findings] == ["long-name", "long-name"]
 
 
 def test_name_derived_checks_only_in_name_mode() -> None:

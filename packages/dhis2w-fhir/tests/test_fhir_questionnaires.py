@@ -888,6 +888,7 @@ async def test_generate_all_without_selection_tables_still_emits_questionnaires(
     mock_attributes()
     await _scaffold_project(tmp_path)
     _mock_option_sets()
+    respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json={"organisationUnits": []}))
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_ALL_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))

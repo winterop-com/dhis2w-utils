@@ -37,6 +37,7 @@ source = "id"
 prefix = "D2"                       # "" drops the prefix (profiles keep a D2 token:
                                     # a profile cannot share its parent resource's name)
 option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
+category = "CAT"                    # category CodeSystem/ValueSet names; "" drops the token
 organisation_unit = "OU"            # must stay non-empty (e.g. "OrgUnit")
 data_set = "DS"                     # data set Questionnaire names; "" drops the token
 program = "PR"                      # event program Questionnaire names; "" drops the token
@@ -44,6 +45,11 @@ program = "PR"                      # event program Questionnaire names; "" drop
 [generate.option_sets]
 # optionSet UIDs to include (absent = all).
 # include_ids = ["Qdm5fPK5Ra9"]
+
+[generate.categories]
+# category UIDs to include (absent = all); each one emits a CodeSystem/ValueSet pair
+# whose concepts are that category's category options.
+# include_ids = ["O5P6e8yu1T6"]
 
 [generate.data_sets]
 # Data set UIDs to emit as Questionnaires (absent or empty = all data sets).

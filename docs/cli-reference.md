@@ -9966,6 +9966,7 @@ $ d2w fhir init [OPTIONS] [directory]
 * `--data-set <str>`: Data set UID to seed `[generate.data_sets]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--event <str>`: Event program UID to seed `[generate.event_programs]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--force`: Overwrite scaffold files that already exist.
+* `--refresh`: Bring an existing project&#x27;s scaffold-managed files up to date. Identity comes from the project&#x27;s own fhir.toml, which a refresh never writes, and a file carrying a line the scaffold would not produce is left alone and reported, so your edits survive. Rejects --force.
 * `--help`: Show this message and exit.
 
 ### `d2w fhir validate`
@@ -10005,6 +10006,7 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 
 * `foundation`: Generate the DHIS2 identifier aliases, the...
 * `option-sets`: Generate CodeSystem/ValueSet JSON from...
+* `categories`: Generate CodeSystem/ValueSet JSON from...
 * `questionnaires`: Generate Questionnaire FSH from the...
 * `examples`: Generate example QuestionnaireResponses...
 * `org-units`: Generate Organization/Location FSH from...
@@ -10033,6 +10035,20 @@ Generate CodeSystem/ValueSet JSON from DHIS2 option sets into the nearest FHIR p
 
 ```console
 $ d2w fhir generate option-sets [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+#### `d2w fhir generate categories`
+
+Generate CodeSystem/ValueSet JSON from DHIS2 categories into the nearest FHIR project.
+
+**Usage**:
+
+```console
+$ d2w fhir generate categories [OPTIONS]
 ```
 
 **Options**:

@@ -2,8 +2,9 @@
 
 `dhis2w_fhir` is the package behind [`d2w fhir`](../guides/fhir-ig.md): the `fhir.toml`
 document, the emitters that turn DHIS2 metadata into an Implementation Guide - FSH for the
-definitional artifacts, pre-built R4 JSON for the organisation-unit registry and the
-option-set terminology - and the DHIS2 period grammar they share. It mounts onto the CLI
+definitional artifacts, pre-built R4 JSON for the organisation-unit registry, the
+option-set terminology, and the category terminology - and the DHIS2 period grammar they
+share. It mounts onto the CLI
 and the MCP server through the `dhis2.plugins` entry point, and every component symbol
 re-exports from the top-level package, so
 `from dhis2w_fhir import GenerateConfig, parse_period` keeps working however
@@ -23,9 +24,11 @@ surface.
   `build_questionnaire_artifacts`, `build_page_artifacts`) and sync them to disk
   (`sync_artifacts`).
 - Build the pre-built R4 documents - the registry (`dhis2w_fhir.r4.Organization`,
-  `dhis2w_fhir.r4.Location`) and the option-set terminology
-  (`build_option_set_artifacts`, `dhis2w_fhir.r4.CodeSystem`,
-  `dhis2w_fhir.r4.ValueSet`) - and sync them to disk (`sync_json_artifacts`).
+  `dhis2w_fhir.r4.Location`), the option-set terminology
+  (`build_option_set_artifacts`), and the category terminology
+  (`build_category_artifacts`), the last two on `dhis2w_fhir.r4.CodeSystem` and
+  `dhis2w_fhir.r4.ValueSet` - and sync them to disk (`sync_json_artifacts`), one
+  owned directory per source.
 
 ## Worked example — parse a period, then walk backwards
 
@@ -64,8 +67,8 @@ string, so the code is a lookup rather than part of the value.
 ### FHIR R4 resource schemas
 
 The models every pre-built JSON document is serialised from - `Organization` and
-`Location` for the registry, `CodeSystem` and `ValueSet` for the option-set
-terminology. Every one is frozen, alias-aware, and closed to unknown keys, so
+`Location` for the registry, `CodeSystem` and `ValueSet` for the option-set and
+category terminology. Every one is frozen, alias-aware, and closed to unknown keys, so
 `Model.model_validate(payload).model_dump_json(exclude_none=True, by_alias=True)`
 reproduces the input document key for key.
 

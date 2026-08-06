@@ -95,11 +95,28 @@ def init_command(
         ),
     ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite scaffold files that already exist.")] = False,
+    refresh: Annotated[
+        bool,
+        typer.Option(
+            "--refresh",
+            help="Bring an existing project's scaffold-managed files up to date. Identity comes from the "
+            "project's own fhir.toml, which a refresh never writes, and a file carrying a line the scaffold "
+            "would not produce is left alone and reported, so your edits survive. Rejects --force.",
+        ),
+    ] = False,
 ) -> None:
     """Scaffold a dockerized SUSHI IG project with a fhir.toml for `d2w fhir generate`."""
     from dhis2w_fhir import InitOptions, service
     from dhis2w_fhir.names import pascal
 
+    if refresh and force:
+        raise typer.BadParameter(
+            "--refresh and --force are mutually exclusive: --force rewrites every scaffold file including "
+            "the ones you edited, --refresh rewrites only what it can rewrite without losing your edits"
+        )
+    if refresh:
+        _refresh_project(directory)
+        return
     if status not in {"draft", "active"}:
         raise typer.BadParameter("status must be 'draft' or 'active'")
     if max_level is not None and max_level < 1:
@@ -142,6 +159,46 @@ def init_command(
         typer.secho("next: set `profile` in fhir.toml, then run `d2w fhir generate all`", err=True)
 
 
+def _refresh_project(directory: Path) -> None:
+    """Refresh an existing project's scaffold-managed files and render what each one did."""
+    from dhis2w_fhir.config import FHIR_CONFIG_FILENAME, NoFhirProjectError
+    from dhis2w_fhir.scaffold.refresh import refresh_project
+
+    try:
+        report = refresh_project(directory)
+    except NoFhirProjectError as error:
+        typer.secho(str(error), err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from error
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    render_detail(
+        "fhir init --refresh",
+        [
+            DetailRow("directory", str(report.directory)),
+            DetailRow("created", str(len(report.created_files))),
+            DetailRow("refreshed", str(len(report.refreshed_files))),
+            DetailRow("unchanged", str(len(report.unchanged_files))),
+            DetailRow("skipped", str(len(report.edited_files))),
+        ],
+    )
+    for relative_path in report.created_files:
+        typer.echo(f"  created {relative_path}")
+    for relative_path in report.refreshed_files:
+        typer.echo(f"  refreshed {relative_path}")
+    for relative_path in report.unchanged_files:
+        typer.echo(f"  unchanged {relative_path}")
+    for relative_path in report.edited_files:
+        typer.echo(f"  skipped {relative_path} (you edited it; your version stays)")
+    typer.secho(f"note: {FHIR_CONFIG_FILENAME} is yours - a refresh never writes it", err=True)
+    if report.edited_files:
+        typer.secho(
+            "note: to take the scaffold's version of a skipped file, delete it and refresh again",
+            err=True,
+            fg=typer.colors.YELLOW,
+        )
+
+
 def _render_generate_report(title: str, report: GenerateReport, generation: GenerationProfile) -> None:
     """Render one generation report as a Rich detail table plus note lines on stderr."""
     rows = [
@@ -154,6 +211,8 @@ def _render_generate_report(title: str, report: GenerateReport, generation: Gene
     ]
     if report.option_set_count:
         rows.append(DetailRow("option sets", str(report.option_set_count)))
+    if report.category_count:
+        rows.append(DetailRow("categories", str(report.category_count)))
     if report.questionnaire_count:
         rows.append(DetailRow("questionnaires", str(report.questionnaire_count)))
     if report.example_count:
@@ -199,6 +258,20 @@ def generate_option_sets_command() -> None:
         typer.echo(report.model_dump_json(indent=2))
         return
     _render_generate_report("fhir generate option-sets", report, generation)
+
+
+@generate_app.command("categories")
+def generate_categories_command() -> None:
+    """Generate CodeSystem/ValueSet JSON from DHIS2 categories into the nearest FHIR project."""
+    from dhis2w_fhir import service
+
+    project = load_project()
+    generation = service.resolve_generation_profile(project)
+    report = asyncio.run(service.generate_categories(generation.profile, project))
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    _render_generate_report("fhir generate categories", report, generation)
 
 
 @generate_app.command("questionnaires")
@@ -270,6 +343,7 @@ def generate_all_command() -> None:
         return
     _render_generate_report("fhir generate foundation", report.foundation, generation)
     _render_generate_report("fhir generate option-sets", report.option_sets, generation)
+    _render_generate_report("fhir generate categories", report.categories, generation)
     _render_generate_report("fhir generate questionnaires", report.questionnaires, generation)
     _render_generate_report("fhir generate examples", report.examples, generation)
     _render_generate_report("fhir generate org-units", report.organisation_units, generation)
@@ -359,6 +433,7 @@ def validate_command(
                 DetailRow("objects swept", str(report.object_count)),
                 DetailRow("option sets", str(report.option_set_count)),
                 DetailRow("options", str(report.option_count)),
+                DetailRow("attributes", str(report.attribute_count)),
                 DetailRow("errors", str(report.error_count)),
                 DetailRow("warnings", str(report.warning_count)),
                 DetailRow("infos", str(report.info_count)),

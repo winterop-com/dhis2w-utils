@@ -652,6 +652,7 @@ def _mock_metadata() -> None:
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_PROGRAMS_PAYLOAD))
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ROOT_PAYLOAD))
 
 
