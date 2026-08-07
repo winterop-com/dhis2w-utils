@@ -514,6 +514,56 @@ def test_option_set_bound_question_is_a_choice_answered_from_the_option_set_valu
     assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content
 
 
+def test_an_event_question_stays_flat_whatever_category_combo_its_element_declares() -> None:
+    """An event data value has no categoryOptionCombo slot, so an event-kind question never disaggregates."""
+    disaggregated_event = QuestionnaireSourceIn(
+        uid="VBqh0ynB2wv",
+        name="Malaria case registration",
+        kind="event",
+        flat_items=[_MEASLES],
+    )
+    content = _artifacts([disaggregated_event])["event-programs/VBqh0ynB2wv.fsh"]
+    assert '* item[+].linkId = "De2aaaaaaaa"' in content
+    assert "* item[=].type = #integer" in content
+    assert "#group" not in content
+    assert "De2aaaaaaaa.Coc1aaaaaaa" not in content
+    assert "itemControl" not in content
+
+
+def test_a_tracker_stage_question_stays_flat_and_collects_no_option_combos() -> None:
+    """A stage question stays flat like every event question, and the data dictionary carries no combo for it."""
+    disaggregated_stage = QuestionnaireSourceIn(
+        uid="ZzYYXq4fJie",
+        name="Baby Postnatal",
+        kind="tracker-event",
+        program=_CHILD_PROGRAMME,
+        flat_items=[_MEASLES],
+    )
+    artifacts = _artifacts([disaggregated_stage, _DATA_SET])
+    stage_content = artifacts["tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh"]
+    assert '* item[+].linkId = "De2aaaaaaaa"' in stage_content
+    assert "De2aaaaaaaa.Coc1aaaaaaa" not in stage_content
+    # The same element disaggregates on the data set, whose wire carries the combo - and the
+    # dictionary's combo concepts come from that aggregate use alone.
+    assert '* item[=].item[=].item[+].linkId = "De2aaaaaaaa.Coc1aaaaaaa"' in artifacts["data-sets/BfMAe6Itzgt.fsh"]
+    assert '* #Coc1aaaaaaa "<1y"' in artifacts["data-dictionary/category-option-combos.fsh"]
+
+
+def test_a_tracker_only_combo_is_absent_from_the_data_dictionary() -> None:
+    """A combo only event-kind questions reference reaches no questionnaire, so the dictionary omits it."""
+    disaggregated_stage = QuestionnaireSourceIn(
+        uid="ZzYYXq4fJie",
+        name="Baby Postnatal",
+        kind="tracker-event",
+        program=_CHILD_PROGRAMME,
+        flat_items=[_MEASLES],
+    )
+    artifacts = _artifacts([disaggregated_stage])
+    assert "data-dictionary/category-option-combos.fsh" not in artifacts or (
+        "Coc1aaaaaaa" not in artifacts.get("data-dictionary/category-option-combos.fsh", "")
+    )
+
+
 def test_compulsory_event_question_is_required() -> None:
     """A compulsory program-stage data element emits `required = true`; the form name is the item text."""
     content = _artifacts([_EVENT_PROGRAM])["event-programs/VBqh0ynB2wv.fsh"]

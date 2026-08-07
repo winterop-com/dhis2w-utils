@@ -41,6 +41,7 @@ from dhis2w_fhir.resources.option_sets import option_set_identity_index
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryOptionComboIn,
+    FormKind,
     NumericBounds,
     ProgramContextIn,
     QuestionnaireItemIn,
@@ -528,24 +529,29 @@ def _item_views(
                 link_id=section.uid,
                 text_literal=quote(section.name),
                 type_code="group",
-                item_control=any(_is_disaggregated(item) for item in section.items),
+                item_control=any(_is_disaggregated(item, source.kind) for item in section.items),
             )
         )
         for item in section.items:
-            views.extend(_data_element_views(item, names, identities, depth=1))
+            views.extend(_data_element_views(item, names, identities, depth=1, kind=source.kind))
     for item in source.flat_items:
-        views.extend(_data_element_views(item, names, identities, depth=0))
+        views.extend(_data_element_views(item, names, identities, depth=0, kind=source.kind))
     return views
 
 
 def _data_element_views(
-    item: QuestionnaireItemIn, names: QuestionnaireNaming, identities: dict[str, OptionSetIdentity], depth: int
+    item: QuestionnaireItemIn,
+    names: QuestionnaireNaming,
+    identities: dict[str, OptionSetIdentity],
+    depth: int,
+    kind: FormKind,
 ) -> list[_ItemView]:
     """Build one data element's item lines: a question, or a group with one child per option combo.
 
     A disaggregated cell asks the very question its data element does, one category option combo
     at a time, so every child takes the element's effective item type, its answer binding, and
-    its repeats - only the `linkId`, the text, and the code differ.
+    its repeats - only the `linkId`, the text, and the code differ. Only an aggregate source
+    disaggregates; see `_is_disaggregated` for why event-kind questions stay flat.
     """
     code_token = f"{names.data_element_code_system}#{item.uid} {quote(item.name)}"
     text_literal = quote(item.form_name or item.name)
@@ -553,7 +559,7 @@ def _data_element_views(
     answer_value_set = _answer_value_set(item, identities)
     repeats = is_multi_valued(item.value_type, item_type)
     bounds = _bound_views(item.value_type, item_type)
-    if not _is_disaggregated(item):
+    if not _is_disaggregated(item, kind):
         return [
             _ItemView(
                 new_path=_new_path(depth),
@@ -613,8 +619,17 @@ def _bound_views(value_type: str, item_type: str) -> list[_BoundView]:
     return views
 
 
-def _is_disaggregated(item: QuestionnaireItemIn) -> bool:
-    """Check whether a data element carries a real (non-default) category combo."""
+def _is_disaggregated(item: QuestionnaireItemIn, kind: FormKind) -> bool:
+    """Check whether a question splits into per-option-combo cells - an aggregate-only shape.
+
+    A data set's values land on `/api/dataValueSets`, where every value carries a category
+    option combo, so a non-default combo becomes one cell per combo. An event data value -
+    event program and tracker stage alike - has no categoryOptionCombo slot on the wire, so
+    an event-kind question stays flat whatever combo its data element declares: a form must
+    not ask a question the capture endpoint cannot accept an answer to.
+    """
+    if kind != "aggregate":
+        return False
     return item.category_combo is not None and not item.category_combo.is_default
 
 
@@ -670,7 +685,7 @@ def _collect_referenced_objects(
     """Record every data element and category option combo one source's items reference."""
     for item in _source_items(source):
         data_elements.setdefault(item.uid, item)
-        if not _is_disaggregated(item) or item.category_combo is None:
+        if not _is_disaggregated(item, source.kind) or item.category_combo is None:
             continue
         for option_combo in item.category_combo.option_combos:
             option_combos.setdefault(option_combo.uid, option_combo)
