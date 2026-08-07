@@ -25,9 +25,9 @@ This form asks no questions.
 {% endmacro %}
 # Forms
 
-Every DHIS2 data-capture form this guide publishes is a `Questionnaire`: a data set or an
-event program states what is asked, its sections become `#group` items, and each data
-element becomes a question typed from its DHIS2 value type. The example
+Every DHIS2 data-capture form this guide publishes is a `Questionnaire`: a data set, an event
+program, or one stage of a tracker program states what is asked, its sections become `#group`
+items, and each data element becomes a question typed from its DHIS2 value type. The example
 `QuestionnaireResponse` instances answer these forms on the very link ids they define.
 
 ## Data sets
@@ -46,4 +46,19 @@ No data sets are selected for this guide.
 {{ breakdown(event_programs) }}
 {% else %}
 No event programs are selected for this guide.
+
+{% endif %}
+## Tracker programs
+
+{% if tracker_programs %}
+Each stage of a tracker program is its own form, answered once per event of an enrollment.
+
+{% for program in tracker_programs %}
+### {{ program.name }} ({{ program.uid }})
+
+{{ catalog(program.stages, false) }}
+{{ breakdown(program.stages) }}
+{% endfor %}
+{% else %}
+No tracker programs are selected for this guide.
 {% endif %}

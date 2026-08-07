@@ -29,6 +29,7 @@ from dhis2w_fhir.resources.questionnaires import ITEM_TYPES_BY_VALUE_TYPE
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
+    ProgramContextIn,
     QuestionnaireItemIn,
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
@@ -64,6 +65,40 @@ _EVENT_PROGRAM = QuestionnaireSourceIn(
     name="Malaria case registration",
     kind="event",
     flat_items=[QuestionnaireItemIn(uid="qrur9Dvnyt5", name="Age in years", value_type="INTEGER")],
+)
+
+_CHILD_PROGRAMME = ProgramContextIn(uid="IpHINAT79UW", name="Child Programme")
+_ADULT_PROGRAMME = ProgramContextIn(uid="uy2gU8kT1jF", name="Adult | Programme")
+
+_BIRTH_STAGE = QuestionnaireSourceIn(
+    uid="A03MvHHogjR",
+    name="Birth",
+    code="PS_BIRTH",
+    kind="tracker-event",
+    program=_CHILD_PROGRAMME,
+    sections=[
+        QuestionnaireSectionIn(
+            uid="Sec3aaaaaaa",
+            name="Delivery",
+            items=[QuestionnaireItemIn(uid="a3kGcGDCuk6", name="Apgar Score", value_type="INTEGER", compulsory=True)],
+        )
+    ],
+)
+
+_POSTNATAL_STAGE = QuestionnaireSourceIn(
+    uid="ZzYYXq4fJie",
+    name="Postnatal",
+    kind="tracker-event",
+    program=_CHILD_PROGRAMME,
+    flat_items=[QuestionnaireItemIn(uid="De9aaaaaaaa", name="Weight", value_type="NUMBER")],
+)
+
+_SCREENING_STAGE = QuestionnaireSourceIn(
+    uid="oRySG82BKE6",
+    name="Screening",
+    kind="tracker-event",
+    program=_ADULT_PROGRAMME,
+    flat_items=[QuestionnaireItemIn(uid="De8aaaaaaaa", name="Blood pressure", value_type="TEXT")],
 )
 
 _DESCRIBED_OPTION_SET = OptionSetIn(
@@ -111,9 +146,26 @@ def _pages_input() -> PagesIn:
     )
 
 
+def _tracker_pages_input() -> PagesIn:
+    """The fixture the tracker-program page tests render from, two programs deep."""
+    return PagesIn(
+        forms=[_DATA_SET, _EVENT_PROGRAM, _POSTNATAL_STAGE, _BIRTH_STAGE, _SCREENING_STAGE],
+        option_sets=[_DESCRIBED_OPTION_SET, _PLAIN_OPTION_SET],
+        organisation_units=[_ROOT_UNIT, _CHILD_UNIT],
+    )
+
+
 def _pages(config: GenerateConfig | None = None) -> dict[str, str]:
     """Build the page artifacts and index them by file name."""
     build = build_page_artifacts(_pages_input(), config or GenerateConfig(), _CANONICAL)
+    return {
+        artifact.relative_path.removeprefix(f"{PAGES_DIRECTORY}/"): artifact.content for artifact in build.artifacts
+    }
+
+
+def _tracker_pages(config: GenerateConfig | None = None) -> dict[str, str]:
+    """Build the page artifacts of the tracker fixture and index them by file name."""
+    build = build_page_artifacts(_tracker_pages_input(), config or GenerateConfig(), _CANONICAL)
     return {
         artifact.relative_path.removeprefix(f"{PAGES_DIRECTORY}/"): artifact.content for artifact in build.artifacts
     }
@@ -158,6 +210,36 @@ def test_forms_page_escapes_names_for_markdown_and_for_table_cells() -> None:
     forms = _pages()["forms.md"]
     assert "Mortality < 5 years" not in forms
     assert "Deaths | reported" not in forms
+
+
+def test_forms_page_groups_every_tracker_stage_under_its_program() -> None:
+    """A stage is catalogued under the tracker program it belongs to, programs ordered by name."""
+    forms = _tracker_pages()["forms.md"]
+    assert "## Tracker programs" in forms
+    assert "Each stage of a tracker program is its own form, answered once per event of an enrollment." in forms
+    assert "### Adult \\| Programme (uy2gU8kT1jF)" in forms
+    assert "### Child Programme (IpHINAT79UW)" in forms
+    assert forms.index("### Adult \\| Programme (uy2gU8kT1jF)") < forms.index("### Child Programme (IpHINAT79UW)")
+    assert "| [Birth](Questionnaire-A03MvHHogjR.html) | `A03MvHHogjR` | `PS_BIRTH` | 1 | 1 |" in forms
+    assert "| [Postnatal](Questionnaire-ZzYYXq4fJie.html) | `ZzYYXq4fJie` | `ZzYYXq4fJie` | 0 | 1 |" in forms
+    assert "| [Screening](Questionnaire-oRySG82BKE6.html) | `oRySG82BKE6` | `oRySG82BKE6` | 0 | 1 |" in forms
+    assert forms.index("](Questionnaire-A03MvHHogjR.html)") < forms.index("](Questionnaire-ZzYYXq4fJie.html)")
+
+
+def test_forms_page_tracker_catalog_carries_no_period_column() -> None:
+    """A tracker event reports at a moment, so its catalog states no reporting period type."""
+    forms = _tracker_pages()["forms.md"]
+    tracker_section = forms[forms.index("## Tracker programs") :]
+    assert "| Form | DHIS2 id | DHIS2 code | Sections | Questions |" in tracker_section
+    assert "Period type" not in tracker_section
+
+
+def test_forms_page_says_so_when_no_tracker_program_is_selected() -> None:
+    """A run without a tracker program still publishes the section, in one line."""
+    forms = _pages()["forms.md"]
+    assert "## Tracker programs" in forms
+    assert "No tracker programs are selected for this guide." in forms
+    assert "### Child Programme" not in forms
 
 
 def test_registry_page_summarises_the_hierarchy() -> None:
@@ -277,6 +359,84 @@ def test_capture_page_works_an_event_response_and_maps_every_event_status() -> N
         assert f"| `{event_status}` | `{response_status}` |" in capture
 
 
+def test_capture_page_names_the_tracker_event_contract() -> None:
+    """The profile table states the third contract: one event of a stage, for one enrolled tracked entity."""
+    capture = _tracker_pages()["capture.md"]
+    assert "one of the three profiles below" in capture
+    assert (
+        "| Tracker event | [D2TrackerEventResponse](StructureDefinition-d2-tracker-event-response.html) "
+        "| One event of a tracker program stage, for one enrolled tracked entity. |"
+    ) in capture
+
+
+def test_capture_page_works_a_tracker_event_response_through_every_step() -> None:
+    """The tracker walk-through pins the stage questionnaire, the subject identifier, and both extensions."""
+    capture = _tracker_pages()["capture.md"]
+    assert "## A tracker event response, step by step" in capture
+    assert "The steps are worked against **Child Programme - Birth** (`A03MvHHogjR`)." in capture
+    assert '"questionnaire": "http://example.org/fhir/Questionnaire/A03MvHHogjR"' in capture
+    assert "`D2FormType` is fixed to `#tracker-event`" in capture
+    assert "`authored` is mandatory" in capture
+    assert "| `a3kGcGDCuk6` | `<dataElementId>` | Apgar Score | `valueInteger` | yes |" in capture
+
+
+def test_capture_page_states_the_tracked_entity_subject_as_a_logical_reference() -> None:
+    """This guide publishes no Patient, so the subject names the DHIS2 tracked entity by identifier."""
+    capture = _tracker_pages()["capture.md"]
+    assert "`subject` is a logical reference" in capture
+    assert "this guide publishes no\n`Patient` resource" in capture
+    assert '"type": "Patient",' in capture
+    assert (
+        '"identifier": { "system": "http://dhis2.org/fhir/id/tracked-entity", "value": "<trackedEntityUid>" }'
+    ) in capture
+    assert "The tracked entity resolves against DHIS2" in capture
+
+
+def test_capture_page_states_both_tracker_extensions_by_id() -> None:
+    """The enrollment rides on an identifier extension and the organisation unit on a Location reference."""
+    capture = _tracker_pages()["capture.md"]
+    assert '"url": "http://example.org/fhir/StructureDefinition/d2-tracker-enrollment"' in capture
+    assert (
+        '"valueIdentifier": { "system": "http://dhis2.org/fhir/id/tracker-enrollment", "value": "<enrollmentUid>" }'
+    ) in capture
+    assert '"url": "http://example.org/fhir/StructureDefinition/d2-organisation-unit"' in capture
+    assert '"valueReference": { "reference": "Location/ImspTQPwCqd" }' in capture
+
+
+def test_capture_page_sends_the_client_to_dhis2_for_the_tracker_uids() -> None:
+    """Resolving a tracked entity and an enrollment is a DHIS2 lookup, and the page says where to make it."""
+    capture = _tracker_pages()["capture.md"]
+    assert "`d2w data tracker enrollment list`" in capture
+    assert "outside this guide's scope" in capture
+
+
+def test_capture_page_validates_against_all_three_profiles() -> None:
+    """Every form kind has a profile to validate against, and the page lists each one."""
+    capture = _tracker_pages()["capture.md"]
+    assert "The three profiles are the contract" in capture
+    assert (
+        "- [D2TrackerEventResponse](StructureDefinition-d2-tracker-event-response.html)\n"
+        "  for a tracker event submission."
+    ) in capture
+    assert "against any of the three profiles" in capture
+
+
+def test_capture_page_survives_a_run_without_a_tracker_program() -> None:
+    """A guide selecting no stage still states the tracker contract, saying only that nothing is worked."""
+    capture = _pages()["capture.md"]
+    assert "This guide publishes no tracker program stage questionnaire" in capture
+    assert "The steps below still hold for any `D2TrackerEventResponse`." in capture
+    assert "Questionnaire/A03MvHHogjR" not in capture
+
+
+def test_capture_page_naming_tokens_flow_into_the_tracker_contract() -> None:
+    """A renamed prefix renames the tracker profile and both extensions the page points at."""
+    capture = _tracker_pages(GenerateConfig(naming=NamingConfig(prefix="Dhis2")))["capture.md"]
+    assert "[Dhis2TrackerEventResponse](StructureDefinition-dhis2-tracker-event-response.html)" in capture
+    assert "/StructureDefinition/dhis2-tracker-enrollment" in capture
+    assert "/StructureDefinition/dhis2-organisation-unit" in capture
+
+
 def test_capture_page_tabulates_every_value_type_the_item_table_maps() -> None:
     """The answer typing table is the same table the examples answer from, so neither can drift."""
     capture = _pages()["capture.md"]
@@ -365,6 +525,22 @@ def test_every_questionnaire_gets_an_intro() -> None:
     assert event.startswith("Generated from the DHIS2 event program Malaria case registration (VBqh0ynB2wv).\n")
     assert "| Period type |" not in event
     assert "| Form type | `event` |" in event
+
+
+def test_a_tracker_stage_intro_names_the_program_the_stage_belongs_to() -> None:
+    """A stage is one form of a bigger program, so its intro states the program and no period type."""
+    stage = _tracker_pages()[f"Questionnaire-A03MvHHogjR{INTRO_SUFFIX}"]
+    assert stage.startswith("Generated from the DHIS2 tracker program stage Birth (A03MvHHogjR).\n")
+    assert "| Program | Child Programme (`IpHINAT79UW`) |" in stage
+    assert "| Form type | `tracker-event` |" in stage
+    assert "| Period type |" not in stage
+
+
+def test_a_form_without_a_program_states_no_program_row() -> None:
+    """Only a stage belongs to a program, so a data set and an event program list no program."""
+    pages = _pages()
+    assert "| Program |" not in pages[f"Questionnaire-YFTk3VdO9av{INTRO_SUFFIX}"]
+    assert "| Program |" not in pages[f"Questionnaire-VBqh0ynB2wv{INTRO_SUFFIX}"]
 
 
 def test_code_system_intro_is_gated_on_the_dhis2_description() -> None:

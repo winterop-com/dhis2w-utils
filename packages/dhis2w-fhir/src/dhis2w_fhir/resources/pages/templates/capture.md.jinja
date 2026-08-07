@@ -1,16 +1,17 @@
 # Capturing data
 
 A capture client sends one `QuestionnaireResponse` per form submission: one filled-in data set
-form for one organisation unit and one reporting period, or one event of an event program. A
-capture endpoint accepts a single response per request - there is no bundle, no batch, and no
-partial submission that a later request completes. Everything the response has to carry is
-stated by one of the two profiles below, so a client can be written, and validated, against
-this guide alone.
+form for one organisation unit and one reporting period, one event of an event program, or one
+event of a tracker program stage. A capture endpoint accepts a single response per request -
+there is no bundle, no batch, and no partial submission that a later request completes.
+Everything the response has to carry is stated by one of the three profiles below, so a client
+can be written, and validated, against this guide alone.
 
 | Form kind | Profile | What one response is |
 | --- | --- | --- |
 | Aggregate | [{{ capture.aggregate_profile }}](StructureDefinition-{{ capture.aggregate_profile_id }}.html) | One data set form, for one organisation unit and one reporting period. |
 | Event | [{{ capture.event_profile }}](StructureDefinition-{{ capture.event_profile_id }}.html) | One event of an event program, at one organisation unit. |
+| Tracker event | [{{ capture.tracker_event_profile }}](StructureDefinition-{{ capture.tracker_event_profile_id }}.html) | One event of a tracker program stage, for one enrolled tracked entity. |
 
 ## An aggregate response, step by step
 
@@ -141,6 +142,82 @@ An event response follows the same shape, with three differences:
 Anything else reads as `completed`, and an aggregate response is always `completed` - a
 reported period is a finished one.
 
+## A tracker event response, step by step
+
+{% if capture.tracker_event is none %}
+This guide publishes no tracker program stage questionnaire, so there is no worked tracker event
+example here. The steps below still hold for any `{{ capture.tracker_event_profile }}`.
+
+{% else %}
+The steps are worked against **{{ capture.tracker_event.name }}** (`{{ capture.tracker_event.uid }}`).
+
+{% endif %}
+A tracker event response answers one stage of a tracker program, for one event of one
+enrollment. It follows the event response, with the context an enrolled tracked entity adds:
+
+- `{{ capture.form_type_extension }}` is fixed to `#tracker-event`, and there is no
+  `{{ capture.period_extension }}` - an event happens at a moment, not over a reporting period.
+- `authored` is mandatory: it is when the event occurred, the DHIS2 `occurredAt` of the event.
+- `questionnaire` is `{{ capture.canonical }}/Questionnaire/<dhis2Uid>` with the UID of the
+  program *stage*, not of the tracker program.
+
+{% if capture.tracker_event is not none %}
+```
+"questionnaire": "{{ capture.tracker_event.questionnaire_url }}"
+```
+
+{% endif %}
+**1. Name the tracked entity.** `subject` is a logical reference: this guide publishes no
+`Patient` resource, so the response carries no `reference` and identifies the DHIS2 tracked
+entity instead. The tracked entity resolves against DHIS2:
+
+```
+"subject": {
+  "type": "Patient",
+  "identifier": { "system": "{{ capture.tracked_entity_system }}", "value": "<trackedEntityUid>" }
+}
+```
+
+**2. Name the enrollment.** The `{{ capture.enrollment_extension }}` extension carries the DHIS2
+tracker enrollment the event belongs to, as the enrollment UID:
+
+```
+"extension": [{
+  "url": "{{ capture.canonical }}/StructureDefinition/{{ capture.enrollment_extension_id }}",
+  "valueIdentifier": { "system": "{{ capture.enrollment_system }}", "value": "<enrollmentUid>" }
+}]
+```
+
+**3. Name the organisation unit.** `subject` names the tracked entity, so the organisation unit
+the event was captured at rides on the `{{ capture.organisation_unit_extension }}` extension, as
+a reference to that unit's `{{ capture.location_profile }}`:
+
+{% if capture.organisation_unit_uid %}
+```
+"extension": [{
+  "url": "{{ capture.canonical }}/StructureDefinition/{{ capture.organisation_unit_extension_id }}",
+  "valueReference": { "reference": "Location/{{ capture.organisation_unit_uid }}" }
+}]
+```
+
+{% endif %}
+A client obtains both UIDs from DHIS2 itself - `d2w data tracker enrollment list` lists the
+enrollments of a program and the tracked entity each one registers - and resolving them is
+outside this guide's scope.
+
+**4. Answer one item per `linkId`.** The stage's questions carry the same two grammars an
+aggregate form does, and are typed by the same table.
+
+{% if capture.tracker_event is not none and capture.tracker_event.links %}
+| `linkId` | Grammar | Answers | Answer element | Required |
+| --- | --- | --- | --- | --- |
+{% for link in capture.tracker_event.links %}
+| `{{ link.link_id }}` | `{{ link.grammar }}` | {{ link.label }} | `{{ link.answer_element }}` | {{ "yes" if link.required else "no" }} |
+{% endfor %}
+
+{% endif %}
+`status` maps from the DHIS2 event status exactly as it does for an event program.
+
 ## Answer typing
 
 Every answer is typed from the DHIS2 value type of the data element the `linkId` names. A
@@ -178,7 +255,7 @@ A `MULTI_TEXT` question captures several selections at once: the item carries
 ## Validating before you send
 
 Validate every response against its profile with the standard FHIR validator before sending
-it. The two profiles are the contract, and the examples published beside them are validated on
+it. The three profiles are the contract, and the examples published beside them are validated on
 every regeneration of this guide, so a response that validates locally is a response the
 receiver will accept:
 
@@ -186,8 +263,10 @@ receiver will accept:
   for a data set submission.
 - [{{ capture.event_profile }}](StructureDefinition-{{ capture.event_profile_id }}.html) for an
   event submission.
+- [{{ capture.tracker_event_profile }}](StructureDefinition-{{ capture.tracker_event_profile_id }}.html)
+  for a tracker event submission.
 
 [{{ capture.capture_server }}](CapabilityStatement-{{ capture.capture_server_id }}.html) states
 the interactions a server accepting these responses supports: one `create` per
-`QuestionnaireResponse`, plus read and search over the Questionnaires, terminology, and
-registry a client resolves a form from.
+`QuestionnaireResponse` against any of the three profiles, plus read and search over the
+Questionnaires, terminology, and registry a client resolves a form from.

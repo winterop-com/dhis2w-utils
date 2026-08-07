@@ -56,6 +56,7 @@ from dhis2w_fhir.resources.pages.schemas import (
     RegistryView,
     SupportCodeSystemRow,
     TerminologyView,
+    TrackerProgramGroup,
     ValueLiteralRow,
 )
 from dhis2w_fhir.resources.questionnaires import ITEM_TYPES_BY_VALUE_TYPE
@@ -64,6 +65,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
+    source_display_name,
 )
 from dhis2w_fhir.writer import FshArtifact, FshBuild
 
@@ -92,7 +94,11 @@ INTRO_SUFFIX = "-intro.md"
 SITE_PAGE_FILENAMES = ("forms.md", "registry.md", "terminology.md", "identifiers.md", "periods.md", "capture.md")
 
 #: How each form kind reads in prose on the pages it appears on.
-_KIND_LABELS: dict[FormKind, str] = {"aggregate": "data set", "event": "event program"}
+_KIND_LABELS: dict[FormKind, str] = {
+    "aggregate": "data set",
+    "event": "event program",
+    "tracker-event": "tracker program stage",
+}
 
 #: What a data set with no DHIS2 period type shows in the period-type column.
 _ABSENT_TEXT = "-"
@@ -194,6 +200,8 @@ def _form_row(source: QuestionnaireSourceIn) -> FormRow:
         code=markdown_text(code_or_uid(source.code, source.uid), table_cell=True),
         description=markdown_text(source.description or ""),
         period_type=markdown_text(source.period_type or _ABSENT_TEXT, table_cell=True),
+        program_uid=source.program.uid if source.program is not None else "",
+        program_name=markdown_text(source.program.name, table_cell=True) if source.program is not None else "",
         section_count=len(source.sections),
         question_count=len(_source_items(source)),
         unsectioned_question_count=len(source.flat_items),
@@ -205,13 +213,27 @@ def _form_row(source: QuestionnaireSourceIn) -> FormRow:
 
 
 def _forms_page(forms: list[FormRow]) -> FshArtifact:
-    """Build `forms.md`: the data set and event program catalogs plus a section breakdown per form."""
+    """Build `forms.md`: the catalog of each form kind, tracker stages grouped under their program."""
     return _page(
         "forms.md",
         "forms.md.jinja",
         data_sets=[form for form in forms if form.kind == "aggregate"],
         event_programs=[form for form in forms if form.kind == "event"],
+        tracker_programs=_tracker_program_groups(forms),
     )
+
+
+def _tracker_program_groups(forms: list[FormRow]) -> list[TrackerProgramGroup]:
+    """Group the tracker stages by their program, programs by name then UID and stages in catalog order."""
+    stages_by_program: dict[str, list[FormRow]] = {}
+    names_by_program: dict[str, str] = {}
+    for form in forms:
+        if form.kind != "tracker-event":
+            continue
+        stages_by_program.setdefault(form.program_uid, []).append(form)
+        names_by_program.setdefault(form.program_uid, form.program_name)
+    ordered = sorted(stages_by_program, key=lambda uid: (names_by_program[uid], uid))
+    return [TrackerProgramGroup(uid=uid, name=names_by_program[uid], stages=stages_by_program[uid]) for uid in ordered]
 
 
 def _registry_page(organisation_units: list[OrganisationUnitIn], config: GenerateConfig) -> FshArtifact:
@@ -354,6 +376,14 @@ def _capture_page(pages: PagesIn, config: GenerateConfig, canonical: str) -> Fsh
         aggregate_profile_id=foundation.aggregate_response_profile_id,
         event_profile=foundation.event_response_profile,
         event_profile_id=foundation.event_response_profile_id,
+        tracker_event_profile=foundation.tracker_event_response_profile,
+        tracker_event_profile_id=foundation.tracker_event_response_profile_id,
+        enrollment_extension=foundation.tracker_enrollment_extension,
+        enrollment_extension_id=foundation.tracker_enrollment_extension_id,
+        organisation_unit_extension=foundation.organisation_unit_extension,
+        organisation_unit_extension_id=foundation.organisation_unit_extension_id,
+        tracked_entity_system=f"{config.identifier_system_base}/id/tracked-entity",
+        enrollment_system=f"{config.identifier_system_base}/id/tracker-enrollment",
         capture_server=foundation.capture_server,
         capture_server_id=foundation.capture_server_id,
         location_profile=OrganisationUnitNaming.from_naming(config.naming).location_profile,
@@ -361,6 +391,7 @@ def _capture_page(pages: PagesIn, config: GenerateConfig, canonical: str) -> Fsh
         organisation_unit_name=markdown_text(organisation_unit.name) if organisation_unit is not None else "",
         aggregate=_capture_form_example(pages.forms, "aggregate", canonical),
         event=_capture_form_example(pages.forms, "event", canonical),
+        tracker_event=_capture_form_example(pages.forms, "tracker-event", canonical),
         event_statuses=[
             EventStatusRow(event_status=event_status, response_status=STATUS_BY_EVENT_STATUS[event_status])
             for event_status in sorted(STATUS_BY_EVENT_STATUS)
@@ -380,7 +411,7 @@ def _capture_form_example(
     source = min(candidates, key=lambda item: (item.name, item.uid))
     return CaptureFormExample(
         uid=source.uid,
-        name=markdown_text(source.name),
+        name=markdown_text(source_display_name(source)),
         questionnaire_url=f"{canonical}/Questionnaire/{source.uid}",
         form_type_code=source.kind,
         period=_capture_period(source),

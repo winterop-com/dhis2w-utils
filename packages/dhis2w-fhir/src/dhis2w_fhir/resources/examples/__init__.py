@@ -21,6 +21,7 @@ import datetime
 import hashlib
 import random
 import re
+import string
 from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
@@ -51,6 +52,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     FormKind,
     QuestionnaireItemIn,
     QuestionnaireSourceIn,
+    source_display_name,
 )
 from dhis2w_fhir.writer import FshArtifact, FshBuild
 
@@ -184,8 +186,22 @@ _FALSE_LITERALS = frozenset({"false", "0"})
 #: The answer element everything unmapped - and everything that will not cast - falls back to.
 DEFAULT_ANSWER_ELEMENT = "valueString"
 
+#: How each form kind reads in the prose an example describes itself with.
+_KIND_LABELS: dict[FormKind, str] = {
+    "aggregate": "data set",
+    "event": "event program",
+    "tracker-event": "tracker program stage",
+}
+
 #: How many days back a synthetic event may have occurred.
 _SYNTHETIC_EVENT_WINDOW_DAYS = 30
+
+#: The character a DHIS2 UID opens on, and the characters its remaining ten places take.
+_UID_LEADING_CHARACTERS = string.ascii_letters
+_UID_TRAILING_CHARACTERS = string.ascii_letters + string.digits
+
+#: How many places follow the leading letter of a DHIS2 UID.
+_UID_TRAILING_LENGTH = 10
 
 #: Bytes of the seed digest fed to the synthetic RNG - eight is a full 64-bit seed.
 _SEED_BYTES = 8
@@ -241,6 +257,18 @@ class _PeriodExtensionView(BaseModel):
     end_date: datetime.date
 
 
+class _TrackerContextView(BaseModel):
+    """The tracker context of one example: the enrollment, the tracked entity, and the unit it was captured at."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enrollment_extension: str
+    organisation_unit_extension: str
+    organisation_unit_uid: str
+    enrollment_uid: str | None = None
+    tracked_entity_uid: str | None = None
+
+
 class _Answer(BaseModel):
     """One typed FHIR answer: the `value[x]` element it lands on and its rendered FSH literal."""
 
@@ -276,6 +304,7 @@ class _ExampleView(BaseModel):
     organisation_unit_uid: str
     status_code: str
     period: _PeriodExtensionView | None = None
+    tracker: _TrackerContextView | None = None
     authored: str | None = None
     items: list[_ItemView] = Field(default_factory=list)
 
@@ -288,6 +317,7 @@ class _ExampleTally(BaseModel):
     uncoded_options: list[str] = Field(default_factory=list)
     periodless_data_sets: list[str] = Field(default_factory=list)
     unauthored_responses: list[str] = Field(default_factory=list)
+    incomplete_tracker_responses: list[str] = Field(default_factory=list)
 
     def to_notes(self) -> list[str]:
         """Roll the tally up into one aggregate note per noteworthy example outcome."""
@@ -330,8 +360,17 @@ class _ExampleTally(BaseModel):
                 aggregate_note(
                     f"{len(self.unauthored_responses)} examples carry an occurrence timestamp FHIR cannot "
                     "express as a dateTime; authored omitted and the base QuestionnaireResponse declared "
-                    "instead of the event response profile",
+                    "instead of the event or tracker event response profile",
                     self.unauthored_responses,
+                )
+            )
+        if self.incomplete_tracker_responses:
+            notes.append(
+                aggregate_note(
+                    f"{len(self.incomplete_tracker_responses)} examples lack the enrollment or tracked entity "
+                    "a tracker event carries; the base QuestionnaireResponse is declared instead of the tracker "
+                    "event response profile",
+                    self.incomplete_tracker_responses,
                 )
             )
         return notes
@@ -455,14 +494,19 @@ def _synthetic_response(
     today: datetime.date,
     unanswerable: list[str],
 ) -> ExampleResponseIn:
-    """Generate one target's `n`-th example: its period or occurrence, then an answer per question."""
+    """Generate one target's `n`-th example: its period or occurrence, its tracker context, then its answers."""
     generator = random.Random(_seed(source.uid, ordinal))  # noqa: S311 - illustrative values, not a secret
     period = _synthetic_period(source, today)
     window = _SyntheticWindow.of_period(period) if period is not None else _SyntheticWindow.recent(today)
     instance_id = f"{source.uid}-example-{ordinal}"
     authored: str | None = None
-    if source.kind == "event":
+    if source.kind != "aggregate":
         authored = f"{window.pick_date(generator).isoformat()}T{_pick_hour(generator)}:00:00Z"
+    tracked_entity_uid: str | None = None
+    enrollment_uid: str | None = None
+    if source.kind == "tracker-event":
+        tracked_entity_uid = _synthetic_uid(generator)
+        enrollment_uid = _synthetic_uid(generator)
     answers: list[ExampleAnswerIn] = []
     for key in _answerable_keys(source):
         option_set = option_sets_by_uid.get(key.item.option_set_uid or "")
@@ -485,6 +529,8 @@ def _synthetic_response(
         status_code=COMPLETED_STATUS,
         period=period,
         authored=authored,
+        tracked_entity_uid=tracked_entity_uid,
+        enrollment_uid=enrollment_uid,
         answers=answers,
     )
 
@@ -493,6 +539,13 @@ def _seed(target_uid: str, ordinal: int) -> int:
     """The RNG seed for one target's `n`-th example: the leading 64 bits of a SHA-256 digest."""
     digest = hashlib.sha256(f"{target_uid}:{ordinal}".encode()).digest()
     return int.from_bytes(digest[:_SEED_BYTES], "big")
+
+
+def _synthetic_uid(generator: random.Random) -> str:
+    """A seeded DHIS2-shaped UID: one ASCII letter followed by ten alphanumeric places."""
+    leading = generator.choice(_UID_LEADING_CHARACTERS)
+    trailing = "".join(generator.choice(_UID_TRAILING_CHARACTERS) for _ in range(_UID_TRAILING_LENGTH))
+    return f"{leading}{trailing}"
 
 
 def _synthetic_period(source: QuestionnaireSourceIn, today: datetime.date) -> PeriodValue | None:
@@ -640,7 +693,8 @@ def _example_view(
     tally: _ExampleTally,
 ) -> _ExampleView:
     """Project one example response onto the view the QuestionnaireResponse template renders."""
-    label = "data set" if source.kind == "aggregate" else "event program"
+    label = _KIND_LABELS[source.kind]
+    display_name = source_display_name(source)
     period: _PeriodExtensionView | None = None
     if response.period is not None:
         period = _PeriodExtensionView(
@@ -654,21 +708,43 @@ def _example_view(
         tally.periodless_data_sets.append(f"{source.name} ({source.uid})")
     answers = _answers_by_link_id(response, source, option_sets_by_uid, assignments, identities, tally)
     authored = _authored(response, tally)
+    tracker = _tracker_context(response, source, foundation, tally)
     return _ExampleView(
         instance_id=response.instance_id,
-        instance_of=_response_profile(source.kind, foundation, period=period, authored=authored),
+        instance_of=_response_profile(source.kind, foundation, period=period, authored=authored, tracker=tracker),
         questionnaire_url=f"{canonical}/Questionnaire/{source.uid}",
-        title_literal=page_text(f"Example response - {source.name}"),
+        title_literal=page_text(f"Example response - {display_name}"),
         description_literal=page_text(
-            f"Example QuestionnaireResponse against the DHIS2 {label} {source.name} ({source.uid})."
+            f"Example QuestionnaireResponse against the DHIS2 {label} {display_name} ({source.uid})."
         ),
         form_type_extension=foundation.form_type_extension,
         form_type_code=source.kind,
         organisation_unit_uid=response.organisation_unit_uid,
         status_code=response.status_code,
         period=period,
+        tracker=tracker,
         authored=authored,
         items=_item_views(source, answers),
+    )
+
+
+def _tracker_context(
+    response: ExampleResponseIn,
+    source: QuestionnaireSourceIn,
+    foundation: FoundationNaming,
+    tally: _ExampleTally,
+) -> _TrackerContextView | None:
+    """The tracker context a stage's response carries, tallied when the enrollment or tracked entity is missing."""
+    if source.kind != "tracker-event":
+        return None
+    if response.enrollment_uid is None or response.tracked_entity_uid is None:
+        tally.incomplete_tracker_responses.append(response.instance_id)
+    return _TrackerContextView(
+        enrollment_extension=foundation.tracker_enrollment_extension,
+        organisation_unit_extension=foundation.organisation_unit_extension,
+        organisation_unit_uid=response.organisation_unit_uid,
+        enrollment_uid=response.enrollment_uid,
+        tracked_entity_uid=response.tracked_entity_uid,
     )
 
 
@@ -678,10 +754,19 @@ def _response_profile(
     *,
     period: _PeriodExtensionView | None,
     authored: str | None,
+    tracker: _TrackerContextView | None,
 ) -> str:
     """The declared instance type: the kind's response profile, or the base resource when a 1..1 element is missing."""
     if kind == "aggregate":
         return foundation.aggregate_response_profile if period is not None else _BASE_RESPONSE_RESOURCE
+    if kind == "tracker-event":
+        complete = (
+            authored is not None
+            and tracker is not None
+            and tracker.enrollment_uid is not None
+            and tracker.tracked_entity_uid is not None
+        )
+        return foundation.tracker_event_response_profile if complete else _BASE_RESPONSE_RESOURCE
     return foundation.event_response_profile if authored is not None else _BASE_RESPONSE_RESOURCE
 
 

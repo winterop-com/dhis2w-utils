@@ -9,6 +9,7 @@ passing an explicit `today`.
 from __future__ import annotations
 
 import datetime
+import random
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -34,6 +35,7 @@ from dhis2w_fhir.resources.examples import (
     _is_fhir_date,
     _is_fhir_date_time,
     _is_fhir_time,
+    _synthetic_uid,
     response_status_code,
     zoned_date_time,
 )
@@ -43,6 +45,7 @@ from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentit
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
+    ProgramContextIn,
     QuestionnaireItemIn,
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
@@ -112,6 +115,24 @@ _EVENT_PROGRAM = QuestionnaireSourceIn(
     ],
 )
 
+_CHILD_PROGRAMME = ProgramContextIn(uid="IpHINAT79UW", name="Child Programme")
+
+_BIRTH_STAGE = QuestionnaireSourceIn(
+    uid="A03MvHHogjR",
+    name="Birth",
+    code="PS_BIRTH",
+    kind="tracker-event",
+    program=_CHILD_PROGRAMME,
+    sections=[
+        QuestionnaireSectionIn(
+            uid="Sec3aaaaaaa",
+            name="Delivery",
+            items=[QuestionnaireItemIn(uid="a3kGcGDCuk6", name="Apgar Score", value_type="INTEGER", compulsory=True)],
+        )
+    ],
+    flat_items=[QuestionnaireItemIn(uid="De9aaaaaaaa", name="Seen at", value_type="DATETIME")],
+)
+
 _OPTION_SETS = [
     OptionSetIn(
         uid="Os1aaaaaaaa",
@@ -176,6 +197,32 @@ Usage: #example
 * item[+].linkId = "De9aaaaaaaa"
 * item[=].answer[+].valueDateTime = "2026-07-26T05:00:00Z"
 """
+
+_SYNTHETIC_TRACKER_EVENT_GOLDEN = (
+    """Instance: QuestionnaireResponse-A03MvHHogjR-example-1
+InstanceOf: D2TrackerEventResponse
+Title: "Example response - Child Programme - Birth"
+Description: "Example QuestionnaireResponse against the DHIS2 tracker program stage """
+    """Child Programme - Birth (A03MvHHogjR)."
+Usage: #example
+* id = "A03MvHHogjR-example-1"
+* extension[D2FormType].valueCode = #tracker-event
+* extension[D2TrackerEnrollment].valueIdentifier.system = $DHIS2-TRACKER-ENROLLMENT
+* extension[D2TrackerEnrollment].valueIdentifier.value = "VJV3arKomV0"
+* extension[D2OrganisationUnit].valueReference = Reference(Location/ImspTQPwCqd)
+* questionnaire = "http://example.org/fhir/Questionnaire/A03MvHHogjR"
+* status = #completed
+* subject.type = "Patient"
+* subject.identifier.system = $DHIS2-TE
+* subject.identifier.value = "yhpvt4pX4xD"
+* authored = "2026-07-30T12:00:00Z"
+* item[+].linkId = "Sec3aaaaaaa"
+* item[=].item[+].linkId = "a3kGcGDCuk6"
+* item[=].item[=].answer[+].valueInteger = 238
+* item[+].linkId = "De9aaaaaaaa"
+* item[=].answer[+].valueDateTime = "2026-07-24T13:00:00Z"
+"""
+)
 
 _DATA_SETS_PAYLOAD = {
     "dataSets": [
@@ -384,20 +431,98 @@ def test_synthetic_event_example_is_a_stable_golden() -> None:
     assert _synthetic([_EVENT_PROGRAM])[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"] == _SYNTHETIC_EVENT_GOLDEN
 
 
+def test_synthetic_tracker_event_example_is_a_stable_golden() -> None:
+    """A tracker program stage carries its enrollment, its org unit, and a tracked-entity subject."""
+    artifacts = _synthetic([_BIRTH_STAGE], [])
+    assert artifacts[f"{EXAMPLES_DIRECTORY}/A03MvHHogjR-1.fsh"] == _SYNTHETIC_TRACKER_EVENT_GOLDEN
+
+
+def test_synthetic_tracker_event_values_are_stable_across_runs() -> None:
+    """The tracked entity and the enrollment are drawn from the seeded RNG, so two builds agree."""
+    assert _synthetic([_BIRTH_STAGE], []) == _synthetic([_BIRTH_STAGE], [])
+
+
+def test_a_tracker_event_example_carries_no_reporting_period() -> None:
+    """A tracker event happens at a moment, so it carries `authored` and no D2Period."""
+    content = _synthetic([_BIRTH_STAGE], [])[f"{EXAMPLES_DIRECTORY}/A03MvHHogjR-1.fsh"]
+    assert "D2Period" not in content
+    assert "* authored = " in content
+
+
+def test_a_tracker_event_example_names_its_subject_by_identifier_alone() -> None:
+    """This guide publishes no Patient, so the subject is a logical reference rather than a Reference()."""
+    content = _synthetic([_BIRTH_STAGE], [])[f"{EXAMPLES_DIRECTORY}/A03MvHHogjR-1.fsh"]
+    assert '* subject.type = "Patient"' in content
+    assert "* subject.identifier.system = $DHIS2-TE" in content
+    assert "* subject.identifier.value = " in content
+    assert "Reference(Patient" not in content
+    assert "* subject = Reference(" not in content
+
+
+def test_a_tracker_event_example_titles_itself_under_both_identities() -> None:
+    """A stage name means little alone, so the example names the program the stage belongs to."""
+    content = _synthetic([_BIRTH_STAGE], [])[f"{EXAMPLES_DIRECTORY}/A03MvHHogjR-1.fsh"]
+    assert 'Title: "Example response - Child Programme - Birth"' in content
+    assert "DHIS2 tracker program stage Child Programme - Birth (A03MvHHogjR)" in content
+
+
+def test_a_synthetic_uid_has_the_shape_dhis2_gives_one() -> None:
+    """A DHIS2 UID opens on a letter and runs to eleven alphanumeric places."""
+    generator = random.Random(0)  # noqa: S311 - a test fixture, not a secret
+    drawn = [_synthetic_uid(generator) for _ in range(50)]
+    for uid in drawn:
+        assert len(uid) == 11
+        assert uid[0].isascii() and uid[0].isalpha()
+        assert uid.isalnum()
+        assert uid.isascii()
+    assert len(set(drawn)) == len(drawn)
+
+
+def test_a_tracker_event_without_an_enrollment_declares_the_base_resource_with_a_note() -> None:
+    """The enrollment is 1..1 on the profile, so an example missing it degrades rather than fails to validate."""
+    response = ExampleResponseIn(
+        instance_id="Ev1aaaaaaaa",
+        target_uid="A03MvHHogjR",
+        kind="tracker-event",
+        organisation_unit_uid="Ou1aaaaaaaa",
+        status_code="completed",
+        authored="2026-07-15T10:30:00Z",
+        tracked_entity_uid="Te1aaaaaaaa",
+    )
+    build = build_example_artifacts(
+        [_BIRTH_STAGE], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
+    )
+    content = build.artifacts[0].content
+    assert "InstanceOf: QuestionnaireResponse\n" in content
+    assert "InstanceOf: D2TrackerEventResponse" not in content
+    assert "D2TrackerEnrollment" not in content
+    assert "* extension[D2OrganisationUnit].valueReference = Reference(Location/Ou1aaaaaaaa)" in content
+    assert '* subject.identifier.value = "Te1aaaaaaaa"' in content
+    assert build.notes == [
+        "1 examples lack the enrollment or tracked entity a tracker event carries; the base "
+        "QuestionnaireResponse is declared instead of the tracker event response profile: Ev1aaaaaaaa"
+    ]
+
+
 def test_each_example_declares_the_response_profile_of_its_form_kind() -> None:
     """An example is a contract check: it declares the profile its form kind's responses have to meet."""
-    artifacts = _synthetic([_DATA_SET, _EVENT_PROGRAM])
+    artifacts = _synthetic([_DATA_SET, _EVENT_PROGRAM, _BIRTH_STAGE])
     assert "InstanceOf: D2AggregateResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/BfMAe6Itzgt-1.fsh"]
     assert "InstanceOf: D2EventResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"]
+    assert "InstanceOf: D2TrackerEventResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/A03MvHHogjR-1.fsh"]
     assert not any("InstanceOf: QuestionnaireResponse" in content for content in artifacts.values())
 
 
 def test_the_declared_response_profile_follows_the_naming_prefix() -> None:
     """A renamed prefix renames the profiles, so the examples have to follow it or stop validating."""
     config = GenerateConfig(naming=NamingConfig(prefix="Dhis2"))
-    artifacts = _synthetic([_DATA_SET, _EVENT_PROGRAM], config=config)
+    artifacts = _synthetic([_DATA_SET, _EVENT_PROGRAM, _BIRTH_STAGE], config=config)
     assert "InstanceOf: Dhis2AggregateResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/BfMAe6Itzgt-1.fsh"]
     assert "InstanceOf: Dhis2EventResponse" in artifacts[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"]
+    stage = artifacts[f"{EXAMPLES_DIRECTORY}/A03MvHHogjR-1.fsh"]
+    assert "InstanceOf: Dhis2TrackerEventResponse" in stage
+    assert "* extension[Dhis2TrackerEnrollment].valueIdentifier.system = $DHIS2-TRACKER-ENROLLMENT" in stage
+    assert "* extension[Dhis2OrganisationUnit].valueReference = Reference(Location/ImspTQPwCqd)" in stage
 
 
 def test_example_page_titles_escape_markup() -> None:
