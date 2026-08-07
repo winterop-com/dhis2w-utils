@@ -276,7 +276,11 @@ def generate_categories_command() -> None:
 
 @generate_app.command("questionnaires")
 def generate_questionnaires_command() -> None:
-    """Generate Questionnaire FSH from the configured DHIS2 data sets and event programs."""
+    """Generate Questionnaire FSH into data-sets/, event-programs/, tracker-programs/, and data-dictionary/.
+
+    A data set and an event program are one Questionnaire each; a tracker program is one
+    Questionnaire per program stage, filed under the UID of the program it belongs to.
+    """
     from dhis2w_fhir import service
 
     project = load_project()
@@ -290,7 +294,7 @@ def generate_questionnaires_command() -> None:
 
 @generate_app.command("examples")
 def generate_examples_command() -> None:
-    """Generate example QuestionnaireResponses for the configured data sets and event programs."""
+    """Generate example QuestionnaireResponses for every configured data set, event program, and tracker stage."""
     from dhis2w_fhir import service
 
     project = load_project()
@@ -332,7 +336,11 @@ def generate_pages_command() -> None:
 
 @generate_app.command("all")
 def generate_all_command() -> None:
-    """Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages."""
+    """Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages.
+
+    The questionnaire pass covers all four directories: data-sets/, event-programs/,
+    tracker-programs/ (one file per stage, under its program's UID), and data-dictionary/.
+    """
     from dhis2w_fhir import service
 
     project = load_project()

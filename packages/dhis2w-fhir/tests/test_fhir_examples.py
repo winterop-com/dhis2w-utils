@@ -376,6 +376,43 @@ _EVENTS_PAYLOAD = {
     ]
 }
 
+#: The one tracker program the instance-sourced tracker tests generate from: one stage, one question.
+_TRACKER_PROGRAMS_PAYLOAD = {
+    "programs": [
+        {
+            "id": "IpHINAT79UW",
+            "name": "Child Programme",
+            "programType": "WITH_REGISTRATION",
+            "programStages": [
+                {
+                    "id": "A03MvHHogjR",
+                    "name": "Birth",
+                    "sortOrder": 1,
+                    "programStageSections": [],
+                    "programStageDataElements": [
+                        {
+                            "compulsory": True,
+                            "sortOrder": 1,
+                            "dataElement": {"id": "a3kGcGDCuk6", "name": "Apgar Score", "valueType": "INTEGER"},
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+}
+
+#: One event of that stage, as `/api/tracker/events?programStage=...` answers it.
+_TRACKER_EVENT = {
+    "event": "Ev2aaaaaaaa",
+    "orgUnit": "Ou1aaaaaaaa",
+    "occurredAt": "2026-07-15T10:30:00.000",
+    "status": "COMPLETED",
+    "enrollment": "En1aaaaaaaa",
+    "trackedEntity": "Te1aaaaaaaa",
+    "dataValues": [{"dataElement": "a3kGcGDCuk6", "value": "9"}],
+}
+
 _runner = CliRunner()
 
 
@@ -856,6 +893,94 @@ async def test_instance_mode_reads_events_under_either_envelope_key(
     assert '* authored = "2026-07-15T10:30:00.000Z"' in content
     assert "D2Period" not in content
     assert "* item[=].answer[+].valueInteger = 42" in content
+
+
+async def _scaffold_tracker_project(directory: Path, **generate_lines: str) -> None:
+    """Scaffold a project selecting nothing, so every form the mocked instance answers is a target."""
+    options = InitOptions(
+        ig_id="dhis2.fhir.tracker.examples",
+        canonical=_CANONICAL,
+        name="Dhis2FhirTrackerExamples",
+        title="Tracker Example IG",
+        publisher="Example Org",
+    )
+    await service.init_project(directory, options)
+    config_path = directory / "fhir.toml"
+    body = config_path.read_text(encoding="utf-8")
+    for table, entries in generate_lines.items():
+        body += f"\n[generate.{table}]\n{entries}\n"
+    config_path.write_text(body, encoding="utf-8")
+
+
+def _mock_tracker_metadata() -> None:
+    """Mock the metadata a tracker-only run reads: no data sets, one tracker program, the root org unit."""
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_TRACKER_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ROOT_PAYLOAD))
+
+
+@respx.mock
+async def test_instance_mode_reads_a_stages_events_by_program_stage(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A stage's events are selected by `programStage`, and each becomes a tracker event response."""
+    mock_system_info("v42")
+    await _scaffold_tracker_project(tmp_path, examples='per_target = 1\nsource = "instance"')
+    _mock_tracker_metadata()
+    events = respx.get(f"{_HOST}/api/tracker/events").mock(
+        return_value=httpx.Response(200, json={"instances": [_TRACKER_EVENT]})
+    )
+
+    report = await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
+
+    params = events.calls.last.request.url.params
+    assert params["programStage"] == "A03MvHHogjR"
+    assert "program" not in params
+    assert params["fields"] == (
+        "event,orgUnit,occurredAt,status,enrollment,trackedEntity,dataValues[dataElement,value]"
+    )
+    assert report.example_count == 1
+    assert report.notes == []
+    content = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "A03MvHHogjR-1.fsh").read_text(encoding="utf-8")
+    assert "Instance: QuestionnaireResponse-Ev2aaaaaaaa" in content
+    assert "InstanceOf: D2TrackerEventResponse" in content
+    assert '* extension[D2TrackerEnrollment].valueIdentifier.value = "En1aaaaaaaa"' in content
+    assert "* extension[D2OrganisationUnit].valueReference = Reference(Location/Ou1aaaaaaaa)" in content
+    assert '* subject.identifier.value = "Te1aaaaaaaa"' in content
+    assert '* authored = "2026-07-15T10:30:00.000Z"' in content
+    assert '* item[+].linkId = "a3kGcGDCuk6"' in content
+    assert "* item[=].answer[+].valueInteger = 9" in content
+
+
+@respx.mock
+async def test_a_stage_event_missing_its_enrollment_degrades_to_the_base_resource(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """An event the instance answered no enrollment for still publishes, as the base resource with one note."""
+    mock_system_info("v42")
+    await _scaffold_tracker_project(tmp_path, examples='per_target = 1\nsource = "instance"')
+    _mock_tracker_metadata()
+    without_enrollment = {key: value for key, value in _TRACKER_EVENT.items() if key != "enrollment"}
+    respx.get(f"{_HOST}/api/tracker/events").mock(
+        return_value=httpx.Response(200, json={"instances": [without_enrollment]})
+    )
+
+    report = await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.example_count == 1
+    assert report.notes == [
+        "1 examples lack the enrollment or tracked entity a tracker event carries; the base "
+        "QuestionnaireResponse is declared instead of the tracker event response profile: Ev2aaaaaaaa"
+    ]
+    content = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "A03MvHHogjR-1.fsh").read_text(encoding="utf-8")
+    assert "InstanceOf: QuestionnaireResponse\n" in content
+    assert "D2TrackerEnrollment" not in content
+    assert '* subject.identifier.value = "Te1aaaaaaaa"' in content
 
 
 @respx.mock

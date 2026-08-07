@@ -205,12 +205,69 @@ _SECOND_DATA_SET = {
     "dataSetElements": [{"dataElement": {"id": "De5aaaaaaaa", "name": "ANC 1st visit", "valueType": "INTEGER"}}],
 }
 
+#: The Gender data element, which both stages of the tracker program below capture.
+_SHARED_GENDER_ELEMENT = {
+    "id": "De3aaaaaaaa",
+    "name": "Gender",
+    "valueType": "TEXT",
+    "optionSet": {"id": "Os1aaaaaaaa"},
+}
+
+#: A two-stage tracker program whose wire order is deliberately not its DHIS2 sort order, at both
+#: grains: the stages arrive Baby Postnatal (sortOrder 2) first, and Baby Postnatal's questions
+#: arrive Gender (sortOrder 2) first. Both stages capture Gender, so the data dictionary joins them.
 _TRACKER_PROGRAM = {
     "id": "IpHINAT79UW",
     "name": "Child Programme",
     "programType": "WITH_REGISTRATION",
-    "programStages": [{"id": "A03MvHHogjR", "programStageDataElements": []}],
+    "programStages": [
+        {
+            "id": "ZzYYXq4fJie",
+            "name": "Baby Postnatal",
+            "sortOrder": 2,
+            "programStageSections": [],
+            "programStageDataElements": [
+                {"compulsory": False, "sortOrder": 2, "dataElement": _SHARED_GENDER_ELEMENT},
+                {
+                    "compulsory": False,
+                    "sortOrder": 1,
+                    "dataElement": {"id": "De4aaaaaaaa", "name": "Weight in kg", "valueType": "NUMBER"},
+                },
+            ],
+        },
+        {
+            "id": "A03MvHHogjR",
+            "name": "Birth",
+            "code": "PS_BIRTH",
+            "description": "The birth visit.",
+            "sortOrder": 1,
+            "attributeValues": [{"attribute": {"id": "At1aaaaaaaa"}, "value": "birth"}],
+            "programStageSections": [
+                {
+                    "id": "Sec3aaaaaaa",
+                    "name": "Delivery",
+                    "dataElements": [{"id": "a3kGcGDCuk6"}, {"id": "De3aaaaaaaa"}],
+                }
+            ],
+            "programStageDataElements": [
+                {"compulsory": False, "sortOrder": 2, "dataElement": _SHARED_GENDER_ELEMENT},
+                {
+                    "compulsory": True,
+                    "sortOrder": 1,
+                    "dataElement": {
+                        "id": "a3kGcGDCuk6",
+                        "name": "Apgar Score",
+                        "formName": "Apgar",
+                        "valueType": "INTEGER_ZERO_OR_POSITIVE",
+                    },
+                },
+            ],
+        },
+    ],
 }
+
+#: One program the instance answered no programType for - neither selection table maps it, so the sweep skips it.
+_UNTYPED_PROGRAM = {"id": "Pr9aaaaaaaa", "name": "Legacy programme", "programStages": []}
 
 #: The whole instance as the all-mode sweep sees it: two data sets, an event program, and a tracker program.
 _ALL_DATA_SETS_PAYLOAD = {"dataSets": [*_DATA_SETS_PAYLOAD["dataSets"], _SECOND_DATA_SET]}
@@ -773,7 +830,7 @@ async def test_generate_questionnaires_writes_the_target_directory(
     mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """The target fetches the configured data sets and event programs and syncs its three directories."""
+    """The target fetches the configured data sets and event programs and syncs its four directories."""
     mock_system_info("v42")
     mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"', event_programs='"VBqh0ynB2wv"')
@@ -811,7 +868,7 @@ async def test_an_absent_selection_covers_the_whole_instance(
     mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """No selection tables means all: every data set plus the single-stage event programs, the rest noted."""
+    """No selection tables means all: every data set, every event program, and every stage of every tracker."""
     mock_system_info("v42")
     mock_attributes()
     await _scaffold_project(tmp_path)
@@ -823,16 +880,151 @@ async def test_an_absent_selection_covers_the_whole_instance(
 
     assert "filter" not in data_sets.calls.last.request.url.params
     assert "filter" not in programs.calls.last.request.url.params
-    assert report.questionnaire_count == 3
+    assert programs.calls.call_count == 1
+    assert report.questionnaire_count == 5
     assert report.written_files == [
         "data-sets/BfMAe6Itzgt.fsh",
         "data-sets/Ds2aaaaaaaa.fsh",
         "event-programs/VBqh0ynB2wv.fsh",
+        "tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh",
+        "tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh",
         "data-dictionary/category-option-combos.fsh",
         "data-dictionary/data-elements.fsh",
     ]
+    assert [note for note in report.notes if "skipped" in note] == []
+    dictionary = (tmp_path / "ig" / "input" / "fsh" / "data-dictionary" / "data-elements.fsh").read_text(
+        encoding="utf-8"
+    )
+    assert dictionary.count('* #De3aaaaaaaa "Gender"') == 1
+
+
+@respx.mock
+async def test_the_stages_of_a_tracker_program_are_ordered_by_their_dhis2_sort_order(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Stages and their questions are emitted in the order DHIS2 sorts them, not the order it serialised them."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
+    _mock_option_sets()
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.questionnaire_count == 2
+    tracker = tmp_path / "ig" / "input" / "fsh" / "tracker-programs" / "IpHINAT79UW"
+    birth = (tracker / "A03MvHHogjR.fsh").read_text(encoding="utf-8")
+    postnatal = (tracker / "ZzYYXq4fJie.fsh").read_text(encoding="utf-8")
+    assert '* title = "Child Programme - Birth"' in birth
+    assert '* identifier[+].system = $DHIS2-PS-CODE\n* identifier[=].value = "PS_BIRTH"' in birth
+    assert '* identifier[+].system = $DHIS2-PROGRAM\n* identifier[=].value = "IpHINAT79UW"' in birth
+    assert '* item[+].linkId = "Sec3aaaaaaa"' in birth
+    assert '* extension[D2AttributeValue][+].extension[attributeId].valueString = "At1aaaaaaaa"' in birth
+    assert '* extension[D2AttributeValue][=].extension[value].valueString = "birth"' in birth
+    assert postnatal.index('"De4aaaaaaaa"') < postnatal.index('"De3aaaaaaaa"')
+
+
+@respx.mock
+async def test_an_explicit_tracker_selection_is_a_filtered_fetch_of_its_own(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Each program table reads its own selection, so a listed tracker UID is fetched by filter and noted if absent."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, event_programs="", tracker_programs='"IpHINAT79UW", "Missing1234"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    programs.mock(
+        side_effect=lambda request: httpx.Response(
+            200,
+            json={"programs": [_TRACKER_PROGRAM] if "filter" in request.url.params else []},
+        )
+    )
+    _mock_option_sets()
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    filters = [call.request.url.params.get("filter") for call in programs.calls]
+    assert "id:in:[IpHINAT79UW,Missing1234]" in filters
+    assert report.questionnaire_count == 2
+    assert any("Missing1234" in note and "matched no tracker program" in note for note in report.notes)
+
+
+@respx.mock
+async def test_a_stage_mixing_sectioned_and_unsectioned_elements_is_noted_as_a_stage(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The note names the form kind it is about, so a stage is called a tracker program stage."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
+    loose = {
+        "id": "IpHINAT79UW",
+        "name": "Child Programme",
+        "programType": "WITH_REGISTRATION",
+        "programStages": [
+            {
+                "id": "A03MvHHogjR",
+                "name": "Birth",
+                "sortOrder": 1,
+                "programStageSections": [
+                    {"id": "Sec3aaaaaaa", "name": "Delivery", "dataElements": [{"id": "a3kGcGDCuk6"}]}
+                ],
+                "programStageDataElements": [
+                    {
+                        "compulsory": True,
+                        "sortOrder": 1,
+                        "dataElement": {"id": "a3kGcGDCuk6", "name": "Apgar Score", "valueType": "INTEGER"},
+                    },
+                    {"compulsory": False, "sortOrder": 2, "dataElement": _SHARED_GENDER_ELEMENT},
+                ],
+            }
+        ],
+    }
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [loose]}))
+    _mock_option_sets()
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.notes == [
+        "tracker program stage 'Birth' (A03MvHHogjR) has 1 data elements outside its sections; "
+        "emitted after the sectioned ones: Gender (De3aaaaaaaa)"
+    ]
+
+
+@respx.mock
+async def test_a_program_the_target_does_not_map_is_one_note_on_the_sweep(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A whole-instance sweep names the programs whose type neither table maps, and generates the rest."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path)
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(
+        return_value=httpx.Response(200, json={"programs": [*_ALL_PROGRAMS_PAYLOAD["programs"], _UNTYPED_PROGRAM]})
+    )
+    _mock_option_sets()
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.questionnaire_count == 3
     assert [note for note in report.notes if "skipped" in note] == [
-        "1 tracker programs skipped (tracker generation not implemented): Child Programme (IpHINAT79UW)",
+        "1 programs have a programType the questionnaire target does not map; skipped: Legacy programme (Pr9aaaaaaaa)"
     ]
 
 
@@ -870,12 +1062,12 @@ async def test_each_directory_is_swept_against_its_own_files(
 
 
 @respx.mock
-async def test_a_tracker_program_fails_loudly_by_name(
+async def test_a_tracker_program_under_the_event_table_is_refused_by_name(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """A WITH_REGISTRATION program under [generate.event_programs] is refused, naming the program and its type."""
+    """A WITH_REGISTRATION program under [generate.event_programs] is refused, pointing at the table it belongs to."""
     mock_system_info("v42")
     await _scaffold_project(tmp_path, event_programs='"IpHINAT79UW"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
@@ -884,10 +1076,33 @@ async def test_a_tracker_program_fails_loudly_by_name(
     with pytest.raises(UnsupportedProgramError) as raised:
         await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
-    assert "Child Programme" in str(raised.value)
-    assert "IpHINAT79UW" in str(raised.value)
-    assert "WITH_REGISTRATION" in str(raised.value)
-    assert "tracker programs are not implemented yet" in str(raised.value)
+    assert str(raised.value) == (
+        "program 'Child Programme' (IpHINAT79UW) has programType WITH_REGISTRATION; a tracker program is "
+        "selected under [generate.tracker_programs], which emits one Questionnaire per stage"
+    )
+    assert "not implemented" not in str(raised.value)
+
+
+@respx.mock
+async def test_an_event_program_under_the_tracker_table_is_refused_by_name(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A WITHOUT_REGISTRATION program under [generate.tracker_programs] is refused, naming the table it belongs to."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path, tracker_programs='"VBqh0ynB2wv"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
+
+    with pytest.raises(UnsupportedProgramError) as raised:
+        await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert str(raised.value) == (
+        "program 'Malaria case registration' (VBqh0ynB2wv) has programType WITHOUT_REGISTRATION; a "
+        "WITHOUT_REGISTRATION program is selected under [generate.event_programs]"
+    )
+    assert "not implemented" not in str(raised.value)
 
 
 @respx.mock
@@ -1023,8 +1238,9 @@ async def test_generate_all_without_selection_tables_still_emits_questionnaires(
 
     assert data_sets.called
     assert programs.called
-    assert report.questionnaires.questionnaire_count == 3
+    assert report.questionnaires.questionnaire_count == 5
     assert "data-sets/BfMAe6Itzgt.fsh" in report.questionnaires.written_files
+    assert "tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh" in report.questionnaires.written_files
 
 
 def test_target_selection_defaults_to_everything() -> None:
@@ -1032,6 +1248,7 @@ def test_target_selection_defaults_to_everything() -> None:
     assert TargetSelection().include_ids == []
     assert GenerateConfig().data_sets.include_ids == []
     assert GenerateConfig().event_programs.include_ids == []
+    assert GenerateConfig().tracker_programs.include_ids == []
 
 
 def test_generate_questionnaires_cli_renders_the_count(fhir_questionnaire_project: Path) -> None:  # noqa: ARG001
