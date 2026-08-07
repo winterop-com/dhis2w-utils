@@ -25,9 +25,10 @@ def normalize_project_name(ig_id: str) -> str:
 class InitOptions(BaseModel):
     """Parameters for `d2w fhir init` scaffolding.
 
-    `profile` seeds the top-level `profile` key, and `data_set_ids` / `event_program_ids` seed the
-    `[generate.data_sets]` and `[generate.event_programs]` include lists of the scaffolded
-    `fhir.toml`. Scaffolding is offline: the profile name and the UIDs are written as given and
+    `profile` seeds the top-level `profile` key, and `data_set_ids` / `event_program_ids` /
+    `tracker_program_ids` seed the `[generate.data_sets]`, `[generate.event_programs]`, and
+    `[generate.tracker_programs]` include lists of the scaffolded `fhir.toml`. Scaffolding is
+    offline: the profile name and the UIDs are written as given and
     never resolved or checked against an instance. `sushi_timeout` is the `[FSH] timeout` of
     `ig/fsh.ini`, the ceiling the IG publisher gives its internal SUSHI run. `max_level` caps the
     organisation-unit registry, the usual reason an IG is too large to compile inside that ceiling.
@@ -45,6 +46,7 @@ class InitOptions(BaseModel):
     max_level: int | None = None
     data_set_ids: list[str] = Field(default_factory=list)
     event_program_ids: list[str] = Field(default_factory=list)
+    tracker_program_ids: list[str] = Field(default_factory=list)
 
     _normalize_canonical = field_validator("canonical")(strip_trailing_slash)
 

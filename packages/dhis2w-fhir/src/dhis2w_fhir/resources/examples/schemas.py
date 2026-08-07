@@ -43,7 +43,12 @@ class ExampleAnswerIn(BaseModel):
 
 
 class ExampleResponseIn(BaseModel):
-    """One example response: which form it answers, the context it was captured in, and its values."""
+    """One example response: which form it answers, the context it was captured in, and its values.
+
+    `tracked_entity_uid` and `enrollment_uid` are carried exactly by tracker-event responses:
+    a tracker event belongs to one enrollment of one tracked entity, and both UIDs travel onto
+    the response as the subject identifier and the enrollment extension.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -54,4 +59,6 @@ class ExampleResponseIn(BaseModel):
     status_code: str
     period: PeriodValue | None = None
     authored: str | None = None
+    tracked_entity_uid: str | None = None
+    enrollment_uid: str | None = None
     answers: list[ExampleAnswerIn] = Field(default_factory=list)

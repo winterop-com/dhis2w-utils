@@ -67,10 +67,10 @@ class NamingConfig(BaseModel):
 
     Artifact names merge the prefix and kind tokens and underscore the rest
     (`D2` + `OS` + `_BirthType` + `_CS`); ids join the kebab of each non-empty token
-    (`d2-os-birth-type-cs`). `prefix`, `option_set`, `category`, `data_set`, and `program`
-    may be empty to drop them; `organisation_unit` must stay non-empty or the org-unit
-    artifact names would degenerate to bare `_CS`/`_Level_CS`. Future group / group-set
-    artifacts follow the same scheme (`OUG`, `OUGS`).
+    (`d2-os-birth-type-cs`). `prefix`, `option_set`, `category`, `data_set`, `program`, and
+    `program_stage` may be empty to drop them; `organisation_unit` must stay non-empty or the
+    org-unit artifact names would degenerate to bare `_CS`/`_Level_CS`. Future group /
+    group-set artifacts follow the same scheme (`OUG`, `OUGS`).
     """
 
     source: Literal["id", "name"] = "id"
@@ -80,11 +80,12 @@ class NamingConfig(BaseModel):
     organisation_unit: str = "OU"
     data_set: str = "DS"
     program: str = "PR"
+    program_stage: str = "PS"
 
-    @field_validator("prefix", "option_set", "category", "data_set", "program")
+    @field_validator("prefix", "option_set", "category", "data_set", "program", "program_stage")
     @classmethod
     def _optional_token(cls, value: str) -> str:
-        """Prefix, option_set, category, data_set, and program may be empty or a FSH-name-safe token."""
+        """Prefix, option_set, category, data_set, program, and program_stage may be empty or FSH-name-safe."""
         return _validate_fsh_token(value, allow_empty=True)
 
     @field_validator("organisation_unit")
@@ -95,7 +96,12 @@ class NamingConfig(BaseModel):
 
 
 class GenerateConfig(BaseModel):
-    """Generation behaviour - the `[generate]` table of `fhir.toml`."""
+    """Generation behaviour - the `[generate]` table of `fhir.toml`.
+
+    The three data-definition tables select the three questionnaire form kinds: `data_sets`
+    picks aggregate data sets, `event_programs` picks programs without registration, and
+    `tracker_programs` picks programs with registration, one Questionnaire per program stage.
+    """
 
     identifier_system_base: str = "http://dhis2.org/fhir"
     concept_code_source: Literal["id", "code"] = "id"
@@ -106,6 +112,7 @@ class GenerateConfig(BaseModel):
     organisation_units: OrganisationUnitSelection = Field(default_factory=OrganisationUnitSelection)
     data_sets: TargetSelection = Field(default_factory=TargetSelection)
     event_programs: TargetSelection = Field(default_factory=TargetSelection)
+    tracker_programs: TargetSelection = Field(default_factory=TargetSelection)
     examples: ExampleSelection = Field(default_factory=ExampleSelection)
 
     _normalize_identifier_base = field_validator("identifier_system_base")(strip_trailing_slash)

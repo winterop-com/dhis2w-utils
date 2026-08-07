@@ -6,7 +6,14 @@ Title: {{ profile.title_literal }}
 Description: {{ profile.description_literal }}
 * ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
-{% if profile.period_required %}
+{% if profile.tracker_context_required %}
+* extension contains
+    {{ names.organisation_unit_extension }} named {{ names.organisation_unit_extension }} 1..1 and
+    {{ names.tracker_enrollment_extension }} named {{ names.tracker_enrollment_extension }} 1..1 and
+    {{ names.form_type_extension }} named {{ names.form_type_extension }} 1..1
+* extension[{{ names.organisation_unit_extension }}] ^short = "The DHIS2 organisation unit the event was captured at."
+* extension[{{ names.tracker_enrollment_extension }}] ^short = "The DHIS2 tracker enrollment the event belongs to."
+{% elif profile.period_required %}
 * extension contains
     {{ names.period_extension }} named {{ names.period_extension }} 1..1 and
     {{ names.form_type_extension }} named {{ names.form_type_extension }} 1..1
@@ -17,8 +24,17 @@ Description: {{ profile.description_literal }}
 * extension[{{ names.form_type_extension }}] ^short = "The DHIS2 form kind this response answers."
 * extension[{{ names.form_type_extension }}].valueCode = #{{ profile.form_type_code }} (exactly)
 * questionnaire 1..1
+{% if profile.tracker_context_required %}
+* subject 1..1
+* subject only Reference(Patient)
+* subject.identifier 1..1
+* subject.identifier.system 1..1
+* subject.identifier.system = "{{ tracked_entity_system }}" (exactly)
+* subject.identifier.value 1..1
+{% else %}
 * subject 1..1
 * subject only Reference({{ location_profile }})
+{% endif %}
 {% if profile.authored_required %}
 * authored 1..1
 {% endif %}

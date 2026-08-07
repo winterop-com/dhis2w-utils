@@ -9965,6 +9965,7 @@ $ d2w fhir init [OPTIONS] [directory]
 * `--max-level <int>`: Deepest organisation-unit level to generate, seeding `[generate.organisation_units]` max_level. Every unit emits two instances and a hierarchy fans out at the bottom, so this is the dial that bounds how many resources the IG publisher renders. Offline: the level is written to fhir.toml as given, never checked against an instance.
 * `--data-set <str>`: Data set UID to seed `[generate.data_sets]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--event <str>`: Event program UID to seed `[generate.event_programs]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
+* `--tracker-program <str>`: Tracker program UID to seed `[generate.tracker_programs]` include_ids with (repeatable); the program emits one Questionnaire per program stage. Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--force`: Overwrite scaffold files that already exist.
 * `--refresh`: Bring an existing project&#x27;s scaffold-managed files up to date. Identity comes from the project&#x27;s own fhir.toml, which a refresh never writes, and a file carrying a line the scaffold would not produce is left alone and reported, so your edits survive. Rejects --force.
 * `--help`: Show this message and exit.
@@ -10007,7 +10008,7 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 * `foundation`: Generate the DHIS2 identifier aliases, the...
 * `option-sets`: Generate CodeSystem/ValueSet JSON from...
 * `categories`: Generate CodeSystem/ValueSet JSON from...
-* `questionnaires`: Generate Questionnaire FSH from the...
+* `questionnaires`: Generate Questionnaire FSH into...
 * `examples`: Generate example QuestionnaireResponses...
 * `org-units`: Generate Organization/Location FSH from...
 * `pages`: Generate the narrative site pages and the...
@@ -10057,7 +10058,10 @@ $ d2w fhir generate categories [OPTIONS]
 
 #### `d2w fhir generate questionnaires`
 
-Generate Questionnaire FSH from the configured DHIS2 data sets and event programs.
+Generate Questionnaire FSH into data-sets/, event-programs/, tracker-programs/, and data-dictionary/.
+
+A data set and an event program are one Questionnaire each; a tracker program is one
+Questionnaire per program stage, filed under the UID of the program it belongs to.
 
 **Usage**:
 
@@ -10071,7 +10075,7 @@ $ d2w fhir generate questionnaires [OPTIONS]
 
 #### `d2w fhir generate examples`
 
-Generate example QuestionnaireResponses for the configured data sets and event programs.
+Generate example QuestionnaireResponses for every configured data set, event program, and tracker stage.
 
 **Usage**:
 
@@ -10114,6 +10118,9 @@ $ d2w fhir generate pages [OPTIONS]
 #### `d2w fhir generate all`
 
 Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages.
+
+The questionnaire pass covers all four directories: data-sets/, event-programs/,
+tracker-programs/ (one file per stage, under its program&#x27;s UID), and data-dictionary/.
 
 **Usage**:
 

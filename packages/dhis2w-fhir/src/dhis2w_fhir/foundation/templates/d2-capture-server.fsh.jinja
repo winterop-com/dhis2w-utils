@@ -17,8 +17,9 @@ Usage: #definition
 * rest.documentation = "{{ rest_documentation }}"
 * rest.resource[+].type = #QuestionnaireResponse
 * rest.resource[=].interaction[+].code = #create
-* rest.resource[=].supportedProfile[+] = Canonical({{ names.aggregate_response_profile }})
-* rest.resource[=].supportedProfile[+] = Canonical({{ names.event_response_profile }})
+{% for profile in profiles %}
+* rest.resource[=].supportedProfile[+] = Canonical({{ profile.name }})
+{% endfor %}
 {% for resource_type in read_resource_types %}
 * rest.resource[+].type = #{{ resource_type }}
 * rest.resource[=].interaction[+].code = #read

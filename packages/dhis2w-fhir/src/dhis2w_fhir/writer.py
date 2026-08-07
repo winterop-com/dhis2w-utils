@@ -96,8 +96,21 @@ def is_generated_file(path: Path) -> bool:
 
 
 def _swept_files(directory: Path) -> list[Path]:
-    """Every file in `directory` a sweep may delete, by extension, in a stable order."""
+    """Every file directly in `directory` a sweep may delete, by extension, in a stable order."""
     return sorted(path for pattern in _SWEPT_PATTERNS for path in directory.glob(pattern))
+
+
+def _swept_tree(directory: Path) -> list[Path]:
+    """Every file under `directory` at any depth a sweep may delete, by extension, in a stable order."""
+    return sorted(path for pattern in _SWEPT_PATTERNS for path in directory.rglob(pattern))
+
+
+def _prune_empty_directories(directory: Path) -> None:
+    """Remove every subdirectory left empty under `directory`, deepest first; `directory` itself always stays."""
+    subdirectories = [path for path in directory.rglob("*") if path.is_dir()]
+    for path in sorted(subdirectories, key=lambda item: len(item.parts), reverse=True):
+        if not any(path.iterdir()):
+            path.rmdir()
 
 
 def clean_generated_files(directory: Path) -> list[str]:
@@ -124,12 +137,20 @@ def write_artifacts(base_directory: Path, artifacts: list[FshArtifact]) -> list[
 
 
 def sync_artifacts(base_directory: Path, target_subdirectory: str, artifacts: list[FshArtifact]) -> SyncReport:
-    """Write changed/new artifacts and delete stale generated files under one target subdirectory."""
+    """Write changed/new artifacts and delete stale generated files anywhere under one target subdirectory.
+
+    A target that nests - `tracker-programs/<program uid>/<stage uid>.fsh` - is swept to the
+    bottom, so a stage the selection dropped is deleted wherever it sits, and the produced set
+    is keyed by path rather than by name so two programs may hold same-named files. Only
+    header-bearing files are deleted, so a hand-authored file at any depth survives. A
+    subdirectory the sweep empties is removed with it; the target directory itself stays.
+    Deleted entries are reported as paths relative to the target.
+    """
     report = SyncReport()
     produced: set[str] = set()
     for artifact in sorted(artifacts, key=lambda item: item.relative_path):
         destination = base_directory / artifact.relative_path
-        produced.add(destination.name)
+        produced.add(destination.relative_to(base_directory).as_posix())
         content = _headed_content(artifact)
         if destination.exists() and destination.read_text(encoding="utf-8") == content:
             report.unchanged.append(artifact.relative_path)
@@ -139,12 +160,13 @@ def sync_artifacts(base_directory: Path, target_subdirectory: str, artifacts: li
         report.written.append(artifact.relative_path)
     target = base_directory / target_subdirectory
     if target.is_dir():
-        for path in _swept_files(target):
-            if path.name in produced:
+        for path in _swept_tree(target):
+            if path.relative_to(base_directory).as_posix() in produced:
                 continue
             if is_generated_file(path):
                 path.unlink()
-                report.deleted.append(path.name)
+                report.deleted.append(path.relative_to(target).as_posix())
+        _prune_empty_directories(target)
     return report
 
 

@@ -132,11 +132,13 @@ from dhis2w_fhir.resources.questionnaires import (
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
+    ProgramContextIn,
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
     TargetSelection,
+    source_display_name,
 )
 from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import (
@@ -252,6 +254,7 @@ __all__ = [
     "PagesIn",
     "PeriodTypeDefinition",
     "PeriodValue",
+    "ProgramContextIn",
     "QuestionnaireItemIn",
     "QuestionnaireNaming",
     "QuestionnaireSectionIn",
@@ -313,6 +316,7 @@ __all__ = [
     "render_validation_pdf",
     "resolve_attribute_code_index",
     "response_status_code",
+    "source_display_name",
     "sync_artifacts",
     "sync_json_artifacts",
     "write_artifacts",

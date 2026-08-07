@@ -20,6 +20,7 @@ Orchestration:
 
 from __future__ import annotations
 
+from .anc_program import seed_anc_program
 from .event_program import build_event_program
 from .fhir_attributes import seed_fhir_attributes
 from .fhir_variations import seed_fhir_variations
@@ -59,6 +60,7 @@ __all__ = [
     "import_post_viz_metadata",
     "import_tracker",
     "load_metadata",
+    "seed_anc_program",
     "seed_fhir_attributes",
     "seed_fhir_variations",
     "seed_play",

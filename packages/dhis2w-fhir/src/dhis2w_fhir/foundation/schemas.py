@@ -15,16 +15,20 @@ _DEFINITION_FALLBACK_PREFIX = "D2"
 
 
 class IdentifierSystemSubject(BaseModel):
-    """One DHIS2 object kind whose UID and code each get an identifier system."""
+    """One DHIS2 object kind whose UID, and optionally whose code, gets an identifier system."""
 
     model_config = ConfigDict(frozen=True)
 
     segment: str
     token: str
     label: str
+    has_code: bool = True
+    """Whether the DHIS2 object carries a `code` attribute; a subject without one declares only the UID system."""
 
 
-#: The object kinds that carry a DHIS2 identifier system today; each yields a UID and a code system.
+#: The object kinds that carry a DHIS2 identifier system. A metadata object yields both a UID system
+#: and a code system; a data object (a tracked entity, an enrollment) carries no code and declares the
+#: UID system alone.
 IDENTIFIER_SYSTEM_SUBJECTS = (
     IdentifierSystemSubject(segment="org-unit", token="OrgUnit", label="organisation unit"),
     IdentifierSystemSubject(segment="option-set", token="OptionSet", label="option set"),
@@ -34,6 +38,11 @@ IDENTIFIER_SYSTEM_SUBJECTS = (
     IdentifierSystemSubject(segment="data-element", token="DataElement", label="data element"),
     IdentifierSystemSubject(
         segment="category-option-combo", token="CategoryOptionCombo", label="category option combo"
+    ),
+    IdentifierSystemSubject(segment="program-stage", token="ProgramStage", label="program stage"),
+    IdentifierSystemSubject(segment="tracked-entity", token="TrackedEntity", label="tracked entity", has_code=False),
+    IdentifierSystemSubject(
+        segment="tracker-enrollment", token="TrackerEnrollment", label="tracker enrollment", has_code=False
     ),
 )
 
@@ -61,8 +70,11 @@ class ResponseProfileDeclaration(BaseModel):
     """One QuestionnaireResponse profile as the responses template renders it.
 
     `period_required` marks the aggregate contract, whose response reports for a DHIS2
-    reporting period; `authored_required` marks the event contract, whose response reports
-    the moment the event occurred. The two flags are what the shared template branches on.
+    reporting period; `authored_required` marks the contracts whose response reports the moment
+    the data was captured; `tracker_context_required` marks the tracker-event contract, whose
+    response carries the tracker enrollment it belongs to, the organisation unit the event was
+    captured at, and a Patient subject identified by tracked-entity UID. The flags are what the
+    shared template branches on.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -74,6 +86,7 @@ class ResponseProfileDeclaration(BaseModel):
     description: str
     period_required: bool = False
     authored_required: bool = False
+    tracker_context_required: bool = False
 
     @property
     def title_literal(self) -> str:
@@ -200,6 +213,26 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "attribute", "value")
 
     @property
+    def organisation_unit_extension(self) -> str:
+        """FSH name of the organisation-unit Extension (e.g. `D2OrganisationUnit`)."""
+        return f"{self.definition_prefix}OrganisationUnit"
+
+    @property
+    def organisation_unit_extension_id(self) -> str:
+        """FHIR id of the organisation-unit Extension (e.g. `d2-organisation-unit`)."""
+        return join_id_tokens(self.definition_prefix, "organisation", "unit")
+
+    @property
+    def tracker_enrollment_extension(self) -> str:
+        """FSH name of the tracker-enrollment Extension (e.g. `D2TrackerEnrollment`)."""
+        return f"{self.definition_prefix}TrackerEnrollment"
+
+    @property
+    def tracker_enrollment_extension_id(self) -> str:
+        """FHIR id of the tracker-enrollment Extension (e.g. `d2-tracker-enrollment`)."""
+        return join_id_tokens(self.definition_prefix, "tracker", "enrollment")
+
+    @property
     def aggregate_response_profile(self) -> str:
         """FSH name of the aggregate QuestionnaireResponse profile (e.g. `D2AggregateResponse`)."""
         return f"{self.definition_prefix}AggregateResponse"
@@ -218,6 +251,16 @@ class FoundationNaming(BaseModel):
     def event_response_profile_id(self) -> str:
         """FHIR id of the event QuestionnaireResponse profile (e.g. `d2-event-response`)."""
         return join_id_tokens(self.definition_prefix, "event", "response")
+
+    @property
+    def tracker_event_response_profile(self) -> str:
+        """FSH name of the tracker-event QuestionnaireResponse profile (e.g. `D2TrackerEventResponse`)."""
+        return f"{self.definition_prefix}TrackerEventResponse"
+
+    @property
+    def tracker_event_response_profile_id(self) -> str:
+        """FHIR id of the tracker-event QuestionnaireResponse profile (e.g. `d2-tracker-event-response`)."""
+        return join_id_tokens(self.definition_prefix, "tracker", "event", "response")
 
     @property
     def capture_server(self) -> str:

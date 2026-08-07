@@ -1,22 +1,25 @@
-"""FSH emission for DHIS2 data sets and event programs: one Questionnaire instance per target.
+"""FSH emission for DHIS2 data sets, event programs, and tracker program stages: one Questionnaire per form.
 
-A data set or an event program IS a data-capture form, so it maps onto a
-`Questionnaire`: sections become `#group` items, data elements become
-questions typed from their DHIS2 `valueType`, option-set-bound elements
-become `#choice` items answered from the option-set ValueSet, and a data
-element disaggregated by a non-default category combo becomes a group with
-one child question per category option combo.
+A data set, an event program, or one stage of a tracker program IS a
+data-capture form, so it maps onto a `Questionnaire`: sections become `#group`
+items, data elements become questions typed from their DHIS2 `valueType`,
+option-set-bound elements become `#choice` items answered from the option-set
+ValueSet, and a data element disaggregated by a non-default category combo
+becomes a group with one child question per category option combo.
 
 Every instance is `Usage: #definition` with the bare UID as its `id`, carries
 both DHIS2 identifiers, and states which kind of DHIS2 form it came from
-twice: through the `D2FormType` extension and as `Questionnaire.code`.
+twice: through the `D2FormType` extension and as `Questionnaire.code`. A
+tracker program stage carries a third, grouping identifier naming the program
+it belongs to, so one search selects every stage of that program.
 
 The output splits by what it describes: `data-sets/<uid>.fsh`,
-`event-programs/<uid>.fsh`, and `data-dictionary/` for the two support
-CodeSystem/ValueSet pairs both form kinds share - one over every data element
-they reference, one over every category option combo. The support pairs live
-under this target's own directories, so the option-set terminology target's
-cleanup can never delete them.
+`event-programs/<uid>.fsh`, `tracker-programs/<program uid>/<stage uid>.fsh`,
+and `data-dictionary/` for the two support CodeSystem/ValueSet pairs every form
+kind shares - one over every data element they reference, one over every
+category option combo. The support pairs live under this target's own
+directories, so the option-set terminology target's cleanup can never delete
+them.
 """
 
 from __future__ import annotations
@@ -38,10 +41,13 @@ from dhis2w_fhir.resources.option_sets import option_set_identity_index
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryOptionComboIn,
+    FormKind,
     NumericBounds,
+    ProgramContextIn,
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
+    source_display_name,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, FshBuild
@@ -61,6 +67,7 @@ __all__ = [
     "MAXIMUM_VALUE_EXTENSION_URL",
     "MINIMUM_VALUE_EXTENSION_URL",
     "QUESTIONNAIRE_DIRECTORIES",
+    "TRACKER_PROGRAM_DIRECTORY",
     "NumericBounds",
     "build_questionnaire_artifacts",
     "domain_code",
@@ -73,11 +80,19 @@ DATA_SET_DIRECTORY = "data-sets"
 #: Sync directory holding one Questionnaire per DHIS2 event program.
 EVENT_PROGRAM_DIRECTORY = "event-programs"
 
-#: Sync directory holding the support terminology both form kinds share.
+#: Sync directory holding one Questionnaire per tracker program stage, nested under its program's UID.
+TRACKER_PROGRAM_DIRECTORY = "tracker-programs"
+
+#: Sync directory holding the support terminology every form kind shares.
 DATA_DICTIONARY_DIRECTORY = "data-dictionary"
 
-#: The three sync directories the questionnaire target owns, in report order.
-QUESTIONNAIRE_DIRECTORIES = (DATA_SET_DIRECTORY, EVENT_PROGRAM_DIRECTORY, DATA_DICTIONARY_DIRECTORY)
+#: The four sync directories the questionnaire target owns, in report order.
+QUESTIONNAIRE_DIRECTORIES = (
+    DATA_SET_DIRECTORY,
+    EVENT_PROGRAM_DIRECTORY,
+    TRACKER_PROGRAM_DIRECTORY,
+    DATA_DICTIONARY_DIRECTORY,
+)
 
 #: The standard R4 extension declaring how a Questionnaire item is rendered.
 ITEM_CONTROL_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl"
@@ -139,8 +154,8 @@ ITEM_TYPES_BY_VALUE_TYPE = {
     # `[lon,lat]` string, which no R4 item type expresses.
     "GEOJSON": "text",
     "COORDINATE": "string",
-    # References. Only the organisation unit resolves to a FHIR resource today; the two
-    # tracker-phase oddities carry a bare UID until tracker generation lands.
+    # References. Only the organisation unit resolves to a FHIR resource; the other two
+    # carry a bare UID - this guide publishes no FHIR resource for the referenced object.
     "ORGANISATION_UNIT": "reference",
     "REFERENCE": "string",
     "TRACKER_ASSOCIATE": "string",
@@ -172,23 +187,42 @@ _DEFAULT_ITEM_TYPE = "string"
 _MULTI_VALUE_TYPE = "MULTI_TEXT"
 
 
+#: The alias a tracker program stage's grouping identifier names its program under.
+_PROGRAM_IDENTIFIER_SYSTEM = "$DHIS2-PROGRAM"
+
+
 class _FormKindProfile(BaseModel):
-    """What one form kind contributes to its Questionnaire: identifier systems and prose label."""
+    """What one form kind contributes to its Questionnaire: identifier systems, subject type, and prose label."""
 
     model_config = ConfigDict(frozen=True)
 
     identifier_system: str
     identifier_code_system: str
+    subject_type: str
     label: str
 
 
-#: The DHIS2 identifier systems and prose label each form kind carries.
+#: The DHIS2 identifier systems, subject type, and prose label each form kind carries. An aggregate
+#: or event form is reported for an organisation unit, while a tracker program stage captures one
+#: enrolled person's visit, so the subject of the stage form is the patient.
 _PROFILES_BY_KIND = {
     "aggregate": _FormKindProfile(
-        identifier_system="$DHIS2-DS", identifier_code_system="$DHIS2-DS-CODE", label="data set"
+        identifier_system="$DHIS2-DS",
+        identifier_code_system="$DHIS2-DS-CODE",
+        subject_type="Location",
+        label="data set",
     ),
     "event": _FormKindProfile(
-        identifier_system="$DHIS2-PROGRAM", identifier_code_system="$DHIS2-PROGRAM-CODE", label="event program"
+        identifier_system="$DHIS2-PROGRAM",
+        identifier_code_system="$DHIS2-PROGRAM-CODE",
+        subject_type="Location",
+        label="event program",
+    ),
+    "tracker-event": _FormKindProfile(
+        identifier_system="$DHIS2-PS",
+        identifier_code_system="$DHIS2-PS-CODE",
+        subject_type="Patient",
+        label="tracker program stage",
     ),
 }
 
@@ -235,6 +269,15 @@ class _AttributeValueView(BaseModel):
     value_literal: str
 
 
+class _GroupingIdentifierView(BaseModel):
+    """One identifier that groups a Questionnaire under a parent object, as its FSH system and value literal."""
+
+    model_config = ConfigDict(frozen=True)
+
+    system: str
+    value_literal: str
+
+
 class _QuestionnaireView(BaseModel):
     """Everything the Questionnaire template needs for one source, every conditional resolved."""
 
@@ -246,9 +289,11 @@ class _QuestionnaireView(BaseModel):
     title_literal: str
     title_element_literal: str
     description_literal: str
+    subject_type: str
     identifier_system: str
     identifier_code_system: str
     identifier_code_literal: str
+    grouping_identifier: _GroupingIdentifierView | None = None
     form_type_extension: str
     form_type_code_system: str
     form_type_code: str
@@ -331,7 +376,7 @@ def build_questionnaire_artifacts(
         )
         build.artifacts.append(
             FshArtifact(
-                relative_path=f"{_source_directory(source)}/{source.uid}.fsh",
+                relative_path=_source_relative_path(source),
                 kind="instances",
                 fsh_name=f"Questionnaire-{source.uid}",
                 content=template.render(
@@ -369,9 +414,34 @@ def _source_items(source: QuestionnaireSourceIn) -> list[QuestionnaireItemIn]:
     return [item for section in source.sections for item in section.items] + list(source.flat_items)
 
 
+#: The sync directory each form kind is written to.
+_DIRECTORIES_BY_KIND = {
+    "aggregate": DATA_SET_DIRECTORY,
+    "event": EVENT_PROGRAM_DIRECTORY,
+    "tracker-event": TRACKER_PROGRAM_DIRECTORY,
+}
+
+
 def _source_directory(source: QuestionnaireSourceIn) -> str:
     """The sync directory one form kind is written to."""
-    return DATA_SET_DIRECTORY if source.kind == "aggregate" else EVENT_PROGRAM_DIRECTORY
+    return _DIRECTORIES_BY_KIND[source.kind]
+
+
+def _source_relative_path(source: QuestionnaireSourceIn) -> str:
+    """The file one form is written to, a tracker program stage nested under the UID of its program."""
+    if source.kind != "tracker-event":
+        return f"{_source_directory(source)}/{source.uid}.fsh"
+    return f"{TRACKER_PROGRAM_DIRECTORY}/{_source_program(source).uid}/{source.uid}.fsh"
+
+
+def _source_program(source: QuestionnaireSourceIn) -> ProgramContextIn:
+    """The program a tracker program stage belongs to, refusing a stage that arrived without one."""
+    if source.program is None:
+        raise ValueError(
+            f"tracker-event source {source.uid} carries no program context: a program stage is named, "
+            "grouped, and filed under the tracker program it belongs to"
+        )
+    return source.program
 
 
 def _questionnaire_view(
@@ -386,16 +456,19 @@ def _questionnaire_view(
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders."""
     profile = _PROFILES_BY_KIND[source.kind]
+    display_name = source_display_name(source)
     return _QuestionnaireView(
         uid=source.uid,
         name=names.questionnaire_name(source.kind, source.uid),
         url=f"{canonical}/Questionnaire/{source.uid}",
-        title_literal=page_text(f"Questionnaire - {source.name}"),
-        title_element_literal=quote(source.name),
-        description_literal=page_text(f"DHIS2 {profile.label} {source.name} ({source.uid}) as a data capture form."),
+        title_literal=page_text(f"Questionnaire - {display_name}"),
+        title_element_literal=quote(display_name),
+        description_literal=page_text(_source_description(source, profile)),
+        subject_type=profile.subject_type,
         identifier_system=profile.identifier_system,
         identifier_code_system=profile.identifier_code_system,
         identifier_code_literal=quote(code_or_uid(source.code, source.uid)),
+        grouping_identifier=_grouping_identifier(source),
         form_type_extension=foundation.form_type_extension,
         form_type_code_system=foundation.form_type_code_system,
         form_type_code=source.kind,
@@ -404,6 +477,26 @@ def _questionnaire_view(
         attribute_values=_attribute_value_views(source.attribute_values, attribute_codes),
         items=_item_views(source, names, identities),
     )
+
+
+def _source_description(source: QuestionnaireSourceIn, profile: _FormKindProfile) -> str:
+    """The prose one form's Questionnaire describes itself with, a program stage naming its program too."""
+    opening = f"DHIS2 {profile.label} {source.name} ({source.uid})"
+    if source.kind != "tracker-event":
+        return f"{opening} as a data capture form."
+    program = _source_program(source)
+    return f"{opening} of program {program.name} ({program.uid}) as a data capture form."
+
+
+def _grouping_identifier(source: QuestionnaireSourceIn) -> _GroupingIdentifierView | None:
+    """The identifier grouping one form under a parent object - a program stage's program, and only that.
+
+    Searching `Questionnaire?identifier={base}/id/program|<program uid>` selects every stage of
+    one tracker program, which is how a client fetches the whole program's data capture surface.
+    """
+    if source.kind != "tracker-event":
+        return None
+    return _GroupingIdentifierView(system=_PROGRAM_IDENTIFIER_SYSTEM, value_literal=quote(_source_program(source).uid))
 
 
 def _attribute_value_views(
@@ -436,24 +529,29 @@ def _item_views(
                 link_id=section.uid,
                 text_literal=quote(section.name),
                 type_code="group",
-                item_control=any(_is_disaggregated(item) for item in section.items),
+                item_control=any(_is_disaggregated(item, source.kind) for item in section.items),
             )
         )
         for item in section.items:
-            views.extend(_data_element_views(item, names, identities, depth=1))
+            views.extend(_data_element_views(item, names, identities, depth=1, kind=source.kind))
     for item in source.flat_items:
-        views.extend(_data_element_views(item, names, identities, depth=0))
+        views.extend(_data_element_views(item, names, identities, depth=0, kind=source.kind))
     return views
 
 
 def _data_element_views(
-    item: QuestionnaireItemIn, names: QuestionnaireNaming, identities: dict[str, OptionSetIdentity], depth: int
+    item: QuestionnaireItemIn,
+    names: QuestionnaireNaming,
+    identities: dict[str, OptionSetIdentity],
+    depth: int,
+    kind: FormKind,
 ) -> list[_ItemView]:
     """Build one data element's item lines: a question, or a group with one child per option combo.
 
     A disaggregated cell asks the very question its data element does, one category option combo
     at a time, so every child takes the element's effective item type, its answer binding, and
-    its repeats - only the `linkId`, the text, and the code differ.
+    its repeats - only the `linkId`, the text, and the code differ. Only an aggregate source
+    disaggregates; see `_is_disaggregated` for why event-kind questions stay flat.
     """
     code_token = f"{names.data_element_code_system}#{item.uid} {quote(item.name)}"
     text_literal = quote(item.form_name or item.name)
@@ -461,7 +559,7 @@ def _data_element_views(
     answer_value_set = _answer_value_set(item, identities)
     repeats = is_multi_valued(item.value_type, item_type)
     bounds = _bound_views(item.value_type, item_type)
-    if not _is_disaggregated(item):
+    if not _is_disaggregated(item, kind):
         return [
             _ItemView(
                 new_path=_new_path(depth),
@@ -521,8 +619,17 @@ def _bound_views(value_type: str, item_type: str) -> list[_BoundView]:
     return views
 
 
-def _is_disaggregated(item: QuestionnaireItemIn) -> bool:
-    """Check whether a data element carries a real (non-default) category combo."""
+def _is_disaggregated(item: QuestionnaireItemIn, kind: FormKind) -> bool:
+    """Check whether a question splits into per-option-combo cells - an aggregate-only shape.
+
+    A data set's values land on `/api/dataValueSets`, where every value carries a category
+    option combo, so a non-default combo becomes one cell per combo. An event data value -
+    event program and tracker stage alike - has no categoryOptionCombo slot on the wire, so
+    an event-kind question stays flat whatever combo its data element declares: a form must
+    not ask a question the capture endpoint cannot accept an answer to.
+    """
+    if kind != "aggregate":
+        return False
     return item.category_combo is not None and not item.category_combo.is_default
 
 
@@ -578,7 +685,7 @@ def _collect_referenced_objects(
     """Record every data element and category option combo one source's items reference."""
     for item in _source_items(source):
         data_elements.setdefault(item.uid, item)
-        if not _is_disaggregated(item) or item.category_combo is None:
+        if not _is_disaggregated(item, source.kind) or item.category_combo is None:
             continue
         for option_combo in item.category_combo.option_combos:
             option_combos.setdefault(option_combo.uid, option_combo)

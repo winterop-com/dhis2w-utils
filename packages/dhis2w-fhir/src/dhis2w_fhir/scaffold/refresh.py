@@ -62,6 +62,7 @@ def read_project_scaffold_state(directory: Path) -> ProjectScaffoldState:
         max_level=config.generate.organisation_units.max_level,
         data_set_ids=list(config.generate.data_sets.include_ids),
         event_program_ids=list(config.generate.event_programs.include_ids),
+        tracker_program_ids=list(config.generate.tracker_programs.include_ids),
     )
     year = int(copyright_year.group(1)) if copyright_year else datetime.now(tz=UTC).year
     return ProjectScaffoldState(options=options, copyright_year=year)

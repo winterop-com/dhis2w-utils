@@ -26,10 +26,12 @@ from dhis2w_fhir.resources.questionnaires import BOUNDS_BY_VALUE_TYPE, ITEM_TYPE
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
+    ProgramContextIn,
     QuestionnaireItemIn,
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
     TargetSelection,
+    source_display_name,
 )
 from dhis2w_fhir.status import IgStatus
 from typer.testing import CliRunner
@@ -88,6 +90,41 @@ _EVENT_PROGRAM = QuestionnaireSourceIn(
             category_combo=_DEFAULT_COMBO,
         )
     ],
+)
+
+_CHILD_PROGRAMME = ProgramContextIn(uid="IpHINAT79UW", name="Child Programme")
+
+_BIRTH_STAGE = QuestionnaireSourceIn(
+    uid="A03MvHHogjR",
+    name="Birth",
+    code="PS_BIRTH",
+    kind="tracker-event",
+    program=_CHILD_PROGRAMME,
+    sections=[
+        QuestionnaireSectionIn(
+            uid="Sec3aaaaaaa",
+            name="Delivery",
+            items=[
+                QuestionnaireItemIn(
+                    uid="a3kGcGDCuk6",
+                    name="Apgar Score",
+                    form_name="Apgar",
+                    value_type="INTEGER_ZERO_OR_POSITIVE",
+                    compulsory=True,
+                    category_combo=_DEFAULT_COMBO,
+                ),
+                _GENDER,
+            ],
+        )
+    ],
+)
+
+_POSTNATAL_STAGE = QuestionnaireSourceIn(
+    uid="ZzYYXq4fJie",
+    name="Baby Postnatal",
+    kind="tracker-event",
+    program=_CHILD_PROGRAMME,
+    flat_items=[_GENDER],
 )
 
 _DATA_SETS_PAYLOAD = {
@@ -168,12 +205,69 @@ _SECOND_DATA_SET = {
     "dataSetElements": [{"dataElement": {"id": "De5aaaaaaaa", "name": "ANC 1st visit", "valueType": "INTEGER"}}],
 }
 
+#: The Gender data element, which both stages of the tracker program below capture.
+_SHARED_GENDER_ELEMENT = {
+    "id": "De3aaaaaaaa",
+    "name": "Gender",
+    "valueType": "TEXT",
+    "optionSet": {"id": "Os1aaaaaaaa"},
+}
+
+#: A two-stage tracker program whose wire order is deliberately not its DHIS2 sort order, at both
+#: grains: the stages arrive Baby Postnatal (sortOrder 2) first, and Baby Postnatal's questions
+#: arrive Gender (sortOrder 2) first. Both stages capture Gender, so the data dictionary joins them.
 _TRACKER_PROGRAM = {
     "id": "IpHINAT79UW",
     "name": "Child Programme",
     "programType": "WITH_REGISTRATION",
-    "programStages": [{"id": "A03MvHHogjR", "programStageDataElements": []}],
+    "programStages": [
+        {
+            "id": "ZzYYXq4fJie",
+            "name": "Baby Postnatal",
+            "sortOrder": 2,
+            "programStageSections": [],
+            "programStageDataElements": [
+                {"compulsory": False, "sortOrder": 2, "dataElement": _SHARED_GENDER_ELEMENT},
+                {
+                    "compulsory": False,
+                    "sortOrder": 1,
+                    "dataElement": {"id": "De4aaaaaaaa", "name": "Weight in kg", "valueType": "NUMBER"},
+                },
+            ],
+        },
+        {
+            "id": "A03MvHHogjR",
+            "name": "Birth",
+            "code": "PS_BIRTH",
+            "description": "The birth visit.",
+            "sortOrder": 1,
+            "attributeValues": [{"attribute": {"id": "At1aaaaaaaa"}, "value": "birth"}],
+            "programStageSections": [
+                {
+                    "id": "Sec3aaaaaaa",
+                    "name": "Delivery",
+                    "dataElements": [{"id": "a3kGcGDCuk6"}, {"id": "De3aaaaaaaa"}],
+                }
+            ],
+            "programStageDataElements": [
+                {"compulsory": False, "sortOrder": 2, "dataElement": _SHARED_GENDER_ELEMENT},
+                {
+                    "compulsory": True,
+                    "sortOrder": 1,
+                    "dataElement": {
+                        "id": "a3kGcGDCuk6",
+                        "name": "Apgar Score",
+                        "formName": "Apgar",
+                        "valueType": "INTEGER_ZERO_OR_POSITIVE",
+                    },
+                },
+            ],
+        },
+    ],
 }
+
+#: One program the instance answered no programType for - neither selection table maps it, so the sweep skips it.
+_UNTYPED_PROGRAM = {"id": "Pr9aaaaaaaa", "name": "Legacy programme", "programStages": []}
 
 #: The whole instance as the all-mode sweep sees it: two data sets, an event program, and a tracker program.
 _ALL_DATA_SETS_PAYLOAD = {"dataSets": [*_DATA_SETS_PAYLOAD["dataSets"], _SECOND_DATA_SET]}
@@ -275,15 +369,101 @@ def test_event_program_questionnaire_identity() -> None:
     assert '* identifier[=].value = "VBqh0ynB2wv"' in content
 
 
+def test_event_program_questionnaire_is_captured_for_a_location() -> None:
+    """An event program is reported for an organisation unit, so its form takes the Location subject type."""
+    assert "* subjectType = #Location" in _artifacts([_EVENT_PROGRAM])["event-programs/VBqh0ynB2wv.fsh"]
+
+
+def test_tracker_program_stage_is_filed_under_its_program() -> None:
+    """One stage is one Questionnaire, written under the UID of the tracker program it belongs to."""
+    artifacts = _artifacts([_BIRTH_STAGE, _POSTNATAL_STAGE])
+    assert "tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh" in artifacts
+    assert "tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh" in artifacts
+
+
+def test_tracker_program_stage_questionnaire_identity() -> None:
+    """A stage is keyed by its own UID, named under the PS token, and captured for a patient."""
+    content = _artifacts([_BIRTH_STAGE])["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert "Instance: Questionnaire-A03MvHHogjR" in content
+    assert "InstanceOf: Questionnaire" in content
+    assert "Usage: #definition" in content
+    assert '* id = "A03MvHHogjR"' in content
+    assert '* url = "http://example.org/fhir/Questionnaire/A03MvHHogjR"' in content
+    assert '* name = "D2PS_A03MvHHogjR"' in content
+    assert "* subjectType = #Patient" in content
+
+
+def test_tracker_program_stage_carries_three_identifiers() -> None:
+    """The stage UID, the stage code, and the program UID that groups every stage of one program."""
+    content = _artifacts([_BIRTH_STAGE])["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert '* identifier[+].system = $DHIS2-PS\n* identifier[=].value = "A03MvHHogjR"' in content
+    assert '* identifier[+].system = $DHIS2-PS-CODE\n* identifier[=].value = "PS_BIRTH"' in content
+    assert '* identifier[+].system = $DHIS2-PROGRAM\n* identifier[=].value = "IpHINAT79UW"' in content
+
+
+def test_a_stage_without_a_dhis2_code_repeats_its_uid_in_the_code_identifier() -> None:
+    """The code slot is never empty, so an uncoded stage states its UID there as every other form does."""
+    content = _artifacts([_POSTNATAL_STAGE])["tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh"]
+    assert '* identifier[+].system = $DHIS2-PS-CODE\n* identifier[=].value = "ZzYYXq4fJie"' in content
+
+
+def test_tracker_program_stage_title_and_description_carry_both_identities() -> None:
+    """A stage name means little alone, so the title and the description name the program too."""
+    content = _artifacts([_BIRTH_STAGE])["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert 'Title: "Questionnaire - Child Programme - Birth"' in content
+    assert '* title = "Child Programme - Birth"' in content
+    assert (
+        'Description: "DHIS2 tracker program stage Birth (A03MvHHogjR) of program '
+        'Child Programme (IpHINAT79UW) as a data capture form."' in content
+    )
+
+
+def test_the_display_name_of_a_form_without_a_program_is_its_own_name() -> None:
+    """Only a program stage carries two identities; a data set or an event program is shown under its name."""
+    assert source_display_name(_DATA_SET) == "Child Health"
+    assert source_display_name(_BIRTH_STAGE) == "Child Programme - Birth"
+
+
 def test_form_type_is_carried_by_extension_and_code() -> None:
-    """Both kinds state where they came from twice: the D2FormType extension and Questionnaire.code."""
-    artifacts = _artifacts([_DATA_SET, _EVENT_PROGRAM])
+    """Every kind states where it came from twice: the D2FormType extension and Questionnaire.code."""
+    artifacts = _artifacts([_DATA_SET, _EVENT_PROGRAM, _BIRTH_STAGE])
     aggregate = artifacts["data-sets/BfMAe6Itzgt.fsh"]
     event = artifacts["event-programs/VBqh0ynB2wv.fsh"]
+    stage = artifacts["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
     assert "* extension[D2FormType].valueCode = #aggregate" in aggregate
     assert "* code = D2FormType_CS#aggregate" in aggregate
     assert "* extension[D2FormType].valueCode = #event" in event
     assert "* code = D2FormType_CS#event" in event
+    assert "* extension[D2FormType].valueCode = #tracker-event" in stage
+    assert "* code = D2FormType_CS#tracker-event" in stage
+
+
+def test_a_stages_sections_become_group_items_holding_their_questions() -> None:
+    """A program stage section is a #group item, its compulsory element required and its coded element a choice."""
+    content = _artifacts([_BIRTH_STAGE])["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert '* item[+].linkId = "Sec3aaaaaaa"' in content
+    assert '* item[=].text = "Delivery"' in content
+    assert "* item[=].type = #group" in content
+    assert '* item[=].item[+].linkId = "a3kGcGDCuk6"' in content
+    assert '* item[=].item[=].code = D2DE_CS#a3kGcGDCuk6 "Apgar Score"' in content
+    assert '* item[=].item[=].text = "Apgar"' in content
+    assert "* item[=].item[=].type = #integer" in content
+    assert "* item[=].item[=].required = true" in content
+    assert "* item[=].item[=].type = #choice" in content
+    assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content
+
+
+def test_two_stages_sharing_a_data_element_hold_one_data_dictionary_concept() -> None:
+    """The support terminology is one dictionary over every questionnaire, so a shared element appears once."""
+    content = _artifacts([_BIRTH_STAGE, _POSTNATAL_STAGE])["data-dictionary/data-elements.fsh"]
+    assert content.count('* #De3aaaaaaaa "Gender"') == 1
+
+
+def test_a_tracker_event_source_without_a_program_is_refused() -> None:
+    """A stage is named, grouped, and filed under its program, so a source missing one is a programming error."""
+    orphan = QuestionnaireSourceIn(uid="A03MvHHogjR", name="Birth", kind="tracker-event")
+    with pytest.raises(ValueError, match="carries no program context"):
+        _artifacts([orphan])
 
 
 def test_sections_become_group_items_holding_their_data_elements() -> None:
@@ -332,6 +512,56 @@ def test_option_set_bound_question_is_a_choice_answered_from_the_option_set_valu
     content = _artifacts([_DATA_SET])["data-sets/BfMAe6Itzgt.fsh"]
     assert "* item[=].item[=].type = #choice" in content
     assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content
+
+
+def test_an_event_question_stays_flat_whatever_category_combo_its_element_declares() -> None:
+    """An event data value has no categoryOptionCombo slot, so an event-kind question never disaggregates."""
+    disaggregated_event = QuestionnaireSourceIn(
+        uid="VBqh0ynB2wv",
+        name="Malaria case registration",
+        kind="event",
+        flat_items=[_MEASLES],
+    )
+    content = _artifacts([disaggregated_event])["event-programs/VBqh0ynB2wv.fsh"]
+    assert '* item[+].linkId = "De2aaaaaaaa"' in content
+    assert "* item[=].type = #integer" in content
+    assert "#group" not in content
+    assert "De2aaaaaaaa.Coc1aaaaaaa" not in content
+    assert "itemControl" not in content
+
+
+def test_a_tracker_stage_question_stays_flat_and_collects_no_option_combos() -> None:
+    """A stage question stays flat like every event question, and the data dictionary carries no combo for it."""
+    disaggregated_stage = QuestionnaireSourceIn(
+        uid="ZzYYXq4fJie",
+        name="Baby Postnatal",
+        kind="tracker-event",
+        program=_CHILD_PROGRAMME,
+        flat_items=[_MEASLES],
+    )
+    artifacts = _artifacts([disaggregated_stage, _DATA_SET])
+    stage_content = artifacts["tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh"]
+    assert '* item[+].linkId = "De2aaaaaaaa"' in stage_content
+    assert "De2aaaaaaaa.Coc1aaaaaaa" not in stage_content
+    # The same element disaggregates on the data set, whose wire carries the combo - and the
+    # dictionary's combo concepts come from that aggregate use alone.
+    assert '* item[=].item[=].item[+].linkId = "De2aaaaaaaa.Coc1aaaaaaa"' in artifacts["data-sets/BfMAe6Itzgt.fsh"]
+    assert '* #Coc1aaaaaaa "<1y"' in artifacts["data-dictionary/category-option-combos.fsh"]
+
+
+def test_a_tracker_only_combo_is_absent_from_the_data_dictionary() -> None:
+    """A combo only event-kind questions reference reaches no questionnaire, so the dictionary omits it."""
+    disaggregated_stage = QuestionnaireSourceIn(
+        uid="ZzYYXq4fJie",
+        name="Baby Postnatal",
+        kind="tracker-event",
+        program=_CHILD_PROGRAMME,
+        flat_items=[_MEASLES],
+    )
+    artifacts = _artifacts([disaggregated_stage])
+    assert "data-dictionary/category-option-combos.fsh" not in artifacts or (
+        "Coc1aaaaaaa" not in artifacts.get("data-dictionary/category-option-combos.fsh", "")
+    )
 
 
 def test_compulsory_event_question_is_required() -> None:
@@ -612,11 +842,14 @@ def test_support_terminology_is_only_emitted_when_referenced() -> None:
 
 
 def test_naming_tokens_flow_into_the_questionnaire_names() -> None:
-    """Custom data_set / program / prefix tokens rename the questionnaires and their support terminology."""
-    config = GenerateConfig(naming=NamingConfig(prefix="Dhis2", data_set="DataSet", program="Program"))
-    artifacts = _artifacts([_DATA_SET, _EVENT_PROGRAM], config)
+    """Custom data_set / program / program_stage / prefix tokens rename the questionnaires and their terminology."""
+    config = GenerateConfig(
+        naming=NamingConfig(prefix="Dhis2", data_set="DataSet", program="Program", program_stage="Stage")
+    )
+    artifacts = _artifacts([_DATA_SET, _EVENT_PROGRAM, _BIRTH_STAGE], config)
     assert '* name = "Dhis2DataSet_BfMAe6Itzgt"' in artifacts["data-sets/BfMAe6Itzgt.fsh"]
     assert '* name = "Dhis2Program_VBqh0ynB2wv"' in artifacts["event-programs/VBqh0ynB2wv.fsh"]
+    assert '* name = "Dhis2Stage_A03MvHHogjR"' in artifacts["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
     assert "CodeSystem: Dhis2DE_CS" in artifacts["data-dictionary/data-elements.fsh"]
     assert "Id: dhis2-de-cs" in artifacts["data-dictionary/data-elements.fsh"]
     assert "Extension: Dhis2FormType" not in artifacts["data-sets/BfMAe6Itzgt.fsh"]
@@ -647,7 +880,7 @@ async def test_generate_questionnaires_writes_the_target_directory(
     mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """The target fetches the configured data sets and event programs and syncs its three directories."""
+    """The target fetches the configured data sets and event programs and syncs its four directories."""
     mock_system_info("v42")
     mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"', event_programs='"VBqh0ynB2wv"')
@@ -667,7 +900,7 @@ async def test_generate_questionnaires_writes_the_target_directory(
         "data-dictionary/category-option-combos.fsh",
         "data-dictionary/data-elements.fsh",
     ]
-    assert report.target_directory == "data-sets, event-programs, data-dictionary"
+    assert report.target_directory == "data-sets, event-programs, tracker-programs, data-dictionary"
     fsh = tmp_path / "ig" / "input" / "fsh"
     assert not (fsh / "questionnaires").exists()
     assert (fsh / "event-programs" / "VBqh0ynB2wv.fsh").exists()
@@ -685,7 +918,7 @@ async def test_an_absent_selection_covers_the_whole_instance(
     mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """No selection tables means all: every data set plus the single-stage event programs, the rest noted."""
+    """No selection tables means all: every data set, every event program, and every stage of every tracker."""
     mock_system_info("v42")
     mock_attributes()
     await _scaffold_project(tmp_path)
@@ -697,16 +930,151 @@ async def test_an_absent_selection_covers_the_whole_instance(
 
     assert "filter" not in data_sets.calls.last.request.url.params
     assert "filter" not in programs.calls.last.request.url.params
-    assert report.questionnaire_count == 3
+    assert programs.calls.call_count == 1
+    assert report.questionnaire_count == 5
     assert report.written_files == [
         "data-sets/BfMAe6Itzgt.fsh",
         "data-sets/Ds2aaaaaaaa.fsh",
         "event-programs/VBqh0ynB2wv.fsh",
+        "tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh",
+        "tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh",
         "data-dictionary/category-option-combos.fsh",
         "data-dictionary/data-elements.fsh",
     ]
+    assert [note for note in report.notes if "skipped" in note] == []
+    dictionary = (tmp_path / "ig" / "input" / "fsh" / "data-dictionary" / "data-elements.fsh").read_text(
+        encoding="utf-8"
+    )
+    assert dictionary.count('* #De3aaaaaaaa "Gender"') == 1
+
+
+@respx.mock
+async def test_the_stages_of_a_tracker_program_are_ordered_by_their_dhis2_sort_order(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Stages and their questions are emitted in the order DHIS2 sorts them, not the order it serialised them."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
+    _mock_option_sets()
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.questionnaire_count == 2
+    tracker = tmp_path / "ig" / "input" / "fsh" / "tracker-programs" / "IpHINAT79UW"
+    birth = (tracker / "A03MvHHogjR.fsh").read_text(encoding="utf-8")
+    postnatal = (tracker / "ZzYYXq4fJie.fsh").read_text(encoding="utf-8")
+    assert '* title = "Child Programme - Birth"' in birth
+    assert '* identifier[+].system = $DHIS2-PS-CODE\n* identifier[=].value = "PS_BIRTH"' in birth
+    assert '* identifier[+].system = $DHIS2-PROGRAM\n* identifier[=].value = "IpHINAT79UW"' in birth
+    assert '* item[+].linkId = "Sec3aaaaaaa"' in birth
+    assert '* extension[D2AttributeValue][+].extension[attributeId].valueString = "At1aaaaaaaa"' in birth
+    assert '* extension[D2AttributeValue][=].extension[value].valueString = "birth"' in birth
+    assert postnatal.index('"De4aaaaaaaa"') < postnatal.index('"De3aaaaaaaa"')
+
+
+@respx.mock
+async def test_an_explicit_tracker_selection_is_a_filtered_fetch_of_its_own(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Each program table reads its own selection, so a listed tracker UID is fetched by filter and noted if absent."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, event_programs="", tracker_programs='"IpHINAT79UW", "Missing1234"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    programs.mock(
+        side_effect=lambda request: httpx.Response(
+            200,
+            json={"programs": [_TRACKER_PROGRAM] if "filter" in request.url.params else []},
+        )
+    )
+    _mock_option_sets()
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    filters = [call.request.url.params.get("filter") for call in programs.calls]
+    assert "id:in:[IpHINAT79UW,Missing1234]" in filters
+    assert report.questionnaire_count == 2
+    assert any("Missing1234" in note and "matched no tracker program" in note for note in report.notes)
+
+
+@respx.mock
+async def test_a_stage_mixing_sectioned_and_unsectioned_elements_is_noted_as_a_stage(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The note names the form kind it is about, so a stage is called a tracker program stage."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
+    loose = {
+        "id": "IpHINAT79UW",
+        "name": "Child Programme",
+        "programType": "WITH_REGISTRATION",
+        "programStages": [
+            {
+                "id": "A03MvHHogjR",
+                "name": "Birth",
+                "sortOrder": 1,
+                "programStageSections": [
+                    {"id": "Sec3aaaaaaa", "name": "Delivery", "dataElements": [{"id": "a3kGcGDCuk6"}]}
+                ],
+                "programStageDataElements": [
+                    {
+                        "compulsory": True,
+                        "sortOrder": 1,
+                        "dataElement": {"id": "a3kGcGDCuk6", "name": "Apgar Score", "valueType": "INTEGER"},
+                    },
+                    {"compulsory": False, "sortOrder": 2, "dataElement": _SHARED_GENDER_ELEMENT},
+                ],
+            }
+        ],
+    }
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [loose]}))
+    _mock_option_sets()
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.notes == [
+        "tracker program stage 'Birth' (A03MvHHogjR) has 1 data elements outside its sections; "
+        "emitted after the sectioned ones: Gender (De3aaaaaaaa)"
+    ]
+
+
+@respx.mock
+async def test_a_program_the_target_does_not_map_is_one_note_on_the_sweep(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A whole-instance sweep names the programs whose type neither table maps, and generates the rest."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path)
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(
+        return_value=httpx.Response(200, json={"programs": [*_ALL_PROGRAMS_PAYLOAD["programs"], _UNTYPED_PROGRAM]})
+    )
+    _mock_option_sets()
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.questionnaire_count == 3
     assert [note for note in report.notes if "skipped" in note] == [
-        "1 tracker programs skipped (tracker generation not implemented): Child Programme (IpHINAT79UW)",
+        "1 programs have a programType the questionnaire target does not map; skipped: Legacy programme (Pr9aaaaaaaa)"
     ]
 
 
@@ -744,12 +1112,12 @@ async def test_each_directory_is_swept_against_its_own_files(
 
 
 @respx.mock
-async def test_a_tracker_program_fails_loudly_by_name(
+async def test_a_tracker_program_under_the_event_table_is_refused_by_name(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """A WITH_REGISTRATION program under [generate.event_programs] is refused, naming the program and its type."""
+    """A WITH_REGISTRATION program under [generate.event_programs] is refused, pointing at the table it belongs to."""
     mock_system_info("v42")
     await _scaffold_project(tmp_path, event_programs='"IpHINAT79UW"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
@@ -758,10 +1126,33 @@ async def test_a_tracker_program_fails_loudly_by_name(
     with pytest.raises(UnsupportedProgramError) as raised:
         await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
-    assert "Child Programme" in str(raised.value)
-    assert "IpHINAT79UW" in str(raised.value)
-    assert "WITH_REGISTRATION" in str(raised.value)
-    assert "tracker programs are not implemented yet" in str(raised.value)
+    assert str(raised.value) == (
+        "program 'Child Programme' (IpHINAT79UW) has programType WITH_REGISTRATION; a tracker program is "
+        "selected under [generate.tracker_programs], which emits one Questionnaire per stage"
+    )
+    assert "not implemented" not in str(raised.value)
+
+
+@respx.mock
+async def test_an_event_program_under_the_tracker_table_is_refused_by_name(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A WITHOUT_REGISTRATION program under [generate.tracker_programs] is refused, naming the table it belongs to."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path, tracker_programs='"VBqh0ynB2wv"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
+
+    with pytest.raises(UnsupportedProgramError) as raised:
+        await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert str(raised.value) == (
+        "program 'Malaria case registration' (VBqh0ynB2wv) has programType WITHOUT_REGISTRATION; a "
+        "WITHOUT_REGISTRATION program is selected under [generate.event_programs]"
+    )
+    assert "not implemented" not in str(raised.value)
 
 
 @respx.mock
@@ -897,8 +1288,9 @@ async def test_generate_all_without_selection_tables_still_emits_questionnaires(
 
     assert data_sets.called
     assert programs.called
-    assert report.questionnaires.questionnaire_count == 3
+    assert report.questionnaires.questionnaire_count == 5
     assert "data-sets/BfMAe6Itzgt.fsh" in report.questionnaires.written_files
+    assert "tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh" in report.questionnaires.written_files
 
 
 def test_target_selection_defaults_to_everything() -> None:
@@ -906,6 +1298,7 @@ def test_target_selection_defaults_to_everything() -> None:
     assert TargetSelection().include_ids == []
     assert GenerateConfig().data_sets.include_ids == []
     assert GenerateConfig().event_programs.include_ids == []
+    assert GenerateConfig().tracker_programs.include_ids == []
 
 
 def test_generate_questionnaires_cli_renders_the_count(fhir_questionnaire_project: Path) -> None:  # noqa: ARG001

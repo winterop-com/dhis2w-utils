@@ -42,7 +42,11 @@ class FormSectionRow(BaseModel):
 
 
 class FormRow(BaseModel):
-    """One data set or event program as the forms page catalogs it, every string page-escaped."""
+    """One data set, event program, or tracker program stage as the forms page catalogs it, every string escaped.
+
+    `program_uid` and `program_name` are filled exactly for a tracker program stage: a stage is
+    catalogued under the tracker program it belongs to, and its own name means little alone.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -53,6 +57,8 @@ class FormRow(BaseModel):
     code: str
     description: str
     period_type: str
+    program_uid: str = ""
+    program_name: str = ""
     section_count: int
     question_count: int
     unsectioned_question_count: int
@@ -62,6 +68,16 @@ class FormRow(BaseModel):
     def page_link(self) -> str:
         """The compiled artifact page this form's Questionnaire lands on."""
         return f"Questionnaire-{self.uid}.html"
+
+
+class TrackerProgramGroup(BaseModel):
+    """One tracker program of the forms page: its identity and the stage forms it groups."""
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    name: str
+    stages: list[FormRow] = Field(default_factory=list)
 
 
 class QuestionnaireIntroView(BaseModel):
@@ -253,7 +269,7 @@ class ValueLiteralRow(BaseModel):
 
 
 class CaptureView(BaseModel):
-    """The capture page: the two response contracts, one worked example each, and the answer typing rules."""
+    """The capture page: the three response contracts, one worked example each, and the answer typing rules."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -266,6 +282,14 @@ class CaptureView(BaseModel):
     aggregate_profile_id: str
     event_profile: str
     event_profile_id: str
+    tracker_event_profile: str
+    tracker_event_profile_id: str
+    enrollment_extension: str
+    enrollment_extension_id: str
+    organisation_unit_extension: str
+    organisation_unit_extension_id: str
+    tracked_entity_system: str
+    enrollment_system: str
     capture_server: str
     capture_server_id: str
     location_profile: str
@@ -273,5 +297,6 @@ class CaptureView(BaseModel):
     organisation_unit_name: str
     aggregate: CaptureFormExample | None = None
     event: CaptureFormExample | None = None
+    tracker_event: CaptureFormExample | None = None
     event_statuses: list[EventStatusRow] = Field(default_factory=list)
     value_literals: list[ValueLiteralRow] = Field(default_factory=list)

@@ -94,6 +94,15 @@ def init_command(
             "the UID is written to fhir.toml as given, never checked against an instance.",
         ),
     ] = None,
+    tracker_program_ids: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--tracker-program",
+            help="Tracker program UID to seed `\\[generate.tracker_programs]` include_ids with (repeatable); the "
+            "program emits one Questionnaire per program stage. Offline: the UID is written to fhir.toml as "
+            "given, never checked against an instance.",
+        ),
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite scaffold files that already exist.")] = False,
     refresh: Annotated[
         bool,
@@ -136,6 +145,7 @@ def init_command(
         max_level=max_level,
         data_set_ids=data_set_ids or [],
         event_program_ids=event_program_ids or [],
+        tracker_program_ids=tracker_program_ids or [],
     )
     report = asyncio.run(service.init_project(directory, options, force=force))
     if is_json_output():
@@ -276,7 +286,11 @@ def generate_categories_command() -> None:
 
 @generate_app.command("questionnaires")
 def generate_questionnaires_command() -> None:
-    """Generate Questionnaire FSH from the configured DHIS2 data sets and event programs."""
+    """Generate Questionnaire FSH into data-sets/, event-programs/, tracker-programs/, and data-dictionary/.
+
+    A data set and an event program are one Questionnaire each; a tracker program is one
+    Questionnaire per program stage, filed under the UID of the program it belongs to.
+    """
     from dhis2w_fhir import service
 
     project = load_project()
@@ -290,7 +304,7 @@ def generate_questionnaires_command() -> None:
 
 @generate_app.command("examples")
 def generate_examples_command() -> None:
-    """Generate example QuestionnaireResponses for the configured data sets and event programs."""
+    """Generate example QuestionnaireResponses for every configured data set, event program, and tracker stage."""
     from dhis2w_fhir import service
 
     project = load_project()
@@ -332,7 +346,11 @@ def generate_pages_command() -> None:
 
 @generate_app.command("all")
 def generate_all_command() -> None:
-    """Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages."""
+    """Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages.
+
+    The questionnaire pass covers all four directories: data-sets/, event-programs/,
+    tracker-programs/ (one file per stage, under its program's UID), and data-dictionary/.
+    """
     from dhis2w_fhir import service
 
     project = load_project()

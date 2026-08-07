@@ -58,6 +58,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
     FormKind,
+    ProgramContextIn,
     QuestionnaireItemIn,
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
@@ -114,20 +115,35 @@ _DATA_SET_FIELDS = (
     "compulsoryDataElementOperands[dataElement[id],categoryOptionCombo[id]],"
     f"dataSetElements[{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
 )
-_EVENT_PROGRAM_FIELDS = (
-    f"id,name,code,description,programType,{_ATTRIBUTE_VALUE_FIELDS},"
-    "programStages[id,name,programStageSections[id,name,dataElements[id]],"
-    f"programStageDataElements[compulsory,{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]]"
+
+#: The stage projection both program kinds read: an event program takes its single stage's questions,
+#: a tracker program takes one Questionnaire per stage, so a stage carries its own identity, its own
+#: attribute values, and the sort orders DHIS2 holds the stages and their questions in.
+_PROGRAM_STAGE_FIELDS = (
+    f"id,name,code,description,sortOrder,{_ATTRIBUTE_VALUE_FIELDS},"
+    "programStageSections[id,name,dataElements[id]],"
+    f"programStageDataElements[compulsory,sortOrder,{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
+)
+_PROGRAM_FIELDS = (
+    f"id,name,code,description,programType,{_ATTRIBUTE_VALUE_FIELDS},programStages[{_PROGRAM_STAGE_FIELDS}]"
 )
 
 #: The attribute projection the emit-time code join reads - an attribute's UID and its code.
 _ATTRIBUTE_FIELDS = "id,code"
 
-#: The only DHIS2 program type the questionnaire target maps today.
+#: The DHIS2 program types the questionnaire target maps, one selection table each.
 _EVENT_PROGRAM_TYPE = "WITHOUT_REGISTRATION"
+_TRACKER_PROGRAM_TYPE = "WITH_REGISTRATION"
 
-#: The tracker-event projection one example response is built from.
+#: Where an object DHIS2 sent no `sortOrder` for is placed: after every ordered peer, then by name and UID.
+_UNORDERED_SORT_POSITION = 1_000_000_000
+
+#: The event projection one example response is built from.
 _EXAMPLE_EVENT_FIELDS = "event,orgUnit,occurredAt,status,dataValues[dataElement,value]"
+
+#: The tracker-event projection: an event of a tracker program stage also names its enrollment and
+#: the tracked entity enrolled, which the response carries as its subject and its enrollment extension.
+_EXAMPLE_TRACKER_EVENT_FIELDS = "event,orgUnit,occurredAt,status,enrollment,trackedEntity,dataValues[dataElement,value]"
 
 #: How many candidate periods the data-value discovery tries before giving a data set up.
 _EXAMPLE_PERIOD_ATTEMPTS = 6
@@ -425,7 +441,7 @@ def _category_input(model: Category) -> CategoryIn:
 
 
 async def generate_questionnaires(profile: Profile, project: FhirProject) -> GenerateReport:
-    """Generate one Questionnaire FSH file per selected data set / event program, split across three directories."""
+    """Generate one Questionnaire FSH file per selected data set, event program, and tracker program stage."""
     config = project.config.generate
     notes: list[str] = []
     async with open_client(profile) as client:
@@ -544,7 +560,7 @@ async def _fetch_instance_responses(
     root_uid: str,
     notes: list[str],
 ) -> list[ExampleResponseIn]:
-    """Read example responses off the instance: data value sets for data sets, events for programs."""
+    """Read example responses off the instance: data value sets for data sets, tracker events for programs."""
     today = datetime.now(tz=UTC).date()
     responses: list[ExampleResponseIn] = []
     empty_targets: list[str] = []
@@ -648,14 +664,26 @@ def _data_value_response(group: _DataValueGroup, data_set_uid: str) -> ExampleRe
 async def _fetch_event_responses(
     client: Dhis2Client, source: QuestionnaireSourceIn, per_target: int
 ) -> list[ExampleResponseIn]:
-    """Read the most recent events of one event program as example responses."""
+    """Read the most recent events of one event program or one tracker program stage as example responses.
+
+    Both kinds are events of `/api/tracker/events`: an event program selects them by `program`,
+    and a tracker program stage by `program` plus `programStage` - DHIS2 requires the program
+    beside the stage even though the stage pins it (BUGS.md #67). A stage's events also carry the
+    enrollment and the tracked entity, and an event the instance answered either of them for
+    travels on with the UID it has - the emitter states which of them is missing rather than
+    dropping the example.
+    """
+    tracker = source.kind == "tracker-event"
+    selection: dict[str, object] = {"program": source.uid}
+    if tracker and source.program is not None:
+        selection = {"program": source.program.uid, "programStage": source.uid}
     raw = await client.get_raw(
         "/api/tracker/events",
         params={
-            "program": source.uid,
+            **selection,
             "pageSize": per_target,
             "order": "occurredAt:desc",
-            "fields": _EXAMPLE_EVENT_FIELDS,
+            "fields": _EXAMPLE_TRACKER_EVENT_FIELDS if tracker else _EXAMPLE_EVENT_FIELDS,
         },
     )
     responses: list[ExampleResponseIn] = []
@@ -668,10 +696,12 @@ async def _fetch_event_responses(
             ExampleResponseIn(
                 instance_id=event_uid,
                 target_uid=source.uid,
-                kind="event",
+                kind=source.kind,
                 organisation_unit_uid=organisation_unit_uid,
                 status_code=response_status_code(_optional_text(entry.get("status"))),
                 authored=_optional_text(entry.get("occurredAt")),
+                tracked_entity_uid=_optional_text(entry.get("trackedEntity")),
+                enrollment_uid=_optional_text(entry.get("enrollment")),
                 answers=_event_answers(entry.get("dataValues")),
             )
         )
@@ -919,7 +949,7 @@ async def _closure_sources(client: Dhis2Client, config: GenerateConfig) -> list[
 
 
 def _option_set_closure(sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[str]) -> set[str]:
-    """Collect the option sets the selected data sets and event programs bind their data elements to."""
+    """Collect the option sets the selected forms bind their data elements to."""
     closure = {
         item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid is not None
     }
@@ -937,11 +967,10 @@ def _option_set_closure(sources: list[QuestionnaireSourceIn], config: GenerateCo
 async def _fetch_questionnaire_sources(
     client: Dhis2Client, config: GenerateConfig, notes: list[str]
 ) -> list[QuestionnaireSourceIn]:
-    """Fetch the selected data sets and event programs as the Questionnaire projection.
+    """Fetch the selected data sets, event programs, and tracker program stages as the Questionnaire projection.
 
-    An absent or empty `include_ids` selects everything the instance holds, matching the
-    terminology targets. The whole-instance sweep auto-selects the single-stage event
-    programs and notes the shapes it skips; an explicit list refuses them by name instead.
+    An absent or empty `include_ids` selects everything the instance holds of that table's kind,
+    matching the terminology targets. Data sets come first, then the programs.
     """
     sources: list[QuestionnaireSourceIn] = []
     data_set_ids = config.data_sets.include_ids
@@ -954,35 +983,79 @@ async def _fetch_questionnaire_sources(
     sources.extend(_data_set_source(model, notes) for model in data_sets)
     if data_set_ids:
         _note_unmatched(data_set_ids, {model.id for model in data_sets}, "data_sets", "data set", notes)
-    event_program_ids = config.event_programs.include_ids
-    programs = await client.resources.programs.list(
-        fields=_EVENT_PROGRAM_FIELDS,
-        filters=[_uid_filter(event_program_ids)] if event_program_ids else None,
-        order=["name:asc"],
-        paging=False,
-    )
-    if event_program_ids:
-        sources.extend(_event_program_source(model, notes) for model in programs)
-        _note_unmatched(event_program_ids, {model.id for model in programs}, "event_programs", "event program", notes)
-    else:
-        sources.extend(_event_program_source(model, notes) for model in _single_stage_event_programs(programs, notes))
+    sources.extend(await _fetch_program_sources(client, config, notes))
     return sources
 
 
-def _single_stage_event_programs(models: list[Program], notes: list[str]) -> list[Program]:
-    """Keep the event programs of a whole-instance sweep, noting the tracker programs it skips."""
-    supported: list[Program] = []
-    tracker: list[str] = []
-    for model in models:
-        if _program_type(model) != _EVENT_PROGRAM_TYPE:
-            tracker.append(f"{model.name or model.id or ''} ({model.id or ''})")
-        else:
-            supported.append(model)
-    if tracker:
-        notes.append(
-            aggregate_note(f"{len(tracker)} tracker programs skipped (tracker generation not implemented)", tracker)
+async def _fetch_program_sources(
+    client: Dhis2Client, config: GenerateConfig, notes: list[str]
+) -> list[QuestionnaireSourceIn]:
+    """Fetch the programs of both selection tables: one source per event program, one per tracker stage.
+
+    Each table is read on its own terms. A non-empty `include_ids` is a filtered fetch whose
+    every member is routed to that table's program type - a program of the other type is refused
+    by name, pointing at the table it belongs under. An empty table means every program of its
+    type, read off one unfiltered fetch and split by `programType`. With both tables empty a
+    single sweep serves both, and the program types neither table maps are collected into one note.
+    """
+    event_ids = config.event_programs.include_ids
+    tracker_ids = config.tracker_programs.include_ids
+    if not event_ids and not tracker_ids:
+        return _swept_program_sources(await _list_programs(client, None), notes)
+    sources: list[QuestionnaireSourceIn] = []
+    if event_ids:
+        selected = await _list_programs(client, event_ids)
+        sources.extend(_event_program_source(model, notes) for model in selected)
+        _note_unmatched(event_ids, {model.id for model in selected}, "event_programs", "event program", notes)
+    else:
+        swept = await _list_programs(client, None)
+        sources.extend(
+            _event_program_source(model, notes) for model in swept if _program_type(model) == _EVENT_PROGRAM_TYPE
         )
-    return supported
+    if tracker_ids:
+        selected = await _list_programs(client, tracker_ids)
+        for model in selected:
+            sources.extend(_tracker_program_sources(model, notes))
+        _note_unmatched(tracker_ids, {model.id for model in selected}, "tracker_programs", "tracker program", notes)
+    else:
+        swept = await _list_programs(client, None)
+        for model in swept:
+            if _program_type(model) == _TRACKER_PROGRAM_TYPE:
+                sources.extend(_tracker_program_sources(model, notes))
+    return sources
+
+
+async def _list_programs(client: Dhis2Client, uids: list[str] | None) -> list[Program]:
+    """Read the programs of one selection table, by name, filtered to `uids` when the table names any."""
+    models: list[Program] = await client.resources.programs.list(
+        fields=_PROGRAM_FIELDS,
+        filters=[_uid_filter(uids)] if uids else None,
+        order=["name:asc"],
+        paging=False,
+    )
+    return models
+
+
+def _swept_program_sources(models: list[Program], notes: list[str]) -> list[QuestionnaireSourceIn]:
+    """Route every program of a whole-instance sweep to its form kind, noting the types neither table maps."""
+    sources: list[QuestionnaireSourceIn] = []
+    unmapped: list[str] = []
+    for model in models:
+        program_type = _program_type(model)
+        if program_type == _EVENT_PROGRAM_TYPE:
+            sources.append(_event_program_source(model, notes))
+        elif program_type == _TRACKER_PROGRAM_TYPE:
+            sources.extend(_tracker_program_sources(model, notes))
+        else:
+            unmapped.append(f"{model.name or model.id or ''} ({model.id or ''})")
+    if unmapped:
+        notes.append(
+            aggregate_note(
+                f"{len(unmapped)} programs have a programType the questionnaire target does not map; skipped",
+                unmapped,
+            )
+        )
+    return sources
 
 
 def _program_type(model: Program) -> str:
@@ -993,6 +1066,20 @@ def _program_type(model: Program) -> str:
 def _program_stages(model: Program) -> list[dict[str, object]]:
     """The program's stages as the wire sends them."""
     return [stage for stage in model.programStages or [] if isinstance(stage, dict)]
+
+
+def _sort_order(raw: dict[str, object]) -> int:
+    """One wire object's DHIS2 `sortOrder`, placing an object the instance sent none for after its peers."""
+    value = raw.get("sortOrder")
+    if isinstance(value, bool) or not isinstance(value, int):
+        return _UNORDERED_SORT_POSITION
+    return value
+
+
+def _stage_sort_key(stage: dict[str, object]) -> tuple[int, str, str]:
+    """The order one tracker program's stages are emitted in: DHIS2 sort order, then name, then UID."""
+    uid = _optional_text(stage.get("id")) or ""
+    return (_sort_order(stage), _optional_text(stage.get("name")) or uid, uid)
 
 
 def _uid_filter(uids: list[str]) -> str:
@@ -1103,27 +1190,30 @@ def _marked_required(item: QuestionnaireItemIn, compulsory: _CompulsoryOperands)
 
 
 def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSourceIn:
-    """Map a generated Program into the Questionnaire projection, refusing tracker programs."""
+    """Map a program without registration onto one Questionnaire source, built from its single stage.
+
+    A WITHOUT_REGISTRATION program holds exactly one stage by construction, so the program is
+    the form and its stage supplies the questions and the sections.
+    """
     uid = model.id or ""
     name = model.name or uid
     program_type = _program_type(model)
+    if program_type == _TRACKER_PROGRAM_TYPE:
+        raise UnsupportedProgramError(
+            f"program {name!r} ({uid}) has programType WITH_REGISTRATION; a tracker program is selected "
+            "under [generate.tracker_programs], which emits one Questionnaire per stage"
+        )
     if program_type != _EVENT_PROGRAM_TYPE:
         raise UnsupportedProgramError(
-            f"program {name!r} ({uid}) has programType {program_type}; tracker programs are not implemented yet"
+            f"program {name!r} ({uid}) has programType {program_type}; [generate.event_programs] selects "
+            "WITHOUT_REGISTRATION programs and [generate.tracker_programs] selects WITH_REGISTRATION programs"
         )
     stages = _program_stages(model)
     items: list[QuestionnaireItemIn] = []
     raw_sections: object = None
     if stages:
         stage = stages[0]
-        raw_elements = stage.get("programStageDataElements")
-        for entry in raw_elements if isinstance(raw_elements, list) else []:
-            if not isinstance(entry, dict):
-                continue
-            reference = entry.get("dataElement")
-            if not isinstance(reference, dict) or not reference.get("id"):
-                continue
-            items.append(_questionnaire_item(reference, compulsory=bool(entry.get("compulsory"))))
+        items = _stage_items(stage)
         raw_sections = stage.get("programStageSections")
     return _questionnaire_source(
         uid=uid,
@@ -1138,6 +1228,85 @@ def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSour
     )
 
 
+def _tracker_program_sources(model: Program, notes: list[str]) -> list[QuestionnaireSourceIn]:
+    """Map a program with registration onto one Questionnaire source per stage, in the program's stage order.
+
+    A tracker program is a sequence of visits rather than a single form, so each stage is its own
+    data-capture form and carries the program as the context its name, its grouping identifier,
+    and its file path are built from.
+    """
+    uid = model.id or ""
+    name = model.name or uid
+    program_type = _program_type(model)
+    if program_type != _TRACKER_PROGRAM_TYPE:
+        raise UnsupportedProgramError(
+            f"program {name!r} ({uid}) has programType {program_type}; a WITHOUT_REGISTRATION program is "
+            "selected under [generate.event_programs]"
+        )
+    program = ProgramContextIn(uid=uid, name=name)
+    sources: list[QuestionnaireSourceIn] = []
+    for stage in sorted(_program_stages(model), key=_stage_sort_key):
+        stage_uid = _optional_text(stage.get("id")) or ""
+        sources.append(
+            _questionnaire_source(
+                uid=stage_uid,
+                name=_optional_text(stage.get("name")) or stage_uid,
+                code=_optional_text(stage.get("code")),
+                description=_optional_text(stage.get("description")),
+                kind="tracker-event",
+                items=_stage_items(stage),
+                raw_sections=stage.get("programStageSections"),
+                attribute_values=_attribute_value_inputs(stage.get("attributeValues")),
+                notes=notes,
+                program=program,
+            )
+        )
+    return sources
+
+
+def _stage_items(stage: dict[str, object]) -> list[QuestionnaireItemIn]:
+    """One program stage's questions, ordered by DHIS2 sort order and then by data element name and UID.
+
+    `programStageDataElements` is a Java `Set`, so the wire order is not the form's order and is
+    not stable across requests; the stage's own `sortOrder` is what the data-entry app renders by.
+    """
+    raw_elements = stage.get("programStageDataElements")
+    entries = [
+        entry
+        for entry in (raw_elements if isinstance(raw_elements, list) else [])
+        if isinstance(entry, dict) and _data_element_reference(entry) is not None
+    ]
+    entries.sort(key=_stage_element_sort_key)
+    return [
+        _questionnaire_item(reference, compulsory=bool(entry.get("compulsory")))
+        for entry in entries
+        if (reference := _data_element_reference(entry)) is not None
+    ]
+
+
+def _data_element_reference(entry: dict[str, object]) -> dict[str, object] | None:
+    """The data element one `programStageDataElement` references, or None when it names none."""
+    reference = entry.get("dataElement")
+    if not isinstance(reference, dict) or not reference.get("id"):
+        return None
+    return reference
+
+
+def _stage_element_sort_key(entry: dict[str, object]) -> tuple[int, str, str]:
+    """The order one stage's questions are emitted in: DHIS2 sort order, then the element's name and UID."""
+    reference = _data_element_reference(entry) or {}
+    uid = _optional_text(reference.get("id")) or ""
+    return (_sort_order(entry), _optional_text(reference.get("name")) or uid, uid)
+
+
+#: The prose each form kind is named by in the notes the projection raises.
+_SOURCE_LABELS_BY_KIND = {
+    "aggregate": "data set",
+    "event": "event program",
+    "tracker-event": "tracker program stage",
+}
+
+
 def _questionnaire_source(
     uid: str,
     name: str,
@@ -1149,17 +1318,17 @@ def _questionnaire_source(
     attribute_values: list[AttributeValueIn],
     notes: list[str],
     period_type: str | None = None,
+    program: ProgramContextIn | None = None,
 ) -> QuestionnaireSourceIn:
     """Split one form's data elements into its sections plus whatever the sections leave out."""
     sections = _questionnaire_sections(raw_sections, items)
     sectioned_ids = {item.uid for section in sections for item in section.items}
     flat_items = [item for item in items if item.uid not in sectioned_ids]
     if sections and flat_items:
-        label = "data set" if kind == "aggregate" else "event program"
         notes.append(
             aggregate_note(
-                f"{label} {name!r} ({uid}) has {len(flat_items)} data elements outside its sections; "
-                "emitted after the sectioned ones",
+                f"{_SOURCE_LABELS_BY_KIND[kind]} {name!r} ({uid}) has {len(flat_items)} data elements outside "
+                "its sections; emitted after the sectioned ones",
                 [f"{item.name} ({item.uid})" for item in flat_items],
             )
         )
@@ -1170,6 +1339,7 @@ def _questionnaire_source(
         description=description,
         kind=kind,
         period_type=period_type,
+        program=program,
         sections=sections,
         flat_items=flat_items,
         attribute_values=attribute_values,
