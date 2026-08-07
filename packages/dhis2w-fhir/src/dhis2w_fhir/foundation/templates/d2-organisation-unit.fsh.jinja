@@ -1,0 +1,10 @@
+Extension: {{ names.organisation_unit_extension }}
+Id: {{ names.organisation_unit_extension_id }}
+Title: "DHIS2 organisation unit"
+Description: "The DHIS2 organisation unit an event was captured at, as a reference to the unit's Location."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "QuestionnaireResponse"
+* value[x] only Reference({{ location_profile }})
+* valueReference 1..1

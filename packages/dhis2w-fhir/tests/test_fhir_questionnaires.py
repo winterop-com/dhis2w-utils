@@ -26,10 +26,12 @@ from dhis2w_fhir.resources.questionnaires import BOUNDS_BY_VALUE_TYPE, ITEM_TYPE
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
+    ProgramContextIn,
     QuestionnaireItemIn,
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
     TargetSelection,
+    source_display_name,
 )
 from dhis2w_fhir.status import IgStatus
 from typer.testing import CliRunner
@@ -88,6 +90,41 @@ _EVENT_PROGRAM = QuestionnaireSourceIn(
             category_combo=_DEFAULT_COMBO,
         )
     ],
+)
+
+_CHILD_PROGRAMME = ProgramContextIn(uid="IpHINAT79UW", name="Child Programme")
+
+_BIRTH_STAGE = QuestionnaireSourceIn(
+    uid="A03MvHHogjR",
+    name="Birth",
+    code="PS_BIRTH",
+    kind="tracker-event",
+    program=_CHILD_PROGRAMME,
+    sections=[
+        QuestionnaireSectionIn(
+            uid="Sec3aaaaaaa",
+            name="Delivery",
+            items=[
+                QuestionnaireItemIn(
+                    uid="a3kGcGDCuk6",
+                    name="Apgar Score",
+                    form_name="Apgar",
+                    value_type="INTEGER_ZERO_OR_POSITIVE",
+                    compulsory=True,
+                    category_combo=_DEFAULT_COMBO,
+                ),
+                _GENDER,
+            ],
+        )
+    ],
+)
+
+_POSTNATAL_STAGE = QuestionnaireSourceIn(
+    uid="ZzYYXq4fJie",
+    name="Baby Postnatal",
+    kind="tracker-event",
+    program=_CHILD_PROGRAMME,
+    flat_items=[_GENDER],
 )
 
 _DATA_SETS_PAYLOAD = {
@@ -275,15 +312,101 @@ def test_event_program_questionnaire_identity() -> None:
     assert '* identifier[=].value = "VBqh0ynB2wv"' in content
 
 
+def test_event_program_questionnaire_is_captured_for_a_location() -> None:
+    """An event program is reported for an organisation unit, so its form takes the Location subject type."""
+    assert "* subjectType = #Location" in _artifacts([_EVENT_PROGRAM])["event-programs/VBqh0ynB2wv.fsh"]
+
+
+def test_tracker_program_stage_is_filed_under_its_program() -> None:
+    """One stage is one Questionnaire, written under the UID of the tracker program it belongs to."""
+    artifacts = _artifacts([_BIRTH_STAGE, _POSTNATAL_STAGE])
+    assert "tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh" in artifacts
+    assert "tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh" in artifacts
+
+
+def test_tracker_program_stage_questionnaire_identity() -> None:
+    """A stage is keyed by its own UID, named under the PS token, and captured for a patient."""
+    content = _artifacts([_BIRTH_STAGE])["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert "Instance: Questionnaire-A03MvHHogjR" in content
+    assert "InstanceOf: Questionnaire" in content
+    assert "Usage: #definition" in content
+    assert '* id = "A03MvHHogjR"' in content
+    assert '* url = "http://example.org/fhir/Questionnaire/A03MvHHogjR"' in content
+    assert '* name = "D2PS_A03MvHHogjR"' in content
+    assert "* subjectType = #Patient" in content
+
+
+def test_tracker_program_stage_carries_three_identifiers() -> None:
+    """The stage UID, the stage code, and the program UID that groups every stage of one program."""
+    content = _artifacts([_BIRTH_STAGE])["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert '* identifier[+].system = $DHIS2-PS\n* identifier[=].value = "A03MvHHogjR"' in content
+    assert '* identifier[+].system = $DHIS2-PS-CODE\n* identifier[=].value = "PS_BIRTH"' in content
+    assert '* identifier[+].system = $DHIS2-PROGRAM\n* identifier[=].value = "IpHINAT79UW"' in content
+
+
+def test_a_stage_without_a_dhis2_code_repeats_its_uid_in_the_code_identifier() -> None:
+    """The code slot is never empty, so an uncoded stage states its UID there as every other form does."""
+    content = _artifacts([_POSTNATAL_STAGE])["tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh"]
+    assert '* identifier[+].system = $DHIS2-PS-CODE\n* identifier[=].value = "ZzYYXq4fJie"' in content
+
+
+def test_tracker_program_stage_title_and_description_carry_both_identities() -> None:
+    """A stage name means little alone, so the title and the description name the program too."""
+    content = _artifacts([_BIRTH_STAGE])["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert 'Title: "Questionnaire - Child Programme - Birth"' in content
+    assert '* title = "Child Programme - Birth"' in content
+    assert (
+        'Description: "DHIS2 tracker program stage Birth (A03MvHHogjR) of program '
+        'Child Programme (IpHINAT79UW) as a data capture form."' in content
+    )
+
+
+def test_the_display_name_of_a_form_without_a_program_is_its_own_name() -> None:
+    """Only a program stage carries two identities; a data set or an event program is shown under its name."""
+    assert source_display_name(_DATA_SET) == "Child Health"
+    assert source_display_name(_BIRTH_STAGE) == "Child Programme - Birth"
+
+
 def test_form_type_is_carried_by_extension_and_code() -> None:
-    """Both kinds state where they came from twice: the D2FormType extension and Questionnaire.code."""
-    artifacts = _artifacts([_DATA_SET, _EVENT_PROGRAM])
+    """Every kind states where it came from twice: the D2FormType extension and Questionnaire.code."""
+    artifacts = _artifacts([_DATA_SET, _EVENT_PROGRAM, _BIRTH_STAGE])
     aggregate = artifacts["data-sets/BfMAe6Itzgt.fsh"]
     event = artifacts["event-programs/VBqh0ynB2wv.fsh"]
+    stage = artifacts["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
     assert "* extension[D2FormType].valueCode = #aggregate" in aggregate
     assert "* code = D2FormType_CS#aggregate" in aggregate
     assert "* extension[D2FormType].valueCode = #event" in event
     assert "* code = D2FormType_CS#event" in event
+    assert "* extension[D2FormType].valueCode = #tracker-event" in stage
+    assert "* code = D2FormType_CS#tracker-event" in stage
+
+
+def test_a_stages_sections_become_group_items_holding_their_questions() -> None:
+    """A program stage section is a #group item, its compulsory element required and its coded element a choice."""
+    content = _artifacts([_BIRTH_STAGE])["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert '* item[+].linkId = "Sec3aaaaaaa"' in content
+    assert '* item[=].text = "Delivery"' in content
+    assert "* item[=].type = #group" in content
+    assert '* item[=].item[+].linkId = "a3kGcGDCuk6"' in content
+    assert '* item[=].item[=].code = D2DE_CS#a3kGcGDCuk6 "Apgar Score"' in content
+    assert '* item[=].item[=].text = "Apgar"' in content
+    assert "* item[=].item[=].type = #integer" in content
+    assert "* item[=].item[=].required = true" in content
+    assert "* item[=].item[=].type = #choice" in content
+    assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content
+
+
+def test_two_stages_sharing_a_data_element_hold_one_data_dictionary_concept() -> None:
+    """The support terminology is one dictionary over every questionnaire, so a shared element appears once."""
+    content = _artifacts([_BIRTH_STAGE, _POSTNATAL_STAGE])["data-dictionary/data-elements.fsh"]
+    assert content.count('* #De3aaaaaaaa "Gender"') == 1
+
+
+def test_a_tracker_event_source_without_a_program_is_refused() -> None:
+    """A stage is named, grouped, and filed under its program, so a source missing one is a programming error."""
+    orphan = QuestionnaireSourceIn(uid="A03MvHHogjR", name="Birth", kind="tracker-event")
+    with pytest.raises(ValueError, match="carries no program context"):
+        _artifacts([orphan])
 
 
 def test_sections_become_group_items_holding_their_data_elements() -> None:
@@ -612,11 +735,14 @@ def test_support_terminology_is_only_emitted_when_referenced() -> None:
 
 
 def test_naming_tokens_flow_into_the_questionnaire_names() -> None:
-    """Custom data_set / program / prefix tokens rename the questionnaires and their support terminology."""
-    config = GenerateConfig(naming=NamingConfig(prefix="Dhis2", data_set="DataSet", program="Program"))
-    artifacts = _artifacts([_DATA_SET, _EVENT_PROGRAM], config)
+    """Custom data_set / program / program_stage / prefix tokens rename the questionnaires and their terminology."""
+    config = GenerateConfig(
+        naming=NamingConfig(prefix="Dhis2", data_set="DataSet", program="Program", program_stage="Stage")
+    )
+    artifacts = _artifacts([_DATA_SET, _EVENT_PROGRAM, _BIRTH_STAGE], config)
     assert '* name = "Dhis2DataSet_BfMAe6Itzgt"' in artifacts["data-sets/BfMAe6Itzgt.fsh"]
     assert '* name = "Dhis2Program_VBqh0ynB2wv"' in artifacts["event-programs/VBqh0ynB2wv.fsh"]
+    assert '* name = "Dhis2Stage_A03MvHHogjR"' in artifacts["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
     assert "CodeSystem: Dhis2DE_CS" in artifacts["data-dictionary/data-elements.fsh"]
     assert "Id: dhis2-de-cs" in artifacts["data-dictionary/data-elements.fsh"]
     assert "Extension: Dhis2FormType" not in artifacts["data-sets/BfMAe6Itzgt.fsh"]
@@ -667,7 +793,7 @@ async def test_generate_questionnaires_writes_the_target_directory(
         "data-dictionary/category-option-combos.fsh",
         "data-dictionary/data-elements.fsh",
     ]
-    assert report.target_directory == "data-sets, event-programs, data-dictionary"
+    assert report.target_directory == "data-sets, event-programs, tracker-programs, data-dictionary"
     fsh = tmp_path / "ig" / "input" / "fsh"
     assert not (fsh / "questionnaires").exists()
     assert (fsh / "event-programs" / "VBqh0ynB2wv.fsh").exists()

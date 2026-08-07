@@ -7,7 +7,10 @@ consumer meeting a DHIS2 identifier can resolve what it means; `d2-period.fsh` d
 reporting-period Extension plus the period-type CodeSystem/ValueSet backing its required
 binding; `d2-form-type.fsh` defines the form-type Extension every generated Questionnaire
 carries, plus its own CodeSystem/ValueSet pair; `d2-attribute-value.fsh` defines the complex
-Extension that carries a DHIS2 attribute value onto every resource that can hold one.
+Extension that carries a DHIS2 attribute value onto every resource that can hold one;
+`d2-organisation-unit.fsh` defines the Extension pointing a response at the Location of the
+organisation unit it was captured at, and `d2-tracker-enrollment.fsh` the Extension carrying
+the DHIS2 tracker enrollment an event belongs to.
 
 Two more artifacts turn that vocabulary into a capture contract a third party can build
 against without reading DHIS2: `d2-responses.fsh` profiles the QuestionnaireResponse a
@@ -87,8 +90,9 @@ _CAPTURE_SERVER_REST_DOCUMENTATION = (
 _CAPTURE_SERVER_TITLE = "DHIS2 capture server"
 _CAPTURE_SERVER_DESCRIPTION = (
     "The interactions a server capturing DHIS2 data as QuestionnaireResponses supports: one "
-    "response created per request, against the aggregate or the event response profile, plus "
-    "read and search over the definitional resources a capture client resolves a form from."
+    "response created per request, against the aggregate, event, or tracker event response "
+    "profile, plus read and search over the definitional resources a capture client resolves "
+    "a form from."
 )
 
 _ENVIRONMENT = Environment(
@@ -105,6 +109,7 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
     """Build the `foundation/` artifacts: the DHIS2 identifier systems and the D2Period extension."""
     names = FoundationNaming.from_naming(config.naming)
     experimental = experimental_for_status(ig_status)
+    location_profile = OrganisationUnitNaming.from_naming(config.naming).location_profile
     aliases = _ENVIRONMENT.get_template("d2-aliases.fsh.jinja").render(
         identifier_system_base=config.identifier_system_base
     )
@@ -128,15 +133,29 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         ig_status=ig_status,
         experimental=experimental,
     )
+    organisation_unit = _ENVIRONMENT.get_template("d2-organisation-unit.fsh.jinja").render(
+        names=names,
+        location_profile=location_profile,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
+    tracker_enrollment = _ENVIRONMENT.get_template("d2-tracker-enrollment.fsh.jinja").render(
+        names=names,
+        enrollment_system=f"{config.identifier_system_base}/id/tracker-enrollment",
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     responses = _ENVIRONMENT.get_template("d2-responses.fsh.jinja").render(
         names=names,
         profiles=build_response_profile_declarations(config),
-        location_profile=OrganisationUnitNaming.from_naming(config.naming).location_profile,
+        location_profile=location_profile,
+        tracked_entity_system=f"{config.identifier_system_base}/id/tracked-entity",
         ig_status=ig_status,
         experimental=experimental,
     )
     capture_server = _ENVIRONMENT.get_template("d2-capture-server.fsh.jinja").render(
         names=names,
+        profiles=build_response_profile_declarations(config),
         title_literal=page_text(_CAPTURE_SERVER_TITLE),
         description_literal=page_text(_CAPTURE_SERVER_DESCRIPTION),
         rest_documentation=_CAPTURE_SERVER_REST_DOCUMENTATION,
@@ -177,6 +196,18 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             content=attribute_value,
         ),
         FshArtifact(
+            relative_path="foundation/d2-organisation-unit.fsh",
+            kind="extension",
+            fsh_name=names.organisation_unit_extension,
+            content=organisation_unit,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-tracker-enrollment.fsh",
+            kind="extension",
+            fsh_name=names.tracker_enrollment_extension,
+            content=tracker_enrollment,
+        ),
+        FshArtifact(
             relative_path="foundation/d2-responses.fsh",
             kind="profile",
             fsh_name=names.aggregate_response_profile,
@@ -192,7 +223,7 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
 
 
 def build_response_profile_declarations(config: GenerateConfig) -> list[ResponseProfileDeclaration]:
-    """Declare the QuestionnaireResponse contract per form kind: the aggregate one, then the event one."""
+    """Declare the QuestionnaireResponse contract per form kind: aggregate, then event, then tracker event."""
     names = FoundationNaming.from_naming(config.naming)
     return [
         ResponseProfileDeclaration(
@@ -217,11 +248,24 @@ def build_response_profile_declarations(config: GenerateConfig) -> list[Response
             ),
             authored_required=True,
         ),
+        ResponseProfileDeclaration(
+            name=names.tracker_event_response_profile,
+            profile_id=names.tracker_event_response_profile_id,
+            form_type_code="tracker-event",
+            title="DHIS2 tracker event response",
+            description=(
+                "One submission of a DHIS2 tracker program stage form: the values captured for one event of "
+                "one enrollment, answered on the linkIds of the stage's Questionnaire and subject to the "
+                "tracked entity by identifier."
+            ),
+            authored_required=True,
+            tracker_context_required=True,
+        ),
     ]
 
 
 def build_naming_system_declarations(config: GenerateConfig) -> list[NamingSystemDeclaration]:
-    """Declare every DHIS2 identifier system: a UID system and a code system per object kind."""
+    """Declare every DHIS2 identifier system: a UID system per object kind, plus a code system where one exists."""
     prefix = FoundationNaming.from_naming(config.naming).definition_prefix
     base = config.identifier_system_base
     declarations: list[NamingSystemDeclaration] = []
@@ -237,6 +281,8 @@ def build_naming_system_declarations(config: GenerateConfig) -> list[NamingSyste
                 url=f"{base}/id/{subject.segment}",
             )
         )
+        if not subject.has_code:
+            continue
         declarations.append(
             NamingSystemDeclaration(
                 name=f"{prefix}{subject.token}CodeIdentifierSystem",

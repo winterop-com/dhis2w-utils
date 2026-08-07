@@ -13,16 +13,18 @@ if TYPE_CHECKING:
     from dhis2w_fhir.config import NamingConfig
 
 #: The form kinds a Questionnaire is generated from, and the D2FormType code each carries.
-FormKind = Literal["aggregate", "event"]
+FormKind = Literal["aggregate", "event", "tracker-event"]
 
 
 class TargetSelection(BaseModel):
-    """Which DHIS2 objects a data-definition target covers - `[generate.data_sets]` / `[generate.event_programs]`.
+    """Which DHIS2 objects a data-definition target covers - one table per form kind.
 
     UIDs only: names are not unique in DHIS2. An empty (or absent) list means all, as it does
-    for the terminology targets; a non-empty list filters. The two modes differ on the shapes
-    the questionnaire target cannot map: the whole-instance sweep skips tracker programs with a
-    note, while an explicitly listed one is refused by name.
+    for the terminology targets; a non-empty list filters. Three tables select the three form
+    kinds: `[generate.data_sets]` picks data sets, `[generate.event_programs]` picks programs
+    without registration, and `[generate.tracker_programs]` picks programs with registration.
+    The whole-instance sweep routes each program to its table by its DHIS2 `programType`, so a
+    program listed under the table its type does not belong to is refused by name.
     """
 
     include_ids: list[str] = Field(default_factory=list)
@@ -92,15 +94,31 @@ class QuestionnaireSectionIn(BaseModel):
     items: list[QuestionnaireItemIn] = Field(default_factory=list)
 
 
+class ProgramContextIn(BaseModel):
+    """The tracker program one stage belongs to.
+
+    The identity its questionnaires carry in titles, identifiers, and intros.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    name: str
+
+
 class QuestionnaireSourceIn(BaseModel):
-    """One DHIS2 data set or event program as the Questionnaire projection the emitter consumes.
+    """One DHIS2 data set, event program, or tracker program stage as the projection the emitter consumes.
 
     `sections` carries the form when it has them and `flat_items` carries the rest, so a
     sectioned form fills the first, an unsectioned form the second, and a form that mixes
     the two fills both (the service notes that). Both empty is a degenerate form with no
     data elements. `period_type` is the data set's DHIS2 reporting period type, which the
-    example target resolves its periods from; an event program carries none. `description`
+    example target resolves its periods from; a program form carries none. `description`
     is the DHIS2 free text, which the narrative pages carry into the form's intro.
+
+    `program` is set exactly when `kind` is `tracker-event`: the source is then one program
+    stage, so `uid`, `name`, `code`, and `description` are the stage's own and `program`
+    names the tracker program the stage belongs to.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -111,15 +129,23 @@ class QuestionnaireSourceIn(BaseModel):
     description: str | None = None
     kind: FormKind
     period_type: str | None = None
+    program: ProgramContextIn | None = None
     sections: list[QuestionnaireSectionIn] = Field(default_factory=list)
     flat_items: list[QuestionnaireItemIn] = Field(default_factory=list)
     attribute_values: list[AttributeValueIn] = Field(default_factory=list)
 
 
+def source_display_name(source: QuestionnaireSourceIn) -> str:
+    """The name one form is shown under: a program stage carries both identities, everything else its own."""
+    if source.program is None:
+        return source.name
+    return f"{source.program.name} - {source.name}"
+
+
 class QuestionnaireNaming(BaseModel):
     """Derived FSH names and ids for questionnaire artifacts under the configurable naming tokens.
 
-    Holds the three tokens it needs rather than the whole `[generate.naming]` table, so the
+    Holds the four tokens it needs rather than the whole `[generate.naming]` table, so the
     emitter stays a leaf of the config document instead of a dependency of it. The data-element
     and category-option-combo support terminology takes the registry's fixed `DE` / `COC`
     tokens under the same prefix. Option-set names are not here at all: they are decided by
@@ -131,18 +157,24 @@ class QuestionnaireNaming(BaseModel):
     prefix: str
     data_set: str
     program: str
+    program_stage: str
 
     @classmethod
     def from_naming(cls, naming: NamingConfig) -> QuestionnaireNaming:
         """Project the `[generate.naming]` table onto the tokens questionnaire artifacts use."""
-        return cls(prefix=naming.prefix, data_set=naming.data_set, program=naming.program)
+        return cls(
+            prefix=naming.prefix,
+            data_set=naming.data_set,
+            program=naming.program,
+            program_stage=naming.program_stage,
+        )
 
     def source_token(self, kind: FormKind) -> str:
-        """The naming token one form kind composes its name from (`DS` for a data set, `PR` for a program)."""
-        return self.data_set if kind == "aggregate" else self.program
+        """The naming token one form kind composes its name from (`DS`, `PR`, `PS`)."""
+        return {"aggregate": self.data_set, "event": self.program, "tracker-event": self.program_stage}[kind]
 
     def questionnaire_name(self, kind: FormKind, uid: str) -> str:
-        """Computational `Questionnaire.name` for one source (e.g. `D2DS_BfMAe6Itzgt`, `D2PR_VBqh0ynB2wv`)."""
+        """Computational `Questionnaire.name` for one source (e.g. `D2DS_BfMAe6Itzgt`, `D2PS_A03MvHHogjR`)."""
         return join_name_segments(f"{self.prefix}{self.source_token(kind)}", uid)
 
     @property

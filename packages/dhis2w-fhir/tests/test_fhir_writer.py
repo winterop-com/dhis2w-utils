@@ -87,6 +87,66 @@ def test_sync_never_deletes_hand_authored(tmp_path: Path) -> None:
     assert (tmp_path / "terminology" / "manual.fsh").exists()
 
 
+def test_sync_writes_nested_artifacts_under_their_own_subdirectory(tmp_path: Path) -> None:
+    """A nested target creates the subdirectory on the way down and reports the full relative path."""
+    report = sync_artifacts(tmp_path, "tracker-programs", [_artifact("tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh")])
+    assert report.written == ["tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert (tmp_path / "tracker-programs" / "IpHINAT79UW" / "A03MvHHogjR.fsh").is_file()
+
+
+def test_sync_sweeps_stale_generated_files_out_of_nested_subdirectories(tmp_path: Path) -> None:
+    """A generated file the build dropped is deleted however deep it sits, reported relative to the target."""
+    first = [
+        _artifact("tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh"),
+        _artifact("tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh"),
+    ]
+    sync_artifacts(tmp_path, "tracker-programs", first)
+    report = sync_artifacts(tmp_path, "tracker-programs", [_artifact("tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh")])
+    assert report.deleted == ["IpHINAT79UW/ZzYYXq4fJie.fsh"]
+    assert not (tmp_path / "tracker-programs" / "IpHINAT79UW" / "ZzYYXq4fJie.fsh").exists()
+    assert (tmp_path / "tracker-programs" / "IpHINAT79UW" / "A03MvHHogjR.fsh").exists()
+
+
+def test_sync_never_deletes_a_hand_authored_nested_file(tmp_path: Path) -> None:
+    """The header is what marks a file generated, so a hand-authored file deep in the tree survives."""
+    sync_artifacts(tmp_path, "tracker-programs", [_artifact("tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh")])
+    manual = tmp_path / "tracker-programs" / "IpHINAT79UW" / "manual.fsh"
+    manual.write_text("Instance: Questionnaire-Manual\n", encoding="utf-8")
+    report = sync_artifacts(tmp_path, "tracker-programs", [_artifact("tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh")])
+    assert report.deleted == []
+    assert manual.exists()
+
+
+def test_sync_prunes_a_subdirectory_it_empties(tmp_path: Path) -> None:
+    """A program whose every stage left the selection leaves no empty directory behind; the target itself stays."""
+    sync_artifacts(tmp_path, "tracker-programs", [_artifact("tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh")])
+    report = sync_artifacts(tmp_path, "tracker-programs", [_artifact("tracker-programs/uy2gU8kT1jF/oRySG82BKE6.fsh")])
+    assert report.deleted == ["IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert not (tmp_path / "tracker-programs" / "IpHINAT79UW").exists()
+    assert (tmp_path / "tracker-programs" / "uy2gU8kT1jF" / "oRySG82BKE6.fsh").is_file()
+
+
+def test_sync_keeps_a_subdirectory_holding_a_hand_authored_file(tmp_path: Path) -> None:
+    """Pruning removes empty directories only, so a directory left holding hand-authored work stays."""
+    sync_artifacts(tmp_path, "tracker-programs", [_artifact("tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh")])
+    manual = tmp_path / "tracker-programs" / "IpHINAT79UW" / "manual.fsh"
+    manual.write_text("Instance: Questionnaire-Manual\n", encoding="utf-8")
+    sync_artifacts(tmp_path, "tracker-programs", [])
+    assert manual.exists()
+
+
+def test_sync_tells_same_named_files_in_different_subdirectories_apart(tmp_path: Path) -> None:
+    """Two programs may hold a same-named file, so the produced set is keyed by path rather than by name."""
+    sync_artifacts(
+        tmp_path,
+        "tracker-programs",
+        [_artifact("tracker-programs/IpHINAT79UW/shared.fsh"), _artifact("tracker-programs/uy2gU8kT1jF/shared.fsh")],
+    )
+    report = sync_artifacts(tmp_path, "tracker-programs", [_artifact("tracker-programs/IpHINAT79UW/shared.fsh")])
+    assert report.deleted == ["uy2gU8kT1jF/shared.fsh"]
+    assert (tmp_path / "tracker-programs" / "IpHINAT79UW" / "shared.fsh").exists()
+
+
 def test_markdown_pages_take_the_markdown_header(tmp_path: Path) -> None:
     """A `.md` artifact is headed by the HTML comment; a `.fsh` one keeps the FSH line comment."""
     write_artifacts(tmp_path, [_page("pagecontent/forms.md"), _artifact("terminology/sample.fsh")])

@@ -17,11 +17,15 @@ Usage: #definition
 * identifier[=].value = "{{ questionnaire.uid }}"
 * identifier[+].system = {{ questionnaire.identifier_code_system }}
 * identifier[=].value = {{ questionnaire.identifier_code_literal }}
+{% if questionnaire.grouping_identifier is not none %}
+* identifier[+].system = {{ questionnaire.grouping_identifier.system }}
+* identifier[=].value = {{ questionnaire.grouping_identifier.value_literal }}
+{% endif %}
 * name = "{{ questionnaire.name }}"
 * title = {{ questionnaire.title_element_literal }}
 * status = #{{ questionnaire.ig_status }}
 * experimental = {{ "true" if questionnaire.experimental else "false" }}
-* subjectType = #Location
+* subjectType = #{{ questionnaire.subject_type }}
 * code = {{ questionnaire.form_type_code_system }}#{{ questionnaire.form_type_code }}
 {% for item in questionnaire.items %}
 * {{ item.new_path }}.linkId = "{{ item.link_id }}"

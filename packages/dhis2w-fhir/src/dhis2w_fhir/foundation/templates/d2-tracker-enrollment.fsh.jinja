@@ -1,0 +1,13 @@
+Extension: {{ names.tracker_enrollment_extension }}
+Id: {{ names.tracker_enrollment_extension_id }}
+Title: "DHIS2 tracker enrollment"
+Description: "The DHIS2 tracker enrollment an event was captured under, carried as the enrollment UID."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "QuestionnaireResponse"
+* value[x] only Identifier
+* valueIdentifier 1..1
+* valueIdentifier.system 1..1
+* valueIdentifier.system = "{{ enrollment_system }}" (exactly)
+* valueIdentifier.value 1..1

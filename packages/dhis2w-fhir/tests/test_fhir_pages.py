@@ -201,8 +201,10 @@ def test_identifiers_page_tabulates_every_naming_system() -> None:
     assert "`dhis2code`" in identifiers
     assert "`http://dhis2.org/fhir/property/dhis2-code`" in identifiers
     rows = [line for line in identifiers.splitlines() if line.startswith("| `D2")]
-    # Two rows per identifier-system subject: the UID system and the code system.
-    assert len(rows) == 2 * len(IDENTIFIER_SYSTEM_SUBJECTS)
+    # One row per identifier-system subject for the UID system, plus one more where DHIS2 has a code.
+    assert len(rows) == len(IDENTIFIER_SYSTEM_SUBJECTS) + sum(
+        1 for subject in IDENTIFIER_SYSTEM_SUBJECTS if subject.has_code
+    )
     assert "| `D2OrgUnitIdentifierSystem` | `http://dhis2.org/fhir/id/org-unit` |" in identifiers
     assert "| `D2CategoryOptionComboCodeIdentifierSystem` | " in identifiers
     assert "| `D2CategoryIdentifierSystem` | `http://dhis2.org/fhir/id/category` |" in identifiers

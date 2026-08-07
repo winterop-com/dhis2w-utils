@@ -13,6 +13,7 @@ from dhis2w_fhir.config import (
     load_project,
     write_fhir_config,
 )
+from pydantic import ValidationError
 
 _MINIMAL_TOML = """
 [ig]
@@ -87,24 +88,40 @@ def test_load_project_derives_directories(tmp_path: Path) -> None:
 
 
 def test_data_definition_tables_parse(tmp_path: Path) -> None:
-    """`[generate.data_sets]` and `[generate.event_programs]` load as UID include lists."""
+    """The three data-definition tables load as UID include lists, one per questionnaire form kind."""
     path = tmp_path / "fhir.toml"
     path.write_text(
         _MINIMAL_TOML
         + '\n[generate.data_sets]\ninclude_ids = ["BfMAe6Itzgt"]\n'
-        + '\n[generate.event_programs]\ninclude_ids = ["VBqh0ynB2wv"]\n',
+        + '\n[generate.event_programs]\ninclude_ids = ["VBqh0ynB2wv"]\n'
+        + '\n[generate.tracker_programs]\ninclude_ids = ["IpHINAT79UW"]\n',
         encoding="utf-8",
     )
     config = load_fhir_config(path)
     assert config.generate.data_sets.include_ids == ["BfMAe6Itzgt"]
     assert config.generate.event_programs.include_ids == ["VBqh0ynB2wv"]
+    assert config.generate.tracker_programs.include_ids == ["IpHINAT79UW"]
+
+
+def test_tracker_program_selection_defaults_to_everything() -> None:
+    """An absent `[generate.tracker_programs]` means every tracker program on the instance."""
+    assert GenerateConfig().tracker_programs.include_ids == []
 
 
 def test_questionnaire_naming_tokens_default_to_the_registry() -> None:
-    """The data-set and program tokens default to the canonical registry's DS / PR, and may be dropped."""
+    """The data-set, program, and program-stage tokens default to DS / PR / PS, and may all be dropped."""
     assert GenerateConfig().naming.data_set == "DS"
     assert GenerateConfig().naming.program == "PR"
+    assert GenerateConfig().naming.program_stage == "PS"
     assert GenerateConfig.model_validate({"naming": {"data_set": "", "program": ""}}).naming.data_set == ""
+    assert GenerateConfig.model_validate({"naming": {"program_stage": ""}}).naming.program_stage == ""
+
+
+def test_the_program_stage_token_is_overridable_and_validated() -> None:
+    """A custom program-stage token lands in FSH names, so it takes the same letter-leading rule as its peers."""
+    assert GenerateConfig.model_validate({"naming": {"program_stage": "Stage"}}).naming.program_stage == "Stage"
+    with pytest.raises(ValidationError, match="letter-leading alphanumeric"):
+        GenerateConfig.model_validate({"naming": {"program_stage": "2Stage"}})
 
 
 def test_locales_default_to_every_locale_found() -> None:
