@@ -133,8 +133,10 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     assert config.generate.naming.data_set == "DS"
     assert config.generate.naming.program == "PR"
     assert config.generate.organisation_units.terminology is False
+    assert config.generate.naming.program_stage == "PS"
     assert config.generate.data_sets.include_ids == []
     assert config.generate.event_programs.include_ids == []
+    assert config.generate.tracker_programs.include_ids == []
     assert config.generate.examples.per_target == 1
     assert config.generate.examples.source == "synthetic"
 
@@ -148,6 +150,7 @@ def test_fhir_toml_example_comments_out_the_unset_placeholders() -> None:
     assert '# include_ids = ["Qdm5fPK5Ra9"]' in example
     assert '# include_ids = ["BfMAe6Itzgt"]' in example
     assert '# include_ids = ["VBqh0ynB2wv"]' in example
+    assert '# include_ids = ["IpHINAT79UW"]' in example
     assert "\nroot =" not in example
     assert "\nmax_level =" not in example
     assert "\nlocales =" not in example
@@ -155,14 +158,19 @@ def test_fhir_toml_example_comments_out_the_unset_placeholders() -> None:
 
 
 def test_data_definition_targets_are_seeded_into_fhir_toml() -> None:
-    """`--data-set` / `--event` UIDs land in the scaffolded fhir.toml as include lists."""
+    """`--data-set` / `--event` / `--tracker-program` UIDs land in the scaffolded fhir.toml as include lists."""
     options = _OPTIONS.model_copy(
-        update={"data_set_ids": ["BfMAe6Itzgt", "Nyh6laLdBEJ"], "event_program_ids": ["VBqh0ynB2wv"]}
+        update={
+            "data_set_ids": ["BfMAe6Itzgt", "Nyh6laLdBEJ"],
+            "event_program_ids": ["VBqh0ynB2wv"],
+            "tracker_program_ids": ["IpHINAT79UW"],
+        }
     )
     files = {file.relative_path: file.content for file in build_scaffold_files(options)}
     config = FhirProjectConfig.model_validate(tomllib.loads(files["fhir.toml"]))
     assert config.generate.data_sets.include_ids == ["BfMAe6Itzgt", "Nyh6laLdBEJ"]
     assert config.generate.event_programs.include_ids == ["VBqh0ynB2wv"]
+    assert config.generate.tracker_programs.include_ids == ["IpHINAT79UW"]
 
 
 def test_max_level_is_seeded_into_fhir_toml() -> None:
@@ -186,6 +194,7 @@ def test_unseeded_fhir_toml_carries_no_target_tables() -> None:
     body = _by_path()["fhir.toml"]
     assert "[generate.data_sets]" not in body
     assert "[generate.event_programs]" not in body
+    assert "[generate.tracker_programs]" not in body
 
 
 def test_ig_ini_points_at_sushi_output() -> None:
@@ -514,6 +523,27 @@ def test_refresh_reads_the_identity_back_off_disk(tmp_path: Path) -> None:
     assert state.options.publisher == "Winterop"
     assert state.options.status == "active"
     assert refresh_project(tmp_path).edited_files == []
+
+
+def test_refresh_recovers_the_selection_tables_from_fhir_toml(tmp_path: Path) -> None:
+    """The three data-definition tables live only in fhir.toml, so the refresh reads its selection back off disk."""
+    options = _OPTIONS.model_copy(
+        update={
+            "data_set_ids": ["BfMAe6Itzgt"],
+            "event_program_ids": ["VBqh0ynB2wv"],
+            "tracker_program_ids": ["IpHINAT79UW"],
+        }
+    )
+    _write_project(tmp_path, options)
+
+    state = read_project_scaffold_state(tmp_path)
+
+    assert state.options.data_set_ids == ["BfMAe6Itzgt"]
+    assert state.options.event_program_ids == ["VBqh0ynB2wv"]
+    assert state.options.tracker_program_ids == ["IpHINAT79UW"]
+    report = refresh_project(tmp_path)
+    assert report.edited_files == []
+    assert "fhir.toml" not in report.refreshed_files + report.unchanged_files
 
 
 def test_refresh_keeps_the_copyright_year_the_project_was_scaffolded_in(tmp_path: Path) -> None:

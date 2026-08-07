@@ -124,6 +124,7 @@ Every command and every flag, from `cli.py`.
 | `--max-level` | unset | Deepest organisation-unit level, seeding `[generate.organisation_units] max_level`. The dial on the registry's share of the publisher's rendering pass. Below 1 is a `typer.BadParameter`. |
 | `--data-set` | none | Repeatable data set UID seeding `[generate.data_sets] include_ids`. Offline - never checked against an instance. |
 | `--event` | none | Repeatable event program UID seeding `[generate.event_programs] include_ids`. Offline. |
+| `--tracker-program` | none | Repeatable tracker program UID seeding `[generate.tracker_programs] include_ids`, which emits one Questionnaire per program stage. Offline. |
 | `--force` | off | Overwrite scaffold files that already exist. Without it, existing files are reported as skipped. |
 | `--refresh` | off | Re-render the scaffold for an existing project, writing a file only where the render reproduces every line already on disk. Identity comes off the project itself; `fhir.toml` is never written. Passing it with `--force` is a `typer.BadParameter`. |
 
@@ -203,14 +204,16 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 | `[generate.naming] category` | string | `CAT` | May be empty. Names a category's `D2CAT_<slug>_CS` / `_VS` pair. There is deliberately no `category_option` key - category options are concepts, and concepts have no token. |
 | `[generate.naming] organisation_unit` | string | `OU` | Must stay non-empty - an empty token degenerates the org-unit names to bare `_CS` / `_Level_CS`. |
 | `[generate.naming] data_set` | string | `DS` | May be empty. |
-| `[generate.naming] program` | string | `PR` | May be empty. |
+| `[generate.naming] program` | string | `PR` | May be empty. Names an event program's Questionnaire. |
+| `[generate.naming] program_stage` | string | `PS` | May be empty. Names a tracker program stage's Questionnaire. |
 | `[generate.option_sets] include_ids` | list of string | `[]` | Empty means all. |
 | `[generate.categories] include_ids` | list of string | `[]` | Empty means all, DHIS2's own `default` category included. No closure - nothing generated today binds a category. |
 | `[generate.organisation_units] root` | string or absent | `None` | `""` is coerced to unset. Filters with DHIS2 `path:like`. |
 | `[generate.organisation_units] max_level` | int or absent | `None` | `0` is coerced to unset. Filters with `level:le`. |
 | `[generate.organisation_units] terminology` | bool | `false` | Also emit the whole-selection CodeSystem/ValueSet. |
 | `[generate.data_sets] include_ids` | list of string | `[]` | Empty means all. |
-| `[generate.event_programs] include_ids` | list of string | `[]` | Empty means all. |
+| `[generate.event_programs] include_ids` | list of string | `[]` | Empty means all. Selects `WITHOUT_REGISTRATION` programs; a `WITH_REGISTRATION` UID listed here is refused by name. |
+| `[generate.tracker_programs] include_ids` | list of string | `[]` | Empty means all. Selects `WITH_REGISTRATION` programs, one Questionnaire per program stage; a `WITHOUT_REGISTRATION` UID listed here is refused by name. |
 | `[generate.examples] per_target` | int | `1` | Validated `0..10` against `MAXIMUM_EXAMPLES_PER_TARGET`. `0` disables the target, which still sweeps its directory clean. |
 | `[generate.examples] source` | `synthetic` / `instance` | `synthetic` | |
 
@@ -220,7 +223,7 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 
 | Path | What it is |
 | --- | --- |
-| `fhir.toml` | The minimal committed config - the profile pointer, `[ig]`, and the seeded target lists when `--data-set` / `--event` were given. |
+| `fhir.toml` | The minimal committed config - the profile pointer, `[ig]`, and the seeded target lists when `--data-set` / `--event` / `--tracker-program` were given. |
 | `fhir.toml.example` | Every option with its default, documented. |
 | `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` (JSON only), the `path-resource` globs for `input/resources/registry/*`, `input/resources/terminology/*`, and `input/resources/categories/*` (SUSHI recurses into those sub-folders, the IG Publisher does not, so a missing glob drops that sub-folder from the published guide), and the eight-entry `menu:`. No `pages:` and no `groups:`. Also the one file recording the publisher URL and the copyright year, which is why a refresh reads its inputs from it. |
 | `ig/ig.ini` | `template = fhir2.base.template`, pointing at the compiled ImplementationGuide JSON. |
@@ -242,18 +245,19 @@ Base directory is `<project_root>/ig/input/fsh/` for FSH,
 
 | Target | Directory | Files |
 | --- | --- | --- |
-| `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-attribute-value.fsh`, `d2-responses.fsh`, `d2-capture-server.fsh` - seven, always, with no client opened. |
+| `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-attribute-value.fsh`, `d2-organisation-unit.fsh`, `d2-tracker-enrollment.fsh`, `d2-responses.fsh`, `d2-capture-server.fsh` - nine, always, with no client opened. |
 | `option-sets` | `resources/terminology/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected option set, ids `d2-os-<slug>-cs` / `-vs`, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. A Questionnaire's `Canonical(D2OS_<uid>_VS)` resolves against them, because SUSHI fishes a predefined resource by its `name` element. |
 | `categories` | `resources/categories/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected category, ids `d2-cat-<slug>-cs` / `-vs`, concepts being that category's category options in their DHIS2 `categoryOptions` order. Its own directory because `sync_json_artifacts` owns its target outright. |
 | `questionnaires` | `data-sets/` | One `<uid>.fsh` Questionnaire per DHIS2 data set. |
-| `questionnaires` | `event-programs/` | One `<uid>.fsh` Questionnaire per single-stage event program. |
+| `questionnaires` | `event-programs/` | One `<uid>.fsh` Questionnaire per `WITHOUT_REGISTRATION` program, built from its single stage. |
+| `questionnaires` | `tracker-programs/` | One `<program uid>/<stage uid>.fsh` Questionnaire per stage of a `WITH_REGISTRATION` program - the only nested layout, swept recursively with empty-subdirectory pruning. |
 | `questionnaires` | `data-dictionary/` | `data-elements.fsh` (`D2DE_CS` / `_VS`) and `category-option-combos.fsh` (`D2COC_CS` / `_VS`), emitted only when the run referenced any. |
 | `examples` | `examples/` | One `<targetUid>-<n>.fsh` QuestionnaireResponse per example. |
 | `org-units` | `organization/` | `profiles.fsh` always; then `org-unit-levels.fsh`, and `org-units-terminology.fsh` only with `terminology = true`. |
 | `org-units` | `resources/registry/` | `Organization-<uid>.json` and `Location-<uid>.json` per selected unit, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. |
 | `pages` | `ig/input/pagecontent/` | `forms.md`, `registry.md`, `terminology.md`, `identifiers.md`, `periods.md`, `capture.md`, plus `Questionnaire-<UID>-intro.md` (always), `CodeSystem-<id>-intro.md` and `Organization-<UID>-intro.md` (only where DHIS2 carries a description). |
 
-Only `examples`, the three questionnaire directories, `registry`, `terminology`,
+Only `examples`, the four questionnaire directories, `registry`, `terminology`,
 `categories`, and `pagecontent` have named constants (`EXAMPLES_DIRECTORY`,
 `QUESTIONNAIRE_DIRECTORIES`, `REGISTRY_DIRECTORY`, `TERMINOLOGY_DIRECTORY`,
 `CATEGORY_DIRECTORY`, `PAGES_DIRECTORY`). `organization` and `foundation` are
@@ -311,7 +315,7 @@ itself additionally calls `/api/system/info` on connect to bind the version tree
 | `/api/attributes` | `resolve_attribute_code_index`, called by `generate option-sets`, `generate categories`, `generate questionnaires`, and `generate org-units` | `_ATTRIBUTE_FIELDS` = `id,code`, `paging=False`. Unpaged deliberately: DHIS2 answers 50 attributes to a page by default, so a paged read would silently drop the tail of the `uid -> code` join on an instance defining more than one page. |
 | `/api/metadata` | `validate` | `get_raw` with `fields=id,name,code` and `defaults=EXCLUDE`. |
 | `/api/dataValueSets` | `generate examples` with `source = "instance"` | `get_raw` with `dataSet`, `orgUnit`, `children=true`, `period`, walking `recent_periods(periodType, 6, today)` newest-first. |
-| `/api/tracker/events` | `generate examples` with `source = "instance"` | `get_raw` with `program`, `pageSize`, `order=occurredAt:desc`, and `_EXAMPLE_EVENT_FIELDS`. |
+| `/api/tracker/events` | `generate examples` with `source = "instance"` | `get_raw` with `pageSize`, `order=occurredAt:desc`, and either `program` + `_EXAMPLE_EVENT_FIELDS` for an event program or `program` + `programStage` + `_EXAMPLE_TRACKER_EVENT_FIELDS` for a tracker stage. DHIS2 demands the program beside the stage (BUGS.md #67). |
 
 Note the shape of `generate all`: it opens and closes a client per target,
 `/api/optionSets` is fetched by four of the seven targets, and `/api/attributes`
@@ -335,12 +339,13 @@ raises `NoFhirProjectError` pointing at `d2w fhir init` when there is none.
 
 The unifying model: all three DHIS2 shapes are groups of typed items plus an
 organisation-unit linkage plus a patient when one exists. A data set is that. An
-event program is that. A tracker program is that with a patient. So all three map
-onto `Questionnaire` for the form and `QuestionnaireResponse` for the capture,
-and `subjectType` declares the linkage - `#Location` for data sets and event
-programs today, `Patient` for tracker when it lands. The generated
-Questionnaires already carry `subjectType = #Location`, and both response
-profiles restrict `subject` to `Reference(D2Location)`.
+event program is that. A tracker program stage is that with a patient. So all three
+map onto `Questionnaire` for the form and `QuestionnaireResponse` for the capture,
+and `subjectType` declares the linkage: `#Location` for a data set and an event
+program, `#Patient` for a tracker program stage. The aggregate and event response
+profiles restrict `subject` to `Reference(D2Location)`; the tracker-event profile
+restricts it to `Reference(Patient)` and identifies the person by tracked-entity
+identifier, moving the organisation unit onto the `D2OrganisationUnit` extension.
 
 ### 3.3 MeasureReport is not a capture shape
 
@@ -439,10 +444,11 @@ Not one project per form. The registry (organisation units) and the terminology
 so are the foundation artifacts and the identifier systems. Giving each data set
 its own project would mean N copies of the same 2,664 Location resources under
 N different id namespaces. So a project is one instance - profile, canonical,
-registry, terminology, foundation - and data sets and event programs are
-**multiple targets inside it**, selected through `[generate.data_sets]` and
-`[generate.event_programs]` `include_ids`, seeded offline by
-`d2w fhir init --data-set` / `--event`. Cutting per-form deployables out of that
+registry, terminology, foundation - and data sets, event programs, and tracker
+program stages are
+**multiple targets inside it**, selected through `[generate.data_sets]`,
+`[generate.event_programs]`, and `[generate.tracker_programs]` `include_ids`,
+seeded offline by `d2w fhir init --data-set` / `--event` / `--tracker-program`. Cutting per-form deployables out of that
 is a packaging choice for `fhir build`, not a namespace choice.
 
 ### 3.11 Example responses are synthetic by default
@@ -663,7 +669,7 @@ What the compile does carry is five CodeSystems - `D2OU_Level_CS`,
 the `data-dictionary` support pairs, are two files carrying 2.5MB of FSH between
 them. They are why predefined option-set terminology saves 3m18s rather than the
 whole of what SUSHI spends on CodeSystems, and the dials that reach them are
-`[generate.data_sets]` / `[generate.event_programs]`.
+`[generate.data_sets]` / `[generate.event_programs]` / `[generate.tracker_programs]`.
 
 Registry size lands on the IG publisher instead, which writes and renders a page
 per resource. `generate_organisation_units` warns once a registry passes
@@ -694,18 +700,40 @@ will decide how strict the proxy's answer resolution is and whether
 
 ### 5.2 The tracker shape
 
-**Question.** Alongside `Patient` and the per-stage Questionnaires, does a
-tracker enrollment map to `EpisodeOfCare` or to `CarePlan`?
+**Question.** Alongside `Patient`, does a tracker enrollment map to
+`EpisodeOfCare` or to `CarePlan`?
 
 **Options.** `EpisodeOfCare` reads as the administrative period of care, which
 is closer to what a DHIS2 enrollment records. `CarePlan` reads as the intended
 schedule of activities, which is closer to how a program's stages are meant to
 be followed.
 
-**Depends on it.** All tracker generation, and the `tracker` / `tracker-event`
-codes already sitting in `D2FormType_CS` waiting for their generators. Multiple
-program stages come with it: `WITHOUT_REGISTRATION` carries exactly one stage, so
-every multi-stage program is a tracker program.
+**Context for the call.** The definition side has a third artifact that is not an
+alternative to either: `PlanDefinition` is the program *as a definition*, one
+`action` per program stage, each `definitionCanonical` pointing at that stage's
+generated Questionnaire, `action.timing` carried from the stage's
+`minDaysFromStart`, and `action.cardinalityBehavior` from whether the stage
+repeats. It pairs naturally with `$apply`, which instantiates a definition for one
+patient - and `$apply`'s canonical output is a `CarePlan`, so choosing `CarePlan`
+for the enrollment gives the enrollment an `instantiatesCanonical` back to the
+PlanDefinition and closes the loop. `EpisodeOfCare` does not close that loop, but
+it does not conflict with a PlanDefinition either: the two can coexist, one
+recording the administrative period and the other the intended schedule. It is
+also the shape the WHO SMART Guidelines build visit schedules on, so an IG that
+publishes one is legible to that toolchain.
+
+The per-stage Questionnaires already carry `D2DE_CS` codings on every item, which
+is exactly what SDC `$extract` keys on to project a response into coded
+`Observation`s. The form-faithful layer this guide publishes is therefore the
+substrate a clinical layer would be built on, not a competing representation of it -
+whichever way 5.2 is decided.
+
+**Depends on it.** `Patient` instances, the enrollment resource itself, and the
+registration form (the `tracker` code sitting in `D2FormType_CS`, which captures
+tracked entity attributes rather than a stage's data elements). The per-stage
+Questionnaires and the tracker-event capture contract do *not*: they ship today,
+keyed to the tracked entity and the enrollment by identifier, so the enrollment
+resource is an addition rather than a prerequisite.
 
 ### 5.3 The extraction mechanism
 
@@ -1152,8 +1180,8 @@ what the predefined-resource path buys on the registry side.
 `D2PeriodType_CS`, `D2FormType_CS`, `D2DE_CS`, and `D2COC_CS`. The last two are
 the `data-dictionary` support pairs - two files, 2.5MB of FSH - which is why
 predefined option-set terminology is worth 3m18s rather than everything SUSHI
-spends on CodeSystems. `[generate.data_sets]` and `[generate.event_programs]` are
-the dials that reach them. `[generate.option_sets] include_ids` does not move
+spends on CodeSystems. `[generate.data_sets]`, `[generate.event_programs]`, and
+`[generate.tracker_programs]` are the dials that reach them. `[generate.option_sets] include_ids` does not move
 compile time at all: the terminology it selects is never compiled. It is a dial
 on what the IG *publishes*, not on what it costs to build.
 
@@ -1238,10 +1266,23 @@ commitment.
   carries 45,880 concepts, against one or two values per organisation unit - so
   this wants its own measurement rather than riding along with the resource-level
   shape.
-- **Tracker programs as Questionnaires.** `WITH_REGISTRATION` programs need
-  `Patient` plus the enrollment resource from open decision 5.2, alongside the
-  per-stage forms. The `tracker` and `tracker-event` codes are already in
-  `D2FormType_CS` waiting for them. Multi-stage event programs land with them.
+- **Tracker programs as Questionnaires.** A `WITH_REGISTRATION` program publishes
+  one `Questionnaire` per program stage under `tracker-programs/<program
+  uid>/<stage uid>.fsh`, and `D2TrackerEventResponse` is the capture contract for
+  an event of one - the `tracker-event` code, a logical `Patient` subject
+  identified by tracked-entity UID, and the `D2TrackerEnrollment` /
+  `D2OrganisationUnit` extensions. What remains is the registration half: the
+  `tracker` code of `D2FormType_CS` for the registration form (whose questions are
+  tracked entity attributes, not a stage's data elements), `Patient` instances so
+  the subject becomes a resolvable reference, and the enrollment resource itself.
+  All three are gated on open decision 5.2.
+- **A tracked entity attribute as the subject identifier.** A tracker-event
+  response identifies its subject by the DHIS2 tracked entity UID under
+  `{base}/id/tracked-entity`. A later step lets an instance nominate a *unique*
+  tracked entity attribute - a national ID, an MRN - as the subject identifier
+  instead, under its own declared identifier system, so a response identifies the
+  person by something the receiving system already knows. That needs TEA support,
+  which arrives with the registration form above.
 - **Org unit groups and group sets.** DHIS2 classifications beyond the level
   hierarchy - facility type, ownership - mapped to additional
   `Organization.type` codings from group-set CodeSystems, tokens `OUG` / `OUGS`
@@ -1273,7 +1314,7 @@ commitment.
   there is a cheaper way to ask `/api/metadata` for them than fetching every
   object's full translation list.
 - **Instance-scoped project identity.** `d2w fhir init --data-set <uid>` /
-  `--event <uid>` seed the target lists offline today. Deriving the IG identity
+  `--event <uid>` / `--tracker-program <uid>` seed the target lists offline today. Deriving the IG identity
   (id, canonical, title) from the instance and its named targets on first init
   needs a live call, which `init` deliberately does not make yet.
 - **Data layer beyond the examples.** `generate examples` already maps a data

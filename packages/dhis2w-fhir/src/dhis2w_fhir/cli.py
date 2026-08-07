@@ -94,6 +94,15 @@ def init_command(
             "the UID is written to fhir.toml as given, never checked against an instance.",
         ),
     ] = None,
+    tracker_program_ids: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--tracker-program",
+            help="Tracker program UID to seed `\\[generate.tracker_programs]` include_ids with (repeatable); the "
+            "program emits one Questionnaire per program stage. Offline: the UID is written to fhir.toml as "
+            "given, never checked against an instance.",
+        ),
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite scaffold files that already exist.")] = False,
     refresh: Annotated[
         bool,
@@ -136,6 +145,7 @@ def init_command(
         max_level=max_level,
         data_set_ids=data_set_ids or [],
         event_program_ids=event_program_ids or [],
+        tracker_program_ids=tracker_program_ids or [],
     )
     report = asyncio.run(service.init_project(directory, options, force=force))
     if is_json_output():

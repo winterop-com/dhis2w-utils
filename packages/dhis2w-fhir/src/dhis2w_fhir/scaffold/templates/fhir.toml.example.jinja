@@ -17,9 +17,10 @@ status = "{{ status }}"
 [generate]
 # Base URI for the DHIS2 identifier systems. `generate foundation` writes it into
 # foundation/d2-aliases.fsh as one alias family per DHIS2 object - $DHIS2-OU, $DHIS2-OS,
-# $DHIS2-DS, $DHIS2-PROGRAM, $DHIS2-DE, $DHIS2-COC - each with a -CODE sibling where the
-# object carries a DHIS2 code ($DHIS2-OU-CODE, $DHIS2-OS-CODE, $DHIS2-DS-CODE,
-# $DHIS2-PROGRAM-CODE), and into the business identifiers every generated instance carries.
+# $DHIS2-DS, $DHIS2-PROGRAM, $DHIS2-PS, $DHIS2-DE, $DHIS2-COC, $DHIS2-TE,
+# $DHIS2-TRACKER-ENROLLMENT - each with a -CODE sibling where the object carries a DHIS2
+# code ($DHIS2-OU-CODE, $DHIS2-OS-CODE, $DHIS2-DS-CODE, $DHIS2-PROGRAM-CODE,
+# $DHIS2-PS-CODE), and into the business identifiers every generated instance carries.
 identifier_system_base = "http://dhis2.org/fhir"
 # Concept code source for option sets: "id" (option UID, DHIS2 code as property)
 # or "code" (DHIS2 code when FHIR-valid, UID as property; invalid codes fall back).
@@ -41,6 +42,7 @@ category = "CAT"                    # category CodeSystem/ValueSet names; "" dro
 organisation_unit = "OU"            # must stay non-empty (e.g. "OrgUnit")
 data_set = "DS"                     # data set Questionnaire names; "" drops the token
 program = "PR"                      # event program Questionnaire names; "" drops the token
+program_stage = "PS"                # tracker program stage Questionnaire names; "" drops the token
 
 [generate.option_sets]
 # optionSet UIDs to include (absent = all).
@@ -56,9 +58,16 @@ program = "PR"                      # event program Questionnaire names; "" drop
 # include_ids = ["BfMAe6Itzgt"]
 
 [generate.event_programs]
-# Event program UIDs to emit as Questionnaires (absent or empty = all event programs;
-# tracker programs are skipped until tracker generation lands).
+# Program UIDs to emit as one Questionnaire each; selects WITHOUT_REGISTRATION programs
+# (absent or empty = every event program). Tracker programs go under
+# [generate.tracker_programs].
 # include_ids = ["VBqh0ynB2wv"]
+
+[generate.tracker_programs]
+# Program UIDs to emit as per-stage Questionnaires; selects WITH_REGISTRATION programs
+# (absent or empty selects every WITH_REGISTRATION program; one Questionnaire per program
+# stage, filed under tracker-programs/<program uid>/<stage uid>.fsh).
+# include_ids = ["IpHINAT79UW"]
 
 [generate.examples]
 # Example QuestionnaireResponses per questionnaire target, generated locally by default -

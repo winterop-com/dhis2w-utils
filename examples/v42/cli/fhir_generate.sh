@@ -15,13 +15,15 @@ d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/d
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" --status active
 
-# --data-set / --event narrow the data-definition targets at scaffold time (repeatable,
-# offline - the UIDs are written to fhir.toml, never checked against an instance). Leave
-# them out and generation covers the whole instance. On the play 2.42 demo: two data sets
-# and one event program.
+# --data-set / --event / --tracker-program narrow the three data-definition targets at
+# scaffold time (repeatable, offline - the UIDs are written to fhir.toml, never checked
+# against an instance). Leave them out and generation covers the whole instance. On the
+# play 2.42 demo: two data sets, one event program, and one tracker program (which emits
+# one Questionnaire per program stage).
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" \
-#     --data-set BfMAe6Itzgt --data-set Nyh6laLdBEJ --event VBqh0ynB2wv
+#     --data-set BfMAe6Itzgt --data-set Nyh6laLdBEJ --event VBqh0ynB2wv \
+#     --tracker-program IpHINAT79UW
 
 # --profile seeds the `profile` key of the scaffolded fhir.toml, so the project points at
 # an instance from the first run instead of needing -p on every later command. Offline too:
@@ -101,15 +103,19 @@ d2w fhir generate option-sets
 # Narrow the set with [generate.categories] include_ids (absent or empty = every category).
 d2w fhir generate categories
 
-# Questionnaires: one Questionnaire per selected data set under ig/input/fsh/data-sets/
-# and per event program under ig/input/fsh/event-programs/, plus the shared data-element
-# and category-option-combo support terminology under ig/input/fsh/data-dictionary/.
+# Questionnaires: one Questionnaire per selected data set under ig/input/fsh/data-sets/,
+# per event program under ig/input/fsh/event-programs/, and per tracker program stage
+# under ig/input/fsh/tracker-programs/<programUid>/<stageUid>.fsh, plus the shared
+# data-element and category-option-combo support terminology under
+# ig/input/fsh/data-dictionary/.
 # Sections become #group items, data elements become questions typed from their DHIS2
 # valueType, option-set-bound elements answer from the option set's ValueSet, and a
-# non-default category combo becomes a group with one child per option combo.
-# Narrow the targets with [generate.data_sets] / [generate.event_programs] include_ids;
-# with neither configured this target covers the whole instance (tracker programs are
-# skipped with a note).
+# non-default category combo becomes a group with one child per option combo. A stage's
+# Questionnaire is subjectType #Patient and carries a $DHIS2-PROGRAM identifier slice, so
+# Questionnaire?identifier=<base>/id/program|<programUid> selects a program's stages.
+# Narrow the targets with [generate.data_sets] / [generate.event_programs] /
+# [generate.tracker_programs] include_ids; absent or empty means every object of that
+# kind, and a program listed under the wrong table fails the run by name.
 d2w fhir generate questionnaires
 
 # Examples: one Usage: #example QuestionnaireResponse per configured example under
@@ -121,6 +127,8 @@ d2w fhir generate questionnaires
 # SHA-256 seed, so nothing off the instance is published and a regenerate is byte-stable.
 # Set source = "instance" to read real data value sets and tracker events instead - demo
 # servers only: those values land in the published IG, so review examples/ before shipping.
+# A tracker stage's examples read /api/tracker/events by programStage and carry the
+# enrollment and tracked entity UIDs the D2TrackerEventResponse contract requires.
 d2w fhir generate examples
 
 # Organisation units: the D2Organization / D2Location profiles and the level CodeSystem

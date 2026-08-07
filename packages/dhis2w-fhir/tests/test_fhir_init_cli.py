@@ -50,7 +50,7 @@ def test_init_force_overwrites(workdir: Path) -> None:
 
 
 def test_init_seeds_data_definition_targets(workdir: Path) -> None:
-    """Repeatable `--data-set` / `--event` seed the include lists, offline, with no instance call."""
+    """Repeatable `--data-set` / `--event` / `--tracker-program` seed the include lists, with no instance call."""
     import tomllib
 
     result = _runner.invoke(
@@ -65,12 +65,33 @@ def test_init_seeds_data_definition_targets(workdir: Path) -> None:
             "Nyh6laLdBEJ",
             "--event",
             "VBqh0ynB2wv",
+            "--tracker-program",
+            "IpHINAT79UW",
+            "--tracker-program",
+            "uy2gU8kT1jF",
         ],
     )
     assert result.exit_code == 0, result.output
     raw = tomllib.loads((workdir / "project" / "fhir.toml").read_text(encoding="utf-8"))
     assert raw["generate"]["data_sets"]["include_ids"] == ["BfMAe6Itzgt", "Nyh6laLdBEJ"]
     assert raw["generate"]["event_programs"]["include_ids"] == ["VBqh0ynB2wv"]
+    assert raw["generate"]["tracker_programs"]["include_ids"] == ["IpHINAT79UW", "uy2gU8kT1jF"]
+
+
+def test_init_refresh_of_a_seeded_project_leaves_fhir_toml_alone(workdir: Path) -> None:
+    """A refresh of a project seeded with tracker programs rewrites no configuration and reports no edits."""
+    seeded = ["fhir", "init", "project", "--tracker-program", "IpHINAT79UW"]
+    assert _runner.invoke(build_app(), seeded).exit_code == 0
+    config = workdir / "project" / "fhir.toml"
+    before = config.read_text(encoding="utf-8")
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert config.read_text(encoding="utf-8") == before
+    assert "[generate.tracker_programs]" in before
+    assert "your version stays" not in result.output
+    assert "unchanged ig/sushi-config.yaml" in result.output
 
 
 def test_init_seeds_profile(workdir: Path) -> None:

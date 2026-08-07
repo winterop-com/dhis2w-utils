@@ -12,7 +12,7 @@ d2w fhir init --refresh             Bring an existing project's scaffold-managed
 d2w fhir generate foundation        Identifier aliases + the D2Period / D2FormType / D2AttributeValue extensions
 d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate categories        Categories -> CodeSystem/ValueSet pairs
-d2w fhir generate questionnaires    Data sets + event programs -> Questionnaire instances
+d2w fhir generate questionnaires    Data sets + event programs + tracker stages -> Questionnaire instances
 d2w fhir generate examples          Example QuestionnaireResponses against those Questionnaires
 d2w fhir generate org-units         Org units -> Organization/Location instances
 d2w fhir generate pages             Narrative site pages + per-artifact intros
@@ -136,6 +136,7 @@ category = "CAT"                    # category CodeSystem/ValueSet names
 organisation_unit = "OU"            # e.g. "OrgUnit" -> D2OrgUnit_Level_CS
 data_set = "DS"                     # data set Questionnaire names
 program = "PR"                      # event program Questionnaire names
+program_stage = "PS"                # tracker program stage Questionnaire names
 
 [generate.option_sets]
 # include_ids = ["Qdm5fPK5Ra9"]     # UIDs; absent = all
@@ -147,7 +148,10 @@ program = "PR"                      # event program Questionnaire names
 # include_ids = ["BfMAe6Itzgt"]     # UIDs; absent or empty = all
 
 [generate.event_programs]
-# include_ids = ["VBqh0ynB2wv"]     # UIDs; absent or empty = all
+# include_ids = ["VBqh0ynB2wv"]     # WITHOUT_REGISTRATION UIDs; absent or empty = all
+
+[generate.tracker_programs]
+# include_ids = ["IpHINAT79UW"]     # WITH_REGISTRATION UIDs; absent or empty = all
 
 [generate.examples]
 per_target = 1                      # example responses per questionnaire target; 0 disables
@@ -216,15 +220,20 @@ depends on `fhir.toml` alone and never opens a client:
 
 - `d2-aliases.fsh` - `$DHIS2-OU` / `$DHIS2-OU-CODE` / `$DHIS2-OS` /
   `$DHIS2-OS-CODE` / `$DHIS2-DS` / `$DHIS2-DS-CODE` / `$DHIS2-PROGRAM` /
-  `$DHIS2-PROGRAM-CODE` / `$DHIS2-DE` / `$DHIS2-COC`, built from
+  `$DHIS2-PROGRAM-CODE` / `$DHIS2-DE` / `$DHIS2-COC` / `$DHIS2-PS` /
+  `$DHIS2-PS-CODE` / `$DHIS2-TE` / `$DHIS2-TRACKER-ENROLLMENT`, built from
   `identifier_system_base`. Generating these rather
   than scaffolding them is what frees `ig/input/fsh/aliases.fsh` to be a pure
   hand-authored stub.
 - `d2-naming-systems.fsh` - one `NamingSystem` per identifier system: a UID and a
-  code declaration for each of the organisation unit, option set, data set,
-  program, data element, and category option combo
+  code declaration for each of the organisation unit, option set, category, data set,
+  program, data element, category option combo, and program stage
   (`D2OrgUnitIdentifierSystem`, `D2OptionSetCodeIdentifierSystem`,
-  `D2DataSetIdentifierSystem`, ...), each
+  `D2DataSetIdentifierSystem`, ...), plus a UID declaration alone for the tracked
+  entity and the tracker enrollment. The split is a property of the DHIS2 object, not
+  a gap: `IdentifierSystemSubject.has_code` is false for a data object, because DHIS2
+  gives a tracked entity and an enrollment no `code` attribute, so declaring a code
+  system for them would declare a system nothing can ever populate. Each declaration is
   `kind = #identifier` with a single preferred `uri` uniqueId and a description
   stating the convention, including the code slot's UID fall-back. Without them
   the validator has no definition behind a DHIS2 `identifier.system` and warns on
@@ -236,8 +245,9 @@ depends on `fhir.toml` alone and never opens a client:
   (`aggregate`, `event`, `tracker`, `tracker-event`). Its context covers
   `Questionnaire` *and* `QuestionnaireResponse`: the form states what kind of DHIS2
   form it is, and so does every response captured against it, which is what lets a
-  consumer branch without re-reading the questionnaire. The two tracker codes are
-  declared ahead of their generators so the terminology does not churn later.
+  consumer branch without re-reading the questionnaire. `aggregate`, `event`, and
+  `tracker-event` each have a generator; `tracker` is the registration form, declared
+  in the same terminology so the code set is stable when that generator lands.
 - `d2-attribute-value.fsh` - the `D2AttributeValue` extension, a complex extension of
   `attributeId` (string, 1..1), `attributeCode` (string, 0..1) and `value` (string,
   1..1), contexted on the five resource types that carry one: `Organization`,
@@ -249,27 +259,50 @@ depends on `fhir.toml` alone and never opens a client:
   gets no sub-extension at all rather than an empty one. `value` is a string whatever
   the attribute's declared `valueType`, because that is the only shape DHIS2 sends -
   one real attribute carries a whole GeoJSON document that way.
-- `d2-responses.fsh` - the `D2AggregateResponse` and `D2EventResponse` profiles on
+- `d2-organisation-unit.fsh` - the `D2OrganisationUnit` extension, `value[x] only
+  Reference(<location profile>)` with `valueReference` 1..1, contexted on
+  `QuestionnaireResponse`. It exists because a tracker-event response spends its
+  `subject` on the patient, so the unit the event was captured at needs a slot of its
+  own.
+- `d2-tracker-enrollment.fsh` - the `D2TrackerEnrollment` extension, `value[x] only
+  Identifier` with `valueIdentifier.system` fixed to `{base}/id/tracker-enrollment`
+  and `valueIdentifier.value` 1..1, contexted on `QuestionnaireResponse`. It is named
+  for the tracker enrollment specifically rather than for enrollment in general, so a
+  future enrollment kind gets its own namespace instead of overloading this one.
+- `d2-responses.fsh` - the `D2AggregateResponse`, `D2EventResponse`, and
+  `D2TrackerEventResponse` profiles on
   `QuestionnaireResponse`, one per form kind. Each slices the extensions its kind has
-  to carry (`D2Period` 1..1 on the aggregate one, `D2FormType` 1..1 on both, fixed to
-  the kind's own code), requires `questionnaire`, requires `subject` and restricts it
-  to `Reference(D2Location)`, and the event one additionally requires `authored`. The
+  to carry (`D2Period` 1..1 on the aggregate one, `D2TrackerEnrollment` and
+  `D2OrganisationUnit` 1..1 on the tracker one, `D2FormType` 1..1 on all three, fixed
+  to the kind's own code), requires `questionnaire`, requires `subject`, and requires
+  `authored` on the two event kinds. The aggregate and event profiles restrict
+  `subject` to `Reference(D2Location)`; the tracker one restricts it to
+  `Reference(Patient)` and makes it a *logical* reference - `subject.identifier` 1..1
+  with `system` fixed to `{base}/id/tracked-entity` - because the IG publishes no
+  `Patient` instances and the tracked entity resolves against DHIS2 instead. The
+  three flags on `ResponseProfileDeclaration` (`period_required`,
+  `authored_required`, `tracker_context_required`) are what the one shared template
+  branches on, so a fourth form kind is a declaration rather than a template. The
   slice names are the extension names, which is what lets an instance address them as
   `extension[D2Period]` the way the examples already did against the bare resource.
 - `d2-capture-server.fsh` - the `D2CaptureServer` CapabilityStatement,
   `kind = #requirements` so R4 forbids `software` and `implementation`. It declares
-  `create` on `QuestionnaireResponse` with both response profiles as
-  `supportedProfile`, and `read` + `search-type` on `Questionnaire`, `CodeSystem`,
+  `create` on `QuestionnaireResponse` with every response profile as
+  `supportedProfile` - the template loops over the same declarations
+  `d2-responses.fsh` renders, so the two cannot disagree about how many there are -
+  and `read` + `search-type` on `Questionnaire`, `CodeSystem`,
   `ValueSet`, `Location`, and `Organization`. R4 makes `CapabilityStatement.date`
   mandatory, so it takes a pinned literal for the same byte-stability reason the
   NamingSystem declarations do.
 
-The two response profiles are the reason `foundation` reads
-`OrganisationUnitNaming`: `subject only Reference(<location profile>)` has to name
+The response profiles are the reason `foundation` reads
+`OrganisationUnitNaming`: `subject only Reference(<location profile>)` and the
+`D2OrganisationUnit` extension's `valueReference` both have to name
 the very profile the org-unit target emits, under whatever `[generate.naming]` prefix
 is configured. `naming.py` is a leaf module, so the dependency adds no cycle. The
-profiles are only half the contract - the other half is that every generated example
-declares `InstanceOf: D2AggregateResponse` / `InstanceOf: D2EventResponse` instead of
+profiles are only half the contract - the other half is that every complete generated
+example declares `InstanceOf: D2AggregateResponse` / `D2EventResponse` /
+`D2TrackerEventResponse` instead of
 the bare resource, so SUSHI and the publisher validate the examples against the
 profiles on every run and a profile that drifts from what generation produces fails
 the build.
@@ -418,44 +451,77 @@ generated today binds a category, so the list stands alone rather than being
 unioned with what the forms reference. DHIS2's own `default` category is emitted
 like any other and is filterable like any other.
 
-## Data sets and event programs -> Questionnaires
+## Data sets, event programs, and tracker stages -> Questionnaires
 
-`generate questionnaires` owns three sync directories under `ig/input/fsh/`, split
+`generate questionnaires` owns four sync directories under `ig/input/fsh/`, split
 by what the files describe rather than by which command wrote them:
 
 ```
 data-sets/<UID>.fsh                      One Questionnaire per DHIS2 data set
 event-programs/<UID>.fsh                 One Questionnaire per DHIS2 event program
+tracker-programs/<program UID>/<stage UID>.fsh
+                                         One Questionnaire per tracker program stage
 data-dictionary/data-elements.fsh        D2DE_CS / _VS over every referenced element
 data-dictionary/category-option-combos.fsh   D2COC_CS / _VS over every option combo
 ```
+
+`tracker-programs/` is the only nested layout, and it is nested because a national
+instance's stage count is what makes a flat directory unreadable: grouping by program
+UID means a program's forms are one folder. The FSH sweep serves it by tracking
+produced files by path *relative to the sync root* and walking subdirectories, so a
+deletion is still scoped to header-bearing generated files, and a subdirectory the
+sweep emptied is removed with them. The JSON sweep keeps its flat
+whole-directory-ownership semantics - it has no nested target.
 
 `D2DE_CS` carries two concept properties: `dhis2-code` (the DHIS2 code, falling back to the
 UID) and `domain` - a `code` valued `#aggregate` or `#tracker` from the data element's DHIS2
 `domainType`, omitted along with its declaration when the instance answers none. Both take a
 `<identifier_system_base>/property/<code>` URI, the same scheme the option-set terminology uses.
 
-The targets are `[generate.data_sets]` / `[generate.event_programs]` `include_ids`,
+The targets are `[generate.data_sets]` / `[generate.event_programs]` /
+`[generate.tracker_programs]` `include_ids`,
 absent or empty = all, exactly like the terminology and registry selections. The
 service makes one `sync_artifacts` call per directory, each swept against its own
-files alone, and merges the three reports into the single `GenerateReport` whose
-`target_directory` reads `data-sets, event-programs, data-dictionary`. The two
+files alone, and merges the four reports into the single `GenerateReport` whose
+`target_directory` reads `data-sets, event-programs, tracker-programs,
+data-dictionary`. The two
 support pairs are FSH under `ig/input/fsh/data-dictionary/`, a different tree
 from the option-set target's `ig/input/resources/terminology/`, so its cleanup
 can never reach them. The command is still
 `d2w fhir generate questionnaires` - it names the action, not a folder.
 
 One Questionnaire is `Usage: #definition`, `id` the bare UID, `url` the IG canonical
-plus `/Questionnaire/<uid>`, `subjectType = #Location` (a DHIS2 form is answered for
-an organisation unit), `status` and `experimental`, both DHIS2 identifiers (`$DHIS2-DS` /
-`$DHIS2-PROGRAM` and their code slots), and `name` composed from the naming tokens
-(`D2DS_BfMAe6Itzgt`). Sections become `#group` items; data elements become questions
+plus `/Questionnaire/<uid>`, `status` and `experimental`, both DHIS2 identifiers
+(`$DHIS2-DS` / `$DHIS2-PROGRAM` / `$DHIS2-PS` and their code slots), and `name`
+composed from the naming tokens (`D2DS_BfMAe6Itzgt`, `D2PS_A03MvHHogjR`).
+`subjectType` states who the form is answered for: `#Location` for a data set and an
+event program (a DHIS2 form is answered for an organisation unit), `#Patient` for a
+tracker stage (it is answered for the enrolled person, and the organisation unit moves
+onto the response's `D2OrganisationUnit` extension).
+
+A tracker stage's identity is the *stage's* - its UID, its code, its description, its
+attribute values - and the program travels beside it as `ProgramContextIn`, which
+shapes three things: the `title` reads `<program> - <stage>`, the file path nests
+under the program UID, and a third identifier slice carries the program UID under
+`$DHIS2-PROGRAM`. That slice is the grouping handle a plain FHIR server can search on
+(`Questionnaire?identifier={base}/id/program|<programUid>` returns a program's
+stages), which is why the program is an identifier rather than only a title.
+`_tracker_program_sources` emits the stages in DHIS2's own order - `sortOrder`, then
+name, then UID - because `programStages` is a Java `Set` on the wire and its order is
+neither the form's nor stable across requests.
+
+Sections become `#group` items; data elements become questions
 whose type comes from the DHIS2 `valueType` table, or `#choice` plus an
 `answerValueSet` when the element is option-set bound; a `MULTI_TEXT` question is that
 `#choice` plus `repeats = true`, which is the whole of what MULTI_TEXT means; a compulsory
-program-stage element is `required`; a non-default category combo turns the question into a group
+program-stage element is `required`; on an *aggregate* source a non-default category combo turns
+the question into a group
 with one child per option combo, `linkId` `<deUid>.<cocUid>` - the same key a DHIS2
-data value carries. A cell asks the element's own question one option combo at a time, so
+data value carries. Disaggregation is aggregate-only by construction: a data set's values land
+on `/api/dataValueSets`, where every value carries a category option combo, while an event data
+value has no `categoryOptionCombo` slot on the wire - so an event or tracker-stage question
+stays flat whatever combo its data element declares, because a form must not ask a question the
+capture endpoint cannot accept an answer to. A cell asks the element's own question one option combo at a time, so
 each child takes the element's effective item type, its `answerValueSet`, its `repeats`, and
 its bounds; only the `linkId`, the text, and the code differ. A section holding such a group
 also carries the standard
@@ -465,17 +531,22 @@ grid stated in FHIR terms. The source's own DHIS2 attribute values follow the
 data elements' attribute values do not travel, because they would land on
 `D2DE_CS` concepts.
 
-The two selection modes handle the shapes the target cannot map differently, and the
-split is deliberate. When `include_ids` is **explicit**, the service refuses what it
-cannot map rather than guessing: a listed program whose live `programType` is not
-`WITHOUT_REGISTRATION` raises by name (tracker programs need `Patient` /
-`EpisodeOfCare`, not a bare Questionnaire) - the operator named that UID, so
-silence would be a lie. When
-`include_ids` is **absent or empty** the whole instance is the target, so refusing
-would make the mode unusable on any real database: the sweep auto-selects the
-`WITHOUT_REGISTRATION` programs and skips the tracker ones, as a single aggregate
-note (`N tracker programs skipped ...`). Listed UIDs that resolve to nothing, and
-data elements no section references, are aggregate notes in both modes.
+**Three tables, routed by `programType`.** `[generate.data_sets]` picks aggregate
+data sets, `[generate.event_programs]` picks `WITHOUT_REGISTRATION` programs, and
+`[generate.tracker_programs]` picks `WITH_REGISTRATION` programs. The two program
+tables are read independently in `_fetch_program_sources`, each on its own terms, and
+the two selection modes handle a mismatched shape differently - the split is
+deliberate. When a table's `include_ids` is **explicit**, its UIDs are fetched by name
+and every one is routed to that table's type; a program of the other type raises by
+name, and the message points at the table the program does belong under - the operator
+named that UID, so silence would be a lie. When
+`include_ids` is **absent or empty** the whole instance is that table's target, so
+refusing would make the mode unusable on any real database: the sweep routes each
+program by its live `programType` and collects the types neither table maps into a
+single aggregate note. With *both* tables empty one unfiltered fetch serves both,
+because the split is a property of the response, not of the request. Listed UIDs that
+resolve to nothing, and data elements no section references, are aggregate notes in
+both modes.
 
 The option-set closure keeps the IG internally consistent: when
 `[generate.option_sets] include_ids` narrows the terminology, the option sets the
@@ -489,7 +560,8 @@ the targets are not fetched twice.
 `generate examples` owns one sync directory, `ig/input/fsh/examples/`, holding one
 `Usage: #example` QuestionnaireResponse per example, named `<targetUID>-<n>.fsh`.
 The targets are the questionnaire targets - the same `_fetch_questionnaire_sources`
-call, so all-mode and the skip rules behave identically and no example can point at
+call, so all-mode and the routing rules behave identically, a tracker program
+contributes one target per stage, and no example can point at
 a Questionnaire the IG lacks.
 
 `[generate.examples]` carries `per_target` (0 disables the target, which still
@@ -511,15 +583,28 @@ rendering once.
   `TRUE_ONLY` is always `true`; an option-set-bound question draws a real concept
   from the set the IG publishes. The only value that moves with the calendar is the
   anchor: a data-set example takes the newest completed period of its period type,
-  and its temporal values are drawn from that window.
+  and its temporal values are drawn from that window. A tracker-event example draws
+  its tracked entity and enrollment UIDs off the same seeded generator, so the
+  contract's two required UIDs are deterministic placeholders rather than identifiers
+  borrowed from a live database.
 - **`instance`** reads the server. Data sets walk `recent_periods(periodType, 6,
   today)` newest-first against `GET /api/dataValueSets` (root org unit,
   `children=true`) and stop at the first period holding values, which are then
   grouped by the DHIS2 reporting key `(orgUnit, period, attributeOptionCombo)`,
-  richest group first. Event programs read `GET /api/tracker/events` ordered
+  richest group first. Both program kinds read `GET /api/tracker/events` ordered
   `occurredAt:desc`, tolerating both the `instances` and `events` envelope keys at
-  the boundary. A target the instance answers nothing for is one aggregate note,
-  never a failure.
+  the boundary: an event program selects by `program`, a tracker stage by
+  `programStage` *plus* its `program`, which DHIS2 demands even though the stage pins
+  it ([BUGS.md #67](../project/upstream-quirks.md#67-get-apitrackereventsprogramstageuid-demands-program-even-though-the-stage-pins-it)).
+  A stage read also asks for `enrollment` and `trackedEntity`, the two UIDs the
+  tracker-event contract requires. A target the instance answers nothing for is one
+  aggregate note, never a failure.
+
+An example that reaches the emitter without both tracker UIDs declares
+`InstanceOf: QuestionnaireResponse` rather than the tracker profile and is tallied in
+one aggregate note. Degrading rather than dropping is the same choice the answer
+casting makes: a real captured form is worth publishing, and a document that cannot
+meet a contract must not claim it.
 
 The emitted items mirror the questionnaire exactly - section groups nest their
 questions, a disaggregated element nests one child per option combo under
@@ -620,8 +705,8 @@ identifier system those slots name is declared by a foundation NamingSystem.
 Every generated CodeSystem also points back at its ValueSet through `valueSet`
 (spelled `^valueSet` in the FSH ones) and gives each concept property a
 `<base>/property/<code>` URI so the property has a defined meaning outside this
-IG. Every generated definitional resource - the two
-profiles, the two extensions, every CodeSystem/ValueSet pair, every Questionnaire -
+IG. Every generated definitional resource - every response
+profile, every extension, every CodeSystem/ValueSet pair, every Questionnaire -
 states its publication `status` and its `experimental` flag from `[ig] status`:
 `#draft` and `true` while the IG is `draft`, `#active` and `false` once it is
 `active`. The flag is always populated, because ShareableCodeSystem /
@@ -644,7 +729,7 @@ everything it finds there without a `pages:` block, and the IG publisher injects
 directory carries both halves of the narrative layer:
 
 ```
-pagecontent/forms.md                     Data set + event program catalog
+pagecontent/forms.md                     Data set + event program + tracker stage catalog
 pagecontent/registry.md                  Organisation unit registry summary
 pagecontent/terminology.md               Option sets + the support CodeSystems
 pagecontent/identifiers.md               The two identifier slices + NamingSystems
@@ -661,15 +746,27 @@ that are gated on a DHIS2 description emit nothing when there is none - most
 organisation units have no description, and an intro page repeating the title would
 be noise.
 
-`capture.md` is the narrative half of the capture contract. It works an aggregate and
-an event response step by step against forms this project actually selected, with a
+`capture.md` is the narrative half of the capture contract. It works an aggregate
+response, an event response, and a tracker event response step by step against forms
+this project actually selected, with a
 real ISO period resolved through `parse_period` from the pinned reference date and a
-real organisation unit off the registry, then tabulates the answer typing for every
+real organisation unit off the registry. The tracker walkthrough is the one that needs
+prose most, because its shape is the least guessable: the logical `Patient` subject
+carrying no `reference`, the `D2TrackerEnrollment` identifier, the
+`D2OrganisationUnit` reference standing in for the `subject` an aggregate response
+spends on the unit, and a pointer at `d2w data tracker enrollment list` for where the
+two UIDs come from - DHIS2, not this guide. A project with no tracker stage selected
+gets the rules without the worked example rather than a missing section. The page then
+tabulates the answer typing for every
 DHIS2 value type. That table is not written twice: the value type to answer element
 mapping is `answer_element` in `resources/examples`, which `_typed_answer` dispatches
 on and the page reads directly, and the event status table is the examples component's
 own `STATUS_BY_EVENT_STATUS`. Only the prose spelling rule per value type is the
-page's own. `build_page_artifacts` takes the IG canonical for this page alone - the
+page's own. `forms.md` groups the same way the FSH tree does: a "Tracker programs"
+section with one heading per program and that program's stages catalogued beneath it,
+and each stage's `Questionnaire-<UID>-intro.md` names the program it belongs to, so a
+form found on its own says what it is part of. `build_page_artifacts` takes the IG
+canonical for this page alone - the
 capture contract has to state the canonical URL rule a client resolves a Questionnaire
 by, and that lives in `[ig]` rather than `[generate]`.
 
@@ -942,15 +1039,17 @@ The components:
   / `CategorySelection` schemas. It reads `resources/option_sets/` for the shared
   concept assignment and is read by none of them.
 - `resources/questionnaires/` - the Questionnaire instance per data set / event
-  program plus the two support terminology pairs, the exported
+  program / tracker program stage plus the two support terminology pairs, the exported
   `ITEM_TYPES_BY_VALUE_TYPE` table mapping every DHIS2 `valueType` on v41/v42/v43 to its
   FHIR item type (guarded by a test that reads the three generated `ValueType` enums, so a
-  codegen refresh cannot introduce a silent `string`), the three sync directory names
-  (`DATA_SET_DIRECTORY` / `EVENT_PROGRAM_DIRECTORY` / `DATA_DICTIONARY_DIRECTORY`,
+  codegen refresh cannot introduce a silent `string`), the four sync directory names
+  (`DATA_SET_DIRECTORY` / `EVENT_PROGRAM_DIRECTORY` / `TRACKER_PROGRAM_DIRECTORY` /
+  `DATA_DICTIONARY_DIRECTORY`,
   collected as `QUESTIONNAIRE_DIRECTORIES`), with `TargetSelection`, the
   `QuestionnaireSourceIn` / `QuestionnaireSectionIn` / `QuestionnaireItemIn` /
-  `CategoryComboIn` / `CategoryOptionComboIn` projections, and `QuestionnaireNaming`
-  deriving every name from the `DS` / `PR` / `DE` / `COC` tokens - option-set names
+  `ProgramContextIn` / `CategoryComboIn` / `CategoryOptionComboIn` projections, and
+  `QuestionnaireNaming`
+  deriving every name from the `DS` / `PR` / `PS` / `DE` / `COC` tokens - option-set names
   are not among them, they come in on the `OptionSetIdentityPlan`. Item nesting is
   resolved in Python into a flat list of view-models carrying their FSH soft-index
   paths (`item[=].item[+]`), so the template stays a layout, not a recursion.
@@ -976,8 +1075,9 @@ The components:
   only the profiles and the terminology go through jinja. Group / group-set
   emission lands here next.
 - `foundation/` - the instance-independent artifacts: the DHIS2 identifier
-  aliases, the `D2Period` / `D2FormType` / `D2AttributeValue` extensions, the
-  response profiles, and the CapabilityStatement, with `FoundationNaming` deriving
+  aliases, the NamingSystem declarations, the `D2Period` / `D2FormType` /
+  `D2AttributeValue` / `D2OrganisationUnit` / `D2TrackerEnrollment` extensions, the
+  three response profiles, and the CapabilityStatement, with `FoundationNaming` deriving
   their names from the prefix token. `attribute_values.py` additionally holds the
   `D2AttributeValue` builder the resource emitters call, which is why the only
   definitional component is also imported at emit time.
