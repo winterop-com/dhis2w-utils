@@ -100,6 +100,8 @@ filing.
 - [#20](#20-delete-apioptionsuid-returns-200-ok-but-leaves-the-option-in-place) — `DELETE /api/options/{uid}` is a no-op **[FIXED v43]**
 - [#24](#24-fresh-installs-built-in-tet-person--teas-first-namelast-name-collide-with-imports-sharing-those-names) — Built-in TET `Person` + TEAs collide with imports
 - [#26](#26-admin-ou-scope-is-cached-per-session--scope-changes-need-a-re-login) — Admin OU scope cached per session
+- [#65](#65-optioncode-is-required-while-its-sibling-categoryoptioncode-is-optional-and--counts-as-missing) — `Option.code` required, `CategoryOption.code` optional; `""` counts as missing
+- [#66](#66-an-empty-string-code-is-silently-stored-as-absent-rather-than-kept-or-rejected) — Empty-string `code` silently stored as absent
 
 ### v43-specific
 
@@ -3630,5 +3632,92 @@ settings verdicts still run. See `_fetch_cors_whitelist` in
 `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/audit.py` and
 `evaluate_settings` in
 `packages/dhis2w-core/src/dhis2w_core/security_core/settings_audit.py`.
+
+**Verifier:** none yet.
+
+### 65. `Option.code` is required while its sibling `CategoryOption.code` is optional, and `""` counts as missing
+
+Two classes that model the same idea - a named value inside a set - disagree on
+whether the code is mandatory. `Option` rejects both an absent code and an empty
+one with the same error; `CategoryOption` accepts either.
+
+**Observed on:** DHIS2 2.43 (`dhis2/core:2.43.1.0`, 2026-08-06).
+
+**Repro:**
+
+```bash
+# Option with no code at all -> rejected
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/metadata?importStrategy=CREATE_AND_UPDATE&atomicMode=OBJECT' \
+  -d '{"options":[{"id":"OptNoCode01","name":"No code","sortOrder":9,"optionSet":{"id":"<setUid>"}}]}'
+# ... "errorCode":"E4000","message":"Missing required property `code`"
+
+# Same option with an EMPTY code -> rejected identically
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/metadata?importStrategy=CREATE_AND_UPDATE&atomicMode=OBJECT' \
+  -d '{"options":[{"id":"OptNoCode01","name":"No code","code":"","sortOrder":9,"optionSet":{"id":"<setUid>"}}]}'
+# ... "errorCode":"E4000","message":"Missing required property `code`"
+
+# CategoryOption with no code -> accepted
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/metadata?importStrategy=CREATE_AND_UPDATE&atomicMode=OBJECT' \
+  -d '{"categoryOptions":[{"id":"CoNoCode001","name":"No code","shortName":"No code"}]}'
+# {"stats":{"created":1,...}}
+```
+
+**Expected:** the two classes agree, or the asymmetry is documented. Both are
+`IdentifiableObject`s whose `code` is nullable in the schema.
+
+**Actual:** `code` is mandatory on `Option` only, and the importer treats `""` as
+absent rather than as a present-but-empty value, so there is no way to create an
+option carrying an empty code.
+
+**Impact:** any consumer with a fallback for "this option has no code" cannot be
+exercised against an instance DHIS2 built - the state is unreachable. In this repo
+the FHIR terminology emitter's uncoded-option fallback (`code_or_uid(option.code,
+option.uid)`) and the `code is empty` defect string in `describe_code_defect` are
+both nets for metadata that arrived some other way, not paths a seeded instance
+reproduces.
+
+**Workaround in this repo:** the local seed carries the uncoded and empty-coded
+shapes on a `CategoryOption` instead, where DHIS2 accepts them. See
+`infra/scripts/seed/fhir_variations.py`.
+
+**Verifier:** none yet.
+
+### 66. An empty-string `code` is silently stored as absent rather than kept or rejected
+
+Where a class does accept `code: ""`, the importer neither preserves the empty
+string nor rejects it - it normalises it to NULL, and reports success.
+
+**Observed on:** DHIS2 2.43 (`dhis2/core:2.43.1.0`, 2026-08-06).
+
+**Repro:**
+
+```bash
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/metadata?importStrategy=CREATE_AND_UPDATE&atomicMode=OBJECT' \
+  -d '{"categoryOptions":[{"id":"CoEmpty0001","name":"Empty code","shortName":"Empty code","code":""}]}'
+# {"stats":{"created":1,"updated":0,"deleted":0,"ignored":0,"total":1}}
+
+curl -s -u admin:district 'http://localhost:8080/api/categoryOptions/CoEmpty0001?fields=id,name,code'
+# {"name":"Empty code","id":"CoEmpty0001"}      <- no `code` key at all
+```
+
+**Expected:** either the empty code round-trips as `""`, or the write is rejected
+the way `Option` rejects it (see #62).
+
+**Actual:** the write succeeds, reports `created: 1`, and the code is silently
+dropped. A caller that wrote `""` and reads back gets an object with no code, with
+nothing in the import summary saying so.
+
+**Impact:** "code absent" and "code empty" are indistinguishable on the wire, so a
+consumer cannot tell a deliberate blank from a never-set one, and any validation
+that reports on empty codes is unreachable against a DHIS2-built instance.
+
+**Workaround in this repo:** none needed - the FHIR validation sweep treats an
+absent code as absent, which is what the wire reports. The `code is empty` branch
+of `describe_code_defect` is retained as a net for metadata written directly to the
+database. Recorded so the retained branch is discoverable rather than mysterious.
 
 **Verifier:** none yet.

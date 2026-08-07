@@ -865,6 +865,12 @@ async def seed_play(client: Dhis2Client) -> None:
     attribute_value_count = await seed_fhir_attributes(client)
     print(f"    attribute values attached: {attribute_value_count}", flush=True)
 
+    _log(">>> Seeding FHIR text-handling variations (markup, translations, absent codes)")
+    from .fhir_variations import seed_fhir_variations  # noqa: PLC0415
+
+    variation_count = await seed_fhir_variations(client)
+    print(f"    variation objects: {variation_count}", flush=True)
+
     _log(">>> Building supervision-visit event program")
     from .event_program import build_event_program  # noqa: PLC0415
 
