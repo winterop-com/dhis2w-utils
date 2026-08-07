@@ -871,6 +871,12 @@ async def seed_play(client: Dhis2Client) -> None:
     variation_count = await seed_fhir_variations(client)
     print(f"    variation objects: {variation_count}", flush=True)
 
+    _log(">>> Seeding ANC follow-up tracker program (repeatable visit stage)")
+    from .anc_program import seed_anc_program  # noqa: PLC0415
+
+    anc_event_count = await seed_anc_program(client)
+    print(f"    ANC visit events: {anc_event_count}", flush=True)
+
     _log(">>> Building supervision-visit event program")
     from .event_program import build_event_program  # noqa: PLC0415
 
