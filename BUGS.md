@@ -102,6 +102,7 @@ filing.
 - [#26](#26-admin-ou-scope-is-cached-per-session--scope-changes-need-a-re-login) — Admin OU scope cached per session
 - [#65](#65-optioncode-is-required-while-its-sibling-categoryoptioncode-is-optional-and--counts-as-missing) — `Option.code` required, `CategoryOption.code` optional; `""` counts as missing
 - [#66](#66-an-empty-string-code-is-silently-stored-as-absent-rather-than-kept-or-rejected) — Empty-string `code` silently stored as absent
+- [#67](#67-get-apitrackereventsprogramstageuid-demands-program-even-though-the-stage-pins-it) — `programStage` events read demands `program`; HTML 400
 
 ### v43-specific
 
@@ -3719,5 +3720,39 @@ that reports on empty codes is unreachable against a DHIS2-built instance.
 absent code as absent, which is what the wire reports. The `code is empty` branch
 of `describe_code_defect` is retained as a net for metadata written directly to the
 database. Recorded so the retained branch is discoverable rather than mysterious.
+
+**Verifier:** none yet.
+
+### 67. `GET /api/tracker/events?programStage=<uid>` demands `program` even though the stage pins it
+
+A program stage belongs to exactly one program, so a stage UID fully determines the
+program - yet filtering events by stage alone is rejected, and the rejection is a
+Tomcat HTML page rather than the JSON WebMessage every other tracker error uses.
+
+**Observed on:** DHIS2 2.43 (`dhis2/core:2.43.1.0`, 2026-08-07).
+
+**Repro:**
+
+```bash
+# Stage alone -> 400, text/html body ("Required parameter 'program' is not present.")
+curl -s -u admin:district 'http://localhost:8080/api/tracker/events?programStage=A03MvHHogjR&pageSize=1'
+
+# Stage plus its program -> 200
+curl -s -u admin:district 'http://localhost:8080/api/tracker/events?program=IpHINAT79UW&programStage=A03MvHHogjR&pageSize=1'
+```
+
+**Expected:** a stage filter selects that stage's events - the program is derivable -
+or at minimum the rejection arrives as a JSON WebMessage naming the constraint.
+
+**Actual:** 400 with an HTML error page. The instance's own OpenAPI lists
+`EventRequestParams.programStage` as an ordinary parameter with no documented
+dependency on `program`.
+
+**Impact:** every per-stage read must carry the program UID alongside the stage UID,
+and a client parsing error bodies as JSON gets a parse failure instead of a message.
+
+**Workaround in this repo:** the FHIR examples target sends `program` beside
+`programStage` when reading a stage's events - see `_fetch_event_responses` in
+`packages/dhis2w-fhir/src/dhis2w_fhir/service.py`.
 
 **Verifier:** none yet.

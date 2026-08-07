@@ -926,7 +926,7 @@ async def test_instance_mode_reads_a_stages_events_by_program_stage(
     mock_system_info: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """A stage's events are selected by `programStage`, and each becomes a tracker event response."""
+    """A stage's events are selected by `program` plus `programStage` - DHIS2 requires both (BUGS.md #67)."""
     mock_system_info("v42")
     await _scaffold_tracker_project(tmp_path, examples='per_target = 1\nsource = "instance"')
     _mock_tracker_metadata()
@@ -938,7 +938,7 @@ async def test_instance_mode_reads_a_stages_events_by_program_stage(
 
     params = events.calls.last.request.url.params
     assert params["programStage"] == "A03MvHHogjR"
-    assert "program" not in params
+    assert params["program"] == "IpHINAT79UW"
     assert params["fields"] == (
         "event,orgUnit,occurredAt,status,enrollment,trackedEntity,dataValues[dataElement,value]"
     )

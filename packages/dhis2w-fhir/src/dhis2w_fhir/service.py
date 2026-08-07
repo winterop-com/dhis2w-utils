@@ -666,16 +666,21 @@ async def _fetch_event_responses(
 ) -> list[ExampleResponseIn]:
     """Read the most recent events of one event program or one tracker program stage as example responses.
 
-    Both kinds are events of `/api/tracker/events`: an event program selects them by `program`
-    and a tracker program stage by `programStage`. A stage's events also carry the enrollment and
-    the tracked entity, and an event the instance answered either of them for travels on with the
-    UID it has - the emitter states which of them is missing rather than dropping the example.
+    Both kinds are events of `/api/tracker/events`: an event program selects them by `program`,
+    and a tracker program stage by `program` plus `programStage` - DHIS2 requires the program
+    beside the stage even though the stage pins it (BUGS.md #67). A stage's events also carry the
+    enrollment and the tracked entity, and an event the instance answered either of them for
+    travels on with the UID it has - the emitter states which of them is missing rather than
+    dropping the example.
     """
     tracker = source.kind == "tracker-event"
+    selection: dict[str, object] = {"program": source.uid}
+    if tracker and source.program is not None:
+        selection = {"program": source.program.uid, "programStage": source.uid}
     raw = await client.get_raw(
         "/api/tracker/events",
         params={
-            "programStage" if tracker else "program": source.uid,
+            **selection,
             "pageSize": per_target,
             "order": "occurredAt:desc",
             "fields": _EXAMPLE_TRACKER_EVENT_FIELDS if tracker else _EXAMPLE_EVENT_FIELDS,
