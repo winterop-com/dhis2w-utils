@@ -23,8 +23,19 @@ d2w fhir generate
 make setup
 make sushi
 
-# Serve it. The default binds loopback (the facade has no authentication) on port 8080;
-# --port moves it. Startup loads the project, the store, and the response spool once.
+# Where this project is served from is project config, not an invocation detail: a [serve]
+# table states it once and `make serve` reads it too. A flag still wins over the table.
+cat >> fhir.toml <<'TOML'
+
+[serve]
+host = "127.0.0.1"
+port = 8090
+strict_codes = false
+TOML
+
+# Serve it. The default binds loopback (the facade has no authentication) on port 8080,
+# [serve] port overrides that, and --port overrides both. Startup loads the project, the
+# store, and the response spool once.
 d2w fhir serve --port "$PORT" &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
@@ -51,6 +62,13 @@ echo
 # the published guide documents, answered by a running server. (Scaffold this project
 # with --tracker-program IpHINAT79UW to see it return stages.)
 curl -sf "${BASE}/Questionnaire?identifier=${CANONICAL}/id/program%7CIpHINAT79UW" | head -c 200
+echo
+
+# $translate takes a generated concept code back to both DHIS2 identifiers, over the
+# ConceptMaps the option-set target publishes. system + code are required; targetsystem
+# is optional and narrows the answer to one group. The reply is a Parameters resource.
+curl -sf "${BASE}/ConceptMap/\$translate?system=${CANONICAL}/CodeSystem/d2-os-Qdm5fPK5Ra9-cs&code=Op1aaaaaaaa" \
+    | head -c 300
 echo
 
 # A load set: synthetic QuestionnaireResponse JSON to POST at the facade. Seeded from the

@@ -9,6 +9,10 @@ advertised that the store cannot answer for.
 The QuestionnaireResponse entry is the one that says what the facade is: responses are received
 and stored as receipts. Reading one back returns the submission as it arrived, never a live view
 of what DHIS2 now holds.
+
+`$translate` follows the same rule as the read types: it is declared only when the store actually
+holds ConceptMaps, and it is declared on `rest` rather than on a resource entry, because ConceptMap
+is translated through rather than read.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from dhis2w_fhir.r4 import (
     CapabilityStatement,
     CapabilityStatementImplementation,
     CapabilityStatementInteraction,
+    CapabilityStatementOperation,
     CapabilityStatementResource,
     CapabilityStatementRest,
     CapabilityStatementSearchParam,
@@ -28,6 +33,7 @@ from dhis2w_fhir.r4 import (
 )
 
 from dhis2w_fhir_serve.spool import current_instant
+from dhis2w_fhir_serve.store import CONCEPT_MAP_RESOURCE_TYPE
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import FhirProject
@@ -40,6 +46,16 @@ QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE = "QuestionnaireResponse"
 
 #: The name the software element reports, matching the command that runs it.
 SOFTWARE_NAME = "d2w fhir serve"
+
+#: The R4 operation the facade answers over its ConceptMaps, and the definition it conforms to.
+TRANSLATE_OPERATION_NAME = "translate"
+TRANSLATE_OPERATION_DEFINITION = "http://hl7.org/fhir/OperationDefinition/ConceptMap-translate"
+
+#: What the translate operation states about the mappings it answers from.
+TRANSLATE_DOCUMENTATION = (
+    "Translate a generated concept code into the DHIS2 option UID and option code the "
+    "published ConceptMaps map it onto."
+)
 
 #: What the QuestionnaireResponse entry states about the resources it holds.
 RESPONSE_DOCUMENTATION = "One response per request; stored responses are receipts of what was submitted"
@@ -92,9 +108,27 @@ def build_server_capability(
                 mode="server",
                 documentation=_REST_DOCUMENTATION,
                 resource=resources,
+                operation=_operations(store_summary),
             )
         ],
     )
+
+
+def _operations(store_summary: StoreSummary) -> list[CapabilityStatementOperation] | None:
+    """Declare `$translate` when the store holds ConceptMaps, and declare nothing when it does not.
+
+    The operation is declared on `rest` rather than on `rest.resource`: ConceptMap is not a read
+    type here, so there is no resource entry to hang it off, and the operation is type-level anyway.
+    """
+    if CONCEPT_MAP_RESOURCE_TYPE not in store_summary.counts_by_type:
+        return None
+    return [
+        CapabilityStatementOperation(
+            name=TRANSLATE_OPERATION_NAME,
+            definition=TRANSLATE_OPERATION_DEFINITION,
+            documentation=TRANSLATE_DOCUMENTATION,
+        )
+    ]
 
 
 def _response_resource(project: FhirProject, canonical: str) -> CapabilityStatementResource:

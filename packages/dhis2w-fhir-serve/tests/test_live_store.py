@@ -282,11 +282,41 @@ async def test_live_entries_are_indexed_and_marked_live(
     store = await _built_store(live_project)
 
     assert {entry.source for entry in store.entries} == {"live"}
-    assert store.types_present() == ("CodeSystem", "Location", "Organization", "Questionnaire", "ValueSet")
+    assert store.types_present() == (
+        "CodeSystem",
+        "ConceptMap",
+        "Location",
+        "Organization",
+        "Questionnaire",
+        "ValueSet",
+    )
     grouped = store.search("Questionnaire", _identifier_query(f"{_IDENTIFIER_BASE}/program", _TRACKER_PROGRAM_UID))
     assert [entry.resource_id for entry in grouped] == [_TRACKER_STAGE_UID]
     registry = store.search("Organization", _identifier_query(None, "ImspTQPwCqd"))
     assert [entry.resource_id for entry in registry] == ["ImspTQPwCqd"]
+
+
+@respx.mock
+async def test_the_live_store_holds_the_option_set_concept_maps(
+    live_profile: None,  # noqa: ARG001
+    live_project: FhirProject,
+) -> None:
+    """A live run serves the same ConceptMaps the generate target writes, so `$translate` answers off it."""
+    _mock_instance()
+
+    store = await _built_store(live_project)
+
+    concept_maps = _bodies(store, "ConceptMap")
+    assert sorted(concept_maps) == ["d2-os-Xa1b2c3d4e5-cm"]
+    groups = concept_maps["d2-os-Xa1b2c3d4e5-cm"]["group"]
+    assert [group["target"] for group in groups] == [
+        "http://dhis2.org/fhir/id/option",
+        "http://dhis2.org/fhir/id/option-code",
+    ]
+    assert {group["source"] for group in groups} == {f"{_CANONICAL}/CodeSystem/d2-os-Xa1b2c3d4e5-cs"}
+    assert [concept_map.url for concept_map in store.concept_maps()] == [
+        f"{_CANONICAL}/ConceptMap/d2-os-Xa1b2c3d4e5-cm"
+    ]
 
 
 @respx.mock

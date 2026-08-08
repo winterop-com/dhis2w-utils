@@ -12,7 +12,9 @@ StructureDefinitions, the extensions, the IG's `kind #requirements` CapabilitySt
 authored as FSH and only exist as JSON once SUSHI has compiled them, and no FSH compiler runs in
 this process. That costs the live store nothing: a capture server reads Questionnaire, CodeSystem,
 ValueSet, Location, and Organization (`CAPTURE_SERVER_READ_RESOURCE_TYPES`), every one of which
-comes out of a JSON builder here. The IG's own CapabilityStatement is still named by `/metadata`,
+comes out of a JSON builder here. The option-set ConceptMaps ride along with the terminology they
+map, so `$translate` answers from a live store exactly as it does from a compiled one, even though
+no read is served on ConceptMap. The IG's own CapabilityStatement is still named by `/metadata`,
 which `instantiates` it by canonical - a URL derived from config, needing no artifact to state.
 """
 
@@ -27,10 +29,12 @@ from dhis2w_fhir import (
     build_category_artifacts,
     build_data_dictionary_documents,
     build_option_set_artifacts,
+    build_option_set_concept_map_artifacts,
     build_organisation_unit_instances,
     build_questionnaire_documents,
 )
 from dhis2w_fhir.service import fetch_live_ig_inputs, resolve_generation_profile
+from dhis2w_fhir.writer import JsonBuild
 
 from dhis2w_fhir_serve.log import LOGGER_NAME
 from dhis2w_fhir_serve.store import IdentifierToken, ResourceStore, StoreEntry
@@ -38,7 +42,6 @@ from dhis2w_fhir_serve.store import IdentifierToken, ResourceStore, StoreEntry
 if TYPE_CHECKING:
     from dhis2w_fhir.config import FhirProject
     from dhis2w_fhir.r4 import CodeSystem, Questionnaire, ValueSet
-    from dhis2w_fhir.writer import JsonBuild
 
     from dhis2w_fhir_serve.settings import ServeSettings
 
@@ -53,10 +56,10 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
 
     The builders come in two shapes and both land in the same store. The questionnaires and the
     data dictionary are returned as R4 models, so they are dumped to their wire documents here.
-    The option sets, the categories, and the registry are returned as the serialised JSON
-    artifacts the generate targets write to disk, so their documents are read back out of that
-    exact text - what the facade serves live is then byte-identical to what the project would
-    have committed, with no second serialisation path to drift from it.
+    The option sets, their ConceptMaps, the categories, and the registry are returned as the
+    serialised JSON artifacts the generate targets write to disk, so their documents are read
+    back out of that exact text - what the facade serves live is then byte-identical to what the
+    project would have committed, with no second serialisation path to drift from it.
     """
     generation = resolve_generation_profile(project, settings.profile)
     logger.info(
@@ -82,6 +85,9 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
     json_builds: tuple[JsonBuild, ...] = (
         build_option_set_artifacts(
             inputs.option_sets, config, canonical, ig_status=ig_status, attribute_codes=inputs.attribute_codes
+        ),
+        JsonBuild(
+            artifacts=build_option_set_concept_map_artifacts(inputs.option_sets, config, canonical, ig_status=ig_status)
         ),
         build_category_artifacts(
             inputs.categories, config, canonical, ig_status=ig_status, attribute_codes=inputs.attribute_codes
