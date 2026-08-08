@@ -9975,6 +9975,11 @@ $ d2w fhir init [OPTIONS] [directory]
 
 Check the instance&#x27;s codes for FHIR-safety, writing md/csv/pdf reports grouped by type.
 
+The terminal says what the state is: a summary, a count per severity and category, and every
+error by name, because an error is what gates the build and the user has to know which object
+holds it. The written report is where a warning is read one row at a time; `--details` puts
+every row on the terminal too.
+
 **Usage**:
 
 ```console
@@ -9986,7 +9991,7 @@ $ d2w fhir validate [OPTIONS]
 * `--output-dir <directory>`: Directory to write the report files into, one per format, all named fhir-validate-report (default: reports/ under the project root, else the working directory).
 * `--format <str>`: Comma-separated report formats to write: md, csv, pdf.  [default: md,csv,pdf]
 * `--code-source <id|code>`: Override `[generate]` concept_code_source for this run. In id mode the option code findings are informational; run with code to see what switching would cost.
-* `--details`: List info-level findings individually instead of rolled up.
+* `--details`: List every finding individually instead of the rolled-up category counts.
 * `--fail / --no-fail`: Exit 1 when errors are found.  [default: fail]
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
@@ -10001,6 +10006,8 @@ Received QuestionnaireResponses are stored as receipts, so reading one back says
 
 `--live` builds the store from the instance at startup, as the profile `d2w -p` names.
 
+Host, port, and strict codes come from `` in fhir.toml unless a flag overrides them.
+
 **Usage**:
 
 ```console
@@ -10014,9 +10021,9 @@ $ d2w fhir serve [OPTIONS] [directory]
 **Options**:
 
 * `--live`: Build the served resources from a DHIS2 instance at startup instead of reading the compiled IG off disk. One client is opened during startup and closed before the first request, so the store is a snapshot of the instance the server started against.
-* `--host <str>`: Interface to bind. The default is loopback: the facade has no authentication, so reaching it from another host is a deliberate act.  [default: 127.0.0.1]
-* `--port <int>`: Port to listen on.  [default: 8080]
-* `--strict-codes`: Refuse a received answer whose code is outside the served terminology. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
+* `--host <str>`: Interface to bind, overriding ` host`. The default is loopback: the facade has no authentication, so reaching it from another host is a deliberate act.
+* `--port <int>`: Port to listen on, overriding ` port` (default 8080).
+* `--strict-codes / --no-strict-codes`: Refuse a received answer whose code is outside the served terminology, overriding ` strict_codes`. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
 * `--help`: Show this message and exit.
 
 ### `d2w fhir generate`
@@ -10027,7 +10034,9 @@ Bare `d2w fhir generate` runs every target off a single pass over the instance.
 
 The foundation runs first because it reads nothing, the pages last because they narrate the rest.
 
-Name a target to run that one alone; the flag here belongs to the bare run.
+Notes land in reports/fhir-generate-notes.md; `--details` prints them here instead.
+
+Name a target to run that one alone; the flags here belong to the bare run.
 
 **Usage**:
 
@@ -10037,6 +10046,7 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 
 **Options**:
 
+* `--details`: Print every note inline instead of writing them to the notes report.
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 

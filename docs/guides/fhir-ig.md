@@ -19,6 +19,10 @@ You get three things:
 - **`d2w fhir validate`** checks the instance's codes for FHIR-safety before you
   generate anything, and writes a report in Markdown, CSV, and PDF.
 
+New to FHIR, or to how a DHIS2 concept lands in it? Read
+[FHIR for DHIS2 people](fhir-101.md) first - it names the handful of FHIR resources
+this guide keeps using, in DHIS2 terms, and takes about ten minutes.
+
 The plugin is version-neutral - the wire client auto-detects the DHIS2 major on
 connect, so one package serves v41, v42, and v43.
 
@@ -503,6 +507,19 @@ including) that unit. `max_level` caps the depth. Both are applied server-side.
 CodeSystem/ValueSet with `level`, `parent`, and `dhis2-code` concept properties -
 for flows that want the hierarchy as codes rather than as resources.
 
+### `[serve]`
+
+```toml
+[serve]
+host = "127.0.0.1"      # interface to bind
+port = 8080             # port to listen on
+strict_codes = false    # refuse an answer whose code is outside the served terminology
+```
+
+The only table `d2w fhir generate` never reads: it configures `d2w fhir serve`, and
+`make serve` / `make serve-live` read it too. A command-line flag wins over it.
+See [Serving the IG](#serve-in-fhirtoml).
+
 ## Generate targets
 
 ```
@@ -523,6 +540,21 @@ the attribute-code join - and every target builds off that single result, where 
 separate commands each open a client of their own. It reports one summary row per target.
 Name a target when you want that target alone, which is what a tight edit loop on one
 directory wants.
+
+**Notes.** Each target raises aggregate notes - a selection entry that matched nothing,
+an option set the closure pulled in, the geometry tally, a form skipped for a `linkId`
+collision. On a national instance eight targets of those bury the summary table the run
+is actually read from, so a bare run **counts** them and writes them to
+`reports/fhir-generate-notes.md`, grouped by target:
+
+```
+note: 11 note(s) across 4 target(s); full list in reports/fhir-generate-notes.md (--details to print)
+```
+
+`--details` prints every note inline instead, each labelled by the target that raised
+it, and a run that raised none writes nothing and says nothing. A **solo** target keeps
+printing its notes on the terminal: one target's notes are short, and you asked for that
+target by name. `--json` is unchanged - the notes ride the payload either way.
 
 **Progress.** Every command with an instance behind it - the bare run, each named target,
 `load-set`, and `validate` - narrates its steps on stderr as they complete: a spinner with
@@ -713,6 +745,29 @@ EpisodeOfCare, MeasureReport identifiers will follow it).
     ```
     GET Questionnaire?identifier=http://dhis2.org/fhir/id/program|IpHINAT79UW
     ```
+
+**A unique attribute's values are identifiers.** A DHIS2 attribute value is an
+arbitrary key-value pair, so it normally rides the
+[`D2AttributeValue` extension](#the-d2attributevalue-extension). An attribute DHIS2
+declares **unique** is a different thing: its value names the object rather than
+annotating it, which is what a FHIR `Identifier` is for. Those values leave the
+extension and join the resource's identifier list - after the UID and code slices, so
+the order stays stable across runs - under a namespace of their own:
+
+```
+{base}/attribute/{attributeUid}
+```
+
+The namespace keys on the attribute **UID**, not its code: a DHIS2 attribute code may
+hold spaces, and a system URI may not. Every emitting surface follows the same rule -
+Organization and Location, an option set's and a category's CodeSystem/ValueSet pair,
+and a Questionnaire.
+
+These per-attribute namespaces are declared **by convention rather than as
+NamingSystems**, and deliberately so: the foundation layer is built from `fhir.toml`
+alone and never reads an instance, so it cannot know which attributes exist, let alone
+which are unique. A NamingSystem naming an attribute the instance does not have would
+be worse than none. What `d2-naming-systems.fsh` declares is the fixed family below.
 
 **Every system is declared as a NamingSystem.** `foundation/d2-naming-systems.fsh`
 emits one `NamingSystem` per identifier system - a UID system and a code system for
@@ -1185,6 +1240,18 @@ GeoJSON boundary extension is emitted first and the attribute values follow it,
 in the order DHIS2 returned them, so a regenerate of an unchanged unit produces a
 byte-identical file and the sync reports it unchanged.
 
+**The profiles get one worked example each.** The registry ships as JSON SUSHI never
+compiles, so `D2Organization` and `D2Location` would otherwise publish no example at
+all. `organization/registry-examples.fsh` fills that gap with a curated pair -
+`D2OrganizationExample` and `D2LocationExample`, `Usage: #example`, drawn from the
+selection's own **root** unit, so the publisher validates both profiles against a UID,
+code, name, and level the instance really holds. They carry what the profiles constrain
+and nothing more: no boundary attachment, no attribute values - a base64 GeoJSON blob
+illustrates the encoding rather than the contract, and the registry's JSON instances are
+where a consumer reads a unit in full. They live beside the profiles in
+`organization/`, not under `examples/`, because that directory is swept by the examples
+target and its sync deletes every file it did not produce.
+
 **Why JSON rather than FSH.** SUSHI loads `input/resources` and the sub-folders
 declared in `sushi-config.yaml` as *predefined resources*: they go into a virtual
 package, `sushi-local#LOCAL`, exactly as written, with no FSH parse and no
@@ -1380,12 +1447,59 @@ they combine (`?_id=a,b&url=x` matches the resource that is both). An unrecognis
 parameter is ignored rather than refused, and the Bundle's `self` link echoes back only
 the parameters the server actually applied, so a client can see what it got.
 
+### `$translate`
+
+The one operation the facade answers, over the [ConceptMaps the option-set target
+publishes](#option-sets): R4's type-level `ConceptMap/$translate`, which takes a
+generated concept code back to the DHIS2 option UID and the DHIS2 option code.
+
+```bash
+# Both DHIS2 identifiers for one generated concept code.
+curl -s 'localhost:8080/ConceptMap/$translate?system=http://example.org/fhir/demo/CodeSystem/d2-os-Qdm5fPK5Ra9-cs&code=Op1aaaaaaaa' \
+  | jq '.parameter'
+
+# Narrow it to one of the two groups.
+curl -s 'localhost:8080/ConceptMap/$translate?system=...&code=Op1aaaaaaaa&targetsystem=http://example.org/fhir/demo/id/option-code' \
+  | jq '.parameter'
+```
+
+The answer is a `Parameters` resource in R4's own `$translate` output shape: `result`
+(a boolean), one `match` per mapping carrying `equivalence`, the target `concept` as a
+Coding, and the `source` ConceptMap, plus a `message` naming what was not found when
+`result` is false. `system` and `code` are required - omitting either is a 400
+OperationOutcome - and `targetsystem` is optional, selecting one group instead of all
+of them. Both R4's lowercase `targetsystem` and the `targetSystem` real clients also
+send are read.
+
+The operation is declared at `rest.operation` in the `/metadata` CapabilityStatement,
+and only when the store actually holds ConceptMaps, because `/metadata` never
+advertises what the store cannot answer. Plain reads of `ConceptMap` are not served -
+the maps back the operation rather than being part of the capture read set.
+
 ### The two modes
 
 | Mode | What the store holds | What it needs |
 | --- | --- | --- |
 | default | `ig/fsh-generated/resources` (what SUSHI compiled) merged with `ig/input/resources/` (the registry, terminology, concept-map, and category JSON the generate targets wrote, which SUSHI never re-emits) | a compiled IG on disk; no DHIS2 connection at all |
 | `--live` | the same read set, built straight off a DHIS2 instance at startup | a reachable instance and a resolvable profile; no compile step |
+
+### `[serve]` in `fhir.toml`
+
+Where a project is served from is a property of the project, not of the invocation, so
+it is stated once:
+
+```toml
+[serve]
+host = "127.0.0.1"      # loopback: the facade has no authentication
+port = 8080             # a local dev DHIS2 commonly owns 8080; 8090 is the usual way out
+strict_codes = false    # true refuses an answer whose code is outside the served terminology
+```
+
+`make serve` and `make serve-live` read the table too, which is the point: a developer
+whose DHIS2 stack already holds 8080 states `port = 8090` here and every invocation in
+that project honours it. Precedence is **flag beats table beats default** - and
+`--strict-codes` has an explicit `--no-strict-codes` twin so all three levels are
+reachable from the command line.
 
 The default mode is fully offline. If the project has never been compiled, the server
 refuses to start and says what to run:
@@ -1780,7 +1894,8 @@ it is visible on the page.
 
 An **error** on a code containing `<`, and a **warning** on one containing `>` or
 `&` - raised only on the collections whose codes become identifier values:
-`optionSets`, `categories`, `organisationUnits`, `dataSets`, and `programs`.
+`optionSets`, `categories`, `organisationUnits`, `dataSets`, `programs`, and
+`programStages`.
 
 Same characters as the sibling above, a much worse outcome, which is why `<` here is
 an error and a hostile *name* is only ever a warning. A code from one of those five
@@ -1821,6 +1936,42 @@ alone: an identifier value is what a consumer matches on to find the DHIS2 objec
 and an IG that answers `ENTO - IRS &lt; 6 Months` to a lookup for
 `ENTO - IRS < 6 Months` disagrees with the instance it describes. The fix is to
 change the code in DHIS2.
+
+**`d2w fhir generate` refuses what validate marks as build-aborting.** Generation
+knows before it writes a file that the publisher will die on that code, so it says so
+instead of producing an hour of build input:
+
+```
+error: optionSets 'Bednet distribution' (csRsm0D7guY) has code 'ENTO - IRS < 6 Months',
+which carries '<'. ... Change the code in DHIS2, then run `d2w fhir validate` for the
+full report.
+```
+
+The **whole run** is refused, not the one object: skipping the option set would leave
+every Questionnaire that binds it pointing at a ValueSet nobody wrote, which is a
+broken guide published quietly instead of a build that failed loudly. Both the bare
+run and the solo targets carry the gate, over the selection each is about to emit -
+an object the project does not publish can never refuse a run. Only `<` refuses;
+`>` and `&` cost a malformed page rather than an aborted build, so they stay warnings
+and generation proceeds. The predicate is one function shared with the finding above,
+so the two can never disagree.
+
+### What the terminal says
+
+The default output is a status view, not the finding firehose:
+
+- the **summary table** - profile, the counts each pass covered, the error / warning /
+  info totals, the effective code source;
+- a **rollup table**, one row per (severity, category) with its count, errors first;
+- **every error individually**, because an error is what gates the build and you have
+  to know which object holds it without opening a file;
+- one closing line: `ok: passed: N warning(s), M info(s); full findings in
+  <reports-dir>/fhir-validate-report.md`, or the red `N error(s) found` line with the
+  exit code.
+
+A national instance raises hundreds of warnings, and reading them one row at a time is
+what the written report is for. `--details` puts every finding on the terminal too,
+warnings and infos included. `--json` is unchanged: the whole report on stdout.
 
 ### Severity and `--code-source`
 

@@ -82,8 +82,11 @@ conversion stance (FML as the contract, never a runtime engine).
 ### 4. ConceptMap + `$translate` (terminology side, orthogonal)
 
 Option <-> DHIS2 identifier mappings as generated ConceptMaps - **shipped**, see
-[phase B item 1](#phase-b-item-1-conceptmaps-per-option-set) below. `serve` answering
-`$translate` from the same store is the remaining half of this mechanism.
+[phase B item 1](#phase-b-item-1-conceptmaps-per-option-set) below. `serve` answers
+R4's type-level `ConceptMap/$translate` over the same store, in both compiled and
+`--live` mode, so the whole mechanism is live: `system` + `code` in, a `Parameters`
+resource carrying the DHIS2 option UID and the DHIS2 option code out. Both halves
+shipped together.
 
 ## The plan: reference implementation first, contract lifted second
 

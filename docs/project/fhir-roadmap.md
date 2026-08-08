@@ -285,13 +285,14 @@ Base directory is `<project_root>/ig/input/fsh/` for FSH,
 | --- | --- | --- |
 | `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-attribute-value.fsh`, `d2-organisation-unit.fsh`, `d2-tracker-enrollment.fsh`, `d2-responses.fsh`, `d2-capture-server.fsh` - nine, always, with no client opened. |
 | `option-sets` | `resources/terminology/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected option set, ids `d2-os-<slug>-cs` / `-vs`, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. A Questionnaire's `Canonical(D2OS_<uid>_VS)` resolves against them, because SUSHI fishes a predefined resource by its `name` element. |
+| `option-sets` | `resources/concept-maps/` | One `ConceptMap-<id-stem><slug>-cm.json` per selected option set that emitted concepts, taking every emitted concept code back to the DHIS2 option UID and the DHIS2 option code. Its own directory for the same reason `categories` has one. |
 | `categories` | `resources/categories/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected category, ids `d2-cat-<slug>-cs` / `-vs`, concepts being that category's category options in their DHIS2 `categoryOptions` order. Its own directory because `sync_json_artifacts` owns its target outright. |
 | `questionnaires` | `data-sets/` | One `<uid>.fsh` Questionnaire per DHIS2 data set. |
 | `questionnaires` | `event-programs/` | One `<uid>.fsh` Questionnaire per `WITHOUT_REGISTRATION` program, built from its single stage. |
 | `questionnaires` | `tracker-programs/` | One `<program uid>/<stage uid>.fsh` Questionnaire per stage of a `WITH_REGISTRATION` program - the only nested layout, swept recursively with empty-subdirectory pruning. |
 | `questionnaires` | `data-dictionary/` | `data-elements.fsh` (`D2DE_CS` / `_VS`) and `category-option-combos.fsh` (`D2COC_CS` / `_VS`), emitted only when the run referenced any. |
 | `examples` | `examples/` | One `<targetUid>-<n>.fsh` QuestionnaireResponse per example. |
-| `org-units` | `organization/` | `profiles.fsh` always; then `org-unit-levels.fsh`, and `org-units-terminology.fsh` only with `terminology = true`. |
+| `org-units` | `organization/` | `profiles.fsh` always; `registry-examples.fsh` whenever the selection holds a unit; then `org-unit-levels.fsh`, and `org-units-terminology.fsh` only with `terminology = true`. |
 | `org-units` | `resources/registry/` | `Organization-<uid>.json` and `Location-<uid>.json` per selected unit, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. |
 | `pages` | `ig/input/pagecontent/` | `forms.md`, `registry.md`, `terminology.md`, `identifiers.md`, `periods.md`, `capture.md`, plus `Questionnaire-<UID>-intro.md` (always), `CodeSystem-<id>-intro.md` and `Organization-<UID>-intro.md` (only where DHIS2 carries a description). |
 
@@ -1177,9 +1178,11 @@ for `service.py` itself - the service is exercised through
 - The two literal directory names diverging between the emitter that writes
   and the service call that sweeps - which would leave stale generated files
   undeleted rather than failing loudly.
-- `_swept_files` globs `*.fsh` and `*.md` **directly under** the target
-  directory, not recursively. A generated file in a nested subdirectory would
-  never be swept.
+- `_swept_files` globs `*.fsh` and `*.md` recursively under the target directory
+  and prunes a subdirectory it emptied, so the nested `tracker-programs/<program
+  uid>/` layout is swept like every flat one. It read only the directory's own
+  children before that layout existed, which would have left a generated file in a
+  subdirectory undeletable.
 
 ## 7. What prior review rounds found
 
@@ -1345,9 +1348,114 @@ commitment.
 
     Dimension A of section 6 de-risked this item; its outcomes are recorded there.
 
-- **Curated `Usage: #example` instances for the registry profiles.**
-  `D2Organization` and `D2Location` publish no worked example, because the
-  example target only covers what a questionnaire is answered with.
+- **Curated `Usage: #example` instances for the registry profiles** - shipped.
+  The registry ships as JSON SUSHI never compiles, so `D2Organization` and
+  `D2Location` had no worked example: the example target only covers what a
+  questionnaire is answered with. The `org-units` target now writes
+  `organization/registry-examples.fsh`, a `D2OrganizationExample` /
+  `D2LocationExample` pair drawn from the selection's own root unit, so the
+  publisher validates both profiles against real instance data on every build.
+  They sit beside the profiles rather than under `examples/`, whose sync deletes
+  every file it did not produce.
+
+- **ConceptMaps for categories.** The `option-sets` target publishes one ConceptMap
+  per set, and `d2w fhir serve` answers `$translate` over them. The `categories`
+  target emits the same CodeSystem/ValueSet pair through the same concept assignment
+  and publishes no map, so a generated category-option code has no published route
+  back to its DHIS2 UID. The builder is the option-set one with a different source
+  label and a different id stem.
+
+- **Naming source: the UID -> code migration path.** Artifact stems are UIDs today
+  because a UID is the one thing every instance can be relied on for. What is wanted
+  is a `fhir.toml` setting with three modes: **`uid`** (today's behaviour), **`code-or-uid`**
+  (the DHIS2 code where it is usable, the UID otherwise), and **`code`** (the code
+  always, failing early when any selected object lacks a usable one). The point is to
+  give an instance team a way to move toward real codes incrementally and *see* the
+  progress: under `code-or-uid` the filesystem itself shows which objects have earned
+  a readable name and which are still bare UIDs.
+
+    The natural shape is an evolution of `[generate.naming] source`, today
+    `"id" | "name"` in `NamingConfig` - pre-1.0, so the literals get renamed rather
+    than joined. Design notes to carry into that work:
+
+    - **The stem is not just a filename.** It becomes the resource `id` *and* the
+      canonical URL, so flipping the mode re-identifies the entire IG. That is
+      deliberate: a whole-project switch is exactly the migration semantics wanted,
+      not a per-object drift.
+    - **"Valid" means slug-safe**, not merely non-empty: a code used as a stem has to
+      satisfy the FHIR `id` constraints, which is a narrower bar than the R4 `code`
+      datatype. The build-aborting `<` rule applies a fortiori.
+    - **Mode `code` fails early** through the same refuse-at-generate-time machinery
+      the build-aborting code gate uses - one object without a usable code refuses the
+      run rather than silently falling back.
+    - **`d2w fhir validate` is the readiness probe.** Its existing `missing-code` and
+      `invalid-code` findings already name exactly the objects that would still fall
+      back under `code-or-uid`. A small **code coverage** count in the validate summary
+      would make the migration measurable rather than anecdotal.
+    - **Distinct from `concept_code_source`**, which governs the concept codes *inside*
+      a CodeSystem and has nothing to do with artifact identity. The two dials will be
+      confused unless the docs say so on both sides.
+
+- **Typed note kinds.** A generate note is a plain string today, so nothing can
+  reason about it: a bare run writes them all to `reports/fhir-generate-notes.md` and
+  counts them, because it cannot tell one kind from another. Promoting a note to a
+  small model carrying a category would let generation cross-reference `validate`'s
+  findings and suppress the notes that merely restate one. The question "are the notes
+  covered by validate?" has two answers: the **instance-defect** echoes
+  (`invalid-code`, `duplicate-code`, `template-hostile-*`) yes, and dropping them from
+  the terminal costs nothing because the validate report says it better; the
+  **config and selection** notes (a selection entry matching nothing, an empty
+  selection, the closure pulling a set in) no - those are about this project's
+  `fhir.toml` rather than about the instance, and they are the terminal-worthy
+  remainder.
+
+- **Scope-aware validate severity.** `validate` sweeps the whole instance but grades
+  every finding as if it were on the build path, and the two audiences drown each
+  other out. Measured on the Lao national instance: 4,062 findings, 35 graded
+  `error` - of which exactly **one** can actually abort a build (the `<` code on a
+  selected option set). The other 34 errors sit on dashboards, program indicators,
+  legend sets, and visualizations - resource types the generator never emits - and
+  ~3,400 of the warnings are `template-hostile-name` on objects (1,677
+  visualizations, 403 validation rules) that never reach an IG page, so "renders
+  malformed HTML" is not true of them.
+
+    The missing concept is **emission scope**. Severity should mean build impact on
+    *this project's configured IG*:
+
+    - **error** - would abort or corrupt the configured build: a build-aborting `<`
+      code on an in-scope identifier surface, the same set the generate-time gate
+      refuses. Only these gate `--fail`'s exit 1.
+    - **warning** - degrades the IG but the build survives: an in-scope invalid code
+      falling back to the UID, an in-scope hostile name malforming its page.
+    - **info** - instance hygiene on out-of-scope objects. Full detail stays in the
+      md/csv/pdf reports and the rollup counts; this is the code-migration watchlist
+      that shrinks as an instance moves toward real codes, not build noise.
+
+    Validate resolves scope by reusing the same selection resolution `generate`
+    uses, so the two can never disagree about what "in the IG" means. Under this
+    model the same Lao run reads: 1 error, ~60 warnings, ~4,000 infos - and the
+    condensed default output becomes genuinely readable. Open sub-question: an
+    optional strict dial failing on in-scope warnings too; the default stays
+    error-only, because warnings are survivable by construction.
+
+- **`Questionnaire/{id}/$generate` on serve** (queued behind the UI phase). A
+  **custom** operation, deliberately not SDC's `$populate`: `$populate` means
+  fill-from-real-context, and using it for synthetic data would mislead every client
+  that knows what it means. `GET|POST [base]/Questionnaire/{id}/$generate` returns a
+  profile-declared `QuestionnaireResponse` that is immediately POSTable to the same
+  server, with an optional `seed` parameter for determinism. Its
+  `OperationDefinition` is published in the IG and declared in `/metadata` beside
+  `$translate`.
+
+    Two purposes: the "fill with test data" button a capture UI wants, and
+    stress-test corpus generation through the API rather than through the CLI.
+    Implementation sketch: `--live` is a thin route over `build_synthetic_responses`,
+    which already produces exactly this; compiled mode has to synthesize from the
+    `CaptureIndex` plus the stored CodeSystems, with two known gaps - a compiled
+    Questionnaire does not carry its data set's `periodType`, and the item type is
+    lossy between `TRUE_ONLY` and `BOOLEAN`. The invariant that makes it worth
+    building: **`$generate` output POSTed back to the server's own
+    `/QuestionnaireResponse` must answer 201.**
 
 ### 9.2 Mid-term
 
@@ -1366,8 +1474,7 @@ commitment.
   a different shape from either store this server has today, and the request log
   is what says which reads are worth proxying first.
 
-- **Unique attribute values as identifiers.** Every attribute value rides the
-  `D2AttributeValue` extension today, whatever it holds. DHIS2 marks an
+- **Unique attribute values as identifiers** - shipped. DHIS2 marks an
   `Attribute` `unique`, and that flag is the only trustworthy signal that a value
   identifies its object: on play 2.43 exactly three of eleven attributes are
   unique (`IRID`, `KE code`, `TZ code`), while `PEPFAR_ID` and `NGOID` read like
@@ -1377,6 +1484,15 @@ commitment.
   be searchable at all. The system keys on the attribute UID rather than its
   code: DHIS2 codes carry spaces (`KE code`, `Collection method`), so they are
   neither URL-safe nor valid FHIR codes. Non-unique values keep the extension.
+
+    The `/api/attributes` join reads `unique` alongside `code`, so it costs no extra
+    request; the identifier joins the resource's list **after** the UID and code
+    slices, so the order stays byte-stable across runs. The per-attribute namespaces
+    are declared by convention and not as NamingSystems: the foundation layer is
+    built from `fhir.toml` alone and never reads an instance, so it cannot know which
+    attributes exist, let alone which are unique, and a NamingSystem naming an
+    attribute the instance does not have would be worse than none. That is documented
+    in the guide's Identifiers section instead.
 - **Attribute values on CodeSystem concepts.** Data-element and option attribute
   values have no `identifier` element to land in and no obvious carrier:
   concepts already hold DHIS2 data as `CodeSystem.property`, which needs each
