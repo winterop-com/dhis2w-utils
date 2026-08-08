@@ -32,6 +32,7 @@ class IdentifierSystemSubject(BaseModel):
 IDENTIFIER_SYSTEM_SUBJECTS = (
     IdentifierSystemSubject(segment="org-unit", token="OrgUnit", label="organisation unit"),
     IdentifierSystemSubject(segment="option-set", token="OptionSet", label="option set"),
+    IdentifierSystemSubject(segment="option", token="Option", label="option"),
     IdentifierSystemSubject(segment="category", token="Category", label="category"),
     IdentifierSystemSubject(segment="data-set", token="DataSet", label="data set"),
     IdentifierSystemSubject(segment="program", token="Program", label="program"),

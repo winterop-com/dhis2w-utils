@@ -12,7 +12,9 @@ import datetime
 import random
 import re
 from collections.abc import Callable
+from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -1151,6 +1153,65 @@ async def test_per_target_zero_disables_the_target_and_sweeps_its_directory(
     assert report.written_files == []
     assert sorted(report.deleted_files) == ["BfMAe6Itzgt-1.fsh", "VBqh0ynB2wv-1.fsh"]
     assert not list((tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY).glob("*.fsh"))
+
+
+@respx.mock
+async def test_the_solo_target_reads_the_registry_selection_the_location_guard_checks_against(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`generate examples` on its own reads the selection ids-only, under the registry's own filters."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path, organisation_units="max_level = 2")
+    organisation_units = respx.get(f"{_HOST}/api/organisationUnits", name="organisationUnits").mock(
+        return_value=httpx.Response(200, json=_ROOT_PAYLOAD)
+    )
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+
+    await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
+
+    selection = [
+        call.request.url.params
+        for call in organisation_units.calls
+        if call.request.url.params.get("filter") == "level:le:2"
+    ]
+    assert len(selection) == 1
+    assert selection[0]["fields"] == "id"
+    assert selection[0]["paging"] == "false"
+
+
+@respx.mock
+async def test_a_form_the_questionnaire_target_refused_gets_no_example(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A linkId collision skips the whole form, so nothing may answer a Questionnaire that was never written."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path)
+    data_sets: list[dict[str, Any]] = deepcopy(_DATA_SETS_PAYLOAD["dataSets"])
+    data_sets[0]["sections"][0]["id"] = "De1aaaaaaaa"
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": data_sets}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
+    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ROOT_PAYLOAD))
+
+    report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
+
+    fsh = tmp_path / "ig" / "input" / "fsh"
+    assert not (fsh / "data-sets" / "BfMAe6Itzgt.fsh").exists()
+    assert not (fsh / EXAMPLES_DIRECTORY / "BfMAe6Itzgt-1.fsh").exists()
+    assert not (tmp_path / "ig" / "input" / "pagecontent" / "Questionnaire-BfMAe6Itzgt-intro.md").exists()
+    assert report.examples.example_count == 1
+    assert any("linkId twice" in note for note in report.questionnaires.notes)
+    assert not any("linkId twice" in note for note in report.examples.notes)
+    assert not any("linkId twice" in note for note in report.pages.notes)
 
 
 @respx.mock

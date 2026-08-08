@@ -22,17 +22,27 @@ class AttributeValueIn(BaseModel):
 
 
 class AttributeCodeIndex(BaseModel):
-    """Every DHIS2 attribute's code keyed by its UID - the join one generate run resolves once.
+    """What one generate run knows about the instance's attributes: their codes, and which are unique.
 
     An attribute DHIS2 left without a code is absent from the mapping rather than present with
     an empty one: most instances code few of their attributes, and some code none of them, so
     every consumer reads through `code_for` and decides what a missing code means for it.
+
+    `unique_uids` holds the attributes DHIS2 declares unique. A unique attribute value is a
+    business identifier - a national registry number on a facility, a payer code on a data set -
+    so it is emitted as an `Identifier` on the resource rather than as an annotation extension,
+    and every consumer decides which of the two it writes by asking `is_unique`.
     """
 
     model_config = ConfigDict(frozen=True)
 
     codes: dict[str, str] = Field(default_factory=dict)
+    unique_uids: frozenset[str] = Field(default_factory=frozenset)
 
     def code_for(self, attribute_uid: str) -> str | None:
         """The attribute's DHIS2 code, or None when the instance left it unset."""
         return self.codes.get(attribute_uid)
+
+    def is_unique(self, attribute_uid: str) -> bool:
+        """Whether DHIS2 declares the attribute unique - its values identify their object."""
+        return attribute_uid in self.unique_uids

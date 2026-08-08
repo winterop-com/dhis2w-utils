@@ -8,6 +8,7 @@ from dhis2w_fhir.config import (
     GenerateConfig,
     IgConfig,
     NoFhirProjectError,
+    ServeConfig,
     find_project_fhir_config,
     load_fhir_config,
     load_project,
@@ -145,6 +146,38 @@ def test_the_timezone_survives_a_config_round_trip(tmp_path: Path) -> None:
     config.generate.timezone = "Europe/Oslo"
     write_fhir_config(path, config)
     assert load_fhir_config(path).generate.timezone == "Europe/Oslo"
+
+
+def test_the_serve_table_defaults_to_loopback_and_lenient_codes() -> None:
+    """An absent `[serve]` table serves on loopback port 8080 and warns rather than refuses unknown codes."""
+    config = ServeConfig()
+    assert config.host == "127.0.0.1"
+    assert config.port == 8080
+    assert config.strict_codes is False
+
+
+def test_the_serve_table_parses_off_fhir_toml(tmp_path: Path) -> None:
+    """Where a project is served from is project config, so it loads off the document like everything else."""
+    path = tmp_path / "fhir.toml"
+    path.write_text(
+        """[ig]
+id = "dhis2.fhir.test"
+canonical = "http://example.org/fhir"
+name = "TestIg"
+title = "Test IG"
+publisher = "Test Org"
+
+[serve]
+host = "0.0.0.0"
+port = 8090
+strict_codes = true
+""",
+        encoding="utf-8",
+    )
+    serve = load_fhir_config(path).serve
+    assert serve.host == "0.0.0.0"
+    assert serve.port == 8090
+    assert serve.strict_codes is True
 
 
 def test_locales_default_to_every_locale_found() -> None:

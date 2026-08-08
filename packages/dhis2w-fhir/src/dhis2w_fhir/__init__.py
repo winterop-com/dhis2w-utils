@@ -15,6 +15,7 @@ from dhis2w_fhir.config import (
     IgConfig,
     NamingConfig,
     NoFhirProjectError,
+    ServeConfig,
     find_project_fhir_config,
     load_fhir_config,
     load_project,
@@ -130,6 +131,7 @@ from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_level_terminology,
     build_organisation_unit_profiles,
     build_organisation_unit_terminology,
+    build_registry_examples,
 )
 from dhis2w_fhir.resources.organisation_units.schemas import (
     GeoPoint,
@@ -340,6 +342,7 @@ __all__ = [
     "ResponseProfileDeclaration",
     "ScaffoldFile",
     "ScaffoldReport",
+    "ServeConfig",
     "SeverityBreakdown",
     "SyncReport",
     "SyntheticBuild",
@@ -366,6 +369,7 @@ __all__ = [
     "build_organisation_unit_level_terminology",
     "build_organisation_unit_profiles",
     "build_organisation_unit_terminology",
+    "build_registry_examples",
     "build_questionnaire_artifacts",
     "build_response_profile_declarations",
     "build_scaffold_files",

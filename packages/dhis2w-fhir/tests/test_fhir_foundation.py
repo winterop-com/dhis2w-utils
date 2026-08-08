@@ -13,8 +13,8 @@ def _by_path(config: GenerateConfig, *, ig_status: IgStatus = "draft") -> dict[s
 
 
 #: The DHIS2 identifier systems declared: a UID system per object kind, plus a code system for the
-#: eight kinds that carry a DHIS2 code.
-_IDENTIFIER_SYSTEM_COUNT = 18
+#: nine kinds that carry a DHIS2 code.
+_IDENTIFIER_SYSTEM_COUNT = 20
 
 
 def test_foundation_covers_expected_files() -> None:
@@ -39,6 +39,8 @@ def test_aliases_come_from_the_configured_identifier_base() -> None:
     assert "Alias: $DHIS2-OU-CODE = http://dhis2.org/fhir/id/org-unit-code" in default
     assert "Alias: $DHIS2-OS = http://dhis2.org/fhir/id/option-set" in default
     assert "Alias: $DHIS2-OS-CODE = http://dhis2.org/fhir/id/option-set-code" in default
+    assert "Alias: $DHIS2-OPTION = http://dhis2.org/fhir/id/option" in default
+    assert "Alias: $DHIS2-OPTION-CODE = http://dhis2.org/fhir/id/option-code" in default
     custom = _by_path(GenerateConfig(identifier_system_base="https://example.org/dhis2/"))
     aliases = custom["foundation/d2-aliases.fsh"]
     assert "Alias: $DHIS2-OU = https://example.org/dhis2/id/org-unit" in aliases
@@ -76,12 +78,16 @@ def test_naming_systems_declare_every_identifier_system() -> None:
     assert "Instance: D2OrgUnitCodeIdentifierSystem" in content
     assert "Instance: D2OptionSetIdentifierSystem" in content
     assert "Instance: D2OptionSetCodeIdentifierSystem" in content
+    assert "Instance: D2OptionIdentifierSystem" in content
+    assert "Instance: D2OptionCodeIdentifierSystem" in content
     assert "Instance: D2DataSetIdentifierSystem" in content
     assert "Instance: D2ProgramCodeIdentifierSystem" in content
     assert "Instance: D2DataElementIdentifierSystem" in content
     assert "Instance: D2CategoryOptionComboIdentifierSystem" in content
     assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/org-unit"' in content
     assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/option-set-code"' in content
+    assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/option"' in content
+    assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/option-code"' in content
     assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/data-set"' in content
     assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/category-option-combo"' in content
     assert "this slot repeats the UID" in content

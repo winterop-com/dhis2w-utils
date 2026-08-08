@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 from typing import TYPE_CHECKING
 
-from dhis2w_fhir.foundation.attribute_values import attribute_value_extensions
+from dhis2w_fhir.foundation.attribute_values import attribute_value_extensions, attribute_value_identifiers
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_string
 from dhis2w_fhir.r4 import (
@@ -52,6 +52,9 @@ def build_location(
         identifier=[
             Identifier(system=urls.identifier_system, value=uid),
             Identifier(system=urls.code_identifier_system, value=code_or_uid(organisation_unit.code, uid)),
+            *attribute_value_identifiers(
+                organisation_unit.attribute_values, attribute_codes, urls.identifier_system_base
+            ),
         ],
         name=flatten_whitespace(organisation_unit.name),
         name_element=translated_element(name_translations(organisation_unit.translations, locales)),

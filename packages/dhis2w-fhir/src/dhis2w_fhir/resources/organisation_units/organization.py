@@ -21,10 +21,15 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
+from pydantic import BaseModel, ConfigDict
 
-from dhis2w_fhir.foundation.attribute_values import attribute_value_extension_url, attribute_value_extensions
+from dhis2w_fhir.foundation.attribute_values import (
+    attribute_value_extension_url,
+    attribute_value_extensions,
+    attribute_value_identifiers,
+)
 from dhis2w_fhir.i18n import name_translations, translated_element
-from dhis2w_fhir.names import code_or_uid, flatten_whitespace
+from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_text, quote
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.r4 import (
     BOUNDARY_EXTENSION_URL,
@@ -78,6 +83,97 @@ def build_organisation_unit_profiles(config: GenerateConfig, *, ig_status: IgSta
             ig_status=ig_status,
             experimental=experimental_for_status(ig_status),
         ),
+    )
+
+
+class _RegistryExampleView(BaseModel):
+    """The one worked Organization/Location pair the registry profiles are illustrated with."""
+
+    model_config = ConfigDict(frozen=True)
+
+    organization_profile: str
+    location_profile: str
+    organization_name: str
+    location_name: str
+    organization_id: str
+    location_id: str
+    organization_title_literal: str
+    location_title_literal: str
+    organization_description_literal: str
+    location_description_literal: str
+    level_code_system: str
+    level: int
+    uid_literal: str
+    code_literal: str
+    name_literal: str
+    longitude: float | None = None
+    latitude: float | None = None
+
+
+def build_registry_examples(
+    organisation_units: list[OrganisationUnitIn], config: GenerateConfig, *, ig_status: IgStatus
+) -> FshArtifact | None:
+    """Build `organization/registry-examples.fsh` - one `Usage: #example` per registry profile, or None.
+
+    The registry itself ships as pre-built JSON, which SUSHI loads verbatim and never compiles,
+    so `D2Organization` and `D2Location` would otherwise publish no worked example at all. This
+    pair fills that gap from the selection's own root unit: real UID, real code, real name, real
+    level, so the publisher validates the profiles against data the instance actually holds.
+
+    The exemplar carries what the profiles constrain and nothing more - no boundary attachment,
+    no attribute values. A base64 GeoJSON blob illustrates the encoding rather than the contract,
+    and the registry's JSON instances are where a consumer reads a unit in full.
+
+    They live beside the profiles in `organization/`, not in `examples/`: that directory is swept
+    by the examples target, whose sync deletes every file it did not produce.
+    """
+    root = _root_organisation_unit(organisation_units)
+    if root is None:
+        return None
+    names = OrganisationUnitNaming.from_naming(config.naming)
+    view = _registry_example_view(root, names)
+    return FshArtifact(
+        relative_path="organization/registry-examples.fsh",
+        kind="instances",
+        fsh_name=view.organization_name,
+        content=_ENVIRONMENT.get_template("registry-examples.fsh.jinja").render(example=view, ig_status=ig_status),
+    )
+
+
+def _root_organisation_unit(organisation_units: list[OrganisationUnitIn]) -> OrganisationUnitIn | None:
+    """The shallowest unit of the selection, ties broken by path - the one every other unit hangs under."""
+    if not organisation_units:
+        return None
+    return min(organisation_units, key=lambda unit: (unit.level, unit.path, unit.uid))
+
+
+def _registry_example_view(root: OrganisationUnitIn, names: OrganisationUnitNaming) -> _RegistryExampleView:
+    """Project the root unit onto the two exemplar instances the registry profiles are illustrated with."""
+    label = f"{root.name} ({root.uid})"
+    return _RegistryExampleView(
+        organization_profile=names.organization_profile,
+        location_profile=names.location_profile,
+        organization_name=f"{names.organization_profile}Example",
+        location_name=f"{names.location_profile}Example",
+        organization_id=f"{names.organization_profile_id}-example",
+        location_id=f"{names.location_profile_id}-example",
+        organization_title_literal=page_text(f"Example DHIS2 Organization - {label}"),
+        location_title_literal=page_text(f"Example DHIS2 Location - {label}"),
+        organization_description_literal=page_text(
+            f"A worked {names.organization_profile}: DHIS2 organisation unit {label} as the legal entity, "
+            "carrying both DHIS2 identifiers and its hierarchy level."
+        ),
+        location_description_literal=page_text(
+            f"A worked {names.location_profile}: DHIS2 organisation unit {label} as the physical place, "
+            f"managed by the {names.organization_profile} of the same unit."
+        ),
+        level_code_system=names.level_code_system,
+        level=root.level,
+        uid_literal=quote(root.uid),
+        code_literal=quote(code_or_uid(root.code, root.uid)),
+        name_literal=quote(root.name),
+        longitude=root.longitude,
+        latitude=root.latitude,
     )
 
 
@@ -153,6 +249,9 @@ def _build_organization(
         identifier=[
             Identifier(system=urls.identifier_system, value=uid),
             Identifier(system=urls.code_identifier_system, value=code_or_uid(organisation_unit.code, uid)),
+            *attribute_value_identifiers(
+                organisation_unit.attribute_values, attribute_codes, urls.identifier_system_base
+            ),
         ],
         name=flatten_whitespace(organisation_unit.name),
         name_element=translated_element(name_translations(organisation_unit.translations, locales)),

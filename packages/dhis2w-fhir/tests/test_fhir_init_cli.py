@@ -193,7 +193,12 @@ def test_init_refresh_gives_a_stale_sushi_config_its_path_resource_block(workdir
     """A project scaffolded before path-resource existed publishes an IG missing registry and terminology."""
     project = _scaffold(workdir)
     sushi_config = project / "ig" / "sushi-config.yaml"
-    dropped = {"  path-resource:", "    - input/resources/registry/*", "    - input/resources/terminology/*"}
+    dropped = {
+        "  path-resource:",
+        "    - input/resources/registry/*",
+        "    - input/resources/terminology/*",
+        "    - input/resources/concept-maps/*",
+    }
     stale = [line for line in sushi_config.read_text(encoding="utf-8").splitlines() if line not in dropped]
     sushi_config.write_text("\n".join(stale) + "\n", encoding="utf-8")
 
@@ -201,7 +206,9 @@ def test_init_refresh_gives_a_stale_sushi_config_its_path_resource_block(workdir
 
     assert result.exit_code == 0, result.output
     assert "refreshed ig/sushi-config.yaml" in result.output
-    assert "  path-resource:" in sushi_config.read_text(encoding="utf-8")
+    restored = sushi_config.read_text(encoding="utf-8")
+    assert "  path-resource:" in restored
+    assert "    - input/resources/concept-maps/*" in restored
 
 
 def test_init_refresh_keeps_an_edited_sushi_config(workdir: Path) -> None:

@@ -96,6 +96,8 @@ class OrganisationUnitInstanceUrls(BaseModel):
     level_code_system: str
     identifier_system: str
     code_identifier_system: str
+    identifier_system_base: str
+    """The `[generate] identifier_system_base`, from which a unique attribute's own namespace is derived."""
 
     @classmethod
     def from_config(cls, config: GenerateConfig, canonical: str) -> OrganisationUnitInstanceUrls:
@@ -108,4 +110,5 @@ class OrganisationUnitInstanceUrls(BaseModel):
             level_code_system=f"{canonical}/CodeSystem/{names.terminology_id('level', 'cs')}",
             identifier_system=f"{identifier_base}/id/org-unit",
             code_identifier_system=f"{identifier_base}/id/org-unit-code",
+            identifier_system_base=identifier_base,
         )

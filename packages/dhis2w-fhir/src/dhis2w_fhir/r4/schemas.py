@@ -501,6 +501,26 @@ class OperationOutcome(DomainResource):
     issue: list[OperationOutcomeIssue] | None = None
 
 
+class ParametersParameter(BackboneElement):
+    """`Parameters.parameter` - one named input or output of an operation, valued or nested in `part`."""
+
+    name: str | None = None
+    valueBoolean: bool | None = None
+    valueCode: str | None = None
+    valueString: str | None = None
+    valueUri: str | None = None
+    valueCoding: Coding | None = None
+    part: list[ParametersParameter] | None = None
+
+
+class Parameters(Resource):
+    """A FHIR R4 Parameters - the body an operation answers with; a `Resource`, so it carries no narrative."""
+
+    resourceType: Literal["Parameters"] = "Parameters"
+    id: str | None = None
+    parameter: list[ParametersParameter] | None = None
+
+
 class JsonResource(FhirBase):
     """The one open model here: a wire document carried verbatim, keyed only by its `resourceType`.
 
@@ -613,12 +633,21 @@ class CapabilityStatementResource(BackboneElement):
     searchParam: list[CapabilityStatementSearchParam] | None = None
 
 
+class CapabilityStatementOperation(BackboneElement):
+    """`CapabilityStatement.rest.operation` - one operation the endpoint answers across resource types."""
+
+    name: str | None = None
+    definition: str | None = None
+    documentation: str | None = None
+
+
 class CapabilityStatementRest(BackboneElement):
     """`CapabilityStatement.rest` - the RESTful behaviour of one end of the conversation."""
 
     mode: Literal["client", "server"] | None = None
     documentation: str | None = None
     resource: list[CapabilityStatementResource] | None = None
+    operation: list[CapabilityStatementOperation] | None = None
 
 
 class CapabilityStatement(DomainResource):

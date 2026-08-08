@@ -33,6 +33,7 @@ from dhis2w_fhir.foundation.attribute_values import (
     ATTRIBUTE_CODE_SUB_EXTENSION,
     ATTRIBUTE_ID_SUB_EXTENSION,
     ATTRIBUTE_VALUE_SUB_EXTENSION,
+    attribute_value_identifier_system,
 )
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import code_or_uid, page_text, quote
@@ -259,6 +260,15 @@ class _GroupingIdentifierView(BaseModel):
     value_literal: str
 
 
+class _AttributeIdentifierView(BaseModel):
+    """One unique DHIS2 attribute value as the identifier slice the template writes, both sides quoted."""
+
+    model_config = ConfigDict(frozen=True)
+
+    system_literal: str
+    value_literal: str
+
+
 class _QuestionnaireView(BaseModel):
     """Everything the Questionnaire template needs for one source, every conditional resolved."""
 
@@ -275,6 +285,7 @@ class _QuestionnaireView(BaseModel):
     identifier_code_system: str
     identifier_code_literal: str
     grouping_identifier: _GroupingIdentifierView | None = None
+    attribute_identifiers: list[_AttributeIdentifierView] = Field(default_factory=list)
     form_type_extension: str
     form_type_code_system: str
     form_type_code: str
@@ -358,7 +369,14 @@ def build_questionnaire_artifacts(
             continue
         collect_referenced_objects(source, data_elements, option_combos)
         view = _questionnaire_view(
-            source, names, foundation, canonical, index.identities, ig_status=ig_status, attribute_codes=attribute_codes
+            source,
+            names,
+            foundation,
+            canonical,
+            index.identities,
+            ig_status=ig_status,
+            attribute_codes=attribute_codes,
+            identifier_system_base=config.identifier_system_base,
         )
         build.artifacts.append(
             FshArtifact(
@@ -484,6 +502,7 @@ def _questionnaire_view(
     *,
     ig_status: IgStatus,
     attribute_codes: AttributeCodeIndex,
+    identifier_system_base: str,
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders."""
     profile = FORM_KIND_PROFILES[source.kind]
@@ -500,6 +519,9 @@ def _questionnaire_view(
         identifier_code_system=profile.identifier_code_system,
         identifier_code_literal=quote(code_or_uid(source.code, source.uid)),
         grouping_identifier=_grouping_identifier(source),
+        attribute_identifiers=_attribute_identifier_views(
+            source.attribute_values, attribute_codes, identifier_system_base
+        ),
         form_type_extension=foundation.form_type_extension,
         form_type_code_system=foundation.form_type_code_system,
         form_type_code=source.kind,
@@ -530,12 +552,30 @@ def _grouping_identifier(source: QuestionnaireSourceIn) -> _GroupingIdentifierVi
     return _GroupingIdentifierView(system=_PROGRAM_IDENTIFIER_SYSTEM, value_literal=quote(source_program(source).uid))
 
 
+def _attribute_identifier_views(
+    attribute_values: list[AttributeValueIn], attribute_codes: AttributeCodeIndex, identifier_system_base: str
+) -> list[_AttributeIdentifierView]:
+    """Project the values of unique attributes onto the identifier slices the template appends."""
+    return [
+        _AttributeIdentifierView(
+            system_literal=quote(
+                attribute_value_identifier_system(identifier_system_base, attribute_value.attribute_uid)
+            ),
+            value_literal=quote(attribute_value.value),
+        )
+        for attribute_value in attribute_values
+        if attribute_codes.is_unique(attribute_value.attribute_uid)
+    ]
+
+
 def _attribute_value_views(
     attribute_values: list[AttributeValueIn], attribute_codes: AttributeCodeIndex
 ) -> list[_AttributeValueView]:
-    """Project one form's DHIS2 attribute values onto their FSH literals, in the order DHIS2 returned them."""
+    """Project a form's annotating attribute values onto their FSH literals, in the order DHIS2 returned them."""
     views: list[_AttributeValueView] = []
     for attribute_value in attribute_values:
+        if attribute_codes.is_unique(attribute_value.attribute_uid):
+            continue
         code = attribute_codes.code_for(attribute_value.attribute_uid)
         views.append(
             _AttributeValueView(

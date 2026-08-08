@@ -235,6 +235,7 @@ async def test_generate_organisation_units_across_majors(
     assert report.written_files == [
         "organization/org-unit-levels.fsh",
         "organization/profiles.fsh",
+        "organization/registry-examples.fsh",
         "registry/Location-ImspTQPwCqd.json",
         "registry/Location-O6uvpzGd5pu.json",
         "registry/Organization-ImspTQPwCqd.json",

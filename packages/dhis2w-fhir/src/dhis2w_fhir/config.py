@@ -145,12 +145,29 @@ class GenerateConfig(BaseModel):
         return [normalize_locale(locale) for locale in value]
 
 
+class ServeConfig(BaseModel):
+    """How `d2w fhir serve` runs this project - the `[serve]` table of `fhir.toml`.
+
+    Where a project is served from is a property of the project, not of the invocation: a
+    developer whose DHIS2 stack already owns 8080 states another port once here and every
+    `make serve` and bare `d2w fhir serve` in that project honours it. A command-line flag still
+    wins over the table, and the table wins over these defaults.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    host: str = "127.0.0.1"
+    port: int = 8080
+    strict_codes: bool = False
+
+
 class FhirProjectConfig(BaseModel):
     """The full parsed `fhir.toml` document."""
 
     profile: str | None = None
     ig: IgConfig
     generate: GenerateConfig = Field(default_factory=GenerateConfig)
+    serve: ServeConfig = Field(default_factory=ServeConfig)
 
 
 class FhirProject(BaseModel):

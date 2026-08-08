@@ -211,6 +211,26 @@ def test_attribute_values_land_as_d2_attribute_value_extensions_on_both_halves()
         ]
 
 
+def test_a_unique_attribute_value_lands_as_an_identifier_on_both_halves() -> None:
+    """A value DHIS2 declares unique names the category, so it joins the identifier list instead."""
+    category = CategoryIn(
+        uid="O5P6e8yu1T6",
+        name="Sex",
+        attribute_values=[AttributeValueIn(attribute_uid="ihn1wb9eho8", value="KE03")],
+        options=[OptionIn(uid="TNYQzTHdoxL", code="F", name="Female", sort_order=0)],
+    )
+    build = build_category_artifacts(
+        [category],
+        GenerateConfig(),
+        _CANONICAL,
+        ig_status="draft",
+        attribute_codes=AttributeCodeIndex(codes={"ihn1wb9eho8": "registryId"}, unique_uids=frozenset({"ihn1wb9eho8"})),
+    )
+    for document in _documents(build).values():
+        assert document.get("extension") is None
+        assert document["identifier"][-1] == {"system": "http://dhis2.org/fhir/attribute/ihn1wb9eho8", "value": "KE03"}
+
+
 def test_name_collisions_are_disambiguated_with_the_uid() -> None:
     """Two categories sharing a name keep distinct ids and FSH names, and the plan says so."""
     twin = CategoryIn(uid="Nx0aRzPMuYt", name="Sex", options=[])

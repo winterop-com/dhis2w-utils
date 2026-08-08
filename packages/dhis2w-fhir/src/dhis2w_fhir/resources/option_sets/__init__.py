@@ -34,7 +34,11 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.foundation.attribute_values import attribute_value_extension_url, attribute_value_extensions
+from dhis2w_fhir.foundation.attribute_values import (
+    attribute_value_extension_url,
+    attribute_value_extensions,
+    attribute_value_identifiers,
+)
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import (
     FHIR_ID_MAX_LENGTH,
@@ -581,6 +585,7 @@ def _narrative(
                 system=systems.code_identifier_system,
                 value=code_or_uid(option_set.code, option_set.uid),
             ),
+            *attribute_value_identifiers(option_set.attribute_values, attribute_codes, config.identifier_system_base),
         ],
         extensions=attribute_value_extensions(option_set.attribute_values, attribute_codes, extension_url),
         title=page_string(option_set.name),
