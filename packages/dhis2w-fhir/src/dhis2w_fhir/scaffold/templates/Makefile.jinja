@@ -21,7 +21,7 @@ upgrade:  ## Rebuild the image from scratch, pulling the latest SUSHI + IG publi
 	docker build --pull --no-cache -t $(DOCKER_IMAGE) .
 
 generate:  ## Regenerate FSH from DHIS2 metadata
-	$(D2W) fhir generate all
+	$(D2W) fhir generate
 
 validate:  ## Check the DHIS2 instance's codes/names for FHIR-safety (writes md/csv/pdf; exit 1 on errors)
 	$(D2W) fhir validate
@@ -51,7 +51,8 @@ refresh:  ## Force-refresh everything: wipe all caches and output, pull latest t
 	$(MAKE) upgrade
 	$(MAKE) generate
 # The leading dash keeps the rebuild going: validate exits 1 on instance code errors by design,
-# and a full refresh wants fresh reports out of it, not an abort.
+# and a full refresh wants fresh reports out of it, not an abort. The dash rather than --no-fail,
+# because --no-fail also drops the red "N error(s) found" line - the one thing worth reading here.
 	-$(MAKE) validate
 # No sushi step: the publisher runs its own SUSHI over the same FSH, so calling both
 # compiles everything twice - the single largest cost in the chain.

@@ -245,7 +245,7 @@ async def test_organisation_unit_attribute_values_survive_the_paged_fetch(
 
     async with open_client(resolve_profile("probe")) as client:
         units = await service._fetch_organisation_units(
-            client, load_project(tmp_path).config.generate, service.GeometryTally(), _TODAY
+            client, load_project(tmp_path).config.generate, service.GeometryTally(), _TODAY, service._StepAnnouncer()
         )
 
     assert [unit.attribute_values for unit in units] == [_MAPPED_ATTRIBUTE_VALUES]

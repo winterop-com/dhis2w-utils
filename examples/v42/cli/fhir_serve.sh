@@ -9,17 +9,17 @@ PORT="${FHIR_SERVE_PORT:-8123}"
 BASE="http://127.0.0.1:${PORT}"
 CANONICAL="http://example.org/fhir/serve-demo"
 
-# Scaffold a small project. --data-set and --event keep the IG to two forms, which is
-# what makes the compile short enough to sit inside an example script.
+# Scaffold a small project. --data-set and --event-program keep the IG to two forms, which
+# is what makes the compile short enough to sit inside an example script.
 d2w fhir init serve-demo --id dhis2.fhir.servedemo --canonical "$CANONICAL" \
-    --publisher "Demo Org" --data-set BfMAe6Itzgt --event VBqh0ynB2wv --max-level 2
+    --publisher "Demo Org" --data-set BfMAe6Itzgt --event-program VBqh0ynB2wv --max-level 2
 
 cd serve-demo
 
 # Generate the IG source, then compile it. The facade serves what SUSHI wrote merged with
 # the pre-built JSON the generate targets left in ig/input/resources/ - SUSHI never
 # re-emits those, so both trees are loaded.
-d2w fhir generate all
+d2w fhir generate
 make setup
 make sushi
 
@@ -56,8 +56,8 @@ echo
 # A load set: synthetic QuestionnaireResponse JSON to POST at the facade. Seeded from the
 # target UID and the ordinal, so a rerun over unchanged metadata writes identical files.
 # It lands in load/ beside ig/ - a load set is not IG source, it is gitignored by the
-# scaffold, and `d2w fhir generate all` deliberately does not write it.
-d2w fhir generate load --per-target 5
+# scaffold, and `d2w fhir generate` deliberately does not write it.
+d2w fhir generate load-set --per-target 5
 
 # Post the lot. An accepted capture answers 201 with a Location header naming where the
 # receipt is served from; a refused one answers 400 or 422 with an OperationOutcome.

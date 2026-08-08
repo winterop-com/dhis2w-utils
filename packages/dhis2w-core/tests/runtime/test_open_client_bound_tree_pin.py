@@ -61,6 +61,26 @@ async def test_unpinned_profile_bound_tree_mismatches_server_raises() -> None:
 
 
 @respx.mock
+async def test_event_hooks_reach_every_request_the_client_makes() -> None:
+    """`open_client(event_hooks=...)` threads httpx hooks through to the underlying client."""
+    base_url = "http://mocked.hooks.example"
+    respx.get(f"{base_url}/").mock(return_value=httpx.Response(200, text=""))
+    respx.get(f"{base_url}/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": "2.42.4", "revision": "abc"}),
+    )
+    seen_urls: list[str] = []
+
+    async def record(request: httpx.Request) -> None:
+        """Record every outgoing URL, the way the security audit's read-only guardrail hook does."""
+        seen_urls.append(str(request.url))
+
+    profile = Profile(base_url=base_url, auth="pat", token="d2pat_x")
+    async with open_client(profile, system_cache_ttl=None, event_hooks={"request": [record]}):
+        pass
+    assert any(url.endswith("/api/system/info") for url in seen_urls)
+
+
+@respx.mock
 async def test_unbound_path_unchanged_for_cli_usage() -> None:
     """Unbound path unchanged for cli usage."""
     base_url = "http://mocked.unbound.example"

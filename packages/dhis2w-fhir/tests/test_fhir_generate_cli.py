@@ -1,4 +1,4 @@
-"""CliRunner tests for `d2w fhir generate` (service mocked)."""
+"""CliRunner tests for `d2w fhir generate` and `d2w fhir validate` (service mocked)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from dhis2w_cli.main import build_app
-from dhis2w_fhir import FhirValidationReport, GenerateAllReport, GenerateReport, LoadSetReport
+from dhis2w_fhir import FhirValidationReport, GenerateFullReport, GenerateReport, LoadSetReport
 from dhis2w_fhir.validation.schemas import ValidationFinding
 from typer.testing import CliRunner
 
@@ -65,9 +65,9 @@ def _report(target_directory: str, **overrides: object) -> GenerateReport:
     return GenerateReport.model_validate(defaults)
 
 
-def _all_report() -> GenerateAllReport:
-    """Build the seven-target report `generate all` renders."""
-    return GenerateAllReport(
+def _full_report() -> GenerateFullReport:
+    """Build the seven-target report a bare `d2w fhir generate` renders."""
+    return GenerateFullReport(
         foundation=_report("foundation"),
         option_sets=_report("terminology"),
         categories=_report("categories"),
@@ -100,6 +100,15 @@ def test_generate_categories_renders_report(fhir_project: Path) -> None:  # noqa
     mock.assert_awaited_once()
 
 
+def test_generate_renders_a_zero_count_row(fhir_project: Path) -> None:  # noqa: ARG001
+    """A target's own count row renders at zero: the table's shape says what the target counts."""
+    mock = AsyncMock(return_value=_report("terminology", option_set_count=0))
+    with patch("dhis2w_fhir.service.generate_option_sets", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate", "option-sets"])
+    assert result.exit_code == 0, result.output
+    assert "option sets" in result.stderr
+
+
 def test_generate_organisation_units_json(fhir_project: Path) -> None:  # noqa: ARG001
     """`--json` emits the GenerateReport as JSON."""
     mock = AsyncMock(return_value=_report("organization", organisation_unit_count=7, position_count=2))
@@ -109,9 +118,18 @@ def test_generate_organisation_units_json(fhir_project: Path) -> None:  # noqa: 
     assert '"organisation_unit_count": 7' in result.output
 
 
-def test_generate_all_renders_every_report(fhir_project: Path) -> None:  # noqa: ARG001
-    """`d2w fhir generate all` renders every target's report, with the narrative pages rendered last."""
-    report = GenerateAllReport(
+def test_bare_generate_runs_the_full_pipeline(fhir_project: Path) -> None:  # noqa: ARG001
+    """`d2w fhir generate` with no target runs every target off the one full-pipeline call."""
+    mock = AsyncMock(return_value=_full_report())
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    mock.assert_awaited_once()
+
+
+def test_bare_generate_renders_one_consolidated_table(fhir_project: Path) -> None:  # noqa: ARG001
+    """A full run reports one row per target, not one table per target."""
+    report = GenerateFullReport(
         foundation=_report("foundation"),
         option_sets=_report("terminology"),
         categories=_report("categories"),
@@ -121,13 +139,95 @@ def test_generate_all_renders_every_report(fhir_project: Path) -> None:  # noqa:
         pages=_report("pagecontent", target_base="ig/input", page_count=5, intro_count=3),
     )
     mock = AsyncMock(return_value=report)
-    with patch("dhis2w_fhir.service.generate_all", new=mock):
-        result = _runner.invoke(build_app(), ["fhir", "generate", "all"])
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
     assert result.exit_code == 0, result.output
-    titles = ["foundation", "option-sets", "categories", "questionnaires", "examples", "org-units", "pages"]
-    positions = [result.output.index(f"fhir generate {title}") for title in titles]
+    assert "fhir generate (7)" in result.stderr
+    assert "fhir generate foundation" not in result.stderr
+    targets = ["foundation", "option-sets", "categories", "questionnaires", "examples", "org-units", "pages"]
+    positions = [result.stderr.index(target) for target in targets]
     assert positions == sorted(positions)
-    assert "ig/input/pagecontent" in result.output
+
+
+def test_bare_generate_labels_every_note_with_its_target(fhir_project: Path) -> None:  # noqa: ARG001
+    """One table for seven targets means a note has to say which target raised it."""
+    report = _full_report()
+    report.examples.notes.append("no data values for the period")
+    mock = AsyncMock(return_value=report)
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    assert "note: examples: no data values for the period" in result.stderr
+
+
+def test_bare_generate_json_emits_the_full_report(fhir_project: Path) -> None:  # noqa: ARG001
+    """`--json` dumps the whole GenerateFullReport on stdout and leaves stderr silent."""
+    mock = AsyncMock(return_value=_full_report())
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["--json", "fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    assert '"foundation"' in result.stdout
+    assert '"pages"' in result.stdout
+    assert result.stderr == ""
+
+
+def test_bare_generate_writes_nothing_to_stdout_in_human_mode(fhir_project: Path) -> None:  # noqa: ARG001
+    """Tables and notes are narration, so they land on stderr and stdout stays free for a pipe."""
+    mock = AsyncMock(return_value=_full_report())
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == ""
+    assert "fhir generate (7)" in result.stderr
+
+
+def test_bare_generate_narrates_its_steps(fhir_project: Path) -> None:  # noqa: ARG001
+    """The default builds a reporter, hands it to the service, and closes with the run summary."""
+    mock = AsyncMock(return_value=_full_report())
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["reporter"] is not None
+    assert "running 8 step(s)" in result.stderr
+    assert "full pipeline: 7 file(s) written across 7 target(s)" in result.stderr
+
+
+def test_bare_generate_no_progress_builds_no_reporter(fhir_project: Path) -> None:  # noqa: ARG001
+    """`--no-progress` means no narration at all, so the service is handed nothing to announce to."""
+    mock = AsyncMock(return_value=_full_report())
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate", "--no-progress"])
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["reporter"] is None
+    assert "running" not in result.stderr
+
+
+def test_bare_generate_json_builds_no_reporter(fhir_project: Path) -> None:  # noqa: ARG001
+    """`--json` keeps stderr quiet, so the progress lines are not built either."""
+    mock = AsyncMock(return_value=_full_report())
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["--json", "fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["reporter"] is None
+
+
+def test_generate_target_takes_its_own_progress_flag(fhir_project: Path) -> None:  # noqa: ARG001
+    """A named target carries `--progress/--no-progress` after the target name, not before it."""
+    mock = AsyncMock(return_value=_report("terminology"))
+    with patch("dhis2w_fhir.service.generate_option_sets", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate", "option-sets", "--no-progress"])
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["reporter"] is None
+
+    with patch("dhis2w_fhir.service.generate_option_sets", new=mock):
+        narrated = _runner.invoke(build_app(), ["fhir", "generate", "option-sets"])
+    assert narrated.exit_code == 0, narrated.output
+    assert mock.await_args.kwargs["reporter"] is not None
+    assert "running 2 step(s)" in narrated.stderr
 
 
 def test_generate_pages_renders_report(fhir_project: Path) -> None:  # noqa: ARG001
@@ -163,10 +263,12 @@ def test_generate_foundation_renders_report(fhir_project: Path) -> None:  # noqa
     assert result.exit_code == 0, result.output
     assert "foundation" in result.output
     mock.assert_awaited_once()
+    assert mock.await_args is not None
+    assert "running 1 step(s)" in result.stderr
 
 
-def test_generate_load_renders_the_corpus_report(fhir_project: Path) -> None:  # noqa: ARG001
-    """`d2w fhir generate load` renders the response and questionnaire counts the service reports."""
+def test_generate_load_set_renders_the_corpus_report(fhir_project: Path) -> None:  # noqa: ARG001
+    """`d2w fhir generate load-set` renders the response and questionnaire counts the service reports."""
     report = LoadSetReport(
         project_root=Path("/project"),
         target_directory="load",
@@ -177,20 +279,20 @@ def test_generate_load_renders_the_corpus_report(fhir_project: Path) -> None:  #
     )
     mock = AsyncMock(return_value=report)
     with patch("dhis2w_fhir.service.generate_load_set", new=mock):
-        result = _runner.invoke(build_app(), ["fhir", "generate", "load"])
+        result = _runner.invoke(build_app(), ["fhir", "generate", "load-set"])
     assert result.exit_code == 0, result.output
     assert "responses" in result.output
     assert "a note" in result.output
     mock.assert_awaited_once()
 
 
-def test_generate_load_passes_per_target_and_directory(fhir_project: Path) -> None:
-    """`--per-target` and `--directory` reach the service as the keyword arguments it takes."""
+def test_generate_load_set_passes_per_target_and_output_dir(fhir_project: Path) -> None:
+    """`--per-target` and `--output-dir` reach the service as the keyword arguments it takes."""
     mock = AsyncMock(return_value=LoadSetReport(project_root=Path("/project"), target_directory="load"))
     with patch("dhis2w_fhir.service.generate_load_set", new=mock):
         result = _runner.invoke(
             build_app(),
-            ["fhir", "generate", "load", "--per-target", "5", "--directory", str(fhir_project / "scratch")],
+            ["fhir", "generate", "load-set", "--per-target", "5", "--output-dir", str(fhir_project / "scratch")],
         )
     assert result.exit_code == 0, result.output
     assert mock.await_args is not None
@@ -198,21 +300,21 @@ def test_generate_load_passes_per_target_and_directory(fhir_project: Path) -> No
     assert mock.await_args.kwargs["output_directory"] == fhir_project / "scratch"
 
 
-def test_generate_load_rejects_a_per_target_below_one(fhir_project: Path) -> None:  # noqa: ARG001
+def test_generate_load_set_rejects_a_per_target_below_one(fhir_project: Path) -> None:  # noqa: ARG001
     """A load set of zero responses per target is a typo, not a request."""
-    result = _runner.invoke(build_app(), ["fhir", "generate", "load", "--per-target", "0"])
+    result = _runner.invoke(build_app(), ["fhir", "generate", "load-set", "--per-target", "0"])
     assert result.exit_code != 0
 
 
-def test_generate_all_leaves_the_load_set_alone(fhir_project: Path) -> None:  # noqa: ARG001
-    """A load set is test data rather than IG source, so the all-target run never writes one."""
+def test_bare_generate_leaves_the_load_set_alone(fhir_project: Path) -> None:  # noqa: ARG001
+    """A load set is test data rather than IG source, so the full pipeline never writes one."""
     load_mock = AsyncMock(return_value=LoadSetReport(project_root=Path("/project"), target_directory="load"))
-    all_mock = AsyncMock(return_value=_all_report())
+    full_mock = AsyncMock(return_value=_full_report())
     with (
         patch("dhis2w_fhir.service.generate_load_set", new=load_mock),
-        patch("dhis2w_fhir.service.generate_all", new=all_mock),
+        patch("dhis2w_fhir.service.generate_full", new=full_mock),
     ):
-        result = _runner.invoke(build_app(), ["fhir", "generate", "all"])
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
     assert result.exit_code == 0, result.output
     load_mock.assert_not_awaited()
 
@@ -221,6 +323,15 @@ def test_generate_without_project_fails_with_hint(tmp_path: Path, monkeypatch: p
     """Without a fhir.toml anywhere up the tree, generate fails and points at `d2w fhir init`."""
     monkeypatch.chdir(tmp_path)
     result = _runner.invoke(build_app(), ["fhir", "generate", "option-sets"])
+    assert result.exit_code == 1
+    output = result.output + str(result.exception or "")
+    assert "d2w fhir init" in output
+
+
+def test_bare_generate_without_project_fails_with_hint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The bare run resolves the project the same way a named target does, and fails the same way."""
+    monkeypatch.chdir(tmp_path)
+    result = _runner.invoke(build_app(), ["fhir", "generate"])
     assert result.exit_code == 1
     output = result.output + str(result.exception or "")
     assert "d2w fhir init" in output
@@ -287,19 +398,32 @@ def test_validate_renders_findings_and_exit_code(fhir_project: Path) -> None:
     mock.assert_awaited_once()
 
 
-def test_validate_report_stem_and_format_selection(fhir_project: Path) -> None:
-    """`--report` takes a path stem and `--format` narrows which files are written."""
+def test_validate_writes_into_the_output_directory(fhir_project: Path) -> None:
+    """`--output-dir` names a directory; the files inside it keep the fhir-validate-report basename."""
     mock = AsyncMock(return_value=_error_report())
-    stem = fhir_project / "out" / "codes"
-    stem.parent.mkdir()
+    destination = fhir_project / "out"
     with patch("dhis2w_fhir.service.validate_codes", new=mock):
         result = _runner.invoke(
-            build_app(), ["fhir", "validate", "--no-fail", "--report", str(stem), "--format", "csv,pdf"]
+            build_app(), ["fhir", "validate", "--no-fail", "--output-dir", str(destination), "--format", "csv,pdf"]
         )
     assert result.exit_code == 0, result.output
-    assert (stem.parent / "codes.csv").exists()
-    assert (stem.parent / "codes.pdf").exists()
-    assert not (stem.parent / "codes.md").exists()
+    assert (destination / "fhir-validate-report.csv").exists()
+    assert (destination / "fhir-validate-report.pdf").exists()
+    assert not (destination / "fhir-validate-report.md").exists()
+    # The directory reading as a stem would give `out/out.csv`, or `fhir-validate-report.md.md`
+    # for the default; neither name exists, because the basename is the plugin's, not the path's.
+    assert not (destination / "out.csv").exists()
+    assert not list(destination.glob("*.md.md"))
+
+
+def test_validate_creates_a_missing_output_directory(fhir_project: Path) -> None:
+    """A directory that does not exist yet is created rather than failing the run after the sweep."""
+    mock = AsyncMock(return_value=FhirValidationReport())
+    destination = fhir_project / "deep" / "nested"
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate", "--output-dir", str(destination), "--format", "md"])
+    assert result.exit_code == 0, result.output
+    assert (destination / "fhir-validate-report.md").exists()
 
 
 def test_validate_rejects_an_unknown_format(fhir_project: Path) -> None:  # noqa: ARG001
@@ -320,13 +444,62 @@ def test_validate_code_source_override_reaches_the_service(fhir_project: Path) -
     assert "code source" in result.output
 
 
-def test_validate_no_fail_and_all(fhir_project: Path) -> None:  # noqa: ARG001
-    """`--no-fail` exits 0 despite errors; `--all` lists info rows individually."""
+def test_validate_rejects_an_unknown_code_source(fhir_project: Path) -> None:  # noqa: ARG001
+    """The choice is enumerated, so an unknown value is a usage error naming the flag."""
+    result = _runner.invoke(build_app(), ["fhir", "validate", "--code-source", "uid"])
+    assert result.exit_code != 0
+    assert "--code-source" in result.output
+
+
+def test_validate_no_fail_and_details(fhir_project: Path) -> None:  # noqa: ARG001
+    """`--no-fail` exits 0 despite errors; `--details` lists info rows individually."""
     mock = AsyncMock(return_value=_error_report())
     with patch("dhis2w_fhir.service.validate_codes", new=mock):
-        result = _runner.invoke(build_app(), ["fhir", "validate", "--no-fail", "--all"])
+        result = _runner.invoke(build_app(), ["fhir", "validate", "--no-fail", "--details"])
     assert result.exit_code == 0, result.output
     assert "two words" in result.output
+    assert "error(s) found" not in result.output
+
+
+def test_validate_fail_is_the_default(fhir_project: Path) -> None:  # noqa: ARG001
+    """`--fail` is what the command already does, so passing it explicitly changes nothing."""
+    mock = AsyncMock(return_value=_error_report())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate", "--fail"])
+    assert result.exit_code == 1, result.output
+    assert "1 error(s) found" in result.stderr
+
+
+def test_validate_narrates_its_steps(fhir_project: Path) -> None:  # noqa: ARG001
+    """The sweep is the longest thing the plugin does, so it announces its four steps by default."""
+    mock = AsyncMock(return_value=FhirValidationReport())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate"])
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["reporter"] is not None
+    assert "running 4 step(s)" in result.stderr
+
+
+def test_validate_no_progress_builds_no_reporter(fhir_project: Path) -> None:  # noqa: ARG001
+    """`--no-progress` hands the service nothing to announce to."""
+    mock = AsyncMock(return_value=FhirValidationReport())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate", "--no-progress"])
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["reporter"] is None
+
+
+def test_validate_renders_its_tables_on_stderr(fhir_project: Path) -> None:  # noqa: ARG001
+    """The findings table is narration; only `--json` puts anything on stdout."""
+    mock = AsyncMock(return_value=_error_report())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate", "--no-fail"])
+    assert result.exit_code == 0, result.output
+    assert "fhir validate" in result.stderr
+    assert "invalid-code" in result.stderr
+    assert result.stdout == ""
 
 
 def test_validate_clean_exits_zero(fhir_project: Path) -> None:  # noqa: ARG001

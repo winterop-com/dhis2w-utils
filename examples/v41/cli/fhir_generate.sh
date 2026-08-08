@@ -15,14 +15,14 @@ d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/d
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" --status active
 
-# --data-set / --event / --tracker-program narrow the three data-definition targets at
+# --data-set / --event-program / --tracker-program narrow the three data-definition targets at
 # scaffold time (repeatable, offline - the UIDs are written to fhir.toml, never checked
 # against an instance). Leave them out and generation covers the whole instance. On the
 # play 2.42 demo: two data sets, one event program, and one tracker program (which emits
 # one Questionnaire per program stage).
 # d2w fhir init demo-ig --id dhis2.fhir.demo --canonical http://example.org/fhir/demo \
 #     --publisher "Demo Org" \
-#     --data-set BfMAe6Itzgt --data-set Nyh6laLdBEJ --event VBqh0ynB2wv \
+#     --data-set BfMAe6Itzgt --data-set Nyh6laLdBEJ --event-program VBqh0ynB2wv \
 #     --tracker-program IpHINAT79UW
 
 # --profile seeds the `profile` key of the scaffolded fhir.toml, so the project points at
@@ -172,23 +172,34 @@ d2w fhir generate org-units
 # deletes markdown carrying the generated header comment.
 d2w fhir generate pages
 
-# Or every target in one run (foundation, option-sets, categories, questionnaires, examples,
-# org-units, pages - pages last, so it sees everything the run generated).
+# Or every target in one run - and this is the one to reach for. Bare `generate` reads the
+# instance once and builds all seven targets off that single result (8 requests where the
+# solo commands above total 25), running foundation first because it reads nothing and
+# pages last because they narrate the rest, and reports one summary row per target.
 # Re-running replaces previously generated .fsh and .md files (identified by their header
 # line); hand-authored ones are never touched. JSON carries no header, so each JSON target
 # owns its directory outright and clears what it did not write - option-sets owns
 # ig/input/resources/terminology/, categories owns ig/input/resources/categories/, and
 # org-units owns ig/input/resources/registry/.
-d2w fhir generate all
+d2w fhir generate
+
+# Every command with an instance behind it narrates its steps on stderr as they complete:
+# a spinner on a terminal, one plain [k/N] line per step when stderr is redirected.
+# --no-progress turns it off, and --json implies it (stderr stays quiet, stdout carries
+# the report). Tables and notes are stderr too, so stdout is a clean document under --json.
+# d2w fhir generate --no-progress
+# d2w --json fhir generate > generate-report.json
 
 # Preflight: check the instance's option-set codes and names for FHIR-safety
 # (exit 1 on errors - CI-friendly; works without a fhir.toml too). Writes three
-# report files next to fhir.toml: fhir-validate-report.md, .csv, and .pdf.
-# --report takes a path stem, --format narrows the set (e.g. --format md,csv).
+# report files into reports/ beside fhir.toml: fhir-validate-report.md, .csv, and .pdf.
+# --output-dir names a different directory (the file names stay the same), --format
+# narrows the set (e.g. --format md,csv), --details lists the info findings individually.
 d2w fhir validate
 
 # Readiness probe for switching concept_code_source from "id" to "code": reports
 # what the switch would cost right now, at error severity instead of info.
+# --no-fail exits 0 despite the errors, which is what a probe wants.
 d2w fhir validate --code-source code --no-fail
 
 # Compile the IG with SUSHI via the scaffolded docker setup:

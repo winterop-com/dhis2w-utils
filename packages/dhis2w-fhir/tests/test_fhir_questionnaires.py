@@ -1268,13 +1268,13 @@ async def test_option_set_closure_is_a_no_op_when_every_set_is_already_included(
 
 
 @respx.mock
-async def test_generate_all_without_selection_tables_still_emits_questionnaires(
+async def test_generate_full_without_selection_tables_still_emits_questionnaires(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """`generate all` on a project with no selection tables generates for the whole instance."""
+    """A full run on a project with no selection tables generates for the whole instance."""
     mock_system_info("v42")
     mock_attributes()
     await _scaffold_project(tmp_path)
@@ -1284,7 +1284,7 @@ async def test_generate_all_without_selection_tables_still_emits_questionnaires(
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_ALL_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
 
-    report = await service.generate_all(resolve_profile("probe"), load_project(tmp_path))
+    report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
 
     assert data_sets.called
     assert programs.called

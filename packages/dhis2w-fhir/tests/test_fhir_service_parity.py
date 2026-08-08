@@ -430,7 +430,7 @@ async def test_generate_is_idempotent(
 
 
 @respx.mock
-async def test_generate_all_is_byte_stable_across_two_runs(
+async def test_generate_full_is_byte_stable_across_two_runs(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
@@ -442,8 +442,8 @@ async def test_generate_all_is_byte_stable_across_two_runs(
     await _scaffold_project(tmp_path)
     _mock_page_endpoints()
 
-    first = await service.generate_all(resolve_profile("probe"), load_project(tmp_path))
-    second = await service.generate_all(resolve_profile("probe"), load_project(tmp_path))
+    first = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
+    second = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
 
     assert "foundation/d2-responses.fsh" in first.foundation.written_files
     assert "foundation/d2-capture-server.fsh" in first.foundation.written_files

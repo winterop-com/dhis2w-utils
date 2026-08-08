@@ -81,6 +81,7 @@ if TYPE_CHECKING:
         OrganisationUnit,
         Program,
     )
+    from dhis2w_core.progress import ProgressReporter
 
 _STREAM_PAGE_SIZE = 500
 _TRANSLATION_FIELDS = "translations[locale,property,value]"
@@ -197,8 +198,8 @@ class LoadSetReport(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
-class GenerateAllReport(BaseModel):
-    """Outcome of `d2w fhir generate all`."""
+class GenerateFullReport(BaseModel):
+    """Outcome of one whole-project generate run: the report each target produced."""
 
     foundation: GenerateReport
     option_sets: GenerateReport
@@ -209,8 +210,76 @@ class GenerateAllReport(BaseModel):
     pages: GenerateReport
 
 
-class UnsupportedProgramError(ValueError):
-    """Raised when a configured event program is a shape the questionnaire target does not map."""
+class UnsupportedProgramError(LookupError):
+    """Raised when a configured event program is a shape the questionnaire target does not map.
+
+    A `LookupError` so the CLI's error funnel renders it as a one-liner naming the program and
+    the selection table it belongs under, rather than as a traceback.
+    """
+
+
+#: How many steps `validate_codes` announces: connect, sweep, read the option sets, build the report.
+VALIDATE_CODES_STEPS = 4
+
+#: How many steps an offline generate target announces: the single emit.
+GENERATE_FOUNDATION_STEPS = 1
+
+#: How many steps one instance-backed generate target announces: the fetch, then the emit.
+GENERATE_TARGET_STEPS = 2
+
+#: How many steps `generate_full` announces: the single instance fetch plus one per target.
+GENERATE_FULL_STEPS = 8
+
+
+#: The label every fetch step is reported under, whichever command it belongs to.
+_FETCH_LABEL = "instance metadata"
+
+
+class _StepAnnouncer:
+    """Announces a run's numbered steps to a progress reporter, or to nothing when none was passed.
+
+    A step opens with `step`, narrates itself with as many `tick` captions as it likes, and closes
+    with exactly one `complete`. A tick is a caption an animated display overwrites in place, so a
+    fifty-page organisation-unit walk costs no more output than a one-page one and a plain reporter
+    renders none of it; a completion is the durable `[k/N] label: summary` line, so it fires once
+    per numbered step and never inside one - the counter an animated display advances on completion
+    would otherwise run past the run's own length. `start`, `finish`, and `stop` bound the whole run
+    and belong to the caller that built the reporter, not to the service.
+    """
+
+    def __init__(self, reporter: ProgressReporter | None = None, total: int = 0) -> None:
+        """Store the reporter to announce to and how many steps the run holds."""
+        self._reporter = reporter
+        self._total = total
+        self._index = 0
+        self._label = ""
+
+    def step(self, label: str, caption: str | None = None) -> None:
+        """Open the next step: `label` names it in its completion line, `caption` in the live display."""
+        self._index += 1
+        self._label = label
+        if self._reporter is not None:
+            self._reporter.step(self._index, self._total, caption or label)
+
+    def tick(self, caption: str) -> None:
+        """Re-caption the step already running, with no durable line and no move of the counter."""
+        if self._reporter is not None:
+            self._reporter.step(self._index, self._total, caption)
+
+    def complete(self, summary: str) -> None:
+        """Close the step already running with the one-line outcome it is reported by."""
+        if self._reporter is not None:
+            self._reporter.complete(self._index, self._total, self._label, summary)
+
+
+def _target_counts(report: GenerateReport) -> str:
+    """One-line outcome of one generate target: what it wrote, left alone, removed, and noted."""
+    parts = [f"{len(report.written_files)} written", f"{report.unchanged_count} unchanged"]
+    if report.deleted_files:
+        parts.append(f"{len(report.deleted_files)} deleted")
+    if report.notes:
+        parts.append(f"{len(report.notes)} note{'' if len(report.notes) == 1 else 's'}")
+    return ", ".join(parts)
 
 
 class GenerationProfile(BaseModel):
@@ -305,19 +374,35 @@ def resolve_code_source(config: GenerateConfig, override: str | None) -> Literal
 
 
 async def validate_codes(
-    profile: Profile, config: GenerateConfig, code_source: str | None = None
+    profile: Profile,
+    config: GenerateConfig,
+    code_source: str | None = None,
+    *,
+    reporter: ProgressReporter | None = None,
 ) -> FhirValidationReport:
     """Check the whole instance's codes (sweep) plus the option sets in depth, without writing anything."""
     effective_source = resolve_code_source(config, code_source)
+    progress = _StepAnnouncer(reporter, VALIDATE_CODES_STEPS)
+    progress.step("connecting")
     async with open_client(profile, timeout=_SWEEP_TIMEOUT_SECONDS) as client:
+        progress.complete(profile.base_url)
+        progress.step("instance sweep", "sweeping instance metadata (can take a minute on a large instance)")
         raw = await client.get_raw("/api/metadata", params={"fields": "id,name,code", "defaults": "EXCLUDE"})
+        collections = _sweep_collections(raw)
+        object_count = sum(len(collection.items) for collection in collections)
+        progress.complete(f"{len(collections):,} collections, {object_count:,} objects")
+        progress.step("option sets", "reading option sets")
         models = await client.resources.option_sets.list(
             fields=_OPTION_SET_FIELDS,
             order=["name:asc"],
             paging=False,
         )
+        progress.complete(f"{len(models):,} read")
+    progress.step("findings", "building report")
     option_sets = [_option_set_input(model) for model in models]
-    return build_code_validation(option_sets, _sweep_collections(raw), config, effective_source)
+    report = build_code_validation(option_sets, collections, config, effective_source)
+    progress.complete(f"{len(report.findings):,} finding(s)")
+    return report
 
 
 async def init_project(directory: Path, options: InitOptions, *, force: bool = False) -> ScaffoldReport:
@@ -334,23 +419,35 @@ async def init_project(directory: Path, options: InitOptions, *, force: bool = F
     return report
 
 
-async def generate_foundation(project: FhirProject) -> GenerateReport:
+async def generate_foundation(project: FhirProject, *, reporter: ProgressReporter | None = None) -> GenerateReport:
     """Generate the instance-independent `foundation/` artifacts: DHIS2 identifier aliases and D2Period."""
+    return _emit_foundation(project, progress=_StepAnnouncer(reporter, GENERATE_FOUNDATION_STEPS))
+
+
+def _emit_foundation(project: FhirProject, *, progress: _StepAnnouncer) -> GenerateReport:
+    """Build and sync the foundation artifacts; the one target that reads nothing off the instance."""
+    progress.step("foundation", "writing ig/input/fsh/foundation")
     artifacts = build_foundation_artifacts(project.config.generate, ig_status=project.config.ig.status)
     sync = sync_artifacts(project.fsh_directory, "foundation", artifacts)
-    return GenerateReport(
+    report = GenerateReport(
         project_root=project.project_root,
         target_directory="foundation",
         deleted_files=sync.deleted,
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
     )
+    progress.complete(_target_counts(report))
+    return report
 
 
-async def generate_option_sets(profile: Profile, project: FhirProject) -> GenerateReport:
+async def generate_option_sets(
+    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+) -> GenerateReport:
     """Generate one pre-built CodeSystem and ValueSet document per configured option set into `terminology/`."""
     config = project.config.generate
+    progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[str] = []
+    progress.step(_FETCH_LABEL, "fetching option sets")
     async with open_client(profile) as client:
         models = await client.resources.option_sets.list(
             fields=_OPTION_SET_FIELDS,
@@ -360,9 +457,25 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
         sources = await _closure_sources(client, config)
         attribute_codes = await resolve_attribute_code_index(client)
     inputs = _selected_option_sets([_option_set_input(model) for model in models], sources, config, notes)
+    progress.complete(f"{len(inputs):,} option set(s)")
+    return _emit_option_sets(
+        project, option_sets=inputs, attribute_codes=attribute_codes, notes=notes, progress=progress
+    )
+
+
+def _emit_option_sets(
+    project: FhirProject,
+    *,
+    option_sets: list[OptionSetIn],
+    attribute_codes: AttributeCodeIndex,
+    notes: list[str],
+    progress: _StepAnnouncer,
+) -> GenerateReport:
+    """Build the terminology documents off an already-selected option-set list and sync them into the project."""
+    progress.step("option sets", f"writing ig/input/resources/{TERMINOLOGY_DIRECTORY}")
     build = build_option_set_artifacts(
-        inputs,
-        config,
+        option_sets,
+        project.config.generate,
         project.config.ig.canonical,
         ig_status=project.config.ig.status,
         attribute_codes=attribute_codes,
@@ -373,22 +486,28 @@ async def generate_option_sets(profile: Profile, project: FhirProject) -> Genera
     # a definition that duplicates a pre-defined resource. Only header-bearing files are removed, so a
     # hand-authored file in that directory is left alone.
     superseded = clean_generated_files(project.fsh_directory / TERMINOLOGY_DIRECTORY)
-    return GenerateReport(
+    report = GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",
         target_directory=f"resources/{TERMINOLOGY_DIRECTORY}",
         deleted_files=[*sync.deleted, *superseded],
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
-        option_set_count=len(inputs),
+        option_set_count=len(option_sets),
         notes=[*notes, *build.notes],
     )
+    progress.complete(_target_counts(report))
+    return report
 
 
-async def generate_categories(profile: Profile, project: FhirProject) -> GenerateReport:
+async def generate_categories(
+    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+) -> GenerateReport:
     """Generate one pre-built CodeSystem and ValueSet document per configured category into `categories/`."""
     config = project.config.generate
+    progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[str] = []
+    progress.step(_FETCH_LABEL, "fetching categories")
     async with open_client(profile) as client:
         models = await client.resources.categories.list(
             fields=_CATEGORY_FIELDS,
@@ -397,24 +516,40 @@ async def generate_categories(profile: Profile, project: FhirProject) -> Generat
         )
         attribute_codes = await resolve_attribute_code_index(client)
     inputs = _selected_categories([_category_input(model) for model in models], config, notes)
+    progress.complete(f"{len(inputs):,} categor{'y' if len(inputs) == 1 else 'ies'}")
+    return _emit_categories(project, categories=inputs, attribute_codes=attribute_codes, notes=notes, progress=progress)
+
+
+def _emit_categories(
+    project: FhirProject,
+    *,
+    categories: list[CategoryIn],
+    attribute_codes: AttributeCodeIndex,
+    notes: list[str],
+    progress: _StepAnnouncer,
+) -> GenerateReport:
+    """Build the category documents off an already-selected category list and sync them into the project."""
+    progress.step("categories", f"writing ig/input/resources/{CATEGORY_DIRECTORY}")
     build = build_category_artifacts(
-        inputs,
-        config,
+        categories,
+        project.config.generate,
         project.config.ig.canonical,
         ig_status=project.config.ig.status,
         attribute_codes=attribute_codes,
     )
     sync = sync_json_artifacts(project.resources_directory, CATEGORY_DIRECTORY, build.artifacts)
-    return GenerateReport(
+    report = GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",
         target_directory=f"resources/{CATEGORY_DIRECTORY}",
         deleted_files=sync.deleted,
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
-        category_count=len(inputs),
+        category_count=len(categories),
         notes=[*notes, *build.notes],
     )
+    progress.complete(_target_counts(report))
+    return report
 
 
 def _selected_categories(inputs: list[CategoryIn], config: GenerateConfig, notes: list[str]) -> list[CategoryIn]:
@@ -464,17 +599,43 @@ def _category_input(model: Category) -> CategoryIn:
     )
 
 
-async def generate_questionnaires(profile: Profile, project: FhirProject) -> GenerateReport:
+async def generate_questionnaires(
+    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+) -> GenerateReport:
     """Generate one Questionnaire FSH file per selected data set, event program, and tracker program stage."""
     config = project.config.generate
+    progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[str] = []
+    progress.step(_FETCH_LABEL, "fetching the questionnaire targets")
     async with open_client(profile) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
         attribute_codes = await resolve_attribute_code_index(client)
+    progress.complete(f"{len(sources):,} questionnaire target(s)")
+    return _emit_questionnaires(
+        project,
+        sources=sources,
+        option_set_plan=option_set_plan,
+        attribute_codes=attribute_codes,
+        notes=notes,
+        progress=progress,
+    )
+
+
+def _emit_questionnaires(
+    project: FhirProject,
+    *,
+    sources: list[QuestionnaireSourceIn],
+    option_set_plan: OptionSetIdentityPlan,
+    attribute_codes: AttributeCodeIndex,
+    notes: list[str],
+    progress: _StepAnnouncer,
+) -> GenerateReport:
+    """Build the Questionnaire FSH off already-fetched sources and sync each of its four directories."""
+    progress.step("questionnaires", f"writing ig/input/fsh/{{{','.join(QUESTIONNAIRE_DIRECTORIES)}}}")
     build = build_questionnaire_artifacts(
         sources,
-        config,
+        project.config.generate,
         project.config.ig.canonical,
         ig_status=project.config.ig.status,
         option_set_plan=option_set_plan,
@@ -484,7 +645,7 @@ async def generate_questionnaires(profile: Profile, project: FhirProject) -> Gen
         sync_artifacts(project.fsh_directory, directory, _artifacts_under(build.artifacts, directory))
         for directory in QUESTIONNAIRE_DIRECTORIES
     ]
-    return GenerateReport(
+    report = GenerateReport(
         project_root=project.project_root,
         target_directory=", ".join(QUESTIONNAIRE_DIRECTORIES),
         deleted_files=[name for sync in syncs for name in sync.deleted],
@@ -493,26 +654,73 @@ async def generate_questionnaires(profile: Profile, project: FhirProject) -> Gen
         questionnaire_count=len(sources),
         notes=[*notes, *build.notes],
     )
+    progress.complete(_target_counts(report))
+    return report
 
 
-async def generate_examples(profile: Profile, project: FhirProject) -> GenerateReport:
+async def generate_examples(
+    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+) -> GenerateReport:
     """Generate one `Usage: #example` QuestionnaireResponse per configured example into `examples/`."""
     config = project.config.generate
-    selection = config.examples
+    progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[str] = []
+    if config.examples.per_target <= 0:
+        return await _emit_examples(
+            None,
+            project,
+            sources=[],
+            option_sets=[],
+            option_set_plan=option_set_identities([], config),
+            notes=notes,
+            progress=progress,
+        )
+    progress.step(_FETCH_LABEL, "fetching the questionnaire targets and the option sets they bind")
+    async with open_client(profile) as client:
+        sources = await _fetch_questionnaire_sources(client, config, notes)
+        option_sets = await _fetch_example_option_sets(client, sources)
+        option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
+        progress.complete(f"{len(sources):,} questionnaire target(s), {len(option_sets):,} bound option set(s)")
+        return await _emit_examples(
+            client,
+            project,
+            sources=sources,
+            option_sets=option_sets,
+            option_set_plan=option_set_plan,
+            notes=notes,
+            progress=progress,
+        )
+
+
+async def _emit_examples(
+    client: Dhis2Client | None,
+    project: FhirProject,
+    *,
+    sources: list[QuestionnaireSourceIn],
+    option_sets: list[OptionSetIn],
+    option_set_plan: OptionSetIdentityPlan,
+    notes: list[str],
+    progress: _StepAnnouncer,
+) -> GenerateReport:
+    """Read the example responses off the instance and sync one QuestionnaireResponse per example.
+
+    The one emitter that still reads the instance during its own step: an instance-sourced
+    example is a walk over `/api/dataValueSets` and `/api/tracker/events` per target, which no
+    shared metadata fetch can stand in for. `client` is None only when `[generate.examples]`
+    asks for no examples at all, where nothing is read and the target sweeps its directory.
+    """
+    progress.step("examples", f"writing ig/input/fsh/{EXAMPLES_DIRECTORY}")
     artifacts: list[FshArtifact] = []
     example_count = 0
-    if selection.per_target > 0:
-        async with open_client(profile) as client:
-            sources = await _fetch_questionnaire_sources(client, config, notes)
-            option_sets = await _fetch_example_option_sets(client, sources)
-            option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
-            responses = await _example_responses(client, sources, option_sets, selection, notes)
+    if client is not None and project.config.generate.examples.per_target > 0:
+        responses = await _example_responses(
+            client, sources, option_sets, project.config.generate.examples, notes, progress
+        )
         build = build_example_artifacts(
             sources,
             responses,
             option_sets,
-            config,
+            project.config.generate,
             project.config.ig.canonical,
             option_set_plan=option_set_plan,
         )
@@ -520,7 +728,7 @@ async def generate_examples(profile: Profile, project: FhirProject) -> GenerateR
         notes.extend(build.notes)
         example_count = len(build.artifacts)
     sync = sync_artifacts(project.fsh_directory, EXAMPLES_DIRECTORY, artifacts)
-    return GenerateReport(
+    report = GenerateReport(
         project_root=project.project_root,
         target_directory=EXAMPLES_DIRECTORY,
         deleted_files=sync.deleted,
@@ -529,6 +737,8 @@ async def generate_examples(profile: Profile, project: FhirProject) -> GenerateR
         example_count=example_count,
         notes=notes,
     )
+    progress.complete(_target_counts(report))
+    return report
 
 
 async def generate_load_set(
@@ -537,6 +747,7 @@ async def generate_load_set(
     *,
     per_target: int = DEFAULT_LOAD_SET_PER_TARGET,
     output_directory: Path | None = None,
+    reporter: ProgressReporter | None = None,
 ) -> LoadSetReport:
     """Write `per_target` synthetic QuestionnaireResponse documents per questionnaire target into `load/`.
 
@@ -551,12 +762,16 @@ async def generate_load_set(
     directory passes.
     """
     config = project.config.generate
+    progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[str] = []
+    progress.step(_FETCH_LABEL, "fetching the questionnaire targets and the option sets they bind")
     async with open_client(profile) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_sets = await _fetch_example_option_sets(client, sources)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
         root_uid = await _root_organisation_unit_uid(client)
+    progress.complete(f"{len(sources):,} questionnaire target(s)")
+    progress.step("load set", f"writing {_LOAD_DIRECTORY}")
     documents: list[QuestionnaireResponse] = []
     if root_uid is None:
         notes.append("the instance has no level-1 organisation unit; no load set emitted")
@@ -575,7 +790,7 @@ async def generate_load_set(
         notes.extend(build.notes)
     base_directory = output_directory or project.project_root
     sync = sync_json_artifacts(base_directory, _LOAD_DIRECTORY, [_load_artifact(document) for document in documents])
-    return LoadSetReport(
+    report = LoadSetReport(
         project_root=project.project_root,
         target_directory=_LOAD_DIRECTORY,
         written_files=sync.written,
@@ -585,6 +800,8 @@ async def generate_load_set(
         questionnaire_count=len(sources),
         notes=notes,
     )
+    progress.complete(f"{len(report.written_files):,} written, {report.unchanged_count:,} unchanged")
+    return report
 
 
 def _load_artifact(response: QuestionnaireResponse) -> JsonArtifact:
@@ -601,6 +818,7 @@ async def _example_responses(
     option_sets: list[OptionSetIn],
     selection: ExampleSelection,
     notes: list[str],
+    progress: _StepAnnouncer,
 ) -> list[ExampleResponseIn]:
     """Collect the example responses from whichever source the project configured."""
     today = datetime.now(tz=UTC).date()
@@ -609,7 +827,7 @@ async def _example_responses(
         notes.append("the instance has no level-1 organisation unit; no examples emitted")
         return []
     if selection.source == "instance":
-        return await _fetch_instance_responses(client, sources, selection.per_target, root_uid, notes)
+        return await _fetch_instance_responses(client, sources, selection.per_target, root_uid, notes, progress)
     synthetic = build_synthetic_responses(sources, option_sets, selection.per_target, root_uid, today)
     notes.extend(synthetic.notes)
     return synthetic.responses
@@ -647,12 +865,19 @@ async def _fetch_instance_responses(
     per_target: int,
     root_uid: str,
     notes: list[str],
+    progress: _StepAnnouncer,
 ) -> list[ExampleResponseIn]:
-    """Read example responses off the instance: data value sets for data sets, tracker events for programs."""
+    """Read example responses off the instance: data value sets for data sets, tracker events for programs.
+
+    Each target announces itself by name on the reporter's transient caption before it is read:
+    a data set walks back through its recent periods, so a single target can hold the run for
+    several requests and a caption naming it is what says the run is still moving.
+    """
     today = datetime.now(tz=UTC).date()
     responses: list[ExampleResponseIn] = []
     empty_targets: list[str] = []
-    for source in sorted(sources, key=lambda item: (item.name, item.uid)):
+    for index, source in enumerate(sorted(sources, key=lambda item: (item.name, item.uid)), start=1):
+        progress.tick(f"example responses: {source.name} ({index}/{len(sources)})")
         if source.kind == "aggregate":
             found = await _fetch_data_value_responses(client, source, per_target, root_uid, today)
         else:
@@ -825,9 +1050,15 @@ def _artifacts_under(artifacts: list[FshArtifact], directory: str) -> list[FshAr
 
 
 async def _fetch_organisation_units(
-    client: Dhis2Client, config: GenerateConfig, tally: GeometryTally, today: date
+    client: Dhis2Client, config: GenerateConfig, tally: GeometryTally, today: date, progress: _StepAnnouncer
 ) -> list[OrganisationUnitIn]:
-    """Page the configured slice of the DHIS2 hierarchy into the emitter projection, ordered by path."""
+    """Page the configured slice of the DHIS2 hierarchy into the emitter projection, ordered by path.
+
+    The longest single read of a generate run on a national hierarchy, so the running count goes
+    onto the reporter's transient caption between pages and the total onto it once the walk ends.
+    A caption is overwritten rather than printed, so a fifty-page walk is no more chatty than a
+    one-page one, and the plain reporter renders no caption at all.
+    """
     selection = config.organisation_units
     filters: list[str] = []
     if selection.root is not None:
@@ -851,7 +1082,9 @@ async def _fetch_organisation_units(
                 organisation_units.append(mapped)
         if len(models) < _STREAM_PAGE_SIZE:
             break
+        progress.tick(f"organisation units: {len(organisation_units):,} read...")
         page += 1
+    progress.tick(f"organisation units: {len(organisation_units):,} read across {page} page(s)")
     return organisation_units
 
 
@@ -868,15 +1101,40 @@ def _registry_scale_notes(organisation_unit_count: int) -> list[str]:
     ]
 
 
-async def generate_organisation_units(profile: Profile, project: FhirProject) -> GenerateReport:
+async def generate_organisation_units(
+    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+) -> GenerateReport:
     """Generate the profiles and terminology into `organization/`, and the instance registry into `registry/`."""
-    selection = project.config.generate.organisation_units
+    progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
+    progress.step(_FETCH_LABEL, "fetching organisation units")
     async with open_client(profile) as client:
-        organisation_units = await _fetch_organisation_units(client, project.config.generate, tally, today)
+        organisation_units = await _fetch_organisation_units(client, project.config.generate, tally, today, progress)
         attribute_codes = await resolve_attribute_code_index(client)
-    notes: list[str] = tally.to_notes()
+    progress.complete(f"{len(organisation_units):,} organisation unit(s)")
+    return _emit_organisation_units(
+        project,
+        organisation_units=organisation_units,
+        attribute_codes=attribute_codes,
+        notes=tally.to_notes(),
+        progress=progress,
+    )
+
+
+def _emit_organisation_units(
+    project: FhirProject,
+    *,
+    organisation_units: list[OrganisationUnitIn],
+    attribute_codes: AttributeCodeIndex,
+    notes: list[str],
+    progress: _StepAnnouncer,
+) -> GenerateReport:
+    """Build the organisation-unit profiles, terminology, and registry off an already-paged hierarchy."""
+    progress.step(
+        "organisation units", f"writing ig/input/fsh/organization and ig/input/resources/{REGISTRY_DIRECTORY}"
+    )
+    selection = project.config.generate.organisation_units
     generate_config = project.config.generate
     ig_status = project.config.ig.status
     artifacts: list[FshArtifact] = [build_organisation_unit_profiles(generate_config, ig_status=ig_status)]
@@ -903,7 +1161,7 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
     notes.extend(_registry_scale_notes(len(organisation_units)))
     sync = sync_artifacts(project.fsh_directory, "organization", artifacts)
     registry_sync = sync_json_artifacts(project.resources_directory, REGISTRY_DIRECTORY, registry)
-    return GenerateReport(
+    report = GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",
         target_directory=f"fsh/organization, resources/{REGISTRY_DIRECTORY}",
@@ -917,14 +1175,20 @@ async def generate_organisation_units(profile: Profile, project: FhirProject) ->
         ),
         notes=notes,
     )
+    progress.complete(_target_counts(report))
+    return report
 
 
-async def generate_pages(profile: Profile, project: FhirProject) -> GenerateReport:
+async def generate_pages(
+    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+) -> GenerateReport:
     """Generate the narrative site pages and the per-artifact intros into `ig/input/pagecontent/`."""
     config = project.config.generate
+    progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[str] = []
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
+    progress.step(_FETCH_LABEL, "fetching the questionnaire targets, option sets, and organisation units")
     async with open_client(profile) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
         models = await client.resources.option_sets.list(
@@ -932,16 +1196,35 @@ async def generate_pages(profile: Profile, project: FhirProject) -> GenerateRepo
             order=["name:asc"],
             paging=False,
         )
-        organisation_units = await _fetch_organisation_units(client, config, tally, today)
-    pages = PagesIn(
-        forms=sources,
-        option_sets=_selected_option_sets([_option_set_input(model) for model in models], sources, config, notes),
+        organisation_units = await _fetch_organisation_units(client, config, tally, today, progress)
+    option_sets = _selected_option_sets([_option_set_input(model) for model in models], sources, config, notes)
+    progress.complete(f"{len(sources):,} questionnaire target(s), {len(organisation_units):,} organisation unit(s)")
+    return _emit_pages(
+        project,
+        sources=sources,
+        option_sets=option_sets,
         organisation_units=organisation_units,
+        notes=notes,
+        progress=progress,
     )
-    build = build_page_artifacts(pages, config, project.config.ig.canonical)
+
+
+def _emit_pages(
+    project: FhirProject,
+    *,
+    sources: list[QuestionnaireSourceIn],
+    option_sets: list[OptionSetIn],
+    organisation_units: list[OrganisationUnitIn],
+    notes: list[str],
+    progress: _StepAnnouncer,
+) -> GenerateReport:
+    """Build the narrative pages off what the other targets were built from - no second read of the instance."""
+    progress.step("pages", f"writing ig/{PAGES_BASE_SUBDIRECTORY}/{PAGES_DIRECTORY}")
+    pages = PagesIn(forms=sources, option_sets=option_sets, organisation_units=organisation_units)
+    build = build_page_artifacts(pages, project.config.generate, project.config.ig.canonical)
     sync = sync_artifacts(project.ig_directory / PAGES_BASE_SUBDIRECTORY, PAGES_DIRECTORY, build.artifacts)
     intro_count = sum(1 for artifact in build.artifacts if artifact.relative_path.endswith(INTRO_SUFFIX))
-    return GenerateReport(
+    report = GenerateReport(
         project_root=project.project_root,
         target_directory=PAGES_DIRECTORY,
         target_base=f"ig/{PAGES_BASE_SUBDIRECTORY}",
@@ -952,18 +1235,81 @@ async def generate_pages(profile: Profile, project: FhirProject) -> GenerateRepo
         intro_count=intro_count,
         notes=[*notes, *build.notes],
     )
+    progress.complete(_target_counts(report))
+    return report
 
 
-async def generate_all(profile: Profile, project: FhirProject) -> GenerateAllReport:
-    """Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages."""
-    foundation = await generate_foundation(project)
-    option_sets = await generate_option_sets(profile, project)
-    categories = await generate_categories(profile, project)
-    questionnaires = await generate_questionnaires(profile, project)
-    examples = await generate_examples(profile, project)
-    organisation_units = await generate_organisation_units(profile, project)
-    pages = await generate_pages(profile, project)
-    return GenerateAllReport(
+async def generate_full(
+    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+) -> GenerateFullReport:
+    """Generate every target off one connected client and one pass over the instance's metadata.
+
+    The whole IG in a single run. The instance is read once - the questionnaire targets, every
+    option set, the categories, the organisation-unit slice, and the run's attribute-code join -
+    and each target then builds and syncs off that one result, so nothing is fetched a second
+    time the way seven separate commands would fetch it. The foundation runs first because it
+    reads nothing at all, and the pages run last because they narrate what the other targets
+    wrote. Each target keeps the notes it alone owns, so its report reads exactly as the solo
+    command's does.
+    """
+    config = project.config.generate
+    progress = _StepAnnouncer(reporter, GENERATE_FULL_STEPS)
+    progress.step(_FETCH_LABEL, "fetching instance metadata")
+    async with open_client(profile) as client:
+        inputs = await fetch_live_ig_inputs(client, config, progress=progress)
+        progress.complete(
+            f"{len(inputs.sources):,} questionnaire target(s), {len(inputs.option_sets):,} option set(s), "
+            f"{len(inputs.categories):,} categor{'y' if len(inputs.categories) == 1 else 'ies'}, "
+            f"{len(inputs.organisation_units):,} organisation unit(s)"
+        )
+        foundation = _emit_foundation(project, progress=progress)
+        option_sets = _emit_option_sets(
+            project,
+            option_sets=inputs.option_sets,
+            attribute_codes=inputs.attribute_codes,
+            notes=list(inputs.option_set_notes),
+            progress=progress,
+        )
+        categories = _emit_categories(
+            project,
+            categories=inputs.categories,
+            attribute_codes=inputs.attribute_codes,
+            notes=list(inputs.category_notes),
+            progress=progress,
+        )
+        questionnaires = _emit_questionnaires(
+            project,
+            sources=inputs.sources,
+            option_set_plan=inputs.option_set_plan,
+            attribute_codes=inputs.attribute_codes,
+            notes=list(inputs.source_notes),
+            progress=progress,
+        )
+        examples = await _emit_examples(
+            client,
+            project,
+            sources=inputs.sources,
+            option_sets=_bound_option_sets(inputs.sources, inputs.option_sets),
+            option_set_plan=inputs.option_set_plan,
+            notes=list(inputs.source_notes),
+            progress=progress,
+        )
+        organisation_units = _emit_organisation_units(
+            project,
+            organisation_units=inputs.organisation_units,
+            attribute_codes=inputs.attribute_codes,
+            notes=list(inputs.geometry_notes),
+            progress=progress,
+        )
+        pages = _emit_pages(
+            project,
+            sources=inputs.sources,
+            option_sets=inputs.option_sets,
+            organisation_units=inputs.organisation_units,
+            notes=[*inputs.source_notes, *inputs.option_set_notes],
+            progress=progress,
+        )
+    return GenerateFullReport(
         foundation=foundation,
         option_sets=option_sets,
         categories=categories,
@@ -974,6 +1320,18 @@ async def generate_all(profile: Profile, project: FhirProject) -> GenerateAllRep
     )
 
 
+def _bound_option_sets(sources: list[QuestionnaireSourceIn], option_sets: list[OptionSetIn]) -> list[OptionSetIn]:
+    """The option sets the selected forms bind a question to - the slice the examples target reads.
+
+    Always a subset of the selected sets: the selection carries the form closure alongside the
+    configured UIDs, so an option set a question binds is in the list by construction.
+    """
+    bound_ids = {
+        item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid is not None
+    }
+    return [option_set for option_set in option_sets if option_set.uid in bound_ids]
+
+
 class LiveIgInputs(BaseModel):
     """Every instance read the IG's resources are built from, fetched once off one connected client.
 
@@ -982,6 +1340,11 @@ class LiveIgInputs(BaseModel):
     categories, the organisation-unit slice, and the run's attribute-code join. `notes` carries
     what the fetch itself raised - unmatched selection entries, the option-set closure, the
     geometry tally - for the caller to report alongside the notes its builders raise.
+
+    The same notes are also split into the bucket each generate target owns, so a caller
+    building every target off one fetch reports per target exactly what the solo command does:
+    the closure belongs to the terminology target's report, the unmatched form UIDs to the
+    questionnaire target's, and the geometry tally to the organisation-unit target's.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -993,39 +1356,56 @@ class LiveIgInputs(BaseModel):
     organisation_units: list[OrganisationUnitIn] = Field(default_factory=list)
     attribute_codes: AttributeCodeIndex
     notes: list[str] = Field(default_factory=list)
+    source_notes: list[str] = Field(default_factory=list)
+    option_set_notes: list[str] = Field(default_factory=list)
+    category_notes: list[str] = Field(default_factory=list)
+    geometry_notes: list[str] = Field(default_factory=list)
 
 
-async def fetch_live_ig_inputs(client: Dhis2Client, config: GenerateConfig) -> LiveIgInputs:
+async def fetch_live_ig_inputs(
+    client: Dhis2Client, config: GenerateConfig, *, progress: _StepAnnouncer | None = None
+) -> LiveIgInputs:
     """Read the whole instance side of one IG build over a single client, in the generate targets' own projections.
 
     The shared fetch behind building the IG's documents without a disk round-trip: a caller
     passes the result straight to `build_questionnaire_documents`, `build_option_set_artifacts`,
     `build_category_artifacts`, and `build_organisation_unit_instances` and gets exactly what
-    `d2w fhir generate all` would have written. The selection rules are the targets' own - each
+    `d2w fhir generate full` would have written. The selection rules are the targets' own - each
     list is filtered by the configured UIDs, and the option sets additionally by the closure the
     selected forms bind - so the built resources agree with the compiled IG object for object.
+
+    Every collection is read exactly once. The option-set identity plan is assigned off the same
+    unfiltered read the terminology projection came from rather than a second narrower request,
+    since a slug is decided by the UID and the name the first read already carries.
     """
-    notes: list[str] = []
+    steps = progress if progress is not None else _StepAnnouncer()
+    source_notes: list[str] = []
+    option_set_notes: list[str] = []
+    category_notes: list[str] = []
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
-    sources = await _fetch_questionnaire_sources(client, config, notes)
+    steps.tick("reading the questionnaire targets")
+    sources = await _fetch_questionnaire_sources(client, config, source_notes)
+    steps.tick("reading option sets")
     option_set_models = await client.resources.option_sets.list(
         fields=_OPTION_SET_FIELDS,
         order=["name:asc"],
         paging=False,
     )
-    option_sets = _selected_option_sets(
-        [_option_set_input(model) for model in option_set_models], sources, config, notes
-    )
-    option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
+    fetched_option_sets = [_option_set_input(model) for model in option_set_models]
+    option_sets = _selected_option_sets(fetched_option_sets, sources, config, option_set_notes)
+    option_set_plan = _option_set_identity_plan(fetched_option_sets, config, sources)
+    steps.tick("reading categories")
     category_models = await client.resources.categories.list(
         fields=_CATEGORY_FIELDS,
         order=["name:asc"],
         paging=False,
     )
-    categories = _selected_categories([_category_input(model) for model in category_models], config, notes)
-    organisation_units = await _fetch_organisation_units(client, config, tally, today)
+    categories = _selected_categories([_category_input(model) for model in category_models], config, category_notes)
+    organisation_units = await _fetch_organisation_units(client, config, tally, today, steps)
+    steps.tick("reading the attribute-code join")
     attribute_codes = await resolve_attribute_code_index(client)
+    geometry_notes = tally.to_notes()
     return LiveIgInputs(
         sources=sources,
         option_sets=option_sets,
@@ -1033,7 +1413,11 @@ async def fetch_live_ig_inputs(client: Dhis2Client, config: GenerateConfig) -> L
         categories=categories,
         organisation_units=organisation_units,
         attribute_codes=attribute_codes,
-        notes=[*notes, *tally.to_notes()],
+        notes=[*source_notes, *option_set_notes, *category_notes, *geometry_notes],
+        source_notes=source_notes,
+        option_set_notes=option_set_notes,
+        category_notes=category_notes,
+        geometry_notes=geometry_notes,
     )
 
 
@@ -1070,6 +1454,20 @@ async def _fetch_option_set_identity_plan(
         paging=False,
     )
     inputs = [OptionSetIn(uid=model.id or "", name=model.name or model.id or "") for model in models]
+    return option_set_identities(_selected_option_sets(inputs, sources, config, []), config)
+
+
+def _option_set_identity_plan(
+    option_sets: list[OptionSetIn], config: GenerateConfig, sources: list[QuestionnaireSourceIn]
+) -> OptionSetIdentityPlan:
+    """Assign the option-set identities off an unfiltered list already read in the terminology projection.
+
+    The plan `_fetch_option_set_identity_plan` reads a second, narrower request for, without the
+    request: a slug is decided by the UID and the name alone, so the wider projection is narrowed
+    here and planned over the identical selection. The selection notes belong to the terminology
+    target's report and are not raised a second time.
+    """
+    inputs = [OptionSetIn(uid=option_set.uid, name=option_set.name) for option_set in option_sets]
     return option_set_identities(_selected_option_sets(inputs, sources, config, []), config)
 
 

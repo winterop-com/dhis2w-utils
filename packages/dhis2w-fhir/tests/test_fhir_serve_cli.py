@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import builtins
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,22 @@ _runner = CliRunner()
 
 @pytest.fixture
 def workdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Run in an empty temporary working directory."""
+    """Run in an empty temporary working directory, with a `probe` profile and nothing of the machine's."""
+    config_dir = tmp_path / ".config" / "dhis2"
+    config_dir.mkdir(parents=True)
+    (config_dir / "profiles.toml").write_text(
+        """
+default = "probe"
+
+[profiles.probe]
+base_url = "https://dhis2.example"
+auth = "pat"
+token = "d2p_test"
+"""
+    )
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir.parent))
+    monkeypatch.delenv("DHIS2_PROFILE", raising=False)
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
@@ -133,16 +149,62 @@ def test_serve_defaults_to_loopback_and_lenient_codes(workdir: Path, recorded_ru
 
 
 def test_serve_carries_the_flags_into_the_settings(workdir: Path, recorded_run: _RecordedRun) -> None:
-    """`--strict-codes` and `--profile` land on the settings the app factory was built from."""
+    """`--strict-codes` lands on the settings the app factory was built from."""
     project = _scaffold(workdir)
     _compile(project)
 
-    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--strict-codes", "--profile", "demo"])
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--strict-codes"])
 
     assert result.exit_code == 0, result.output
     settings = recorded_run.application.state.settings
     assert settings.strict_codes is True
-    assert settings.profile == "demo"
+
+
+def test_serve_takes_the_profile_from_the_root_flag(
+    workdir: Path, monkeypatch: pytest.MonkeyPatch, recorded_run: _RecordedRun
+) -> None:
+    """The profile is the root `d2w -p`, so the command carries no second flag of its own to disagree with it."""
+    project = _scaffold(workdir)
+    _compile(project)
+    # The root callback writes DHIS2_PROFILE straight into the environment; setting it through
+    # monkeypatch first is what puts the variable back the way this session found it afterwards.
+    monkeypatch.setenv("DHIS2_PROFILE", "probe")
+
+    rejected = _runner.invoke(build_app(), ["fhir", "serve", "project", "--profile", "demo"])
+    assert rejected.exit_code != 0
+    assert "--profile" in rejected.output
+    assert recorded_run.calls == 0
+
+    result = _runner.invoke(build_app(), ["-p", "demo", "fhir", "serve", "project"])
+    assert result.exit_code == 0, result.output
+    assert os.environ["DHIS2_PROFILE"] == "demo"
+    assert recorded_run.application.state.settings.profile is None
+
+
+def test_serve_announces_the_address_before_the_server_starts(workdir: Path, recorded_run: _RecordedRun) -> None:
+    """The banner is what a caller reads while uvicorn boots, so it precedes the run and names the address."""
+    project = _scaffold(workdir)
+    _compile(project)
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--port", "9123"])
+
+    assert result.exit_code == 0, result.output
+    assert f"starting {project.resolve()} on http://127.0.0.1:9123 (ctrl-c to stop)" in result.stderr
+    assert recorded_run.calls == 1
+
+
+def test_serve_live_resolves_the_profile_before_it_says_anything(
+    workdir: Path, monkeypatch: pytest.MonkeyPatch, recorded_run: _RecordedRun
+) -> None:
+    """An unknown profile fails as a failure, not under a banner that already claimed the server started."""
+    _scaffold(workdir)
+    monkeypatch.setenv("DHIS2_PROFILE", "no-such-profile")
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--live"])
+
+    assert result.exit_code != 0
+    assert "starting" not in result.stderr
+    assert recorded_run.calls == 0
 
 
 def test_serve_live_skips_the_compiled_preflight(workdir: Path, recorded_run: _RecordedRun) -> None:
