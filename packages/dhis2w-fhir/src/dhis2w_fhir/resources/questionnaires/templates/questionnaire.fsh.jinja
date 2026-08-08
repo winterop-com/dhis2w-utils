@@ -1,9 +1,9 @@
-Instance: Questionnaire-{{ questionnaire.uid }}
+Instance: Questionnaire-{{ questionnaire.stem }}
 InstanceOf: Questionnaire
 Title: {{ questionnaire.title_literal }}
 Description: {{ questionnaire.description_literal }}
 Usage: #definition
-* id = "{{ questionnaire.uid }}"
+* id = "{{ questionnaire.stem }}"
 * extension[{{ questionnaire.form_type_extension }}].valueCode = #{{ questionnaire.form_type_code }}
 {% for attribute_value in questionnaire.attribute_values %}
 * extension[{{ questionnaire.attribute_value_extension }}][+].extension[{{ attribute_id_sub_extension }}].valueString = {{ attribute_value.attribute_id_literal }}

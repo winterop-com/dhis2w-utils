@@ -7,7 +7,15 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.attributes import AttributeValueIn
-from dhis2w_fhir.names import join_id_tokens, join_name_segments
+from dhis2w_fhir.names import (
+    FHIR_ID_MAX_LENGTH,
+    NamingSource,
+    StemResolution,
+    StemSubject,
+    join_id_tokens,
+    join_name_segments,
+    resolve_identity_stems,
+)
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import NamingConfig
@@ -186,13 +194,15 @@ class QuestionnaireSectionIn(BaseModel):
 class ProgramContextIn(BaseModel):
     """The tracker program one stage belongs to.
 
-    The identity its questionnaires carry in titles, identifiers, and intros.
+    The identity its questionnaires carry in titles, identifiers, and intros. `code` is the
+    program's DHIS2 code, which the stem plan resolves the program's directory segment from.
     """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
     name: str
+    code: str | None = None
 
 
 class QuestionnaireSourceIn(BaseModel):
@@ -231,6 +241,62 @@ def source_display_name(source: QuestionnaireSourceIn) -> str:
     return f"{source.program.name} - {source.name}"
 
 
+#: The surface label questionnaire-target stem notes and refusals name their offenders under.
+QUESTIONNAIRE_STEM_SURFACE = "questionnaire target"
+
+#: The surface label tracker-program stem notes and refusals name their offenders under.
+TRACKER_PROGRAM_STEM_SURFACE = "tracker program"
+
+
+class QuestionnaireStemPlan(BaseModel):
+    """The resolved identity stems of one run's questionnaire surface.
+
+    `targets` covers the forms themselves - each stem is the Questionnaire's resource id, its
+    canonical URL segment, its file name, and (pascal-collapsed) its FSH name segment. `programs`
+    covers the tracker programs the stage files nest under, whose stem is a directory name only.
+    Every emitter that names a questionnaire artifact - the FSH target, the JSON documents, the
+    examples, the pages - reads this one plan, so the two paths cannot disagree on an identity.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    targets: StemResolution
+    programs: StemResolution
+
+    @property
+    def notes(self) -> list[str]:
+        """The notes resolution raised across both surfaces, targets first."""
+        return [*self.targets.notes, *self.programs.notes]
+
+
+def plan_questionnaire_stems(sources: list[QuestionnaireSourceIn], source: NamingSource) -> QuestionnaireStemPlan:
+    """Resolve the questionnaire surface's identity stems once per run - the single source every emitter reads.
+
+    The form targets and the tracker programs resolve as separate surfaces, each over its full
+    subject list in one call so the collision scan sees every peer: a target stem is a resource
+    id and must be unique among the run's Questionnaires - data sets, event programs, and
+    tracker stages together - while a program stem only names the directory its stages are filed
+    under. Both stems ride bare, so the budget is the R4 id limit itself - the same number
+    validate states for these surfaces.
+    """
+    target_subjects = [StemSubject(uid=item.uid, code=item.code, label=source_display_name(item)) for item in sources]
+    programs: dict[str, ProgramContextIn] = {}
+    for item in sources:
+        if item.program is not None:
+            programs.setdefault(item.program.uid, item.program)
+    program_subjects = [
+        StemSubject(uid=program.uid, code=program.code, label=program.name) for program in programs.values()
+    ]
+    return QuestionnaireStemPlan(
+        targets=resolve_identity_stems(
+            target_subjects, source, QUESTIONNAIRE_STEM_SURFACE, max_stem_length=FHIR_ID_MAX_LENGTH
+        ),
+        programs=resolve_identity_stems(
+            program_subjects, source, TRACKER_PROGRAM_STEM_SURFACE, max_stem_length=FHIR_ID_MAX_LENGTH
+        ),
+    )
+
+
 class QuestionnaireNaming(BaseModel):
     """Derived FSH names and ids for questionnaire artifacts under the configurable naming tokens.
 
@@ -262,9 +328,14 @@ class QuestionnaireNaming(BaseModel):
         """The naming token one form kind composes its name from (`DS`, `PR`, `PS`)."""
         return {"aggregate": self.data_set, "event": self.program, "tracker-event": self.program_stage}[kind]
 
-    def questionnaire_name(self, kind: FormKind, uid: str) -> str:
-        """Computational `Questionnaire.name` for one source (e.g. `D2DS_BfMAe6Itzgt`, `D2PS_A03MvHHogjR`)."""
-        return join_name_segments(f"{self.prefix}{self.source_token(kind)}", uid)
+    def questionnaire_name(self, kind: FormKind, stem_segment: str) -> str:
+        """Computational `Questionnaire.name` for one source (e.g. `D2DS_BfMAe6Itzgt`, `D2PS_A03MvHHogjR`).
+
+        `stem_segment` is the FSH-name segment of the form's identity stem
+        (`StemResolution.fsh_segment_for`): the DHIS2 id verbatim under `source = "id"`, the
+        pascal-collapsed code where a code stem serves.
+        """
+        return join_name_segments(f"{self.prefix}{self.source_token(kind)}", stem_segment)
 
     @property
     def data_element_code_system(self) -> str:

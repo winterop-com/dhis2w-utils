@@ -142,6 +142,7 @@ _DECLARATION_KEYWORDS = ("CodeSystem: ", "ValueSet: ", "Extension: ", "Profile: 
 
 _OPTION_SET = OptionSetIn(
     uid="Xa1b2c3d4e5",
+    code="birth-type",
     name="Birth type",
     options=[OptionIn(uid="kRRUtYaGett", code="NB", name="Natural Birth", sort_order=1)],
 )
@@ -150,6 +151,7 @@ _ORGANISATION_UNIT = OrganisationUnitIn(uid="ImspTQPwCqd", name="Sierra Leone", 
 
 _DATA_SET = QuestionnaireSourceIn(
     uid="BfMAe6Itzgt",
+    code="child-health",
     name="Child Health",
     kind="aggregate",
     flat_items=[QuestionnaireItemIn(uid="De1aaaaaaaa", name="BCG doses given", value_type="INTEGER")],
@@ -191,7 +193,11 @@ def _option_set_names(config: GenerateConfig) -> list[str]:
 
 def test_every_declared_fsh_name_matches_cnl_0() -> None:
     """Underscored names stay within R4 cnl-0: an upper-case letter, then letters, digits, and underscores."""
-    for config in (GenerateConfig(), GenerateConfig(naming=NamingConfig(source="name"))):
+    for config in (
+        GenerateConfig(),
+        GenerateConfig(naming=NamingConfig(source="code-or-id")),
+        GenerateConfig(naming=NamingConfig(source="code")),
+    ):
         declared = [name for content in _emitted_contents(config) for name in _declared_names(content)]
         declared += _option_set_names(config)
         assert declared

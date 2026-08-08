@@ -78,7 +78,9 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
+    QuestionnaireStemPlan,
     SupportTerminologyProfile,
+    plan_questionnaire_stems,
     source_display_name,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
@@ -190,9 +192,9 @@ class _QuestionnaireSystems(BaseModel):
         """The DHIS2 identifier system one object kind is named under (e.g. `.../id/data-set`)."""
         return f"{self.identifier_base}/{segment}"
 
-    def questionnaire_url(self, uid: str) -> str:
-        """Canonical URL one form's Questionnaire is published at."""
-        return f"{self.canonical}/Questionnaire/{uid}"
+    def questionnaire_url(self, stem: str) -> str:
+        """Canonical URL one form's Questionnaire is published at, closing on its identity stem."""
+        return f"{self.canonical}/Questionnaire/{stem}"
 
 
 class _SupportPair(BaseModel):
@@ -212,6 +214,7 @@ def build_questionnaire_documents(
     ig_status: IgStatus,
     option_set_plan: OptionSetIdentityPlan,
     attribute_codes: AttributeCodeIndex,
+    stem_plan: QuestionnaireStemPlan | None = None,
 ) -> QuestionnaireDocumentBuild:
     """Build one FHIR Questionnaire per data set, event program, and tracker program stage.
 
@@ -219,17 +222,27 @@ def build_questionnaire_documents(
     them, so a caller can build the FSH source and the served documents off one fetch:
     `option_set_plan` is the identity plan the terminology target emits from, and
     `attribute_codes` is the run's `uid -> code` join the D2AttributeValue extensions read from.
+    `stem_plan` is the questionnaire surface's identity-stem plan; left None it resolves here
+    through the very `plan_questionnaire_stems` call the FSH target resolves through, so the two
+    paths cannot disagree on an id, a canonical URL, or a name.
     """
     names = QuestionnaireNaming.from_naming(config.naming)
     systems = _QuestionnaireSystems.from_config(config, canonical)
+    plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
     questionnaires = [
         _questionnaire_document(
-            source, names, systems, index.identities, ig_status=ig_status, attribute_codes=attribute_codes
+            source,
+            names,
+            systems,
+            index.identities,
+            stem_plan=plan,
+            ig_status=ig_status,
+            attribute_codes=attribute_codes,
         )
         for source in sorted(sources, key=lambda item: (item.name, item.uid))
     ]
-    notes: list[str] = []
+    notes: list[str] = list(plan.targets.notes)
     if index.unplanned_uids:
         notes.append(
             aggregate_note(
@@ -299,19 +312,22 @@ def _questionnaire_document(
     systems: _QuestionnaireSystems,
     identities: dict[str, OptionSetIdentity],
     *,
+    stem_plan: QuestionnaireStemPlan,
     ig_status: IgStatus,
     attribute_codes: AttributeCodeIndex,
 ) -> Questionnaire:
     """Build one form's Questionnaire, every name already resolved to the URL it is served under.
 
+    The identity stem carries the artifact identity - `id`, the canonical URL, the computational
+    `name` - while the identifier slices keep the DHIS2 id and code as the data they are.
     `title` carries the DHIS2 name verbatim because it is data, while `description` is the page
     furniture the IG publisher pastes into HTML and takes the same markup escaping the FSH
     `Description:` keyword does.
     """
     profile = FORM_KIND_PROFILES[source.kind]
     return Questionnaire(
-        id=source.uid,
-        url=systems.questionnaire_url(source.uid),
+        id=stem_plan.targets.stem_for(source.uid),
+        url=systems.questionnaire_url(stem_plan.targets.stem_for(source.uid)),
         title=flatten_whitespace(source_display_name(source)),
         description=page_string(source_description(source, profile)),
         extension=[
@@ -321,7 +337,7 @@ def _questionnaire_document(
             ),
         ],
         identifier=_identifiers(source, profile, systems, attribute_codes),
-        name=names.questionnaire_name(source.kind, source.uid),
+        name=names.questionnaire_name(source.kind, stem_plan.targets.fsh_segment_for(source.uid)),
         status=ig_status,
         experimental=experimental_for_status(ig_status),
         subjectType=[profile.subject_type],

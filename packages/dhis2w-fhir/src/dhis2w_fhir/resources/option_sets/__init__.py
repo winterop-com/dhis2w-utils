@@ -23,9 +23,12 @@ DHIS2 option UID and, where the option carries one, the DHIS2 option code. It is
 built from the same `concept_assignments` plan the concepts are, so a mapping can
 only ever name a concept the CodeSystem really holds.
 
-With `naming.source = "id"` the slug is the option-set UID verbatim: FHIR ids
-and file names both permit mixed case, so the emitted id reads straight back to
-the DHIS2 object. Name-sourced slugs are kebab-cased as usual.
+All three artifacts of one set carry one identity stem, resolved by
+`resolve_identity_stems` under `[generate.naming] source`: with `"id"` the slug
+is the option-set UID verbatim (FHIR ids and file names both permit mixed case,
+so the emitted id reads straight back to the DHIS2 object), and with the code
+sources it is the set's DHIS2 code, falling back to the UID or refusing the run
+as the source dictates.
 """
 
 from __future__ import annotations
@@ -42,15 +45,14 @@ from dhis2w_fhir.foundation.attribute_values import (
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import (
     FHIR_ID_MAX_LENGTH,
-    bounded_slug,
+    StemSubject,
     code_or_uid,
     flatten_whitespace,
     is_valid_fhir_code,
     join_id_tokens,
     join_name_segments,
-    kebab,
     page_string,
-    pascal,
+    resolve_identity_stems,
 )
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.r4 import (
@@ -211,7 +213,7 @@ def concept_map_canonical(canonical: str, concept_map_id: str) -> str:
 
 
 def option_set_fsh_name(config: GenerateConfig, segment: str) -> str:
-    """FSH name stem for one option set: the merged naming tokens, then the UID or the pascal name.
+    """FSH name stem for one option set: the merged naming tokens, then the resolved stem segment.
 
     The emitted CodeSystem and ValueSet append `_CS` and `_VS` to it, so `D2OS_BirthType`
     names the pair `D2OS_BirthType_CS` / `D2OS_BirthType_VS`.
@@ -228,53 +230,33 @@ def option_set_identities(option_sets: list[OptionSetIn], config: GenerateConfig
     """Assign every option set its emitted slug, FSH name, and artifact ids, in emission order.
 
     The one place the slug is decided: the emitter names its files from it and the narrative
-    pages link to `CodeSystem-<code_system_id>.html` from it, so the two cannot drift.
+    pages link to `CodeSystem-<code_system_id>.html` from it, so the two cannot drift. The slug
+    is the identity stem `resolve_identity_stems` assigns over the whole selection, so every
+    artifact of one set - the CodeSystem, the ValueSet, and the ConceptMap - follows the one
+    resolved segment, and a code-sourced run falls back or refuses per the configured source.
     """
     plan = OptionSetIdentityPlan()
     id_stem = _id_stem(config)
-    used_slugs: set[str] = set()
-    truncated: list[str] = []
-    collided: list[str] = []
-    slug_limit = max_slug_length(config)
+    resolution = resolve_identity_stems(
+        [StemSubject(uid=option_set.uid, code=option_set.code, label=option_set.name) for option_set in option_sets],
+        config.naming.source,
+        "option set",
+        max_stem_length=max_slug_length(config),
+    )
     for option_set in sorted(option_sets, key=lambda item: (item.name, item.uid)):
-        if config.naming.source == "id":
-            slug = option_set.uid
-            base_name = option_set_fsh_name(config, option_set.uid)
-        else:
-            slug = kebab(option_set.name)
-            base_name = option_set_fsh_name(config, pascal(option_set.name))
-            if len(slug) > slug_limit:
-                slug = bounded_slug(slug, option_set.uid, slug_limit)
-                truncated.append(option_set.name)
-            elif slug in used_slugs:
-                slug = bounded_slug(slug, option_set.uid, slug_limit)
-                base_name = join_name_segments(base_name, option_set.uid)
-                collided.append(option_set.name)
-        used_slugs.add(slug)
+        slug = resolution.stem_for(option_set.uid)
         plan.identities.append(
             OptionSetIdentity(
                 uid=option_set.uid,
                 name=option_set.name,
                 slug=slug,
-                fsh_name=base_name,
+                fsh_name=option_set_fsh_name(config, resolution.fsh_segment_for(option_set.uid)),
                 code_system_id=f"{id_stem}{slug}-cs",
                 value_set_id=f"{id_stem}{slug}{_ID_SUFFIX}",
                 concept_map_id=f"{id_stem}{slug}-cm",
             )
         )
-    if truncated:
-        plan.notes.append(
-            aggregate_note(
-                f"{len(truncated)} option set names exceed the FHIR id length; ids truncated with a UID suffix",
-                truncated,
-            )
-        )
-    if collided:
-        plan.notes.append(
-            aggregate_note(
-                f"{len(collided)} option set names are not unique; ids disambiguated with a UID suffix", collided
-            )
-        )
+    plan.notes.extend(resolution.notes)
     return plan
 
 

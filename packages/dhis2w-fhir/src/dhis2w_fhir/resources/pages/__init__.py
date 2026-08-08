@@ -28,12 +28,13 @@ from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescap
 
 from dhis2w_fhir.foundation import build_naming_system_declarations
 from dhis2w_fhir.foundation.schemas import FoundationNaming
-from dhis2w_fhir.names import code_or_uid, markdown_text
+from dhis2w_fhir.names import StemResolution, code_or_uid, markdown_text
 from dhis2w_fhir.period.parser import parse_period
 from dhis2w_fhir.period.recent import recent_periods
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
 from dhis2w_fhir.resources.examples import MULTI_VALUE_TYPE, STATUS_BY_EVENT_STATUS, answer_element
 from dhis2w_fhir.resources.option_sets import option_set_code_fallback, option_set_identities
+from dhis2w_fhir.resources.organisation_units import organisation_unit_stem_subjects, plan_organisation_unit_stems
 from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
 from dhis2w_fhir.resources.pages.schemas import (
     PERIOD_EXAMPLE_REFERENCE_DATE,
@@ -65,6 +66,8 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
+    QuestionnaireStemPlan,
+    plan_questionnaire_stems,
     source_display_name,
 )
 from dhis2w_fhir.writer import FshArtifact, FshBuild
@@ -159,19 +162,41 @@ _ENVIRONMENT = Environment(
 )
 
 
-def build_page_artifacts(pages: PagesIn, config: GenerateConfig, canonical: str) -> FshBuild:
-    """Build the six site pages plus every per-artifact intro the fetched metadata earns."""
+def build_page_artifacts(
+    pages: PagesIn,
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    stem_plan: QuestionnaireStemPlan | None = None,
+    organisation_unit_stems: StemResolution | None = None,
+) -> FshBuild:
+    """Build the six site pages plus every per-artifact intro the fetched metadata earns.
+
+    `stem_plan` and `organisation_unit_stems` are the identity resolutions the artifact links,
+    the intro file names, and the worked `Location/...` references follow; left None they resolve
+    here through the same calls the emitting targets resolve through. Their fall-back notes are
+    not raised here - the target that owns each surface reports them.
+    """
     build = FshBuild()
-    forms = [_form_row(source) for source in sorted(pages.forms, key=lambda item: (item.name, item.uid))]
+    plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(pages.forms, config.naming.source)
+    if organisation_unit_stems is not None:
+        unit_stems = organisation_unit_stems
+    else:
+        subjects = organisation_unit_stem_subjects(pages.organisation_units)
+        unit_stems = plan_organisation_unit_stems(subjects, config.naming.source)
+    forms = [
+        _form_row(source, plan.targets.stem_for(source.uid))
+        for source in sorted(pages.forms, key=lambda item: (item.name, item.uid))
+    ]
     build.artifacts.append(_forms_page(forms))
     build.artifacts.append(_registry_page(pages.organisation_units, config))
     build.artifacts.append(_terminology_page(pages, config))
     build.artifacts.append(_identifiers_page(config))
     build.artifacts.append(_periods_page(config))
-    build.artifacts.append(_capture_page(pages, config, canonical))
+    build.artifacts.append(_capture_page(pages, config, canonical, plan, unit_stems))
     build.artifacts.extend(_questionnaire_intros(forms))
     build.artifacts.extend(_code_system_intros(pages, config))
-    build.artifacts.extend(_organization_intros(pages.organisation_units))
+    build.artifacts.extend(_organization_intros(pages.organisation_units, unit_stems))
     return build
 
 
@@ -190,10 +215,11 @@ def _source_items(source: QuestionnaireSourceIn) -> list[QuestionnaireItemIn]:
     return [item for section in source.sections for item in section.items] + list(source.flat_items)
 
 
-def _form_row(source: QuestionnaireSourceIn) -> FormRow:
+def _form_row(source: QuestionnaireSourceIn, stem: str) -> FormRow:
     """Project one form onto the catalog row, escaping every DHIS2-derived string for markdown."""
     return FormRow(
         uid=source.uid,
+        stem=stem,
         kind=source.kind,
         name=markdown_text(source.name),
         cell_name=markdown_text(source.name, table_cell=True),
@@ -362,7 +388,13 @@ def _period_type_row(period_type: str) -> PeriodTypeRow:
     )
 
 
-def _capture_page(pages: PagesIn, config: GenerateConfig, canonical: str) -> FshArtifact:
+def _capture_page(
+    pages: PagesIn,
+    config: GenerateConfig,
+    canonical: str,
+    stem_plan: QuestionnaireStemPlan,
+    organisation_unit_stems: StemResolution,
+) -> FshArtifact:
     """Build `capture.md`: what a capture client sends, worked once per form kind, and how answers are typed."""
     foundation = FoundationNaming.from_naming(config.naming)
     organisation_unit = min(pages.organisation_units, key=lambda item: (item.level, item.path, item.uid), default=None)
@@ -388,10 +420,13 @@ def _capture_page(pages: PagesIn, config: GenerateConfig, canonical: str) -> Fsh
         capture_server_id=foundation.capture_server_id,
         location_profile=OrganisationUnitNaming.from_naming(config.naming).location_profile,
         organisation_unit_uid=organisation_unit.uid if organisation_unit is not None else "",
+        organisation_unit_stem=(
+            organisation_unit_stems.stem_for(organisation_unit.uid) if organisation_unit is not None else ""
+        ),
         organisation_unit_name=markdown_text(organisation_unit.name) if organisation_unit is not None else "",
-        aggregate=_capture_form_example(pages.forms, "aggregate", canonical),
-        event=_capture_form_example(pages.forms, "event", canonical),
-        tracker_event=_capture_form_example(pages.forms, "tracker-event", canonical),
+        aggregate=_capture_form_example(pages.forms, "aggregate", canonical, stem_plan),
+        event=_capture_form_example(pages.forms, "event", canonical, stem_plan),
+        tracker_event=_capture_form_example(pages.forms, "tracker-event", canonical, stem_plan),
         event_statuses=[
             EventStatusRow(event_status=event_status, response_status=STATUS_BY_EVENT_STATUS[event_status])
             for event_status in sorted(STATUS_BY_EVENT_STATUS)
@@ -402,7 +437,7 @@ def _capture_page(pages: PagesIn, config: GenerateConfig, canonical: str) -> Fsh
 
 
 def _capture_form_example(
-    forms: list[QuestionnaireSourceIn], kind: FormKind, canonical: str
+    forms: list[QuestionnaireSourceIn], kind: FormKind, canonical: str, stem_plan: QuestionnaireStemPlan
 ) -> CaptureFormExample | None:
     """Work one selected form of `kind` through the contract: its Questionnaire, its period, and its linkIds."""
     candidates = [source for source in forms if source.kind == kind and _source_items(source)]
@@ -412,7 +447,7 @@ def _capture_form_example(
     return CaptureFormExample(
         uid=source.uid,
         name=markdown_text(source_display_name(source)),
-        questionnaire_url=f"{canonical}/Questionnaire/{source.uid}",
+        questionnaire_url=f"{canonical}/Questionnaire/{stem_plan.targets.stem_for(source.uid)}",
         form_type_code=source.kind,
         period=_capture_period(source),
         links=_capture_links(source),
@@ -485,10 +520,10 @@ def _value_literal_row(value_type: str) -> ValueLiteralRow:
 
 
 def _questionnaire_intros(forms: list[FormRow]) -> list[FshArtifact]:
-    """Build one `Questionnaire-<uid>-intro.md` per generated Questionnaire - every form earns one."""
+    """Build one `Questionnaire-<stem>-intro.md` per generated Questionnaire - every form earns one."""
     return [
         _page(
-            f"Questionnaire-{form.uid}{INTRO_SUFFIX}",
+            f"Questionnaire-{form.stem}{INTRO_SUFFIX}",
             "questionnaire-intro.md.jinja",
             intro=QuestionnaireIntroView(form=form, kind_label=_KIND_LABELS[form.kind], form_type_code=form.kind),
         )
@@ -519,8 +554,10 @@ def _code_system_intros(pages: PagesIn, config: GenerateConfig) -> list[FshArtif
     return artifacts
 
 
-def _organization_intros(organisation_units: list[OrganisationUnitIn]) -> list[FshArtifact]:
-    """Build an `Organization-<uid>-intro.md` for every organisation unit carrying a DHIS2 description."""
+def _organization_intros(
+    organisation_units: list[OrganisationUnitIn], organisation_unit_stems: StemResolution
+) -> list[FshArtifact]:
+    """Build an `Organization-<stem>-intro.md` for every organisation unit carrying a DHIS2 description."""
     artifacts: list[FshArtifact] = []
     for organisation_unit in sorted(organisation_units, key=lambda item: (item.path, item.uid)):
         description = (organisation_unit.description or "").strip()
@@ -528,10 +565,11 @@ def _organization_intros(organisation_units: list[OrganisationUnitIn]) -> list[F
             continue
         artifacts.append(
             _page(
-                f"Organization-{organisation_unit.uid}{INTRO_SUFFIX}",
+                f"Organization-{organisation_unit_stems.stem_for(organisation_unit.uid)}{INTRO_SUFFIX}",
                 "organization-intro.md.jinja",
                 intro=OrganizationIntroView(
                     uid=organisation_unit.uid,
+                    stem=organisation_unit_stems.stem_for(organisation_unit.uid),
                     name=markdown_text(organisation_unit.name),
                     level=organisation_unit.level,
                     description=markdown_text(description),

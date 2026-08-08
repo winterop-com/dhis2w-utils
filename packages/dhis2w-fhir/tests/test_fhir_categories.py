@@ -3,21 +3,25 @@
 import json
 from typing import Any
 
+import pytest
 from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.i18n import TranslationIn
+from dhis2w_fhir.names import CodeStemError
 from dhis2w_fhir.resources.categories import build_category_artifacts, category_identities
 from dhis2w_fhir.resources.categories.schemas import CategoryIn, CategorySelection
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn
 from dhis2w_fhir.status import IgStatus
 from dhis2w_fhir.writer import JsonBuild
 
-_NAME_SOURCE = GenerateConfig(naming=NamingConfig(source="name"))
+_CODE_STEMS = GenerateConfig(naming=NamingConfig(source="code"))
+_CODE_OR_ID_STEMS = GenerateConfig(naming=NamingConfig(source="code-or-id"))
 _CODE_SOURCE = GenerateConfig(concept_code_source="code")
 _CANONICAL = "http://example.org/fhir"
 
 _SEX = CategoryIn(
     uid="O5P6e8yu1T6",
+    code="sex",
     name="Sex",
     options=[
         OptionIn(uid="TNYQzTHdoxL", code="F", name="Female", sort_order=0),
@@ -25,13 +29,13 @@ _SEX = CategoryIn(
     ],
 )
 
-_EXPECTED_NAME_SOURCE_CODE_SYSTEM = {
+_EXPECTED_CODE_STEM_CODE_SYSTEM = {
     "resourceType": "CodeSystem",
     "id": "d2-cat-sex-cs",
     "url": "http://example.org/fhir/CodeSystem/d2-cat-sex-cs",
     "identifier": [
         {"system": "http://dhis2.org/fhir/id/category", "value": "O5P6e8yu1T6"},
-        {"system": "http://dhis2.org/fhir/id/category-code", "value": "O5P6e8yu1T6"},
+        {"system": "http://dhis2.org/fhir/id/category-code", "value": "sex"},
     ],
     "name": "D2CAT_Sex_CS",
     "title": "Sex",
@@ -56,13 +60,13 @@ _EXPECTED_NAME_SOURCE_CODE_SYSTEM = {
     ],
 }
 
-_EXPECTED_NAME_SOURCE_VALUE_SET = {
+_EXPECTED_CODE_STEM_VALUE_SET = {
     "resourceType": "ValueSet",
     "id": "d2-cat-sex-vs",
     "url": "http://example.org/fhir/ValueSet/d2-cat-sex-vs",
     "identifier": [
         {"system": "http://dhis2.org/fhir/id/category", "value": "O5P6e8yu1T6"},
-        {"system": "http://dhis2.org/fhir/id/category-code", "value": "O5P6e8yu1T6"},
+        {"system": "http://dhis2.org/fhir/id/category-code", "value": "sex"},
     ],
     "name": "D2CAT_Sex_VS",
     "title": "Sex",
@@ -90,21 +94,21 @@ def _concept_codes(document: dict[str, Any]) -> list[str]:
     return [concept["code"] for concept in document.get("concept", [])]
 
 
-def test_name_source_golden() -> None:
-    """Name-sourced emission: UID concept codes, DHIS2 codes as dhis2-code properties, DHIS2 option order."""
-    build = _build([_SEX], _NAME_SOURCE)
+def test_code_stem_golden() -> None:
+    """Code-stemmed emission: the category's DHIS2 code drives the id, url, file name, and FSH name."""
+    build = _build([_SEX], _CODE_STEMS)
     assert [artifact.relative_path for artifact in build.artifacts] == [
         "categories/CodeSystem-d2-cat-sex-cs.json",
         "categories/ValueSet-d2-cat-sex-vs.json",
     ]
     documents = _documents(build)
-    assert documents["categories/CodeSystem-d2-cat-sex-cs.json"] == _EXPECTED_NAME_SOURCE_CODE_SYSTEM
-    assert documents["categories/ValueSet-d2-cat-sex-vs.json"] == _EXPECTED_NAME_SOURCE_VALUE_SET
+    assert documents["categories/CodeSystem-d2-cat-sex-cs.json"] == _EXPECTED_CODE_STEM_CODE_SYSTEM
+    assert documents["categories/ValueSet-d2-cat-sex-vs.json"] == _EXPECTED_CODE_STEM_VALUE_SET
     assert build.notes == []
 
 
-def test_uid_source_is_default() -> None:
-    """Default naming source is id: file, id, and computational name all derive from the category UID."""
+def test_id_source_is_default() -> None:
+    """Default naming source is id: file, id, and computational name all derive from the category id."""
     documents = _documents(_build([_SEX], GenerateConfig()))
     code_system = documents["categories/CodeSystem-d2-cat-O5P6e8yu1T6-cs.json"]
     assert code_system["id"] == "d2-cat-O5P6e8yu1T6-cs"
@@ -231,13 +235,33 @@ def test_a_unique_attribute_value_lands_as_an_identifier_on_both_halves() -> Non
         assert document["identifier"][-1] == {"system": "http://dhis2.org/fhir/attribute/ihn1wb9eho8", "value": "KE03"}
 
 
-def test_name_collisions_are_disambiguated_with_the_uid() -> None:
-    """Two categories sharing a name keep distinct ids and FSH names, and the plan says so."""
-    twin = CategoryIn(uid="Nx0aRzPMuYt", name="Sex", options=[])
-    plan = category_identities([_SEX, twin], _NAME_SOURCE)
-    assert [identity.slug for identity in plan.identities] == ["sex", "sex-o5p6e8yu1t6"]
-    assert plan.identities[1].code_system_name == "D2CAT_Sex_O5P6e8yu1T6_CS"
-    assert plan.notes == ["1 category names are not unique; ids disambiguated with a UID suffix: Sex"]
+def test_code_or_id_collisions_fall_back_to_the_id_for_every_collider() -> None:
+    """Two categories sharing one DHIS2 code both take the id as their stem, and the note names both."""
+    twin = CategoryIn(uid="Nx0aRzPMuYt", code="sex", name="Sex", options=[])
+    plan = category_identities([_SEX, twin], _CODE_OR_ID_STEMS)
+    assert [identity.slug for identity in plan.identities] == ["Nx0aRzPMuYt", "O5P6e8yu1T6"]
+    assert plan.identities[1].code_system_name == "D2CAT_O5P6e8yu1T6_CS"
+    assert plan.notes == [
+        "2 category codes unusable as identity stems; fell back to the id: Sex (Nx0aRzPMuYt), Sex (O5P6e8yu1T6)"
+    ]
+
+
+def test_code_or_id_keeps_the_usable_code_and_notes_the_fallback() -> None:
+    """A usable, unique code is the stem; a category without one falls back to the id with the note."""
+    uncoded = CategoryIn(uid="Nx0aRzPMuYt", name="Age group", options=[])
+    plan = category_identities([_SEX, uncoded], _CODE_OR_ID_STEMS)
+    assert [identity.slug for identity in plan.identities] == ["Nx0aRzPMuYt", "sex"]
+    assert plan.identities[1].code_system_name == "D2CAT_Sex_CS"
+    assert plan.notes == ["1 category codes unusable as identity stems; fell back to the id: Age group (Nx0aRzPMuYt)"]
+
+
+def test_code_source_refuses_a_category_without_a_usable_code() -> None:
+    """`source = "code"` refuses the run before anything is written, naming the offender."""
+    uncoded = CategoryIn(uid="Nx0aRzPMuYt", name="Age group", options=[])
+    with pytest.raises(CodeStemError) as caught:
+        _build([_SEX, uncoded], _CODE_STEMS)
+    assert "Age group (Nx0aRzPMuYt) has no code" in str(caught.value)
+    assert "`d2w fhir validate` names every offender" in str(caught.value)
 
 
 def test_the_naming_token_is_configurable() -> None:

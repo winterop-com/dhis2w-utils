@@ -13,6 +13,7 @@ from dhis2w_fhir.validation.schemas import (
     MetadataCollectionIn,
     MetadataItemIn,
     ValidationFinding,
+    ValidationScope,
 )
 
 _CONFIG = GenerateConfig()
@@ -187,8 +188,9 @@ def test_organisation_units_without_a_code_warn() -> None:
     assert "falls back to the UID" in report.findings[0].message
 
 
-#: The naming config whose slugs come from option-set names - the only name-sourced identity emitted.
-_NAME_SOURCED = GenerateConfig(naming=NamingConfig(source="name"))
+#: The naming configs whose identity stems come from DHIS2 codes - what the code-stem pass grades.
+_CODE_OR_ID_STEMS = GenerateConfig(naming=NamingConfig(source="code-or-id"))
+_CODE_STEMS = GenerateConfig(naming=NamingConfig(source="code"))
 
 
 def _attributes(*items: MetadataItemIn) -> MetadataCollectionIn:
@@ -253,41 +255,107 @@ def test_the_attribute_finding_is_independent_of_the_code_source(code_source: st
     assert "informational in id mode" not in report.findings[0].message
 
 
-def test_colliding_option_set_names_are_flagged_in_name_mode() -> None:
-    """Two names that slug alike take a UID suffix, so the generated id stops reading back to the name."""
-    sets = [
-        _set("Os1aaaaaaaa", "Vaccine type", []),
-        _set("Os2aaaaaaaa", "Vaccine Type", []),
-        _set("Os3aaaaaaaa", "Gender", []),
+#: A naming surface whose codes exercise every stem defect: missing, unusable, colliding, and clean.
+_STEM_COLLECTION = MetadataCollectionIn(
+    resource="optionSets",
+    items=[
+        MetadataItemIn(uid="Os1aaaaaaaa", name="Uncoded"),
+        MetadataItemIn(uid="Os2aaaaaaaa", name="Spaced", code="bad code"),
+        MetadataItemIn(uid="Os3aaaaaaaa", name="Twin one", code="twin"),
+        MetadataItemIn(uid="Os4aaaaaaaa", name="Twin two", code="twin"),
+        MetadataItemIn(uid="Os5aaaaaaaa", name="Clean", code="clean"),
+    ],
+)
+
+
+def test_code_or_id_grades_stem_defects_as_fallback_warnings() -> None:
+    """Missing, unusable, and colliding codes are the objects code-or-id silently falls back on."""
+    report = build_code_validation([], [_STEM_COLLECTION], _CODE_OR_ID_STEMS)
+    stems = [finding for finding in report.findings if finding.category == "code-stem-fallback"]
+    assert [(finding.severity, finding.scope, finding.uid) for finding in stems] == [
+        ("warning", "selection", "Os2aaaaaaaa"),
+        ("warning", "selection", "Os3aaaaaaaa"),
+        ("warning", "selection", "Os4aaaaaaaa"),
+        ("warning", "selection", "Os1aaaaaaaa"),
     ]
-    report = build_code_validation(sets, [], _NAME_SOURCED)
-    flagged = [(finding.category, finding.uid) for finding in report.findings]
-    assert flagged == [("duplicate-name", "Os2aaaaaaaa"), ("duplicate-name", "Os1aaaaaaaa")]
-    assert "vaccine-type" in report.findings[0].message
-    assert report.info_count == 2
+    assert "is not a valid FHIR id" in stems[0].message
+    assert "is shared by 2 selected option sets" in stems[1].message
+    assert "has no code" in stems[3].message
+    assert all("falls back to the id" in finding.message for finding in stems)
 
 
-def test_colliding_option_set_names_are_silent_in_id_mode() -> None:
-    """Id-sourced slugs are the UID verbatim, so no two of them can collide."""
-    sets = [_set("Os1aaaaaaaa", "Vaccine type", []), _set("Os2aaaaaaaa", "Vaccine Type", [])]
-    assert build_code_validation(sets, [], _CONFIG).findings == []
+def test_code_source_grades_stem_defects_as_errors() -> None:
+    """What generate refuses under `source = "code"` is exactly what validate grades error."""
+    report = build_code_validation([], [_STEM_COLLECTION], _CODE_STEMS)
+    stems = [finding for finding in report.findings if finding.category == "code-stem-refusal"]
+    assert [(finding.severity, finding.uid) for finding in stems] == [
+        ("error", "Os2aaaaaaaa"),
+        ("error", "Os3aaaaaaaa"),
+        ("error", "Os4aaaaaaaa"),
+        ("error", "Os1aaaaaaaa"),
+    ]
+    assert all("refuses the run" in finding.message for finding in stems)
+    assert report.error_count == 4
 
 
-def test_an_over_long_colliding_name_is_reported_once() -> None:
-    """An over-long slug already takes the UID suffix for its length, so it is not also a collision."""
-    long_name = "Residence of the malaria case/s that prompted foci investigation"
-    sets = [_set("Cc3cccccccc", long_name, []), _set("Cc4cccccccc", long_name, [])]
-    report = build_code_validation(sets, [], _NAME_SOURCED)
-    assert [finding.category for finding in report.findings] == ["long-name", "long-name"]
+def test_stem_defects_are_silent_in_id_mode() -> None:
+    """Id-sourced stems are the UID verbatim, so no code can degrade or refuse the run."""
+    report = build_code_validation([], [_STEM_COLLECTION], _CONFIG)
+    assert [finding for finding in report.findings if finding.category.startswith("code-stem")] == []
 
 
-def test_name_derived_checks_only_in_name_mode() -> None:
-    """Long names raise findings only when naming derives from names; id mode never overflows."""
-    long_name = "Residence of the malaria case/s that prompted foci investigation"
-    sets = [_set("Cc3cccccccc", long_name, [])]
-    assert build_code_validation(sets, [], _CONFIG).findings == []
-    named = build_code_validation(sets, [], GenerateConfig(naming=NamingConfig(source="name")))
-    assert [finding.category for finding in named.findings] == ["long-name"]
+def test_a_collection_that_is_no_naming_surface_raises_no_stem_finding() -> None:
+    """A data element is a concept inside the support terminology, so its code is never a stem."""
+    collection = MetadataCollectionIn(
+        resource="dataElements", items=[MetadataItemIn(uid="De1aaaaaaaa", name="Uncoded")]
+    )
+    assert build_code_validation([], [collection], _CODE_STEMS).findings == []
+
+
+def test_a_data_set_code_collides_with_an_event_program_code_across_collections() -> None:
+    """Data sets, event programs, and stages all become Questionnaire-<stem>, one id namespace."""
+    collections = [
+        MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="Ds1aaaaaaaa", name="ANC", code="ANC")]),
+        MetadataCollectionIn(resource="programs", items=[MetadataItemIn(uid="Pr1aaaaaaaa", name="ANC", code="ANC")]),
+    ]
+    report = build_code_validation([], collections, _CODE_OR_ID_STEMS)
+    stems = [finding for finding in report.findings if finding.category == "code-stem-fallback"]
+    assert [(finding.resource_type, finding.uid) for finding in stems] == [
+        ("dataSets", "Ds1aaaaaaaa"),
+        ("programs", "Pr1aaaaaaaa"),
+    ]
+    assert all("is shared by 2 selected questionnaire targets" in finding.message for finding in stems)
+
+
+def test_a_tracker_program_code_never_collides_with_a_data_set_code() -> None:
+    """A tracker program's stem names a stage directory, not a Questionnaire - its own namespace."""
+    collections = [
+        MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="Ds1aaaaaaaa", name="ANC", code="ANC")]),
+        MetadataCollectionIn(resource="programs", items=[MetadataItemIn(uid="Pr1aaaaaaaa", name="ANC", code="ANC")]),
+    ]
+    scope = ValidationScope(
+        data_sets=frozenset({"Ds1aaaaaaaa"}),
+        programs=frozenset({"Pr1aaaaaaaa"}),
+        tracker_programs=frozenset({"Pr1aaaaaaaa"}),
+    )
+    report = build_code_validation([], collections, _CODE_OR_ID_STEMS, scope=scope)
+    assert [finding for finding in report.findings if finding.category == "code-stem-fallback"] == []
+
+
+def test_validate_error_parity_with_the_generate_refusal() -> None:
+    """The same fixture a validate error names is the one `d2w fhir generate` refuses to emit."""
+    from dhis2w_fhir.attributes import AttributeCodeIndex
+    from dhis2w_fhir.names import CodeStemError
+    from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
+
+    uncoded = _set("Os1aaaaaaaa", "Uncoded", [])
+    sweep = MetadataCollectionIn(resource="optionSets", items=[MetadataItemIn(uid="Os1aaaaaaaa", name="Uncoded")])
+    report = build_code_validation([], [sweep], _CODE_STEMS)
+    assert [(finding.severity, finding.uid) for finding in report.findings] == [("error", "Os1aaaaaaaa")]
+    with pytest.raises(CodeStemError, match="Uncoded \\(Os1aaaaaaaa\\) has no code"):
+        build_option_set_artifacts(
+            [uncoded], _CODE_STEMS, "http://example.org/fhir", ig_status="draft", attribute_codes=AttributeCodeIndex()
+        )
 
 
 def test_findings_sorted_errors_first() -> None:

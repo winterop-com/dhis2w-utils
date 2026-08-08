@@ -16,10 +16,13 @@ from dhis2w_fhir.resources.organisation_units.naming import (
     OrganisationUnitNaming,
 )
 from dhis2w_fhir.resources.organisation_units.organization import (
+    ORGANISATION_UNIT_STEM_SURFACE,
     REGISTRY_DIRECTORY,
     build_organisation_unit_instances,
     build_organisation_unit_profiles,
     build_registry_examples,
+    organisation_unit_stem_subjects,
+    plan_organisation_unit_stems,
 )
 from dhis2w_fhir.resources.organisation_units.terminology import (
     build_organisation_unit_level_terminology,
@@ -28,6 +31,7 @@ from dhis2w_fhir.resources.organisation_units.terminology import (
 
 __all__ = [
     "BOUNDARY_CONTENT_TYPE",
+    "ORGANISATION_UNIT_STEM_SURFACE",
     "REGISTRY_DIRECTORY",
     "OrganisationUnitInstanceUrls",
     "OrganisationUnitNaming",
@@ -37,4 +41,6 @@ __all__ = [
     "build_organisation_unit_profiles",
     "build_organisation_unit_terminology",
     "build_registry_examples",
+    "organisation_unit_stem_subjects",
+    "plan_organisation_unit_stems",
 ]

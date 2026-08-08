@@ -34,6 +34,9 @@ class ValidationScope(BaseModel):
     organisation_units: frozenset[str] = frozenset()
     data_sets: frozenset[str] = frozenset()
     programs: frozenset[str] = frozenset()
+    #: The subset of `programs` with registration - their stems name stage directories, a
+    #: namespace of their own, while event programs share the questionnaire targets' namespace.
+    tracker_programs: frozenset[str] = frozenset()
     program_stages: frozenset[str] = frozenset()
     data_elements: frozenset[str] = frozenset()
 
@@ -60,7 +63,8 @@ class CodeCoverage(BaseModel):
     """The code-migration probe: per in-scope surface, usable codes over objects, with selection totals.
 
     "Usable" is the `usable_code_stem` bar - the R4 `id` constraints a code must meet to serve
-    as an artifact stem - so this is the number the `code-or-uid` naming migration watches grow.
+    as an identity stem - so this is the number a `[generate.naming] source = "code"` migration
+    watches grow.
     """
 
     model_config = ConfigDict(frozen=True)

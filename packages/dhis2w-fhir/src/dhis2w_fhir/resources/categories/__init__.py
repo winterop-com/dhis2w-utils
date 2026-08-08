@@ -19,9 +19,11 @@ back to the UID with a note in the report, and an option with no code left to ta
 carries its UID as that peer's DHIS2 code - is skipped with its own note rather than emitted
 as a duplicate concept.
 
-With `naming.source = "id"` the slug is the category UID verbatim: FHIR ids and file names
-both permit mixed case, so the emitted id reads straight back to the DHIS2 object.
-Name-sourced slugs are kebab-cased as usual.
+Both artifacts of one category carry one identity stem, resolved by
+`resolve_identity_stems` under `[generate.naming] source`: with `"id"` the slug is the
+category UID verbatim (FHIR ids and file names both permit mixed case, so the emitted id
+reads straight back to the DHIS2 object), and with the code sources it is the category's
+DHIS2 code, falling back to the UID or refusing the run as the source dictates.
 """
 
 from __future__ import annotations
@@ -38,15 +40,13 @@ from dhis2w_fhir.foundation.attribute_values import (
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import (
     FHIR_ID_MAX_LENGTH,
-    bounded_slug,
+    StemSubject,
     code_or_uid,
     join_id_tokens,
     join_name_segments,
-    kebab,
     page_string,
-    pascal,
+    resolve_identity_stems,
 )
-from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.r4 import (
     CodeSystem,
     CodeSystemConcept,
@@ -147,7 +147,7 @@ class _CategoryNarrative(BaseModel):
 
 
 def category_fsh_name(config: GenerateConfig, segment: str) -> str:
-    """FSH name stem for one category: the merged naming tokens, then the UID or the pascal name.
+    """FSH name stem for one category: the merged naming tokens, then the resolved stem segment.
 
     The emitted CodeSystem and ValueSet append `_CS` and `_VS` to it, so `D2CAT_Sex` names the
     pair `D2CAT_Sex_CS` / `D2CAT_Sex_VS`.
@@ -161,51 +161,33 @@ def max_category_slug_length(config: GenerateConfig) -> int:
 
 
 def category_identities(categories: list[CategoryIn], config: GenerateConfig) -> CategoryIdentityPlan:
-    """Assign every category its emitted slug, FSH name, and artifact ids, in emission order."""
+    """Assign every category its emitted slug, FSH name, and artifact ids, in emission order.
+
+    The slug is the identity stem `resolve_identity_stems` assigns over the whole selection,
+    so both artifacts of one category follow the one resolved segment, and a code-sourced run
+    falls back or refuses per the configured source.
+    """
     plan = CategoryIdentityPlan()
     id_stem = _id_stem(config)
-    used_slugs: set[str] = set()
-    truncated: list[str] = []
-    collided: list[str] = []
-    slug_limit = max_category_slug_length(config)
+    resolution = resolve_identity_stems(
+        [StemSubject(uid=category.uid, code=category.code, label=category.name) for category in categories],
+        config.naming.source,
+        "category",
+        max_stem_length=max_category_slug_length(config),
+    )
     for category in sorted(categories, key=lambda item: (item.name, item.uid)):
-        if config.naming.source == "id":
-            slug = category.uid
-            base_name = category_fsh_name(config, category.uid)
-        else:
-            slug = kebab(category.name)
-            base_name = category_fsh_name(config, pascal(category.name))
-            if len(slug) > slug_limit:
-                slug = bounded_slug(slug, category.uid, slug_limit)
-                truncated.append(category.name)
-            elif slug in used_slugs:
-                slug = bounded_slug(slug, category.uid, slug_limit)
-                base_name = join_name_segments(base_name, category.uid)
-                collided.append(category.name)
-        used_slugs.add(slug)
+        slug = resolution.stem_for(category.uid)
         plan.identities.append(
             CategoryIdentity(
                 uid=category.uid,
                 name=category.name,
                 slug=slug,
-                fsh_name=base_name,
+                fsh_name=category_fsh_name(config, resolution.fsh_segment_for(category.uid)),
                 code_system_id=f"{id_stem}{slug}-cs",
                 value_set_id=f"{id_stem}{slug}{_ID_SUFFIX}",
             )
         )
-    if truncated:
-        plan.notes.append(
-            aggregate_note(
-                f"{len(truncated)} category names exceed the FHIR id length; ids truncated with a UID suffix",
-                truncated,
-            )
-        )
-    if collided:
-        plan.notes.append(
-            aggregate_note(
-                f"{len(collided)} category names are not unique; ids disambiguated with a UID suffix", collided
-            )
-        )
+    plan.notes.extend(resolution.notes)
     return plan
 
 

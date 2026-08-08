@@ -844,7 +844,7 @@ def validate_command(
                     ),
                     DetailRow(
                         "code coverage",
-                        f"{report.code_coverage.line} (selection objects with slug-safe codes)",
+                        f"{report.code_coverage.line} (selection objects whose code can serve as an identity stem)",
                     ),
                 ]
             )

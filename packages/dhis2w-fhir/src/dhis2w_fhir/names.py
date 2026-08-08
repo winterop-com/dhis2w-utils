@@ -1,8 +1,25 @@
-"""Slug, escaping, and URI helpers shared by every component: FSH names, ids, codes, and string literals."""
+"""Identity stems, slugs, escaping, and URI helpers shared by every component.
+
+The identity stem is the one resolved segment every artifact of a DHIS2 object derives
+from: the FHIR resource id, the canonical URL, the file name, and the FSH name all
+follow it. `resolve_identity_stems` decides the stem per surface under the configured
+`[generate.naming] source`; the rest of the module is the string machinery the stems
+and every other emitted literal share.
+"""
 
 from __future__ import annotations
 
 import re
+from collections import Counter
+from collections.abc import Sequence
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from dhis2w_fhir.notes import aggregate_note
+
+#: The `[generate.naming] source` literal: which DHIS2 field the identity stem is read from.
+NamingSource = Literal["id", "code-or-id", "code"]
 
 
 def strip_trailing_slash(value: str) -> str:
@@ -167,3 +184,177 @@ def code_or_uid(code: str | None, uid: str) -> str:
     until an instance carries a real code on every object, the code slot repeats the UID.
     """
     return code if code is not None and is_valid_fhir_code(code) else uid
+
+
+def usable_code_stem(code: str | None) -> bool:
+    """Whether a DHIS2 code can serve as an identity stem - the bar the code-coverage probe counts against.
+
+    Deliberately narrower than `describe_code_defect`, which grades against the R4 `code` datatype
+    (single internal spaces allowed): a stem becomes a resource id and its canonical URL, so it
+    takes the R4 `id` constraints - ASCII letters, digits, hyphen, dot, 1-64 characters - which
+    exclude spaces and every build-aborting character a fortiori.
+    """
+    return code is not None and is_valid_fhir_id(code)
+
+
+class CodeStemError(LookupError):
+    """Raised when `[generate.naming] source = "code"` meets a selected object without a usable, unique code.
+
+    Defined beside `resolve_identity_stems`, which raises it, rather than beside the service
+    layer's `BuildAbortingCodeError`: the stem is decided in this module, every naming surface
+    resolves through it, and the service layer already imports from here - so the refusal and
+    its cause live in one place. A `LookupError` for the same reason `BuildAbortingCodeError`
+    is one: the CLI's error funnel renders it as a one-liner naming the offenders, not as a
+    traceback.
+    """
+
+
+class StemSubject(BaseModel):
+    """One object whose identity stem is being resolved: DHIS2 id, code, and the human label notes use."""
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    code: str | None = None
+    label: str
+
+
+class StemResolution(BaseModel):
+    """The resolved identity stems of one surface's run, plus the notes resolution raised.
+
+    `stems` maps each subject's DHIS2 id to the one segment its resource id, canonical URL,
+    file name, and FSH name all derive from. `notes` is empty in id mode; in code-or-id mode
+    it names every object that fell back to the id.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    stems: dict[str, str] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+
+    def stem_for(self, uid: str) -> str:
+        """The resolved id/url/filename segment of one subject."""
+        return self.stems[uid]
+
+    def fsh_segment_for(self, uid: str) -> str:
+        """The FSH-name segment of one subject, derived from the same stem its ids take."""
+        return fsh_stem_segment(self.stems[uid], uid)
+
+
+def fsh_stem_segment(stem: str, uid: str) -> str:
+    """FSH-name segment of one identity stem: an id stem rides verbatim, a code stem is pascal-collapsed.
+
+    A DHIS2 id is already FSH-name-safe and keeps its casing byte for byte; a code stem may
+    carry hyphens and dots, so it takes the same `pascal` collapse every name-derived FSH
+    segment takes. A code that pascals empty or digit-leading takes the id as its `pascal`
+    fallback, so the joined name stays cnl-0 legal whatever the naming tokens are.
+    """
+    if stem == uid:
+        return uid
+    return pascal(stem, fallback=uid)
+
+
+class _StemVerdict(BaseModel):
+    """One subject's stem verdict: the defect keeping its code from serving, or none."""
+
+    model_config = ConfigDict(frozen=True)
+
+    subject: StemSubject
+    defect: str | None = None
+
+
+def describe_stem_defect(
+    subject: StemSubject,
+    peer_code_counts: Counter[str],
+    peer_uids: frozenset[str],
+    surface_label: str,
+    max_stem_length: int | None,
+) -> str | None:
+    """Name what keeps one subject's code from serving as its identity stem, or None when it can.
+
+    The bar is `usable_code_stem` (the R4 `id` constraints), the surface's stem budget when the
+    caller states one, and uniqueness in the run: a code shared by two selected objects, or
+    matching another selected object's DHIS2 id, would collide two artifacts into one file.
+    """
+    if subject.code is None:
+        return "has no code"
+    if not usable_code_stem(subject.code):
+        return f"code {subject.code!r} is not a valid FHIR id (ASCII letters, digits, hyphen, dot, 1-64 characters)"
+    if max_stem_length is not None and len(subject.code) > max_stem_length:
+        return (
+            f"code {subject.code!r} is longer than the {max_stem_length} characters the "
+            f"{surface_label} artifact ids leave for the stem"
+        )
+    if peer_code_counts[subject.code] > 1:
+        return f"code {subject.code!r} is shared by {peer_code_counts[subject.code]} selected {surface_label}s"
+    if subject.code in peer_uids and subject.code != subject.uid:
+        return f"code {subject.code!r} matches the id of another selected {surface_label}"
+    return None
+
+
+def resolve_identity_stems(
+    subjects: Sequence[StemSubject],
+    source: NamingSource,
+    surface_label: str,
+    *,
+    max_stem_length: int | None = None,
+) -> StemResolution:
+    """Resolve every subject's identity stem for one surface under the configured naming source.
+
+    `"id"` takes the DHIS2 id verbatim. `"code-or-id"` takes the code when it is usable and
+    unique in the run, else the id, with one aggregate note naming every fall-back.
+    `"code"` takes the code always and raises `CodeStemError` before anything is written when
+    any selected object's code is missing, unusable, or colliding. `max_stem_length` is the
+    surface's stem budget - what the FHIR id limit leaves once the surface's id tokens and
+    suffixes are spent - and an over-budget code is unusable rather than silently truncated.
+    Deterministic: notes and errors name their offenders in uid order.
+    """
+    ordered = sorted(subjects, key=lambda subject: subject.uid)
+    if source == "id":
+        return StemResolution(stems={subject.uid: subject.uid for subject in ordered})
+    peer_uids = frozenset(subject.uid for subject in ordered)
+    peer_code_counts = Counter(
+        subject.code for subject in ordered if subject.code is not None and usable_code_stem(subject.code)
+    )
+    verdicts = [
+        _StemVerdict(
+            subject=subject,
+            defect=describe_stem_defect(subject, peer_code_counts, peer_uids, surface_label, max_stem_length),
+        )
+        for subject in ordered
+    ]
+    offenders = [verdict for verdict in verdicts if verdict.defect is not None]
+    if source == "code" and offenders:
+        raise CodeStemError(_code_stem_refusal(offenders, surface_label))
+    stems = {
+        verdict.subject.uid: verdict.subject.uid if verdict.defect is not None else verdict.subject.code or ""
+        for verdict in verdicts
+    }
+    notes: list[str] = []
+    if offenders:
+        notes.append(
+            aggregate_note(
+                f"{len(offenders)} {surface_label} codes unusable as identity stems; fell back to the id",
+                [f"{verdict.subject.label} ({verdict.subject.uid})" for verdict in offenders],
+            )
+        )
+    return StemResolution(stems=stems, notes=notes)
+
+
+#: How many offenders a `CodeStemError` names before folding the rest into a remainder count.
+_CODE_STEM_SAMPLE_SIZE = 5
+
+
+def _code_stem_refusal(offenders: list[_StemVerdict], surface_label: str) -> str:
+    """The `CodeStemError` message: a capped offender sample, the remainder, and the two ways out."""
+    sample = "; ".join(
+        f"{verdict.subject.label} ({verdict.subject.uid}) {verdict.defect}"
+        for verdict in offenders[:_CODE_STEM_SAMPLE_SIZE]
+    )
+    remainder = len(offenders) - _CODE_STEM_SAMPLE_SIZE
+    listed = sample + (f" and {remainder} more" if remainder > 0 else "")
+    return (
+        f'[generate.naming] source = "code" needs a usable, unique code on every selected {surface_label}; '
+        f"{len(offenders)} cannot serve as identity stems: {listed}. Fix the codes in DHIS2, or use "
+        'source = "code-or-id" while migrating; `d2w fhir validate` names every offender.'
+    )

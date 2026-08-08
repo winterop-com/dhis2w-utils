@@ -1161,7 +1161,11 @@ async def test_the_solo_target_reads_the_registry_selection_the_location_guard_c
     mock_system_info: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """`generate examples` on its own reads the selection ids-only, under the registry's own filters."""
+    """`generate examples` on its own reads the id/code/name selection, under the registry's own filters.
+
+    The light read carries exactly what identity-stem resolution consumes, so the Location guard
+    and the stem map come out of one request instead of a second hierarchy walk.
+    """
     mock_system_info("v42")
     await _scaffold_project(tmp_path, organisation_units="max_level = 2")
     organisation_units = respx.get(f"{_HOST}/api/organisationUnits", name="organisationUnits").mock(
@@ -1179,7 +1183,7 @@ async def test_the_solo_target_reads_the_registry_selection_the_location_guard_c
         if call.request.url.params.get("filter") == "level:le:2"
     ]
     assert len(selection) == 1
-    assert selection[0]["fields"] == "id"
+    assert selection[0]["fields"] == "id,code,name"
     assert selection[0]["paging"] == "false"
 
 

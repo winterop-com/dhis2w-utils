@@ -173,7 +173,7 @@ class _ValidationPdf(FPDF):
                     ("Selection errors", str(report.selection_error_count)),
                     ("Selection warnings", str(report.selection_warning_count)),
                     ("Selection infos", str(report.selection_info_count)),
-                    ("Code coverage (selection)", report.code_coverage.line),
+                    ("Code coverage (selection, identity-stem-capable codes)", report.code_coverage.line),
                 ]
             )
         heading = FontFace(emphasis="BOLD", fill_color=_HEADER_FILL)

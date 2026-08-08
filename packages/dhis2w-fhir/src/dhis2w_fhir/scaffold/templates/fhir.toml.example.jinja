@@ -33,9 +33,10 @@ concept_code_source = "id"
 # locales = ["lo", "en"]
 
 [generate.naming]
-# What file names, ids, and FSH names derive from: "id" (stable, collision-free,
-# script-agnostic - DHIS2 names are often non-latin or non-unique) or "name"
-# (human-readable slugs, truncated/disambiguated when needed).
+# The identity stem every artifact of an object derives from - resource id, canonical URL,
+# file name, and FSH name follow one segment: "id" (the DHIS2 id - stable, collision-free),
+# "code-or-id" (the DHIS2 code when usable and unique, else the id, with a note), or
+# "code" (the DHIS2 code always; a missing, unusable, or colliding code refuses the run).
 source = "id"
 # Tokens composing FSH artifact names; ids derive from the kebab of each non-empty token.
 # Defaults read by context: D2OS_Qdm5fPK5Ra9_CS / d2-os-Qdm5fPK5Ra9-cs (id source).
@@ -70,7 +71,7 @@ program_stage = "PS"                # tracker program stage Questionnaire names;
 [generate.tracker_programs]
 # Program UIDs to emit as per-stage Questionnaires; selects WITH_REGISTRATION programs
 # (absent or empty selects every WITH_REGISTRATION program; one Questionnaire per program
-# stage, filed under tracker-programs/<program uid>/<stage uid>.fsh).
+# stage, filed under tracker-programs/<program stem>/<stage stem>.fsh).
 # include_ids = ["IpHINAT79UW"]
 
 [generate.examples]

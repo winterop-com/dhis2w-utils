@@ -16,14 +16,14 @@ Usage: #example
 * extension[{{ example.tracker.enrollment_extension }}].valueIdentifier.system = $DHIS2-TRACKER-ENROLLMENT
 * extension[{{ example.tracker.enrollment_extension }}].valueIdentifier.value = "{{ example.tracker.enrollment_uid }}"
 {% endif %}
-{% if example.tracker.organisation_unit_uid %}
-* extension[{{ example.tracker.organisation_unit_extension }}].valueReference = Reference(Location/{{ example.tracker.organisation_unit_uid }})
+{% if example.tracker.organisation_unit_stem %}
+* extension[{{ example.tracker.organisation_unit_extension }}].valueReference = Reference(Location/{{ example.tracker.organisation_unit_stem }})
 {% endif %}
 {% endif %}
 * questionnaire = "{{ example.questionnaire_url }}"
 * status = #{{ example.status_code }}
 {% if example.tracker is none %}
-* subject = Reference(Location/{{ example.organisation_unit_uid }})
+* subject = Reference(Location/{{ example.organisation_unit_stem }})
 {% elif example.tracker.tracked_entity_uid is not none %}
 * subject.type = "Patient"
 * subject.identifier.system = $DHIS2-TE

@@ -4,9 +4,11 @@ import json
 import re
 from typing import Any
 
+import pytest
 from dhis2w_fhir.attributes import AttributeCodeIndex
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.i18n import TranslationIn
+from dhis2w_fhir.names import CodeStemError
 from dhis2w_fhir.period import parse_period
 from dhis2w_fhir.resources.examples import build_example_artifacts
 from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
@@ -17,7 +19,8 @@ from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireItemIn, Qu
 from dhis2w_fhir.status import IgStatus
 from dhis2w_fhir.writer import FshBuild, JsonBuild
 
-_NAME_SOURCE = GenerateConfig(naming=NamingConfig(source="name"))
+_CODE_STEMS = GenerateConfig(naming=NamingConfig(source="code"))
+_CODE_OR_ID_STEMS = GenerateConfig(naming=NamingConfig(source="code-or-id"))
 _CANONICAL = "http://example.org/fhir"
 
 #: The closed key set of an emitted CodeSystem, in the order the documents carry it.
@@ -57,6 +60,7 @@ _VALUE_SET_KEYS = [
 
 _BIRTH_TYPE = OptionSetIn(
     uid="Xa1b2c3d4e5",
+    code="birth-type",
     name="Birth type",
     options=[
         OptionIn(uid="EBE0c8sZazS", code="CS", name="Scheduled Cesarean", sort_order=2),
@@ -65,13 +69,13 @@ _BIRTH_TYPE = OptionSetIn(
     ],
 )
 
-_EXPECTED_UID_SOURCE_CODE_SYSTEM = {
+_EXPECTED_CODE_SOURCE_CODE_SYSTEM = {
     "resourceType": "CodeSystem",
     "id": "d2-os-birth-type-cs",
     "url": "http://example.org/fhir/CodeSystem/d2-os-birth-type-cs",
     "identifier": [
         {"system": "http://dhis2.org/fhir/id/option-set", "value": "Xa1b2c3d4e5"},
-        {"system": "http://dhis2.org/fhir/id/option-set-code", "value": "Xa1b2c3d4e5"},
+        {"system": "http://dhis2.org/fhir/id/option-set-code", "value": "birth-type"},
     ],
     "name": "D2OS_BirthType_CS",
     "title": "Birth type",
@@ -109,13 +113,13 @@ _EXPECTED_UID_SOURCE_CODE_SYSTEM = {
     ],
 }
 
-_EXPECTED_UID_SOURCE_VALUE_SET = {
+_EXPECTED_CODE_SOURCE_VALUE_SET = {
     "resourceType": "ValueSet",
     "id": "d2-os-birth-type-vs",
     "url": "http://example.org/fhir/ValueSet/d2-os-birth-type-vs",
     "identifier": [
         {"system": "http://dhis2.org/fhir/id/option-set", "value": "Xa1b2c3d4e5"},
-        {"system": "http://dhis2.org/fhir/id/option-set-code", "value": "Xa1b2c3d4e5"},
+        {"system": "http://dhis2.org/fhir/id/option-set-code", "value": "birth-type"},
     ],
     "name": "D2OS_BirthType_VS",
     "title": "Birth type",
@@ -157,28 +161,28 @@ def _displays(document: dict[str, Any]) -> list[str]:
     return [concept["display"] for concept in document.get("concept", [])]
 
 
-def test_name_source_golden() -> None:
-    """Name-sourced emission: UID concept codes, DHIS2 codes as dhis2-code properties, sortOrder ordering."""
-    build = _build([_BIRTH_TYPE], _NAME_SOURCE)
+def test_code_stem_golden() -> None:
+    """Code-stemmed emission: the set's DHIS2 code drives the id, url, file name, and FSH name."""
+    build = _build([_BIRTH_TYPE], _CODE_STEMS)
     assert [artifact.relative_path for artifact in build.artifacts] == [
         "terminology/CodeSystem-d2-os-birth-type-cs.json",
         "terminology/ValueSet-d2-os-birth-type-vs.json",
     ]
     documents = _documents(build)
-    assert documents["terminology/CodeSystem-d2-os-birth-type-cs.json"] == _EXPECTED_UID_SOURCE_CODE_SYSTEM
-    assert documents["terminology/ValueSet-d2-os-birth-type-vs.json"] == _EXPECTED_UID_SOURCE_VALUE_SET
+    assert documents["terminology/CodeSystem-d2-os-birth-type-cs.json"] == _EXPECTED_CODE_SOURCE_CODE_SYSTEM
+    assert documents["terminology/ValueSet-d2-os-birth-type-vs.json"] == _EXPECTED_CODE_SOURCE_VALUE_SET
     assert build.notes == []
 
 
 def test_every_artifact_is_indented_json_ending_in_a_newline() -> None:
     """The terminology files are written as they are read: two-space indented JSON, one trailing newline."""
-    artifact = _build([_BIRTH_TYPE], _NAME_SOURCE).artifacts[0]
+    artifact = _build([_BIRTH_TYPE], _CODE_STEMS).artifacts[0]
     assert artifact.content.endswith("}\n")
     assert '\n  "id": "d2-os-birth-type-cs",' in artifact.content
 
 
-def test_uid_source_is_default() -> None:
-    """Default naming source is uid: file, id, and computational name all derive from the option set UID."""
+def test_id_source_is_default() -> None:
+    """Default naming source is id: file, id, and computational name all derive from the option set id."""
     documents = _documents(_build([_BIRTH_TYPE], GenerateConfig()))
     code_system = documents["terminology/CodeSystem-d2-os-Xa1b2c3d4e5-cs.json"]
     value_set = documents["terminology/ValueSet-d2-os-Xa1b2c3d4e5-vs.json"]
@@ -329,38 +333,78 @@ def test_a_spaced_code_is_carried_verbatim() -> None:
     assert _concept_codes(_code_systems(build)[0]) == ["two words"]
 
 
-def test_slug_collision_gets_uid_suffix() -> None:
-    """Two sets kebab-ing to the same slug: the later one in (name, uid) order gets a UID suffix."""
-    first = OptionSetIn(uid="Aa1aaaaaaaa", name="Sex", options=[])
-    second = OptionSetIn(uid="Bb2bbbbbbbb", name="SEX", options=[])
-    build = _build([first, second], _NAME_SOURCE)
+def test_code_or_id_falls_back_for_every_collider_with_one_note() -> None:
+    """Two sets sharing one DHIS2 code both take the id as their stem, and the note names them in uid order."""
+    first = OptionSetIn(uid="Bb2bbbbbbbb", code="sex", name="Sex", options=[])
+    second = OptionSetIn(uid="Aa1aaaaaaaa", code="sex", name="SEX", options=[])
+    build = _build([first, second], _CODE_OR_ID_STEMS)
     documents = _documents(build)
-    assert "terminology/CodeSystem-d2-os-sex-cs.json" in documents
-    assert "terminology/CodeSystem-d2-os-sex-aa1aaaaaaaa-cs.json" in documents
-    assert documents["terminology/CodeSystem-d2-os-sex-aa1aaaaaaaa-cs.json"]["name"] == "D2OS_Sex_Aa1aaaaaaaa_CS"
-    assert documents["terminology/ValueSet-d2-os-sex-aa1aaaaaaaa-vs.json"]["name"] == "D2OS_Sex_Aa1aaaaaaaa_VS"
-    assert any("not unique" in note for note in build.notes)
+    assert "terminology/CodeSystem-d2-os-Aa1aaaaaaaa-cs.json" in documents
+    assert "terminology/CodeSystem-d2-os-Bb2bbbbbbbb-cs.json" in documents
+    assert documents["terminology/CodeSystem-d2-os-Bb2bbbbbbbb-cs.json"]["name"] == "D2OS_Bb2bbbbbbbb_CS"
+    assert build.notes == [
+        "2 option set codes unusable as identity stems; fell back to the id: SEX (Aa1aaaaaaaa), Sex (Bb2bbbbbbbb)"
+    ]
 
 
-def test_long_name_slug_is_bounded_to_fhir_id_limit() -> None:
-    """A very long option-set name yields ids within FHIR's 64-character limit, disambiguated by UID."""
-    long_name = "Residence of the malaria case/s that prompted foci investigation"
-    option_set = OptionSetIn(uid="Cc3cccccccc", name=long_name, options=[])
-    build = _build([option_set], _NAME_SOURCE)
+def test_code_or_id_takes_usable_codes_and_falls_back_on_the_rest() -> None:
+    """A usable code is the stem; a missing or invalid one falls back to the id with the aggregate note."""
+    coded = OptionSetIn(uid="Aa1aaaaaaaa", code="apgar-score", name="Apgar score", options=[])
+    uncoded = OptionSetIn(uid="Bb2bbbbbbbb", name="Sex", options=[])
+    hostile = OptionSetIn(uid="Cc3cccccccc", code="bad code", name="Spaced", options=[])
+    build = _build([coded, uncoded, hostile], _CODE_OR_ID_STEMS)
+    documents = _documents(build)
+    assert "terminology/CodeSystem-d2-os-apgar-score-cs.json" in documents
+    assert "terminology/CodeSystem-d2-os-Bb2bbbbbbbb-cs.json" in documents
+    assert "terminology/CodeSystem-d2-os-Cc3cccccccc-cs.json" in documents
+    assert documents["terminology/CodeSystem-d2-os-apgar-score-cs.json"]["name"] == "D2OS_ApgarScore_CS"
+    assert build.notes == [
+        "2 option set codes unusable as identity stems; fell back to the id: Sex (Bb2bbbbbbbb), Spaced (Cc3cccccccc)"
+    ]
+
+
+def test_code_source_refuses_the_run_and_names_every_offender() -> None:
+    """`source = "code"` refuses missing, unusable, and colliding codes in one aggregated message."""
+    offenders = [
+        OptionSetIn(uid="Aa1aaaaaaaa", name="Uncoded", options=[]),
+        OptionSetIn(uid="Bb2bbbbbbbb", code="bad code", name="Spaced", options=[]),
+        OptionSetIn(uid="Cc3cccccccc", code="twin", name="Twin one", options=[]),
+        OptionSetIn(uid="Dd4dddddddd", code="twin", name="Twin two", options=[]),
+    ]
+    with pytest.raises(CodeStemError) as caught:
+        _build(offenders, _CODE_STEMS)
+    message = str(caught.value)
+    assert message.startswith('[generate.naming] source = "code" needs a usable, unique code')
+    assert "4 cannot serve as identity stems" in message
+    assert "Uncoded (Aa1aaaaaaaa) has no code" in message
+    assert "Spaced (Bb2bbbbbbbb) code 'bad code' is not a valid FHIR id" in message
+    assert "Twin one (Cc3cccccccc) code 'twin' is shared by 2 selected option sets" in message
+    assert "Twin two (Dd4dddddddd) code 'twin' is shared by 2 selected option sets" in message
+    assert 'use source = "code-or-id" while migrating' in message
+    assert "`d2w fhir validate` names every offender" in message
+
+
+def test_a_code_over_the_stem_budget_is_unusable() -> None:
+    """A code the surface's id budget cannot hold falls back in code-or-id and refuses in code mode."""
+    long_code = "a" * 60
+    option_set = OptionSetIn(uid="Cc3cccccccc", code=long_code, name="Long", options=[])
+    build = _build([option_set], _CODE_OR_ID_STEMS)
     for path, document in _documents(build).items():
         assert len(document["id"]) <= 64, document["id"]
-        assert "cc3cccccccc" in path
-    assert any("exceed the FHIR id length" in note for note in build.notes)
+        assert "Cc3cccccccc" in path
+    assert build.notes == ["1 option set codes unusable as identity stems; fell back to the id: Long (Cc3cccccccc)"]
+    with pytest.raises(CodeStemError, match="is longer than the"):
+        _build([option_set], _CODE_STEMS)
 
 
 def test_sets_sorted_by_name() -> None:
     """Output artifacts come in (name, uid) order regardless of input order, CodeSystem before ValueSet."""
     build = _build(
         [
-            OptionSetIn(uid="Bb2bbbbbbbb", name="Zulu", options=[]),
-            OptionSetIn(uid="Aa1aaaaaaaa", name="Alpha", options=[]),
+            OptionSetIn(uid="Bb2bbbbbbbb", code="zulu", name="Zulu", options=[]),
+            OptionSetIn(uid="Aa1aaaaaaaa", code="alpha", name="Alpha", options=[]),
         ],
-        _NAME_SOURCE,
+        _CODE_STEMS,
     )
     assert [artifact.relative_path for artifact in build.artifacts] == [
         "terminology/CodeSystem-d2-os-alpha-cs.json",
@@ -372,11 +416,11 @@ def test_sets_sorted_by_name() -> None:
 
 def test_naming_tokens_flow_into_option_set_artifacts() -> None:
     """Custom prefix / option_set tokens rename artifacts; empty tokens drop out of names and ids."""
-    config = GenerateConfig(naming=NamingConfig(source="name", prefix="Dhis2", option_set=""))
+    config = GenerateConfig(naming=NamingConfig(source="code", prefix="Dhis2", option_set=""))
     code_system = _code_systems(_build([_BIRTH_TYPE], config))[0]
     assert code_system["name"] == "Dhis2_BirthType_CS"
     assert code_system["id"] == "dhis2-birth-type-cs"
-    bare = GenerateConfig(naming=NamingConfig(source="name", prefix="", option_set=""))
+    bare = GenerateConfig(naming=NamingConfig(source="code", prefix="", option_set=""))
     code_system = _code_systems(_build([_BIRTH_TYPE], bare))[0]
     assert code_system["name"] == "BirthType_CS"
     assert code_system["id"] == "birth-type-cs"
@@ -442,13 +486,18 @@ def test_a_skipped_option_leaves_the_value_set_consistent_with_the_emitted_conce
     assert value_set["compose"] == {"include": [{"system": code_system["url"]}]}
 
 
-#: Two option sets whose names kebab to the same slug, so the later one takes a UID suffix - the
-#: case that proves a bound question reads the plan rather than pascal-casing the name itself.
-_SEX_PEER = OptionSetIn(uid="Bb2bbbbbbbb", name="SEX", options=[OptionIn(uid="Op2aaaaaaaa", code="M", name="Male")])
-_SEX = OptionSetIn(uid="Aa1aaaaaaaa", name="Sex", options=[OptionIn(uid="Op1aaaaaaaa", code="F", name="Female")])
+#: Two option sets whose codes are the stems, so the emitted names read from the plan - the
+#: case that proves a bound question reads the plan rather than deriving a name itself.
+_SEX_PEER = OptionSetIn(
+    uid="Bb2bbbbbbbb", code="sex-2", name="SEX", options=[OptionIn(uid="Op2aaaaaaaa", code="M", name="Male")]
+)
+_SEX = OptionSetIn(
+    uid="Aa1aaaaaaaa", code="sex", name="Sex", options=[OptionIn(uid="Op1aaaaaaaa", code="F", name="Female")]
+)
 
 _BOUND_FORM = QuestionnaireSourceIn(
     uid="Ds1aaaaaaaa",
+    code="demographics",
     name="Demographics",
     kind="aggregate",
     flat_items=[QuestionnaireItemIn(uid="De1aaaaaaaa", name="Gender", value_type="TEXT", option_set_uid="Aa1aaaaaaaa")],
@@ -465,12 +514,12 @@ _BOUND_RESPONSE = ExampleResponseIn(
 )
 
 
-def test_name_sourced_option_set_names_are_read_by_the_questionnaire_and_the_example() -> None:
+def test_code_stem_option_set_names_are_read_by_the_questionnaire_and_the_example() -> None:
     """An option set is named once, over the whole selection: the bound question and the coded answer read it."""
-    plan = option_set_identities([_SEX, _SEX_PEER], _NAME_SOURCE)
-    documents = _documents(_build([_SEX, _SEX_PEER], _NAME_SOURCE))
+    plan = option_set_identities([_SEX, _SEX_PEER], _CODE_STEMS)
+    documents = _documents(_build([_SEX, _SEX_PEER], _CODE_STEMS))
     identity = next(item for item in plan.identities if item.uid == "Aa1aaaaaaaa")
-    assert identity.value_set_name == "D2OS_Sex_Aa1aaaaaaaa_VS"
+    assert identity.value_set_name == "D2OS_Sex_VS"
     assert documents[f"terminology/CodeSystem-{identity.code_system_id}.json"]["name"] == identity.code_system_name
     assert documents[f"terminology/ValueSet-{identity.value_set_id}.json"]["name"] == identity.value_set_name
 
@@ -484,26 +533,26 @@ def test_name_sourced_option_set_names_are_read_by_the_questionnaire_and_the_exa
 
 
 def _option_bound_questionnaire(plan: OptionSetIdentityPlan) -> str:
-    """The name-sourced Questionnaire FSH of the option-bound fixture form."""
+    """The code-stemmed Questionnaire FSH of the option-bound fixture form."""
     build = build_questionnaire_artifacts(
         [_BOUND_FORM],
-        _NAME_SOURCE,
+        _CODE_STEMS,
         _CANONICAL,
         ig_status="draft",
         option_set_plan=plan,
         attribute_codes=AttributeCodeIndex(),
     )
     assert build.notes == []
-    return next(artifact.content for artifact in build.artifacts if artifact.relative_path.endswith("Ds1aaaaaaaa.fsh"))
+    return next(artifact.content for artifact in build.artifacts if artifact.relative_path.startswith("data-sets/"))
 
 
 def _option_bound_example(plan: OptionSetIdentityPlan) -> str:
-    """The name-sourced QuestionnaireResponse FSH answering the option-bound fixture question."""
+    """The code-stemmed QuestionnaireResponse FSH answering the option-bound fixture question."""
     build = build_example_artifacts(
         [_BOUND_FORM],
         [_BOUND_RESPONSE],
         [_SEX],
-        _NAME_SOURCE,
+        _CODE_STEMS,
         _CANONICAL,
         option_set_plan=plan,
     )
