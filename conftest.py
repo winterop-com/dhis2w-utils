@@ -17,11 +17,14 @@ import os
 
 import pytest
 
-#: Variables that force Rich to emit ANSI colour even when stdout is not a terminal. A developer
-#: whose shell sets one of these would otherwise see CLI tests fail on assertions like
-#: `assert "applied 1 retag" in result.output`, because the rendered text carries escape codes
-#: between the words. Tests assert on what the CLI says, not on how a terminal paints it.
-_COLOUR_FORCING_VARIABLES = ("FORCE_COLOR", "CLICOLOR_FORCE")
+#: Variables that make Rich render as if stdout were a terminal - ANSI colour, 80-column
+#: panels, wrapped lines - even under a captured stream. `FORCE_COLOR` / `CLICOLOR_FORCE` are
+#: developer-shell settings; `GITHUB_ACTIONS` and `TF_BUILD` are set by the CI runners
+#: themselves, and Rich treats either as a colour terminal so its output looks good in CI
+#: logs. Under `CliRunner` that means assertions like `assert "--code-source" in result.output`
+#: fail on escape codes and panel wrapping. Tests assert on what the CLI says, not on how a
+#: terminal paints it.
+_COLOUR_FORCING_VARIABLES = ("FORCE_COLOR", "CLICOLOR_FORCE", "GITHUB_ACTIONS", "TF_BUILD")
 
 for _variable in _COLOUR_FORCING_VARIABLES:
     os.environ.pop(_variable, None)
