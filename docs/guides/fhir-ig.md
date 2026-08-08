@@ -65,8 +65,9 @@ compiled project as a read-and-capture endpoint - see [Serving the IG](#serving-
 
 ## Pinned toolchain
 
-The scaffolded project is a `uv` project. `pyproject.toml` declares `dhis2w-cli`
-and `dhis2w-fhir`, `uv sync` resolves them into `.venv`, and **`uv.lock` is
+The scaffolded project is a `uv` project. `pyproject.toml` declares `dhis2w-cli`,
+`dhis2w-fhir`, and `dhis2w-fhir-serve` - the CLI, the generator, and the server
+`d2w fhir serve` runs on - `uv sync` resolves them into `.venv`, and **`uv.lock` is
 committed** - it is what makes a regenerate reproducible, because the FSH a
 project publishes is a function of the d2w build that wrote it. `.gitignore`
 covers `.venv/` and deliberately does not cover `uv.lock`.
@@ -1249,7 +1250,8 @@ them. It is the other side of the [capture contract](#the-capture-contract) - th
 states what a client sends, and this is a server that accepts it.
 
 The server ships as its own package, `dhis2w-fhir-serve`, because it needs FastAPI and
-uvicorn while generation needs neither:
+uvicorn while generation needs neither. A scaffolded project already declares it, so
+`uv sync` in the project is enough; anywhere else:
 
 ```bash
 pip install 'dhis2w-cli[serve]'      # or: uv add dhis2w-fhir-serve
