@@ -223,6 +223,7 @@ scaffolds an active project directly.
 [generate]
 identifier_system_base = "http://dhis2.org/fhir"
 concept_code_source = "id"
+# timezone = "Asia/Vientiane"   # IANA zone the instance's zone-less timestamps are read in
 locales = []
 ```
 
@@ -262,6 +263,18 @@ those in DHIS2, re-run until the option findings are clean, then set
 `concept_code_source = "code"` and regenerate. In the meantime, running plain
 `d2w fhir validate` in id mode reports the same findings as `info` - they are a
 readiness signal, not a defect, because generation is not reading those codes yet.
+
+**`timezone`** names the IANA zone the instance's timestamps are wall-clock
+readings in. DHIS2 serves `occurredAt` and every `DATETIME` data value without a
+zone (`2025-12-30T00:00:00.000`), and an R4 `dateTime` carrying a time must carry
+an offset - so something has to decide which moment that string means. Name the
+zone (`"Asia/Vientiane"`, `"Europe/Oslo"`) and each emitted timestamp is stamped
+with the offset that zone stood at *on that timestamp*, daylight saving included:
+an Oslo reading in January comes out `+01:00` and one in July `+02:00`. Leave it
+unset - the default - and the wall clock is read as UTC and stamped `Z`, which is
+a guess about a server you have not told the generator anything about. The value
+is validated on load: a name the tz database does not hold is a config error, not
+a silent fall-back. BUGS.md #62 records the upstream shape this works around.
 
 **`locales`** picks which translation locales reach the generated artifacts. It
 takes BCP-47 or DHIS2-style tags (`"lo"`, `"km"`, `"pt_BR"`) and an empty list -
@@ -524,9 +537,9 @@ four under `ig/input/fsh/` (`data-sets/`, `event-programs/`, `tracker-programs/`
 `data-dictionary/`) - `tracker-programs/` is the one nested layout, a subdirectory per
 program UID, and the sync prunes a subdirectory it emptied;
 `foundation` and `examples` own one each under `ig/input/fsh/`; `option-sets` owns
-`ig/input/resources/terminology/` and `categories` owns
-`ig/input/resources/categories/`, each for its pre-built CodeSystem and ValueSet
-JSON; `org-units` owns two - `ig/input/fsh/organization/` for its profiles and
+`ig/input/resources/terminology/` for its pre-built CodeSystem and ValueSet JSON
+and `ig/input/resources/concept-maps/` for the ConceptMap beside each pair, and
+`categories` owns `ig/input/resources/categories/`; `org-units` owns two - `ig/input/fsh/organization/` for its profiles and
 terminology and `ig/input/resources/registry/` for the pre-built instance JSON;
 `pages` owns `ig/input/pagecontent/`, which holds markdown rather than FSH.
 
@@ -763,9 +776,39 @@ CodeSystem and the same list on the ValueSet. The values on the *options* inside
 the set are not emitted, because a `CodeSystem.concept` has no carrier chosen for
 them.
 
-The target owns `terminology/` outright and sweeps it: JSON left there by a
-previous run that this run does not produce is deleted, so renaming or dropping
-an option set converges rather than accumulating.
+**A ConceptMap per set takes the concept codes back to DHIS2.** Beside the pair,
+the target writes one map into its own directory:
+
+```
+ig/input/resources/concept-maps/ConceptMap-d2-os-<UID>-cm.json
+```
+
+It carries the FSH-style name `D2OS_<UID>_CM`, the same slug the pair's ids come
+from, and `sourceCanonical` pointing at the set's own ValueSet. Two groups, both
+sourced from the set's CodeSystem, answer the question a consumer holding a
+generated coding has: `<base>/id/option` maps each concept code onto the DHIS2
+option UID, and `<base>/id/option-code` onto the DHIS2 option code. Every row
+states `equivalence = #equal`, which R4 requires - the concept and the target
+identifier name the same DHIS2 option under two conventions, not two vocabularies.
+
+The UID group is emitted under either `concept_code_source`, identity mapping
+included, so a consumer never has to know which mode produced the guide. The code
+group holds only the options that have a DHIS2 code that is a valid FHIR `code`;
+a set where no option does emits the UID group alone, because an R4 group with no
+element is invalid, and a set with no concepts emits no map at all. The rows come
+from the same concept assignment the CodeSystem's concepts do, so a mapping can
+only ever name a concept the pair really carries.
+
+**The publisher needs the glob.** `input/resources/concept-maps/*` sits in the
+scaffolded `sushi-config.yaml` `path-resource` block beside the terminology and
+category globs. SUSHI recurses into sub-folders of `input/resources` on its own;
+the IG Publisher does not, so without it the maps compile fine and are dropped
+from the published guide. A project scaffolded before the glob existed picks it up
+with [`d2w fhir init --refresh`](#refreshing-a-projects-scaffold).
+
+The target owns `terminology/` and `concept-maps/` outright and sweeps both: JSON
+left there by a previous run that this run does not produce is deleted, so
+renaming or dropping an option set converges rather than accumulating.
 
 ### `categories`
 
@@ -882,6 +925,14 @@ organisation unit rides the response as an extension instead.
 | Compulsory program-stage element | `required = true` |
 | Non-default category combo, on a data set form | the question becomes a `#group` with one child per category option combo, `linkId` `<deUid>.<cocUid>`; each child asks the element's own question, so it repeats the element's item type, `answerValueSet`, `repeats`, and bounds |
 | Non-default category combo, on a program form | the question stays flat: an event data value carries no `categoryOptionCombo`, so a form must not ask a question the capture endpoint cannot accept an answer to |
+
+**A form whose `linkId`s are not unique is skipped.** Sections and data elements
+draw their UIDs from one DHIS2 pool, so a single form can reuse one UID on a group
+and on a question - and then two items answer to one `linkId`. R4 forbids that
+outright (`que-2`), and a response answering that `linkId` would name two questions
+at once, so the whole form is left out of the run with an aggregate note naming it
+and the clashing id. Its peers are emitted as usual; the collision is a fact about
+one form, not about the target.
 
 Every DHIS2 value type is mapped explicitly - all 28 of them, which is the union of the
 `ValueType` enum across v41, v42, and v43 (`TRACKER_ASSOCIATE` exists on v41 and v42 only;
@@ -1035,7 +1086,16 @@ calendar, the clock, and the R4 offset range before it is emitted, so an
 impossible stored value never reaches the compiler. A value that will not cast, or
 an option code no option carries, is answered as a string and counted in one
 aggregate note per run rather than emitted invalid; an answer selecting an option
-the CodeSystem holds no concept for is left unanswered and counted the same way.
+the CodeSystem holds no concept for is left unanswered and counted the same way,
+and so is an `ORGANISATION_UNIT` answer naming a unit outside
+[`[generate.organisation_units]`](#generateorganisation_units) - the IG publishes
+no Location for it, so the reference would dangle.
+
+**`authored` and every `DATETIME` answer carry an offset.** DHIS2 serves both
+without one, and R4 requires one on any `dateTime` carrying a time, so the
+generator supplies it: the offset [`[generate] timezone`](#generate) stood at on
+that very timestamp, or `Z` when the project names no zone. Set the zone once and
+every emitted timestamp in the IG follows.
 
 #### `source = "synthetic"` (the default)
 
@@ -1140,6 +1200,7 @@ parameters:
   path-resource:
     - input/resources/registry/*
     - input/resources/terminology/*
+    - input/resources/concept-maps/*
     - input/resources/categories/*
 ```
 
@@ -1151,8 +1212,8 @@ one publishes a guide silently short of that sub-folder's resources -
 the scaffold gained.
 
 **The pre-built resources are not committed.** The scaffolded `.gitignore` covers
-`ig/input/resources/` - the registry, the option-set terminology, and the
-categories alike - because it is generated output: thousands of files, and
+`ig/input/resources/` - the registry, the option-set terminology and its
+concept maps, and the categories alike - because it is generated output: thousands of files, and
 `make generate` rebuilds them all in a few minutes. `ig/input/fsh/` is committed, so the FSH diff after a metadata
 change is still there to review.
 
@@ -1323,7 +1384,7 @@ the parameters the server actually applied, so a client can see what it got.
 
 | Mode | What the store holds | What it needs |
 | --- | --- | --- |
-| default | `ig/fsh-generated/resources` (what SUSHI compiled) merged with `ig/input/resources/` (the registry, terminology, and category JSON the generate targets wrote, which SUSHI never re-emits) | a compiled IG on disk; no DHIS2 connection at all |
+| default | `ig/fsh-generated/resources` (what SUSHI compiled) merged with `ig/input/resources/` (the registry, terminology, concept-map, and category JSON the generate targets wrote, which SUSHI never re-emits) | a compiled IG on disk; no DHIS2 connection at all |
 | `--live` | the same read set, built straight off a DHIS2 instance at startup | a reachable instance and a resolvable profile; no compile step |
 
 The default mode is fully offline. If the project has never been compiled, the server
@@ -1825,6 +1886,8 @@ make validate   d2w fhir validate
 make cache-init Make the shared package-cache volume writable by the publisher user
 make sushi      Compile FSH to FHIR resources
 make build      Run the full IG publisher
+make serve      Serve the compiled IG as a FHIR endpoint (run generate + sushi first)
+make serve-live Serve straight from the DHIS2 instance, no compile needed
 make refresh    Force-refresh everything: clean-all, upgrade, generate, validate, build
 make clean      Remove build output
 make clean-all  Also remove the terminology cache and the package cache volume

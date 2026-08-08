@@ -29,6 +29,10 @@ surface.
   (`build_category_artifacts`), the last two on `dhis2w_fhir.r4.CodeSystem` and
   `dhis2w_fhir.r4.ValueSet` - and sync them to disk (`sync_json_artifacts`), one
   owned directory per source.
+- Map an option set's generated concept codes back to the DHIS2 option UID and
+  option code (`build_option_set_concept_maps` for the `dhis2w_fhir.r4.ConceptMap`
+  models, `build_option_set_concept_map_artifacts` for the JSON files that land in
+  `CONCEPT_MAP_DIRECTORY`).
 
 ## Worked example — parse a period, then walk backwards
 
@@ -68,7 +72,8 @@ string, so the code is a lookup rather than part of the value.
 
 The models every pre-built JSON document is serialised from - `Organization` and
 `Location` for the registry, `CodeSystem` and `ValueSet` for the option-set and
-category terminology. Every one is frozen, alias-aware, and closed to unknown keys, so
+category terminology, `ConceptMap` for the option-set mappings back to DHIS2.
+Every one is frozen, alias-aware, and closed to unknown keys, so
 `Model.model_validate(payload).model_dump_json(exclude_none=True, by_alias=True)`
 reproduces the input document key for key.
 

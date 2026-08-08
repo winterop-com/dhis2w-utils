@@ -641,12 +641,16 @@ while its OpenAPI types the field as `Instant`. R4 requires an offset on any
 all; `fsh-sushi` rejects it outright.
 
 **Workaround:** `zoned_date_time` in
-`packages/dhis2w-fhir/src/dhis2w_fhir/resources/examples/__init__.py` appends
-`Z` whenever the value carries a time but no offset, and is applied to both an
-example's `authored` and its `DATETIME` answers. That asserts UTC, which is a
-guess. A value that still does not match the R4 primitive after normalising is
-answered as a string (or, for `authored`, dropped) with an aggregate note, so a
-run never emits an invalid literal.
+`packages/dhis2w-fhir/src/dhis2w_fhir/r4/primitives.py` gives the value an offset
+whenever it carries a time but none of its own, and is applied to both an
+example's `authored` and its `DATETIME` answers. Which offset is the project's to
+state: `[generate] timezone` names the IANA zone the instance's wall-clock
+readings are taken in, and the offset is resolved against each timestamp
+individually, so a DST-observing zone stamps summer and winter differently. A
+project naming no zone falls back to `Z`, which asserts UTC and is a guess. A
+value that does not match the R4 primitive after normalising is answered as a
+string (or, for `authored`, dropped) with an aggregate note, so a run never emits
+an invalid literal.
 
 ### 4.2 BUGS.md #63 - `DataSet.dataSetElements` shuffles on every request
 
@@ -1021,22 +1025,25 @@ section, and the generated `capture.md` behind
 - **Option resolution is by code then UID.** `_option_for` matches an option by
   DHIS2 code first and falls back to UID. A set holding an option whose code
   equals another option's UID resolves ambiguously.
-- **The `Location` reference is a bare `Reference(Location/<uid>)` string** in
-  `_typed_answer` for `ORGANISATION_UNIT` answers, with no check that the unit
-  is inside the emitted selection. Under
-  `[generate.organisation_units] max_level`, a data element answering with a
-  deep facility names a Location the IG does not publish.
-- **`zoned_date_time` asserts UTC.** Every `DATETIME` value and every `authored`
-  gains a `Z` it did not have. A response is then unambiguous and possibly
-  wrong by up to a day's worth of offset.
+- **An out-of-selection `Location` reference is left unanswered.** The example
+  builders take a `published_organisation_unit_uids` set; an `ORGANISATION_UNIT`
+  answer naming a unit outside it is dropped with an aggregate note rather than
+  emitted as a reference the IG publishes nothing for. A build that passes no set
+  emits every such answer unchecked, so the caller decides how strict the run is.
+- **`zoned_date_time` reads the clock in the project's zone.** `[generate]
+  timezone` names the IANA zone behind DHIS2's zone-less timestamps, and every
+  `DATETIME` value and `authored` is stamped with the offset that zone stood at on
+  that instant. Naming no zone still asserts UTC, which is still a guess.
 - **The profile fall-back is silent to a consumer.** When an aggregate example
   has no resolvable period, `_response_profile` declares the base
   `QuestionnaireResponse` instead of `D2AggregateResponse`. That is correct for
   the build, but it means the IG publishes examples that do *not* demonstrate the
   contract, distinguishable only by reading `InstanceOf:`.
-- **Section groups can collide with question ids.** Nothing prevents a DHIS2
-  section UID from being reused as a data element UID inside the same form; the
-  emitter would produce two items with the same `linkId` at different depths.
+- **A form whose `linkId`s collide is skipped.** A DHIS2 section UID reused as a
+  data element UID inside one form would produce two items answering to one
+  `linkId`, which R4's `que-2` forbids. `link_id_collisions` reads the grammar the
+  emitter really writes, and the form is left out of the run with an aggregate
+  note naming it and the clashing id - its peers unaffected.
 
 ### Dimension C - live-instance robustness
 
