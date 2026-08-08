@@ -315,17 +315,17 @@ def test_gitignore_covers_the_virtualenv_but_not_the_lock() -> None:
 
 
 def test_pyproject_declares_the_toolchain_project() -> None:
-    """The scaffolded pyproject is a uv project pinning both d2w packages on Python 3.13+."""
+    """The scaffolded pyproject is a uv project pinning the d2w toolchain on Python 3.13+."""
     project = tomllib.loads(_by_path()["pyproject.toml"])
     assert project["project"]["name"] == "dhis2-fhir-test"
     assert project["project"]["version"] == "0.1.0"
     assert project["project"]["description"] == "FHIR IG project scaffolded by d2w fhir init"
     assert project["project"]["requires-python"] == ">=3.13"
-    assert project["project"]["dependencies"] == ["dhis2w-cli", "dhis2w-fhir"]
+    assert project["project"]["dependencies"] == ["dhis2w-cli", "dhis2w-fhir", "dhis2w-fhir-serve"]
 
 
 def test_pyproject_sources_the_whole_toolchain_from_one_commit() -> None:
-    """Both packages resolve from the repository, so the CLI and its fhir plugin are the same build."""
+    """All three packages resolve from the repository, so the CLI, the plugin, and the server are one build."""
     body = _by_path()["pyproject.toml"]
     sources = tomllib.loads(body)["tool"]["uv"]["sources"]
     assert sources == {
@@ -339,8 +339,13 @@ def test_pyproject_sources_the_whole_toolchain_from_one_commit() -> None:
             "subdirectory": "packages/dhis2w-fhir",
             "branch": "main",
         },
+        "dhis2w-fhir-serve": {
+            "git": "https://github.com/winterop-com/dhis2w-utils",
+            "subdirectory": "packages/dhis2w-fhir-serve",
+            "branch": "main",
+        },
     }
-    assert "Delete both entries once the packages are published" in body
+    assert "drop it\n# if this project never serves its IG" in body
     assert "uv lock --upgrade" in body
 
 
