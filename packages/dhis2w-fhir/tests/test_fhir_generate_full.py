@@ -264,7 +264,7 @@ async def test_generate_full_announces_the_fetch_and_one_step_per_target(
     assert "1/8 reading option sets" in reporter.captions
     assert "1/8 organisation units: 2 read across 1 page(s)" in reporter.captions
     assert "2/8 writing ig/input/fsh/foundation" in reporter.captions
-    assert "3/8 writing ig/input/resources/terminology" in reporter.captions
+    assert "3/8 writing ig/input/resources/terminology and ig/input/resources/concept-maps" in reporter.captions
     assert "4/8 writing ig/input/resources/categories" in reporter.captions
     assert "6/8 writing ig/input/fsh/examples" in reporter.captions
     assert "8/8 writing ig/input/pagecontent" in reporter.captions
@@ -286,11 +286,11 @@ async def test_generate_option_sets_announces_a_fetch_and_an_emit_step(
 
     assert reporter.captions == [
         "1/2 fetching option sets",
-        "2/2 writing ig/input/resources/terminology",
+        "2/2 writing ig/input/resources/terminology and ig/input/resources/concept-maps",
     ]
     assert reporter.completions == [
         "1/2 instance metadata: 1 option set(s)",
-        "2/2 option sets: 2 written, 0 unchanged",
+        "2/2 option sets: 3 written, 0 unchanged",
     ]
 
 

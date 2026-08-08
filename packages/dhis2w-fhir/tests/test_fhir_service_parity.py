@@ -134,15 +134,23 @@ async def test_generate_option_sets_across_majors(
     assert route.called
     assert report.option_set_count == 1
     assert report.target_base == "ig/input"
-    assert report.target_directory == "resources/terminology"
+    assert report.target_directory == "resources/terminology, resources/concept-maps"
     assert report.written_files == [
         "terminology/CodeSystem-d2-os-Xa1b2c3d4e5-cs.json",
         "terminology/ValueSet-d2-os-Xa1b2c3d4e5-vs.json",
+        "concept-maps/ConceptMap-d2-os-Xa1b2c3d4e5-cm.json",
     ]
-    terminology = tmp_path / "ig" / "input" / "resources" / "terminology"
-    code_system = json.loads((terminology / "CodeSystem-d2-os-Xa1b2c3d4e5-cs.json").read_text(encoding="utf-8"))
+    resources = tmp_path / "ig" / "input" / "resources"
+    code_system = json.loads(
+        (resources / "terminology" / "CodeSystem-d2-os-Xa1b2c3d4e5-cs.json").read_text(encoding="utf-8")
+    )
     assert code_system["name"] == "D2OS_Xa1b2c3d4e5_CS"
     assert code_system["title"] == "Birth type"
+    concept_map = json.loads(
+        (resources / "concept-maps" / "ConceptMap-d2-os-Xa1b2c3d4e5-cm.json").read_text(encoding="utf-8")
+    )
+    assert concept_map["name"] == "D2OS_Xa1b2c3d4e5_CM"
+    assert concept_map["sourceCanonical"].endswith("/ValueSet/d2-os-Xa1b2c3d4e5-vs")
 
 
 @respx.mock
@@ -418,14 +426,18 @@ async def test_generate_is_idempotent(
     assert first.written_files == [
         "terminology/CodeSystem-d2-os-Xa1b2c3d4e5-cs.json",
         "terminology/ValueSet-d2-os-Xa1b2c3d4e5-vs.json",
+        "concept-maps/ConceptMap-d2-os-Xa1b2c3d4e5-cm.json",
     ]
     assert second.written_files == []
     assert second.deleted_files == []
-    assert second.unchanged_count == 2
-    terminology = tmp_path / "ig" / "input" / "resources" / "terminology"
-    assert sorted(path.name for path in terminology.glob("*.json")) == [
+    assert second.unchanged_count == 3
+    resources = tmp_path / "ig" / "input" / "resources"
+    assert sorted(path.name for path in (resources / "terminology").glob("*.json")) == [
         "CodeSystem-d2-os-Xa1b2c3d4e5-cs.json",
         "ValueSet-d2-os-Xa1b2c3d4e5-vs.json",
+    ]
+    assert [path.name for path in (resources / "concept-maps").glob("*.json")] == [
+        "ConceptMap-d2-os-Xa1b2c3d4e5-cm.json"
     ]
 
 

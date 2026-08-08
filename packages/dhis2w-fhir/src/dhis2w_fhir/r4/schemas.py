@@ -285,6 +285,68 @@ class ValueSet(DomainResource):
     compose: ValueSetCompose | None = None
 
 
+class ConceptMapGroupElementTarget(BackboneElement):
+    """`ConceptMap.group.element.target` - the DHIS2 identifier one concept maps onto, and how closely."""
+
+    code: str | None = None
+    display: str | None = None
+    equivalence: (
+        Literal[
+            "relatedto",
+            "equivalent",
+            "equal",
+            "wider",
+            "subsumes",
+            "narrower",
+            "specializes",
+            "inexact",
+            "unmatched",
+            "disjoint",
+        ]
+        | None
+    ) = None
+
+
+class ConceptMapGroupElement(BackboneElement):
+    """`ConceptMap.group.element` - one source concept and every target it maps onto."""
+
+    code: str | None = None
+    display: str | None = None
+    target: list[ConceptMapGroupElementTarget] | None = None
+
+
+class ConceptMapGroup(BackboneElement):
+    """`ConceptMap.group` - the mappings from one source system into one target system."""
+
+    source: str | None = None
+    target: str | None = None
+    element: list[ConceptMapGroupElement] | None = None
+
+
+class ConceptMap(DomainResource):
+    """A FHIR R4 ConceptMap taking one option set's concept codes back to the DHIS2 identifiers they stand for.
+
+    `identifier` is a single `Identifier` rather than a list: R4 gives ConceptMap `0..1` where it
+    gives CodeSystem and ValueSet `0..*`.
+    """
+
+    resourceType: Literal["ConceptMap"] = "ConceptMap"
+    id: str | None = None
+    url: str | None = None
+    identifier: Identifier | None = None
+    name: str | None = None
+    title: str | None = None
+    title_element: Element | None = Field(
+        default=None, validation_alias=AliasChoices("_title", "title_element"), serialization_alias="_title"
+    )
+    description: str | None = None
+    status: Literal["draft", "active", "retired", "unknown"] | None = None
+    experimental: bool | None = None
+    sourceCanonical: str | None = None
+    targetCanonical: str | None = None
+    group: list[ConceptMapGroup] | None = None
+
+
 class QuestionnaireItem(BackboneElement):
     """`Questionnaire.item` - one question, or a group nesting the questions of a section or a disaggregation."""
 

@@ -12,6 +12,7 @@ from dhis2w_fhir.r4 import (
     CapabilityStatement,
     CodeSystem,
     CodeSystemConcept,
+    ConceptMap,
     Element,
     Extension,
     JsonResource,
@@ -26,7 +27,14 @@ from dhis2w_fhir.r4 import (
 _DATA_DIRECTORY = Path(__file__).parent / "data" / "r4"
 
 type ResourceModel = (
-    Organization | Location | CodeSystem | ValueSet | Questionnaire | QuestionnaireResponse | CapabilityStatement
+    Organization
+    | Location
+    | CodeSystem
+    | ValueSet
+    | ConceptMap
+    | Questionnaire
+    | QuestionnaireResponse
+    | CapabilityStatement
 )
 
 _NAME_ELEMENT_CASES = [
@@ -40,6 +48,7 @@ _ROUND_TRIP_CASES = [
     pytest.param(ValueSet, "ValueSet-richest.json", id="value_set"),
     pytest.param(CodeSystem, "CodeSystem-d2-de-cs.json", id="code_system_data_elements"),
     pytest.param(CodeSystem, "CodeSystem-d2-coc-cs.json", id="code_system_option_combos"),
+    pytest.param(ConceptMap, "ConceptMap-d2-os-birth-type-cm.json", id="concept_map_option_set"),
     pytest.param(Questionnaire, "Questionnaire-BfMAe6Itzgt.json", id="questionnaire_aggregate"),
     pytest.param(Questionnaire, "Questionnaire-EVTsupVis01.json", id="questionnaire_event"),
     pytest.param(Questionnaire, "Questionnaire-ZzYYXq4fJie.json", id="questionnaire_tracker_event"),

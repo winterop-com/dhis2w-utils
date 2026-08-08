@@ -17,6 +17,12 @@ to the option UID whenever the desired code is already taken. An option whose
 UID fall-back is taken too - a peer carries that UID as its DHIS2 code - is
 skipped with a note rather than emitted as a duplicate concept.
 
+A third document takes the concept codes back to DHIS2: one ConceptMap per set,
+in its own `concept-maps/` directory, mapping every emitted concept onto the
+DHIS2 option UID and, where the option carries one, the DHIS2 option code. It is
+built from the same `concept_assignments` plan the concepts are, so a mapping can
+only ever name a concept the CodeSystem really holds.
+
 With `naming.source = "id"` the slug is the option-set UID verbatim: FHIR ids
 and file names both permit mixed case, so the emitted id reads straight back to
 the DHIS2 object. Name-sourced slugs are kebab-cased as usual.
@@ -49,6 +55,10 @@ from dhis2w_fhir.r4 import (
     CodeSystemConceptDesignation,
     CodeSystemConceptProperty,
     CodeSystemProperty,
+    ConceptMap,
+    ConceptMapGroup,
+    ConceptMapGroupElement,
+    ConceptMapGroupElementTarget,
     Element,
     Extension,
     Identifier,
@@ -74,11 +84,15 @@ if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
 __all__ = [
+    "CONCEPT_MAP_DIRECTORY",
     "TERMINOLOGY_DIRECTORY",
     "build_concepts",
     "build_option_set_artifacts",
+    "build_option_set_concept_map_artifacts",
+    "build_option_set_concept_maps",
     "code_system_canonical",
     "concept_assignments",
+    "concept_map_canonical",
     "max_slug_length",
     "option_set_code_fallback",
     "option_set_fsh_name",
@@ -89,6 +103,11 @@ __all__ = [
 
 #: The `ig/input/resources/` subdirectory the option-set pairs own outright - one JSON file per resource.
 TERMINOLOGY_DIRECTORY = "terminology"
+
+#: The `ig/input/resources/` subdirectory the option-set ConceptMaps own outright - one JSON file per set.
+#: A JSON sync deletes every unproduced `*.json` in its target, so the maps sweep a directory of their own
+#: rather than share the pairs'.
+CONCEPT_MAP_DIRECTORY = "concept-maps"
 
 # The longest emitted id is `<id-stem><slug>-cs`/`-vs`, so the slug is bounded
 # against the actual stem and the FHIR id limit.
@@ -114,6 +133,8 @@ class _OptionSetSystems(BaseModel):
     canonical: str
     identifier_system: str
     code_identifier_system: str
+    option_identifier_system: str
+    option_code_identifier_system: str
     property_base: str
 
     @classmethod
@@ -124,6 +145,8 @@ class _OptionSetSystems(BaseModel):
             canonical=canonical,
             identifier_system=f"{identifier_base}/id/option-set",
             code_identifier_system=f"{identifier_base}/id/option-set-code",
+            option_identifier_system=f"{identifier_base}/id/option",
+            option_code_identifier_system=f"{identifier_base}/id/option-code",
             property_base=f"{identifier_base}/property",
         )
 
@@ -134,6 +157,10 @@ class _OptionSetSystems(BaseModel):
     def value_set_url(self, value_set_id: str) -> str:
         """Canonical URL of one emitted ValueSet."""
         return value_set_canonical(self.canonical, value_set_id)
+
+    def concept_map_url(self, concept_map_id: str) -> str:
+        """Canonical URL of one emitted ConceptMap."""
+        return concept_map_canonical(self.canonical, concept_map_id)
 
 
 class _OptionSetPair(BaseModel):
@@ -172,6 +199,11 @@ def code_system_canonical(canonical: str, code_system_id: str) -> str:
 def value_set_canonical(canonical: str, value_set_id: str) -> str:
     """Canonical URL one emitted ValueSet is published at, under the IG canonical."""
     return f"{canonical}/ValueSet/{value_set_id}"
+
+
+def concept_map_canonical(canonical: str, concept_map_id: str) -> str:
+    """Canonical URL one emitted ConceptMap is published at, under the IG canonical."""
+    return f"{canonical}/ConceptMap/{concept_map_id}"
 
 
 def option_set_fsh_name(config: GenerateConfig, segment: str) -> str:
@@ -223,6 +255,7 @@ def option_set_identities(option_sets: list[OptionSetIn], config: GenerateConfig
                 fsh_name=base_name,
                 code_system_id=f"{id_stem}{slug}-cs",
                 value_set_id=f"{id_stem}{slug}{_ID_SUFFIX}",
+                concept_map_id=f"{id_stem}{slug}-cm",
             )
         )
     if truncated:
@@ -283,10 +316,57 @@ def build_option_set_artifacts(
             attribute_codes=attribute_codes,
             extension_url=extension_url,
         )
-        build.artifacts.append(_json_artifact(f"CodeSystem-{identity.code_system_id}", pair.code_system))
-        build.artifacts.append(_json_artifact(f"ValueSet-{identity.value_set_id}", pair.value_set))
+        build.artifacts.append(
+            _json_artifact(TERMINOLOGY_DIRECTORY, f"CodeSystem-{identity.code_system_id}", pair.code_system)
+        )
+        build.artifacts.append(
+            _json_artifact(TERMINOLOGY_DIRECTORY, f"ValueSet-{identity.value_set_id}", pair.value_set)
+        )
     build.notes.extend(plan.notes)
     return build
+
+
+def build_option_set_concept_maps(
+    option_sets: list[OptionSetIn],
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    ig_status: IgStatus,
+) -> list[ConceptMap]:
+    """Build one ConceptMap per option set, taking its concept codes back to the DHIS2 option identifiers.
+
+    Two groups per map, both sourced from the set's own CodeSystem: one onto `<base>/id/option`
+    carrying the DHIS2 option UID, one onto `<base>/id/option-code` carrying the DHIS2 option
+    code. A consumer holding a generated coding therefore resolves both DHIS2 identifiers from
+    one document, whichever of them the concept code happens to be.
+
+    The rows come from `concept_assignments`, the same plan the concepts themselves are built
+    from, so a mapping can only ever name a concept the emitted CodeSystem really holds. An
+    option set that received no concept at all emits no map: an R4 group requires at least one
+    element, and a map with no group states nothing.
+    """
+    systems = _OptionSetSystems.from_config(config, canonical)
+    plan = option_set_identities(option_sets, config)
+    by_uid = {option_set.uid: option_set for option_set in option_sets}
+    concept_maps = [
+        _build_concept_map(by_uid[identity.uid], identity, config, systems, ig_status=ig_status)
+        for identity in plan.identities
+    ]
+    return [concept_map for concept_map in concept_maps if concept_map is not None]
+
+
+def build_option_set_concept_map_artifacts(
+    option_sets: list[OptionSetIn],
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    ig_status: IgStatus,
+) -> list[JsonArtifact]:
+    """Build one `concept-maps/ConceptMap-<id>.json` per option set that emitted concepts."""
+    return [
+        _json_artifact(CONCEPT_MAP_DIRECTORY, f"ConceptMap-{concept_map.id}", concept_map)
+        for concept_map in build_option_set_concept_maps(option_sets, config, canonical, ig_status=ig_status)
+    ]
 
 
 def option_set_code_fallback(option_set: OptionSetIn, config: GenerateConfig) -> bool:
@@ -348,11 +428,87 @@ def concept_assignments(source: ConceptSourceIn, config: GenerateConfig) -> Conc
     return ConceptAssignmentPlan(assignments=assignments, notes=notes)
 
 
-def _json_artifact(stem: str, resource: CodeSystem | ValueSet) -> JsonArtifact:
-    """Serialise one resource as the terminology file the predefined-resource loader reads."""
+def _json_artifact(directory: str, stem: str, resource: CodeSystem | ValueSet | ConceptMap) -> JsonArtifact:
+    """Serialise one resource as the predefined-resource file the loader reads, in the directory it belongs to."""
     return JsonArtifact(
-        relative_path=f"{TERMINOLOGY_DIRECTORY}/{stem}.json",
+        relative_path=f"{directory}/{stem}.json",
         content=f"{resource.model_dump_json(exclude_none=True, by_alias=True, indent=2)}\n",
+    )
+
+
+def _build_concept_map(
+    option_set: OptionSetIn,
+    identity: OptionSetIdentity,
+    config: GenerateConfig,
+    systems: _OptionSetSystems,
+    *,
+    ig_status: IgStatus,
+) -> ConceptMap | None:
+    """Build one option set's ConceptMap, or None when the set emitted no concept to map."""
+    groups = _concept_map_groups(concept_assignments(option_set, config), identity, systems)
+    if not groups:
+        return None
+    return ConceptMap(
+        id=identity.concept_map_id,
+        url=systems.concept_map_url(identity.concept_map_id),
+        identifier=Identifier(system=systems.identifier_system, value=option_set.uid),
+        name=identity.concept_map_name,
+        title=page_string(option_set.name),
+        title_element=translated_element(name_translations(option_set.translations, config.locales)),
+        description=page_string(
+            f"DHIS2 option set {option_set.name} ({option_set.uid}). Every concept of "
+            f"{identity.code_system_name} mapped to its DHIS2 option UID and, where the option carries "
+            "one, its DHIS2 option code."
+        ),
+        status=ig_status,
+        experimental=experimental_for_status(ig_status),
+        sourceCanonical=systems.value_set_url(identity.value_set_id),
+        group=groups,
+    )
+
+
+def _concept_map_groups(
+    plan: ConceptAssignmentPlan, identity: OptionSetIdentity, systems: _OptionSetSystems
+) -> list[ConceptMapGroup]:
+    """The mapping groups of one set: the UID group always, the DHIS2-code group when any option has one.
+
+    An option whose DHIS2 code is not a valid FHIR `code` cannot be a target code and is left out
+    of the code group - the pair emitter already reports that code in a note when it is the concept
+    code the set asked for.
+    """
+    mapped = [assignment for assignment in plan.assignments if assignment.code is not None]
+    if not mapped:
+        return []
+    code_system_url = systems.code_system_url(identity.code_system_id)
+    groups = [
+        ConceptMapGroup(
+            source=code_system_url,
+            target=systems.option_identifier_system,
+            element=[_concept_map_element(assignment, assignment.option.uid) for assignment in mapped],
+        )
+    ]
+    coded = [
+        _concept_map_element(assignment, assignment.option.code)
+        for assignment in mapped
+        if assignment.option.code is not None and is_valid_fhir_code(assignment.option.code)
+    ]
+    if coded:
+        groups.append(
+            ConceptMapGroup(source=code_system_url, target=systems.option_code_identifier_system, element=coded)
+        )
+    return groups
+
+
+def _concept_map_element(assignment: ConceptAssignment, target_code: str) -> ConceptMapGroupElement:
+    """One mapping row: the concept code the set assigned, and the DHIS2 identifier it stands for.
+
+    The equivalence is `equal`: the concept and the target identifier name the same DHIS2 option,
+    read under two identifier conventions rather than translated between two vocabularies.
+    """
+    return ConceptMapGroupElement(
+        code=assignment.code,
+        display=flatten_whitespace(assignment.option.name),
+        target=[ConceptMapGroupElementTarget(code=target_code, equivalence="equal")],
     )
 
 
@@ -466,6 +622,7 @@ def _uid_option_set_identity(uid: str, config: GenerateConfig) -> OptionSetIdent
         fsh_name=option_set_fsh_name(config, uid),
         code_system_id=f"{id_stem}{uid}-cs",
         value_set_id=f"{id_stem}{uid}{_ID_SUFFIX}",
+        concept_map_id=f"{id_stem}{uid}-cm",
     )
 
 

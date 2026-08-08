@@ -1,0 +1,79 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-birth-type-cm",
+  "url": "http://example.org/fhir/ConceptMap/d2-os-birth-type-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "Xa1b2c3d4e5"
+  },
+  "name": "D2OS_BirthType_CM",
+  "title": "Birth type",
+  "description": "DHIS2 option set Birth type (Xa1b2c3d4e5). Every concept of D2OS_BirthType_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/ValueSet/d2-os-birth-type-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-os-birth-type-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "kRRUtYaGett",
+          "display": "Natural Birth",
+          "target": [
+            {
+              "code": "kRRUtYaGett",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "EBE0c8sZazS",
+          "display": "Scheduled Cesarean",
+          "target": [
+            {
+              "code": "EBE0c8sZazS",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "GVcG84DTFOB",
+          "display": "Unplanned Cesarean",
+          "target": [
+            {
+              "code": "GVcG84DTFOB",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-os-birth-type-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "kRRUtYaGett",
+          "display": "Natural Birth",
+          "target": [
+            {
+              "code": "NB",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "EBE0c8sZazS",
+          "display": "Scheduled Cesarean",
+          "target": [
+            {
+              "code": "CS",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

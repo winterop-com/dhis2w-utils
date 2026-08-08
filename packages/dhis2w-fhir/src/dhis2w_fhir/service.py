@@ -35,8 +35,10 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleSelection,
 )
 from dhis2w_fhir.resources.option_sets import (
+    CONCEPT_MAP_DIRECTORY,
     TERMINOLOGY_DIRECTORY,
     build_option_set_artifacts,
+    build_option_set_concept_map_artifacts,
     option_set_identities,
 )
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
@@ -443,7 +445,7 @@ def _emit_foundation(project: FhirProject, *, progress: _StepAnnouncer) -> Gener
 async def generate_option_sets(
     profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
 ) -> GenerateReport:
-    """Generate one pre-built CodeSystem and ValueSet document per configured option set into `terminology/`."""
+    """Generate a CodeSystem/ValueSet pair per option set into `terminology/`, plus its ConceptMap."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[str] = []
@@ -471,8 +473,11 @@ def _emit_option_sets(
     notes: list[str],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
-    """Build the terminology documents off an already-selected option-set list and sync them into the project."""
-    progress.step("option sets", f"writing ig/input/resources/{TERMINOLOGY_DIRECTORY}")
+    """Build the terminology pairs and their ConceptMaps off a selected option-set list and sync both directories."""
+    progress.step(
+        "option sets",
+        f"writing ig/input/resources/{TERMINOLOGY_DIRECTORY} and ig/input/resources/{CONCEPT_MAP_DIRECTORY}",
+    )
     build = build_option_set_artifacts(
         option_sets,
         project.config.generate,
@@ -480,7 +485,14 @@ def _emit_option_sets(
         ig_status=project.config.ig.status,
         attribute_codes=attribute_codes,
     )
+    concept_maps = build_option_set_concept_map_artifacts(
+        option_sets,
+        project.config.generate,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+    )
     sync = sync_json_artifacts(project.resources_directory, TERMINOLOGY_DIRECTORY, build.artifacts)
+    concept_map_sync = sync_json_artifacts(project.resources_directory, CONCEPT_MAP_DIRECTORY, concept_maps)
     # The target writes JSON, so it also owns keeping its FSH directory empty of generated files: a
     # project whose terminology was written as FSH would otherwise hold both shapes, and SUSHI refuses
     # a definition that duplicates a pre-defined resource. Only header-bearing files are removed, so a
@@ -489,10 +501,10 @@ def _emit_option_sets(
     report = GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",
-        target_directory=f"resources/{TERMINOLOGY_DIRECTORY}",
-        deleted_files=[*sync.deleted, *superseded],
-        written_files=sync.written,
-        unchanged_count=len(sync.unchanged),
+        target_directory=f"resources/{TERMINOLOGY_DIRECTORY}, resources/{CONCEPT_MAP_DIRECTORY}",
+        deleted_files=[*sync.deleted, *concept_map_sync.deleted, *superseded],
+        written_files=[*sync.written, *concept_map_sync.written],
+        unchanged_count=len(sync.unchanged) + len(concept_map_sync.unchanged),
         option_set_count=len(option_sets),
         notes=[*notes, *build.notes],
     )
