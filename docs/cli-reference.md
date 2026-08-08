@@ -9936,6 +9936,7 @@ $ d2w fhir [OPTIONS] COMMAND [ARGS]...
 * `init`: Scaffold a dockerized SUSHI IG project...
 * `validate`: Check the instance&#x27;s codes for...
 * `serve`: Serve the project&#x27;s IG as a FHIR read and...
+* `forward`: Drain the capture spool into DHIS2 -...
 * `generate`: Generate the whole IG source from DHIS2...
 
 ### `d2w fhir init`
@@ -10029,6 +10030,36 @@ $ d2w fhir serve [OPTIONS] [directory]
 * `--host <str>`: Interface to bind, overriding ` host`. The default is loopback: the facade has no authentication, so reaching it from another host is a deliberate act.
 * `--port <int>`: Port to listen on, overriding ` port` (default 8080).
 * `--strict-codes / --no-strict-codes`: Refuse a received answer whose code is outside the served terminology, overriding ` strict_codes`. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
+* `--help`: Show this message and exit.
+
+### `d2w fhir forward`
+
+Drain the capture spool into DHIS2 - translate every received response and post it.
+
+DRY RUN IS THE DEFAULT. Every payload is posted to the real instance under the endpoint&#x27;s own
+validate-only mode, so DHIS2&#x27;s rules decide the answer and nothing is written; `--import` commits.
+
+An imported response moves from .serve/responses/received/ to forwarded/, a DHIS2-rejected one to
+rejected/ beside a report, and a translator-refused one stays put - fix and forward again.
+
+Outcomes land in reports/fhir-forward-report.md; `--details` prints them here instead.
+
+**Usage**:
+
+```console
+$ d2w fhir forward [OPTIONS] [directory]
+```
+
+**Arguments**:
+
+* `directory`: Project directory (default: current directory).  [default: .]
+
+**Options**:
+
+* `--import / --dry-run`: Commit the payloads to DHIS2 and move the receipts. The default is a dry run: every payload still goes to the real endpoint under its own validate-only mode, and nothing is written and nothing moves.  [default: dry-run]
+* `--strict-codes / --no-strict-codes`: Refuse a coded answer whose code is outside the served terminology, overriding `[serve] strict_codes`. Lenient resolves the DHIS2 option UID and code too, and notes it.
+* `--details`: Print every response&#x27;s outcome instead of writing them to the report.
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
 ### `d2w fhir generate`

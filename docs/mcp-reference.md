@@ -2,7 +2,7 @@
 
 Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-generated from the in-process server — do not edit by hand. Rebuild via `make docs-mcp` (chained into `make docs-build`).
 
-**Total tools**: 319 across 17 plugin groups.
+**Total tools**: 320 across 17 plugin groups.
 
 ## Plugins
 
@@ -12,7 +12,7 @@ Every tool exposed by the `dhis2` FastMCP server, grouped by plugin. Auto-genera
 - [`data_*`](#data) — 16 tools
 - [`datastore_*`](#datastore) — 5 tools
 - [`doctor_*`](#doctor) — 4 tools
-- [`fhir_*`](#fhir) — 1 tool
+- [`fhir_*`](#fhir) — 2 tools
 - [`files_*`](#files) — 5 tools
 - [`maintenance_*`](#maintenance) — 15 tools
 - [`messaging_*`](#messaging) — 11 tools
@@ -616,6 +616,17 @@ Probe a DHIS2 instance — metadata health + DHIS2 data-integrity by default.
 | `profile` | `string` | no | — |
 
 ## `fhir`
+
+### `fhir_forward`
+
+Drain a FHIR project's capture spool into DHIS2 - translate every received response and post it.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `profile` | `string` | no | — |
+| `project_directory` | `string` | no | — |
+| `dry_run` | `boolean` | no | — |
+| `strict_codes` | `boolean` | no | — |
 
 ### `fhir_validate`
 

@@ -816,9 +816,10 @@ the generator, which every buildpack codegens from.
 **Depends on it.** This also decides what `d2w fhir build` codegens. It is the
 single largest open architectural question in the conversion layer, whose phased
 plan lives in [the FHIR conversion layer](fhir-conversion.md): that plan builds the
-typed Python forwarder first and asks this question of the result, so what is left
-to decide is the phase-B carrier - StructureMaps with a residue manifest, or a
-manifest alone.
+typed Python forwarder first and asks this question of the result. **Phase A has
+shipped** as `d2w fhir forward` over `dhis2w_fhir.conversion`, so the reference
+implementation exists and what is left to decide is the phase-B carrier -
+StructureMaps with a residue manifest, or a manifest alone.
 
 ### 5.4 Where `attributeOptionCombo` and data-set completeness live
 
@@ -1519,14 +1520,20 @@ commitment.
 
 ### 9.2 Mid-term
 
-- **Forward stored responses into DHIS2.** The spool is a queue of receipts and
-  nothing drains it: `d2w fhir serve` accepts a submission, stores it, and writes
-  nothing to an instance. Turning a receipt into data values, events, and
-  enrollments - and reporting back what the import did - is the next phase, and
-  the `received/` directory is named for the sibling that phase adds. The plan is
-  [the FHIR conversion layer](fhir-conversion.md), in phases A, B, and C - phase A
-  is a typed Python forwarder that waits on nothing, and it is what open decision
-  5.3 gets ratified against.
+- **Forward stored responses into DHIS2** - shipped as `d2w fhir forward`, which is
+  phase A of [the FHIR conversion layer](fhir-conversion.md). The spool is a queue of
+  receipts and this is what drains it: each `.serve/responses/received/*.json` is
+  translated through `dhis2w_fhir.conversion` into its `/api/dataValueSets` envelope or
+  its `/api/tracker` event and posted, one payload per response so each outcome is
+  attributable. A **dry run is the default** and posts everything under the endpoint's
+  own validate-only mode (`dryRun=true`, `importMode=VALIDATE`), so DHIS2's own rules
+  grade the whole spool without a write. `--import` commits, and the spool becomes the
+  ledger the `received/` name was chosen for: accepted receipts move to `forwarded/`,
+  DHIS2-rejected ones to `rejected/` beside a `<id>.report.json` carrying the import
+  summary, and conversion-refused ones stay in `received/` because the fix for them is
+  local and the next run is the retry. The typed translator this is built on is the
+  reference implementation open decision 5.3 now gets ratified against; what remains
+  open is only the phase-B carrier.
 
 - **Read current DHIS2 data through the facade.** A stored response answers "what
   was submitted"; "what does DHIS2 hold right now" needs the facade to query the

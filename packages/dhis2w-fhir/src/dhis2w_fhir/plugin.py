@@ -22,7 +22,9 @@ class _FhirPlugin(BaseModel):
         "FHIR Implementation Guide generation: scaffold a SUSHI project as a pinned uv project "
         "(`d2w fhir init`), then generate FSH from DHIS2 metadata - terminology, the org-unit registry, "
         "questionnaires with example responses, and the narrative pages (`d2w fhir generate`). "
-        "`d2w fhir validate` checks an instance's codes for FHIR-safety and writes md/csv/pdf reports."
+        "`d2w fhir validate` checks an instance's codes for FHIR-safety and writes md/csv/pdf reports, "
+        "and `d2w fhir forward` drains the `d2w fhir serve` capture spool back into DHIS2 - a dry run "
+        "by default, `--import` to commit."
     )
 
     def register_cli(self, app: Any) -> None:

@@ -13,13 +13,13 @@ answer typing from the value-type table, option values resolved to codings throu
 concept assignment plan, event status mapped, timestamps zoned. It is exercised against
 live instances and validated by the IG publisher on every build.
 
-**QR -> DHIS2** exists as a completed design (the serve capture pipeline's translation
-tables) but deliberately not as code: `d2w fhir serve` stores validated responses as an
-outbox, and the forwarder that drains it is the next phase. The design covers the three
+**QR -> DHIS2** ships as `dhis2w_fhir.conversion` behind
+[`d2w fhir forward`](../guides/fhir-ig.md#forwarding-captured-responses): `d2w fhir serve`
+stores validated responses as an outbox, and the forwarder drains it. It covers the three
 payload mappings (dataValueSets envelope; event; tracker event), the non-bijective status
 inverse, wire-value serialisation (TRUE_ONLY, MULTI_TEXT, decimal lexical preservation,
 zoned datetimes), coded-answer resolution with the lenient/strict dial, and the DHIS2
-validate-only modes for dry runs.
+validate-only modes a dry run posts under.
 
 So the question is not whether the mappings are known - both directions are fully
 specified against real instances. The question is **where the mapping definition lives**:
@@ -90,10 +90,22 @@ resource carrying the DHIS2 UID and the DHIS2 code out.
 
 ## The plan: reference implementation first, contract lifted second
 
-**Phase A - the forwarder (next).** Build QR -> DHIS2 as the typed Python translator the
-capture design specifies, draining the serve outbox. Manual, tested, shipped. This code is
-then the *reference implementation* the later contract is held against - the same role the
-FSH emitters played for the JSON builders, where golden parity kept two paths honest.
+**Phase A - the forwarder. SHIPPED.** QR -> DHIS2 is the typed Python translator the
+capture design specifies, draining the serve outbox. The translator is
+`dhis2w_fhir.conversion` (`schemas`, `context`, `values`, `payloads`, `translator`, and
+`artifacts` reading a project's published guide into a context); the command that drives it
+is `d2w fhir forward`, whose dry run - the default - posts every payload to the real
+endpoint under that endpoint's own validate-only mode and moves nothing, and whose
+`--import` commits and then files each receipt into `forwarded/` or `rejected/`. See
+[Forwarding captured responses](../guides/fhir-ig.md#forwarding-captured-responses).
+
+This code is the *reference implementation* the later contract is held against - the same
+role the FSH emitters played for the JSON builders, where golden parity kept two paths
+honest. The gate already exists in both directions:
+`packages/dhis2w-fhir/tests/test_fhir_conversion_roundtrip.py` asserts that every example
+response of a whole generate run translates back, cell for cell, to the DHIS2 values it was
+built from, and `test_fhir_forward.py` runs the whole spool-to-import path over a project on
+disk.
 
 **Phase B - lift the contract into the IG.** In order:
 1. **ConceptMaps per terminology family** - shipped for option sets and categories,
@@ -207,7 +219,8 @@ paths, one gate that fails when they disagree.
 
 ## What decision 5.3 now needs from the owner
 
-Only ratification of the phase-B carrier once phase A exists and the FML experiment has
-run against real shapes: StructureMaps-with-residue-manifest versus manifest-only. Both
-keep the CI gate and the buildpack story identical; the difference is how much of the
-contract is expressed in a standard language versus a project-defined document.
+Only ratification of the phase-B carrier now that phase A has shipped and the FML
+experiment can run against real shapes: StructureMaps-with-residue-manifest versus
+manifest-only. Both keep the CI gate and the buildpack story identical; the difference is
+how much of the contract is expressed in a standard language versus a project-defined
+document.

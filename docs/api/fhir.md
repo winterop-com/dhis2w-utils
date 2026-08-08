@@ -101,15 +101,31 @@ a `TrackerEvent` for an event program or a tracker program stage. A response the
 cannot read whole answers with typed refusals naming the link id and the reason, never with a
 partial payload.
 
+`conversion.artifacts` is where a project's own files become those models: it reads the
+compiled `ig/fsh-generated/resources` merged with the predefined `ig/input/resources` tree -
+the same two trees `d2w fhir serve` serves - and `build_project_context` assembles the context
+from them plus the project's `[generate]` naming, identifier base, and timezone.
+
 ::: dhis2w_fhir.conversion.schemas
 
 ::: dhis2w_fhir.conversion.context
+
+::: dhis2w_fhir.conversion.artifacts
 
 ::: dhis2w_fhir.conversion.values
 
 ::: dhis2w_fhir.conversion.payloads
 
 ::: dhis2w_fhir.conversion.translator
+
+### The capture spool
+
+Where `d2w fhir serve` writes a receipt and where `d2w fhir forward` moves it next. The
+layout is duplicated rather than imported - `dhis2w-fhir` is a dependency of
+`dhis2w-fhir-serve`, so the arrow only points one way and the forwarder reads the files
+directly under the same conventions.
+
+::: dhis2w_fhir.spool
 
 ### Package surface
 

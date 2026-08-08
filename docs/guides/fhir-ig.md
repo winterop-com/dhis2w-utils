@@ -66,7 +66,9 @@ The generated site lands in `ig/output/`. `make clean` removes build output;
 [Build time and the two caches](#build-time-and-the-two-caches).
 
 To point a FHIR client at the guide instead of publishing it, `d2w fhir serve` runs the
-compiled project as a read-and-capture endpoint - see [Serving the IG](#serving-the-ig).
+compiled project as a read-and-capture endpoint - see [Serving the IG](#serving-the-ig) -
+and `d2w fhir forward` posts what that endpoint captured back into DHIS2, closing the loop:
+see [Forwarding captured responses](#forwarding-captured-responses).
 
 ## Pinned toolchain
 
@@ -2010,8 +2012,9 @@ crash never leaves a half-written receipt, and a restart rebuilds the index by s
 the directory.
 
 `ls .serve/responses/received | wc -l` is therefore the pending count, with no extra
-bookkeeping: the directory *is* the queue the forwarding phase will drain, which is why
-it is named `received/` rather than `responses/` - its sibling arrives with that phase.
+bookkeeping: the directory *is* the queue [`d2w fhir forward`](#forwarding-captured-responses)
+drains, which is why it is named `received/` rather than `responses/` - `forwarded/` and
+`rejected/` are its siblings.
 
 `.serve/` is gitignored by the scaffold. A project scaffolded before the entry existed
 gains it from `d2w fhir init . --refresh`.
@@ -2072,8 +2075,190 @@ response.
 - **No authentication.** That is why the default bind is `127.0.0.1`. Exposing the
   facade beyond loopback with `--host` is a deliberate act, and puts the endpoint behind
   something that authenticates.
-- **No forwarding yet.** Nothing here writes to DHIS2; see
-  [the FHIR conversion layer](../project/fhir-conversion.md) for the plan.
+- **The server never writes to DHIS2.** A capture is a receipt and nothing more.
+  Writing to the instance is a separate, explicit act:
+  [`d2w fhir forward`](#forwarding-captured-responses).
+
+## Forwarding captured responses
+
+`d2w fhir forward` is the last leg of the loop, and it closes it:
+
+```
+DHIS2 metadata -> d2w fhir generate -> the IG -> d2w fhir serve -> a form a client fills
+      ^                                                                     |
+      |                                                                     v
+      +---------------- d2w fhir forward <------------- a captured QuestionnaireResponse
+```
+
+Everything before this point reads DHIS2 or reads the guide. `forward` is the one verb
+that writes to the instance, so it is deliberately the one verb you have to ask twice.
+
+```bash
+d2w fhir forward            # dry run: validate the whole spool against DHIS2, change nothing
+d2w fhir forward --import   # commit
+```
+
+### Dry run first, always
+
+**A bare `d2w fhir forward` is a dry run**, and the terminal opens and closes with a
+banner saying so. It is not a local simulation: every payload is posted to the real
+endpoint on the real instance, under that endpoint's own validate-only mode.
+
+| Payload | Endpoint | Dry run | Import |
+| --- | --- | --- | --- |
+| Aggregate response | `POST /api/dataValueSets` | `dryRun=true` | *(no extra parameter)* |
+| Event / tracker event | `POST /api/tracker` | `importMode=VALIDATE` | *(no extra parameter)* |
+
+Both endpoints run every rule they would run for a committed import and persist nothing,
+so a green dry run means DHIS2 itself has agreed to the whole spool. The two spellings
+differ because the endpoints do: v42's `/api/tracker` has no `dryRun` parameter at all,
+and `/api/dataValueSets` has no `importMode`. Every event post also carries
+`importStrategy=CREATE&async=false` - a translated event carries no DHIS2 uid, so it is
+always a create, and the synchronous mode is what makes the answer the import report
+itself rather than a job to poll.
+
+A dry run **moves nothing**. The queue after it is the queue before it, so the natural
+workflow is to run it until it is clean and then run the same command with `--import`.
+
+### What one run does
+
+Six steps, each narrated on stderr:
+
+1. **Read the spool** - every `.serve/responses/received/*.json`, in file-name order.
+2. **Read the published guide** - `ig/fsh-generated/resources` merged with
+   `ig/input/resources`, exactly the two trees `d2w fhir serve` loads. Forwarding an
+   uncompiled project is a one-line refusal naming `d2w fhir generate` and `make sushi`.
+3. **Read the value types** - one id-only
+   `/api/dataElements?fields=id,valueType&filter=id:in:[...]` for the data elements the
+   published forms bind. This is the one fact the compiled IG cannot carry: R4 spells
+   DHIS2's `BOOLEAN` and `TRUE_ONLY` as the same `#boolean` item type, and only the value
+   type tells them apart. Without it a `TRUE_ONLY` question would be written as `BOOLEAN`.
+4. **Translate** - each response through `dhis2w_fhir.conversion`, all-or-nothing.
+5. **Post** - one payload per response, through the one client the run opened.
+6. **File** - each receipt into what it became (import runs only).
+
+A refusal comes back differently from each endpoint, and the run reads both: `/api/dataValueSets`
+answers a `409` whose body is a `WebMessage` wrapping an `ImportSummary`, while `/api/tracker`
+answers the `TrackerImportReport` **bare**, with no envelope around it at all. Each family
+recognises its own report by the fields only that report carries, so every `errorCode`, object,
+and message DHIS2 took the trouble to name survives onto the outcome - and the endpoint's own
+generated model (`ImportSummary` / `TrackerImportReport`) rides along untouched beside it.
+
+One POST per response is deliberate. DHIS2 answers a bundle with one report for the
+bundle, and a spool whose receipts move individually needs one answer each.
+
+### The three states a receipt can end in
+
+```
+.serve/responses/
+  received/    captured, not yet forwarded  - the queue
+  forwarded/   DHIS2 accepted it
+  rejected/    DHIS2 refused it, and <id>.report.json says why
+```
+
+Moves are renames within one filesystem, so a receipt is in exactly one state at every
+instant. A rejection's report is written before the receipt moves, so a process killed
+mid-move leaves a report with no receipt - which the next run overwrites - rather than a
+rejected receipt nothing explains.
+
+### Refusal is not rejection
+
+The two failure modes are different jobs, and the terminal never collapses them:
+
+| | Refused | Rejected |
+| --- | --- | --- |
+| Who said no | the translator, before DHIS2 saw it | DHIS2, on the import |
+| Where to look | the response, the guide, or `fhir.toml` | the import summary on the outcome |
+| Typical cause | a canonical the guide does not publish, an answer element the question does not answer on, a missing D2Period | a data element outside the data set, an org unit the user cannot write to, a locked period |
+| What happens to the file | **stays in `received/`** | moves to `rejected/` with its report |
+| How to retry | fix locally, run again - the receipt never left the queue | fix the instance or the data, move the file back, run again |
+
+A refused response stays put precisely because the retry is natural: nothing was written,
+nothing was moved, and the same command is the retry once the guide or the data is fixed.
+
+### Coded answers: the same dial the facade captures under
+
+`[serve] strict_codes` is the default. A project that captures strictly forwards
+strictly, without stating it twice:
+
+```toml
+[serve]
+strict_codes = false   # lenient (the default): resolve, and note what was resolved
+```
+
+- **Lenient** resolves a coded answer's concept code first, then the DHIS2 option UID,
+  then the DHIS2 option code, recording a note naming which tier matched. A code the
+  context holds no terminology for is sent to DHIS2 unchecked, with its own note.
+- **Strict** accepts only the concept code the served CodeSystem publishes, and refuses
+  anything else.
+
+`--strict-codes` / `--no-strict-codes` overrides the table for one run, so all three
+levels are reachable from the command line.
+
+### Worked run
+
+```console
+$ d2w fhir forward
+[1/6] spool: 286 pending response(s)
+[2/6] compiled IG: 1,412 resource(s), 7 form(s)
+[3/6] value types: 214 of 214 data element(s) typed
+[4/6] translate: 284 translated, 2 refused
+[5/6] post: 284 payload(s) posted (validate only)
+[6/6] spool: 286 spooled, 284 translated, 2 refused, 284 posted, 281 accepted, 3 rejected
+
+dry run: DRY RUN - every payload was posted to DHIS2 under its own validate-only mode
+(dataValueSets dryRun=true, tracker importMode=VALIDATE). Nothing was written to the
+instance and no receipt moved. Re-run with --import to commit.
+
+        fhir forward
+  profile         local (fhir.toml)
+  project         /home/me/demo-ig
+  mode            DRY RUN (validate only)
+  coded answers   lenient
+  spooled         286
+  translated      284
+  refused         2
+  posted          284
+  accepted        281
+  rejected        3
+
+                    rejection reasons
+  Code    What DHIS2 said                                          Responses
+  E1029   Event OrganisationUnit: `...` and Program: `...`, do             2
+          not match.
+  E1313   Enrollment `...` requires a TrackedEntity.                       1
+
+note: 286 response(s), 41 note(s); full outcomes in
+      /home/me/demo-ig/reports/fhir-forward-report.md (--details to print)
+error: 3 response(s) rejected by DHIS2 - read the import summary, fix the instance or the
+       data, and forward again
+note: 2 response(s) refused by the translator - they stay in the spool, so fixing the
+      guide or the data and forwarding again is the retry
+```
+
+**The rollup is what makes a large rejection readable.** DHIS2 states a rule once and then
+names every object that broke it, so two hundred rejections are usually three causes. The
+run groups them by error code plus the message with its quoted identifiers generalised
+away - `Event OrganisationUnit: \`ImspTQPwCqd\` and Program: \`IpHINAT79UW\`, do not
+match.` and the same sentence about a different pair are one cause, not two - and a
+response counts once per distinct cause it met. The written report opens with the same
+table and then lists each rejected response with up to five of its own reasons.
+
+`--details` replaces the counted hint with one row per receipt - its form, its DHIS2
+target, what became of it, why, and where its file now sits. `--json` puts the whole
+`ForwardReport` on stdout and nothing else, import summaries included, so a caller pipes
+it into `jq` without filtering the narration out.
+
+### Make targets
+
+The scaffold ships both, reading the same `fhir.toml` every other target does:
+
+```bash
+make forward          # the dry run
+make forward-import   # the committing run
+```
+
+An existing project gains them from `d2w fhir init . --refresh`.
 
 ## Site pages and intros
 
@@ -2794,9 +2979,11 @@ instance in a few minutes.
   grammar, the `fhir.toml` models, and the artifact builders.
 - [`dhis2w_fhir_serve` API reference](../api/fhir-serve.md) - the facade behind
   [`d2w fhir serve`](#serving-the-ig): the store, the spool, and the capture path.
-- [The FHIR conversion layer](../project/fhir-conversion.md) - the plan for forwarding
-  a stored receipt into DHIS2.
+- [The FHIR conversion layer](../project/fhir-conversion.md) - why the forwarder is a
+  typed Python translator, and what the published mapping contract is held against it.
 - [`examples/v42/cli/fhir_generate.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/fhir_generate.sh) -
   the same flow as a runnable script.
 - [`examples/v42/cli/fhir_serve.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/fhir_serve.sh) -
   generate, compile, serve, post a load set, read the receipts back.
+- [`examples/v42/cli/fhir_forward.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/fhir_forward.sh) -
+  the whole loop end to end, dry run first and then the import.

@@ -24,6 +24,15 @@ imports the half of itself that happened to parse.
 
 from __future__ import annotations
 
+from dhis2w_fhir.conversion.artifacts import (
+    COMPILED_RESOURCES_RELATIVE_PATH,
+    CompiledArtifactReadError,
+    CompiledArtifacts,
+    CompiledIgMissingError,
+    bound_data_element_uids,
+    build_project_context,
+    load_compiled_artifacts,
+)
 from dhis2w_fhir.conversion.context import (
     ANSWER_ELEMENTS_BY_ITEM_TYPE,
     CELL_LINK_ID_SEPARATOR,
@@ -89,6 +98,7 @@ __all__ = [
     "ANSWER_ELEMENTS_BY_ITEM_TYPE",
     "ANSWER_VALUE_ELEMENTS",
     "CELL_LINK_ID_SEPARATOR",
+    "COMPILED_RESOURCES_RELATIVE_PATH",
     "COMPLETED_EVENT_STATUSES",
     "EVENT_STATUSES_BY_RESPONSE_STATUS",
     "LOCATION_REFERENCE_PREFIX",
@@ -101,6 +111,9 @@ __all__ = [
     "TARGET_KINDS_BY_FORM_KIND",
     "AggregateTranslation",
     "CodedAnswerMode",
+    "CompiledArtifactReadError",
+    "CompiledArtifacts",
+    "CompiledIgMissingError",
     "ConversionContext",
     "ConversionContextError",
     "ConversionNaming",
@@ -125,10 +138,13 @@ __all__ = [
     "WireValue",
     "WireValueKind",
     "answer_wire_value",
+    "bound_data_element_uids",
     "build_conversion_context",
     "build_form_spec",
     "build_option_table",
+    "build_project_context",
     "decimal_wire_value",
+    "load_compiled_artifacts",
     "resolve_option",
     "resolve_organisation_unit",
     "translate_aggregate_response",
