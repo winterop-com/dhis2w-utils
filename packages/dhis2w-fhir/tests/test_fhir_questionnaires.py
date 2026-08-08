@@ -1274,7 +1274,7 @@ async def test_generate_full_without_selection_tables_still_emits_questionnaires
     mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """`generate all` on a project with no selection tables generates for the whole instance."""
+    """A full run on a project with no selection tables generates for the whole instance."""
     mock_system_info("v42")
     mock_attributes()
     await _scaffold_project(tmp_path)

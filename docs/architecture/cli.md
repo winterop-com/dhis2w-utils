@@ -93,6 +93,18 @@ Output is written to stderr so `d2w -d route list > routes.json` still produces 
 
 Commands that kick off async DHIS2 jobs (`analytics refresh`, `maintenance dataintegrity run`, `maintenance task watch`) take `--watch/-w` to poll the task to completion. The shared renderer in `dhis2w_core.cli_task_watch` uses `rich.progress.Progress` with a spinner + elapsed-time column and streams each notification as it arrives, colour-coded by level (`INFO`/`WARN`/`ERROR`). The Rich console writes to stderr so stdout stays free when piping.
 
+## Output channels
+
+One rule across every plugin: **narration goes to stderr, data goes to stdout.** Rich tables (`render_detail` / `render_list`), note and hint lines, progress displays, and the debug HTTP log all print to `dhis2w_core.rich_console.STDERR_CONSOLE`; stdout carries the `--json` payload and nothing else. So `d2w --json fhir generate > ig.json` is a clean document while the terminal still shows what the run did, and `d2w metadata list ... | jq` never needs a filter for a stray table row.
+
+`--json` also implies a quiet stderr for the commands that narrate: a run in JSON mode builds no progress reporter, so a caller reading the payload off a pipe is not racing a spinner on the other stream.
+
+## Step progress
+
+Long-running commands narrate their steps through `dhis2w_core.progress`. The `ProgressReporter` protocol is `start(total, *, activity)` / `step(index, total, label)` / `complete(index, total, label, summary, *, style)` / `finish(summary)` / `stop()`, and takes pre-formatted strings, so no domain vocabulary lives in the shared module. `make_reporter(STDERR_CONSOLE, animated=animated_progress(enabled))` picks between `RichProgressReporter` (a transient spinner with a `Step k/N` caption, for a TTY) and `PlainLogReporter` (one `[k/N] label: summary` line per step, which is what a CI log wants).
+
+The service layer takes `reporter: ProgressReporter | None` and only announces; the CLI command owns `start`, the optional closing `finish`, and a `stop()` in a `finally` so a failure cannot leave a Live display's refresh thread running. A `None` reporter is the quiet path - `--no-progress`, or `--json` - and the service treats it as announcing to nothing.
+
 ## Profile resolution
 
 Each command resolves a `Profile` via `profile_from_env()` at invocation time. That reads:

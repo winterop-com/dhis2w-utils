@@ -56,9 +56,9 @@ models and ship no templates.
 | --- | --- |
 | `__init__.py` | The one stable import surface: re-exports every component symbol with an explicit `__all__`. |
 | `plugin.py` | The `dhis2.plugins` entry-point descriptor - `register_cli` mounts `d2w fhir`, `register_mcp` registers `fhir_*`. |
-| `cli.py` | The Typer sub-app: `init` (including its `--refresh` mode), the seven `generate` sub-commands plus `generate load`, `validate`, and `serve` - the last guarding its `dhis2w_fhir_serve` import so an install without the `serve` extra gets an install instruction rather than an `ImportError`. |
+| `cli.py` | The Typer sub-app: `init` (including its `--refresh` mode), the bare `generate` and its seven named targets plus `generate load-set`, `validate`, and `serve` - the last guarding its `dhis2w_fhir_serve` import so an install without the `serve` extra gets an install instruction rather than an `ImportError`. |
 | `mcp.py` | The FastMCP registration - one tool, `fhir_validate`, annotated `readOnlyHint`. |
-| `service.py` | Orchestration: profile resolution, every DHIS2 fetch, the wire-to-projection mapping, geometry, and `GenerateReport` / `GenerateAllReport` / `LoadSetReport`. `fetch_live_ig_inputs` is the one cohesive fetch a live server runs, and `generate_load_set` the volume twin of `generate_examples`. |
+| `service.py` | Orchestration: profile resolution, every DHIS2 fetch, the wire-to-projection mapping, geometry, and `GenerateReport` / `GenerateFullReport` / `LoadSetReport`. `fetch_live_ig_inputs` is the one cohesive fetch both `generate_full` and a live server run, and `generate_load_set` the volume twin of `generate_examples`. |
 | `config.py` | The `fhir.toml` document (`IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`, `FhirProject`) plus discovery, load, and save. |
 | `writer.py` | The generated-artifact contracts (`FshArtifact`, `FshBuild`, `JsonArtifact`, `JsonBuild`, `SyncReport`), the header-aware sync behind the FSH one, and the directory-owning `sync_json_artifacts` behind the JSON one. |
 | `r4/schemas.py` | The FHIR R4 models every pre-built JSON document is serialised from. The R4 roots: `FhirBase` (the pydantic carrier - frozen, alias-aware, `extra="forbid"` - not a FHIR type), `Element`, `BackboneElement`, `Resource`, `DomainResource`. The resources: `Organization`, `Location`, `CodeSystem`, `ValueSet`, `Questionnaire`, `QuestionnaireResponse`, `Bundle`, `OperationOutcome`, `CapabilityStatement`, and `JsonResource` (a resource carried verbatim, which is how a Bundle entry holds a document the facade passes through). The datatypes: `Meta`, `Identifier`, `Coding`, `CodeableConcept`, `Reference`, `ContactPoint`, `HumanName`, `Attachment`, `Extension`. The backbone elements: `OrganizationContact`, `LocationPosition`, `CodeSystemProperty`, `CodeSystemConcept`, `CodeSystemConceptProperty`, `CodeSystemConceptDesignation`, `ValueSetCompose`, `ValueSetInclude`. Plus `BOUNDARY_EXTENSION_URL`. |
@@ -84,7 +84,7 @@ models and ship no templates.
 | `resources/questionnaires/documents.py` | The JSON twin of the FSH emitter: `build_questionnaire_documents` and `build_data_dictionary_documents` return finished R4 documents with every name already absolute, through the same exported decisions (`item_type`, `is_disaggregated`, `source_description`, `source_program`, `FormKindProfile` / `FORM_KIND_PROFILES`) the FSH path calls. `test_fhir_questionnaire_parity.py` gates the equality against SUSHI output. |
 | `resources/questionnaires/schemas.py` | `TargetSelection`, `NumericBounds`, `CategoryOptionComboIn`, `CategoryComboIn`, `QuestionnaireItemIn`, `QuestionnaireSectionIn`, `QuestionnaireSourceIn`, `QuestionnaireNaming`, the `FormKind` alias. |
 | `resources/examples/__init__.py` | The `Usage: #example` QuestionnaireResponse per example, `build_synthetic_responses`, `answer_element`, `zoned_date_time`, `response_status_code`, and the whole answer-typing layer. |
-| `resources/examples/documents.py` | `build_example_documents` - the same responses as finished `QuestionnaireResponse` documents, which is what `d2w fhir generate load` writes into `load/`. |
+| `resources/examples/documents.py` | `build_example_documents` - the same responses as finished `QuestionnaireResponse` documents, which is what `d2w fhir generate load-set` writes into `load/`. |
 | `resources/examples/schemas.py` | `ExampleSelection`, `ExampleAnswerIn`, `ExampleResponseIn`, `ExampleSource`, `MAXIMUM_EXAMPLES_PER_TARGET`. |
 | `resources/organisation_units/__init__.py` | Re-exports the five org-unit builders, `REGISTRY_DIRECTORY`, and `BOUNDARY_CONTENT_TYPE`. |
 | `resources/organisation_units/naming.py` | `OrganisationUnitNaming` and `OrganisationUnitInstanceUrls` - every org-unit artifact name, id, and instance URL from the naming tokens. A leaf, which is why `foundation/` can read it without a cycle. |
@@ -126,7 +126,7 @@ Every command and every flag, from `cli.py`.
 | `--sushi-timeout` | `1800` | Seconds written to `[FSH] timeout` of `ig/fsh.ini`, the ceiling the publisher gives its embedded SUSHI run. An IG whose FSH overruns it fails the build with exit 143. |
 | `--max-level` | unset | Deepest organisation-unit level, seeding `[generate.organisation_units] max_level`. The dial on the registry's share of the publisher's rendering pass. Below 1 is a `typer.BadParameter`. |
 | `--data-set` | none | Repeatable data set UID seeding `[generate.data_sets] include_ids`. Offline - never checked against an instance. |
-| `--event` | none | Repeatable event program UID seeding `[generate.event_programs] include_ids`. Offline. |
+| `--event-program` | none | Repeatable event program UID seeding `[generate.event_programs] include_ids`. Offline. |
 | `--tracker-program` | none | Repeatable tracker program UID seeding `[generate.tracker_programs] include_ids`, which emits one Questionnaire per program stage. Offline. |
 | `--force` | off | Overwrite scaffold files that already exist. Without it, existing files are reported as skipped. |
 | `--refresh` | off | Re-render the scaffold for an existing project, writing a file only where the render reproduces every line already on disk. Identity comes off the project itself; `fhir.toml` is never written. Passing it with `--force` is a `typer.BadParameter`. |
@@ -141,23 +141,26 @@ scaffold line the user deliberately deleted leaves the file a subsequence of the
 render, so a refresh restores it. A directory with no `fhir.toml` exits 1 with
 `NoFhirProjectError`.
 
-**`d2w fhir generate <target>`** - seven sub-commands, none taking a flag of its
-own: `foundation`, `option-sets`, `categories`, `questionnaires`, `examples`,
-`org-units`, `pages`, and `all` (which runs the seven in that order and prints
-seven reports). Every one of them calls `load_project()` and then
-`service.resolve_generation_profile(project)`. `--json` (the global
-`is_json_output()` switch) dumps the report model instead of the Rich table.
+**`d2w fhir generate`** - bare, it runs the whole pipeline off one client and one
+`fetch_live_ig_inputs`, and renders one summary row per target. Naming a target runs
+that one alone: `foundation`, `option-sets`, `categories`, `questionnaires`,
+`examples`, `org-units`, `pages`. The bare run is a Typer callback with
+`invoke_without_command=True`, so its `--progress/--no-progress` sits before the
+target name and each target carries its own after it. Every one of them calls
+`load_project()` and then `service.resolve_generation_profile(project)`. `--json`
+(the global `is_json_output()` switch) dumps the report model to stdout instead of
+the Rich table, and silences stderr with it.
 
-**`d2w fhir generate load`** - the eighth target, and the one `all` does not run.
+**`d2w fhir generate load-set`** - the eighth target, and the one a full run does not write.
 
 | Flag | Default | Effect |
 | --- | --- | --- |
 | `--per-target` | `25` (`DEFAULT_LOAD_SET_PER_TARGET`) | Synthetic responses per questionnaire target. Below 1 is refused by Typer's `min=1`. |
-| `--directory` | the project root | Where the `load/` corpus is written, for a caller filling a scratch directory. |
+| `--output-dir` | the project root | Where the `load/` corpus is written, for a caller filling a scratch directory. |
 
 It writes finished `QuestionnaireResponse` JSON rather than FSH, seeded from the
 target UID and the ordinal so a rerun over unchanged metadata is byte-identical.
-It stays out of `generate all` deliberately: a load set is a corpus to POST at a
+It stays out of the full run deliberately: a load set is a corpus to POST at a
 running facade, not IG source, so it lands beside `ig/` and the scaffold
 gitignores it.
 
@@ -169,7 +172,7 @@ facade. `DIRECTORY` defaults to `.`.
 | `--live` | off | Build the served resources off a DHIS2 instance at startup instead of reading the compiled IG. Also skips the compiled-IG preflight. |
 | `--host` | `127.0.0.1` | Interface to bind. Loopback by default: the facade has no authentication. |
 | `--port` | `8080` | Port to listen on. |
-| `--profile` / `-p` | unset | The DHIS2 profile the `--live` store reads from. Ignored without `--live`. |
+| (profile) | the root `d2w -p` | The DHIS2 profile the `--live` store reads from - the root flag, `DHIS2_PROFILE`, then the `profile` key of fhir.toml. `--live` resolves it before the start banner. |
 | `--strict-codes` | off | Refuse a received answer whose code is outside the served terminology, instead of recording a warning. |
 
 The command body guards its import of `dhis2w_fhir_serve` and raises a
@@ -183,11 +186,12 @@ owns. `KeyboardInterrupt` exits 0: ctrl-c is how a server is stopped.
 
 | Flag | Default | Effect |
 | --- | --- | --- |
-| `--report` | `reports/fhir-validate-report` under the project root, else the working directory | Report path **stem**, without extension. The parent is created. |
+| `--output-dir` | `reports/` under the project root, else the working directory | The **directory** the report files are written into, created if absent. Each file is named `fhir-validate-report`. |
 | `--format` | `md,csv,pdf` | Comma list, parsed by `_parse_report_formats` against `_REPORT_FORMATS = ("md", "csv", "pdf")`; unknown or empty is a `typer.BadParameter`. Written in that fixed order regardless of the order given. |
-| `--code-source` | unset | `id` or `code`, overriding `[generate] concept_code_source` for this run. Anything else is a `typer.BadParameter`. |
-| `--all` | off | List info-level findings individually instead of rolled up per category. |
-| `--no-fail` | off | Exit 0 even when errors are found. Without it, `report.error_count > 0` exits 1. |
+| `--code-source` | unset | `id` or `code`, overriding `[generate] concept_code_source` for this run. Enumerated, so anything else is a usage error naming the flag. |
+| `--details` | off | List info-level findings individually instead of rolled up per category. |
+| `--fail` / `--no-fail` | `--fail` | `--fail` exits 1 when `report.error_count > 0`; `--no-fail` exits 0 and drops the red count line with it. |
+| `--progress` / `--no-progress` | `--progress` | Narrate the four steps on stderr. `--json` implies `--no-progress`. |
 
 `validate` does not require a `fhir.toml`: `resolve_validation_context` catches
 `NoFhirProjectError` and falls back to the environment or the default profile
@@ -257,7 +261,7 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 
 | Path | What it is |
 | --- | --- |
-| `fhir.toml` | The minimal committed config - the profile pointer, `[ig]`, and the seeded target lists when `--data-set` / `--event` / `--tracker-program` were given. |
+| `fhir.toml` | The minimal committed config - the profile pointer, `[ig]`, and the seeded target lists when `--data-set` / `--event-program` / `--tracker-program` were given. |
 | `fhir.toml.example` | Every option with its default, documented. |
 | `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` (JSON only), the `path-resource` globs for `input/resources/registry/*`, `input/resources/terminology/*`, and `input/resources/categories/*` (SUSHI recurses into those sub-folders, the IG Publisher does not, so a missing glob drops that sub-folder from the published guide), and the eight-entry `menu:`. No `pages:` and no `groups:`. Also the one file recording the publisher URL and the copyright year, which is why a refresh reads its inputs from it. |
 | `ig/ig.ini` | `template = fhir2.base.template`, pointing at the compiled ImplementationGuide JSON. |
@@ -351,16 +355,17 @@ itself additionally calls `/api/system/info` on connect to bind the version tree
 | `/api/dataValueSets` | `generate examples` with `source = "instance"` | `get_raw` with `dataSet`, `orgUnit`, `children=true`, `period`, walking `recent_periods(periodType, 6, today)` newest-first. |
 | `/api/tracker/events` | `generate examples` with `source = "instance"` | `get_raw` with `pageSize`, `order=occurredAt:desc`, and either `program` + `_EXAMPLE_EVENT_FIELDS` for an event program or `program` + `programStage` + `_EXAMPLE_TRACKER_EVENT_FIELDS` for a tracker stage. DHIS2 demands the program beside the stage (BUGS.md #67). |
 
-Note the shape of `generate all`: it opens and closes a client per target,
-`/api/optionSets` is fetched by four of the seven targets, and `/api/attributes`
-by four. That is a seam Dimension A owns.
+Note the shape of the named targets: each opens and closes a client of its own,
+`/api/optionSets` is fetched by four of the seven, and `/api/attributes` by four.
 
-Two callers read the same endpoints through one client rather than seven.
-`fetch_live_ig_inputs` is the cohesive fetch behind `d2w fhir serve --live`: option
-sets, categories, organisation units, questionnaire sources, the identity plan, and
-the attribute-code join, over a single connection held for the whole startup fetch and
-closed before the first request. `generate_load_set` behind `d2w fhir generate load`
-reads the example inputs the same way.
+Three callers read the same endpoints through one client instead.
+`fetch_live_ig_inputs` is the cohesive fetch behind both the bare `d2w fhir generate`
+and `d2w fhir serve --live`: option sets, categories, organisation units,
+questionnaire sources, the identity plan, and the attribute-code join, over a single
+connection - eight requests where the seven solo targets total twenty-five. For the
+server that connection is held for the whole startup fetch and closed before the first
+request. `generate_load_set` behind `d2w fhir generate load-set` reads the example
+inputs the same way.
 
 ## 3. Settled decisions and why
 
@@ -489,7 +494,7 @@ registry, terminology, foundation - and data sets, event programs, and tracker
 program stages are
 **multiple targets inside it**, selected through `[generate.data_sets]`,
 `[generate.event_programs]`, and `[generate.tracker_programs]` `include_ids`,
-seeded offline by `d2w fhir init --data-set` / `--event` / `--tracker-program`. Cutting per-form deployables out of that
+seeded offline by `d2w fhir init --data-set` / `--event-program` / `--tracker-program`. Cutting per-form deployables out of that
 is a packaging choice for `fhir build`, not a namespace choice.
 
 ### 3.11 Example responses are synthetic by default
@@ -913,10 +918,11 @@ calendar.
 
 **Risks already suspected.**
 
-- `generate all` opens and closes a client per target
-  (`open_client` appears seven times in `service.py`), and `/api/optionSets` is
-  fetched by four of the seven with two different field lists. A server holding
-  one client and one cache is a different shape than what the code assumes.
+- The seven named generate targets open and close a client apiece, and
+  `/api/optionSets` is fetched by four of them with two different field lists. A
+  server holding one client and one cache is a different shape than what that code
+  assumes. (The bare `d2w fhir generate` answers this for the full pipeline: one
+  client, one `fetch_live_ig_inputs`, eight requests instead of twenty-five.)
 - `_fetch_option_set_identity_plan` refetches `/api/optionSets` with a narrower
   projection *and* refetches the questionnaire sources through `_closure_sources`
   when the option-set selection is non-empty. Three reads of overlapping data in
@@ -928,7 +934,7 @@ calendar.
   with no locking. Two concurrent generate calls against one project interleave.
 - `is_generated_file` reads a whole file to look at its first line, on every
   swept file, on every run.
-- Partial failure: `generate all` awaits six targets in sequence with no
+- Partial failure: a full run awaits seven targets in sequence with no
   transaction. A failure in `generate examples` leaves `foundation`,
   `terminology`, and the three questionnaire directories already rewritten.
 - `_root_organisation_unit_uid` returns `None` when the instance has no level-1
@@ -946,8 +952,8 @@ are the record of the review:
 - **One client, startup only.** `build_live_store` opens a client, fetches the
   whole instance side through the single cohesive `fetch_live_ig_inputs`, and
   closes it before the first request. No request path holds a DHIS2 connection,
-  which is also why the seven-`open_client` shape of `generate all` never becomes
-  a server problem.
+  which is also why the per-target `open_client` shape of the named targets never
+  becomes a server problem.
 - **The store is immutable and shared.** Frozen models, indexes built once in
   `model_post_init`, reads that are dict lookups - concurrency needs no locking
   on the read side, and nothing invalidates the store because nothing can: it is
@@ -1084,9 +1090,9 @@ copies. A below-floor fallback would be the first thing to test that claim.
 
 **Risks already suspected.**
 
-- **`generate all` on a large instance is a long serial chain of unpaged reads**
-  with a client opened and closed per target. Any one of them timing out loses
-  the whole target.
+- **A full run on a large instance is a long serial chain of unpaged reads.** It
+  holds one client across the whole fetch, so a timeout in it loses the run rather
+  than one target.
 - **The instance-sourced example path walks up to six periods per data set,**
   each a separate `/api/dataValueSets` call with `children=true` under the root
   org unit. On a data set with many periods and no data, that is six full-tree
@@ -1234,7 +1240,7 @@ what kind of bug this codebase produces.
 any run against the play instance, because the play instance's data never
 exercised them - no option set collided a code with a peer's UID, no metadata
 name held a pipe, no data value carried `NaN`. Only constructed fixtures found
-them. A review that only re-runs `generate all` against a demo instance and
+them. A review that only re-runs `d2w fhir generate` against a demo instance and
 reads the QA summary will find nothing in this class.
 
 ## 8. Build and performance facts
@@ -1245,7 +1251,7 @@ are and are not worth pulling. The full step-by-step table lives in the
 repeated here.
 
 **Generation is not the cost.** On the Sierra Leone demo (171 option sets, 2,664
-registry instances, 3,101 resources in all), `d2w fhir generate all` is 16s and
+registry instances, 3,101 resources in all), `d2w fhir generate` is 16s and
 `d2w fhir validate` is 7s. A national instance is larger: on the uncapped Lao
 instance `generate` writes the full output in a few minutes.
 
@@ -1328,7 +1334,7 @@ commitment.
     /QuestionnaireResponse` validates a submission against the served IG in
     phases and stores it as a receipt - the submission as it arrived, mirrored to
     `.serve/responses/received/`. Reading one back says what was submitted, not
-    what DHIS2 holds. `d2w fhir generate load` writes the corpus to exercise it.
+    what DHIS2 holds. `d2w fhir generate load-set` writes the corpus to exercise it.
 
     Dimension A of section 6 de-risked this item; its outcomes are recorded there.
 
@@ -1420,7 +1426,7 @@ commitment.
   there is a cheaper way to ask `/api/metadata` for them than fetching every
   object's full translation list.
 - **Instance-scoped project identity.** `d2w fhir init --data-set <uid>` /
-  `--event <uid>` / `--tracker-program <uid>` seed the target lists offline today. Deriving the IG identity
+  `--event-program <uid>` / `--tracker-program <uid>` seed the target lists offline today. Deriving the IG identity
   (id, canonical, title) from the instance and its named targets on first init
   needs a live call, which `init` deliberately does not make yet.
 - **Data layer beyond the examples.** `generate examples` already maps a data

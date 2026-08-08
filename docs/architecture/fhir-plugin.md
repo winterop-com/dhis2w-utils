@@ -9,6 +9,7 @@ resources are generated from `/api/optionSets`, `/api/categories`,
 ```
 d2w fhir init [DIRECTORY]           Scaffold a dockerized SUSHI IG project (--profile seeds fhir.toml)
 d2w fhir init --refresh             Bring an existing project's scaffold-managed files up to date
+d2w fhir generate                   All seven targets in one run, off a single pass over the instance
 d2w fhir generate foundation        Identifier aliases + the D2Period / D2FormType / D2AttributeValue extensions
 d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate categories        Categories -> CodeSystem/ValueSet pairs
@@ -16,8 +17,7 @@ d2w fhir generate questionnaires    Data sets + event programs + tracker stages 
 d2w fhir generate examples          Example QuestionnaireResponses against those Questionnaires
 d2w fhir generate org-units         Org units -> Organization/Location instances
 d2w fhir generate pages             Narrative site pages + per-artifact intros
-d2w fhir generate all               All seven targets in one run
-d2w fhir generate load              Synthetic QuestionnaireResponse corpus into load/ (not part of `all`)
+d2w fhir generate load-set          Synthetic QuestionnaireResponse corpus into load/ (not IG source)
 d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
 d2w fhir serve                      Serve the IG as a FHIR read + capture facade (package dhis2w-fhir-serve)
 ```
@@ -812,6 +812,51 @@ extensions hang from, and built by `i18n.translated_element`. Only `NAME` is
 emitted. The deep option-set validation pass suffixes a finding's name with the subject's first matching
 translation; the instance-wide sweep does not fetch translations at all.
 
+## The full pipeline: one fetch, seven emitters
+
+Bare `d2w fhir generate` calls `service.generate_full`, which is the whole IG on one
+client. Each target is split in two: an `_emit_*` function that takes already-fetched
+inputs and owns the build plus the sync, and a `generate_*` coroutine that fetches for
+itself and calls it. The solo commands keep their own fetches verbatim, so
+`d2w fhir generate option-sets` behaves exactly as it always did; `generate_full` opens
+one client, runs `fetch_live_ig_inputs` once, and hands the result to all seven emitters.
+
+That collapses the duplicated reads the seven solo commands perform between them: the
+option sets are read once instead of five times, `/api/attributes` once instead of four,
+the organisation-unit pagination once instead of twice. **Eight requests where the solo
+targets total twenty-five.** Each emitter still keeps the notes it alone owns, so a
+target's report reads exactly as the solo command's does, and a test asserts
+`generate_full` writes a byte-identical tree to running all seven targets separately.
+
+The foundation runs first because it reads nothing at all, and the pages run last
+because they narrate what the other targets wrote.
+
+### Progress
+
+Every service function with an instance behind it takes `reporter: ProgressReporter | None`
+from `dhis2w_core.progress` and announces its phases through a `_StepAnnouncer`: a step
+opens with a label, re-captions itself with as many `tick` captions as the work warrants,
+and closes with exactly one completion line. A tick is a caption an animated display
+overwrites in place, so a fifty-page organisation-unit walk costs no more output than a
+one-page one; a completion is the durable `[k/N] label: summary` line.
+
+The service never calls `start`, `finish`, or `stop` - those bound the whole run and
+belong to the caller. `cli.py` builds the reporter (`make_reporter(STDERR_CONSOLE,
+animated=animated_progress(...))`), starts it with the run's exported step total
+(`GENERATE_FULL_STEPS`, `GENERATE_TARGET_STEPS`, `GENERATE_FOUNDATION_STEPS`,
+`VALIDATE_CODES_STEPS`), and stops it in a `finally`, so a writer error cannot leave a
+Live display's refresh thread running and the terminal corrupted. `--no-progress` and
+`--json` build no reporter at all, and the service treats a missing one as "announce to
+nothing".
+
+### Output channels
+
+Tables, notes, hints, and progress are narration and go to stderr through
+`STDERR_CONSOLE`; stdout carries the `--json` payload and nothing else. A full run
+renders one summary row per target rather than seven detail tables, with each note
+labelled by the target that raised it, because seven tables scrolled the thing worth
+reading off the screen.
+
 ## Regeneration contract
 
 Every generated file starts with a header line chosen by extension:
@@ -975,10 +1020,10 @@ signal for switching to code mode rather than a defect. The instance-wide sweep
 keeps its severities either way. `d2w fhir validate --code-source code` is the
 readiness probe for that switch.
 
-The terminal shows errors and warnings; infos roll up per category (`--all` lists
-them). Reports are written in three formats - `--report` takes a path *stem*
-(default `reports/fhir-validate-report` under the project root, gitignored by the scaffold) and `--format` a comma list
-of `md`, `csv`, `pdf`:
+The terminal shows errors and warnings; infos roll up per category (`--details`
+lists them). Reports are written in three formats into the `--output-dir`
+*directory* (default `reports/` under the project root, gitignored by the scaffold),
+each named `fhir-validate-report`, with `--format` a comma list of `md`, `csv`, `pdf`:
 
 - Markdown, grouped by resource type;
 - CSV (`severity,category,resource_type,uid,name,code,message`), for
@@ -989,7 +1034,8 @@ of `md`, `csv`, `pdf`:
   fallback (both vendored under `validation/fonts/` with their OFL licence), so
   Lao-script DHIS2 names render instead of dropping to boxes.
 
-Exit 1 on errors makes it a CI gate; `--no-fail` suppresses that. A `fhir.toml`
+Exit 1 on errors makes it a CI gate; `--fail` is the default and `--no-fail` drops
+both the exit code and the red count line with it. A `fhir.toml`
 is not required - validation targets the instance. MCP's `fhir_validate` takes
 the same `code_source` and returns the report; writing files stays CLI-only.
 
@@ -1017,7 +1063,7 @@ shared by the emitters that write a value and the capture path that reads one), 
 `config.py` (the `fhir.toml`
 document - `IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`,
 `FhirProject` - with discovery, load, and save). `service.py` holds the
-shared orchestration and its own `GenerateReport` / `GenerateAllReport`;
+shared orchestration and its own `GenerateReport` / `GenerateFullReport`;
 `cli.py` / `mcp.py` stay thin over it. `plugin.py` exports the descriptor
 referenced by the `dhis2.plugins` entry point; `dhis2w-cli` and `dhis2w-mcp`
 depend on the package so `d2w fhir` is present by default.
@@ -1077,7 +1123,7 @@ The components:
   normalisations and their calendar, clock, and offset checks, which live in
   `r4/primitives.py`). `documents.py` is its JSON twin: `build_example_documents` returns
   the same responses as finished `QuestionnaireResponse` documents, which is what
-  `d2w fhir generate load` writes into `load/`. It depends on `resources/questionnaires/`
+  `d2w fhir generate load-set` writes into `load/`. It depends on `resources/questionnaires/`
   for the source projection and naming, never the other way round.
 - `resources/pages/` - the narrative markdown layer: the six site pages, the
   per-artifact intros, `PagesIn` (the fetched-input view the pages render from),
@@ -1243,7 +1289,7 @@ one-shot CLI process. The facade answers it by construction rather than by harde
 - **The profile is resolved once.** `resolve_generation_profile` reads `os.environ` at
   call time, which is a different thing in a process that lives for hours. Live mode
   calls it exactly once, in the lifespan, before any request exists.
-- **One client, startup only.** `generate all` opens and closes a client per target;
+- **One client, startup only.** A named generate target opens and closes a client of its own;
   `build_live_store` opens one, fetches everything through `fetch_live_ig_inputs`, and
   closes it before the first request. No request path holds a DHIS2 connection.
 - **The store is immutable and shared.** Frozen models, indexes built once in

@@ -9936,7 +9936,7 @@ $ d2w fhir [OPTIONS] COMMAND [ARGS]...
 * `init`: Scaffold a dockerized SUSHI IG project...
 * `validate`: Check the instance&#x27;s codes for...
 * `serve`: Serve the project&#x27;s IG as a FHIR read and...
-* `generate`: Generate FSH files from DHIS2 metadata...
+* `generate`: Generate the whole IG source from DHIS2...
 
 ### `d2w fhir init`
 
@@ -9959,13 +9959,13 @@ $ d2w fhir init [OPTIONS] [directory]
 * `--name <str>`: SUSHI name (default: derived from --id).
 * `--title <str>`: IG title (default: derived from --name).
 * `--publisher <str>`: Publisher name.  [default: Example Organisation]
-* `--status <str>`: IG life cycle, draft or active. Drives the sushi-config status and the status and experimental flag on every generated definitional resource.  [default: draft]
+* `--status <draft|active>`: IG life cycle. Drives the sushi-config status, and the status and experimental flag on every generated definitional resource.  [default: draft]
 * `--publisher-url <str>`: Publisher home page. Omit it unless you have a real site: the IG publisher links it from every generated page, and pointing it at the canonical yields one broken link per page.
 * `--profile <str>`: DHIS2 profile to seed the `profile` key of the scaffolded fhir.toml with, so `d2w fhir generate` reads that instance without a flag. Offline: the name is written as given, never resolved against profiles.toml.
-* `--sushi-timeout <int>`: Seconds the IG publisher gives its internal SUSHI run, written to `[FSH] timeout` of ig/fsh.ini. The registry ships as pre-built JSON and never reaches SUSHI, so this bounds the FSH targets: an IG whose SUSHI run overruns the ceiling fails the build with exit 143.  [default: 1800]
-* `--max-level <int>`: Deepest organisation-unit level to generate, seeding `[generate.organisation_units]` max_level. Every unit emits two instances and a hierarchy fans out at the bottom, so this is the dial that bounds how many resources the IG publisher renders. Offline: the level is written to fhir.toml as given, never checked against an instance.
+* `--sushi-timeout <int>`: Seconds the IG publisher gives its internal SUSHI run, written to `[FSH] timeout` of ig/fsh.ini. It bounds the FSH targets alone - the registry and the terminology ship as pre-built JSON - and an overrun fails the build with exit 143.  [default: 1800]
+* `--max-level <int>`: Deepest organisation-unit level to generate, seeding `[generate.organisation_units]` max_level. A hierarchy fans out at the bottom and every unit emits two instances, so this is the dial that bounds how much the IG publisher renders. Offline: written as given.
 * `--data-set <str>`: Data set UID to seed `[generate.data_sets]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
-* `--event <str>`: Event program UID to seed `[generate.event_programs]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
+* `--event-program <str>`: Event program UID to seed `[generate.event_programs]` include_ids with (repeatable). Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--tracker-program <str>`: Tracker program UID to seed `[generate.tracker_programs]` include_ids with (repeatable); the program emits one Questionnaire per program stage. Offline: the UID is written to fhir.toml as given, never checked against an instance.
 * `--force`: Overwrite scaffold files that already exist.
 * `--refresh`: Bring an existing project&#x27;s scaffold-managed files up to date. Identity comes from the project&#x27;s own fhir.toml, which a refresh never writes, and a file carrying a line the scaffold would not produce is left alone and reported, so your edits survive. Rejects --force.
@@ -9973,7 +9973,7 @@ $ d2w fhir init [OPTIONS] [directory]
 
 ### `d2w fhir validate`
 
-Check the instance&#x27;s codes for FHIR-safety; writes md/csv/pdf reports grouped by type. Exits 1 on errors.
+Check the instance&#x27;s codes for FHIR-safety, writing md/csv/pdf reports grouped by type.
 
 **Usage**:
 
@@ -9983,20 +9983,23 @@ $ d2w fhir validate [OPTIONS]
 
 **Options**:
 
-* `--report <file>`: Report path stem, without extension (default: reports/fhir-validate-report under the project root or current directory).
+* `--output-dir <directory>`: Directory to write the report files into, one per format, all named fhir-validate-report (default: reports/ under the project root, else the working directory).
 * `--format <str>`: Comma-separated report formats to write: md, csv, pdf.  [default: md,csv,pdf]
-* `--code-source <str>`: Override `[generate]` concept_code_source for this run: id or code. In id mode the option code findings are informational; run with code to see what switching would cost.
-* `--all`: List info-level findings individually instead of rolled up.
-* `--no-fail`: Exit 0 even when errors are found.
+* `--code-source <id|code>`: Override `[generate]` concept_code_source for this run. In id mode the option code findings are informational; run with code to see what switching would cost.
+* `--details`: List info-level findings individually instead of rolled up.
+* `--fail / --no-fail`: Exit 1 when errors are found.  [default: fail]
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
 ### `d2w fhir serve`
 
 Serve the project&#x27;s IG as a FHIR read and capture facade over HTTP.
 
-Reads answer from what the IG publishes. Received QuestionnaireResponses are stored as
-receipts - submissions as they arrived - so reading one back says what was submitted, not
-what DHIS2 holds. `--live` builds the served resources from the instance at startup.
+Reads answer from what the IG publishes.
+
+Received QuestionnaireResponses are stored as receipts, so reading one back says what was submitted.
+
+`--live` builds the store from the instance at startup, as the profile `d2w -p` names.
 
 **Usage**:
 
@@ -10013,13 +10016,18 @@ $ d2w fhir serve [OPTIONS] [directory]
 * `--live`: Build the served resources from a DHIS2 instance at startup instead of reading the compiled IG off disk. One client is opened during startup and closed before the first request, so the store is a snapshot of the instance the server started against.
 * `--host <str>`: Interface to bind. The default is loopback: the facade has no authentication, so reaching it from another host is a deliberate act.  [default: 127.0.0.1]
 * `--port <int>`: Port to listen on.  [default: 8080]
-* `-p, --profile <str>`: DHIS2 profile the --live store reads from. Ignored without --live.
 * `--strict-codes`: Refuse a received answer whose code is outside the served terminology. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
 * `--help`: Show this message and exit.
 
 ### `d2w fhir generate`
 
-Generate FSH files from DHIS2 metadata into the nearest FHIR project.
+Generate the whole IG source from DHIS2 metadata, or one named target of it.
+
+Bare `d2w fhir generate` runs every target off a single pass over the instance.
+
+The foundation runs first because it reads nothing, the pages last because they narrate the rest.
+
+Name a target to run that one alone; the flag here belongs to the bare run.
 
 **Usage**:
 
@@ -10029,6 +10037,7 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 
 **Options**:
 
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
 **Commands**:
@@ -10040,8 +10049,7 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 * `examples`: Generate example QuestionnaireResponses...
 * `org-units`: Generate Organization/Location FSH from...
 * `pages`: Generate the narrative site pages and the...
-* `all`: Generate the foundation, terminology,...
-* `load`: Write a synthetic QuestionnaireResponse...
+* `load-set`: Write a synthetic QuestionnaireResponse...
 
 #### `d2w fhir generate foundation`
 
@@ -10055,6 +10063,7 @@ $ d2w fhir generate foundation [OPTIONS]
 
 **Options**:
 
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
 #### `d2w fhir generate option-sets`
@@ -10069,6 +10078,7 @@ $ d2w fhir generate option-sets [OPTIONS]
 
 **Options**:
 
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
 #### `d2w fhir generate categories`
@@ -10083,14 +10093,16 @@ $ d2w fhir generate categories [OPTIONS]
 
 **Options**:
 
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
 #### `d2w fhir generate questionnaires`
 
 Generate Questionnaire FSH into data-sets/, event-programs/, tracker-programs/, and data-dictionary/.
 
-A data set and an event program are one Questionnaire each; a tracker program is one
-Questionnaire per program stage, filed under the UID of the program it belongs to.
+A data set and an event program are one Questionnaire each.
+
+A tracker program is one Questionnaire per program stage, filed under its program&#x27;s UID.
 
 **Usage**:
 
@@ -10100,6 +10112,7 @@ $ d2w fhir generate questionnaires [OPTIONS]
 
 **Options**:
 
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
 #### `d2w fhir generate examples`
@@ -10114,6 +10127,7 @@ $ d2w fhir generate examples [OPTIONS]
 
 **Options**:
 
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
 #### `d2w fhir generate org-units`
@@ -10128,6 +10142,7 @@ $ d2w fhir generate org-units [OPTIONS]
 
 **Options**:
 
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
 #### `d2w fhir generate pages`
@@ -10142,40 +10157,26 @@ $ d2w fhir generate pages [OPTIONS]
 
 **Options**:
 
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
-#### `d2w fhir generate all`
-
-Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages.
-
-The questionnaire pass covers all four directories: data-sets/, event-programs/,
-tracker-programs/ (one file per stage, under its program&#x27;s UID), and data-dictionary/.
-
-**Usage**:
-
-```console
-$ d2w fhir generate all [OPTIONS]
-```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-#### `d2w fhir generate load`
+#### `d2w fhir generate load-set`
 
 Write a synthetic QuestionnaireResponse corpus into load/ for posting at a running `d2w fhir serve`.
 
-A load set is test data, not IG source: it lands beside `ig/` rather than inside it, the
-scaffold gitignores it, and `d2w fhir generate all` does not write it.
+A load set is test data, not IG source: it lands beside `ig/` rather than inside it.
+
+The scaffold gitignores it, and `d2w fhir generate` never writes it.
 
 **Usage**:
 
 ```console
-$ d2w fhir generate load [OPTIONS]
+$ d2w fhir generate load-set [OPTIONS]
 ```
 
 **Options**:
 
 * `--per-target <int range>`: How many synthetic responses each questionnaire target contributes.  [default: 25; x&gt;=1]
-* `--directory <directory>`: Where to write the `load/` corpus (default: the project root).
+* `--output-dir <directory>`: Directory to write the `load/` corpus into (default: the project root).
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.

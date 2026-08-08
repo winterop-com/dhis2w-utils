@@ -235,10 +235,13 @@ d2w files           File management
 
 d2w fhir            FHIR IG generation (SUSHI/FSH + pre-built JSON, package dhis2w-fhir)
   init                  Scaffold a dockerized SUSHI IG project + fhir.toml
-                        (--data-set / --event / --tracker-program seed the
-                        questionnaire targets; --refresh updates an existing
+                        (--data-set / --event-program / --tracker-program seed
+                        the questionnaire targets; --refresh updates an existing
                         project's scaffold-managed files, rewriting only where no
-                        line on disk is lost)
+                        line on disk is lost, and refuses any flag it would ignore)
+  generate              All seven targets in one run, off a single pass over the
+                        instance (8 requests where the solo targets total 25),
+                        reported as one summary row per target
   generate foundation   DHIS2 identifier aliases + the D2Period / D2FormType /
                         D2AttributeValue / D2OrganisationUnit /
                         D2TrackerEnrollment extensions
@@ -251,17 +254,25 @@ d2w fhir            FHIR IG generation (SUSHI/FSH + pre-built JSON, package dhis
   generate examples     Example QuestionnaireResponses (synthetic or real instance data)
   generate org-units    Org units as Organization/Location instances
   generate pages        Narrative site pages + per-artifact intros (markdown)
-  generate all          All seven targets in one run
-  generate load         Synthetic QuestionnaireResponse JSON under load/ for
-                        posting at a running facade (--per-target; deliberately
-                        not part of generate all - a load set is not IG source)
+  generate load-set     Synthetic QuestionnaireResponse JSON under load/ for
+                        posting at a running facade (--per-target, --output-dir;
+                        deliberately not part of a full run - a load set is not
+                        IG source)
   validate              FHIR-safety of the instance's codes (sweep + two deep
-                        passes + md/csv/pdf reports)
+                        passes + md/csv/pdf reports written into --output-dir;
+                        --details lists info findings, --fail/--no-fail gates
+                        the exit code)
   serve                 Serve the IG as a FHIR read + capture facade (package
                         dhis2w-fhir-serve, via the dhis2w-cli[serve] extra;
                         --live builds the store off the instance at startup,
                         --strict-codes refuses codes outside the served
-                        terminology; stored responses are receipts)
+                        terminology; stored responses are receipts; the profile
+                        is the root d2w -p, resolved before the start banner)
+
+  Every command with an instance behind it narrates its steps on stderr - a
+  spinner on a terminal, plain [k/N] lines when redirected - and takes
+  --progress/--no-progress. Tables, notes, and progress are stderr; stdout
+  carries the --json payload alone, so --json implies a silent stderr.
 
 d2w messaging       Internal messaging
   list | get | send | reply | delete

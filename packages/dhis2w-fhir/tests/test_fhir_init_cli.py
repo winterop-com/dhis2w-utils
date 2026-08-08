@@ -50,7 +50,7 @@ def test_init_force_overwrites(workdir: Path) -> None:
 
 
 def test_init_seeds_data_definition_targets(workdir: Path) -> None:
-    """Repeatable `--data-set` / `--event` / `--tracker-program` seed the include lists, with no instance call."""
+    """Repeatable `--data-set` / `--event-program` / `--tracker-program` seed the include lists, offline."""
     import tomllib
 
     result = _runner.invoke(
@@ -63,7 +63,7 @@ def test_init_seeds_data_definition_targets(workdir: Path) -> None:
             "BfMAe6Itzgt",
             "--data-set",
             "Nyh6laLdBEJ",
-            "--event",
+            "--event-program",
             "VBqh0ynB2wv",
             "--tracker-program",
             "IpHINAT79UW",
@@ -102,7 +102,7 @@ def test_init_seeds_profile(workdir: Path) -> None:
     assert result.exit_code == 0, result.output
     raw = tomllib.loads((workdir / "project" / "fhir.toml").read_text(encoding="utf-8"))
     assert raw["profile"] == "sldemo"
-    assert "next: run `d2w fhir generate all` (profile `sldemo`)" in result.output
+    assert "next: run `d2w fhir generate` (profile `sldemo`)" in result.output
 
 
 def test_init_without_profile_leaves_key_commented(workdir: Path) -> None:
@@ -251,7 +251,8 @@ def test_init_refresh_requires_an_existing_project(workdir: Path) -> None:
     result = _runner.invoke(build_app(), ["fhir", "init", "empty", "--refresh"])
 
     assert result.exit_code == 1
-    assert "d2w fhir init" in result.output
+    assert isinstance(result.exception, LookupError)
+    assert "d2w fhir init" in str(result.exception)
     assert not (workdir / "empty" / "Makefile").exists()
 
 
@@ -265,3 +266,66 @@ def test_init_refresh_json_output(workdir: Path) -> None:
     assert '"refreshed_files"' in result.output
     assert '"unchanged_files"' in result.output
     assert '"edited_files"' in result.output
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--id", "dhis2.fhir.other"),
+        ("--canonical", "http://other.example/fhir"),
+        ("--name", "OtherIg"),
+        ("--title", "Other IG"),
+        ("--publisher", "Other Organisation"),
+        ("--status", "active"),
+        ("--publisher-url", "http://other.example"),
+        ("--profile", "sldemo"),
+        ("--sushi-timeout", "5400"),
+        ("--max-level", "3"),
+        ("--data-set", "BfMAe6Itzgt"),
+        ("--event-program", "VBqh0ynB2wv"),
+        ("--tracker-program", "IpHINAT79UW"),
+    ],
+)
+def test_init_refresh_rejects_a_scaffold_content_flag(workdir: Path, flag: str, value: str) -> None:
+    """A refresh reads identity off fhir.toml, so a flag that seeds it is refused by name."""
+    _scaffold(workdir)
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh", flag, value])
+
+    assert result.exit_code != 0
+    assert flag in result.output
+
+
+def test_init_refresh_names_every_flag_it_refuses(workdir: Path) -> None:
+    """Two ignored flags are both named, so a caller fixes the invocation in one pass."""
+    _scaffold(workdir)
+
+    result = _runner.invoke(
+        build_app(), ["fhir", "init", "project", "--refresh", "--publisher", "Other", "--max-level", "3"]
+    )
+
+    assert result.exit_code != 0
+    assert "--publisher" in result.output
+    assert "--max-level" in result.output
+
+
+def test_init_refresh_labels_the_files_it_kept(workdir: Path) -> None:
+    """The summary row for an edited file says the file was kept, not that the refresh skipped work."""
+    project = _scaffold(workdir)
+    index = project / "ig" / "input" / "pagecontent" / "index.md"
+    index.write_text("# Ours\n", encoding="utf-8")
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert "edited (kept)" in result.stderr
+
+
+def test_init_renders_its_narration_on_stderr(workdir: Path) -> None:  # noqa: ARG001
+    """The scaffold table, the file lines, and the next-step hint are narration, so stdout stays free."""
+    result = _runner.invoke(build_app(), ["fhir", "init", "project"])
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == ""
+    assert "fhir init" in result.stderr
+    assert "next: set `profile` in fhir.toml, then run `d2w fhir generate`" in result.stderr

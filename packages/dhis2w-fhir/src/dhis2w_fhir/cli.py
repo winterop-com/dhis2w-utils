@@ -1,25 +1,119 @@
-"""Typer sub-app for the `fhir` plugin (mounted under `d2w fhir`)."""
+"""Typer sub-app for the `fhir` plugin (mounted under `d2w fhir`).
+
+Two output channels, one rule: every table, note, and progress line goes to
+stderr through `STDERR_CONSOLE`, and stdout carries the `--json` payload alone.
+A caller pipes stdout into `jq` without filtering anything out, and a human
+reads the narration on the terminal either way.
+"""
 
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
-from dhis2w_core.cli_output import DetailRow, is_json_output, render_detail
+from dhis2w_core.cli_output import ColumnSpec, DetailRow, is_json_output, render_detail, render_list
+from dhis2w_core.progress import animated_progress, make_reporter
+from dhis2w_core.rich_console import STDERR_CONSOLE
+from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir import DEFAULT_LOAD_SET_PER_TARGET, DEFAULT_SUSHI_TIMEOUT_SECONDS, GenerateReport, load_project
 
 if TYPE_CHECKING:
-    from dhis2w_fhir.service import GenerationProfile, LoadSetReport
-    from dhis2w_fhir.status import IgStatus
+    from collections.abc import Generator, Iterable
+
+    from dhis2w_core.progress import ProgressReporter
+
+    from dhis2w_fhir.service import GenerateFullReport, GenerationProfile, LoadSetReport
 
 app = typer.Typer(help="FHIR Implementation Guide generation from DHIS2 metadata.", no_args_is_help=True)
-generate_app = typer.Typer(
-    help="Generate FSH files from DHIS2 metadata into the nearest FHIR project.", no_args_is_help=True
-)
+generate_app = typer.Typer()
 app.add_typer(generate_app, name="generate")
+
+
+class IgStatusChoice(StrEnum):
+    """The IG life-cycle values `--status` accepts, mirroring the `IgStatus` literal."""
+
+    DRAFT = "draft"
+    ACTIVE = "active"
+
+
+class CodeSourceChoice(StrEnum):
+    """The concept code sources `--code-source` accepts, mirroring `[generate] concept_code_source`."""
+
+    ID = "id"
+    CODE = "code"
+
+
+#: The detail-table title every generate target renders under, keyed by its command name.
+_TARGET_TITLES = {
+    "foundation": "fhir generate foundation",
+    "option-sets": "fhir generate option-sets",
+    "categories": "fhir generate categories",
+    "questionnaires": "fhir generate questionnaires",
+    "examples": "fhir generate examples",
+    "org-units": "fhir generate org-units",
+    "pages": "fhir generate pages",
+    "load-set": "fhir generate load-set",
+}
+
+#: The Rich style each hint prefix carries, so a note reads as a note wherever it is printed.
+_HINT_STYLES = {"note": "yellow"}
+
+#: The basename every validation report file is written under, inside `--output-dir`.
+_VALIDATION_REPORT_STEM = "fhir-validate-report"
+
+#: The report formats `--format` accepts, in the order they are written.
+_REPORT_FORMATS = ("md", "csv", "pdf")
+
+#: The scaffold defaults `--refresh` compares against to tell an untouched flag from a given one.
+_DEFAULT_IG_ID = "dhis2.fhir.example"
+_DEFAULT_CANONICAL = "http://example.org/fhir"
+_DEFAULT_PUBLISHER = "Example Organisation"
+
+#: The flag every long-running command narrates through, declared once and reused by each of them.
+ProgressOption = Annotated[
+    bool,
+    typer.Option("--progress/--no-progress", help="Narrate each step on stderr as it completes."),
+]
+
+
+def _line(text: str) -> None:
+    """Print one plain narration line on stderr, unwrapped so a path in it stays one selectable string."""
+    STDERR_CONSOLE.print(text, markup=False, highlight=False, soft_wrap=True)
+
+
+def _hint(prefix: str, text: str, *, style: str | None = None) -> None:
+    """Print one `prefix: text` line on stderr, in the style that prefix carries unless one is given."""
+    STDERR_CONSOLE.print(
+        f"{prefix}: {text}",
+        style=style or _HINT_STYLES.get(prefix),
+        markup=False,
+        highlight=False,
+        soft_wrap=True,
+    )
+
+
+@contextmanager
+def _progress(total: int, *, enabled: bool) -> Generator[ProgressReporter | None]:
+    """Yield the reporter a run narrates its `total` steps through, torn down on every exit path.
+
+    None when the run stays quiet - `--no-progress`, or `--json`, where stderr carries nothing
+    so a caller reads the payload off stdout without filtering. The service treats a missing
+    reporter as "announce to nothing", so the same call works either way.
+    """
+    if not enabled or is_json_output():
+        yield None
+        return
+    reporter = make_reporter(STDERR_CONSOLE, animated=animated_progress(enabled))
+    reporter.start(total, activity="step")
+    try:
+        yield reporter
+    finally:
+        reporter.stop()
 
 
 @app.command("init")
@@ -27,21 +121,21 @@ def init_command(
     directory: Annotated[
         Path, typer.Argument(file_okay=False, help="Project directory (default: current directory).")
     ] = Path("."),
-    ig_id: Annotated[str, typer.Option("--id", help="IG package id.")] = "dhis2.fhir.example",
+    ig_id: Annotated[str, typer.Option("--id", help="IG package id.")] = _DEFAULT_IG_ID,
     canonical: Annotated[
         str, typer.Option("--canonical", help="Canonical base URL for the IG (no trailing slash).")
-    ] = "http://example.org/fhir",
+    ] = _DEFAULT_CANONICAL,
     name: Annotated[str | None, typer.Option("--name", help="SUSHI name (default: derived from --id).")] = None,
     title: Annotated[str | None, typer.Option("--title", help="IG title (default: derived from --name).")] = None,
-    publisher: Annotated[str, typer.Option("--publisher", help="Publisher name.")] = "Example Organisation",
+    publisher: Annotated[str, typer.Option("--publisher", help="Publisher name.")] = _DEFAULT_PUBLISHER,
     status: Annotated[
-        str,
+        IgStatusChoice,
         typer.Option(
             "--status",
-            help="IG life cycle, draft or active. Drives the sushi-config status and the status and "
-            "experimental flag on every generated definitional resource.",
+            help="IG life cycle. Drives the sushi-config status, and the status and experimental flag "
+            "on every generated definitional resource.",
         ),
-    ] = "draft",
+    ] = IgStatusChoice.DRAFT,
     publisher_url: Annotated[
         str | None,
         typer.Option(
@@ -64,8 +158,8 @@ def init_command(
         typer.Option(
             "--sushi-timeout",
             help="Seconds the IG publisher gives its internal SUSHI run, written to `\\[FSH] timeout` of "
-            "ig/fsh.ini. The registry ships as pre-built JSON and never reaches SUSHI, so this bounds the "
-            "FSH targets: an IG whose SUSHI run overruns the ceiling fails the build with exit 143.",
+            "ig/fsh.ini. It bounds the FSH targets alone - the registry and the terminology ship as "
+            "pre-built JSON - and an overrun fails the build with exit 143.",
         ),
     ] = DEFAULT_SUSHI_TIMEOUT_SECONDS,
     max_level: Annotated[
@@ -73,9 +167,8 @@ def init_command(
         typer.Option(
             "--max-level",
             help="Deepest organisation-unit level to generate, seeding `\\[generate.organisation_units]` "
-            "max_level. Every unit emits two instances and a hierarchy fans out at the bottom, so this is "
-            "the dial that bounds how many resources the IG publisher renders. Offline: the level is "
-            "written to fhir.toml as given, never checked against an instance.",
+            "max_level. A hierarchy fans out at the bottom and every unit emits two instances, so this "
+            "is the dial that bounds how much the IG publisher renders. Offline: written as given.",
         ),
     ] = None,
     data_set_ids: Annotated[
@@ -89,7 +182,7 @@ def init_command(
     event_program_ids: Annotated[
         list[str] | None,
         typer.Option(
-            "--event",
+            "--event-program",
             help="Event program UID to seed `\\[generate.event_programs]` include_ids with (repeatable). Offline: "
             "the UID is written to fhir.toml as given, never checked against an instance.",
         ),
@@ -124,13 +217,25 @@ def init_command(
             "the ones you edited, --refresh rewrites only what it can rewrite without losing your edits"
         )
     if refresh:
+        _reject_scaffold_flags(
+            ig_id=ig_id,
+            canonical=canonical,
+            name=name,
+            title=title,
+            publisher=publisher,
+            status=status,
+            publisher_url=publisher_url,
+            profile=profile,
+            sushi_timeout=sushi_timeout,
+            max_level=max_level,
+            data_set_ids=data_set_ids,
+            event_program_ids=event_program_ids,
+            tracker_program_ids=tracker_program_ids,
+        )
         _refresh_project(directory)
         return
-    if status not in {"draft", "active"}:
-        raise typer.BadParameter("status must be 'draft' or 'active'")
     if max_level is not None and max_level < 1:
-        raise typer.BadParameter("max-level must be 1 or greater")
-    ig_status: IgStatus = "active" if status == "active" else "draft"
+        raise typer.BadParameter("--max-level must be 1 or greater")
     resolved_name = name or pascal(ig_id)
     options = InitOptions(
         ig_id=ig_id,
@@ -138,7 +243,7 @@ def init_command(
         name=resolved_name,
         title=title or f"{resolved_name} Implementation Guide",
         publisher=publisher,
-        status=ig_status,
+        status="active" if status is IgStatusChoice.ACTIVE else "draft",
         publisher_url=publisher_url,
         profile=profile,
         sushi_timeout=sushi_timeout,
@@ -158,27 +263,70 @@ def init_command(
             DetailRow("created", str(len(report.created_files))),
             DetailRow("skipped", str(len(report.skipped_files))),
         ],
+        console=STDERR_CONSOLE,
     )
     for relative_path in report.created_files:
-        typer.echo(f"  created {relative_path}")
+        _line(f"  created {relative_path}")
     for relative_path in report.skipped_files:
-        typer.echo(f"  skipped {relative_path} (exists; use --force to overwrite)")
+        _line(f"  skipped {relative_path} (exists; use --force to overwrite)")
     if profile:
-        typer.secho(f"next: run `d2w fhir generate all` (profile `{profile}`)", err=True)
+        _hint("next", f"run `d2w fhir generate` (profile `{profile}`)")
     else:
-        typer.secho("next: set `profile` in fhir.toml, then run `d2w fhir generate all`", err=True)
+        _hint("next", "set `profile` in fhir.toml, then run `d2w fhir generate`")
+
+
+def _reject_scaffold_flags(
+    *,
+    ig_id: str,
+    canonical: str,
+    name: str | None,
+    title: str | None,
+    publisher: str,
+    status: IgStatusChoice,
+    publisher_url: str | None,
+    profile: str | None,
+    sushi_timeout: int,
+    max_level: int | None,
+    data_set_ids: list[str] | None,
+    event_program_ids: list[str] | None,
+    tracker_program_ids: list[str] | None,
+) -> None:
+    """Refuse a refresh that carries scaffold content, naming the flags a refresh would ignore.
+
+    A refresh reads the IG identity and the generation tables back off the project's own
+    fhir.toml, and never writes that file, so a flag seeding either of them cannot land. Silently
+    dropping it would leave a caller believing they changed something they did not.
+    """
+    given = {
+        "--id": ig_id != _DEFAULT_IG_ID,
+        "--canonical": canonical != _DEFAULT_CANONICAL,
+        "--name": name is not None,
+        "--title": title is not None,
+        "--publisher": publisher != _DEFAULT_PUBLISHER,
+        "--status": status is not IgStatusChoice.DRAFT,
+        "--publisher-url": publisher_url is not None,
+        "--profile": profile is not None,
+        "--sushi-timeout": sushi_timeout != DEFAULT_SUSHI_TIMEOUT_SECONDS,
+        "--max-level": max_level is not None,
+        "--data-set": bool(data_set_ids),
+        "--event-program": bool(event_program_ids),
+        "--tracker-program": bool(tracker_program_ids),
+    }
+    named = [flag for flag, was_given in given.items() if was_given]
+    if not named:
+        return
+    raise typer.BadParameter(
+        f"--refresh takes the project's identity and generation tables from its own fhir.toml, "
+        f"so {', '.join(named)} would be ignored: drop the flag, or edit fhir.toml and refresh"
+    )
 
 
 def _refresh_project(directory: Path) -> None:
     """Refresh an existing project's scaffold-managed files and render what each one did."""
-    from dhis2w_fhir.config import FHIR_CONFIG_FILENAME, NoFhirProjectError
+    from dhis2w_fhir.config import FHIR_CONFIG_FILENAME
     from dhis2w_fhir.scaffold.refresh import refresh_project
 
-    try:
-        report = refresh_project(directory)
-    except NoFhirProjectError as error:
-        typer.secho(str(error), err=True, fg=typer.colors.RED)
-        raise typer.Exit(code=1) from error
+    report = refresh_project(directory)
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
@@ -189,187 +337,291 @@ def _refresh_project(directory: Path) -> None:
             DetailRow("created", str(len(report.created_files))),
             DetailRow("refreshed", str(len(report.refreshed_files))),
             DetailRow("unchanged", str(len(report.unchanged_files))),
-            DetailRow("skipped", str(len(report.edited_files))),
+            DetailRow("edited (kept)", str(len(report.edited_files))),
         ],
+        console=STDERR_CONSOLE,
     )
     for relative_path in report.created_files:
-        typer.echo(f"  created {relative_path}")
+        _line(f"  created {relative_path}")
     for relative_path in report.refreshed_files:
-        typer.echo(f"  refreshed {relative_path}")
+        _line(f"  refreshed {relative_path}")
     for relative_path in report.unchanged_files:
-        typer.echo(f"  unchanged {relative_path}")
+        _line(f"  unchanged {relative_path}")
     for relative_path in report.edited_files:
-        typer.echo(f"  skipped {relative_path} (you edited it; your version stays)")
-    typer.secho(f"note: {FHIR_CONFIG_FILENAME} is yours - a refresh never writes it", err=True)
+        _line(f"  skipped {relative_path} (you edited it; your version stays)")
+    _hint("note", f"{FHIR_CONFIG_FILENAME} is yours - a refresh never writes it")
     if report.edited_files:
-        typer.secho(
-            "note: to take the scaffold's version of a skipped file, delete it and refresh again",
-            err=True,
-            fg=typer.colors.YELLOW,
-        )
+        _hint("note", "to take the scaffold's version of a skipped file, delete it and refresh again")
 
 
-def _render_generate_report(title: str, report: GenerateReport, generation: GenerationProfile) -> None:
-    """Render one generation report as a Rich detail table plus note lines on stderr."""
+class _TargetOutcome(BaseModel):
+    """One target of a full run, paired with the command name its summary row is labelled by."""
+
+    model_config = ConfigDict(frozen=True)
+
+    target: str
+    report: GenerateReport
+
+
+def _target_label(report: GenerateReport | LoadSetReport) -> str:
+    """Where a run wrote, as one path: a generate target carries its base, a load set is the corpus directory."""
+    if isinstance(report, GenerateReport):
+        return f"{report.target_base}/{report.target_directory}"
+    return report.target_directory
+
+
+def _render_generate_report(
+    title: str,
+    report: GenerateReport | LoadSetReport,
+    generation: GenerationProfile,
+    *,
+    extra_rows: Iterable[DetailRow] = (),
+) -> None:
+    """Render one run's outcome as a detail table on stderr, followed by every note it raised.
+
+    The common rows - profile, project, target, and the written / unchanged / deleted counts -
+    are the same whichever run wrote them; `extra_rows` carries the counts that belong to this
+    target alone. Every row renders at zero too, so a table's shape says what a target counts
+    rather than what it happened to find.
+    """
     rows = [
         DetailRow("profile", f"{generation.name} ({generation.origin})"),
         DetailRow("project", str(report.project_root)),
-        DetailRow("target", f"{report.target_base}/{report.target_directory}"),
+        DetailRow("target", _target_label(report)),
         DetailRow("files written", str(len(report.written_files))),
         DetailRow("unchanged", str(report.unchanged_count)),
         DetailRow("files deleted", str(len(report.deleted_files))),
+        *extra_rows,
     ]
-    if report.option_set_count:
-        rows.append(DetailRow("option sets", str(report.option_set_count)))
-    if report.category_count:
-        rows.append(DetailRow("categories", str(report.category_count)))
-    if report.questionnaire_count:
-        rows.append(DetailRow("questionnaires", str(report.questionnaire_count)))
-    if report.example_count:
-        rows.append(DetailRow("examples", str(report.example_count)))
-    if report.organisation_unit_count:
-        rows.append(DetailRow("org units", str(report.organisation_unit_count)))
-    if report.position_count:
-        rows.append(DetailRow("positions", str(report.position_count)))
-    if report.boundary_count:
-        rows.append(DetailRow("boundaries", str(report.boundary_count)))
-    if report.page_count:
-        rows.append(DetailRow("pages", str(report.page_count)))
-    if report.intro_count:
-        rows.append(DetailRow("intros", str(report.intro_count)))
-    render_detail(title, rows)
+    render_detail(title, rows, console=STDERR_CONSOLE)
     for note in report.notes:
-        typer.secho(f"note: {note}", err=True, fg=typer.colors.YELLOW)
+        _hint("note", note)
+
+
+def _full_outcomes(report: GenerateFullReport) -> list[_TargetOutcome]:
+    """Every target of a full run, in the order the run wrote them."""
+    return [
+        _TargetOutcome(target="foundation", report=report.foundation),
+        _TargetOutcome(target="option-sets", report=report.option_sets),
+        _TargetOutcome(target="categories", report=report.categories),
+        _TargetOutcome(target="questionnaires", report=report.questionnaires),
+        _TargetOutcome(target="examples", report=report.examples),
+        _TargetOutcome(target="org-units", report=report.organisation_units),
+        _TargetOutcome(target="pages", report=report.pages),
+    ]
+
+
+def _full_run_summary(report: GenerateFullReport) -> str:
+    """The closing line of a full run: how much it wrote, across how many targets."""
+    outcomes = _full_outcomes(report)
+    written = sum(len(outcome.report.written_files) for outcome in outcomes)
+    return f"full pipeline: {written:,} file(s) written across {len(outcomes)} target(s)"
+
+
+def _render_full_report(report: GenerateFullReport, generation: GenerationProfile) -> None:
+    """Render a full run as one row per target, then the notes each target raised, all on stderr."""
+    outcomes = _full_outcomes(report)
+    _hint("info", f"{generation.name} ({generation.origin}) -> {report.foundation.project_root}")
+    render_list(
+        "fhir generate",
+        [
+            {
+                "target": outcome.target,
+                "directory": _target_label(outcome.report),
+                "written": str(len(outcome.report.written_files)),
+                "unchanged": str(outcome.report.unchanged_count),
+                "deleted": str(len(outcome.report.deleted_files)),
+                "notes": str(len(outcome.report.notes)),
+            }
+            for outcome in outcomes
+        ],
+        [
+            ColumnSpec("Target", "target", no_wrap=True),
+            ColumnSpec("Directory", "directory"),
+            ColumnSpec("Written", "written", no_wrap=True),
+            ColumnSpec("Unchanged", "unchanged", no_wrap=True),
+            ColumnSpec("Deleted", "deleted", no_wrap=True),
+            ColumnSpec("Notes", "notes", no_wrap=True),
+        ],
+        console=STDERR_CONSOLE,
+    )
+    for outcome in outcomes:
+        for note in outcome.report.notes:
+            _hint("note", f"{outcome.target}: {note}")
+
+
+@generate_app.callback(invoke_without_command=True)
+def generate_callback(ctx: typer.Context, progress: ProgressOption = True) -> None:
+    """Generate the whole IG source from DHIS2 metadata, or one named target of it.
+
+    Bare `d2w fhir generate` runs every target off a single pass over the instance.
+
+    The foundation runs first because it reads nothing, the pages last because they narrate the rest.
+
+    Name a target to run that one alone; the flag here belongs to the bare run.
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+    from dhis2w_fhir import GENERATE_FULL_STEPS, service
+
+    project = load_project()
+    generation = service.resolve_generation_profile(project)
+    with _progress(GENERATE_FULL_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(service.generate_full(generation.profile, project, reporter=reporter))
+        if reporter is not None:
+            reporter.finish(_full_run_summary(report))
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    _render_full_report(report, generation)
 
 
 @generate_app.command("foundation")
-def generate_foundation_command() -> None:
+def generate_foundation_command(progress: ProgressOption = True) -> None:
     """Generate the DHIS2 identifier aliases, the extensions, and the capture contract into the FHIR project."""
-    from dhis2w_fhir import service
+    from dhis2w_fhir import GENERATE_FOUNDATION_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
-    report = asyncio.run(service.generate_foundation(project))
+    with _progress(GENERATE_FOUNDATION_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(service.generate_foundation(project, reporter=reporter))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
-    _render_generate_report("fhir generate foundation", report, generation)
+    _render_generate_report(_TARGET_TITLES["foundation"], report, generation)
 
 
 @generate_app.command("option-sets")
-def generate_option_sets_command() -> None:
+def generate_option_sets_command(progress: ProgressOption = True) -> None:
     """Generate CodeSystem/ValueSet JSON from DHIS2 option sets into the nearest FHIR project."""
-    from dhis2w_fhir import service
+    from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
-    report = asyncio.run(service.generate_option_sets(generation.profile, project))
+    with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(service.generate_option_sets(generation.profile, project, reporter=reporter))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
-    _render_generate_report("fhir generate option-sets", report, generation)
+    _render_generate_report(
+        _TARGET_TITLES["option-sets"],
+        report,
+        generation,
+        extra_rows=[DetailRow("option sets", str(report.option_set_count))],
+    )
 
 
 @generate_app.command("categories")
-def generate_categories_command() -> None:
+def generate_categories_command(progress: ProgressOption = True) -> None:
     """Generate CodeSystem/ValueSet JSON from DHIS2 categories into the nearest FHIR project."""
-    from dhis2w_fhir import service
+    from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
-    report = asyncio.run(service.generate_categories(generation.profile, project))
+    with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(service.generate_categories(generation.profile, project, reporter=reporter))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
-    _render_generate_report("fhir generate categories", report, generation)
+    _render_generate_report(
+        _TARGET_TITLES["categories"],
+        report,
+        generation,
+        extra_rows=[DetailRow("categories", str(report.category_count))],
+    )
 
 
 @generate_app.command("questionnaires")
-def generate_questionnaires_command() -> None:
+def generate_questionnaires_command(progress: ProgressOption = True) -> None:
     """Generate Questionnaire FSH into data-sets/, event-programs/, tracker-programs/, and data-dictionary/.
 
-    A data set and an event program are one Questionnaire each; a tracker program is one
-    Questionnaire per program stage, filed under the UID of the program it belongs to.
+    A data set and an event program are one Questionnaire each.
+
+    A tracker program is one Questionnaire per program stage, filed under its program's UID.
     """
-    from dhis2w_fhir import service
+    from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
-    report = asyncio.run(service.generate_questionnaires(generation.profile, project))
+    with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(service.generate_questionnaires(generation.profile, project, reporter=reporter))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
-    _render_generate_report("fhir generate questionnaires", report, generation)
+    _render_generate_report(
+        _TARGET_TITLES["questionnaires"],
+        report,
+        generation,
+        extra_rows=[DetailRow("questionnaires", str(report.questionnaire_count))],
+    )
 
 
 @generate_app.command("examples")
-def generate_examples_command() -> None:
+def generate_examples_command(progress: ProgressOption = True) -> None:
     """Generate example QuestionnaireResponses for every configured data set, event program, and tracker stage."""
-    from dhis2w_fhir import service
+    from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
-    report = asyncio.run(service.generate_examples(generation.profile, project))
+    with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(service.generate_examples(generation.profile, project, reporter=reporter))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
-    _render_generate_report("fhir generate examples", report, generation)
+    _render_generate_report(
+        _TARGET_TITLES["examples"],
+        report,
+        generation,
+        extra_rows=[DetailRow("examples", str(report.example_count))],
+    )
 
 
 @generate_app.command("org-units")
-def generate_organisation_units_command() -> None:
+def generate_organisation_units_command(progress: ProgressOption = True) -> None:
     """Generate Organization/Location FSH from DHIS2 organisation units into the nearest FHIR project."""
-    from dhis2w_fhir import service
+    from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
-    report = asyncio.run(service.generate_organisation_units(generation.profile, project))
+    with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(service.generate_organisation_units(generation.profile, project, reporter=reporter))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
-    _render_generate_report("fhir generate org-units", report, generation)
+    _render_generate_report(
+        _TARGET_TITLES["org-units"],
+        report,
+        generation,
+        extra_rows=[
+            DetailRow("org units", str(report.organisation_unit_count)),
+            DetailRow("positions", str(report.position_count)),
+            DetailRow("boundaries", str(report.boundary_count)),
+        ],
+    )
 
 
 @generate_app.command("pages")
-def generate_pages_command() -> None:
+def generate_pages_command(progress: ProgressOption = True) -> None:
     """Generate the narrative site pages and the per-artifact intros into ig/input/pagecontent/."""
-    from dhis2w_fhir import service
+    from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
-    report = asyncio.run(service.generate_pages(generation.profile, project))
+    with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(service.generate_pages(generation.profile, project, reporter=reporter))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
-    _render_generate_report("fhir generate pages", report, generation)
+    _render_generate_report(
+        _TARGET_TITLES["pages"],
+        report,
+        generation,
+        extra_rows=[DetailRow("pages", str(report.page_count)), DetailRow("intros", str(report.intro_count))],
+    )
 
 
-@generate_app.command("all")
-def generate_all_command() -> None:
-    """Generate the foundation, terminology, questionnaires, examples, org-unit instances, and the pages.
-
-    The questionnaire pass covers all four directories: data-sets/, event-programs/,
-    tracker-programs/ (one file per stage, under its program's UID), and data-dictionary/.
-    """
-    from dhis2w_fhir import service
-
-    project = load_project()
-    generation = service.resolve_generation_profile(project)
-    report = asyncio.run(service.generate_full(generation.profile, project))
-    if is_json_output():
-        typer.echo(report.model_dump_json(indent=2))
-        return
-    _render_generate_report("fhir generate foundation", report.foundation, generation)
-    _render_generate_report("fhir generate option-sets", report.option_sets, generation)
-    _render_generate_report("fhir generate categories", report.categories, generation)
-    _render_generate_report("fhir generate questionnaires", report.questionnaires, generation)
-    _render_generate_report("fhir generate examples", report.examples, generation)
-    _render_generate_report("fhir generate org-units", report.organisation_units, generation)
-    _render_generate_report("fhir generate pages", report.pages, generation)
-
-
-@generate_app.command("load")
-def generate_load_command(
+@generate_app.command("load-set")
+def generate_load_set_command(
     per_target: Annotated[
         int,
         typer.Option(
@@ -378,54 +630,48 @@ def generate_load_command(
             help="How many synthetic responses each questionnaire target contributes.",
         ),
     ] = DEFAULT_LOAD_SET_PER_TARGET,
-    directory: Annotated[
+    output_dir: Annotated[
         Path | None,
         typer.Option(
-            "--directory",
+            "--output-dir",
             file_okay=False,
-            help="Where to write the `load/` corpus (default: the project root).",
+            help="Directory to write the `load/` corpus into (default: the project root).",
         ),
     ] = None,
+    progress: ProgressOption = True,
 ) -> None:
     """Write a synthetic QuestionnaireResponse corpus into load/ for posting at a running `d2w fhir serve`.
 
-    A load set is test data, not IG source: it lands beside `ig/` rather than inside it, the
-    scaffold gitignores it, and `d2w fhir generate all` does not write it.
+    A load set is test data, not IG source: it lands beside `ig/` rather than inside it.
+
+    The scaffold gitignores it, and `d2w fhir generate` never writes it.
     """
-    from dhis2w_fhir import service
+    from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
-    report = asyncio.run(
-        service.generate_load_set(generation.profile, project, per_target=per_target, output_directory=directory)
-    )
+    with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(
+            service.generate_load_set(
+                generation.profile,
+                project,
+                per_target=per_target,
+                output_directory=output_dir,
+                reporter=reporter,
+            )
+        )
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
-    _render_load_set_report(report, generation)
-
-
-def _render_load_set_report(report: LoadSetReport, generation: GenerationProfile) -> None:
-    """Render one load-set run the way the generate targets render theirs."""
-    render_detail(
-        "fhir generate load",
-        [
-            DetailRow("profile", f"{generation.name} ({generation.origin})"),
-            DetailRow("project", str(report.project_root)),
-            DetailRow("target", report.target_directory),
-            DetailRow("files written", str(len(report.written_files))),
-            DetailRow("unchanged", str(report.unchanged_count)),
-            DetailRow("files deleted", str(len(report.deleted_files))),
+    _render_generate_report(
+        _TARGET_TITLES["load-set"],
+        report,
+        generation,
+        extra_rows=[
             DetailRow("responses", str(report.response_count)),
             DetailRow("questionnaires", str(report.questionnaire_count)),
         ],
     )
-    for note in report.notes:
-        typer.secho(f"note: {note}", err=True, fg=typer.colors.YELLOW)
-
-
-#: The report formats `--format` accepts, in the order they are written.
-_REPORT_FORMATS = ("md", "csv", "pdf")
 
 
 def _parse_report_formats(value: str) -> list[str]:
@@ -441,61 +687,62 @@ def _parse_report_formats(value: str) -> list[str]:
 
 @app.command("validate")
 def validate_command(
-    report_stem: Annotated[
+    output_dir: Annotated[
         Path | None,
         typer.Option(
-            "--report",
-            dir_okay=False,
-            help="Report path stem, without extension "
-            "(default: reports/fhir-validate-report under the project root or current directory).",
+            "--output-dir",
+            file_okay=False,
+            help="Directory to write the report files into, one per format, all named "
+            "fhir-validate-report (default: reports/ under the project root, else the working directory).",
         ),
     ] = None,
     formats: Annotated[
         str, typer.Option("--format", help="Comma-separated report formats to write: md, csv, pdf.")
     ] = "md,csv,pdf",
     code_source: Annotated[
-        str | None,
+        CodeSourceChoice | None,
         typer.Option(
             "--code-source",
-            help="Override `\\[generate]` concept_code_source for this run: id or code. In id mode the option "
-            "code findings are informational; run with code to see what switching would cost.",
+            help="Override `\\[generate]` concept_code_source for this run. In id mode the option code "
+            "findings are informational; run with code to see what switching would cost.",
         ),
     ] = None,
-    show_all: Annotated[
-        bool, typer.Option("--all", help="List info-level findings individually instead of rolled up.")
+    details: Annotated[
+        bool, typer.Option("--details", help="List info-level findings individually instead of rolled up.")
     ] = False,
-    no_fail: Annotated[bool, typer.Option("--no-fail", help="Exit 0 even when errors are found.")] = False,
+    fail: Annotated[bool, typer.Option("--fail/--no-fail", help="Exit 1 when errors are found.")] = True,
+    progress: ProgressOption = True,
 ) -> None:
-    """Check the instance's codes for FHIR-safety; writes md/csv/pdf reports grouped by type. Exits 1 on errors."""
+    """Check the instance's codes for FHIR-safety, writing md/csv/pdf reports grouped by type."""
     from collections import Counter
     from datetime import UTC, datetime
 
-    from dhis2w_core.cli_output import ColumnSpec, render_list
-
-    from dhis2w_fhir import REPORTS_DIRECTORY, find_project_fhir_config, service
+    from dhis2w_fhir import REPORTS_DIRECTORY, VALIDATE_CODES_STEPS, find_project_fhir_config, service
     from dhis2w_fhir.validation.pdf import render_validation_pdf
     from dhis2w_fhir.validation.report import display_code, render_validation_csv, render_validation_markdown
 
     selected_formats = _parse_report_formats(formats)
-    if code_source is not None and code_source not in {"id", "code"}:
-        raise typer.BadParameter("code_source must be 'id' or 'code'")
+    requested_source = code_source.value if code_source is not None else None
     context = service.resolve_validation_context()
-    report = asyncio.run(service.validate_codes(context.generation.profile, context.config, code_source))
+    with _progress(VALIDATE_CODES_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(
+            service.validate_codes(context.generation.profile, context.config, requested_source, reporter=reporter)
+        )
     project_config = find_project_fhir_config()
-    default_directory = project_config.parent if project_config else Path.cwd()
-    stem = report_stem or default_directory / REPORTS_DIRECTORY / "fhir-validate-report"
-    stem.parent.mkdir(parents=True, exist_ok=True)
+    default_root = project_config.parent if project_config else Path.cwd()
+    directory = output_dir or default_root / REPORTS_DIRECTORY
+    directory.mkdir(parents=True, exist_ok=True)
     target = f"{context.generation.name} ({context.generation.profile.base_url})"
     generated_at = datetime.now(tz=UTC)
     for report_format in selected_formats:
-        destination = stem.with_name(f"{stem.name}.{report_format}")
+        destination = directory / f"{_VALIDATION_REPORT_STEM}.{report_format}"
         if report_format == "md":
             destination.write_text(render_validation_markdown(report, target, generated_at), encoding="utf-8")
         elif report_format == "csv":
             destination.write_text(render_validation_csv(report), encoding="utf-8")
         else:
             destination.write_bytes(render_validation_pdf(report, target, generated_at))
-        typer.secho(f"wrote {destination}", err=True)
+        _line(f"wrote {destination}")
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
     else:
@@ -511,10 +758,11 @@ def validate_command(
                 DetailRow("errors", str(report.error_count)),
                 DetailRow("warnings", str(report.warning_count)),
                 DetailRow("infos", str(report.info_count)),
-                DetailRow("code source", service.resolve_code_source(context.config, code_source)),
+                DetailRow("code source", service.resolve_code_source(context.config, requested_source)),
             ],
+            console=STDERR_CONSOLE,
         )
-        detailed = [finding for finding in report.findings if show_all or finding.severity in {"error", "warning"}]
+        detailed = [finding for finding in report.findings if details or finding.severity in {"error", "warning"}]
         if detailed:
             render_list(
                 "findings",
@@ -537,15 +785,14 @@ def validate_command(
                     ColumnSpec("Code", "code"),
                     ColumnSpec("Why it matters", "message"),
                 ],
+                console=STDERR_CONSOLE,
             )
-        if not show_all:
+        if not details:
             rollup = Counter(finding.category for finding in report.findings if finding.severity == "info")
             for category, count in sorted(rollup.items()):
-                typer.secho(f"info: {category} x{count} (details in the report; --all to list)", err=True)
-    if report.error_count and not no_fail:
-        typer.secho(
-            f"{report.error_count} error(s) found; exiting 1 (--no-fail to suppress)", err=True, fg=typer.colors.RED
-        )
+                _hint("info", f"{category} x{count} (details in the report; --details to list)")
+    if report.error_count and fail:
+        _hint("error", f"{report.error_count} error(s) found; exiting 1 (--no-fail to suppress)", style="red")
         raise typer.Exit(code=1)
 
 
@@ -580,10 +827,6 @@ def serve_command(
         ),
     ] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8080,
-    profile: Annotated[
-        str | None,
-        typer.Option("--profile", "-p", help="DHIS2 profile the --live store reads from. Ignored without --live."),
-    ] = None,
     strict_codes: Annotated[
         bool,
         typer.Option(
@@ -596,9 +839,11 @@ def serve_command(
 ) -> None:
     """Serve the project's IG as a FHIR read and capture facade over HTTP.
 
-    Reads answer from what the IG publishes. Received QuestionnaireResponses are stored as
-    receipts - submissions as they arrived - so reading one back says what was submitted, not
-    what DHIS2 holds. `--live` builds the served resources from the instance at startup.
+    Reads answer from what the IG publishes.
+
+    Received QuestionnaireResponses are stored as receipts, so reading one back says what was submitted.
+
+    `--live` builds the store from the instance at startup, as the profile `d2w -p` names.
     """
     try:
         from dhis2w_fhir_serve import (
@@ -611,12 +856,18 @@ def serve_command(
     except ImportError as error:
         raise LookupError(_SERVE_PACKAGE_MISSING) from error
 
+    from dhis2w_fhir import service
+
     project = load_project(directory)
-    if not live and not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
+    if live:
+        # Resolve the profile the live store will connect with before anything says the server is
+        # starting, so an unknown profile fails as a failure rather than under a success banner.
+        service.resolve_generation_profile(project)
+    elif not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
         raise CompiledIgMissingError
-    settings = ServeSettings(project_dir=directory, live=live, profile=profile, strict_codes=strict_codes)
+    settings = ServeSettings(project_dir=directory, live=live, profile=None, strict_codes=strict_codes)
     configure_logging()
-    typer.secho(f"serving {project.project_root} on http://{host}:{port} (ctrl-c to stop)", err=True)
+    _line(f"starting {project.project_root} on http://{host}:{port} (ctrl-c to stop)")
     _run_server(create_app(settings), host=host, port=port)
 
 

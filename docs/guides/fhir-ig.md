@@ -53,7 +53,7 @@ make build
 ```
 
 Every make target drives `d2w` through `uv run`, so `make validate` and
-`make generate` are `uv run d2w fhir validate` / `uv run d2w fhir generate all`
+`make generate` are `uv run d2w fhir validate` / `uv run d2w fhir generate`
 against the pinned build - spell either form, they do the same thing.
 
 The generated site lands in `ig/output/`. `make clean` removes build output;
@@ -427,9 +427,9 @@ by default and it can be named in `include_ids` or left out by naming the others
 
 The data-definition targets: one table per form kind. They read like the terminology
 and registry selections: an absent or empty list means **all** of that table's kind, a
-non-empty list filters. `d2w fhir init --data-set <uid> --event <uid> --tracker-program
-<uid>` seeds the three lists while scaffolding, which is how you narrow a project to the
-handful of forms you care about.
+non-empty list filters. `d2w fhir init --data-set <uid> --event-program <uid>
+--tracker-program <uid>` seeds the three lists while scaffolding, which is how you narrow
+a project to the handful of forms you care about.
 
 Each table selects a different DHIS2 shape, and the shapes differ in what comes out:
 
@@ -493,6 +493,7 @@ for flows that want the hierarchy as codes rather than as resources.
 ## Generate targets
 
 ```
+d2w fhir generate                All seven, in that order, off one pass over the instance
 d2w fhir generate foundation     Identifier aliases + the D2Period / D2FormType / D2AttributeValue extensions
 d2w fhir generate option-sets    Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate categories     Categories -> CodeSystem/ValueSet pairs
@@ -500,8 +501,22 @@ d2w fhir generate questionnaires Data sets + event programs + tracker program st
 d2w fhir generate examples       Example QuestionnaireResponses answering those Questionnaires
 d2w fhir generate org-units      Org units -> Organization/Location instances
 d2w fhir generate pages          Narrative site pages + per-artifact intros
-d2w fhir generate all            All seven, in that order
+d2w fhir generate load-set       Synthetic QuestionnaireResponse corpus into load/ (not IG source)
 ```
+
+The bare `d2w fhir generate` is the one to reach for. It reads the instance once - the
+questionnaire targets, the option sets, the categories, the organisation-unit slice, and
+the attribute-code join - and every target builds off that single result, where seven
+separate commands each open a client of their own. It reports one summary row per target.
+Name a target when you want that target alone, which is what a tight edit loop on one
+directory wants.
+
+**Progress.** Every command with an instance behind it - the bare run, each named target,
+`load-set`, and `validate` - narrates its steps on stderr as they complete: a spinner with
+a `Step k/N` caption on a terminal, one plain `[k/N] label: summary` line per step when
+stderr is redirected, which is the form a CI log wants. `--no-progress` turns the
+narration off, and `--json` implies it: in JSON mode stderr stays quiet and stdout carries
+the payload alone.
 
 Each target owns its subdirectories and syncs each one: writes what changed, leaves
 what did not, deletes generated files that no longer belong. `questionnaires` owns
@@ -831,7 +846,7 @@ include_ids = ["IpHINAT79UW"]       # Child Programme - one Questionnaire per st
 ```bash
 # Or seed those lists while scaffolding - repeatable, and entirely offline:
 # the UIDs are written to fhir.toml as given, never checked against an instance.
-d2w fhir init my-ig --data-set BfMAe6Itzgt --event VBqh0ynB2wv --tracker-program IpHINAT79UW
+d2w fhir init my-ig --data-set BfMAe6Itzgt --event-program VBqh0ynB2wv --tracker-program IpHINAT79UW
 ```
 
 **Narrowing is how a project stays reviewable.** A national instance carries hundreds
@@ -1267,7 +1282,7 @@ cd demo-ig
 
 # 1. Generate the IG source and compile it. The facade serves what SUSHI wrote,
 #    so a project that has never been compiled has nothing to serve.
-d2w fhir generate all
+d2w fhir generate
 make sushi
 
 # 2. Serve it. Loopback and port 8080 by default; ctrl-c stops it.
@@ -1482,11 +1497,11 @@ The spool search takes `_id` and `questionnaire`; the definitional types take `_
 
 ### Generating a load set
 
-`d2w fhir generate load` writes a synthetic corpus to POST at a running facade:
+`d2w fhir generate load-set` writes a synthetic corpus to POST at a running facade:
 
 ```bash
-d2w fhir generate load --per-target 5     # 5 responses per questionnaire target
-ls load/                                  # one QuestionnaireResponse JSON per response
+d2w fhir generate load-set --per-target 5   # 5 responses per questionnaire target
+ls load/                                    # one QuestionnaireResponse JSON per response
 ```
 
 It is the volume twin of `d2w fhir generate examples` - the same fetch, the same seeded
@@ -1495,7 +1510,7 @@ publishes one example per form because more stop illustrating; a load set wants 
 as a POST loop can chew through, so `--per-target` (default 25) is not bounded the way
 `[generate.examples] per_target` is. Values are seeded from the target UID and the
 ordinal, so a rerun over unchanged metadata writes byte-identical files and reports every
-one of them unchanged. `--directory` relocates the corpus off the project root.
+one of them unchanged. `--output-dir` relocates the corpus off the project root.
 
 Then post the lot:
 
@@ -1511,7 +1526,7 @@ curl -s 'localhost:8080/QuestionnaireResponse' | jq .total   # every receipt now
 ```
 
 **`load/` is not IG source.** It sits beside `ig/` rather than inside it, the scaffold
-gitignores it, and `d2w fhir generate all` deliberately does not write it - a load set
+gitignores it, and `d2w fhir generate` deliberately does not write it - a load set
 is test data, and the IG publisher has no business rendering a page per synthetic
 response.
 
@@ -1620,7 +1635,7 @@ translations is far too heavy for a check that only looks at codes.
 ## Validation
 
 ```
-d2w fhir validate [--code-source id|code] [--report STEM] [--format md,csv,pdf] [--all] [--no-fail]
+d2w fhir validate [--code-source id|code] [--output-dir DIR] [--format md,csv,pdf] [--details] [--no-fail]
 ```
 
 Three passes, one finding shape:
@@ -1757,9 +1772,10 @@ instance-wide sweep keeps its severities either way.
 
 ### Report files
 
-`--report` takes a path **stem** without an extension - by default
-`reports/fhir-validate-report` under the project root, or under the working
-directory when there is no project. The scaffolded `.gitignore` covers
+`--output-dir` names a **directory**, created if it does not exist, and the files
+inside it are always `fhir-validate-report.md` / `.csv` / `.pdf`. The default is
+`reports/` under the project root, or under the working directory when there is
+no project. The scaffolded `.gitignore` covers
 `reports/`: the reports are regenerable snapshots of instance state, so they
 stay out of git; pin one deliberately (`git add -f`) when handing it over.
 `--format` takes a comma list of `md`, `csv`, `pdf`; all three are written by
@@ -1782,15 +1798,17 @@ report carry the raw code.
 
 ### Exit codes
 
-Exit 1 when there are errors, which makes it a CI gate. `--no-fail` exits 0
-regardless. `--all` lists info findings individually instead of rolling them up
-per category.
+Exit 1 when there are errors, which makes it a CI gate - `--fail` is the default.
+`--no-fail` exits 0 regardless, and drops the red `N error(s) found` line with it.
+`--details` lists info findings individually instead of rolling them up per
+category.
 
 Every `d2w fhir` command honours the global `--json` / `-j` flag, emitting that
 run's report as JSON on stdout in place of the Rich tables - `d2w --json fhir
-generate all` gives the per-target file lists and counts, `d2w --json fhir
-validate` the full findings list. Notes and the `wrote <path>` lines stay on
-stderr, so stdout is a clean document either way. On `validate` it pairs with the
+generate` gives the per-target file lists and counts, `d2w --json fhir
+validate` the full findings list. Tables, notes, and progress are narration and
+stay on stderr - in JSON mode none of them is rendered at all, and only
+`validate`'s `wrote <path>` lines remain - so stdout is a clean document either way. On `validate` it pairs with the
 exit-1 gate: CI reads the findings off stdout and the job still fails on errors.
 
 MCP exposes the same check as the read-only `fhir_validate` tool, taking
@@ -1802,7 +1820,7 @@ writing stays CLI-only.
 ```
 make setup      Build the SUSHI + IG publisher docker image
 make upgrade    Rebuild it from scratch, pulling the latest of both
-make generate   d2w fhir generate all
+make generate   d2w fhir generate
 make validate   d2w fhir validate
 make cache-init Make the shared package-cache volume writable by the publisher user
 make sushi      Compile FSH to FHIR resources
@@ -2076,7 +2094,7 @@ wires both caches up for you:
 
 `make clean-all` drops both when you want to reproduce a cold build.
 
-**Do not iterate on `make build`.** `d2w fhir generate all` followed by
+**Do not iterate on `make build`.** `d2w fhir generate` followed by
 `make sushi` compiles the FSH and tells you whether it is valid without paying
 for a published site. Run the publisher when you are ready to publish one, not
 after every edit.
@@ -2112,7 +2130,7 @@ content` is a DHIS2 code carrying `<` into an identifier value, which
 **`Duplicate definition of ...`** means the same identity reached SUSHI twice,
 once compiled from FSH and once as a predefined resource. Generation sweeps the
 FSH it supersedes, so this points at generated FSH left behind by a version of
-the plugin that wrote a target in the other shape. `d2w fhir generate all` clears
+the plugin that wrote a target in the other shape. `d2w fhir generate` clears
 it and reports the files in `deleted_files`; the count in that report is the
 confirmation.
 

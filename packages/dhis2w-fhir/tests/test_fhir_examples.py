@@ -1063,7 +1063,7 @@ async def test_generate_full_runs_the_example_target_after_the_questionnaires(
     mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """`generate all` carries an example report whose responses answer the questionnaires it just wrote."""
+    """A full run carries an example report whose responses answer the questionnaires it just wrote."""
     mock_system_info("v42")
     mock_attributes()
     await _scaffold_project(tmp_path)
