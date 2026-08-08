@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Literal, cast
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import FoundationNaming
-from dhis2w_fhir.names import flatten_whitespace
+from dhis2w_fhir.names import StemResolution, flatten_whitespace
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.r4 import (
     Coding,
@@ -44,9 +44,11 @@ from dhis2w_fhir.resources.examples import (
     example_items,
     example_period,
     example_tracker_context,
+    location_stem,
 )
 from dhis2w_fhir.resources.option_sets import code_system_canonical, option_set_identity_index
 from dhis2w_fhir.resources.questionnaires import bound_option_set_uids
+from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireStemPlan, plan_questionnaire_stems
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
@@ -164,6 +166,8 @@ def build_example_documents(
     *,
     option_set_plan: OptionSetIdentityPlan,
     published_organisation_unit_uids: frozenset[str] | None = None,
+    stem_plan: QuestionnaireStemPlan | None = None,
+    organisation_unit_stems: StemResolution | None = None,
 ) -> ExampleDocumentBuild:
     """Build one FHIR QuestionnaireResponse per example response, keyed by the instance id the FSH path declares.
 
@@ -171,11 +175,15 @@ def build_example_documents(
     a caller can build the FSH source and the served documents off one fetch: `option_set_plan` is
     the identity plan the terminology target emits from, so a coded answer names the CodeSystem the
     same run writes, the concept codes come from `example_concept_assignments` for the same reason,
-    and `published_organisation_unit_uids` gates an organisation-unit answer on the org-unit
-    selection the same way. A response whose target is not among `sources` is skipped, exactly as
-    the FSH path skips it.
+    `published_organisation_unit_uids` gates an organisation-unit answer on the org-unit selection
+    the same way, and `stem_plan` / `organisation_unit_stems` are the identity resolutions the
+    `questionnaire` canonical and every `Location/...` reference follow. A response whose target is
+    not among `sources` is skipped, exactly as the FSH path skips it. The response's own id stays
+    the DHIS2 DATA identifier it embeds (an event UID, a period, a reporting unit), whatever the
+    naming source.
     """
     systems = _ExampleSystems.from_config(config, canonical)
+    plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
     rules = ExampleAnswerRules(
         timezone=config.timezone, published_organisation_unit_uids=published_organisation_unit_uids
     )
@@ -191,7 +199,17 @@ def build_example_documents(
             continue
         documents.append(
             _response_document(
-                response, source, option_sets_by_uid, assignments, index.identities, systems, canonical, tally, rules
+                response,
+                source,
+                option_sets_by_uid,
+                assignments,
+                index.identities,
+                systems,
+                canonical,
+                tally,
+                rules,
+                target_stem=plan.targets.stem_for(source.uid),
+                organisation_unit_stems=organisation_unit_stems,
             )
         )
     notes = list(tally.to_notes())
@@ -216,6 +234,9 @@ def _response_document(
     canonical: str,
     tally: ExampleTally,
     rules: ExampleAnswerRules,
+    *,
+    target_stem: str,
+    organisation_unit_stems: StemResolution | None,
 ) -> QuestionnaireResponse:
     """Build one example's QuestionnaireResponse, every name already resolved to the URL it is served under."""
     period = example_period(response, source, tally)
@@ -226,12 +247,12 @@ def _response_document(
     return QuestionnaireResponse(
         id=response.instance_id,
         meta=Meta(profile=[systems.response_profile_url(source.kind)]) if complete else None,
-        extension=_extensions(source.kind, period, tracker, systems),
-        questionnaire=systems.questionnaire_url(source.uid),
+        extension=_extensions(source.kind, period, tracker, systems, organisation_unit_stems),
+        questionnaire=systems.questionnaire_url(target_stem),
         status=_status_code(response.status_code),
-        subject=_subject(response, tracker, systems),
+        subject=_subject(response, tracker, systems, organisation_unit_stems),
         authored=authored,
-        item=_items(example_items(source, answers), identities, canonical) or None,
+        item=_items(example_items(source, answers), identities, canonical, organisation_unit_stems) or None,
     )
 
 
@@ -240,6 +261,7 @@ def _extensions(
     period: PeriodValue | None,
     tracker: ExampleTrackerContext | None,
     systems: _ExampleSystems,
+    organisation_unit_stems: StemResolution | None,
 ) -> list[Extension]:
     """The extensions one response carries, in the order its kind's response profile slices them.
 
@@ -252,7 +274,9 @@ def _extensions(
         extensions.append(
             Extension(
                 url=systems.organisation_unit_extension_url,
-                valueReference=Reference(reference=f"Location/{tracker.organisation_unit_uid}"),
+                valueReference=Reference(
+                    reference=f"Location/{location_stem(tracker.organisation_unit_uid, organisation_unit_stems)}"
+                ),
             )
         )
         if tracker.enrollment_uid is not None:
@@ -287,7 +311,10 @@ def _period_extension(period: PeriodValue, systems: _ExampleSystems) -> Extensio
 
 
 def _subject(
-    response: ExampleResponseIn, tracker: ExampleTrackerContext | None, systems: _ExampleSystems
+    response: ExampleResponseIn,
+    tracker: ExampleTrackerContext | None,
+    systems: _ExampleSystems,
+    organisation_unit_stems: StemResolution | None,
 ) -> Reference | None:
     """The subject of one response: the tracked entity a tracker event was captured for, else the Location.
 
@@ -295,7 +322,7 @@ def _subject(
     subject its profile admits is a Patient identified by tracked-entity UID.
     """
     if tracker is None:
-        return Reference(reference=f"Location/{response.organisation_unit_uid}")
+        return Reference(reference=f"Location/{location_stem(response.organisation_unit_uid, organisation_unit_stems)}")
     if tracker.tracked_entity_uid is None:
         return None
     return Reference(
@@ -312,21 +339,27 @@ def _status_code(value: str) -> _ResponseStatusCode:
 
 
 def _items(
-    items: list[ExampleItem], identities: dict[str, OptionSetIdentity], canonical: str
+    items: list[ExampleItem],
+    identities: dict[str, OptionSetIdentity],
+    canonical: str,
+    organisation_unit_stems: StemResolution | None,
 ) -> list[QuestionnaireResponseItem]:
     """Mirror the shared item tree onto the nested `QuestionnaireResponse.item` structure."""
     return [
         QuestionnaireResponseItem(
             linkId=item.link_id,
-            answer=[_answer(answer, identities, canonical) for answer in item.answers] or None,
-            item=_items(item.items, identities, canonical) or None,
+            answer=[_answer(answer, identities, canonical, organisation_unit_stems) for answer in item.answers] or None,
+            item=_items(item.items, identities, canonical, organisation_unit_stems) or None,
         )
         for item in items
     ]
 
 
 def _answer(
-    answer: ExampleAnswer, identities: dict[str, OptionSetIdentity], canonical: str
+    answer: ExampleAnswer,
+    identities: dict[str, OptionSetIdentity],
+    canonical: str,
+    organisation_unit_stems: StemResolution | None,
 ) -> QuestionnaireResponseAnswer:
     """Land one typed answer on the `value[x]` element its element name names."""
     if answer.element == "valueInteger":
@@ -344,7 +377,11 @@ def _answer(
     if answer.element == "valueUri":
         return QuestionnaireResponseAnswer(valueUri=_flat(answer.text_value))
     if answer.element == "valueReference":
-        return QuestionnaireResponseAnswer(valueReference=Reference(reference=f"Location/{answer.location_uid}"))
+        return QuestionnaireResponseAnswer(
+            valueReference=Reference(
+                reference=f"Location/{location_stem(answer.location_uid or '', organisation_unit_stems)}"
+            )
+        )
     if answer.element == "valueCoding" and answer.coding is not None:
         identity = identities[answer.coding.option_set_uid]
         return QuestionnaireResponseAnswer(

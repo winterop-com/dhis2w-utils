@@ -10,7 +10,7 @@ Generated: {{ generated_at }}
 - findings: {{ report.error_count }} errors, {{ report.warning_count }} warnings, {{ report.info_count }} infos
 {% if report.code_coverage is not none %}
 - selection findings: {{ report.selection_error_count }} errors, {{ report.selection_warning_count }} warnings, {{ report.selection_info_count }} infos
-- code coverage (selection): {{ report.code_coverage.line }}
+- code coverage (selection): {{ report.code_coverage.line }} objects whose code can serve as an identity stem
 {% endif %}
 
 {% if not groups %}

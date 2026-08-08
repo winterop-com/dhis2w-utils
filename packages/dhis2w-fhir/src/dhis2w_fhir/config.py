@@ -21,7 +21,7 @@ import tomli_w
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dhis2w_fhir.i18n import normalize_locale
-from dhis2w_fhir.names import strip_trailing_slash
+from dhis2w_fhir.names import NamingSource, strip_trailing_slash
 from dhis2w_fhir.resources.categories.schemas import CategorySelection
 from dhis2w_fhir.resources.examples.schemas import ExampleSelection
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetSelection
@@ -64,7 +64,14 @@ def _validate_fsh_token(value: str, *, allow_empty: bool) -> str:
 
 
 class NamingConfig(BaseModel):
-    """Configurable FSH naming tokens - the `[generate.naming]` table of `fhir.toml`.
+    """The identity source and the FSH naming tokens - the `[generate.naming]` table of `fhir.toml`.
+
+    `source` picks the identity stem every artifact of an object derives from: the FHIR
+    resource id, the canonical URL, the file name, and the FSH name all follow one resolved
+    segment. `"id"` (the default) takes the DHIS2 id verbatim; `"code-or-id"` takes the
+    object's code when it is usable as a stem and unique in the run, falling back to the id
+    with a note; `"code"` requires such a code on every selected object and refuses the run
+    otherwise.
 
     Artifact names merge the prefix and kind tokens and underscore the rest
     (`D2` + `OS` + `_BirthType` + `_CS`); ids join the kebab of each non-empty token
@@ -74,7 +81,7 @@ class NamingConfig(BaseModel):
     group-set artifacts follow the same scheme (`OUG`, `OUGS`).
     """
 
-    source: Literal["id", "name"] = "id"
+    source: NamingSource = "id"
     prefix: str = "D2"
     option_set: str = "OS"
     category: str = "CAT"

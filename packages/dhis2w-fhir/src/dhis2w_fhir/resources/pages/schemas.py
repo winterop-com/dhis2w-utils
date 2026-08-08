@@ -46,11 +46,14 @@ class FormRow(BaseModel):
 
     `program_uid` and `program_name` are filled exactly for a tracker program stage: a stage is
     catalogued under the tracker program it belongs to, and its own name means little alone.
+    `stem` is the form's identity stem, which the artifact page link and the intro file name
+    follow; `uid` stays the DHIS2 id the catalog shows as data.
     """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
+    stem: str
     kind: FormKind
     name: str
     cell_name: str
@@ -66,8 +69,8 @@ class FormRow(BaseModel):
 
     @property
     def page_link(self) -> str:
-        """The compiled artifact page this form's Questionnaire lands on."""
-        return f"Questionnaire-{self.uid}.html"
+        """The compiled artifact page this form's Questionnaire lands on, named by its identity stem."""
+        return f"Questionnaire-{self.stem}.html"
 
 
 class TrackerProgramGroup(BaseModel):
@@ -102,11 +105,16 @@ class CodeSystemIntroView(BaseModel):
 
 
 class OrganizationIntroView(BaseModel):
-    """One organisation unit's intro page - emitted only for a unit carrying a DHIS2 description."""
+    """One organisation unit's intro page - emitted only for a unit carrying a DHIS2 description.
+
+    `stem` is the unit's identity stem - the id of the Organization page the intro lands on -
+    while `uid` stays the DHIS2 id the intro cites as data.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
+    stem: str
     name: str
     level: int
     description: str
@@ -269,7 +277,11 @@ class ValueLiteralRow(BaseModel):
 
 
 class CaptureView(BaseModel):
-    """The capture page: the three response contracts, one worked example each, and the answer typing rules."""
+    """The capture page: the three response contracts, one worked example each, and the answer typing rules.
+
+    `organisation_unit_stem` is the worked unit's identity stem - what its `Location/...`
+    references target - while `organisation_unit_uid` stays the DHIS2 id the prose cites as data.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -294,6 +306,7 @@ class CaptureView(BaseModel):
     capture_server_id: str
     location_profile: str
     organisation_unit_uid: str
+    organisation_unit_stem: str
     organisation_unit_name: str
     aggregate: CaptureFormExample | None = None
     event: CaptureFormExample | None = None

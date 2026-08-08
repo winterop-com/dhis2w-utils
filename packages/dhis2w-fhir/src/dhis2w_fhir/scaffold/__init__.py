@@ -44,6 +44,7 @@ def build_scaffold_files(options: InitOptions, *, copyright_year: int | None = N
         _render("ig/input/pagecontent/index.md", "index.md.jinja", options),
         _render("ig/input/ignoreWarnings.txt", "ignoreWarnings.txt.jinja", options),
         _render("pyproject.toml", "pyproject.toml.jinja", options, project_name=normalize_project_name(options.ig_id)),
+        _render(".python-version", "python-version.jinja", options),
         _render("Makefile", "Makefile.jinja", options),
         _render("Dockerfile", "Dockerfile.jinja", options),
         _render(".gitignore", "gitignore.jinja", options),

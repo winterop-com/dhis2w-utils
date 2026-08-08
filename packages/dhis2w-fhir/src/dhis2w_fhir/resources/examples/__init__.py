@@ -31,7 +31,7 @@ from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescap
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import FoundationNaming
-from dhis2w_fhir.names import fsh_code, page_text, quote
+from dhis2w_fhir.names import StemResolution, fsh_code, page_text, quote
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.period.parser import parse_period
 from dhis2w_fhir.period.recent import recent_periods
@@ -68,6 +68,8 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     FormKind,
     QuestionnaireItemIn,
     QuestionnaireSourceIn,
+    QuestionnaireStemPlan,
+    plan_questionnaire_stems,
     source_display_name,
 )
 from dhis2w_fhir.writer import FshArtifact, FshBuild
@@ -110,6 +112,7 @@ __all__ = [
     "example_items",
     "example_period",
     "example_tracker_context",
+    "location_stem",
     "response_status_code",
     "zoned_date_time",
 ]
@@ -261,13 +264,17 @@ class _PeriodExtensionView(BaseModel):
 
 
 class _TrackerContextView(BaseModel):
-    """The tracker context of one example: the enrollment, the tracked entity, and the unit it was captured at."""
+    """The tracker context of one example: the enrollment, the tracked entity, and the unit it was captured at.
+
+    `organisation_unit_stem` is the capture unit's identity stem - the id its published Location
+    carries - while the enrollment and tracked-entity UIDs stay the DHIS2 data identifiers they are.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     enrollment_extension: str
     organisation_unit_extension: str
-    organisation_unit_uid: str
+    organisation_unit_stem: str
     enrollment_uid: str | None = None
     tracked_entity_uid: str | None = None
 
@@ -304,7 +311,7 @@ class _ExampleView(BaseModel):
     description_literal: str
     form_type_extension: str
     form_type_code: FormKind
-    organisation_unit_uid: str
+    organisation_unit_stem: str
     status_code: str
     period: _PeriodExtensionView | None = None
     tracker: _TrackerContextView | None = None
@@ -402,8 +409,10 @@ def build_example_artifacts(
     *,
     option_set_plan: OptionSetIdentityPlan,
     published_organisation_unit_uids: frozenset[str] | None = None,
+    stem_plan: QuestionnaireStemPlan | None = None,
+    organisation_unit_stems: StemResolution | None = None,
 ) -> FshBuild:
-    """Build one `examples/<targetUid>-<n>.fsh` QuestionnaireResponse per example response.
+    """Build one `examples/<targetStem>-<n>.fsh` QuestionnaireResponse per example response.
 
     `option_set_plan` is the identity plan the terminology target emits from, so a coded answer
     names the CodeSystem the same run writes under either naming source. The concept codes come
@@ -414,8 +423,17 @@ def build_example_artifacts(
     Location for. Passing it lets an `ORGANISATION_UNIT` answer naming a unit outside that
     selection be left unanswered instead of referencing a Location the IG never publishes;
     leaving it None emits every such answer unchecked.
+
+    `stem_plan` is the questionnaire surface's identity-stem plan - the file names and the
+    `questionnaire` canonical follow the target's stem - resolved here through the same
+    `plan_questionnaire_stems` call when the caller has none. `organisation_unit_stems` is the
+    registry's resolution, which every `Location/...` reference follows; None (a build that does
+    not know the registry) keeps the DHIS2 ids. Neither plan touches the example's own id:
+    an instance id embeds DHIS2 DATA identifiers (an event UID, a period, a reporting unit),
+    which are data rather than metadata stems and ride whatever the naming source is.
     """
     build = FshBuild()
+    plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
     rules = ExampleAnswerRules(
         timezone=config.timezone, published_organisation_unit_uids=published_organisation_unit_uids
     )
@@ -434,11 +452,21 @@ def build_example_artifacts(
         ordinal = ordinals.get(response.target_uid, 0) + 1
         ordinals[response.target_uid] = ordinal
         view = _example_view(
-            response, source, option_sets_by_uid, assignments, index.identities, foundation, canonical, tally, rules
+            response,
+            source,
+            option_sets_by_uid,
+            assignments,
+            index.identities,
+            foundation,
+            canonical,
+            tally,
+            rules,
+            target_stem=plan.targets.stem_for(source.uid),
+            organisation_unit_stems=organisation_unit_stems,
         )
         build.artifacts.append(
             FshArtifact(
-                relative_path=f"{EXAMPLES_DIRECTORY}/{response.target_uid}-{ordinal}.fsh",
+                relative_path=f"{EXAMPLES_DIRECTORY}/{plan.targets.stem_for(source.uid)}-{ordinal}.fsh",
                 kind="instances",
                 fsh_name=f"QuestionnaireResponse-{response.instance_id}",
                 content=template.render(example=view),
@@ -754,6 +782,9 @@ def _example_view(
     canonical: str,
     tally: ExampleTally,
     rules: ExampleAnswerRules,
+    *,
+    target_stem: str,
+    organisation_unit_stems: StemResolution | None,
 ) -> _ExampleView:
     """Project one example response onto the view the QuestionnaireResponse template renders."""
     label = _KIND_LABELS[source.kind]
@@ -766,20 +797,31 @@ def _example_view(
     return _ExampleView(
         instance_id=response.instance_id,
         instance_of=_response_profile(source.kind, foundation, complete=complete),
-        questionnaire_url=f"{canonical}/Questionnaire/{source.uid}",
+        questionnaire_url=f"{canonical}/Questionnaire/{target_stem}",
         title_literal=page_text(f"Example response - {display_name}"),
         description_literal=page_text(
             f"Example QuestionnaireResponse against the DHIS2 {label} {display_name} ({source.uid})."
         ),
         form_type_extension=foundation.form_type_extension,
         form_type_code=source.kind,
-        organisation_unit_uid=response.organisation_unit_uid,
+        organisation_unit_stem=location_stem(response.organisation_unit_uid, organisation_unit_stems),
         status_code=response.status_code,
         period=_period_view(period, foundation),
-        tracker=_tracker_view(tracker, foundation),
+        tracker=_tracker_view(tracker, foundation, organisation_unit_stems),
         authored=authored,
-        items=_item_views(example_items(source, answers), identities, depth=0),
+        items=_item_views(example_items(source, answers), identities, organisation_unit_stems, depth=0),
     )
+
+
+def location_stem(uid: str, organisation_unit_stems: StemResolution | None) -> str:
+    """The Location id one unit's reference targets: its identity stem when the registry resolved one.
+
+    A unit outside the resolution - or a build that was handed none - keeps its DHIS2 id, which
+    is also what every stem is under `source = "id"`.
+    """
+    if organisation_unit_stems is None:
+        return uid
+    return organisation_unit_stems.stems.get(uid, uid)
 
 
 def _period_view(period: PeriodValue | None, foundation: FoundationNaming) -> _PeriodExtensionView | None:
@@ -795,14 +837,18 @@ def _period_view(period: PeriodValue | None, foundation: FoundationNaming) -> _P
     )
 
 
-def _tracker_view(context: ExampleTrackerContext | None, foundation: FoundationNaming) -> _TrackerContextView | None:
+def _tracker_view(
+    context: ExampleTrackerContext | None,
+    foundation: FoundationNaming,
+    organisation_unit_stems: StemResolution | None,
+) -> _TrackerContextView | None:
     """The tracker extensions one stage response renders, under the run's foundation names."""
     if context is None:
         return None
     return _TrackerContextView(
         enrollment_extension=foundation.tracker_enrollment_extension,
         organisation_unit_extension=foundation.organisation_unit_extension,
-        organisation_unit_uid=context.organisation_unit_uid,
+        organisation_unit_stem=location_stem(context.organisation_unit_uid, organisation_unit_stems),
         enrollment_uid=context.enrollment_uid,
         tracked_entity_uid=context.tracked_entity_uid,
     )
@@ -1050,7 +1096,13 @@ def _data_element_items(
     return [ExampleItem(link_id=item.uid, answers=answered)] if answered else []
 
 
-def _item_views(items: list[ExampleItem], identities: dict[str, OptionSetIdentity], *, depth: int) -> list[_ItemView]:
+def _item_views(
+    items: list[ExampleItem],
+    identities: dict[str, OptionSetIdentity],
+    organisation_unit_stems: StemResolution | None,
+    *,
+    depth: int,
+) -> list[_ItemView]:
     """Flatten the shared item tree onto the FSH soft-index paths, rendering each answer's literal."""
     views: list[_ItemView] = []
     for item in items:
@@ -1059,19 +1111,23 @@ def _item_views(items: list[ExampleItem], identities: dict[str, OptionSetIdentit
                 new_path=_new_path(depth),
                 path=_set_path(depth),
                 link_id=item.link_id,
-                answers=[_fsh_answer(answer, identities) for answer in item.answers],
+                answers=[_fsh_answer(answer, identities, organisation_unit_stems) for answer in item.answers],
             )
         )
-        views.extend(_item_views(item.items, identities, depth=depth + 1))
+        views.extend(_item_views(item.items, identities, organisation_unit_stems, depth=depth + 1))
     return views
 
 
-def _fsh_answer(answer: ExampleAnswer, identities: dict[str, OptionSetIdentity]) -> _Answer:
+def _fsh_answer(
+    answer: ExampleAnswer, identities: dict[str, OptionSetIdentity], organisation_unit_stems: StemResolution | None
+) -> _Answer:
     """Render one typed answer as the FSH literal its `value[x]` element takes."""
-    return _Answer(element=answer.element, literal=_fsh_literal(answer, identities))
+    return _Answer(element=answer.element, literal=_fsh_literal(answer, identities, organisation_unit_stems))
 
 
-def _fsh_literal(answer: ExampleAnswer, identities: dict[str, OptionSetIdentity]) -> str:
+def _fsh_literal(
+    answer: ExampleAnswer, identities: dict[str, OptionSetIdentity], organisation_unit_stems: StemResolution | None
+) -> str:
     """The FSH literal one typed answer writes - a bare number, a quoted string, or a coding call."""
     if answer.element == "valueInteger":
         return str(answer.integer_value)
@@ -1080,7 +1136,7 @@ def _fsh_literal(answer: ExampleAnswer, identities: dict[str, OptionSetIdentity]
     if answer.element == "valueBoolean":
         return "true" if answer.boolean_value else "false"
     if answer.element == "valueReference":
-        return f"Reference(Location/{answer.location_uid})"
+        return f"Reference(Location/{location_stem(answer.location_uid or '', organisation_unit_stems)})"
     if answer.element == "valueCoding" and answer.coding is not None:
         system = identities[answer.coding.option_set_uid].code_system_name
         return f"{system}{fsh_code(answer.coding.concept_code)} {quote(answer.coding.display)}"

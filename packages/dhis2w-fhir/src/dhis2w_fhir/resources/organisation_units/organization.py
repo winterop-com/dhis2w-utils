@@ -29,7 +29,17 @@ from dhis2w_fhir.foundation.attribute_values import (
     attribute_value_identifiers,
 )
 from dhis2w_fhir.i18n import name_translations, translated_element
-from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_text, quote
+from dhis2w_fhir.names import (
+    FHIR_ID_MAX_LENGTH,
+    NamingSource,
+    StemResolution,
+    StemSubject,
+    code_or_uid,
+    flatten_whitespace,
+    page_text,
+    quote,
+    resolve_identity_stems,
+)
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.r4 import (
     BOUNDARY_EXTENSION_URL,
@@ -59,6 +69,33 @@ if TYPE_CHECKING:
 
 #: The `ig/input/resources/` subdirectory the registry owns outright - one JSON file per resource.
 REGISTRY_DIRECTORY = "registry"
+
+#: The surface label organisation-unit stem notes and refusals name their offenders under.
+ORGANISATION_UNIT_STEM_SURFACE = "organisation unit"
+
+
+def organisation_unit_stem_subjects(organisation_units: list[OrganisationUnitIn]) -> list[StemSubject]:
+    """Project the fetched selection onto the stem subjects its identity resolution runs over."""
+    return [
+        StemSubject(uid=organisation_unit.uid, code=organisation_unit.code, label=organisation_unit.name)
+        for organisation_unit in organisation_units
+    ]
+
+
+def plan_organisation_unit_stems(subjects: list[StemSubject], source: NamingSource) -> StemResolution:
+    """Resolve the org-unit surface's identity stems once per run - the single source every emitter reads.
+
+    A unit's stem is its Organization and Location resource id, both file names, and every
+    `Organization/...` / `Location/...` reference the run emits - the registry, the examples,
+    and the intro pages all read this one resolution, so a reference can never dangle. The
+    subjects come from `organisation_unit_stem_subjects`, or from a lighter id/code/name read
+    under the same selection filters when the full projection was not fetched. The whole
+    selection resolves in one call, so the collision scan sees every peer. The stem is the whole
+    resource id, so the budget is the R4 id limit itself - the same number validate states for
+    this surface.
+    """
+    return resolve_identity_stems(subjects, source, ORGANISATION_UNIT_STEM_SURFACE, max_stem_length=FHIR_ID_MAX_LENGTH)
+
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.resources.organisation_units", "templates"),
@@ -126,6 +163,11 @@ def build_registry_examples(
 
     They live beside the profiles in `organization/`, not in `examples/`: that directory is swept
     by the examples target, whose sync deletes every file it did not produce.
+
+    The exemplar ids (`d2-organization-example`) derive from the profile ids rather than from the
+    unit's identity stem: the pair illustrates the profiles, and its `Reference(...)` targets are
+    FSH instance names SUSHI resolves, so no stem enters this file under any naming source. The
+    unit's DHIS2 id and code appear only as the identifier values they are.
     """
     root = _root_organisation_unit(organisation_units)
     if root is None:
@@ -183,11 +225,24 @@ def build_organisation_unit_instances(
     canonical: str,
     *,
     attribute_codes: AttributeCodeIndex,
+    stems: StemResolution | None = None,
 ) -> JsonBuild:
-    """Build one `registry/Organization-<uid>.json` and `registry/Location-<uid>.json` per organisation unit."""
+    """Build one `registry/Organization-<stem>.json` and `registry/Location-<stem>.json` per organisation unit.
+
+    `stems` is the org-unit surface's identity resolution; a caller building several targets off
+    one fetch passes the run's resolution, and a caller without one gets it resolved here through
+    the same `plan_organisation_unit_stems` call. Its fall-back notes surface on this build - the
+    registry owns the surface, so the note is raised exactly once per run.
+    """
     urls = OrganisationUnitInstanceUrls.from_config(config, canonical)
     extension_url = attribute_value_extension_url(config, canonical)
     build = JsonBuild()
+    resolved = (
+        stems
+        if stems is not None
+        else plan_organisation_unit_stems(organisation_unit_stem_subjects(organisation_units), config.naming.source)
+    )
+    build.notes.extend(resolved.notes)
     selected_uids = {organisation_unit.uid for organisation_unit in organisation_units}
     by_level: defaultdict[int, list[OrganisationUnitIn]] = defaultdict(list)
     for organisation_unit in organisation_units:
@@ -196,13 +251,21 @@ def build_organisation_unit_instances(
     for level in sorted(by_level):
         for organisation_unit in sorted(by_level[level], key=lambda item: (item.path, item.uid)):
             organization = _build_organization(
-                organisation_unit, urls, selected_uids, orphaned, config.locales, attribute_codes, extension_url
+                organisation_unit,
+                urls,
+                selected_uids,
+                orphaned,
+                config.locales,
+                attribute_codes,
+                extension_url,
+                resolved,
             )
             location = build_location(
-                organisation_unit, urls, selected_uids, config.locales, attribute_codes, extension_url
+                organisation_unit, urls, selected_uids, config.locales, attribute_codes, extension_url, resolved
             )
-            build.artifacts.append(_json_artifact(f"Organization-{organisation_unit.uid}", organization))
-            build.artifacts.append(_json_artifact(f"Location-{organisation_unit.uid}", location))
+            stem = resolved.stem_for(organisation_unit.uid)
+            build.artifacts.append(_json_artifact(f"Organization-{stem}", organization))
+            build.artifacts.append(_json_artifact(f"Location-{stem}", location))
     if orphaned:
         build.notes.append(
             aggregate_note(
@@ -228,8 +291,13 @@ def _build_organization(
     locales: list[str],
     attribute_codes: AttributeCodeIndex,
     extension_url: str,
+    stems: StemResolution,
 ) -> Organization:
-    """Build the Organization of one unit, noting units whose parent falls outside the selection."""
+    """Build the Organization of one unit, noting units whose parent falls outside the selection.
+
+    The identity stem carries the resource id and the `partOf` reference, while the identifier
+    slices keep the DHIS2 id and code as data.
+    """
     uid = organisation_unit.uid
     parent_uid: str | None = None
     if organisation_unit.parent_uid is not None:
@@ -242,7 +310,7 @@ def _build_organization(
         alias = [flatten_whitespace(organisation_unit.short_name)]
     level = organisation_unit.level
     return Organization(
-        id=uid,
+        id=stems.stem_for(uid),
         meta=Meta(profile=[urls.organization_profile]),
         extension=attribute_value_extensions(organisation_unit.attribute_values, attribute_codes, extension_url)
         or None,
@@ -263,7 +331,7 @@ def _build_organization(
                 ]
             )
         ],
-        partOf=Reference(reference=f"Organization/{parent_uid}") if parent_uid is not None else None,
+        partOf=Reference(reference=f"Organization/{stems.stem_for(parent_uid)}") if parent_uid is not None else None,
         telecom=_telecom(organisation_unit) or None,
         contact=_contact(organisation_unit),
         active=not organisation_unit.closed,

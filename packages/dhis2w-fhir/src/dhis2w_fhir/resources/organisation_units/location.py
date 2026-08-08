@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from dhis2w_fhir.foundation.attribute_values import attribute_value_extensions, attribute_value_identifiers
 from dhis2w_fhir.i18n import name_translations, translated_element
-from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_string
+from dhis2w_fhir.names import StemResolution, code_or_uid, flatten_whitespace, page_string
 from dhis2w_fhir.r4 import (
     BOUNDARY_EXTENSION_URL,
     Attachment,
@@ -35,8 +35,13 @@ def build_location(
     locales: list[str],
     attribute_codes: AttributeCodeIndex,
     extension_url: str,
+    stems: StemResolution,
 ) -> Location:
-    """Build the Location of one organisation unit - always emitted; position/boundary attach with geometry."""
+    """Build the Location of one organisation unit - always emitted; position/boundary attach with geometry.
+
+    The identity stem carries the resource id and every reference (`managingOrganization`,
+    `partOf`), while the identifier slices keep the DHIS2 id and code as data.
+    """
     uid = organisation_unit.uid
     position: LocationPosition | None = None
     if organisation_unit.latitude is not None and organisation_unit.longitude is not None:
@@ -47,7 +52,7 @@ def build_location(
         f"level {organisation_unit.level} - physical location."
     )
     return Location(
-        id=uid,
+        id=stems.stem_for(uid),
         meta=Meta(profile=[urls.location_profile]),
         identifier=[
             Identifier(system=urls.identifier_system, value=uid),
@@ -62,8 +67,8 @@ def build_location(
         status="inactive" if organisation_unit.closed else "active",
         position=position,
         extension=_extensions(organisation_unit, attribute_codes, extension_url) or None,
-        managingOrganization=Reference(reference=f"Organization/{uid}"),
-        partOf=Reference(reference=f"Location/{parent_uid}") if parent_uid is not None else None,
+        managingOrganization=Reference(reference=f"Organization/{stems.stem_for(uid)}"),
+        partOf=Reference(reference=f"Location/{stems.stem_for(parent_uid)}") if parent_uid is not None else None,
     )
 
 

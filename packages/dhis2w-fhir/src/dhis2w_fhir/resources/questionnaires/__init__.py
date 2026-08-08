@@ -52,6 +52,8 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
+    QuestionnaireStemPlan,
+    plan_questionnaire_stems,
     source_display_name,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
@@ -76,6 +78,7 @@ __all__ = [
     "QUESTIONNAIRE_DIRECTORIES",
     "TRACKER_PROGRAM_DIRECTORY",
     "NumericBounds",
+    "QuestionnaireStemPlan",
     "bound_option_set_uids",
     "build_questionnaire_artifacts",
     "collect_referenced_objects",
@@ -84,6 +87,7 @@ __all__ = [
     "is_multi_valued",
     "item_type",
     "link_id_collisions",
+    "plan_questionnaire_stems",
     "source_description",
     "source_items",
     "source_program",
@@ -270,11 +274,16 @@ class _AttributeIdentifierView(BaseModel):
 
 
 class _QuestionnaireView(BaseModel):
-    """Everything the Questionnaire template needs for one source, every conditional resolved."""
+    """Everything the Questionnaire template needs for one source, every conditional resolved.
+
+    `stem` is the form's identity stem - the instance name suffix, the `id`, and the segment its
+    canonical URL closes on - while `uid` is the DHIS2 id its identifier slice carries as data.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
+    stem: str
     name: str
     url: str
     title_literal: str
@@ -346,15 +355,20 @@ def build_questionnaire_artifacts(
     ig_status: IgStatus,
     option_set_plan: OptionSetIdentityPlan,
     attribute_codes: AttributeCodeIndex,
+    stem_plan: QuestionnaireStemPlan | None = None,
 ) -> FshBuild:
     """Build one `data-sets/` or `event-programs/` file per target plus the `data-dictionary/` support pairs.
 
     `option_set_plan` is the identity plan the terminology target emits from, so an
     `answerValueSet` names the ValueSet the same run writes under either naming source.
     `attribute_codes` is the run's `uid -> code` join, which the D2AttributeValue extensions
-    read the attribute code out of.
+    read the attribute code out of. `stem_plan` is the questionnaire surface's identity-stem
+    plan; a caller building several targets off one fetch passes the run's plan, and a caller
+    without one gets it resolved here through the same `plan_questionnaire_stems` call.
     """
     build = FshBuild()
+    plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
+    build.notes.extend(plan.notes)
     names = QuestionnaireNaming.from_naming(config.naming)
     foundation = FoundationNaming.from_naming(config.naming)
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
@@ -374,15 +388,16 @@ def build_questionnaire_artifacts(
             foundation,
             canonical,
             index.identities,
+            stem_plan=plan,
             ig_status=ig_status,
             attribute_codes=attribute_codes,
             identifier_system_base=config.identifier_system_base,
         )
         build.artifacts.append(
             FshArtifact(
-                relative_path=_source_relative_path(source),
+                relative_path=_source_relative_path(source, plan),
                 kind="instances",
-                fsh_name=f"Questionnaire-{source.uid}",
+                fsh_name=f"Questionnaire-{plan.targets.stem_for(source.uid)}",
                 content=template.render(
                     questionnaire=view,
                     item_control_extension_url=ITEM_CONTROL_EXTENSION_URL,
@@ -476,11 +491,12 @@ def _source_directory(source: QuestionnaireSourceIn) -> str:
     return _DIRECTORIES_BY_KIND[source.kind]
 
 
-def _source_relative_path(source: QuestionnaireSourceIn) -> str:
-    """The file one form is written to, a tracker program stage nested under the UID of its program."""
+def _source_relative_path(source: QuestionnaireSourceIn, stem_plan: QuestionnaireStemPlan) -> str:
+    """The file one form's identity stem names, a tracker program stage nested under its program's stem."""
+    stem = stem_plan.targets.stem_for(source.uid)
     if source.kind != "tracker-event":
-        return f"{_source_directory(source)}/{source.uid}.fsh"
-    return f"{TRACKER_PROGRAM_DIRECTORY}/{source_program(source).uid}/{source.uid}.fsh"
+        return f"{_source_directory(source)}/{stem}.fsh"
+    return f"{TRACKER_PROGRAM_DIRECTORY}/{stem_plan.programs.stem_for(source_program(source).uid)}/{stem}.fsh"
 
 
 def source_program(source: QuestionnaireSourceIn) -> ProgramContextIn:
@@ -500,17 +516,23 @@ def _questionnaire_view(
     canonical: str,
     identities: dict[str, OptionSetIdentity],
     *,
+    stem_plan: QuestionnaireStemPlan,
     ig_status: IgStatus,
     attribute_codes: AttributeCodeIndex,
     identifier_system_base: str,
 ) -> _QuestionnaireView:
-    """Project one source onto the view the Questionnaire template renders."""
+    """Project one source onto the view the Questionnaire template renders.
+
+    The identity stem carries the artifact identity - the instance name, the `id`, the canonical
+    URL, the FSH name segment - while `uid` stays the DHIS2 identifier value the resource exposes.
+    """
     profile = FORM_KIND_PROFILES[source.kind]
     display_name = source_display_name(source)
     return _QuestionnaireView(
         uid=source.uid,
-        name=names.questionnaire_name(source.kind, source.uid),
-        url=f"{canonical}/Questionnaire/{source.uid}",
+        stem=stem_plan.targets.stem_for(source.uid),
+        name=names.questionnaire_name(source.kind, stem_plan.targets.fsh_segment_for(source.uid)),
+        url=f"{canonical}/Questionnaire/{stem_plan.targets.stem_for(source.uid)}",
         title_literal=page_text(f"Questionnaire - {display_name}"),
         title_element_literal=quote(display_name),
         description_literal=page_text(source_description(source, profile)),

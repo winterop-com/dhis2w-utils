@@ -617,7 +617,7 @@ def test_validate_summary_carries_selection_and_coverage_rows(fhir_project: Path
     assert "selection findings" in result.stderr
     assert "0 errors, 1 warning, 1 info" in result.stderr
     assert "code coverage" in result.stderr
-    assert "1/2 (selection objects with slug-safe codes)" in result.stderr
+    assert "1/2 (selection objects whose code can serve as an identity stem)" in result.stderr
     assert "passed: 1 selection warning(s), 1 selection info(s), 2 instance finding(s)" in result.stderr
 
 

@@ -54,6 +54,7 @@ def test_scaffold_covers_expected_files() -> None:
         "ig/input/pagecontent/index.md",
         "ig/input/ignoreWarnings.txt",
         "pyproject.toml",
+        ".python-version",
         "Makefile",
         "Dockerfile",
         ".gitignore",
@@ -478,7 +479,7 @@ def test_refresh_of_an_untouched_project_writes_nothing(tmp_path: Path) -> None:
     assert report.created_files == []
     assert report.refreshed_files == []
     assert report.edited_files == []
-    assert len(report.unchanged_files) == 11
+    assert len(report.unchanged_files) == 12
     assert "fhir.toml" not in report.unchanged_files
 
 

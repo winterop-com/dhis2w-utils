@@ -73,7 +73,8 @@ across every FHIR guide on earth, which a UID is not.
 
 Every IG picks a **canonical base** and hangs its artifacts off it. Here that is
 `[ig] canonical` in `fhir.toml`, so a generated Questionnaire's `url` is
-`<canonical>/Questionnaire/<uid>`. The separate `identifier_system_base` (default
+`<canonical>/Questionnaire/<stem>`, where the stem is the identity stem
+`[generate.naming] source` resolves - the DHIS2 id by default. The separate `identifier_system_base` (default
 `http://dhis2.org/fhir`) is the base for the DHIS2 *identifier systems* rather than
 for artifacts; the two are configured independently.
 

@@ -63,7 +63,7 @@ organisation unit the values were captured at, and the profile restricts it to
 
 {% if capture.organisation_unit_uid %}
 ```
-"subject": { "reference": "Location/{{ capture.organisation_unit_uid }}" }
+"subject": { "reference": "Location/{{ capture.organisation_unit_stem }}" }
 ```
 
 Written out, that is {{ capture.organisation_unit_name }} (`{{ capture.organisation_unit_uid }}`).
@@ -196,7 +196,7 @@ a reference to that unit's `{{ capture.location_profile }}`:
 ```
 "extension": [{
   "url": "{{ capture.canonical }}/StructureDefinition/{{ capture.organisation_unit_extension_id }}",
-  "valueReference": { "reference": "Location/{{ capture.organisation_unit_uid }}" }
+  "valueReference": { "reference": "Location/{{ capture.organisation_unit_stem }}" }
 }]
 ```
 

@@ -23,11 +23,12 @@ _KHMER_NATURAL_BIRTH = "កំណើតធម្មជាតិ"
 _LAO_BO = "ບໍ"
 _KHMER_BO = "បូ"
 
-_NAME_SOURCE = GenerateConfig(naming=NamingConfig(source="name"))
-_LAO_ONLY = GenerateConfig(naming=NamingConfig(source="name"), locales=["lo"])
+_CODE_STEMS = GenerateConfig(naming=NamingConfig(source="code"))
+_LAO_ONLY = GenerateConfig(naming=NamingConfig(source="code"), locales=["lo"])
 
 _BIRTH_TYPE = OptionSetIn(
     uid="Xa1b2c3d4e5",
+    code="birth-type",
     name="Birth type",
     translations=[
         TranslationIn(locale="lo", property="NAME", value=_LAO_BIRTH_TYPE),
@@ -172,13 +173,13 @@ def _option_set_documents(option_set: OptionSetIn, config: GenerateConfig) -> di
 
 def test_option_concepts_carry_name_designations() -> None:
     """Each option's NAME translations ride along with its property as CodeSystem concept designations."""
-    documents = _option_set_documents(_BIRTH_TYPE, _NAME_SOURCE)
+    documents = _option_set_documents(_BIRTH_TYPE, _CODE_STEMS)
     assert documents["terminology/CodeSystem-d2-os-birth-type-cs.json"]["concept"] == [_EXPECTED_CONCEPT]
 
 
 def test_option_set_titles_carry_translation_extensions_on_both_artifacts() -> None:
     """The set's NAME translations reach the `_title` sibling of the CodeSystem and the ValueSet alike."""
-    documents = _option_set_documents(_BIRTH_TYPE, _NAME_SOURCE)
+    documents = _option_set_documents(_BIRTH_TYPE, _CODE_STEMS)
     assert documents["terminology/CodeSystem-d2-os-birth-type-cs.json"]["_title"] == _EXPECTED_TITLE_ELEMENT
     assert documents["terminology/ValueSet-d2-os-birth-type-vs.json"]["_title"] == _EXPECTED_TITLE_ELEMENT
 
@@ -194,7 +195,7 @@ def test_configured_locales_filter_the_emitted_translations() -> None:
 
 def test_short_name_and_description_translations_are_not_emitted() -> None:
     """Only NAME translations reach the artifacts in this batch."""
-    emitted = json.dumps(_option_set_documents(_BIRTH_TYPE, _NAME_SOURCE), ensure_ascii=False)
+    emitted = json.dumps(_option_set_documents(_BIRTH_TYPE, _CODE_STEMS), ensure_ascii=False)
     assert '"ປະເພດ"' not in emitted
     assert "ຄຳອະທິບາຍ" not in emitted
 
@@ -241,18 +242,6 @@ def test_validation_suffixes_finding_names_with_the_first_translation() -> None:
 
     lao_only = build_code_validation([option_set], [], GenerateConfig(locales=["lo"]), "code")
     assert [finding.name for finding in lao_only.findings] == [f"Natural Birth [in Birth type] / {_LAO_NATURAL_BIRTH}"]
-
-
-def test_validation_suffixes_option_set_findings() -> None:
-    """An option-set-level finding carries the set's own first name translation."""
-    long_name = "Residence of the malaria case/s that prompted foci investigation"
-    option_set = OptionSetIn(
-        uid="Cc3cccccccc",
-        name=long_name,
-        translations=[TranslationIn(locale="lo", property="NAME", value=_LAO_BIRTH_TYPE)],
-    )
-    report = build_code_validation([option_set], [], _NAME_SOURCE)
-    assert [finding.name for finding in report.findings] == [f"{long_name} / {_LAO_BIRTH_TYPE}"]
 
 
 def test_findings_without_translations_keep_the_plain_name() -> None:

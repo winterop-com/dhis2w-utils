@@ -16,7 +16,7 @@ from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, load_project
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
-from dhis2w_fhir.names import code_or_uid
+from dhis2w_fhir.names import StemResolution, StemSubject, code_or_uid
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.period import parse_period, recent_periods
 from dhis2w_fhir.r4 import QuestionnaireResponse
@@ -55,6 +55,8 @@ from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_profiles,
     build_organisation_unit_terminology,
     build_registry_examples,
+    organisation_unit_stem_subjects,
+    plan_organisation_unit_stems,
 )
 from dhis2w_fhir.resources.organisation_units.schemas import GeoPoint, OrganisationUnitIn
 from dhis2w_fhir.resources.pages import (
@@ -77,6 +79,8 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireItemIn,
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
+    QuestionnaireStemPlan,
+    plan_questionnaire_stems,
 )
 from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
@@ -556,6 +560,7 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
         paging=False,
     )
     programs: set[str] = set()
+    tracker_programs: set[str] = set()
     program_stages: set[str] = set()
     for program in program_models:
         uid = program.id or ""
@@ -571,6 +576,7 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
                 _collect_stage_elements(stage, bindings)
         if as_tracker and program_type == _TRACKER_PROGRAM_TYPE:
             programs.add(uid)
+            tracker_programs.add(uid)
             for stage in stages:
                 stage_uid = _optional_text(stage.get("id"))
                 if stage_uid is not None:
@@ -594,6 +600,7 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
         organisation_units=await _fetch_published_organisation_unit_uids(client, config),
         data_sets=frozenset(data_sets),
         programs=frozenset(programs),
+        tracker_programs=frozenset(tracker_programs),
         program_stages=frozenset(program_stages),
         data_elements=frozenset(bindings.data_element_uids),
     )
@@ -843,6 +850,7 @@ async def generate_questionnaires(
         sources=sources,
         option_set_plan=option_set_plan,
         attribute_codes=attribute_codes,
+        stem_plan=plan_questionnaire_stems(sources, config.naming.source),
         notes=notes,
         progress=progress,
     )
@@ -854,10 +862,16 @@ def _emit_questionnaires(
     sources: list[QuestionnaireSourceIn],
     option_set_plan: OptionSetIdentityPlan,
     attribute_codes: AttributeCodeIndex,
+    stem_plan: QuestionnaireStemPlan,
     notes: list[str],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
-    """Build the Questionnaire FSH off already-fetched sources and sync each of its four directories."""
+    """Build the Questionnaire FSH off already-fetched sources and sync each of its four directories.
+
+    `stem_plan` is resolved by the caller at the fetch/plan level - under `source = "code"` an
+    unusable code has therefore refused the run before this step opens - and the builder raises
+    its code-or-id fall-back notes onto this target's report.
+    """
     progress.step("questionnaires", f"writing ig/input/fsh/{{{','.join(QUESTIONNAIRE_DIRECTORIES)}}}")
     _refuse_build_aborting_codes([_coded_source(source) for source in sources])
     build = build_questionnaire_artifacts(
@@ -867,6 +881,7 @@ def _emit_questionnaires(
         ig_status=project.config.ig.status,
         option_set_plan=option_set_plan,
         attribute_codes=attribute_codes,
+        stem_plan=stem_plan,
     )
     syncs = [
         sync_artifacts(project.fsh_directory, directory, _artifacts_under(build.artifacts, directory))
@@ -900,6 +915,8 @@ async def generate_examples(
             option_sets=[],
             option_set_plan=option_set_identities([], config),
             published_organisation_unit_uids=frozenset(),
+            stem_plan=plan_questionnaire_stems([], config.naming.source),
+            organisation_unit_stems=StemResolution(),
             notes=notes,
             progress=progress,
         )
@@ -908,7 +925,7 @@ async def generate_examples(
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_sets = await _fetch_example_option_sets(client, sources)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
-        published_uids = await _fetch_published_organisation_unit_uids(client, config)
+        organisation_unit_stems = await _fetch_published_organisation_unit_stems(client, config)
         progress.complete(f"{len(sources):,} questionnaire target(s), {len(option_sets):,} bound option set(s)")
         return await _emit_examples(
             client,
@@ -916,7 +933,9 @@ async def generate_examples(
             sources=sources,
             option_sets=option_sets,
             option_set_plan=option_set_plan,
-            published_organisation_unit_uids=published_uids,
+            published_organisation_unit_uids=frozenset(organisation_unit_stems.stems),
+            stem_plan=plan_questionnaire_stems(sources, config.naming.source),
+            organisation_unit_stems=organisation_unit_stems,
             notes=notes,
             progress=progress,
         )
@@ -930,6 +949,8 @@ async def _emit_examples(
     option_sets: list[OptionSetIn],
     option_set_plan: OptionSetIdentityPlan,
     published_organisation_unit_uids: frozenset[str],
+    stem_plan: QuestionnaireStemPlan,
+    organisation_unit_stems: StemResolution,
     notes: list[str],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
@@ -942,7 +963,10 @@ async def _emit_examples(
 
     `published_organisation_unit_uids` is the registry's own selection, so an `ORGANISATION_UNIT`
     answer naming a unit the guide publishes no Location for is left unanswered rather than
-    pointed at a resource no consumer can resolve.
+    pointed at a resource no consumer can resolve. `stem_plan` and `organisation_unit_stems` are
+    the run's identity resolutions - the file names and the `questionnaire` canonical follow the
+    target's stem, every `Location/...` reference follows the registry's - and their fall-back
+    notes stay on the targets that own those surfaces.
     """
     progress.step("examples", f"writing ig/input/fsh/{EXAMPLES_DIRECTORY}")
     artifacts: list[FshArtifact] = []
@@ -960,6 +984,8 @@ async def _emit_examples(
             project.config.ig.canonical,
             option_set_plan=option_set_plan,
             published_organisation_unit_uids=published_organisation_unit_uids,
+            stem_plan=stem_plan,
+            organisation_unit_stems=organisation_unit_stems,
         )
         artifacts = build.artifacts
         notes.extend(build.notes)
@@ -1006,6 +1032,7 @@ async def generate_load_set(
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_sets = await _fetch_example_option_sets(client, sources)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
+        organisation_unit_stems = await _fetch_published_organisation_unit_stems(client, config)
         root_uid = await _root_organisation_unit_uid(client)
     progress.complete(f"{len(sources):,} questionnaire target(s)")
     progress.step("load set", f"writing {_LOAD_DIRECTORY}")
@@ -1022,6 +1049,8 @@ async def generate_load_set(
             config,
             project.config.ig.canonical,
             option_set_plan=option_set_plan,
+            stem_plan=plan_questionnaire_stems(sources, config.naming.source),
+            organisation_unit_stems=organisation_unit_stems,
         )
         documents = build.responses
         notes.extend(build.notes)
@@ -1365,8 +1394,8 @@ async def _fetch_published_organisation_unit_uids(client: Dhis2Client, config: G
     """Read the UID of every organisation unit the registry target publishes a Location for.
 
     The ids alone, unpaged, under the same filters the registry walk applies - a single small read
-    even on a national hierarchy, which is what lets the solo examples target apply the same
-    out-of-selection guard `generate full` applies without repeating the registry's full walk.
+    even on a national hierarchy, which is what lets the validation scope apply the same
+    out-of-selection guard the generate targets apply without repeating the registry's full walk.
     """
     models: list[OrganisationUnit] = await client.resources.organisation_units.list(
         fields="id",
@@ -1374,6 +1403,27 @@ async def _fetch_published_organisation_unit_uids(client: Dhis2Client, config: G
         paging=False,
     )
     return frozenset(model.id for model in models if model.id)
+
+
+async def _fetch_published_organisation_unit_stems(client: Dhis2Client, config: GenerateConfig) -> StemResolution:
+    """Resolve the registry selection's identity stems off a light id/code/name read.
+
+    The same selection filters the registry walk applies, in a projection carrying only what stem
+    resolution reads, and resolved through the very `plan_organisation_unit_stems` call the
+    registry resolves through - so the examples and load-set targets reference exactly the
+    Location ids the registry writes without repeating its full hierarchy walk. The resolution's
+    keys double as the published-unit set, and its fall-back notes belong to the registry
+    target's report rather than to the caller's.
+    """
+    models: list[OrganisationUnit] = await client.resources.organisation_units.list(
+        fields="id,code,name",
+        filters=_organisation_unit_selection_filters(config) or None,
+        paging=False,
+    )
+    subjects = [
+        StemSubject(uid=model.id, code=model.code, label=model.name or model.id) for model in models if model.id
+    ]
+    return plan_organisation_unit_stems(subjects, config.naming.source)
 
 
 def _registry_scale_notes(organisation_unit_count: int) -> list[str]:
@@ -1405,6 +1455,9 @@ async def generate_organisation_units(
         project,
         organisation_units=organisation_units,
         attribute_codes=attribute_codes,
+        stems=plan_organisation_unit_stems(
+            organisation_unit_stem_subjects(organisation_units), project.config.generate.naming.source
+        ),
         notes=tally.to_notes(),
         progress=progress,
     )
@@ -1415,10 +1468,16 @@ def _emit_organisation_units(
     *,
     organisation_units: list[OrganisationUnitIn],
     attribute_codes: AttributeCodeIndex,
+    stems: StemResolution,
     notes: list[str],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
-    """Build the organisation-unit profiles, terminology, and registry off an already-paged hierarchy."""
+    """Build the organisation-unit profiles, terminology, and registry off an already-paged hierarchy.
+
+    `stems` is resolved by the caller at the fetch/plan level - under `source = "code"` an
+    unusable code has therefore refused the run before this step opens - and the registry build
+    raises its code-or-id fall-back notes onto this target's report.
+    """
     progress.step(
         "organisation units", f"writing ig/input/fsh/organization and ig/input/resources/{REGISTRY_DIRECTORY}"
     )
@@ -1447,7 +1506,11 @@ def _emit_organisation_units(
             )
         )
         instances = build_organisation_unit_instances(
-            organisation_units, generate_config, project.config.ig.canonical, attribute_codes=attribute_codes
+            organisation_units,
+            generate_config,
+            project.config.ig.canonical,
+            attribute_codes=attribute_codes,
+            stems=stems,
         )
         registry = instances.artifacts
         notes.extend(instances.notes)
@@ -1506,6 +1569,10 @@ async def generate_pages(
         sources=sources,
         option_sets=option_sets,
         organisation_units=organisation_units,
+        stem_plan=plan_questionnaire_stems(sources, config.naming.source),
+        organisation_unit_stems=plan_organisation_unit_stems(
+            organisation_unit_stem_subjects(organisation_units), config.naming.source
+        ),
         notes=notes,
         progress=progress,
     )
@@ -1517,6 +1584,8 @@ def _emit_pages(
     sources: list[QuestionnaireSourceIn],
     option_sets: list[OptionSetIn],
     organisation_units: list[OrganisationUnitIn],
+    stem_plan: QuestionnaireStemPlan,
+    organisation_unit_stems: StemResolution,
     notes: list[str],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
@@ -1524,11 +1593,18 @@ def _emit_pages(
 
     The forms are the ones the questionnaire target really writes: a form skipped for a `linkId`
     collision gets no catalog row and no intro, because the page would link an artifact the guide
-    does not hold.
+    does not hold. `stem_plan` and `organisation_unit_stems` are the run's identity resolutions,
+    so every artifact link and intro file name follows the ids the emitting targets wrote.
     """
     progress.step("pages", f"writing ig/{PAGES_BASE_SUBDIRECTORY}/{PAGES_DIRECTORY}")
     pages = PagesIn(forms=_published_sources(sources), option_sets=option_sets, organisation_units=organisation_units)
-    build = build_page_artifacts(pages, project.config.generate, project.config.ig.canonical)
+    build = build_page_artifacts(
+        pages,
+        project.config.generate,
+        project.config.ig.canonical,
+        stem_plan=stem_plan,
+        organisation_unit_stems=organisation_unit_stems,
+    )
     sync = sync_artifacts(project.ig_directory / PAGES_BASE_SUBDIRECTORY, PAGES_DIRECTORY, build.artifacts)
     intro_count = sum(1 for artifact in build.artifacts if artifact.relative_path.endswith(INTRO_SUFFIX))
     report = GenerateReport(
@@ -1589,6 +1665,7 @@ async def generate_full(
             sources=inputs.sources,
             option_set_plan=inputs.option_set_plan,
             attribute_codes=inputs.attribute_codes,
+            stem_plan=inputs.questionnaire_stems,
             notes=list(inputs.source_notes),
             progress=progress,
         )
@@ -1601,6 +1678,8 @@ async def generate_full(
             published_organisation_unit_uids=frozenset(
                 organisation_unit.uid for organisation_unit in inputs.organisation_units
             ),
+            stem_plan=inputs.questionnaire_stems,
+            organisation_unit_stems=inputs.organisation_unit_stems,
             notes=list(inputs.source_notes),
             progress=progress,
         )
@@ -1608,6 +1687,7 @@ async def generate_full(
             project,
             organisation_units=inputs.organisation_units,
             attribute_codes=inputs.attribute_codes,
+            stems=inputs.organisation_unit_stems,
             notes=list(inputs.geometry_notes),
             progress=progress,
         )
@@ -1616,6 +1696,8 @@ async def generate_full(
             sources=inputs.sources,
             option_sets=inputs.option_sets,
             organisation_units=inputs.organisation_units,
+            stem_plan=inputs.questionnaire_stems,
+            organisation_unit_stems=inputs.organisation_unit_stems,
             notes=[*inputs.source_notes, *inputs.option_set_notes],
             progress=progress,
         )
@@ -1683,6 +1765,9 @@ class LiveIgInputs(BaseModel):
     categories: list[CategoryIn] = Field(default_factory=list)
     organisation_units: list[OrganisationUnitIn] = Field(default_factory=list)
     attribute_codes: AttributeCodeIndex
+    # W-2: identity-stem plans for the questionnaire and org-unit surfaces, resolved once per fetch.
+    questionnaire_stems: QuestionnaireStemPlan
+    organisation_unit_stems: StemResolution
     notes: list[str] = Field(default_factory=list)
     source_notes: list[str] = Field(default_factory=list)
     option_set_notes: list[str] = Field(default_factory=list)
@@ -1734,6 +1819,12 @@ async def fetch_live_ig_inputs(
     steps.tick("reading the attribute-code join")
     attribute_codes = await resolve_attribute_code_index(client)
     geometry_notes = tally.to_notes()
+    # W-2: the identity stems resolve at the fetch/plan level, so a `source = "code"` refusal
+    # raises here - before any target writes a file - and every consumer reads one resolution.
+    questionnaire_stems = plan_questionnaire_stems(sources, config.naming.source)
+    organisation_unit_stems = plan_organisation_unit_stems(
+        organisation_unit_stem_subjects(organisation_units), config.naming.source
+    )
     return LiveIgInputs(
         sources=sources,
         option_sets=option_sets,
@@ -1741,6 +1832,8 @@ async def fetch_live_ig_inputs(
         categories=categories,
         organisation_units=organisation_units,
         attribute_codes=attribute_codes,
+        questionnaire_stems=questionnaire_stems,
+        organisation_unit_stems=organisation_unit_stems,
         notes=[*source_notes, *option_set_notes, *category_notes, *geometry_notes],
         source_notes=source_notes,
         option_set_notes=option_set_notes,
@@ -2127,7 +2220,7 @@ def _tracker_program_sources(model: Program, notes: list[str]) -> list[Questionn
             f"program {name!r} ({uid}) has programType {program_type}; a WITHOUT_REGISTRATION program is "
             "selected under [generate.event_programs]"
         )
-    program = ProgramContextIn(uid=uid, name=name)
+    program = ProgramContextIn(uid=uid, name=name, code=model.code)
     sources: list[QuestionnaireSourceIn] = []
     for stage in sorted(_program_stages(model), key=_stage_sort_key):
         stage_uid = _optional_text(stage.get("id")) or ""

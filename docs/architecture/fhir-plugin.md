@@ -47,6 +47,8 @@ fhir.toml                   Minimal generation config (committed; no secrets)
 fhir.toml.example           Every available option with its default, documented
 pyproject.toml              The project's own uv project: dhis2w-cli + dhis2w-fhir,
                             pinned by a committed uv.lock and run through `uv run d2w`
+.python-version             3.13, matching pyproject's requires-python - the
+                            interpreter uv resolves the project with
 Makefile                    setup / upgrade / generate / validate / cache-init /
                             sushi / build / refresh / clean / clean-all / help via
                             docker. cache-init makes the shared package-cache volume
@@ -134,7 +136,7 @@ concept_code_source = "id"          # "id" or "code"
 locales = []                        # BCP-47 or DHIS2 tags; empty = every locale found
 
 [generate.naming]
-source = "id"                       # "id" or "name"
+source = "id"                       # "id", "code-or-id", or "code"
 prefix = "D2"                       # "" drops it; profiles keep a D2 token
 option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
 category = "CAT"                    # category CodeSystem/ValueSet names
@@ -184,10 +186,12 @@ canonical naming-token registry, is in the
 
 Artifact names merge the prefix and kind tokens and underscore the segments
 after them (`D2` + `OS` + `_Qdm5fPK5Ra9` + `_CS` - short tokens read by context);
-ids join the kebab of each non-empty token, with the UID kept verbatim
+ids join the kebab of each non-empty token, with the identity stem kept verbatim
 (`d2-os-Qdm5fPK5Ra9-cs`), so renaming or dropping a token reshapes the whole IG
-consistently. With `naming.source = "name"` the same set reads `D2OS_BirthType_CS`
-/ `d2-os-birth-type-cs`. The two profile names always carry a token (default
+consistently. `[generate.naming] source` picks the stem: the DHIS2 id under the
+default `"id"`, the object's code under `"code-or-id"` (falling back to the id
+with a note) and `"code"` (refusing the run on a missing, unusable, or colliding
+code). The two profile names always carry a token (default
 `D2`) because FSH cannot name a profile identically to its parent core resource.
 
 ## Scaffold refresh
@@ -353,14 +357,15 @@ line entirely when the code is `None`.
 ## Option sets -> terminology
 
 Two pre-built FHIR JSON documents per option set under
-`ig/input/resources/terminology/` - `CodeSystem-d2-os-<UID>-cs.json` and
-`ValueSet-d2-os-<UID>-vs.json` - carrying a `D2OS_<UID>_CS` CodeSystem plus a
-matching ValueSet (naming tokens configurable). The file name and the id keep the
-UID's own case - FHIR ids permit mixed case, so the id reads straight back to the
-DHIS2 object. With `naming.source = "name"` the artifacts take kebab-cased name
-slugs instead, and ids stay within FHIR's 64-character id limit: an over-long option-set name is
-truncated and suffixed with the set's UID (noted in the report), which also
-keeps bounded ids unique. Every concept
+`ig/input/resources/terminology/` - `CodeSystem-d2-os-<stem>-cs.json` and
+`ValueSet-d2-os-<stem>-vs.json` - carrying a `D2OS_<stem>_CS` CodeSystem plus a
+matching ValueSet (naming tokens configurable). The stem is the set's identity
+stem under `[generate.naming] source`: the UID under the default `"id"`, the
+set's DHIS2 code under the code sources, and the CS/VS/ConceptMap triple of one
+set shares it. The file name and the id keep the stem's own case - FHIR ids
+permit mixed case, so an id-sourced id reads straight back to the DHIS2 object.
+There is no truncation: a code longer than the surface's stem budget falls back
+to the UID (or refuses the run under `source = "code"`). Every concept
 carries **both** DHIS2 identifiers: with the default
 `concept_code_source = "id"` the option UID is the concept code and the
 DHIS2 option code rides along as a `dhis2-code` concept property; with
@@ -378,14 +383,15 @@ both halves of the pair as `D2AttributeValue` extensions; the values on the
 individual options do not, because a `CodeSystem.concept` has no carrier chosen
 for them yet.
 
-Names are decided once, for the whole selection, by `option_set_identities`:
-truncation and collision suffixes both depend on the peers a set is assigned
-against, so a per-set name cannot be reconstructed from a UID. The resulting
+Names are decided once, for the whole selection, by `option_set_identities`,
+through `resolve_identity_stems`: whether a code can serve as a stem depends on
+the peers a set is resolved against, so a per-set name cannot be reconstructed
+from one object alone. The resulting
 `OptionSetIdentityPlan` is the boundary object every other target reads option-set
 names from - the terminology emitter for its files, a question's `answerValueSet`,
 an example's answer coding, and the narrative pages' `CodeSystem-<id>` links. The
 service builds the plan from the identical selection in each generate path, so a
-`name`-sourced run's `Canonical(D2OS_Sex_Aa1aaaaaaaa_VS)` names the ValueSet that
+code-sourced run's `Canonical(D2OS_SEX_VS)` names the ValueSet that
 same run writes. A bound set the plan somehow omits still emits a UID-derived name
 and is reported by an aggregate note, never left dangling.
 
@@ -408,7 +414,7 @@ the same breadcrumb template an FSH-authored one does, so it takes the same
 HTML-escaping.
 
 **The FSH name is what carries across the FSH/JSON boundary.** A Questionnaire is
-FSH and binds its question with `answerValueSet = Canonical(D2OS_<UID>_VS)`, an
+FSH and binds its question with `answerValueSet = Canonical(D2OS_<stem>_VS)`, an
 FSH name rather than a URL, and it resolves against a JSON document because SUSHI
 fishes predefined resources by their `name` element. Every emitted CodeSystem and
 ValueSet carries exactly the FSH name `option_set_identities` handed the
@@ -456,19 +462,21 @@ A DHIS2 category is one axis of a disaggregation and its category options are th
 values along that axis, which is structurally an option set and its options. So
 `generate categories` emits the same pair through the same machinery: two
 pre-built R4 JSON documents per category under `ig/input/resources/categories/` -
-`CodeSystem-d2-cat-<UID>-cs.json` and `ValueSet-d2-cat-<UID>-vs.json` - with the
+`CodeSystem-d2-cat-<stem>-cs.json` and `ValueSet-d2-cat-<stem>-vs.json` - with the
 concepts built by `build_concepts`, the option-set component's own concept-code
 assignment, so the code fall-backs and the duplicate-skip rule are decided in one
 place for both sources. `category_identities` mirrors `option_set_identities`:
-slugs, FSH names, and artifact ids assigned once over the whole selection, with
-truncation and collision suffixes that depend on the peers a category is assigned
-against.
+slugs, FSH names, and artifact ids assigned once over the whole selection
+through `resolve_identity_stems`, whose collision grading depends on the peers
+a category is resolved against.
 
 The pair carries the `CAT` naming token (`D2CAT_Sex_CS` / `_VS`), the category's
 own UID and code as `identifier` business identifiers under
 `<base>/id/category` and `<base>/id/category-code`, and the category's DHIS2
 attribute values as `D2AttributeValue` extensions on both halves. Under
-`naming.source = "id"` the slug is the category UID verbatim, mixed case included.
+`naming.source = "id"` the slug is the category UID verbatim, mixed case
+included; under the code sources it is the category's DHIS2 code, falling back
+to the UID or refusing the run as the source dictates.
 
 **Its own sync directory is structural, not cosmetic.** `sync_json_artifacts`
 owns its target outright - it deletes every `*.json` the run did not produce,
@@ -497,13 +505,16 @@ like any other and is filterable like any other.
 by what the files describe rather than by which command wrote them:
 
 ```
-data-sets/<UID>.fsh                      One Questionnaire per DHIS2 data set
-event-programs/<UID>.fsh                 One Questionnaire per DHIS2 event program
-tracker-programs/<program UID>/<stage UID>.fsh
+data-sets/<stem>.fsh                     One Questionnaire per DHIS2 data set
+event-programs/<stem>.fsh                One Questionnaire per DHIS2 event program
+tracker-programs/<program stem>/<stage stem>.fsh
                                          One Questionnaire per tracker program stage
 data-dictionary/data-elements.fsh        D2DE_CS / _VS over every referenced element
 data-dictionary/category-option-combos.fsh   D2COC_CS / _VS over every option combo
 ```
+
+`<stem>` is each target's identity stem - the DHIS2 id under the default
+`[generate.naming] source`, the object's code under the code sources.
 
 `tracker-programs/` is the only nested layout, and it is nested because a national
 instance's stage count is what makes a flat directory unreadable: grouping by program
@@ -530,8 +541,9 @@ from the option-set target's `ig/input/resources/terminology/`, so its cleanup
 can never reach them. The command is still
 `d2w fhir generate questionnaires` - it names the action, not a folder.
 
-One Questionnaire is `Usage: #definition`, `id` the bare UID, `url` the IG canonical
-plus `/Questionnaire/<uid>`, `status` and `experimental`, both DHIS2 identifiers
+One Questionnaire is `Usage: #definition`, `id` the target's identity stem (the
+bare DHIS2 id under the default source), `url` the IG canonical
+plus `/Questionnaire/<stem>`, `status` and `experimental`, both DHIS2 identifiers
 (`$DHIS2-DS` / `$DHIS2-PROGRAM` / `$DHIS2-PS` and their code slots), and `name`
 composed from the naming tokens (`D2DS_BfMAe6Itzgt`, `D2PS_A03MvHHogjR`).
 `subjectType` states who the form is answered for: `#Location` for a data set and an
@@ -676,7 +688,8 @@ what keeps a disaggregated example past the validator's
 `QuestionnaireResponse: Structural Error: items are out of order`.
 
 An answer to an `ORGANISATION_UNIT` question is a `valueReference` at
-`Location/<uid>`, matching the `#reference` item type the questionnaire declares
+`Location/<stem>` - the unit's identity stem, the DHIS2 id under the default
+source - matching the `#reference` item type the questionnaire declares
 and the `Location` instances the registry target publishes. `REFERENCE` and
 `TRACKER_ASSOCIATE` point at DHIS2 objects the IG publishes nothing for yet, so a
 synthetic example leaves them unanswered alongside the attachment and geometry
@@ -701,10 +714,12 @@ The definitional half is FSH, under `ig/input/fsh/organization/`:
   properties, for flows that want the hierarchy as codes instead of resources.
 
 The registry itself is pre-built R4 JSON, under `ig/input/resources/registry/` -
-`Organization-<uid>.json` and `Location-<uid>.json`, two files per unit, `id`
-the bare UID. Each carries both identifier slices and its profile in `meta`, with
-`partOf` mirroring the hierarchy on both sides as a relative reference
-(`Organization/<uid>`, `Location/<uid>`), omitted for the root or when the parent
+`Organization-<stem>.json` and `Location-<stem>.json`, two files per unit, `id`
+the unit's identity stem (the bare UID under the default source, the unit's code
+under the code sources). Each carries both identifier slices and its profile in
+`meta`, with `partOf` and `managingOrganization` following the same stems as
+relative references
+(`Organization/<stem>`, `Location/<stem>`), `partOf` omitted for the root or when the parent
 falls outside the selection - noted, never silent. A unit whose `closedDate` has
 passed carries `active: false` / `status: "inactive"`. Both halves also carry the
 unit's DHIS2 attribute values as `D2AttributeValue` extensions - 244 of the Lao
@@ -775,9 +790,9 @@ pagecontent/terminology.md               Option sets + the support CodeSystems
 pagecontent/identifiers.md               The two identifier slices + NamingSystems
 pagecontent/periods.md                   D2Period + every DHIS2 period type
 pagecontent/capture.md                   The capture contract, worked per form kind
-pagecontent/Questionnaire-<UID>-intro.md One per generated Questionnaire
+pagecontent/Questionnaire-<stem>-intro.md One per generated Questionnaire
 pagecontent/CodeSystem-<id>-intro.md     Option sets carrying a DHIS2 description
-pagecontent/Organization-<UID>-intro.md  Org units carrying a DHIS2 description
+pagecontent/Organization-<stem>-intro.md Org units carrying a DHIS2 description
 ```
 
 The six site pages are the scaffolded menu: `Home`, `Forms`, `Registry`,
@@ -804,7 +819,7 @@ on and the page reads directly, and the event status table is the examples compo
 own `STATUS_BY_EVENT_STATUS`. Only the prose spelling rule per value type is the
 page's own. `forms.md` groups the same way the FSH tree does: a "Tracker programs"
 section with one heading per program and that program's stages catalogued beneath it,
-and each stage's `Questionnaire-<UID>-intro.md` names the program it belongs to, so a
+and each stage's `Questionnaire-<stem>-intro.md` names the program it belongs to, so a
 form found on its own says what it is part of. `build_page_artifacts` takes the IG
 canonical for this page alone - the
 capture contract has to state the canonical URL rule a client resolves a Questionnaire
@@ -986,12 +1001,27 @@ counts.
 
 The **deep option-set pass** previews `concept_code_source = "code"` generation
 (invalid/duplicate option codes are errors, missing codes warn,
-spaced-but-valid codes are infos) and, under `naming.source = "name"`, the ids the
-emitter would assign. `_option_set_naming_findings` is per-set and covers the
-lengths; `_option_set_slug_findings` takes the whole selection at once and covers
-**collisions**, which a per-set check structurally cannot see - a slug is assigned
-against its peers, so whether a name yields a readable id depends on the other
-names in the run. Over-long slugs are excluded from the collision report because
+spaced-but-valid codes are infos).
+
+The **code-stem pass** previews what a code-sourced `[generate.naming] source`
+does with each in-scope object of the six naming surfaces - `optionSets`,
+`categories`, `organisationUnits`, `dataSets`, `programs`, `programStages`.
+`_stem_findings` grades each object with `describe_stem_defect`, the same
+predicate `resolve_identity_stems` decides fall-backs and refusals with, against
+the very stem budgets the emitters bound their surfaces to - so validate and
+generate can never disagree about which code serves. Under `"code-or-id"`
+semantics a defective code is a `code-stem-fallback` warning (the artifact ids
+silently fall back to the id); under `source = "code"` it is a
+`code-stem-refusal` error, the run `d2w fhir generate` refuses through
+`CodeStemError` before writing a file. A per-object check structurally cannot
+see collisions - a stem is graded against its selected peers, a code equal to a
+peer's id included - so `_stem_namespaces` groups the surfaces into the id
+namespaces generate resolves stems over: option sets, categories, and
+organisation units each on their own, data sets, event programs, and tracker
+stages pooled into the `Questionnaire-<stem>` namespace exactly as
+`plan_questionnaire_stems` scans them, and tracker programs (whose stem only
+names the stage directory) on their own. Under the default `source = "id"` the
+pass finds nothing. Over-long slugs are excluded from the collision report because
 `long-name` already accounts for their suffix.
 
 The **deep attribute pass** reads the sweep's own `attributes` collection - no
@@ -1038,8 +1068,10 @@ elements, program indicators - of which one was the object that failed the build
 layer is thin rather than a mirror of every emitter. The sweep already applies
 both checks instance-wide to every collection the emitters read - `dataElements`,
 `categoryOptionCombos`, `dataSets`, `programs`, `sections`,
-`programStageSections`, `organisationUnits`, `attributes` - and every emitted
-resource id is a DHIS2 UID except the name-sourced slugs, which are checked here.
+`programStageSections`, `organisationUnits`, `attributes` - and under
+`source = "id"` every emitted resource id is a DHIS2 UID (or `level-<n>`), valid
+and unique by construction; under the code sources the code-stem pass checks the
+codes the ids would derive from.
 Two passes are deliberately absent. An organisation-unit deep pass would need
 `_fetch_organisation_units`, the single unbounded read in the plugin, and would
 find nothing the sweep does not already report: the registry's ids and concept
