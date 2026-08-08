@@ -1,0 +1,17 @@
+{
+  "resourceType": "ValueSet",
+  "status": "draft",
+  "name": "D2COC_VS",
+  "id": "d2-coc-vs",
+  "title": "DHIS2 Category Option Combos",
+  "description": "DHIS2 category option combos the generated questionnaires disaggregate by. Concept codes are DHIS2 category option combo UIDs.",
+  "url": "http://localhost:8080/fhir/ValueSet/d2-coc-vs",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs"
+      }
+    ]
+  }
+}

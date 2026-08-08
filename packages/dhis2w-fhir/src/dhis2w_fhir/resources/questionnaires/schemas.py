@@ -16,6 +16,57 @@ if TYPE_CHECKING:
 FormKind = Literal["aggregate", "event", "tracker-event"]
 
 
+class FormKindProfile(BaseModel):
+    """What one form kind contributes to its Questionnaire: identifier systems, subject type, and prose label.
+
+    The identifier system is carried twice because the two emitters spell it differently and
+    must never disagree: the FSH path writes the `$DHIS2-*` alias `foundation/d2-aliases.fsh`
+    declares, and the JSON path writes the absolute URL that alias expands to,
+    `{identifier_system_base}/id/{segment}`. A guard test renders the alias file and asserts
+    every pair still resolves to the same system.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    identifier_system: str
+    identifier_code_system: str
+    identifier_segment: str
+    code_identifier_segment: str
+    subject_type: str
+    label: str
+
+
+#: The DHIS2 identifier systems, subject type, and prose label each form kind carries. An aggregate
+#: or event form is reported for an organisation unit, while a tracker program stage captures one
+#: enrolled person's visit, so the subject of the stage form is the patient.
+FORM_KIND_PROFILES: dict[FormKind, FormKindProfile] = {
+    "aggregate": FormKindProfile(
+        identifier_system="$DHIS2-DS",
+        identifier_code_system="$DHIS2-DS-CODE",
+        identifier_segment="data-set",
+        code_identifier_segment="data-set-code",
+        subject_type="Location",
+        label="data set",
+    ),
+    "event": FormKindProfile(
+        identifier_system="$DHIS2-PROGRAM",
+        identifier_code_system="$DHIS2-PROGRAM-CODE",
+        identifier_segment="program",
+        code_identifier_segment="program-code",
+        subject_type="Location",
+        label="event program",
+    ),
+    "tracker-event": FormKindProfile(
+        identifier_system="$DHIS2-PS",
+        identifier_code_system="$DHIS2-PS-CODE",
+        identifier_segment="program-stage",
+        code_identifier_segment="program-stage-code",
+        subject_type="Patient",
+        label="tracker program stage",
+    ),
+}
+
+
 class TargetSelection(BaseModel):
     """Which DHIS2 objects a data-definition target covers - one table per form kind.
 
@@ -28,6 +79,44 @@ class TargetSelection(BaseModel):
     """
 
     include_ids: list[str] = Field(default_factory=list)
+
+
+class SupportTerminologyProfile(BaseModel):
+    """The fixed prose one data-dictionary support pair publishes under, shared by both emitters.
+
+    The FSH target quotes these into `support-terminology.fsh.jinja` and the JSON target writes
+    them onto the built `CodeSystem` and `ValueSet`, so the compiled guide and the served
+    documents describe the same terminology in the same words.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    title: str
+    description: str
+    code_property_description: str
+
+
+#: The support pair over every data element the generated questionnaires ask a question from.
+DATA_ELEMENT_TERMINOLOGY = SupportTerminologyProfile(
+    title="DHIS2 Data Elements",
+    description=(
+        "DHIS2 data elements captured by the generated questionnaires. Concept codes are DHIS2 data element UIDs."
+    ),
+    code_property_description="DHIS2 data element code.",
+)
+
+#: The support pair over every category option combo the generated questionnaires disaggregate by.
+CATEGORY_OPTION_COMBO_TERMINOLOGY = SupportTerminologyProfile(
+    title="DHIS2 Category Option Combos",
+    description=(
+        "DHIS2 category option combos the generated questionnaires disaggregate by. "
+        "Concept codes are DHIS2 category option combo UIDs."
+    ),
+    code_property_description="DHIS2 category option combo code.",
+)
+
+#: The description of the `domain` concept property, which only the data-element pair declares.
+DOMAIN_PROPERTY_DESCRIPTION = "DHIS2 data element domain type."
 
 
 class NumericBounds(BaseModel):

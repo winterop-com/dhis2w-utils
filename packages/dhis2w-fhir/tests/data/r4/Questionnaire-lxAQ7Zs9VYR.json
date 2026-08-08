@@ -1,0 +1,73 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "lxAQ7Zs9VYR",
+  "url": "http://localhost:8080/fhir/Questionnaire/lxAQ7Zs9VYR",
+  "title": "Antenatal care visit",
+  "description": "DHIS2 event program Antenatal care visit (lxAQ7Zs9VYR) as a data capture form.",
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "event"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "lxAQ7Zs9VYR"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program-code",
+      "value": "lxAQ7Zs9VYR"
+    }
+  ],
+  "name": "D2PR_lxAQ7Zs9VYR",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Location"
+  ],
+  "code": [
+    {
+      "code": "event",
+      "system": "http://localhost:8080/fhir/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "sWoqcoByYmD",
+      "code": [
+        {
+          "code": "sWoqcoByYmD",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "WHOMCH Smoking"
+        }
+      ],
+      "text": "WHOMCH Smoking",
+      "type": "boolean"
+    },
+    {
+      "linkId": "Ok9OQpitjQr",
+      "code": [
+        {
+          "code": "Ok9OQpitjQr",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "WHOMCH Smoking cessation counselling provided"
+        }
+      ],
+      "text": "WHOMCH Smoking cessation counselling provided",
+      "type": "boolean"
+    },
+    {
+      "linkId": "vANAXwtLwcT",
+      "code": [
+        {
+          "code": "vANAXwtLwcT",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "WHOMCH Hemoglobin value"
+        }
+      ],
+      "text": "WHOMCH Hemoglobin value",
+      "type": "decimal"
+    }
+  ]
+}

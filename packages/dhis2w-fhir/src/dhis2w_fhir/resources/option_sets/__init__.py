@@ -77,12 +77,14 @@ __all__ = [
     "TERMINOLOGY_DIRECTORY",
     "build_concepts",
     "build_option_set_artifacts",
+    "code_system_canonical",
     "concept_assignments",
     "max_slug_length",
     "option_set_code_fallback",
     "option_set_fsh_name",
     "option_set_identities",
     "option_set_identity_index",
+    "value_set_canonical",
 ]
 
 #: The `ig/input/resources/` subdirectory the option-set pairs own outright - one JSON file per resource.
@@ -127,11 +129,11 @@ class _OptionSetSystems(BaseModel):
 
     def code_system_url(self, code_system_id: str) -> str:
         """Canonical URL of one emitted CodeSystem."""
-        return f"{self.canonical}/CodeSystem/{code_system_id}"
+        return code_system_canonical(self.canonical, code_system_id)
 
     def value_set_url(self, value_set_id: str) -> str:
         """Canonical URL of one emitted ValueSet."""
-        return f"{self.canonical}/ValueSet/{value_set_id}"
+        return value_set_canonical(self.canonical, value_set_id)
 
 
 class _OptionSetPair(BaseModel):
@@ -155,6 +157,21 @@ class _OptionSetNarrative(BaseModel):
     description: str
     status: IgStatus
     experimental: bool
+
+
+def code_system_canonical(canonical: str, code_system_id: str) -> str:
+    """Canonical URL one emitted CodeSystem is published at, under the IG canonical.
+
+    The one place the shape is written: FSH resolves it through `Canonical(...)` at compile
+    time, and every JSON emitter - the option-set pairs, the questionnaires binding an
+    `answerValueSet`, the data dictionary - resolves it through here instead.
+    """
+    return f"{canonical}/CodeSystem/{code_system_id}"
+
+
+def value_set_canonical(canonical: str, value_set_id: str) -> str:
+    """Canonical URL one emitted ValueSet is published at, under the IG canonical."""
+    return f"{canonical}/ValueSet/{value_set_id}"
 
 
 def option_set_fsh_name(config: GenerateConfig, segment: str) -> str:

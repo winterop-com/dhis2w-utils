@@ -40,8 +40,12 @@ from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.resources.option_sets import option_set_identity_index
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
+    CATEGORY_OPTION_COMBO_TERMINOLOGY,
+    DATA_ELEMENT_TERMINOLOGY,
+    FORM_KIND_PROFILES,
     CategoryOptionComboIn,
     FormKind,
+    FormKindProfile,
     NumericBounds,
     ProgramContextIn,
     QuestionnaireItemIn,
@@ -58,6 +62,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BOUNDS_BY_VALUE_TYPE",
+    "BOUND_ELEMENTS_BY_ITEM_TYPE",
     "DATA_DICTIONARY_DIRECTORY",
     "DATA_SET_DIRECTORY",
     "EVENT_PROGRAM_DIRECTORY",
@@ -66,12 +71,20 @@ __all__ = [
     "ITEM_TYPES_BY_VALUE_TYPE",
     "MAXIMUM_VALUE_EXTENSION_URL",
     "MINIMUM_VALUE_EXTENSION_URL",
+    "PROGRAM_IDENTIFIER_SEGMENT",
     "QUESTIONNAIRE_DIRECTORIES",
     "TRACKER_PROGRAM_DIRECTORY",
     "NumericBounds",
+    "bound_option_set_uids",
     "build_questionnaire_artifacts",
+    "collect_referenced_objects",
     "domain_code",
+    "is_disaggregated",
     "is_multi_valued",
+    "item_type",
+    "source_description",
+    "source_items",
+    "source_program",
 ]
 
 #: Sync directory holding one Questionnaire per DHIS2 data set.
@@ -177,7 +190,7 @@ BOUNDS_BY_VALUE_TYPE = {
 #: The `value[x]` element a bound lands on, keyed by the item type the question answers as. A
 #: question answering as anything else - a `#choice` bound to an option set, say - takes no
 #: bound at all, because there is no numeric element on it to constrain.
-_BOUND_ELEMENTS_BY_ITEM_TYPE = {"integer": "valueInteger", "decimal": "valueDecimal"}
+BOUND_ELEMENTS_BY_ITEM_TYPE = {"integer": "valueInteger", "decimal": "valueDecimal"}
 
 #: What an unmapped value type answers as - reached only by a DHIS2 value type newer than the
 #: generated enums, since the table above covers every member of all three.
@@ -190,41 +203,8 @@ _MULTI_VALUE_TYPE = "MULTI_TEXT"
 #: The alias a tracker program stage's grouping identifier names its program under.
 _PROGRAM_IDENTIFIER_SYSTEM = "$DHIS2-PROGRAM"
 
-
-class _FormKindProfile(BaseModel):
-    """What one form kind contributes to its Questionnaire: identifier systems, subject type, and prose label."""
-
-    model_config = ConfigDict(frozen=True)
-
-    identifier_system: str
-    identifier_code_system: str
-    subject_type: str
-    label: str
-
-
-#: The DHIS2 identifier systems, subject type, and prose label each form kind carries. An aggregate
-#: or event form is reported for an organisation unit, while a tracker program stage captures one
-#: enrolled person's visit, so the subject of the stage form is the patient.
-_PROFILES_BY_KIND = {
-    "aggregate": _FormKindProfile(
-        identifier_system="$DHIS2-DS",
-        identifier_code_system="$DHIS2-DS-CODE",
-        subject_type="Location",
-        label="data set",
-    ),
-    "event": _FormKindProfile(
-        identifier_system="$DHIS2-PROGRAM",
-        identifier_code_system="$DHIS2-PROGRAM-CODE",
-        subject_type="Location",
-        label="event program",
-    ),
-    "tracker-event": _FormKindProfile(
-        identifier_system="$DHIS2-PS",
-        identifier_code_system="$DHIS2-PS-CODE",
-        subject_type="Patient",
-        label="tracker program stage",
-    ),
-}
+#: The identifier-system segment that alias expands to, which the JSON path writes absolutely.
+PROGRAM_IDENTIFIER_SEGMENT = "program"
 
 
 class _BoundView(BaseModel):
@@ -365,12 +345,12 @@ def build_questionnaire_artifacts(
     build = FshBuild()
     names = QuestionnaireNaming.from_naming(config.naming)
     foundation = FoundationNaming.from_naming(config.naming)
-    index = option_set_identity_index(option_set_plan, _bound_option_set_uids(sources), config)
+    index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
     data_elements: dict[str, QuestionnaireItemIn] = {}
     option_combos: dict[str, CategoryOptionComboIn] = {}
     template = _ENVIRONMENT.get_template("questionnaire.fsh.jinja")
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
-        _collect_referenced_objects(source, data_elements, option_combos)
+        collect_referenced_objects(source, data_elements, option_combos)
         view = _questionnaire_view(
             source, names, foundation, canonical, index.identities, ig_status=ig_status, attribute_codes=attribute_codes
         )
@@ -404,12 +384,12 @@ def build_questionnaire_artifacts(
     return build
 
 
-def _bound_option_set_uids(sources: list[QuestionnaireSourceIn]) -> list[str]:
+def bound_option_set_uids(sources: list[QuestionnaireSourceIn]) -> list[str]:
     """Every option set the given forms bind a question to."""
-    return [item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid]
+    return [item.option_set_uid for source in sources for item in source_items(source) if item.option_set_uid]
 
 
-def _source_items(source: QuestionnaireSourceIn) -> list[QuestionnaireItemIn]:
+def source_items(source: QuestionnaireSourceIn) -> list[QuestionnaireItemIn]:
     """Every question one form carries, sectioned and unsectioned alike."""
     return [item for section in source.sections for item in section.items] + list(source.flat_items)
 
@@ -431,10 +411,10 @@ def _source_relative_path(source: QuestionnaireSourceIn) -> str:
     """The file one form is written to, a tracker program stage nested under the UID of its program."""
     if source.kind != "tracker-event":
         return f"{_source_directory(source)}/{source.uid}.fsh"
-    return f"{TRACKER_PROGRAM_DIRECTORY}/{_source_program(source).uid}/{source.uid}.fsh"
+    return f"{TRACKER_PROGRAM_DIRECTORY}/{source_program(source).uid}/{source.uid}.fsh"
 
 
-def _source_program(source: QuestionnaireSourceIn) -> ProgramContextIn:
+def source_program(source: QuestionnaireSourceIn) -> ProgramContextIn:
     """The program a tracker program stage belongs to, refusing a stage that arrived without one."""
     if source.program is None:
         raise ValueError(
@@ -455,7 +435,7 @@ def _questionnaire_view(
     attribute_codes: AttributeCodeIndex,
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders."""
-    profile = _PROFILES_BY_KIND[source.kind]
+    profile = FORM_KIND_PROFILES[source.kind]
     display_name = source_display_name(source)
     return _QuestionnaireView(
         uid=source.uid,
@@ -463,7 +443,7 @@ def _questionnaire_view(
         url=f"{canonical}/Questionnaire/{source.uid}",
         title_literal=page_text(f"Questionnaire - {display_name}"),
         title_element_literal=quote(display_name),
-        description_literal=page_text(_source_description(source, profile)),
+        description_literal=page_text(source_description(source, profile)),
         subject_type=profile.subject_type,
         identifier_system=profile.identifier_system,
         identifier_code_system=profile.identifier_code_system,
@@ -479,12 +459,12 @@ def _questionnaire_view(
     )
 
 
-def _source_description(source: QuestionnaireSourceIn, profile: _FormKindProfile) -> str:
+def source_description(source: QuestionnaireSourceIn, profile: FormKindProfile) -> str:
     """The prose one form's Questionnaire describes itself with, a program stage naming its program too."""
     opening = f"DHIS2 {profile.label} {source.name} ({source.uid})"
     if source.kind != "tracker-event":
         return f"{opening} as a data capture form."
-    program = _source_program(source)
+    program = source_program(source)
     return f"{opening} of program {program.name} ({program.uid}) as a data capture form."
 
 
@@ -496,7 +476,7 @@ def _grouping_identifier(source: QuestionnaireSourceIn) -> _GroupingIdentifierVi
     """
     if source.kind != "tracker-event":
         return None
-    return _GroupingIdentifierView(system=_PROGRAM_IDENTIFIER_SYSTEM, value_literal=quote(_source_program(source).uid))
+    return _GroupingIdentifierView(system=_PROGRAM_IDENTIFIER_SYSTEM, value_literal=quote(source_program(source).uid))
 
 
 def _attribute_value_views(
@@ -529,7 +509,7 @@ def _item_views(
                 link_id=section.uid,
                 text_literal=quote(section.name),
                 type_code="group",
-                item_control=any(_is_disaggregated(item, source.kind) for item in section.items),
+                item_control=any(is_disaggregated(item, source.kind) for item in section.items),
             )
         )
         for item in section.items:
@@ -551,15 +531,15 @@ def _data_element_views(
     A disaggregated cell asks the very question its data element does, one category option combo
     at a time, so every child takes the element's effective item type, its answer binding, and
     its repeats - only the `linkId`, the text, and the code differ. Only an aggregate source
-    disaggregates; see `_is_disaggregated` for why event-kind questions stay flat.
+    disaggregates; see `is_disaggregated` for why event-kind questions stay flat.
     """
     code_token = f"{names.data_element_code_system}#{item.uid} {quote(item.name)}"
     text_literal = quote(item.form_name or item.name)
-    item_type = _item_type(item)
+    resolved_item_type = item_type(item)
     answer_value_set = _answer_value_set(item, identities)
-    repeats = is_multi_valued(item.value_type, item_type)
-    bounds = _bound_views(item.value_type, item_type)
-    if not _is_disaggregated(item, kind):
+    repeats = is_multi_valued(item.value_type, resolved_item_type)
+    bounds = _bound_views(item.value_type, resolved_item_type)
+    if not is_disaggregated(item, kind):
         return [
             _ItemView(
                 new_path=_new_path(depth),
@@ -567,7 +547,7 @@ def _data_element_views(
                 link_id=item.uid,
                 code_token=code_token,
                 text_literal=text_literal,
-                type_code=item_type,
+                type_code=resolved_item_type,
                 answer_value_set=answer_value_set,
                 required=item.compulsory,
                 repeats=repeats,
@@ -595,7 +575,7 @@ def _data_element_views(
                 link_id=f"{item.uid}.{option_combo.uid}",
                 code_token=f"{names.category_option_combo_code_system}#{option_combo.uid} {quote(option_combo.name)}",
                 text_literal=quote(option_combo.name),
-                type_code=item_type,
+                type_code=resolved_item_type,
                 answer_value_set=answer_value_set,
                 required=option_combo.uid in item.required_option_combo_uids,
                 repeats=repeats,
@@ -608,7 +588,7 @@ def _data_element_views(
 def _bound_views(value_type: str, item_type: str) -> list[_BoundView]:
     """The `minValue` / `maxValue` extensions one question carries, typed by the item type it answers as."""
     bounds = BOUNDS_BY_VALUE_TYPE.get(value_type)
-    element = _BOUND_ELEMENTS_BY_ITEM_TYPE.get(item_type)
+    element = BOUND_ELEMENTS_BY_ITEM_TYPE.get(item_type)
     if bounds is None or element is None:
         return []
     views: list[_BoundView] = []
@@ -619,7 +599,7 @@ def _bound_views(value_type: str, item_type: str) -> list[_BoundView]:
     return views
 
 
-def _is_disaggregated(item: QuestionnaireItemIn, kind: FormKind) -> bool:
+def is_disaggregated(item: QuestionnaireItemIn, kind: FormKind) -> bool:
     """Check whether a question splits into per-option-combo cells - an aggregate-only shape.
 
     A data set's values land on `/api/dataValueSets`, where every value carries a category
@@ -633,7 +613,7 @@ def _is_disaggregated(item: QuestionnaireItemIn, kind: FormKind) -> bool:
     return item.category_combo is not None and not item.category_combo.is_default
 
 
-def _item_type(item: QuestionnaireItemIn) -> str:
+def item_type(item: QuestionnaireItemIn) -> str:
     """The item type one question answers as: `choice` when option-set bound, else its value type's."""
     if item.option_set_uid is not None:
         return "choice"
@@ -677,15 +657,15 @@ def _set_path(depth: int) -> str:
     return f"{'item[=].' * depth}item[=]"
 
 
-def _collect_referenced_objects(
+def collect_referenced_objects(
     source: QuestionnaireSourceIn,
     data_elements: dict[str, QuestionnaireItemIn],
     option_combos: dict[str, CategoryOptionComboIn],
 ) -> None:
     """Record every data element and category option combo one source's items reference."""
-    for item in _source_items(source):
+    for item in source_items(source):
         data_elements.setdefault(item.uid, item)
-        if not _is_disaggregated(item, source.kind) or item.category_combo is None:
+        if not is_disaggregated(item, source.kind) or item.category_combo is None:
             continue
         for option_combo in item.category_combo.option_combos:
             option_combos.setdefault(option_combo.uid, option_combo)
@@ -708,18 +688,15 @@ def _data_element_terminology(
         )
         for item in sorted(data_elements.values(), key=lambda item: (item.name, item.uid))
     ]
-    description = (
-        "DHIS2 data elements captured by the generated questionnaires. Concept codes are DHIS2 data element UIDs."
-    )
     view = _SupportTerminologyView(
         code_system=names.data_element_code_system,
         code_system_id=names.data_element_code_system_id,
         value_set=names.data_element_value_set,
         value_set_id=names.data_element_value_set_id,
-        title_literal=quote("DHIS2 Data Elements"),
-        description_literal=quote(description),
+        title_literal=quote(DATA_ELEMENT_TERMINOLOGY.title),
+        description_literal=quote(DATA_ELEMENT_TERMINOLOGY.description),
         property_base=f"{config.identifier_system_base}/property",
-        property_description_literal=quote("DHIS2 data element code."),
+        property_description_literal=quote(DATA_ELEMENT_TERMINOLOGY.code_property_description),
         ig_status=ig_status,
         concepts=concepts,
     )
@@ -747,19 +724,15 @@ def _option_combo_terminology(
         )
         for option_combo in sorted(option_combos.values(), key=lambda item: (item.name, item.uid))
     ]
-    description = (
-        "DHIS2 category option combos the generated questionnaires disaggregate by. "
-        "Concept codes are DHIS2 category option combo UIDs."
-    )
     view = _SupportTerminologyView(
         code_system=names.category_option_combo_code_system,
         code_system_id=names.category_option_combo_code_system_id,
         value_set=names.category_option_combo_value_set,
         value_set_id=names.category_option_combo_value_set_id,
-        title_literal=quote("DHIS2 Category Option Combos"),
-        description_literal=quote(description),
+        title_literal=quote(CATEGORY_OPTION_COMBO_TERMINOLOGY.title),
+        description_literal=quote(CATEGORY_OPTION_COMBO_TERMINOLOGY.description),
         property_base=f"{config.identifier_system_base}/property",
-        property_description_literal=quote("DHIS2 category option combo code."),
+        property_description_literal=quote(CATEGORY_OPTION_COMBO_TERMINOLOGY.code_property_description),
         ig_status=ig_status,
         concepts=concepts,
     )
