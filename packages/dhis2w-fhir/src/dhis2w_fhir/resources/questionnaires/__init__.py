@@ -37,7 +37,7 @@ from dhis2w_fhir.foundation.attribute_values import (
 )
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import code_or_uid, page_text, quote
-from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.notes import GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.resources.option_sets import option_set_identity_index
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
@@ -414,7 +414,8 @@ def build_questionnaire_artifacts(
         build.artifacts.append(_option_combo_terminology(option_combos, names, config, ig_status=ig_status))
     if colliding:
         build.notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.REFUSED_FORM,
                 f"{len(colliding)} forms would emit one linkId twice, which R4 forbids (que-2: link ids are "
                 "unique within a Questionnaire); the whole form is skipped rather than published invalid, "
                 "because a response answering that linkId would name two questions at once",
@@ -423,7 +424,8 @@ def build_questionnaire_artifacts(
         )
     if index.unplanned_uids:
         build.notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.SELECTION_GAP,
                 f"{len(index.unplanned_uids)} option sets a question binds are absent from the option-set "
                 "selection; their answerValueSet names are derived from the UID",
                 index.unplanned_uids,

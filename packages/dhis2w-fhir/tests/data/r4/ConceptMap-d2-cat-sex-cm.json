@@ -1,0 +1,69 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-cat-sex-cm",
+  "url": "http://example.org/fhir/ConceptMap/d2-cat-sex-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/category",
+    "value": "O5P6e8yu1T6"
+  },
+  "name": "D2CAT_Sex_CM",
+  "title": "Sex",
+  "description": "DHIS2 category Sex (O5P6e8yu1T6). Every concept of D2CAT_Sex_CS mapped to its DHIS2 category option UID and, where the category option carries one, its DHIS2 category option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/ValueSet/d2-cat-sex-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-cat-sex-cs",
+      "target": "http://dhis2.org/fhir/id/category-option",
+      "element": [
+        {
+          "code": "TNYQzTHdoxL",
+          "display": "Female",
+          "target": [
+            {
+              "code": "TNYQzTHdoxL",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "apsOixVZlf1",
+          "display": "Male",
+          "target": [
+            {
+              "code": "apsOixVZlf1",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-cat-sex-cs",
+      "target": "http://dhis2.org/fhir/id/category-option-code",
+      "element": [
+        {
+          "code": "TNYQzTHdoxL",
+          "display": "Female",
+          "target": [
+            {
+              "code": "F",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "apsOixVZlf1",
+          "display": "Male",
+          "target": [
+            {
+              "code": "M",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

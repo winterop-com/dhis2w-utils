@@ -171,7 +171,7 @@ def test_code_stem_golden() -> None:
     documents = _documents(build)
     assert documents["terminology/CodeSystem-d2-os-birth-type-cs.json"] == _EXPECTED_CODE_SOURCE_CODE_SYSTEM
     assert documents["terminology/ValueSet-d2-os-birth-type-vs.json"] == _EXPECTED_CODE_SOURCE_VALUE_SET
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
 
 
 def test_every_artifact_is_indented_json_ending_in_a_newline() -> None:
@@ -213,7 +213,7 @@ def test_code_source_uses_codes_with_uid_property() -> None:
     }
     assert code_system["description"].endswith("Concept codes are DHIS2 option codes.")
     assert "GVcG84DTFOB" in _concept_codes(code_system)
-    assert any("has no code" in note for note in build.notes)
+    assert any("has no code" in note.message for note in build.notes)
 
 
 def test_option_set_business_identifiers_carry_both_dhis2_systems() -> None:
@@ -307,7 +307,7 @@ def test_colliding_concept_codes_fall_back_to_the_uid() -> None:
     code_system = _code_systems(build)[0]
     assert _concept_codes(code_system) == ["X", "Op2aaaaaaaa"]
     assert _displays(code_system) == ["One", "Two"]
-    assert any("1 option codes collided; fell back to the UID: X (Op2aaaaaaaa)" in note for note in build.notes)
+    assert any("1 option codes collided; fell back to the UID: X (Op2aaaaaaaa)" in note.message for note in build.notes)
 
 
 def test_code_source_rejects_invalid_fhir_codes() -> None:
@@ -319,7 +319,7 @@ def test_code_source_rejects_invalid_fhir_codes() -> None:
     )
     build = _build([option_set], GenerateConfig(concept_code_source="code"))
     assert _concept_codes(_code_systems(build)[0]) == ["AcdAzPoqdtd"]
-    assert any("not a valid FHIR code" in note for note in build.notes)
+    assert any("not a valid FHIR code" in note.message for note in build.notes)
 
 
 def test_a_spaced_code_is_carried_verbatim() -> None:
@@ -342,7 +342,7 @@ def test_code_or_id_falls_back_for_every_collider_with_one_note() -> None:
     assert "terminology/CodeSystem-d2-os-Aa1aaaaaaaa-cs.json" in documents
     assert "terminology/CodeSystem-d2-os-Bb2bbbbbbbb-cs.json" in documents
     assert documents["terminology/CodeSystem-d2-os-Bb2bbbbbbbb-cs.json"]["name"] == "D2OS_Bb2bbbbbbbb_CS"
-    assert build.notes == [
+    assert [note.message for note in build.notes] == [
         "2 option set codes unusable as identity stems; fell back to the id: SEX (Aa1aaaaaaaa), Sex (Bb2bbbbbbbb)"
     ]
 
@@ -358,7 +358,7 @@ def test_code_or_id_takes_usable_codes_and_falls_back_on_the_rest() -> None:
     assert "terminology/CodeSystem-d2-os-Bb2bbbbbbbb-cs.json" in documents
     assert "terminology/CodeSystem-d2-os-Cc3cccccccc-cs.json" in documents
     assert documents["terminology/CodeSystem-d2-os-apgar-score-cs.json"]["name"] == "D2OS_ApgarScore_CS"
-    assert build.notes == [
+    assert [note.message for note in build.notes] == [
         "2 option set codes unusable as identity stems; fell back to the id: Sex (Bb2bbbbbbbb), Spaced (Cc3cccccccc)"
     ]
 
@@ -392,7 +392,9 @@ def test_a_code_over_the_stem_budget_is_unusable() -> None:
     for path, document in _documents(build).items():
         assert len(document["id"]) <= 64, document["id"]
         assert "Cc3cccccccc" in path
-    assert build.notes == ["1 option set codes unusable as identity stems; fell back to the id: Long (Cc3cccccccc)"]
+    assert [note.message for note in build.notes] == [
+        "1 option set codes unusable as identity stems; fell back to the id: Long (Cc3cccccccc)"
+    ]
     with pytest.raises(CodeStemError, match="is longer than the"):
         _build([option_set], _CODE_STEMS)
 
@@ -473,7 +475,9 @@ def test_a_uid_fallback_that_is_itself_taken_skips_the_option() -> None:
     code_system = _code_systems(build)[0]
     assert _concept_codes(code_system) == ["Op2aaaaaaaa", "DUP"]
     assert _displays(code_system) == ["One", "Two"]
-    assert build.notes == ["1 options could not receive a unique concept code; skipped: DUP (Op2aaaaaaaa)"]
+    assert [note.message for note in build.notes] == [
+        "1 options could not receive a unique concept code; skipped: DUP (Op2aaaaaaaa)"
+    ]
 
 
 def test_a_skipped_option_leaves_the_value_set_consistent_with_the_emitted_concepts() -> None:
@@ -542,7 +546,7 @@ def _option_bound_questionnaire(plan: OptionSetIdentityPlan) -> str:
         option_set_plan=plan,
         attribute_codes=AttributeCodeIndex(),
     )
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
     return next(artifact.content for artifact in build.artifacts if artifact.relative_path.startswith("data-sets/"))
 
 
@@ -556,7 +560,7 @@ def _option_bound_example(plan: OptionSetIdentityPlan) -> str:
         _CANONICAL,
         option_set_plan=plan,
     )
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
     return build.artifacts[0].content
 
 
@@ -633,7 +637,7 @@ def _emitted_concept_codes(option_set: OptionSetIn) -> list[str]:
 def test_a_code_mode_example_codes_an_unusable_code_as_the_uid_the_code_system_carries() -> None:
     """An option whose DHIS2 code is no FHIR code is a concept under its UID, and the answer says so."""
     build = _coded_example(_INVALID_CODE, "M  F")
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
     codings = _ANSWER_CODING_PATTERN.findall(build.artifacts[0].content)
     assert codings == ["Op1aaaaaaaa"]
     assert set(codings) <= set(_emitted_concept_codes(_INVALID_CODE))
@@ -642,7 +646,7 @@ def test_a_code_mode_example_codes_an_unusable_code_as_the_uid_the_code_system_c
 def test_a_code_mode_example_reads_the_uid_a_collided_option_fell_back_to() -> None:
     """The second option of a code collision is a concept under its UID, so the answer codes the UID too."""
     build = _coded_example(_COLLIDING, "Op2aaaaaaaa")
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
     codings = _ANSWER_CODING_PATTERN.findall(build.artifacts[0].content)
     assert codings == ["Op2aaaaaaaa"]
     assert _emitted_concept_codes(_COLLIDING) == ["DUP", "Op2aaaaaaaa"]
@@ -655,7 +659,7 @@ def test_an_answer_selecting_an_option_with_no_concept_code_is_left_unanswered()
     content = build.artifacts[0].content
     assert _ANSWER_CODING_PATTERN.findall(content) == []
     assert "answer[" not in content
-    assert build.notes == [
+    assert [note.message for note in build.notes] == [
         "1 example answers select an option the CodeSystem holds no concept for; left unanswered: "
         "Op3aaaaaaaa in Referral (Ee5eeeeeeee)"
     ]

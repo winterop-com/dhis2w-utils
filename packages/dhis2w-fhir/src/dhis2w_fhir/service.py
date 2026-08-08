@@ -17,10 +17,15 @@ from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, 
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.names import StemResolution, StemSubject, code_or_uid
-from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note
 from dhis2w_fhir.period import parse_period, recent_periods
 from dhis2w_fhir.r4 import QuestionnaireResponse
-from dhis2w_fhir.resources.categories import CATEGORY_DIRECTORY, build_category_artifacts
+from dhis2w_fhir.resources.categories import (
+    CATEGORY_DIRECTORY,
+    build_category_artifacts,
+    build_category_concept_map_artifacts,
+    category_concept_map_file_prefix,
+)
 from dhis2w_fhir.resources.categories.schemas import CategoryIn
 from dhis2w_fhir.resources.examples import (
     COMPLETED_STATUS,
@@ -40,6 +45,7 @@ from dhis2w_fhir.resources.option_sets import (
     TERMINOLOGY_DIRECTORY,
     build_option_set_artifacts,
     build_option_set_concept_map_artifacts,
+    option_set_concept_map_file_prefix,
     option_set_identities,
 )
 from dhis2w_fhir.resources.option_sets.schemas import (
@@ -205,7 +211,7 @@ class GenerateReport(BaseModel):
     example_count: int = 0
     page_count: int = 0
     intro_count: int = 0
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
 
 class LoadSetReport(BaseModel):
@@ -218,7 +224,7 @@ class LoadSetReport(BaseModel):
     deleted_files: list[str] = Field(default_factory=list)
     response_count: int = 0
     questionnaire_count: int = 0
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
 
 class GenerateFullReport(BaseModel):
@@ -657,7 +663,7 @@ async def generate_option_sets(
     """Generate a CodeSystem/ValueSet pair per option set into `terminology/`, plus its ConceptMap."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching option sets")
     async with open_client(profile) as client:
         models = await client.resources.option_sets.list(
@@ -679,7 +685,7 @@ def _emit_option_sets(
     *,
     option_sets: list[OptionSetIn],
     attribute_codes: AttributeCodeIndex,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
     """Build the terminology pairs and their ConceptMaps off a selected option-set list and sync both directories."""
@@ -707,7 +713,12 @@ def _emit_option_sets(
         ig_status=project.config.ig.status,
     )
     sync = sync_json_artifacts(project.resources_directory, TERMINOLOGY_DIRECTORY, build.artifacts)
-    concept_map_sync = sync_json_artifacts(project.resources_directory, CONCEPT_MAP_DIRECTORY, concept_maps)
+    concept_map_sync = sync_json_artifacts(
+        project.resources_directory,
+        CONCEPT_MAP_DIRECTORY,
+        concept_maps,
+        owned_prefix=option_set_concept_map_file_prefix(project.config.generate),
+    )
     # The target writes JSON, so it also owns keeping its FSH directory empty of generated files: a
     # project whose terminology was written as FSH would otherwise hold both shapes, and SUSHI refuses
     # a definition that duplicates a pre-defined resource. Only header-bearing files are removed, so a
@@ -733,7 +744,7 @@ async def generate_categories(
     """Generate one pre-built CodeSystem and ValueSet document per configured category into `categories/`."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching categories")
     async with open_client(profile) as client:
         models = await client.resources.categories.list(
@@ -752,11 +763,14 @@ def _emit_categories(
     *,
     categories: list[CategoryIn],
     attribute_codes: AttributeCodeIndex,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
-    """Build the category documents off an already-selected category list and sync them into the project."""
-    progress.step("categories", f"writing ig/input/resources/{CATEGORY_DIRECTORY}")
+    """Build the category pairs and their ConceptMaps off a selected category list and sync both directories."""
+    progress.step(
+        "categories",
+        f"writing ig/input/resources/{CATEGORY_DIRECTORY} and ig/input/resources/{CONCEPT_MAP_DIRECTORY}",
+    )
     _refuse_build_aborting_codes(
         [
             _CodedObject(resource_type="categories", uid=category.uid, name=category.name, code=category.code)
@@ -770,14 +784,26 @@ def _emit_categories(
         ig_status=project.config.ig.status,
         attribute_codes=attribute_codes,
     )
+    concept_maps = build_category_concept_map_artifacts(
+        categories,
+        project.config.generate,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+    )
     sync = sync_json_artifacts(project.resources_directory, CATEGORY_DIRECTORY, build.artifacts)
+    concept_map_sync = sync_json_artifacts(
+        project.resources_directory,
+        CONCEPT_MAP_DIRECTORY,
+        concept_maps,
+        owned_prefix=category_concept_map_file_prefix(project.config.generate),
+    )
     report = GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",
-        target_directory=f"resources/{CATEGORY_DIRECTORY}",
-        deleted_files=sync.deleted,
-        written_files=sync.written,
-        unchanged_count=len(sync.unchanged),
+        target_directory=f"resources/{CATEGORY_DIRECTORY}, resources/{CONCEPT_MAP_DIRECTORY}",
+        deleted_files=[*sync.deleted, *concept_map_sync.deleted],
+        written_files=[*sync.written, *concept_map_sync.written],
+        unchanged_count=len(sync.unchanged) + len(concept_map_sync.unchanged),
         category_count=len(categories),
         notes=[*notes, *build.notes],
     )
@@ -785,7 +811,9 @@ def _emit_categories(
     return report
 
 
-def _selected_categories(inputs: list[CategoryIn], config: GenerateConfig, notes: list[str]) -> list[CategoryIn]:
+def _selected_categories(
+    inputs: list[CategoryIn], config: GenerateConfig, notes: list[GenerateNote]
+) -> list[CategoryIn]:
     """Filter categories by the configured UIDs, noting entries that matched nothing.
 
     An absent or empty `[generate.categories] include_ids` selects every category the instance
@@ -799,7 +827,9 @@ def _selected_categories(inputs: list[CategoryIn], config: GenerateConfig, notes
     selected = [item for item in inputs if item.uid in configured_ids]
     selected_ids = {item.uid for item in selected}
     for uid in sorted(configured_ids - selected_ids):
-        notes.append(f"include_ids entry {uid!r} matched no category")
+        notes.append(
+            generate_note(GenerateNoteCategory.SELECTION_MISMATCH, f"include_ids entry {uid!r} matched no category")
+        )
     return selected
 
 
@@ -838,7 +868,7 @@ async def generate_questionnaires(
     """Generate one Questionnaire FSH file per selected data set, event program, and tracker program stage."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching the questionnaire targets")
     async with open_client(profile) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
@@ -863,7 +893,7 @@ def _emit_questionnaires(
     option_set_plan: OptionSetIdentityPlan,
     attribute_codes: AttributeCodeIndex,
     stem_plan: QuestionnaireStemPlan,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
     """Build the Questionnaire FSH off already-fetched sources and sync each of its four directories.
@@ -906,7 +936,7 @@ async def generate_examples(
     """Generate one `Usage: #example` QuestionnaireResponse per configured example into `examples/`."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     if config.examples.per_target <= 0:
         return await _emit_examples(
             None,
@@ -951,7 +981,7 @@ async def _emit_examples(
     published_organisation_unit_uids: frozenset[str],
     stem_plan: QuestionnaireStemPlan,
     organisation_unit_stems: StemResolution,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
     """Read the example responses off the instance and sync one QuestionnaireResponse per example.
@@ -1026,7 +1056,7 @@ async def generate_load_set(
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching the questionnaire targets and the option sets they bind")
     async with open_client(profile) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
@@ -1038,7 +1068,12 @@ async def generate_load_set(
     progress.step("load set", f"writing {_LOAD_DIRECTORY}")
     documents: list[QuestionnaireResponse] = []
     if root_uid is None:
-        notes.append("the instance has no level-1 organisation unit; no load set emitted")
+        notes.append(
+            generate_note(
+                GenerateNoteCategory.EMPTY_SELECTION,
+                "the instance has no level-1 organisation unit; no load set emitted",
+            )
+        )
     else:
         synthetic = build_synthetic_responses(sources, option_sets, per_target, root_uid, datetime.now(tz=UTC).date())
         notes.extend(synthetic.notes)
@@ -1083,14 +1118,19 @@ async def _example_responses(
     sources: list[QuestionnaireSourceIn],
     option_sets: list[OptionSetIn],
     selection: ExampleSelection,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> list[ExampleResponseIn]:
     """Collect the example responses from whichever source the project configured."""
     today = datetime.now(tz=UTC).date()
     root_uid = await _root_organisation_unit_uid(client)
     if root_uid is None:
-        notes.append("the instance has no level-1 organisation unit; no examples emitted")
+        notes.append(
+            generate_note(
+                GenerateNoteCategory.EMPTY_SELECTION,
+                "the instance has no level-1 organisation unit; no examples emitted",
+            )
+        )
         return []
     if selection.source == "instance":
         return await _fetch_instance_responses(client, sources, selection.per_target, root_uid, notes, progress)
@@ -1130,7 +1170,7 @@ async def _fetch_instance_responses(
     sources: list[QuestionnaireSourceIn],
     per_target: int,
     root_uid: str,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> list[ExampleResponseIn]:
     """Read example responses off the instance: data value sets for data sets, tracker events for programs.
@@ -1153,7 +1193,8 @@ async def _fetch_instance_responses(
         responses.extend(found)
     if empty_targets:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.INSTANCE_DATA_GAP,
                 f"{len(empty_targets)} questionnaire targets hold no data on the instance; no examples emitted",
                 empty_targets,
             )
@@ -1426,16 +1467,19 @@ async def _fetch_published_organisation_unit_stems(client: Dhis2Client, config: 
     return plan_organisation_unit_stems(subjects, config.naming.source)
 
 
-def _registry_scale_notes(organisation_unit_count: int) -> list[str]:
+def _registry_scale_notes(organisation_unit_count: int) -> list[GenerateNote]:
     """Warn while generating when the registry is large enough to dominate the publisher's rendering pass."""
     instance_count = organisation_unit_count * _INSTANCES_PER_ORGANISATION_UNIT
     if instance_count < _REGISTRY_RENDER_COST_INSTANCES:
         return []
     return [
-        f"{organisation_unit_count} organisation units emit {instance_count} instances. They ship as "
-        "pre-built JSON so SUSHI never compiles them, but the IG publisher renders a page per resource, "
-        "so they set the wall clock of `make build`. Narrow the registry with "
-        "`[generate.organisation_units]` max_level or root if the build is longer than you want."
+        generate_note(
+            GenerateNoteCategory.BUILD_COST,
+            f"{organisation_unit_count} organisation units emit {instance_count} instances. They ship as "
+            "pre-built JSON so SUSHI never compiles them, but the IG publisher renders a page per resource, "
+            "so they set the wall clock of `make build`. Narrow the registry with "
+            "`[generate.organisation_units]` max_level or root if the build is longer than you want.",
+        )
     ]
 
 
@@ -1469,7 +1513,7 @@ def _emit_organisation_units(
     organisation_units: list[OrganisationUnitIn],
     attribute_codes: AttributeCodeIndex,
     stems: StemResolution,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
     """Build the organisation-unit profiles, terminology, and registry off an already-paged hierarchy.
@@ -1522,7 +1566,11 @@ def _emit_organisation_units(
                 build_organisation_unit_terminology(organisation_units, generate_config, ig_status=ig_status)
             )
     else:
-        notes.append("no organisation units matched the configured selection")
+        notes.append(
+            generate_note(
+                GenerateNoteCategory.EMPTY_SELECTION, "no organisation units matched the configured selection"
+            )
+        )
     notes.extend(_registry_scale_notes(len(organisation_units)))
     sync = sync_artifacts(project.fsh_directory, "organization", artifacts)
     registry_sync = sync_json_artifacts(project.resources_directory, REGISTRY_DIRECTORY, registry)
@@ -1550,7 +1598,7 @@ async def generate_pages(
     """Generate the narrative site pages and the per-artifact intros into `ig/input/pagecontent/`."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
     progress.step(_FETCH_LABEL, "fetching the questionnaire targets, option sets, and organisation units")
@@ -1586,7 +1634,7 @@ def _emit_pages(
     organisation_units: list[OrganisationUnitIn],
     stem_plan: QuestionnaireStemPlan,
     organisation_unit_stems: StemResolution,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
     """Build the narrative pages off what the other targets were built from - no second read of the instance.
@@ -1768,11 +1816,11 @@ class LiveIgInputs(BaseModel):
     # W-2: identity-stem plans for the questionnaire and org-unit surfaces, resolved once per fetch.
     questionnaire_stems: QuestionnaireStemPlan
     organisation_unit_stems: StemResolution
-    notes: list[str] = Field(default_factory=list)
-    source_notes: list[str] = Field(default_factory=list)
-    option_set_notes: list[str] = Field(default_factory=list)
-    category_notes: list[str] = Field(default_factory=list)
-    geometry_notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
+    source_notes: list[GenerateNote] = Field(default_factory=list)
+    option_set_notes: list[GenerateNote] = Field(default_factory=list)
+    category_notes: list[GenerateNote] = Field(default_factory=list)
+    geometry_notes: list[GenerateNote] = Field(default_factory=list)
 
 
 async def fetch_live_ig_inputs(
@@ -1792,9 +1840,9 @@ async def fetch_live_ig_inputs(
     since a slug is decided by the UID and the name the first read already carries.
     """
     steps = progress if progress is not None else _StepAnnouncer()
-    source_notes: list[str] = []
-    option_set_notes: list[str] = []
-    category_notes: list[str] = []
+    source_notes: list[GenerateNote] = []
+    option_set_notes: list[GenerateNote] = []
+    category_notes: list[GenerateNote] = []
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
     steps.tick("reading the questionnaire targets")
@@ -1843,7 +1891,7 @@ async def fetch_live_ig_inputs(
 
 
 def _selected_option_sets(
-    inputs: list[OptionSetIn], sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[str]
+    inputs: list[OptionSetIn], sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[GenerateNote]
 ) -> list[OptionSetIn]:
     """Filter option sets by the configured UIDs plus the target closure, noting entries that matched nothing."""
     selection = config.option_sets
@@ -1857,7 +1905,9 @@ def _selected_option_sets(
     selected = [item for item in inputs if item.uid in wanted_ids]
     selected_ids = {item.uid for item in selected}
     for uid in sorted(set(selection.include_ids) - selected_ids):
-        notes.append(f"include_ids entry {uid!r} matched no option set")
+        notes.append(
+            generate_note(GenerateNoteCategory.SELECTION_MISMATCH, f"include_ids entry {uid!r} matched no option set")
+        )
     return selected
 
 
@@ -1927,13 +1977,16 @@ async def _closure_sources(client: Dhis2Client, config: GenerateConfig) -> list[
     return await _fetch_questionnaire_sources(client, config, [])
 
 
-def _option_set_closure(sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[str]) -> set[str]:
+def _option_set_closure(
+    sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[GenerateNote]
+) -> set[str]:
     """Collect the option sets the selected forms bind their data elements to, noting the additions."""
     closure = _bound_option_set_uids(sources)
     added = sorted(closure - set(config.option_sets.include_ids))
     if added:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.SELECTION_CLOSURE,
                 f"{len(added)} option sets added by the data set / event program closure",
                 added,
             )
@@ -1942,7 +1995,7 @@ def _option_set_closure(sources: list[QuestionnaireSourceIn], config: GenerateCo
 
 
 async def _fetch_questionnaire_sources(
-    client: Dhis2Client, config: GenerateConfig, notes: list[str]
+    client: Dhis2Client, config: GenerateConfig, notes: list[GenerateNote]
 ) -> list[QuestionnaireSourceIn]:
     """Fetch the selected data sets, event programs, and tracker program stages as the Questionnaire projection.
 
@@ -1965,7 +2018,7 @@ async def _fetch_questionnaire_sources(
 
 
 async def _fetch_program_sources(
-    client: Dhis2Client, config: GenerateConfig, notes: list[str]
+    client: Dhis2Client, config: GenerateConfig, notes: list[GenerateNote]
 ) -> list[QuestionnaireSourceIn]:
     """Fetch the programs of both selection tables: one source per event program, one per tracker stage.
 
@@ -2013,7 +2066,7 @@ async def _list_programs(client: Dhis2Client, uids: list[str] | None) -> list[Pr
     return models
 
 
-def _swept_program_sources(models: list[Program], notes: list[str]) -> list[QuestionnaireSourceIn]:
+def _swept_program_sources(models: list[Program], notes: list[GenerateNote]) -> list[QuestionnaireSourceIn]:
     """Route every program of a whole-instance sweep to its form kind, noting the types neither table maps."""
     sources: list[QuestionnaireSourceIn] = []
     unmapped: list[str] = []
@@ -2027,7 +2080,8 @@ def _swept_program_sources(models: list[Program], notes: list[str]) -> list[Ques
             unmapped.append(f"{model.name or model.id or ''} ({model.id or ''})")
     if unmapped:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.REFUSED_FORM,
                 f"{len(unmapped)} programs have a programType the questionnaire target does not map; skipped",
                 unmapped,
             )
@@ -2065,17 +2119,21 @@ def _uid_filter(uids: list[str]) -> str:
 
 
 def _note_unmatched(
-    configured_ids: list[str], found_ids: set[str | None], table: str, label: str, notes: list[str]
+    configured_ids: list[str], found_ids: set[str | None], table: str, label: str, notes: list[GenerateNote]
 ) -> None:
     """Note the configured UIDs the instance answered nothing for, rather than dropping them silently."""
     missing = [uid for uid in configured_ids if uid not in found_ids]
     if missing:
         notes.append(
-            aggregate_note(f"{len(missing)} [generate.{table}] include_ids entries matched no {label}", missing)
+            aggregate_generate_note(
+                GenerateNoteCategory.SELECTION_MISMATCH,
+                f"{len(missing)} [generate.{table}] include_ids entries matched no {label}",
+                missing,
+            )
         )
 
 
-def _data_set_source(model: DataSet, notes: list[str]) -> QuestionnaireSourceIn:
+def _data_set_source(model: DataSet, notes: list[GenerateNote]) -> QuestionnaireSourceIn:
     """Map a generated DataSet into the Questionnaire projection, joining sections to their data elements.
 
     `dataSetElements` is a Java `Set` with no sort order, and DHIS2 serialises it in a different
@@ -2166,7 +2224,7 @@ def _marked_required(item: QuestionnaireItemIn, compulsory: _CompulsoryOperands)
     return item.model_copy(update={"required_option_combo_uids": required_uids}) if required_uids else item
 
 
-def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSourceIn:
+def _event_program_source(model: Program, notes: list[GenerateNote]) -> QuestionnaireSourceIn:
     """Map a program without registration onto one Questionnaire source, built from its single stage.
 
     A WITHOUT_REGISTRATION program holds exactly one stage by construction, so the program is
@@ -2205,7 +2263,7 @@ def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSour
     )
 
 
-def _tracker_program_sources(model: Program, notes: list[str]) -> list[QuestionnaireSourceIn]:
+def _tracker_program_sources(model: Program, notes: list[GenerateNote]) -> list[QuestionnaireSourceIn]:
     """Map a program with registration onto one Questionnaire source per stage, in the program's stage order.
 
     A tracker program is a sequence of visits rather than a single form, so each stage is its own
@@ -2293,7 +2351,7 @@ def _questionnaire_source(
     items: list[QuestionnaireItemIn],
     raw_sections: object,
     attribute_values: list[AttributeValueIn],
-    notes: list[str],
+    notes: list[GenerateNote],
     period_type: str | None = None,
     program: ProgramContextIn | None = None,
 ) -> QuestionnaireSourceIn:
@@ -2303,7 +2361,8 @@ def _questionnaire_source(
     flat_items = [item for item in items if item.uid not in sectioned_ids]
     if sections and flat_items:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.FORM_STRUCTURE,
                 f"{_SOURCE_LABELS_BY_KIND[kind]} {name!r} ({uid}) has {len(flat_items)} data elements outside "
                 "its sections; emitted after the sectioned ones",
                 [f"{item.name} ({item.uid})" for item in flat_items],
@@ -2581,13 +2640,14 @@ class GeometryTally(BaseModel):
     other_geometry_types: set[str] = Field(default_factory=set)
     malformed_units: list[str] = Field(default_factory=list)
 
-    def to_notes(self) -> list[str]:
+    def to_notes(self) -> list[GenerateNote]:
         """Roll the tally up into one aggregate note per noteworthy geometry outcome."""
-        notes: list[str] = []
+        notes: list[GenerateNote] = []
         if self.other_geometry_units:
             type_names = ", ".join(sorted(self.other_geometry_types))
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.INSTANCE_DATA_GAP,
                     f"{len(self.other_geometry_units)} organisation units have {type_names} geometry; embedded "
                     "without position",
                     self.other_geometry_units,
@@ -2595,7 +2655,8 @@ class GeometryTally(BaseModel):
             )
         if self.malformed_units:
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.INSTANCE_DATA_GAP,
                     f"{len(self.malformed_units)} organisation units have malformed geometry; no position or "
                     "boundary emitted",
                     self.malformed_units,

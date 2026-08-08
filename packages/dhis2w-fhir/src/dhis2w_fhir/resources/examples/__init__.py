@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import StemResolution, fsh_code, page_text, quote
-from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.period.parser import parse_period
 from dhis2w_fhir.period.recent import recent_periods
 from dhis2w_fhir.period.schemas import PeriodValue
@@ -334,12 +334,13 @@ class ExampleTally(BaseModel):
     unauthored_responses: list[str] = Field(default_factory=list)
     incomplete_tracker_responses: list[str] = Field(default_factory=list)
 
-    def to_notes(self) -> list[str]:
+    def to_notes(self) -> list[GenerateNote]:
         """Roll the tally up into one aggregate note per noteworthy example outcome."""
-        notes: list[str] = []
+        notes: list[GenerateNote] = []
         if self.unknown_data_elements:
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.SKIPPED_QUESTION,
                     f"{len(self.unknown_data_elements)} captured values reference data elements the "
                     "questionnaire does not ask for; skipped",
                     self.unknown_data_elements,
@@ -347,7 +348,8 @@ class ExampleTally(BaseModel):
             )
         if self.untyped_values:
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.ANSWER_FALLBACK,
                     f"{len(self.untyped_values)} example answers could not be cast to their FHIR type; "
                     "answered as strings",
                     self.untyped_values,
@@ -355,7 +357,8 @@ class ExampleTally(BaseModel):
             )
         if self.uncoded_options:
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.SKIPPED_QUESTION,
                     f"{len(self.uncoded_options)} example answers select an option the CodeSystem holds no "
                     "concept for; left unanswered",
                     self.uncoded_options,
@@ -363,7 +366,8 @@ class ExampleTally(BaseModel):
             )
         if self.unpublished_organisation_units:
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.SKIPPED_QUESTION,
                     f"{len(self.unpublished_organisation_units)} example answers reference an organisation "
                     "unit outside the org-unit selection, which the IG publishes no Location for; left "
                     "unanswered",
@@ -372,7 +376,8 @@ class ExampleTally(BaseModel):
             )
         if self.periodless_data_sets:
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.INSTANCE_DATA_GAP,
                     f"{len(self.periodless_data_sets)} data sets have no resolvable reporting period; "
                     "their examples carry no D2Period extension and declare the base QuestionnaireResponse "
                     "instead of the aggregate response profile",
@@ -381,7 +386,8 @@ class ExampleTally(BaseModel):
             )
         if self.unauthored_responses:
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.INSTANCE_DATA_GAP,
                     f"{len(self.unauthored_responses)} examples carry an occurrence timestamp FHIR cannot "
                     "express as a dateTime; authored omitted and the base QuestionnaireResponse declared "
                     "instead of the event or tracker event response profile",
@@ -390,7 +396,8 @@ class ExampleTally(BaseModel):
             )
         if self.incomplete_tracker_responses:
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.INSTANCE_DATA_GAP,
                     f"{len(self.incomplete_tracker_responses)} examples lack the enrollment or tracked entity "
                     "a tracker event carries; the base QuestionnaireResponse is declared instead of the tracker "
                     "event response profile",
@@ -475,7 +482,8 @@ def build_example_artifacts(
     build.notes.extend(tally.to_notes())
     if index.unplanned_uids:
         build.notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.SELECTION_GAP,
                 f"{len(index.unplanned_uids)} option sets a question binds are absent from the option-set "
                 "selection; their answer coding systems are derived from the UID",
                 index.unplanned_uids,
@@ -500,7 +508,7 @@ class SyntheticBuild(BaseModel):
     """Result of generating synthetic responses: the responses plus what generation could not answer."""
 
     responses: list[ExampleResponseIn] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
 
 def build_synthetic_responses(
@@ -526,7 +534,8 @@ def build_synthetic_responses(
             )
     if unanswerable:
         build.notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.SKIPPED_QUESTION,
                 f"{len(unanswerable)} questions take an attachment, a geometry document, or a reference to a "
                 "DHIS2 object the IG does not publish; left unanswered in the synthetic examples",
                 sorted(set(unanswerable)),

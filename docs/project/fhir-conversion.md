@@ -81,12 +81,12 @@ conversion stance (FML as the contract, never a runtime engine).
 
 ### 4. ConceptMap + `$translate` (terminology side, orthogonal)
 
-Option <-> DHIS2 identifier mappings as generated ConceptMaps - **shipped**, see
-[phase B item 1](#phase-b-item-1-conceptmaps-per-option-set) below. `serve` answers
-R4's type-level `ConceptMap/$translate` over the same store, in both compiled and
-`--live` mode, so the whole mechanism is live: `system` + `code` in, a `Parameters`
-resource carrying the DHIS2 option UID and the DHIS2 option code out. Both halves
-shipped together.
+Concept <-> DHIS2 identifier mappings as generated ConceptMaps - **shipped for both
+terminology families**, option sets and categories; see
+[phase B item 1](#phase-b-item-1-conceptmaps-per-terminology-family) below. `serve`
+answers R4's type-level `ConceptMap/$translate` over the same store, in both compiled
+and `--live` mode, so the whole mechanism is live: `system` + `code` in, a `Parameters`
+resource carrying the DHIS2 UID and the DHIS2 code out.
 
 ## The plan: reference implementation first, contract lifted second
 
@@ -96,7 +96,8 @@ then the *reference implementation* the later contract is held against - the sam
 FSH emitters played for the JSON builders, where golden parity kept two paths honest.
 
 **Phase B - lift the contract into the IG.** In order:
-1. **ConceptMaps per option set** - shipped, described below.
+1. **ConceptMaps per terminology family** - shipped for option sets and categories,
+   described below.
 2. **Two DHIS2 logical models** (data value set row, tracker event) as
    `kind=logical` StructureDefinitions - they document the wire faithfully and are a
    prerequisite for any map.
@@ -116,18 +117,22 @@ the CI gate from phase B is what makes the codegen trustworthy.
 **SDC hook, parallel:** when the clinical projection is wanted, observation-based
 `$extract` over the item codes - additive, not on the DHIS2 path.
 
-## Phase B item 1: ConceptMaps per option set
+## Phase B item 1: ConceptMaps per terminology family
 
-Shipped by the `option-sets` generate target, which writes one ConceptMap beside every
-CodeSystem/ValueSet pair it emits, into its own predefined-resource directory
-`ig/input/resources/concept-maps/`, named `ConceptMap-<id-stem><slug>-cm.json` with the
-FSH-style name `D2OS_<segment>_CM`. The map takes its id, its name, and its URL from the
-same `OptionSetIdentity` the pair does, so all three artifacts of one option set carry one
-slug.
+Shipped by both terminology targets. `option-sets` writes one ConceptMap beside every
+CodeSystem/ValueSet pair it emits and `categories` does the same for its own pairs, both
+into the predefined-resource directory `ig/input/resources/concept-maps/`, named
+`ConceptMap-<id-stem><slug>-cm.json` with the FSH-style name `D2OS_<segment>_CM` or
+`D2CAT_<segment>_CM`. Each map takes its id, its name, and its URL from the same identity
+the pair does, so all three artifacts of one source object carry one slug. Neither target
+owns the shared directory outright: each sweeps the file-name prefix its own id stem
+produces, which keeps one `path-resource` glob covering the whole mechanism.
 
-**Two groups, both sourced from the set's own CodeSystem.** The map answers the one
-question a consumer holding a generated coding has - *which DHIS2 option is this?* - and
-answers it for both DHIS2 identifiers at once:
+**Two groups, both sourced from the source object's own CodeSystem.** The map answers
+the one question a consumer holding a generated coding has - *which DHIS2 object is
+this?* - and answers it for both DHIS2 identifiers at once. An option set maps onto
+`{base}/id/option` and `{base}/id/option-code`; a category maps onto
+`{base}/id/category-option` and `{base}/id/category-option-code`:
 
 ```json
 {
@@ -186,11 +191,10 @@ answers it for both DHIS2 identifiers at once:
   built from, so a mapping can only ever name a concept the CodeSystem really holds - the
   discipline the example answers already follow.
 
-**Follow-ups this leaves open.** `{base}/id/option` and `{base}/id/option-code` are new
-DHIS2 identifier namespaces and are not yet declared as NamingSystems by the `foundation`
-target, so a validator meeting one has no definition to resolve. Categories emit no map
-yet: their concepts are built by the same `build_concepts`, so the emitter carries over
-directly once the `CAT` naming and the `categories/` directory are threaded through.
+All four DHIS2 identifier namespaces - `{base}/id/option`, `{base}/id/option-code`,
+`{base}/id/category-option`, `{base}/id/category-option-code` - are declared as
+NamingSystems by the `foundation` target and aliased in `d2-aliases.fsh`, so a validator
+meeting one has a definition to resolve.
 
 ## Why this order
 

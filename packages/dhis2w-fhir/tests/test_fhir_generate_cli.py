@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from dhis2w_cli.main import build_app
 from dhis2w_fhir import FhirValidationReport, GenerateFullReport, GenerateReport, LoadSetReport
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory
 from dhis2w_fhir.validation.schemas import CodeCoverage, SurfaceCodeCoverage, ValidationFinding
 from typer.testing import CliRunner
 
@@ -57,6 +59,16 @@ token = "d2p_secondary"
     return tmp_path
 
 
+def _note(message: str, category: GenerateNoteCategory = GenerateNoteCategory.SELECTION_MISMATCH) -> GenerateNote:
+    """One note of a given kind - the default is a config note, which the terminal always carries."""
+    return GenerateNote(category=category, message=message)
+
+
+def _echo(message: str) -> GenerateNote:
+    """One note that only restates a validate finding, which a bare run counts separately."""
+    return GenerateNote(category=GenerateNoteCategory.CODE_FALLBACK, message=message)
+
+
 def _report(target_directory: str, **overrides: object) -> GenerateReport:
     """Build a small GenerateReport for mocking."""
     defaults: dict[str, object] = {
@@ -83,7 +95,7 @@ def _full_report() -> GenerateFullReport:
 
 def test_generate_option_sets_renders_report(fhir_project: Path) -> None:  # noqa: ARG001
     """`d2w fhir generate option-sets` renders counts and notes from the service report."""
-    mock = AsyncMock(return_value=_report("terminology", option_set_count=3, notes=["a note"]))
+    mock = AsyncMock(return_value=_report("terminology", option_set_count=3, notes=[_note("a note")]))
     with patch("dhis2w_fhir.service.generate_option_sets", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "generate", "option-sets"])
     assert result.exit_code == 0, result.output
@@ -94,7 +106,7 @@ def test_generate_option_sets_renders_report(fhir_project: Path) -> None:  # noq
 
 def test_generate_categories_renders_report(fhir_project: Path) -> None:  # noqa: ARG001
     """`d2w fhir generate categories` renders counts and notes from the service report."""
-    mock = AsyncMock(return_value=_report("resources/categories", category_count=4, notes=["a note"]))
+    mock = AsyncMock(return_value=_report("resources/categories", category_count=4, notes=[_note("a note")]))
     with patch("dhis2w_fhir.service.generate_categories", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "generate", "categories"])
     assert result.exit_code == 0, result.output
@@ -165,7 +177,7 @@ def _noted_report(project_root: Path) -> GenerateFullReport:
         report.pages,
     ):
         outcome.project_root = project_root
-    report.examples.notes.append("no data values for the period")
+    report.examples.notes.append(_note("no data values for the period"))
     return report
 
 
@@ -185,13 +197,64 @@ def test_bare_generate_counts_its_notes_and_writes_them_to_a_file(fhir_project: 
     assert "https://dhis2.example" in body
 
 
+def _echoing_report(project_root: Path) -> GenerateFullReport:
+    """The seven-target report with one config note and three validate echoes across two targets."""
+    report = _noted_report(project_root)
+    report.option_sets.notes.extend([_echo("1 option codes collided"), _echo("2 option set codes unusable as stems")])
+    report.categories.notes.append(_echo("1 category option codes collided"))
+    return report
+
+
+def test_bare_generate_counts_validate_echoes_apart_from_what_generation_found(fhir_project: Path) -> None:
+    """A code fall-back is a validate finding restated, so it is counted at the end of the line, not in the total."""
+    mock = AsyncMock(return_value=_echoing_report(fhir_project))
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    notes = fhir_project / "reports" / "fhir-generate-notes.md"
+    assert f"note: 1 note(s) across 1 target(s) (+3 validate echoes); full list in {notes} (--details to print)" in (
+        result.stderr
+    )
+    assert "1 option codes collided" not in result.stderr
+
+
+def test_the_notes_file_files_validate_echoes_under_their_own_heading(fhir_project: Path) -> None:
+    """Nothing is hidden: an echo still lands in the file, under a trailing section of the target that raised it."""
+    mock = AsyncMock(return_value=_echoing_report(fhir_project))
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    body = (fhir_project / "reports" / "fhir-generate-notes.md").read_text(encoding="utf-8")
+    assert body.count("### Restatements of validate findings") == 2
+    assert "- 1 option codes collided" in body
+    assert "- 2 option set codes unusable as stems" in body
+    # The target that raised only its own note keeps its section unsplit.
+    assert body.index("## examples") < body.index("- no data values for the period")
+    examples_section = body[body.index("## examples") :]
+    assert "### Restatements of validate findings" not in examples_section
+
+
+def test_a_run_of_nothing_but_echoes_says_so_rather_than_counting_zero(fhir_project: Path) -> None:
+    """When every note restates validate, the line names the echoes instead of announcing no notes at all."""
+    report = _noted_report(fhir_project)
+    report.examples.notes.clear()
+    report.option_sets.notes.append(_echo("1 option codes collided"))
+    report.categories.notes.append(_echo("1 category option codes collided"))
+    mock = AsyncMock(return_value=report)
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    assert "note: 2 validate echo(es) across 2 target(s); full list in " in result.stderr
+
+
 def test_bare_generate_details_prints_every_note_with_its_target(fhir_project: Path) -> None:
     """`--details` is the firehose, and one table for seven targets means a note names the target."""
-    mock = AsyncMock(return_value=_noted_report(fhir_project))
+    mock = AsyncMock(return_value=_echoing_report(fhir_project))
     with patch("dhis2w_fhir.service.generate_full", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "generate", "--details"])
     assert result.exit_code == 0, result.output
     assert "note: examples: no data values for the period" in result.stderr
+    assert "note: option-sets: 1 option codes collided" in result.stderr
     assert not (fhir_project / "reports" / "fhir-generate-notes.md").exists()
 
 
@@ -206,14 +269,18 @@ def test_a_run_that_raised_no_note_writes_no_notes_file(fhir_project: Path) -> N
 
 
 def test_a_solo_target_still_prints_its_notes_inline(fhir_project: Path) -> None:
-    """One target's notes are short and were asked for by name, so they stay on the terminal."""
-    report = _report("terminology", notes=["1 option sets are absent from the selection"])
+    """One target's notes are short and were asked for by name, so they stay on the terminal - echoes included."""
+    report = _report(
+        "terminology",
+        notes=[_note("1 option sets are absent from the selection"), _echo("1 option codes collided")],
+    )
     report.project_root = fhir_project
     mock = AsyncMock(return_value=report)
     with patch("dhis2w_fhir.service.generate_option_sets", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "generate", "option-sets"])
     assert result.exit_code == 0, result.output
     assert "1 option sets are absent from the selection" in result.stderr
+    assert "1 option codes collided" in result.stderr
     assert not (fhir_project / "reports" / "fhir-generate-notes.md").exists()
 
 
@@ -226,6 +293,28 @@ def test_bare_generate_json_emits_the_full_report(fhir_project: Path) -> None:  
     assert '"foundation"' in result.stdout
     assert '"pages"' in result.stdout
     assert result.stderr == ""
+
+
+def test_bare_generate_json_carries_every_note_as_the_whole_model(fhir_project: Path) -> None:
+    """`--json` is the machine surface: a note serialises as its kind, its text, and the echo verdict."""
+    mock = AsyncMock(return_value=_echoing_report(fhir_project))
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["--json", "fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["examples"]["notes"] == [
+        {
+            "category": "selection-mismatch",
+            "message": "no data values for the period",
+            "echoes_validate": False,
+        }
+    ]
+    assert payload["option_sets"]["notes"][0] == {
+        "category": "code-fallback",
+        "message": "1 option codes collided",
+        "echoes_validate": True,
+    }
+    assert not (fhir_project / "reports" / "fhir-generate-notes.md").exists()
 
 
 def test_bare_generate_writes_nothing_to_stdout_in_human_mode(fhir_project: Path) -> None:  # noqa: ARG001
@@ -290,7 +379,9 @@ def test_generate_target_takes_its_own_progress_flag(fhir_project: Path) -> None
 def test_generate_pages_renders_report(fhir_project: Path) -> None:  # noqa: ARG001
     """`d2w fhir generate pages` renders the page and intro counts against the pagecontent target."""
     mock = AsyncMock(
-        return_value=_report("pagecontent", target_base="ig/input", page_count=5, intro_count=4, notes=["a note"])
+        return_value=_report(
+            "pagecontent", target_base="ig/input", page_count=5, intro_count=4, notes=[_note("a note")]
+        )
     )
     with patch("dhis2w_fhir.service.generate_pages", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "generate", "pages"])
@@ -332,7 +423,7 @@ def test_generate_load_set_renders_the_corpus_report(fhir_project: Path) -> None
         written_files=["load/a1b2c3d4e5f.json"],
         response_count=50,
         questionnaire_count=2,
-        notes=["a note"],
+        notes=[_note("a note")],
     )
     mock = AsyncMock(return_value=report)
     with patch("dhis2w_fhir.service.generate_load_set", new=mock):

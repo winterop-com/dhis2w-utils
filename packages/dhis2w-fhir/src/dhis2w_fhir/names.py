@@ -16,7 +16,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
 
 #: The `[generate.naming] source` literal: which DHIS2 field the identity stem is read from.
 NamingSource = Literal["id", "code-or-id", "code"]
@@ -230,7 +230,7 @@ class StemResolution(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     stems: dict[str, str] = Field(default_factory=dict)
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
     def stem_for(self, uid: str) -> str:
         """The resolved id/url/filename segment of one subject."""
@@ -330,10 +330,11 @@ def resolve_identity_stems(
         verdict.subject.uid: verdict.subject.uid if verdict.defect is not None else verdict.subject.code or ""
         for verdict in verdicts
     }
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     if offenders:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.STEM_FALLBACK,
                 f"{len(offenders)} {surface_label} codes unusable as identity stems; fell back to the id",
                 [f"{verdict.subject.label} ({verdict.subject.uid})" for verdict in offenders],
             )

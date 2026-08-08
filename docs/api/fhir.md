@@ -68,16 +68,48 @@ string, so the code is a lookup rather than part of the value.
 
 ::: dhis2w_fhir.attributes
 
+### Generate notes
+
+What a generate target has to say about a run, as a model rather than a sentence. A
+`GenerateNote` carries the kind of decision it records (`GenerateNoteCategory`) beside
+the human text, and `echoes_validate` says whether the kind only restates a finding
+[`d2w fhir validate`](../guides/fhir-ig.md#validation) reports on the instance - which is
+what lets a bare run count those apart from what generation itself found.
+
+::: dhis2w_fhir.notes
+
 ### FHIR R4 resource schemas
 
 The models every pre-built JSON document is serialised from - `Organization` and
 `Location` for the registry, `CodeSystem` and `ValueSet` for the option-set and
-category terminology, `ConceptMap` for the option-set mappings back to DHIS2.
+category terminology, `ConceptMap` for both families' mappings back to DHIS2.
 Every one is frozen, alias-aware, and closed to unknown keys, so
 `Model.model_validate(payload).model_dump_json(exclude_none=True, by_alias=True)`
 reproduces the input document key for key.
 
 ::: dhis2w_fhir.r4.schemas
+
+### Conversion: QuestionnaireResponse to DHIS2
+
+The inverse of the emitters, and the reference implementation
+[`docs/project/fhir-conversion.md`](../project/fhir-conversion.md) holds the later published
+StructureMaps against. A caller assembles a `ConversionContext` once from the compiled IG
+artifacts - the served Questionnaires, the option-set CodeSystems and their ConceptMaps, the
+ValueSets binding the two, and the published Locations - and then translates each captured
+response into the DHIS2 import payload its form kind reports: a `DataValueSet` for a data set,
+a `TrackerEvent` for an event program or a tracker program stage. A response the translator
+cannot read whole answers with typed refusals naming the link id and the reason, never with a
+partial payload.
+
+::: dhis2w_fhir.conversion.schemas
+
+::: dhis2w_fhir.conversion.context
+
+::: dhis2w_fhir.conversion.values
+
+::: dhis2w_fhir.conversion.payloads
+
+::: dhis2w_fhir.conversion.translator
 
 ### Package surface
 

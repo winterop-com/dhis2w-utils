@@ -165,13 +165,17 @@ A `ConceptMap` states a relationship between concepts in two different code syst
 - "this code over here means that code over there". It is the FHIR-native place for
 a crosswalk, and a terminology server can answer `$translate` from one.
 
-This toolkit publishes one ConceptMap per option set, mapping every generated
-concept code onto the DHIS2 option UID and, where the option carries one, the DHIS2
-option code - one group per identifier system. `d2w fhir serve` answers `$translate`
-over them, so a client holding a generated coding can ask the server which DHIS2
-identifiers it stands for instead of reading concept properties itself.
+This toolkit publishes one ConceptMap per option set and one per category, each
+mapping every generated concept code onto the DHIS2 UID and, where the member carries
+one, the DHIS2 code - one group per identifier system. An option-set map answers
+"which DHIS2 option is this answer?"; a category map answers "which DHIS2 category
+option is this disaggregation?". `d2w fhir serve` answers `$translate` over both, so a
+client holding a generated coding can ask the server which DHIS2 identifiers it stands
+for instead of reading concept properties itself.
 
-Further reading: [ConceptMap](https://hl7.org/fhir/R4/conceptmap.html).
+Further reading: [ConceptMap](https://hl7.org/fhir/R4/conceptmap.html), and
+[ConceptMaps: the route back to DHIS2](fhir-ig.md#conceptmaps-the-route-back-to-dhis2)
+for the emitted shape and the `$translate` calls.
 
 ## Constraining and extending
 

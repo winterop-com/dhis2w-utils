@@ -111,7 +111,7 @@ def _built_responses() -> dict[str, Any]:
         _CANONICAL,
         option_set_plan=option_set_identities(plan_sets, config),
     )
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
     return {str(response.id): _emitted(response) for response in build.responses}
 
 

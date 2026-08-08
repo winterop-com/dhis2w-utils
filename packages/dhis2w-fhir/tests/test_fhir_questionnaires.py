@@ -945,7 +945,7 @@ async def test_an_absent_selection_covers_the_whole_instance(
         "data-dictionary/category-option-combos.fsh",
         "data-dictionary/data-elements.fsh",
     ]
-    assert [note for note in report.notes if "skipped" in note] == []
+    assert [note.message for note in report.notes if "skipped" in note.message] == []
     dictionary = (tmp_path / "ig" / "input" / "fsh" / "data-dictionary" / "data-elements.fsh").read_text(
         encoding="utf-8"
     )
@@ -1008,7 +1008,7 @@ async def test_an_explicit_tracker_selection_is_a_filtered_fetch_of_its_own(
     filters = [call.request.url.params.get("filter") for call in programs.calls]
     assert "id:in:[IpHINAT79UW,Missing1234]" in filters
     assert report.questionnaire_count == 2
-    assert any("Missing1234" in note and "matched no tracker program" in note for note in report.notes)
+    assert any("Missing1234" in note.message and "matched no tracker program" in note.message for note in report.notes)
 
 
 @respx.mock
@@ -1051,7 +1051,7 @@ async def test_a_stage_mixing_sectioned_and_unsectioned_elements_is_noted_as_a_s
 
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
-    assert report.notes == [
+    assert [note.message for note in report.notes] == [
         "tracker program stage 'Birth' (A03MvHHogjR) has 1 data elements outside its sections; "
         "emitted after the sectioned ones: Gender (De3aaaaaaaa)"
     ]
@@ -1077,7 +1077,7 @@ async def test_a_program_the_target_does_not_map_is_one_note_on_the_sweep(
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert report.questionnaire_count == 3
-    assert [note for note in report.notes if "skipped" in note] == [
+    assert [note.message for note in report.notes if "skipped" in note.message] == [
         "1 programs have a programType the questionnaire target does not map; skipped: Legacy programme (Pr9aaaaaaaa)"
     ]
 
@@ -1177,7 +1177,7 @@ async def test_an_unmatched_target_uid_is_noted(
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert report.questionnaire_count == 1
-    assert any("Missing1234" in note and "matched no data set" in note for note in report.notes)
+    assert any("Missing1234" in note.message and "matched no data set" in note.message for note in report.notes)
 
 
 @respx.mock
@@ -1210,7 +1210,7 @@ async def test_a_form_mixing_sectioned_and_unsectioned_elements_is_noted(
 
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
-    assert any("outside its sections" in note and "De4aaaaaaaa" in note for note in report.notes)
+    assert any("outside its sections" in note.message and "De4aaaaaaaa" in note.message for note in report.notes)
     content = (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "BfMAe6Itzgt.fsh").read_text(encoding="utf-8")
     assert content.index('* item[+].linkId = "Sec1aaaaaaa"') < content.index('* item[+].linkId = "De4aaaaaaaa"')
 
@@ -1248,7 +1248,7 @@ async def test_option_set_selection_unions_the_target_closure(
         "concept-maps/ConceptMap-d2-os-Os1aaaaaaaa-cm.json",
         "concept-maps/ConceptMap-d2-os-Os2aaaaaaaa-cm.json",
     ]
-    assert any("closure" in note and "Os1aaaaaaaa" in note for note in report.notes)
+    assert any("closure" in note.message and "Os1aaaaaaaa" in note.message for note in report.notes)
 
 
 @respx.mock
@@ -1626,7 +1626,7 @@ def test_an_option_set_the_plan_omits_falls_back_to_the_uid_name_with_one_note()
         artifact.content for artifact in build.artifacts if artifact.relative_path.endswith("BfMAe6Itzgt.fsh")
     )
     assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content
-    assert build.notes == [
+    assert [note.message for note in build.notes] == [
         "1 option sets a question binds are absent from the option-set selection; their answerValueSet "
         "names are derived from the UID: Os1aaaaaaaa"
     ]
@@ -1651,7 +1651,7 @@ async def test_the_questionnaire_target_plans_option_set_names_over_the_whole_se
 
     assert option_sets.called
     assert option_sets.calls.last.request.url.params["fields"] == "id,name"
-    assert report.notes == []
+    assert [note.message for note in report.notes] == []
     content = (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "BfMAe6Itzgt.fsh").read_text(encoding="utf-8")
     assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content
 
@@ -1681,7 +1681,7 @@ def test_a_form_reusing_one_uid_on_two_items_is_skipped_with_a_note() -> None:
     )
 
     assert [artifact.relative_path for artifact in build.artifacts] == []
-    assert build.notes == [
+    assert [note.message for note in build.notes] == [
         "1 forms would emit one linkId twice, which R4 forbids (que-2: link ids are unique within a "
         "Questionnaire); the whole form is skipped rather than published invalid, because a response "
         "answering that linkId would name two questions at once: Reused UID (Ds9aaaaaaaa) on De1aaaaaaaa"
@@ -1709,7 +1709,7 @@ def test_a_skipped_form_takes_only_itself_out_of_the_run() -> None:
     assert "data-sets/BfMAe6Itzgt.fsh" in paths
     assert "data-sets/Ds9aaaaaaaa.fsh" not in paths
     assert "data-dictionary/data-elements.fsh" in paths
-    assert any("would emit one linkId twice" in note for note in build.notes)
+    assert any("would emit one linkId twice" in note.message for note in build.notes)
 
 
 def test_link_id_collisions_read_the_grammar_a_form_really_emits() -> None:

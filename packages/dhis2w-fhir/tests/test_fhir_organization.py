@@ -313,7 +313,7 @@ def test_instances_golden_one_file_per_resource_grouped_by_level() -> None:
     assert documents["registry/Location-ImspTQPwCqd.json"] == _EXPECTED_ROOT_LOCATION
     assert documents["registry/Organization-O6uvpzGd5pu.json"] == _EXPECTED_DISTRICT_ORGANIZATION
     assert documents["registry/Location-O6uvpzGd5pu.json"] == _EXPECTED_DISTRICT_LOCATION
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
 
 
 def test_every_artifact_is_indented_json_ending_in_a_newline() -> None:
@@ -365,8 +365,8 @@ def test_out_of_selection_parent_is_noted() -> None:
     for document in _documents(build).values():
         assert "partOf" not in document
     assert len(build.notes) == 1
-    assert "outside the selection" in build.notes[0]
-    assert "Badjia (YuQRtpLP10I)" in build.notes[0]
+    assert "outside the selection" in build.notes[0].message
+    assert "Badjia (YuQRtpLP10I)" in build.notes[0].message
 
 
 def test_references_are_resource_type_slash_id() -> None:
@@ -558,11 +558,12 @@ def test_registry_scale_note_fires_only_past_the_render_cost_threshold() -> None
     assert _registry_scale_notes(just_under) == []
     assert _registry_scale_notes(0) == []
 
-    note = _registry_scale_notes(12_581)
-    assert len(note) == 1
-    assert "12581 organisation units emit 25162 instances" in note[0]
-    assert "max_level" in note[0]
-    assert "renders a page per resource" in note[0]
+    scale_notes = _registry_scale_notes(12_581)
+    assert len(scale_notes) == 1
+    note = scale_notes[0].message
+    assert "12581 organisation units emit 25162 instances" in note
+    assert "max_level" in note
+    assert "renders a page per resource" in note
     # The registry ships as pre-built JSON, so the SUSHI timeout is no longer the failure it warns about.
-    assert "143" not in note[0]
-    assert "timeout" not in note[0]
+    assert "143" not in note
+    assert "timeout" not in note

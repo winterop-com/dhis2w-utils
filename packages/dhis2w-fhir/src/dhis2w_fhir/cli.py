@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
     from dhis2w_core.progress import ProgressReporter
 
+    from dhis2w_fhir.notes import GenerateNote
     from dhis2w_fhir.service import GenerateFullReport, GenerationProfile, LoadSetReport
     from dhis2w_fhir.validation.schemas import FhirValidationReport
 
@@ -399,7 +400,7 @@ def _render_generate_report(
     ]
     render_detail(title, rows, console=STDERR_CONSOLE)
     for note in report.notes:
-        _hint("note", note)
+        _hint("note", note.message)
 
 
 def _full_outcomes(report: GenerateFullReport) -> list[_TargetOutcome]:
@@ -425,11 +426,29 @@ def _full_run_summary(report: GenerateFullReport) -> str:
 #: The basename the notes of one full run are written under, inside the reports directory.
 _GENERATE_NOTES_STEM = "fhir-generate-notes"
 
+#: The heading the notes that only restate a `d2w fhir validate` finding are filed under, per target.
+_ECHO_SECTION_HEADING = "Restatements of validate findings"
+
+
+def _plain_notes(outcome: _TargetOutcome) -> list[GenerateNote]:
+    """The notes of one target that say something `d2w fhir validate` does not already say better."""
+    return [note for note in outcome.report.notes if not note.echoes_validate]
+
+
+def _echo_notes(outcome: _TargetOutcome) -> list[GenerateNote]:
+    """The notes of one target that only restate a finding the validate report carries in full."""
+    return [note for note in outcome.report.notes if note.echoes_validate]
+
 
 def _write_generate_notes(
     outcomes: Iterable[_TargetOutcome], generation: GenerationProfile, project_root: Path
 ) -> Path:
-    """Write every note of one full run to `reports/fhir-generate-notes.md`, grouped by target."""
+    """Write every note of one full run to `reports/fhir-generate-notes.md`, grouped by target.
+
+    A target's own notes come first; the ones that only restate a `d2w fhir validate` finding follow
+    in a trailing subsection, so the file still holds everything the run raised while reading as what
+    generation alone has to say.
+    """
     from datetime import UTC, datetime
 
     from dhis2w_fhir import REPORTS_DIRECTORY
@@ -448,11 +467,30 @@ def _write_generate_notes(
             continue
         lines.append(f"## {outcome.target}")
         lines.append("")
-        lines.extend(f"- {note}" for note in outcome.report.notes)
+        lines.extend(f"- {note.message}" for note in _plain_notes(outcome))
         lines.append("")
+        echoes = _echo_notes(outcome)
+        if echoes:
+            lines.append(f"### {_ECHO_SECTION_HEADING}")
+            lines.append("")
+            lines.extend(f"- {note.message}" for note in echoes)
+            lines.append("")
     destination = directory / f"{_GENERATE_NOTES_STEM}.md"
     destination.write_text("\n".join(lines), encoding="utf-8")
     return destination
+
+
+def _generate_notes_hint(outcomes: list[_TargetOutcome], destination: Path) -> str:
+    """The one line a bare run carries its notes on: what generation raised, then the validate echoes."""
+    plain_targets = [outcome for outcome in outcomes if _plain_notes(outcome)]
+    plain_total = sum(len(_plain_notes(outcome)) for outcome in plain_targets)
+    echo_total = sum(len(_echo_notes(outcome)) for outcome in outcomes)
+    tail = f"; full list in {destination} (--details to print)"
+    if not plain_total:
+        echo_targets = sum(1 for outcome in outcomes if _echo_notes(outcome))
+        return f"{echo_total} validate echo(es) across {echo_targets} target(s){tail}"
+    echoes = f" (+{echo_total} validate echoes)" if echo_total else ""
+    return f"{plain_total} note(s) across {len(plain_targets)} target(s){echoes}{tail}"
 
 
 def _render_full_notes(outcomes: list[_TargetOutcome], generation: GenerationProfile, *, details: bool) -> None:
@@ -461,6 +499,10 @@ def _render_full_notes(outcomes: list[_TargetOutcome], generation: GenerationPro
     A national instance raises several aggregate notes per target, and eight targets of them bury
     the summary table the run is actually read from. The count and the file are what the terminal
     carries; `--details` is the firehose.
+
+    The count is of what generation alone found. A note that only restates a `d2w fhir validate`
+    finding - a code fall-back, a code collision, a stem fall-back - is counted separately at the end
+    of the line, because the validate report says the same thing about the same objects at length.
     """
     noted = [outcome for outcome in outcomes if outcome.report.notes]
     if not noted:
@@ -468,11 +510,10 @@ def _render_full_notes(outcomes: list[_TargetOutcome], generation: GenerationPro
     if details:
         for outcome in noted:
             for note in outcome.report.notes:
-                _hint("note", f"{outcome.target}: {note}")
+                _hint("note", f"{outcome.target}: {note.message}")
         return
-    total = sum(len(outcome.report.notes) for outcome in noted)
     destination = _write_generate_notes(noted, generation, outcomes[0].report.project_root)
-    _hint("note", f"{total} note(s) across {len(noted)} target(s); full list in {destination} (--details to print)")
+    _hint("note", _generate_notes_hint(noted, destination))
 
 
 def _render_full_report(report: GenerateFullReport, generation: GenerationProfile, *, details: bool = False) -> None:

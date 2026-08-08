@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import StemResolution, flatten_whitespace
-from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.r4 import (
     Coding,
     Extension,
@@ -101,7 +101,7 @@ class ExampleDocumentBuild(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     responses: list[QuestionnaireResponse] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
 
 class _ExampleSystems(BaseModel):
@@ -215,7 +215,8 @@ def build_example_documents(
     notes = list(tally.to_notes())
     if index.unplanned_uids:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.SELECTION_GAP,
                 f"{len(index.unplanned_uids)} option sets a question binds are absent from the option-set "
                 "selection; their answer coding systems are derived from the UID",
                 index.unplanned_uids,

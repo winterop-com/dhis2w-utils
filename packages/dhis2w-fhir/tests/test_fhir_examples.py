@@ -495,7 +495,7 @@ def _referral_build(
         option_set_plan=_plan([], resolved),
         published_organisation_unit_uids=published_organisation_unit_uids,
     )
-    return build.artifacts[0].content, build.notes
+    return build.artifacts[0].content, [note.message for note in build.notes]
 
 
 def test_a_zoneless_timestamp_is_read_as_utc_when_the_project_names_no_zone() -> None:
@@ -630,7 +630,7 @@ def test_a_tracker_event_without_an_enrollment_declares_the_base_resource_with_a
     assert "D2TrackerEnrollment" not in content
     assert "* extension[D2OrganisationUnit].valueReference = Reference(Location/Ou1aaaaaaaa)" in content
     assert '* subject.identifier.value = "Te1aaaaaaaa"' in content
-    assert build.notes == [
+    assert [note.message for note in build.notes] == [
         "1 examples lack the enrollment or tracked entity a tracker event carries; the base "
         "QuestionnaireResponse is declared instead of the tracker event response profile: Ev1aaaaaaaa"
     ]
@@ -739,7 +739,7 @@ def test_an_option_value_answers_as_the_configured_concept_code(code_source: str
         [_DATA_SET], [response], _OPTION_SETS, config, _CANONICAL, option_set_plan=_plan(_OPTION_SETS, config)
     )
     assert f"* item[=].item[=].answer[+].valueCoding = {coding}" in build.artifacts[0].content
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
 
 
 def test_an_unmappable_option_value_falls_back_to_a_string_with_one_note() -> None:
@@ -749,7 +749,7 @@ def test_an_unmappable_option_value_falls_back_to_a_string_with_one_note() -> No
         [_DATA_SET], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
     )
     assert '* item[=].item[=].answer[+].valueString = "X"' in build.artifacts[0].content
-    assert build.notes == [
+    assert [note.message for note in build.notes] == [
         "1 example answers could not be cast to their FHIR type; answered as strings: Gender (De3aaaaaaaa) = 'X'"
     ]
 
@@ -800,7 +800,7 @@ def test_a_value_for_a_data_element_outside_the_form_is_skipped_with_a_note() ->
     )
     assert "Dexaaaaaaaa" not in build.artifacts[0].content
     assert '* item[=].item[=].answer[+].valueString = "kept"' in build.artifacts[0].content
-    assert build.notes == [
+    assert [note.message for note in build.notes] == [
         "1 captured values reference data elements the questionnaire does not ask for; skipped: "
         "Dexaaaaaaaa in BfMAe6Itzgt-202606-Ou1aaaaaaaa"
     ]
@@ -856,7 +856,7 @@ def test_an_unusable_occurrence_is_dropped_with_a_note() -> None:
     assert "* authored" not in build.artifacts[0].content
     assert "InstanceOf: QuestionnaireResponse\n" in build.artifacts[0].content
     assert "InstanceOf: D2EventResponse" not in build.artifacts[0].content
-    assert any("base QuestionnaireResponse declared" in note for note in build.notes)
+    assert any("base QuestionnaireResponse declared" in note.message for note in build.notes)
 
 
 def test_a_data_set_without_a_period_type_carries_no_period_extension() -> None:
@@ -874,7 +874,9 @@ def test_a_data_set_without_a_period_type_carries_no_period_extension() -> None:
     assert "D2Period" not in build.artifacts[0].content
     assert "InstanceOf: QuestionnaireResponse\n" in build.artifacts[0].content
     assert "InstanceOf: D2AggregateResponse" not in build.artifacts[0].content
-    assert any("base QuestionnaireResponse instead of the aggregate response profile" in note for note in build.notes)
+    assert any(
+        "base QuestionnaireResponse instead of the aggregate response profile" in note.message for note in build.notes
+    )
 
 
 def test_config_defaults_to_one_synthetic_example_per_target() -> None:
@@ -959,7 +961,7 @@ async def test_instance_mode_walks_back_to_the_newest_period_holding_data(
     assert '* item[=].item[=].item[+].linkId = "De1aaaaaaaa.Coc1aaaaaaa"' in content
     assert "* item[=].item[=].item[=].answer[+].valueInteger = 11" in content
     assert '* item[=].item[=].answer[+].valueCoding = D2OS_Os1aaaaaaaa_CS#Op1aaaaaaaa "Female"' in content
-    assert any("Dexaaaaaaaa" in note for note in report.notes)
+    assert any("Dexaaaaaaaa" in note.message for note in report.notes)
 
 
 @respx.mock
@@ -1044,7 +1046,7 @@ async def test_instance_mode_reads_a_stages_events_by_program_stage(
         "event,orgUnit,occurredAt,status,enrollment,trackedEntity,dataValues[dataElement,value]"
     )
     assert report.example_count == 1
-    assert report.notes == []
+    assert [note.message for note in report.notes] == []
     content = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "A03MvHHogjR-1.fsh").read_text(encoding="utf-8")
     assert "Instance: QuestionnaireResponse-Ev2aaaaaaaa" in content
     assert "InstanceOf: D2TrackerEventResponse" in content
@@ -1074,7 +1076,7 @@ async def test_a_stage_event_missing_its_enrollment_degrades_to_the_base_resourc
     report = await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
 
     assert report.example_count == 1
-    assert report.notes == [
+    assert [note.message for note in report.notes] == [
         "1 examples lack the enrollment or tracked entity a tracker event carries; the base "
         "QuestionnaireResponse is declared instead of the tracker event response profile: Ev2aaaaaaaa"
     ]
@@ -1101,7 +1103,7 @@ async def test_a_target_with_no_data_is_one_note_rather_than_a_failure(
 
     assert report.example_count == 0
     assert report.written_files == []
-    assert report.notes == [
+    assert [note.message for note in report.notes] == [
         "2 questionnaire targets hold no data on the instance; no examples emitted: "
         "Child Health (BfMAe6Itzgt), Malaria case registration (VBqh0ynB2wv)"
     ]
@@ -1213,9 +1215,9 @@ async def test_a_form_the_questionnaire_target_refused_gets_no_example(
     assert not (fsh / EXAMPLES_DIRECTORY / "BfMAe6Itzgt-1.fsh").exists()
     assert not (tmp_path / "ig" / "input" / "pagecontent" / "Questionnaire-BfMAe6Itzgt-intro.md").exists()
     assert report.examples.example_count == 1
-    assert any("linkId twice" in note for note in report.questionnaires.notes)
-    assert not any("linkId twice" in note for note in report.examples.notes)
-    assert not any("linkId twice" in note for note in report.pages.notes)
+    assert any("linkId twice" in note.message for note in report.questionnaires.notes)
+    assert not any("linkId twice" in note.message for note in report.examples.notes)
+    assert not any("linkId twice" in note.message for note in report.pages.notes)
 
 
 @respx.mock
@@ -1372,7 +1374,7 @@ def test_a_stored_multi_text_value_splits_into_one_coding_per_option() -> None:
     content = build.artifacts[0].content
     assert '* item[=].answer[+].valueCoding = D2OS_Os1aaaaaaaa_CS#Op1aaaaaaaa "Female"' in content
     assert '* item[=].answer[+].valueCoding = D2OS_Os1aaaaaaaa_CS#Op3aaaaaaaa "Other"' in content
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
 
 
 def test_unanswerable_questions_are_left_unanswered_with_one_note() -> None:
@@ -1381,7 +1383,7 @@ def test_unanswerable_questions_are_left_unanswered_with_one_note() -> None:
     content = _wide_content()
     for uid in ("Defile00000", "Deimage0000", "Degeo000000", "Deref000000", "Detrk000000"):
         assert uid not in content
-    assert synthetic.notes == [
+    assert [note.message for note in synthetic.notes] == [
         "5 questions take an attachment, a geometry document, or a reference to a DHIS2 object the IG does "
         "not publish; left unanswered in the synthetic examples: Catchment (Degeo000000), "
         "Linked case (Detrk000000), Photo (Deimage0000), Related object (Deref000000), Scan (Defile00000)"
@@ -1426,7 +1428,7 @@ def test_a_captured_organisation_unit_value_answers_as_that_units_location() -> 
         option_set_plan=_plan([_WIDE_OPTION_SET]),
     )
     assert "* item[=].answer[+].valueReference = Reference(Location/Ou2aaaaaaaa)" in build.artifacts[0].content
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
 
 
 #: One category combo's option combos, deliberately not in (name, uid) order on the wire.
@@ -1555,4 +1557,4 @@ def test_an_occurrence_in_an_impossible_zone_is_dropped_with_a_note() -> None:
         [_EVENT_PROGRAM], [response], _OPTION_SETS, GenerateConfig(), _CANONICAL, option_set_plan=_plan(_OPTION_SETS)
     )
     assert "* authored" not in build.artifacts[0].content
-    assert any("base QuestionnaireResponse declared" in note for note in build.notes)
+    assert any("base QuestionnaireResponse declared" in note.message for note in build.notes)
