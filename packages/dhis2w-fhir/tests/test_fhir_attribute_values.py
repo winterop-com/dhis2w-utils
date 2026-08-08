@@ -16,6 +16,7 @@ from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import resolve_profile
 from dhis2w_fhir import InitOptions, load_project, service
 from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
+from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
 
 _HOST = "https://dhis2.example"
 _TODAY = date(2026, 8, 1)
@@ -67,7 +68,7 @@ def _event_program(**extra: Any) -> Program:
     return Program.model_validate(payload)
 
 
-def _mapped_organisation_unit(model: OrganisationUnit) -> service.OrganisationUnitIn:
+def _mapped_organisation_unit(model: OrganisationUnit) -> OrganisationUnitIn:
     """Map one organisation unit, asserting it survived the mapper."""
     mapped = service._organisation_unit_input(model, service.GeometryTally(), _TODAY)
     assert mapped is not None

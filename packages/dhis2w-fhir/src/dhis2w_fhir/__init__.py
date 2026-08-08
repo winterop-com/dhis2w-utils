@@ -63,6 +63,8 @@ from dhis2w_fhir.resources.categories.schemas import (
 )
 from dhis2w_fhir.resources.examples import (
     EXAMPLES_DIRECTORY,
+    MULTI_VALUE_SEPARATOR,
+    STATUS_BY_EVENT_STATUS,
     SyntheticBuild,
     answer_element,
     build_example_artifacts,
@@ -200,12 +202,14 @@ __all__ = [
     "ITEM_TYPES_BY_VALUE_TYPE",
     "MAXIMUM_VALUE_EXTENSION_URL",
     "MINIMUM_VALUE_EXTENSION_URL",
+    "MULTI_VALUE_SEPARATOR",
     "PAGES_BASE_SUBDIRECTORY",
     "PAGES_DIRECTORY",
     "PERIOD_TYPE_DEFINITIONS",
     "PERIOD_TYPE_NAMES",
     "REGISTRY_DIRECTORY",
     "SITE_PAGE_FILENAMES",
+    "STATUS_BY_EVENT_STATUS",
     "TERMINOLOGY_DIRECTORY",
     "TRANSLATION_EXTENSION_URL",
     "AttributeCodeIndex",

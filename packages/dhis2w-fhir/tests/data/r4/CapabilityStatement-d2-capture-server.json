@@ -1,0 +1,92 @@
+{
+  "resourceType": "CapabilityStatement",
+  "id": "d2-capture-server",
+  "url": "http://localhost:8080/fhir/CapabilityStatement/d2-capture-server",
+  "title": "DHIS2 capture server",
+  "description": "The interactions a server capturing DHIS2 data as QuestionnaireResponses supports: one response created per request, against the aggregate, event, or tracker event response profile, plus read and search over the definitional resources a capture client resolves a form from.",
+  "name": "D2CaptureServer",
+  "status": "draft",
+  "experimental": true,
+  "date": "2026-01-01",
+  "kind": "requirements",
+  "fhirVersion": "4.0.1",
+  "format": [
+    "json"
+  ],
+  "rest": [
+    {
+      "mode": "server",
+      "documentation": "One QuestionnaireResponse per request: a capture client posts a single response per form submission, and the server accepts exactly one response per request.",
+      "resource": [
+        {
+          "type": "QuestionnaireResponse",
+          "interaction": [
+            {
+              "code": "create"
+            }
+          ],
+          "supportedProfile": [
+            "http://localhost:8080/fhir/StructureDefinition/d2-aggregate-response",
+            "http://localhost:8080/fhir/StructureDefinition/d2-event-response",
+            "http://localhost:8080/fhir/StructureDefinition/d2-tracker-event-response"
+          ]
+        },
+        {
+          "type": "Questionnaire",
+          "interaction": [
+            {
+              "code": "read"
+            },
+            {
+              "code": "search-type"
+            }
+          ]
+        },
+        {
+          "type": "CodeSystem",
+          "interaction": [
+            {
+              "code": "read"
+            },
+            {
+              "code": "search-type"
+            }
+          ]
+        },
+        {
+          "type": "ValueSet",
+          "interaction": [
+            {
+              "code": "read"
+            },
+            {
+              "code": "search-type"
+            }
+          ]
+        },
+        {
+          "type": "Location",
+          "interaction": [
+            {
+              "code": "read"
+            },
+            {
+              "code": "search-type"
+            }
+          ]
+        },
+        {
+          "type": "Organization",
+          "interaction": [
+            {
+              "code": "read"
+            },
+            {
+              "code": "search-type"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

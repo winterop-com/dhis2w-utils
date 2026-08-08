@@ -33,6 +33,13 @@ from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.period.parser import parse_period
 from dhis2w_fhir.period.recent import recent_periods
 from dhis2w_fhir.period.schemas import PeriodValue
+from dhis2w_fhir.r4.primitives import (
+    is_fhir_date,
+    is_fhir_date_time,
+    is_fhir_time,
+    seconds_precision,
+    zoned_date_time,
+)
 from dhis2w_fhir.resources.examples.schemas import (
     MAXIMUM_EXAMPLES_PER_TARGET,
     ExampleAnswerIn,
@@ -67,6 +74,7 @@ __all__ = [
     "EXAMPLES_DIRECTORY",
     "INTEGER_VALUE_TYPES",
     "MAXIMUM_EXAMPLES_PER_TARGET",
+    "MULTI_VALUE_SEPARATOR",
     "MULTI_VALUE_TYPE",
     "ORGANISATION_UNIT_VALUE_TYPE",
     "STATUS_BY_EVENT_STATUS",
@@ -129,7 +137,7 @@ URI_VALUE_TYPE = "URL"
 MULTI_VALUE_TYPE = "MULTI_TEXT"
 
 #: The separator DHIS2 joins a MULTI_TEXT value's option codes with.
-_MULTI_VALUE_SEPARATOR = ","
+MULTI_VALUE_SEPARATOR = ","
 
 #: The value types an example leaves unanswered. An attachment or a geometry blob says nothing
 #: useful when it is invented, and inventing one would misrepresent the form. `REFERENCE` and
@@ -140,27 +148,6 @@ _UNSYNTHESIZABLE_VALUE_TYPES = frozenset({"FILE_RESOURCE", "IMAGE", "GEOJSON", "
 #: The DHIS2 value type answered as a reference to the organisation unit's Location instance.
 ORGANISATION_UNIT_VALUE_TYPE = "ORGANISATION_UNIT"
 
-# The R4 primitive patterns (https://hl7.org/fhir/R4/datatypes.html#primitive) the temporal
-# answers are lexically checked against. They are stricter than what DHIS2 stores, and they are
-# only the shape: `2026-99-99` and `25:99:99` match them, so every temporal answer clears the
-# calendar and the clock as well before it is emitted.
-_FHIR_DATE_PATTERN = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
-_FHIR_DATE_TIME_PATTERN = re.compile(r"^\d{4}(-\d{2}(-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2}))?)?)?$")
-_FHIR_TIME_PATTERN = re.compile(r"^\d{2}:\d{2}:\d{2}(\.\d+)?$")
-
-#: How many dash-separated parts a year-only and a year-month R4 date carry.
-_YEAR_ONLY_DATE_PARTS = 1
-_YEAR_MONTH_DATE_PARTS = 2
-
-#: The month numbers a year-month R4 date may name.
-_FIRST_MONTH = 1
-_LAST_MONTH = 12
-
-#: The UTC offsets an R4 dateTime may carry. The stdlib accepts anything under a full day, so
-#: the real-world span is enforced here: no zone sits west of -12:00 or east of +14:00.
-_EARLIEST_UTC_OFFSET = datetime.timedelta(hours=-12)
-_LATEST_UTC_OFFSET = datetime.timedelta(hours=14)
-
 # The plain decimal and integer forms an FSH numeric literal may take. They are deliberately
 # narrower than what `float()` and `int()` accept: FSH writes a numeric answer unquoted, so
 # `NaN`, `Infinity`, and an exponent (`1e3`) are not numbers a FHIR primitive can carry, a
@@ -169,12 +156,6 @@ _LATEST_UTC_OFFSET = datetime.timedelta(hours=14)
 # does not match is answered as a string rather than emitted as an invalid literal.
 _FSH_DECIMAL_PATTERN = re.compile(r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?$")
 _FSH_INTEGER_PATTERN = re.compile(r"^-?(0|[1-9][0-9]*)$")
-
-#: The zone FHIR requires on a dateTime that carries a time, and DHIS2 leaves off (BUGS.md #62).
-_ASSUMED_ZONE = "Z"
-
-#: How many colon-separated parts a bare `HH:MM` time has, before FHIR's mandatory seconds.
-_MINUTE_ONLY_TIME_PARTS = 2
 
 #: What an example declares when a response profile's 1..1 element (D2Period, authored) is missing.
 _BASE_RESPONSE_RESOURCE = "QuestionnaireResponse"
@@ -632,7 +613,7 @@ def _synthetic_option_value(value_type: str, option_set: OptionSetIn, generator:
     if value_type != MULTI_VALUE_TYPE:
         return stored[generator.randrange(len(stored))]
     wanted = min(_SYNTHETIC_MULTI_SELECTIONS, len(stored))
-    return _MULTI_VALUE_SEPARATOR.join(generator.sample(stored, wanted))
+    return MULTI_VALUE_SEPARATOR.join(generator.sample(stored, wanted))
 
 
 def _seeded_birth_date(generator: random.Random) -> datetime.date:
@@ -775,7 +756,7 @@ def _authored(response: ExampleResponseIn, tally: _ExampleTally) -> str | None:
     if response.authored is None:
         return None
     normalized = zoned_date_time(response.authored.strip())
-    if _is_fhir_date_time(normalized):
+    if is_fhir_date_time(normalized):
         return normalized
     tally.unauthored_responses.append(f"{response.instance_id} = {response.authored!r}")
     return None
@@ -814,7 +795,7 @@ def _typed_answers(
 ) -> list[_Answer]:
     """Cast one captured value onto the FHIR answer type its value type asks for - several for MULTI_TEXT."""
     if item.option_set_uid is not None:
-        selected = value.split(_MULTI_VALUE_SEPARATOR) if item.value_type == MULTI_VALUE_TYPE else [value]
+        selected = value.split(MULTI_VALUE_SEPARATOR) if item.value_type == MULTI_VALUE_TYPE else [value]
         coded = [
             _coded_answer(item, item.option_set_uid, part.strip(), option_sets_by_uid, assignments, identities, tally)
             for part in selected
@@ -869,83 +850,16 @@ def _temporal_answer(item: QuestionnaireItemIn, text: str, element: str, tally: 
     """Answer a date / dateTime / time question, normalising DHIS2's spelling into the R4 primitive."""
     if element == "valueDate":
         normalized = text.partition("T")[0]
-        valid = _is_fhir_date(normalized)
+        valid = is_fhir_date(normalized)
     elif element == "valueDateTime":
         normalized = zoned_date_time(text)
-        valid = _is_fhir_date_time(normalized)
+        valid = is_fhir_date_time(normalized)
     else:
-        normalized = _seconds_precision(text)
-        valid = _is_fhir_time(normalized)
+        normalized = seconds_precision(text)
+        valid = is_fhir_time(normalized)
     if not valid:
         return _fallback(item, text, tally)
     return _Answer(element=element, literal=quote(normalized))
-
-
-def _is_fhir_date(value: str) -> bool:
-    """Check an R4 `date`: the lexical shape, then the calendar at whatever precision it carries."""
-    return bool(_FHIR_DATE_PATTERN.match(value)) and _is_calendar_date(value)
-
-
-def _is_fhir_time(value: str) -> bool:
-    """Check an R4 `time`: the lexical shape, then a real reading of the clock (`24:00:00` is not one)."""
-    if not _FHIR_TIME_PATTERN.match(value):
-        return False
-    try:
-        datetime.time.fromisoformat(value)
-    except ValueError:
-        return False
-    return True
-
-
-def _is_fhir_date_time(value: str) -> bool:
-    """Check an R4 `dateTime`: the lexical shape, then a real instant inside the offsets R4 allows.
-
-    A date-only dateTime is exactly an R4 date, so it clears the calendar the same way. A value
-    carrying a time clears the calendar, the clock, and the zone in one parse, and then its
-    offset is bounded, which the stdlib leaves open all the way to a full day either side.
-    """
-    if not _FHIR_DATE_TIME_PATTERN.match(value):
-        return False
-    if "T" not in value:
-        return _is_calendar_date(value)
-    try:
-        parsed = datetime.datetime.fromisoformat(value)
-    except ValueError:
-        return False
-    offset = parsed.utcoffset()
-    return offset is not None and _EARLIEST_UTC_OFFSET <= offset <= _LATEST_UTC_OFFSET
-
-
-def _is_calendar_date(value: str) -> bool:
-    """Check a lexically valid R4 date against the calendar: a bare year passes, a month must exist."""
-    parts = value.split("-")
-    if len(parts) == _YEAR_ONLY_DATE_PARTS:
-        return True
-    if len(parts) == _YEAR_MONTH_DATE_PARTS:
-        return _FIRST_MONTH <= int(parts[1]) <= _LAST_MONTH
-    try:
-        datetime.date.fromisoformat(value)
-    except ValueError:
-        return False
-    return True
-
-
-def zoned_date_time(value: str) -> str:
-    """Give a DHIS2 timestamp the UTC zone R4 requires whenever it carries a time but no offset.
-
-    DHIS2 serves `occurredAt` and `DATETIME` data values as zone-less local timestamps
-    (`2025-12-30T00:00:00.000`) under fields its OpenAPI types as `Instant`, and an R4
-    `dateTime` carrying a time must carry an offset. See BUGS.md #62.
-    """
-    _, separator, time_part = value.partition("T")
-    if not separator or time_part.endswith(("Z", "z")) or "+" in time_part or "-" in time_part:
-        return value
-    return f"{value}{_ASSUMED_ZONE}"
-
-
-def _seconds_precision(value: str) -> str:
-    """Give a bare `HH:MM` the seconds R4 `time` makes mandatory."""
-    return f"{value}:00" if len(value.split(":")) == _MINUTE_ONLY_TIME_PARTS else value
 
 
 def _integer_answer(item: QuestionnaireItemIn, text: str, tally: _ExampleTally) -> _Answer:
