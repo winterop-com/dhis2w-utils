@@ -1,5 +1,5 @@
-# fhir.toml.example - every option `d2w fhir generate` understands, with its default.
-# Copy what you need into fhir.toml; omitted options keep these defaults.
+# fhir.toml.example - every option `d2w fhir generate` and `d2w fhir serve` understand,
+# with its default. Copy what you need into fhir.toml; omitted options keep these defaults.
 
 # DHIS2 profile to read metadata from. Explicit `-p` / `DHIS2_PROFILE` wins over this.
 # profile = "myserver"
@@ -25,6 +25,10 @@ identifier_system_base = "http://dhis2.org/fhir"
 # Concept code source for option sets: "id" (option UID, DHIS2 code as property)
 # or "code" (DHIS2 code when FHIR-valid, UID as property; invalid codes fall back).
 concept_code_source = "id"
+# IANA time zone the instance's zone-less timestamps are wall-clock readings in. Naming it
+# stamps every emitted dateTime with the offset that zone stood at on that very instant,
+# DST included; absent keeps the UTC reading.
+# timezone = "Asia/Vientiane"
 # Translation locales to emit (BCP-47 or DHIS2-style tags; absent = every locale found).
 # locales = ["lo", "en"]
 
@@ -85,3 +89,14 @@ source = "synthetic"
 # max_level = 4
 terminology = false                 # also emit the org-unit CodeSystem/ValueSet
                                     # with level/parent/dhis2-code properties
+
+[serve]
+# How `d2w fhir serve` runs this project - `make serve` and `make serve-live` read it too,
+# so the port is stated once here rather than on every invocation. A command-line flag
+# still wins over these.
+host = "127.0.0.1"                  # loopback: the facade has no authentication, so
+                                    # binding elsewhere is a deliberate act
+port = 8080                         # a local dev DHIS2 commonly owns 8080; port = 8090
+                                    # is the usual way out of that clash
+strict_codes = false                # true refuses a captured answer whose code is outside
+                                    # the served terminology instead of warning and storing

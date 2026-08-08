@@ -1,0 +1,31 @@
+Instance: {{ example.organization_name }}
+InstanceOf: {{ example.organization_profile }}
+Title: {{ example.organization_title_literal }}
+Description: {{ example.organization_description_literal }}
+Usage: #example
+* id = "{{ example.organization_id }}"
+* identifier[dhis2id].system = $DHIS2-OU
+* identifier[dhis2id].value = {{ example.uid_literal }}
+* identifier[dhis2code].system = $DHIS2-OU-CODE
+* identifier[dhis2code].value = {{ example.code_literal }}
+* active = true
+* name = {{ example.name_literal }}
+* type = {{ example.level_code_system }}#level-{{ example.level }} "Level {{ example.level }}"
+
+Instance: {{ example.location_name }}
+InstanceOf: {{ example.location_profile }}
+Title: {{ example.location_title_literal }}
+Description: {{ example.location_description_literal }}
+Usage: #example
+* id = "{{ example.location_id }}"
+* identifier[dhis2id].system = $DHIS2-OU
+* identifier[dhis2id].value = {{ example.uid_literal }}
+* identifier[dhis2code].system = $DHIS2-OU-CODE
+* identifier[dhis2code].value = {{ example.code_literal }}
+* status = #active
+* name = {{ example.name_literal }}
+{% if example.longitude is not none %}
+* position.longitude = {{ example.longitude }}
+* position.latitude = {{ example.latitude }}
+{% endif %}
+* managingOrganization = Reference({{ example.organization_name }})

@@ -7,7 +7,9 @@ from the compiled tree alone would serve a partial IG.
 
 Resources are held as the bytes they were written as. The store parses just enough of each one to
 index it (`resourceType`, `id`, `url`, `identifier[]`) and passes the rest through untouched, so
-what a FHIR client reads back is exactly what the project publishes.
+what a FHIR client reads back is exactly what the project publishes. ConceptMap is the one type
+read further than its index: `$translate` answers off mappings, not off a document, so the stored
+maps are parsed into their R4 models at load and held alongside the entries.
 
 This module knows nothing about DHIS2 - a live store is built elsewhere and lands in the same
 `ResourceStore` shape.
@@ -16,15 +18,24 @@ This module knows nothing about DHIS2 - a live store is built elsewhere and land
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
 from dhis2w_fhir.config import FhirProject
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from dhis2w_fhir.r4 import ConceptMap
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
+
+from dhis2w_fhir_serve.log import LOGGER_NAME
 
 #: Directory under the IG that SUSHI compiles FSH into.
 COMPILED_RESOURCES_RELATIVE_PATH = "fsh-generated/resources"
+
+#: The resource type `$translate` reads its mappings from.
+CONCEPT_MAP_RESOURCE_TYPE = "ConceptMap"
+
+logger = logging.getLogger(LOGGER_NAME)
 
 
 class CompiledIgMissingError(LookupError):
@@ -115,6 +126,7 @@ class ResourceStore(BaseModel):
 
     _by_type_and_id: dict[tuple[str, str], StoreEntry] = PrivateAttr(default_factory=dict)
     _by_canonical: dict[str, StoreEntry] = PrivateAttr(default_factory=dict)
+    _concept_maps: tuple[ConceptMap, ...] = PrivateAttr(default=())
 
     def model_post_init(self, context: Any, /) -> None:
         """Build the read indexes (private attributes stay settable on a frozen model)."""
@@ -122,6 +134,7 @@ class ResourceStore(BaseModel):
             self._by_type_and_id.setdefault((entry.resource_type, entry.resource_id), entry)
             if entry.canonical_url is not None:
                 self._by_canonical.setdefault(entry.canonical_url, entry)
+        self._concept_maps = self._parse_concept_maps()
 
     def by_type_and_id(self, resource_type: str, resource_id: str) -> StoreEntry | None:
         """The resource a `GET /{type}/{id}` read resolves to, or None."""
@@ -138,6 +151,10 @@ class ResourceStore(BaseModel):
             return tuple(candidates)
         return tuple(entry for entry in candidates if self._matches(entry, query))
 
+    def concept_maps(self) -> tuple[ConceptMap, ...]:
+        """Every ConceptMap the store holds, as the R4 models `$translate` reads its mappings off."""
+        return self._concept_maps
+
     def types_present(self) -> tuple[str, ...]:
         """Every resource type the store holds, sorted."""
         return tuple(sorted({entry.resource_type for entry in self.entries}))
@@ -146,6 +163,23 @@ class ResourceStore(BaseModel):
         """Resource counts per type."""
         counts = Counter(entry.resource_type for entry in self.entries)
         return StoreSummary(counts_by_type=dict(sorted(counts.items())))
+
+    def _parse_concept_maps(self) -> tuple[ConceptMap, ...]:
+        """Parse the stored ConceptMaps once, at load, so `$translate` reads models rather than documents.
+
+        A ConceptMap the R4 model cannot read - an IG is free to hand-write elements this package
+        does not serve - is left out and named in the log, so one unreadable document costs its own
+        mappings rather than the whole operation.
+        """
+        parsed: list[ConceptMap] = []
+        for entry in self.entries:
+            if entry.resource_type != CONCEPT_MAP_RESOURCE_TYPE:
+                continue
+            try:
+                parsed.append(ConceptMap.model_validate(entry.body))
+            except ValidationError as error:
+                logger.warning("%s: ConceptMap holds elements this server cannot read (%s)", entry.source, error)
+        return tuple(parsed)
 
     @staticmethod
     def _matches(entry: StoreEntry, query: SearchQuery) -> bool:

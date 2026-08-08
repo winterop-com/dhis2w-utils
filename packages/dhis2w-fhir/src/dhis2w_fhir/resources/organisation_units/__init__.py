@@ -19,6 +19,7 @@ from dhis2w_fhir.resources.organisation_units.organization import (
     REGISTRY_DIRECTORY,
     build_organisation_unit_instances,
     build_organisation_unit_profiles,
+    build_registry_examples,
 )
 from dhis2w_fhir.resources.organisation_units.terminology import (
     build_organisation_unit_level_terminology,
@@ -35,4 +36,5 @@ __all__ = [
     "build_organisation_unit_level_terminology",
     "build_organisation_unit_profiles",
     "build_organisation_unit_terminology",
+    "build_registry_examples",
 ]

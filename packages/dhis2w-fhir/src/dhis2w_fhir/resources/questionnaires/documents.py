@@ -23,7 +23,11 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.foundation.attribute_values import attribute_value_extension_url, attribute_value_extensions
+from dhis2w_fhir.foundation.attribute_values import (
+    attribute_value_extension_url,
+    attribute_value_extensions,
+    attribute_value_identifiers,
+)
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_string
 from dhis2w_fhir.notes import aggregate_note
@@ -157,6 +161,7 @@ class _QuestionnaireSystems(BaseModel):
 
     canonical: str
     identifier_base: str
+    identifier_system_base: str
     form_type_extension_url: str
     form_type_code_system_url: str
     attribute_value_extension_url: str
@@ -171,6 +176,7 @@ class _QuestionnaireSystems(BaseModel):
         return cls(
             canonical=canonical,
             identifier_base=f"{config.identifier_system_base}/id",
+            identifier_system_base=config.identifier_system_base,
             form_type_extension_url=f"{canonical}/StructureDefinition/{foundation.form_type_extension_id}",
             form_type_code_system_url=code_system_canonical(canonical, foundation.form_type_code_system_id),
             attribute_value_extension_url=attribute_value_extension_url(config, canonical),
@@ -314,7 +320,7 @@ def _questionnaire_document(
                 source.attribute_values, attribute_codes, systems.attribute_value_extension_url
             ),
         ],
-        identifier=_identifiers(source, profile, systems),
+        identifier=_identifiers(source, profile, systems, attribute_codes),
         name=names.questionnaire_name(source.kind, source.uid),
         status=ig_status,
         experimental=experimental_for_status(ig_status),
@@ -325,9 +331,12 @@ def _questionnaire_document(
 
 
 def _identifiers(
-    source: QuestionnaireSourceIn, profile: FormKindProfile, systems: _QuestionnaireSystems
+    source: QuestionnaireSourceIn,
+    profile: FormKindProfile,
+    systems: _QuestionnaireSystems,
+    attribute_codes: AttributeCodeIndex,
 ) -> list[Identifier]:
-    """One form's DHIS2 identifiers: its UID, its code, and - for a stage - the program grouping it."""
+    """One form's DHIS2 identifiers: its UID, its code, the program grouping a stage, then its unique values."""
     identifiers = [
         Identifier(system=systems.identifier_system(profile.identifier_segment), value=source.uid),
         Identifier(
@@ -339,6 +348,9 @@ def _identifiers(
         identifiers.append(
             Identifier(system=systems.identifier_system(PROGRAM_IDENTIFIER_SEGMENT), value=source_program(source).uid)
         )
+    identifiers.extend(
+        attribute_value_identifiers(source.attribute_values, attribute_codes, systems.identifier_system_base)
+    )
     return identifiers
 
 

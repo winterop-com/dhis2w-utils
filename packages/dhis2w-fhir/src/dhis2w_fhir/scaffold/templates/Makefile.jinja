@@ -38,6 +38,14 @@ build: cache-init  ## Run the full IG publisher
 		$(DOCKER_IMAGE) \
 		java -Xmx$(JAVA_HEAP) -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx $(TX_SERVER)
 
+.PHONY: serve serve-live
+
+serve:  ## Serve the compiled IG as a FHIR endpoint (run generate + sushi first)
+	$(D2W) fhir serve
+
+serve-live:  ## Serve straight from the DHIS2 instance, no compile needed
+	$(D2W) fhir serve --live
+
 clean:  ## Remove build output (keeps ig/input-cache, the terminology cache the next build reuses)
 	rm -rf $(IG_DIR)/fsh-generated $(IG_DIR)/output $(IG_DIR)/temp $(IG_DIR)/template \
 		$(IG_DIR)/translations $(IG_DIR)/Requirements-fromNarrative.json

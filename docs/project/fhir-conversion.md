@@ -81,10 +81,12 @@ conversion stance (FML as the contract, never a runtime engine).
 
 ### 4. ConceptMap + `$translate` (terminology side, orthogonal)
 
-Option <-> DHIS2 identifier mappings as generated ConceptMaps. The emitted CodeSystems
-already carry both identifiers as concept properties, so the generator can emit one
-ConceptMap per option set mechanically. This is uncontroversial, standard, and useful to
-any consumer; `serve` can answer `$translate` from the same store later.
+Option <-> DHIS2 identifier mappings as generated ConceptMaps - **shipped**, see
+[phase B item 1](#phase-b-item-1-conceptmaps-per-option-set) below. `serve` answers
+R4's type-level `ConceptMap/$translate` over the same store, in both compiled and
+`--live` mode, so the whole mechanism is live: `system` + `code` in, a `Parameters`
+resource carrying the DHIS2 option UID and the DHIS2 option code out. Both halves
+shipped together.
 
 ## The plan: reference implementation first, contract lifted second
 
@@ -94,7 +96,7 @@ then the *reference implementation* the later contract is held against - the sam
 FSH emitters played for the JSON builders, where golden parity kept two paths honest.
 
 **Phase B - lift the contract into the IG.** In order:
-1. **ConceptMaps per option set** (mechanical, immediate consumer value).
+1. **ConceptMaps per option set** - shipped, described below.
 2. **Two DHIS2 logical models** (data value set row, tracker event) as
    `kind=logical` StructureDefinitions - they document the wire faithfully and are a
    prerequisite for any map.
@@ -113,6 +115,82 @@ the CI gate from phase B is what makes the codegen trustworthy.
 
 **SDC hook, parallel:** when the clinical projection is wanted, observation-based
 `$extract` over the item codes - additive, not on the DHIS2 path.
+
+## Phase B item 1: ConceptMaps per option set
+
+Shipped by the `option-sets` generate target, which writes one ConceptMap beside every
+CodeSystem/ValueSet pair it emits, into its own predefined-resource directory
+`ig/input/resources/concept-maps/`, named `ConceptMap-<id-stem><slug>-cm.json` with the
+FSH-style name `D2OS_<segment>_CM`. The map takes its id, its name, and its URL from the
+same `OptionSetIdentity` the pair does, so all three artifacts of one option set carry one
+slug.
+
+**Two groups, both sourced from the set's own CodeSystem.** The map answers the one
+question a consumer holding a generated coding has - *which DHIS2 option is this?* - and
+answers it for both DHIS2 identifiers at once:
+
+```json
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-birth-type-cm",
+  "url": "http://example.org/fhir/ConceptMap/d2-os-birth-type-cm",
+  "identifier": { "system": "http://dhis2.org/fhir/id/option-set", "value": "Xa1b2c3d4e5" },
+  "name": "D2OS_BirthType_CM",
+  "title": "Birth type",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/ValueSet/d2-os-birth-type-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-os-birth-type-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "kRRUtYaGett",
+          "display": "Natural Birth",
+          "target": [{ "code": "kRRUtYaGett", "equivalence": "equal" }]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-os-birth-type-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "kRRUtYaGett",
+          "display": "Natural Birth",
+          "target": [{ "code": "NB", "equivalence": "equal" }]
+        }
+      ]
+    }
+  ]
+}
+```
+
+- **`source[x]` is the pair's ValueSet, `target[x]` is absent.** R4 makes both optional and
+  types them as value sets; the DHIS2 identifier namespaces are not value sets, so naming
+  one there would be a lie. The namespaces appear where R4 wants systems: `group.target`.
+- **The identifier is a single element, not a list.** R4 gives `ConceptMap.identifier`
+  `0..1` where it gives CodeSystem and ValueSet `0..*`, so the set's UID rides alone.
+- **`equivalence = #equal` on every row**, which R4 makes mandatory: the concept and the
+  target identifier name the same DHIS2 option under two identifier conventions rather
+  than translating between two vocabularies.
+- **The UID group is emitted in both concept-code modes**, identity mapping included. A
+  consumer should not have to know which `concept_code_source` produced the guide to ask
+  what a code's option UID is.
+- **The code group is emitted only where there is something to map.** An option DHIS2 left
+  uncoded, or coded with something that is not a valid FHIR `code`, has no target code and
+  is left out; a set where that is true of every option emits the UID group alone, because
+  an R4 group with no element is invalid. A set with no concepts at all emits no map.
+- **The rows come from `concept_assignments`**, the same plan the concepts themselves are
+  built from, so a mapping can only ever name a concept the CodeSystem really holds - the
+  discipline the example answers already follow.
+
+**Follow-ups this leaves open.** `{base}/id/option` and `{base}/id/option-code` are new
+DHIS2 identifier namespaces and are not yet declared as NamingSystems by the `foundation`
+target, so a validator meeting one has no definition to resolve. Categories emit no map
+yet: their concepts are built by the same `build_concepts`, so the emitter carries over
+directly once the `CAT` naming and the `categories/` directory are threaded through.
 
 ## Why this order
 

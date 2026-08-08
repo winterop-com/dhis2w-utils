@@ -9,6 +9,7 @@ reads the narration on the terminal either way.
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from contextlib import contextmanager
 from enum import StrEnum
 from pathlib import Path
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     from dhis2w_core.progress import ProgressReporter
 
     from dhis2w_fhir.service import GenerateFullReport, GenerationProfile, LoadSetReport
+    from dhis2w_fhir.validation.schemas import FhirValidationReport
 
 app = typer.Typer(help="FHIR Implementation Guide generation from DHIS2 metadata.", no_args_is_help=True)
 generate_app = typer.Typer()
@@ -61,7 +63,7 @@ _TARGET_TITLES = {
 }
 
 #: The Rich style each hint prefix carries, so a note reads as a note wherever it is printed.
-_HINT_STYLES = {"note": "yellow"}
+_HINT_STYLES = {"note": "yellow", "ok": "green"}
 
 #: The basename every validation report file is written under, inside `--output-dir`.
 _VALIDATION_REPORT_STEM = "fhir-validate-report"
@@ -418,8 +420,61 @@ def _full_run_summary(report: GenerateFullReport) -> str:
     return f"full pipeline: {written:,} file(s) written across {len(outcomes)} target(s)"
 
 
-def _render_full_report(report: GenerateFullReport, generation: GenerationProfile) -> None:
-    """Render a full run as one row per target, then the notes each target raised, all on stderr."""
+#: The basename the notes of one full run are written under, inside the reports directory.
+_GENERATE_NOTES_STEM = "fhir-generate-notes"
+
+
+def _write_generate_notes(
+    outcomes: Iterable[_TargetOutcome], generation: GenerationProfile, project_root: Path
+) -> Path:
+    """Write every note of one full run to `reports/fhir-generate-notes.md`, grouped by target."""
+    from datetime import UTC, datetime
+
+    from dhis2w_fhir import REPORTS_DIRECTORY
+
+    directory = project_root / REPORTS_DIRECTORY
+    directory.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# fhir generate notes",
+        "",
+        f"- Profile: {generation.name} ({generation.profile.base_url})",
+        f"- Generated: {datetime.now(tz=UTC).isoformat(timespec='seconds')}",
+        "",
+    ]
+    for outcome in outcomes:
+        if not outcome.report.notes:
+            continue
+        lines.append(f"## {outcome.target}")
+        lines.append("")
+        lines.extend(f"- {note}" for note in outcome.report.notes)
+        lines.append("")
+    destination = directory / f"{_GENERATE_NOTES_STEM}.md"
+    destination.write_text("\n".join(lines), encoding="utf-8")
+    return destination
+
+
+def _render_full_notes(outcomes: list[_TargetOutcome], generation: GenerationProfile, *, details: bool) -> None:
+    """Say where the run's notes are, or print them all when the caller asked to read them here.
+
+    A national instance raises several aggregate notes per target, and eight targets of them bury
+    the summary table the run is actually read from. The count and the file are what the terminal
+    carries; `--details` is the firehose.
+    """
+    noted = [outcome for outcome in outcomes if outcome.report.notes]
+    if not noted:
+        return
+    if details:
+        for outcome in noted:
+            for note in outcome.report.notes:
+                _hint("note", f"{outcome.target}: {note}")
+        return
+    total = sum(len(outcome.report.notes) for outcome in noted)
+    destination = _write_generate_notes(noted, generation, outcomes[0].report.project_root)
+    _hint("note", f"{total} note(s) across {len(noted)} target(s); full list in {destination} (--details to print)")
+
+
+def _render_full_report(report: GenerateFullReport, generation: GenerationProfile, *, details: bool = False) -> None:
+    """Render a full run as one row per target, then say where the notes each target raised are."""
     outcomes = _full_outcomes(report)
     _hint("info", f"{generation.name} ({generation.origin}) -> {report.foundation.project_root}")
     render_list(
@@ -445,20 +500,27 @@ def _render_full_report(report: GenerateFullReport, generation: GenerationProfil
         ],
         console=STDERR_CONSOLE,
     )
-    for outcome in outcomes:
-        for note in outcome.report.notes:
-            _hint("note", f"{outcome.target}: {note}")
+    _render_full_notes(outcomes, generation, details=details)
 
 
 @generate_app.callback(invoke_without_command=True)
-def generate_callback(ctx: typer.Context, progress: ProgressOption = True) -> None:
+def generate_callback(
+    ctx: typer.Context,
+    details: Annotated[
+        bool,
+        typer.Option("--details", help="Print every note inline instead of writing them to the notes report."),
+    ] = False,
+    progress: ProgressOption = True,
+) -> None:
     """Generate the whole IG source from DHIS2 metadata, or one named target of it.
 
     Bare `d2w fhir generate` runs every target off a single pass over the instance.
 
     The foundation runs first because it reads nothing, the pages last because they narrate the rest.
 
-    Name a target to run that one alone; the flag here belongs to the bare run.
+    Notes land in reports/fhir-generate-notes.md; `--details` prints them here instead.
+
+    Name a target to run that one alone; the flags here belong to the bare run.
     """
     if ctx.invoked_subcommand is not None:
         return
@@ -473,7 +535,7 @@ def generate_callback(ctx: typer.Context, progress: ProgressOption = True) -> No
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
-    _render_full_report(report, generation)
+    _render_full_report(report, generation, details=details)
 
 
 @generate_app.command("foundation")
@@ -708,13 +770,19 @@ def validate_command(
         ),
     ] = None,
     details: Annotated[
-        bool, typer.Option("--details", help="List info-level findings individually instead of rolled up.")
+        bool,
+        typer.Option("--details", help="List every finding individually instead of the rolled-up category counts."),
     ] = False,
     fail: Annotated[bool, typer.Option("--fail/--no-fail", help="Exit 1 when errors are found.")] = True,
     progress: ProgressOption = True,
 ) -> None:
-    """Check the instance's codes for FHIR-safety, writing md/csv/pdf reports grouped by type."""
-    from collections import Counter
+    """Check the instance's codes for FHIR-safety, writing md/csv/pdf reports grouped by type.
+
+    The terminal says what the state is: a summary, a count per severity and category, and every
+    error by name, because an error is what gates the build and the user has to know which object
+    holds it. The written report is where a warning is read one row at a time; `--details` puts
+    every row on the terminal too.
+    """
     from datetime import UTC, datetime
 
     from dhis2w_fhir import REPORTS_DIRECTORY, VALIDATE_CODES_STEPS, find_project_fhir_config, service
@@ -762,8 +830,9 @@ def validate_command(
             ],
             console=STDERR_CONSOLE,
         )
-        detailed = [finding for finding in report.findings if details or finding.severity in {"error", "warning"}]
-        if detailed:
+        _render_finding_rollup(report)
+        listed = [finding for finding in report.findings if details or finding.severity == "error"]
+        if listed:
             render_list(
                 "findings",
                 [
@@ -775,7 +844,7 @@ def validate_command(
                         "code": display_code(finding.code),
                         "message": finding.message,
                     }
-                    for finding in detailed
+                    for finding in listed
                 ],
                 [
                     ColumnSpec("Severity", "severity", style="red", no_wrap=True),
@@ -787,13 +856,48 @@ def validate_command(
                 ],
                 console=STDERR_CONSOLE,
             )
-        if not details:
-            rollup = Counter(finding.category for finding in report.findings if finding.severity == "info")
-            for category, count in sorted(rollup.items()):
-                _hint("info", f"{category} x{count} (details in the report; --details to list)")
+        if not report.error_count:
+            _hint(
+                "ok",
+                f"passed: {report.warning_count} warning(s), {report.info_count} info(s); "
+                f"full findings in {directory / f'{_VALIDATION_REPORT_STEM}.md'}",
+            )
     if report.error_count and fail:
         _hint("error", f"{report.error_count} error(s) found; exiting 1 (--no-fail to suppress)", style="red")
         raise typer.Exit(code=1)
+
+
+#: The severity order the rollup reads in - what blocks a build first, what only reads badly last.
+_SEVERITY_ORDER = ("error", "warning", "info")
+
+#: The style each severity carries in the rollup, so a glance separates a blocker from a note.
+_SEVERITY_STYLES = {"error": "red", "warning": "yellow", "info": "dim"}
+
+
+def _severity_cell(value: Any) -> str:
+    """Render one severity in the style it carries, so the blockers read as blockers."""
+    severity = str(value)
+    return f"[{_SEVERITY_STYLES.get(severity, 'default')}]{severity}[/]"
+
+
+def _render_finding_rollup(report: FhirValidationReport) -> None:
+    """Render one row per (severity, category) with its count - the whole report at a glance."""
+    counts = Counter((finding.severity, finding.category) for finding in report.findings)
+    if not counts:
+        return
+    render_list(
+        "findings by category",
+        [
+            {"severity": severity, "category": category, "count": str(counts[severity, category])}
+            for severity, category in sorted(counts, key=lambda key: (_SEVERITY_ORDER.index(key[0]), key[1]))
+        ],
+        [
+            ColumnSpec("Severity", "severity", formatter=_severity_cell, no_wrap=True),
+            ColumnSpec("Category", "category", no_wrap=True),
+            ColumnSpec("Count", "count", no_wrap=True),
+        ],
+        console=STDERR_CONSOLE,
+    )
 
 
 #: What a caller is told when the serve extra is not installed. `LookupError` renders through the
@@ -819,23 +923,26 @@ def serve_command(
         ),
     ] = False,
     host: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--host",
-            help="Interface to bind. The default is loopback: the facade has no authentication, so "
-            "reaching it from another host is a deliberate act.",
+            help="Interface to bind, overriding `[serve] host`. The default is loopback: the facade has "
+            "no authentication, so reaching it from another host is a deliberate act.",
         ),
-    ] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8080,
+    ] = None,
+    port: Annotated[
+        int | None, typer.Option("--port", help="Port to listen on, overriding `[serve] port` (default 8080).")
+    ] = None,
     strict_codes: Annotated[
-        bool,
+        bool | None,
         typer.Option(
-            "--strict-codes",
-            help="Refuse a received answer whose code is outside the served terminology. The default "
-            "records the drift as a warning and stores the submission, because an option added to the "
-            "instance since the IG was built is a fact about the instance, not a client mistake.",
+            "--strict-codes/--no-strict-codes",
+            help="Refuse a received answer whose code is outside the served terminology, overriding "
+            "`[serve] strict_codes`. The default records the drift as a warning and stores the "
+            "submission, because an option added to the instance since the IG was built is a fact about "
+            "the instance, not a client mistake.",
         ),
-    ] = False,
+    ] = None,
 ) -> None:
     """Serve the project's IG as a FHIR read and capture facade over HTTP.
 
@@ -844,6 +951,8 @@ def serve_command(
     Received QuestionnaireResponses are stored as receipts, so reading one back says what was submitted.
 
     `--live` builds the store from the instance at startup, as the profile `d2w -p` names.
+
+    Host, port, and strict codes come from `[serve]` in fhir.toml unless a flag overrides them.
     """
     try:
         from dhis2w_fhir_serve import (
@@ -859,16 +968,20 @@ def serve_command(
     from dhis2w_fhir import service
 
     project = load_project(directory)
+    serve_config = project.config.serve
+    resolved_host = host if host is not None else serve_config.host
+    resolved_port = port if port is not None else serve_config.port
+    resolved_strict_codes = strict_codes if strict_codes is not None else serve_config.strict_codes
     if live:
         # Resolve the profile the live store will connect with before anything says the server is
         # starting, so an unknown profile fails as a failure rather than under a success banner.
         service.resolve_generation_profile(project)
     elif not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
         raise CompiledIgMissingError
-    settings = ServeSettings(project_dir=directory, live=live, profile=None, strict_codes=strict_codes)
+    settings = ServeSettings(project_dir=directory, live=live, profile=None, strict_codes=resolved_strict_codes)
     configure_logging()
-    _line(f"starting {project.project_root} on http://{host}:{port} (ctrl-c to stop)")
-    _run_server(create_app(settings), host=host, port=port)
+    _line(f"starting {project.project_root} on http://{resolved_host}:{resolved_port} (ctrl-c to stop)")
+    _run_server(create_app(settings), host=resolved_host, port=resolved_port)
 
 
 def _run_server(application: Any, *, host: str, port: int) -> None:

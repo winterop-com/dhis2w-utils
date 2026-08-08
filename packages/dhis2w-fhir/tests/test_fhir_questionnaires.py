@@ -22,7 +22,11 @@ from dhis2w_fhir import (
 from dhis2w_fhir.attributes import AttributeCodeIndex
 from dhis2w_fhir.resources.option_sets import option_set_identities
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentityPlan, OptionSetIn
-from dhis2w_fhir.resources.questionnaires import BOUNDS_BY_VALUE_TYPE, ITEM_TYPES_BY_VALUE_TYPE
+from dhis2w_fhir.resources.questionnaires import (
+    BOUNDS_BY_VALUE_TYPE,
+    ITEM_TYPES_BY_VALUE_TYPE,
+    link_id_collisions,
+)
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
@@ -1241,6 +1245,8 @@ async def test_option_set_selection_unions_the_target_closure(
         "terminology/CodeSystem-d2-os-Os2aaaaaaaa-cs.json",
         "terminology/ValueSet-d2-os-Os1aaaaaaaa-vs.json",
         "terminology/ValueSet-d2-os-Os2aaaaaaaa-vs.json",
+        "concept-maps/ConceptMap-d2-os-Os1aaaaaaaa-cm.json",
+        "concept-maps/ConceptMap-d2-os-Os2aaaaaaaa-cm.json",
     ]
     assert any("closure" in note and "Os1aaaaaaaa" in note for note in report.notes)
 
@@ -1648,3 +1654,88 @@ async def test_the_questionnaire_target_plans_option_set_names_over_the_whole_se
     assert report.notes == []
     content = (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "BfMAe6Itzgt.fsh").read_text(encoding="utf-8")
     assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content
+
+
+def test_a_form_reusing_one_uid_on_two_items_is_skipped_with_a_note() -> None:
+    """DHIS2 draws section and data element UIDs from one pool; R4 forbids two items sharing a linkId (que-2)."""
+    collided = QuestionnaireSourceIn(
+        uid="Ds9aaaaaaaa",
+        name="Reused UID",
+        kind="aggregate",
+        period_type="Monthly",
+        sections=[
+            QuestionnaireSectionIn(
+                uid="De1aaaaaaaa",
+                name="Immunization",
+                items=[_BCG, QuestionnaireItemIn(uid="De4aaaaaaaa", name="Coverage", value_type="PERCENTAGE")],
+            )
+        ],
+    )
+    build = build_questionnaire_artifacts(
+        [collided],
+        GenerateConfig(),
+        _CANONICAL,
+        ig_status="draft",
+        option_set_plan=OptionSetIdentityPlan(),
+        attribute_codes=AttributeCodeIndex(),
+    )
+
+    assert [artifact.relative_path for artifact in build.artifacts] == []
+    assert build.notes == [
+        "1 forms would emit one linkId twice, which R4 forbids (que-2: link ids are unique within a "
+        "Questionnaire); the whole form is skipped rather than published invalid, because a response "
+        "answering that linkId would name two questions at once: Reused UID (Ds9aaaaaaaa) on De1aaaaaaaa"
+    ]
+
+
+def test_a_skipped_form_takes_only_itself_out_of_the_run() -> None:
+    """The collision is a fact about one form, so its peers - and the support terminology - are emitted as usual."""
+    collided = QuestionnaireSourceIn(
+        uid="Ds9aaaaaaaa",
+        name="Reused UID",
+        kind="aggregate",
+        sections=[QuestionnaireSectionIn(uid="De1aaaaaaaa", name="Immunization", items=[_BCG])],
+    )
+    build = build_questionnaire_artifacts(
+        [collided, _DATA_SET],
+        GenerateConfig(),
+        _CANONICAL,
+        ig_status="draft",
+        option_set_plan=OptionSetIdentityPlan(),
+        attribute_codes=AttributeCodeIndex(),
+    )
+
+    paths = [artifact.relative_path for artifact in build.artifacts]
+    assert "data-sets/BfMAe6Itzgt.fsh" in paths
+    assert "data-sets/Ds9aaaaaaaa.fsh" not in paths
+    assert "data-dictionary/data-elements.fsh" in paths
+    assert any("would emit one linkId twice" in note for note in build.notes)
+
+
+def test_link_id_collisions_read_the_grammar_a_form_really_emits() -> None:
+    """A disaggregated cell answers on `<deUid>.<cocUid>`, so a form's linkIds are exactly what the emitter writes."""
+    clean = QuestionnaireSourceIn(
+        uid="Dsaaaaaaaaa",
+        name="Clean",
+        kind="aggregate",
+        sections=[QuestionnaireSectionIn(uid="Sec1aaaaaaa", name="Immunization", items=[_BCG, _MEASLES])],
+    )
+    assert link_id_collisions(clean) == []
+    repeated_question = QuestionnaireSourceIn(
+        uid="Dsbaaaaaaaa",
+        name="Repeated question",
+        kind="aggregate",
+        sections=[QuestionnaireSectionIn(uid="Sec1aaaaaaa", name="Immunization", items=[_BCG])],
+        flat_items=[_BCG],
+    )
+    assert link_id_collisions(repeated_question) == ["De1aaaaaaaa"]
+    repeated_section = QuestionnaireSourceIn(
+        uid="Dscaaaaaaaa",
+        name="Repeated section",
+        kind="aggregate",
+        sections=[
+            QuestionnaireSectionIn(uid="Sec1aaaaaaa", name="Immunization", items=[_BCG]),
+            QuestionnaireSectionIn(uid="Sec1aaaaaaa", name="Demographics", items=[_MEASLES]),
+        ],
+    )
+    assert link_id_collisions(repeated_section) == ["Sec1aaaaaaa"]

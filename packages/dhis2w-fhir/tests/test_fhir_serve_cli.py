@@ -160,6 +160,43 @@ def test_serve_carries_the_flags_into_the_settings(workdir: Path, recorded_run: 
     assert settings.strict_codes is True
 
 
+def _write_serve_table(project: Path, body: str) -> None:
+    """Append a `[serve]` table to the scaffolded fhir.toml."""
+    config_path = project / "fhir.toml"
+    config_path.write_text(f"{config_path.read_text(encoding='utf-8')}\n[serve]\n{body}\n", encoding="utf-8")
+
+
+def test_serve_reads_its_address_from_the_project_config(workdir: Path, recorded_run: _RecordedRun) -> None:
+    """A `[serve]` table states once where this project is served, so a bare `serve` honours it."""
+    project = _scaffold(workdir)
+    _compile(project)
+    _write_serve_table(project, 'host = "0.0.0.0"\nport = 8090\nstrict_codes = true')
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project"])
+
+    assert result.exit_code == 0, result.output
+    assert recorded_run.keyword_arguments["host"] == "0.0.0.0"
+    assert recorded_run.keyword_arguments["port"] == 8090
+    assert recorded_run.application.state.settings.strict_codes is True
+    assert "http://0.0.0.0:8090" in result.output
+
+
+def test_a_serve_flag_beats_the_table_and_the_table_beats_the_default(
+    workdir: Path, recorded_run: _RecordedRun
+) -> None:
+    """Three-way precedence: an explicit flag wins, an unflagged key falls to the table, the rest to defaults."""
+    project = _scaffold(workdir)
+    _compile(project)
+    _write_serve_table(project, "port = 8090\nstrict_codes = true")
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--port", "9123", "--no-strict-codes"])
+
+    assert result.exit_code == 0, result.output
+    assert recorded_run.keyword_arguments["port"] == 9123
+    assert recorded_run.keyword_arguments["host"] == "127.0.0.1"
+    assert recorded_run.application.state.settings.strict_codes is False
+
+
 def test_serve_takes_the_profile_from_the_root_flag(
     workdir: Path, monkeypatch: pytest.MonkeyPatch, recorded_run: _RecordedRun
 ) -> None:

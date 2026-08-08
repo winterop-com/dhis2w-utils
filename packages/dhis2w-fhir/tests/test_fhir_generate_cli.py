@@ -149,15 +149,69 @@ def test_bare_generate_renders_one_consolidated_table(fhir_project: Path) -> Non
     assert positions == sorted(positions)
 
 
-def test_bare_generate_labels_every_note_with_its_target(fhir_project: Path) -> None:  # noqa: ARG001
-    """One table for seven targets means a note has to say which target raised it."""
+def _noted_report(project_root: Path) -> GenerateFullReport:
+    """The seven-target report with one note on the examples target, rooted where a test can write."""
     report = _full_report()
+    for outcome in (
+        report.foundation,
+        report.option_sets,
+        report.categories,
+        report.questionnaires,
+        report.examples,
+        report.organisation_units,
+        report.pages,
+    ):
+        outcome.project_root = project_root
     report.examples.notes.append("no data values for the period")
-    mock = AsyncMock(return_value=report)
+    return report
+
+
+def test_bare_generate_counts_its_notes_and_writes_them_to_a_file(fhir_project: Path) -> None:
+    """Eight targets of aggregate notes bury the summary table, so the terminal counts and the file lists."""
+    mock = AsyncMock(return_value=_noted_report(fhir_project))
     with patch("dhis2w_fhir.service.generate_full", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "generate"])
     assert result.exit_code == 0, result.output
+    notes = fhir_project / "reports" / "fhir-generate-notes.md"
+    assert "no data values for the period" not in result.stderr
+    assert "1 note(s) across 1 target(s)" in result.stderr
+    assert str(notes) in result.stderr
+    body = notes.read_text(encoding="utf-8")
+    assert "## examples" in body
+    assert "- no data values for the period" in body
+    assert "https://dhis2.example" in body
+
+
+def test_bare_generate_details_prints_every_note_with_its_target(fhir_project: Path) -> None:
+    """`--details` is the firehose, and one table for seven targets means a note names the target."""
+    mock = AsyncMock(return_value=_noted_report(fhir_project))
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate", "--details"])
+    assert result.exit_code == 0, result.output
     assert "note: examples: no data values for the period" in result.stderr
+    assert not (fhir_project / "reports" / "fhir-generate-notes.md").exists()
+
+
+def test_a_run_that_raised_no_note_writes_no_notes_file(fhir_project: Path) -> None:
+    """Nothing to say means nothing said and nothing written - a clean run stays a clean run."""
+    mock = AsyncMock(return_value=_full_report())
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    assert "note(s) across" not in result.stderr
+    assert not (fhir_project / "reports" / "fhir-generate-notes.md").exists()
+
+
+def test_a_solo_target_still_prints_its_notes_inline(fhir_project: Path) -> None:
+    """One target's notes are short and were asked for by name, so they stay on the terminal."""
+    report = _report("terminology", notes=["1 option sets are absent from the selection"])
+    report.project_root = fhir_project
+    mock = AsyncMock(return_value=report)
+    with patch("dhis2w_fhir.service.generate_option_sets", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate", "option-sets"])
+    assert result.exit_code == 0, result.output
+    assert "1 option sets are absent from the selection" in result.stderr
+    assert not (fhir_project / "reports" / "fhir-generate-notes.md").exists()
 
 
 def test_bare_generate_json_emits_the_full_report(fhir_project: Path) -> None:  # noqa: ARG001
@@ -375,15 +429,36 @@ def _error_report() -> FhirValidationReport:
     return FhirValidationReport(option_set_count=1, option_count=2, findings=[error, info])
 
 
+def _warning_report() -> FhirValidationReport:
+    """One warning finding alone - what a clean-but-noisy national instance reports."""
+    return FhirValidationReport(
+        object_count=1,
+        findings=[
+            ValidationFinding(
+                severity="warning",
+                category="template-hostile-name",
+                resource_type="organisationUnits",
+                uid="Ou1aaaaaaaa",
+                name="Kids <5",
+                code="OU_K5",
+                message="name carries a character the publisher's template writes unescaped",
+            )
+        ],
+    )
+
+
 def test_validate_renders_findings_and_exit_code(fhir_project: Path) -> None:
-    """`d2w fhir validate` renders error rows, rolls infos up, writes all three reports, exits 1."""
+    """`d2w fhir validate` lists the errors, rolls every severity up by category, writes three reports, exits 1."""
     mock = AsyncMock(return_value=_error_report())
     with patch("dhis2w_fhir.service.validate_codes", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "validate"])
     assert result.exit_code == 1, result.output
+    assert "findings by category" in result.output
     assert "invalid-code" in result.output
-    assert "spaced-code x1" in result.output
+    assert "spaced-code" in result.output
+    assert "Op1aaaaaaaa" in result.output
     assert "two words" not in result.output
+    assert "code contains spaces" not in result.output
     markdown = fhir_project / "reports" / "fhir-validate-report.md"
     assert "## options" in markdown.read_text(encoding="utf-8")
     csv_report = fhir_project / "reports" / "fhir-validate-report.csv"
@@ -449,6 +524,31 @@ def test_validate_rejects_an_unknown_code_source(fhir_project: Path) -> None:  #
     result = _runner.invoke(build_app(), ["fhir", "validate", "--code-source", "uid"])
     assert result.exit_code != 0
     assert "--code-source" in result.output
+
+
+def test_a_warning_is_counted_in_the_rollup_and_left_to_the_report(fhir_project: Path) -> None:
+    """A national instance raises hundreds of warnings, so the terminal counts them and the file lists them."""
+    mock = AsyncMock(return_value=_warning_report())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate"])
+    assert result.exit_code == 0, result.output
+    assert "findings by category" in result.output
+    assert "template-hostile-name" in result.output
+    assert "organisationUnits" not in result.output
+    assert "OU_K5" not in result.output
+    assert "passed: 1 warning(s), 0 info(s)" in result.stderr
+    assert str(fhir_project / "reports" / "fhir-validate-report.md") in result.stderr
+
+
+def test_validate_details_lists_every_finding(fhir_project: Path) -> None:  # noqa: ARG001
+    """`--details` is the firehose: warnings and infos get their own rows alongside the rollup."""
+    mock = AsyncMock(return_value=_warning_report())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate", "--details"])
+    assert result.exit_code == 0, result.output
+    assert "findings by category" in result.output
+    assert "organisationUnits" in result.output
+    assert "OU_K5" in result.output
 
 
 def test_validate_no_fail_and_details(fhir_project: Path) -> None:  # noqa: ARG001

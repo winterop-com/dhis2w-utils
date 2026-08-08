@@ -21,6 +21,10 @@ Usage: #definition
 * identifier[+].system = {{ questionnaire.grouping_identifier.system }}
 * identifier[=].value = {{ questionnaire.grouping_identifier.value_literal }}
 {% endif %}
+{% for attribute_identifier in questionnaire.attribute_identifiers %}
+* identifier[+].system = {{ attribute_identifier.system_literal }}
+* identifier[=].value = {{ attribute_identifier.value_literal }}
+{% endfor %}
 * name = "{{ questionnaire.name }}"
 * title = {{ questionnaire.title_element_literal }}
 * status = #{{ questionnaire.ig_status }}

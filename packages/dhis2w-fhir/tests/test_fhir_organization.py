@@ -12,6 +12,7 @@ from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_level_terminology,
     build_organisation_unit_profiles,
     build_organisation_unit_terminology,
+    build_registry_examples,
 )
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
 from dhis2w_fhir.writer import JsonArtifact, JsonBuild
@@ -185,6 +186,71 @@ def test_profiles_artifact() -> None:
     assert "* managingOrganization only Reference(D2Organization)" in artifact.content
     assert "* position 0..1 MS" in artifact.content
     assert "* partOf only Reference(D2Location)" in artifact.content
+
+
+_REGISTRY_EXAMPLES_GOLDEN = """Instance: D2OrganizationExample
+InstanceOf: D2Organization
+Title: "Example DHIS2 Organization - Sierra Leone (ImspTQPwCqd)"
+Description: "A worked D2Organization: DHIS2 organisation unit Sierra Leone (ImspTQPwCqd) as the legal entity, \
+carrying both DHIS2 identifiers and its hierarchy level."
+Usage: #example
+* id = "d2-organization-example"
+* identifier[dhis2id].system = $DHIS2-OU
+* identifier[dhis2id].value = "ImspTQPwCqd"
+* identifier[dhis2code].system = $DHIS2-OU-CODE
+* identifier[dhis2code].value = "SL"
+* active = true
+* name = "Sierra Leone"
+* type = D2OU_Level_CS#level-1 "Level 1"
+
+Instance: D2LocationExample
+InstanceOf: D2Location
+Title: "Example DHIS2 Location - Sierra Leone (ImspTQPwCqd)"
+Description: "A worked D2Location: DHIS2 organisation unit Sierra Leone (ImspTQPwCqd) as the physical place, \
+managed by the D2Organization of the same unit."
+Usage: #example
+* id = "d2-location-example"
+* identifier[dhis2id].system = $DHIS2-OU
+* identifier[dhis2id].value = "ImspTQPwCqd"
+* identifier[dhis2code].system = $DHIS2-OU-CODE
+* identifier[dhis2code].value = "SL"
+* status = #active
+* name = "Sierra Leone"
+* managingOrganization = Reference(D2OrganizationExample)
+"""
+
+
+def test_the_registry_profiles_publish_one_worked_example_each() -> None:
+    """The registry ships as JSON SUSHI never compiles, so the profiles are illustrated by a curated pair."""
+    artifact = build_registry_examples([_DISTRICT, _ROOT], _CONFIG, ig_status="draft")
+    assert artifact is not None
+    assert artifact.relative_path == "organization/registry-examples.fsh"
+    assert artifact.content == _REGISTRY_EXAMPLES_GOLDEN
+
+
+def test_the_registry_examples_are_drawn_from_the_selections_own_root() -> None:
+    """The exemplar is the shallowest unit of the selection, so it validates against data the instance holds."""
+    artifact = build_registry_examples([_ORPHAN, _DISTRICT], _CONFIG, ig_status="draft")
+    assert artifact is not None
+    assert '* identifier[dhis2id].value = "O6uvpzGd5pu"' in artifact.content
+    assert '* type = D2OU_Level_CS#level-2 "Level 2"' in artifact.content
+    assert "* position.longitude = -11.7383" in artifact.content
+    assert "* position.latitude = 7.9647" in artifact.content
+
+
+def test_the_registry_examples_follow_the_naming_tokens() -> None:
+    """The instance names and ids derive from the same profile names the registry references."""
+    artifact = build_registry_examples([_ROOT], GenerateConfig(naming=NamingConfig(prefix="Dhis2")), ig_status="draft")
+    assert artifact is not None
+    assert "Instance: Dhis2OrganizationExample" in artifact.content
+    assert "InstanceOf: Dhis2Organization" in artifact.content
+    assert '* id = "dhis2-location-example"' in artifact.content
+    assert "* managingOrganization = Reference(Dhis2OrganizationExample)" in artifact.content
+
+
+def test_an_empty_selection_publishes_no_registry_example() -> None:
+    """With no unit selected there is no real data to illustrate the profiles with, so nothing is written."""
+    assert build_registry_examples([], _CONFIG, ig_status="draft") is None
 
 
 def test_organisation_unit_artifacts_derive_their_publication_state_from_the_ig_status() -> None:

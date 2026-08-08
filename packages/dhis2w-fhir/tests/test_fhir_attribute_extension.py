@@ -410,3 +410,83 @@ async def test_every_generate_target_resolves_the_attribute_codes_it_emits(
     content = _written(report.project_root, emitted)
     assert "hfid" in content
     assert _UNCODED_ATTRIBUTE in content
+
+
+#: The seeded instance's unique org-unit attribute - a value that names its object rather than annotating it.
+_UNIQUE_ATTRIBUTE = "AtrFhirOrU1"
+
+#: The index a run against that instance resolves: one coded attribute, one uncoded, one unique.
+_UNIQUE_CODES = AttributeCodeIndex(
+    codes={_CODED_ATTRIBUTE: "hfid", _UNIQUE_ATTRIBUTE: "registry number"},
+    unique_uids=frozenset({_UNIQUE_ATTRIBUTE}),
+)
+
+#: The same two annotating values as everywhere else, with one unique value between them.
+_MIXED_ATTRIBUTE_VALUES = [
+    AttributeValueIn(attribute_uid=_CODED_ATTRIBUTE, value="KE03"),
+    AttributeValueIn(attribute_uid=_UNIQUE_ATTRIBUTE, value="LA-17-042"),
+    AttributeValueIn(attribute_uid=_UNCODED_ATTRIBUTE, value="Facility register"),
+]
+
+#: The identifier slice a unique value emits - keyed on the attribute UID, because a DHIS2
+#: attribute code may hold spaces and a system URI may not.
+_EXPECTED_IDENTIFIER = {
+    "system": f"http://dhis2.org/fhir/attribute/{_UNIQUE_ATTRIBUTE}",
+    "value": "LA-17-042",
+}
+
+
+def test_a_unique_attribute_value_lands_as_an_identifier_on_both_registry_halves() -> None:
+    """A unique value names the unit, so it joins the identifier list after the UID and code slices."""
+    documents = _registry([_UNIT.model_copy(update={"attribute_values": _MIXED_ATTRIBUTE_VALUES})], _UNIQUE_CODES)
+    for stem in ("Organization", "Location"):
+        identifiers = documents[f"registry/{stem}-mOsABqg3Cqw.json"]["identifier"]
+        assert identifiers[0]["system"] == "http://dhis2.org/fhir/id/org-unit"
+        assert identifiers[1]["system"] == "http://dhis2.org/fhir/id/org-unit-code"
+        assert identifiers[2] == _EXPECTED_IDENTIFIER
+
+
+def test_a_unique_attribute_value_leaves_the_annotation_extension() -> None:
+    """Every value is emitted once: the unique one as an identifier, the other two as extensions."""
+    documents = _registry([_UNIT.model_copy(update={"attribute_values": _MIXED_ATTRIBUTE_VALUES})], _UNIQUE_CODES)
+    extensions = documents["registry/Organization-mOsABqg3Cqw.json"]["extension"]
+    assert extensions == _EXPECTED_EXTENSIONS
+    assert "LA-17-042" not in json.dumps(extensions)
+
+
+def test_a_unique_attribute_value_lands_as_an_identifier_on_both_terminology_halves() -> None:
+    """A CodeSystem and its ValueSet share the identifier list, so both carry the unique value."""
+    documents = _terminology(
+        [_OPTION_SET.model_copy(update={"attribute_values": _MIXED_ATTRIBUTE_VALUES})], _UNIQUE_CODES
+    )
+    for stem in ("CodeSystem", "ValueSet"):
+        identifiers = documents[f"terminology/{stem}-d2-os-Xa1b2c3d4e5-{stem[0].lower()}s.json"]["identifier"]
+        assert identifiers[-1] == _EXPECTED_IDENTIFIER
+
+
+def test_a_unique_attribute_value_lands_as_an_identifier_on_a_questionnaire() -> None:
+    """The FSH form writes the per-attribute namespace as a quoted URL - it has no `$DHIS2-*` alias."""
+    content = _questionnaire(_DATA_SET.model_copy(update={"attribute_values": _MIXED_ATTRIBUTE_VALUES}), _UNIQUE_CODES)
+    assert '* identifier[+].system = "http://dhis2.org/fhir/attribute/AtrFhirOrU1"' in content
+    assert '* identifier[=].value = "LA-17-042"' in content
+    assert _EXPECTED_FSH in content
+    assert "AtrFhirOrU1" not in content.partition("* identifier[+]")[0]
+
+
+def test_the_attribute_identifier_namespace_follows_the_configured_base() -> None:
+    """The namespace is derived from `[generate] identifier_system_base` like every other DHIS2 system."""
+    documents = _registry(
+        [_UNIT.model_copy(update={"attribute_values": _MIXED_ATTRIBUTE_VALUES})],
+        _UNIQUE_CODES,
+        GenerateConfig(identifier_system_base="https://example.org/dhis2"),
+    )
+    identifiers = documents["registry/Organization-mOsABqg3Cqw.json"]["identifier"]
+    assert identifiers[-1]["system"] == f"https://example.org/dhis2/attribute/{_UNIQUE_ATTRIBUTE}"
+
+
+def test_an_instance_declaring_no_unique_attribute_emits_the_identifiers_it_always_did() -> None:
+    """Uniqueness is opt-in per attribute, so an index without one leaves every resource unchanged."""
+    documents = _registry([_UNIT.model_copy(update={"attribute_values": _MIXED_ATTRIBUTE_VALUES})])
+    identifiers = documents["registry/Organization-mOsABqg3Cqw.json"]["identifier"]
+    assert len(identifiers) == 2
+    assert "LA-17-042" in json.dumps(documents["registry/Organization-mOsABqg3Cqw.json"]["extension"])

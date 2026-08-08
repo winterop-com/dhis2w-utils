@@ -48,6 +48,27 @@ def test_clean_deletes_only_generated(tmp_path: Path) -> None:
     assert not (directory / "generated.fsh").exists()
 
 
+def test_clean_sweeps_generated_files_out_of_nested_subdirectories(tmp_path: Path) -> None:
+    """A nesting emitter's output is swept to the bottom of the tree, reported relative to the cleaned directory."""
+    directory = tmp_path / "tracker-programs"
+    write_artifacts(tmp_path, [_artifact("tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh")])
+    deleted = clean_generated_files(directory)
+    assert deleted == ["IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert not (directory / "IpHINAT79UW").exists()
+    assert directory.is_dir()
+
+
+def test_clean_never_deletes_a_hand_authored_nested_file(tmp_path: Path) -> None:
+    """The header is what marks a file generated, so hand-authored work deep in the tree survives the sweep."""
+    directory = tmp_path / "tracker-programs"
+    write_artifacts(tmp_path, [_artifact("tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh")])
+    manual = directory / "IpHINAT79UW" / "manual.fsh"
+    manual.write_text("Instance: Questionnaire-Manual\n", encoding="utf-8")
+    deleted = clean_generated_files(directory)
+    assert deleted == ["IpHINAT79UW/A03MvHHogjR.fsh"]
+    assert manual.read_text(encoding="utf-8") == "Instance: Questionnaire-Manual\n"
+
+
 def test_clean_missing_directory_is_noop(tmp_path: Path) -> None:
     """Cleaning a directory that does not exist returns an empty list."""
     assert clean_generated_files(tmp_path / "nowhere") == []

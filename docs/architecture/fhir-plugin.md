@@ -82,13 +82,14 @@ configuration to appear.
 Its `parameters:` block carries `excludexml` / `excludettl` (JSON is the only
 wire format worth a file and a rendered page per resource) plus one
 `path-resource` glob per predefined-resource sub-folder - `registry/` for the
-org-unit instances, `terminology/` for the option-set pairs, `categories/` for the
-category pairs:
+org-unit instances, `terminology/` for the option-set pairs, `concept-maps/` for
+the ConceptMap beside each pair, `categories/` for the category pairs:
 
 ```yaml
   path-resource:
     - input/resources/registry/*
     - input/resources/terminology/*
+    - input/resources/concept-maps/*
     - input/resources/categories/*
 ```
 
@@ -395,7 +396,7 @@ verbatim into `sushi-local#LOCAL` with no FSH parse. That is what keeps hundreds
 of option sets out of the compile - see
 [Toolchain performance](#toolchain-performance).
 
-Writing JSON makes the target owner of two directories rather than one. A
+Writing JSON makes the target owner of three directories rather than one. A
 definition SUSHI compiles from FSH and a predefined resource of the same identity
 are a duplicate, and SUSHI rejects the pair, so the target follows
 `sync_json_artifacts` with `clean_generated_files` over
@@ -413,6 +414,41 @@ fishes predefined resources by their `name` element. Every emitted CodeSystem an
 ValueSet carries exactly the FSH name `option_set_identities` handed the
 questionnaire target, which is why one plan serving both emitters is load-bearing
 rather than tidy.
+
+### The ConceptMap back to DHIS2
+
+Beside each pair the target writes one `ConceptMap-<id-stem><slug>-cm.json` into
+`ig/input/resources/concept-maps/`, its own owned directory for the same reason
+`categories/` is one: `sync_json_artifacts` deletes every unproduced `*.json` in
+its target, so two JSON syncs sharing a directory would delete each other's
+documents. `CONCEPT_MAP_DIRECTORY` names it, and the scaffolded
+`sushi-config.yaml` declares the matching `path-resource` glob - SUSHI recurses on
+its own, the publisher does not.
+
+The map answers the question a consumer holding a generated coding has: *which
+DHIS2 option is this?* Two groups, both with `group.source` set to the set's own
+CodeSystem canonical, carry the answer for both DHIS2 identifiers - `group.target`
+`<base>/id/option` for the option UID and `<base>/id/option-code` for the DHIS2
+code - with `equivalence = #equal` on every row, because the concept and the
+target identifier name the same DHIS2 option under two conventions rather than
+two vocabularies. `sourceCanonical` is the pair's ValueSet; there is no
+`target[x]`, because R4 types it as a value set and an identifier namespace is not
+one. `identifier` is a single element rather than a list, which is R4's
+cardinality for ConceptMap alone.
+
+`OptionSetIdentity` carries `concept_map_id` and `concept_map_name` beside the
+pair's, so all three artifacts of one set take one slug and the map cannot drift
+from the pair it belongs to. The rows come from `concept_assignments`, the same
+plan `build_concepts` reads, so a mapping can only ever name a concept the
+CodeSystem really holds - the discipline the example answers already follow. The
+code group is emitted only where an option carries a DHIS2 code that is a valid
+FHIR `code` (an R4 `group` with no `element` is invalid), and a set with no
+concepts at all emits no map.
+
+Two things this leaves for later: `<base>/id/option` and `<base>/id/option-code`
+are new DHIS2 identifier namespaces that `IDENTIFIER_SYSTEM_SUBJECTS` does not yet
+declare as NamingSystems, and categories emit no map yet - their concepts come
+from the same `build_concepts`, so the emitter carries over as it stands.
 
 ## Categories -> terminology
 
@@ -1057,8 +1093,8 @@ contracts every emitter returns, plus the header-aware sync behind the first and
 the directory-owning sync behind the second), `r4/schemas.py` (the FHIR R4
 resource and element models the pre-built JSON is serialised from, and the ones a
 received document is read back as - `Questionnaire`, `QuestionnaireResponse`, `Bundle`,
-`OperationOutcome`, `CapabilityStatement`, plus `JsonResource` for a resource carried
-verbatim), `r4/primitives.py` (the lexical and semantic checks for R4's primitive types,
+`OperationOutcome`, `CapabilityStatement`, `ConceptMap`, plus `JsonResource` for a
+resource carried verbatim), `r4/primitives.py` (the lexical and semantic checks for R4's primitive types,
 shared by the emitters that write a value and the capture path that reads one), and
 `config.py` (the `fhir.toml`
 document - `IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`,
@@ -1079,7 +1115,10 @@ The components:
   Refresh is a CLI path rather than package API, so it stays out of the top-level
   re-exports.
 - `resources/option_sets/` - the pre-built CodeSystem/ValueSet pair per option
-  set, its `TERMINOLOGY_DIRECTORY` sync directory, `option_set_identities` and the
+  set, its `TERMINOLOGY_DIRECTORY` sync directory, the ConceptMap taking that
+  pair's concept codes back to the DHIS2 option UID and code
+  (`build_option_set_concept_maps` and its `CONCEPT_MAP_DIRECTORY`),
+  `option_set_identities` and the
   `OptionSetIdentityPlan` / `OptionSetIdentityIndex` every other target reads
   option-set names from, `build_concepts` (the concept-code assignment the
   category component shares), plus `max_slug_length` (validation previews the same
@@ -1219,7 +1258,7 @@ funnel renders as a one-line message. The dependency arrow points one way -
 `dhis2w-fhir-serve` -> `dhis2w-fhir` - so the generator never learns the server exists.
 
 **The store is two trees merged.** `ig/fsh-generated/resources` is what SUSHI compiled
-from the emitted FSH. `ig/input/resources/{registry,terminology,categories}` is the
+from the emitted FSH. `ig/input/resources/{registry,terminology,concept-maps,categories}` is the
 pre-built JSON the generate targets wrote, which SUSHI loads as predefined resources and
 **never re-emits** - so a store built from the compiled tree alone would serve an IG
 missing its whole registry and terminology. `load_compiled_store` reads both, compiled

@@ -12,11 +12,14 @@ from dhis2w_fhir.r4 import (
     CapabilityStatement,
     CodeSystem,
     CodeSystemConcept,
+    ConceptMap,
     Element,
     Extension,
     JsonResource,
     Location,
     Organization,
+    Parameters,
+    ParametersParameter,
     Questionnaire,
     QuestionnaireResponse,
     ValueSet,
@@ -26,7 +29,15 @@ from dhis2w_fhir.r4 import (
 _DATA_DIRECTORY = Path(__file__).parent / "data" / "r4"
 
 type ResourceModel = (
-    Organization | Location | CodeSystem | ValueSet | Questionnaire | QuestionnaireResponse | CapabilityStatement
+    Organization
+    | Location
+    | CodeSystem
+    | ValueSet
+    | ConceptMap
+    | Questionnaire
+    | QuestionnaireResponse
+    | CapabilityStatement
+    | Parameters
 )
 
 _NAME_ELEMENT_CASES = [
@@ -40,6 +51,7 @@ _ROUND_TRIP_CASES = [
     pytest.param(ValueSet, "ValueSet-richest.json", id="value_set"),
     pytest.param(CodeSystem, "CodeSystem-d2-de-cs.json", id="code_system_data_elements"),
     pytest.param(CodeSystem, "CodeSystem-d2-coc-cs.json", id="code_system_option_combos"),
+    pytest.param(ConceptMap, "ConceptMap-d2-os-birth-type-cm.json", id="concept_map_option_set"),
     pytest.param(Questionnaire, "Questionnaire-BfMAe6Itzgt.json", id="questionnaire_aggregate"),
     pytest.param(Questionnaire, "Questionnaire-EVTsupVis01.json", id="questionnaire_event"),
     pytest.param(Questionnaire, "Questionnaire-ZzYYXq4fJie.json", id="questionnaire_tracker_event"),
@@ -281,6 +293,88 @@ def test_a_capability_statement_carries_its_supported_profiles_and_interactions(
     assert [interaction.code for interaction in response_resource.interaction] == ["create"]
     assert response_resource.supportedProfile is not None
     assert len(response_resource.supportedProfile) == 3
+
+
+def test_a_capability_statement_declares_operations_on_its_rest_element() -> None:
+    document = {
+        "resourceType": "CapabilityStatement",
+        "status": "active",
+        "kind": "instance",
+        "fhirVersion": "4.0.1",
+        "rest": [
+            {
+                "mode": "server",
+                "operation": [
+                    {
+                        "name": "translate",
+                        "definition": "http://hl7.org/fhir/OperationDefinition/ConceptMap-translate",
+                        "documentation": "Translate a concept code into the DHIS2 identifiers it stands for.",
+                    }
+                ],
+            }
+        ],
+    }
+    model = CapabilityStatement.model_validate(document)
+    assert model.rest is not None
+    operations = model.rest[0].operation
+    assert operations is not None
+    assert operations[0].name == "translate"
+    assert _emit(model) == document
+
+
+def test_a_parameters_body_carries_the_translate_answer_shape() -> None:
+    document = {
+        "resourceType": "Parameters",
+        "parameter": [
+            {"name": "result", "valueBoolean": True},
+            {
+                "name": "match",
+                "part": [
+                    {"name": "equivalence", "valueCode": "equal"},
+                    {
+                        "name": "concept",
+                        "valueCoding": {
+                            "system": "http://dhis2.org/fhir/id/option",
+                            "code": "kRRUtYaGett",
+                            "display": "Natural Birth",
+                        },
+                    },
+                    {"name": "source", "valueUri": "http://example.org/fhir/ConceptMap/d2-os-Xa1b2c3d4e5-cm"},
+                ],
+            },
+        ],
+    }
+    model = Parameters.model_validate(document)
+    assert model.parameter is not None
+    nested = model.parameter[1].part
+    assert nested is not None
+    assert nested[1].valueCoding is not None
+    assert nested[1].valueCoding.code == "kRRUtYaGett"
+    assert _emit(model) == document
+
+
+def test_a_parameters_body_omits_the_values_it_does_not_carry() -> None:
+    model = Parameters(
+        parameter=[
+            ParametersParameter(name="result", valueBoolean=False),
+            ParametersParameter(name="message", valueString="nothing maps that code"),
+        ]
+    )
+    emitted = _emit(model)
+    assert emitted == {
+        "resourceType": "Parameters",
+        "parameter": [
+            {"name": "result", "valueBoolean": False},
+            {"name": "message", "valueString": "nothing maps that code"},
+        ],
+    }
+    assert "id" not in emitted
+    assert "part" not in emitted["parameter"][0]
+
+
+def test_a_parameters_body_carries_no_narrative() -> None:
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+        Parameters.model_validate({"resourceType": "Parameters", "text": {"status": "generated", "div": "<div/>"}})
 
 
 @pytest.mark.parametrize(

@@ -77,7 +77,7 @@ from dhis2w_fhir.validation.schemas import (
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
-__all__ = ["build_code_validation", "render_validation_markdown"]
+__all__ = ["build_aborting_code", "build_code_validation", "render_validation_markdown"]
 
 # R4 cnl-0: computational names should match [A-Z]([A-Za-z0-9_]){0,254} - 255 characters total.
 _MAX_FHIR_NAME_LENGTH = 255
@@ -109,12 +109,23 @@ _TEMPLATE_HOSTILE_CHARACTERS = ("<", ">", "&")
 #: their Organization and Location, data sets and event programs on their Questionnaire. Every other
 #: collection either emits nothing or carries its code as a concept code or a `dhis2-code` property, both
 #: of which the publisher escapes. A dashboard code holding '<' costs nothing, so it is not a finding.
-_CODE_IDENTIFIER_COLLECTIONS = frozenset({"optionSets", "categories", "organisationUnits", "dataSets", "programs"})
+_CODE_IDENTIFIER_COLLECTIONS = frozenset(
+    {"optionSets", "categories", "organisationUnits", "dataSets", "programs", "programStages"}
+)
 
 #: The one hostile character observed to abort a build from an identifier value: it opens a tag, and the
 #: publisher's strict parse of the page it just wrote fails on the malformed cell. '>' is text to an HTML
 #: parser and a bare '&' is widely tolerated, so neither is claimed to be fatal without having seen it.
 _BUILD_ABORTING_CHARACTER = "<"
+
+
+def build_aborting_code(code: str | None) -> bool:
+    """Whether one DHIS2 code, emitted as an identifier value, aborts the IG publisher's final pass.
+
+    The single source of truth shared by the validate finding and the generate-time refusal, so the
+    two can never disagree about which code the publisher cannot survive.
+    """
+    return _BUILD_ABORTING_CHARACTER in (code or "")
 
 
 def build_code_validation(
@@ -164,6 +175,10 @@ def _attribute_findings(attributes: list[MetadataItemIn]) -> list[ValidationFind
     is the emitted IG working as designed - most instances code few of their attributes - so it
     is informational: a coverage signal about how legible the extension is to a consumer who
     does not hold the DHIS2 instance, not a defect that breaks a build.
+
+    The finding reads the same for a unique attribute, whose values are emitted as Identifiers
+    rather than as extensions: that namespace is keyed on the attribute UID too, so an uncoded
+    unique attribute is exactly as UID-bound as an uncoded annotating one.
     """
     contexts = ", ".join(ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES)
     return [

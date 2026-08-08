@@ -28,6 +28,22 @@ class ExampleSelection(BaseModel):
     source: ExampleSource = "synthetic"
 
 
+class ExampleAnswerRules(BaseModel):
+    """What a captured value is read against: the zone behind its clock, and the units the IG publishes.
+
+    `timezone` is the `[generate] timezone` IANA zone DHIS2's zone-less timestamps are wall-clock
+    readings in (BUGS.md #62); None reads them as UTC. `published_organisation_unit_uids` is the
+    org-unit selection the registry target writes a Location for, so an `ORGANISATION_UNIT` answer
+    naming a unit outside it is left unanswered rather than pointed at a Location nobody wrote;
+    None means this build does not know the selection and every such answer is emitted unchecked.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    timezone: str | None = None
+    published_organisation_unit_uids: frozenset[str] | None = None
+
+
 class ExampleAnswerIn(BaseModel):
     """One captured value, keyed the way DHIS2 keys it: data element plus category option combo.
 

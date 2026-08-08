@@ -12,7 +12,9 @@ import datetime
 import random
 import re
 from collections.abc import Callable
+from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -127,6 +129,16 @@ _BIRTH_STAGE = QuestionnaireSourceIn(
         )
     ],
     flat_items=[QuestionnaireItemIn(uid="De9aaaaaaaa", name="Seen at", value_type="DATETIME")],
+)
+
+_REFERRAL_PROGRAM = QuestionnaireSourceIn(
+    uid="Pr1aaaaaaaa",
+    name="Referral",
+    kind="event",
+    flat_items=[
+        QuestionnaireItemIn(uid="Dea1aaaaaaa", name="Referred to", value_type="ORGANISATION_UNIT"),
+        QuestionnaireItemIn(uid="Deb1aaaaaaa", name="Seen at", value_type="DATETIME"),
+    ],
 )
 
 _OPTION_SETS = [
@@ -452,6 +464,93 @@ def _aggregate_response(answers: list[ExampleAnswerIn]) -> ExampleResponseIn:
         period=parse_period("202606"),
         answers=answers,
     )
+
+
+def _referral_response(answers: list[ExampleAnswerIn], authored: str | None = None) -> ExampleResponseIn:
+    """One hand-built event response against the referral program, carrying whatever `authored` a test needs."""
+    return ExampleResponseIn(
+        instance_id="Pr1aaaaaaaa-202606-Ou1aaaaaaaa",
+        target_uid="Pr1aaaaaaaa",
+        kind="event",
+        organisation_unit_uid="Ou1aaaaaaaa",
+        status_code="completed",
+        authored=authored,
+        answers=answers,
+    )
+
+
+def _referral_build(
+    response: ExampleResponseIn,
+    config: GenerateConfig | None = None,
+    published_organisation_unit_uids: frozenset[str] | None = None,
+) -> tuple[str, list[str]]:
+    """Emit one referral example and hand back its FSH content plus the notes the run raised."""
+    resolved = config or GenerateConfig()
+    build = build_example_artifacts(
+        [_REFERRAL_PROGRAM],
+        [response],
+        [],
+        resolved,
+        _CANONICAL,
+        option_set_plan=_plan([], resolved),
+        published_organisation_unit_uids=published_organisation_unit_uids,
+    )
+    return build.artifacts[0].content, build.notes
+
+
+def test_a_zoneless_timestamp_is_read_as_utc_when_the_project_names_no_zone() -> None:
+    """The default keeps BUGS.md #62's UTC assumption, which is what every committed golden was emitted under."""
+    content, notes = _referral_build(
+        _referral_response(
+            [ExampleAnswerIn(data_element_uid="Deb1aaaaaaa", value="2026-07-15T08:30:00.000")],
+            authored="2026-07-15T08:30:00.000",
+        )
+    )
+    assert '* authored = "2026-07-15T08:30:00.000Z"' in content
+    assert '* item[=].answer[+].valueDateTime = "2026-07-15T08:30:00.000Z"' in content
+    assert notes == []
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected"),
+    [
+        ("2026-07-15T08:30:00.000", "2026-07-15T08:30:00.000+02:00"),
+        ("2026-01-15T08:30:00.000", "2026-01-15T08:30:00.000+01:00"),
+    ],
+)
+def test_a_configured_timezone_stamps_authored_and_datetime_answers_alike(stored: str, expected: str) -> None:
+    """`[generate] timezone` names what the instance's wall clock means, and DST moves the offset with the date."""
+    content, notes = _referral_build(
+        _referral_response([ExampleAnswerIn(data_element_uid="Deb1aaaaaaa", value=stored)], authored=stored),
+        GenerateConfig(timezone="Europe/Oslo"),
+    )
+    assert f'* authored = "{expected}"' in content
+    assert f'* item[=].answer[+].valueDateTime = "{expected}"' in content
+    assert notes == []
+
+
+def test_an_organisation_unit_answer_is_emitted_when_the_selection_is_unknown_or_holds_it() -> None:
+    """Without a published selection the answer is emitted unchecked; a selection holding it changes nothing."""
+    response = _referral_response([ExampleAnswerIn(data_element_uid="Dea1aaaaaaa", value="Ou2aaaaaaaa")])
+    unchecked, unchecked_notes = _referral_build(response)
+    checked, checked_notes = _referral_build(response, published_organisation_unit_uids=frozenset({"Ou2aaaaaaaa"}))
+    assert "* item[=].answer[+].valueReference = Reference(Location/Ou2aaaaaaaa)" in unchecked
+    assert unchecked == checked
+    assert unchecked_notes == checked_notes == []
+
+
+def test_an_organisation_unit_answer_outside_the_selection_is_left_unanswered_with_a_note() -> None:
+    """The IG publishes no Location for an unselected unit, so the answer would dangle; it is dropped and counted."""
+    content, notes = _referral_build(
+        _referral_response([ExampleAnswerIn(data_element_uid="Dea1aaaaaaa", value="Ou9aaaaaaaa")]),
+        published_organisation_unit_uids=frozenset({"Ou1aaaaaaaa", "Ou2aaaaaaaa"}),
+    )
+    assert "Ou9aaaaaaaa" not in content
+    assert "Dea1aaaaaaa" not in content
+    assert notes == [
+        "1 example answers reference an organisation unit outside the org-unit selection, which the IG "
+        "publishes no Location for; left unanswered: Referred to (Dea1aaaaaaa) = Ou9aaaaaaaa"
+    ]
 
 
 def test_synthetic_data_set_example_is_a_stable_golden() -> None:
@@ -1054,6 +1153,65 @@ async def test_per_target_zero_disables_the_target_and_sweeps_its_directory(
     assert report.written_files == []
     assert sorted(report.deleted_files) == ["BfMAe6Itzgt-1.fsh", "VBqh0ynB2wv-1.fsh"]
     assert not list((tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY).glob("*.fsh"))
+
+
+@respx.mock
+async def test_the_solo_target_reads_the_registry_selection_the_location_guard_checks_against(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`generate examples` on its own reads the selection ids-only, under the registry's own filters."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path, organisation_units="max_level = 2")
+    organisation_units = respx.get(f"{_HOST}/api/organisationUnits", name="organisationUnits").mock(
+        return_value=httpx.Response(200, json=_ROOT_PAYLOAD)
+    )
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+
+    await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
+
+    selection = [
+        call.request.url.params
+        for call in organisation_units.calls
+        if call.request.url.params.get("filter") == "level:le:2"
+    ]
+    assert len(selection) == 1
+    assert selection[0]["fields"] == "id"
+    assert selection[0]["paging"] == "false"
+
+
+@respx.mock
+async def test_a_form_the_questionnaire_target_refused_gets_no_example(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A linkId collision skips the whole form, so nothing may answer a Questionnaire that was never written."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path)
+    data_sets: list[dict[str, Any]] = deepcopy(_DATA_SETS_PAYLOAD["dataSets"])
+    data_sets[0]["sections"][0]["id"] = "De1aaaaaaaa"
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": data_sets}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
+    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ROOT_PAYLOAD))
+
+    report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
+
+    fsh = tmp_path / "ig" / "input" / "fsh"
+    assert not (fsh / "data-sets" / "BfMAe6Itzgt.fsh").exists()
+    assert not (fsh / EXAMPLES_DIRECTORY / "BfMAe6Itzgt-1.fsh").exists()
+    assert not (tmp_path / "ig" / "input" / "pagecontent" / "Questionnaire-BfMAe6Itzgt-intro.md").exists()
+    assert report.examples.example_count == 1
+    assert any("linkId twice" in note for note in report.questionnaires.notes)
+    assert not any("linkId twice" in note for note in report.examples.notes)
+    assert not any("linkId twice" in note for note in report.pages.notes)
 
 
 @respx.mock

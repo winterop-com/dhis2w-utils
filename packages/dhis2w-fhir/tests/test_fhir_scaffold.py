@@ -24,6 +24,7 @@ _PATH_RESOURCE_LINES = {
     "  path-resource:",
     "    - input/resources/registry/*",
     "    - input/resources/terminology/*",
+    "    - input/resources/concept-maps/*",
     "    - input/resources/categories/*",
 }
 
@@ -100,6 +101,7 @@ def test_sushi_config_declares_the_prebuilt_resource_subfolders() -> None:
         "path-resource": [
             "input/resources/registry/*",
             "input/resources/terminology/*",
+            "input/resources/concept-maps/*",
             "input/resources/categories/*",
         ],
     }
@@ -139,6 +141,18 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     assert config.generate.tracker_programs.include_ids == []
     assert config.generate.examples.per_target == 1
     assert config.generate.examples.source == "synthetic"
+    assert config.serve.host == "127.0.0.1"
+    assert config.serve.port == 8080
+    assert config.serve.strict_codes is False
+
+
+def test_fhir_toml_example_documents_the_serve_table() -> None:
+    """`make serve` reads `[serve]`, so the example states the table and names the 8080 clash."""
+    example = _by_path()["fhir.toml.example"]
+    assert "[serve]" in example
+    assert "`make serve`" in example
+    assert "port = 8090" in example
+    assert "a local dev DHIS2 commonly owns 8080" in example
 
 
 def test_fhir_toml_example_comments_out_the_unset_placeholders() -> None:
@@ -147,6 +161,7 @@ def test_fhir_toml_example_comments_out_the_unset_placeholders() -> None:
     assert '# root = "ImspTQPwCqd"' in example
     assert "# max_level = 4" in example
     assert '# locales = ["lo", "en"]' in example
+    assert '# timezone = "Asia/Vientiane"' in example
     assert '# include_ids = ["Qdm5fPK5Ra9"]' in example
     assert '# include_ids = ["BfMAe6Itzgt"]' in example
     assert '# include_ids = ["VBqh0ynB2wv"]' in example
@@ -154,6 +169,7 @@ def test_fhir_toml_example_comments_out_the_unset_placeholders() -> None:
     assert "\nroot =" not in example
     assert "\nmax_level =" not in example
     assert "\nlocales =" not in example
+    assert "\ntimezone =" not in example
     assert "\ninclude_ids =" not in example
 
 
@@ -376,6 +392,16 @@ def test_makefile_mounts_the_package_cache_volume() -> None:
     assert "CACHE_VOLUME := fhir-ig-cache" in makefile
 
 
+def test_makefile_serves_the_ig_off_disk_and_straight_from_the_instance() -> None:
+    """`serve` reads the compiled IG, `serve-live` builds it from the instance, and both are declared phony."""
+    makefile = _by_path()["Makefile"]
+    assert "serve:  ## Serve the compiled IG as a FHIR endpoint (run generate + sushi first)" in makefile
+    assert "\t$(D2W) fhir serve\n" in makefile
+    assert "serve-live:  ## Serve straight from the DHIS2 instance, no compile needed" in makefile
+    assert "\t$(D2W) fhir serve --live\n" in makefile
+    assert ".PHONY: serve serve-live" in makefile
+
+
 def test_makefile_refresh_chains_the_full_force_rebuild() -> None:
     """`refresh` wipes every cache, pulls the latest tooling, regenerates, revalidates, and rebuilds."""
     makefile = _by_path()["Makefile"]
@@ -470,6 +496,7 @@ def test_refresh_adds_the_path_resource_block_to_a_stale_sushi_config(tmp_path: 
     assert parameters["path-resource"] == [
         "input/resources/registry/*",
         "input/resources/terminology/*",
+        "input/resources/concept-maps/*",
         "input/resources/categories/*",
     ]
 
@@ -515,6 +542,21 @@ def test_refresh_adds_the_serve_entries_to_a_project_scaffolded_before_them(tmp_
     lines = ignored.read_text(encoding="utf-8").splitlines()
     assert ".serve/" in lines
     assert "load/" in lines
+
+
+def test_refresh_adds_the_serve_targets_to_a_makefile_scaffolded_before_them(tmp_path: Path) -> None:
+    """The serve targets carry their own `.PHONY` line, so they are a pure addition a refresh can write."""
+    _write_project(tmp_path)
+    makefile = tmp_path / "Makefile"
+    content = makefile.read_text(encoding="utf-8")
+    stale = content.split(".PHONY: serve serve-live")[0] + "clean:" + content.split("\nclean:", 1)[1]
+    assert "serve" not in stale
+    makefile.write_text(stale, encoding="utf-8")
+
+    report = refresh_project(tmp_path)
+
+    assert report.refreshed_files == ["Makefile"]
+    assert makefile.read_text(encoding="utf-8") == content
 
 
 def test_refresh_never_writes_fhir_toml(tmp_path: Path) -> None:

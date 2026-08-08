@@ -241,6 +241,64 @@ def test_summary_of_an_empty_store() -> None:
     assert store.types_present() == ()
 
 
+def _concept_map_entry(resource_id: str, body: dict[str, Any]) -> StoreEntry:
+    """One stored ConceptMap, as the predefined tree carries it."""
+    return StoreEntry(
+        resource_type="ConceptMap",
+        resource_id=resource_id,
+        source=f"ig/input/resources/concept-maps/ConceptMap-{resource_id}.json",
+        body=body,
+    )
+
+
+def test_concept_maps_are_parsed_into_models_at_load() -> None:
+    """The stored maps come back as R4 models, in load order, so `$translate` reads mappings not documents."""
+    store = ResourceStore(
+        entries=(
+            _concept_map_entry(
+                "cm",
+                {
+                    "resourceType": "ConceptMap",
+                    "id": "cm",
+                    "url": f"{CANONICAL}/ConceptMap/cm",
+                    "group": [
+                        {
+                            "source": f"{CANONICAL}/CodeSystem/cs",
+                            "target": "http://dhis2.org/fhir/id/option",
+                            "element": [{"code": "kRRUtYaGett", "target": [{"code": "NB", "equivalence": "equal"}]}],
+                        }
+                    ],
+                },
+            ),
+        )
+    )
+
+    concept_maps = store.concept_maps()
+
+    assert [concept_map.url for concept_map in concept_maps] == [f"{CANONICAL}/ConceptMap/cm"]
+    group = (concept_maps[0].group or [])[0]
+    assert group.target == "http://dhis2.org/fhir/id/option"
+    assert (group.element or [])[0].code == "kRRUtYaGett"
+
+
+def test_a_concept_map_this_server_cannot_read_is_left_out(caplog: pytest.LogCaptureFixture) -> None:
+    """An IG is free to hand-write elements no model here names; that map is skipped and named in the log."""
+    store = ResourceStore(
+        entries=(
+            _concept_map_entry("readable", {"resourceType": "ConceptMap", "id": "readable"}),
+            _concept_map_entry("foreign", {"resourceType": "ConceptMap", "id": "foreign", "unmapped": {}}),
+        )
+    )
+
+    assert [concept_map.id for concept_map in store.concept_maps()] == ["readable"]
+    assert "ConceptMap-foreign.json" in caplog.text
+
+
+def test_a_store_holding_no_concept_map_translates_nothing() -> None:
+    """A project that published no ConceptMap has no mappings to answer from."""
+    assert ResourceStore().concept_maps() == ()
+
+
 def test_first_entry_wins_on_duplicate_type_and_id() -> None:
     """When both trees carry the same type and id, the first loaded is the one read back."""
     store = ResourceStore(

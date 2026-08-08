@@ -53,6 +53,7 @@ nav:
       - Walkthrough: walkthrough.md
       - More guides:
           - Visualizations: guides/visualizations.md
+          - FHIR for DHIS2 people: guides/fhir-101.md
           - FHIR IG generation: guides/fhir-ig.md
           - FHIR API reference: api/fhir.md
           - FHIR facade server reference: api/fhir-serve.md

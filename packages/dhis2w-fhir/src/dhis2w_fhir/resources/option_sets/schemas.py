@@ -93,11 +93,13 @@ class ConceptAssignmentPlan(BaseModel):
 
 
 class OptionSetIdentity(BaseModel):
-    """One option set's emitted slug plus the FSH name and artifact ids derived from it.
+    """One option set's emitted slug plus the FSH names and artifact ids derived from it.
 
     The narrative pages link an option set to its compiled `CodeSystem-<id>.html`, so the
     slug assignment - truncation, collision suffixes, and the id stem the naming tokens
-    build - is computed once here and read by both the emitter and the pages.
+    build - is computed once here and read by both the emitter and the pages. All three
+    artifacts of one set - the CodeSystem, the ValueSet, and the ConceptMap taking their
+    concept codes back to DHIS2 - take their id and their name from the same slug.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -108,6 +110,7 @@ class OptionSetIdentity(BaseModel):
     fsh_name: str
     code_system_id: str
     value_set_id: str
+    concept_map_id: str
 
     @property
     def code_system_name(self) -> str:
@@ -118,6 +121,11 @@ class OptionSetIdentity(BaseModel):
     def value_set_name(self) -> str:
         """FSH name of the emitted ValueSet (e.g. `D2OS_BirthType_VS`)."""
         return f"{self.fsh_name}_VS"
+
+    @property
+    def concept_map_name(self) -> str:
+        """FSH name of the emitted ConceptMap (e.g. `D2OS_BirthType_CM`)."""
+        return f"{self.fsh_name}_CM"
 
 
 class OptionSetIdentityPlan(BaseModel):

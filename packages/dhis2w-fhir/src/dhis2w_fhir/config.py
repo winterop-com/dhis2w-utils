@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import tomllib
+import zoneinfo
 from pathlib import Path
 from typing import Literal
 
@@ -101,10 +102,15 @@ class GenerateConfig(BaseModel):
     The three data-definition tables select the three questionnaire form kinds: `data_sets`
     picks aggregate data sets, `event_programs` picks programs without registration, and
     `tracker_programs` picks programs with registration, one Questionnaire per program stage.
+
+    `timezone` is the IANA zone the instance's zone-less timestamps are wall-clock readings in
+    (BUGS.md #62). Naming it turns every emitted `dateTime` into the numeric offset that zone
+    was on at that very instant, DST included; leaving it unset keeps the UTC reading.
     """
 
     identifier_system_base: str = "http://dhis2.org/fhir"
     concept_code_source: Literal["id", "code"] = "id"
+    timezone: str | None = None
     locales: list[str] = Field(default_factory=list)
     naming: NamingConfig = Field(default_factory=NamingConfig)
     option_sets: OptionSetSelection = Field(default_factory=OptionSetSelection)
@@ -117,11 +123,42 @@ class GenerateConfig(BaseModel):
 
     _normalize_identifier_base = field_validator("identifier_system_base")(strip_trailing_slash)
 
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str | None) -> str | None:
+        """Require an IANA zone name the tz database actually holds - a typo here mis-stamps every timestamp."""
+        if value is None:
+            return value
+        try:
+            zoneinfo.ZoneInfo(value)
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError) as error:
+            raise ValueError(
+                f"unknown IANA time zone {value!r}: name a zone from the tz database "
+                "(e.g. 'Asia/Vientiane', 'Europe/Oslo', 'UTC')"
+            ) from error
+        return value
+
     @field_validator("locales")
     @classmethod
     def _normalize_locales(cls, value: list[str]) -> list[str]:
         """Accept BCP-47 or DHIS2-style tags and hold them in the BCP-47 form the emitters compare against."""
         return [normalize_locale(locale) for locale in value]
+
+
+class ServeConfig(BaseModel):
+    """How `d2w fhir serve` runs this project - the `[serve]` table of `fhir.toml`.
+
+    Where a project is served from is a property of the project, not of the invocation: a
+    developer whose DHIS2 stack already owns 8080 states another port once here and every
+    `make serve` and bare `d2w fhir serve` in that project honours it. A command-line flag still
+    wins over the table, and the table wins over these defaults.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    host: str = "127.0.0.1"
+    port: int = 8080
+    strict_codes: bool = False
 
 
 class FhirProjectConfig(BaseModel):
@@ -130,6 +167,7 @@ class FhirProjectConfig(BaseModel):
     profile: str | None = None
     ig: IgConfig
     generate: GenerateConfig = Field(default_factory=GenerateConfig)
+    serve: ServeConfig = Field(default_factory=ServeConfig)
 
 
 class FhirProject(BaseModel):

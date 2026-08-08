@@ -277,7 +277,7 @@ async def test_the_attribute_fetch_is_unpaged(
     assert params["paging"] == "false"
     assert "page" not in params
     assert "pageSize" not in params
-    assert params["fields"] == "id,code"
+    assert params["fields"] == "id,code,unique"
 
 
 @respx.mock

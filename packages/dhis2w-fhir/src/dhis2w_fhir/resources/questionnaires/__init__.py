@@ -33,6 +33,7 @@ from dhis2w_fhir.foundation.attribute_values import (
     ATTRIBUTE_CODE_SUB_EXTENSION,
     ATTRIBUTE_ID_SUB_EXTENSION,
     ATTRIBUTE_VALUE_SUB_EXTENSION,
+    attribute_value_identifier_system,
 )
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import code_or_uid, page_text, quote
@@ -82,6 +83,7 @@ __all__ = [
     "is_disaggregated",
     "is_multi_valued",
     "item_type",
+    "link_id_collisions",
     "source_description",
     "source_items",
     "source_program",
@@ -258,6 +260,15 @@ class _GroupingIdentifierView(BaseModel):
     value_literal: str
 
 
+class _AttributeIdentifierView(BaseModel):
+    """One unique DHIS2 attribute value as the identifier slice the template writes, both sides quoted."""
+
+    model_config = ConfigDict(frozen=True)
+
+    system_literal: str
+    value_literal: str
+
+
 class _QuestionnaireView(BaseModel):
     """Everything the Questionnaire template needs for one source, every conditional resolved."""
 
@@ -274,6 +285,7 @@ class _QuestionnaireView(BaseModel):
     identifier_code_system: str
     identifier_code_literal: str
     grouping_identifier: _GroupingIdentifierView | None = None
+    attribute_identifiers: list[_AttributeIdentifierView] = Field(default_factory=list)
     form_type_extension: str
     form_type_code_system: str
     form_type_code: str
@@ -348,11 +360,23 @@ def build_questionnaire_artifacts(
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
     data_elements: dict[str, QuestionnaireItemIn] = {}
     option_combos: dict[str, CategoryOptionComboIn] = {}
+    colliding: list[str] = []
     template = _ENVIRONMENT.get_template("questionnaire.fsh.jinja")
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
+        collisions = link_id_collisions(source)
+        if collisions:
+            colliding.append(f"{source_display_name(source)} ({source.uid}) on {', '.join(collisions)}")
+            continue
         collect_referenced_objects(source, data_elements, option_combos)
         view = _questionnaire_view(
-            source, names, foundation, canonical, index.identities, ig_status=ig_status, attribute_codes=attribute_codes
+            source,
+            names,
+            foundation,
+            canonical,
+            index.identities,
+            ig_status=ig_status,
+            attribute_codes=attribute_codes,
+            identifier_system_base=config.identifier_system_base,
         )
         build.artifacts.append(
             FshArtifact(
@@ -373,6 +397,15 @@ def build_questionnaire_artifacts(
         build.artifacts.append(_data_element_terminology(data_elements, names, config, ig_status=ig_status))
     if option_combos:
         build.artifacts.append(_option_combo_terminology(option_combos, names, config, ig_status=ig_status))
+    if colliding:
+        build.notes.append(
+            aggregate_note(
+                f"{len(colliding)} forms would emit one linkId twice, which R4 forbids (que-2: link ids are "
+                "unique within a Questionnaire); the whole form is skipped rather than published invalid, "
+                "because a response answering that linkId would name two questions at once",
+                colliding,
+            )
+        )
     if index.unplanned_uids:
         build.notes.append(
             aggregate_note(
@@ -392,6 +425,42 @@ def bound_option_set_uids(sources: list[QuestionnaireSourceIn]) -> list[str]:
 def source_items(source: QuestionnaireSourceIn) -> list[QuestionnaireItemIn]:
     """Every question one form carries, sectioned and unsectioned alike."""
     return [item for section in source.sections for item in section.items] + list(source.flat_items)
+
+
+def link_id_collisions(source: QuestionnaireSourceIn) -> list[str]:
+    """Every `linkId` one form would emit more than once, in the order the clash is first reached.
+
+    A DHIS2 section UID and a data element UID are drawn from one pool, so a form can reuse one
+    UID on a group and on a question - and then two items answer to one `linkId`. R4 forbids that
+    outright (`que-2`), and a response answering that `linkId` would name two questions at once,
+    so the caller skips the whole form rather than publish an invalid Questionnaire.
+    """
+    seen: set[str] = set()
+    collided: list[str] = []
+    for link_id in _emitted_link_ids(source):
+        if link_id in seen and link_id not in collided:
+            collided.append(link_id)
+        seen.add(link_id)
+    return collided
+
+
+def _emitted_link_ids(source: QuestionnaireSourceIn) -> list[str]:
+    """Every `linkId` one form's items carry, in emission order: section groups, questions, and cells."""
+    link_ids: list[str] = []
+    for section in source.sections:
+        link_ids.append(section.uid)
+        for item in section.items:
+            link_ids.extend(_item_link_ids(item, source.kind))
+    for item in source.flat_items:
+        link_ids.extend(_item_link_ids(item, source.kind))
+    return link_ids
+
+
+def _item_link_ids(item: QuestionnaireItemIn, kind: FormKind) -> list[str]:
+    """One data element's `linkId`s: the question itself, plus a cell per option combo when disaggregated."""
+    if not is_disaggregated(item, kind) or item.category_combo is None:
+        return [item.uid]
+    return [item.uid, *(f"{item.uid}.{option_combo.uid}" for option_combo in item.category_combo.option_combos)]
 
 
 #: The sync directory each form kind is written to.
@@ -433,6 +502,7 @@ def _questionnaire_view(
     *,
     ig_status: IgStatus,
     attribute_codes: AttributeCodeIndex,
+    identifier_system_base: str,
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders."""
     profile = FORM_KIND_PROFILES[source.kind]
@@ -449,6 +519,9 @@ def _questionnaire_view(
         identifier_code_system=profile.identifier_code_system,
         identifier_code_literal=quote(code_or_uid(source.code, source.uid)),
         grouping_identifier=_grouping_identifier(source),
+        attribute_identifiers=_attribute_identifier_views(
+            source.attribute_values, attribute_codes, identifier_system_base
+        ),
         form_type_extension=foundation.form_type_extension,
         form_type_code_system=foundation.form_type_code_system,
         form_type_code=source.kind,
@@ -479,12 +552,30 @@ def _grouping_identifier(source: QuestionnaireSourceIn) -> _GroupingIdentifierVi
     return _GroupingIdentifierView(system=_PROGRAM_IDENTIFIER_SYSTEM, value_literal=quote(source_program(source).uid))
 
 
+def _attribute_identifier_views(
+    attribute_values: list[AttributeValueIn], attribute_codes: AttributeCodeIndex, identifier_system_base: str
+) -> list[_AttributeIdentifierView]:
+    """Project the values of unique attributes onto the identifier slices the template appends."""
+    return [
+        _AttributeIdentifierView(
+            system_literal=quote(
+                attribute_value_identifier_system(identifier_system_base, attribute_value.attribute_uid)
+            ),
+            value_literal=quote(attribute_value.value),
+        )
+        for attribute_value in attribute_values
+        if attribute_codes.is_unique(attribute_value.attribute_uid)
+    ]
+
+
 def _attribute_value_views(
     attribute_values: list[AttributeValueIn], attribute_codes: AttributeCodeIndex
 ) -> list[_AttributeValueView]:
-    """Project one form's DHIS2 attribute values onto their FSH literals, in the order DHIS2 returned them."""
+    """Project a form's annotating attribute values onto their FSH literals, in the order DHIS2 returned them."""
     views: list[_AttributeValueView] = []
     for attribute_value in attribute_values:
+        if attribute_codes.is_unique(attribute_value.attribute_uid):
+            continue
         code = attribute_codes.code_for(attribute_value.attribute_uid)
         views.append(
             _AttributeValueView(

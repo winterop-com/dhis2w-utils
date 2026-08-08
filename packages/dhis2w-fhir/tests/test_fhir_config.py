@@ -8,6 +8,7 @@ from dhis2w_fhir.config import (
     GenerateConfig,
     IgConfig,
     NoFhirProjectError,
+    ServeConfig,
     find_project_fhir_config,
     load_fhir_config,
     load_project,
@@ -122,6 +123,61 @@ def test_the_program_stage_token_is_overridable_and_validated() -> None:
     assert GenerateConfig.model_validate({"naming": {"program_stage": "Stage"}}).naming.program_stage == "Stage"
     with pytest.raises(ValidationError, match="letter-leading alphanumeric"):
         GenerateConfig.model_validate({"naming": {"program_stage": "2Stage"}})
+
+
+def test_no_timezone_means_the_instances_timestamps_are_read_as_utc() -> None:
+    """An absent `[generate] timezone` leaves DHIS2's zone-less timestamps read as UTC (BUGS.md #62)."""
+    assert GenerateConfig().timezone is None
+
+
+def test_a_named_timezone_must_be_an_iana_zone() -> None:
+    """The zone stamps every emitted dateTime, so a name the tz database does not hold is a config error."""
+    assert GenerateConfig(timezone="Asia/Vientiane").timezone == "Asia/Vientiane"
+    with pytest.raises(ValidationError, match="unknown IANA time zone 'Asia/Vientianne'"):
+        GenerateConfig(timezone="Asia/Vientianne")
+    with pytest.raises(ValidationError, match="unknown IANA time zone '\\+07:00'"):
+        GenerateConfig(timezone="+07:00")
+
+
+def test_the_timezone_survives_a_config_round_trip(tmp_path: Path) -> None:
+    """`[generate] timezone` is project config: it writes to fhir.toml and loads back off it."""
+    path = tmp_path / "fhir.toml"
+    config = _make_config()
+    config.generate.timezone = "Europe/Oslo"
+    write_fhir_config(path, config)
+    assert load_fhir_config(path).generate.timezone == "Europe/Oslo"
+
+
+def test_the_serve_table_defaults_to_loopback_and_lenient_codes() -> None:
+    """An absent `[serve]` table serves on loopback port 8080 and warns rather than refuses unknown codes."""
+    config = ServeConfig()
+    assert config.host == "127.0.0.1"
+    assert config.port == 8080
+    assert config.strict_codes is False
+
+
+def test_the_serve_table_parses_off_fhir_toml(tmp_path: Path) -> None:
+    """Where a project is served from is project config, so it loads off the document like everything else."""
+    path = tmp_path / "fhir.toml"
+    path.write_text(
+        """[ig]
+id = "dhis2.fhir.test"
+canonical = "http://example.org/fhir"
+name = "TestIg"
+title = "Test IG"
+publisher = "Test Org"
+
+[serve]
+host = "0.0.0.0"
+port = 8090
+strict_codes = true
+""",
+        encoding="utf-8",
+    )
+    serve = load_fhir_config(path).serve
+    assert serve.host == "0.0.0.0"
+    assert serve.port == 8090
+    assert serve.strict_codes is True
 
 
 def test_locales_default_to_every_locale_found() -> None:

@@ -16,6 +16,7 @@ from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, load_project
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
+from dhis2w_fhir.names import code_or_uid
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.period import parse_period, recent_periods
 from dhis2w_fhir.r4 import QuestionnaireResponse
@@ -35,8 +36,10 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleSelection,
 )
 from dhis2w_fhir.resources.option_sets import (
+    CONCEPT_MAP_DIRECTORY,
     TERMINOLOGY_DIRECTORY,
     build_option_set_artifacts,
+    build_option_set_concept_map_artifacts,
     option_set_identities,
 )
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
@@ -46,6 +49,7 @@ from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_level_terminology,
     build_organisation_unit_profiles,
     build_organisation_unit_terminology,
+    build_registry_examples,
 )
 from dhis2w_fhir.resources.organisation_units.schemas import GeoPoint, OrganisationUnitIn
 from dhis2w_fhir.resources.pages import (
@@ -55,7 +59,11 @@ from dhis2w_fhir.resources.pages import (
     build_page_artifacts,
 )
 from dhis2w_fhir.resources.pages.schemas import PagesIn
-from dhis2w_fhir.resources.questionnaires import QUESTIONNAIRE_DIRECTORIES, build_questionnaire_artifacts
+from dhis2w_fhir.resources.questionnaires import (
+    QUESTIONNAIRE_DIRECTORIES,
+    build_questionnaire_artifacts,
+    link_id_collisions,
+)
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
@@ -67,7 +75,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
 )
 from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
-from dhis2w_fhir.validation import build_code_validation
+from dhis2w_fhir.validation import build_aborting_code, build_code_validation
 from dhis2w_fhir.validation.schemas import FhirValidationReport, MetadataCollectionIn, MetadataItemIn
 from dhis2w_fhir.writer import FshArtifact, JsonArtifact, clean_generated_files, sync_artifacts, sync_json_artifacts
 
@@ -131,8 +139,9 @@ _PROGRAM_FIELDS = (
     f"id,name,code,description,programType,{_ATTRIBUTE_VALUE_FIELDS},programStages[{_PROGRAM_STAGE_FIELDS}]"
 )
 
-#: The attribute projection the emit-time code join reads - an attribute's UID and its code.
-_ATTRIBUTE_FIELDS = "id,code"
+#: The attribute projection the emit-time join reads: an attribute's UID, its code, and whether
+#: DHIS2 declares it unique - a unique value is a business identifier rather than an annotation.
+_ATTRIBUTE_FIELDS = "id,code,unique"
 
 #: The DHIS2 program types the questionnaire target maps, one selection table each.
 _EVENT_PROGRAM_TYPE = "WITHOUT_REGISTRATION"
@@ -216,6 +225,54 @@ class UnsupportedProgramError(LookupError):
     A `LookupError` so the CLI's error funnel renders it as a one-liner naming the program and
     the selection table it belongs under, rather than as a traceback.
     """
+
+
+class BuildAbortingCodeError(LookupError):
+    """Raised when a selected object's DHIS2 code would abort the IG publisher's own build.
+
+    A DHIS2 code becomes an identifier value on the resources this plugin emits, and the IG
+    publisher writes an identifier value into a table cell unescaped and then strict-parses the
+    page it just wrote. A `<` opens a tag there, and the publisher dies on the malformed cell -
+    in its final pass, after every resource has already been rendered, which on a real hierarchy
+    is the better part of an hour thrown away.
+
+    The whole run is refused rather than the one object skipped: a skipped option set leaves every
+    Questionnaire that binds it pointing at a ValueSet nobody wrote, which is a broken guide
+    published quietly instead of a build that failed loudly.
+
+    A `LookupError` for the same reason `UnsupportedProgramError` is: the CLI's error funnel
+    renders it as a one-liner naming the object and the code, rather than as a traceback.
+    """
+
+
+class _CodedObject(BaseModel):
+    """One selected DHIS2 object as the code gate reads it, before any of it is emitted."""
+
+    model_config = ConfigDict(frozen=True)
+
+    resource_type: str
+    uid: str
+    name: str
+    code: str | None = None
+
+    @property
+    def emitted_code(self) -> str:
+        """The identifier value the object really emits - its DHIS2 code, or the UID standing in for it."""
+        return code_or_uid(self.code, self.uid)
+
+
+def _refuse_build_aborting_codes(objects: list[_CodedObject]) -> None:
+    """Refuse the run before a single file is written when an emitted code aborts the publisher's build."""
+    for coded in objects:
+        if not build_aborting_code(coded.emitted_code):
+            continue
+        raise BuildAbortingCodeError(
+            f"{coded.resource_type} {coded.name!r} ({coded.uid}) has code {coded.emitted_code!r}, which carries "
+            "'<'. A DHIS2 code becomes an identifier value, which the IG publisher writes into a table cell "
+            "unescaped and then strict-parses, so `make build` aborts with \"Unable to Parse HTML - node 'td' "
+            'has unexpected content" in its last pass, once every resource has already been rendered. '
+            "Change the code in DHIS2, then run `d2w fhir validate` for the full report."
+        )
 
 
 #: How many steps `validate_codes` announces: connect, sweep, read the option sets, build the report.
@@ -443,7 +500,7 @@ def _emit_foundation(project: FhirProject, *, progress: _StepAnnouncer) -> Gener
 async def generate_option_sets(
     profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
 ) -> GenerateReport:
-    """Generate one pre-built CodeSystem and ValueSet document per configured option set into `terminology/`."""
+    """Generate a CodeSystem/ValueSet pair per option set into `terminology/`, plus its ConceptMap."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[str] = []
@@ -471,8 +528,17 @@ def _emit_option_sets(
     notes: list[str],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
-    """Build the terminology documents off an already-selected option-set list and sync them into the project."""
-    progress.step("option sets", f"writing ig/input/resources/{TERMINOLOGY_DIRECTORY}")
+    """Build the terminology pairs and their ConceptMaps off a selected option-set list and sync both directories."""
+    progress.step(
+        "option sets",
+        f"writing ig/input/resources/{TERMINOLOGY_DIRECTORY} and ig/input/resources/{CONCEPT_MAP_DIRECTORY}",
+    )
+    _refuse_build_aborting_codes(
+        [
+            _CodedObject(resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.code)
+            for option_set in option_sets
+        ]
+    )
     build = build_option_set_artifacts(
         option_sets,
         project.config.generate,
@@ -480,7 +546,14 @@ def _emit_option_sets(
         ig_status=project.config.ig.status,
         attribute_codes=attribute_codes,
     )
+    concept_maps = build_option_set_concept_map_artifacts(
+        option_sets,
+        project.config.generate,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+    )
     sync = sync_json_artifacts(project.resources_directory, TERMINOLOGY_DIRECTORY, build.artifacts)
+    concept_map_sync = sync_json_artifacts(project.resources_directory, CONCEPT_MAP_DIRECTORY, concept_maps)
     # The target writes JSON, so it also owns keeping its FSH directory empty of generated files: a
     # project whose terminology was written as FSH would otherwise hold both shapes, and SUSHI refuses
     # a definition that duplicates a pre-defined resource. Only header-bearing files are removed, so a
@@ -489,10 +562,10 @@ def _emit_option_sets(
     report = GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",
-        target_directory=f"resources/{TERMINOLOGY_DIRECTORY}",
-        deleted_files=[*sync.deleted, *superseded],
-        written_files=sync.written,
-        unchanged_count=len(sync.unchanged),
+        target_directory=f"resources/{TERMINOLOGY_DIRECTORY}, resources/{CONCEPT_MAP_DIRECTORY}",
+        deleted_files=[*sync.deleted, *concept_map_sync.deleted, *superseded],
+        written_files=[*sync.written, *concept_map_sync.written],
+        unchanged_count=len(sync.unchanged) + len(concept_map_sync.unchanged),
         option_set_count=len(option_sets),
         notes=[*notes, *build.notes],
     )
@@ -530,6 +603,12 @@ def _emit_categories(
 ) -> GenerateReport:
     """Build the category documents off an already-selected category list and sync them into the project."""
     progress.step("categories", f"writing ig/input/resources/{CATEGORY_DIRECTORY}")
+    _refuse_build_aborting_codes(
+        [
+            _CodedObject(resource_type="categories", uid=category.uid, name=category.name, code=category.code)
+            for category in categories
+        ]
+    )
     build = build_category_artifacts(
         categories,
         project.config.generate,
@@ -633,6 +712,7 @@ def _emit_questionnaires(
 ) -> GenerateReport:
     """Build the Questionnaire FSH off already-fetched sources and sync each of its four directories."""
     progress.step("questionnaires", f"writing ig/input/fsh/{{{','.join(QUESTIONNAIRE_DIRECTORIES)}}}")
+    _refuse_build_aborting_codes([_coded_source(source) for source in sources])
     build = build_questionnaire_artifacts(
         sources,
         project.config.generate,
@@ -672,6 +752,7 @@ async def generate_examples(
             sources=[],
             option_sets=[],
             option_set_plan=option_set_identities([], config),
+            published_organisation_unit_uids=frozenset(),
             notes=notes,
             progress=progress,
         )
@@ -680,6 +761,7 @@ async def generate_examples(
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_sets = await _fetch_example_option_sets(client, sources)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
+        published_uids = await _fetch_published_organisation_unit_uids(client, config)
         progress.complete(f"{len(sources):,} questionnaire target(s), {len(option_sets):,} bound option set(s)")
         return await _emit_examples(
             client,
@@ -687,6 +769,7 @@ async def generate_examples(
             sources=sources,
             option_sets=option_sets,
             option_set_plan=option_set_plan,
+            published_organisation_unit_uids=published_uids,
             notes=notes,
             progress=progress,
         )
@@ -699,6 +782,7 @@ async def _emit_examples(
     sources: list[QuestionnaireSourceIn],
     option_sets: list[OptionSetIn],
     option_set_plan: OptionSetIdentityPlan,
+    published_organisation_unit_uids: frozenset[str],
     notes: list[str],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
@@ -708,21 +792,27 @@ async def _emit_examples(
     example is a walk over `/api/dataValueSets` and `/api/tracker/events` per target, which no
     shared metadata fetch can stand in for. `client` is None only when `[generate.examples]`
     asks for no examples at all, where nothing is read and the target sweeps its directory.
+
+    `published_organisation_unit_uids` is the registry's own selection, so an `ORGANISATION_UNIT`
+    answer naming a unit the guide publishes no Location for is left unanswered rather than
+    pointed at a resource no consumer can resolve.
     """
     progress.step("examples", f"writing ig/input/fsh/{EXAMPLES_DIRECTORY}")
     artifacts: list[FshArtifact] = []
     example_count = 0
     if client is not None and project.config.generate.examples.per_target > 0:
+        published_sources = _published_sources(sources)
         responses = await _example_responses(
-            client, sources, option_sets, project.config.generate.examples, notes, progress
+            client, published_sources, option_sets, project.config.generate.examples, notes, progress
         )
         build = build_example_artifacts(
-            sources,
+            published_sources,
             responses,
             option_sets,
             project.config.generate,
             project.config.ig.canonical,
             option_set_plan=option_set_plan,
+            published_organisation_unit_uids=published_organisation_unit_uids,
         )
         artifacts = build.artifacts
         notes.extend(build.notes)
@@ -1044,6 +1134,36 @@ def _event_answers(raw_values: object) -> list[ExampleAnswerIn]:
     return answers
 
 
+#: The sweep collection each questionnaire form kind is reported under by `d2w fhir validate`, so the
+#: generate refusal and the validation finding name one object the same way.
+_SOURCE_CODE_COLLECTIONS: dict[str, str] = {
+    "aggregate": "dataSets",
+    "event": "programs",
+    "tracker-event": "programStages",
+}
+
+
+def _coded_source(source: QuestionnaireSourceIn) -> _CodedObject:
+    """One questionnaire target as the code gate reads it, named by the DHIS2 collection it came from."""
+    return _CodedObject(
+        resource_type=_SOURCE_CODE_COLLECTIONS[source.kind],
+        uid=source.uid,
+        name=source.name,
+        code=source.code,
+    )
+
+
+def _published_sources(sources: list[QuestionnaireSourceIn]) -> list[QuestionnaireSourceIn]:
+    """The forms the questionnaire target really writes a Questionnaire for.
+
+    A form that would emit one `linkId` twice is skipped whole by the questionnaire target, which
+    says so once in its own report. Examples and pages read the same list and drop the same forms
+    without a second note: an example declaring itself against a Questionnaire nobody wrote is an
+    unresolvable canonical, and an intro page narrates an artifact the guide does not hold.
+    """
+    return [source for source in sources if not link_id_collisions(source)]
+
+
 def _artifacts_under(artifacts: list[FshArtifact], directory: str) -> list[FshArtifact]:
     """The artifacts one sync directory owns - each directory is swept against its own files alone."""
     return [artifact for artifact in artifacts if artifact.relative_path.startswith(f"{directory}/")]
@@ -1059,12 +1179,7 @@ async def _fetch_organisation_units(
     A caption is overwritten rather than printed, so a fifty-page walk is no more chatty than a
     one-page one, and the plain reporter renders no caption at all.
     """
-    selection = config.organisation_units
-    filters: list[str] = []
-    if selection.root is not None:
-        filters.append(f"path:like:{selection.root}")
-    if selection.max_level is not None:
-        filters.append(f"level:le:{selection.max_level}")
+    filters = _organisation_unit_selection_filters(config)
     organisation_units: list[OrganisationUnitIn] = []
     page = 1
     while True:
@@ -1086,6 +1201,32 @@ async def _fetch_organisation_units(
         page += 1
     progress.tick(f"organisation units: {len(organisation_units):,} read across {page} page(s)")
     return organisation_units
+
+
+def _organisation_unit_selection_filters(config: GenerateConfig) -> list[str]:
+    """The server-side filters `[generate.organisation_units]` narrows the hierarchy with."""
+    selection = config.organisation_units
+    filters: list[str] = []
+    if selection.root is not None:
+        filters.append(f"path:like:{selection.root}")
+    if selection.max_level is not None:
+        filters.append(f"level:le:{selection.max_level}")
+    return filters
+
+
+async def _fetch_published_organisation_unit_uids(client: Dhis2Client, config: GenerateConfig) -> frozenset[str]:
+    """Read the UID of every organisation unit the registry target publishes a Location for.
+
+    The ids alone, unpaged, under the same filters the registry walk applies - a single small read
+    even on a national hierarchy, which is what lets the solo examples target apply the same
+    out-of-selection guard `generate full` applies without repeating the registry's full walk.
+    """
+    models: list[OrganisationUnit] = await client.resources.organisation_units.list(
+        fields="id",
+        filters=_organisation_unit_selection_filters(config) or None,
+        paging=False,
+    )
+    return frozenset(model.id for model in models if model.id)
 
 
 def _registry_scale_notes(organisation_unit_count: int) -> list[str]:
@@ -1134,6 +1275,17 @@ def _emit_organisation_units(
     progress.step(
         "organisation units", f"writing ig/input/fsh/organization and ig/input/resources/{REGISTRY_DIRECTORY}"
     )
+    _refuse_build_aborting_codes(
+        [
+            _CodedObject(
+                resource_type="organisationUnits",
+                uid=organisation_unit.uid,
+                name=organisation_unit.name,
+                code=organisation_unit.code,
+            )
+            for organisation_unit in organisation_units
+        ]
+    )
     selection = project.config.generate.organisation_units
     generate_config = project.config.generate
     ig_status = project.config.ig.status
@@ -1152,6 +1304,9 @@ def _emit_organisation_units(
         )
         registry = instances.artifacts
         notes.extend(instances.notes)
+        examples = build_registry_examples(organisation_units, generate_config, ig_status=ig_status)
+        if examples is not None:
+            artifacts.append(examples)
         if selection.terminology:
             artifacts.append(
                 build_organisation_unit_terminology(organisation_units, generate_config, ig_status=ig_status)
@@ -1218,9 +1373,14 @@ def _emit_pages(
     notes: list[str],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
-    """Build the narrative pages off what the other targets were built from - no second read of the instance."""
+    """Build the narrative pages off what the other targets were built from - no second read of the instance.
+
+    The forms are the ones the questionnaire target really writes: a form skipped for a `linkId`
+    collision gets no catalog row and no intro, because the page would link an artifact the guide
+    does not hold.
+    """
     progress.step("pages", f"writing ig/{PAGES_BASE_SUBDIRECTORY}/{PAGES_DIRECTORY}")
-    pages = PagesIn(forms=sources, option_sets=option_sets, organisation_units=organisation_units)
+    pages = PagesIn(forms=_published_sources(sources), option_sets=option_sets, organisation_units=organisation_units)
     build = build_page_artifacts(pages, project.config.generate, project.config.ig.canonical)
     sync = sync_artifacts(project.ig_directory / PAGES_BASE_SUBDIRECTORY, PAGES_DIRECTORY, build.artifacts)
     intro_count = sum(1 for artifact in build.artifacts if artifact.relative_path.endswith(INTRO_SUFFIX))
@@ -1291,6 +1451,9 @@ async def generate_full(
             sources=inputs.sources,
             option_sets=_bound_option_sets(inputs.sources, inputs.option_sets),
             option_set_plan=inputs.option_set_plan,
+            published_organisation_unit_uids=frozenset(
+                organisation_unit.uid for organisation_unit in inputs.organisation_units
+            ),
             notes=list(inputs.source_notes),
             progress=progress,
         )
@@ -1481,9 +1644,15 @@ async def resolve_attribute_code_index(client: Dhis2Client) -> AttributeCodeInde
     Unpaged: DHIS2 answers 50 attributes to a page by default, and an instance defining more
     than one page of them would otherwise lose the tail of the join silently. Attributes DHIS2
     left without a code are absent from the index - most instances code few of theirs.
+
+    The same read carries `unique`, which decides whether an attribute's values are emitted as
+    identifiers or as annotation extensions.
     """
     models: list[Attribute] = await client.resources.attributes.list(fields=_ATTRIBUTE_FIELDS, paging=False)
-    return AttributeCodeIndex(codes={model.id: model.code for model in models if model.id and model.code})
+    return AttributeCodeIndex(
+        codes={model.id: model.code for model in models if model.id and model.code},
+        unique_uids=frozenset(model.id for model in models if model.id and model.unique),
+    )
 
 
 async def _closure_sources(client: Dhis2Client, config: GenerateConfig) -> list[QuestionnaireSourceIn]:

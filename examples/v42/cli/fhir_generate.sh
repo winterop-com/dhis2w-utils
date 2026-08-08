@@ -90,7 +90,11 @@ d2w fhir generate foundation
 # (D2OS_<uid>_CS / _VS) that a Questionnaire's answerValueSet = Canonical(...) binding
 # resolves against, because SUSHI fishes a predefined resource by its name element.
 # Concept codes are DHIS2 option UIDs; the DHIS2 code rides along as a dhis2-code
-# property (set concept_code_source = "code" in fhir.toml to swap them).
+# property (set concept_code_source = "code" in fhir.toml to swap them). Beside each
+# pair the target writes ig/input/resources/concept-maps/ConceptMap-d2-os-<uid>-cm.json,
+# whose two groups take every concept code back to the DHIS2 option UID (under
+# {base}/id/option) and the DHIS2 option code (under {base}/id/option-code), so a
+# consumer holding a generated coding resolves both DHIS2 identifiers from one document.
 d2w fhir generate option-sets
 
 # Categories: the same CodeSystem/ValueSet pair per DHIS2 category, its concepts being that
@@ -179,8 +183,8 @@ d2w fhir generate pages
 # Re-running replaces previously generated .fsh and .md files (identified by their header
 # line); hand-authored ones are never touched. JSON carries no header, so each JSON target
 # owns its directory outright and clears what it did not write - option-sets owns
-# ig/input/resources/terminology/, categories owns ig/input/resources/categories/, and
-# org-units owns ig/input/resources/registry/.
+# ig/input/resources/terminology/ and ig/input/resources/concept-maps/, categories owns
+# ig/input/resources/categories/, and org-units owns ig/input/resources/registry/.
 d2w fhir generate
 
 # Every command with an instance behind it narrates its steps on stderr as they complete:
