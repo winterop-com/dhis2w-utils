@@ -300,6 +300,13 @@ def test_gitignore_covers_the_prebuilt_resource_output() -> None:
     assert "ig/input/resources/" in _by_path()[".gitignore"].splitlines()
 
 
+def test_gitignore_covers_the_serve_working_state() -> None:
+    """`.serve/` holds the received-response spool, and `load/` the generated load set - neither is IG source."""
+    ignored = _by_path()[".gitignore"].splitlines()
+    assert ".serve/" in ignored
+    assert "load/" in ignored
+
+
 def test_gitignore_covers_the_virtualenv_but_not_the_lock() -> None:
     """`.venv/` is machine-local; `uv.lock` is the pinned toolchain and belongs in git."""
     ignored = _by_path()[".gitignore"].splitlines()
@@ -485,6 +492,24 @@ def test_refresh_adds_the_prebuilt_resource_entry_to_a_stale_gitignore(tmp_path:
 
     assert report.refreshed_files == [".gitignore"]
     assert "ig/input/resources/" in ignored.read_text(encoding="utf-8").splitlines()
+
+
+def test_refresh_adds_the_serve_entries_to_a_project_scaffolded_before_them(tmp_path: Path) -> None:
+    """A project scaffolded before `d2w fhir serve` gains the spool and load-set entries on a refresh."""
+    _write_project(tmp_path)
+    ignored = tmp_path / ".gitignore"
+    ignored.write_text(
+        "reports/\nig/fsh-generated/\nig/input/resources/\nig/output/\nig/temp/\nig/template/\n"
+        "ig/input-cache/\nig/translations/\nig/Requirements-fromNarrative.json\n.venv/\n",
+        encoding="utf-8",
+    )
+
+    report = refresh_project(tmp_path)
+
+    assert report.refreshed_files == [".gitignore"]
+    lines = ignored.read_text(encoding="utf-8").splitlines()
+    assert ".serve/" in lines
+    assert "load/" in lines
 
 
 def test_refresh_never_writes_fhir_toml(tmp_path: Path) -> None:

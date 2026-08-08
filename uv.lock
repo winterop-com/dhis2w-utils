@@ -620,6 +620,9 @@ dependencies = [
 browser = [
     { name = "dhis2w-browser" },
 ]
+serve = [
+    { name = "dhis2w-fhir-serve" },
+]
 tui = [
     { name = "textual" },
 ]
@@ -629,11 +632,12 @@ requires-dist = [
     { name = "dhis2w-browser", marker = "extra == 'browser'", editable = "packages/dhis2w-browser" },
     { name = "dhis2w-core", editable = "packages/dhis2w-core" },
     { name = "dhis2w-fhir", editable = "packages/dhis2w-fhir" },
+    { name = "dhis2w-fhir-serve", marker = "extra == 'serve'", editable = "packages/dhis2w-fhir-serve" },
     { name = "rich", specifier = ">=15" },
     { name = "textual", marker = "extra == 'tui'", specifier = ">=8.2.8" },
     { name = "typer", specifier = ">=0.27.0" },
 ]
-provides-extras = ["browser", "tui"]
+provides-extras = ["browser", "tui", "serve"]
 
 [[package]]
 name = "dhis2w-client"

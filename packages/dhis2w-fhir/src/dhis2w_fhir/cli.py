@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 from dhis2w_core.cli_output import DetailRow, is_json_output, render_detail
 
-from dhis2w_fhir import DEFAULT_SUSHI_TIMEOUT_SECONDS, GenerateReport, load_project
+from dhis2w_fhir import DEFAULT_LOAD_SET_PER_TARGET, DEFAULT_SUSHI_TIMEOUT_SECONDS, GenerateReport, load_project
 
 if TYPE_CHECKING:
-    from dhis2w_fhir.service import GenerationProfile
+    from dhis2w_fhir.service import GenerationProfile, LoadSetReport
     from dhis2w_fhir.status import IgStatus
 
 app = typer.Typer(help="FHIR Implementation Guide generation from DHIS2 metadata.", no_args_is_help=True)
@@ -368,6 +368,62 @@ def generate_all_command() -> None:
     _render_generate_report("fhir generate pages", report.pages, generation)
 
 
+@generate_app.command("load")
+def generate_load_command(
+    per_target: Annotated[
+        int,
+        typer.Option(
+            "--per-target",
+            min=1,
+            help="How many synthetic responses each questionnaire target contributes.",
+        ),
+    ] = DEFAULT_LOAD_SET_PER_TARGET,
+    directory: Annotated[
+        Path | None,
+        typer.Option(
+            "--directory",
+            file_okay=False,
+            help="Where to write the `load/` corpus (default: the project root).",
+        ),
+    ] = None,
+) -> None:
+    """Write a synthetic QuestionnaireResponse corpus into load/ for posting at a running `d2w fhir serve`.
+
+    A load set is test data, not IG source: it lands beside `ig/` rather than inside it, the
+    scaffold gitignores it, and `d2w fhir generate all` does not write it.
+    """
+    from dhis2w_fhir import service
+
+    project = load_project()
+    generation = service.resolve_generation_profile(project)
+    report = asyncio.run(
+        service.generate_load_set(generation.profile, project, per_target=per_target, output_directory=directory)
+    )
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    _render_load_set_report(report, generation)
+
+
+def _render_load_set_report(report: LoadSetReport, generation: GenerationProfile) -> None:
+    """Render one load-set run the way the generate targets render theirs."""
+    render_detail(
+        "fhir generate load",
+        [
+            DetailRow("profile", f"{generation.name} ({generation.origin})"),
+            DetailRow("project", str(report.project_root)),
+            DetailRow("target", report.target_directory),
+            DetailRow("files written", str(len(report.written_files))),
+            DetailRow("unchanged", str(report.unchanged_count)),
+            DetailRow("files deleted", str(len(report.deleted_files))),
+            DetailRow("responses", str(report.response_count)),
+            DetailRow("questionnaires", str(report.questionnaire_count)),
+        ],
+    )
+    for note in report.notes:
+        typer.secho(f"note: {note}", err=True, fg=typer.colors.YELLOW)
+
+
 #: The report formats `--format` accepts, in the order they are written.
 _REPORT_FORMATS = ("md", "csv", "pdf")
 
@@ -491,6 +547,91 @@ def validate_command(
             f"{report.error_count} error(s) found; exiting 1 (--no-fail to suppress)", err=True, fg=typer.colors.RED
         )
         raise typer.Exit(code=1)
+
+
+#: What a caller is told when the serve extra is not installed. `LookupError` renders through the
+#: CLI error funnel as a one-line message, which is what an install instruction wants to be.
+_SERVE_PACKAGE_MISSING = (
+    "`d2w fhir serve` needs the dhis2w-fhir-serve package. Install it with "
+    "`uv add dhis2w-fhir-serve` or `pip install 'dhis2w-cli[serve]'`."
+)
+
+
+@app.command("serve")
+def serve_command(
+    directory: Annotated[
+        Path, typer.Argument(file_okay=False, help="Project directory (default: current directory).")
+    ] = Path("."),
+    live: Annotated[
+        bool,
+        typer.Option(
+            "--live",
+            help="Build the served resources from a DHIS2 instance at startup instead of reading the "
+            "compiled IG off disk. One client is opened during startup and closed before the first "
+            "request, so the store is a snapshot of the instance the server started against.",
+        ),
+    ] = False,
+    host: Annotated[
+        str,
+        typer.Option(
+            "--host",
+            help="Interface to bind. The default is loopback: the facade has no authentication, so "
+            "reaching it from another host is a deliberate act.",
+        ),
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8080,
+    profile: Annotated[
+        str | None,
+        typer.Option("--profile", "-p", help="DHIS2 profile the --live store reads from. Ignored without --live."),
+    ] = None,
+    strict_codes: Annotated[
+        bool,
+        typer.Option(
+            "--strict-codes",
+            help="Refuse a received answer whose code is outside the served terminology. The default "
+            "records the drift as a warning and stores the submission, because an option added to the "
+            "instance since the IG was built is a fact about the instance, not a client mistake.",
+        ),
+    ] = False,
+) -> None:
+    """Serve the project's IG as a FHIR read and capture facade over HTTP.
+
+    Reads answer from what the IG publishes. Received QuestionnaireResponses are stored as
+    receipts - submissions as they arrived - so reading one back says what was submitted, not
+    what DHIS2 holds. `--live` builds the served resources from the instance at startup.
+    """
+    try:
+        from dhis2w_fhir_serve import (
+            COMPILED_RESOURCES_RELATIVE_PATH,
+            CompiledIgMissingError,
+            ServeSettings,
+            configure_logging,
+            create_app,
+        )
+    except ImportError as error:
+        raise LookupError(_SERVE_PACKAGE_MISSING) from error
+
+    project = load_project(directory)
+    if not live and not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
+        raise CompiledIgMissingError
+    settings = ServeSettings(project_dir=directory, live=live, profile=profile, strict_codes=strict_codes)
+    configure_logging()
+    typer.secho(f"serving {project.project_root} on http://{host}:{port} (ctrl-c to stop)", err=True)
+    _run_server(create_app(settings), host=host, port=port)
+
+
+def _run_server(application: Any, *, host: str, port: int) -> None:
+    """Run one built facade under uvicorn until the process is interrupted.
+
+    The server's own logging is switched off - `configure_logging` already put one line per
+    request on stderr, and uvicorn's access log would double every one of them.
+    """
+    import uvicorn
+
+    try:
+        uvicorn.run(application, host=host, port=port, log_config=None, access_log=False)
+    except KeyboardInterrupt as interrupt:
+        raise typer.Exit(0) from interrupt
 
 
 def register(root_app: Any) -> None:

@@ -60,6 +60,9 @@ The generated site lands in `ig/output/`. `make clean` removes build output;
 `make clean-all` also drops the caches. See
 [Build time and the two caches](#build-time-and-the-two-caches).
 
+To point a FHIR client at the guide instead of publishing it, `d2w fhir serve` runs the
+compiled project as a read-and-capture endpoint - see [Serving the IG](#serving-the-ig).
+
 ## Pinned toolchain
 
 The scaffolded project is a `uv` project. `pyproject.toml` declares `dhis2w-cli`
@@ -1238,6 +1241,291 @@ the item - `INTEGER_POSITIVE` from 1, `INTEGER_ZERO_OR_POSITIVE` from 0,
 `NUMBER` carry none, because DHIS2 bounds neither. Disaggregated cells share their
 data element's value type, so they carry the same bounds.
 
+## Serving the IG
+
+`d2w fhir serve` turns a generated project into a running FHIR endpoint: it serves the
+resources the IG publishes, and it receives `QuestionnaireResponse` captures against
+them. It is the other side of the [capture contract](#the-capture-contract) - the guide
+states what a client sends, and this is a server that accepts it.
+
+The server ships as its own package, `dhis2w-fhir-serve`, because it needs FastAPI and
+uvicorn while generation needs neither:
+
+```bash
+pip install 'dhis2w-cli[serve]'      # or: uv add dhis2w-fhir-serve
+```
+
+Without it, `d2w fhir serve` says so and names both install routes rather than failing on
+an import.
+
+### Quickstart
+
+```bash
+cd demo-ig
+
+# 1. Generate the IG source and compile it. The facade serves what SUSHI wrote,
+#    so a project that has never been compiled has nothing to serve.
+d2w fhir generate all
+make sushi
+
+# 2. Serve it. Loopback and port 8080 by default; ctrl-c stops it.
+d2w fhir serve
+```
+
+Then, from another shell:
+
+```bash
+# What this server is: a kind #instance CapabilityStatement that instantiates the
+# IG's own D2CaptureServer, narrowed to the types this store actually holds.
+curl -s localhost:8080/metadata | jq '.software, .implementation.description'
+
+# Read one resource, byte-faithful to what the project published.
+curl -s localhost:8080/Questionnaire/BfMAe6Itzgt | jq .title
+
+# Search: _id, url, and identifier, answered as a searchset Bundle.
+curl -s 'localhost:8080/Questionnaire?_id=BfMAe6Itzgt,Nyh6laLdBEJ' | jq .total
+
+# The identifier search is how a program's stages are selected - the same query the
+# published guide documents, answered by this server.
+curl -s 'localhost:8080/Questionnaire?identifier=http://example.org/fhir/demo/id/program|IpHINAT79UW' \
+  | jq '.entry[].resource.title'
+```
+
+Six resource types are served: `Questionnaire`, `CodeSystem`, `ValueSet`, `Location`,
+and `Organization` - the read set a capture client resolves a form from - plus
+`QuestionnaireResponse`, which is the one type the facade also receives. Anything else
+is refused with an OperationOutcome saying this server does not serve that type, rather
+than a bare 404 that would read as "no such resource".
+
+Within one search parameter, comma-separated values are alternatives; across parameters
+they combine (`?_id=a,b&url=x` matches the resource that is both). An unrecognised
+parameter is ignored rather than refused, and the Bundle's `self` link echoes back only
+the parameters the server actually applied, so a client can see what it got.
+
+### The two modes
+
+| Mode | What the store holds | What it needs |
+| --- | --- | --- |
+| default | `ig/fsh-generated/resources` (what SUSHI compiled) merged with `ig/input/resources/` (the registry, terminology, and category JSON the generate targets wrote, which SUSHI never re-emits) | a compiled IG on disk; no DHIS2 connection at all |
+| `--live` | the same read set, built straight off a DHIS2 instance at startup | a reachable instance and a resolvable profile; no compile step |
+
+The default mode is fully offline. If the project has never been compiled, the server
+refuses to start and says what to run:
+
+```
+error: no compiled IG at ig/fsh-generated/resources - run `d2w fhir generate`,
+then `make sushi` in the project, and serve again.
+```
+
+`--live` skips that check and builds the store through one DHIS2 client, opened during
+startup and closed before the first request arrives. Nothing in the request path ever
+talks to DHIS2. The profile comes from `--profile/-p`, then `DHIS2_PROFILE`, then the
+`profile` key of `fhir.toml` - the same chain `d2w fhir generate` uses. What `--live`
+serves is byte-identical to what the compiled store would have served for the same
+metadata, because both come out of the same JSON builders.
+
+Live mode serves the read set and not the foundation artifacts: StructureDefinitions,
+the extensions, and the IG's own `kind #requirements` CapabilityStatement are authored
+as FSH and only exist as JSON once SUSHI has compiled them, and no FSH compiler runs in
+the server. `/metadata` still names the IG's statement by canonical, which needs no
+artifact to state.
+
+### Stored responses are receipts
+
+This is the one thing to be clear about before pointing a client at it.
+
+A response the facade accepted is stored as a **receipt**: the submission exactly as it
+arrived, stamped with the id it is now served under. Reading it back through
+`GET /QuestionnaireResponse/{id}` tells you *what was submitted*, never what DHIS2 now
+holds. DHIS2 remains the system of record; a receipt is evidence of a submission, not a
+view of data.
+
+That matters because two obvious questions have different answers today:
+
+- *"What did this client send me?"* - answered, by reading the spool.
+- *"What does DHIS2 currently hold for this form, period, and org unit?"* - not answered
+  here. Querying current data through FHIR is a read-proxy this facade does not yet
+  implement.
+
+Forwarding a receipt into DHIS2 - turning it into data values, events, and enrollments -
+is the next phase, planned in
+[the FHIR conversion layer](../project/fhir-conversion.md). Until it lands, accepting a
+capture means the submission was understood and kept, and nothing has been written to an
+instance. The server says so itself: every accepted capture answers with an
+OperationOutcome carrying that sentence, and `/metadata` states it in
+`implementation.description`.
+
+### Posting a capture
+
+`POST /QuestionnaireResponse` is the only write. One response per request - a Bundle is
+refused with a message saying so.
+
+```bash
+curl -s -X POST localhost:8080/QuestionnaireResponse \
+  -H 'Content-Type: application/fhir+json' \
+  --data-binary @response.json -D -
+```
+
+An accepted capture answers `201 Created` with a `Location` header naming where the
+receipt is served from, and an OperationOutcome body:
+
+```
+HTTP/1.1 201 Created
+location: http://localhost:8080/QuestionnaireResponse/6f1c...  (32 hex characters)
+content-type: application/fhir+json
+```
+
+```json
+{
+  "resourceType": "OperationOutcome",
+  "issue": [
+    {
+      "severity": "information",
+      "code": "informational",
+      "diagnostics": "stored response 6f1c...; a stored response is the submission as received - a receipt, not a live view of DHIS2 data"
+    }
+  ]
+}
+```
+
+A refused capture answers with the same resource type and a different severity.
+Validation runs in phases, and the phase that finds an error is the last one to run, so
+a rejection is readable rather than a wall of consequences:
+
+| Phase | What it checks | Status |
+| --- | --- | --- |
+| 0 | the body is JSON, is a `QuestionnaireResponse`, and parses as one | 400 |
+| 1 | the `D2FormType` kind, then the invariants that kind's profile pins | 422 |
+| 2 | the `questionnaire` canonical, the served Questionnaire it names, and its item index | 422 |
+| 3 | an aggregate response's `D2Period` - its ISO period, its type, and the range it claims | 422 |
+| 4 | every answer against the index: link ids, cardinality, value types, terminology | 422 |
+
+Inside one phase every issue is collected, so one round trip reports every problem at
+that level. Each issue names where it is with a FHIRPath `expression`:
+
+```json
+{
+  "resourceType": "OperationOutcome",
+  "issue": [
+    {
+      "severity": "error",
+      "code": "not-found",
+      "expression": ["QuestionnaireResponse.item.where(linkId = 's46m5MS0hxu')"],
+      "diagnostics": "`s46m5MS0hxu` is not a question of this questionnaire"
+    }
+  ]
+}
+```
+
+**Warnings never reject.** They record what the server had to interpret or could not
+check, and they ride back on the OperationOutcome of the accepted capture *and* into the
+stored receipt, so the interpretation is discoverable later.
+
+### Coded answers: lenient by default
+
+The generated CodeSystem carries every DHIS2 option twice - the concept code the
+contract asks for, plus the other spelling as a `dhis2-id` or `dhis2-code` property (see
+[`concept_code_source`](#generate)). So a client that sends the DHIS2 UID where the
+contract wanted the option code has still named exactly one option, unambiguously.
+
+By default the server resolves it, stores the submission, and warns:
+
+```
+linkId eY5ehpbEsB7: code 'Op1aaaaaaaa' matched option Op1aaaaaaaa by option-uid;
+the contract expects concept code 'MALE'
+```
+
+A code the served terminology holds under no spelling is also a warning by default - a
+generated IG is compiled from an instance at a point in time, and an option added since
+is a fact about the instance rather than a mistake by the client.
+
+`--strict-codes` flips both into refusals: only the concept code is accepted, and
+anything else is a 422. One case is refused under either setting - two options matching
+one code is an ambiguity the server cannot resolve and leniency cannot paper over.
+
+The published contract stays strict either way. Leniency is a property of this server's
+runtime, not of what the IG asks for.
+
+### The spool on disk
+
+Receipts are held in memory for reads and mirrored to the project:
+
+```
+demo-ig/.serve/responses/received/<id>.json
+```
+
+Each file holds the response as received plus the receipt metadata around it - when it
+was accepted, which form kind it declared, which questionnaire it answered, and every
+warning recorded against it. Writes are atomic (a temporary file, then a rename), so a
+crash never leaves a half-written receipt, and a restart rebuilds the index by scanning
+the directory.
+
+`ls .serve/responses/received | wc -l` is therefore the pending count, with no extra
+bookkeeping: the directory *is* the queue the forwarding phase will drain, which is why
+it is named `received/` rather than `responses/` - its sibling arrives with that phase.
+
+`.serve/` is gitignored by the scaffold. A project scaffolded before the entry existed
+gains it from `d2w fhir init . --refresh`.
+
+To read receipts back:
+
+```bash
+curl -s localhost:8080/QuestionnaireResponse/6f1c... | jq .
+curl -s 'localhost:8080/QuestionnaireResponse?questionnaire=http://example.org/fhir/demo/Questionnaire/BfMAe6Itzgt' \
+  | jq .total
+```
+
+The spool search takes `_id` and `questionnaire`; the definitional types take `_id`,
+`url`, and `identifier`.
+
+### Generating a load set
+
+`d2w fhir generate load` writes a synthetic corpus to POST at a running facade:
+
+```bash
+d2w fhir generate load --per-target 5     # 5 responses per questionnaire target
+ls load/                                  # one QuestionnaireResponse JSON per response
+```
+
+It is the volume twin of `d2w fhir generate examples` - the same fetch, the same seeded
+generator, the same document builder - differing only in count and destination. An IG
+publishes one example per form because more stop illustrating; a load set wants as many
+as a POST loop can chew through, so `--per-target` (default 25) is not bounded the way
+`[generate.examples] per_target` is. Values are seeded from the target UID and the
+ordinal, so a rerun over unchanged metadata writes byte-identical files and reports every
+one of them unchanged. `--directory` relocates the corpus off the project root.
+
+Then post the lot:
+
+```bash
+for response in load/*.json; do
+  curl -s -o /dev/null -w '%{http_code} %{url_effective}\n' \
+    -X POST localhost:8080/QuestionnaireResponse \
+    -H 'Content-Type: application/fhir+json' \
+    --data-binary "@${response}"
+done
+
+curl -s 'localhost:8080/QuestionnaireResponse' | jq .total   # every receipt now stored
+```
+
+**`load/` is not IG source.** It sits beside `ig/` rather than inside it, the scaffold
+gitignores it, and `d2w fhir generate all` deliberately does not write it - a load set
+is test data, and the IG publisher has no business rendering a page per synthetic
+response.
+
+### What this server is not
+
+- **One process, one project.** There is no clustering and no shared state. The spool
+  assumes a single writing process, which is what `d2w fhir serve` is.
+- **The store is a snapshot.** It is read once at startup - from disk, or from the
+  instance under `--live` - and never re-read. Regenerate, recompile, or re-fetch, then
+  restart the server to serve the new state.
+- **No authentication.** That is why the default bind is `127.0.0.1`. Exposing the
+  facade beyond loopback with `--host` is a deliberate act, and puts the endpoint behind
+  something that authenticates.
+- **No forwarding yet.** Nothing here writes to DHIS2; see
+  [the FHIR conversion layer](../project/fhir-conversion.md) for the plan.
+
 ## Site pages and intros
 
 `d2w fhir generate pages` writes the guide's prose. It is the last target `generate
@@ -1870,5 +2158,11 @@ instance in a few minutes.
   laid out and why.
 - [`dhis2w_fhir` API reference](../api/fhir.md) - the importable surface: the period
   grammar, the `fhir.toml` models, and the artifact builders.
+- [`dhis2w_fhir_serve` API reference](../api/fhir-serve.md) - the facade behind
+  [`d2w fhir serve`](#serving-the-ig): the store, the spool, and the capture path.
+- [The FHIR conversion layer](../project/fhir-conversion.md) - the plan for forwarding
+  a stored receipt into DHIS2.
 - [`examples/v42/cli/fhir_generate.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/fhir_generate.sh) -
   the same flow as a runnable script.
+- [`examples/v42/cli/fhir_serve.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/fhir_serve.sh) -
+  generate, compile, serve, post a load set, read the receipts back.

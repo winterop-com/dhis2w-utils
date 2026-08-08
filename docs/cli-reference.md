@@ -9935,6 +9935,7 @@ $ d2w fhir [OPTIONS] COMMAND [ARGS]...
 
 * `init`: Scaffold a dockerized SUSHI IG project...
 * `validate`: Check the instance&#x27;s codes for...
+* `serve`: Serve the project&#x27;s IG as a FHIR read and...
 * `generate`: Generate FSH files from DHIS2 metadata...
 
 ### `d2w fhir init`
@@ -9989,6 +9990,33 @@ $ d2w fhir validate [OPTIONS]
 * `--no-fail`: Exit 0 even when errors are found.
 * `--help`: Show this message and exit.
 
+### `d2w fhir serve`
+
+Serve the project&#x27;s IG as a FHIR read and capture facade over HTTP.
+
+Reads answer from what the IG publishes. Received QuestionnaireResponses are stored as
+receipts - submissions as they arrived - so reading one back says what was submitted, not
+what DHIS2 holds. `--live` builds the served resources from the instance at startup.
+
+**Usage**:
+
+```console
+$ d2w fhir serve [OPTIONS] [directory]
+```
+
+**Arguments**:
+
+* `directory`: Project directory (default: current directory).  [default: .]
+
+**Options**:
+
+* `--live`: Build the served resources from a DHIS2 instance at startup instead of reading the compiled IG off disk. One client is opened during startup and closed before the first request, so the store is a snapshot of the instance the server started against.
+* `--host <str>`: Interface to bind. The default is loopback: the facade has no authentication, so reaching it from another host is a deliberate act.  [default: 127.0.0.1]
+* `--port <int>`: Port to listen on.  [default: 8080]
+* `-p, --profile <str>`: DHIS2 profile the --live store reads from. Ignored without --live.
+* `--strict-codes`: Refuse a received answer whose code is outside the served terminology. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
+* `--help`: Show this message and exit.
+
 ### `d2w fhir generate`
 
 Generate FSH files from DHIS2 metadata into the nearest FHIR project.
@@ -10013,6 +10041,7 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 * `org-units`: Generate Organization/Location FSH from...
 * `pages`: Generate the narrative site pages and the...
 * `all`: Generate the foundation, terminology,...
+* `load`: Write a synthetic QuestionnaireResponse...
 
 #### `d2w fhir generate foundation`
 
@@ -10130,4 +10159,23 @@ $ d2w fhir generate all [OPTIONS]
 
 **Options**:
 
+* `--help`: Show this message and exit.
+
+#### `d2w fhir generate load`
+
+Write a synthetic QuestionnaireResponse corpus into load/ for posting at a running `d2w fhir serve`.
+
+A load set is test data, not IG source: it lands beside `ig/` rather than inside it, the
+scaffold gitignores it, and `d2w fhir generate all` does not write it.
+
+**Usage**:
+
+```console
+$ d2w fhir generate load [OPTIONS]
+```
+
+**Options**:
+
+* `--per-target <int range>`: How many synthetic responses each questionnaire target contributes.  [default: 25; x&gt;=1]
+* `--directory <directory>`: Where to write the `load/` corpus (default: the project root).
 * `--help`: Show this message and exit.

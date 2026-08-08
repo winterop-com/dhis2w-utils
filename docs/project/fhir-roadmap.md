@@ -56,12 +56,13 @@ models and ship no templates.
 | --- | --- |
 | `__init__.py` | The one stable import surface: re-exports every component symbol with an explicit `__all__`. |
 | `plugin.py` | The `dhis2.plugins` entry-point descriptor - `register_cli` mounts `d2w fhir`, `register_mcp` registers `fhir_*`. |
-| `cli.py` | The Typer sub-app: `init` (including its `--refresh` mode), the seven `generate` sub-commands, and `validate`. |
+| `cli.py` | The Typer sub-app: `init` (including its `--refresh` mode), the seven `generate` sub-commands plus `generate load`, `validate`, and `serve` - the last guarding its `dhis2w_fhir_serve` import so an install without the `serve` extra gets an install instruction rather than an `ImportError`. |
 | `mcp.py` | The FastMCP registration - one tool, `fhir_validate`, annotated `readOnlyHint`. |
-| `service.py` | Orchestration: profile resolution, every DHIS2 fetch, the wire-to-projection mapping, geometry, and `GenerateReport` / `GenerateAllReport`. |
+| `service.py` | Orchestration: profile resolution, every DHIS2 fetch, the wire-to-projection mapping, geometry, and `GenerateReport` / `GenerateAllReport` / `LoadSetReport`. `fetch_live_ig_inputs` is the one cohesive fetch a live server runs, and `generate_load_set` the volume twin of `generate_examples`. |
 | `config.py` | The `fhir.toml` document (`IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`, `FhirProject`) plus discovery, load, and save. |
 | `writer.py` | The generated-artifact contracts (`FshArtifact`, `FshBuild`, `JsonArtifact`, `JsonBuild`, `SyncReport`), the header-aware sync behind the FSH one, and the directory-owning `sync_json_artifacts` behind the JSON one. |
-| `r4/schemas.py` | The FHIR R4 models every pre-built JSON document is serialised from. The R4 roots: `FhirBase` (the pydantic carrier - frozen, alias-aware, `extra="forbid"` - not a FHIR type), `Element`, `BackboneElement`, `Resource`, `DomainResource`. The resources: `Organization`, `Location`, `CodeSystem`, `ValueSet`. The datatypes: `Meta`, `Identifier`, `Coding`, `CodeableConcept`, `Reference`, `ContactPoint`, `HumanName`, `Attachment`, `Extension`. The backbone elements: `OrganizationContact`, `LocationPosition`, `CodeSystemProperty`, `CodeSystemConcept`, `CodeSystemConceptProperty`, `CodeSystemConceptDesignation`, `ValueSetCompose`, `ValueSetInclude`. Plus `BOUNDARY_EXTENSION_URL`. |
+| `r4/schemas.py` | The FHIR R4 models every pre-built JSON document is serialised from. The R4 roots: `FhirBase` (the pydantic carrier - frozen, alias-aware, `extra="forbid"` - not a FHIR type), `Element`, `BackboneElement`, `Resource`, `DomainResource`. The resources: `Organization`, `Location`, `CodeSystem`, `ValueSet`, `Questionnaire`, `QuestionnaireResponse`, `Bundle`, `OperationOutcome`, `CapabilityStatement`, and `JsonResource` (a resource carried verbatim, which is how a Bundle entry holds a document the facade passes through). The datatypes: `Meta`, `Identifier`, `Coding`, `CodeableConcept`, `Reference`, `ContactPoint`, `HumanName`, `Attachment`, `Extension`. The backbone elements: `OrganizationContact`, `LocationPosition`, `CodeSystemProperty`, `CodeSystemConcept`, `CodeSystemConceptProperty`, `CodeSystemConceptDesignation`, `ValueSetCompose`, `ValueSetInclude`. Plus `BOUNDARY_EXTENSION_URL`. |
+| `r4/primitives.py` | The lexical and semantic checks for R4's primitive types - `FHIR_DATE_PATTERN`, `FHIR_DATE_TIME_PATTERN`, `FHIR_TIME_PATTERN`, `is_fhir_date`, `is_fhir_time`, `is_fhir_date_time`, `is_calendar_date`, `zoned_date_time`, `seconds_precision`. Shared by the emitters that write a value and the capture path that reads one. |
 | `names.py` | Slug, FSH-literal, escaping, and URI helpers - `pascal`, `kebab`, `quote`, `page_text`, `markdown_text`, `fsh_code`, `join_id_tokens`, `join_name_segments`, `is_valid_fhir_code`, `describe_code_defect`, `is_valid_fhir_id`, `code_or_uid`. |
 | `i18n.py` | DHIS2 translations: the `TranslationIn` projection, `normalize_locale`, `name_translations`, and `TRANSLATION_EXTENSION_URL`. |
 | `attributes.py` | DHIS2 attribute values: the `AttributeValueIn` projection (attribute UID plus the string value, which is all DHIS2 sends) and `AttributeCodeIndex`, the `uid -> code` join whose `code_for` returns `None` for an uncoded attribute. |
@@ -80,8 +81,10 @@ models and ship no templates.
 | `resources/categories/__init__.py` | The pre-built CodeSystem/ValueSet JSON pair per DHIS2 category, `CATEGORY_DIRECTORY`, `build_category_artifacts`, `category_identities`, `category_fsh_name`, `max_category_slug_length`. Concepts are built by the option-set component's `build_concepts`, so both terminology sources assign concept codes in one place. |
 | `resources/categories/schemas.py` | `CategorySelection`, `CategoryIn` (a `ConceptSourceIn`), `CategoryIdentity`, `CategoryIdentityPlan`. |
 | `resources/questionnaires/__init__.py` | One Questionnaire per form plus the two support terminology pairs; `ITEM_TYPES_BY_VALUE_TYPE`, `BOUNDS_BY_VALUE_TYPE`, `QUESTIONNAIRE_DIRECTORIES`, `domain_code`, `is_multi_valued`. |
+| `resources/questionnaires/documents.py` | The JSON twin of the FSH emitter: `build_questionnaire_documents` and `build_data_dictionary_documents` return finished R4 documents with every name already absolute, through the same exported decisions (`item_type`, `is_disaggregated`, `source_description`, `source_program`, `FormKindProfile` / `FORM_KIND_PROFILES`) the FSH path calls. `test_fhir_questionnaire_parity.py` gates the equality against SUSHI output. |
 | `resources/questionnaires/schemas.py` | `TargetSelection`, `NumericBounds`, `CategoryOptionComboIn`, `CategoryComboIn`, `QuestionnaireItemIn`, `QuestionnaireSectionIn`, `QuestionnaireSourceIn`, `QuestionnaireNaming`, the `FormKind` alias. |
 | `resources/examples/__init__.py` | The `Usage: #example` QuestionnaireResponse per example, `build_synthetic_responses`, `answer_element`, `zoned_date_time`, `response_status_code`, and the whole answer-typing layer. |
+| `resources/examples/documents.py` | `build_example_documents` - the same responses as finished `QuestionnaireResponse` documents, which is what `d2w fhir generate load` writes into `load/`. |
 | `resources/examples/schemas.py` | `ExampleSelection`, `ExampleAnswerIn`, `ExampleResponseIn`, `ExampleSource`, `MAXIMUM_EXAMPLES_PER_TARGET`. |
 | `resources/organisation_units/__init__.py` | Re-exports the five org-unit builders, `REGISTRY_DIRECTORY`, and `BOUNDARY_CONTENT_TYPE`. |
 | `resources/organisation_units/naming.py` | `OrganisationUnitNaming` and `OrganisationUnitInstanceUrls` - every org-unit artifact name, id, and instance URL from the naming tokens. A leaf, which is why `foundation/` can read it without a cycle. |
@@ -144,6 +147,37 @@ own: `foundation`, `option-sets`, `categories`, `questionnaires`, `examples`,
 seven reports). Every one of them calls `load_project()` and then
 `service.resolve_generation_profile(project)`. `--json` (the global
 `is_json_output()` switch) dumps the report model instead of the Rich table.
+
+**`d2w fhir generate load`** - the eighth target, and the one `all` does not run.
+
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `--per-target` | `25` (`DEFAULT_LOAD_SET_PER_TARGET`) | Synthetic responses per questionnaire target. Below 1 is refused by Typer's `min=1`. |
+| `--directory` | the project root | Where the `load/` corpus is written, for a caller filling a scratch directory. |
+
+It writes finished `QuestionnaireResponse` JSON rather than FSH, seeded from the
+target UID and the ordinal so a rerun over unchanged metadata is byte-identical.
+It stays out of `generate all` deliberately: a load set is a corpus to POST at a
+running facade, not IG source, so it lands beside `ig/` and the scaffold
+gitignores it.
+
+**`d2w fhir serve [DIRECTORY]`** - run the project as a FHIR read and capture
+facade. `DIRECTORY` defaults to `.`.
+
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `--live` | off | Build the served resources off a DHIS2 instance at startup instead of reading the compiled IG. Also skips the compiled-IG preflight. |
+| `--host` | `127.0.0.1` | Interface to bind. Loopback by default: the facade has no authentication. |
+| `--port` | `8080` | Port to listen on. |
+| `--profile` / `-p` | unset | The DHIS2 profile the `--live` store reads from. Ignored without `--live`. |
+| `--strict-codes` | off | Refuse a received answer whose code is outside the served terminology, instead of recording a warning. |
+
+The command body guards its import of `dhis2w_fhir_serve` and raises a
+`LookupError` naming both install routes when the `serve` extra is absent, which
+the CLI error funnel renders as one line. Before uvicorn starts it loads the
+project and - unless `--live` - checks the compiled tree, so a project that was
+never compiled is refused by `CompiledIgMissingError` with the message that error
+owns. `KeyboardInterrupt` exits 0: ctrl-c is how a server is stopped.
 
 **`d2w fhir validate`**
 
@@ -234,7 +268,7 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 | `pyproject.toml` | The IG project as a uv project - `dhis2w-cli` and `dhis2w-fhir` both from git on `main`, so the CLI and its plugin are one build, until the packages are published. |
 | `Makefile` | `help / setup / upgrade / generate / validate / cache-init / sushi / build / clean / clean-all / refresh`, `D2W ?= uv run d2w`, `TX_SERVER ?= http://tx.fhir.org`, `JAVA_HEAP ?= 4g` (the publisher JVM heap - too large for the docker VM and the kernel OOM-kills the build with exit 137), and the `fhir-ig-cache` named volume. |
 | `Dockerfile` | `ghcr.io/fhir/ig-publisher-localdev` plus the latest `publisher.jar` and `fsh-sushi`. |
-| `.gitignore` | Build output, both caches, publisher side products, `ig/input/resources/` (the generated registry and terminology JSON, rebuilt from the instance in a few minutes), `reports/`, and `.venv/`. Never `uv.lock`, never `ig/input/fsh/`. |
+| `.gitignore` | Build output, both caches, publisher side products, `ig/input/resources/` (the generated registry and terminology JSON, rebuilt from the instance in a few minutes), `reports/`, `.serve/` (the received-response spool a running facade writes), `load/` (the generated load set), and `.venv/`. Never `uv.lock`, never `ig/input/fsh/`. |
 
 ### 2.6 Every generated artifact kind and where it lands
 
@@ -320,6 +354,13 @@ itself additionally calls `/api/system/info` on connect to bind the version tree
 Note the shape of `generate all`: it opens and closes a client per target,
 `/api/optionSets` is fetched by four of the seven targets, and `/api/attributes`
 by four. That is a seam Dimension A owns.
+
+Two callers read the same endpoints through one client rather than seven.
+`fetch_live_ig_inputs` is the cohesive fetch behind `d2w fhir serve --live`: option
+sets, categories, organisation units, questionnaire sources, the identity plan, and
+the attribute-code join, over a single connection held for the whole startup fetch and
+closed before the first request. `generate_load_set` behind `d2w fhir generate load`
+reads the example inputs the same way.
 
 ## 3. Settled decisions and why
 
@@ -694,9 +735,18 @@ DHIS2 code, so a client that read the DHIS2 metadata directly still round-trips.
 (b) Accept only the code exactly as generated, so the IG is the single authority
 and a mismatch is a client bug rather than a silent reinterpretation.
 
-**Depends on it.** Nothing today - it blocks nothing until the proxy exists. It
-will decide how strict the proxy's answer resolution is and whether
-`concept_assignments` needs an inverse lookup published anywhere.
+**Depends on it.** The published contract, which stays strict: the IG asks for
+the concept code it generated, and nothing here loosens that.
+
+**Provisionally lenient at serve.** `d2w fhir serve` resolves a coded answer in
+three tiers - concept code, option UID, DHIS2 code - stores the submission, and
+warns on anything below the first, because a generated IG is compiled from an
+instance at a point in time and an option added since is a fact about the
+instance rather than a client mistake. `--strict-codes` refuses instead.
+`capture/validate.py`'s `DEFAULT_STRICT_CODES` is the single flip point for the
+decision when the owner makes it; `ServeSettings.strict_codes` is the runtime
+value a request is validated against. Two options matching one code is refused
+under either setting - that is ambiguity, not leniency.
 
 ### 5.2 The tracker shape
 
@@ -747,7 +797,11 @@ for every target language. (c) A language-neutral mapping manifest emitted by
 the generator, which every buildpack codegens from.
 
 **Depends on it.** This also decides what `d2w fhir build` codegens. It is the
-single largest open architectural question in the conversion layer.
+single largest open architectural question in the conversion layer, whose phased
+plan lives in [the FHIR conversion layer](fhir-conversion.md): that plan builds the
+typed Python forwarder first and asks this question of the result, so what is left
+to decide is the phase-B carrier - StructureMaps with a residue manifest, or a
+manifest alone.
 
 ### 5.4 Where `attributeOptionCombo` and data-set completeness live
 
@@ -882,6 +936,32 @@ calendar.
   limited server the level-1 unit may simply be invisible - which reads as "no
   examples" rather than "no permission".
 
+**What the shipped facade concluded.** `d2w fhir serve` answers the risks above
+by construction rather than by hardening the generator, and the shapes it chose
+are the record of the review:
+
+- **The profile is resolved once**, in the lifespan, before any request exists -
+  so `resolve_generation_profile` reading `os.environ` at call time is read once
+  per process rather than once per request.
+- **One client, startup only.** `build_live_store` opens a client, fetches the
+  whole instance side through the single cohesive `fetch_live_ig_inputs`, and
+  closes it before the first request. No request path holds a DHIS2 connection,
+  which is also why the seven-`open_client` shape of `generate all` never becomes
+  a server problem.
+- **The store is immutable and shared.** Frozen models, indexes built once in
+  `model_post_init`, reads that are dict lookups - concurrency needs no locking
+  on the read side, and nothing invalidates the store because nothing can: it is
+  a snapshot of a compiled build or of the instance at startup, and a restart is
+  how it is refreshed.
+- **The one writer needs no lock either.** `sync_artifacts`' unlocked
+  read-compare-write-sweep stays a generator concern: the facade never generates.
+  Its only write is the spool, whose single-writer assumption is exactly one
+  server process, and whose writes are atomic renames.
+- **Partial failure is a refusal to start.** `CompiledIgMissingError` or an
+  unreachable instance propagates out of the lifespan and the server does not come
+  up, rather than serving an empty IG that reads to a client as a project that
+  published nothing.
+
 ### Dimension B - the capture contract read adversarially
 
 **The question a reviewer answers.** Can a `QuestionnaireResponse` that fully
@@ -905,9 +985,12 @@ section UID, which shares a namespace with the data element ids.
 
 *The answer typing.* `resources/examples/__init__.py`: `answer_element`,
 `_typed_answer`, `_typed_answers`, `_coded_answer`, `_temporal_answer`,
-`_integer_answer`, `_decimal_answer`, `_boolean_answer`, and the four regex
-constants `_FHIR_DATE_PATTERN`, `_FHIR_DATE_TIME_PATTERN`, `_FHIR_TIME_PATTERN`,
-`_FSH_DECIMAL_PATTERN`, `_FSH_INTEGER_PATTERN`.
+`_integer_answer`, `_decimal_answer`, `_boolean_answer`, and its two FSH literal
+patterns `_FSH_DECIMAL_PATTERN` / `_FSH_INTEGER_PATTERN`. The R4 primitive checks
+sit one level down in `r4/primitives.py` - `FHIR_DATE_PATTERN`,
+`FHIR_DATE_TIME_PATTERN`, `FHIR_TIME_PATTERN` and the `is_fhir_*` readings over
+them - which is what lets the capture path check a received value against exactly
+what the emitter would have written.
 
 *The prose contract.* `docs/guides/fhir-ig.md`, the "The capture contract"
 section, and the generated `capture.md` behind
@@ -1219,33 +1302,56 @@ commitment.
 
 ### 9.1 Near-term
 
-- **`d2w fhir serve`** - one verb, two modes (FastAPI per repository convention,
-  read-only endpoints with a generated `CapabilityStatement`).
+- **`d2w fhir serve`, phase 1** - shipped: read, receive, and spool, in the
+  `dhis2w-fhir-serve` member behind the `dhis2w-cli[serve]` extra.
 
-    The **default** serves the compiled IG resources out of `fsh-generated`:
-    per-type reads, type-level Bundles, `?url=` / `?_id=` search, and a
-    `/metadata` CapabilityStatement reflecting what is actually loaded. A missing
-    `fsh-generated/` fails loud ("run generate + sushi first"), never an empty
-    server. Structured request lines double as the observation layer - the log of
-    what consumers actually ask for prioritises what `--live` learns to translate
-    first.
+    The **default** serves the compiled `fsh-generated/resources` merged with the
+    predefined `input/resources/` tree SUSHI never re-emits: `/metadata` as a
+    `kind #instance` CapabilityStatement instantiating the IG's own
+    `D2CaptureServer`, per-type reads, and `?_id=` / `?url=` / `?identifier=`
+    search answered as searchset Bundles. A missing compiled tree fails loud
+    ("run generate + sushi first"), never an empty server. One structured line per
+    request is the observation layer - the log of what consumers actually ask for
+    is what prioritises the read-proxy work below.
 
-    **`--live`** translates on the fly from the instance the project points at.
-    Its real work item is a **JSON builder path beside the FSH templates**, fed by
-    the same `*In` projections and the identity single-sources
-    (`option_set_identities`, `concept_assignments`, the naming helpers), which is
-    what keeps live-served ids and canonicals byte-compatible with the generated
-    IG. That layer is also shared groundwork for `fhir build`'s conversion
-    codegen. Same routes, same shapes - the flag only decides where a resource
-    comes from, which is what makes it the fast half of the edit loop.
+    **`--live`** builds the same read set off the instance at startup, through one
+    client opened in the lifespan and closed before the first request. Its real
+    work item was the **JSON builder path beside the FSH templates**, which
+    shipped with it: `build_questionnaire_documents` and
+    `build_data_dictionary_documents` are the twins of the FSH questionnaire
+    emitter, fed by the same `*In` projections and identity single-sources, and
+    `test_fhir_questionnaire_parity.py` gates each built document against SUSHI's
+    own output key for key. That layer is also the groundwork `fhir build`'s
+    conversion codegen stands on.
 
-    Dimension A of section 6 exists to de-risk exactly this item.
+    **Receive** is the half the original item did not name. `POST
+    /QuestionnaireResponse` validates a submission against the served IG in
+    phases and stores it as a receipt - the submission as it arrived, mirrored to
+    `.serve/responses/received/`. Reading one back says what was submitted, not
+    what DHIS2 holds. `d2w fhir generate load` writes the corpus to exercise it.
+
+    Dimension A of section 6 de-risked this item; its outcomes are recorded there.
 
 - **Curated `Usage: #example` instances for the registry profiles.**
   `D2Organization` and `D2Location` publish no worked example, because the
   example target only covers what a questionnaire is answered with.
 
 ### 9.2 Mid-term
+
+- **Forward stored responses into DHIS2.** The spool is a queue of receipts and
+  nothing drains it: `d2w fhir serve` accepts a submission, stores it, and writes
+  nothing to an instance. Turning a receipt into data values, events, and
+  enrollments - and reporting back what the import did - is the next phase, and
+  the `received/` directory is named for the sibling that phase adds. The plan is
+  [the FHIR conversion layer](fhir-conversion.md), in phases A, B, and C - phase A
+  is a typed Python forwarder that waits on nothing, and it is what open decision
+  5.3 gets ratified against.
+
+- **Read current DHIS2 data through the facade.** A stored response answers "what
+  was submitted"; "what does DHIS2 hold right now" needs the facade to query the
+  instance per request rather than serve a startup snapshot. That is a read proxy,
+  a different shape from either store this server has today, and the request log
+  is what says which reads are worth proxying first.
 
 - **Unique attribute values as identifiers.** Every attribute value rides the
   `D2AttributeValue` extension today, whatever it holds. DHIS2 marks an
@@ -1336,10 +1442,13 @@ commitment.
   generates its conversion layer from that shared source, never hand-written per
   language. Open decision 5.3 is what picks the shared source; open decision 5.8
   is the naming collision with the scaffolded `make build`.
-- **`d2w fhir ui` / `browser`** - a tree-widget explorer over the generated IG
-  and the hierarchy, modelled on the security plugin's offline d3 sharing
-  explorer. `serve` is its natural backend: the same loaded resources, one
-  server.
+- **`d2w fhir ui` / `browser`** - phase 2 of the serve line: a browser UI over
+  the generated IG and the hierarchy, with the shipped facade as its backend -
+  the same loaded resources, one server, the read and search routes it already
+  answers. The intended stack is shadcn over the repo's existing component base,
+  and the owner keeps local reference UIs built that way to model it on; the
+  security plugin's offline d3 sharing explorer is the in-repo precedent for the
+  tree-widget half.
 - **The semantic layer.** Terminology mappings as FHIR-native `ConceptMap` plus
   `$translate`, generated once option-to-SNOMED/LOINC mappings exist. Structural
   transforms as `StructureMap` / FML plus logical models living in the IG as the

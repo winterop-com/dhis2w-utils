@@ -17,7 +17,9 @@ d2w fhir generate examples          Example QuestionnaireResponses against those
 d2w fhir generate org-units         Org units -> Organization/Location instances
 d2w fhir generate pages             Narrative site pages + per-artifact intros
 d2w fhir generate all               All seven targets in one run
+d2w fhir generate load              Synthetic QuestionnaireResponse corpus into load/ (not part of `all`)
 d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
+d2w fhir serve                      Serve the IG as a FHIR read + capture facade (package dhis2w-fhir-serve)
 ```
 
 The plugin ships as its own workspace member, `dhis2w-fhir`, and mounts
@@ -33,7 +35,8 @@ MCP exposes only the read surface: `fhir_validate` (`readOnlyHint`).
 Scaffolding and generation - the page generation included - are CLI-only by design - they write a file tree
 onto whatever machine the MCP server runs on, the wrong shape for an agent
 protocol (the same judgment as the browser plugin and the security audit
-runner).
+runner). `serve` is CLI-only for the same reason and one more: it binds a port
+and stays up, which is a process an operator starts, not a tool call.
 
 ## Project layout and fhir.toml
 
@@ -50,8 +53,9 @@ Makefile                    setup / upgrade / generate / validate / cache-init /
                             writable by the publisher user; sushi and build depend on it
 Dockerfile                  ghcr.io/fhir/ig-publisher-localdev + fsh-sushi
 .gitignore                  The build output, caches, publisher side products,
-                            ig/input/resources/, reports/, and .venv - never uv.lock,
-                            the pinned toolchain
+                            ig/input/resources/, reports/, .serve/ (the serve
+                            spool), load/ (the generated load set), and .venv -
+                            never uv.lock, the pinned toolchain
 ig/sushi-config.yaml        SUSHI IG identity (id, canonical, publisher)
 ig/ig.ini                   IG publisher entry point (fhir2.base.template)
 ig/fsh.ini                  Raises the publisher's internal SUSHI timeout to 1800s
@@ -1005,7 +1009,11 @@ formatter),
 `writer.py` (the `FshArtifact` / `FshBuild` and `JsonArtifact` / `JsonBuild`
 contracts every emitter returns, plus the header-aware sync behind the first and
 the directory-owning sync behind the second), `r4/schemas.py` (the FHIR R4
-resource and element models the pre-built JSON is serialised from), and
+resource and element models the pre-built JSON is serialised from, and the ones a
+received document is read back as - `Questionnaire`, `QuestionnaireResponse`, `Bundle`,
+`OperationOutcome`, `CapabilityStatement`, plus `JsonResource` for a resource carried
+verbatim), `r4/primitives.py` (the lexical and semantic checks for R4's primitive types,
+shared by the emitters that write a value and the capture path that reads one), and
 `config.py` (the `fhir.toml`
 document - `IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`,
 `FhirProject` - with discovery, load, and save). `service.py` holds the
@@ -1052,14 +1060,25 @@ The components:
   deriving every name from the `DS` / `PR` / `PS` / `DE` / `COC` tokens - option-set names
   are not among them, they come in on the `OptionSetIdentityPlan`. Item nesting is
   resolved in Python into a flat list of view-models carrying their FSH soft-index
-  paths (`item[=].item[+]`), so the template stays a layout, not a recursion.
+  paths (`item[=].item[+]`), so the template stays a layout, not a recursion. `documents.py`
+  is the JSON twin of that emitter - `build_questionnaire_documents` and
+  `build_data_dictionary_documents` return the finished R4 documents with every name
+  already absolute, exactly as SUSHI would have resolved it, through the same exported
+  decisions (`item_type`, `is_disaggregated`, `source_description`, `source_program`,
+  the `FormKindProfile` / `FORM_KIND_PROFILES` identifier segments) the FSH path calls,
+  so the two cannot drift; `test_fhir_questionnaire_parity.py` is the gate, asserting
+  each built document equals the SUSHI output key for key. `d2w fhir serve --live` is
+  what consumes it.
 - `resources/examples/` - the `Usage: #example` QuestionnaireResponse per example,
   its `EXAMPLES_DIRECTORY` sync directory, the `ExampleSelection` /
   `ExampleResponseIn` / `ExampleAnswerIn` projections (the option sets come in on
   the option-set component's own `OptionSetIn`), the seeded
   `build_synthetic_responses`, and the answer typing (including the R4 temporal
-  normalisations and their calendar, clock, and offset checks). It depends on `resources/questionnaires/` for the
-  source projection and naming, never the other way round.
+  normalisations and their calendar, clock, and offset checks, which live in
+  `r4/primitives.py`). `documents.py` is its JSON twin: `build_example_documents` returns
+  the same responses as finished `QuestionnaireResponse` documents, which is what
+  `d2w fhir generate load` writes into `load/`. It depends on `resources/questionnaires/`
+  for the source projection and naming, never the other way round.
 - `resources/pages/` - the narrative markdown layer: the six site pages, the
   per-artifact intros, `PagesIn` (the fetched-input view the pages render from),
   and the per-page view-models. It reads the other components' naming helpers and
@@ -1135,6 +1154,108 @@ from - LineString, MultiPoint, GeometryCollection - which are embedded without a
 position and rolled into one note naming the types. Only geometry with unusable
 or empty coordinates is malformed, and that alone yields neither position nor
 boundary.
+
+## Serving the IG -> the `dhis2w-fhir-serve` member
+
+`d2w fhir serve` is a second verb over a generated project: a FastAPI application that
+serves the resources the IG publishes and receives `QuestionnaireResponse` captures
+against them. The command lives in this package's `cli.py`; everything it runs lives in
+`dhis2w-fhir-serve`, a workspace member of its own.
+
+**Why a member and not a subpackage.** `dhis2w-fhir` generates a file tree - it needs
+httpx, pydantic, and jinja2, and nothing that listens on a socket. The facade needs
+FastAPI and uvicorn. Folding the server into the generator would put both into every
+install that only ever writes FSH, including a CI job and an MCP server. So the server
+is its own member, `dhis2w-cli` declares it as the optional `serve` extra
+(`pip install 'dhis2w-cli[serve]'`), and the command's body guards the import: without
+the package it raises a `LookupError` naming both install routes, which the CLI error
+funnel renders as a one-line message. The dependency arrow points one way -
+`dhis2w-fhir-serve` -> `dhis2w-fhir` - so the generator never learns the server exists.
+
+**The store is two trees merged.** `ig/fsh-generated/resources` is what SUSHI compiled
+from the emitted FSH. `ig/input/resources/{registry,terminology,categories}` is the
+pre-built JSON the generate targets wrote, which SUSHI loads as predefined resources and
+**never re-emits** - so a store built from the compiled tree alone would serve an IG
+missing its whole registry and terminology. `load_compiled_store` reads both, compiled
+first, and indexes each entry by `(resourceType, id)`, by canonical url, and by every
+`system|value` identifier token it carries. The resource body itself is passed through
+untouched: the facade's contract is byte-faithful passthrough, so what a client reads is
+what the project published, down to key order.
+
+**Live mode runs the JSON builders instead.** `live.py` resolves the generation profile,
+opens **one** client, fetches through `fetch_live_ig_inputs`, closes it, and builds the
+same read set from `build_questionnaire_documents`, `build_data_dictionary_documents`,
+`build_option_set_artifacts`, `build_category_artifacts`, and
+`build_organisation_unit_instances`. The first two are the JSON twins of the FSH
+questionnaire emitter - the same projection, the same item typing, the same ValueSet
+binding decisions, through the very functions the FSH path calls - and the equality is a
+gate rather than an aspiration: `test_fhir_questionnaire_parity.py` rebuilds the
+compiled questionnaires from the committed source fixtures and asserts each equals the
+SUSHI output key for key. The last three already return serialised JSON artifacts, so
+`live.py` reads their documents back out of that exact text rather than serialising a
+second time. What live mode does not hold is the foundation artifacts: StructureDefinitions
+and the IG's `kind #requirements` CapabilityStatement exist only once SUSHI has compiled
+the FSH, and no FSH compiler runs in this process. That costs nothing - the served read
+set is `CAPTURE_SERVER_READ_RESOURCE_TYPES`, every one of which a JSON builder produces,
+and `/metadata` names the IG's statement by canonical, which needs no artifact to state.
+
+**Capture is a phase machine.** `capture/` has four modules in the order a request
+passes through them: `naming` derives the extension urls and identifier systems this
+project's contract is written in from `fhir.toml` alone, `index` reads one served
+Questionnaire into the lookups an answer is checked against, `resolve` maps a received
+code back to the DHIS2 option it names against the served terminology, and `validate`
+runs the phases - body and R4 shape (400), the `D2FormType` kind and its profile
+invariants, the questionnaire and its index, the period, then every answer (422). A
+phase that finds an error is the last one to run, so a rejection is readable; inside a
+phase every issue is collected, so one round trip reports every problem at that level.
+`outcome` is the OperationOutcome vocabulary every answer is spoken in, accepted or
+refused. Nothing in `capture/` talks to DHIS2.
+
+**Coded answers have one flip point.** `DEFAULT_STRICT_CODES` in `capture/validate.py`
+is the single constant behind roadmap decision 5.1, and `ServeSettings.strict_codes` is
+the runtime value a request is validated against; `--strict-codes` is the flag that sets
+it. Lenient resolution walks three tiers - concept code, option UID, DHIS2 code - and
+warns on anything below the first, because the generated CodeSystem publishes both DHIS2
+spellings and a client that sent the other one still named exactly one option. Two
+options matching one code is an ambiguity refused under either setting.
+
+**The spool is the one stateful object.** `ResponseSpool` holds every received response
+in memory and mirrors each one to `.serve/responses/received/<id>.json`. Reads are
+memory-first: the process never re-scans the directory to answer a search. Writes are
+atomic (`mkstemp` in the same directory, then `os.replace`), so a reader never sees a
+half-written file and a crash leaves the directory consistent; `scan` rebuilds the index
+at startup. The files are also the queue the forwarding phase will drain, which is what
+makes `ls received/` the pending count with no extra bookkeeping. The receipt id is a
+uuid4 hex rather than a DHIS2 UID - a receipt is a resource the facade owns, and an
+11-character DHIS2-shaped id would read as one.
+
+**What the store is not.** It is loaded once in the lifespan and held frozen on
+`app.state.context` for the life of the process. Nothing invalidates it, because nothing
+can: a compiled IG changes when someone runs a build, and a live store is a snapshot of
+the instance the server started against. Restart to serve new state.
+
+### What Dimension A concluded
+
+The [review dimension](../project/fhir-roadmap.md#dimension-a-the-seams-serve-will-consume)
+asked what breaks when a long-running server calls the generator's seams instead of a
+one-shot CLI process. The facade answers it by construction rather than by hardening:
+
+- **The profile is resolved once.** `resolve_generation_profile` reads `os.environ` at
+  call time, which is a different thing in a process that lives for hours. Live mode
+  calls it exactly once, in the lifespan, before any request exists.
+- **One client, startup only.** `generate all` opens and closes a client per target;
+  `build_live_store` opens one, fetches everything through `fetch_live_ig_inputs`, and
+  closes it before the first request. No request path holds a DHIS2 connection.
+- **The store is immutable and shared.** Frozen models, indexes built once in
+  `model_post_init`, and reads that are dict lookups - so concurrency needs no locking on
+  the read side.
+- **The one writer needs no lock either.** `sync_artifacts` has no locking and two
+  concurrent generate calls would interleave, but the facade never generates: its only
+  write is the spool, whose single-writer assumption is exactly what one server process
+  is, and whose writes are atomic renames.
+- **Partial failure is a refusal to start.** A missing compiled IG or an unreachable
+  instance propagates out of the lifespan and the server does not come up, rather than
+  serving an empty IG that reads to a client as a project that published nothing.
 
 ## Roadmap and review material
 
