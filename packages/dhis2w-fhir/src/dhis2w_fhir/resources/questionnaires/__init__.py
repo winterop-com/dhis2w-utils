@@ -82,6 +82,7 @@ __all__ = [
     "is_disaggregated",
     "is_multi_valued",
     "item_type",
+    "link_id_collisions",
     "source_description",
     "source_items",
     "source_program",
@@ -348,8 +349,13 @@ def build_questionnaire_artifacts(
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
     data_elements: dict[str, QuestionnaireItemIn] = {}
     option_combos: dict[str, CategoryOptionComboIn] = {}
+    colliding: list[str] = []
     template = _ENVIRONMENT.get_template("questionnaire.fsh.jinja")
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
+        collisions = link_id_collisions(source)
+        if collisions:
+            colliding.append(f"{source_display_name(source)} ({source.uid}) on {', '.join(collisions)}")
+            continue
         collect_referenced_objects(source, data_elements, option_combos)
         view = _questionnaire_view(
             source, names, foundation, canonical, index.identities, ig_status=ig_status, attribute_codes=attribute_codes
@@ -373,6 +379,15 @@ def build_questionnaire_artifacts(
         build.artifacts.append(_data_element_terminology(data_elements, names, config, ig_status=ig_status))
     if option_combos:
         build.artifacts.append(_option_combo_terminology(option_combos, names, config, ig_status=ig_status))
+    if colliding:
+        build.notes.append(
+            aggregate_note(
+                f"{len(colliding)} forms would emit one linkId twice, which R4 forbids (que-2: link ids are "
+                "unique within a Questionnaire); the whole form is skipped rather than published invalid, "
+                "because a response answering that linkId would name two questions at once",
+                colliding,
+            )
+        )
     if index.unplanned_uids:
         build.notes.append(
             aggregate_note(
@@ -392,6 +407,42 @@ def bound_option_set_uids(sources: list[QuestionnaireSourceIn]) -> list[str]:
 def source_items(source: QuestionnaireSourceIn) -> list[QuestionnaireItemIn]:
     """Every question one form carries, sectioned and unsectioned alike."""
     return [item for section in source.sections for item in section.items] + list(source.flat_items)
+
+
+def link_id_collisions(source: QuestionnaireSourceIn) -> list[str]:
+    """Every `linkId` one form would emit more than once, in the order the clash is first reached.
+
+    A DHIS2 section UID and a data element UID are drawn from one pool, so a form can reuse one
+    UID on a group and on a question - and then two items answer to one `linkId`. R4 forbids that
+    outright (`que-2`), and a response answering that `linkId` would name two questions at once,
+    so the caller skips the whole form rather than publish an invalid Questionnaire.
+    """
+    seen: set[str] = set()
+    collided: list[str] = []
+    for link_id in _emitted_link_ids(source):
+        if link_id in seen and link_id not in collided:
+            collided.append(link_id)
+        seen.add(link_id)
+    return collided
+
+
+def _emitted_link_ids(source: QuestionnaireSourceIn) -> list[str]:
+    """Every `linkId` one form's items carry, in emission order: section groups, questions, and cells."""
+    link_ids: list[str] = []
+    for section in source.sections:
+        link_ids.append(section.uid)
+        for item in section.items:
+            link_ids.extend(_item_link_ids(item, source.kind))
+    for item in source.flat_items:
+        link_ids.extend(_item_link_ids(item, source.kind))
+    return link_ids
+
+
+def _item_link_ids(item: QuestionnaireItemIn, kind: FormKind) -> list[str]:
+    """One data element's `linkId`s: the question itself, plus a cell per option combo when disaggregated."""
+    if not is_disaggregated(item, kind) or item.category_combo is None:
+        return [item.uid]
+    return [item.uid, *(f"{item.uid}.{option_combo.uid}" for option_combo in item.category_combo.option_combos)]
 
 
 #: The sync directory each form kind is written to.

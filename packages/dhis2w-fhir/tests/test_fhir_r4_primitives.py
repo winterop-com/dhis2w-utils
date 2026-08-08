@@ -108,6 +108,44 @@ def test_a_zoneless_dhis2_timestamp_gains_the_utc_zone_fhir_requires(stored: str
 
 
 @pytest.mark.parametrize(
+    ("stored", "timezone", "expected"),
+    [
+        ("2025-12-30T00:00:00.000", "Asia/Vientiane", "2025-12-30T00:00:00.000+07:00"),
+        ("2026-01-15T08:30:00", "Europe/Oslo", "2026-01-15T08:30:00+01:00"),
+        ("2026-07-15T08:30:00", "Europe/Oslo", "2026-07-15T08:30:00+02:00"),
+        ("2026-01-15T08:30:00", "America/New_York", "2026-01-15T08:30:00-05:00"),
+        ("2026-07-15T08:30:00", "America/New_York", "2026-07-15T08:30:00-04:00"),
+        ("2026-07-15T08:30:00", "Asia/Kathmandu", "2026-07-15T08:30:00+05:45"),
+        ("2026-07-15T08:30:00", "UTC", "2026-07-15T08:30:00+00:00"),
+    ],
+)
+def test_a_named_zone_stamps_the_offset_it_stood_at_on_that_very_timestamp(
+    stored: str, timezone: str, expected: str
+) -> None:
+    """The offset is a fact about the instant, not about the zone: Oslo is +01:00 in January and +02:00 in July."""
+    assert zoned_date_time(stored, timezone) == expected
+
+
+def test_an_ambiguous_wall_clock_reading_resolves_to_one_offset() -> None:
+    """The hour a DST-observing zone repeats has two offsets; the earlier one is taken, so a run is reproducible."""
+    assert zoned_date_time("2026-10-25T02:30:00", "Europe/Oslo") == "2026-10-25T02:30:00+02:00"
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected"),
+    [
+        ("2025-12-30T00:00:00Z", "2025-12-30T00:00:00Z"),
+        ("2025-12-30T00:00:00+02:00", "2025-12-30T00:00:00+02:00"),
+        ("2025-12-30", "2025-12-30"),
+        ("2026-99-99T25:99:99", "2026-99-99T25:99:99Z"),
+    ],
+)
+def test_a_named_zone_touches_only_the_timestamps_that_need_one(stored: str, expected: str) -> None:
+    """A value already zoned, or carrying no time, is left alone; one too malformed to read falls back to UTC."""
+    assert zoned_date_time(stored, "Europe/Oslo") == expected
+
+
+@pytest.mark.parametrize(
     ("stored", "expected"),
     [
         ("07:30", "07:30:00"),

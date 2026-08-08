@@ -35,6 +35,7 @@ from dhis2w_fhir.r4 import (
     Reference,
 )
 from dhis2w_fhir.resources.examples import (
+    ExampleAnswerRules,
     ExampleTally,
     example_answers,
     example_authored,
@@ -162,17 +163,22 @@ def build_example_documents(
     canonical: str,
     *,
     option_set_plan: OptionSetIdentityPlan,
+    published_organisation_unit_uids: frozenset[str] | None = None,
 ) -> ExampleDocumentBuild:
     """Build one FHIR QuestionnaireResponse per example response, keyed by the instance id the FSH path declares.
 
     Takes the parameters `build_example_artifacts` takes and decides the same things from them, so
     a caller can build the FSH source and the served documents off one fetch: `option_set_plan` is
     the identity plan the terminology target emits from, so a coded answer names the CodeSystem the
-    same run writes, and the concept codes come from `example_concept_assignments` for the same
-    reason. A response whose target is not among `sources` is skipped, exactly as the FSH path
-    skips it.
+    same run writes, the concept codes come from `example_concept_assignments` for the same reason,
+    and `published_organisation_unit_uids` gates an organisation-unit answer on the org-unit
+    selection the same way. A response whose target is not among `sources` is skipped, exactly as
+    the FSH path skips it.
     """
     systems = _ExampleSystems.from_config(config, canonical)
+    rules = ExampleAnswerRules(
+        timezone=config.timezone, published_organisation_unit_uids=published_organisation_unit_uids
+    )
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
     sources_by_uid = {source.uid: source for source in sources}
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
@@ -185,7 +191,7 @@ def build_example_documents(
             continue
         documents.append(
             _response_document(
-                response, source, option_sets_by_uid, assignments, index.identities, systems, canonical, tally
+                response, source, option_sets_by_uid, assignments, index.identities, systems, canonical, tally, rules
             )
         )
     notes = list(tally.to_notes())
@@ -209,11 +215,12 @@ def _response_document(
     systems: _ExampleSystems,
     canonical: str,
     tally: ExampleTally,
+    rules: ExampleAnswerRules,
 ) -> QuestionnaireResponse:
     """Build one example's QuestionnaireResponse, every name already resolved to the URL it is served under."""
     period = example_period(response, source, tally)
-    answers = example_answers(response, source, option_sets_by_uid, assignments, tally)
-    authored = example_authored(response, tally)
+    answers = example_answers(response, source, option_sets_by_uid, assignments, tally, rules)
+    authored = example_authored(response, tally, rules)
     tracker = example_tracker_context(response, source, tally)
     complete = example_is_complete(source.kind, period=period, authored=authored, tracker=tracker)
     return QuestionnaireResponse(

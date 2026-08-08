@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime
 import re
+import zoneinfo
 
 #: The lexical shape of an R4 `date`: a year, optionally a month, optionally a day.
 FHIR_DATE_PATTERN = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
@@ -34,7 +35,12 @@ _EARLIEST_UTC_OFFSET = datetime.timedelta(hours=-12)
 _LATEST_UTC_OFFSET = datetime.timedelta(hours=14)
 
 #: The zone FHIR requires on a dateTime that carries a time, and DHIS2 leaves off (BUGS.md #62).
+#: This is the reading a project that names no zone gets: the wall clock read as UTC.
 _ASSUMED_ZONE = "Z"
+
+#: How many minutes an hour of UTC offset spans, which the offset literal is written out of.
+_MINUTES_PER_HOUR = 60
+_SECONDS_PER_MINUTE = 60
 
 #: How many colon-separated parts a bare `HH:MM` time has, before FHIR's mandatory seconds.
 _MINUTE_ONLY_TIME_PARTS = 2
@@ -89,17 +95,39 @@ def is_calendar_date(value: str) -> bool:
     return True
 
 
-def zoned_date_time(value: str) -> str:
-    """Give a DHIS2 timestamp the UTC zone R4 requires whenever it carries a time but no offset.
+def zoned_date_time(value: str, timezone: str | None = None) -> str:
+    """Give a DHIS2 timestamp the offset R4 requires whenever it carries a time but carries no zone.
 
     DHIS2 serves `occurredAt` and `DATETIME` data values as zone-less local timestamps
     (`2025-12-30T00:00:00.000`) under fields its OpenAPI types as `Instant`, and an R4
     `dateTime` carrying a time must carry an offset. See BUGS.md #62.
+
+    `timezone` is the IANA zone those wall-clock readings are taken in, which the project states
+    as `[generate] timezone`. The offset is resolved against the timestamp itself, so a zone that
+    observes DST stamps its summer readings and its winter readings differently. Naming no zone
+    reads the wall clock as UTC, and so does a timestamp too malformed to resolve an offset for -
+    the value then fails `is_fhir_date_time` and its caller answers it as a string.
     """
     _, separator, time_part = value.partition("T")
     if not separator or time_part.endswith(("Z", "z")) or "+" in time_part or "-" in time_part:
         return value
-    return f"{value}{_ASSUMED_ZONE}"
+    offset = _utc_offset_literal(value, timezone) if timezone is not None else None
+    return f"{value}{offset or _ASSUMED_ZONE}"
+
+
+def _utc_offset_literal(value: str, timezone: str) -> str | None:
+    """The `+HH:MM` / `-HH:MM` one IANA zone stood at on one zone-less timestamp; None when neither reads."""
+    try:
+        wall_clock = datetime.datetime.fromisoformat(value)
+        zone = zoneinfo.ZoneInfo(timezone)
+    except (ValueError, zoneinfo.ZoneInfoNotFoundError):
+        return None
+    offset = wall_clock.replace(tzinfo=zone).utcoffset()
+    if offset is None:
+        return None
+    total_minutes = round(offset.total_seconds() / _SECONDS_PER_MINUTE)
+    hours, minutes = divmod(abs(total_minutes), _MINUTES_PER_HOUR)
+    return f"{'-' if total_minutes < 0 else '+'}{hours:02d}:{minutes:02d}"
 
 
 def seconds_precision(value: str) -> str:

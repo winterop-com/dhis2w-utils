@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import tomllib
+import zoneinfo
 from pathlib import Path
 from typing import Literal
 
@@ -101,10 +102,15 @@ class GenerateConfig(BaseModel):
     The three data-definition tables select the three questionnaire form kinds: `data_sets`
     picks aggregate data sets, `event_programs` picks programs without registration, and
     `tracker_programs` picks programs with registration, one Questionnaire per program stage.
+
+    `timezone` is the IANA zone the instance's zone-less timestamps are wall-clock readings in
+    (BUGS.md #62). Naming it turns every emitted `dateTime` into the numeric offset that zone
+    was on at that very instant, DST included; leaving it unset keeps the UTC reading.
     """
 
     identifier_system_base: str = "http://dhis2.org/fhir"
     concept_code_source: Literal["id", "code"] = "id"
+    timezone: str | None = None
     locales: list[str] = Field(default_factory=list)
     naming: NamingConfig = Field(default_factory=NamingConfig)
     option_sets: OptionSetSelection = Field(default_factory=OptionSetSelection)
@@ -116,6 +122,21 @@ class GenerateConfig(BaseModel):
     examples: ExampleSelection = Field(default_factory=ExampleSelection)
 
     _normalize_identifier_base = field_validator("identifier_system_base")(strip_trailing_slash)
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str | None) -> str | None:
+        """Require an IANA zone name the tz database actually holds - a typo here mis-stamps every timestamp."""
+        if value is None:
+            return value
+        try:
+            zoneinfo.ZoneInfo(value)
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError) as error:
+            raise ValueError(
+                f"unknown IANA time zone {value!r}: name a zone from the tz database "
+                "(e.g. 'Asia/Vientiane', 'Europe/Oslo', 'UTC')"
+            ) from error
+        return value
 
     @field_validator("locales")
     @classmethod

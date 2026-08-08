@@ -47,6 +47,7 @@ from dhis2w_fhir.resources.examples.schemas import (
     MAXIMUM_EXAMPLES_PER_TARGET,
     ExampleAnswer,
     ExampleAnswerIn,
+    ExampleAnswerRules,
     ExampleCoding,
     ExampleItem,
     ExampleResponseIn,
@@ -90,6 +91,7 @@ __all__ = [
     "URI_VALUE_TYPE",
     "ExampleAnswer",
     "ExampleAnswerIn",
+    "ExampleAnswerRules",
     "ExampleCoding",
     "ExampleItem",
     "ExampleResponseIn",
@@ -320,6 +322,7 @@ class ExampleTally(BaseModel):
     unknown_data_elements: list[str] = Field(default_factory=list)
     untyped_values: list[str] = Field(default_factory=list)
     uncoded_options: list[str] = Field(default_factory=list)
+    unpublished_organisation_units: list[str] = Field(default_factory=list)
     periodless_data_sets: list[str] = Field(default_factory=list)
     unauthored_responses: list[str] = Field(default_factory=list)
     incomplete_tracker_responses: list[str] = Field(default_factory=list)
@@ -349,6 +352,15 @@ class ExampleTally(BaseModel):
                     f"{len(self.uncoded_options)} example answers select an option the CodeSystem holds no "
                     "concept for; left unanswered",
                     self.uncoded_options,
+                )
+            )
+        if self.unpublished_organisation_units:
+            notes.append(
+                aggregate_note(
+                    f"{len(self.unpublished_organisation_units)} example answers reference an organisation "
+                    "unit outside the org-unit selection, which the IG publishes no Location for; left "
+                    "unanswered",
+                    self.unpublished_organisation_units,
                 )
             )
         if self.periodless_data_sets:
@@ -389,6 +401,7 @@ def build_example_artifacts(
     canonical: str,
     *,
     option_set_plan: OptionSetIdentityPlan,
+    published_organisation_unit_uids: frozenset[str] | None = None,
 ) -> FshBuild:
     """Build one `examples/<targetUid>-<n>.fsh` QuestionnaireResponse per example response.
 
@@ -396,8 +409,16 @@ def build_example_artifacts(
     names the CodeSystem the same run writes under either naming source. The concept codes come
     from `concept_assignments`, once per set, for the same reason: an answer names a concept the
     terminology target really wrote, fall-backs and all.
+
+    `published_organisation_unit_uids` is the org-unit selection the registry target writes a
+    Location for. Passing it lets an `ORGANISATION_UNIT` answer naming a unit outside that
+    selection be left unanswered instead of referencing a Location the IG never publishes;
+    leaving it None emits every such answer unchecked.
     """
     build = FshBuild()
+    rules = ExampleAnswerRules(
+        timezone=config.timezone, published_organisation_unit_uids=published_organisation_unit_uids
+    )
     foundation = FoundationNaming.from_naming(config.naming)
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
     sources_by_uid = {source.uid: source for source in sources}
@@ -413,7 +434,7 @@ def build_example_artifacts(
         ordinal = ordinals.get(response.target_uid, 0) + 1
         ordinals[response.target_uid] = ordinal
         view = _example_view(
-            response, source, option_sets_by_uid, assignments, index.identities, foundation, canonical, tally
+            response, source, option_sets_by_uid, assignments, index.identities, foundation, canonical, tally, rules
         )
         build.artifacts.append(
             FshArtifact(
@@ -732,13 +753,14 @@ def _example_view(
     foundation: FoundationNaming,
     canonical: str,
     tally: ExampleTally,
+    rules: ExampleAnswerRules,
 ) -> _ExampleView:
     """Project one example response onto the view the QuestionnaireResponse template renders."""
     label = _KIND_LABELS[source.kind]
     display_name = source_display_name(source)
     period = example_period(response, source, tally)
-    answers = example_answers(response, source, option_sets_by_uid, assignments, tally)
-    authored = example_authored(response, tally)
+    answers = example_answers(response, source, option_sets_by_uid, assignments, tally, rules)
+    authored = example_authored(response, tally, rules)
     tracker = example_tracker_context(response, source, tally)
     complete = example_is_complete(source.kind, period=period, authored=authored, tracker=tracker)
     return _ExampleView(
@@ -797,11 +819,11 @@ def _response_profile(kind: FormKind, foundation: FoundationNaming, *, complete:
     return foundation.event_response_profile
 
 
-def example_authored(response: ExampleResponseIn, tally: ExampleTally) -> str | None:
+def example_authored(response: ExampleResponseIn, tally: ExampleTally, rules: ExampleAnswerRules) -> str | None:
     """The response's authoring timestamp as an R4 dateTime, dropped and tallied when it is not one."""
     if response.authored is None:
         return None
-    normalized = zoned_date_time(response.authored.strip())
+    normalized = zoned_date_time(response.authored.strip(), rules.timezone)
     if is_fhir_date_time(normalized):
         return normalized
     tally.unauthored_responses.append(f"{response.instance_id} = {response.authored!r}")
@@ -814,6 +836,7 @@ def example_answers(
     option_sets_by_uid: dict[str, OptionSetIn],
     assignments: dict[str, ConceptAssignmentPlan],
     tally: ExampleTally,
+    rules: ExampleAnswerRules,
 ) -> dict[str, list[ExampleAnswer]]:
     """Type every captured value and index it by the questionnaire `linkId` it answers.
 
@@ -831,7 +854,7 @@ def example_answers(
         link_id = captured.data_element_uid
         if is_disaggregated(item, source.kind) and captured.category_option_combo_uid is not None:
             link_id = f"{link_id}.{captured.category_option_combo_uid}"
-        answers[link_id] = _typed_answers(item, captured.value, option_sets_by_uid, assignments, tally)
+        answers[link_id] = _typed_answers(item, captured.value, option_sets_by_uid, assignments, tally, rules)
     return answers
 
 
@@ -841,6 +864,7 @@ def _typed_answers(
     option_sets_by_uid: dict[str, OptionSetIn],
     assignments: dict[str, ConceptAssignmentPlan],
     tally: ExampleTally,
+    rules: ExampleAnswerRules,
 ) -> list[ExampleAnswer]:
     """Cast one captured value onto the FHIR answer type its value type asks for - several for MULTI_TEXT."""
     if item.option_set_uid is not None:
@@ -850,7 +874,8 @@ def _typed_answers(
             for part in selected
         ]
         return [answer for answer in coded if answer is not None]
-    return [_typed_answer(item, value, tally)]
+    typed = _typed_answer(item, value, tally, rules)
+    return [typed] if typed is not None else []
 
 
 def answer_element(value_type: str) -> str:
@@ -876,8 +901,10 @@ def answer_element(value_type: str) -> str:
     return DEFAULT_ANSWER_ELEMENT
 
 
-def _typed_answer(item: QuestionnaireItemIn, value: str, tally: ExampleTally) -> ExampleAnswer:
-    """Cast one DHIS2 value string onto the FHIR answer type its data element's value type asks for."""
+def _typed_answer(
+    item: QuestionnaireItemIn, value: str, tally: ExampleTally, rules: ExampleAnswerRules
+) -> ExampleAnswer | None:
+    """Cast one DHIS2 value string onto the FHIR answer type its value type asks for; None when unanswerable."""
     text = value.strip()
     element = answer_element(item.value_type)
     if element == "valueInteger":
@@ -887,21 +914,39 @@ def _typed_answer(item: QuestionnaireItemIn, value: str, tally: ExampleTally) ->
     if element == "valueBoolean":
         return _boolean_answer(item, text, tally)
     if element in _TEMPORAL_ELEMENTS:
-        return _temporal_answer(item, text, element, tally)
+        return _temporal_answer(item, text, element, tally, rules)
     if element == "valueUri":
         return ExampleAnswer(element=element, text_value=text)
     if element == "valueReference":
-        return ExampleAnswer(element=element, location_uid=text)
+        return _location_answer(item, text, tally, rules)
     return ExampleAnswer(element=DEFAULT_ANSWER_ELEMENT, text_value=value)
 
 
-def _temporal_answer(item: QuestionnaireItemIn, text: str, element: str, tally: ExampleTally) -> ExampleAnswer:
+def _location_answer(
+    item: QuestionnaireItemIn, text: str, tally: ExampleTally, rules: ExampleAnswerRules
+) -> ExampleAnswer | None:
+    """Answer an organisation-unit question as a Location reference, when the IG publishes that Location.
+
+    A unit outside the org-unit selection has no Location in the guide, so the answer would point
+    at a resource no consumer can resolve. It is left unanswered and tallied instead, exactly as
+    an option the CodeSystem holds no concept for is.
+    """
+    published = rules.published_organisation_unit_uids
+    if published is not None and text not in published:
+        tally.unpublished_organisation_units.append(f"{item.name} ({item.uid}) = {text}")
+        return None
+    return ExampleAnswer(element="valueReference", location_uid=text)
+
+
+def _temporal_answer(
+    item: QuestionnaireItemIn, text: str, element: str, tally: ExampleTally, rules: ExampleAnswerRules
+) -> ExampleAnswer:
     """Answer a date / dateTime / time question, normalising DHIS2's spelling into the R4 primitive."""
     if element == "valueDate":
         normalized = text.partition("T")[0]
         valid = is_fhir_date(normalized)
     elif element == "valueDateTime":
-        normalized = zoned_date_time(text)
+        normalized = zoned_date_time(text, rules.timezone)
         valid = is_fhir_date_time(normalized)
     else:
         normalized = seconds_precision(text)

@@ -2583,12 +2583,16 @@ type: dateTime`. The same applies to every other consumer that types the field
 strictly rather than as free text.
 
 **Workaround in this repo:** `zoned_date_time` in
-`packages/dhis2w-fhir/src/dhis2w_fhir/resources/examples/__init__.py` appends `Z`
-whenever the value carries a time but no offset, and is applied to both the
-example response's `authored` and its `DATETIME` answers. That asserts UTC, which
-is a guess - the right fix is upstream. A value that still does not match the R4
-primitive after normalising is answered as a string (or, for `authored`, dropped)
-with an aggregate note, so a run never emits an invalid literal.
+`packages/dhis2w-fhir/src/dhis2w_fhir/r4/primitives.py` gives the value an offset
+whenever it carries a time but none of its own, and is applied to both the example
+response's `authored` and its `DATETIME` answers. Which offset comes from the
+project: `[generate] timezone` in `fhir.toml` names the IANA zone the instance's
+wall-clock readings are taken in, and the offset is resolved against each timestamp
+individually, so a DST-observing zone stamps its summer and winter readings
+differently. A project that names no zone falls back to `Z`, which asserts UTC -
+that is a guess, and the right fix is still upstream. A value that does not match
+the R4 primitive after normalising is answered as a string (or, for `authored`,
+dropped) with an aggregate note, so a run never emits an invalid literal.
 
 **How to know it's fixed:** `GET /api/tracker/events?fields=occurredAt` returns a
 timestamp ending in `Z` or an explicit `+HH:MM` / `-HH:MM` offset.

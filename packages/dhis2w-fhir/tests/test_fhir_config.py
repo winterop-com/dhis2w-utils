@@ -124,6 +124,29 @@ def test_the_program_stage_token_is_overridable_and_validated() -> None:
         GenerateConfig.model_validate({"naming": {"program_stage": "2Stage"}})
 
 
+def test_no_timezone_means_the_instances_timestamps_are_read_as_utc() -> None:
+    """An absent `[generate] timezone` leaves DHIS2's zone-less timestamps read as UTC (BUGS.md #62)."""
+    assert GenerateConfig().timezone is None
+
+
+def test_a_named_timezone_must_be_an_iana_zone() -> None:
+    """The zone stamps every emitted dateTime, so a name the tz database does not hold is a config error."""
+    assert GenerateConfig(timezone="Asia/Vientiane").timezone == "Asia/Vientiane"
+    with pytest.raises(ValidationError, match="unknown IANA time zone 'Asia/Vientianne'"):
+        GenerateConfig(timezone="Asia/Vientianne")
+    with pytest.raises(ValidationError, match="unknown IANA time zone '\\+07:00'"):
+        GenerateConfig(timezone="+07:00")
+
+
+def test_the_timezone_survives_a_config_round_trip(tmp_path: Path) -> None:
+    """`[generate] timezone` is project config: it writes to fhir.toml and loads back off it."""
+    path = tmp_path / "fhir.toml"
+    config = _make_config()
+    config.generate.timezone = "Europe/Oslo"
+    write_fhir_config(path, config)
+    assert load_fhir_config(path).generate.timezone == "Europe/Oslo"
+
+
 def test_locales_default_to_every_locale_found() -> None:
     """An absent `[generate] locales` means every translation locale on the instance is emitted."""
     assert GenerateConfig().locales == []
