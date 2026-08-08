@@ -16,6 +16,7 @@ from dhis2w_fhir.names import (
     join_name_segments,
     resolve_identity_stems,
 )
+from dhis2w_fhir.notes import GenerateNote
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import NamingConfig
@@ -264,7 +265,7 @@ class QuestionnaireStemPlan(BaseModel):
     programs: StemResolution
 
     @property
-    def notes(self) -> list[str]:
+    def notes(self) -> list[GenerateNote]:
         """The notes resolution raised across both surfaces, targets first."""
         return [*self.targets.notes, *self.programs.notes]
 

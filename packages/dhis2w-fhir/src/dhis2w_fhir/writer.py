@@ -12,7 +12,10 @@ hand-authored `pagecontent/index.md` in the same trees are never touched.
 `JsonArtifact` carries a pre-built FHIR JSON document. JSON has no comment
 syntax, so a header cannot mark those files: the content is written verbatim and
 `sync_json_artifacts` instead owns its target directory outright, deleting every
-`*.json` in it that the current build did not produce.
+`*.json` in it that the current build did not produce. Where two targets share one
+directory - the option-set and category ConceptMaps both live in `concept-maps/`
+behind a single publisher glob - each names the file prefix it owns and the sweep
+leaves the other target's documents alone.
 
 Both syncs compare content before writing, so an unchanged run leaves timestamps
 and diffs quiet.
@@ -24,6 +27,8 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from dhis2w_fhir.notes import GenerateNote
 
 
 class FshArtifact(BaseModel):
@@ -50,14 +55,14 @@ class FshBuild(BaseModel):
     """Result of a pure FSH build step: artifacts plus human-facing notes (skips, fallbacks)."""
 
     artifacts: list[FshArtifact] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
 
 class JsonBuild(BaseModel):
     """Result of a pre-built FHIR JSON build step: artifacts plus human-facing notes (skips, fallbacks)."""
 
     artifacts: list[JsonArtifact] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
 
 class SyncReport(BaseModel):
@@ -172,12 +177,22 @@ def sync_artifacts(base_directory: Path, target_subdirectory: str, artifacts: li
     return report
 
 
-def sync_json_artifacts(base_directory: Path, target_subdirectory: str, artifacts: list[JsonArtifact]) -> SyncReport:
-    """Write changed/new JSON verbatim and delete every unproduced `*.json` in the target directory this fully owns.
+def sync_json_artifacts(
+    base_directory: Path,
+    target_subdirectory: str,
+    artifacts: list[JsonArtifact],
+    *,
+    owned_prefix: str | None = None,
+) -> SyncReport:
+    """Write changed/new JSON verbatim and delete every unproduced `*.json` in the target directory this owns.
 
     JSON carries no comment syntax, so a generated header cannot mark these files and there is no
     `is_generated_file` check on the sweep: `target_subdirectory` belongs entirely to the generator, and any
     hand-authored `.json` placed there is deleted. Files of other extensions and nested subdirectories survive.
+
+    `owned_prefix` narrows that ownership to the file names starting with it, which is how two targets
+    share one directory: the option-set and category ConceptMaps sit together in `concept-maps/` behind a
+    single publisher glob, each sweeping the ids its own naming tokens produce.
     """
     report = SyncReport()
     produced: set[str] = set()
@@ -193,7 +208,7 @@ def sync_json_artifacts(base_directory: Path, target_subdirectory: str, artifact
     target = base_directory / target_subdirectory
     if target.is_dir():
         for path in sorted(target.glob(_JSON_SWEPT_PATTERN)):
-            if path.name in produced:
+            if path.name in produced or (owned_prefix is not None and not path.name.startswith(owned_prefix)):
                 continue
             path.unlink()
             report.deleted.append(path.name)

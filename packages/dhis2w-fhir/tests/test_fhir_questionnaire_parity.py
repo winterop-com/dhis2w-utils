@@ -85,7 +85,7 @@ def _built_questionnaires() -> dict[str, Any]:
         option_set_plan=option_set_identities(option_sets, config),
         attribute_codes=AttributeCodeIndex.model_validate(_fixture("attribute-codes")),
     )
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
     return {str(questionnaire.id): _emitted(questionnaire) for questionnaire in build.questionnaires}
 
 

@@ -286,8 +286,9 @@ Base directory is `<project_root>/ig/input/fsh/` for FSH,
 | --- | --- | --- |
 | `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-attribute-value.fsh`, `d2-organisation-unit.fsh`, `d2-tracker-enrollment.fsh`, `d2-responses.fsh`, `d2-capture-server.fsh` - nine, always, with no client opened. |
 | `option-sets` | `resources/terminology/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected option set, ids `d2-os-<stem>-cs` / `-vs`, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. A Questionnaire's `Canonical(D2OS_<stem>_VS)` resolves against them, because SUSHI fishes a predefined resource by its `name` element. |
-| `option-sets` | `resources/concept-maps/` | One `ConceptMap-<id-stem><slug>-cm.json` per selected option set that emitted concepts, taking every emitted concept code back to the DHIS2 option UID and the DHIS2 option code. Its own directory for the same reason `categories` has one. |
+| `option-sets` | `resources/concept-maps/` | One `ConceptMap-<id-stem><slug>-cm.json` per selected option set that emitted concepts, taking every emitted concept code back to the DHIS2 option UID and the DHIS2 option code. Shares the directory with the category maps and sweeps its own `ConceptMap-<id stem>` prefix. |
 | `categories` | `resources/categories/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected category, ids `d2-cat-<slug>-cs` / `-vs`, concepts being that category's category options in their DHIS2 `categoryOptions` order. Its own directory because `sync_json_artifacts` owns its target outright. |
+| `categories` | `resources/concept-maps/` | One `ConceptMap-<id-stem><slug>-cm.json` per selected category that emitted concepts, taking every emitted concept code back to the DHIS2 category-option UID and the DHIS2 category-option code. Same directory as the option-set maps, so one `path-resource` glob covers both; sweeps its own `ConceptMap-<id stem>` prefix. |
 | `questionnaires` | `data-sets/` | One `<stem>.fsh` Questionnaire per DHIS2 data set. |
 | `questionnaires` | `event-programs/` | One `<stem>.fsh` Questionnaire per `WITHOUT_REGISTRATION` program, built from its single stage. |
 | `questionnaires` | `tracker-programs/` | One `<program stem>/<stage stem>.fsh` Questionnaire per stage of a `WITH_REGISTRATION` program - the only nested layout, swept recursively with empty-subdirectory pruning. |
@@ -815,9 +816,10 @@ the generator, which every buildpack codegens from.
 **Depends on it.** This also decides what `d2w fhir build` codegens. It is the
 single largest open architectural question in the conversion layer, whose phased
 plan lives in [the FHIR conversion layer](fhir-conversion.md): that plan builds the
-typed Python forwarder first and asks this question of the result, so what is left
-to decide is the phase-B carrier - StructureMaps with a residue manifest, or a
-manifest alone.
+typed Python forwarder first and asks this question of the result. **Phase A has
+shipped** as `d2w fhir forward` over `dhis2w_fhir.conversion`, so the reference
+implementation exists and what is left to decide is the phase-B carrier -
+StructureMaps with a residue manifest, or a manifest alone.
 
 ### 5.4 Where `attributeOptionCombo` and data-set completeness live
 
@@ -1364,12 +1366,30 @@ commitment.
   They sit beside the profiles rather than under `examples/`, whose sync deletes
   every file it did not produce.
 
-- **ConceptMaps for categories.** The `option-sets` target publishes one ConceptMap
-  per set, and `d2w fhir serve` answers `$translate` over them. The `categories`
-  target emits the same CodeSystem/ValueSet pair through the same concept assignment
-  and publishes no map, so a generated category-option code has no published route
-  back to its DHIS2 UID. The builder is the option-set one with a different source
-  label and a different id stem.
+- **ConceptMaps for categories** - shipped. The `categories` target now publishes the
+  same triple `option-sets` does: one ConceptMap beside each CodeSystem/ValueSet pair,
+  riding the category's own identity stem (`D2CAT_<segment>_CM`, `d2-cat-<stem>-cm`),
+  carrying the category UID under `{base}/id/category` as its business identifier, and
+  mapping every emitted concept onto `{base}/id/category-option` and
+  `{base}/id/category-option-code`. The builder is the option-set one with the category
+  source label and id stem, reading the same `concept_assignments` plan, so a mapping
+  can only ever name a concept the pair really holds. The two new namespaces joined
+  `IDENTIFIER_SYSTEM_SUBJECTS`, so `foundation` declares them as NamingSystems and
+  aliases them (`$DHIS2-CO`, `$DHIS2-CO-CODE`) alongside the option ones.
+
+    Both families write into `resources/concept-maps/`, which is the one shared JSON
+    directory in the project: the publisher needs a `path-resource` glob per directory
+    and one mechanism should not need two. Ownership moved from the directory to the
+    file name - `sync_json_artifacts` takes an `owned_prefix` and each target sweeps
+    `ConceptMap-<its id stem>` alone - so `d2w fhir generate option-sets` no longer
+    deletes what `d2w fhir generate categories` wrote, and both still converge when an
+    object leaves the selection.
+
+    `d2w fhir serve` needed nothing: the store reads `input/resources` recursively and
+    `$translate` scans every ConceptMap it holds, so category maps are answered the
+    moment the target writes them. The live store builds them from the same category
+    inputs. Byte parity with SUSHI is gated by a second golden,
+    `tests/data/r4/ConceptMap-d2-cat-sex-cm.json`.
 
 - **Naming source: the id -> code migration path** - shipped:
   `[generate.naming] source = "id" | "code-or-id" | "code"`, default `"id"`. The
@@ -1425,18 +1445,33 @@ commitment.
     within `dataSets` but shared with an event program is a fall-back or a
     refusal in generate and a finding in validate alike.
 
-- **Typed note kinds.** A generate note is a plain string today, so nothing can
-  reason about it: a bare run writes them all to `reports/fhir-generate-notes.md` and
-  counts them, because it cannot tell one kind from another. Promoting a note to a
-  small model carrying a category would let generation cross-reference `validate`'s
-  findings and suppress the notes that merely restate one. The question "are the notes
-  covered by validate?" has two answers: the **instance-defect** echoes
-  (`invalid-code`, `duplicate-code`, `template-hostile-*`) yes, and dropping them from
-  the terminal costs nothing because the validate report says it better; the
-  **config and selection** notes (a selection entry matching nothing, an empty
-  selection, the closure pulling a set in) no - those are about this project's
-  `fhir.toml` rather than about the instance, and they are the terminal-worthy
-  remainder.
+- **Typed note kinds** - shipped. A generate note is a `GenerateNote`: a `category`,
+  the `message` a run has always printed, and `echoes_validate` derived from the
+  category, so the terminal reasons about a note instead of counting prose. Thirteen
+  kinds cover every site the package raises - `selection-mismatch`,
+  `selection-closure`, `empty-selection`, `selection-gap`, `refused-form`,
+  `form-structure`, `skipped-question`, `answer-fallback`, `instance-data-gap`,
+  `build-cost`, `code-fallback`, `code-collision`, `stem-fallback` - and
+  `test_fhir_generate_notes.py` holds the inventory of which module raises which,
+  so a new note has to be classified rather than written as prose.
+
+  The question "are the notes covered by validate?" kept both its answers. The
+  **instance-defect** echoes - `code-fallback`, `code-collision`, `stem-fallback`,
+  which are generation's view of validate's `missing-code`, `invalid-code`,
+  `template-hostile-code`, `duplicate-code`, and `code-stem-fallback` on the very
+  same objects - come off the terminal count, because the validate report says it
+  better, with the scope and the severity attached. The **config and selection**
+  notes, and every emit-time decision validate cannot see, are the terminal-worthy
+  remainder. So a bare run reads
+  `note: 3 note(s) across 2 target(s) (+8 validate echoes); full list in ...`, and
+  `8 validate echo(es) across 2 target(s)` when echoes are all it raised.
+
+  Suppressed is not hidden: `reports/fhir-generate-notes.md` still carries every
+  note, a target's own first and its echoes under a trailing
+  `### Restatements of validate findings` heading per target. A **solo** target
+  prints all of its notes inline exactly as before - one target's notes are short and
+  it was asked for by name - `--details` prints everything, and `--json` carries the
+  whole model, kind included.
 
 - **Scope-aware validate severity** - shipped. Severity means build impact on
   *this project's configured IG*: `validate` resolves the configured selection into
@@ -1485,14 +1520,20 @@ commitment.
 
 ### 9.2 Mid-term
 
-- **Forward stored responses into DHIS2.** The spool is a queue of receipts and
-  nothing drains it: `d2w fhir serve` accepts a submission, stores it, and writes
-  nothing to an instance. Turning a receipt into data values, events, and
-  enrollments - and reporting back what the import did - is the next phase, and
-  the `received/` directory is named for the sibling that phase adds. The plan is
-  [the FHIR conversion layer](fhir-conversion.md), in phases A, B, and C - phase A
-  is a typed Python forwarder that waits on nothing, and it is what open decision
-  5.3 gets ratified against.
+- **Forward stored responses into DHIS2** - shipped as `d2w fhir forward`, which is
+  phase A of [the FHIR conversion layer](fhir-conversion.md). The spool is a queue of
+  receipts and this is what drains it: each `.serve/responses/received/*.json` is
+  translated through `dhis2w_fhir.conversion` into its `/api/dataValueSets` envelope or
+  its `/api/tracker` event and posted, one payload per response so each outcome is
+  attributable. A **dry run is the default** and posts everything under the endpoint's
+  own validate-only mode (`dryRun=true`, `importMode=VALIDATE`), so DHIS2's own rules
+  grade the whole spool without a write. `--import` commits, and the spool becomes the
+  ledger the `received/` name was chosen for: accepted receipts move to `forwarded/`,
+  DHIS2-rejected ones to `rejected/` beside a `<id>.report.json` carrying the import
+  summary, and conversion-refused ones stay in `received/` because the fix for them is
+  local and the next run is the retry. The typed translator this is built on is the
+  reference implementation open decision 5.3 now gets ratified against; what remains
+  open is only the phase-B carrier.
 
 - **Read current DHIS2 data through the facade.** A stored response answers "what
   was submitted"; "what does DHIS2 hold right now" needs the facade to query the

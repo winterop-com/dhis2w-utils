@@ -297,25 +297,31 @@ async def test_live_entries_are_indexed_and_marked_live(
 
 
 @respx.mock
-async def test_the_live_store_holds_the_option_set_concept_maps(
+async def test_the_live_store_holds_both_concept_map_families(
     live_profile: None,  # noqa: ARG001
     live_project: FhirProject,
 ) -> None:
-    """A live run serves the same ConceptMaps the generate target writes, so `$translate` answers off it."""
+    """A live run serves the same ConceptMaps the generate targets write, so `$translate` answers off it."""
     _mock_instance()
 
     store = await _built_store(live_project)
 
     concept_maps = _bodies(store, "ConceptMap")
-    assert sorted(concept_maps) == ["d2-os-Xa1b2c3d4e5-cm"]
+    assert sorted(concept_maps) == ["d2-cat-O5P6e8yu1T6-cm", "d2-os-Xa1b2c3d4e5-cm"]
     groups = concept_maps["d2-os-Xa1b2c3d4e5-cm"]["group"]
     assert [group["target"] for group in groups] == [
         "http://dhis2.org/fhir/id/option",
         "http://dhis2.org/fhir/id/option-code",
     ]
     assert {group["source"] for group in groups} == {f"{_CANONICAL}/CodeSystem/d2-os-Xa1b2c3d4e5-cs"}
-    assert [concept_map.url for concept_map in store.concept_maps()] == [
-        f"{_CANONICAL}/ConceptMap/d2-os-Xa1b2c3d4e5-cm"
+    category_groups = concept_maps["d2-cat-O5P6e8yu1T6-cm"]["group"]
+    assert [group["target"] for group in category_groups] == [
+        "http://dhis2.org/fhir/id/category-option",
+        "http://dhis2.org/fhir/id/category-option-code",
+    ]
+    assert sorted(str(concept_map.url) for concept_map in store.concept_maps()) == [
+        f"{_CANONICAL}/ConceptMap/d2-cat-O5P6e8yu1T6-cm",
+        f"{_CANONICAL}/ConceptMap/d2-os-Xa1b2c3d4e5-cm",
     ]
 
 

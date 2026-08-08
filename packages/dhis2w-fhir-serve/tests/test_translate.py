@@ -1,8 +1,9 @@
-"""`GET /ConceptMap/$translate`: the operation over the option-set ConceptMaps the project publishes.
+"""`GET /ConceptMap/$translate`: the operation over the ConceptMaps the project publishes.
 
 Self-contained by design - the fixtures here write their own project tree and emit its ConceptMaps
 with the generator itself, so what the operation is asked to translate is exactly what
-`d2w fhir generate` writes into `ig/input/resources/concept-maps/`.
+`d2w fhir generate` writes into `ig/input/resources/concept-maps/`. Both families land there, so
+the operation is asked about an option set and about a category over the one store.
 """
 
 from __future__ import annotations
@@ -14,8 +15,9 @@ from typing import Any
 
 import httpx
 import pytest
-from dhis2w_fhir import build_option_set_concept_map_artifacts
+from dhis2w_fhir import build_category_concept_map_artifacts, build_option_set_concept_map_artifacts
 from dhis2w_fhir.config import FhirProject, load_fhir_config
+from dhis2w_fhir.resources.categories.schemas import CategoryIn
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.settings import ServeSettings
@@ -54,15 +56,35 @@ _BIRTH_TYPE = OptionSetIn(
     ],
 )
 
+#: The category whose ConceptMap sits beside the option set's in the same served directory.
+_SEX = CategoryIn(
+    uid="O5P6e8yu1T6",
+    name="Sex",
+    options=[
+        OptionIn(uid="TNYQzTHdoxL", code="F", name="Female", sort_order=0),
+        OptionIn(uid="apsOixVZlf1", code="M", name="Male", sort_order=1),
+    ],
+)
+
 #: The systems the emitted map names: the option set's own CodeSystem, and the two DHIS2 identifier systems.
 _CODE_SYSTEM = f"{_CANONICAL}/CodeSystem/d2-os-Xa1b2c3d4e5-cs"
 _CONCEPT_MAP = f"{_CANONICAL}/ConceptMap/d2-os-Xa1b2c3d4e5-cm"
 _OPTION_SYSTEM = f"{_IDENTIFIER_BASE}/id/option"
 _OPTION_CODE_SYSTEM = f"{_IDENTIFIER_BASE}/id/option-code"
 
+#: The same three URLs for the category family, which the operation answers over the very same store.
+_CATEGORY_CODE_SYSTEM = f"{_CANONICAL}/CodeSystem/d2-cat-O5P6e8yu1T6-cs"
+_CATEGORY_CONCEPT_MAP = f"{_CANONICAL}/ConceptMap/d2-cat-O5P6e8yu1T6-cm"
+_CATEGORY_OPTION_SYSTEM = f"{_IDENTIFIER_BASE}/id/category-option"
+_CATEGORY_OPTION_CODE_SYSTEM = f"{_IDENTIFIER_BASE}/id/category-option-code"
+
 #: The concept the tests translate, and the two DHIS2 identifiers the map states for it.
 _CONCEPT_CODE = "kRRUtYaGett"
 _OPTION_CODE = "NB"
+
+#: The category-option concept the tests translate, and the DHIS2 code the category map states for it.
+_CATEGORY_CONCEPT_CODE = "TNYQzTHdoxL"
+_CATEGORY_OPTION_CODE = "F"
 
 _QUESTIONNAIRE = {
     "resourceType": "Questionnaire",
@@ -75,7 +97,7 @@ _QUESTIONNAIRE = {
 
 @pytest.fixture
 def translate_project(tmp_path: Path) -> FhirProject:
-    """A project whose predefined tree holds the ConceptMaps the generator emits for one option set."""
+    """A project whose predefined tree holds the ConceptMaps the generator emits for one set and one category."""
     config_path = tmp_path / "fhir.toml"
     config_path.write_text(_FHIR_TOML, encoding="utf-8")
     project = FhirProject(config=load_fhir_config(config_path), config_path=config_path.resolve())
@@ -84,12 +106,20 @@ def translate_project(tmp_path: Path) -> FhirProject:
     compiled.mkdir(parents=True)
     (compiled / "Questionnaire-d2-pr-anc-visit-q.json").write_text(json.dumps(_QUESTIONNAIRE), encoding="utf-8")
 
-    artifacts = build_option_set_concept_map_artifacts(
-        [_BIRTH_TYPE],
-        project.config.generate,
-        project.config.ig.canonical,
-        ig_status=project.config.ig.status,
-    )
+    artifacts = [
+        *build_option_set_concept_map_artifacts(
+            [_BIRTH_TYPE],
+            project.config.generate,
+            project.config.ig.canonical,
+            ig_status=project.config.ig.status,
+        ),
+        *build_category_concept_map_artifacts(
+            [_SEX],
+            project.config.generate,
+            project.config.ig.canonical,
+            ig_status=project.config.ig.status,
+        ),
+    ]
     for artifact in artifacts:
         path = project.resources_directory / artifact.relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -163,6 +193,57 @@ async def test_a_target_system_narrows_the_answer_to_one_group(
     body = response.json()
     codings = [_parts(match)["concept"]["valueCoding"] for match in _matches(body)]
     assert codings == [{"system": _OPTION_CODE_SYSTEM, "code": _OPTION_CODE, "display": "Natural Birth"}]
+
+
+async def test_translate_answers_both_dhis2_identifiers_for_one_category_concept(
+    translate_client: httpx.AsyncClient,
+) -> None:
+    """The store reads `input/resources` whole, so a category map is served the moment the target writes it."""
+    response = await translate_client.get(
+        _TRANSLATE_PATH, params={"system": _CATEGORY_CODE_SYSTEM, "code": _CATEGORY_CONCEPT_CODE}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["parameter"][0] == {"name": "result", "valueBoolean": True}
+    codings = [_parts(match)["concept"]["valueCoding"] for match in _matches(body)]
+    assert codings == [
+        {"system": _CATEGORY_OPTION_SYSTEM, "code": _CATEGORY_CONCEPT_CODE, "display": "Female"},
+        {"system": _CATEGORY_OPTION_CODE_SYSTEM, "code": _CATEGORY_OPTION_CODE, "display": "Female"},
+    ]
+    assert _parts(_matches(body)[0])["source"] == {"name": "source", "valueUri": _CATEGORY_CONCEPT_MAP}
+
+
+async def test_a_target_system_narrows_a_category_answer_to_one_group(translate_client: httpx.AsyncClient) -> None:
+    """Narrowing works over the category namespaces the same way it does over the option ones."""
+    response = await translate_client.get(
+        _TRANSLATE_PATH,
+        params={
+            "system": _CATEGORY_CODE_SYSTEM,
+            "code": _CATEGORY_CONCEPT_CODE,
+            "targetsystem": _CATEGORY_OPTION_CODE_SYSTEM,
+        },
+    )
+
+    assert response.status_code == 200
+    codings = [_parts(match)["concept"]["valueCoding"] for match in _matches(response.json())]
+    assert codings == [{"system": _CATEGORY_OPTION_CODE_SYSTEM, "code": _CATEGORY_OPTION_CODE, "display": "Female"}]
+
+
+async def test_the_option_namespaces_do_not_narrow_a_category_concept(translate_client: httpx.AsyncClient) -> None:
+    """The two families keep their own namespaces, so an option target system matches no category mapping."""
+    response = await translate_client.get(
+        _TRANSLATE_PATH,
+        params={
+            "system": _CATEGORY_CODE_SYSTEM,
+            "code": _CATEGORY_CONCEPT_CODE,
+            "targetsystem": _OPTION_CODE_SYSTEM,
+        },
+    )
+
+    body = response.json()
+    assert _named(body, "result") == {"name": "result", "valueBoolean": False}
+    assert _matches(body) == []
 
 
 async def test_an_unknown_system_answers_false_with_a_message(translate_client: httpx.AsyncClient) -> None:

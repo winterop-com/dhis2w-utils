@@ -719,6 +719,7 @@ name = "dhis2w-fhir"
 version = "1.6.0.dev0"
 source = { editable = "packages/dhis2w-fhir" }
 dependencies = [
+    { name = "dhis2w-client" },
     { name = "dhis2w-core" },
     { name = "fastmcp" },
     { name = "fpdf2" },
@@ -731,6 +732,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dhis2w-client", editable = "packages/dhis2w-client" },
     { name = "dhis2w-core", editable = "packages/dhis2w-core" },
     { name = "fastmcp", specifier = ">=3.4.5" },
     { name = "fpdf2", specifier = ">=2.8.7" },

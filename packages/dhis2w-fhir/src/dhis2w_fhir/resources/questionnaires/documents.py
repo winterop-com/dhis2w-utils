@@ -30,7 +30,7 @@ from dhis2w_fhir.foundation.attribute_values import (
 )
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_string
-from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.r4 import (
     CodeableConcept,
     CodeSystem,
@@ -134,7 +134,7 @@ class QuestionnaireDocumentBuild(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     questionnaires: list[Questionnaire] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
 
 class DataDictionaryDocumentBuild(BaseModel):
@@ -242,10 +242,11 @@ def build_questionnaire_documents(
         )
         for source in sorted(sources, key=lambda item: (item.name, item.uid))
     ]
-    notes: list[str] = list(plan.targets.notes)
+    notes: list[GenerateNote] = list(plan.targets.notes)
     if index.unplanned_uids:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.SELECTION_GAP,
                 f"{len(index.unplanned_uids)} option sets a question binds are absent from the option-set "
                 "selection; their answerValueSet names are derived from the UID",
                 index.unplanned_uids,

@@ -265,7 +265,7 @@ async def test_generate_full_announces_the_fetch_and_one_step_per_target(
     assert "1/8 organisation units: 2 read across 1 page(s)" in reporter.captions
     assert "2/8 writing ig/input/fsh/foundation" in reporter.captions
     assert "3/8 writing ig/input/resources/terminology and ig/input/resources/concept-maps" in reporter.captions
-    assert "4/8 writing ig/input/resources/categories" in reporter.captions
+    assert "4/8 writing ig/input/resources/categories and ig/input/resources/concept-maps" in reporter.captions
     assert "6/8 writing ig/input/fsh/examples" in reporter.captions
     assert "8/8 writing ig/input/pagecontent" in reporter.captions
 

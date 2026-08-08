@@ -187,7 +187,7 @@ async def test_generate_categories_across_majors(
     mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """`generate_categories` writes a CodeSystem/ValueSet pair per category against every DHIS2 major."""
+    """`generate_categories` writes the CodeSystem/ValueSet/ConceptMap triple against every DHIS2 major."""
     mock_system_info(wire_version)
     mock_attributes()
     await _scaffold_project(tmp_path)
@@ -198,16 +198,77 @@ async def test_generate_categories_across_majors(
     assert route.called
     assert report.category_count == 1
     assert report.target_base == "ig/input"
-    assert report.target_directory == "resources/categories"
+    assert report.target_directory == "resources/categories, resources/concept-maps"
     assert report.written_files == [
         "categories/CodeSystem-d2-cat-O5P6e8yu1T6-cs.json",
         "categories/ValueSet-d2-cat-O5P6e8yu1T6-vs.json",
+        "concept-maps/ConceptMap-d2-cat-O5P6e8yu1T6-cm.json",
     ]
-    categories = tmp_path / "ig" / "input" / "resources" / "categories"
-    code_system = json.loads((categories / "CodeSystem-d2-cat-O5P6e8yu1T6-cs.json").read_text(encoding="utf-8"))
+    resources = tmp_path / "ig" / "input" / "resources"
+    code_system = json.loads(
+        (resources / "categories" / "CodeSystem-d2-cat-O5P6e8yu1T6-cs.json").read_text(encoding="utf-8")
+    )
     assert code_system["name"] == "D2CAT_O5P6e8yu1T6_CS"
     assert code_system["title"] == "Sex"
     assert [concept["code"] for concept in code_system["concept"]] == ["TNYQzTHdoxL", "apsOixVZlf1"]
+    concept_map = json.loads(
+        (resources / "concept-maps" / "ConceptMap-d2-cat-O5P6e8yu1T6-cm.json").read_text(encoding="utf-8")
+    )
+    assert concept_map["name"] == "D2CAT_O5P6e8yu1T6_CM"
+    assert [group["target"] for group in concept_map["group"]] == [
+        "http://dhis2.org/fhir/id/category-option",
+        "http://dhis2.org/fhir/id/category-option-code",
+    ]
+
+
+@respx.mock
+async def test_the_two_concept_map_families_share_a_directory_without_sweeping_each_other(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`concept-maps/` holds both families behind one publisher glob, so neither target owns it outright."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path)
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
+    concept_maps = tmp_path / "ig" / "input" / "resources" / "concept-maps"
+
+    await service.generate_option_sets(resolve_profile("probe"), load_project(tmp_path))
+    await service.generate_categories(resolve_profile("probe"), load_project(tmp_path))
+    report = await service.generate_option_sets(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.deleted_files == []
+    assert sorted(path.name for path in concept_maps.glob("*.json")) == [
+        "ConceptMap-d2-cat-O5P6e8yu1T6-cm.json",
+        "ConceptMap-d2-os-Xa1b2c3d4e5-cm.json",
+    ]
+
+
+@respx.mock
+async def test_a_category_map_a_rerun_no_longer_produces_is_swept(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Owning a prefix rather than the directory still converges: a dropped category takes its map with it."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path)
+    respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
+    await service.generate_categories(resolve_profile("probe"), load_project(tmp_path))
+    respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
+
+    report = await service.generate_categories(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.deleted_files == [
+        "CodeSystem-d2-cat-O5P6e8yu1T6-cs.json",
+        "ValueSet-d2-cat-O5P6e8yu1T6-vs.json",
+        "ConceptMap-d2-cat-O5P6e8yu1T6-cm.json",
+    ]
 
 
 @respx.mock

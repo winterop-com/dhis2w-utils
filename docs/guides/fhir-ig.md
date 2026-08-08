@@ -66,7 +66,9 @@ The generated site lands in `ig/output/`. `make clean` removes build output;
 [Build time and the two caches](#build-time-and-the-two-caches).
 
 To point a FHIR client at the guide instead of publishing it, `d2w fhir serve` runs the
-compiled project as a read-and-capture endpoint - see [Serving the IG](#serving-the-ig).
+compiled project as a read-and-capture endpoint - see [Serving the IG](#serving-the-ig) -
+and `d2w fhir forward` posts what that endpoint captured back into DHIS2, closing the loop:
+see [Forwarding captured responses](#forwarding-captured-responses).
 
 ## Pinned toolchain
 
@@ -321,7 +323,8 @@ everything else reads the decision. The surfaces it names:
 
 - **option sets** - the CodeSystem, ValueSet, and ConceptMap triple of one set
   share one stem (`CodeSystem-d2-os-<stem>-cs.json`, `-vs`, `-cm`).
-- **categories** - the CodeSystem/ValueSet pair (`d2-cat-<stem>-cs` / `-vs`).
+- **categories** - the CodeSystem, ValueSet, and ConceptMap triple of one
+  category share one stem (`d2-cat-<stem>-cs` / `-vs` / `-cm`).
 - **organisation units** - the registry's `Organization-<stem>.json` and
   `Location-<stem>.json`, their resource ids, and every `partOf` and
   `managingOrganization` reference between them.
@@ -611,18 +614,58 @@ directory wants.
 
 **Notes.** Each target raises aggregate notes - a selection entry that matched nothing,
 an option set the closure pulled in, the geometry tally, a form skipped for a `linkId`
-collision. On a national instance eight targets of those bury the summary table the run
-is actually read from, so a bare run **counts** them and writes them to
+collision. A note is not prose: it carries a **kind**, and the kind is what the terminal
+reasons about.
+
+| Kind | What it records |
+| --- | --- |
+| `selection-mismatch` | A `[generate.*] include_ids` entry that matched nothing on the instance. |
+| `selection-closure` | An object the selection did not name, pulled in by the closure a form binds. |
+| `empty-selection` | The selection resolved to nothing, so the target emitted nothing. |
+| `selection-gap` | A reference leaving the selection, so the emitted resource points at something unpublished. |
+| `refused-form` | A whole form refused rather than published invalid. |
+| `form-structure` | A form reshaped to fit FHIR, with every question kept. |
+| `skipped-question` | A question or captured value dropped or left unanswered. |
+| `answer-fallback` | An answer emitted in a weaker shape than the question asked for. |
+| `instance-data-gap` | The instance holds no usable value where the target needed one. |
+| `build-cost` | What the emitted volume costs the IG publisher's own build. |
+| `code-fallback` | A DHIS2 code unusable as a concept code, so the UID stands in. |
+| `code-collision` | A DHIS2 code claimed twice, so the loser takes the UID or no code at all. |
+| `stem-fallback` | A DHIS2 code unusable as an identity stem, so the id stands in. |
+
+The last three are **restatements of what `d2w fhir validate` already reports**: they are
+this run's view of the same `missing-code`, `invalid-code`, `template-hostile-code`,
+`duplicate-code`, and `code-stem-fallback` findings, on the same objects, and the validate
+report says it at length with the scope and the severity attached. Every other kind is
+about this project's `fhir.toml` or about a decision taken at emit time, which validate
+never reads.
+
+On a national instance eight targets of notes bury the summary table the run is actually
+read from, so a bare run **counts** them - the echoes separately - and writes them all to
 `reports/fhir-generate-notes.md`, grouped by target:
 
 ```
-note: 11 note(s) across 4 target(s); full list in reports/fhir-generate-notes.md (--details to print)
+note: 3 note(s) across 2 target(s) (+8 validate echoes); full list in reports/fhir-generate-notes.md (--details to print)
 ```
 
-`--details` prints every note inline instead, each labelled by the target that raised
-it, and a run that raised none writes nothing and says nothing. A **solo** target keeps
-printing its notes on the terminal: one target's notes are short, and you asked for that
-target by name. `--json` is unchanged - the notes ride the payload either way.
+Read that as: generation found three things worth your attention, and eight more it would
+only be repeating `d2w fhir validate` to tell you about. When a run raises nothing but
+echoes the line says so instead (`8 validate echo(es) across 2 target(s)`), and when it
+raises no echoes at all the `(+n)` chunk is absent.
+
+Nothing is hidden. The notes file carries every note: a target's own notes first, then its
+echoes under a trailing `### Restatements of validate findings` heading, so the file reads
+as what generation has to say without losing what it restated.
+
+`--details` prints every note inline instead - both kinds, each labelled by the target that
+raised it - and a run that raised none writes nothing and says nothing. A **solo** target
+keeps printing all of its notes on the terminal: one target's notes are short, and you
+asked for that target by name. `--json` carries the whole model, so a consumer reads the
+kind rather than the prose:
+
+```json
+{"category": "code-fallback", "message": "1 option codes collided; fell back to the UID: X (Op2aaaaaaaa)", "echoes_validate": true}
+```
 
 **Progress.** Every command with an instance behind it - the bare run, each named target,
 `load-set`, and `validate` - narrates its steps on stderr as they complete: a spinner with
@@ -637,16 +680,21 @@ four under `ig/input/fsh/` (`data-sets/`, `event-programs/`, `tracker-programs/`
 `data-dictionary/`) - `tracker-programs/` is the one nested layout, a subdirectory per
 program UID, and the sync prunes a subdirectory it emptied;
 `foundation` and `examples` own one each under `ig/input/fsh/`; `option-sets` owns
-`ig/input/resources/terminology/` for its pre-built CodeSystem and ValueSet JSON
-and `ig/input/resources/concept-maps/` for the ConceptMap beside each pair, and
-`categories` owns `ig/input/resources/categories/`; `org-units` owns two - `ig/input/fsh/organization/` for its profiles and
+`ig/input/resources/terminology/` for its pre-built CodeSystem and ValueSet JSON and
+`categories` owns `ig/input/resources/categories/` for its own; both write their
+ConceptMaps into `ig/input/resources/concept-maps/`; `org-units` owns two -
+`ig/input/fsh/organization/` for its profiles and
 terminology and `ig/input/resources/registry/` for the pre-built instance JSON;
 `pages` owns `ig/input/pagecontent/`, which holds markdown rather than FSH.
 
-The three JSON targets each get a directory of their own rather than sharing one,
-because a JSON sync owns its target outright: it deletes every `*.json` in that
-directory the run did not produce. Two targets pointed at one directory would
-delete each other's documents on every run.
+Each terminology pair gets a directory of its own rather than sharing one, because a
+JSON sync owns its target outright: it deletes every `*.json` in that directory the run
+did not produce. Two targets pointed at one directory would delete each other's
+documents on every run. `concept-maps/` is the one shared directory, so ownership there
+is stated by file-name prefix instead: `option-sets` sweeps `ConceptMap-<its id stem>*`
+and `categories` sweeps `ConceptMap-<its id stem>*`, which the `OS` / `CAT` naming
+tokens keep apart. Both still converge - a dropped object takes its map with it - and
+the published guide needs one `path-resource` glob rather than two.
 
 ### `foundation`
 
@@ -903,39 +951,21 @@ the set are not emitted, because a `CodeSystem.concept` has no carrier chosen fo
 them.
 
 **A ConceptMap per set takes the concept codes back to DHIS2.** Beside the pair,
-the target writes one map into its own directory:
+the target writes one map into the shared ConceptMap directory:
 
 ```
 ig/input/resources/concept-maps/ConceptMap-d2-os-<stem>-cm.json
 ```
 
-It carries the FSH-style name `D2OS_<stem>_CM`, the same identity stem the
-pair's ids come from - the triple shares one stem - and `sourceCanonical`
-pointing at the set's own ValueSet. Two groups, both
-sourced from the set's CodeSystem, answer the question a consumer holding a
-generated coding has: `<base>/id/option` maps each concept code onto the DHIS2
-option UID, and `<base>/id/option-code` onto the DHIS2 option code. Every row
-states `equivalence = #equal`, which R4 requires - the concept and the target
-identifier name the same DHIS2 option under two conventions, not two vocabularies.
+It carries the FSH-style name `D2OS_<stem>_CM` and the same identity stem the
+pair's ids come from - the triple shares one stem. See
+[ConceptMaps: the route back to DHIS2](#conceptmaps-the-route-back-to-dhis2) for
+the shape, the two groups, and how `$translate` serves them.
 
-The UID group is emitted under either `concept_code_source`, identity mapping
-included, so a consumer never has to know which mode produced the guide. The code
-group holds only the options that have a DHIS2 code that is a valid FHIR `code`;
-a set where no option does emits the UID group alone, because an R4 group with no
-element is invalid, and a set with no concepts emits no map at all. The rows come
-from the same concept assignment the CodeSystem's concepts do, so a mapping can
-only ever name a concept the pair really carries.
-
-**The publisher needs the glob.** `input/resources/concept-maps/*` sits in the
-scaffolded `sushi-config.yaml` `path-resource` block beside the terminology and
-category globs. SUSHI recurses into sub-folders of `input/resources` on its own;
-the IG Publisher does not, so without it the maps compile fine and are dropped
-from the published guide. A project scaffolded before the glob existed picks it up
-with [`d2w fhir init --refresh`](#refreshing-a-projects-scaffold).
-
-The target owns `terminology/` and `concept-maps/` outright and sweeps both: JSON
-left there by a previous run that this run does not produce is deleted, so
-renaming or dropping an option set converges rather than accumulating.
+The target owns `terminology/` outright and sweeps it, plus its own `ConceptMap-`
+prefix inside `concept-maps/`: JSON left there by a previous run that this run does
+not produce is deleted, so renaming or dropping an option set converges rather than
+accumulating.
 
 ### `categories`
 
@@ -967,10 +997,23 @@ fall-backs apply: an option whose code is not a valid FHIR code takes its UID wi
 a note, and an option with no code left to take is skipped with its own note
 rather than emitted as a duplicate concept.
 
-**A dedicated directory, not a shared one.** `categories/` is separate from
+**A ConceptMap per category takes the concept codes back to DHIS2**, written
+beside the option-set maps in the shared directory:
+
+```
+ig/input/resources/concept-maps/ConceptMap-d2-cat-<stem>-cm.json
+```
+
+It carries the FSH-style name `D2CAT_<stem>_CM` and the category's own identity
+stem, so the triple stays in step. See
+[ConceptMaps: the route back to DHIS2](#conceptmaps-the-route-back-to-dhis2).
+
+**A dedicated pair directory, not a shared one.** `categories/` is separate from
 `terminology/` because each JSON sync deletes every `*.json` in its target that
 the run did not produce. Sharing one directory would have the two targets deleting
-each other's documents.
+each other's documents. `concept-maps/` is the deliberate exception: both families
+publish there and each sweeps only the files its own id stem names, so the published
+guide needs one `path-resource` glob for the whole terminology-mapping story.
 
 **The scaffolded `sushi-config.yaml` declares the glob.** Its `path-resource`
 block names `input/resources/categories/*` alongside the registry and terminology
@@ -982,6 +1025,167 @@ with [`d2w fhir init --refresh`](#refreshing-a-projects-scaffold).
 Narrow the selection with
 [`[generate.categories]` `include_ids`](#generatecategories) - absent or empty
 means every category, DHIS2's own `default` category included.
+
+### ConceptMaps: the route back to DHIS2
+
+Every concept the generator writes is a DHIS2 object under a FHIR spelling, and a
+consumer holding one has exactly one question: **which DHIS2 object is this?** The
+concept properties answer it for a reader; a ConceptMap answers it for a machine, and
+a terminology server can serve that answer over `$translate`.
+
+Two targets publish maps, one family each, into one directory:
+
+```
+ig/input/resources/concept-maps/ConceptMap-d2-os-<stem>-cm.json    option sets
+ig/input/resources/concept-maps/ConceptMap-d2-cat-<stem>-cm.json   categories
+```
+
+| Family | Written by | Question it answers | Target namespaces |
+| --- | --- | --- | --- |
+| Option sets | `option-sets` | Which DHIS2 **option** does this answer code name? | `<base>/id/option`, `<base>/id/option-code` |
+| Categories | `categories` | Which DHIS2 **category option** does this disaggregation code name? | `<base>/id/category-option`, `<base>/id/category-option-code` |
+
+Each map takes its id, its FSH name, and its URL from the same
+[identity stem](#the-identity-stem) its CodeSystem and ValueSet do, carries the source
+object's UID as its single `identifier` (`<base>/id/option-set` for a set,
+`<base>/id/category` for a category), and points `sourceCanonical` at its own ValueSet.
+All four DHIS2 namespaces are declared as NamingSystems by the
+[`foundation`](#foundation) target, so a validator meeting one has a definition to
+resolve.
+
+#### The two-group shape
+
+A map holds two groups, both sourced from the object's own CodeSystem: one onto the
+DHIS2 UID namespace, one onto the DHIS2 code namespace. An option set:
+
+```json
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-birth-type-cm",
+  "url": "http://example.org/fhir/ConceptMap/d2-os-birth-type-cm",
+  "identifier": { "system": "http://dhis2.org/fhir/id/option-set", "value": "Xa1b2c3d4e5" },
+  "name": "D2OS_BirthType_CM",
+  "title": "Birth type",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/ValueSet/d2-os-birth-type-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-os-birth-type-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "kRRUtYaGett",
+          "display": "Natural Birth",
+          "target": [{ "code": "kRRUtYaGett", "equivalence": "equal" }]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-os-birth-type-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "kRRUtYaGett",
+          "display": "Natural Birth",
+          "target": [{ "code": "NB", "equivalence": "equal" }]
+        }
+      ]
+    }
+  ]
+}
+```
+
+And a category, the same shape over the category-option namespaces:
+
+```json
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-cat-sex-cm",
+  "url": "http://example.org/fhir/ConceptMap/d2-cat-sex-cm",
+  "identifier": { "system": "http://dhis2.org/fhir/id/category", "value": "O5P6e8yu1T6" },
+  "name": "D2CAT_Sex_CM",
+  "title": "Sex",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/ValueSet/d2-cat-sex-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-cat-sex-cs",
+      "target": "http://dhis2.org/fhir/id/category-option",
+      "element": [
+        {
+          "code": "TNYQzTHdoxL",
+          "display": "Female",
+          "target": [{ "code": "TNYQzTHdoxL", "equivalence": "equal" }]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-cat-sex-cs",
+      "target": "http://dhis2.org/fhir/id/category-option-code",
+      "element": [
+        {
+          "code": "TNYQzTHdoxL",
+          "display": "Female",
+          "target": [{ "code": "F", "equivalence": "equal" }]
+        }
+      ]
+    }
+  ]
+}
+```
+
+The rules are the same for both families:
+
+- **`equivalence = #equal` on every row**, which R4 makes mandatory. The concept and
+  the target identifier name the same DHIS2 object under two identifier conventions -
+  this is not a translation between two vocabularies.
+- **The UID group is emitted under either `concept_code_source`**, identity mapping
+  included, so a consumer never has to know which mode produced the guide.
+- **The code group is emitted only where there is something to map.** A member DHIS2
+  left uncoded, or coded with something that is not a valid FHIR `code`, has no target
+  code and is left out; an object where that is true of every member emits the UID
+  group alone, because an R4 group with no element is invalid. An object with no
+  concepts at all emits no map.
+- **The rows come from the same concept assignment the CodeSystem's concepts do**, so
+  a mapping can only ever name a concept the pair really carries.
+- **`source[x]` is the pair's ValueSet and `target[x]` is absent.** R4 types both as
+  value sets; the DHIS2 identifier namespaces are not value sets, so naming one there
+  would be a lie. They appear where R4 wants systems: `group.target`.
+- **`identifier` is a single element, not a list.** R4 gives `ConceptMap.identifier`
+  `0..1` where it gives CodeSystem and ValueSet `0..*`.
+
+#### UID targets or code targets?
+
+Both groups are always there to be asked; which one a consumer wants depends on what
+it is about to do with the answer.
+
+- **Reach for the UID namespace** (`id/option`, `id/category-option`) when the answer
+  is going into a DHIS2 API call. UIDs are what `/api/dataValueSets` and the tracker
+  endpoints accept, they are unique instance-wide, and every member has one - the group
+  is complete by construction.
+- **Reach for the code namespace** (`id/option-code`, `id/category-option-code`) when
+  the answer is going in front of a human, into a report, or into a system keyed on the
+  instance's business codes. DHIS2 codes are optional and not guaranteed unique, so the
+  group can be partial or absent; treat a miss as "this member has no usable code",
+  not as an error.
+
+#### The publisher needs the glob
+
+`input/resources/concept-maps/*` sits in the scaffolded `sushi-config.yaml`
+`path-resource` block beside the terminology, category, and registry globs - one glob
+covers both families, because both write into the one directory. SUSHI recurses into
+sub-folders of `input/resources` on its own; the IG Publisher does not, so without it
+the maps compile fine and are dropped from the published guide. A project scaffolded
+before the glob existed picks it up with
+[`d2w fhir init --refresh`](#refreshing-a-projects-scaffold).
+
+Neither target owns the directory outright. A JSON sync normally deletes every `*.json`
+in its target the run did not produce, which would have `d2w fhir generate option-sets`
+sweeping away the category maps; instead each target sweeps only the file-name prefix
+its own id stem produces (`ConceptMap-d2-os-`, `ConceptMap-d2-cat-`). Both still
+converge: drop a category from the selection and its map goes with its pair.
 
 ### Data set, event program, and tracker stage forms
 
@@ -1538,24 +1742,82 @@ the parameters the server actually applied, so a client can see what it got.
 
 ### `$translate`
 
-The one operation the facade answers, over the [ConceptMaps the option-set target
-publishes](#option-sets): R4's type-level `ConceptMap/$translate`, which takes a
-generated concept code back to the DHIS2 option UID and the DHIS2 option code.
+The one operation the facade answers, over [every ConceptMap the project
+publishes](#conceptmaps-the-route-back-to-dhis2): R4's type-level
+`ConceptMap/$translate`, which takes a generated concept code back to the DHIS2
+identifiers it stands for. The store reads `input/resources/` whole and the operation
+scans every map it holds, so both families are answered by the same call - the request
+differs only in which CodeSystem it names.
 
 ```bash
-# Both DHIS2 identifiers for one generated concept code.
+# An option-set concept: both DHIS2 identifiers of one generated answer code.
 curl -s 'localhost:8080/ConceptMap/$translate?system=http://example.org/fhir/demo/CodeSystem/d2-os-Qdm5fPK5Ra9-cs&code=Op1aaaaaaaa' \
   | jq '.parameter'
 
-# Narrow it to one of the two groups.
-curl -s 'localhost:8080/ConceptMap/$translate?system=...&code=Op1aaaaaaaa&targetsystem=http://example.org/fhir/demo/id/option-code' \
+# A category concept: the same call over the disaggregation terminology.
+curl -s 'localhost:8080/ConceptMap/$translate?system=http://example.org/fhir/demo/CodeSystem/d2-cat-fMZEcRHuamy-cs&code=qkPbeWaFsnU' \
+  | jq '.parameter'
+
+# Narrow either one to a single group by naming the namespace you want back.
+curl -s 'localhost:8080/ConceptMap/$translate?system=...&code=qkPbeWaFsnU&targetsystem=http://example.org/fhir/demo/id/category-option-code' \
   | jq '.parameter'
 ```
 
 The answer is a `Parameters` resource in R4's own `$translate` output shape: `result`
 (a boolean), one `match` per mapping carrying `equivalence`, the target `concept` as a
 Coding, and the `source` ConceptMap, plus a `message` naming what was not found when
-`result` is false. `system` and `code` are required - omitting either is a 400
+`result` is false. The category call above answers both of its namespaces:
+
+```json
+{
+  "resourceType": "Parameters",
+  "parameter": [
+    { "name": "result", "valueBoolean": true },
+    {
+      "name": "match",
+      "part": [
+        { "name": "equivalence", "valueCode": "equal" },
+        {
+          "name": "concept",
+          "valueCoding": {
+            "system": "http://example.org/fhir/demo/id/category-option",
+            "code": "qkPbeWaFsnU",
+            "display": "Fixed"
+          }
+        },
+        {
+          "name": "source",
+          "valueUri": "http://example.org/fhir/demo/ConceptMap/d2-cat-fMZEcRHuamy-cm"
+        }
+      ]
+    },
+    {
+      "name": "match",
+      "part": [
+        { "name": "equivalence", "valueCode": "equal" },
+        {
+          "name": "concept",
+          "valueCoding": {
+            "system": "http://example.org/fhir/demo/id/category-option-code",
+            "code": "FIXED",
+            "display": "Fixed"
+          }
+        },
+        {
+          "name": "source",
+          "valueUri": "http://example.org/fhir/demo/ConceptMap/d2-cat-fMZEcRHuamy-cm"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Pick the match you want by its `concept.system`, or ask for it up front with
+`targetsystem` - see [UID targets or code targets?](#uid-targets-or-code-targets) for
+which one to reach for. A `targetsystem` naming the other family's namespace matches
+nothing and answers `result: false`, because the two families keep their namespaces
+apart. `system` and `code` are required - omitting either is a 400
 OperationOutcome - and `targetsystem` is optional, selecting one group instead of all
 of them. Both R4's lowercase `targetsystem` and the `targetSystem` real clients also
 send are read.
@@ -1750,8 +2012,9 @@ crash never leaves a half-written receipt, and a restart rebuilds the index by s
 the directory.
 
 `ls .serve/responses/received | wc -l` is therefore the pending count, with no extra
-bookkeeping: the directory *is* the queue the forwarding phase will drain, which is why
-it is named `received/` rather than `responses/` - its sibling arrives with that phase.
+bookkeeping: the directory *is* the queue [`d2w fhir forward`](#forwarding-captured-responses)
+drains, which is why it is named `received/` rather than `responses/` - `forwarded/` and
+`rejected/` are its siblings.
 
 `.serve/` is gitignored by the scaffold. A project scaffolded before the entry existed
 gains it from `d2w fhir init . --refresh`.
@@ -1812,8 +2075,190 @@ response.
 - **No authentication.** That is why the default bind is `127.0.0.1`. Exposing the
   facade beyond loopback with `--host` is a deliberate act, and puts the endpoint behind
   something that authenticates.
-- **No forwarding yet.** Nothing here writes to DHIS2; see
-  [the FHIR conversion layer](../project/fhir-conversion.md) for the plan.
+- **The server never writes to DHIS2.** A capture is a receipt and nothing more.
+  Writing to the instance is a separate, explicit act:
+  [`d2w fhir forward`](#forwarding-captured-responses).
+
+## Forwarding captured responses
+
+`d2w fhir forward` is the last leg of the loop, and it closes it:
+
+```
+DHIS2 metadata -> d2w fhir generate -> the IG -> d2w fhir serve -> a form a client fills
+      ^                                                                     |
+      |                                                                     v
+      +---------------- d2w fhir forward <------------- a captured QuestionnaireResponse
+```
+
+Everything before this point reads DHIS2 or reads the guide. `forward` is the one verb
+that writes to the instance, so it is deliberately the one verb you have to ask twice.
+
+```bash
+d2w fhir forward            # dry run: validate the whole spool against DHIS2, change nothing
+d2w fhir forward --import   # commit
+```
+
+### Dry run first, always
+
+**A bare `d2w fhir forward` is a dry run**, and the terminal opens and closes with a
+banner saying so. It is not a local simulation: every payload is posted to the real
+endpoint on the real instance, under that endpoint's own validate-only mode.
+
+| Payload | Endpoint | Dry run | Import |
+| --- | --- | --- | --- |
+| Aggregate response | `POST /api/dataValueSets` | `dryRun=true` | *(no extra parameter)* |
+| Event / tracker event | `POST /api/tracker` | `importMode=VALIDATE` | *(no extra parameter)* |
+
+Both endpoints run every rule they would run for a committed import and persist nothing,
+so a green dry run means DHIS2 itself has agreed to the whole spool. The two spellings
+differ because the endpoints do: v42's `/api/tracker` has no `dryRun` parameter at all,
+and `/api/dataValueSets` has no `importMode`. Every event post also carries
+`importStrategy=CREATE&async=false` - a translated event carries no DHIS2 uid, so it is
+always a create, and the synchronous mode is what makes the answer the import report
+itself rather than a job to poll.
+
+A dry run **moves nothing**. The queue after it is the queue before it, so the natural
+workflow is to run it until it is clean and then run the same command with `--import`.
+
+### What one run does
+
+Six steps, each narrated on stderr:
+
+1. **Read the spool** - every `.serve/responses/received/*.json`, in file-name order.
+2. **Read the published guide** - `ig/fsh-generated/resources` merged with
+   `ig/input/resources`, exactly the two trees `d2w fhir serve` loads. Forwarding an
+   uncompiled project is a one-line refusal naming `d2w fhir generate` and `make sushi`.
+3. **Read the value types** - one id-only
+   `/api/dataElements?fields=id,valueType&filter=id:in:[...]` for the data elements the
+   published forms bind. This is the one fact the compiled IG cannot carry: R4 spells
+   DHIS2's `BOOLEAN` and `TRUE_ONLY` as the same `#boolean` item type, and only the value
+   type tells them apart. Without it a `TRUE_ONLY` question would be written as `BOOLEAN`.
+4. **Translate** - each response through `dhis2w_fhir.conversion`, all-or-nothing.
+5. **Post** - one payload per response, through the one client the run opened.
+6. **File** - each receipt into what it became (import runs only).
+
+A refusal comes back differently from each endpoint, and the run reads both: `/api/dataValueSets`
+answers a `409` whose body is a `WebMessage` wrapping an `ImportSummary`, while `/api/tracker`
+answers the `TrackerImportReport` **bare**, with no envelope around it at all. Each family
+recognises its own report by the fields only that report carries, so every `errorCode`, object,
+and message DHIS2 took the trouble to name survives onto the outcome - and the endpoint's own
+generated model (`ImportSummary` / `TrackerImportReport`) rides along untouched beside it.
+
+One POST per response is deliberate. DHIS2 answers a bundle with one report for the
+bundle, and a spool whose receipts move individually needs one answer each.
+
+### The three states a receipt can end in
+
+```
+.serve/responses/
+  received/    captured, not yet forwarded  - the queue
+  forwarded/   DHIS2 accepted it
+  rejected/    DHIS2 refused it, and <id>.report.json says why
+```
+
+Moves are renames within one filesystem, so a receipt is in exactly one state at every
+instant. A rejection's report is written before the receipt moves, so a process killed
+mid-move leaves a report with no receipt - which the next run overwrites - rather than a
+rejected receipt nothing explains.
+
+### Refusal is not rejection
+
+The two failure modes are different jobs, and the terminal never collapses them:
+
+| | Refused | Rejected |
+| --- | --- | --- |
+| Who said no | the translator, before DHIS2 saw it | DHIS2, on the import |
+| Where to look | the response, the guide, or `fhir.toml` | the import summary on the outcome |
+| Typical cause | a canonical the guide does not publish, an answer element the question does not answer on, a missing D2Period | a data element outside the data set, an org unit the user cannot write to, a locked period |
+| What happens to the file | **stays in `received/`** | moves to `rejected/` with its report |
+| How to retry | fix locally, run again - the receipt never left the queue | fix the instance or the data, move the file back, run again |
+
+A refused response stays put precisely because the retry is natural: nothing was written,
+nothing was moved, and the same command is the retry once the guide or the data is fixed.
+
+### Coded answers: the same dial the facade captures under
+
+`[serve] strict_codes` is the default. A project that captures strictly forwards
+strictly, without stating it twice:
+
+```toml
+[serve]
+strict_codes = false   # lenient (the default): resolve, and note what was resolved
+```
+
+- **Lenient** resolves a coded answer's concept code first, then the DHIS2 option UID,
+  then the DHIS2 option code, recording a note naming which tier matched. A code the
+  context holds no terminology for is sent to DHIS2 unchecked, with its own note.
+- **Strict** accepts only the concept code the served CodeSystem publishes, and refuses
+  anything else.
+
+`--strict-codes` / `--no-strict-codes` overrides the table for one run, so all three
+levels are reachable from the command line.
+
+### Worked run
+
+```console
+$ d2w fhir forward
+[1/6] spool: 286 pending response(s)
+[2/6] compiled IG: 1,412 resource(s), 7 form(s)
+[3/6] value types: 214 of 214 data element(s) typed
+[4/6] translate: 284 translated, 2 refused
+[5/6] post: 284 payload(s) posted (validate only)
+[6/6] spool: 286 spooled, 284 translated, 2 refused, 284 posted, 281 accepted, 3 rejected
+
+dry run: DRY RUN - every payload was posted to DHIS2 under its own validate-only mode
+(dataValueSets dryRun=true, tracker importMode=VALIDATE). Nothing was written to the
+instance and no receipt moved. Re-run with --import to commit.
+
+        fhir forward
+  profile         local (fhir.toml)
+  project         /home/me/demo-ig
+  mode            DRY RUN (validate only)
+  coded answers   lenient
+  spooled         286
+  translated      284
+  refused         2
+  posted          284
+  accepted        281
+  rejected        3
+
+                    rejection reasons
+  Code    What DHIS2 said                                          Responses
+  E1029   Event OrganisationUnit: `...` and Program: `...`, do             2
+          not match.
+  E1313   Enrollment `...` requires a TrackedEntity.                       1
+
+note: 286 response(s), 41 note(s); full outcomes in
+      /home/me/demo-ig/reports/fhir-forward-report.md (--details to print)
+error: 3 response(s) rejected by DHIS2 - read the import summary, fix the instance or the
+       data, and forward again
+note: 2 response(s) refused by the translator - they stay in the spool, so fixing the
+      guide or the data and forwarding again is the retry
+```
+
+**The rollup is what makes a large rejection readable.** DHIS2 states a rule once and then
+names every object that broke it, so two hundred rejections are usually three causes. The
+run groups them by error code plus the message with its quoted identifiers generalised
+away - `Event OrganisationUnit: \`ImspTQPwCqd\` and Program: \`IpHINAT79UW\`, do not
+match.` and the same sentence about a different pair are one cause, not two - and a
+response counts once per distinct cause it met. The written report opens with the same
+table and then lists each rejected response with up to five of its own reasons.
+
+`--details` replaces the counted hint with one row per receipt - its form, its DHIS2
+target, what became of it, why, and where its file now sits. `--json` puts the whole
+`ForwardReport` on stdout and nothing else, import summaries included, so a caller pipes
+it into `jq` without filtering the narration out.
+
+### Make targets
+
+The scaffold ships both, reading the same `fhir.toml` every other target does:
+
+```bash
+make forward          # the dry run
+make forward-import   # the committing run
+```
+
+An existing project gains them from `d2w fhir init . --refresh`.
 
 ## Site pages and intros
 
@@ -2534,9 +2979,11 @@ instance in a few minutes.
   grammar, the `fhir.toml` models, and the artifact builders.
 - [`dhis2w_fhir_serve` API reference](../api/fhir-serve.md) - the facade behind
   [`d2w fhir serve`](#serving-the-ig): the store, the spool, and the capture path.
-- [The FHIR conversion layer](../project/fhir-conversion.md) - the plan for forwarding
-  a stored receipt into DHIS2.
+- [The FHIR conversion layer](../project/fhir-conversion.md) - why the forwarder is a
+  typed Python translator, and what the published mapping contract is held against it.
 - [`examples/v42/cli/fhir_generate.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/fhir_generate.sh) -
   the same flow as a runnable script.
 - [`examples/v42/cli/fhir_serve.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/fhir_serve.sh) -
   generate, compile, serve, post a load set, read the receipts back.
+- [`examples/v42/cli/fhir_forward.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/cli/fhir_forward.sh) -
+  the whole loop end to end, dry run first and then the import.

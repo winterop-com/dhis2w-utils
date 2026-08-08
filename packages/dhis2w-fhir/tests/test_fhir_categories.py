@@ -104,7 +104,7 @@ def test_code_stem_golden() -> None:
     documents = _documents(build)
     assert documents["categories/CodeSystem-d2-cat-sex-cs.json"] == _EXPECTED_CODE_STEM_CODE_SYSTEM
     assert documents["categories/ValueSet-d2-cat-sex-vs.json"] == _EXPECTED_CODE_STEM_VALUE_SET
-    assert build.notes == []
+    assert [note.message for note in build.notes] == []
 
 
 def test_id_source_is_default() -> None:
@@ -146,7 +146,7 @@ def test_an_unusable_code_falls_back_to_the_uid_with_a_note() -> None:
     build = _build([category], _CODE_SOURCE)
     documents = _documents(build)
     assert _concept_codes(documents["categories/CodeSystem-d2-cat-O5P6e8yu1T6-cs.json"]) == ["TNYQzTHdoxL"]
-    assert build.notes == [
+    assert [note.message for note in build.notes] == [
         "category 'Sex': category option TNYQzTHdoxL has code 'F  F' is not a valid FHIR code; falling back to the UID"
     ]
 
@@ -165,8 +165,8 @@ def test_an_option_with_no_code_left_to_take_is_skipped_once() -> None:
     code_system = _documents(build)["categories/CodeSystem-d2-cat-O5P6e8yu1T6-cs.json"]
     assert _concept_codes(code_system) == ["apsOixVZlf1"]
     assert code_system["count"] == 1
-    assert any("could not receive a unique concept code" in note for note in build.notes)
-    assert any("category option" in note for note in build.notes)
+    assert any("could not receive a unique concept code" in note.message for note in build.notes)
+    assert any("category option" in note.message for note in build.notes)
 
 
 def test_translations_land_as_the_title_element_and_concept_designations() -> None:
@@ -241,7 +241,7 @@ def test_code_or_id_collisions_fall_back_to_the_id_for_every_collider() -> None:
     plan = category_identities([_SEX, twin], _CODE_OR_ID_STEMS)
     assert [identity.slug for identity in plan.identities] == ["Nx0aRzPMuYt", "O5P6e8yu1T6"]
     assert plan.identities[1].code_system_name == "D2CAT_O5P6e8yu1T6_CS"
-    assert plan.notes == [
+    assert [note.message for note in plan.notes] == [
         "2 category codes unusable as identity stems; fell back to the id: Sex (Nx0aRzPMuYt), Sex (O5P6e8yu1T6)"
     ]
 
@@ -252,7 +252,9 @@ def test_code_or_id_keeps_the_usable_code_and_notes_the_fallback() -> None:
     plan = category_identities([_SEX, uncoded], _CODE_OR_ID_STEMS)
     assert [identity.slug for identity in plan.identities] == ["Nx0aRzPMuYt", "sex"]
     assert plan.identities[1].code_system_name == "D2CAT_Sex_CS"
-    assert plan.notes == ["1 category codes unusable as identity stems; fell back to the id: Age group (Nx0aRzPMuYt)"]
+    assert [note.message for note in plan.notes] == [
+        "1 category codes unusable as identity stems; fell back to the id: Age group (Nx0aRzPMuYt)"
+    ]
 
 
 def test_code_source_refuses_a_category_without_a_usable_code() -> None:

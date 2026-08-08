@@ -30,7 +30,14 @@ if TYPE_CHECKING:
 
     from dhis2w_core.progress import ProgressReporter
 
-    from dhis2w_fhir.service import GenerateFullReport, GenerationProfile, LoadSetReport
+    from dhis2w_fhir.notes import GenerateNote
+    from dhis2w_fhir.service import (
+        ForwardOutcome,
+        ForwardReport,
+        GenerateFullReport,
+        GenerationProfile,
+        LoadSetReport,
+    )
     from dhis2w_fhir.validation.schemas import FhirValidationReport
 
 app = typer.Typer(help="FHIR Implementation Guide generation from DHIS2 metadata.", no_args_is_help=True)
@@ -399,7 +406,7 @@ def _render_generate_report(
     ]
     render_detail(title, rows, console=STDERR_CONSOLE)
     for note in report.notes:
-        _hint("note", note)
+        _hint("note", note.message)
 
 
 def _full_outcomes(report: GenerateFullReport) -> list[_TargetOutcome]:
@@ -425,11 +432,29 @@ def _full_run_summary(report: GenerateFullReport) -> str:
 #: The basename the notes of one full run are written under, inside the reports directory.
 _GENERATE_NOTES_STEM = "fhir-generate-notes"
 
+#: The heading the notes that only restate a `d2w fhir validate` finding are filed under, per target.
+_ECHO_SECTION_HEADING = "Restatements of validate findings"
+
+
+def _plain_notes(outcome: _TargetOutcome) -> list[GenerateNote]:
+    """The notes of one target that say something `d2w fhir validate` does not already say better."""
+    return [note for note in outcome.report.notes if not note.echoes_validate]
+
+
+def _echo_notes(outcome: _TargetOutcome) -> list[GenerateNote]:
+    """The notes of one target that only restate a finding the validate report carries in full."""
+    return [note for note in outcome.report.notes if note.echoes_validate]
+
 
 def _write_generate_notes(
     outcomes: Iterable[_TargetOutcome], generation: GenerationProfile, project_root: Path
 ) -> Path:
-    """Write every note of one full run to `reports/fhir-generate-notes.md`, grouped by target."""
+    """Write every note of one full run to `reports/fhir-generate-notes.md`, grouped by target.
+
+    A target's own notes come first; the ones that only restate a `d2w fhir validate` finding follow
+    in a trailing subsection, so the file still holds everything the run raised while reading as what
+    generation alone has to say.
+    """
     from datetime import UTC, datetime
 
     from dhis2w_fhir import REPORTS_DIRECTORY
@@ -448,11 +473,30 @@ def _write_generate_notes(
             continue
         lines.append(f"## {outcome.target}")
         lines.append("")
-        lines.extend(f"- {note}" for note in outcome.report.notes)
+        lines.extend(f"- {note.message}" for note in _plain_notes(outcome))
         lines.append("")
+        echoes = _echo_notes(outcome)
+        if echoes:
+            lines.append(f"### {_ECHO_SECTION_HEADING}")
+            lines.append("")
+            lines.extend(f"- {note.message}" for note in echoes)
+            lines.append("")
     destination = directory / f"{_GENERATE_NOTES_STEM}.md"
     destination.write_text("\n".join(lines), encoding="utf-8")
     return destination
+
+
+def _generate_notes_hint(outcomes: list[_TargetOutcome], destination: Path) -> str:
+    """The one line a bare run carries its notes on: what generation raised, then the validate echoes."""
+    plain_targets = [outcome for outcome in outcomes if _plain_notes(outcome)]
+    plain_total = sum(len(_plain_notes(outcome)) for outcome in plain_targets)
+    echo_total = sum(len(_echo_notes(outcome)) for outcome in outcomes)
+    tail = f"; full list in {destination} (--details to print)"
+    if not plain_total:
+        echo_targets = sum(1 for outcome in outcomes if _echo_notes(outcome))
+        return f"{echo_total} validate echo(es) across {echo_targets} target(s){tail}"
+    echoes = f" (+{echo_total} validate echoes)" if echo_total else ""
+    return f"{plain_total} note(s) across {len(plain_targets)} target(s){echoes}{tail}"
 
 
 def _render_full_notes(outcomes: list[_TargetOutcome], generation: GenerationProfile, *, details: bool) -> None:
@@ -461,6 +505,10 @@ def _render_full_notes(outcomes: list[_TargetOutcome], generation: GenerationPro
     A national instance raises several aggregate notes per target, and eight targets of them bury
     the summary table the run is actually read from. The count and the file are what the terminal
     carries; `--details` is the firehose.
+
+    The count is of what generation alone found. A note that only restates a `d2w fhir validate`
+    finding - a code fall-back, a code collision, a stem fall-back - is counted separately at the end
+    of the line, because the validate report says the same thing about the same objects at length.
     """
     noted = [outcome for outcome in outcomes if outcome.report.notes]
     if not noted:
@@ -468,11 +516,10 @@ def _render_full_notes(outcomes: list[_TargetOutcome], generation: GenerationPro
     if details:
         for outcome in noted:
             for note in outcome.report.notes:
-                _hint("note", f"{outcome.target}: {note}")
+                _hint("note", f"{outcome.target}: {note.message}")
         return
-    total = sum(len(outcome.report.notes) for outcome in noted)
     destination = _write_generate_notes(noted, generation, outcomes[0].report.project_root)
-    _hint("note", f"{total} note(s) across {len(noted)} target(s); full list in {destination} (--details to print)")
+    _hint("note", _generate_notes_hint(noted, destination))
 
 
 def _render_full_report(report: GenerateFullReport, generation: GenerationProfile, *, details: bool = False) -> None:
@@ -1109,6 +1156,293 @@ def _run_server(application: Any, *, host: str, port: int) -> None:
         if system_exit.code not in (0, None) and _address_already_in_use(host, port):
             raise PortInUseError(host=host, port=port) from system_exit
         raise
+
+
+#: The basename the per-response outcomes of one forward run are written under, inside the reports directory.
+_FORWARD_REPORT_STEM = "fhir-forward-report"
+
+#: The banner a dry run opens and closes with. It says the mode, what it did instead, and how to commit -
+#: a run that reads as an import and was not one is the single worst thing this command could do.
+_DRY_RUN_BANNER = (
+    "DRY RUN - every payload was posted to DHIS2 under its own validate-only mode "
+    "(dataValueSets dryRun=true, tracker importMode=VALIDATE). Nothing was written to the instance and "
+    "no receipt moved. Re-run with --import to commit."
+)
+
+#: The Rich style each outcome kind renders in, so a glance separates what landed from what did not.
+_OUTCOME_STYLES = {"accepted": "green", "rejected": "red", "refused": "yellow"}
+
+
+def _outcome_cell(value: Any) -> str:
+    """Render one outcome kind in the style it carries."""
+    kind = str(value)
+    return f"[{_OUTCOME_STYLES.get(kind, 'default')}]{kind}[/]"
+
+
+#: How many of a rejection's reasons the terminal cell shows before it counts the rest. DHIS2 names one
+#: row per broken rule, and a response breaking six of them would otherwise own the whole table width.
+_TERMINAL_REASON_SAMPLE = 1
+
+#: How many of a rejection's reasons the written report lists per response before it counts the rest.
+_REPORT_REASON_SAMPLE = 5
+
+#: The width one reason is truncated to in the terminal cell, so a row stays one line on a normal tty.
+_REASON_CELL_WIDTH = 90
+
+
+def _truncate(text: str, width: int) -> str:
+    """One reason cut to the width a table cell has for it, with the cut marked rather than hidden."""
+    return text if len(text) <= width else f"{text[: width - 1]}..."
+
+
+def _outcome_reasons(outcome: ForwardOutcome, sample: int, width: int | None = None) -> str:
+    """Why this response ended where it did: DHIS2's rows for a rejection, the translator's for a refusal.
+
+    A rejection that DHIS2 named no row for still says something - the message off the envelope - because
+    "rejected" with nothing beside it is the one thing a reader cannot act on.
+    """
+    if outcome.refusals:
+        lines = [f"{refusal.category}: {refusal.reason}" for refusal in outcome.refusals]
+    else:
+        imported = outcome.import_outcome
+        if imported is None:
+            return ""
+        lines = [issue.line for issue in imported.issues]
+        if not lines:
+            lines = [imported.message] if imported.message else []
+        if not lines:
+            return imported.counts_line
+    shown = [_truncate(line, width) if width else line for line in lines[:sample]]
+    remaining = len(lines) - len(shown)
+    return "; ".join(shown) + (f" (+{remaining} more)" if remaining else "")
+
+
+def _render_rejection_reasons(report: ForwardReport) -> None:
+    """Roll every rejection up by cause, so two hundred of them read as the handful of rules they broke."""
+    reasons = report.rejection_reasons
+    if not reasons:
+        return
+    render_list(
+        "rejection reasons",
+        [
+            {
+                "code": reason.error_code or "",
+                "reason": reason.reason,
+                "responses": str(reason.responses),
+            }
+            for reason in reasons
+        ],
+        [
+            ColumnSpec("Code", "code", no_wrap=True),
+            ColumnSpec("What DHIS2 said", "reason"),
+            ColumnSpec("Responses", "responses", no_wrap=True),
+        ],
+        console=STDERR_CONSOLE,
+    )
+
+
+def _render_forward_outcomes(report: ForwardReport) -> None:
+    """List every response the run drained, with what became of it and why."""
+    if not report.outcomes:
+        return
+    render_list(
+        "responses",
+        [
+            {
+                "response": outcome.response_id,
+                "target": outcome.target_kind or "",
+                "outcome": outcome.kind,
+                "notes": str(len(outcome.notes)),
+                "reason": _outcome_reasons(outcome, _TERMINAL_REASON_SAMPLE, _REASON_CELL_WIDTH),
+                "spool": outcome.spool_path,
+            }
+            for outcome in report.outcomes
+        ],
+        [
+            ColumnSpec("Response", "response", no_wrap=True),
+            ColumnSpec("Target", "target", no_wrap=True),
+            ColumnSpec("Outcome", "outcome", formatter=_outcome_cell, no_wrap=True),
+            ColumnSpec("Notes", "notes", no_wrap=True),
+            ColumnSpec("Why", "reason"),
+            ColumnSpec("Spool", "spool"),
+        ],
+        console=STDERR_CONSOLE,
+    )
+
+
+def _write_forward_report(report: ForwardReport, generation: GenerationProfile) -> Path:
+    """Write every response's outcome to `reports/fhir-forward-report.md`, grouped by what became of it."""
+    from datetime import UTC, datetime
+
+    from dhis2w_fhir import REPORTS_DIRECTORY
+
+    directory = report.project_root / REPORTS_DIRECTORY
+    directory.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# fhir forward report",
+        "",
+        f"- Profile: {generation.name} ({generation.profile.base_url})",
+        f"- Mode: {'dry run (validate only)' if report.dry_run else 'import'}",
+        f"- Coded answers: {report.coded_answer_mode}",
+        f"- Forwarded: {datetime.now(tz=UTC).isoformat(timespec='seconds')}",
+        f"- Counts: {report.counts_line}",
+        "",
+    ]
+    reasons = report.rejection_reasons
+    if reasons:
+        lines.extend(
+            [
+                "## Rejection reasons",
+                "",
+                "Every rejection of this run rolled up by cause, commonest first. A response counts once",
+                "per distinct cause it met, and the identifiers DHIS2 quotes in a message are generalised",
+                "away, so one broken rule reads as one row however many responses met it.",
+                "",
+                "| Responses | Code | What DHIS2 said |",
+                "| --- | --- | --- |",
+            ]
+        )
+        lines.extend(f"| {reason.responses} | {reason.error_code or ''} | {reason.reason} |" for reason in reasons)
+        lines.append("")
+    for heading, outcomes in (
+        ("Rejected by DHIS2", report.rejected),
+        ("Refused by the translator", report.refused),
+        ("Accepted", report.accepted),
+    ):
+        if not outcomes:
+            continue
+        lines.extend([f"## {heading}", ""])
+        for outcome in outcomes:
+            lines.append(f"- `{outcome.response_id}` ({outcome.questionnaire or 'no form'}) - {outcome.spool_path}")
+            imported = outcome.import_outcome
+            if imported is not None and imported.issues:
+                lines.extend(f"    - {issue.line}" for issue in imported.issues[:_REPORT_REASON_SAMPLE])
+                remaining = len(imported.issues) - _REPORT_REASON_SAMPLE
+                if remaining > 0:
+                    lines.append(f"    - (+{remaining} more reason(s))")
+            else:
+                detail = _outcome_reasons(outcome, _REPORT_REASON_SAMPLE)
+                if detail:
+                    lines.append(f"    - {detail}")
+            lines.extend(f"    - note: {note.category}: {note.message}" for note in outcome.notes)
+        lines.append("")
+    destination = directory / f"{_FORWARD_REPORT_STEM}.md"
+    destination.write_text("\n".join(lines), encoding="utf-8")
+    return destination
+
+
+def _render_forward_report(report: ForwardReport, generation: GenerationProfile, *, details: bool) -> None:
+    """Render one forward run: the mode first, the counts, then either every response or where they are."""
+    if report.dry_run:
+        _hint("dry run", _DRY_RUN_BANNER, style="bold yellow")
+    render_detail(
+        "fhir forward",
+        [
+            DetailRow("profile", f"{generation.name} ({generation.origin})"),
+            DetailRow("project", str(report.project_root)),
+            DetailRow("mode", "DRY RUN (validate only)" if report.dry_run else "import"),
+            DetailRow("coded answers", str(report.coded_answer_mode)),
+            DetailRow("spooled", str(report.spooled)),
+            DetailRow("translated", str(report.translated_count)),
+            DetailRow("refused", str(len(report.refused))),
+            DetailRow("posted", str(report.posted_count)),
+            DetailRow("accepted", str(len(report.accepted))),
+            DetailRow("rejected", str(len(report.rejected))),
+        ],
+        console=STDERR_CONSOLE,
+    )
+    for unreadable in report.unreadable_artifacts:
+        _hint("note", f"published resource left out of the translation context: {unreadable}")
+    if not report.spooled:
+        _hint("note", "the spool is empty - `d2w fhir serve` is what fills it")
+        return
+    _render_rejection_reasons(report)
+    if details:
+        _render_forward_outcomes(report)
+    else:
+        destination = _write_forward_report(report, generation)
+        noted = sum(len(outcome.notes) for outcome in report.outcomes)
+        _hint(
+            "note",
+            f"{len(report.outcomes)} response(s), {noted} note(s); full outcomes in {destination} (--details to print)",
+        )
+    if report.rejected:
+        _hint(
+            "error",
+            f"{len(report.rejected)} response(s) rejected by DHIS2 - read the import summary, fix the instance "
+            "or the data, and forward again",
+            style="red",
+        )
+    if report.refused:
+        _hint(
+            "note",
+            f"{len(report.refused)} response(s) refused by the translator - they stay in the spool, so fixing "
+            "the guide or the data and forwarding again is the retry",
+        )
+    if report.dry_run:
+        _hint("dry run", _DRY_RUN_BANNER, style="bold yellow")
+
+
+@app.command("forward")
+def forward_command(
+    directory: Annotated[
+        Path, typer.Argument(file_okay=False, help="Project directory (default: current directory).")
+    ] = Path("."),
+    import_responses: Annotated[
+        bool,
+        typer.Option(
+            "--import/--dry-run",
+            help="Commit the payloads to DHIS2 and move the receipts. The default is a dry run: every "
+            "payload still goes to the real endpoint under its own validate-only mode, and nothing is "
+            "written and nothing moves.",
+        ),
+    ] = False,
+    strict_codes: Annotated[
+        bool | None,
+        typer.Option(
+            "--strict-codes/--no-strict-codes",
+            help="Refuse a coded answer whose code is outside the served terminology, overriding "
+            "`\\[serve] strict_codes`. Lenient resolves the DHIS2 option UID and code too, and notes it.",
+        ),
+    ] = None,
+    details: Annotated[
+        bool,
+        typer.Option("--details", help="Print every response's outcome instead of writing them to the report."),
+    ] = False,
+    progress: ProgressOption = True,
+) -> None:
+    """Drain the capture spool into DHIS2 - translate every received response and post it.
+
+    DRY RUN IS THE DEFAULT. Every payload is posted to the real instance under the endpoint's own
+    validate-only mode, so DHIS2's rules decide the answer and nothing is written; `--import` commits.
+
+    An imported response moves from .serve/responses/received/ to forwarded/, a DHIS2-rejected one to
+    rejected/ beside a report, and a translator-refused one stays put - fix and forward again.
+
+    Outcomes land in reports/fhir-forward-report.md; `--details` prints them here instead.
+    """
+    from dhis2w_fhir import FORWARD_STEPS, service
+    from dhis2w_fhir.conversion import CodedAnswerMode
+
+    project = load_project(directory)
+    generation = service.resolve_generation_profile(project)
+    mode = None if strict_codes is None else (CodedAnswerMode.STRICT if strict_codes else CodedAnswerMode.LENIENT)
+    with _progress(FORWARD_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(
+            service.forward_responses(
+                generation.profile,
+                project,
+                import_responses=import_responses,
+                coded_answer_mode=mode,
+                reporter=reporter,
+            )
+        )
+        if reporter is not None:
+            reporter.finish(report.counts_line)
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    _render_forward_report(report, generation, details=details)
 
 
 def register(root_app: Any) -> None:

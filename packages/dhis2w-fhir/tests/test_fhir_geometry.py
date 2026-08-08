@@ -65,7 +65,7 @@ def test_other_geometry_types_are_embedded_without_a_position() -> None:
         assert mapped.latitude is None
         assert mapped.longitude is None
         assert mapped.boundary_geojson is not None
-    notes = tally.to_notes()
+    notes = [note.message for note in tally.to_notes()]
     assert len(notes) == 1
     assert "3 organisation units have GeometryCollection, LineString, MultiPoint geometry" in notes[0]
     assert "embedded without position" in notes[0]
@@ -80,7 +80,7 @@ def test_malformed_geometry_gets_neither_position_nor_boundary() -> None:
     for mapped in (empty, missing, hollow):
         assert mapped.latitude is None
         assert mapped.boundary_geojson is None
-    notes = tally.to_notes()
+    notes = [note.message for note in tally.to_notes()]
     assert len(notes) == 1
     assert notes[0].startswith("3 organisation units have malformed geometry; no position or boundary emitted")
 

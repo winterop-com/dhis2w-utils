@@ -88,7 +88,7 @@ def _registry_documents(source: NamingSource) -> tuple[dict[str, Any], list[str]
         artifact.relative_path.removeprefix("registry/").removesuffix(".json"): json.loads(artifact.content)
         for artifact in build.artifacts
     }
-    return documents, build.notes
+    return documents, [note.message for note in build.notes]
 
 
 def test_code_or_id_names_org_unit_files_ids_and_references_by_the_code_stem() -> None:
@@ -133,7 +133,7 @@ def test_id_mode_resolves_every_org_unit_stem_to_the_id_without_notes() -> None:
         "O6uvpzGd5pu": "O6uvpzGd5pu",
         "YuQRtpLP10I": "YuQRtpLP10I",
     }
-    assert resolution.notes == []
+    assert [note.message for note in resolution.notes] == []
 
 
 def test_a_code_shared_by_two_units_falls_back_on_both() -> None:
@@ -214,7 +214,9 @@ def test_the_underscore_coded_data_set_falls_back_and_the_build_says_so() -> Non
     paths = [artifact.relative_path for artifact in build.artifacts]
 
     assert "data-sets/BfMAe6Itzgt.fsh" in paths
-    fallback_notes = [note for note in build.notes if "unusable as identity stems; fell back to the id" in note]
+    fallback_notes = [
+        note.message for note in build.notes if "unusable as identity stems; fell back to the id" in note.message
+    ]
     assert len(fallback_notes) == 1
     assert "1 questionnaire target codes" in fallback_notes[0]
     assert "Child Health (BfMAe6Itzgt)" in fallback_notes[0]
@@ -324,8 +326,10 @@ def test_the_parity_fixtures_agree_across_both_paths_under_code_or_id() -> None:
         assert f'* name = "{by_id[stem].name}"\n' in artifact.content
     # The FSH build reports both of its surfaces - the form targets and the tracker programs the
     # stage files nest under - while the document build uses (and reports) the targets alone.
-    fsh_fallbacks = [note for note in fsh.notes if "unusable as identity stems; fell back to the id" in note]
-    document_fallbacks = [note for note in documents.notes if "unusable as identity stems" in note]
+    fsh_fallbacks = [
+        note.message for note in fsh.notes if "unusable as identity stems; fell back to the id" in note.message
+    ]
+    document_fallbacks = [note.message for note in documents.notes if "unusable as identity stems" in note.message]
     assert [note for note in fsh_fallbacks if "questionnaire target" in note] == document_fallbacks
     assert len([note for note in fsh_fallbacks if "tracker program" in note]) == 1
 
@@ -512,7 +516,9 @@ async def test_the_generate_report_carries_the_code_or_id_fallback_notes(
 
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
-    fallback_notes = [note for note in report.notes if "unusable as identity stems; fell back to the id" in note]
+    fallback_notes = [
+        note.message for note in report.notes if "unusable as identity stems; fell back to the id" in note.message
+    ]
     assert len(fallback_notes) == 1
     assert f"Child Health (BfMAe6Itzgt) - code {_UNDERSCORE_CODE!r}" not in fallback_notes[0]
     assert "Child Health (BfMAe6Itzgt)" in fallback_notes[0]
@@ -542,7 +548,9 @@ async def test_the_org_unit_report_notes_the_underscore_fallback_and_writes_code
         "registry/Organization-O6uvpzGd5pu.json",
         "registry/Organization-SL.json",
     ]
-    fallback_notes = [note for note in report.notes if "unusable as identity stems; fell back to the id" in note]
+    fallback_notes = [
+        note.message for note in report.notes if "unusable as identity stems; fell back to the id" in note.message
+    ]
     assert len(fallback_notes) == 1
     assert "Bo (O6uvpzGd5pu)" in fallback_notes[0]
 

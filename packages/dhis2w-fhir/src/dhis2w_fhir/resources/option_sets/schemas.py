@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.attributes import AttributeValueIn
 from dhis2w_fhir.i18n import TranslationIn
+from dhis2w_fhir.notes import GenerateNote
 
 
 class OptionSetSelection(BaseModel):
@@ -85,7 +86,7 @@ class ConceptAssignmentPlan(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     assignments: list[ConceptAssignment] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
     def code_for(self, option_uid: str) -> str | None:
         """The concept code one option received; None when it was skipped or belongs to another set."""
@@ -137,7 +138,7 @@ class OptionSetIdentityPlan(BaseModel):
     """
 
     identities: list[OptionSetIdentity] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
 
 class OptionSetIdentityIndex(BaseModel):

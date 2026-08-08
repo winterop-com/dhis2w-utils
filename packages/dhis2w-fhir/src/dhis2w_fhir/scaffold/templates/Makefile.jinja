@@ -52,6 +52,14 @@ serve:  ## Serve the compiled IG as a FHIR endpoint (run generate + sushi first)
 serve-live:  ## Serve straight from the DHIS2 instance, no compile needed
 	$(D2W) fhir serve --live
 
+.PHONY: forward forward-import
+
+forward:  ## Dry-run the capture spool against DHIS2 - validate only, nothing written, nothing moved
+	$(D2W) fhir forward
+
+forward-import:  ## Import the capture spool into DHIS2 and file every receipt by what it became
+	$(D2W) fhir forward --import
+
 clean:  ## Remove build output (keeps ig/input-cache, the terminology cache the next build reuses)
 	rm -rf $(IG_DIR)/fsh-generated $(IG_DIR)/output $(IG_DIR)/temp $(IG_DIR)/template \
 		$(IG_DIR)/translations $(IG_DIR)/Requirements-fromNarrative.json

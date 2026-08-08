@@ -115,7 +115,9 @@ def _build(
         option_set_plan=option_set_plan or _bound_plan(sources, resolved),
         attribute_codes=attribute_codes or AttributeCodeIndex(),
     )
-    return {str(questionnaire.id): questionnaire for questionnaire in build.questionnaires}, build.notes
+    return {str(questionnaire.id): questionnaire for questionnaire in build.questionnaires}, [
+        note.message for note in build.notes
+    ]
 
 
 def _bound_plan(sources: list[QuestionnaireSourceIn], config: GenerateConfig) -> OptionSetIdentityPlan:

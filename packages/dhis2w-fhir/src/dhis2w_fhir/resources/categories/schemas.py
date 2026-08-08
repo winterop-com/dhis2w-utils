@@ -6,6 +6,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.notes import GenerateNote
 from dhis2w_fhir.resources.option_sets.schemas import ConceptSourceIn
 
 
@@ -37,7 +38,8 @@ class CategoryIdentity(BaseModel):
 
     The slug assignment - truncation, collision suffixes, and the id stem the naming tokens
     build - is computed once by `category_identities`, so every artifact naming a category
-    reads the same names.
+    reads the same names. All three artifacts of one category - the CodeSystem, the ValueSet,
+    and the ConceptMap taking their concept codes back to DHIS2 - ride the one slug.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -48,6 +50,7 @@ class CategoryIdentity(BaseModel):
     fsh_name: str
     code_system_id: str
     value_set_id: str
+    concept_map_id: str
 
     @property
     def code_system_name(self) -> str:
@@ -59,9 +62,14 @@ class CategoryIdentity(BaseModel):
         """FSH name of the emitted ValueSet (e.g. `D2CAT_Sex_VS`)."""
         return f"{self.fsh_name}_VS"
 
+    @property
+    def concept_map_name(self) -> str:
+        """FSH name of the emitted ConceptMap (e.g. `D2CAT_Sex_CM`)."""
+        return f"{self.fsh_name}_CM"
+
 
 class CategoryIdentityPlan(BaseModel):
     """Every category's identity in emission order, with the notes the slug assignment raised."""
 
     identities: list[CategoryIdentity] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)

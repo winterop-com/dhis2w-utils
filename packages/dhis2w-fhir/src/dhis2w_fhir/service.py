@@ -4,23 +4,48 @@ from __future__ import annotations
 
 import json
 import os
+import re
+from collections import Counter
 from datetime import UTC, date, datetime
+from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
+from dhis2w_client.errors import Dhis2ApiError
+from dhis2w_client.generated.v42.oas import ImportConflict, ImportSummary, TrackerImportError, TrackerImportReport
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile, resolve
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, load_project
+from dhis2w_fhir.conversion.artifacts import (
+    bound_data_element_uids,
+    build_project_context,
+    load_compiled_artifacts,
+)
+from dhis2w_fhir.conversion.schemas import (
+    CodedAnswerMode,
+    ConversionNaming,
+    ConversionNote,
+    ConversionRefusal,
+    ConversionReport,
+    ConversionResult,
+    ConversionTargetKind,
+)
+from dhis2w_fhir.conversion.translator import translate_responses
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.names import StemResolution, StemSubject, code_or_uid
-from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note
 from dhis2w_fhir.period import parse_period, recent_periods
 from dhis2w_fhir.r4 import QuestionnaireResponse
-from dhis2w_fhir.resources.categories import CATEGORY_DIRECTORY, build_category_artifacts
+from dhis2w_fhir.resources.categories import (
+    CATEGORY_DIRECTORY,
+    build_category_artifacts,
+    build_category_concept_map_artifacts,
+    category_concept_map_file_prefix,
+)
 from dhis2w_fhir.resources.categories.schemas import CategoryIn
 from dhis2w_fhir.resources.examples import (
     COMPLETED_STATUS,
@@ -40,6 +65,7 @@ from dhis2w_fhir.resources.option_sets import (
     TERMINOLOGY_DIRECTORY,
     build_option_set_artifacts,
     build_option_set_concept_map_artifacts,
+    option_set_concept_map_file_prefix,
     option_set_identities,
 )
 from dhis2w_fhir.resources.option_sets.schemas import (
@@ -84,6 +110,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
 )
 from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
+from dhis2w_fhir.spool import SpooledResponse, move_to_forwarded, move_to_rejected, read_received_responses
 from dhis2w_fhir.validation import build_aborting_code, build_code_validation
 from dhis2w_fhir.validation.schemas import (
     FhirValidationReport,
@@ -94,6 +121,8 @@ from dhis2w_fhir.validation.schemas import (
 from dhis2w_fhir.writer import FshArtifact, JsonArtifact, clean_generated_files, sync_artifacts, sync_json_artifacts
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from dhis2w_client import Dhis2Client
     from dhis2w_client.generated.v42.schemas import (
         Attribute,
@@ -205,7 +234,7 @@ class GenerateReport(BaseModel):
     example_count: int = 0
     page_count: int = 0
     intro_count: int = 0
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
 
 class LoadSetReport(BaseModel):
@@ -218,7 +247,7 @@ class LoadSetReport(BaseModel):
     deleted_files: list[str] = Field(default_factory=list)
     response_count: int = 0
     questionnaire_count: int = 0
-    notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
 
 class GenerateFullReport(BaseModel):
@@ -657,7 +686,7 @@ async def generate_option_sets(
     """Generate a CodeSystem/ValueSet pair per option set into `terminology/`, plus its ConceptMap."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching option sets")
     async with open_client(profile) as client:
         models = await client.resources.option_sets.list(
@@ -679,7 +708,7 @@ def _emit_option_sets(
     *,
     option_sets: list[OptionSetIn],
     attribute_codes: AttributeCodeIndex,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
     """Build the terminology pairs and their ConceptMaps off a selected option-set list and sync both directories."""
@@ -707,7 +736,12 @@ def _emit_option_sets(
         ig_status=project.config.ig.status,
     )
     sync = sync_json_artifacts(project.resources_directory, TERMINOLOGY_DIRECTORY, build.artifacts)
-    concept_map_sync = sync_json_artifacts(project.resources_directory, CONCEPT_MAP_DIRECTORY, concept_maps)
+    concept_map_sync = sync_json_artifacts(
+        project.resources_directory,
+        CONCEPT_MAP_DIRECTORY,
+        concept_maps,
+        owned_prefix=option_set_concept_map_file_prefix(project.config.generate),
+    )
     # The target writes JSON, so it also owns keeping its FSH directory empty of generated files: a
     # project whose terminology was written as FSH would otherwise hold both shapes, and SUSHI refuses
     # a definition that duplicates a pre-defined resource. Only header-bearing files are removed, so a
@@ -733,7 +767,7 @@ async def generate_categories(
     """Generate one pre-built CodeSystem and ValueSet document per configured category into `categories/`."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching categories")
     async with open_client(profile) as client:
         models = await client.resources.categories.list(
@@ -752,11 +786,14 @@ def _emit_categories(
     *,
     categories: list[CategoryIn],
     attribute_codes: AttributeCodeIndex,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
-    """Build the category documents off an already-selected category list and sync them into the project."""
-    progress.step("categories", f"writing ig/input/resources/{CATEGORY_DIRECTORY}")
+    """Build the category pairs and their ConceptMaps off a selected category list and sync both directories."""
+    progress.step(
+        "categories",
+        f"writing ig/input/resources/{CATEGORY_DIRECTORY} and ig/input/resources/{CONCEPT_MAP_DIRECTORY}",
+    )
     _refuse_build_aborting_codes(
         [
             _CodedObject(resource_type="categories", uid=category.uid, name=category.name, code=category.code)
@@ -770,14 +807,26 @@ def _emit_categories(
         ig_status=project.config.ig.status,
         attribute_codes=attribute_codes,
     )
+    concept_maps = build_category_concept_map_artifacts(
+        categories,
+        project.config.generate,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+    )
     sync = sync_json_artifacts(project.resources_directory, CATEGORY_DIRECTORY, build.artifacts)
+    concept_map_sync = sync_json_artifacts(
+        project.resources_directory,
+        CONCEPT_MAP_DIRECTORY,
+        concept_maps,
+        owned_prefix=category_concept_map_file_prefix(project.config.generate),
+    )
     report = GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",
-        target_directory=f"resources/{CATEGORY_DIRECTORY}",
-        deleted_files=sync.deleted,
-        written_files=sync.written,
-        unchanged_count=len(sync.unchanged),
+        target_directory=f"resources/{CATEGORY_DIRECTORY}, resources/{CONCEPT_MAP_DIRECTORY}",
+        deleted_files=[*sync.deleted, *concept_map_sync.deleted],
+        written_files=[*sync.written, *concept_map_sync.written],
+        unchanged_count=len(sync.unchanged) + len(concept_map_sync.unchanged),
         category_count=len(categories),
         notes=[*notes, *build.notes],
     )
@@ -785,7 +834,9 @@ def _emit_categories(
     return report
 
 
-def _selected_categories(inputs: list[CategoryIn], config: GenerateConfig, notes: list[str]) -> list[CategoryIn]:
+def _selected_categories(
+    inputs: list[CategoryIn], config: GenerateConfig, notes: list[GenerateNote]
+) -> list[CategoryIn]:
     """Filter categories by the configured UIDs, noting entries that matched nothing.
 
     An absent or empty `[generate.categories] include_ids` selects every category the instance
@@ -799,7 +850,9 @@ def _selected_categories(inputs: list[CategoryIn], config: GenerateConfig, notes
     selected = [item for item in inputs if item.uid in configured_ids]
     selected_ids = {item.uid for item in selected}
     for uid in sorted(configured_ids - selected_ids):
-        notes.append(f"include_ids entry {uid!r} matched no category")
+        notes.append(
+            generate_note(GenerateNoteCategory.SELECTION_MISMATCH, f"include_ids entry {uid!r} matched no category")
+        )
     return selected
 
 
@@ -838,7 +891,7 @@ async def generate_questionnaires(
     """Generate one Questionnaire FSH file per selected data set, event program, and tracker program stage."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching the questionnaire targets")
     async with open_client(profile) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
@@ -863,7 +916,7 @@ def _emit_questionnaires(
     option_set_plan: OptionSetIdentityPlan,
     attribute_codes: AttributeCodeIndex,
     stem_plan: QuestionnaireStemPlan,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
     """Build the Questionnaire FSH off already-fetched sources and sync each of its four directories.
@@ -906,7 +959,7 @@ async def generate_examples(
     """Generate one `Usage: #example` QuestionnaireResponse per configured example into `examples/`."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     if config.examples.per_target <= 0:
         return await _emit_examples(
             None,
@@ -951,7 +1004,7 @@ async def _emit_examples(
     published_organisation_unit_uids: frozenset[str],
     stem_plan: QuestionnaireStemPlan,
     organisation_unit_stems: StemResolution,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
     """Read the example responses off the instance and sync one QuestionnaireResponse per example.
@@ -1026,7 +1079,7 @@ async def generate_load_set(
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching the questionnaire targets and the option sets they bind")
     async with open_client(profile) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
@@ -1038,7 +1091,12 @@ async def generate_load_set(
     progress.step("load set", f"writing {_LOAD_DIRECTORY}")
     documents: list[QuestionnaireResponse] = []
     if root_uid is None:
-        notes.append("the instance has no level-1 organisation unit; no load set emitted")
+        notes.append(
+            generate_note(
+                GenerateNoteCategory.EMPTY_SELECTION,
+                "the instance has no level-1 organisation unit; no load set emitted",
+            )
+        )
     else:
         synthetic = build_synthetic_responses(sources, option_sets, per_target, root_uid, datetime.now(tz=UTC).date())
         notes.extend(synthetic.notes)
@@ -1083,14 +1141,19 @@ async def _example_responses(
     sources: list[QuestionnaireSourceIn],
     option_sets: list[OptionSetIn],
     selection: ExampleSelection,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> list[ExampleResponseIn]:
     """Collect the example responses from whichever source the project configured."""
     today = datetime.now(tz=UTC).date()
     root_uid = await _root_organisation_unit_uid(client)
     if root_uid is None:
-        notes.append("the instance has no level-1 organisation unit; no examples emitted")
+        notes.append(
+            generate_note(
+                GenerateNoteCategory.EMPTY_SELECTION,
+                "the instance has no level-1 organisation unit; no examples emitted",
+            )
+        )
         return []
     if selection.source == "instance":
         return await _fetch_instance_responses(client, sources, selection.per_target, root_uid, notes, progress)
@@ -1130,7 +1193,7 @@ async def _fetch_instance_responses(
     sources: list[QuestionnaireSourceIn],
     per_target: int,
     root_uid: str,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> list[ExampleResponseIn]:
     """Read example responses off the instance: data value sets for data sets, tracker events for programs.
@@ -1153,7 +1216,8 @@ async def _fetch_instance_responses(
         responses.extend(found)
     if empty_targets:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.INSTANCE_DATA_GAP,
                 f"{len(empty_targets)} questionnaire targets hold no data on the instance; no examples emitted",
                 empty_targets,
             )
@@ -1426,16 +1490,19 @@ async def _fetch_published_organisation_unit_stems(client: Dhis2Client, config: 
     return plan_organisation_unit_stems(subjects, config.naming.source)
 
 
-def _registry_scale_notes(organisation_unit_count: int) -> list[str]:
+def _registry_scale_notes(organisation_unit_count: int) -> list[GenerateNote]:
     """Warn while generating when the registry is large enough to dominate the publisher's rendering pass."""
     instance_count = organisation_unit_count * _INSTANCES_PER_ORGANISATION_UNIT
     if instance_count < _REGISTRY_RENDER_COST_INSTANCES:
         return []
     return [
-        f"{organisation_unit_count} organisation units emit {instance_count} instances. They ship as "
-        "pre-built JSON so SUSHI never compiles them, but the IG publisher renders a page per resource, "
-        "so they set the wall clock of `make build`. Narrow the registry with "
-        "`[generate.organisation_units]` max_level or root if the build is longer than you want."
+        generate_note(
+            GenerateNoteCategory.BUILD_COST,
+            f"{organisation_unit_count} organisation units emit {instance_count} instances. They ship as "
+            "pre-built JSON so SUSHI never compiles them, but the IG publisher renders a page per resource, "
+            "so they set the wall clock of `make build`. Narrow the registry with "
+            "`[generate.organisation_units]` max_level or root if the build is longer than you want.",
+        )
     ]
 
 
@@ -1469,7 +1536,7 @@ def _emit_organisation_units(
     organisation_units: list[OrganisationUnitIn],
     attribute_codes: AttributeCodeIndex,
     stems: StemResolution,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
     """Build the organisation-unit profiles, terminology, and registry off an already-paged hierarchy.
@@ -1522,7 +1589,11 @@ def _emit_organisation_units(
                 build_organisation_unit_terminology(organisation_units, generate_config, ig_status=ig_status)
             )
     else:
-        notes.append("no organisation units matched the configured selection")
+        notes.append(
+            generate_note(
+                GenerateNoteCategory.EMPTY_SELECTION, "no organisation units matched the configured selection"
+            )
+        )
     notes.extend(_registry_scale_notes(len(organisation_units)))
     sync = sync_artifacts(project.fsh_directory, "organization", artifacts)
     registry_sync = sync_json_artifacts(project.resources_directory, REGISTRY_DIRECTORY, registry)
@@ -1550,7 +1621,7 @@ async def generate_pages(
     """Generate the narrative site pages and the per-artifact intros into `ig/input/pagecontent/`."""
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
     progress.step(_FETCH_LABEL, "fetching the questionnaire targets, option sets, and organisation units")
@@ -1586,7 +1657,7 @@ def _emit_pages(
     organisation_units: list[OrganisationUnitIn],
     stem_plan: QuestionnaireStemPlan,
     organisation_unit_stems: StemResolution,
-    notes: list[str],
+    notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
     """Build the narrative pages off what the other targets were built from - no second read of the instance.
@@ -1768,11 +1839,11 @@ class LiveIgInputs(BaseModel):
     # W-2: identity-stem plans for the questionnaire and org-unit surfaces, resolved once per fetch.
     questionnaire_stems: QuestionnaireStemPlan
     organisation_unit_stems: StemResolution
-    notes: list[str] = Field(default_factory=list)
-    source_notes: list[str] = Field(default_factory=list)
-    option_set_notes: list[str] = Field(default_factory=list)
-    category_notes: list[str] = Field(default_factory=list)
-    geometry_notes: list[str] = Field(default_factory=list)
+    notes: list[GenerateNote] = Field(default_factory=list)
+    source_notes: list[GenerateNote] = Field(default_factory=list)
+    option_set_notes: list[GenerateNote] = Field(default_factory=list)
+    category_notes: list[GenerateNote] = Field(default_factory=list)
+    geometry_notes: list[GenerateNote] = Field(default_factory=list)
 
 
 async def fetch_live_ig_inputs(
@@ -1792,9 +1863,9 @@ async def fetch_live_ig_inputs(
     since a slug is decided by the UID and the name the first read already carries.
     """
     steps = progress if progress is not None else _StepAnnouncer()
-    source_notes: list[str] = []
-    option_set_notes: list[str] = []
-    category_notes: list[str] = []
+    source_notes: list[GenerateNote] = []
+    option_set_notes: list[GenerateNote] = []
+    category_notes: list[GenerateNote] = []
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
     steps.tick("reading the questionnaire targets")
@@ -1843,7 +1914,7 @@ async def fetch_live_ig_inputs(
 
 
 def _selected_option_sets(
-    inputs: list[OptionSetIn], sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[str]
+    inputs: list[OptionSetIn], sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[GenerateNote]
 ) -> list[OptionSetIn]:
     """Filter option sets by the configured UIDs plus the target closure, noting entries that matched nothing."""
     selection = config.option_sets
@@ -1857,7 +1928,9 @@ def _selected_option_sets(
     selected = [item for item in inputs if item.uid in wanted_ids]
     selected_ids = {item.uid for item in selected}
     for uid in sorted(set(selection.include_ids) - selected_ids):
-        notes.append(f"include_ids entry {uid!r} matched no option set")
+        notes.append(
+            generate_note(GenerateNoteCategory.SELECTION_MISMATCH, f"include_ids entry {uid!r} matched no option set")
+        )
     return selected
 
 
@@ -1927,13 +2000,16 @@ async def _closure_sources(client: Dhis2Client, config: GenerateConfig) -> list[
     return await _fetch_questionnaire_sources(client, config, [])
 
 
-def _option_set_closure(sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[str]) -> set[str]:
+def _option_set_closure(
+    sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[GenerateNote]
+) -> set[str]:
     """Collect the option sets the selected forms bind their data elements to, noting the additions."""
     closure = _bound_option_set_uids(sources)
     added = sorted(closure - set(config.option_sets.include_ids))
     if added:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.SELECTION_CLOSURE,
                 f"{len(added)} option sets added by the data set / event program closure",
                 added,
             )
@@ -1942,7 +2018,7 @@ def _option_set_closure(sources: list[QuestionnaireSourceIn], config: GenerateCo
 
 
 async def _fetch_questionnaire_sources(
-    client: Dhis2Client, config: GenerateConfig, notes: list[str]
+    client: Dhis2Client, config: GenerateConfig, notes: list[GenerateNote]
 ) -> list[QuestionnaireSourceIn]:
     """Fetch the selected data sets, event programs, and tracker program stages as the Questionnaire projection.
 
@@ -1965,7 +2041,7 @@ async def _fetch_questionnaire_sources(
 
 
 async def _fetch_program_sources(
-    client: Dhis2Client, config: GenerateConfig, notes: list[str]
+    client: Dhis2Client, config: GenerateConfig, notes: list[GenerateNote]
 ) -> list[QuestionnaireSourceIn]:
     """Fetch the programs of both selection tables: one source per event program, one per tracker stage.
 
@@ -2013,7 +2089,7 @@ async def _list_programs(client: Dhis2Client, uids: list[str] | None) -> list[Pr
     return models
 
 
-def _swept_program_sources(models: list[Program], notes: list[str]) -> list[QuestionnaireSourceIn]:
+def _swept_program_sources(models: list[Program], notes: list[GenerateNote]) -> list[QuestionnaireSourceIn]:
     """Route every program of a whole-instance sweep to its form kind, noting the types neither table maps."""
     sources: list[QuestionnaireSourceIn] = []
     unmapped: list[str] = []
@@ -2027,7 +2103,8 @@ def _swept_program_sources(models: list[Program], notes: list[str]) -> list[Ques
             unmapped.append(f"{model.name or model.id or ''} ({model.id or ''})")
     if unmapped:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.REFUSED_FORM,
                 f"{len(unmapped)} programs have a programType the questionnaire target does not map; skipped",
                 unmapped,
             )
@@ -2065,17 +2142,21 @@ def _uid_filter(uids: list[str]) -> str:
 
 
 def _note_unmatched(
-    configured_ids: list[str], found_ids: set[str | None], table: str, label: str, notes: list[str]
+    configured_ids: list[str], found_ids: set[str | None], table: str, label: str, notes: list[GenerateNote]
 ) -> None:
     """Note the configured UIDs the instance answered nothing for, rather than dropping them silently."""
     missing = [uid for uid in configured_ids if uid not in found_ids]
     if missing:
         notes.append(
-            aggregate_note(f"{len(missing)} [generate.{table}] include_ids entries matched no {label}", missing)
+            aggregate_generate_note(
+                GenerateNoteCategory.SELECTION_MISMATCH,
+                f"{len(missing)} [generate.{table}] include_ids entries matched no {label}",
+                missing,
+            )
         )
 
 
-def _data_set_source(model: DataSet, notes: list[str]) -> QuestionnaireSourceIn:
+def _data_set_source(model: DataSet, notes: list[GenerateNote]) -> QuestionnaireSourceIn:
     """Map a generated DataSet into the Questionnaire projection, joining sections to their data elements.
 
     `dataSetElements` is a Java `Set` with no sort order, and DHIS2 serialises it in a different
@@ -2166,7 +2247,7 @@ def _marked_required(item: QuestionnaireItemIn, compulsory: _CompulsoryOperands)
     return item.model_copy(update={"required_option_combo_uids": required_uids}) if required_uids else item
 
 
-def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSourceIn:
+def _event_program_source(model: Program, notes: list[GenerateNote]) -> QuestionnaireSourceIn:
     """Map a program without registration onto one Questionnaire source, built from its single stage.
 
     A WITHOUT_REGISTRATION program holds exactly one stage by construction, so the program is
@@ -2205,7 +2286,7 @@ def _event_program_source(model: Program, notes: list[str]) -> QuestionnaireSour
     )
 
 
-def _tracker_program_sources(model: Program, notes: list[str]) -> list[QuestionnaireSourceIn]:
+def _tracker_program_sources(model: Program, notes: list[GenerateNote]) -> list[QuestionnaireSourceIn]:
     """Map a program with registration onto one Questionnaire source per stage, in the program's stage order.
 
     A tracker program is a sequence of visits rather than a single form, so each stage is its own
@@ -2293,7 +2374,7 @@ def _questionnaire_source(
     items: list[QuestionnaireItemIn],
     raw_sections: object,
     attribute_values: list[AttributeValueIn],
-    notes: list[str],
+    notes: list[GenerateNote],
     period_type: str | None = None,
     program: ProgramContextIn | None = None,
 ) -> QuestionnaireSourceIn:
@@ -2303,7 +2384,8 @@ def _questionnaire_source(
     flat_items = [item for item in items if item.uid not in sectioned_ids]
     if sections and flat_items:
         notes.append(
-            aggregate_note(
+            aggregate_generate_note(
+                GenerateNoteCategory.FORM_STRUCTURE,
                 f"{_SOURCE_LABELS_BY_KIND[kind]} {name!r} ({uid}) has {len(flat_items)} data elements outside "
                 "its sections; emitted after the sectioned ones",
                 [f"{item.name} ({item.uid})" for item in flat_items],
@@ -2581,13 +2663,14 @@ class GeometryTally(BaseModel):
     other_geometry_types: set[str] = Field(default_factory=set)
     malformed_units: list[str] = Field(default_factory=list)
 
-    def to_notes(self) -> list[str]:
+    def to_notes(self) -> list[GenerateNote]:
         """Roll the tally up into one aggregate note per noteworthy geometry outcome."""
-        notes: list[str] = []
+        notes: list[GenerateNote] = []
         if self.other_geometry_units:
             type_names = ", ".join(sorted(self.other_geometry_types))
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.INSTANCE_DATA_GAP,
                     f"{len(self.other_geometry_units)} organisation units have {type_names} geometry; embedded "
                     "without position",
                     self.other_geometry_units,
@@ -2595,7 +2678,8 @@ class GeometryTally(BaseModel):
             )
         if self.malformed_units:
             notes.append(
-                aggregate_note(
+                aggregate_generate_note(
+                    GenerateNoteCategory.INSTANCE_DATA_GAP,
                     f"{len(self.malformed_units)} organisation units have malformed geometry; no position or "
                     "boundary emitted",
                     self.malformed_units,
@@ -2683,3 +2767,556 @@ def _organisation_unit_input(
         translations=_translation_inputs(model.translations),
         attribute_values=_attribute_value_inputs(model.attributeValues),
     )
+
+
+#: How many steps `forward_responses` announces: read the spool, read the guide, read the value types,
+#: translate, post, file what each response became.
+FORWARD_STEPS = 6
+
+#: The `/api/dataValueSets` endpoint one aggregate response is imported through.
+_DATA_VALUE_SETS_PATH = "/api/dataValueSets"
+
+#: The `/api/tracker` endpoint both event kinds are imported through.
+_TRACKER_PATH = "/api/tracker"
+
+#: What a dry run adds to an aggregate post. v42 spells validate-only on this endpoint as `dryRun`,
+#: and the import runs every rule it would run for real while committing nothing.
+_DATA_VALUE_SETS_DRY_RUN_PARAMS = {"dryRun": "true"}
+
+#: The parameters every forwarded event is posted under. A translated event carries no DHIS2 uid, so
+#: it is always a create, and `async=false` is what makes the answer the import report itself rather
+#: than a job reference to poll.
+_TRACKER_PARAMS = {"importStrategy": "CREATE", "async": "false"}
+
+#: What a dry run adds to a tracker post. v42 has no `dryRun` on `/api/tracker`; the endpoint's own
+#: validate-only mode is `importMode=VALIDATE`, which runs the whole validation pass and persists nothing.
+_TRACKER_DRY_RUN_PARAMS = {"importMode": "VALIDATE"}
+
+#: The data-element projection the value-type read asks for - the one fact the compiled IG cannot carry,
+#: because R4 spells `BOOLEAN` and `TRUE_ONLY` as the same `#boolean` item type.
+_VALUE_TYPE_FIELDS = "id,valueType"
+
+#: How many UIDs one `id:in:[...]` filter carries before the value-type read is split across requests.
+_VALUE_TYPE_BATCH_SIZE = 200
+
+#: The status both endpoint report shapes spell an outright refusal as.
+_ERROR_IMPORT_STATUS = "ERROR"
+
+#: The fields only an `/api/dataValueSets` ImportSummary carries, which is how one is recognised
+#: whether it arrived inside a `WebMessage.response` or bare.
+_DATA_VALUE_SET_REPORT_KEYS = frozenset({"importCount", "conflicts", "responseType", "dataSetComplete"})
+
+#: The fields only an `/api/tracker` TrackerImportReport carries. The endpoint answers a refusal with
+#: this document **bare** - no `WebMessage` around it - so recognising it by shape is the whole trick.
+_TRACKER_REPORT_KEYS = frozenset({"validationReport", "stats", "bundleReport"})
+
+#: The backtick-quoted identifiers DHIS2 embeds in a validation message. Generalising them is what makes
+#: two hundred rejections of one rule roll up into one cause rather than two hundred distinct sentences.
+_QUOTED_IDENTIFIER = re.compile(r"`[^`]*`")
+
+#: How often the posting step re-captions itself, so a 300-response drain narrates without one line each.
+_POST_TICK_INTERVAL = 10
+
+
+class ForwardOutcomeKind(StrEnum):
+    """What became of one spooled response in a forward run."""
+
+    #: The translator would not read the response whole, so it never reached DHIS2 and stays in the spool.
+    REFUSED = "refused"
+
+    #: DHIS2 took the payload - imported it, or validated it on a dry run.
+    ACCEPTED = "accepted"
+
+    #: DHIS2 was given the payload and refused it; the import report says why.
+    REJECTED = "rejected"
+
+
+class ForwardImportIssue(BaseModel):
+    """One row DHIS2 named as a reason it would not take the payload, from either report shape.
+
+    `/api/dataValueSets` names them `response.conflicts[]` (`errorCode`, `object`, `value`) and
+    `/api/tracker` names them `validationReport.errorReports[]` (`errorCode`, `uid`, `message`). One
+    shape, because a reader of either wants the same three things: which rule, which object, what it said.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    error_code: str | None = None
+    subject: str | None = None
+    """The object the row is about - the DHIS2 UID a tracker error names, or the conflicting object."""
+
+    message: str | None = None
+
+    @property
+    def line(self) -> str:
+        """The row as one readable line, which is what a report file and a terminal cell both want."""
+        parts = [self.error_code, self.subject, self.message]
+        return " ".join(part for part in parts if part) or "no reason given"
+
+    @property
+    def reason(self) -> str:
+        """What the row says, falling back to the code when DHIS2 gave no message at all."""
+        return self.message or self.error_code or "no reason given"
+
+
+class ForwardImportOutcome(BaseModel):
+    """One DHIS2 import answer, projected out of whichever of the two endpoint report shapes carried it.
+
+    `/api/dataValueSets` answers with an `ImportSummary` - an `importCount` and a flat `conflicts` list -
+    and `/api/tracker` answers with a `TrackerImportReport` - `stats` and a `validationReport`. The two
+    have no shape in common, so this is what both fold into for counting and rendering, with the
+    endpoint's own generated report riding alongside untouched for anyone who needs the detail.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    status: str | None = None
+    message: str | None = None
+    created: int = 0
+    updated: int = 0
+    ignored: int = 0
+    deleted: int = 0
+    issues: tuple[ForwardImportIssue, ...] = ()
+    """Every row DHIS2 named as a reason, in the order the report listed them."""
+
+    data_value_summary: ImportSummary | None = None
+    tracker_report: TrackerImportReport | None = None
+
+    @property
+    def is_rejected(self) -> bool:
+        """Whether DHIS2 refused the payload: an error status, or any row it named against the payload."""
+        return self.status == _ERROR_IMPORT_STATUS or bool(self.issues)
+
+    @property
+    def counts_line(self) -> str:
+        """What the import did, as the one cell a per-response table shows when there is no reason to show."""
+        return f"{self.created} created, {self.updated} updated, {self.ignored} ignored"
+
+
+class ForwardRejectionReason(BaseModel):
+    """One cause a run's rejections roll up into, and how many responses met it.
+
+    DHIS2 states a rule once and then names the objects that broke it, so two hundred rejections are
+    usually a handful of causes. Grouping is on the error code plus the message with its quoted UIDs
+    generalised away, which is what turns `202 rejected` into something a person can act on.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    error_code: str | None = None
+    reason: str
+    responses: int
+
+
+class ForwardOutcome(BaseModel):
+    """What one spooled response became: a DHIS2 import answer, or the reasons it never reached DHIS2."""
+
+    model_config = ConfigDict(frozen=True)
+
+    response_id: str
+    questionnaire: str | None = None
+    target_kind: ConversionTargetKind | None = None
+    kind: ForwardOutcomeKind
+    notes: tuple[ConversionNote, ...] = ()
+    refusals: tuple[ConversionRefusal, ...] = ()
+    import_outcome: ForwardImportOutcome | None = None
+    spool_path: str
+    """Where the receipt sits now, relative to the project root - unmoved on a dry run and on a refusal."""
+
+
+class ForwardReport(BaseModel):
+    """The outcome of draining one project's capture spool into DHIS2, in the order it was drained."""
+
+    model_config = ConfigDict(frozen=True)
+
+    project_root: Path
+    dry_run: bool
+    coded_answer_mode: CodedAnswerMode
+    spooled: int = 0
+    outcomes: tuple[ForwardOutcome, ...] = ()
+    unreadable_artifacts: tuple[str, ...] = ()
+    """Every published non-form document the R4 models could not read, and so translated against nothing."""
+
+    @property
+    def refused(self) -> tuple[ForwardOutcome, ...]:
+        """Every response the translator would not read whole, which is every response that stayed put."""
+        return tuple(outcome for outcome in self.outcomes if outcome.kind == ForwardOutcomeKind.REFUSED)
+
+    @property
+    def accepted(self) -> tuple[ForwardOutcome, ...]:
+        """Every response DHIS2 took."""
+        return tuple(outcome for outcome in self.outcomes if outcome.kind == ForwardOutcomeKind.ACCEPTED)
+
+    @property
+    def rejected(self) -> tuple[ForwardOutcome, ...]:
+        """Every response DHIS2 was given and refused."""
+        return tuple(outcome for outcome in self.outcomes if outcome.kind == ForwardOutcomeKind.REJECTED)
+
+    @property
+    def translated_count(self) -> int:
+        """How many responses produced a payload."""
+        return self.spooled - len(self.refused)
+
+    @property
+    def posted_count(self) -> int:
+        """How many payloads were posted to DHIS2."""
+        return len(self.accepted) + len(self.rejected)
+
+    @property
+    def counts_line(self) -> str:
+        """The whole run in one line, which is what a progress reporter and a summary hint both want."""
+        return (
+            f"{self.spooled:,} spooled, {self.translated_count:,} translated, {len(self.refused):,} refused, "
+            f"{self.posted_count:,} posted, {len(self.accepted):,} accepted, {len(self.rejected):,} rejected"
+        )
+
+    @property
+    def rejection_reasons(self) -> tuple[ForwardRejectionReason, ...]:
+        """Every rejection of the run rolled up by cause, commonest first, so a wall of them reads as a few.
+
+        A response counts once per distinct cause it met, however many rows named that cause, and the
+        quoted UIDs DHIS2 embeds in a message are generalised away, so "Event OrganisationUnit: X and
+        Program: Y, do not match." is one cause of the run rather than one cause per event.
+        """
+        counted: Counter[tuple[str | None, str]] = Counter()
+        for outcome in self.rejected:
+            imported = outcome.import_outcome
+            issues = imported.issues if imported is not None else ()
+            causes = {(issue.error_code, _generalised_reason(issue.reason)) for issue in issues}
+            counted.update(causes or {(None, imported.message or "DHIS2 gave no reason") if imported else (None, "")})
+        ordered = sorted(counted.items(), key=lambda item: (-item[1], item[0][0] or "", item[0][1]))
+        return tuple(
+            ForwardRejectionReason(error_code=error_code, reason=reason, responses=responses)
+            for (error_code, reason), responses in ordered
+        )
+
+
+async def forward_responses(
+    profile: Profile,
+    project: FhirProject,
+    *,
+    import_responses: bool = False,
+    coded_answer_mode: CodedAnswerMode | None = None,
+    reporter: ProgressReporter | None = None,
+) -> ForwardReport:
+    """Drain a project's capture spool into DHIS2: translate every receipt, post it, and file what it became.
+
+    A **dry run is the default**. Every payload still goes to the real endpoint against the real
+    instance, under that endpoint's own validate-only mode - `dryRun=true` for `/api/dataValueSets`,
+    `importMode=VALIDATE` for `/api/tracker` - so the whole loop is exercised, DHIS2's own rules
+    decide the answer, and nothing is written and nothing is moved. `import_responses=True` commits,
+    and only then does the spool move: an accepted receipt to `forwarded/`, a rejected one to
+    `rejected/` beside a `<id>.report.json` holding its outcome. A conversion-refused receipt stays
+    in `received/` whichever mode ran, because the fix for it is in the guide or in the data and the
+    next run is the retry.
+
+    One client serves the run. It reads the DHIS2 value types behind the questions the published forms
+    bind - the one fact the compiled IG cannot carry, since R4 spells `BOOLEAN` and `TRUE_ONLY` as the
+    same `#boolean` item type - and then posts every translated payload through the same connection.
+
+    `coded_answer_mode` defaults to what `[serve] strict_codes` says, so a project that captures
+    strictly forwards strictly without stating it twice.
+    """
+    mode = coded_answer_mode if coded_answer_mode is not None else _configured_coded_answer_mode(project)
+    progress = _StepAnnouncer(reporter, FORWARD_STEPS)
+    progress.step("spool", "reading the capture spool")
+    spooled = read_received_responses(project.project_root)
+    progress.complete(f"{len(spooled):,} pending response(s)")
+
+    progress.step("compiled IG", "reading the published guide")
+    artifacts = load_compiled_artifacts(project)
+    unreadable = f", {len(artifacts.unreadable_resources):,} unreadable" if artifacts.unreadable_resources else ""
+    progress.complete(
+        f"{artifacts.resource_count:,} resource(s), {len(artifacts.questionnaires):,} form(s){unreadable}"
+    )
+
+    naming = ConversionNaming.from_config(project.config.generate, project.config.ig.canonical)
+    data_element_uids = bound_data_element_uids(artifacts, naming)
+    dry_run = not import_responses
+    async with open_client(profile) as client:
+        progress.step("value types", "reading the value types the forms bind")
+        value_types = await _fetch_value_types(client, data_element_uids, progress=progress)
+        progress.complete(f"{len(value_types):,} of {len(data_element_uids):,} data element(s) typed")
+
+        context = build_project_context(
+            project,
+            artifacts,
+            value_types_by_data_element=value_types,
+            coded_answer_mode=mode,
+        )
+        progress.step("translate", "translating the spooled responses")
+        conversion = translate_responses([entry.response for entry in spooled], context)
+        progress.complete(f"{len(conversion.translated):,} translated, {len(conversion.refused):,} refused")
+
+        progress.step("post", _post_caption(0, len(conversion.translated), dry_run=dry_run))
+        imports = await _post_translations(client, spooled, conversion, dry_run=dry_run, progress=progress)
+        progress.complete(f"{len(imports):,} payload(s) posted{' (validate only)' if dry_run else ''}")
+
+    progress.step("spool", "filing what each response became")
+    outcomes = _file_outcomes(spooled, conversion, imports, project.project_root, moving=import_responses)
+    report = ForwardReport(
+        project_root=project.project_root,
+        dry_run=dry_run,
+        coded_answer_mode=mode,
+        spooled=len(spooled),
+        outcomes=outcomes,
+        unreadable_artifacts=artifacts.unreadable_resources,
+    )
+    progress.complete(report.counts_line)
+    return report
+
+
+def _configured_coded_answer_mode(project: FhirProject) -> CodedAnswerMode:
+    """The coded-answer dial a project forwards under, which is the one it captures under."""
+    return CodedAnswerMode.STRICT if project.config.serve.strict_codes else CodedAnswerMode.LENIENT
+
+
+async def _fetch_value_types(
+    client: Dhis2Client,
+    uids: Sequence[str],
+    *,
+    progress: _StepAnnouncer,
+) -> dict[str, str]:
+    """Read the DHIS2 value type of every data element the published forms bind, in id-only batches."""
+    value_types: dict[str, str] = {}
+    for start in range(0, len(uids), _VALUE_TYPE_BATCH_SIZE):
+        batch = list(uids[start : start + _VALUE_TYPE_BATCH_SIZE])
+        progress.tick(f"reading value types ({min(start + len(batch), len(uids)):,}/{len(uids):,})")
+        models = await client.resources.data_elements.list(
+            fields=_VALUE_TYPE_FIELDS,
+            filters=[_uid_filter(batch)],
+            paging=False,
+        )
+        for model in models:
+            if model.id and model.valueType is not None:
+                value_types[model.id] = model.valueType.value
+    return value_types
+
+
+def _post_caption(posted: int, total: int, *, dry_run: bool) -> str:
+    """The live caption the posting step re-writes itself with as the batch drains."""
+    verb = "validating" if dry_run else "importing"
+    return f"{verb} payloads ({posted:,}/{total:,})"
+
+
+async def _post_translations(
+    client: Dhis2Client,
+    spooled: Sequence[SpooledResponse],
+    conversion: ConversionReport,
+    *,
+    dry_run: bool,
+    progress: _StepAnnouncer,
+) -> dict[str, ForwardImportOutcome]:
+    """Post every translated payload, one response at a time, keyed by the receipt it came from.
+
+    One payload per POST is what makes the outcome attributable: DHIS2 answers a bundle with one
+    report for the bundle, and a spool whose receipts move individually needs one answer each.
+    """
+    translated = [
+        (entry, result) for entry, result in zip(spooled, conversion.results, strict=True) if not result.is_refused
+    ]
+    imports: dict[str, ForwardImportOutcome] = {}
+    for posted, (entry, result) in enumerate(translated, start=1):
+        imports[entry.response_id] = await _post_result(client, result, dry_run=dry_run)
+        if posted % _POST_TICK_INTERVAL == 0 or posted == len(translated):
+            progress.tick(_post_caption(posted, len(translated), dry_run=dry_run))
+    return imports
+
+
+async def _post_result(client: Dhis2Client, result: ConversionResult, *, dry_run: bool) -> ForwardImportOutcome:
+    """Post one translated payload to the endpoint its target kind names, and project DHIS2's answer."""
+    if result.data_value_set is not None:
+        params = dict(_DATA_VALUE_SETS_DRY_RUN_PARAMS) if dry_run else {}
+        body = result.data_value_set.model_dump(by_alias=True, exclude_none=True, mode="json")
+        return _aggregate_import_outcome(await _post_body(client, _DATA_VALUE_SETS_PATH, body, params))
+    if result.event is None:
+        raise ValueError("a translated result carries neither a data value set nor an event")
+    params = {**_TRACKER_PARAMS, **(_TRACKER_DRY_RUN_PARAMS if dry_run else {})}
+    body = {"events": [result.event.model_dump(by_alias=True, exclude_none=True, mode="json")]}
+    return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
+
+
+async def _post_body(
+    client: Dhis2Client,
+    path: str,
+    body: dict[str, Any],
+    params: dict[str, str],
+) -> dict[str, Any]:
+    """POST one payload and answer with DHIS2's own JSON body, whether it accepted the payload or refused it.
+
+    A refused import is `409 Conflict` carrying the endpoint's report, so a rejection is an outcome to
+    record rather than an error to raise. The body is passed on **raw** rather than parsed here, because
+    the two endpoints do not agree on whether the report is wrapped: `/api/dataValueSets` answers a
+    `WebMessage` whose `response` is the `ImportSummary`, and `/api/tracker` answers the
+    `TrackerImportReport` bare, with no envelope around it at all - so the one shape that can carry both
+    is the body itself, and each family unwraps its own. Anything the error carries no JSON object for -
+    an authentication failure, an unreachable instance - is about the run and not about one response,
+    and is raised.
+    """
+    try:
+        return await client.post_raw(path, body, params=params)
+    except Dhis2ApiError as error:
+        if isinstance(error.body, dict):
+            return error.body
+        raise
+
+
+def _aggregate_import_outcome(body: dict[str, Any]) -> ForwardImportOutcome:
+    """Project an `/api/dataValueSets` answer: the import counts, and every conflict it named."""
+    envelope = _envelope(body)
+    summary = _report_model(ImportSummary, _report_body(body, _DATA_VALUE_SET_REPORT_KEYS))
+    counts = summary.importCount if summary is not None else None
+    status = summary.status.value if summary is not None and summary.status is not None else envelope.get("status")
+    conflicts = summary.conflicts if summary is not None else None
+    return ForwardImportOutcome(
+        status=_text(status),
+        message=(summary.description if summary is not None else None) or _text(envelope.get("message")),
+        created=counts.imported or 0 if counts is not None else 0,
+        updated=counts.updated or 0 if counts is not None else 0,
+        ignored=counts.ignored or 0 if counts is not None else 0,
+        deleted=counts.deleted or 0 if counts is not None else 0,
+        issues=tuple(_conflict_issue(conflict) for conflict in conflicts or []),
+        data_value_summary=summary,
+    )
+
+
+def _tracker_import_outcome(body: dict[str, Any]) -> ForwardImportOutcome:
+    """Project an `/api/tracker` answer: the stats, and every validation error it reported."""
+    envelope = _envelope(body)
+    report = _report_model(TrackerImportReport, _report_body(body, _TRACKER_REPORT_KEYS))
+    stats = report.stats if report is not None else None
+    status = report.status.value if report is not None and report.status is not None else envelope.get("status")
+    validation = report.validationReport if report is not None else None
+    errors = validation.errorReports if validation is not None else None
+    return ForwardImportOutcome(
+        status=_text(status),
+        message=(report.message if report is not None else None) or _text(envelope.get("message")),
+        created=stats.created or 0 if stats is not None else 0,
+        updated=stats.updated or 0 if stats is not None else 0,
+        ignored=stats.ignored or 0 if stats is not None else 0,
+        deleted=stats.deleted or 0 if stats is not None else 0,
+        issues=tuple(_tracker_issue(error) for error in errors or []),
+        tracker_report=report,
+    )
+
+
+def _envelope(body: dict[str, Any]) -> dict[str, Any]:
+    """The `WebMessage` fields of an answer, which are the body's own when no envelope wrapped the report."""
+    return body
+
+
+def _report_body(body: dict[str, Any], keys: frozenset[str]) -> dict[str, Any] | None:
+    """The endpoint's own report, wherever it arrived: inside a `WebMessage.response`, or bare as the body.
+
+    `keys` are the fields only that endpoint's report carries, so the choice is made on what the document
+    holds rather than on which HTTP status brought it - the same 409 body arrives wrapped from one
+    endpoint and bare from the other.
+    """
+    nested = body.get("response")
+    if isinstance(nested, dict) and keys & nested.keys():
+        return nested
+    if keys & body.keys():
+        return body
+    return nested if isinstance(nested, dict) else None
+
+
+def _report_model[T: BaseModel](model: type[T], report_body: dict[str, Any] | None) -> T | None:
+    """Validate one endpoint's report against its generated schema, keeping None when there is nothing to read.
+
+    A report the generated model cannot read costs its own detail and nothing else: the run still records
+    the rejection, and the endpoint said something this client's schema does not describe, which is a note
+    for `BUGS.md` rather than a reason to lose the other two hundred outcomes.
+    """
+    if not report_body:
+        return None
+    try:
+        return model.model_validate(report_body)
+    except ValidationError:
+        return None
+
+
+def _text(value: object) -> str | None:
+    """One wire field as the string a report carries it as, or None when DHIS2 sent nothing."""
+    return str(value) if value is not None else None
+
+
+def _conflict_issue(conflict: ImportConflict) -> ForwardImportIssue:
+    """One `/api/dataValueSets` conflict as the row both report shapes fold into."""
+    return ForwardImportIssue(
+        error_code=conflict.errorCode,
+        subject=conflict.object or conflict.property,
+        message=conflict.value,
+    )
+
+
+def _tracker_issue(error: TrackerImportError) -> ForwardImportIssue:
+    """One `/api/tracker` validation error as the row both report shapes fold into."""
+    return ForwardImportIssue(error_code=error.errorCode, subject=error.uid, message=error.message)
+
+
+def _generalised_reason(reason: str) -> str:
+    """One DHIS2 message with its quoted identifiers generalised away, so one rule reads as one cause."""
+    return _QUOTED_IDENTIFIER.sub("`...`", reason)
+
+
+def _file_outcomes(
+    spooled: Sequence[SpooledResponse],
+    conversion: ConversionReport,
+    imports: dict[str, ForwardImportOutcome],
+    project_root: Path,
+    *,
+    moving: bool,
+) -> tuple[ForwardOutcome, ...]:
+    """Pair every receipt with what DHIS2 said about it, moving the file when the run really imported."""
+    outcomes: list[ForwardOutcome] = []
+    for entry, result in zip(spooled, conversion.results, strict=True):
+        imported = imports.get(entry.response_id)
+        kind = _outcome_kind(result, imported)
+        path = _filed_path(entry, kind, imported, moving=moving)
+        outcomes.append(
+            ForwardOutcome(
+                response_id=entry.response_id,
+                questionnaire=result.questionnaire or entry.questionnaire or None,
+                target_kind=result.target_kind,
+                kind=kind,
+                notes=result.notes,
+                refusals=result.refusals,
+                import_outcome=imported,
+                spool_path=_relative_path(path, project_root),
+            )
+        )
+    return tuple(outcomes)
+
+
+def _outcome_kind(result: ConversionResult, imported: ForwardImportOutcome | None) -> ForwardOutcomeKind:
+    """Which of the three states one receipt ended in."""
+    if result.is_refused or imported is None:
+        return ForwardOutcomeKind.REFUSED
+    return ForwardOutcomeKind.REJECTED if imported.is_rejected else ForwardOutcomeKind.ACCEPTED
+
+
+def _filed_path(
+    entry: SpooledResponse,
+    kind: ForwardOutcomeKind,
+    imported: ForwardImportOutcome | None,
+    *,
+    moving: bool,
+) -> Path:
+    """Move the receipt into the state it ended in, and answer with where it now sits.
+
+    A dry run moves nothing at all, so a run that validated the whole spool leaves the queue exactly
+    as it found it and can be run again as the import.
+    """
+    if not moving or kind == ForwardOutcomeKind.REFUSED:
+        return entry.path
+    if kind == ForwardOutcomeKind.ACCEPTED:
+        return move_to_forwarded(entry)
+    return move_to_rejected(entry, imported) if imported is not None else entry.path
+
+
+def _relative_path(path: Path, project_root: Path) -> str:
+    """Name one spool file relative to the project when it lives inside it, so the report stays portable."""
+    try:
+        return path.relative_to(project_root).as_posix()
+    except ValueError:
+        return path.as_posix()

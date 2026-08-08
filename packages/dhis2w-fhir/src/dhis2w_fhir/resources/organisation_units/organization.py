@@ -40,7 +40,7 @@ from dhis2w_fhir.names import (
     quote,
     resolve_identity_stems,
 )
-from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.notes import GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.r4 import (
     BOUNDARY_EXTENSION_URL,
     CodeableConcept,
@@ -268,8 +268,10 @@ def build_organisation_unit_instances(
             build.artifacts.append(_json_artifact(f"Location-{stem}", location))
     if orphaned:
         build.notes.append(
-            aggregate_note(
-                f"{len(orphaned)} organisation units have a parent outside the selection; partOf omitted", orphaned
+            aggregate_generate_note(
+                GenerateNoteCategory.SELECTION_GAP,
+                f"{len(orphaned)} organisation units have a parent outside the selection; partOf omitted",
+                orphaned,
             )
         )
     return build

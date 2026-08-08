@@ -71,6 +71,13 @@ curl -sf "${BASE}/ConceptMap/\$translate?system=${CANONICAL}/CodeSystem/d2-os-Qd
     | head -c 300
 echo
 
+# The categories target publishes maps of its own, into the same directory, so the same
+# call answers a disaggregation code: which DHIS2 category option is this? targetsystem
+# narrows it to the DHIS2 code namespace instead of the UID one.
+curl -sf "${BASE}/ConceptMap/\$translate?system=${CANONICAL}/CodeSystem/d2-cat-fMZEcRHuamy-cs&code=qkPbeWaFsnU&targetsystem=http://dhis2.org/fhir/id/category-option-code" \
+    | head -c 300
+echo
+
 # A load set: synthetic QuestionnaireResponse JSON to POST at the facade. Seeded from the
 # target UID and the ordinal, so a rerun over unchanged metadata writes identical files.
 # It lands in load/ beside ig/ - a load set is not IG source, it is gitignored by the

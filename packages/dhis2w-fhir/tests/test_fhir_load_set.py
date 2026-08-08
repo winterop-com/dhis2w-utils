@@ -291,4 +291,6 @@ async def test_an_instance_without_a_root_organisation_unit_writes_nothing_with_
     report = await _run(tmp_path)
     assert report.response_count == 0
     assert report.written_files == []
-    assert "the instance has no level-1 organisation unit; no load set emitted" in report.notes
+    assert "the instance has no level-1 organisation unit; no load set emitted" in [
+        note.message for note in report.notes
+    ]

@@ -15,6 +15,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
+    "dhis2w-client",
     "dhis2w-core>=1.5.0,<2.0",
     "fastmcp>=3.4.5",
     "fpdf2>=2.8.7",
@@ -40,3 +41,4 @@ build-backend = "uv_build"
 
 [tool.uv.sources]
 dhis2w-core = { workspace = true }
+dhis2w-client = { workspace = true }

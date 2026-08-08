@@ -18,10 +18,11 @@ UID fall-back is taken too - a peer carries that UID as its DHIS2 code - is
 skipped with a note rather than emitted as a duplicate concept.
 
 A third document takes the concept codes back to DHIS2: one ConceptMap per set,
-in its own `concept-maps/` directory, mapping every emitted concept onto the
-DHIS2 option UID and, where the option carries one, the DHIS2 option code. It is
-built from the same `concept_assignments` plan the concepts are, so a mapping can
-only ever name a concept the CodeSystem really holds.
+in the `concept-maps/` directory the category maps also live in, mapping every
+emitted concept onto the DHIS2 option UID and, where the option carries one, the
+DHIS2 option code. It is built from the same `concept_assignments` plan the
+concepts are, so a mapping can only ever name a concept the CodeSystem really
+holds.
 
 All three artifacts of one set carry one identity stem, resolved by
 `resolve_identity_stems` under `[generate.naming] source`: with `"id"` the slug
@@ -54,7 +55,7 @@ from dhis2w_fhir.names import (
     page_string,
     resolve_identity_stems,
 )
-from dhis2w_fhir.notes import aggregate_note
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note
 from dhis2w_fhir.r4 import (
     CodeSystem,
     CodeSystemConcept,
@@ -101,6 +102,7 @@ __all__ = [
     "concept_map_canonical",
     "max_slug_length",
     "option_set_code_fallback",
+    "option_set_concept_map_file_prefix",
     "option_set_fsh_name",
     "option_set_identities",
     "option_set_identity_index",
@@ -110,9 +112,9 @@ __all__ = [
 #: The `ig/input/resources/` subdirectory the option-set pairs own outright - one JSON file per resource.
 TERMINOLOGY_DIRECTORY = "terminology"
 
-#: The `ig/input/resources/` subdirectory the option-set ConceptMaps own outright - one JSON file per set.
-#: A JSON sync deletes every unproduced `*.json` in its target, so the maps sweep a directory of their own
-#: rather than share the pairs'.
+#: The `ig/input/resources/` subdirectory both ConceptMap families publish into - one JSON file per source
+#: object. A JSON sync deletes every unproduced `*.json` in its target, so the maps sweep a directory apart
+#: from the pairs', and the two families each sweep only the file-name prefix their own id stem produces.
 CONCEPT_MAP_DIRECTORY = "concept-maps"
 
 # The longest emitted id is `<id-stem><slug>-cs`/`-vs`, so the slug is bounded
@@ -355,6 +357,15 @@ def build_option_set_concept_map_artifacts(
     ]
 
 
+def option_set_concept_map_file_prefix(config: GenerateConfig) -> str:
+    """The file-name prefix every option-set ConceptMap carries, which is what that family sweeps by.
+
+    `concept-maps/` holds both terminology families, so neither one owns the directory outright:
+    each sweeps the files its own id stem names and leaves the other's alone.
+    """
+    return f"ConceptMap-{_id_stem(config)}"
+
+
 def option_set_code_fallback(option_set: OptionSetIn, config: GenerateConfig) -> bool:
     """Whether any concept of one set takes the UID because its DHIS2 code is unusable or already taken.
 
@@ -382,7 +393,7 @@ def concept_assignments(source: ConceptSourceIn, config: GenerateConfig) -> Conc
     target discards them, because that is where a fall-back belongs in the report.
     """
     ordered = _ordered_options(source)
-    notes: list[str] = []
+    notes: list[GenerateNote] = []
     desired = [_desired_code(option, source, config, notes) for option in ordered]
     taken: set[str] = set()
     collided: list[str] = []
@@ -403,12 +414,18 @@ def concept_assignments(source: ConceptSourceIn, config: GenerateConfig) -> Conc
         assignments.append(ConceptAssignment(option=option, code=code, from_dhis2_code=from_dhis2_code))
     if collided:
         notes.append(
-            aggregate_note(f"{len(collided)} {source.member_label} codes collided; fell back to the UID", collided)
+            aggregate_generate_note(
+                GenerateNoteCategory.CODE_COLLISION,
+                f"{len(collided)} {source.member_label} codes collided; fell back to the UID",
+                collided,
+            )
         )
     if skipped:
         notes.append(
-            aggregate_note(
-                f"{len(skipped)} {source.member_label}s could not receive a unique concept code; skipped", skipped
+            aggregate_generate_note(
+                GenerateNoteCategory.CODE_COLLISION,
+                f"{len(skipped)} {source.member_label}s could not receive a unique concept code; skipped",
+                skipped,
             )
         )
     return ConceptAssignmentPlan(assignments=assignments, notes=notes)
@@ -503,7 +520,7 @@ def _build_pair(
     identity: OptionSetIdentity,
     config: GenerateConfig,
     systems: _OptionSetSystems,
-    notes: list[str],
+    notes: list[GenerateNote],
     *,
     ig_status: IgStatus,
     attribute_codes: AttributeCodeIndex,
@@ -628,7 +645,9 @@ class _DesiredCode(BaseModel):
     from_dhis2_code: bool
 
 
-def _desired_code(option: OptionIn, source: ConceptSourceIn, config: GenerateConfig, notes: list[str]) -> _DesiredCode:
+def _desired_code(
+    option: OptionIn, source: ConceptSourceIn, config: GenerateConfig, notes: list[GenerateNote]
+) -> _DesiredCode:
     """Pick the concept code a member wants: its DHIS2 code in code mode when FHIR-valid, else the UID."""
     if config.concept_code_source != "code":
         return _DesiredCode(code=option.uid, from_dhis2_code=False)
@@ -636,8 +655,11 @@ def _desired_code(option: OptionIn, source: ConceptSourceIn, config: GenerateCon
         return _DesiredCode(code=option.code or "", from_dhis2_code=True)
     detail = "no code" if option.code is None else f"code {option.code!r} is not a valid FHIR code"
     notes.append(
-        f"{source.source_label} {source.name!r}: {source.member_label} {option.uid} has {detail}; "
-        "falling back to the UID"
+        generate_note(
+            GenerateNoteCategory.CODE_FALLBACK,
+            f"{source.source_label} {source.name!r}: {source.member_label} {option.uid} has {detail}; "
+            "falling back to the UID",
+        )
     )
     return _DesiredCode(code=option.uid, from_dhis2_code=False)
 
@@ -669,7 +691,9 @@ def _ordered_options(source: ConceptSourceIn) -> list[OptionIn]:
     return sorted(source.options, key=lambda item: (item.sort_order is None, item.sort_order or 0, item.uid))
 
 
-def build_concepts(source: ConceptSourceIn, config: GenerateConfig, notes: list[str]) -> list[CodeSystemConcept]:
+def build_concepts(
+    source: ConceptSourceIn, config: GenerateConfig, notes: list[GenerateNote]
+) -> list[CodeSystemConcept]:
     """Build one source's concepts from the assigned codes, in emission order, reporting what assignment raised."""
     plan = concept_assignments(source, config)
     notes.extend(plan.notes)

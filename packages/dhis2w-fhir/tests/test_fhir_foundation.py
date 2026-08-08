@@ -13,8 +13,8 @@ def _by_path(config: GenerateConfig, *, ig_status: IgStatus = "draft") -> dict[s
 
 
 #: The DHIS2 identifier systems declared: a UID system per object kind, plus a code system for the
-#: nine kinds that carry a DHIS2 code.
-_IDENTIFIER_SYSTEM_COUNT = 20
+#: ten kinds that carry a DHIS2 code.
+_IDENTIFIER_SYSTEM_COUNT = 22
 
 
 def test_foundation_covers_expected_files() -> None:
@@ -91,6 +91,18 @@ def test_naming_systems_declare_every_identifier_system() -> None:
     assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/data-set"' in content
     assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/category-option-combo"' in content
     assert "this slot repeats the UID" in content
+
+
+def test_the_category_option_identifier_systems_are_declared() -> None:
+    """The category ConceptMaps map onto the category-option namespaces, so both are aliased and declared."""
+    aliases = _by_path(GenerateConfig())["foundation/d2-aliases.fsh"]
+    assert "Alias: $DHIS2-CO = http://dhis2.org/fhir/id/category-option" in aliases
+    assert "Alias: $DHIS2-CO-CODE = http://dhis2.org/fhir/id/category-option-code" in aliases
+    content = _by_path(GenerateConfig())["foundation/d2-naming-systems.fsh"]
+    assert "Instance: D2CategoryOptionIdentifierSystem" in content
+    assert "Instance: D2CategoryOptionCodeIdentifierSystem" in content
+    assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/category-option"' in content
+    assert '* uniqueId[0].value = "http://dhis2.org/fhir/id/category-option-code"' in content
 
 
 def test_naming_systems_declare_a_code_system_only_where_dhis2_has_one() -> None:
