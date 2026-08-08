@@ -96,11 +96,6 @@ def is_generated_file(path: Path) -> bool:
 
 
 def _swept_files(directory: Path) -> list[Path]:
-    """Every file directly in `directory` a sweep may delete, by extension, in a stable order."""
-    return sorted(path for pattern in _SWEPT_PATTERNS for path in directory.glob(pattern))
-
-
-def _swept_tree(directory: Path) -> list[Path]:
     """Every file under `directory` at any depth a sweep may delete, by extension, in a stable order."""
     return sorted(path for pattern in _SWEPT_PATTERNS for path in directory.rglob(pattern))
 
@@ -114,14 +109,21 @@ def _prune_empty_directories(directory: Path) -> None:
 
 
 def clean_generated_files(directory: Path) -> list[str]:
-    """Delete the header-bearing `.fsh` / `.md` files directly under `directory`; return their names."""
+    """Delete every header-bearing `.fsh` / `.md` file under `directory` at any depth; return their relative paths.
+
+    The sweep goes to the bottom of the tree, so a generated file a nesting emitter left behind -
+    `tracker-programs/<program uid>/<stage uid>.fsh` - is removed wherever it sits, and a subdirectory
+    it empties goes with it. Only header-bearing files are deleted, so hand-authored work at any depth
+    survives. Paths are reported relative to `directory`, which for a flat directory is the file name.
+    """
     deleted: list[str] = []
     if not directory.is_dir():
         return deleted
     for path in _swept_files(directory):
         if is_generated_file(path):
             path.unlink()
-            deleted.append(path.name)
+            deleted.append(path.relative_to(directory).as_posix())
+    _prune_empty_directories(directory)
     return deleted
 
 
@@ -160,7 +162,7 @@ def sync_artifacts(base_directory: Path, target_subdirectory: str, artifacts: li
         report.written.append(artifact.relative_path)
     target = base_directory / target_subdirectory
     if target.is_dir():
-        for path in _swept_tree(target):
+        for path in _swept_files(target):
             if path.relative_to(base_directory).as_posix() in produced:
                 continue
             if is_generated_file(path):

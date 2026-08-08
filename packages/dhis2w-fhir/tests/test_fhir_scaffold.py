@@ -376,6 +376,16 @@ def test_makefile_mounts_the_package_cache_volume() -> None:
     assert "CACHE_VOLUME := fhir-ig-cache" in makefile
 
 
+def test_makefile_serves_the_ig_off_disk_and_straight_from_the_instance() -> None:
+    """`serve` reads the compiled IG, `serve-live` builds it from the instance, and both are declared phony."""
+    makefile = _by_path()["Makefile"]
+    assert "serve:  ## Serve the compiled IG as a FHIR endpoint (run generate + sushi first)" in makefile
+    assert "\t$(D2W) fhir serve\n" in makefile
+    assert "serve-live:  ## Serve straight from the DHIS2 instance, no compile needed" in makefile
+    assert "\t$(D2W) fhir serve --live\n" in makefile
+    assert ".PHONY: serve serve-live" in makefile
+
+
 def test_makefile_refresh_chains_the_full_force_rebuild() -> None:
     """`refresh` wipes every cache, pulls the latest tooling, regenerates, revalidates, and rebuilds."""
     makefile = _by_path()["Makefile"]
@@ -515,6 +525,21 @@ def test_refresh_adds_the_serve_entries_to_a_project_scaffolded_before_them(tmp_
     lines = ignored.read_text(encoding="utf-8").splitlines()
     assert ".serve/" in lines
     assert "load/" in lines
+
+
+def test_refresh_adds_the_serve_targets_to_a_makefile_scaffolded_before_them(tmp_path: Path) -> None:
+    """The serve targets carry their own `.PHONY` line, so they are a pure addition a refresh can write."""
+    _write_project(tmp_path)
+    makefile = tmp_path / "Makefile"
+    content = makefile.read_text(encoding="utf-8")
+    stale = content.split(".PHONY: serve serve-live")[0] + "clean:" + content.split("\nclean:", 1)[1]
+    assert "serve" not in stale
+    makefile.write_text(stale, encoding="utf-8")
+
+    report = refresh_project(tmp_path)
+
+    assert report.refreshed_files == ["Makefile"]
+    assert makefile.read_text(encoding="utf-8") == content
 
 
 def test_refresh_never_writes_fhir_toml(tmp_path: Path) -> None:
