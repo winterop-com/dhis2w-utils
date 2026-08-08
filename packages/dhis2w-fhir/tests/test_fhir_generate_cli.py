@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from dhis2w_cli.main import build_app
-from dhis2w_fhir import FhirValidationReport, GenerateAllReport, GenerateReport, LoadSetReport
+from dhis2w_fhir import FhirValidationReport, GenerateFullReport, GenerateReport, LoadSetReport
 from dhis2w_fhir.validation.schemas import ValidationFinding
 from typer.testing import CliRunner
 
@@ -65,9 +65,9 @@ def _report(target_directory: str, **overrides: object) -> GenerateReport:
     return GenerateReport.model_validate(defaults)
 
 
-def _all_report() -> GenerateAllReport:
+def _full_report() -> GenerateFullReport:
     """Build the seven-target report `generate all` renders."""
-    return GenerateAllReport(
+    return GenerateFullReport(
         foundation=_report("foundation"),
         option_sets=_report("terminology"),
         categories=_report("categories"),
@@ -109,9 +109,9 @@ def test_generate_organisation_units_json(fhir_project: Path) -> None:  # noqa: 
     assert '"organisation_unit_count": 7' in result.output
 
 
-def test_generate_all_renders_every_report(fhir_project: Path) -> None:  # noqa: ARG001
+def test_generate_full_renders_every_report(fhir_project: Path) -> None:  # noqa: ARG001
     """`d2w fhir generate all` renders every target's report, with the narrative pages rendered last."""
-    report = GenerateAllReport(
+    report = GenerateFullReport(
         foundation=_report("foundation"),
         option_sets=_report("terminology"),
         categories=_report("categories"),
@@ -121,7 +121,7 @@ def test_generate_all_renders_every_report(fhir_project: Path) -> None:  # noqa:
         pages=_report("pagecontent", target_base="ig/input", page_count=5, intro_count=3),
     )
     mock = AsyncMock(return_value=report)
-    with patch("dhis2w_fhir.service.generate_all", new=mock):
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "generate", "all"])
     assert result.exit_code == 0, result.output
     titles = ["foundation", "option-sets", "categories", "questionnaires", "examples", "org-units", "pages"]
@@ -204,13 +204,13 @@ def test_generate_load_rejects_a_per_target_below_one(fhir_project: Path) -> Non
     assert result.exit_code != 0
 
 
-def test_generate_all_leaves_the_load_set_alone(fhir_project: Path) -> None:  # noqa: ARG001
+def test_generate_full_leaves_the_load_set_alone(fhir_project: Path) -> None:  # noqa: ARG001
     """A load set is test data rather than IG source, so the all-target run never writes one."""
     load_mock = AsyncMock(return_value=LoadSetReport(project_root=Path("/project"), target_directory="load"))
-    all_mock = AsyncMock(return_value=_all_report())
+    all_mock = AsyncMock(return_value=_full_report())
     with (
         patch("dhis2w_fhir.service.generate_load_set", new=load_mock),
-        patch("dhis2w_fhir.service.generate_all", new=all_mock),
+        patch("dhis2w_fhir.service.generate_full", new=all_mock),
     ):
         result = _runner.invoke(build_app(), ["fhir", "generate", "all"])
     assert result.exit_code == 0, result.output

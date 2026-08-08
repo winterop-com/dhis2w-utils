@@ -1057,7 +1057,7 @@ async def test_per_target_zero_disables_the_target_and_sweeps_its_directory(
 
 
 @respx.mock
-async def test_generate_all_runs_the_example_target_after_the_questionnaires(
+async def test_generate_full_runs_the_example_target_after_the_questionnaires(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
@@ -1069,7 +1069,7 @@ async def test_generate_all_runs_the_example_target_after_the_questionnaires(
     await _scaffold_project(tmp_path)
     _mock_metadata()
 
-    report = await service.generate_all(resolve_profile("probe"), load_project(tmp_path))
+    report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
 
     assert report.questionnaires.questionnaire_count == 2
     assert report.examples.example_count == 2

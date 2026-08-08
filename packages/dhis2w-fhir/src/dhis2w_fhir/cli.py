@@ -355,7 +355,7 @@ def generate_all_command() -> None:
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
-    report = asyncio.run(service.generate_all(generation.profile, project))
+    report = asyncio.run(service.generate_full(generation.profile, project))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
