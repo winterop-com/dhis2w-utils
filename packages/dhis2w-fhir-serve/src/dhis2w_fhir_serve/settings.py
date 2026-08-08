@@ -6,6 +6,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_fhir_serve.capture.validate import DEFAULT_STRICT_CODES
+
 
 class ServeSettings(BaseModel):
     """Everything the app factory needs to build the FHIR facade for one project.
@@ -15,6 +17,9 @@ class ServeSettings(BaseModel):
     DHIS2 instance over the compiled IG on disk, `profile` names the DHIS2 profile that
     store connects with, and `strict_codes` rejects a received answer whose code is not
     in the served terminology instead of recording a warning.
+
+    `strict_codes` is the runtime source every capture is validated against; the default it
+    starts from lives with the capture path, in `capture.validate.DEFAULT_STRICT_CODES`.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -22,4 +27,4 @@ class ServeSettings(BaseModel):
     project_dir: Path
     live: bool = False
     profile: str | None = None
-    strict_codes: bool = False
+    strict_codes: bool = DEFAULT_STRICT_CODES
