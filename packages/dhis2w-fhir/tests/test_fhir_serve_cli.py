@@ -1,16 +1,20 @@
-"""CliRunner tests for `d2w fhir serve` - the guard, the preflight, and what reaches uvicorn."""
+"""CliRunner tests for `d2w fhir serve` - the guard, the preflights, and what reaches uvicorn."""
 
 from __future__ import annotations
 
 import builtins
+import errno
 import json
 import os
+import socket
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 import uvicorn
 from dhis2w_cli.main import build_app
+from dhis2w_fhir import cli as fhir_cli
 from typer.testing import CliRunner
 
 _runner = CliRunner()
@@ -55,9 +59,16 @@ class _RecordedRun:
 
 @pytest.fixture
 def recorded_run(monkeypatch: pytest.MonkeyPatch) -> _RecordedRun:
-    """Replace `uvicorn.run` with a recorder, so the command runs to completion without listening."""
+    """Replace `uvicorn.run` with a recorder, so the command runs to completion without listening.
+
+    The bind preflight is recorded rather than run for the same reason: these tests point the
+    command at addresses the machine really owns - the 8080 default among them - and a probe
+    that truly binds would couple them to whatever the machine happens to be running. The
+    tests about the preflight itself install their own recorder and keep the real probe.
+    """
     recorder = _RecordedRun()
     monkeypatch.setattr(uvicorn, "run", recorder)
+    monkeypatch.setattr(fhir_cli, "_preflight_bind", lambda host, port: None)
     return recorder
 
 
@@ -270,3 +281,159 @@ def test_serve_exits_cleanly_on_interrupt(
     result = _runner.invoke(build_app(), ["fhir", "serve", "project"])
 
     assert result.exit_code == 0, result.output
+
+
+def _occupied_port() -> tuple[socket.socket, int]:
+    """Hold an ephemeral loopback port the way a running DHIS2 does, and say which one."""
+    blocker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    blocker.bind(("127.0.0.1", 0))
+    blocker.listen(1)
+    return blocker, blocker.getsockname()[1]
+
+
+def _free_port() -> int:
+    """An ephemeral loopback port that was free a moment ago."""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.bind(("127.0.0.1", 0))
+    port: int = probe.getsockname()[1]
+    probe.close()
+    return port
+
+
+def _port_in_use_line(port: int, host: str = "127.0.0.1") -> str:
+    """The one-line refusal the preflight and the uvicorn catch both render."""
+    return (
+        f"port {port} on {host} is already in use "
+        "(usually the local DHIS2 instance; set [serve] port in fhir.toml or pass --port)"
+    )
+
+
+def test_serve_refuses_a_taken_port_before_the_banner(workdir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A port something else holds fails as one line before any output that looks like a start."""
+    project = _scaffold(workdir)
+    _compile(project)
+    recorder = _RecordedRun()
+    monkeypatch.setattr(uvicorn, "run", recorder)
+    blocker, port = _occupied_port()
+    try:
+        result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--port", str(port)])
+    finally:
+        blocker.close()
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, fhir_cli.PortInUseError)
+    assert _port_in_use_line(port) in str(result.exception)
+    assert recorder.calls == 0
+    assert "starting" not in result.stderr
+    assert "Traceback" not in result.output
+
+
+def test_the_taken_port_renders_as_one_line_through_the_funnel(
+    workdir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """End to end through `run_app`: exit code 1, the `error:` one-liner on stderr, no traceback."""
+    from dhis2w_core.cli_errors import run_app
+
+    project = _scaffold(workdir)
+    _compile(project)
+    recorder = _RecordedRun()
+    monkeypatch.setattr(uvicorn, "run", recorder)
+    blocker, port = _occupied_port()
+    monkeypatch.setattr(sys, "argv", ["d2w", "fhir", "serve", "project", "--port", str(port)])
+    try:
+        with pytest.raises(SystemExit) as exit_info:
+            run_app(build_app())
+    finally:
+        blocker.close()
+
+    assert exit_info.value.code == 1
+    captured = capsys.readouterr()
+    assert f"error: {_port_in_use_line(port)}" in captured.err
+    assert "Traceback" not in captured.err + captured.out
+    assert recorder.calls == 0
+
+
+def test_the_preflight_releases_the_port(workdir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A successful probe leaves the port free, so uvicorn's own bind is next in line for it."""
+    project = _scaffold(workdir)
+    _compile(project)
+    recorder = _RecordedRun()
+    monkeypatch.setattr(uvicorn, "run", recorder)
+    port = _free_port()
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--port", str(port)])
+
+    assert result.exit_code == 0, result.output
+    assert recorder.calls == 1
+    rebind = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        rebind.bind(("127.0.0.1", port))
+    finally:
+        rebind.close()
+
+
+def test_a_bind_race_lost_at_uvicorn_renders_the_same_line(workdir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An EADDRINUSE raised out of the uvicorn run itself renders the one-liner, never a traceback."""
+    project = _scaffold(workdir)
+    _compile(project)
+    port = _free_port()
+
+    def _refuse_bind(application: Any, **keyword_arguments: Any) -> None:
+        raise OSError(errno.EADDRINUSE, "address already in use")
+
+    monkeypatch.setattr(uvicorn, "run", _refuse_bind)
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--port", str(port)])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, fhir_cli.PortInUseError)
+    assert _port_in_use_line(port) in str(result.exception)
+    assert "Traceback" not in result.output
+
+
+def test_a_system_exit_from_uvicorn_with_the_port_taken_renders_the_same_line(
+    workdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """uvicorn refuses a taken port with `sys.exit(1)`; a re-probe maps that back to the one-liner."""
+    project = _scaffold(workdir)
+    _compile(project)
+    port = _free_port()
+    blockers: list[socket.socket] = []
+
+    def _lose_the_race(application: Any, **keyword_arguments: Any) -> None:
+        blocker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        blocker.bind(("127.0.0.1", port))
+        blocker.listen(1)
+        blockers.append(blocker)
+        raise SystemExit(1)
+
+    monkeypatch.setattr(uvicorn, "run", _lose_the_race)
+    try:
+        result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--port", str(port)])
+    finally:
+        for blocker in blockers:
+            blocker.close()
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, fhir_cli.PortInUseError)
+    assert _port_in_use_line(port) in str(result.exception)
+    assert "Traceback" not in result.output
+
+
+def test_a_system_exit_from_uvicorn_with_the_port_free_passes_through(
+    workdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exit 1 is also how uvicorn reports failures that are not about the port; those keep their exit."""
+    project = _scaffold(workdir)
+    _compile(project)
+    port = _free_port()
+
+    def _fail_elsewhere(application: Any, **keyword_arguments: Any) -> None:
+        raise SystemExit(3)
+
+    monkeypatch.setattr(uvicorn, "run", _fail_elsewhere)
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--port", str(port)])
+
+    assert result.exit_code == 3
+    assert not isinstance(result.exception, fhir_cli.PortInUseError)

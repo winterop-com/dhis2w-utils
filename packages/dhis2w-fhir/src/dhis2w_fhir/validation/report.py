@@ -31,6 +31,7 @@ class _ReportRow(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     severity: str
+    scope: str
     category: str
     object_label: str
     code: str
@@ -75,7 +76,7 @@ def render_validation_markdown(report: FhirValidationReport, target: str, genera
 
 
 #: The CSV header row - one column per `ValidationFinding` field, in declaration order.
-CSV_HEADER = ("severity", "category", "resource_type", "uid", "name", "code", "message")
+CSV_HEADER = ("severity", "scope", "category", "resource_type", "uid", "name", "code", "message")
 
 
 def render_validation_csv(report: FhirValidationReport) -> str:
@@ -87,6 +88,7 @@ def render_validation_csv(report: FhirValidationReport) -> str:
         writer.writerow(
             [
                 finding.severity,
+                finding.scope,
                 finding.category,
                 finding.resource_type,
                 finding.uid,
@@ -117,6 +119,7 @@ def _report_row(finding: ValidationFinding) -> _ReportRow:
     """Project one finding onto a Markdown table row, its cells already made table-safe."""
     return _ReportRow(
         severity=finding.severity,
+        scope=finding.scope,
         category=finding.category,
         object_label=f"{_table_cell(finding.name)} ({_table_cell(finding.uid)})",
         code=_code_cell(finding.code),

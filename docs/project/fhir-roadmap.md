@@ -1388,10 +1388,11 @@ commitment.
     - **Mode `code` fails early** through the same refuse-at-generate-time machinery
       the build-aborting code gate uses - one object without a usable code refuses the
       run rather than silently falling back.
-    - **`d2w fhir validate` is the readiness probe.** Its existing `missing-code` and
-      `invalid-code` findings already name exactly the objects that would still fall
-      back under `code-or-uid`. A small **code coverage** count in the validate summary
-      would make the migration measurable rather than anecdotal.
+    - **`d2w fhir validate` is the readiness probe.** Its `missing-code` and
+      `invalid-code` findings name exactly the objects that would still fall back
+      under `code-or-uid`, and the **code coverage** line in the validate summary
+      (in-scope objects passing `usable_code_stem`, per surface in the report)
+      makes the migration measurable rather than anecdotal.
     - **Distinct from `concept_code_source`**, which governs the concept codes *inside*
       a CodeSystem and has nothing to do with artifact identity. The two dials will be
       confused unless the docs say so on both sides.
@@ -1409,33 +1410,30 @@ commitment.
   `fhir.toml` rather than about the instance, and they are the terminal-worthy
   remainder.
 
-- **Scope-aware validate severity.** `validate` sweeps the whole instance but grades
-  every finding as if it were on the build path, and the two audiences drown each
-  other out. Measured on the Lao national instance: 4,062 findings, 35 graded
-  `error` - of which exactly **one** can actually abort a build (the `<` code on a
-  selected option set). The other 34 errors sit on dashboards, program indicators,
-  legend sets, and visualizations - resource types the generator never emits - and
-  ~3,400 of the warnings are `template-hostile-name` on objects (1,677
-  visualizations, 403 validation rules) that never reach an IG page, so "renders
-  malformed HTML" is not true of them.
+- **Scope-aware validate severity** - shipped. Severity means build impact on
+  *this project's configured IG*: `validate` resolves the configured selection into
+  a `ValidationScope` through the same selection semantics `generate` uses (five
+  id-only reads, so the two can never disagree about what "in the IG" means), and
+  every finding carries the verdict as `scope` - `selection` or `instance`. An
+  **error** is a build-aborting `<` code on an in-scope identifier surface, the
+  same set the generate-time gate refuses, and the only findings that gate
+  `--fail`'s exit 1; a **warning** is an in-scope degradation the build survives;
+  an **info** is instance hygiene on out-of-scope objects, the code-migration
+  watchlist that shrinks as an instance moves toward real codes. The summary
+  carries the selection split and a **code coverage** fraction (in-scope objects
+  whose code meets the `usable_code_stem` bar), the rollup splits by (severity,
+  scope, category) with the instance rows dimmed, and the md/csv/pdf reports carry
+  the scope on every row.
 
-    The missing concept is **emission scope**. Severity should mean build impact on
-    *this project's configured IG*:
-
-    - **error** - would abort or corrupt the configured build: a build-aborting `<`
-      code on an in-scope identifier surface, the same set the generate-time gate
-      refuses. Only these gate `--fail`'s exit 1.
-    - **warning** - degrades the IG but the build survives: an in-scope invalid code
-      falling back to the UID, an in-scope hostile name malforming its page.
-    - **info** - instance hygiene on out-of-scope objects. Full detail stays in the
-      md/csv/pdf reports and the rollup counts; this is the code-migration watchlist
-      that shrinks as an instance moves toward real codes, not build noise.
-
-    Validate resolves scope by reusing the same selection resolution `generate`
-    uses, so the two can never disagree about what "in the IG" means. Under this
-    model the same Lao run reads: 1 error, ~60 warnings, ~4,000 infos - and the
-    condensed default output becomes genuinely readable. Open sub-question: an
-    optional strict dial failing on in-scope warnings too; the default stays
+    The measurement that motivated it, on the Lao national instance: 4,062
+    findings, 35 graded `error` under instance-wide grading - of which exactly
+    **one** could actually abort a build (the `<` code on a selected option set).
+    The other 34 errors sat on dashboards, program indicators, legend sets, and
+    visualizations - resource types the generator never emits - and ~3,400 of the
+    warnings were `template-hostile-name` on objects (1,677 visualizations, 403
+    validation rules) that never reach an IG page. Under scope-aware grading the
+    same run reads: 1 error, ~60 warnings, ~4,000 infos. Open sub-question kept:
+    an optional strict dial failing on in-scope warnings too; the default stays
     error-only, because warnings are survivable by construction.
 
 - **`Questionnaire/{id}/$generate` on serve** (queued behind the UI phase). A

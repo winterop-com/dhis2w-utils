@@ -42,7 +42,12 @@ from dhis2w_fhir.resources.option_sets import (
     build_option_set_concept_map_artifacts,
     option_set_identities,
 )
-from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
+from dhis2w_fhir.resources.option_sets.schemas import (
+    OptionIn,
+    OptionSetIdentityPlan,
+    OptionSetIn,
+    OptionSetSelection,
+)
 from dhis2w_fhir.resources.organisation_units import (
     REGISTRY_DIRECTORY,
     build_organisation_unit_instances,
@@ -76,7 +81,12 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
 from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
 from dhis2w_fhir.validation import build_aborting_code, build_code_validation
-from dhis2w_fhir.validation.schemas import FhirValidationReport, MetadataCollectionIn, MetadataItemIn
+from dhis2w_fhir.validation.schemas import (
+    FhirValidationReport,
+    MetadataCollectionIn,
+    MetadataItemIn,
+    ValidationScope,
+)
 from dhis2w_fhir.writer import FshArtifact, JsonArtifact, clean_generated_files, sync_artifacts, sync_json_artifacts
 
 if TYPE_CHECKING:
@@ -275,8 +285,9 @@ def _refuse_build_aborting_codes(objects: list[_CodedObject]) -> None:
         )
 
 
-#: How many steps `validate_codes` announces: connect, sweep, read the option sets, build the report.
-VALIDATE_CODES_STEPS = 4
+#: How many steps `validate_codes` announces: connect, resolve the selection, sweep, read the
+#: option sets, build the report.
+VALIDATE_CODES_STEPS = 5
 
 #: How many steps an offline generate target announces: the single emit.
 GENERATE_FOUNDATION_STEPS = 1
@@ -437,12 +448,19 @@ async def validate_codes(
     *,
     reporter: ProgressReporter | None = None,
 ) -> FhirValidationReport:
-    """Check the whole instance's codes (sweep) plus the option sets in depth, without writing anything."""
+    """Check the whole instance's codes (sweep) plus the option sets in depth, without writing anything.
+
+    The run first resolves the configured selection into a `ValidationScope`, so every finding's
+    severity means build impact on this project's IG rather than instance-wide alarm.
+    """
     effective_source = resolve_code_source(config, code_source)
     progress = _StepAnnouncer(reporter, VALIDATE_CODES_STEPS)
     progress.step("connecting")
     async with open_client(profile, timeout=_SWEEP_TIMEOUT_SECONDS) as client:
         progress.complete(profile.base_url)
+        progress.step("selection", "resolving the configured selection")
+        scope = await resolve_validation_scope(client, config)
+        progress.complete(_scope_summary(scope))
         progress.step("instance sweep", "sweeping instance metadata (can take a minute on a large instance)")
         raw = await client.get_raw("/api/metadata", params={"fields": "id,name,code", "defaults": "EXCLUDE"})
         collections = _sweep_collections(raw)
@@ -457,9 +475,138 @@ async def validate_codes(
         progress.complete(f"{len(models):,} read")
     progress.step("findings", "building report")
     option_sets = [_option_set_input(model) for model in models]
-    report = build_code_validation(option_sets, collections, config, effective_source)
+    report = build_code_validation(option_sets, collections, config, effective_source, scope=scope)
     progress.complete(f"{len(report.findings):,} finding(s)")
     return report
+
+
+#: The id-only data-set projection scope resolution reads: membership alone, no form detail.
+_SCOPE_DATA_SET_FIELDS = "id,dataSetElements[dataElement[id,optionSet[id]]]"
+
+#: The id-only program projection scope resolution reads: the routing type, the stages, and each
+#: stage's data-element references with the option set every element binds.
+_SCOPE_PROGRAM_FIELDS = "id,programType,programStages[id,programStageDataElements[dataElement[id,optionSet[id]]]]"
+
+
+class _ScopeBindings(BaseModel):
+    """The data elements the selected containers carry, and the option sets those elements bind."""
+
+    data_element_uids: set[str] = Field(default_factory=set)
+    option_set_uids: set[str] = Field(default_factory=set)
+
+    def collect(self, reference: dict[str, object]) -> None:
+        """Record one wire data-element reference: its UID plus the option set it binds, when it binds one."""
+        uid = _optional_text(reference.get("id"))
+        if uid is None:
+            return
+        self.data_element_uids.add(uid)
+        option_set = reference.get("optionSet")
+        if isinstance(option_set, dict):
+            option_set_uid = _optional_text(option_set.get("id"))
+            if option_set_uid is not None:
+                self.option_set_uids.add(option_set_uid)
+
+
+def _collect_stage_elements(stage: dict[str, object], bindings: _ScopeBindings) -> None:
+    """Mine one wire program stage's data-element references into the scope bindings."""
+    raw_elements = stage.get("programStageDataElements")
+    for entry in raw_elements if isinstance(raw_elements, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        reference = _data_element_reference(entry)
+        if reference is not None:
+            bindings.collect(reference)
+
+
+async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) -> ValidationScope:
+    """Resolve the UID sets the configured selection emits, from a handful of id-only reads.
+
+    The same selection semantics `generate` applies - an empty table selects everything of its
+    kind, the option sets add the closure the selected forms bind (through the
+    `_selected_option_set_uids` helper both paths share), the organisation units go through the
+    shared `_organisation_unit_selection_filters` - read in projections that carry ids alone, so
+    scoping a national instance costs five small requests rather than a second metadata sweep.
+
+    A data element is in scope when a selected data set or a selected program's stage carries it;
+    an event program contributes its single stage's elements (the stage itself is not a surface -
+    only a tracker stage emits its own Questionnaire). A program named under the selection table
+    its type does not belong to contributes nothing here: that misconfiguration is generate's
+    refusal to raise, not validate's.
+    """
+    bindings = _ScopeBindings()
+    data_set_ids = config.data_sets.include_ids
+    data_set_models: list[DataSet] = await client.resources.data_sets.list(
+        fields=_SCOPE_DATA_SET_FIELDS,
+        filters=[_uid_filter(data_set_ids)] if data_set_ids else None,
+        paging=False,
+    )
+    data_sets: set[str] = set()
+    for data_set in data_set_models:
+        if not data_set.id:
+            continue
+        data_sets.add(data_set.id)
+        for element in data_set.dataSetElements or []:
+            if element.dataElement is not None:
+                bindings.collect(element.dataElement.model_dump())
+    event_ids = config.event_programs.include_ids
+    tracker_ids = config.tracker_programs.include_ids
+    program_models: list[Program] = await client.resources.programs.list(
+        fields=_SCOPE_PROGRAM_FIELDS,
+        filters=[_uid_filter([*event_ids, *tracker_ids])] if event_ids and tracker_ids else None,
+        paging=False,
+    )
+    programs: set[str] = set()
+    program_stages: set[str] = set()
+    for program in program_models:
+        uid = program.id or ""
+        if not uid:
+            continue
+        program_type = _program_type(program)
+        stages = _program_stages(program)
+        as_event = uid in event_ids if event_ids else program_type == _EVENT_PROGRAM_TYPE
+        as_tracker = uid in tracker_ids if tracker_ids else program_type == _TRACKER_PROGRAM_TYPE
+        if as_event and program_type == _EVENT_PROGRAM_TYPE:
+            programs.add(uid)
+            for stage in stages[:1]:
+                _collect_stage_elements(stage, bindings)
+        if as_tracker and program_type == _TRACKER_PROGRAM_TYPE:
+            programs.add(uid)
+            for stage in stages:
+                stage_uid = _optional_text(stage.get("id"))
+                if stage_uid is not None:
+                    program_stages.add(stage_uid)
+                _collect_stage_elements(stage, bindings)
+    option_set_models: list[OptionSet] = await client.resources.option_sets.list(fields="id", paging=False)
+    option_sets = _selected_option_set_uids(
+        frozenset(model.id for model in option_set_models if model.id),
+        frozenset(bindings.option_set_uids),
+        config.option_sets,
+    )
+    category_ids = config.categories.include_ids
+    category_models: list[Category] = await client.resources.categories.list(
+        fields="id",
+        filters=[_uid_filter(category_ids)] if category_ids else None,
+        paging=False,
+    )
+    return ValidationScope(
+        option_sets=option_sets,
+        categories=frozenset(model.id for model in category_models if model.id),
+        organisation_units=await _fetch_published_organisation_unit_uids(client, config),
+        data_sets=frozenset(data_sets),
+        programs=frozenset(programs),
+        program_stages=frozenset(program_stages),
+        data_elements=frozenset(bindings.data_element_uids),
+    )
+
+
+def _scope_summary(scope: ValidationScope) -> str:
+    """One line of in-scope set sizes - the durable outcome of the resolving-selection step."""
+    return (
+        f"{len(scope.data_sets):,} data sets, {len(scope.programs):,} programs, "
+        f"{len(scope.program_stages):,} stages, {len(scope.data_elements):,} data elements, "
+        f"{len(scope.option_sets):,} option sets, {len(scope.categories):,} categories, "
+        f"{len(scope.organisation_units):,} organisation units"
+    )
 
 
 async def init_project(directory: Path, options: InitOptions, *, force: bool = False) -> ScaffoldReport:
@@ -1489,10 +1636,28 @@ def _bound_option_sets(sources: list[QuestionnaireSourceIn], option_sets: list[O
     Always a subset of the selected sets: the selection carries the form closure alongside the
     configured UIDs, so an option set a question binds is in the list by construction.
     """
-    bound_ids = {
+    bound_ids = _bound_option_set_uids(sources)
+    return [option_set for option_set in option_sets if option_set.uid in bound_ids]
+
+
+def _bound_option_set_uids(sources: list[QuestionnaireSourceIn]) -> set[str]:
+    """The option sets the selected forms bind their data elements to."""
+    return {
         item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid is not None
     }
-    return [option_set for option_set in option_sets if option_set.uid in bound_ids]
+
+
+def _selected_option_set_uids(
+    available: frozenset[str], bound: frozenset[str], selection: OptionSetSelection
+) -> frozenset[str]:
+    """The option-set UIDs one selection covers: every set when the table is empty, else configured plus closure.
+
+    The single statement of what "a selected option set" means, shared by the generate-time
+    filter and the validation scope so the two can never disagree.
+    """
+    if not selection.include_ids:
+        return available
+    return (frozenset(selection.include_ids) | bound) & available
 
 
 class LiveIgInputs(BaseModel):
@@ -1591,11 +1756,14 @@ def _selected_option_sets(
     selection = config.option_sets
     if not selection.include_ids:
         return inputs
-    configured_ids = set(selection.include_ids)
-    wanted_ids = configured_ids | _option_set_closure(sources, config, notes)
+    wanted_ids = _selected_option_set_uids(
+        frozenset(item.uid for item in inputs),
+        frozenset(_option_set_closure(sources, config, notes)),
+        selection,
+    )
     selected = [item for item in inputs if item.uid in wanted_ids]
     selected_ids = {item.uid for item in selected}
-    for uid in sorted(configured_ids - selected_ids):
+    for uid in sorted(set(selection.include_ids) - selected_ids):
         notes.append(f"include_ids entry {uid!r} matched no option set")
     return selected
 
@@ -1667,10 +1835,8 @@ async def _closure_sources(client: Dhis2Client, config: GenerateConfig) -> list[
 
 
 def _option_set_closure(sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[str]) -> set[str]:
-    """Collect the option sets the selected forms bind their data elements to."""
-    closure = {
-        item.option_set_uid for source in sources for item in _source_items(source) if item.option_set_uid is not None
-    }
+    """Collect the option sets the selected forms bind their data elements to, noting the additions."""
+    closure = _bound_option_set_uids(sources)
     added = sorted(closure - set(config.option_sets.include_ids))
     if added:
         notes.append(

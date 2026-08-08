@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from dhis2w_cli.main import build_app
 from dhis2w_fhir import FhirValidationReport, GenerateFullReport, GenerateReport, LoadSetReport
-from dhis2w_fhir.validation.schemas import ValidationFinding
+from dhis2w_fhir.validation.schemas import CodeCoverage, SurfaceCodeCoverage, ValidationFinding
 from typer.testing import CliRunner
 
 _runner = CliRunner()
@@ -49,6 +49,9 @@ token = "d2p_secondary"
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir.parent))
     monkeypatch.delenv("DHIS2_PROFILE", raising=False)
+    # Rich reads COLUMNS when stderr is captured; a wide surface keeps a table cell on one
+    # line, so a test can assert an object string without meeting the wrap of a narrow CI tty.
+    monkeypatch.setenv("COLUMNS", "300")
     (tmp_path / "fhir.toml").write_text(_FHIR_TOML, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     return tmp_path
@@ -447,6 +450,56 @@ def _warning_report() -> FhirValidationReport:
     )
 
 
+def _scoped_report() -> FhirValidationReport:
+    """A scope-resolved report: one selection warning, one selection info, two instance infos, coverage."""
+    return FhirValidationReport(
+        object_count=4,
+        code_coverage=CodeCoverage(surfaces=[SurfaceCodeCoverage(surface="dataSets", usable_count=1, object_count=2)]),
+        findings=[
+            ValidationFinding(
+                severity="warning",
+                scope="selection",
+                category="invalid-code",
+                resource_type="dataSets",
+                uid="Ds1aaaaaaaa",
+                name="Selected",
+                code=" X ",
+                message="code is not a valid FHIR code",
+            ),
+            ValidationFinding(
+                severity="info",
+                scope="selection",
+                category="spaced-code",
+                resource_type="options",
+                uid="Op1aaaaaaaa",
+                name="Spaced [in Sex]",
+                code="two words",
+                message="code contains spaces",
+            ),
+            ValidationFinding(
+                severity="info",
+                scope="instance",
+                category="invalid-code",
+                resource_type="dataElements",
+                uid="De1aaaaaaaa",
+                name="Outside",
+                code=" Y ",
+                message="code is not a valid FHIR code",
+            ),
+            ValidationFinding(
+                severity="info",
+                scope="instance",
+                category="missing-code",
+                resource_type="attributes",
+                uid="At1aaaaaaaa",
+                name="Uncoded",
+                code=None,
+                message="attribute has no code",
+            ),
+        ],
+    )
+
+
 def test_validate_renders_findings_and_exit_code(fhir_project: Path) -> None:
     """`d2w fhir validate` lists the errors, rolls every severity up by category, writes three reports, exits 1."""
     mock = AsyncMock(return_value=_error_report())
@@ -463,9 +516,9 @@ def test_validate_renders_findings_and_exit_code(fhir_project: Path) -> None:
     assert "## options" in markdown.read_text(encoding="utf-8")
     csv_report = fhir_project / "reports" / "fhir-validate-report.csv"
     lines = csv_report.read_text(encoding="utf-8").splitlines()
-    assert lines[0] == "severity,category,resource_type,uid,name,code,message"
+    assert lines[0] == "severity,scope,category,resource_type,uid,name,code,message"
     assert len(lines) == 3
-    assert "error,invalid-code,options,Op1aaaaaaaa," in lines[1]
+    assert "error,instance,invalid-code,options,Op1aaaaaaaa," in lines[1]
     pdf_report = fhir_project / "reports" / "fhir-validate-report.pdf"
     assert pdf_report.read_bytes().startswith(b"%PDF")
     for suffix in ("md", "csv", "pdf"):
@@ -540,6 +593,45 @@ def test_a_warning_is_counted_in_the_rollup_and_left_to_the_report(fhir_project:
     assert str(fhir_project / "reports" / "fhir-validate-report.md") in result.stderr
 
 
+def test_validate_rollup_splits_by_scope_selection_first(fhir_project: Path) -> None:  # noqa: ARG001
+    """The rollup rows carry the scope, and within one severity the build path sorts before the hygiene."""
+    mock = AsyncMock(return_value=_scoped_report())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate"])
+    assert result.exit_code == 0, result.output
+    assert "findings by category (4)" in result.stderr
+    assert "Scope" in result.stderr
+    assert "selection" in result.stderr
+    assert "instance" in result.stderr
+    # Within the info severity the selection row (spaced-code) sorts before both instance rows;
+    # category order alone would put missing-code first, so this is the scope key at work.
+    assert result.stderr.index("spaced-code") < result.stderr.index("missing-code")
+
+
+def test_validate_summary_carries_selection_and_coverage_rows(fhir_project: Path) -> None:  # noqa: ARG001
+    """With a resolved scope the summary says the selection split and the code-coverage fraction."""
+    mock = AsyncMock(return_value=_scoped_report())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate"])
+    assert result.exit_code == 0, result.output
+    assert "selection findings" in result.stderr
+    assert "0 errors, 1 warning, 1 info" in result.stderr
+    assert "code coverage" in result.stderr
+    assert "1/2 (selection objects with slug-safe codes)" in result.stderr
+    assert "passed: 1 selection warning(s), 1 selection info(s), 2 instance finding(s)" in result.stderr
+
+
+def test_validate_summary_omits_the_selection_rows_without_a_scope(fhir_project: Path) -> None:  # noqa: ARG001
+    """A hand-built report without code coverage renders neither selection row nor coverage line."""
+    mock = AsyncMock(return_value=_warning_report())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate"])
+    assert result.exit_code == 0, result.output
+    assert "selection findings" not in result.stderr
+    assert "code coverage" not in result.stderr
+    assert "passed: 1 warning(s), 0 info(s)" in result.stderr
+
+
 def test_validate_details_lists_every_finding(fhir_project: Path) -> None:  # noqa: ARG001
     """`--details` is the firehose: warnings and infos get their own rows alongside the rollup."""
     mock = AsyncMock(return_value=_warning_report())
@@ -549,6 +641,21 @@ def test_validate_details_lists_every_finding(fhir_project: Path) -> None:  # no
     assert "findings by category" in result.output
     assert "organisationUnits" in result.output
     assert "OU_K5" in result.output
+
+
+def test_validate_details_table_carries_the_scope(fhir_project: Path) -> None:  # noqa: ARG001
+    """The per-finding table says whose problem each row is - build path or instance hygiene."""
+    mock = AsyncMock(return_value=_scoped_report())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate", "--details"])
+    assert result.exit_code == 0, result.output
+    assert "findings (4)" in result.stderr
+    assert "Ds1aaaaaaaa" in result.stderr
+    assert "De1aaaaaaaa" in result.stderr
+    # The selection warning and the instance info both name their scope on the row.
+    lines = result.stderr.splitlines()
+    assert any("Ds1aaaaaaaa" in line and "selection" in line for line in lines)
+    assert any("De1aaaaaaaa" in line and "instance" in line for line in lines)
 
 
 def test_validate_no_fail_and_details(fhir_project: Path) -> None:  # noqa: ARG001
@@ -571,14 +678,14 @@ def test_validate_fail_is_the_default(fhir_project: Path) -> None:  # noqa: ARG0
 
 
 def test_validate_narrates_its_steps(fhir_project: Path) -> None:  # noqa: ARG001
-    """The sweep is the longest thing the plugin does, so it announces its four steps by default."""
+    """The sweep is the longest thing the plugin does, so it announces its five steps by default."""
     mock = AsyncMock(return_value=FhirValidationReport())
     with patch("dhis2w_fhir.service.validate_codes", new=mock):
         result = _runner.invoke(build_app(), ["fhir", "validate"])
     assert result.exit_code == 0, result.output
     assert mock.await_args is not None
     assert mock.await_args.kwargs["reporter"] is not None
-    assert "running 4 step(s)" in result.stderr
+    assert "running 5 step(s)" in result.stderr
 
 
 def test_validate_no_progress_builds_no_reporter(fhir_project: Path) -> None:  # noqa: ARG001

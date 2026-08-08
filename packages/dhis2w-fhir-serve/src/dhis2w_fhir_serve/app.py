@@ -114,8 +114,11 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
             server_version=server_version(),
         ),
     )
+    # This line fires before the server binds its socket - ASGI lifespan startup completes
+    # first, then uvicorn opens the listeners - so it states what was loaded, never that the
+    # server is up. The CLI's bind preflight owns the taken-port failure mode.
     logger.info(
-        "serving %s from %s: %d resources across %d types, %d stored responses",
+        "loaded %s at %s: %d resources across %d types, %d stored responses",
         "live DHIS2" if settings.live else "the compiled IG",
         project.project_root,
         summary.total,
