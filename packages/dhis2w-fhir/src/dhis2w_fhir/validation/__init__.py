@@ -15,11 +15,11 @@ Three passes share one finding shape:
 
 Every pass also checks the object's NAME for the HTML-significant characters the IG
 publisher's template injects unescaped (`template-hostile-name`). That check is about
-the published pages rather than about codes, so it is a warning in either code source.
-Its sibling `template-hostile-code` checks the object's CODE for the same characters
-and is an error in either code source, because a code reaches the identifier table the
-publisher writes raw and then strict-parses: that one aborts the build rather than
-rendering a malformed page.
+the published pages rather than about codes, so its severity ignores the code source.
+Its sibling `template-hostile-code` checks the object's CODE for the same characters,
+because a code reaches the identifier table the publisher writes raw and then
+strict-parses: an in-scope `<` there aborts the build rather than rendering a
+malformed page, which is how it becomes the one error this module grades.
 
 ## What the deep passes do not repeat, and why
 
@@ -51,6 +51,23 @@ registry. A deep pass over it would need the paged `_fetch_organisation_units` r
 not already report: the registry's ids and concept codes are UIDs, its names and
 codes are swept, and `organisationUnits` is the one collection where the sweep
 already treats a missing code as a finding.
+
+## Severity means build impact on the configured IG
+
+Every pass grades against a `ValidationScope` - the UID sets the configured selection
+emits, resolved with the same semantics `generate` uses:
+
+- **error**: would abort the configured build - a build-aborting `<` code (the
+  `build_aborting_code` predicate the generate gate shares) on an in-scope object of a
+  code-identifier collection. Nothing else is an error.
+- **warning**: degrades the IG but the build survives - an in-scope code falling back to
+  the UID, an in-scope duplicate, an in-scope name or code malforming its page.
+- **info**: the same defect on an out-of-scope object (instance hygiene - the
+  code-migration watchlist), plus everything that was informational already.
+
+Each finding carries the verdict as `scope`: `selection` for objects the build emits,
+`instance` for the rest. With no scope resolved every finding is graded as selected,
+which is the unit-test path - `validate_codes` always resolves a real scope.
 """
 
 from __future__ import annotations
@@ -63,21 +80,31 @@ from dhis2w_fhir.foundation.attribute_values import (
     ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES,
 )
 from dhis2w_fhir.i18n import TranslationIn, name_translations
-from dhis2w_fhir.names import describe_code_defect, is_valid_fhir_code, kebab, pascal
+from dhis2w_fhir.names import describe_code_defect, is_valid_fhir_code, is_valid_fhir_id, kebab, pascal
 from dhis2w_fhir.resources.option_sets import max_slug_length, option_set_fsh_name
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.validation.report import display_code, render_validation_markdown
 from dhis2w_fhir.validation.schemas import (
+    SCOPE_SURFACE_FIELDS,
+    CodeCoverage,
     FhirValidationReport,
     MetadataCollectionIn,
     MetadataItemIn,
+    SurfaceCodeCoverage,
     ValidationFinding,
+    ValidationScope,
 )
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
-__all__ = ["build_aborting_code", "build_code_validation", "render_validation_markdown"]
+__all__ = [
+    "ValidationScope",
+    "build_aborting_code",
+    "build_code_validation",
+    "render_validation_markdown",
+    "usable_code_stem",
+]
 
 # R4 cnl-0: computational names should match [A-Z]([A-Za-z0-9_]){0,254} - 255 characters total.
 _MAX_FHIR_NAME_LENGTH = 255
@@ -128,26 +155,51 @@ def build_aborting_code(code: str | None) -> bool:
     return _BUILD_ABORTING_CHARACTER in (code or "")
 
 
+def usable_code_stem(code: str | None) -> bool:
+    """Whether a DHIS2 code could serve as an artifact stem - the bar the code-coverage probe counts against.
+
+    Deliberately narrower than `describe_code_defect`, which grades against the R4 `code` datatype
+    (single internal spaces allowed): a stem becomes a resource id and its canonical URL, so it
+    takes the R4 `id` constraints - ASCII letters, digits, hyphen, dot, 1-64 characters - which
+    exclude spaces and every build-aborting character a fortiori.
+    """
+    return code is not None and is_valid_fhir_id(code)
+
+
 def build_code_validation(
     option_sets: list[OptionSetIn],
     collections: list[MetadataCollectionIn],
     config: GenerateConfig,
     code_source: Literal["id", "code"] | None = None,
+    *,
+    scope: ValidationScope | None = None,
 ) -> FhirValidationReport:
-    """Run all three validation passes; findings sort by severity, resource type, then name."""
+    """Run all three validation passes; findings sort by severity, resource type, then name.
+
+    `scope` is the resolved emission scope severity grades against; with None every finding is
+    graded as selected and no code coverage is computed - the offline path unit tests exercise,
+    while `validate_codes` always resolves a real scope.
+    """
     effective_source = code_source or config.concept_code_source
     findings: list[ValidationFinding] = []
     option_count = 0
     for option_set in sorted(option_sets, key=lambda item: (item.name, item.uid)):
         option_count += len(option_set.options)
-        findings.extend(_option_findings(option_set, effective_source, config.locales))
-        findings.extend(_option_set_naming_findings(option_set, config))
-        findings.extend(_template_hostile_option_findings(option_set, config.locales))
-    findings.extend(_option_set_slug_findings(option_sets, config))
+        set_in_scope = _in_scope(scope, "optionSets", option_set.uid)
+        findings.extend(_option_findings(option_set, effective_source, config.locales, in_scope=set_in_scope))
+        findings.extend(_rescoped(finding, set_in_scope) for finding in _option_set_naming_findings(option_set, config))
+        findings.extend(
+            _rescoped(finding, set_in_scope)
+            for finding in _template_hostile_option_findings(option_set, config.locales)
+        )
+    findings.extend(
+        _rescoped(finding, _in_scope(scope, "optionSets", finding.uid))
+        for finding in _option_set_slug_findings(option_sets, config)
+    )
     object_count = 0
     for collection in sorted(collections, key=lambda item: item.resource):
         object_count += len(collection.items)
-        findings.extend(_collection_findings(collection))
+        findings.extend(_collection_findings(collection, scope))
     attributes = _swept_attributes(collections)
     findings.extend(_attribute_findings(attributes))
     findings.sort(key=lambda finding: (_SEVERITY_RANK[finding.severity], finding.resource_type, finding.name))
@@ -157,8 +209,54 @@ def build_code_validation(
         attribute_count=len(attributes),
         resource_type_count=len(collections),
         object_count=object_count,
+        code_coverage=None if scope is None else _code_coverage(collections, scope),
         findings=findings,
     )
+
+
+def _in_scope(scope: ValidationScope | None, resource_type: str, uid: str) -> bool:
+    """Whether one object is on the build path; with no scope resolved everything is graded as selected."""
+    return True if scope is None else scope.contains(resource_type, uid)
+
+
+def _rescoped(finding: ValidationFinding, in_scope: bool) -> ValidationFinding:
+    """Stamp one finding with its scope, degrading an out-of-scope defect to instance hygiene."""
+    return finding.model_copy(
+        update={"scope": _scope_label(in_scope), "severity": _degraded(finding.severity, in_scope)}
+    )
+
+
+def _scope_label(in_scope: bool) -> Literal["selection", "instance"]:
+    """The scope one finding carries: on the build path or instance hygiene."""
+    return "selection" if in_scope else "instance"
+
+
+def _degraded(severity: Literal["error", "warning", "info"], in_scope: bool) -> Literal["error", "warning", "info"]:
+    """The severity a defect really carries: its build-path grade in scope, info out of it."""
+    return severity if in_scope else "info"
+
+
+def _code_coverage(collections: list[MetadataCollectionIn], scope: ValidationScope) -> CodeCoverage:
+    """Count per surface how many in-scope objects carry a usable stem code, off the sweep's own read.
+
+    The migration probe of the naming-source roadmap entry: surfaces with no in-scope object are
+    left out, so an unselected surface does not pad the rollup with a 0/0 row.
+    """
+    surfaces: list[SurfaceCodeCoverage] = []
+    for collection in sorted(collections, key=lambda item: item.resource):
+        if collection.resource not in SCOPE_SURFACE_FIELDS:
+            continue
+        in_scope_items = [item for item in collection.items if scope.contains(collection.resource, item.uid)]
+        if not in_scope_items:
+            continue
+        surfaces.append(
+            SurfaceCodeCoverage(
+                surface=collection.resource,
+                usable_count=sum(1 for item in in_scope_items if usable_code_stem(item.code)),
+                object_count=len(in_scope_items),
+            )
+        )
+    return CodeCoverage(surfaces=surfaces)
 
 
 def _swept_attributes(collections: list[MetadataCollectionIn]) -> list[MetadataItemIn]:
@@ -179,11 +277,15 @@ def _attribute_findings(attributes: list[MetadataItemIn]) -> list[ValidationFind
     The finding reads the same for a unique attribute, whose values are emitted as Identifiers
     rather than as extensions: that namespace is keyed on the attribute UID too, so an uncoded
     unique attribute is exactly as UID-bound as an uncoded annotating one.
+
+    Scope stays `instance`: an attribute applies per-object across every emitted resource type, so
+    there is no principled selection mapping for it - the simple, honest reading is instance-wide.
     """
     contexts = ", ".join(ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES)
     return [
         ValidationFinding(
             severity="info",
+            scope="instance",
             category="missing-code",
             resource_type=_ATTRIBUTE_COLLECTION,
             uid=attribute.uid,
@@ -228,24 +330,38 @@ def _template_hostile_finding(resource_type: str, uid: str, name: str, code: str
 
 
 def _template_hostile_code_finding(
-    resource_type: str, uid: str, name: str, code: str | None
+    resource_type: str, uid: str, name: str, code: str | None, *, in_scope: bool
 ) -> ValidationFinding | None:
-    """Flag one object whose code reaches an identifier value, the one page surface written unescaped."""
+    """Flag one object whose code reaches an identifier value, the one page surface written unescaped.
+
+    Only an in-scope `<` code is an error - the configured build really dies on it. Out of scope
+    the same code is instance hygiene, but the message keeps saying what it would do to a build
+    the moment the object were selected.
+    """
     if resource_type not in _CODE_IDENTIFIER_COLLECTIONS:
         return None
     character = _template_hostile_character(code or "")
     if character is None:
         return None
-    aborts = character == _BUILD_ABORTING_CHARACTER
-    consequence = (
-        "so `make build` aborts with \"Unable to Parse HTML - node 'td' has unexpected content\", and it "
-        "aborts in the publisher's last pass, once every resource has already been rendered"
-        if aborts
-        else "so this code lands on a page surface the publisher does not escape; only '<' is confirmed to "
-        "abort a build, which is why this is a warning and '<' is an error"
-    )
+    aborts = build_aborting_code(code)
+    if aborts and in_scope:
+        consequence = (
+            "so `make build` aborts with \"Unable to Parse HTML - node 'td' has unexpected content\", and it "
+            "aborts in the publisher's last pass, once every resource has already been rendered"
+        )
+    elif aborts:
+        consequence = (
+            "the configured selection never emits this object, so no build reads the code today, but it "
+            "aborts `make build` the moment the object is selected"
+        )
+    else:
+        consequence = (
+            "so this code lands on a page surface the publisher does not escape; only '<' is confirmed to "
+            "abort a build, which is why only '<' can be an error"
+        )
     return ValidationFinding(
-        severity="error" if aborts else "warning",
+        severity=_degraded("error" if aborts else "warning", in_scope),
+        scope=_scope_label(in_scope),
         category="template-hostile-code",
         resource_type=resource_type,
         uid=uid,
@@ -277,23 +393,30 @@ def _template_hostile_option_findings(option_set: OptionSetIn, locales: list[str
     return findings
 
 
-def _collection_findings(collection: MetadataCollectionIn) -> list[ValidationFinding]:
-    """Instance-wide sweep checks: invalid codes (error) and duplicate codes per collection (warning)."""
+def _collection_findings(collection: MetadataCollectionIn, scope: ValidationScope | None) -> list[ValidationFinding]:
+    """Instance-wide sweep checks: names, codes, and per-collection duplicates, graded by build impact.
+
+    An in-scope defect is a warning - the build survives, degraded (the one exception is the
+    build-aborting `<` code, which `_template_hostile_code_finding` grades error). The same
+    defect out of scope is info: instance hygiene the configured build never reads.
+    """
     findings: list[ValidationFinding] = []
     code_counts = Counter(item.code for item in collection.items if item.code is not None)
     for item in sorted(collection.items, key=lambda entry: entry.uid):
         name = item.name or item.uid
+        in_scope = _in_scope(scope, collection.resource, item.uid)
         hostile = _template_hostile_finding(collection.resource, item.uid, name, item.code)
         if hostile is not None:
-            findings.append(hostile)
-        hostile_code = _template_hostile_code_finding(collection.resource, item.uid, name, item.code)
+            findings.append(_rescoped(hostile, in_scope))
+        hostile_code = _template_hostile_code_finding(collection.resource, item.uid, name, item.code, in_scope=in_scope)
         if hostile_code is not None:
             findings.append(hostile_code)
         if item.code is None:
             if collection.resource == _CODE_REQUIRED_COLLECTION:
                 findings.append(
                     ValidationFinding(
-                        severity="warning",
+                        severity=_degraded("warning", in_scope),
+                        scope=_scope_label(in_scope),
                         category="missing-code",
                         resource_type=collection.resource,
                         uid=item.uid,
@@ -308,7 +431,8 @@ def _collection_findings(collection: MetadataCollectionIn) -> list[ValidationFin
         if defect is not None:
             findings.append(
                 ValidationFinding(
-                    severity="error",
+                    severity=_degraded("warning", in_scope),
+                    scope=_scope_label(in_scope),
                     category="invalid-code",
                     resource_type=collection.resource,
                     uid=item.uid,
@@ -320,7 +444,8 @@ def _collection_findings(collection: MetadataCollectionIn) -> list[ValidationFin
         elif code_counts[item.code] > 1:
             findings.append(
                 ValidationFinding(
-                    severity="warning",
+                    severity=_degraded("warning", in_scope),
+                    scope=_scope_label(in_scope),
                     category="duplicate-code",
                     resource_type=collection.resource,
                     uid=item.uid,
@@ -392,17 +517,21 @@ def _option_set_slug_findings(option_sets: list[OptionSetIn], config: GenerateCo
 
 
 def _option_findings(
-    option_set: OptionSetIn, code_source: Literal["id", "code"], locales: list[str]
+    option_set: OptionSetIn, code_source: Literal["id", "code"], locales: list[str], *, in_scope: bool
 ) -> list[ValidationFinding]:
     """Deep option checks: invalid, missing, spaced, and duplicated codes within one set.
 
     In id mode the code-shaped findings are downgraded to info: generation is not reading the
     DHIS2 codes yet, so they are a readiness signal for switching to code mode, not a defect.
+    Every finding then follows its owning set's scope - an option of an unselected set is
+    instance hygiene whatever mode the run is in.
     """
     findings = _raw_option_findings(option_set, locales)
-    if code_source == "code":
-        return findings
-    return [_downgraded(finding) if finding.category in _CODE_MODE_CATEGORIES else finding for finding in findings]
+    if code_source != "code":
+        findings = [
+            _downgraded(finding) if finding.category in _CODE_MODE_CATEGORIES else finding for finding in findings
+        ]
+    return [_rescoped(finding, in_scope) for finding in findings]
 
 
 def _downgraded(finding: ValidationFinding) -> ValidationFinding:
@@ -411,7 +540,12 @@ def _downgraded(finding: ValidationFinding) -> ValidationFinding:
 
 
 def _raw_option_findings(option_set: OptionSetIn, locales: list[str]) -> list[ValidationFinding]:
-    """Deep option checks at their code-mode severities, before any id-mode downgrade."""
+    """Deep option checks at their code-mode, in-scope severities, before any downgrade.
+
+    None of these grade error: an option code lands in a concept-code slot rather than in an
+    identifier value, so the worst it does is fall back to the UID or force disambiguation -
+    the build survives, degraded.
+    """
     findings: list[ValidationFinding] = []
     valid_codes = Counter(
         option.code for option in option_set.options if option.code is not None and is_valid_fhir_code(option.code)
@@ -435,7 +569,7 @@ def _raw_option_findings(option_set: OptionSetIn, locales: list[str]) -> list[Va
                 _option_finding(
                     option_set,
                     option,
-                    "error",
+                    "warning",
                     "invalid-code",
                     f"code is not a valid FHIR code: {defect}; code-source generation falls back to the UID",
                     locales,
@@ -447,7 +581,7 @@ def _raw_option_findings(option_set: OptionSetIn, locales: list[str]) -> list[Va
                 _option_finding(
                     option_set,
                     option,
-                    "error",
+                    "warning",
                     "duplicate-code",
                     f"code appears on more than one option in {option_set.name!r}; a CodeSystem cannot repeat "
                     "concept codes",

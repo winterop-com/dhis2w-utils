@@ -17,7 +17,8 @@ You get three things:
   organisation-unit registry. Re-running converges: generated files are replaced,
   hand-authored FSH beside them is never touched.
 - **`d2w fhir validate`** checks the instance's codes for FHIR-safety before you
-  generate anything, and writes a report in Markdown, CSV, and PDF.
+  generate anything, grades every finding by build impact on your configured IG,
+  and writes a report in Markdown, CSV, and PDF.
 
 New to FHIR, or to how a DHIS2 concept lands in it? Read
 [FHIR for DHIS2 people](fhir-101.md) first - it names the handful of FHIR resources
@@ -173,7 +174,10 @@ Credentials never live in `fhir.toml`. It is committed project config: it names
 a profile, and the profile store holds the secret.
 
 `d2w fhir validate` does not need a `fhir.toml` at all - it targets an instance,
-not a project. Run it anywhere.
+not a project. Run it anywhere. Without a project every selection table is empty,
+which selects everything of its kind - so the whole instance grades as being on
+the build path; inside a project, findings grade against that project's own
+selection.
 
 ## `fhir.toml` reference
 
@@ -262,7 +266,8 @@ d2w fhir validate --code-source code
 ```
 
 That reports what switching would cost right now: every option whose code is
-missing, invalid, or duplicated inside its set, at error/warning severity. Fix
+missing, invalid, or duplicated inside its set, as warnings on the sets the
+configured selection emits (and info on the rest of the instance). Fix
 those in DHIS2, re-run until the option findings are clean, then set
 `concept_code_source = "code"` and regenerate. In the meantime, running plain
 `d2w fhir validate` in id mode reports the same findings as `info` - they are a
@@ -1509,7 +1514,15 @@ error: no compiled IG at ig/fsh-generated/resources - run `d2w fhir generate`,
 then `make sushi` in the project, and serve again.
 ```
 
-`--live` skips that check and builds the store through one DHIS2 client, opened during
+A port something else already holds is refused the same way, before any output that
+looks like a start - typically 8080, where a local DHIS2 stack lives:
+
+```
+error: port 8080 on 127.0.0.1 is already in use (usually the local DHIS2 instance;
+set [serve] port in fhir.toml or pass --port)
+```
+
+`--live` skips the compiled-IG check and builds the store through one DHIS2 client, opened during
 startup and closed before the first request arrives. Nothing in the request path ever
 talks to DHIS2. The profile comes from `--profile/-p`, then `DHIS2_PROFILE`, then the
 `profile` key of `fhir.toml` - the same chain `d2w fhir generate` uses. What `--live`
@@ -1818,8 +1831,9 @@ Three passes, one finding shape:
 - an **instance-wide sweep** over `GET /api/metadata?fields=id,name,code`
   (`defaults=EXCLUDE`, so DHIS2's auto-generated default category objects stay
   out of it). Every metadata object's code is checked against the R4 `code`
-  datatype: invalid codes are errors, per-type duplicates warn. Organisation
-  units additionally warn when they carry no code at all.
+  datatype, per-type duplicates are flagged, and organisation units are
+  additionally flagged when they carry no code at all - each finding graded by
+  build impact, as below.
 
     Two of those branches cannot fire against an instance DHIS2 itself built, and
     are kept as nets for metadata that reached the database another way. DHIS2
@@ -1862,6 +1876,24 @@ The report carries the counts each pass covered - option sets, options,
 attributes, resource types, and objects - in the Markdown and PDF reports and in
 the terminal table alike.
 
+### Severity means build impact
+
+Before anything is graded, the run resolves the configured selection into an
+**emission scope** - the same selection semantics `generate` uses, so validate and
+generate can never disagree about what is on the build path - and every finding
+carries the verdict as its `scope`: `selection` for objects the configured IG
+emits, `instance` for the rest. An **error** means your build will abort: a
+build-aborting `<` code on an in-scope identifier surface, the very codes
+`d2w fhir generate` refuses through the same predicate, and the only findings that
+gate exit 1. A **warning** is an in-scope degradation the build survives - a code
+falling back to the UID, a name malforming its page. An **info** is instance
+hygiene: the same defects on objects the build never reads, the code-migration
+watchlist rather than build noise. The summary's **code coverage** line (`34/61
+(selection objects with slug-safe codes)`) counts how many in-scope objects carry
+a code usable as an artifact stem - the R4 `id` bar, stricter than the R4 `code`
+datatype - so it is the number to watch grow before switching artifact naming from
+UIDs to codes.
+
 ### `template-hostile-name`
 
 A warning on any metadata object whose **name** contains `<`, `>`, or `&`.
@@ -1892,10 +1924,10 @@ it is visible on the page.
 
 ### `template-hostile-code`
 
-An **error** on a code containing `<`, and a **warning** on one containing `>` or
-`&` - raised only on the collections whose codes become identifier values:
-`optionSets`, `categories`, `organisationUnits`, `dataSets`, `programs`, and
-`programStages`.
+An **error** on an in-scope code containing `<`, a **warning** on an in-scope one
+containing `>` or `&`, and `info` on either defect out of scope - raised only on
+the collections whose codes become identifier values: `optionSets`, `categories`,
+`organisationUnits`, `dataSets`, `programs`, and `programStages`.
 
 Same characters as the sibling above, a much worse outcome, which is why `<` here is
 an error and a hostile *name* is only ever a warning. A code from one of those five
@@ -1961,13 +1993,18 @@ so the two can never disagree.
 The default output is a status view, not the finding firehose:
 
 - the **summary table** - profile, the counts each pass covered, the error / warning /
-  info totals, the effective code source;
-- a **rollup table**, one row per (severity, category) with its count, errors first;
+  info totals, a `selection findings` row splitting those totals to the build path
+  (`1 error, 12 warnings, 3 infos`), the `code coverage` fraction, the effective
+  code source;
+- a **rollup table**, one row per (severity, scope, category) with its count -
+  errors first, and within one severity the `selection` rows before the `instance`
+  rows, which render dimmed so the build path carries the visual weight;
 - **every error individually**, because an error is what gates the build and you have
-  to know which object holds it without opening a file;
-- one closing line: `ok: passed: N warning(s), M info(s); full findings in
-  <reports-dir>/fhir-validate-report.md`, or the red `N error(s) found` line with the
-  exit code.
+  to know which object holds it without opening a file (an error is always
+  `selection` scope by construction);
+- one closing line: `ok: passed: N selection warning(s), M selection info(s), K
+  instance finding(s); full findings in <reports-dir>/fhir-validate-report.md`, or
+  the red `N error(s) found` line with the exit code.
 
 A national instance raises hundreds of warnings, and reading them one row at a time is
 what the written report is for. `--details` puts every finding on the terminal too,
@@ -1978,9 +2015,10 @@ warnings and infos included. `--json` is unchanged: the whole report on stdout.
 The option-pass findings are gated on the effective code source - the
 `--code-source` flag when given, otherwise `concept_code_source` from
 `fhir.toml`. In `code` mode, `invalid-code`, `missing-code`, and `duplicate-code`
-carry their real severities. In `id` mode they are downgraded to `info` and
-their message says so, because generation is not reading those codes yet. The
-instance-wide sweep keeps its severities either way.
+carry their in-scope severities. In `id` mode they are downgraded to `info` and
+their message says so, because generation is not reading those codes yet - they
+keep their `selection` scope, so the summary's selection split still counts them.
+The instance-wide sweep keeps its severities either way.
 
 ### Report files
 
@@ -1993,10 +2031,11 @@ stay out of git; pin one deliberately (`git add -f`) when handing it over.
 `--format` takes a comma list of `md`, `csv`, `pdf`; all three are written by
 default, and each written path is echoed.
 
-- **`.md`** - findings grouped under one section per resource type.
+- **`.md`** - findings grouped under one section per resource type, a Scope
+  column on every row.
 - **`.csv`** - one row per finding, columns
-  `severity,category,resource_type,uid,name,code,message`. For spreadsheets and
-  for diffing two runs.
+  `severity,scope,category,resource_type,uid,name,code,message`. For spreadsheets
+  and for diffing two runs.
 - **`.pdf`** - a cover page with the summary counts, a clickable table of
   contents with per-type breakdowns, then one bookmarked section per resource
   type with severity-tinted rows. Typeset in Noto Sans with a Noto Sans Lao

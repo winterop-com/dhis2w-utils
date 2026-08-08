@@ -8,6 +8,10 @@ Generated: {{ generated_at }}
 - option sets (deep pass): {{ report.option_set_count }} ({{ report.option_count }} options)
 - attributes (deep pass): {{ report.attribute_count }}
 - findings: {{ report.error_count }} errors, {{ report.warning_count }} warnings, {{ report.info_count }} infos
+{% if report.code_coverage is not none %}
+- selection findings: {{ report.selection_error_count }} errors, {{ report.selection_warning_count }} warnings, {{ report.selection_info_count }} infos
+- code coverage (selection): {{ report.code_coverage.line }}
+{% endif %}
 
 {% if not groups %}
 No findings - every code is FHIR-safe.
@@ -17,10 +21,10 @@ No findings - every code is FHIR-safe.
 
 {{ group.breakdown }}
 
-| Severity | Category | Object | Code | Detail |
-| --- | --- | --- | --- | --- |
+| Severity | Scope | Category | Object | Code | Detail |
+| --- | --- | --- | --- | --- | --- |
 {% for row in group.rows %}
-| {{ row.severity }} | {{ row.category }} | {{ row.object_label }} | `{{ row.code }}` | {{ row.message }} |
+| {{ row.severity }} | {{ row.scope }} | {{ row.category }} | {{ row.object_label }} | `{{ row.code }}` | {{ row.message }} |
 {% endfor %}
 
 {% endfor %}

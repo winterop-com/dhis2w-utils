@@ -354,21 +354,31 @@ async def test_validate_codes_across_majors(
         ]
     }
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=payload))
+    for resource in ("dataSets", "programs", "categories", "organisationUnits"):
+        respx.get(f"{_HOST}/api/{resource}").mock(return_value=httpx.Response(200, json={resource: []}))
     sweep = {"dataElements": [{"id": "De1aaaaaaaa", "name": "Bad DE", "code": "DE 1  x"}]}
     respx.get(f"{_HOST}/api/metadata").mock(return_value=httpx.Response(200, json=sweep))
 
     context = service.resolve_validation_context()
     report = await service.validate_codes(resolve_profile("probe"), context.config)
 
-    # Default id mode: the sweep error stands, the option code finding is informational.
-    assert report.error_count == 1
-    assert report.info_count == 1
+    # Default id mode: the empty selection puts the option set in scope but no container binds the
+    # data element, so its sweep defect is instance hygiene and the option code finding stays
+    # informational for the id-source reason.
+    assert report.error_count == 0
+    assert report.warning_count == 0
+    assert report.info_count == 2
     assert {finding.resource_type for finding in report.findings} == {"options", "dataElements"}
+    assert {finding.scope for finding in report.findings} == {"selection", "instance"}
     assert report.resource_type_count == 1
     assert report.object_count == 1
+    assert report.code_coverage is not None
 
     in_code_mode = await service.validate_codes(resolve_profile("probe"), context.config, "code")
-    assert in_code_mode.error_count == 2
+    # Code mode makes the in-scope option defect bite as a warning; the out-of-scope sweep defect stays info.
+    assert in_code_mode.error_count == 0
+    assert in_code_mode.warning_count == 1
+    assert in_code_mode.info_count == 1
 
 
 @respx.mock

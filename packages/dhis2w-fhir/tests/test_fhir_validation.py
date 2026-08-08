@@ -46,7 +46,7 @@ def test_clean_instance_has_no_findings() -> None:
 
 
 def test_sweep_flags_invalid_and_duplicate_codes() -> None:
-    """The instance-wide sweep flags invalid codes as errors and per-type duplicates as warnings."""
+    """The instance-wide sweep flags invalid and duplicated codes as warnings - neither aborts a build."""
     collection = MetadataCollectionIn(
         resource="dataElements",
         items=[
@@ -58,17 +58,18 @@ def test_sweep_flags_invalid_and_duplicate_codes() -> None:
     )
     report = _validate([], [collection])
     categories = [(finding.severity, finding.category) for finding in report.findings]
-    assert categories == [("error", "invalid-code"), ("warning", "duplicate-code"), ("warning", "duplicate-code")]
+    assert categories == [("warning", "invalid-code"), ("warning", "duplicate-code"), ("warning", "duplicate-code")]
     assert all(finding.resource_type == "dataElements" for finding in report.findings)
 
 
-def test_option_invalid_code_is_an_error() -> None:
-    """Edge whitespace makes an option code invalid per the R4 code datatype."""
+def test_option_invalid_code_is_a_warning() -> None:
+    """Edge whitespace makes an option code invalid, so code-source generation falls back to the UID."""
     report = _validate([_set("Aa1aaaaaaaa", "Sex", [OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Male")])])
     assert [finding.category for finding in report.findings] == ["invalid-code"]
     assert report.findings[0].resource_type == "options"
     assert "[in Sex]" in report.findings[0].name
-    assert report.error_count == 1
+    assert report.warning_count == 1
+    assert report.error_count == 0
 
 
 def test_invalid_code_findings_name_the_defect() -> None:
@@ -95,15 +96,16 @@ def test_option_missing_code_is_a_warning() -> None:
     assert report.warning_count == 1
 
 
-def test_option_duplicate_codes_are_errors() -> None:
-    """The same code on two options in one set breaks CodeSystem uniqueness."""
+def test_option_duplicate_codes_are_warnings() -> None:
+    """The same code on two options in one set breaks CodeSystem uniqueness, degrading the emitted pair."""
     options = [
         OptionIn(uid="Op1aaaaaaaa", code="X", name="One"),
         OptionIn(uid="Op2aaaaaaaa", code="X", name="Two"),
     ]
     report = _validate([_set("Aa1aaaaaaaa", "Dup", options)])
     assert [finding.category for finding in report.findings] == ["duplicate-code", "duplicate-code"]
-    assert report.error_count == 2
+    assert report.warning_count == 2
+    assert report.error_count == 0
 
 
 def test_spaced_code_is_info() -> None:
@@ -135,22 +137,22 @@ def test_uid_mode_downgrades_the_code_findings() -> None:
 
 
 def test_code_mode_keeps_the_code_findings_biting() -> None:
-    """In code mode the same option findings keep their error/warning severities."""
+    """In code mode the same option findings keep their warning severities."""
     options = [
         OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Bad"),
         OptionIn(uid="Op2aaaaaaaa", name="NoCode"),
     ]
     report = build_code_validation([_set("Aa1aaaaaaaa", "Sex", options)], [], _CODE_MODE)
-    assert report.error_count == 1
-    assert report.warning_count == 1
+    assert report.warning_count == 2
+    assert report.error_count == 0
     assert not any("switching to code mode" in finding.message for finding in report.findings)
 
 
 def test_code_source_override_wins_over_the_config() -> None:
     """The explicit code_source argument overrides `concept_code_source` in both directions."""
     sets = [_set("Aa1aaaaaaaa", "Sex", [OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Bad")])]
-    assert build_code_validation(sets, [], _CONFIG, "code").error_count == 1
-    assert build_code_validation(sets, [], _CODE_MODE, "id").error_count == 0
+    assert build_code_validation(sets, [], _CONFIG, "code").warning_count == 1
+    assert build_code_validation(sets, [], _CODE_MODE, "id").warning_count == 0
     assert build_code_validation(sets, [], _CODE_MODE, "id").info_count == 1
 
 
@@ -159,8 +161,8 @@ def test_sweep_severities_ignore_the_code_source() -> None:
     collection = MetadataCollectionIn(
         resource="dataElements", items=[MetadataItemIn(uid="De1aaaaaaaa", name="Bad", code=" X ")]
     )
-    assert build_code_validation([], [collection], _CONFIG).error_count == 1
-    assert build_code_validation([], [collection], _CODE_MODE).error_count == 1
+    assert build_code_validation([], [collection], _CONFIG).warning_count == 1
+    assert build_code_validation([], [collection], _CODE_MODE).warning_count == 1
 
 
 def test_organisation_units_without_a_code_warn() -> None:
@@ -290,20 +292,25 @@ def test_name_derived_checks_only_in_name_mode() -> None:
 
 def test_findings_sorted_errors_first() -> None:
     """Errors sort before warnings and infos."""
-    sets = [
-        _set("Aa1aaaaaaaa", "Zulu", [OptionIn(uid="Op1aaaaaaaa", name="NoCode")]),
-        _set("Bb2bbbbbbbb", "Alpha", [OptionIn(uid="Op2aaaaaaaa", code=" bad ", name="Bad")]),
-    ]
-    report = _validate(sets)
+    report = _validate(
+        [_set("Aa1aaaaaaaa", "Zulu", [OptionIn(uid="Op1aaaaaaaa", name="NoCode")])],
+        [
+            MetadataCollectionIn(
+                resource="optionSets", items=[MetadataItemIn(uid="Os1aaaaaaaa", name="Hostile", code="A<B")]
+            )
+        ],
+    )
     assert [finding.severity for finding in report.findings] == ["error", "warning"]
 
 
 def test_report_json_carries_counts() -> None:
-    """The computed severity counts land in the serialized report."""
+    """The computed severity counts land in the serialized report, the selection split beside them."""
     report = _validate([_set("Aa1aaaaaaaa", "Sex", [OptionIn(uid="Op1aaaaaaaa", code=" M ", name="Male")])])
     dumped = report.model_dump()
-    assert dumped["error_count"] == 1
-    assert dumped["warning_count"] == 0
+    assert dumped["warning_count"] == 1
+    assert dumped["error_count"] == 0
+    assert dumped["selection_warning_count"] == 1
+    assert dumped["selection_error_count"] == 0
 
 
 def test_markdown_report_groups_by_type() -> None:
@@ -317,7 +324,7 @@ def test_markdown_report_groups_by_type() -> None:
     assert "Target: probe (https://dhis2.example)" in markdown
     assert "## dataElements" in markdown
     assert "## options" in markdown
-    assert "| error | invalid-code |" in markdown
+    assert "| warning | selection | invalid-code |" in markdown
 
 
 def test_markdown_report_clean() -> None:
@@ -467,7 +474,7 @@ def test_a_markdown_row_survives_a_pipe_and_a_line_break_in_the_message() -> Non
 
     rows = [line for line in markdown.splitlines() if line.startswith("| warning |")]
     assert len(rows) == 1
-    assert len(re.split(r"(?<!\\)\|", rows[0])) == 7
+    assert len(re.split(r"(?<!\\)\|", rows[0])) == 8
     assert rows[0].count("A\\|B C") == 2
     assert "\n" not in rows[0]
 
@@ -486,7 +493,7 @@ def test_a_markdown_row_escapes_the_uid_beside_the_name() -> None:
 
     row = next(line for line in markdown.splitlines() if line.startswith("| error |"))
     assert "Plain (De1\\|aaaaaaa)" in row
-    assert len(re.split(r"(?<!\\)\|", row)) == 7
+    assert len(re.split(r"(?<!\\)\|", row)) == 8
 
 
 #: The option-set code that aborts the publisher on a real national instance.

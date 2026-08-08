@@ -39,8 +39,8 @@ _SEVERITY_FILLS = {
     "info": (231, 231, 231),
 }
 
-#: Relative widths of the five finding columns (Severity, Category, Object, Code, Detail).
-_FINDING_COLUMN_WIDTHS = (16, 24, 44, 22, 84)
+#: Relative widths of the six finding columns (Severity, Scope, Category, Object, Code, Detail).
+_FINDING_COLUMN_WIDTHS = (16, 17, 24, 42, 22, 69)
 
 #: Every body cell names its font explicitly so the table renderer re-selects it per cell.
 _BODY_FACE = FontFace(family=_FONT_FAMILY)
@@ -167,6 +167,15 @@ class _ValidationPdf(FPDF):
             ("Warnings", str(report.warning_count)),
             ("Infos", str(report.info_count)),
         ]
+        if report.code_coverage is not None:
+            rows.extend(
+                [
+                    ("Selection errors", str(report.selection_error_count)),
+                    ("Selection warnings", str(report.selection_warning_count)),
+                    ("Selection infos", str(report.selection_info_count)),
+                    ("Code coverage (selection)", report.code_coverage.line),
+                ]
+            )
         heading = FontFace(emphasis="BOLD", fill_color=_HEADER_FILL)
         with self.table(
             col_widths=(60, 20),
@@ -244,7 +253,7 @@ class _ValidationPdf(FPDF):
             cell_fill_mode=TableCellFillMode.NONE,
         ) as table:
             header = table.row()
-            for label in ("Severity", "Category", "Object", "Code", "Detail"):
+            for label in ("Severity", "Scope", "Category", "Object", "Code", "Detail"):
                 header.cell(label)
             for finding in section.findings:
                 row = table.row()
@@ -252,6 +261,7 @@ class _ValidationPdf(FPDF):
                     finding.severity,
                     style=FontFace(family=_FONT_FAMILY, fill_color=_SEVERITY_FILLS[finding.severity]),
                 )
+                row.cell(finding.scope, style=_BODY_FACE)
                 row.cell(finding.category, style=_BODY_FACE)
                 row.cell(f"{finding.name} ({finding.uid})", style=_BODY_FACE)
                 row.cell(_code_cell(finding.code), style=_BODY_FACE)

@@ -9975,10 +9975,15 @@ $ d2w fhir init [OPTIONS] [directory]
 
 Check the instance&#x27;s codes for FHIR-safety, writing md/csv/pdf reports grouped by type.
 
-The terminal says what the state is: a summary, a count per severity and category, and every
-error by name, because an error is what gates the build and the user has to know which object
-holds it. The written report is where a warning is read one row at a time; `--details` puts
-every row on the terminal too.
+Severity means build impact on the configured IG: an error aborts your build (generate refuses
+the same codes), a warning degrades an emitted resource, and an info is instance hygiene on
+objects the build never reads. Each finding carries that verdict as its scope - `selection`
+for objects the configured selection emits, `instance` for the rest.
+
+The terminal says what the state is: a summary, a count per severity, scope, and category, and
+every error by name, because an error is what gates the build and the user has to know which
+object holds it. The written report is where a warning is read one row at a time; `--details`
+puts every row on the terminal too.
 
 **Usage**:
 

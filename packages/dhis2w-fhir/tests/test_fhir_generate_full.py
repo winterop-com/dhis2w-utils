@@ -299,9 +299,11 @@ async def test_validate_codes_announces_the_sweep_and_its_size(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
 ) -> None:
-    """The validate sweep announces connecting, sweeping, the sweep's size, reading, and building."""
+    """The validate run announces connecting, resolving the selection, sweeping, reading, and building."""
     mock_system_info("v42")
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    for resource in ("dataSets", "programs", "categories", "organisationUnits"):
+        respx.get(f"{_HOST}/api/{resource}").mock(return_value=httpx.Response(200, json={resource: []}))
     respx.get(f"{_HOST}/api/metadata").mock(
         return_value=httpx.Response(
             200,
@@ -317,16 +319,19 @@ async def test_validate_codes_announces_the_sweep_and_its_size(
     await service.validate_codes(resolve_profile("probe"), context.config, reporter=reporter)
 
     assert reporter.captions == [
-        "1/4 connecting",
-        "2/4 sweeping instance metadata (can take a minute on a large instance)",
-        "3/4 reading option sets",
-        "4/4 building report",
+        "1/5 connecting",
+        "2/5 resolving the configured selection",
+        "3/5 sweeping instance metadata (can take a minute on a large instance)",
+        "4/5 reading option sets",
+        "5/5 building report",
     ]
     assert reporter.completions == [
-        "1/4 connecting: https://dhis2.example",
-        "2/4 instance sweep: 2 collections, 2 objects",
-        "3/4 option sets: 1 read",
-        "4/4 findings: 0 finding(s)",
+        "1/5 connecting: https://dhis2.example",
+        "2/5 selection: 0 data sets, 0 programs, 0 stages, 0 data elements, 1 option sets, "
+        "0 categories, 0 organisation units",
+        "3/5 instance sweep: 2 collections, 2 objects",
+        "4/5 option sets: 1 read",
+        "5/5 findings: 0 finding(s)",
     ]
 
 

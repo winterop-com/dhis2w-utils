@@ -214,15 +214,18 @@ from dhis2w_fhir.service import (
     generate_load_set,
     resolve_attribute_code_index,
 )
-from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
+from dhis2w_fhir.validation import build_code_validation, render_validation_markdown, usable_code_stem
 from dhis2w_fhir.validation.pdf import render_validation_pdf
 from dhis2w_fhir.validation.report import render_validation_csv
 from dhis2w_fhir.validation.schemas import (
+    CodeCoverage,
     FhirValidationReport,
     MetadataCollectionIn,
     MetadataItemIn,
     SeverityBreakdown,
+    SurfaceCodeCoverage,
     ValidationFinding,
+    ValidationScope,
 )
 from dhis2w_fhir.writer import (
     GENERATED_HEADER,
@@ -283,6 +286,7 @@ __all__ = [
     "CategoryIn",
     "CategoryOptionComboIn",
     "CategorySelection",
+    "CodeCoverage",
     "ConceptAssignment",
     "ConceptAssignmentPlan",
     "ConceptSourceIn",
@@ -344,12 +348,14 @@ __all__ = [
     "ScaffoldReport",
     "ServeConfig",
     "SeverityBreakdown",
+    "SurfaceCodeCoverage",
     "SyncReport",
     "SyntheticBuild",
     "TargetSelection",
     "TranslationIn",
     "UnsupportedProgramError",
     "ValidationFinding",
+    "ValidationScope",
     "aggregate_note",
     "answer_element",
     "attribute_value_extension_url",
@@ -414,6 +420,7 @@ __all__ = [
     "source_display_name",
     "sync_artifacts",
     "sync_json_artifacts",
+    "usable_code_stem",
     "write_artifacts",
     "write_fhir_config",
     "zoned_date_time",

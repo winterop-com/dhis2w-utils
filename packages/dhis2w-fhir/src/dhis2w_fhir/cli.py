@@ -9,6 +9,8 @@ reads the narration on the terminal either way.
 from __future__ import annotations
 
 import asyncio
+import errno
+import socket
 from collections import Counter
 from contextlib import contextmanager
 from enum import StrEnum
@@ -778,16 +780,22 @@ def validate_command(
 ) -> None:
     """Check the instance's codes for FHIR-safety, writing md/csv/pdf reports grouped by type.
 
-    The terminal says what the state is: a summary, a count per severity and category, and every
-    error by name, because an error is what gates the build and the user has to know which object
-    holds it. The written report is where a warning is read one row at a time; `--details` puts
-    every row on the terminal too.
+    Severity means build impact on the configured IG: an error aborts your build (generate refuses
+    the same codes), a warning degrades an emitted resource, and an info is instance hygiene on
+    objects the build never reads. Each finding carries that verdict as its scope - `selection`
+    for objects the configured selection emits, `instance` for the rest.
+
+    The terminal says what the state is: a summary, a count per severity, scope, and category, and
+    every error by name, because an error is what gates the build and the user has to know which
+    object holds it. The written report is where a warning is read one row at a time; `--details`
+    puts every row on the terminal too.
     """
     from datetime import UTC, datetime
 
     from dhis2w_fhir import REPORTS_DIRECTORY, VALIDATE_CODES_STEPS, find_project_fhir_config, service
     from dhis2w_fhir.validation.pdf import render_validation_pdf
     from dhis2w_fhir.validation.report import display_code, render_validation_csv, render_validation_markdown
+    from dhis2w_fhir.validation.schemas import pluralize
 
     selected_formats = _parse_report_formats(formats)
     requested_source = code_source.value if code_source is not None else None
@@ -814,22 +822,34 @@ def validate_command(
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
     else:
-        render_detail(
-            "fhir validate",
-            [
-                DetailRow("profile", f"{context.generation.name} ({context.generation.origin})"),
-                DetailRow("resource types", str(report.resource_type_count)),
-                DetailRow("objects swept", str(report.object_count)),
-                DetailRow("option sets", str(report.option_set_count)),
-                DetailRow("options", str(report.option_count)),
-                DetailRow("attributes", str(report.attribute_count)),
-                DetailRow("errors", str(report.error_count)),
-                DetailRow("warnings", str(report.warning_count)),
-                DetailRow("infos", str(report.info_count)),
-                DetailRow("code source", service.resolve_code_source(context.config, requested_source)),
-            ],
-            console=STDERR_CONSOLE,
-        )
+        summary_rows = [
+            DetailRow("profile", f"{context.generation.name} ({context.generation.origin})"),
+            DetailRow("resource types", str(report.resource_type_count)),
+            DetailRow("objects swept", str(report.object_count)),
+            DetailRow("option sets", str(report.option_set_count)),
+            DetailRow("options", str(report.option_count)),
+            DetailRow("attributes", str(report.attribute_count)),
+            DetailRow("errors", str(report.error_count)),
+            DetailRow("warnings", str(report.warning_count)),
+            DetailRow("infos", str(report.info_count)),
+        ]
+        if report.code_coverage is not None:
+            summary_rows.extend(
+                [
+                    DetailRow(
+                        "selection findings",
+                        f"{pluralize(report.selection_error_count, 'error')}, "
+                        f"{pluralize(report.selection_warning_count, 'warning')}, "
+                        f"{pluralize(report.selection_info_count, 'info')}",
+                    ),
+                    DetailRow(
+                        "code coverage",
+                        f"{report.code_coverage.line} (selection objects with slug-safe codes)",
+                    ),
+                ]
+            )
+        summary_rows.append(DetailRow("code source", service.resolve_code_source(context.config, requested_source)))
+        render_detail("fhir validate", summary_rows, console=STDERR_CONSOLE)
         _render_finding_rollup(report)
         listed = [finding for finding in report.findings if details or finding.severity == "error"]
         if listed:
@@ -838,6 +858,7 @@ def validate_command(
                 [
                     {
                         "severity": finding.severity,
+                        "scope": _scope_cell(finding.scope),
                         "category": finding.category,
                         "type": finding.resource_type,
                         "object": f"{finding.name} ({finding.uid})",
@@ -847,7 +868,8 @@ def validate_command(
                     for finding in listed
                 ],
                 [
-                    ColumnSpec("Severity", "severity", style="red", no_wrap=True),
+                    ColumnSpec("Severity", "severity", formatter=_severity_cell, no_wrap=True),
+                    ColumnSpec("Scope", "scope", no_wrap=True),
                     ColumnSpec("Category", "category", no_wrap=True),
                     ColumnSpec("Type", "type", no_wrap=True),
                     ColumnSpec("Object", "object"),
@@ -857,11 +879,7 @@ def validate_command(
                 console=STDERR_CONSOLE,
             )
         if not report.error_count:
-            _hint(
-                "ok",
-                f"passed: {report.warning_count} warning(s), {report.info_count} info(s); "
-                f"full findings in {directory / f'{_VALIDATION_REPORT_STEM}.md'}",
-            )
+            _hint("ok", f"{_passed_summary(report)}; full findings in {directory / f'{_VALIDATION_REPORT_STEM}.md'}")
     if report.error_count and fail:
         _hint("error", f"{report.error_count} error(s) found; exiting 1 (--no-fail to suppress)", style="red")
         raise typer.Exit(code=1)
@@ -869,6 +887,9 @@ def validate_command(
 
 #: The severity order the rollup reads in - what blocks a build first, what only reads badly last.
 _SEVERITY_ORDER = ("error", "warning", "info")
+
+#: The scope order within one severity - the build path before the instance hygiene.
+_SCOPE_ORDER = ("selection", "instance")
 
 #: The style each severity carries in the rollup, so a glance separates a blocker from a note.
 _SEVERITY_STYLES = {"error": "red", "warning": "yellow", "info": "dim"}
@@ -880,19 +901,47 @@ def _severity_cell(value: Any) -> str:
     return f"[{_SEVERITY_STYLES.get(severity, 'default')}]{severity}[/]"
 
 
+def _scope_cell(scope: str) -> str:
+    """Render one scope: selection full-strength, instance dimmed, so the build path carries the weight."""
+    return f"[dim]{scope}[/]" if scope == "instance" else scope
+
+
+def _instance_dimmed(text: str, scope: str) -> str:
+    """Dim one rollup cell on an instance row, so out-of-scope hygiene reads as background."""
+    return f"[dim]{text}[/]" if scope == "instance" else text
+
+
+def _passed_summary(report: FhirValidationReport) -> str:
+    """The passing line's counts: split by scope when one was resolved, plain totals otherwise."""
+    if report.code_coverage is None:
+        return f"passed: {report.warning_count} warning(s), {report.info_count} info(s)"
+    instance_count = sum(1 for finding in report.findings if finding.scope == "instance")
+    return (
+        f"passed: {report.selection_warning_count} selection warning(s), "
+        f"{report.selection_info_count} selection info(s), {instance_count} instance finding(s)"
+    )
+
+
 def _render_finding_rollup(report: FhirValidationReport) -> None:
-    """Render one row per (severity, category) with its count - the whole report at a glance."""
-    counts = Counter((finding.severity, finding.category) for finding in report.findings)
+    """Render one row per (severity, scope, category) with its count - the whole report at a glance."""
+    counts = Counter((finding.severity, finding.scope, finding.category) for finding in report.findings)
     if not counts:
         return
+    ordered = sorted(counts, key=lambda key: (_SEVERITY_ORDER.index(key[0]), _SCOPE_ORDER.index(key[1]), key[2]))
     render_list(
         "findings by category",
         [
-            {"severity": severity, "category": category, "count": str(counts[severity, category])}
-            for severity, category in sorted(counts, key=lambda key: (_SEVERITY_ORDER.index(key[0]), key[1]))
+            {
+                "severity": severity,
+                "scope": _scope_cell(scope),
+                "category": _instance_dimmed(category, scope),
+                "count": _instance_dimmed(str(counts[severity, scope, category]), scope),
+            }
+            for severity, scope, category in ordered
         ],
         [
             ColumnSpec("Severity", "severity", formatter=_severity_cell, no_wrap=True),
+            ColumnSpec("Scope", "scope", no_wrap=True),
             ColumnSpec("Category", "category", no_wrap=True),
             ColumnSpec("Count", "count", no_wrap=True),
         ],
@@ -906,6 +955,54 @@ _SERVE_PACKAGE_MISSING = (
     "`d2w fhir serve` needs the dhis2w-fhir-serve package. Install it with "
     "`uv add dhis2w-fhir-serve` or `pip install 'dhis2w-cli[serve]'`."
 )
+
+
+class PortInUseError(LookupError):
+    """A serve address something else already holds, rendered by the CLI error funnel as one line."""
+
+    def __init__(self, *, host: str, port: int) -> None:
+        """Carry the refusal naming the port, its usual holder, and both ways to move off it."""
+        super().__init__(
+            f"port {port} on {host} is already in use "
+            "(usually the local DHIS2 instance; set [serve] port in fhir.toml or pass --port)"
+        )
+
+
+def _bind_probe(host: str, port: int) -> None:
+    """Bind (host, port) once with SO_REUSEADDR - the option uvicorn sets - and release it."""
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    probe = socket.socket(family, socket.SOCK_STREAM)
+    try:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind((host, port))
+    finally:
+        probe.close()
+
+
+def _address_already_in_use(host: str, port: int) -> bool:
+    """Whether binding (host, port) fails with EADDRINUSE right now."""
+    try:
+        _bind_probe(host, port)
+    except OSError as error:
+        return error.errno == errno.EADDRINUSE
+    return False
+
+
+def _preflight_bind(host: str, port: int) -> None:
+    """Refuse a taken port before anything says the server is starting.
+
+    The probe claims the address once and releases it, so a port held by something else -
+    typically 8080, where a local DHIS2 stack lives - fails as one line before the banner
+    and before the app's lifespan loads a store. The port can still be taken between this
+    probe and uvicorn's own bind; that race is accepted, and `_run_server` renders the same
+    one-line refusal when it loses, so the window narrows without reopening the traceback.
+    """
+    try:
+        _bind_probe(host, port)
+    except OSError as error:
+        if error.errno == errno.EADDRINUSE:
+            raise PortInUseError(host=host, port=port) from error
+        raise
 
 
 @app.command("serve")
@@ -979,6 +1076,7 @@ def serve_command(
     elif not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
         raise CompiledIgMissingError
     settings = ServeSettings(project_dir=directory, live=live, profile=None, strict_codes=resolved_strict_codes)
+    _preflight_bind(resolved_host, resolved_port)
     configure_logging()
     _line(f"starting {project.project_root} on http://{resolved_host}:{resolved_port} (ctrl-c to stop)")
     _run_server(create_app(settings), host=resolved_host, port=resolved_port)
@@ -989,6 +1087,13 @@ def _run_server(application: Any, *, host: str, port: int) -> None:
 
     The server's own logging is switched off - `configure_logging` already put one line per
     request on stderr, and uvicorn's access log would double every one of them.
+
+    A taken port normally fails in `_preflight_bind`, before the banner. When the port is
+    taken inside the race window instead, uvicorn refuses it at its own bind - by raising
+    the `OSError`, or by logging one line and calling `sys.exit(1)` - and both shapes are
+    mapped to the same `PortInUseError` one-liner here, so neither can reach the terminal
+    as a traceback. The `SystemExit` mapping re-probes the address first, because exit 1
+    is also how uvicorn reports failures that are not about the port.
     """
     import uvicorn
 
@@ -996,6 +1101,14 @@ def _run_server(application: Any, *, host: str, port: int) -> None:
         uvicorn.run(application, host=host, port=port, log_config=None, access_log=False)
     except KeyboardInterrupt as interrupt:
         raise typer.Exit(0) from interrupt
+    except OSError as error:
+        if error.errno == errno.EADDRINUSE:
+            raise PortInUseError(host=host, port=port) from error
+        raise
+    except SystemExit as system_exit:
+        if system_exit.code not in (0, None) and _address_already_in_use(host, port):
+            raise PortInUseError(host=host, port=port) from system_exit
+        raise
 
 
 def register(root_app: Any) -> None:

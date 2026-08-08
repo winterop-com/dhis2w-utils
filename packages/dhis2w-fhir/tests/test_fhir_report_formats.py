@@ -57,6 +57,7 @@ def test_csv_header_and_rows() -> None:
     assert len(rows) == 5
     assert rows[1] == [
         "error",
+        "instance",
         "invalid-code",
         "options",
         "Uid1aaaaaaa",
@@ -69,14 +70,14 @@ def test_csv_header_and_rows() -> None:
 def test_csv_quotes_only_where_needed() -> None:
     """QUOTE_MINIMAL leaves plain values bare and quotes the ones carrying commas or quotes."""
     text = render_validation_csv(_report())
-    assert "severity,category,resource_type,uid,name,code,message\r\n" in text
+    assert "severity,scope,category,resource_type,uid,name,code,message\r\n" in text
     assert '"Quoted ""name"", piped | too"' in text
 
 
 def test_csv_renders_a_missing_code_as_empty() -> None:
     """A finding without a code leaves the code column empty rather than writing None."""
     rows = list(csv.reader(io.StringIO(render_validation_csv(_report()))))
-    assert rows[4][5] == ""
+    assert rows[4][6] == ""
 
 
 def test_csv_of_a_clean_report_is_the_header_alone() -> None:
@@ -119,7 +120,7 @@ def test_csv_keeps_the_raw_code_a_report_displays_escaped() -> None:
     """The CSV is for machines: the code column carries the raw value, newline and all."""
     report = FhirValidationReport(findings=[_finding("error", "categoryOptions", "Blue", code="BLUE\nBLUE")])
     rows = list(csv.reader(io.StringIO(render_validation_csv(report))))
-    assert rows[1][5] == "BLUE\nBLUE"
+    assert rows[1][6] == "BLUE\nBLUE"
 
 
 def test_pdf_renders_a_code_carrying_a_newline() -> None:
