@@ -1,0 +1,188 @@
+{
+  "resourceType": "QuestionnaireResponse",
+  "id": "ZzYYXq4fJie-example-1",
+  "meta": {
+    "profile": [
+      "http://localhost:8080/fhir/StructureDefinition/d2-tracker-event-response"
+    ]
+  },
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit",
+      "valueReference": {
+        "reference": "Location/ImspTQPwCqd"
+      }
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-tracker-enrollment",
+      "valueIdentifier": {
+        "system": "http://dhis2.org/fhir/id/tracker-enrollment",
+        "value": "gxMz7Qje7pk"
+      }
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "tracker-event"
+    }
+  ],
+  "subject": {
+    "identifier": {
+      "system": "http://dhis2.org/fhir/id/tracked-entity",
+      "value": "tPpcmcRWO0g"
+    },
+    "type": "Patient"
+  },
+  "questionnaire": "http://localhost:8080/fhir/Questionnaire/ZzYYXq4fJie",
+  "status": "completed",
+  "authored": "2026-07-14T15:00:00Z",
+  "item": [
+    {
+      "linkId": "GQY2lXrypjO",
+      "answer": [
+        {
+          "valueDecimal": 5.1
+        }
+      ]
+    },
+    {
+      "linkId": "X8zyunlgUfM",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "odMfnhhpjUj",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-x31y45jvIQL-cs",
+            "display": "Mixed"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "FqlgKAG8HOu",
+      "answer": [
+        {
+          "valueBoolean": false
+        }
+      ]
+    },
+    {
+      "linkId": "vTUhAUZFoys",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "lFFqylGiWLk",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-kzgQRhOCadd-cs",
+            "display": "Dose 1"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "rxBfISxXS2U",
+      "answer": [
+        {
+          "valueBoolean": false
+        }
+      ]
+    },
+    {
+      "linkId": "lNNb3truQoi",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "KGtyXqAprCc",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-nH8Y04zS7UV-cs",
+            "display": "IPT 3"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "pOe0ogW4OWd",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "RqLFM2C8RnE",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-udkr3ihaeD3-cs",
+            "display": "Dose 2"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "HLmTEmupdX0",
+      "answer": [
+        {
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "cYGaxwK615G",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "JWyCKF6i9l1",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-oXR37f2wOb1-cs",
+            "display": "Positive (Confirmed)"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "hDZbpskhqDd",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "vOSo0R6LuI1",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-OGmE3wUMEzu-cs",
+            "display": "PCR"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "sj3j9Hwc7so",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "bopJ9PaLnAZ",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-dgsftM0rXu2-cs",
+            "display": "ABC/ddl/LPV/r -2"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "aei1xRjSU2l",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "kzKxayEMqZB",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-XdI8KRJiRoZ-cs",
+            "display": "No"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "BeynU4L6VCQ",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "AAgDQGRuOHB",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-XdI8KRJiRoZ-cs",
+            "display": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "OuJ6sgPyAbC",
+      "answer": [
+        {
+          "valueString": "Example MCH Visit Comment"
+        }
+      ]
+    }
+  ]
+}

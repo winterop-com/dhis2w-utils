@@ -1,0 +1,47 @@
+{
+  "resourceType": "QuestionnaireResponse",
+  "id": "lxAQ7Zs9VYR-example-1",
+  "meta": {
+    "profile": [
+      "http://localhost:8080/fhir/StructureDefinition/d2-event-response"
+    ]
+  },
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "event"
+    }
+  ],
+  "questionnaire": "http://localhost:8080/fhir/Questionnaire/lxAQ7Zs9VYR",
+  "status": "completed",
+  "subject": {
+    "reference": "Location/ImspTQPwCqd"
+  },
+  "authored": "2026-07-12T12:00:00Z",
+  "item": [
+    {
+      "linkId": "sWoqcoByYmD",
+      "answer": [
+        {
+          "valueBoolean": false
+        }
+      ]
+    },
+    {
+      "linkId": "Ok9OQpitjQr",
+      "answer": [
+        {
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "vANAXwtLwcT",
+      "answer": [
+        {
+          "valueDecimal": 68.8
+        }
+      ]
+    }
+  ]
+}

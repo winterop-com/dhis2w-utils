@@ -62,3 +62,63 @@ class ExampleResponseIn(BaseModel):
     tracked_entity_uid: str | None = None
     enrollment_uid: str | None = None
     answers: list[ExampleAnswerIn] = Field(default_factory=list)
+
+
+class ExampleCoding(BaseModel):
+    """The concept one option-set answer selects: the set it is drawn from, its concept code, its display.
+
+    The option set is named by UID rather than by system, because the two emitters name the same
+    CodeSystem differently: FSH writes the `D2OS_..._CS` alias SUSHI resolves, and the document
+    path writes the canonical URL the run publishes it at.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    option_set_uid: str
+    concept_code: str
+    display: str
+
+
+class ExampleAnswer(BaseModel):
+    """One typed FHIR answer: the `value[x]` element it lands on, and the value cast to that element's type.
+
+    `element` decides which carrier holds the value: `decimal_value` keeps the lexical decimal so
+    the stored precision survives, `location_uid` is the organisation unit a `valueReference`
+    points a Location at, and everything textual - string, uri, date, dateTime, time - lands on
+    `text_value`.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    element: str
+    text_value: str | None = None
+    integer_value: int | None = None
+    decimal_value: str | None = None
+    boolean_value: bool | None = None
+    location_uid: str | None = None
+    coding: ExampleCoding | None = None
+
+
+class ExampleItem(BaseModel):
+    """One response item: an answered question, or a group nesting the section or disaggregation below it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    link_id: str
+    answers: list[ExampleAnswer] = Field(default_factory=list)
+    items: list[ExampleItem] = Field(default_factory=list)
+
+
+class ExampleTrackerContext(BaseModel):
+    """The tracker context one stage response carries: the enrollment, the tracked entity, the capture unit."""
+
+    model_config = ConfigDict(frozen=True)
+
+    organisation_unit_uid: str
+    enrollment_uid: str | None = None
+    tracked_entity_uid: str | None = None
+
+    @property
+    def is_complete(self) -> bool:
+        """Whether both the enrollment and the tracked entity a tracker event always carries are present."""
+        return self.enrollment_uid is not None and self.tracked_entity_uid is not None

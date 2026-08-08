@@ -32,12 +32,8 @@ from dhis2w_fhir import (
 from dhis2w_fhir.period import parse_period
 from dhis2w_fhir.resources.examples import (
     EXAMPLES_DIRECTORY,
-    _is_fhir_date,
-    _is_fhir_date_time,
-    _is_fhir_time,
     _synthetic_uid,
     response_status_code,
-    zoned_date_time,
 )
 from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
 from dhis2w_fhir.resources.option_sets import option_set_identities
@@ -609,6 +605,26 @@ def test_every_category_option_combo_child_is_answered() -> None:
     assert content.count("* item[=].item[=].item[=].answer[+].valueInteger = ") == 2
 
 
+def test_an_event_question_answers_flat_however_its_data_element_is_categorised() -> None:
+    """An event data value carries no category option combo on the DHIS2 wire, so its form asks - and
+    its example answers - the flat `<deUid>` alone. A cell `linkId` here would be an example no
+    conformant server accepts, because the questionnaire the response names never defines it."""
+    categorised = _EVENT_PROGRAM.model_copy(
+        update={
+            "flat_items": [
+                QuestionnaireItemIn(
+                    uid="De2aaaaaaaa", name="Measles doses given", value_type="INTEGER", category_combo=_AGE_COMBO
+                )
+            ]
+        }
+    )
+    content = _synthetic([categorised])[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"]
+    assert '* item[+].linkId = "De2aaaaaaaa"' in content
+    assert "Coc1aaaaaaa" not in content
+    assert "Coc2aaaaaaa" not in content
+    assert content.count("answer[+].valueInteger = ") == 1
+
+
 @pytest.mark.parametrize(
     ("code_source", "coding"),
     [
@@ -707,20 +723,6 @@ def test_a_value_for_a_data_element_outside_the_form_is_skipped_with_a_note() ->
 def test_event_status_maps_onto_the_response_status(event_status: str | None, response_status: str) -> None:
     """Every DHIS2 event status reads as a QuestionnaireResponse status, unknown ones as completed."""
     assert response_status_code(event_status) == response_status
-
-
-@pytest.mark.parametrize(
-    ("stored", "expected"),
-    [
-        ("2025-12-30T00:00:00.000", "2025-12-30T00:00:00.000Z"),
-        ("2025-12-30T00:00:00Z", "2025-12-30T00:00:00Z"),
-        ("2025-12-30T00:00:00+02:00", "2025-12-30T00:00:00+02:00"),
-        ("2025-12-30", "2025-12-30"),
-    ],
-)
-def test_a_zoneless_dhis2_timestamp_gains_the_utc_zone_fhir_requires(stored: str, expected: str) -> None:
-    """DHIS2 serves zone-less local timestamps; an R4 dateTime carrying a time must carry a zone (BUGS.md #62)."""
-    assert zoned_date_time(stored) == expected
 
 
 def test_a_zoneless_occurrence_is_zoned_rather_than_emitted_invalid() -> None:
@@ -1375,66 +1377,6 @@ def test_an_integer_form_r4_cannot_carry_is_answered_as_a_string(value: str) -> 
     content = _answered("De1aaaaaaaa", value)
     assert "valueInteger" not in content
     assert "answer[+].valueString" in content
-
-
-@pytest.mark.parametrize(
-    ("value", "valid"),
-    [
-        ("2026", True),
-        ("2026-12", True),
-        ("2026-02-28", True),
-        ("2024-02-29", True),
-        ("2026-13", False),
-        ("2026-00", False),
-        ("2026-02-30", False),
-        ("2026-99-99", False),
-        ("26-01-01", False),
-    ],
-)
-def test_an_r4_date_must_be_a_real_date(value: str, valid: bool) -> None:
-    """The lexical shape is not enough: a date answer names a day the calendar actually has."""
-    assert _is_fhir_date(value) is valid
-
-
-@pytest.mark.parametrize(
-    ("value", "valid"),
-    [
-        ("23:59:59", True),
-        ("00:00:00", True),
-        ("12:00:00.500", True),
-        ("24:00:00", False),
-        ("25:99:99", False),
-        ("12:60:00", False),
-    ],
-)
-def test_an_r4_time_must_be_a_real_time(value: str, valid: bool) -> None:
-    """The lexical shape is not enough: a time answer names a reading the clock actually shows."""
-    assert _is_fhir_time(value) is valid
-
-
-@pytest.mark.parametrize(
-    ("value", "valid"),
-    [
-        ("2026", True),
-        ("2026-12", True),
-        ("2026-01-01", True),
-        ("2026-01-01T12:00:00Z", True),
-        ("2026-01-01T12:00:00.000Z", True),
-        ("2026-01-01T12:00:00+14:00", True),
-        ("2026-01-01T12:00:00-12:00", True),
-        ("2026-13", False),
-        ("2026-02-30", False),
-        ("2026-99-99", False),
-        ("2026-99-99T25:99:99+99:00", False),
-        ("2026-01-01T25:00:00Z", False),
-        ("2026-01-01T12:00:00+99:00", False),
-        ("2026-01-01T12:00:00+14:30", False),
-        ("2026-01-01T12:00:00-13:00", False),
-    ],
-)
-def test_an_r4_date_time_must_be_a_real_instant_in_a_real_zone(value: str, valid: bool) -> None:
-    """A dateTime clears the calendar, the clock, and an offset no zone on earth sits outside of."""
-    assert _is_fhir_date_time(value) is valid
 
 
 def test_an_occurrence_in_an_impossible_zone_is_dropped_with_a_note() -> None:

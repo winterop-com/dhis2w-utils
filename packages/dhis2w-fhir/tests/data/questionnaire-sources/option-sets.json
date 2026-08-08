@@ -1,0 +1,50 @@
+[
+  {
+    "uid": "OsFhirEscS1",
+    "name": "Age (<5 - 49) & over"
+  },
+  {
+    "uid": "pC3N9N77UmT",
+    "name": "Gender"
+  },
+  {
+    "uid": "dgsftM0rXu2",
+    "name": "MNCH ARVs"
+  },
+  {
+    "uid": "f38bstJioPs",
+    "name": "MNCH Baby ARVs"
+  },
+  {
+    "uid": "udkr3ihaeD3",
+    "name": "MNCH DPT doses (1-3)"
+  },
+  {
+    "uid": "x31y45jvIQL",
+    "name": "MNCH Infant Feeding"
+  },
+  {
+    "uid": "oXR37f2wOb1",
+    "name": "MNCH Infant HIV test"
+  },
+  {
+    "uid": "OGmE3wUMEzu",
+    "name": "MNCH Infant HIV Test Type"
+  },
+  {
+    "uid": "nH8Y04zS7UV",
+    "name": "MNCH IPT"
+  },
+  {
+    "uid": "kzgQRhOCadd",
+    "name": "MNCH Polio doses (0-3)"
+  },
+  {
+    "uid": "XdI8KRJiRoZ",
+    "name": "MNCH Yes No"
+  },
+  {
+    "uid": "OsVaccType1",
+    "name": "Vaccine type"
+  }
+]

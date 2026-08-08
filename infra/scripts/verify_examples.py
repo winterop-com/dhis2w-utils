@@ -78,6 +78,11 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # Kicks `d2w maintenance refresh analytics --watch`; analytics
         # rebuilds legitimately take several minutes on a populated stack.
         "cli/maintenance.sh",
+        # Scaffolds an IG, runs the dockerized SUSHI compile, then starts
+        # `d2w fhir serve` as a background job and curls it. The compile
+        # alone is minutes on a cold docker image, and the script binds a
+        # port — neither belongs in a batch pass.
+        "cli/fhir_serve.sh",
         # --- Fixture gaps in the seed ----------------------------------
         # Outlier detection requires per-program data distributions the
         # 1-year Child Programme sample doesn't have enough volume for —

@@ -1,0 +1,340 @@
+[
+  {
+    "uid": "dgsftM0rXu2",
+    "name": "MNCH ARVs",
+    "options": [
+      {
+        "uid": "NXyMwAwxNap",
+        "code": "NVP Only",
+        "name": "NVP Only",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "OZH6GLUufaX",
+        "code": "TDF/3TC/NVP - 1",
+        "name": "TDF/3TC/NVP - 1",
+        "sort_order": 1,
+        "translations": []
+      },
+      {
+        "uid": "fpfMGr05G23",
+        "code": "TDF/3TC/EFV - 1",
+        "name": "TDF/3TC/EFV - 1",
+        "sort_order": 2,
+        "translations": []
+      },
+      {
+        "uid": "snKkbSbKQFi",
+        "code": "AZT/3TC/NVP - 1",
+        "name": "AZT/3TC/NVP - 1",
+        "sort_order": 3,
+        "translations": []
+      },
+      {
+        "uid": "QAr1LjJB7hV",
+        "code": "AZT/3TC/EFV - 1",
+        "name": "AZT/3TC/EFV - 1",
+        "sort_order": 4,
+        "translations": []
+      },
+      {
+        "uid": "J8tdCrlmoyp",
+        "code": "TDF/3TC/ATV/r - 2",
+        "name": "TDF/3TC/ATV/r - 2",
+        "sort_order": 5,
+        "translations": []
+      },
+      {
+        "uid": "e3Y43oVooNx",
+        "code": "TDF/3TC/LPV/r - 2",
+        "name": "TDF/3TC/LPV/r - 2",
+        "sort_order": 6,
+        "translations": []
+      },
+      {
+        "uid": "ehhkhM0cmbA",
+        "code": "AZT/3TC/ATV/r - 2",
+        "name": "AZT/3TC/ATV/r - 2",
+        "sort_order": 7,
+        "translations": []
+      },
+      {
+        "uid": "bswStRDzLny",
+        "code": "AZT/3TC/LPV/r - 2",
+        "name": "AZT/3TC/LPV/r - 2",
+        "sort_order": 8,
+        "translations": []
+      },
+      {
+        "uid": "wGQbXCz6qgd",
+        "code": "AZT/ddl/LPV/r - 2",
+        "name": "AZT/ddl/LPV/r - 2",
+        "sort_order": 9,
+        "translations": []
+      },
+      {
+        "uid": "bopJ9PaLnAZ",
+        "code": "ABC/ddl/LPV/r -2",
+        "name": "ABC/ddl/LPV/r -2",
+        "sort_order": 10,
+        "translations": []
+      },
+      {
+        "uid": "ARN7cNTxlRA",
+        "code": "Other 1st line",
+        "name": "Other 1st line",
+        "sort_order": 11,
+        "translations": []
+      },
+      {
+        "uid": "OP2n2kZ3eWw",
+        "code": "Other 2nd line",
+        "name": "Other 2nd line",
+        "sort_order": 12,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "f38bstJioPs",
+    "name": "MNCH Baby ARVs",
+    "options": [
+      {
+        "uid": "Cd0gtHGmlwS",
+        "code": "NVP only",
+        "name": "NVP only",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "ww8JVblo4SI",
+        "code": "Others",
+        "name": "Others",
+        "sort_order": 1,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "udkr3ihaeD3",
+    "name": "MNCH DPT doses (1-3)",
+    "options": [
+      {
+        "uid": "HEjqfmniZAr",
+        "code": "1",
+        "name": "Dose 1",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "RqLFM2C8RnE",
+        "code": "2",
+        "name": "Dose 2",
+        "sort_order": 1,
+        "translations": []
+      },
+      {
+        "uid": "lbb3GURUxGo",
+        "code": "3",
+        "name": "Dose 3",
+        "sort_order": 2,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "x31y45jvIQL",
+    "name": "MNCH Infant Feeding",
+    "options": [
+      {
+        "uid": "bS16xfd2E1F",
+        "code": "Exclusive",
+        "name": "Exclusive",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "fLCgjvxrw4c",
+        "code": "Replacement",
+        "name": "Replacement",
+        "sort_order": 1,
+        "translations": []
+      },
+      {
+        "uid": "odMfnhhpjUj",
+        "code": "Mixed",
+        "name": "Mixed",
+        "sort_order": 2,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "oXR37f2wOb1",
+    "name": "MNCH Infant HIV test",
+    "options": [
+      {
+        "uid": "fWI0UiNZgMy",
+        "code": "Positive",
+        "name": "Positive",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "IRW6CQw66J7",
+        "code": "Negative",
+        "name": "Negative",
+        "sort_order": 1,
+        "translations": []
+      },
+      {
+        "uid": "JWyCKF6i9l1",
+        "code": "Postive √",
+        "name": "Positive (Confirmed)",
+        "sort_order": 2,
+        "translations": []
+      },
+      {
+        "uid": "nzR5kXqejCc",
+        "code": "Negative-Conf",
+        "name": "Negative (Confirmed)",
+        "sort_order": 3,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "OGmE3wUMEzu",
+    "name": "MNCH Infant HIV Test Type",
+    "options": [
+      {
+        "uid": "HEqorVvFV8k",
+        "code": "Rapid",
+        "name": "Rapid",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "vOSo0R6LuI1",
+        "code": "PCR",
+        "name": "PCR",
+        "sort_order": 1,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "nH8Y04zS7UV",
+    "name": "MNCH IPT",
+    "options": [
+      {
+        "uid": "BszlRcyvU2p",
+        "code": "IPT 1",
+        "name": "IPT 1",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "pXDp3sN3xJ7",
+        "code": "IPT 2",
+        "name": "IPT 2",
+        "sort_order": 1,
+        "translations": []
+      },
+      {
+        "uid": "KGtyXqAprCc",
+        "code": "IPT 3",
+        "name": "IPT 3",
+        "sort_order": 2,
+        "translations": []
+      },
+      {
+        "uid": "lqMX3VoXyDs",
+        "code": "On CTX",
+        "name": "On CTX",
+        "sort_order": 3,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "kzgQRhOCadd",
+    "name": "MNCH Polio doses (0-3)",
+    "options": [
+      {
+        "uid": "sXfZuRdvhl5",
+        "code": "0",
+        "name": "Dose 0",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "lFFqylGiWLk",
+        "code": "1",
+        "name": "Dose 1",
+        "sort_order": 1,
+        "translations": []
+      },
+      {
+        "uid": "Xr0M5yEhtpT",
+        "code": "2",
+        "name": "Dose 2",
+        "sort_order": 2,
+        "translations": []
+      },
+      {
+        "uid": "VBGXfSXgJzv",
+        "code": "3",
+        "name": "Dose 3",
+        "sort_order": 3,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "XdI8KRJiRoZ",
+    "name": "MNCH Yes No",
+    "options": [
+      {
+        "uid": "AAgDQGRuOHB",
+        "code": "Yes",
+        "name": "Yes",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "kzKxayEMqZB",
+        "code": "No",
+        "name": "No",
+        "sort_order": 1,
+        "translations": []
+      },
+      {
+        "uid": "T6ZEg0zYzbL",
+        "code": "Unknown",
+        "name": "Unknown",
+        "sort_order": 2,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  }
+]

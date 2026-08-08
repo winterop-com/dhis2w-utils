@@ -2,6 +2,42 @@
 
 Running list of architectural choices and the reasoning behind them. Each entry is a terse "we decided X because Y, alternatives were Z". This file is a first stop when you're wondering "why is it done that way?".
 
+## 2026-08-08 — `d2w fhir serve` ships as `dhis2w-fhir-serve`, a member, not an extra of `dhis2w-fhir`
+
+**Decision:** the FHIR facade is its own workspace member (`packages/dhis2w-fhir-serve`, tenth publishable), depending on `dhis2w-fhir` + FastAPI + uvicorn. `dhis2w-cli` declares it as the optional `serve` extra, and `d2w fhir serve` — the command itself, which stays in `dhis2w-fhir/cli.py` — guards the import and raises a `LookupError` naming both install routes when the package is absent.
+
+**Why:** the workspace convention is "each shippable unit is a member; new surfaces land as new folders", and this is the first HTTP surface that convention has had to absorb. `dhis2w-fhir` generates a file tree — httpx, pydantic, jinja2, nothing that listens — and it is a dependency of both `dhis2w-cli` and `dhis2w-mcp`, so an optional-dependency group inside it would still put FastAPI + uvicorn in the resolver's path for every install that only ever writes FSH, including CI and the MCP server. A separate member makes the dependency arrow explicit (`fhir-serve → fhir`, never the reverse) and lets the server version and publish on its own.
+
+**Alternatives rejected:** an optional dependency group on `dhis2w-fhir` (fails the "API-only installs stay FastAPI-free" goal and hides the arrow); putting the server in `dhis2w-core` (it is FHIR-shaped, not DHIS2-domain-shaped, and core is imported by everything); a standalone repo (the store, the capture path, and the JSON builders share the parity tests with the generator).
+
+## 2026-08-08 — The received-response spool is files on disk, not SQLite
+
+**Decision:** `d2w fhir serve` holds received `QuestionnaireResponse`s in memory for reads and mirrors each one to `.serve/responses/received/<id>.json`, written atomically (`mkstemp` in the same directory, then `os.replace`). No database.
+
+**Why:** CLAUDE.md rule 10 says persistent *state* defaults to SQLAlchemy + SQLite, and this is not state — it is artifact persistence. Each receipt is one immutable FHIR document, written once and never updated, and the useful operations on the set are "count what is pending" and "hand the next one to the forwarder". A directory does both with `ls`, keeps every receipt readable by any tool without a schema, and makes an interrupted write a leftover temp file instead of a partially-committed row. The spool assumes a single writing process, which is exactly what one server process is.
+
+**Revisit trigger — recorded deliberately:** the moment a receipt gains mutable state (a forwarding attempt count, a last-error, a status that moves `received → sent → failed`), rule 10 applies and this becomes a SQLite table. The forwarding phase ([FHIR conversion layer](project/fhir-conversion.md)) is where that judgment gets made; until then, adding a database would be a schema with one immutable column.
+
+**Alternatives rejected:** SQLite from the start (a schema and a migration story for write-once documents); in-memory only (a restart loses submissions a client was told were stored).
+
+## 2026-08-08 — A stored QuestionnaireResponse reads back as a receipt, not as DHIS2 data
+
+**Decision:** `GET /QuestionnaireResponse/{id}` returns the submission exactly as it arrived, stamped with the id it is served under. It is never a projection of what DHIS2 currently holds. The accepted-capture OperationOutcome says so in words, `/metadata` says so in `implementation.description`, and the CapabilityStatement's QuestionnaireResponse entry says so in its `documentation`.
+
+**Why:** the facade accepts submissions and does not yet forward them, so the only honest answer to "what is this resource" is "what a client sent us". Serving it as though it were current data would make the endpoint quietly wrong the moment anyone edits the same values in DHIS2 — and would stay wrong after forwarding lands, since DHIS2 remains the system of record either way. Saying it three times, in three places a client actually reads, is cheaper than a support conversation about why a receipt disagrees with a data value set. Querying current data through FHIR is a read proxy, tracked separately in the FHIR roadmap.
+
+**Alternatives rejected:** refusing reads on QuestionnaireResponse entirely (a client that just posted one has a `Location` header pointing at it — 404 on your own `Location` is worse); rewriting a stored response from DHIS2 on read (that is the read proxy, and it is not built).
+
+## 2026-08-08 — The store and the spool hold resources verbatim, not as validated models
+
+**Decision:** `StoreEntry.body` and `StoredResponseEnvelope.response` are `dict[str, Any]`, holding the parsed document as written. The store parses just enough to index a resource (`resourceType`, `id`, `url`, `identifier[]`) and passes the rest through untouched; the spool keeps the received body byte-faithfully. Both fields carry a docstring saying why, and the dict leaves either object only as an HTTP response body.
+
+**Why:** the rule-7 escape hatch is "the HTTP/JSON boundary", and this is one — with the direction reversed from the usual case. An IG holds resource types this repo has no models for (StructureDefinition, ImplementationGuide, whatever a project hand-writes into `input/resources`), and a captured response carries extensions and answer types the R4 subset here does not cover. Validating through a model would mean silently dropping everything outside it, which for a served IG reads as a resource the project never published, and for a receipt means the stored copy is no longer what the client sent. Byte-faithful passthrough is the contract; a model would be a lossy filter wearing a type.
+
+**What is still typed:** everything that carries meaning to another layer — `StoreEntry`'s index fields, `StoredResponseEnvelope`'s receipt metadata, `SearchQuery`, `CaptureIssue`, `ValidatedCapture`, every OperationOutcome and Bundle the facade emits (built from `dhis2w_fhir.r4` models and serialised at the edge). Validation of a received response *does* go through `QuestionnaireResponse`; what gets stored is the original bytes, not the round trip.
+
+**Alternatives rejected:** a `JsonResource`-style permissive model everywhere (adds a validation pass and a re-serialisation that can reorder keys, for no checking); modelling only the served subset (drops the rest of the IG).
+
 ## 2026-06-17 — Name the new MCP surface `dhis2w-mcp-router`, not `dhis2w-router`
 
 **Decision:** the search+dispatch router (front many upstream MCP servers behind two meta-tools — `search_tools` + `call_tool`) ships as `dhis2w-mcp-router`, the third MCP surface alongside `dhis2w-mcp` (full server) and `dhis2w-mcp-bridge` (single-tool bridge). Its benchmark lane (`dhis2w_bench.router`, `make bench-router`) lives in `dhis2w-bench` with the other lanes, not in the router package.
@@ -60,13 +96,13 @@ Hand-written hold-outs: `Me` (not in OpenAPI), `PeriodType` (Java class hierarch
 
 **Alternatives rejected:** `version: str` (no tab-completion, typo-prone); a `version: str | Dhis2` union (adds a string-parsing branch, awkward for zero API gain).
 
-## 2026-04-18 — OAuth2 redirect receiver is FastAPI + uvicorn, not `asyncio.start_server`
+## 2026-04-18 — OAuth2 redirect receiver stays a loopback socket, and `redirect_capturer` is the seam
 
-**Decision:** the redirect receiver invoked during `d2w profile login` is a FastAPI + uvicorn app (in `dhis2w-core/oauth2_redirect.py`) injected into `OAuth2Auth` via a pluggable `redirect_capturer`. `dhis2w-client` keeps a bare `asyncio.start_server` fallback so the published package stays FastAPI-free.
+**Decision:** the redirect receiver invoked during `d2w profile login` is the bare `asyncio.start_server` loopback in `dhis2w-client/v{41,42,43}/auth/oauth2.py`. `OAuth2Auth` takes a pluggable `redirect_capturer`, which is the seam a caller substitutes — `dhis2w-core`'s profile service passes one that refuses rather than opening a browser, so `d2w profile verify` never starts a login flow by accident. There is no `oauth2_redirect.py` and no FastAPI app in the auth path.
 
-**Why:** CLAUDE.md mandates FastAPI for any HTTP service. The receiver renders a styled success/error page the user sees after the redirect, and FastAPI makes the route handling, query parsing, and HTML response idiomatic. Keeping FastAPI out of `dhis2w-client` preserves the PyPI-thin client rule.
+**Why:** the FastAPI rule in CLAUDE.md governs *services* — something that stays up, routes requests, and has a contract. This is a one-shot socket that reads a single redirect and closes, and it lives in `dhis2w-client`, which has to stay FastAPI-free for PyPI. The 2026-04-17 entry below ("OAuth2 loopback via `asyncio.start_server`") is the decision that holds; the capturer protocol is what keeps the mechanism swappable without dragging a web framework into the published client.
 
-**Alternatives rejected:** bare `asyncio.start_server` (violates the FastAPI rule, produces a terrible UX HTML page); running uvicorn from `dhis2w-client` (drags FastAPI into the PyPI dep list).
+**Where the FastAPI rule does bind:** a real HTTP surface lands as its own workspace member — see the 2026-08-08 `dhis2w-fhir-serve` entry.
 
 ## 2026-04-18 — Preflight-check DHIS2 before running the OAuth2 flow
 

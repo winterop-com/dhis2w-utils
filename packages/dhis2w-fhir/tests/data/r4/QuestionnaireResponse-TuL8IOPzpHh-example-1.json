@@ -1,0 +1,201 @@
+{
+  "resourceType": "QuestionnaireResponse",
+  "id": "TuL8IOPzpHh-example-1",
+  "meta": {
+    "profile": [
+      "http://localhost:8080/fhir/StructureDefinition/d2-aggregate-response"
+    ]
+  },
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-period",
+      "extension": [
+        {
+          "url": "iso",
+          "valueString": "202607"
+        },
+        {
+          "url": "type",
+          "valueCode": "Monthly"
+        },
+        {
+          "url": "period",
+          "valuePeriod": {
+            "start": "2026-07-01",
+            "end": "2026-07-31"
+          }
+        }
+      ]
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "aggregate"
+    }
+  ],
+  "questionnaire": "http://localhost:8080/fhir/Questionnaire/TuL8IOPzpHh",
+  "status": "completed",
+  "subject": {
+    "reference": "Location/ImspTQPwCqd"
+  },
+  "item": [
+    {
+      "linkId": "cZnQDuF3IDz",
+      "item": [
+        {
+          "linkId": "cZnQDuF3IDz.pn1upwnbxfn",
+          "answer": [
+            {
+              "valueDecimal": 76.8
+            }
+          ]
+        },
+        {
+          "linkId": "cZnQDuF3IDz.fsFN9T4ck3E",
+          "answer": [
+            {
+              "valueDecimal": 78.2
+            }
+          ]
+        },
+        {
+          "linkId": "cZnQDuF3IDz.TxaWpw1pN5G",
+          "answer": [
+            {
+              "valueDecimal": 9.1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "linkId": "FvKdfA2SuWI",
+      "item": [
+        {
+          "linkId": "FvKdfA2SuWI.pn1upwnbxfn",
+          "answer": [
+            {
+              "valueDecimal": 56.7
+            }
+          ]
+        },
+        {
+          "linkId": "FvKdfA2SuWI.fsFN9T4ck3E",
+          "answer": [
+            {
+              "valueDecimal": 38
+            }
+          ]
+        },
+        {
+          "linkId": "FvKdfA2SuWI.TxaWpw1pN5G",
+          "answer": [
+            {
+              "valueDecimal": 38.8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "linkId": "WVrH6j3Wfye",
+      "item": [
+        {
+          "linkId": "WVrH6j3Wfye.pn1upwnbxfn",
+          "answer": [
+            {
+              "valueDecimal": 6.1
+            }
+          ]
+        },
+        {
+          "linkId": "WVrH6j3Wfye.fsFN9T4ck3E",
+          "answer": [
+            {
+              "valueDecimal": 15.7
+            }
+          ]
+        },
+        {
+          "linkId": "WVrH6j3Wfye.TxaWpw1pN5G",
+          "answer": [
+            {
+              "valueDecimal": 97.4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "linkId": "p1MDHOT6ENy",
+      "answer": [
+        {
+          "valueDecimal": 29.3
+        }
+      ]
+    },
+    {
+      "linkId": "lVknokmR4Ip",
+      "answer": [
+        {
+          "valueDecimal": 56.7
+        }
+      ]
+    },
+    {
+      "linkId": "FTINmL2lehN",
+      "answer": [
+        {
+          "valueDecimal": 29.7
+        }
+      ]
+    },
+    {
+      "linkId": "axVhq1itoQD",
+      "answer": [
+        {
+          "valueDecimal": 90.8
+        }
+      ]
+    },
+    {
+      "linkId": "XNrjXqZrHD8",
+      "answer": [
+        {
+          "valueDecimal": 86.7
+        }
+      ]
+    },
+    {
+      "linkId": "nGCLjZDn0Q4",
+      "answer": [
+        {
+          "valueDecimal": 16.8
+        }
+      ]
+    },
+    {
+      "linkId": "t99PL3gUxIl",
+      "answer": [
+        {
+          "valueDecimal": 17.8
+        }
+      ]
+    },
+    {
+      "linkId": "vEAo4KwsAzl",
+      "answer": [
+        {
+          "valueDecimal": 33
+        }
+      ]
+    },
+    {
+      "linkId": "iuSIObmKutb",
+      "answer": [
+        {
+          "valueDecimal": 5.9
+        }
+      ]
+    }
+  ]
+}

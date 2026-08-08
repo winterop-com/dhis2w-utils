@@ -1,0 +1,13 @@
+{
+  "resourceType": "OperationOutcome",
+  "issue": [
+    {
+      "severity": "error",
+      "code": "required",
+      "diagnostics": "no DHIS2 form type: every response carries one `http://localhost:8080/fhir/StructureDefinition/d2-form-type` extension with a `valueCode`",
+      "expression": [
+        "QuestionnaireResponse.extension"
+      ]
+    }
+  ]
+}

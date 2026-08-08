@@ -1,0 +1,17 @@
+{
+  "resourceType": "ValueSet",
+  "status": "draft",
+  "name": "D2DE_VS",
+  "id": "d2-de-vs",
+  "title": "DHIS2 Data Elements",
+  "description": "DHIS2 data elements captured by the generated questionnaires. Concept codes are DHIS2 data element UIDs.",
+  "url": "http://localhost:8080/fhir/ValueSet/d2-de-vs",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs"
+      }
+    ]
+  }
+}

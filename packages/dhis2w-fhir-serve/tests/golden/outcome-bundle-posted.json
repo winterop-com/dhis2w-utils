@@ -1,0 +1,13 @@
+{
+  "resourceType": "OperationOutcome",
+  "issue": [
+    {
+      "severity": "error",
+      "code": "not-supported",
+      "diagnostics": "this endpoint accepts one QuestionnaireResponse per request; post each response on its own request",
+      "expression": [
+        "Bundle"
+      ]
+    }
+  ]
+}

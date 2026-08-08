@@ -18,6 +18,7 @@ from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.notes import aggregate_note
 from dhis2w_fhir.period import parse_period, recent_periods
+from dhis2w_fhir.r4 import QuestionnaireResponse
 from dhis2w_fhir.resources.categories import CATEGORY_DIRECTORY, build_category_artifacts
 from dhis2w_fhir.resources.categories.schemas import CategoryIn
 from dhis2w_fhir.resources.examples import (
@@ -27,6 +28,7 @@ from dhis2w_fhir.resources.examples import (
     build_synthetic_responses,
     response_status_code,
 )
+from dhis2w_fhir.resources.examples.documents import build_example_documents
 from dhis2w_fhir.resources.examples.schemas import (
     ExampleAnswerIn,
     ExampleResponseIn,
@@ -151,6 +153,15 @@ _EXAMPLE_PERIOD_ATTEMPTS = 6
 #: The envelope keys the tracker events endpoint has answered under.
 _EVENT_ENVELOPE_KEYS = ("instances", "events")
 
+#: Where the synthetic load set is written, relative to the project root. It is not IG input: the
+#: files are a corpus to POST at a running `d2w fhir serve`, so they sit beside `ig/` rather than
+#: inside it, and the target owns the directory outright.
+_LOAD_DIRECTORY = "load"
+
+#: How many synthetic responses each questionnaire target contributes to a load set by default -
+#: enough that a seven-form instance yields a corpus worth measuring a POST loop against.
+DEFAULT_LOAD_SET_PER_TARGET = 25
+
 
 class GenerateReport(BaseModel):
     """Outcome of one `d2w fhir generate` target."""
@@ -170,6 +181,19 @@ class GenerateReport(BaseModel):
     example_count: int = 0
     page_count: int = 0
     intro_count: int = 0
+    notes: list[str] = Field(default_factory=list)
+
+
+class LoadSetReport(BaseModel):
+    """Outcome of one load-set run: the synthetic QuestionnaireResponse corpus written to disk."""
+
+    project_root: Path
+    target_directory: str
+    written_files: list[str] = Field(default_factory=list)
+    unchanged_count: int = 0
+    deleted_files: list[str] = Field(default_factory=list)
+    response_count: int = 0
+    questionnaire_count: int = 0
     notes: list[str] = Field(default_factory=list)
 
 
@@ -504,6 +528,70 @@ async def generate_examples(profile: Profile, project: FhirProject) -> GenerateR
         unchanged_count=len(sync.unchanged),
         example_count=example_count,
         notes=notes,
+    )
+
+
+async def generate_load_set(
+    profile: Profile,
+    project: FhirProject,
+    *,
+    per_target: int = DEFAULT_LOAD_SET_PER_TARGET,
+    output_directory: Path | None = None,
+) -> LoadSetReport:
+    """Write `per_target` synthetic QuestionnaireResponse documents per questionnaire target into `load/`.
+
+    The volume twin of `generate_examples`: the same fetch, the same seeded generator, and the
+    same document builder the IG's examples are compiled from - only the count and the target
+    differ. An IG publishes one example per form because more stop illustrating; a load set wants
+    as many as a POST loop can chew through, so it is not bounded the way `[generate.examples]` is.
+
+    The values are seeded from the target UID and the ordinal, so a rerun over unchanged metadata
+    writes byte-identical files and reports every one of them unchanged. `output_directory`
+    relocates the corpus off the project root, which is what a caller writing into a scratch
+    directory passes.
+    """
+    config = project.config.generate
+    notes: list[str] = []
+    async with open_client(profile) as client:
+        sources = await _fetch_questionnaire_sources(client, config, notes)
+        option_sets = await _fetch_example_option_sets(client, sources)
+        option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
+        root_uid = await _root_organisation_unit_uid(client)
+    documents: list[QuestionnaireResponse] = []
+    if root_uid is None:
+        notes.append("the instance has no level-1 organisation unit; no load set emitted")
+    else:
+        synthetic = build_synthetic_responses(sources, option_sets, per_target, root_uid, datetime.now(tz=UTC).date())
+        notes.extend(synthetic.notes)
+        build = build_example_documents(
+            sources,
+            synthetic.responses,
+            option_sets,
+            config,
+            project.config.ig.canonical,
+            option_set_plan=option_set_plan,
+        )
+        documents = build.responses
+        notes.extend(build.notes)
+    base_directory = output_directory or project.project_root
+    sync = sync_json_artifacts(base_directory, _LOAD_DIRECTORY, [_load_artifact(document) for document in documents])
+    return LoadSetReport(
+        project_root=project.project_root,
+        target_directory=_LOAD_DIRECTORY,
+        written_files=sync.written,
+        unchanged_count=len(sync.unchanged),
+        deleted_files=sync.deleted,
+        response_count=len(documents),
+        questionnaire_count=len(sources),
+        notes=notes,
+    )
+
+
+def _load_artifact(response: QuestionnaireResponse) -> JsonArtifact:
+    """One synthetic response as the load-set file holding it, named by the id it is served under."""
+    return JsonArtifact(
+        relative_path=f"{_LOAD_DIRECTORY}/{response.id}.json",
+        content=f"{response.model_dump_json(exclude_none=True, by_alias=True, indent=2)}\n",
     )
 
 
@@ -883,6 +971,69 @@ async def generate_all(profile: Profile, project: FhirProject) -> GenerateAllRep
         examples=examples,
         organisation_units=organisation_units,
         pages=pages,
+    )
+
+
+class LiveIgInputs(BaseModel):
+    """Every instance read the IG's resources are built from, fetched once off one connected client.
+
+    The projection each generate target fetches for itself, gathered into a single result: the
+    questionnaire targets, the selected option sets and their identity plan, the selected
+    categories, the organisation-unit slice, and the run's attribute-code join. `notes` carries
+    what the fetch itself raised - unmatched selection entries, the option-set closure, the
+    geometry tally - for the caller to report alongside the notes its builders raise.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    sources: list[QuestionnaireSourceIn] = Field(default_factory=list)
+    option_sets: list[OptionSetIn] = Field(default_factory=list)
+    option_set_plan: OptionSetIdentityPlan
+    categories: list[CategoryIn] = Field(default_factory=list)
+    organisation_units: list[OrganisationUnitIn] = Field(default_factory=list)
+    attribute_codes: AttributeCodeIndex
+    notes: list[str] = Field(default_factory=list)
+
+
+async def fetch_live_ig_inputs(client: Dhis2Client, config: GenerateConfig) -> LiveIgInputs:
+    """Read the whole instance side of one IG build over a single client, in the generate targets' own projections.
+
+    The shared fetch behind building the IG's documents without a disk round-trip: a caller
+    passes the result straight to `build_questionnaire_documents`, `build_option_set_artifacts`,
+    `build_category_artifacts`, and `build_organisation_unit_instances` and gets exactly what
+    `d2w fhir generate all` would have written. The selection rules are the targets' own - each
+    list is filtered by the configured UIDs, and the option sets additionally by the closure the
+    selected forms bind - so the built resources agree with the compiled IG object for object.
+    """
+    notes: list[str] = []
+    tally = GeometryTally()
+    today = datetime.now(tz=UTC).date()
+    sources = await _fetch_questionnaire_sources(client, config, notes)
+    option_set_models = await client.resources.option_sets.list(
+        fields=_OPTION_SET_FIELDS,
+        order=["name:asc"],
+        paging=False,
+    )
+    option_sets = _selected_option_sets(
+        [_option_set_input(model) for model in option_set_models], sources, config, notes
+    )
+    option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
+    category_models = await client.resources.categories.list(
+        fields=_CATEGORY_FIELDS,
+        order=["name:asc"],
+        paging=False,
+    )
+    categories = _selected_categories([_category_input(model) for model in category_models], config, notes)
+    organisation_units = await _fetch_organisation_units(client, config, tally, today)
+    attribute_codes = await resolve_attribute_code_index(client)
+    return LiveIgInputs(
+        sources=sources,
+        option_sets=option_sets,
+        option_set_plan=option_set_plan,
+        categories=categories,
+        organisation_units=organisation_units,
+        attribute_codes=attribute_codes,
+        notes=[*notes, *tally.to_notes()],
     )
 
 

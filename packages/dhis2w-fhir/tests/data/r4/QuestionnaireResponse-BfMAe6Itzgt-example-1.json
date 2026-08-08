@@ -1,0 +1,1199 @@
+{
+  "resourceType": "QuestionnaireResponse",
+  "id": "BfMAe6Itzgt-example-1",
+  "meta": {
+    "profile": [
+      "http://localhost:8080/fhir/StructureDefinition/d2-aggregate-response"
+    ]
+  },
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-period",
+      "extension": [
+        {
+          "url": "iso",
+          "valueString": "202607"
+        },
+        {
+          "url": "type",
+          "valueCode": "Monthly"
+        },
+        {
+          "url": "period",
+          "valuePeriod": {
+            "start": "2026-07-01",
+            "end": "2026-07-31"
+          }
+        }
+      ]
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "aggregate"
+    }
+  ],
+  "questionnaire": "http://localhost:8080/fhir/Questionnaire/BfMAe6Itzgt",
+  "status": "completed",
+  "subject": {
+    "reference": "Location/ImspTQPwCqd"
+  },
+  "item": [
+    {
+      "linkId": "Y2rk0vzgvAx",
+      "item": [
+        {
+          "linkId": "s46m5MS0hxu",
+          "item": [
+            {
+              "linkId": "s46m5MS0hxu.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueInteger": 12
+                }
+              ]
+            },
+            {
+              "linkId": "s46m5MS0hxu.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueInteger": 941
+                }
+              ]
+            },
+            {
+              "linkId": "s46m5MS0hxu.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueInteger": 658
+                }
+              ]
+            },
+            {
+              "linkId": "s46m5MS0hxu.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueInteger": 694
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "UOlfIjgN8X6",
+          "item": [
+            {
+              "linkId": "UOlfIjgN8X6.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 32.3
+                }
+              ]
+            },
+            {
+              "linkId": "UOlfIjgN8X6.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 57.5
+                }
+              ]
+            },
+            {
+              "linkId": "UOlfIjgN8X6.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 91.1
+                }
+              ]
+            },
+            {
+              "linkId": "UOlfIjgN8X6.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 25.4
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "z7duEFcpApd",
+          "item": [
+            {
+              "linkId": "z7duEFcpApd.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 71.1
+                }
+              ]
+            },
+            {
+              "linkId": "z7duEFcpApd.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 16.8
+                }
+              ]
+            },
+            {
+              "linkId": "z7duEFcpApd.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 13.8
+                }
+              ]
+            },
+            {
+              "linkId": "z7duEFcpApd.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 43.4
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "x3Do5e7g4Qo",
+          "item": [
+            {
+              "linkId": "x3Do5e7g4Qo.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 16.6
+                }
+              ]
+            },
+            {
+              "linkId": "x3Do5e7g4Qo.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 59.8
+                }
+              ]
+            },
+            {
+              "linkId": "x3Do5e7g4Qo.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 26.5
+                }
+              ]
+            },
+            {
+              "linkId": "x3Do5e7g4Qo.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 35.2
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "pikOziyCXbM",
+          "item": [
+            {
+              "linkId": "pikOziyCXbM.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 94
+                }
+              ]
+            },
+            {
+              "linkId": "pikOziyCXbM.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 95.6
+                }
+              ]
+            },
+            {
+              "linkId": "pikOziyCXbM.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 97.8
+                }
+              ]
+            },
+            {
+              "linkId": "pikOziyCXbM.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 39.8
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "O05mAByOgAv",
+          "item": [
+            {
+              "linkId": "O05mAByOgAv.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 21
+                }
+              ]
+            },
+            {
+              "linkId": "O05mAByOgAv.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 86.5
+                }
+              ]
+            },
+            {
+              "linkId": "O05mAByOgAv.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 14.7
+                }
+              ]
+            },
+            {
+              "linkId": "O05mAByOgAv.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 68.8
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "vI2csg55S9C",
+          "item": [
+            {
+              "linkId": "vI2csg55S9C.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 43.1
+                }
+              ]
+            },
+            {
+              "linkId": "vI2csg55S9C.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 42
+                }
+              ]
+            },
+            {
+              "linkId": "vI2csg55S9C.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 34.7
+                }
+              ]
+            },
+            {
+              "linkId": "vI2csg55S9C.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "xc8gmAKfO95",
+          "item": [
+            {
+              "linkId": "xc8gmAKfO95.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 92.8
+                }
+              ]
+            },
+            {
+              "linkId": "xc8gmAKfO95.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 75.5
+                }
+              ]
+            },
+            {
+              "linkId": "xc8gmAKfO95.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 41
+                }
+              ]
+            },
+            {
+              "linkId": "xc8gmAKfO95.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 88.1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "mGN1az8Xub6",
+          "item": [
+            {
+              "linkId": "mGN1az8Xub6.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 56.4
+                }
+              ]
+            },
+            {
+              "linkId": "mGN1az8Xub6.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 50.1
+                }
+              ]
+            },
+            {
+              "linkId": "mGN1az8Xub6.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 52.2
+                }
+              ]
+            },
+            {
+              "linkId": "mGN1az8Xub6.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 77.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "L2kxa2IA2cs",
+          "item": [
+            {
+              "linkId": "L2kxa2IA2cs.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 33.3
+                }
+              ]
+            },
+            {
+              "linkId": "L2kxa2IA2cs.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 67.4
+                }
+              ]
+            },
+            {
+              "linkId": "L2kxa2IA2cs.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 19.7
+                }
+              ]
+            },
+            {
+              "linkId": "L2kxa2IA2cs.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 76.7
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "fClA2Erf6IO",
+          "item": [
+            {
+              "linkId": "fClA2Erf6IO.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 45.6
+                }
+              ]
+            },
+            {
+              "linkId": "fClA2Erf6IO.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 57.6
+                }
+              ]
+            },
+            {
+              "linkId": "fClA2Erf6IO.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 39.6
+                }
+              ]
+            },
+            {
+              "linkId": "fClA2Erf6IO.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 87.3
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "I78gJm4KBo7",
+          "item": [
+            {
+              "linkId": "I78gJm4KBo7.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 15.4
+                }
+              ]
+            },
+            {
+              "linkId": "I78gJm4KBo7.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 94.4
+                }
+              ]
+            },
+            {
+              "linkId": "I78gJm4KBo7.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 84
+                }
+              ]
+            },
+            {
+              "linkId": "I78gJm4KBo7.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 80
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "n6aMJNLdvep",
+          "item": [
+            {
+              "linkId": "n6aMJNLdvep.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 42.4
+                }
+              ]
+            },
+            {
+              "linkId": "n6aMJNLdvep.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 19.6
+                }
+              ]
+            },
+            {
+              "linkId": "n6aMJNLdvep.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 37.8
+                }
+              ]
+            },
+            {
+              "linkId": "n6aMJNLdvep.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 92.8
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "l6byfWFUGaP",
+          "item": [
+            {
+              "linkId": "l6byfWFUGaP.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 82.8
+                }
+              ]
+            },
+            {
+              "linkId": "l6byfWFUGaP.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 55.8
+                }
+              ]
+            },
+            {
+              "linkId": "l6byfWFUGaP.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 26.3
+                }
+              ]
+            },
+            {
+              "linkId": "l6byfWFUGaP.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 27.8
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "YtbsuPPo010",
+          "item": [
+            {
+              "linkId": "YtbsuPPo010.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 49.2
+                }
+              ]
+            },
+            {
+              "linkId": "YtbsuPPo010.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 66.5
+                }
+              ]
+            },
+            {
+              "linkId": "YtbsuPPo010.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 32.1
+                }
+              ]
+            },
+            {
+              "linkId": "YtbsuPPo010.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 24.4
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "linkId": "vtOr8PTJVxS",
+      "item": [
+        {
+          "linkId": "qw2sIef52Fu",
+          "item": [
+            {
+              "linkId": "qw2sIef52Fu.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 4.2
+                }
+              ]
+            },
+            {
+              "linkId": "qw2sIef52Fu.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 69.8
+                }
+              ]
+            },
+            {
+              "linkId": "qw2sIef52Fu.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 19.8
+                }
+              ]
+            },
+            {
+              "linkId": "qw2sIef52Fu.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 47.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "Y53Jcc9LBYh",
+          "item": [
+            {
+              "linkId": "Y53Jcc9LBYh.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 85.2
+                }
+              ]
+            },
+            {
+              "linkId": "Y53Jcc9LBYh.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 40.9
+                }
+              ]
+            },
+            {
+              "linkId": "Y53Jcc9LBYh.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 25.5
+                }
+              ]
+            },
+            {
+              "linkId": "Y53Jcc9LBYh.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 22.6
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "d5xTg3WR3DP",
+          "item": [
+            {
+              "linkId": "d5xTg3WR3DP.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 28
+                }
+              ]
+            },
+            {
+              "linkId": "d5xTg3WR3DP.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 11.3
+                }
+              ]
+            },
+            {
+              "linkId": "d5xTg3WR3DP.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 22.7
+                }
+              ]
+            },
+            {
+              "linkId": "d5xTg3WR3DP.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 97.2
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "DUSpd8Jq3M7",
+          "item": [
+            {
+              "linkId": "DUSpd8Jq3M7.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 17.8
+                }
+              ]
+            },
+            {
+              "linkId": "DUSpd8Jq3M7.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 93.6
+                }
+              ]
+            },
+            {
+              "linkId": "DUSpd8Jq3M7.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 98.5
+                }
+              ]
+            },
+            {
+              "linkId": "DUSpd8Jq3M7.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 44.4
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "dU0GquGkGQr",
+          "item": [
+            {
+              "linkId": "dU0GquGkGQr.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 16.7
+                }
+              ]
+            },
+            {
+              "linkId": "dU0GquGkGQr.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 44.6
+                }
+              ]
+            },
+            {
+              "linkId": "dU0GquGkGQr.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 33.9
+                }
+              ]
+            },
+            {
+              "linkId": "dU0GquGkGQr.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 19.1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "pEOVd4Z3TAS",
+          "item": [
+            {
+              "linkId": "pEOVd4Z3TAS.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 4.2
+                }
+              ]
+            },
+            {
+              "linkId": "pEOVd4Z3TAS.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 27.7
+                }
+              ]
+            },
+            {
+              "linkId": "pEOVd4Z3TAS.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 42.3
+                }
+              ]
+            },
+            {
+              "linkId": "pEOVd4Z3TAS.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 61
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "Rmixc9wJl0G",
+          "item": [
+            {
+              "linkId": "Rmixc9wJl0G.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 17.4
+                }
+              ]
+            },
+            {
+              "linkId": "Rmixc9wJl0G.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 79.6
+                }
+              ]
+            },
+            {
+              "linkId": "Rmixc9wJl0G.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 99.9
+                }
+              ]
+            },
+            {
+              "linkId": "Rmixc9wJl0G.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 1.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "GCGfEY82Wz6",
+          "item": [
+            {
+              "linkId": "GCGfEY82Wz6.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 16
+                }
+              ]
+            },
+            {
+              "linkId": "GCGfEY82Wz6.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 67.2
+                }
+              ]
+            },
+            {
+              "linkId": "GCGfEY82Wz6.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 75.3
+                }
+              ]
+            },
+            {
+              "linkId": "GCGfEY82Wz6.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 47.4
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "ca8lfO062zg",
+          "item": [
+            {
+              "linkId": "ca8lfO062zg.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 46.1
+                }
+              ]
+            },
+            {
+              "linkId": "ca8lfO062zg.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 51.6
+                }
+              ]
+            },
+            {
+              "linkId": "ca8lfO062zg.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 5.9
+                }
+              ]
+            },
+            {
+              "linkId": "ca8lfO062zg.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 70.3
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "tU7GixyHhsv",
+          "item": [
+            {
+              "linkId": "tU7GixyHhsv.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 91.9
+                }
+              ]
+            },
+            {
+              "linkId": "tU7GixyHhsv.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 78.1
+                }
+              ]
+            },
+            {
+              "linkId": "tU7GixyHhsv.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 13.6
+                }
+              ]
+            },
+            {
+              "linkId": "tU7GixyHhsv.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 58.7
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "bTcRDVjC66S",
+          "item": [
+            {
+              "linkId": "bTcRDVjC66S.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 53.5
+                }
+              ]
+            },
+            {
+              "linkId": "bTcRDVjC66S.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 51.2
+                }
+              ]
+            },
+            {
+              "linkId": "bTcRDVjC66S.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 25.5
+                }
+              ]
+            },
+            {
+              "linkId": "bTcRDVjC66S.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 59.2
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "ldGXl6SEdqf",
+          "item": [
+            {
+              "linkId": "ldGXl6SEdqf.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 78
+                }
+              ]
+            },
+            {
+              "linkId": "ldGXl6SEdqf.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 38.7
+                }
+              ]
+            },
+            {
+              "linkId": "ldGXl6SEdqf.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 94.7
+                }
+              ]
+            },
+            {
+              "linkId": "ldGXl6SEdqf.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 65.8
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "NLnXLV5YpZF",
+          "item": [
+            {
+              "linkId": "NLnXLV5YpZF.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 55.1
+                }
+              ]
+            },
+            {
+              "linkId": "NLnXLV5YpZF.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 32.6
+                }
+              ]
+            },
+            {
+              "linkId": "NLnXLV5YpZF.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 74.9
+                }
+              ]
+            },
+            {
+              "linkId": "NLnXLV5YpZF.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 48.9
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "pnL2VG8Bn7N",
+          "item": [
+            {
+              "linkId": "pnL2VG8Bn7N.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 21.9
+                }
+              ]
+            },
+            {
+              "linkId": "pnL2VG8Bn7N.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 39.1
+                }
+              ]
+            },
+            {
+              "linkId": "pnL2VG8Bn7N.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 94.5
+                }
+              ]
+            },
+            {
+              "linkId": "pnL2VG8Bn7N.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 72.7
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "qPVDd87kS9Z",
+          "item": [
+            {
+              "linkId": "qPVDd87kS9Z.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 91.8
+                }
+              ]
+            },
+            {
+              "linkId": "qPVDd87kS9Z.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 82.1
+                }
+              ]
+            },
+            {
+              "linkId": "qPVDd87kS9Z.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 77.1
+                }
+              ]
+            },
+            {
+              "linkId": "qPVDd87kS9Z.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 83.8
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "lVsbKXoF0zX",
+          "item": [
+            {
+              "linkId": "lVsbKXoF0zX.Prlt0C1RF0s",
+              "answer": [
+                {
+                  "valueDecimal": 24.3
+                }
+              ]
+            },
+            {
+              "linkId": "lVsbKXoF0zX.psbwp3CQEhs",
+              "answer": [
+                {
+                  "valueDecimal": 71
+                }
+              ]
+            },
+            {
+              "linkId": "lVsbKXoF0zX.V6L425pT3A0",
+              "answer": [
+                {
+                  "valueDecimal": 97.1
+                }
+              ]
+            },
+            {
+              "linkId": "lVsbKXoF0zX.hEFKSsPV5et",
+              "answer": [
+                {
+                  "valueDecimal": 79.3
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

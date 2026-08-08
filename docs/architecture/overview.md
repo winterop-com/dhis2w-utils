@@ -23,8 +23,9 @@ Each shippable unit of code is a `uv` workspace member under `packages/`:
 | `dhis2w-bench` | Local-LLM benchmark harness (coding, mcp-bridge, full-mcp suites). | _workspace-only_ |
 | `dhis2w-mcp-router` | Domain-neutral MCP router: search + dispatch meta-tools over upstream MCP servers. | [`dhis2w-mcp-router`](https://pypi.org/project/dhis2w-mcp-router/) |
 | `dhis2w-fhir` | FHIR IG generation from DHIS2 metadata. Builds on `dhis2w-core` and mounts `d2w fhir` plus the `fhir_*` MCP tools through the `dhis2.plugins` entry point. | [`dhis2w-fhir`](https://pypi.org/project/dhis2w-fhir/) |
+| `dhis2w-fhir-serve` | FastAPI FHIR facade over a generated IG: serves its resources and receives QuestionnaireResponse captures. Runs behind `d2w fhir serve`, installed through the `dhis2w-cli[serve]` extra. | [`dhis2w-fhir-serve`](https://pypi.org/project/dhis2w-fhir-serve/) |
 
-New surfaces (a future FastAPI web UI, an HTTP webhook receiver, a TUI) land as new members. No edits required to existing ones.
+New surfaces land as new members, with no edits required to existing ones. `dhis2w-fhir-serve` is the worked example: `d2w fhir serve` needs FastAPI and uvicorn, the generator needs neither, so the HTTP surface is its own member and an API-only install of `dhis2w-fhir` stays free of both.
 
 ### 2. Plugins inside `dhis2w-core`
 
@@ -65,9 +66,15 @@ graph LR
     browser["dhis2w-browser"]
     codegen["dhis2w-codegen"]
     client["dhis2w-client"]
+    fhir["dhis2w-fhir"]
+    fhirserve["dhis2w-fhir-serve"]
 
     cli --> core
     mcp --> core
+    cli --> fhir
+    mcp --> fhir
+    fhir --> core
+    fhirserve --> fhir
     bridge --> cli
     bench --> cli
     bench --> router
@@ -77,6 +84,7 @@ graph LR
     codegen --> client
     cli -.->|"optional [browser] extra"| browser
     mcp -.->|"optional [browser] extra"| browser
+    cli -.->|"optional [serve] extra"| fhirserve
 ```
 
 No cycles. `dhis2w-client` is the foundation everything builds on, which is what lets it ship to PyPI independently.

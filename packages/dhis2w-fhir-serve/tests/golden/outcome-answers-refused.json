@@ -1,0 +1,21 @@
+{
+  "resourceType": "OperationOutcome",
+  "issue": [
+    {
+      "severity": "error",
+      "code": "structure",
+      "diagnostics": "`GQY2lXrypjO` answers as `decimal`, so it carries `valueDecimal`, not `valueString`",
+      "expression": [
+        "QuestionnaireResponse.item.where(linkId='GQY2lXrypjO')"
+      ]
+    },
+    {
+      "severity": "error",
+      "code": "not-found",
+      "diagnostics": "`DeMadeUp0001` is not a question of `http://localhost:8080/fhir/Questionnaire/ZzYYXq4fJie`",
+      "expression": [
+        "QuestionnaireResponse.item.where(linkId='DeMadeUp0001')"
+      ]
+    }
+  ]
+}

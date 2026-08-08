@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from dhis2w_cli.main import build_app
-from dhis2w_fhir import FhirValidationReport, GenerateAllReport, GenerateReport
+from dhis2w_fhir import FhirValidationReport, GenerateAllReport, GenerateReport, LoadSetReport
 from dhis2w_fhir.validation.schemas import ValidationFinding
 from typer.testing import CliRunner
 
@@ -63,6 +63,19 @@ def _report(target_directory: str, **overrides: object) -> GenerateReport:
     }
     defaults.update(overrides)
     return GenerateReport.model_validate(defaults)
+
+
+def _all_report() -> GenerateAllReport:
+    """Build the seven-target report `generate all` renders."""
+    return GenerateAllReport(
+        foundation=_report("foundation"),
+        option_sets=_report("terminology"),
+        categories=_report("categories"),
+        questionnaires=_report("questionnaires"),
+        examples=_report("examples"),
+        organisation_units=_report("organization"),
+        pages=_report("pagecontent", target_base="ig/input"),
+    )
 
 
 def test_generate_option_sets_renders_report(fhir_project: Path) -> None:  # noqa: ARG001
@@ -150,6 +163,58 @@ def test_generate_foundation_renders_report(fhir_project: Path) -> None:  # noqa
     assert result.exit_code == 0, result.output
     assert "foundation" in result.output
     mock.assert_awaited_once()
+
+
+def test_generate_load_renders_the_corpus_report(fhir_project: Path) -> None:  # noqa: ARG001
+    """`d2w fhir generate load` renders the response and questionnaire counts the service reports."""
+    report = LoadSetReport(
+        project_root=Path("/project"),
+        target_directory="load",
+        written_files=["load/a1b2c3d4e5f.json"],
+        response_count=50,
+        questionnaire_count=2,
+        notes=["a note"],
+    )
+    mock = AsyncMock(return_value=report)
+    with patch("dhis2w_fhir.service.generate_load_set", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate", "load"])
+    assert result.exit_code == 0, result.output
+    assert "responses" in result.output
+    assert "a note" in result.output
+    mock.assert_awaited_once()
+
+
+def test_generate_load_passes_per_target_and_directory(fhir_project: Path) -> None:
+    """`--per-target` and `--directory` reach the service as the keyword arguments it takes."""
+    mock = AsyncMock(return_value=LoadSetReport(project_root=Path("/project"), target_directory="load"))
+    with patch("dhis2w_fhir.service.generate_load_set", new=mock):
+        result = _runner.invoke(
+            build_app(),
+            ["fhir", "generate", "load", "--per-target", "5", "--directory", str(fhir_project / "scratch")],
+        )
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["per_target"] == 5
+    assert mock.await_args.kwargs["output_directory"] == fhir_project / "scratch"
+
+
+def test_generate_load_rejects_a_per_target_below_one(fhir_project: Path) -> None:  # noqa: ARG001
+    """A load set of zero responses per target is a typo, not a request."""
+    result = _runner.invoke(build_app(), ["fhir", "generate", "load", "--per-target", "0"])
+    assert result.exit_code != 0
+
+
+def test_generate_all_leaves_the_load_set_alone(fhir_project: Path) -> None:  # noqa: ARG001
+    """A load set is test data rather than IG source, so the all-target run never writes one."""
+    load_mock = AsyncMock(return_value=LoadSetReport(project_root=Path("/project"), target_directory="load"))
+    all_mock = AsyncMock(return_value=_all_report())
+    with (
+        patch("dhis2w_fhir.service.generate_load_set", new=load_mock),
+        patch("dhis2w_fhir.service.generate_all", new=all_mock),
+    ):
+        result = _runner.invoke(build_app(), ["fhir", "generate", "all"])
+    assert result.exit_code == 0, result.output
+    load_mock.assert_not_awaited()
 
 
 def test_generate_without_project_fails_with_hint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

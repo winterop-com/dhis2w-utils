@@ -55,6 +55,7 @@ nav:
           - Visualizations: guides/visualizations.md
           - FHIR IG generation: guides/fhir-ig.md
           - FHIR API reference: api/fhir.md
+          - FHIR facade server reference: api/fhir-serve.md
           - Playwright PAT helper: pat-helper.md
           - Manual testing: manual-testing.md
       - Examples index: examples.md
@@ -199,6 +200,7 @@ nav:
       - Upstream DHIS2 quirks: project/upstream-quirks.md
       - Roadmap: roadmap.md
       - FHIR roadmap + review guide: project/fhir-roadmap.md
+      - FHIR conversion layer: project/fhir-conversion.md
 
 markdown_extensions:
   - admonition
