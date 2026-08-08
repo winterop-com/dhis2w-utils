@@ -1,6 +1,6 @@
 {
   "resourceType": "QuestionnaireResponse",
-  "id": "EVTsupVis01-example-1",
+  "id": "lxAQ7Zs9VYR-example-1",
   "meta": {
     "profile": [
       "http://localhost:8080/fhir/StructureDefinition/d2-event-response"
@@ -12,26 +12,34 @@
       "valueCode": "event"
     }
   ],
-  "questionnaire": "http://localhost:8080/fhir/Questionnaire/EVTsupVis01",
+  "questionnaire": "http://localhost:8080/fhir/Questionnaire/lxAQ7Zs9VYR",
   "status": "completed",
   "subject": {
     "reference": "Location/ImspTQPwCqd"
   },
-  "authored": "2026-07-26T16:00:00Z",
+  "authored": "2026-07-12T12:00:00Z",
   "item": [
     {
-      "linkId": "s46m5MS0hxu",
+      "linkId": "sWoqcoByYmD",
       "answer": [
         {
-          "valueInteger": 148
+          "valueBoolean": false
         }
       ]
     },
     {
-      "linkId": "YtbsuPPo010",
+      "linkId": "Ok9OQpitjQr",
       "answer": [
         {
-          "valueDecimal": 40.9
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "vANAXwtLwcT",
+      "answer": [
+        {
+          "valueDecimal": 68.8
         }
       ]
     }

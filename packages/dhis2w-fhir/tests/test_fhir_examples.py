@@ -605,6 +605,26 @@ def test_every_category_option_combo_child_is_answered() -> None:
     assert content.count("* item[=].item[=].item[=].answer[+].valueInteger = ") == 2
 
 
+def test_an_event_question_answers_flat_however_its_data_element_is_categorised() -> None:
+    """An event data value carries no category option combo on the DHIS2 wire, so its form asks - and
+    its example answers - the flat `<deUid>` alone. A cell `linkId` here would be an example no
+    conformant server accepts, because the questionnaire the response names never defines it."""
+    categorised = _EVENT_PROGRAM.model_copy(
+        update={
+            "flat_items": [
+                QuestionnaireItemIn(
+                    uid="De2aaaaaaaa", name="Measles doses given", value_type="INTEGER", category_combo=_AGE_COMBO
+                )
+            ]
+        }
+    )
+    content = _synthetic([categorised])[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"]
+    assert '* item[+].linkId = "De2aaaaaaaa"' in content
+    assert "Coc1aaaaaaa" not in content
+    assert "Coc2aaaaaaa" not in content
+    assert content.count("answer[+].valueInteger = ") == 1
+
+
 @pytest.mark.parametrize(
     ("code_source", "coding"),
     [
