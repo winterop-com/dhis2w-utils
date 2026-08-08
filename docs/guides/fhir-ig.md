@@ -148,7 +148,10 @@ opposite answers to the same question.
 
 The scaffolded [`make refresh`](#the-scaffolded-makefile) is a different verb on
 the same word: it rebuilds the IG from the instance. `init --refresh` touches the
-scaffold and never the generated output.
+scaffold and never the generated output. The one-command way to bring an older
+project up to the current d2w is the scaffolded `make update`: it moves the
+toolchain pin (`uv lock --upgrade`), syncs, and runs `init --refresh` - pin
+first, so the refresh runs on the d2w it just installed.
 
 The case this exists for is concrete. A project scaffolded before `path-resource`
 covered a predefined-resource sub-folder keeps a `sushi-config.yaml` without that
@@ -2169,6 +2172,7 @@ writing stays CLI-only.
 make setup      Build the SUSHI + IG publisher docker image
 make upgrade    Rebuild it from scratch, pulling the latest of both
 make generate   d2w fhir generate
+make update     Move the toolchain pin, sync, and d2w fhir init --refresh
 make validate   d2w fhir validate
 make cache-init Make the shared package-cache volume writable by the publisher user
 make sushi      Compile FSH to FHIR resources

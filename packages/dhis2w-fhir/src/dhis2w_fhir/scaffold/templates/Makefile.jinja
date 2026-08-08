@@ -23,6 +23,12 @@ upgrade:  ## Rebuild the image from scratch, pulling the latest SUSHI + IG publi
 generate:  ## Regenerate FSH from DHIS2 metadata
 	$(D2W) fhir generate
 
+.PHONY: update
+update:  ## Update the project to the current d2w: move the toolchain pin, sync, refresh the scaffold-managed files
+	uv lock --upgrade
+	uv sync
+	$(D2W) fhir init --refresh
+
 validate:  ## Check the DHIS2 instance's codes/names for FHIR-safety (writes md/csv/pdf; exit 1 on errors)
 	$(D2W) fhir validate
 
