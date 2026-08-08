@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-ql"
-version = "1.5.0.dev0"
+version = "1.5.0"
 description = "d2ql: a pipeline query + transform language over JSON-shaped data, with an embedded expression core (d2path). Pure engine (tokenizer, parser, evaluator, planner) with no DHIS2 or FHIR runtime dependency."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
