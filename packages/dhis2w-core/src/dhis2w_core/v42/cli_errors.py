@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 from typing import NoReturn
 
+import httpx
 import typer
 from dhis2w_client.errors import AuthenticationError, Dhis2ApiError, Dhis2ClientError, OAuth2FlowError
 from dhis2w_client.v42.envelopes import WebMessageResponse
@@ -51,6 +52,11 @@ _OAUTH2_HINT = [
     "or `d2w profile verify <name>` to confirm the current state",
 ]
 
+_CONNECT_HINT = [
+    "is the instance running? check the profile's base_url",
+    "run `d2w profile show <name>` to see the URL being dialled",
+]
+
 
 def run_app(app: typer.Typer) -> NoReturn:
     """Invoke a Typer app with clean error rendering for known exceptions."""
@@ -72,6 +78,8 @@ def run_app(app: typer.Typer) -> NoReturn:
         _render_api_error(exc)
     except Dhis2ClientError as exc:
         _render("DHIS2 error", str(exc))
+    except httpx.HTTPError as exc:
+        _render_transport_error(exc)
     except LookupError as exc:
         _render("error", str(exc))
     sys.exit(0)
@@ -116,6 +124,16 @@ def _webmessage_detail_lines(envelope: WebMessageResponse) -> list[str]:
     return lines
 
 
+def _render_transport_error(exc: httpx.HTTPError) -> NoReturn:
+    """Render an httpx transport failure — the instance never answered, so there is no DHIS2 body."""
+    detail = str(exc) or type(exc).__name__
+    url = _request_url(exc)
+    if url:
+        detail = f"{detail} ({url})"
+    hint = _CONNECT_HINT if isinstance(exc, httpx.ConnectError) else None
+    _render("error", f"cannot reach the DHIS2 instance: {detail}", hint)
+
+
 def _render(label: str, message: str, hint: list[str] | None = None, extras: list[str] | None = None) -> NoReturn:
     """Print `label: message` + optional extras + optional hint block to stderr and exit 1."""
     typer.secho(f"{label}: {message}", err=True, fg=typer.colors.RED)
@@ -128,6 +146,14 @@ def _render(label: str, message: str, hint: list[str] | None = None, extras: lis
         for line in hint:
             typer.echo(f"  {line}", err=True)
     sys.exit(1)
+
+
+def _request_url(exc: httpx.HTTPError) -> str | None:
+    """The URL the failed request targeted, when httpx attached a request to the exception."""
+    try:
+        return str(exc.request.url)
+    except RuntimeError:
+        return None
 
 
 def _extract_body_message(body: object) -> str | None:

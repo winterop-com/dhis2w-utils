@@ -11,7 +11,7 @@ keeps working. Concurrent-refresh safety is built into `OAuth2Auth` itself
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable, Mapping
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -113,6 +113,7 @@ async def open_client(
     http_limits: httpx.Limits | None = None,
     system_cache_ttl: float | None = 300.0,
     timeout: float | None = None,
+    event_hooks: Mapping[str, list[Callable[..., Any]]] | None = None,
 ) -> AsyncGenerator[Dhis2Client]:
     """Open a connected Dhis2Client for `profile` — yields inside `async with`.
 
@@ -156,6 +157,10 @@ async def open_client(
     wrong-major server even when the per-call profile has no `.version`
     field. CLI doesn't trigger this path — it discovers plugins fresh per
     invocation and never binds.
+
+    `event_hooks` (default `None`) passes httpx event hooks through to the
+    underlying `Dhis2Client`; the security audit uses a `request` hook to
+    enforce its read-only allowlist.
     """
     auth = build_auth(profile, profile_name=profile_name, scope=scope)
     bound_tree = current_bound_version_tree()
@@ -170,6 +175,7 @@ async def open_client(
         retry_policy=retry_policy,
         http_limits=http_limits,
         system_cache_ttl=system_cache_ttl,
+        event_hooks=event_hooks,
         **overrides,
     ) as client:
         yield client

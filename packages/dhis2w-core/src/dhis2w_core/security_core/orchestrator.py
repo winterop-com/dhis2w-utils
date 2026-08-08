@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from dhis2w_core.security_core.registry import BoundCheck
 from dhis2w_core.security_core.report.base import ProgressReporter
 from dhis2w_core.security_core.report.model import AuditReport, AuditSummary, CheckResult, CheckStatus, RunManifest
+from dhis2w_core.security_core.report.progress import AUDIT_ACTIVITY, result_style, result_summary, scorecard
 from dhis2w_core.security_core.streaming import ReportWriter
 
 
@@ -29,13 +30,13 @@ async def run_audit(
     results: list[CheckResult] = list(prior)
     done: dict[str, CheckResult] = {result.check: result for result in results}
 
-    reporter.start(total)
+    reporter.start(total, activity=AUDIT_ACTIVITY)
     try:
         for index, check in enumerate(checks, start=1):
             reporter.step(index, total, check.label)
             cached = done.get(check.key)
             if cached is not None:
-                reporter.complete(index, total, cached)
+                _report_result(reporter, index, total, cached)
                 continue
             try:
                 result = await check.run()
@@ -48,7 +49,7 @@ async def run_audit(
                 )
             results.append(result)
             writer.write_result(result)
-            reporter.complete(index, total, result)
+            _report_result(reporter, index, total, result)
 
         summary = AuditSummary.from_results(results)
         report = AuditReport(
@@ -63,5 +64,10 @@ async def run_audit(
         # must not leave the Rich Live refresh thread running with the terminal corrupted. On success,
         # finish() below still prints the scorecard; stop() is idempotent.
         reporter.stop()
-    reporter.finish(summary)
+    reporter.finish(scorecard(summary))
     return report
+
+
+def _report_result(reporter: ProgressReporter, index: int, total: int, result: CheckResult) -> None:
+    """Hand one completed check to the progress display as a label, a summary line, and a style."""
+    reporter.complete(index, total, result.label, result_summary(result), style=result_style(result))

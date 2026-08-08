@@ -1,9 +1,10 @@
-"""Clean-error rendering surfaces WebMessageResponse detail (conflicts, importCount)."""
+"""Clean-error rendering surfaces WebMessageResponse detail (conflicts, importCount) and transport failures."""
 
 from __future__ import annotations
 
 import sys
 
+import httpx
 import pytest
 import typer
 from dhis2w_client.errors import Dhis2ApiError
@@ -78,6 +79,51 @@ def test_renders_message_only_when_body_is_plain(
     assert "Server error" in combined
     assert "conflict" not in combined
     assert "import_count" not in combined
+
+
+def test_renders_connect_error_with_url_and_hint(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A refused connection reads as an unreachable instance, with the dialled URL and a base_url hint."""
+    request = httpx.Request("GET", "https://dhis2.example.org/api/system/info")
+    app = _app_raising(httpx.ConnectError("[Errno 61] Connection refused", request=request))
+    monkeypatch.setattr(sys, "argv", ["d2w"])
+    with pytest.raises(SystemExit) as excinfo:
+        run_app(app)
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    combined = captured.err + captured.out
+    assert "error: cannot reach the DHIS2 instance: [Errno 61] Connection refused" in combined
+    assert "https://dhis2.example.org/api/system/info" in combined
+    assert "is the instance running? check the profile's base_url" in combined
+
+
+def test_renders_read_timeout_without_connect_hint(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A read timeout renders through the same funnel; only ConnectError earns the base_url hint."""
+    app = _app_raising(httpx.ReadTimeout("timed out"))
+    monkeypatch.setattr(sys, "argv", ["d2w"])
+    with pytest.raises(SystemExit) as excinfo:
+        run_app(app)
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    combined = captured.err + captured.out
+    assert "error: cannot reach the DHIS2 instance: timed out" in combined
+    assert "is the instance running?" not in combined
+
+
+def test_api_error_keeps_richer_rendering_ahead_of_the_transport_funnel(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Dhis2ApiError renders its WebMessage detail, never the generic unreachable-instance line."""
+    app = _app_raising(Dhis2ApiError(status_code=409, message="Conflict", body=_IMPORT_SUMMARY_409))
+    monkeypatch.setattr(sys, "argv", ["d2w"])
+    with pytest.raises(SystemExit):
+        run_app(app)
+    combined = "".join(capsys.readouterr())
+    assert "DHIS2 API error (409)" in combined
+    assert "cannot reach the DHIS2 instance" not in combined
 
 
 _METADATA_IMPORT_ERROR = {

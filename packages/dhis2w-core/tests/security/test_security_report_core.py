@@ -304,16 +304,16 @@ class _RecordingReporter:
         self.stopped = False
         self.finished = False
 
-    def start(self, total: int) -> None:
+    def start(self, total: int, *, activity: str = "step") -> None:
         """Record nothing; start is not under test."""
 
     def step(self, index: int, total: int, label: str) -> None:
         """Record nothing; step is not under test."""
 
-    def complete(self, index: int, total: int, result: CheckResult) -> None:
+    def complete(self, index: int, total: int, label: str, summary: str, *, style: str | None = None) -> None:
         """Record nothing; complete is not under test."""
 
-    def finish(self, summary: AuditSummary) -> None:
+    def finish(self, summary: str) -> None:
         """Record that the success-path finish ran."""
         self.finished = True
 

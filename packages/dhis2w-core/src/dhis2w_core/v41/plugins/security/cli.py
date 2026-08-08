@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -12,6 +11,7 @@ from typing import Annotated, Any
 import typer
 
 from dhis2w_core.profile import profile_from_env
+from dhis2w_core.progress import animated_progress
 from dhis2w_core.v41.cli_output import ColumnSpec, DetailRow, format_bool, is_json_output, render_detail, render_list
 
 app = typer.Typer(
@@ -207,7 +207,7 @@ def audit_command(
     profile = profile_from_env()
     profile_name = os.environ.get("DHIS2_PROFILE") or "default"
     formats = _parse_csv(output_format) or list(audit.DEFAULT_FORMATS)
-    animated = progress and sys.stderr.isatty() and not is_json_output()
+    animated = animated_progress(progress)
     options = AuditOptions(
         stale_days=stale_days,
         max_password_age_days=max_password_age,
