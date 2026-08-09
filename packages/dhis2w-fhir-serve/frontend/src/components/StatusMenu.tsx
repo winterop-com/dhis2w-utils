@@ -77,7 +77,16 @@ export function StatusMenu() {
                 </Button>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end" sideOffset={8} className="w-[min(22rem,calc(100vw-1.5rem))]">
+            <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className="w-[min(22rem,calc(100vw-1.5rem))]"
+                onCloseAutoFocus={(event) => {
+                    // Radix re-focuses the trigger on close, which paints the focus ring after a
+                    // plain mouse dismiss; keyboard users re-enter via Tab as with any button.
+                    event.preventDefault()
+                }}
+            >
                 <DropdownMenuLabel className="flex items-center gap-2">
                     <StatusIcon className={cn('size-4', checking && 'animate-spin')} aria-hidden />
                     {label}
