@@ -78,6 +78,31 @@ curl -sf "${BASE}/ConceptMap/\$translate?system=${CANONICAL}/CodeSystem/d2-cat-f
     | head -c 300
 echo
 
+# $generate: hand it a served form and it answers with a synthetic QuestionnaireResponse
+# filled in against that form's own rules - value types, bounds, repeats, and real
+# concepts of the CodeSystems the questions bind. Instance-level, on the form's resource
+# id. It is deliberately NOT SDC's $populate: $populate means fill-from-real-context.
+curl -sf "${BASE}/Questionnaire/BfMAe6Itzgt/\$generate" | head -c 300
+echo
+
+# The invariant the operation exists for: generated output is immediately postable to the
+# same server. 201 means the server accepts what it just produced.
+curl -sf "${BASE}/Questionnaire/BfMAe6Itzgt/\$generate" \
+    | curl -s -o /dev/null -w '%{http_code}\n' \
+        -X POST "${BASE}/QuestionnaireResponse" \
+        -H 'Content-Type: application/fhir+json' --data-binary @-
+
+# seed makes it reproducible: same form, same seed, same bytes. Name it on the query, or
+# in a Parameters body for the POST spelling. A call naming no seed is answered from one
+# the server drew - and states it back on the response's identifier, so it replays too.
+curl -sf "${BASE}/Questionnaire/BfMAe6Itzgt/\$generate?seed=4242" | head -c 200
+echo
+curl -sf -X POST "${BASE}/Questionnaire/BfMAe6Itzgt/\$generate" \
+    -H 'Content-Type: application/fhir+json' \
+    -d '{"resourceType":"Parameters","parameter":[{"name":"seed","valueInteger":4242}]}' \
+    | head -c 200
+echo
+
 # A load set: synthetic QuestionnaireResponse JSON to POST at the facade. Seeded from the
 # target UID and the ordinal, so a rerun over unchanged metadata writes identical files.
 # It lands in load/ beside ig/ - a load set is not IG source, it is gitignored by the

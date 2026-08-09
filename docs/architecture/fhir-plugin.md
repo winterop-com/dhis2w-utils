@@ -294,6 +294,15 @@ depends on `fhir.toml` alone and never opens a client:
   branches on, so a fourth form kind is a declaration rather than a template. The
   slice names are the extension names, which is what lets an instance address them as
   `extension[D2Period]` the way the examples already did against the bare resource.
+- `d2-generate-operation.fsh` - the `D2GenerateOperation` OperationDefinition behind
+  `$generate`: `kind = #operation`, `code = #generate`, `resource = #Questionnaire`,
+  `instance = true` with `system` and `type` false, `affectsState = false` so a GET is
+  legal, one optional `seed` input of type `integer`, and a `return` output of type
+  `QuestionnaireResponse` - a custom operation returning its resource directly rather
+  than wrapped in `Parameters`. It carries a pinned `date` for the same byte-stability
+  reason the NamingSystem declarations do. It is deliberately not SDC's `$populate`,
+  and the `comment` on the definition says so, because `$populate` means
+  fill-from-real-context and this invents its data.
 - `d2-capture-server.fsh` - the `D2CaptureServer` CapabilityStatement,
   `kind = #requirements` so R4 forbids `software` and `implementation`. It declares
   `create` on `QuestionnaireResponse` with every response profile as
@@ -1335,6 +1344,25 @@ it. Lenient resolution walks three tiers - concept code, option UID, DHIS2 code 
 warns on anything below the first, because the generated CodeSystem publishes both DHIS2
 spellings and a client that sent the other one still named exactly one option. Two
 options matching one code is an ambiguity refused under either setting.
+
+**`$generate` reads the capture index backwards.** `GET|POST
+/Questionnaire/{id}/$generate` answers a served form with a synthetic
+`QuestionnaireResponse`, and `synthesize.py` builds it from the very `CaptureIndex` the
+validator checks a submission against: the same `value[x]` element per question, the same
+`minValue` / `maxValue` bounds, the same `repeats`, the same `answerValueSet` binding
+resolved through the same `CodingResolverSet`. That is what holds the invariant the
+operation exists for - **generated output posted back at the same server answers 201** -
+because a rule cannot be enforced on receipt without being honoured on generation. One
+route serves both modes: a live store holds the same compiled-shape Questionnaires and
+CodeSystems, so nothing about generation branches on `--live`. The `seed` input makes a
+call reproducible and rides back on `QuestionnaireResponse.identifier`, so a seedless call
+is reproducible too. Two facts a compiled Questionnaire does not carry get documented
+rules rather than guesses: the data set's period type is read off a served example
+response answering the same form and falls back to `Monthly`, and `TRUE_ONLY` is
+indistinguishable from `BOOLEAN` so both generate either value. The operation is custom -
+not SDC's `$populate`, which means fill-from-real-context - so the IG publishes its own
+`OperationDefinition` and `/metadata` declares it on the `Questionnaire` resource entry,
+where R4 puts an instance-level operation.
 
 **The spool is the one stateful object.** `ResponseSpool` holds every received response
 in memory and mirrors each one to `.serve/responses/received/<id>.json`. Reads are

@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import FhirProject
+    from dhis2w_fhir.resources.questionnaires.schemas import FormKind
 
 #: The sub-extension urls D2Period slices its three facts under, as `d2-period.fsh.jinja` names them.
 PERIOD_ISO_SUB_EXTENSION = "iso"
@@ -24,9 +25,14 @@ PERIOD_RANGE_SUB_EXTENSION = "period"
 #: The identifier-system segment of each DHIS2 object kind a captured response names, by subject token.
 _SEGMENTS_BY_TOKEN = {subject.token: subject.segment for subject in IDENTIFIER_SYSTEM_SUBJECTS}
 
+#: The path segment under the IG canonical that a `$generate` seed is stated as an identifier under.
+#: It hangs off the canonical rather than off `identifier_system_base`, because a seed is a fact
+#: about this server's operation, not a DHIS2 object identifier.
+GENERATE_SEED_IDENTIFIER_SEGMENT = "id/generate-seed"
+
 
 class CaptureNaming(BaseModel):
-    """What a received QuestionnaireResponse is read against: four extension urls and three identifier systems."""
+    """What a QuestionnaireResponse is read against here: the extension urls, identifier systems, and profiles."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -37,6 +43,12 @@ class CaptureNaming(BaseModel):
     tracked_entity_system: str
     tracker_enrollment_system: str
     program_identifier_system: str
+    generate_seed_system: str
+    """Identifier system the seed a `$generate` response was drawn from is stated under."""
+
+    aggregate_response_profile_url: str
+    event_response_profile_url: str
+    tracker_event_response_profile_url: str
 
     @classmethod
     def from_project(cls, project: FhirProject) -> CaptureNaming:
@@ -52,7 +64,19 @@ class CaptureNaming(BaseModel):
             tracked_entity_system=_identifier_system(base, "TrackedEntity"),
             tracker_enrollment_system=_identifier_system(base, "TrackerEnrollment"),
             program_identifier_system=_identifier_system(base, "Program"),
+            generate_seed_system=f"{canonical}/{GENERATE_SEED_IDENTIFIER_SEGMENT}",
+            aggregate_response_profile_url=_definition_url(canonical, names.aggregate_response_profile_id),
+            event_response_profile_url=_definition_url(canonical, names.event_response_profile_id),
+            tracker_event_response_profile_url=_definition_url(canonical, names.tracker_event_response_profile_id),
         )
+
+    def response_profile_url(self, form_kind: FormKind) -> str:
+        """The QuestionnaireResponse profile one DHIS2 form kind's complete response declares."""
+        if form_kind == "aggregate":
+            return self.aggregate_response_profile_url
+        if form_kind == "tracker-event":
+            return self.tracker_event_response_profile_url
+        return self.event_response_profile_url
 
 
 def _definition_url(canonical: str, definition_id: str) -> str:

@@ -75,6 +75,9 @@ class ResolvedCoding(BaseModel):
     option_uid: str
     dhis2_code: str | None = None
     concept_code: str
+    display: str | None = None
+    """The concept's display, as the published CodeSystem states it - what a generated coding carries."""
+
     matched_by: CodingMatchTier = "concept-code"
 
     def as_matched(self, tier: CodingMatchTier) -> ResolvedCoding:
@@ -168,7 +171,9 @@ def _option(concept: CodeSystemConcept) -> ResolvedCoding:
     carried_uid = properties.get(OPTION_UID_PROPERTY)
     if carried_uid is not None:
         uid = carried_uid.valueCode or carried_uid.valueString or concept_code
-        return ResolvedCoding(option_uid=uid, dhis2_code=concept_code, concept_code=concept_code)
+        return ResolvedCoding(
+            option_uid=uid, dhis2_code=concept_code, concept_code=concept_code, display=concept.display
+        )
     carried_code = properties.get(OPTION_CODE_PROPERTY)
     code = None if carried_code is None else (carried_code.valueString or carried_code.valueCode)
-    return ResolvedCoding(option_uid=concept_code, dhis2_code=code, concept_code=concept_code)
+    return ResolvedCoding(option_uid=concept_code, dhis2_code=code, concept_code=concept_code, display=concept.display)

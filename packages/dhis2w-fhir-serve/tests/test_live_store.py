@@ -363,6 +363,37 @@ async def test_a_served_document_is_the_file_the_generate_target_would_have_writ
 
 
 @respx.mock
+async def test_live_generate_output_posts_back_at_the_live_server(
+    live_profile: None,  # noqa: ARG001
+    live_project: FhirProject,
+) -> None:
+    """The `$generate` round trip holds against a live store too: same route, same synthesizer, same 201.
+
+    A live store carries no example instances, so the aggregate form's reporting period falls back to
+    the documented `Monthly` default - which is still a period this server's own capture path accepts.
+    """
+    _mock_instance()
+    app = create_app(ServeSettings(project_dir=live_project.project_root, live=True))
+    generated: dict[str, httpx.Response] = {}
+    posted: dict[str, httpx.Response] = {}
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url=_BASE_URL) as client:
+            for resource_id in ("BfMAe6Itzgt", "VBqh0ynB2wv", _TRACKER_STAGE_UID):
+                generated[resource_id] = await client.get(f"/Questionnaire/{resource_id}/$generate?seed=13")
+                posted[resource_id] = await client.post(
+                    "/QuestionnaireResponse",
+                    content=generated[resource_id].content,
+                    headers={"Content-Type": "application/fhir+json"},
+                )
+
+    assert [response.status_code for response in generated.values()] == [200, 200, 200]
+    assert [response.status_code for response in posted.values()] == [201, 201, 201]
+    assert generated["BfMAe6Itzgt"].json()["subject"]["reference"] == "Location/ImspTQPwCqd"
+
+
+@respx.mock
 async def test_live_facade_answers_reads_and_searches_over_the_built_store(
     live_profile: None,  # noqa: ARG001
     live_project: FhirProject,

@@ -12,11 +12,12 @@ Extension that carries a DHIS2 attribute value onto every resource that can hold
 organisation unit it was captured at, and `d2-tracker-enrollment.fsh` the Extension carrying
 the DHIS2 tracker enrollment an event belongs to.
 
-Two more artifacts turn that vocabulary into a capture contract a third party can build
+Three more artifacts turn that vocabulary into a capture contract a third party can build
 against without reading DHIS2: `d2-responses.fsh` profiles the QuestionnaireResponse a
 capture client sends - one profile per form kind, each pinning the context the response has
-to carry - and `d2-capture-server.fsh` states the interactions a server accepting those
-responses supports.
+to carry - `d2-capture-server.fsh` states the interactions a server accepting those
+responses supports, and `d2-generate-operation.fsh` defines `$generate`, the instance-level
+operation that answers a served Questionnaire with a synthetic response postable straight back.
 """
 
 from __future__ import annotations
@@ -35,6 +36,8 @@ from dhis2w_fhir.foundation.attribute_values import (
 )
 from dhis2w_fhir.foundation.schemas import (
     FORM_TYPE_DEFINITIONS,
+    GENERATE_OPERATION_CODE,
+    GENERATE_SEED_PARAMETER,
     IDENTIFIER_SYSTEM_SUBJECTS,
     FormTypeDefinition,
     FoundationNaming,
@@ -57,6 +60,8 @@ __all__ = [
     "ATTRIBUTE_VALUE_SUB_EXTENSION",
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
     "FORM_TYPE_DEFINITIONS",
+    "GENERATE_OPERATION_CODE",
+    "GENERATE_SEED_PARAMETER",
     "FormTypeDefinition",
     "FoundationNaming",
     "NamingSystemDeclaration",
@@ -84,6 +89,33 @@ CAPTURE_SERVER_READ_RESOURCE_TYPES = ("Questionnaire", "CodeSystem", "ValueSet",
 _CAPTURE_SERVER_REST_DOCUMENTATION = (
     "One QuestionnaireResponse per request: a capture client posts a single response per form "
     "submission, and the server accepts exactly one response per request."
+)
+
+#: The `OperationDefinition.date` the `$generate` operation carries, pinned for the same
+#: byte-stability reason the NamingSystem declarations and the capture server pin theirs.
+_GENERATE_OPERATION_DECLARED_DATE = "2026-08-01"
+
+#: The `$generate` operation's own page metadata.
+_GENERATE_OPERATION_TITLE = "Generate a synthetic response"
+_GENERATE_OPERATION_DESCRIPTION = (
+    "Generate one synthetic QuestionnaireResponse against a served Questionnaire: every question "
+    "answered with a value its own type, bounds, and terminology binding admit, in the context its "
+    "form kind's response profile requires. The generated response is immediately postable to the "
+    "same server's QuestionnaireResponse endpoint, which is what a capture client's fill-with-test-data "
+    "button and an API-driven stress corpus both need."
+)
+_GENERATE_OPERATION_COMMENT = (
+    "This is a custom operation, not SDC's $populate. $populate means fill this form from real "
+    "context about a real subject; $generate invents data, and the two must never be confused."
+)
+_GENERATE_SEED_DOCUMENTATION = (
+    "The seed the generated values are drawn from. The same seed against the same served form "
+    "returns the same response, so a client can reproduce a submission by naming its seed. Absent, "
+    "the server draws one and states it on the generated response's identifier."
+)
+_GENERATE_RETURN_DOCUMENTATION = (
+    "The generated QuestionnaireResponse, declaring the response profile of the form's own DHIS2 "
+    "form kind and identified by the seed it was generated from."
 )
 
 #: The capture server's own page metadata.
@@ -153,6 +185,19 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         ig_status=ig_status,
         experimental=experimental,
     )
+    generate_operation = _ENVIRONMENT.get_template("d2-generate-operation.fsh.jinja").render(
+        names=names,
+        title_literal=page_text(_GENERATE_OPERATION_TITLE),
+        description_literal=page_text(_GENERATE_OPERATION_DESCRIPTION),
+        comment=_GENERATE_OPERATION_COMMENT,
+        operation_code=GENERATE_OPERATION_CODE,
+        seed_parameter=GENERATE_SEED_PARAMETER,
+        seed_documentation=_GENERATE_SEED_DOCUMENTATION,
+        return_documentation=_GENERATE_RETURN_DOCUMENTATION,
+        declared_date=_GENERATE_OPERATION_DECLARED_DATE,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     capture_server = _ENVIRONMENT.get_template("d2-capture-server.fsh.jinja").render(
         names=names,
         profiles=build_response_profile_declarations(config),
@@ -212,6 +257,12 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             kind="profile",
             fsh_name=names.aggregate_response_profile,
             content=responses,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-generate-operation.fsh",
+            kind="instances",
+            fsh_name=names.generate_operation,
+            content=generate_operation,
         ),
         FshArtifact(
             relative_path="foundation/d2-capture-server.fsh",

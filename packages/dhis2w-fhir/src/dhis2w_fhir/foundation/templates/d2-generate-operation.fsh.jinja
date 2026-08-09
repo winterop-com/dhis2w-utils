@@ -1,0 +1,32 @@
+Instance: {{ names.generate_operation }}
+InstanceOf: OperationDefinition
+Title: {{ title_literal }}
+Description: {{ description_literal }}
+Usage: #definition
+* id = "{{ names.generate_operation_id }}"
+* name = "{{ names.generate_operation }}"
+* status = #{{ ig_status }}
+* experimental = {{ "true" if experimental else "false" }}
+// R4 makes OperationDefinition.date optional, but a generated timestamp would rewrite the file
+// on every run, so the date is pinned and regeneration stays byte-stable.
+* date = "{{ declared_date }}"
+* kind = #operation
+* affectsState = false
+* code = #{{ operation_code }}
+* comment = "{{ comment }}"
+* resource[+] = #Questionnaire
+* system = false
+* type = false
+* instance = true
+* parameter[+].name = #{{ seed_parameter }}
+* parameter[=].use = #in
+* parameter[=].min = 0
+* parameter[=].max = "1"
+* parameter[=].type = #integer
+* parameter[=].documentation = "{{ seed_documentation }}"
+* parameter[+].name = #return
+* parameter[=].use = #out
+* parameter[=].min = 1
+* parameter[=].max = "1"
+* parameter[=].type = #QuestionnaireResponse
+* parameter[=].documentation = "{{ return_documentation }}"

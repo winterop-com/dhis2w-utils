@@ -284,7 +284,7 @@ Base directory is `<project_root>/ig/input/fsh/` for FSH,
 
 | Target | Directory | Files |
 | --- | --- | --- |
-| `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-attribute-value.fsh`, `d2-organisation-unit.fsh`, `d2-tracker-enrollment.fsh`, `d2-responses.fsh`, `d2-capture-server.fsh` - nine, always, with no client opened. |
+| `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-attribute-value.fsh`, `d2-organisation-unit.fsh`, `d2-tracker-enrollment.fsh`, `d2-responses.fsh`, `d2-generate-operation.fsh`, `d2-capture-server.fsh` - ten, always, with no client opened. |
 | `option-sets` | `resources/terminology/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected option set, ids `d2-os-<stem>-cs` / `-vs`, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. A Questionnaire's `Canonical(D2OS_<stem>_VS)` resolves against them, because SUSHI fishes a predefined resource by its `name` element. |
 | `option-sets` | `resources/concept-maps/` | One `ConceptMap-<id-stem><slug>-cm.json` per selected option set that emitted concepts, taking every emitted concept code back to the DHIS2 option UID and the DHIS2 option code. Shares the directory with the category maps and sweeps its own `ConceptMap-<id stem>` prefix. |
 | `categories` | `resources/categories/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected category, ids `d2-cat-<slug>-cs` / `-vs`, concepts being that category's category options in their DHIS2 `categoryOptions` order. Its own directory because `sync_json_artifacts` owns its target outright. |
@@ -317,7 +317,7 @@ profile and per-wire-version system-info mocking.
 | `test_fhir_categories.py` | Category JSON emission: the pair per category, the shared concept assignment, the identity plan, and the `[generate.categories]` selection. | 12 |
 | `test_fhir_config.py` | `fhir.toml` discovery, load, save. | 10 |
 | `test_fhir_examples.py` | Both example sources; the synthetic goldens are full-text assertions, which they can be because the seed is a SHA-256 of the target UID. | 45 |
-| `test_fhir_foundation.py` | Golden tests for the seven foundation artifacts. | 22 |
+| `test_fhir_foundation.py` | Golden tests for the ten foundation artifacts, `$generate`'s OperationDefinition included. | 24 |
 | `test_fhir_generate_cli.py` | `CliRunner` over `d2w fhir generate`, service mocked. | 15 |
 | `test_fhir_geometry.py` | Geometry to position and boundary payload. | 7 |
 | `test_fhir_init_cli.py` | `CliRunner` over `d2w fhir init`, the `--refresh` mode included. | 18 |
@@ -1499,24 +1499,48 @@ commitment.
     an optional strict dial failing on in-scope warnings too; the default stays
     error-only, because warnings are survivable by construction.
 
-- **`Questionnaire/{id}/$generate` on serve** (queued behind the UI phase). A
-  **custom** operation, deliberately not SDC's `$populate`: `$populate` means
-  fill-from-real-context, and using it for synthetic data would mislead every client
-  that knows what it means. `GET|POST [base]/Questionnaire/{id}/$generate` returns a
-  profile-declared `QuestionnaireResponse` that is immediately POSTable to the same
-  server, with an optional `seed` parameter for determinism. Its
-  `OperationDefinition` is published in the IG and declared in `/metadata` beside
-  `$translate`.
+- **`Questionnaire/{id}/$generate` on serve** - shipped. A **custom** operation,
+  deliberately not SDC's `$populate`: `$populate` means fill-from-real-context, and using
+  it for synthetic data would mislead every client that knows what it means.
+  `GET|POST [base]/Questionnaire/{id}/$generate` returns a profile-declared
+  `QuestionnaireResponse` that is immediately POSTable to the same server, with an
+  optional `seed` parameter for determinism. `foundation` emits its `OperationDefinition`
+  as `d2-generate-operation.fsh` (`kind #operation`, `instance = true`,
+  `affectsState = false`, one `integer` `seed` input and a `QuestionnaireResponse`
+  `return`), and `/metadata` declares it on the `Questionnaire` resource entry - which is
+  where R4 puts an instance-level operation, as against `$translate`'s type-level
+  `rest.operation`. The IG's own `D2CaptureServer` stays silent about it on purpose: that
+  statement is `kind #requirements`, and a server that only receives captures is still
+  conformant.
 
-    Two purposes: the "fill with test data" button a capture UI wants, and
-    stress-test corpus generation through the API rather than through the CLI.
-    Implementation sketch: `--live` is a thin route over `build_synthetic_responses`,
-    which already produces exactly this; compiled mode has to synthesize from the
-    `CaptureIndex` plus the stored CodeSystems, with two known gaps - a compiled
-    Questionnaire does not carry its data set's `periodType`, and the item type is
-    lossy between `TRUE_ONLY` and `BOOLEAN`. The invariant that makes it worth
-    building: **`$generate` output POSTed back to the server's own
-    `/QuestionnaireResponse` must answer 201.**
+    The invariant it was built around is a test rather than a claim: **`$generate` output
+    POSTed back to the server's own `/QuestionnaireResponse` answers 201** - per form kind,
+    in both store modes, and under `--strict-codes`, whose exactness is what forces a
+    generated coding to be the concept code the contract asks for rather than one of the
+    lenient fall-back spellings.
+
+    **One route serves both modes.** The implementation sketch had `--live` riding
+    `build_synthetic_responses` and compiled mode synthesizing from the `CaptureIndex`; what
+    shipped is only the second, because a live store serves the same compiled-shape
+    Questionnaires and CodeSystems the compiled one does. `synthesize.py` reads the index the
+    validator checks against - the same `value[x]` element, the same bounds, the same
+    `repeats`, the same binding resolved through the same `CodingResolverSet` - so the two
+    directions cannot drift, and live mode holds no fetch alive past startup to feed a second
+    generator.
+
+    Both recorded gaps got documented rules. A compiled Questionnaire does not carry its
+    data set's `periodType`, so the period type is **read off a served example response
+    answering the same form** - a compiled IG ships its `Usage: #example` instances, and each
+    aggregate one states the real type on its `D2Period` - and falls back to **`Monthly`**
+    when the store holds none, which is every live store. The item type is lossy between
+    `TRUE_ONLY` and `BOOLEAN`, so both generate either value, and a generated `false` against
+    a `TRUE_ONLY` element is a value the form admits but the instance would not store.
+
+    The seed spelling is the response's own **business identifier** - `identifier.system =
+    {canonical}/id/generate-seed` - rather than a header or a contained `Parameters`. It is
+    the R4 element for exactly that, it needs no out-of-band channel, and it survives the
+    POST into the stored receipt, so a seedless call is as reproducible as a seeded one and a
+    corpus can be regenerated by reading the seeds off it.
 
 ### 9.2 Mid-term
 
