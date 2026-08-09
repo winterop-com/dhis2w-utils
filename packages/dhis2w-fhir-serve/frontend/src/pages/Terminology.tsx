@@ -228,7 +228,7 @@ function TerminologySection({
                             {matching.map((row) => (
                                 <TableRow
                                     key={row.key}
-                                    className="hover:bg-muted/50 cursor-pointer"
+                                    className="hover:bg-accent cursor-pointer"
                                     tabIndex={0}
                                     aria-label={`Open ${row.title}`}
                                     onClick={() => navigate(`/terminology/${resourceType}/${row.identifier}`)}

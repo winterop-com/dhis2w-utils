@@ -65,7 +65,7 @@ export function Forms() {
                                 return (
                                     <TableRow
                                         key={questionnaire.url ?? identifier}
-                                        className="hover:bg-muted/50 cursor-pointer"
+                                        className="hover:bg-accent cursor-pointer"
                                         tabIndex={0}
                                         aria-label={`Open ${questionnaire.title ?? questionnaire.name ?? identifier}`}
                                         onClick={() => navigate(`/forms/${identifier}`)}
