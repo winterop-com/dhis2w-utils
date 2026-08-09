@@ -585,10 +585,11 @@ for flows that want the hierarchy as codes rather than as resources.
 host = "127.0.0.1"      # interface to bind
 port = 8080             # port to listen on
 strict_codes = false    # refuse an answer whose code is outside the served terminology
+ui = false              # also serve the capture UI at /
 ```
 
 The only table `d2w fhir generate` never reads: it configures `d2w fhir serve`, and
-`make serve` / `make serve-live` read it too. A command-line flag wins over it.
+`make serve` / `make serve-live` / `make serve-ui` read it too. A command-line flag wins over it.
 See [Serving the IG](#serve-in-fhirtoml).
 
 ## Generate targets
@@ -1954,9 +1955,10 @@ it is stated once:
 host = "127.0.0.1"      # loopback: the facade has no authentication
 port = 8080             # a local dev DHIS2 commonly owns 8080; 8090 is the usual way out
 strict_codes = false    # true refuses an answer whose code is outside the served terminology
+ui = false              # true also serves the capture UI at / (see The capture UI below)
 ```
 
-`make serve` and `make serve-live` read the table too, which is the point: a developer
+`make serve`, `make serve-live`, and `make serve-ui` read the table too, which is the point: a developer
 whose DHIS2 stack already holds 8080 states `port = 8090` here and every invocation in
 that project honours it. Precedence is **flag beats table beats default** - and
 `--strict-codes` has an explicit `--no-strict-codes` twin so all three levels are
@@ -2175,8 +2177,55 @@ gitignores it, and `d2w fhir generate` deliberately does not write it - a load s
 is test data, and the IG publisher has no business rendering a page per synthetic
 response.
 
+### The capture UI
+
+`d2w fhir serve --ui` serves a browser UI alongside the FHIR routes, same-origin with
+them, at the same address:
+
+```bash
+d2w fhir serve --ui          # or `make serve-ui` in a scaffolded project
+```
+
+Open the address it prints. The UI reads the very endpoint it is served from, so there
+is no URL to configure and nothing to point at anything:
+
+- **Forms** lists every `Questionnaire` this server publishes, with the DHIS2 object
+  kind each one came from (read off the `D2FormType` extension - a form carrying none is
+  shown as such, because it is one the facade will refuse to capture against) and how
+  many questions it asks.
+- **Responses** is where stored receipts are read back.
+- **Terminology** lists the CodeSystems and ValueSets the project published with their
+  concept counts, and says whether `$translate` is declared - which is the honest thing
+  to say about ConceptMaps here, since the facade translates through them rather than
+  serving them as a read type.
+- **Server** renders `/metadata` in full: the declared operations (`$translate`,
+  `$generate`), the interactions and search parameters per resource type, and the store
+  mode this process is running in.
+
+The header carries a reachability light and, behind it, what the server said about
+itself - which is worth a glance before blaming a form: a UI pointed at a stale `--live`
+process and one pointed at a freshly compiled IG look identical until you read the
+conformance document.
+
+**The UI shadows nothing.** Its bundle is mounted in two pieces around the FHIR routes -
+the asset tree ahead of the read catch-alls, the shell after everything - so
+`/metadata`, `/Questionnaire`, and every other served path answer exactly as they do
+without `--ui`, and a resource type the facade does not serve is still an
+OperationOutcome rather than a page. Routing inside the UI is hash-based (`#/responses`),
+so a reload on any page works with no server-side rewrite.
+
+An installed wheel ships the built bundle. In a checkout it is a build artifact, so
+`--ui` before `make build-frontend` refuses in one line rather than serving a blank page:
+
+```
+error: `--ui` needs a built frontend at .../dhis2w_fhir_serve/static, and there is
+none. Build it with `make build-frontend` (an installed wheel ships it already).
+```
+
 ### What this server is not
 
+- **The UI is not authenticated either.** It is the same process on the same port, so
+  everything the "No authentication" note below says applies to it unchanged.
 - **One process, one project.** There is no clustering and no shared state. The spool
   assumes a single writing process, which is what `d2w fhir serve` is.
 - **The store is a snapshot.** It is read once at startup - from disk, or from the
@@ -2734,6 +2783,7 @@ make sushi      Compile FSH to FHIR resources
 make build      Run the full IG publisher
 make serve      Serve the compiled IG as a FHIR endpoint (run generate + sushi first)
 make serve-live Serve straight from the DHIS2 instance, no compile needed
+make serve-ui   Serve the FHIR endpoint plus the capture UI at /
 make refresh    Force-refresh everything: clean-all, upgrade, generate, validate, build
 make clean      Remove build output
 make clean-all  Also remove the terminology cache and the package cache volume

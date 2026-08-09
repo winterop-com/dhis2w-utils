@@ -101,3 +101,5 @@ port = 8080                         # a local dev DHIS2 commonly owns 8080; port
                                     # is the usual way out of that clash
 strict_codes = false                # true refuses a captured answer whose code is outside
                                     # the served terminology instead of warning and storing
+ui = false                          # true also serves the capture UI at / - `make serve-ui`
+                                    # turns it on for one run without stating it here

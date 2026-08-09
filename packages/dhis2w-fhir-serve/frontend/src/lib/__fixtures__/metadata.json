@@ -1,0 +1,145 @@
+{
+  "resourceType": "CapabilityStatement",
+  "status": "active",
+  "date": "2026-08-09T09:08:59Z",
+  "description": "DHIS2 FHIR Capture IG served as a FHIR capture facade: 8 resources across 3 types, and 0 stored responses at startup.",
+  "kind": "instance",
+  "instantiates": [
+    "http://localhost:8080/fhir/CapabilityStatement/d2-capture-server"
+  ],
+  "software": {
+    "name": "d2w fhir serve",
+    "version": "1.6.0.dev0"
+  },
+  "implementation": {
+    "description": "DHIS2 FHIR capture facade (compiled store); stored QuestionnaireResponses are submissions as received - receipts, not a live view of DHIS2 data"
+  },
+  "fhirVersion": "4.0.1",
+  "format": [
+    "json"
+  ],
+  "rest": [
+    {
+      "mode": "server",
+      "documentation": "One QuestionnaireResponse per request on create; every other interaction is a read over the resources this project publishes.",
+      "resource": [
+        {
+          "type": "QuestionnaireResponse",
+          "supportedProfile": [
+            "http://localhost:8080/fhir/StructureDefinition/d2-aggregate-response",
+            "http://localhost:8080/fhir/StructureDefinition/d2-event-response",
+            "http://localhost:8080/fhir/StructureDefinition/d2-tracker-event-response"
+          ],
+          "documentation": "One response per request; stored responses are receipts of what was submitted",
+          "interaction": [
+            {
+              "code": "create"
+            },
+            {
+              "code": "read"
+            },
+            {
+              "code": "search-type"
+            }
+          ],
+          "searchParam": [
+            {
+              "name": "_id",
+              "type": "token"
+            },
+            {
+              "name": "questionnaire",
+              "type": "reference",
+              "documentation": "The canonical of the Questionnaire the stored responses answered."
+            }
+          ]
+        },
+        {
+          "type": "Questionnaire",
+          "interaction": [
+            {
+              "code": "read"
+            },
+            {
+              "code": "search-type"
+            }
+          ],
+          "searchParam": [
+            {
+              "name": "_id",
+              "type": "token"
+            },
+            {
+              "name": "url",
+              "type": "uri"
+            },
+            {
+              "name": "identifier",
+              "type": "token",
+              "documentation": "The DHIS2 identifiers the resource carries. A system-qualified token groups a form's artifacts by the DHIS2 object they came from - `identifier=http://dhis2.org/fhir/id/program|<uid>` selects everything generated from one program."
+            }
+          ],
+          "operation": [
+            {
+              "name": "generate",
+              "definition": "http://localhost:8080/fhir/OperationDefinition/d2-generate",
+              "documentation": "Generate a synthetic QuestionnaireResponse against one served form, optionally from a named `seed` for a reproducible answer. The generated response is postable to this server's own QuestionnaireResponse endpoint unchanged."
+            }
+          ]
+        },
+        {
+          "type": "CodeSystem",
+          "interaction": [
+            {
+              "code": "read"
+            },
+            {
+              "code": "search-type"
+            }
+          ],
+          "searchParam": [
+            {
+              "name": "_id",
+              "type": "token"
+            },
+            {
+              "name": "url",
+              "type": "uri"
+            },
+            {
+              "name": "identifier",
+              "type": "token",
+              "documentation": "The DHIS2 identifiers the resource carries. A system-qualified token groups a form's artifacts by the DHIS2 object they came from - `identifier=http://dhis2.org/fhir/id/program|<uid>` selects everything generated from one program."
+            }
+          ]
+        },
+        {
+          "type": "ValueSet",
+          "interaction": [
+            {
+              "code": "read"
+            },
+            {
+              "code": "search-type"
+            }
+          ],
+          "searchParam": [
+            {
+              "name": "_id",
+              "type": "token"
+            },
+            {
+              "name": "url",
+              "type": "uri"
+            },
+            {
+              "name": "identifier",
+              "type": "token",
+              "documentation": "The DHIS2 identifiers the resource carries. A system-qualified token groups a form's artifacts by the DHIS2 object they came from - `identifier=http://dhis2.org/fhir/id/program|<uid>` selects everything generated from one program."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

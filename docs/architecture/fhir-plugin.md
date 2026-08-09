@@ -20,6 +20,7 @@ d2w fhir generate pages             Narrative site pages + per-artifact intros
 d2w fhir generate load-set          Synthetic QuestionnaireResponse corpus into load/ (not IG source)
 d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
 d2w fhir serve                      Serve the IG as a FHIR read + capture facade (package dhis2w-fhir-serve)
+d2w fhir serve --ui                 ...plus the capture UI at / (built from dhis2w-fhir-serve/frontend)
 ```
 
 The plugin ships as its own workspace member, `dhis2w-fhir`, and mounts
@@ -1378,6 +1379,56 @@ uuid4 hex rather than a DHIS2 UID - a receipt is a resource the facade owns, and
 `app.state.context` for the life of the process. Nothing invalidates it, because nothing
 can: a compiled IG changes when someone runs a build, and a live store is a snapshot of
 the instance the server started against. Restart to serve new state.
+
+### The capture UI -> `frontend/`, built into the package
+
+`d2w fhir serve --ui` serves a browser UI off the same process and the same port as the
+FHIR routes. Its source is a React + TypeScript app at
+`packages/dhis2w-fhir-serve/frontend/`; its build output is
+`packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/static/`, which ships inside the wheel
+and is what `ui.py` mounts.
+
+**Why inside the Python package.** The alternative - a separately hosted UI pointed at
+the endpoint by configuration - buys nothing here and costs a CORS story, a URL to
+mis-type, and a version skew between a UI and a facade that are otherwise released
+together. Same-origin means the UI reads relative paths, `apiFetch` needs no base URL,
+and a `pip install` is the whole deployment. The trade is that the wheel carries a
+frontend build, which is why `make build-frontend` runs before `make build`.
+
+**The bundle is gitignored, not committed.** This workspace publishes wheels from CI, and
+CI runs the build; a committed bundle would only be a second copy of the same bytes going
+stale between rebuilds. The directory is kept by a `.gitkeep` that the vite build rewrites
+after `emptyOutDir` wipes it.
+
+**Mount order is the whole of `ui.py`, and it cuts both ways.** Starlette matches routes in
+registration order, and the read routes are catch-alls: `/{resource_type}` claims every
+one-segment path, `/{resource_type}/{resource_id}` every two-segment one. A single mount
+at `/` placed last therefore serves the shell and nothing else, because
+`/assets/index-<hash>.js` is two segments and the read route answers it with an
+OperationOutcome saying `assets` is not a served type - a white page whose cause is in the
+router table. A mount placed first swallows `/metadata` and every Bundle. So the bundle
+mounts in two pieces: `mount_ui_assets` registers `/assets` **with the fixed-path routers**,
+ahead of the catch-alls, and `mount_ui_shell` registers `/` **after everything**.
+`register_routes(app, serve_ui=...)` owns both calls, and `tests/test_ui.py` holds both
+halves - every FHIR path still answers FHIR with the UI mounted, and every asset the real
+built shell names still loads.
+
+**A missing bundle is a refusal, never a blank page.** `create_app` builds the mount, so
+`--ui` on a checkout that has never run `make build-frontend` raises `UiBundleMissingError`
+(a `LookupError`, which the CLI error funnel renders as one line) before the banner - the
+same shape as the taken-port refusal.
+
+**Nothing about the frontend leaks into the Python.** `ui.py` knows a directory and a mount
+order; it does not know React, or which pages exist. Symmetrically the UI knows the wire
+contract and nothing else: `lib/api.ts` is the single credentialed exit and guards every
+path against the served set (`/metadata` plus `read.SERVED_RESOURCE_TYPES` plus
+`ConceptMap`), and `lib/fhir.ts` hand-types the narrow R4 shapes the UI reads. Its tests
+run against fixtures harvested from a real facade over the committed goldens, so a change
+to the emitter that breaks the UI's reading of the wire breaks a test.
+
+The frontend has its own toolchain and its own make targets - `make frontend-dev`,
+`build-frontend`, `lint-frontend`, `test-frontend` - kept out of `make lint` and `make
+test` so those stay a pure-Python run on a machine with no node installed.
 
 ### What Dimension A concluded
 

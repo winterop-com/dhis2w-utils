@@ -60,6 +60,10 @@ def create_app(settings: ServeSettings) -> FastAPI:
     the CapabilityStatement at `/metadata`, not an OpenAPI schema. The two routes it serves are
     catch-alls over `application/fhir+json` bodies, which an OpenAPI document could only
     misdescribe as untyped JSON on a path variable.
+
+    `settings.ui` adds the built capture UI as a static mount at `/`, after every FHIR route.
+    A missing bundle raises here, while the app is being built, so `--ui` on a checkout that has
+    never built the frontend fails as one line rather than as a white page on the first request.
     """
     app = FastAPI(
         title=APPLICATION_TITLE,
@@ -72,7 +76,7 @@ def create_app(settings: ServeSettings) -> FastAPI:
     app.state.settings = settings
     app.add_middleware(RequestLogMiddleware)
     register_error_handlers(app)
-    register_routes(app)
+    register_routes(app, serve_ui=settings.ui)
     return app
 
 

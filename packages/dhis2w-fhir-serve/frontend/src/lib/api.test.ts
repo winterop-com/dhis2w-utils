@@ -1,0 +1,200 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import {
+    GUARDED_PATH_PATTERN,
+    UnguardedPathError,
+    apiConfiguration,
+    apiFetch,
+    checkReachability,
+    configureApi,
+    outcomeMessage,
+} from '@/lib/api'
+
+/**
+ * The wire layer, tested against a stubbed `fetch`.
+ *
+ * The guard is the interesting half. `d2w fhir serve --ui` mounts the SPA at "/"
+ * behind every FHIR route, so an unguarded path does not 404 - it returns the
+ * HTML shell with a 200. These tests are what keeps that failure impossible.
+ */
+
+const originalFetch = globalThis.fetch
+
+afterEach(() => {
+    globalThis.fetch = originalFetch
+    configureApi({ baseUrl: '', token: null })
+    vi.restoreAllMocks()
+})
+
+/** Stub `fetch`, recording the URL and init every call was made with. */
+function stubFetch(response: Response): { calls: { url: string; init: RequestInit }[] } {
+    const calls: { url: string; init: RequestInit }[] = []
+    globalThis.fetch = ((url: string, init: RequestInit = {}) => {
+        calls.push({ url, init })
+        return Promise.resolve(response)
+    }) as unknown as typeof fetch
+    return { calls }
+}
+
+/** A FHIR JSON response with the given status and body. */
+function fhirResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/fhir+json' },
+    })
+}
+
+describe('the guarded-path pattern', () => {
+    it('admits every path the server mounts ahead of the UI', () => {
+        const served = [
+            '/metadata',
+            '/Questionnaire',
+            '/Questionnaire?_id=BfMAe6Itzgt',
+            '/Questionnaire/BfMAe6Itzgt',
+            '/Questionnaire/BfMAe6Itzgt/$generate',
+            '/Questionnaire/BfMAe6Itzgt/$generate?seed=7',
+            '/QuestionnaireResponse',
+            '/QuestionnaireResponse/receipt-1',
+            '/CodeSystem',
+            '/ValueSet',
+            '/ConceptMap/$translate?code=x',
+            '/Location/ImspTQPwCqd',
+            '/Organization',
+        ]
+        for (const path of served) {
+            expect(GUARDED_PATH_PATTERN.test(path), path).toBe(true)
+        }
+    })
+
+    it('refuses anything the server does not serve', () => {
+        const unserved = [
+            '/',
+            '/index.html',
+            '/assets/index-abc123.js',
+            '/api/dataValueSets',
+            '/fhir/Questionnaire',
+            '/Patient',
+            '/Patient/1',
+            '/QuestionnaireResponses',
+            '/metadataX',
+            'Questionnaire',
+            'https://elsewhere.example/Questionnaire',
+        ]
+        for (const path of unserved) {
+            expect(GUARDED_PATH_PATTERN.test(path), path).toBe(false)
+        }
+    })
+
+    it('tells QuestionnaireResponse apart from Questionnaire', () => {
+        // The two share a prefix, so the longer name has to be its own
+        // alternative rather than relying on the shorter one plus a separator.
+        expect(GUARDED_PATH_PATTERN.test('/QuestionnaireResponse')).toBe(true)
+        expect(GUARDED_PATH_PATTERN.test('/QuestionnaireResponse/receipt-1')).toBe(true)
+        expect(GUARDED_PATH_PATTERN.test('/QuestionnaireBogus')).toBe(false)
+    })
+})
+
+describe('apiFetch', () => {
+    it('refuses an unguarded path before it reaches the network', async () => {
+        const { calls } = stubFetch(fhirResponse({}))
+        await expect(apiFetch('/api/dataValueSets')).rejects.toBeInstanceOf(UnguardedPathError)
+        expect(calls).toHaveLength(0)
+    })
+
+    it('asks for FHIR JSON and sends no credentials by default', async () => {
+        const { calls } = stubFetch(fhirResponse({}))
+        await apiFetch('/metadata')
+        expect(calls[0].url).toBe('/metadata')
+        const headers = new Headers(calls[0].init.headers)
+        expect(headers.get('Accept')).toBe('application/fhir+json')
+        expect(headers.has('Authorization')).toBe(false)
+    })
+
+    it('leaves an explicit Accept alone', async () => {
+        const { calls } = stubFetch(fhirResponse({}))
+        await apiFetch('/metadata', { headers: { Accept: 'application/json' } })
+        expect(new Headers(calls[0].init.headers).get('Accept')).toBe('application/json')
+    })
+})
+
+describe('configureApi', () => {
+    it('defaults to same-origin with no token', () => {
+        expect(apiConfiguration()).toEqual({ baseUrl: '', token: null })
+    })
+
+    it('prefixes the base url and strips its trailing slash', async () => {
+        const { calls } = stubFetch(fhirResponse({}))
+        configureApi({ baseUrl: 'http://127.0.0.1:8080/' })
+        await apiFetch('/Questionnaire')
+        expect(calls[0].url).toBe('http://127.0.0.1:8080/Questionnaire')
+    })
+
+    it('attaches a bearer token once one is configured', async () => {
+        const { calls } = stubFetch(fhirResponse({}))
+        configureApi({ token: 'secret-token' })
+        await apiFetch('/metadata')
+        expect(new Headers(calls[0].init.headers).get('Authorization')).toBe('Bearer secret-token')
+    })
+
+    it('leaves the token alone when only the base url is given', () => {
+        configureApi({ token: 'secret-token' })
+        configureApi({ baseUrl: 'http://elsewhere.test' })
+        expect(apiConfiguration().token).toBe('secret-token')
+    })
+
+    it('clears the token when one is explicitly nulled', () => {
+        configureApi({ token: 'secret-token' })
+        configureApi({ token: null })
+        expect(apiConfiguration().token).toBeNull()
+    })
+})
+
+describe('checkReachability', () => {
+    it('probes /metadata and reports ok when the server answers', async () => {
+        const { calls } = stubFetch(fhirResponse({ resourceType: 'CapabilityStatement' }))
+        await expect(checkReachability()).resolves.toBe('ok')
+        expect(calls[0].url).toBe('/metadata')
+        expect(calls[0].init.cache).toBe('no-store')
+    })
+
+    it('reports unreachable when the socket is dead', async () => {
+        globalThis.fetch = (() => Promise.reject(new TypeError('fetch failed'))) as unknown as typeof fetch
+        await expect(checkReachability()).resolves.toBe('unreachable')
+    })
+
+    it('reports unreachable when something answers that is not the facade', async () => {
+        stubFetch(new Response('<!doctype html>', { status: 502 }))
+        await expect(checkReachability()).resolves.toBe('unreachable')
+    })
+})
+
+describe('outcomeMessage', () => {
+    it('reads the diagnostics off the first issue', () => {
+        // Verbatim from tests/golden/outcome-answers-refused.json.
+        const outcome = {
+            resourceType: 'OperationOutcome' as const,
+            issue: [
+                {
+                    severity: 'error' as const,
+                    code: 'structure',
+                    diagnostics:
+                        '`GQY2lXrypjO` answers as `decimal`, so it carries `valueDecimal`, not `valueString`',
+                },
+            ],
+        }
+        expect(outcomeMessage(outcome)).toContain('valueDecimal')
+    })
+
+    it('falls back to severity and code when an issue carries no prose', () => {
+        expect(
+            outcomeMessage({
+                resourceType: 'OperationOutcome',
+                issue: [{ severity: 'error', code: 'not-found' }],
+            }),
+        ).toBe('error: not-found')
+    })
+
+    it('answers null for no outcome at all', () => {
+        expect(outcomeMessage(null)).toBeNull()
+    })
+})

@@ -67,6 +67,14 @@ from dhis2w_fhir_serve.synthesize import (
     generate_response,
     resolve_period_type,
 )
+from dhis2w_fhir_serve.ui import (
+    STATIC_DIRECTORY,
+    UiBundleMissingError,
+    UiStaticFiles,
+    mount_ui_assets,
+    mount_ui_shell,
+    ui_bundle_present,
+)
 
 __all__ = [
     "COMPILED_RESOURCES_RELATIVE_PATH",
@@ -77,6 +85,7 @@ __all__ = [
     "GENERATE_SEED_IDENTIFIER_SEGMENT",
     "MAXIMUM_SEED",
     "RECEIVED_RESPONSES_RELATIVE_PATH",
+    "STATIC_DIRECTORY",
     "AmbiguousCodingError",
     "BadOperationError",
     "BadSearchError",
@@ -105,6 +114,8 @@ __all__ = [
     "StoreEntry",
     "StoreSummary",
     "StoredResponseEnvelope",
+    "UiBundleMissingError",
+    "UiStaticFiles",
     "UnreadableQuestionnaireError",
     "UnresolvableCodingError",
     "ValidatedCapture",
@@ -118,6 +129,8 @@ __all__ = [
     "draw_seed",
     "generate_response",
     "load_compiled_store",
+    "mount_ui_assets",
+    "mount_ui_shell",
     "new_response_id",
     "outcome",
     "register_error_handlers",
@@ -125,5 +138,6 @@ __all__ = [
     "resolve_period_type",
     "server_version",
     "success_outcome",
+    "ui_bundle_present",
     "validate_response",
 ]
