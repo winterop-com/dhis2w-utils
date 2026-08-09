@@ -204,12 +204,13 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                             ))}
                                             <TableCell>
                                                 <Button
-                                                    variant="ghost"
+                                                    variant="outline"
                                                     size="sm"
-                                                    aria-label={`Translate ${concept.code}`}
+                                                    aria-label={`Translate ${concept.code} through the published maps`}
                                                     onClick={() => setAsked(concept.code)}
                                                 >
-                                                    Try
+                                                    Translate
+                                                    <ArrowRight aria-hidden />
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
@@ -436,12 +437,13 @@ function MappingGroup({
                                 </TableCell>
                                 <TableCell>
                                     <Button
-                                        variant="ghost"
+                                        variant="outline"
                                         size="sm"
-                                        aria-label={`Translate ${row.code}`}
+                                        aria-label={`Translate ${row.code} through this map`}
                                         onClick={() => onAsk(row.code)}
                                     >
-                                        Try
+                                        Translate
+                                        <ArrowRight aria-hidden />
                                     </Button>
                                 </TableCell>
                             </TableRow>
