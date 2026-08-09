@@ -9,8 +9,9 @@ binding; `d2-form-type.fsh` defines the form-type Extension every generated Ques
 carries, plus its own CodeSystem/ValueSet pair; `d2-attribute-value.fsh` defines the complex
 Extension that carries a DHIS2 attribute value onto every resource that can hold one;
 `d2-organisation-unit.fsh` defines the Extension pointing a response at the Location of the
-organisation unit it was captured at, and `d2-tracker-enrollment.fsh` the Extension carrying
-the DHIS2 tracker enrollment an event belongs to.
+organisation unit it was captured at, `d2-organisation-unit-assignment.fsh` the Extension
+naming the List of Locations a form may be captured against, and `d2-tracker-enrollment.fsh`
+the Extension carrying the DHIS2 tracker enrollment an event belongs to.
 
 Three more artifacts turn that vocabulary into a capture contract a third party can build
 against without reading DHIS2: `d2-responses.fsh` profiles the QuestionnaireResponse a
@@ -82,8 +83,17 @@ _IDENTIFIER_SYSTEM_DECLARED_DATE = "2026-08-01"
 #: byte-stability reason the NamingSystem declarations pin theirs.
 _CAPTURE_SERVER_DECLARED_DATE = "2026-01-01"
 
-#: The resources a capture client reads to build a response, each supporting read and search.
-CAPTURE_SERVER_READ_RESOURCE_TYPES = ("Questionnaire", "CodeSystem", "ValueSet", "Location", "Organization")
+#: The resources a capture client reads to build a response, each supporting read and search. `List`
+#: is where a form's organisation-unit assignment is published, so a client constrains its Location
+#: picker by reading the List the form's `D2OrganisationUnitAssignment` extension names.
+CAPTURE_SERVER_READ_RESOURCE_TYPES = (
+    "Questionnaire",
+    "CodeSystem",
+    "ValueSet",
+    "Location",
+    "Organization",
+    "List",
+)
 
 #: What `CapabilityStatement.rest.documentation` states about the shape of one capture request.
 _CAPTURE_SERVER_REST_DOCUMENTATION = (
@@ -171,6 +181,11 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         ig_status=ig_status,
         experimental=experimental,
     )
+    organisation_unit_assignment = _ENVIRONMENT.get_template("d2-organisation-unit-assignment.fsh.jinja").render(
+        names=names,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     tracker_enrollment = _ENVIRONMENT.get_template("d2-tracker-enrollment.fsh.jinja").render(
         names=names,
         enrollment_system=f"{config.identifier_system_base}/id/tracker-enrollment",
@@ -245,6 +260,12 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             kind="extension",
             fsh_name=names.organisation_unit_extension,
             content=organisation_unit,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-organisation-unit-assignment.fsh",
+            kind="extension",
+            fsh_name=names.organisation_unit_assignment_extension,
+            content=organisation_unit_assignment,
         ),
         FshArtifact(
             relative_path="foundation/d2-tracker-enrollment.fsh",

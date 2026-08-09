@@ -35,6 +35,7 @@ from dhis2w_fhir import (
     build_organisation_unit_instances,
     build_questionnaire_documents,
 )
+from dhis2w_fhir.resources.questionnaires.assignments import build_assignment_artifacts
 from dhis2w_fhir.service import fetch_live_ig_inputs, resolve_generation_profile
 from dhis2w_fhir.writer import JsonBuild
 
@@ -75,6 +76,13 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
     ig_status = project.config.ig.status
     async with open_client(generation.profile) as client:
         inputs = await fetch_live_ig_inputs(client, config)
+    assignments = build_assignment_artifacts(
+        inputs.sources,
+        inputs.assignments,
+        config,
+        published=inputs.organisation_unit_stems,
+        stem_plan=inputs.questionnaire_stems,
+    )
     questionnaires = build_questionnaire_documents(
         inputs.sources,
         config,
@@ -82,6 +90,7 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
         ig_status=ig_status,
         option_set_plan=inputs.option_set_plan,
         attribute_codes=inputs.attribute_codes,
+        assignments=assignments.plan,
     )
     data_dictionary = build_data_dictionary_documents(inputs.sources, config, canonical, ig_status=ig_status)
     json_builds: tuple[JsonBuild, ...] = (
@@ -100,6 +109,7 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
         build_organisation_unit_instances(
             inputs.organisation_units, config, canonical, attribute_codes=inputs.attribute_codes
         ),
+        assignments,
     )
     documents: list[CodeSystem | Questionnaire | ValueSet] = [
         *questionnaires.questionnaires,

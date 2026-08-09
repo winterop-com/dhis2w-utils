@@ -12,6 +12,7 @@ from dhis2w_fhir.names import (
     NamingSource,
     StemResolution,
     StemSubject,
+    bounded_slug,
     join_id_tokens,
     join_name_segments,
     resolve_identity_stems,
@@ -23,6 +24,9 @@ if TYPE_CHECKING:
 
 #: The form kinds a Questionnaire is generated from, and the D2FormType code each carries.
 FormKind = Literal["aggregate", "event", "tracker-event"]
+
+#: The trailing token every organisation-unit assignment List id ends in, after the token and stem.
+ASSIGNMENT_ID_SUFFIX = "org-units"
 
 
 class FormKindProfile(BaseModel):
@@ -235,6 +239,16 @@ class QuestionnaireSourceIn(BaseModel):
     attribute_values: list[AttributeValueIn] = Field(default_factory=list)
 
 
+def source_program(source: QuestionnaireSourceIn) -> ProgramContextIn:
+    """The program a tracker program stage belongs to, refusing a stage that arrived without one."""
+    if source.program is None:
+        raise ValueError(
+            f"tracker-event source {source.uid} carries no program context: a program stage is named, "
+            "grouped, and filed under the tracker program it belongs to"
+        )
+    return source.program
+
+
 def source_display_name(source: QuestionnaireSourceIn) -> str:
     """The name one form is shown under: a program stage carries both identities, everything else its own."""
     if source.program is None:
@@ -337,6 +351,22 @@ class QuestionnaireNaming(BaseModel):
         pascal-collapsed code where a code stem serves.
         """
         return join_name_segments(f"{self.prefix}{self.source_token(kind)}", stem_segment)
+
+    def assignment_list_id(self, container_kind: str, stem: str, uid: str) -> str:
+        """FHIR id of one form's assignment List (e.g. `d2-ds-BfMAe6Itzgt-org-units`).
+
+        The List rides the stem of the object the assignment hangs on - the data set for an
+        aggregate form, the program for an event form and for every stage of a tracker program -
+        under that object's own naming token. An over-long code stem is truncated against the R4
+        id limit and re-suffixed with the container UID, so the id stays legal and unique.
+        """
+        token = self.data_set if container_kind == "data-set" else self.program
+        id_stem = join_id_tokens(self.prefix, token)
+        slug = f"{stem}-{ASSIGNMENT_ID_SUFFIX}"
+        budget = FHIR_ID_MAX_LENGTH - (len(id_stem) + 1 if id_stem else 0)
+        if len(slug) > budget:
+            slug = bounded_slug(slug, uid, budget)
+        return f"{id_stem}-{slug}" if id_stem else slug
 
     @property
     def data_element_code_system(self) -> str:

@@ -106,6 +106,8 @@ TEMPORAL_QUESTIONNAIRE_BODY: dict[str, Any] = {
         {"linkId": "DeVisitTime1", "text": "Visit time", "type": "time"},
         {"linkId": "DeVisitStamp", "text": "Visit stamp", "type": "dateTime"},
         {"linkId": "DeVisitLink1", "text": "Visit link", "type": "url"},
+        # A DHIS2 ORGANISATION_UNIT data element, which the emitter answers as `reference`.
+        {"linkId": "DeVisitUnit1", "text": "Visited unit", "type": "reference"},
         {
             "linkId": "DeSymptoms01",
             "text": "Symptoms",

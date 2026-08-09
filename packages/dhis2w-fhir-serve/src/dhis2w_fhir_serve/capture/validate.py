@@ -9,8 +9,13 @@ so one round trip reports every problem at that level rather than one at a time.
     0. Read the body      - JSON, `resourceType`, and the R4 shape of a QuestionnaireResponse (400).
     1. Read the contract  - the D2FormType kind, then the invariants that kind's profile pins (422).
     2. Resolve the form   - the questionnaire canonical, its served Questionnaire, and its index (422).
-    3. Read the period    - an aggregate response's ISO period, its type, and the range it claims (422).
-    4. Walk the answers   - every item against the index: link ids, cardinality, types, terminology (422).
+    3. Read the assignment - the organisation unit the response reports for, against the form's List (422).
+    4. Read the period    - an aggregate response's ISO period, its type, and the range it claims (422).
+    5. Walk the answers   - every item against the index: link ids, cardinality, types, terminology (422).
+
+Two of those grade against the strictness dial rather than absolutely. A coded answer in a
+spelling the contract does not ask for and an organisation unit outside the form's published
+assignment are both warnings by default and refusals under `--strict-codes`.
 
 Warnings never reject. They record what the server had to interpret or could not check - a code
 sent in a spelling the contract does not ask for, a required question left unanswered, a date
@@ -38,7 +43,9 @@ from dhis2w_fhir.resources.questionnaires.schemas import FormKind
 from pydantic import BaseModel, ConfigDict, PrivateAttr, ValidationError
 
 from dhis2w_fhir_serve.capture.index import (
+    ASSIGNMENT_REFERENCE_PREFIX,
     FORM_KINDS,
+    CaptureAssignment,
     CaptureIndex,
     CaptureIndexCache,
     CaptureQuestion,
@@ -137,6 +144,7 @@ def validate_response(
     _settle(_profile_issues(response, naming, form_kind), warnings)
 
     index = _resolve_index(response.questionnaire or "", form_kind, indexes, naming, store)
+    _settle(_assignment_issues(response, index, naming, form_kind, strict=strict_codes), warnings)
     if form_kind == "aggregate":
         _settle(_period_issues(response, naming), warnings)
     _settle(
@@ -422,6 +430,50 @@ def _tracker_context_issues(response: QuestionnaireResponse, naming: CaptureNami
     return tuple(issues)
 
 
+def _assignment_issues(
+    response: QuestionnaireResponse,
+    index: CaptureIndex,
+    naming: CaptureNaming,
+    form_kind: FormKind,
+    *,
+    strict: bool,
+) -> tuple[CaptureIssue, ...]:
+    """Grade the organisation unit a response reports for against the form's published assignment.
+
+    A form that publishes no assignment List is scoped to the whole registry, which is what a
+    consumer without the artifact already assumed - so an absent assignment checks nothing. Where
+    one is published, a unit outside it is exactly what DHIS2 refuses at forward time with
+    `E1029`, and it grades on the same dial a coded answer does: a warning on the receipt by
+    default, a refusal under `--strict-codes`.
+    """
+    assignment = index.assignment
+    if assignment is None:
+        return ()
+    if form_kind == "tracker-event":
+        extensions = _extensions(response, naming.organisation_unit_url)
+        reference = extensions[0].valueReference if extensions else None
+        expression = "QuestionnaireResponse.extension"
+    else:
+        reference = response.subject
+        expression = "QuestionnaireResponse.subject.reference"
+    if reference is None or not reference.reference or assignment.admits(reference.reference):
+        return ()
+    return (_assignment_issue(assignment, reference.reference, expression, strict=strict),)
+
+
+def _assignment_issue(assignment: CaptureAssignment, reference: str, expression: str, *, strict: bool) -> CaptureIssue:
+    """What a client is told when it names an organisation unit the form is not assigned to."""
+    return CaptureIssue(
+        severity="error" if strict else "warning",
+        code="business-rule",
+        expression=expression,
+        diagnostics=(
+            f"`{reference}` is not in the form's organisation-unit assignment "
+            f"(`{ASSIGNMENT_REFERENCE_PREFIX}{assignment.list_id}`); DHIS2 refuses a capture there with E1029"
+        ),
+    )
+
+
 def _resolve_index(
     canonical: str,
     form_kind: FormKind,
@@ -483,13 +535,18 @@ def _period_issues(response: QuestionnaireResponse, naming: CaptureNaming) -> tu
 
 
 class _ItemValidator(BaseModel):
-    """Phase 4: every answered item of one submission, walked against the index of the form it answers."""
+    """Phase 5: every answered item of one submission, walked against the index of the form it answers."""
 
     model_config = ConfigDict(frozen=True)
 
     index: CaptureIndex
     resolvers: CodingResolverSet
     strict: bool
+
+    @property
+    def assignment(self) -> CaptureAssignment | None:
+        """The form's organisation-unit assignment, which an ORGANISATION_UNIT answer is graded against."""
+        return self.index.assignment
 
     _issues: list[CaptureIssue] = PrivateAttr(default_factory=list)
     _answered: set[str] = PrivateAttr(default_factory=set)
@@ -607,7 +664,18 @@ class _ItemValidator(BaseModel):
             return
         self._temporal(question, answer)
         self._bounds(question, answer)
+        self._reference(question, answer)
         self._coding(question, answer, selections)
+
+    def _reference(self, question: CaptureQuestion, answer: QuestionnaireResponseAnswer) -> None:
+        """Grade an ORGANISATION_UNIT answer against the form's assignment, on the same dial as a code."""
+        assignment = self.assignment
+        reference = answer.valueReference.reference if answer.valueReference else None
+        if assignment is None or reference is None or assignment.admits(reference):
+            return
+        self._issues.append(
+            _assignment_issue(assignment, reference, _item_expression(question.link_id), strict=self.strict)
+        )
 
     def _temporal(self, question: CaptureQuestion, answer: QuestionnaireResponseAnswer) -> None:
         """Check a date, dateTime, or time answer against the R4 primitive it is written as."""

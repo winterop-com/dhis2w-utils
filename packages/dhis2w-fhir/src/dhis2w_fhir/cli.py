@@ -649,6 +649,9 @@ def generate_questionnaires_command(progress: ProgressOption = True) -> None:
     A data set and an event program are one Questionnaire each.
 
     A tracker program is one Questionnaire per program stage, filed under its program's UID.
+
+    A form whose DHIS2 organisation-unit assignment narrows the published registry also gets one
+    List of the Locations it admits, into resources/assignments/.
     """
     from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
@@ -663,7 +666,10 @@ def generate_questionnaires_command(progress: ProgressOption = True) -> None:
         _TARGET_TITLES["questionnaires"],
         report,
         generation,
-        extra_rows=[DetailRow("questionnaires", str(report.questionnaire_count))],
+        extra_rows=[
+            DetailRow("questionnaires", str(report.questionnaire_count)),
+            DetailRow("assignments", str(report.assignment_count)),
+        ],
     )
 
 

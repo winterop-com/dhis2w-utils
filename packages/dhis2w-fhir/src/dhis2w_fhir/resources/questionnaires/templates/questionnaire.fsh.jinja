@@ -5,6 +5,9 @@ Description: {{ questionnaire.description_literal }}
 Usage: #definition
 * id = "{{ questionnaire.stem }}"
 * extension[{{ questionnaire.form_type_extension }}].valueCode = #{{ questionnaire.form_type_code }}
+{% if questionnaire.assignment_reference is not none %}
+* extension[{{ questionnaire.assignment_extension }}].valueReference = Reference({{ questionnaire.assignment_reference }})
+{% endif %}
 {% for attribute_value in questionnaire.attribute_values %}
 * extension[{{ questionnaire.attribute_value_extension }}][+].extension[{{ attribute_id_sub_extension }}].valueString = {{ attribute_value.attribute_id_literal }}
 {% if attribute_value.attribute_code_literal is not none %}

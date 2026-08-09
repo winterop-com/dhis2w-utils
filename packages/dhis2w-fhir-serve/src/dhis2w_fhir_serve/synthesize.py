@@ -167,7 +167,7 @@ def generate_response(
         resolvers=CodingResolverSet(store=store),
         seed=seed,
         window=window,
-        location_id=_capture_location_id(store, seed),
+        location_id=_capture_location_id(index, store, seed),
     )
     return generator.build(questionnaire, period)
 
@@ -435,14 +435,20 @@ def _declared_period_type(example: QuestionnaireResponse, naming: CaptureNaming)
     return None
 
 
-def _capture_location_id(store: ResourceStore, seed: int) -> str:
-    """The Location a generated response reports for: one this server publishes, else a shaped UID.
+def _capture_location_id(index: CaptureIndex, store: ResourceStore, seed: int) -> str:
+    """The Location a generated response reports for: one the form admits, else one served, else a shaped UID.
 
-    A served Location is preferred because it makes the generated response forwardable - the DHIS2
+    The form's published assignment comes first, because a generated response is meant to be
+    postable straight back and DHIS2 refuses a capture outside the assignment with `E1029`. Absent
+    an assignment, any served Location will do - it makes the response forwardable, since the DHIS2
     organisation unit behind it really exists. A store publishing no registry (a project generated
     without an org-unit selection) falls back to a seeded UID, which the capture contract admits
     because it checks the reference's shape rather than its target.
     """
+    assignment = index.assignment
+    if assignment is not None and assignment.references:
+        admitted = sorted(assignment.references)[0]
+        return admitted.removeprefix(f"{LOCATION_RESOURCE_TYPE}/")
     for entry in store.entries:
         if entry.resource_type == LOCATION_RESOURCE_TYPE:
             return entry.resource_id

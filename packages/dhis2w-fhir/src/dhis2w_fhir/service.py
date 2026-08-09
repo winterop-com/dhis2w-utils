@@ -59,6 +59,7 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleAnswerIn,
     ExampleResponseIn,
     ExampleSelection,
+    SyntheticPlacement,
 )
 from dhis2w_fhir.resources.option_sets import (
     CONCEPT_MAP_DIRECTORY,
@@ -96,6 +97,12 @@ from dhis2w_fhir.resources.questionnaires import (
     QUESTIONNAIRE_DIRECTORIES,
     build_questionnaire_artifacts,
     link_id_collisions,
+)
+from dhis2w_fhir.resources.questionnaires.assignments import (
+    ASSIGNMENT_DIRECTORY,
+    AssignmentIndex,
+    assignment_container_uid,
+    build_assignment_artifacts,
 )
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
@@ -215,6 +222,15 @@ _LOAD_DIRECTORY = "load"
 #: enough that a seven-form instance yields a corpus worth measuring a POST loop against.
 DEFAULT_LOAD_SET_PER_TARGET = 25
 
+#: The id-only data-set projection the load set reads its capture constraints from: the units the
+#: data set is assigned to, and whether its own category combo admits the default attribute option
+#: combo - the only one a QuestionnaireResponse can express today (open decision 5.4).
+_LOAD_SET_DATA_SET_FIELDS = "id,organisationUnits[id],categoryCombo[id,isDefault]"
+
+#: The id-only program projection the load set reads its capture constraints from. DHIS2 hangs the
+#: assignment on the program, so a tracker stage is placed by the program's units rather than its own.
+_LOAD_SET_PROGRAM_FIELDS = "id,organisationUnits[id]"
+
 
 class GenerateReport(BaseModel):
     """Outcome of one `d2w fhir generate` target."""
@@ -228,6 +244,7 @@ class GenerateReport(BaseModel):
     option_set_count: int = 0
     category_count: int = 0
     questionnaire_count: int = 0
+    assignment_count: int = 0
     organisation_unit_count: int = 0
     position_count: int = 0
     boundary_count: int = 0
@@ -238,7 +255,11 @@ class GenerateReport(BaseModel):
 
 
 class LoadSetReport(BaseModel):
-    """Outcome of one load-set run: the synthetic QuestionnaireResponse corpus written to disk."""
+    """Outcome of one load-set run: the synthetic QuestionnaireResponse corpus written to disk.
+
+    `questionnaire_count` is how many targets the corpus actually covers, which is not always how
+    many the selection holds: a target DHIS2 would refuse every response for is dropped with a note.
+    """
 
     project_root: Path
     target_directory: str
@@ -885,6 +906,19 @@ def _category_input(model: Category) -> CategoryIn:
     )
 
 
+async def fetch_assignment_index(client: Dhis2Client, sources: list[QuestionnaireSourceIn]) -> AssignmentIndex:
+    """Read the organisation units every selected data set and program is assigned to, id-only.
+
+    The assignment artifact and the load set need the same fact, so both read it through the one
+    id-only fetch `_fetch_load_set_assignments` makes: this projects that result onto the
+    container-to-units index the assignment emitter consumes, which keeps the run at one read.
+    """
+    assignments = await _fetch_load_set_assignments(client, sources)
+    return AssignmentIndex(
+        organisation_units={uid: container.organisation_unit_uids for uid, container in assignments.items()}
+    )
+
+
 async def generate_questionnaires(
     profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
 ) -> GenerateReport:
@@ -897,13 +931,20 @@ async def generate_questionnaires(
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
         attribute_codes = await resolve_attribute_code_index(client)
+        # The questionnaire surface resolves before the registry read, so a `source = "code"`
+        # refusal names this target's own offenders rather than the registry's.
+        stem_plan = plan_questionnaire_stems(sources, config.naming.source)
+        assignments = await fetch_assignment_index(client, sources)
+        published_organisation_unit_stems = await _fetch_published_organisation_unit_stems(client, config)
     progress.complete(f"{len(sources):,} questionnaire target(s)")
     return _emit_questionnaires(
         project,
         sources=sources,
         option_set_plan=option_set_plan,
         attribute_codes=attribute_codes,
-        stem_plan=plan_questionnaire_stems(sources, config.naming.source),
+        stem_plan=stem_plan,
+        assignments=assignments,
+        published_organisation_unit_stems=published_organisation_unit_stems,
         notes=notes,
         progress=progress,
     )
@@ -916,17 +957,33 @@ def _emit_questionnaires(
     option_set_plan: OptionSetIdentityPlan,
     attribute_codes: AttributeCodeIndex,
     stem_plan: QuestionnaireStemPlan,
+    assignments: AssignmentIndex,
+    published_organisation_unit_stems: StemResolution,
     notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> GenerateReport:
-    """Build the Questionnaire FSH off already-fetched sources and sync each of its four directories.
+    """Build the Questionnaire FSH off already-fetched sources and sync each of its five directories.
 
     `stem_plan` is resolved by the caller at the fetch/plan level - under `source = "code"` an
     unusable code has therefore refused the run before this step opens - and the builder raises
     its code-or-id fall-back notes onto this target's report.
+
+    The assignment Lists are built first, because a form that publishes one carries its reference
+    on the Questionnaire: both emitters read the one plan the build returns, so the FSH source and
+    the served document name the same artifact.
     """
-    progress.step("questionnaires", f"writing ig/input/fsh/{{{','.join(QUESTIONNAIRE_DIRECTORIES)}}}")
+    progress.step(
+        "questionnaires",
+        f"writing ig/input/fsh/{{{','.join(QUESTIONNAIRE_DIRECTORIES)}}} and ig/input/resources/{ASSIGNMENT_DIRECTORY}",
+    )
     _refuse_build_aborting_codes([_coded_source(source) for source in sources])
+    assignment_build = build_assignment_artifacts(
+        sources,
+        assignments,
+        project.config.generate,
+        published=published_organisation_unit_stems,
+        stem_plan=stem_plan,
+    )
     build = build_questionnaire_artifacts(
         sources,
         project.config.generate,
@@ -935,19 +992,24 @@ def _emit_questionnaires(
         option_set_plan=option_set_plan,
         attribute_codes=attribute_codes,
         stem_plan=stem_plan,
+        assignments=assignment_build.plan,
     )
     syncs = [
         sync_artifacts(project.fsh_directory, directory, _artifacts_under(build.artifacts, directory))
         for directory in QUESTIONNAIRE_DIRECTORIES
     ]
+    assignment_sync = sync_json_artifacts(project.resources_directory, ASSIGNMENT_DIRECTORY, assignment_build.artifacts)
     report = GenerateReport(
         project_root=project.project_root,
-        target_directory=", ".join(QUESTIONNAIRE_DIRECTORIES),
-        deleted_files=[name for sync in syncs for name in sync.deleted],
-        written_files=[path for sync in syncs for path in sync.written],
-        unchanged_count=sum(len(sync.unchanged) for sync in syncs),
+        target_base="ig/input",
+        target_directory=f"{', '.join(f'fsh/{directory}' for directory in QUESTIONNAIRE_DIRECTORIES)}, "
+        f"resources/{ASSIGNMENT_DIRECTORY}",
+        deleted_files=[*(name for sync in syncs for name in sync.deleted), *assignment_sync.deleted],
+        written_files=[*(path for sync in syncs for path in sync.written), *assignment_sync.written],
+        unchanged_count=sum(len(sync.unchanged) for sync in syncs) + len(assignment_sync.unchanged),
         questionnaire_count=len(sources),
-        notes=[*notes, *build.notes],
+        assignment_count=len(assignment_build.artifacts),
+        notes=[*notes, *build.notes, *assignment_build.notes],
     )
     progress.complete(_target_counts(report))
     return report
@@ -1076,6 +1138,15 @@ async def generate_load_set(
     writes byte-identical files and reports every one of them unchanged. `output_directory`
     relocates the corpus off the project root, which is what a caller writing into a scratch
     directory passes.
+
+    The references are drawn to be instance-valid, which is where it parts from the examples
+    target. Each response is captured at a unit drawn from the intersection of the published
+    registry selection and its target's own DHIS2 organisation-unit assignment, so DHIS2 has no
+    `E1029` to raise; and a data set whose category combo does not admit the default attribute
+    option combo is dropped, because a QuestionnaireResponse expresses no attribute option combo
+    (open decision 5.4) and every response against it would be refused with `E8023`. A target
+    left with no unit is dropped the same way, with a note naming it: a corpus exists to be
+    forwarded, and a response nobody can accept measures a refusal we already knew about.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
@@ -1087,9 +1158,11 @@ async def generate_load_set(
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
         organisation_unit_stems = await _fetch_published_organisation_unit_stems(client, config)
         root_uid = await _root_organisation_unit_uid(client)
+        assignments = await _fetch_load_set_assignments(client, sources)
     progress.complete(f"{len(sources):,} questionnaire target(s)")
     progress.step("load set", f"writing {_LOAD_DIRECTORY}")
     documents: list[QuestionnaireResponse] = []
+    covered_sources: list[QuestionnaireSourceIn] = []
     if root_uid is None:
         notes.append(
             generate_note(
@@ -1098,10 +1171,20 @@ async def generate_load_set(
             )
         )
     else:
-        synthetic = build_synthetic_responses(sources, option_sets, per_target, root_uid, datetime.now(tz=UTC).date())
+        plan = _plan_load_set(sources, assignments, frozenset(organisation_unit_stems.stems))
+        covered_sources = plan.sources
+        notes.extend(plan.notes)
+        synthetic = build_synthetic_responses(
+            plan.sources,
+            option_sets,
+            per_target,
+            root_uid,
+            datetime.now(tz=UTC).date(),
+            placements=plan.placements,
+        )
         notes.extend(synthetic.notes)
         build = build_example_documents(
-            sources,
+            plan.sources,
             synthetic.responses,
             option_sets,
             config,
@@ -1121,11 +1204,155 @@ async def generate_load_set(
         unchanged_count=len(sync.unchanged),
         deleted_files=sync.deleted,
         response_count=len(documents),
-        questionnaire_count=len(sources),
+        questionnaire_count=len(covered_sources),
         notes=notes,
     )
     progress.complete(f"{len(report.written_files):,} written, {report.unchanged_count:,} unchanged")
     return report
+
+
+class _ContainerAssignment(BaseModel):
+    """What DHIS2 will accept a write against one data set or program: its units, and its combo.
+
+    `organisation_unit_uids` is the assignment DHIS2 scopes the container to - a write at a unit
+    outside it is `E1029`. `admits_default_attribute_option_combo` is false exactly when a data
+    set carries a non-default category combo, which is the `E8023` a write keyed to the default
+    attribute option combo earns. A program is always true: an event carries no attribute option
+    combo at all.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    organisation_unit_uids: frozenset[str] = frozenset()
+    admits_default_attribute_option_combo: bool = True
+
+
+class _LoadSetPlan(BaseModel):
+    """The load-set targets a corpus covers, where each one is captured, and why the rest were dropped."""
+
+    sources: list[QuestionnaireSourceIn] = Field(default_factory=list)
+    placements: dict[str, SyntheticPlacement] = Field(default_factory=dict)
+    notes: list[GenerateNote] = Field(default_factory=list)
+
+
+async def _fetch_load_set_assignments(
+    client: Dhis2Client, sources: list[QuestionnaireSourceIn]
+) -> dict[str, _ContainerAssignment]:
+    """Read the capture constraints of every container the selected targets report through.
+
+    Two id-only reads at most - one over the selected data sets, one over the selected programs -
+    filtered to the very UIDs the selection resolved to, in the shape `resolve_validation_scope`
+    reads its own membership: fields carrying ids, unpaged, so scoping a national instance costs
+    two small requests rather than a second metadata sweep. A tracker stage contributes its
+    program's UID rather than its own, because DHIS2 hangs the assignment on the program.
+    """
+    assignments: dict[str, _ContainerAssignment] = {}
+    data_set_uids = sorted({source.uid for source in sources if source.kind == "aggregate"})
+    if data_set_uids:
+        data_sets: list[DataSet] = await client.resources.data_sets.list(
+            fields=_LOAD_SET_DATA_SET_FIELDS,
+            filters=[_uid_filter(data_set_uids)],
+            paging=False,
+        )
+        for data_set in data_sets:
+            if data_set.id:
+                assignments[data_set.id] = _ContainerAssignment(
+                    uid=data_set.id,
+                    organisation_unit_uids=_reference_uids(data_set.organisationUnits),
+                    admits_default_attribute_option_combo=_admits_default_combo(data_set),
+                )
+    program_uids = sorted({assignment_container_uid(source) for source in sources if source.kind != "aggregate"})
+    if program_uids:
+        programs: list[Program] = await client.resources.programs.list(
+            fields=_LOAD_SET_PROGRAM_FIELDS,
+            filters=[_uid_filter(program_uids)],
+            paging=False,
+        )
+        for program in programs:
+            if program.id:
+                assignments[program.id] = _ContainerAssignment(
+                    uid=program.id,
+                    organisation_unit_uids=_reference_uids(program.organisationUnits),
+                )
+    return assignments
+
+
+def _reference_uids(raw: object) -> frozenset[str]:
+    """Every `id` a wire reference collection carries, which is all an id-only assignment read answers with."""
+    uids: set[str] = set()
+    for entry in raw if isinstance(raw, list) else []:
+        if isinstance(entry, dict):
+            uid = _optional_text(entry.get("id"))
+            if uid is not None:
+                uids.add(uid)
+    return frozenset(uids)
+
+
+def _admits_default_combo(data_set: DataSet) -> bool:
+    """Whether a data set's own category combo admits the default attribute option combo.
+
+    DHIS2 answers `categoryCombo.isDefault` on the id-only projection; a data set the instance
+    sent no category combo for is read as the default one, which is what every data set on a
+    default combo already writes against.
+    """
+    combo = data_set.categoryCombo
+    if combo is None:
+        return True
+    return bool(combo.model_dump().get("isDefault", True))
+
+
+def _plan_load_set(
+    sources: list[QuestionnaireSourceIn],
+    assignments: dict[str, _ContainerAssignment],
+    published_organisation_unit_uids: frozenset[str],
+) -> _LoadSetPlan:
+    """Decide which targets the corpus covers and which published unit each one may be captured at.
+
+    A target is placed on the intersection of the published registry selection and its own DHIS2
+    assignment, sorted so the seeded pick is reproducible whatever order the instance answered in.
+    Two classes are dropped rather than emitted: a data set whose category combo does not admit
+    the default attribute option combo, because a QuestionnaireResponse carries no attribute
+    option combo to name a valid one with (open decision 5.4) and DHIS2 refuses the write with
+    `E8023`; and a target the intersection leaves empty, because every response would name a unit
+    the container does not report for and DHIS2 refuses that with `E1029`. Dropping beats reusing
+    the registry root: a load set is measured by what DHIS2 accepts, so a response nobody can
+    accept is noise in the very number the corpus exists to produce.
+    """
+    plan = _LoadSetPlan()
+    unusable_combo: list[str] = []
+    unplaced: list[str] = []
+    for source in sources:
+        label = f"{source.name} ({source.uid})"
+        assignment = assignments.get(assignment_container_uid(source))
+        if assignment is not None and not assignment.admits_default_attribute_option_combo:
+            unusable_combo.append(label)
+            continue
+        units = sorted(published_organisation_unit_uids & assignment.organisation_unit_uids) if assignment else []
+        if not units:
+            unplaced.append(label)
+            continue
+        plan.sources.append(source)
+        plan.placements[source.uid] = SyntheticPlacement(organisation_unit_uids=tuple(units))
+    if unusable_combo:
+        plan.notes.append(
+            aggregate_generate_note(
+                GenerateNoteCategory.REFUSED_FORM,
+                f"{len(unusable_combo)} data sets carry a non-default category combo, and a "
+                "QuestionnaireResponse names no attribute option combo; no load-set responses emitted for them",
+                unusable_combo,
+            )
+        )
+    if unplaced:
+        plan.notes.append(
+            aggregate_generate_note(
+                GenerateNoteCategory.EMPTY_SELECTION,
+                f"{len(unplaced)} questionnaire targets have no published organisation unit assigned to them; "
+                "no load-set responses emitted for them",
+                unplaced,
+            )
+        )
+    return plan
 
 
 def _load_artifact(response: QuestionnaireResponse) -> JsonArtifact:
@@ -1737,6 +1964,8 @@ async def generate_full(
             option_set_plan=inputs.option_set_plan,
             attribute_codes=inputs.attribute_codes,
             stem_plan=inputs.questionnaire_stems,
+            assignments=inputs.assignments,
+            published_organisation_unit_stems=inputs.organisation_unit_stems,
             notes=list(inputs.source_notes),
             progress=progress,
         )
@@ -1836,6 +2065,9 @@ class LiveIgInputs(BaseModel):
     categories: list[CategoryIn] = Field(default_factory=list)
     organisation_units: list[OrganisationUnitIn] = Field(default_factory=list)
     attribute_codes: AttributeCodeIndex
+    assignments: AssignmentIndex = Field(default_factory=AssignmentIndex)
+    """The organisation units each selected data set and program is assigned to, read id-only."""
+
     # W-2: identity-stem plans for the questionnaire and org-unit surfaces, resolved once per fetch.
     questionnaire_stems: QuestionnaireStemPlan
     organisation_unit_stems: StemResolution
@@ -1889,6 +2121,8 @@ async def fetch_live_ig_inputs(
     organisation_units = await _fetch_organisation_units(client, config, tally, today, steps)
     steps.tick("reading the attribute-code join")
     attribute_codes = await resolve_attribute_code_index(client)
+    steps.tick("reading the organisation-unit assignments")
+    assignments = await fetch_assignment_index(client, sources)
     geometry_notes = tally.to_notes()
     # W-2: the identity stems resolve at the fetch/plan level, so a `source = "code"` refusal
     # raises here - before any target writes a file - and every consumer reads one resolution.
@@ -1903,6 +2137,7 @@ async def fetch_live_ig_inputs(
         categories=categories,
         organisation_units=organisation_units,
         attribute_codes=attribute_codes,
+        assignments=assignments,
         questionnaire_stems=questionnaire_stems,
         organisation_unit_stems=organisation_unit_stems,
         notes=[*source_notes, *option_set_notes, *category_notes, *geometry_notes],

@@ -102,6 +102,8 @@ _DATA_SETS_PAYLOAD = {
             "id": "BfMAe6Itzgt",
             "name": "Child Health",
             "code": "DS_359711",
+            # Assigned to every published unit, so the data set publishes no assignment List.
+            "organisationUnits": [{"id": "ImspTQPwCqd"}, {"id": "O6uvpzGd5pu"}],
             "sections": [{"id": "Sec1aaaaaaa", "name": "Immunization", "dataElements": [{"id": "De1aaaaaaaa"}]}],
             "dataSetElements": [
                 {
@@ -124,6 +126,8 @@ _PROGRAMS_PAYLOAD = {
             "id": "VBqh0ynB2wv",
             "name": "Malaria case registration",
             "programType": "WITHOUT_REGISTRATION",
+            # A proper subset of the registry, so this program publishes an assignment List.
+            "organisationUnits": [{"id": "O6uvpzGd5pu"}],
             "programStages": [
                 {
                     "id": "pTo4uMt3xur",
@@ -285,6 +289,7 @@ async def test_live_entries_are_indexed_and_marked_live(
     assert store.types_present() == (
         "CodeSystem",
         "ConceptMap",
+        "List",
         "Location",
         "Organization",
         "Questionnaire",

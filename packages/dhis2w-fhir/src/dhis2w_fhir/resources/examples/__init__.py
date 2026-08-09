@@ -54,6 +54,7 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleSelection,
     ExampleSource,
     ExampleTrackerContext,
+    SyntheticPlacement,
 )
 from dhis2w_fhir.resources.option_sets import concept_assignments, option_set_identity_index
 from dhis2w_fhir.resources.option_sets.schemas import (
@@ -102,6 +103,7 @@ __all__ = [
     "ExampleTally",
     "ExampleTrackerContext",
     "SyntheticBuild",
+    "SyntheticPlacement",
     "answer_element",
     "build_example_artifacts",
     "build_synthetic_responses",
@@ -517,20 +519,37 @@ def build_synthetic_responses(
     per_target: int,
     organisation_unit_uid: str,
     today: datetime.date,
+    *,
+    placements: dict[str, SyntheticPlacement] | None = None,
 ) -> SyntheticBuild:
     """Generate `per_target` deterministic example responses per target, answering every question it can.
 
     The seed is the leading 64 bits of `sha256("<targetUid>:<n>")`, so the values are stable
     across runs, machines, and interpreter restarts - unlike Python's salted `hash`. Only the
     period-anchored values move, because the newest completed period moves with the calendar.
+
+    `organisation_unit_uid` is the unit a response is captured at when the caller names no
+    placement for its target, which is the examples path: an IG example is subject to the
+    selection's own root. `placements` is the load-set path's assignment-aware answer to the
+    same question - one entry per target, holding the units that target may report for - and a
+    placed target draws its unit from a generator seeded off the target UID and the ordinal
+    alone, so the pick is reproducible and every other value on the target's stream is unmoved.
     """
     build = SyntheticBuild()
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
     unanswerable: list[str] = []
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
+        placement = (placements or {}).get(source.uid)
         for ordinal in range(1, per_target + 1):
             build.responses.append(
-                _synthetic_response(source, option_sets_by_uid, ordinal, organisation_unit_uid, today, unanswerable)
+                _synthetic_response(
+                    source,
+                    option_sets_by_uid,
+                    ordinal,
+                    _placed_organisation_unit(placement, source.uid, ordinal, organisation_unit_uid),
+                    today,
+                    unanswerable,
+                )
             )
     if unanswerable:
         build.notes.append(
@@ -591,6 +610,22 @@ def _synthetic_response(
         enrollment_uid=enrollment_uid,
         answers=answers,
     )
+
+
+def _placed_organisation_unit(
+    placement: SyntheticPlacement | None, target_uid: str, ordinal: int, fallback: str
+) -> str:
+    """The seeded capture unit for one target's `n`-th response, or `fallback` when it was placed nowhere.
+
+    Drawn on a generator of its own, seeded off the target UID and the ordinal, so a corpus is
+    reproducible from the instance state alone and adding the pick leaves every value the
+    response's main stream produces exactly where it was.
+    """
+    if placement is None:
+        return fallback
+    seed = _seed(f"{target_uid}:organisation-unit", ordinal)
+    generator = random.Random(seed)  # noqa: S311 - an illustrative placement, not a secret
+    return placement.organisation_unit_uids[generator.randrange(len(placement.organisation_unit_uids))]
 
 
 def _seed(target_uid: str, ordinal: int) -> int:

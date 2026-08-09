@@ -39,6 +39,7 @@ class CaptureNaming(BaseModel):
     form_type_url: str
     period_url: str
     organisation_unit_url: str
+    organisation_unit_assignment_url: str
     tracker_enrollment_url: str
     tracked_entity_system: str
     tracker_enrollment_system: str
@@ -60,6 +61,9 @@ class CaptureNaming(BaseModel):
             form_type_url=_definition_url(canonical, names.form_type_extension_id),
             period_url=_definition_url(canonical, names.period_extension_id),
             organisation_unit_url=_definition_url(canonical, names.organisation_unit_extension_id),
+            organisation_unit_assignment_url=_definition_url(
+                canonical, names.organisation_unit_assignment_extension_id
+            ),
             tracker_enrollment_url=_definition_url(canonical, names.tracker_enrollment_extension_id),
             tracked_entity_system=_identifier_system(base, "TrackedEntity"),
             tracker_enrollment_system=_identifier_system(base, "TrackerEnrollment"),

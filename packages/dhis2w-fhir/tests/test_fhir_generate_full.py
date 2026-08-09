@@ -177,8 +177,14 @@ async def test_generate_full_reads_each_metadata_collection_exactly_once(
 
     await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
 
-    for name in ("optionSets", "categories", "dataSets", "programs"):
+    for name in ("optionSets", "categories"):
         assert respx.routes[name].call_count == 1, name
+    # The data sets and the programs are read twice each, and the second read of each is the
+    # id-only organisation-unit assignment fetch. It stays a read of its own so the projection
+    # sweep is not inflated by thousands of assigned unit ids per container.
+    for name in ("dataSets", "programs"):
+        assert respx.routes[name].call_count == 2, name
+        assert "organisationUnits[id]" in respx.routes[name].calls[1].request.url.params["fields"]
     assert _route_call_count("/api/attributes") == 1
     assert _route_call_count("/api/system/info") == 1
     # Two org-unit reads, and only one of them is the paged hierarchy walk: the examples target

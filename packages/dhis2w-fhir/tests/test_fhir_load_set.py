@@ -20,68 +20,100 @@ _HOST = "https://dhis2.example"
 _CANONICAL = "http://example.org/fhir"
 _ROOT_ORG_UNIT = "ImspTQPwCqd"
 
+#: The published unit both targets are assigned to - where an assignment-aware pick has to land.
+_SHARED_UNIT = "DiszpKrYNg8"
+
+#: A published unit only the event program is assigned to, so the two targets draw different sets.
+_PROGRAM_UNIT = "g8upMTyEZGZ"
+
+#: A unit the program is assigned to that the registry selection does not publish, so no reference
+#: may name it however the assignment reads.
+_UNPUBLISHED_UNIT = "Rp268JB6Ne4"
+
 #: The two questionnaire targets every run here builds from: one data set, one event program.
 _QUESTIONNAIRE_COUNT = 2
 
-_DATA_SETS_PAYLOAD = {
-    "dataSets": [
-        {
-            "id": "BfMAe6Itzgt",
-            "name": "Child Health",
-            "periodType": "Monthly",
-            "sections": [{"id": "Sec1aaaaaaa", "name": "Immunization", "dataElements": [{"id": "De1aaaaaaaa"}]}],
-            "dataSetElements": [
-                {
-                    "dataElement": {
-                        "id": "De1aaaaaaaa",
-                        "name": "BCG doses given",
-                        "valueType": "INTEGER_ZERO_OR_POSITIVE",
-                        "categoryCombo": {
-                            "id": "CcAaBbCcDdE",
-                            "name": "EPI/nutrition age",
-                            "isDefault": False,
-                            "categoryOptionCombos": [
-                                {"id": "Coc1aaaaaaa", "name": "<1y", "code": "U1"},
-                                {"id": "Coc2aaaaaaa", "name": ">1y"},
-                            ],
-                        },
-                    }
-                },
-                {
-                    "dataElement": {
-                        "id": "De3aaaaaaaa",
-                        "name": "Gender",
-                        "valueType": "TEXT",
-                        "optionSet": {"id": "Os1aaaaaaaa"},
-                        "categoryCombo": {"id": "bjDvmb4bfuf", "name": "default", "isDefault": True},
-                    }
-                },
-            ],
-        }
-    ]
-}
+_DATA_SET_UID = "BfMAe6Itzgt"
+_PROGRAM_UID = "VBqh0ynB2wv"
 
-_PROGRAMS_PAYLOAD = {
-    "programs": [
-        {
-            "id": "VBqh0ynB2wv",
-            "name": "Malaria case registration",
-            "programType": "WITHOUT_REGISTRATION",
-            "programStages": [
-                {
-                    "id": "pTo4uMt3xur",
-                    "programStageSections": [],
-                    "programStageDataElements": [
-                        {
-                            "compulsory": True,
-                            "dataElement": {"id": "qrur9Dvnyt5", "name": "Age in years", "valueType": "INTEGER"},
+#: The non-default category combo a data set carrying one is refused for: no QuestionnaireResponse
+#: names an attribute option combo, so DHIS2 would key every response to the default and raise E8023.
+_NON_DEFAULT_DATA_SET_COMBO: dict[str, object] = {"id": "CcAaBbCcDdE", "isDefault": False}
+_DEFAULT_DATA_SET_COMBO: dict[str, object] = {"id": "bjDvmb4bfuf", "isDefault": True}
+
+
+def _data_sets_payload(
+    *, organisation_units: tuple[str, ...] = (_SHARED_UNIT,), category_combo: dict[str, object] | None = None
+) -> dict[str, object]:
+    """The data set both reads answer with: the form projection, its assignment, and its category combo."""
+    return {
+        "dataSets": [
+            {
+                "id": _DATA_SET_UID,
+                "name": "Child Health",
+                "periodType": "Monthly",
+                "organisationUnits": [{"id": uid} for uid in organisation_units],
+                "categoryCombo": category_combo if category_combo is not None else _DEFAULT_DATA_SET_COMBO,
+                "sections": [{"id": "Sec1aaaaaaa", "name": "Immunization", "dataElements": [{"id": "De1aaaaaaaa"}]}],
+                "dataSetElements": [
+                    {
+                        "dataElement": {
+                            "id": "De1aaaaaaaa",
+                            "name": "BCG doses given",
+                            "valueType": "INTEGER_ZERO_OR_POSITIVE",
+                            "categoryCombo": {
+                                "id": "CcAaBbCcDdE",
+                                "name": "EPI/nutrition age",
+                                "isDefault": False,
+                                "categoryOptionCombos": [
+                                    {"id": "Coc1aaaaaaa", "name": "<1y", "code": "U1"},
+                                    {"id": "Coc2aaaaaaa", "name": ">1y"},
+                                ],
+                            },
                         }
-                    ],
-                }
-            ],
-        }
-    ]
-}
+                    },
+                    {
+                        "dataElement": {
+                            "id": "De3aaaaaaaa",
+                            "name": "Gender",
+                            "valueType": "TEXT",
+                            "optionSet": {"id": "Os1aaaaaaaa"},
+                            "categoryCombo": {"id": "bjDvmb4bfuf", "name": "default", "isDefault": True},
+                        }
+                    },
+                ],
+            }
+        ]
+    }
+
+
+def _programs_payload(
+    *, organisation_units: tuple[str, ...] = (_SHARED_UNIT, _PROGRAM_UNIT, _UNPUBLISHED_UNIT)
+) -> dict[str, object]:
+    """The event program both reads answer with: the form projection plus the units it is assigned to."""
+    return {
+        "programs": [
+            {
+                "id": _PROGRAM_UID,
+                "name": "Malaria case registration",
+                "programType": "WITHOUT_REGISTRATION",
+                "organisationUnits": [{"id": uid} for uid in organisation_units],
+                "programStages": [
+                    {
+                        "id": "pTo4uMt3xur",
+                        "programStageSections": [],
+                        "programStageDataElements": [
+                            {
+                                "compulsory": True,
+                                "dataElement": {"id": "qrur9Dvnyt5", "name": "Age in years", "valueType": "INTEGER"},
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
 
 _OPTION_SETS_PAYLOAD = {
     "optionSets": [
@@ -96,7 +128,14 @@ _OPTION_SETS_PAYLOAD = {
     ]
 }
 
-_ROOT_PAYLOAD = {"organisationUnits": [{"id": _ROOT_ORG_UNIT}]}
+#: The registry selection: the level-1 root first, because that read takes the first unit it is answered.
+_ORG_UNITS_PAYLOAD = {
+    "organisationUnits": [
+        {"id": _ROOT_ORG_UNIT, "name": "Sierra Leone"},
+        {"id": _SHARED_UNIT, "name": "Ngelehun CHC"},
+        {"id": _PROGRAM_UNIT, "name": "Njandama MCHP"},
+    ]
+}
 
 
 async def _scaffold_project(directory: Path) -> None:
@@ -107,18 +146,26 @@ async def _scaffold_project(directory: Path) -> None:
         name="Dhis2FhirLoad",
         title="Load IG",
         publisher="Example Org",
-        data_set_ids=["BfMAe6Itzgt"],
-        event_program_ids=["VBqh0ynB2wv"],
+        data_set_ids=[_DATA_SET_UID],
+        event_program_ids=[_PROGRAM_UID],
     )
     await service.init_project(directory, options)
 
 
 def _mock_metadata() -> None:
     """Mock every metadata endpoint one load-set run reads."""
-    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
-    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_data_sets_payload()))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_programs_payload()))
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
-    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ROOT_PAYLOAD))
+    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORG_UNITS_PAYLOAD))
+
+
+def _subjects(directory: Path, prefix: str) -> list[str]:
+    """The Location every written document of one target is subject to, in file-name order."""
+    documents = [
+        json.loads(path.read_text(encoding="utf-8")) for path in sorted(directory.glob(f"{prefix}-example-*.json"))
+    ]
+    return [document["subject"]["reference"] for document in documents]
 
 
 async def _run(tmp_path: Path, per_target: int = 3) -> service.LoadSetReport:
@@ -294,3 +341,150 @@ async def test_an_instance_without_a_root_organisation_unit_writes_nothing_with_
     assert "the instance has no level-1 organisation unit; no load set emitted" in [
         note.message for note in report.notes
     ]
+
+
+@respx.mock
+async def test_every_response_is_captured_at_a_unit_its_target_is_assigned_to(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    wire_version: str,
+    tmp_path: Path,
+) -> None:
+    """DHIS2 scopes each container to its own units, so the draw is the target's assignment, not the registry."""
+    mock_system_info(wire_version)
+    _mock_metadata()
+    await _run(tmp_path, per_target=8)
+    load = tmp_path / "load"
+    assert set(_subjects(load, _DATA_SET_UID)) == {f"Location/{_SHARED_UNIT}"}
+    assert set(_subjects(load, _PROGRAM_UID)) == {f"Location/{_SHARED_UNIT}", f"Location/{_PROGRAM_UNIT}"}
+
+
+@respx.mock
+async def test_an_assigned_unit_the_registry_does_not_publish_is_never_drawn(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    wire_version: str,
+    tmp_path: Path,
+) -> None:
+    """The draw is an intersection: a unit the guide publishes no Location for stays out of it."""
+    mock_system_info(wire_version)
+    _mock_metadata()
+    await _run(tmp_path, per_target=25)
+    assert f"Location/{_UNPUBLISHED_UNIT}" not in _subjects(tmp_path / "load", _PROGRAM_UID)
+
+
+@respx.mock
+async def test_a_target_with_no_published_assigned_unit_is_skipped_with_a_note(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    wire_version: str,
+    tmp_path: Path,
+) -> None:
+    """An empty intersection emits nothing for that target: a response DHIS2 refuses measures nothing."""
+    mock_system_info(wire_version)
+    _mock_metadata()
+    respx.get(f"{_HOST}/api/dataSets").mock(
+        return_value=httpx.Response(200, json=_data_sets_payload(organisation_units=(_UNPUBLISHED_UNIT,)))
+    )
+    report = await _run(tmp_path, per_target=3)
+    assert report.questionnaire_count == 1
+    assert report.response_count == 3
+    assert list((tmp_path / "load").glob(f"{_DATA_SET_UID}-*.json")) == []
+    assert any(
+        note.message.startswith("1 questionnaire targets have no published organisation unit assigned to them")
+        and f"Child Health ({_DATA_SET_UID})" in note.message
+        for note in report.notes
+    )
+
+
+@respx.mock
+async def test_a_target_assigned_to_nothing_is_skipped_with_the_same_note(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    wire_version: str,
+    tmp_path: Path,
+) -> None:
+    """A container DHIS2 assigns no unit at all is the same case as one assigned only outside the registry."""
+    mock_system_info(wire_version)
+    _mock_metadata()
+    respx.get(f"{_HOST}/api/programs").mock(
+        return_value=httpx.Response(200, json=_programs_payload(organisation_units=()))
+    )
+    report = await _run(tmp_path, per_target=2)
+    assert report.questionnaire_count == 1
+    assert list((tmp_path / "load").glob(f"{_PROGRAM_UID}-*.json")) == []
+    assert any(
+        f"Malaria case registration ({_PROGRAM_UID})" in note.message
+        and "no published organisation unit assigned" in note.message
+        for note in report.notes
+    )
+
+
+@respx.mock
+async def test_a_data_set_on_a_non_default_category_combo_is_skipped_with_a_note(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    wire_version: str,
+    tmp_path: Path,
+) -> None:
+    """A response names no attribute option combo, so a data set needing one would be refused with E8023."""
+    mock_system_info(wire_version)
+    _mock_metadata()
+    respx.get(f"{_HOST}/api/dataSets").mock(
+        return_value=httpx.Response(200, json=_data_sets_payload(category_combo=_NON_DEFAULT_DATA_SET_COMBO))
+    )
+    report = await _run(tmp_path, per_target=3)
+    assert report.questionnaire_count == 1
+    assert list((tmp_path / "load").glob(f"{_DATA_SET_UID}-*.json")) == []
+    assert any(
+        note.message.startswith("1 data sets carry a non-default category combo")
+        and f"Child Health ({_DATA_SET_UID})" in note.message
+        for note in report.notes
+    )
+
+
+@respx.mock
+async def test_a_data_set_on_the_default_category_combo_keeps_its_responses(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    wire_version: str,
+    tmp_path: Path,
+) -> None:
+    """The default combo is the one a response already writes against, so nothing about it changes."""
+    mock_system_info(wire_version)
+    _mock_metadata()
+    report = await _run(tmp_path, per_target=3)
+    assert report.questionnaire_count == _QUESTIONNAIRE_COUNT
+    assert len(list((tmp_path / "load").glob(f"{_DATA_SET_UID}-*.json"))) == 3
+    assert not [note for note in report.notes if "category combo" in note.message]
+
+
+@respx.mock
+async def test_the_assignment_aware_pick_is_reproducible(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    wire_version: str,
+    tmp_path: Path,
+) -> None:
+    """Same instance state, same corpus: the placement draws on a seed, not on the order DHIS2 answered in."""
+    mock_system_info(wire_version)
+    _mock_metadata()
+    await _scaffold_project(tmp_path)
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    for directory in (first, second):
+        await service.generate_load_set(
+            resolve_profile("probe"), load_project(tmp_path), per_target=12, output_directory=directory
+        )
+    respx.get(f"{_HOST}/api/programs").mock(
+        return_value=httpx.Response(
+            200, json=_programs_payload(organisation_units=(_UNPUBLISHED_UNIT, _PROGRAM_UNIT, _SHARED_UNIT))
+        )
+    )
+    third = tmp_path / "third"
+    await service.generate_load_set(
+        resolve_profile("probe"), load_project(tmp_path), per_target=12, output_directory=third
+    )
+    picks = _subjects(first / "load", _PROGRAM_UID)
+    assert picks == _subjects(second / "load", _PROGRAM_UID)
+    assert picks == _subjects(third / "load", _PROGRAM_UID)

@@ -39,6 +39,7 @@ _EMISSION_INVENTORY: dict[str, dict[GenerateNoteCategory, int]] = {
         GenerateNoteCategory.CODE_FALLBACK: 1,
     },
     "resources/organisation_units/organization.py": {GenerateNoteCategory.SELECTION_GAP: 1},
+    "resources/questionnaires/assignments.py": {GenerateNoteCategory.SELECTION_GAP: 1},
     "resources/questionnaires/__init__.py": {
         GenerateNoteCategory.REFUSED_FORM: 1,
         GenerateNoteCategory.SELECTION_GAP: 1,
@@ -46,10 +47,10 @@ _EMISSION_INVENTORY: dict[str, dict[GenerateNoteCategory, int]] = {
     "resources/questionnaires/documents.py": {GenerateNoteCategory.SELECTION_GAP: 1},
     "service.py": {
         GenerateNoteCategory.BUILD_COST: 1,
-        GenerateNoteCategory.EMPTY_SELECTION: 3,
+        GenerateNoteCategory.EMPTY_SELECTION: 4,
         GenerateNoteCategory.FORM_STRUCTURE: 1,
         GenerateNoteCategory.INSTANCE_DATA_GAP: 3,
-        GenerateNoteCategory.REFUSED_FORM: 1,
+        GenerateNoteCategory.REFUSED_FORM: 2,
         GenerateNoteCategory.SELECTION_CLOSURE: 1,
         GenerateNoteCategory.SELECTION_MISMATCH: 3,
     },

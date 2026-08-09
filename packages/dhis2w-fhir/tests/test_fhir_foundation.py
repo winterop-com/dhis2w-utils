@@ -18,7 +18,7 @@ _IDENTIFIER_SYSTEM_COUNT = 22
 
 
 def test_foundation_covers_expected_files() -> None:
-    """The target emits the aliases, the NamingSystems, the five extensions, and the capture contract."""
+    """The target emits the aliases, the NamingSystems, the six extensions, and the capture contract."""
     assert set(_by_path(GenerateConfig())) == {
         "foundation/d2-aliases.fsh",
         "foundation/d2-naming-systems.fsh",
@@ -26,6 +26,7 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-form-type.fsh",
         "foundation/d2-attribute-value.fsh",
         "foundation/d2-organisation-unit.fsh",
+        "foundation/d2-organisation-unit-assignment.fsh",
         "foundation/d2-tracker-enrollment.fsh",
         "foundation/d2-responses.fsh",
         "foundation/d2-generate-operation.fsh",
@@ -417,6 +418,42 @@ def test_the_organisation_unit_extension_is_a_stable_golden() -> None:
     assert _by_path(GenerateConfig())["foundation/d2-organisation-unit.fsh"] == _ORGANISATION_UNIT_EXTENSION_GOLDEN
 
 
+_ORGANISATION_UNIT_ASSIGNMENT_EXTENSION_GOLDEN = """Extension: D2OrganisationUnitAssignment
+Id: d2-organisation-unit-assignment
+Title: "DHIS2 organisation unit assignment"
+Description: "The organisation units a form may be captured against, as a reference to the List of their \
+Locations. Absent means every unit the registry publishes."
+* ^status = #draft
+* ^experimental = true
+* ^context[+].type = #element
+* ^context[=].expression = "Questionnaire"
+* value[x] only Reference(List)
+* valueReference 1..1
+"""
+
+
+def test_the_organisation_unit_assignment_extension_is_a_stable_golden() -> None:
+    """D2OrganisationUnitAssignment names a List of Locations from the Questionnaire it scopes.
+
+    R4 `Group.member.entity` takes Patient, Practitioner, PractitionerRole, Device, Medication,
+    Substance, and Group alone, so a Location cannot be a Group member and List is the resource
+    that carries the assignment.
+    """
+    content = _by_path(GenerateConfig())["foundation/d2-organisation-unit-assignment.fsh"]
+
+    assert content == _ORGANISATION_UNIT_ASSIGNMENT_EXTENSION_GOLDEN
+
+
+def test_the_assignment_extension_follows_the_configured_prefix() -> None:
+    """The assignment extension rides the same naming token every other foundation artifact does."""
+    custom = FoundationNaming.from_naming(NamingConfig(prefix="Dhis2"))
+    assert custom.organisation_unit_assignment_extension == "Dhis2OrganisationUnitAssignment"
+    assert custom.organisation_unit_assignment_extension_id == "dhis2-organisation-unit-assignment"
+    bare = FoundationNaming.from_naming(NamingConfig(prefix=""))
+    assert bare.organisation_unit_assignment_extension == "D2OrganisationUnitAssignment"
+    assert bare.organisation_unit_assignment_extension_id == "d2-organisation-unit-assignment"
+
+
 def test_the_new_extensions_derive_their_publication_state_from_the_ig_status() -> None:
     """The org-unit and tracker-enrollment extensions follow the same `[ig] status` dial every definition does."""
     active = _by_path(GenerateConfig(), ig_status="active")
@@ -463,6 +500,9 @@ response per form submission, and the server accepts exactly one response per re
 * rest.resource[=].interaction[+].code = #read
 * rest.resource[=].interaction[+].code = #search-type
 * rest.resource[+].type = #Organization
+* rest.resource[=].interaction[+].code = #read
+* rest.resource[=].interaction[+].code = #search-type
+* rest.resource[+].type = #List
 * rest.resource[=].interaction[+].code = #read
 * rest.resource[=].interaction[+].code = #search-type
 """
