@@ -8,6 +8,7 @@ import {
     checkReachability,
     configureApi,
     outcomeMessage,
+    translateCode,
 } from '@/lib/api'
 
 /**
@@ -56,7 +57,10 @@ describe('the guarded-path pattern', () => {
             '/QuestionnaireResponse',
             '/QuestionnaireResponse/receipt-1',
             '/CodeSystem',
+            '/CodeSystem/d2-de-cs',
             '/ValueSet',
+            '/ConceptMap',
+            '/ConceptMap/d2-os-OsSymptom01-cm',
             '/ConceptMap/$translate?code=x',
             '/Location/ImspTQPwCqd',
             '/Organization',
@@ -114,6 +118,47 @@ describe('apiFetch', () => {
         const { calls } = stubFetch(fhirResponse({}))
         await apiFetch('/metadata', { headers: { Accept: 'application/json' } })
         expect(new Headers(calls[0].init.headers).get('Accept')).toBe('application/json')
+    })
+})
+
+describe('translateCode', () => {
+    it('asks the type-level operation, spelling the target parameter R4s way', async () => {
+        const { calls } = stubFetch(fhirResponse({ resourceType: 'Parameters' }))
+        await translateCode(
+            'http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs',
+            'OpFever0001',
+            'http://dhis2.org/fhir/id/option-code',
+        )
+        // Lower-case `targetsystem` is what R4 defines; the server reads both, but
+        // what leaves this UI is the spelling in the specification.
+        expect(calls[0].url).toBe(
+            '/ConceptMap/$translate?system=http%3A%2F%2Flocalhost%3A8080%2Ffhir%2FCodeSystem%2Fd2-os-OsSymptom01-cs&code=OpFever0001&targetsystem=http%3A%2F%2Fdhis2.org%2Ffhir%2Fid%2Foption-code',
+        )
+    })
+
+    it('leaves the target system off when none is asked for', async () => {
+        const { calls } = stubFetch(fhirResponse({ resourceType: 'Parameters' }))
+        await translateCode('http://x/CodeSystem/y', 'CODE')
+        expect(calls[0].url).toBe('/ConceptMap/$translate?system=http%3A%2F%2Fx%2FCodeSystem%2Fy&code=CODE')
+    })
+
+    it('raises the OperationOutcome when the call itself is refused', async () => {
+        stubFetch(
+            fhirResponse(
+                {
+                    resourceType: 'OperationOutcome',
+                    issue: [
+                        {
+                            severity: 'error',
+                            code: 'invalid',
+                            diagnostics: '`$translate` needs a `code` parameter',
+                        },
+                    ],
+                },
+                400,
+            ),
+        )
+        await expect(translateCode('http://x/CodeSystem/y', 'CODE')).rejects.toThrow('needs a `code`')
     })
 })
 

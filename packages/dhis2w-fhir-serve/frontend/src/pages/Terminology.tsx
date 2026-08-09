@@ -1,7 +1,11 @@
-import { useEffect } from 'react'
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Search } from 'lucide-react'
 
+import { IdentifierBadges } from '@/components/IdentifierBadges'
 import { PageHeader, PageState } from '@/components/PageState'
-import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
     Table,
     TableBody,
@@ -11,162 +15,234 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
-import { refreshServerStatus, useServerStatus } from '@/hooks/use-server-status'
-import { canonicalId, declaredOperations, type CodeSystem, type ValueSet } from '@/lib/fhir'
+import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet } from '@/lib/fhir'
+import {
+    composedSystems,
+    enumeratedConceptCount,
+    identifierBadges,
+    mappingCount,
+    matchesQuery,
+    type IdentifierBadge,
+} from '@/lib/terminology'
 
 /**
- * The vocabulary behind the forms: what a coded answer is allowed to be.
+ * The vocabulary behind the forms: what a coded answer is allowed to be, and what it means to DHIS2.
  *
- * CodeSystems define the concepts and ValueSets bind a question to a subset of
- * them, so both are listed from a search. ConceptMaps are the third piece - they
- * carry a concept back to the DHIS2 option uid and code the forwarder needs -
- * but they are deliberately NOT listed the same way, because
- * `d2w fhir serve` does not serve ConceptMap as a read type: it is translated
- * through rather than read, and `GET /ConceptMap` is refused as an unserved
- * type. Searching it anyway would put a 404 in the console of every project.
+ * All three terminology types are read here, ConceptMap included. The maps are published IG
+ * artifacts sitting in the same store as the code systems, and `d2w fhir serve` serves them as a
+ * read type - `GET /ConceptMap` answers a searchset like every other type, and `$translate`
+ * answers the one question a forwarder has over the same documents. A page that only reported
+ * whether `$translate` was declared could say that the mappings exist; this one shows them.
  *
- * What the server does say about them is on the CapabilityStatement:
- * `$translate` is declared if and only if the store holds ConceptMaps. So that
- * is what this page reads, and it is a stronger statement than a count - it says
- * whether the operation a client would use is actually answerable here.
+ * The rows link into `/terminology/:resourceType/:id`, which is where the actual codes are. This
+ * page is the index: what was published, how much of it there is, and which DHIS2 object each
+ * artifact came from.
  */
 export function Terminology() {
     const codeSystems = useFhirSearch<CodeSystem>('CodeSystem')
     const valueSets = useFhirSearch<ValueSet>('ValueSet')
-    const { reachability, capability } = useServerStatus()
+    const conceptMaps = useFhirSearch<ConceptMap>('ConceptMap')
+    const [query, setQuery] = useState('')
 
-    useEffect(() => {
-        if (reachability === 'unknown') void refreshServerStatus()
-    }, [reachability])
+    const codeSystemRows = useMemo(
+        () =>
+            codeSystems.resources.map((resource) => ({
+                ...listingRow(resource.title, resource.name, resource.id, resource.url),
+                count: resource.count ?? resource.concept?.length ?? null,
+                identifiers: identifierBadges(resource.identifier),
+            })),
+        [codeSystems.resources],
+    )
 
-    const translate = declaredOperations(capability).find((operation) => operation.name === 'translate')
+    const valueSetRows = useMemo(
+        () =>
+            valueSets.resources.map((resource) => ({
+                ...listingRow(resource.title, resource.name, resource.id, resource.url),
+                count: enumeratedConceptCount(resource) || composedSystems(resource).length,
+                identifiers: identifierBadges(resource.identifier),
+            })),
+        [valueSets.resources],
+    )
+
+    const conceptMapRows = useMemo(
+        () =>
+            conceptMaps.resources.map((resource) => ({
+                ...listingRow(resource.title, resource.name, resource.id, resource.url),
+                count: mappingCount(resource),
+                identifiers: identifierBadges(resource.identifier),
+            })),
+        [conceptMaps.resources],
+    )
 
     return (
         <>
             <PageHeader
                 title="Terminology"
-                description="The code systems, value sets, and concept maps this project published."
+                description="The code systems, value sets, and concept maps this project published - and the codes inside them."
             />
+
+            <div className="mb-6 flex items-center gap-2">
+                <div className="relative w-full max-w-sm">
+                    <Search
+                        className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+                        aria-hidden
+                    />
+                    <Input
+                        className="pl-9"
+                        placeholder="Filter by title, id, or DHIS2 identifier"
+                        aria-label="Filter terminology"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                    />
+                </div>
+                {query !== '' && (
+                    <Button variant="ghost" size="sm" onClick={() => setQuery('')}>
+                        Clear
+                    </Button>
+                )}
+            </div>
 
             <section className="space-y-8">
                 <TerminologySection
                     title="Code systems"
                     caption="Concepts, one set per DHIS2 option set plus the data-dictionary systems."
+                    resourceType="CodeSystem"
+                    countLabel="Concepts"
                     loading={codeSystems.loading}
                     error={codeSystems.error}
-                    countLabel="Concepts"
-                    rows={codeSystems.resources.map((resource) => ({
-                        key: resource.url ?? resource.id ?? '',
-                        title: resource.title ?? resource.name ?? resource.id ?? '',
-                        identifier: resource.id ?? canonicalId(resource.url) ?? '',
-                        count: resource.count ?? resource.concept?.length ?? null,
-                    }))}
+                    rows={codeSystemRows}
+                    query={query}
                     emptyMessage="This project published no CodeSystems."
                 />
 
                 <TerminologySection
                     title="Value sets"
                     caption="What a coded question may be answered from."
+                    resourceType="ValueSet"
+                    countLabel="Systems"
                     loading={valueSets.loading}
                     error={valueSets.error}
-                    countLabel="Systems"
-                    rows={valueSets.resources.map((resource) => ({
-                        key: resource.url ?? resource.id ?? '',
-                        title: resource.title ?? resource.name ?? resource.id ?? '',
-                        identifier: resource.id ?? canonicalId(resource.url) ?? '',
-                        count: resource.compose?.include?.length ?? null,
-                    }))}
+                    rows={valueSetRows}
+                    query={query}
                     emptyMessage="This project published no ValueSets."
                 />
 
-                <div className="space-y-3">
-                    <div className="space-y-0.5">
-                        <h3 className="text-base font-semibold">Concept maps</h3>
-                        <p className="text-muted-foreground text-sm">
-                            Concept to DHIS2 option uid and code. This server translates through them
-                            rather than serving them as a read type, so what it states about them is
-                            whether it declares $translate.
-                        </p>
-                    </div>
-                    <Card>
-                        <CardContent className="space-y-2 py-6 text-sm">
-                            {translate ? (
-                                <>
-                                    <p className="font-medium">
-                                        <code className="font-mono">$translate</code> is declared.
-                                    </p>
-                                    <p className="text-muted-foreground">{translate.documentation}</p>
-                                    <p className="text-muted-foreground font-mono text-xs break-all">
-                                        GET /ConceptMap/$translate?system=...&amp;code=...
-                                    </p>
-                                </>
-                            ) : (
-                                <p className="text-muted-foreground">
-                                    This server declares no <code className="font-mono">$translate</code>,
-                                    which means its store holds no ConceptMaps. Generate the option sets or
-                                    categories the forms bind, then recompile and restart.
-                                </p>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
+                <TerminologySection
+                    title="Concept maps"
+                    caption="Every concept taken back to the DHIS2 option uid and code the forwarder writes."
+                    resourceType="ConceptMap"
+                    countLabel="Mappings"
+                    loading={conceptMaps.loading}
+                    error={conceptMaps.error}
+                    rows={conceptMapRows}
+                    query={query}
+                    emptyMessage="This project published no ConceptMaps. Generate the option sets or categories the forms bind, then recompile and restart."
+                />
             </section>
         </>
     )
 }
 
-/** One resource type's row set, as the listing renders it. */
+/** One resource as the listing states it: what it is called, and where it is read from. */
 interface TerminologyRow {
     key: string
     title: string
     identifier: string
     count: number | null
+    identifiers: IdentifierBadge[]
+}
+
+/** The naming every listing row shares: a title to sort by, and the id the detail route uses. */
+function listingRow(
+    title: string | undefined,
+    name: string | undefined,
+    id: string | undefined,
+    url: string | undefined,
+): { key: string; title: string; identifier: string } {
+    const identifier = id ?? canonicalId(url) ?? ''
+    return { key: url ?? identifier, title: title ?? name ?? identifier, identifier }
 }
 
 /** One titled table of terminology resources, in whichever of the three states it is in. */
 function TerminologySection({
     title,
     caption,
+    resourceType,
+    countLabel,
     loading,
     error,
-    countLabel,
     rows,
+    query,
     emptyMessage,
 }: {
     title: string
     caption: string
+    resourceType: string
+    countLabel: string
     loading: boolean
     error: string | null
-    countLabel: string
     rows: TerminologyRow[]
+    query: string
     emptyMessage: string
 }) {
-    const sorted = rows.toSorted((left, right) => left.title.localeCompare(right.title))
+    const matching = rows
+        .filter((row) =>
+            matchesQuery(query, row.title, row.identifier, ...row.identifiers.map((badge) => badge.value)),
+        )
+        .toSorted((left, right) => left.title.localeCompare(right.title))
+    const filteredAway = query.trim() !== '' && rows.length > 0 && matching.length === 0
+
     return (
         <div className="space-y-3">
-            <div className="space-y-0.5">
-                <h3 className="text-base font-semibold">{title}</h3>
-                <p className="text-muted-foreground text-sm">{caption}</p>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="space-y-0.5">
+                    <h3 className="text-base font-semibold">{title}</h3>
+                    <p className="text-muted-foreground text-sm">{caption}</p>
+                </div>
+                {rows.length > 0 && (
+                    <p className="text-muted-foreground text-xs">
+                        {matching.length === rows.length
+                            ? `${String(rows.length)} published`
+                            : `${String(matching.length)} of ${String(rows.length)}`}
+                    </p>
+                )}
             </div>
-            <PageState loading={loading} error={error} empty={sorted.length === 0} emptyMessage={emptyMessage}>
+            <PageState
+                loading={loading}
+                error={error}
+                empty={matching.length === 0}
+                emptyMessage={filteredAway ? `Nothing here matches "${query}".` : emptyMessage}
+            >
                 <div className="show-scrollbars overflow-x-auto rounded-lg border">
                     <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Title</TableHead>
                                 <TableHead>Id</TableHead>
+                                <TableHead>DHIS2 identifiers</TableHead>
                                 <TableHead className="text-right">{countLabel}</TableHead>
+                                <TableHead className="w-0" />
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {sorted.map((row) => (
+                            {matching.map((row) => (
                                 <TableRow key={row.key}>
                                     <TableCell className="font-medium">{row.title}</TableCell>
                                     <TableCell className="text-muted-foreground font-mono text-xs">
                                         {row.identifier}
                                     </TableCell>
+                                    <TableCell>
+                                        <IdentifierBadges badges={row.identifiers} />
+                                    </TableCell>
                                     <TableCell className="text-right font-mono text-xs">
                                         {row.count ?? '-'}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Button asChild variant="outline" size="sm">
+                                            <Link to={`/terminology/${resourceType}/${row.identifier}`}>
+                                                Open
+                                            </Link>
+                                        </Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -177,3 +253,4 @@ function TerminologySection({
         </div>
     )
 }
+

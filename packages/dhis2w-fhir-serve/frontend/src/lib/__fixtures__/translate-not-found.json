@@ -1,0 +1,13 @@
+{
+  "resourceType": "Parameters",
+  "parameter": [
+    {
+      "name": "result",
+      "valueBoolean": false
+    },
+    {
+      "name": "message",
+      "valueString": "no ConceptMap served here maps `NoSuchCode` from `http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs`; the code system, the code, or the target system is not one this server holds a mapping for"
+    }
+  ]
+}

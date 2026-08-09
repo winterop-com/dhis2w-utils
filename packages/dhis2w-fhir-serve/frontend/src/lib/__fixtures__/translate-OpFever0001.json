@@ -1,0 +1,51 @@
+{
+  "resourceType": "Parameters",
+  "parameter": [
+    {
+      "name": "result",
+      "valueBoolean": true
+    },
+    {
+      "name": "match",
+      "part": [
+        {
+          "name": "equivalence",
+          "valueCode": "equal"
+        },
+        {
+          "name": "concept",
+          "valueCoding": {
+            "system": "http://dhis2.org/fhir/id/option",
+            "code": "OpFever0001",
+            "display": "Fever"
+          }
+        },
+        {
+          "name": "source",
+          "valueUri": "http://localhost:8080/fhir/ConceptMap/d2-os-OsSymptom01-cm"
+        }
+      ]
+    },
+    {
+      "name": "match",
+      "part": [
+        {
+          "name": "equivalence",
+          "valueCode": "equal"
+        },
+        {
+          "name": "concept",
+          "valueCoding": {
+            "system": "http://dhis2.org/fhir/id/option-code",
+            "code": "FEVER",
+            "display": "Fever"
+          }
+        },
+        {
+          "name": "source",
+          "valueUri": "http://localhost:8080/fhir/ConceptMap/d2-os-OsSymptom01-cm"
+        }
+      ]
+    }
+  ]
+}

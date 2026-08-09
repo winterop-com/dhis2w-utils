@@ -134,10 +134,19 @@ describe('a real /metadata document', () => {
         const operations = declaredOperations(metadata)
         const generate = operations.find((operation) => operation.name === 'generate')
         expect(generate?.on).toBe('Questionnaire')
-        // This fixture's store holds no ConceptMaps, so $translate is
-        // deliberately absent - the server declares it only when it can answer
-        // it, which is the behaviour the Server page reports.
-        expect(operations.some((operation) => operation.name === 'translate')).toBe(false)
+        // $translate is type-level, so it is declared on `rest` rather than on a
+        // resource entry - and only because this fixture's store holds maps. A
+        // store without them declares neither, which is what the Server page reports.
+        const translate = operations.find((operation) => operation.name === 'translate')
+        expect(translate?.on).toBe('server')
+    })
+
+    it('declares ConceptMap as a read type, not only as something to translate through', () => {
+        const conceptMap = metadata.rest?.[0].resource?.find((resource) => resource.type === 'ConceptMap')
+        expect(conceptMap?.interaction?.map((interaction) => interaction.code)).toEqual([
+            'read',
+            'search-type',
+        ])
     })
 
     it('sees a rest-level operation as declared on the server', () => {

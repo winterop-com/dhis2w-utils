@@ -82,6 +82,39 @@ def test_capability_lists_the_read_types_in_the_captured_order(compiled_project:
     ]
 
 
+def test_concept_map_joins_the_read_types_when_the_store_holds_maps(compiled_project: FhirProject) -> None:
+    """The maps are published artifacts in the same store, so they are read like every other type."""
+    with_maps = StoreSummary(counts_by_type={**FULL_SUMMARY.counts_by_type, "ConceptMap": 3})
+
+    capability = _capability(compiled_project, with_maps)
+
+    assert capability.rest is not None
+    resources = capability.rest[0].resource or []
+    assert [resource.type for resource in resources] == [
+        "QuestionnaireResponse",
+        "Questionnaire",
+        "CodeSystem",
+        "ValueSet",
+        "Location",
+        "Organization",
+        "ConceptMap",
+    ]
+    concept_map = resources[-1]
+    assert [interaction.code for interaction in concept_map.interaction or []] == ["read", "search-type"]
+    assert concept_map.operation is None
+    assert [operation.name for operation in capability.rest[0].operation or []] == ["translate"]
+
+
+def test_a_store_without_maps_declares_neither_the_read_type_nor_the_operation(
+    compiled_project: FhirProject,
+) -> None:
+    capability = _capability(compiled_project, FULL_SUMMARY)
+
+    assert capability.rest is not None
+    assert "ConceptMap" not in [resource.type for resource in capability.rest[0].resource or []]
+    assert capability.rest[0].operation is None
+
+
 def test_a_type_the_store_lost_drops_out_of_the_statement(compiled_project: FhirProject) -> None:
     without_organizations = StoreSummary(
         counts_by_type={key: count for key, count in FULL_SUMMARY.counts_by_type.items() if key != "Organization"}

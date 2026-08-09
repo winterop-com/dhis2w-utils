@@ -1,7 +1,8 @@
 """The IG project the serve tests and the browser e2e both run against, written to a directory.
 
 The resources are the dhis2w-fhir goldens - one Questionnaire per form kind plus the terminology
-they bind - so a test that accepts them is a test that the facade accepts the documented contract.
+they bind, and the ConceptMap the emitter writes beside one of the option sets - so a test that
+accepts them is a test that the facade accepts the documented contract.
 
 This lives outside `conftest.py` because two callers need it and only one of them is pytest. The
 Playwright suite boots a real `d2w fhir serve --ui` and needs the same tree on disk first, which it
@@ -21,7 +22,9 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+from dhis2w_fhir import build_option_set_concept_map_artifacts
 from dhis2w_fhir.config import FhirProject, load_fhir_config
+from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir_serve.spool import SPOOL_RELATIVE_PATH
 
 #: Where the dhis2w-fhir goldens live, relative to this file.
@@ -145,6 +148,26 @@ SYMPTOM_CODE_SYSTEM_BODY: dict[str, Any] = {
     "count": 2,
 }
 
+#: The option set the symptom terminology was generated from, as the ConceptMap emitter reads it.
+#:
+#: The concepts of `SYMPTOM_CODE_SYSTEM_BODY` are this set's option UIDs and the `dhis2-code`
+#: property values are its option codes, so the map the emitter writes from it lands on exactly
+#: the concepts the hand-written CodeSystem holds. Building the map rather than hand-writing it
+#: keeps `$translate` in the browser answering off what `d2w fhir generate` really emits.
+SYMPTOM_OPTION_SET = OptionSetIn(
+    uid="OsSymptom01",
+    name="Symptoms",
+    options=[
+        OptionIn(uid="OpFever0001", code="FEVER", name="Fever", sort_order=1),
+        OptionIn(uid="OpCough0001", code="COUGH", name="Cough", sort_order=2),
+    ],
+)
+
+#: The map that option set emits, and the two DHIS2 systems it maps a symptom concept onto.
+SYMPTOM_CONCEPT_MAP = f"{CAPTURE_CANONICAL}/ConceptMap/d2-os-OsSymptom01-cm"
+OPTION_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/id/option"
+OPTION_CODE_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/id/option-code"
+
 SYMPTOM_VALUE_SET_BODY: dict[str, Any] = {
     "resourceType": "ValueSet",
     "id": SYMPTOM_VALUE_SET.rsplit("/", 1)[-1],
@@ -188,7 +211,17 @@ def build_capture_project(destination: Path) -> FhirProject:
     for resource in built:
         write_resource(terminology / f"{resource['resourceType']}-{resource['id']}.json", resource)
 
-    return FhirProject(config=load_fhir_config(config_path), config_path=config_path.resolve())
+    project = FhirProject(config=load_fhir_config(config_path), config_path=config_path.resolve())
+    for artifact in build_option_set_concept_map_artifacts(
+        [SYMPTOM_OPTION_SET],
+        project.config.generate,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+    ):
+        path = project.resources_directory / artifact.relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(artifact.content, encoding="utf-8")
+    return project
 
 
 def option_terminology(response: dict[str, Any]) -> list[dict[str, Any]]:

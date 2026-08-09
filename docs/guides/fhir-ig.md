@@ -1737,8 +1737,9 @@ curl -s 'localhost:8080/Questionnaire?identifier=http://example.org/fhir/demo/id
   | jq '.entry[].resource.title'
 ```
 
-Six resource types are served: `Questionnaire`, `CodeSystem`, `ValueSet`, `Location`,
+Seven resource types are served: `Questionnaire`, `CodeSystem`, `ValueSet`, `Location`,
 and `Organization` - the read set a capture client resolves a form from - plus
+`ConceptMap`, whose maps are published artifacts in the same store, plus
 `QuestionnaireResponse`, which is the one type the facade also receives. Anything else
 is refused with an OperationOutcome saying this server does not serve that type, rather
 than a bare 404 that would read as "no such resource".
@@ -1830,10 +1831,24 @@ OperationOutcome - and `targetsystem` is optional, selecting one group instead o
 of them. Both R4's lowercase `targetsystem` and the `targetSystem` real clients also
 send are read.
 
-The operation is declared at `rest.operation` in the `/metadata` CapabilityStatement,
-and only when the store actually holds ConceptMaps, because `/metadata` never
-advertises what the store cannot answer. Plain reads of `ConceptMap` are not served -
-the maps back the operation rather than being part of the capture read set.
+The operation is declared at `rest.operation` in the `/metadata` CapabilityStatement -
+at rest level rather than on a resource entry, because R4 makes it type-level - and only
+when the store actually holds ConceptMaps, because `/metadata` never advertises what the
+store cannot answer.
+
+The maps are served as documents too: `GET /ConceptMap/<id>` answers the published map
+verbatim and `GET /ConceptMap` searches them like any other type, with the same `_id`,
+`url`, and `identifier` parameters. The two are complementary - a read hands over the
+whole mapping table for a person to look at, the operation answers the one question a
+forwarder has without its caller walking groups and elements.
+
+```bash
+# Every map the project published, as a searchset.
+curl -s localhost:8080/ConceptMap | jq '.entry[].resource.id'
+
+# One map, byte-faithful: its groups, its elements, and the DHIS2 systems it targets.
+curl -s localhost:8080/ConceptMap/d2-os-Qdm5fPK5Ra9-cm | jq '.group[].target'
+```
 
 ### `$generate`
 
@@ -2234,10 +2249,26 @@ is no URL to configure and nothing to point at anything:
     `d2w fhir forward` in another terminal changes what this page shows with nothing
     restarted - hit **Reload**, or just switch back to the browser, which refetches on
     focus.
-- **Terminology** lists the CodeSystems and ValueSets the project published with their
-  concept counts, and says whether `$translate` is declared - which is the honest thing
-  to say about ConceptMaps here, since the facade translates through them rather than
-  serving them as a read type.
+- **Terminology** is a browser over all three terminology types. The listing has a
+  section per type - code systems, value sets, concept maps - each row carrying the id,
+  the DHIS2 identifiers the artifact was generated from, and the concept or mapping
+  count, with one filter box narrowing all three at once. Opening a row is where the
+  actual codes are:
+
+    - A **code system** shows every concept as a table, with one column per property the
+      system declares - which is where the DHIS2 option code sits beside the concept code
+      that stands for it. Filter over code, display, and property values; a long system
+      (organisation units run to thousands) pages at 200 rows with a shown-of-total line.
+    - A **value set** shows what it composes, linked to the code systems it names, and
+      expands them by reading those systems - the same two reads a choice question makes,
+      because this server publishes no `$expand`.
+    - A **concept map** shows every mapping it states, one table per group, so the target
+      system, the target code, and the equivalence are on the row.
+
+    Both detail pages carry a **`$translate` tester**: type or click a concept code,
+    optionally pick a target system, and the answer comes back from the running server -
+    the same operation `d2w fhir forward` resolves a coded answer with. A code the maps
+    say nothing about answers with the message the operation states, not an error.
 - **Server** renders `/metadata` in full: the declared operations (`$translate`,
   `$generate`), the interactions and search parameters per resource type, and the store
   mode this process is running in.

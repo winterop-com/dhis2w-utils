@@ -1,0 +1,320 @@
+import { describe, expect, it } from 'vitest'
+
+import codeSystemFixture from '@/lib/__fixtures__/codesystem-d2-de-cs.json'
+import conceptMapFixture from '@/lib/__fixtures__/conceptmap-d2-os-OsSymptom01-cm.json'
+import optionSetFixture from '@/lib/__fixtures__/codesystem-d2-os-OsSymptom01-cs.json'
+import translateFoundFixture from '@/lib/__fixtures__/translate-OpFever0001.json'
+import translateNotFoundFixture from '@/lib/__fixtures__/translate-not-found.json'
+import valueSetFixture from '@/lib/__fixtures__/valueset-d2-os-OsSymptom01-vs.json'
+import type { CodeSystem, ConceptMap, Parameters, ValueSet } from '@/lib/fhir'
+import {
+    composedSystems,
+    conceptPropertyColumns,
+    conceptPropertyValue,
+    enumeratedConceptCount,
+    filterConcepts,
+    identifierBadges,
+    mappingCount,
+    mappingRows,
+    matchesQuery,
+    pageOf,
+    systemLabel,
+    targetSystems,
+    translationResult,
+} from '@/lib/terminology'
+
+/**
+ * The terminology reading rules, checked against what the server actually answers.
+ *
+ * Every fixture here was harvested from a running `d2w fhir serve` over the capture project the
+ * Python suite serves (packages/dhis2w-fhir-serve/tests/fixture_project.py) - the data-dictionary
+ * CodeSystem with its two property kinds, the ConceptMap the option-set emitter writes, and both
+ * shapes `$translate` answers in. So these are the wire shapes, not approximations of them.
+ */
+
+const dataElements = codeSystemFixture as CodeSystem
+const optionSet = optionSetFixture as CodeSystem
+const conceptMap = conceptMapFixture as ConceptMap
+const symptomValueSet = valueSetFixture as ValueSet
+const translateFound = translateFoundFixture as Parameters
+const translateNotFound = translateNotFoundFixture as Parameters
+
+describe('concept property columns', () => {
+    it('discovers a column per declared property, headed by its description', () => {
+        expect(conceptPropertyColumns(dataElements)).toEqual([
+            {
+                code: 'dhis2-code',
+                label: 'DHIS2 data element code',
+                uri: 'http://dhis2.org/fhir/property/dhis2-code',
+                declared: true,
+            },
+            {
+                code: 'domain',
+                label: 'DHIS2 data element domain type',
+                uri: 'http://dhis2.org/fhir/property/domain',
+                declared: true,
+            },
+        ])
+    })
+
+    it('falls back to the property code when the system describes none', () => {
+        expect(conceptPropertyColumns(optionSet)).toEqual([
+            {
+                code: 'dhis2-code',
+                label: 'dhis2-code',
+                uri: 'http://dhis2.org/fhir/property/dhis2-code',
+                declared: true,
+            },
+        ])
+    })
+
+    it('keeps a property a concept carries but the system never declared', () => {
+        const columns = conceptPropertyColumns({
+            resourceType: 'CodeSystem',
+            status: 'draft',
+            property: [{ code: 'dhis2-code' }],
+            concept: [{ code: 'X', property: [{ code: 'undeclared', valueString: 'here anyway' }] }],
+        })
+        expect(columns.map((column) => [column.code, column.declared])).toEqual([
+            ['dhis2-code', true],
+            ['undeclared', false],
+        ])
+    })
+
+    it('answers nothing for a system with no properties at all', () => {
+        expect(conceptPropertyColumns({ resourceType: 'CodeSystem', status: 'draft' })).toEqual([])
+    })
+})
+
+describe('concept property values', () => {
+    it('reads both value[x] variants one generated system uses', () => {
+        const concept = dataElements.concept?.[0]
+        expect(concept).toBeDefined()
+        // `dhis2-code` is a string property and `domain` a code property, in the same document.
+        expect(conceptPropertyValue(concept!, 'dhis2-code')).toBe('DeAncDanger')
+        expect(conceptPropertyValue(concept!, 'domain')).toBe('tracker')
+    })
+
+    it('answers null for a property the concept does not carry', () => {
+        expect(conceptPropertyValue({ code: 'X' }, 'dhis2-code')).toBeNull()
+        expect(conceptPropertyValue({ code: 'X', property: [{ code: 'empty' }] }, 'empty')).toBeNull()
+    })
+
+    it('renders the remaining variants as text', () => {
+        const concept = {
+            code: 'X',
+            property: [
+                { code: 'count', valueInteger: 3 },
+                { code: 'ratio', valueDecimal: 1.5 },
+                { code: 'flag', valueBoolean: false },
+                { code: 'coded', valueCoding: { code: 'CODED' } },
+            ],
+        }
+        expect(conceptPropertyValue(concept, 'count')).toBe('3')
+        expect(conceptPropertyValue(concept, 'ratio')).toBe('1.5')
+        expect(conceptPropertyValue(concept, 'flag')).toBe('false')
+        expect(conceptPropertyValue(concept, 'coded')).toBe('CODED')
+    })
+})
+
+describe('filtering concepts', () => {
+    it('matches a code, a display, or a property value', () => {
+        expect(filterConcepts(optionSet.concept ?? [], 'fever').map((concept) => concept.code)).toEqual([
+            'OpFever0001',
+        ])
+        expect(filterConcepts(optionSet.concept ?? [], 'COUGH').map((concept) => concept.code)).toEqual([
+            'OpCough0001',
+        ])
+        expect(filterConcepts(optionSet.concept ?? [], 'OpFever').map((concept) => concept.code)).toEqual([
+            'OpFever0001',
+        ])
+    })
+
+    it('keeps everything for an empty query', () => {
+        expect(filterConcepts(dataElements.concept ?? [], '   ')).toHaveLength(70)
+    })
+
+    it('answers nothing when the query matches nothing', () => {
+        expect(filterConcepts(optionSet.concept ?? [], 'nothing here')).toEqual([])
+    })
+})
+
+describe('client pagination', () => {
+    it('slices a long system into pages and counts what is on screen', () => {
+        const concepts = dataElements.concept ?? []
+        const first = pageOf(concepts, 1, 25)
+        expect(first.rows).toHaveLength(25)
+        expect(first).toMatchObject({ page: 1, pageCount: 3, shown: 25, total: 70 })
+        expect(pageOf(concepts, 3, 25)).toMatchObject({ page: 3, shown: 20, total: 70 })
+    })
+
+    it('clamps a page beyond the end rather than showing an empty table', () => {
+        // What a filter does: the rows shrink under a page number the user is already on.
+        expect(pageOf(dataElements.concept ?? [], 9, 25).page).toBe(3)
+        expect(pageOf(dataElements.concept ?? [], 0, 25).page).toBe(1)
+    })
+
+    it('reports one empty page for no rows at all', () => {
+        expect(pageOf([], 1, 25)).toEqual({ rows: [], page: 1, pageCount: 1, shown: 0, total: 0 })
+    })
+
+    it('leaves a list shorter than one page whole', () => {
+        expect(pageOf(optionSet.concept ?? [], 1).total).toBe(2)
+        expect(pageOf(optionSet.concept ?? [], 1).pageCount).toBe(1)
+    })
+})
+
+describe('a real ConceptMap', () => {
+    it('counts one mapping per target, not per source concept', () => {
+        // Two concepts, two groups (option uid and option code), so four mappings.
+        expect(mappingCount(conceptMap)).toBe(4)
+    })
+
+    it('names the target systems in the order the map states them', () => {
+        expect(targetSystems(conceptMap)).toEqual([
+            'http://dhis2.org/fhir/id/option',
+            'http://dhis2.org/fhir/id/option-code',
+        ])
+    })
+
+    it('flattens one group into rows a table can show', () => {
+        const codeGroup = (conceptMap.group ?? []).find(
+            (group) => group.target === 'http://dhis2.org/fhir/id/option-code',
+        )
+        expect(codeGroup).toBeDefined()
+        expect(mappingRows(codeGroup!)).toEqual([
+            {
+                code: 'OpFever0001',
+                display: 'Fever',
+                targetCode: 'FEVER',
+                targetDisplay: null,
+                equivalence: 'equal',
+            },
+            {
+                code: 'OpCough0001',
+                display: 'Cough',
+                targetCode: 'COUGH',
+                targetDisplay: null,
+                equivalence: 'equal',
+            },
+        ])
+    })
+
+    it('drops a target that maps a concept onto no code at all', () => {
+        expect(mappingRows({ element: [{ code: 'X', target: [{ equivalence: 'unmatched' }] }] })).toEqual([])
+    })
+
+    it('reads the single-element identifier R4 gives a map', () => {
+        expect(identifierBadges(conceptMap.identifier)).toEqual([
+            { label: 'id/option-set', value: 'OsSymptom01' },
+        ])
+    })
+})
+
+describe('identifier badges', () => {
+    it('reads the list form every other definitional resource uses', () => {
+        expect(
+            identifierBadges([
+                { system: 'http://dhis2.org/fhir/id/program', value: 'ZzYYXq4fJie' },
+                { system: 'http://dhis2.org/fhir/code/program', value: 'ANC_VISIT' },
+            ]),
+        ).toEqual([
+            { label: 'id/program', value: 'ZzYYXq4fJie' },
+            { label: 'code/program', value: 'ANC_VISIT' },
+        ])
+    })
+
+    it('skips an identifier carrying no value, and names a system-less one', () => {
+        expect(identifierBadges([{ system: 'http://x/id/thing' }, { value: 'bare' }])).toEqual([
+            { label: 'identifier', value: 'bare' },
+        ])
+        expect(identifierBadges(undefined)).toEqual([])
+    })
+})
+
+describe('systemLabel', () => {
+    it('reads the last two segments, which is what names a DHIS2 identifier system', () => {
+        expect(systemLabel('http://dhis2.org/fhir/id/option-code')).toBe('id/option-code')
+        expect(systemLabel('http://localhost:8080/fhir/CodeSystem/d2-de-cs')).toBe('CodeSystem/d2-de-cs')
+        expect(systemLabel(undefined)).toBe('identifier')
+    })
+})
+
+describe('a real ValueSet', () => {
+    it('names the system it composes without enumerating any concept', () => {
+        expect(composedSystems(symptomValueSet)).toEqual([
+            'http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs',
+        ])
+        expect(enumeratedConceptCount(symptomValueSet)).toBe(0)
+    })
+
+    it('counts the concepts an enumerating set names outright', () => {
+        expect(
+            enumeratedConceptCount({
+                resourceType: 'ValueSet',
+                status: 'draft',
+                compose: { include: [{ system: 'http://x', concept: [{ code: 'a' }, { code: 'b' }] }] },
+            }),
+        ).toBe(2)
+    })
+})
+
+describe('a real $translate answer', () => {
+    it('reads both DHIS2 identifiers one concept maps onto', () => {
+        expect(translationResult(translateFound)).toEqual({
+            matched: true,
+            message: null,
+            matches: [
+                {
+                    system: 'http://dhis2.org/fhir/id/option',
+                    code: 'OpFever0001',
+                    display: 'Fever',
+                    equivalence: 'equal',
+                    source: 'http://localhost:8080/fhir/ConceptMap/d2-os-OsSymptom01-cm',
+                },
+                {
+                    system: 'http://dhis2.org/fhir/id/option-code',
+                    code: 'FEVER',
+                    display: 'Fever',
+                    equivalence: 'equal',
+                    source: 'http://localhost:8080/fhir/ConceptMap/d2-os-OsSymptom01-cm',
+                },
+            ],
+        })
+    })
+
+    it('reads a miss as an answer with a message, not as a failure', () => {
+        const result = translationResult(translateNotFound)
+        expect(result.matched).toBe(false)
+        expect(result.matches).toEqual([])
+        expect(result.message).toContain('no ConceptMap served here maps `NoSuchCode`')
+    })
+
+    it('drops a match whose concept carries no code, and answers empty for no parameters', () => {
+        expect(
+            translationResult({
+                resourceType: 'Parameters',
+                parameter: [
+                    { name: 'result', valueBoolean: true },
+                    { name: 'match', part: [{ name: 'concept', valueCoding: { system: 'http://x' } }] },
+                ],
+            }).matches,
+        ).toEqual([])
+        expect(translationResult({ resourceType: 'Parameters' })).toEqual({
+            matched: false,
+            matches: [],
+            message: null,
+        })
+    })
+})
+
+describe('matchesQuery', () => {
+    it('matches case-insensitively across every text it is given', () => {
+        expect(matchesQuery('FEV', 'OpFever0001', 'Fever')).toBe(true)
+        expect(matchesQuery('cough', 'OpFever0001', 'Fever')).toBe(false)
+    })
+
+    it('admits everything for a blank query', () => {
+        expect(matchesQuery('  ', undefined, null)).toBe(true)
+    })
+})

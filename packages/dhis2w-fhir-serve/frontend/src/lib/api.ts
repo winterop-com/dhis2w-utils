@@ -15,9 +15,10 @@
  * is exactly the arrangement in which a mistyped path returns 200 text/html and
  * a caller spends an afternoon on "why is my Bundle a string". The guard is the
  * router table of `dhis2w_fhir_serve.routes` written down: /metadata and /spool,
- * plus the five read types and QuestionnaireResponse the catch-alls answer for,
- * plus ConceptMap which is not a read type but carries $translate. Anything else
- * is a programming error and is refused here rather than by the server.
+ * plus the six read types and QuestionnaireResponse the catch-alls answer for -
+ * ConceptMap being both a read type and the one the type-level $translate hangs
+ * off. Anything else is a programming error and is refused here rather than by
+ * the server.
  *
  * ONE PATH HERE IS NOT FHIR. `/spool` answers plain JSON, not
  * `application/fhir+json`: it serves the receipt *envelopes* - when the facade
@@ -35,7 +36,13 @@
  * `useSyncExternalStore`.
  */
 
-import type { Bundle, CapabilityStatement, OperationOutcome, QuestionnaireResponse } from '@/lib/fhir'
+import type {
+    Bundle,
+    CapabilityStatement,
+    OperationOutcome,
+    Parameters,
+    QuestionnaireResponse,
+} from '@/lib/fhir'
 import type { SpoolListing } from '@/lib/spool'
 
 /** The media type every FHIR request and response on this server carries. */
@@ -46,8 +53,8 @@ export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
  *
  * Kept as a list rather than only a regex so the set is greppable from the
  * Python side: this must stay equal to `/metadata` and `/spool` plus
- * `dhis2w_fhir_serve.routes.read.SERVED_RESOURCE_TYPES` plus ConceptMap. The
- * vite dev-server proxy in vite.config.ts proxies the same list.
+ * `dhis2w_fhir_serve.routes.read.SERVED_RESOURCE_TYPES`. The vite dev-server
+ * proxy in vite.config.ts proxies the same list.
  */
 export const GUARDED_PATH_SEGMENTS = [
     'metadata',
@@ -201,6 +208,28 @@ export async function generateResponse(
 ): Promise<QuestionnaireResponse> {
     const query = seed === undefined ? '' : `?seed=${seed}`
     return readJson<QuestionnaireResponse>(`/Questionnaire/${questionnaireId}/$generate${query}`)
+}
+
+/**
+ * Ask what the published maps take one concept to.
+ *
+ * The type-level `$translate`, which is the only terminology operation this
+ * server answers - there is no `$expand` and no `$lookup`. `targetSystem` is
+ * optional and selects one group of the maps instead of all of them; R4 spells
+ * the parameter `targetsystem`, all lower case, which is what goes on the wire.
+ *
+ * A concept the maps say nothing about is not an error: the operation answers
+ * 200 with `result` false and a `message` naming what was not found, so the
+ * caller reads the Parameters rather than catching.
+ */
+export async function translateCode(
+    system: string,
+    code: string,
+    targetSystem?: string,
+): Promise<Parameters> {
+    const parameters = new URLSearchParams({ system, code })
+    if (targetSystem !== undefined && targetSystem !== '') parameters.set('targetsystem', targetSystem)
+    return readJson<Parameters>(`/ConceptMap/$translate?${parameters.toString()}`)
 }
 
 /**

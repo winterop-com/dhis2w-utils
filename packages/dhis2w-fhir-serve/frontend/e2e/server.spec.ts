@@ -43,12 +43,28 @@ test('states the interactions and search parameters per resource type', async ({
     await expect(responses).toContainText('questionnaire')
 })
 
-test('does not declare $translate, because this project published no ConceptMaps', async ({ page }) => {
-    // The honest half of the conditional: the fixture IG has terminology but no
-    // maps, so the operation a client would use is genuinely not answerable here
-    // and the page must not advertise it.
+test('declares $translate on the server, because this project published ConceptMaps', async ({ page }) => {
+    // The operation is conditional on the store: the fixture IG publishes the map the option-set
+    // emitter writes, so the operation a client would use is answerable and is advertised. It is
+    // declared at rest level rather than on a resource entry, because R4 makes it type-level.
     await page.goto('/#/server')
 
     await expect(page.getByRole('heading', { name: 'Declared operations' })).toBeVisible()
-    await expect(page.getByRole('row').filter({ hasText: '$translate' })).toHaveCount(0)
+    const row = page.getByRole('row').filter({ hasText: '$translate' })
+    await expect(row).toHaveCount(1)
+    await expect(row).toContainText('server')
+})
+
+test('declares ConceptMap among the read types', async ({ page }) => {
+    // The maps are published artifacts in the same store as the code systems, so they are read
+    // and searched like every other type - which is what the Terminology browser reads them by.
+    await page.goto('/#/server')
+
+    const row = page
+        .getByRole('row')
+        .filter({ has: page.getByRole('cell', { name: 'ConceptMap', exact: true }) })
+
+    await expect(row).toHaveCount(1)
+    await expect(row).toContainText('read')
+    await expect(row).toContainText('search-type')
 })

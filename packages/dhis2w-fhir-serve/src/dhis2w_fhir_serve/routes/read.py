@@ -6,8 +6,10 @@ falling through to a bare 404, so a client learns the difference between "this s
 serve Patient" and "there is no Questionnaire with that id".
 
 The two catch-alls answer from two sources. Every definitional resource comes from the store,
-byte-faithful to what the IG published. QuestionnaireResponse comes from the spool, where each
-resource is a receipt of a submission - what a client sent, not what DHIS2 now holds.
+byte-faithful to what the IG published - ConceptMap included, which is read here as a document and
+translated through at `/ConceptMap/$translate`, the two being different ways to ask about the same
+published maps. QuestionnaireResponse comes from the spool, where each resource is a receipt of a
+submission - what a client sent, not what DHIS2 now holds.
 
 A receipt is answered whatever lifecycle state it is in. `d2w fhir forward` renames a drained
 receipt into `forwarded/` or `rejected/`, and a read that started 404-ing at that moment would
@@ -25,7 +27,6 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import urlencode
 
-from dhis2w_fhir.foundation import CAPTURE_SERVER_READ_RESOURCE_TYPES
 from dhis2w_fhir.r4 import Bundle, BundleEntry, BundleEntrySearch, BundleLink, JsonResource
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
@@ -33,13 +34,13 @@ from starlette.datastructures import QueryParams
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from dhis2w_fhir_serve.capability import QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE
+from dhis2w_fhir_serve.capability import QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE, SERVED_READ_RESOURCE_TYPES
 from dhis2w_fhir_serve.errors import FHIR_JSON_MEDIA_TYPE, BadSearchError, NotFoundError, NotServedError
 from dhis2w_fhir_serve.routes.context import serve_context
 from dhis2w_fhir_serve.store import IdentifierToken, SearchQuery
 
 #: Every resource type the facade answers a read or a search for.
-SERVED_RESOURCE_TYPES = (*CAPTURE_SERVER_READ_RESOURCE_TYPES, QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE)
+SERVED_RESOURCE_TYPES = (*SERVED_READ_RESOURCE_TYPES, QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE)
 
 router = APIRouter()
 

@@ -242,17 +242,56 @@ export interface QuestionnaireResponse {
     item?: QuestionnaireResponseItem[]
 }
 
-/** A terminology resource, read only for what a listing needs to say about it. */
+/** One property a CodeSystem declares its concepts may carry, as `CodeSystem.property`. */
+export interface CodeSystemPropertyDefinition {
+    code: string
+    uri?: string
+    description?: string
+    type?: string
+}
+
+/**
+ * One property value on one concept.
+ *
+ * The DHIS2 emitter writes `valueString` (the option code, the DHIS2 uid), but a hand-written
+ * CodeSystem served with `--live` may use any of R4's variants, so the ones a concept table can
+ * render as text are all read.
+ */
+export interface CodeSystemConceptProperty {
+    code: string
+    valueString?: string
+    valueCode?: string
+    valueInteger?: number
+    valueBoolean?: boolean
+    valueDecimal?: number
+    valueDateTime?: string
+    valueCoding?: Coding
+}
+
+/** One concept: its code, how it is displayed, and whatever properties the system declares. */
+export interface CodeSystemConcept {
+    code: string
+    display?: string
+    definition?: string
+    property?: CodeSystemConceptProperty[]
+}
+
+/** A terminology resource, with the concepts a browser shows and the properties they carry. */
 export interface CodeSystem {
     resourceType: 'CodeSystem'
     id?: string
     url?: string
     name?: string
     title?: string
+    description?: string
     status: PublicationStatus
+    identifier?: Identifier[]
+    caseSensitive?: boolean
+    content?: string
     count?: number
     valueSet?: string
-    concept?: { code: string; display?: string }[]
+    property?: CodeSystemPropertyDefinition[]
+    concept?: CodeSystemConcept[]
 }
 
 /**
@@ -268,7 +307,9 @@ export interface ValueSet {
     url?: string
     name?: string
     title?: string
+    description?: string
     status: PublicationStatus
+    identifier?: Identifier[]
     compose?: { include?: ValueSetInclude[] }
 }
 
@@ -278,17 +319,69 @@ export interface ValueSetInclude {
     concept?: { code: string; display?: string }[]
 }
 
-/** A concept map, read only for what a listing needs to say about it. */
+/** One concept a mapping lands on, in the target system its group names. */
+export interface ConceptMapTarget {
+    code?: string
+    display?: string
+    equivalence?: string
+    comment?: string
+}
+
+/** One source concept and everything the map takes it to. */
+export interface ConceptMapElement {
+    code?: string
+    display?: string
+    target?: ConceptMapTarget[]
+}
+
+/** One source-system to target-system block of mappings. */
+export interface ConceptMapGroup {
+    source?: string
+    target?: string
+    element?: ConceptMapElement[]
+}
+
+/**
+ * A concept map: a generated concept taken back to the DHIS2 identifiers it stands for.
+ *
+ * `identifier` is a single element here rather than a list - R4 gives `ConceptMap.identifier`
+ * a cardinality of 0..1 where every other definitional resource gets 0..*, and the emitter
+ * writes it as the DHIS2 object the map was generated from.
+ */
 export interface ConceptMap {
     resourceType: 'ConceptMap'
     id?: string
     url?: string
     name?: string
     title?: string
+    description?: string
     status: PublicationStatus
+    identifier?: Identifier
     sourceCanonical?: string
     targetCanonical?: string
-    group?: { element?: unknown[] }[]
+    group?: ConceptMapGroup[]
+}
+
+/**
+ * One parameter of an operation's input or output, with the `value[x]` variants this UI meets.
+ *
+ * `$translate` answers with `result`, an optional `message`, and one `match` per mapping - and a
+ * match carries its own parts, which is why this shape is recursive.
+ */
+export interface ParametersParameter {
+    name: string
+    valueBoolean?: boolean
+    valueString?: string
+    valueCode?: string
+    valueUri?: string
+    valueCoding?: Coding
+    part?: ParametersParameter[]
+}
+
+/** The R4 envelope every operation on this server answers in. */
+export interface Parameters {
+    resourceType: 'Parameters'
+    parameter?: ParametersParameter[]
 }
 
 /** Every resource type this UI can meet inside a Bundle entry. */
