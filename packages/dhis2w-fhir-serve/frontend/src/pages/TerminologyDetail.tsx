@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table'
 import { useFhirResource } from '@/hooks/use-fhir-resource'
 import { useValueSetOptions } from '@/hooks/use-valueset-options'
-import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet } from '@/lib/fhir'
+import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet, unescapeMarkup } from '@/lib/fhir'
 import {
     composedSystems,
     conceptPropertyColumns,
@@ -115,7 +115,8 @@ function TerminologyResource({
 
 /** What a terminology resource is called, whichever of the three it is. */
 function title(resource: CodeSystem | ValueSet | ConceptMap): string | null {
-    return resource.title ?? resource.name ?? resource.id ?? null
+    const raw = resource.title ?? resource.name ?? resource.id ?? null
+    return raw === null ? null : unescapeMarkup(raw)
 }
 
 /** A code system: what it declares about itself, then every concept it holds. */

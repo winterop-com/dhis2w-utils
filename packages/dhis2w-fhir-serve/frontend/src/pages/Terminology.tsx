@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
@@ -15,7 +15,7 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
-import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet } from '@/lib/fhir'
+import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet, unescapeMarkup } from '@/lib/fhir'
 import {
     composedSystems,
     enumeratedConceptCount,
@@ -160,7 +160,7 @@ function listingRow(
     url: string | undefined,
 ): { key: string; title: string; identifier: string } {
     const identifier = id ?? canonicalId(url) ?? ''
-    return { key: url ?? identifier, title: title ?? name ?? identifier, identifier }
+    return { key: url ?? identifier, title: unescapeMarkup(title ?? name ?? identifier), identifier }
 }
 
 /** One titled table of terminology resources, in whichever of the three states it is in. */
@@ -185,6 +185,7 @@ function TerminologySection({
     query: string
     emptyMessage: string
 }) {
+    const navigate = useNavigate()
     const matching = rows
         .filter((row) =>
             matchesQuery(query, row.title, row.identifier, ...row.identifiers.map((badge) => badge.value)),
@@ -221,12 +222,23 @@ function TerminologySection({
                                 <TableHead>Id</TableHead>
                                 <TableHead>DHIS2 identifiers</TableHead>
                                 <TableHead className="text-right">{countLabel}</TableHead>
-                                <TableHead className="w-0" />
-                            </TableRow>
+                                                            </TableRow>
                         </TableHeader>
                         <TableBody>
                             {matching.map((row) => (
-                                <TableRow key={row.key}>
+                                <TableRow
+                                    key={row.key}
+                                    className="hover:bg-muted/50 cursor-pointer"
+                                    tabIndex={0}
+                                    aria-label={`Open ${row.title}`}
+                                    onClick={() => navigate(`/terminology/${resourceType}/${row.identifier}`)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                            event.preventDefault()
+                                            navigate(`/terminology/${resourceType}/${row.identifier}`)
+                                        }
+                                    }}
+                                >
                                     <TableCell className="font-medium">{row.title}</TableCell>
                                     <TableCell className="text-muted-foreground font-mono text-xs">
                                         {row.identifier}
@@ -236,13 +248,6 @@ function TerminologySection({
                                     </TableCell>
                                     <TableCell className="text-right font-mono text-xs">
                                         {row.count ?? '-'}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Button asChild variant="outline" size="sm">
-                                            <Link to={`/terminology/${resourceType}/${row.identifier}`}>
-                                                Open
-                                            </Link>
-                                        </Button>
                                     </TableCell>
                                 </TableRow>
                             ))}

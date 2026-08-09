@@ -611,3 +611,19 @@ export function servedIgLabel(capability: CapabilityStatement | null): string | 
     const marker = description.indexOf(' served as')
     return marker > 0 ? description.slice(0, marker) : description
 }
+
+/**
+ * Undo the emit-time HTML escaping the IG applies to page-facing text.
+ *
+ * The generator escapes `&`, `<`, and `>` in every resource `title` and
+ * `description` it publishes, because the IG publisher's page template pastes
+ * those strings raw into HTML and aborts the build on a bare `<`
+ * (`escape_markup` in dhis2w_fhir.names records the quirk). That makes the
+ * escaping a convention of this IG's wire format, and this UI is a consumer
+ * that knows the convention: display text unescapes exactly those three
+ * entities, in the reverse order the emitter applied them so an ampersand the
+ * source text really carried survives the round trip.
+ */
+export function unescapeMarkup(value: string): string {
+    return value.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&')
+}

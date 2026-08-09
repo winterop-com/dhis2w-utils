@@ -44,7 +44,6 @@ test('opening a code system shows its concepts and their DHIS2 codes', async ({ 
     await page
         .getByRole('row')
         .filter({ hasText: 'd2-os-OsSymptom01-cs' })
-        .getByRole('link', { name: 'Open' })
         .click()
 
     await expect(page).toHaveURL(/#\/terminology\/CodeSystem\/d2-os-OsSymptom01-cs$/)
@@ -99,7 +98,6 @@ test('opening a concept map shows every mapping, grouped by target system', asyn
     await page
         .getByRole('row')
         .filter({ hasText: 'd2-os-OsSymptom01-cm' })
-        .getByRole('link', { name: 'Open' })
         .click()
 
     await expect(page).toHaveURL(/#\/terminology\/ConceptMap\/d2-os-OsSymptom01-cm$/)

@@ -34,10 +34,11 @@ test('states how many questions each form asks', async ({ page }) => {
     await expect(temporal.getByRole('cell', { name: '7', exact: true })).toBeVisible()
 })
 
-test('every row links into the form view', async ({ page }) => {
+test('every row opens the form view on click', async ({ page }) => {
     await page.goto('/')
 
-    const open = page.getByRole('link', { name: 'Open' })
-    await expect(open.first()).toBeVisible()
-    await expect(open.first()).toHaveAttribute('href', /#\/forms\//)
+    const rows = page.getByRole('row').filter({ hasText: 'Child Health' })
+    await expect(rows.first()).toBeVisible()
+    await rows.first().click()
+    await expect(page).toHaveURL(/#\/forms\//)
 })

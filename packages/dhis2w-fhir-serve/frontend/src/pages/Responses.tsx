@@ -24,7 +24,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useSpool } from '@/hooks/use-spool'
-import { FORM_TYPE_LABELS, canonicalId, type Questionnaire } from '@/lib/fhir'
+import { FORM_TYPE_LABELS, canonicalId, type Questionnaire, unescapeMarkup } from '@/lib/fhir'
 import {
     LIFECYCLE_HINTS,
     LIFECYCLE_LABELS,
@@ -482,7 +482,7 @@ function Fact({ label, value, mono = false }: { label: string; value: string; mo
  * than as a blank cell.
  */
 function formLabel(summary: SpoolResponseSummary, form: Questionnaire | undefined): string {
-    return (
+    return unescapeMarkup(
         form?.title ??
         form?.name ??
         summary.questionnaire_id ??

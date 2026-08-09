@@ -139,7 +139,6 @@ test.describe('filling a form in the browser', () => {
         await page
             .getByRole('row')
             .filter({ hasText: 'Child Health' })
-            .getByRole('link', { name: 'Open' })
             .click()
         await expect(page).toHaveURL(new RegExp(`#/forms/${AGGREGATE_FORM}$`))
 

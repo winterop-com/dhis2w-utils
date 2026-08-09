@@ -1,8 +1,7 @@
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 import { PageHeader, PageState } from '@/components/PageState'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
     Table,
     TableBody,
@@ -18,8 +17,7 @@ import {
     formTypeOf,
     questionCount,
     type FormType,
-    type Questionnaire,
-} from '@/lib/fhir'
+    type Questionnaire, unescapeMarkup } from '@/lib/fhir'
 
 /**
  * Every form this server publishes, as one table.
@@ -33,6 +31,7 @@ import {
  * The renderer sibling owns `/forms/:id`. This page only routes there.
  */
 export function Forms() {
+    const navigate = useNavigate()
     const { resources, loading, error } = useFhirSearch<Questionnaire>('Questionnaire')
     const questionnaires = resources.toSorted((left, right) =>
         (left.title ?? left.id ?? '').localeCompare(right.title ?? right.id ?? ''),
@@ -58,16 +57,27 @@ export function Forms() {
                                 <TableHead>Kind</TableHead>
                                 <TableHead className="text-right">Questions</TableHead>
                                 <TableHead>Id</TableHead>
-                                <TableHead className="w-0" />
-                            </TableRow>
+                                                            </TableRow>
                         </TableHeader>
                         <TableBody>
                             {questionnaires.map((questionnaire) => {
                                 const identifier = questionnaire.id ?? canonicalId(questionnaire.url) ?? ''
                                 return (
-                                    <TableRow key={questionnaire.url ?? identifier}>
+                                    <TableRow
+                                        key={questionnaire.url ?? identifier}
+                                        className="hover:bg-muted/50 cursor-pointer"
+                                        tabIndex={0}
+                                        aria-label={`Open ${questionnaire.title ?? questionnaire.name ?? identifier}`}
+                                        onClick={() => navigate(`/forms/${identifier}`)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault()
+                                                navigate(`/forms/${identifier}`)
+                                            }
+                                        }}
+                                    >
                                         <TableCell className="font-medium">
-                                            {questionnaire.title ?? questionnaire.name ?? identifier}
+                                            {unescapeMarkup(questionnaire.title ?? questionnaire.name ?? identifier)}
                                         </TableCell>
                                         <TableCell>
                                             <FormTypeBadge kind={formTypeOf(questionnaire)} />
@@ -77,11 +87,6 @@ export function Forms() {
                                         </TableCell>
                                         <TableCell className="text-muted-foreground font-mono text-xs">
                                             {identifier}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Button asChild variant="outline" size="sm">
-                                                <Link to={`/forms/${identifier}`}>Open</Link>
-                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 )

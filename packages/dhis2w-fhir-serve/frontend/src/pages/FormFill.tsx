@@ -16,8 +16,7 @@ import {
     questionCount,
     type OperationOutcomeIssue,
     type Questionnaire,
-    type QuestionnaireResponse,
-} from '@/lib/fhir'
+    type QuestionnaireResponse, unescapeMarkup } from '@/lib/fhir'
 import {
     answersFromResponse,
     answersReducer,
@@ -281,7 +280,7 @@ function FormFillHeader({
                 </Link>
             </Button>
             <h2 className="text-xl font-semibold tracking-tight">
-                {questionnaire?.title ?? questionnaire?.name ?? questionnaireId}
+                {unescapeMarkup(questionnaire?.title ?? questionnaire?.name ?? questionnaireId)}
             </h2>
             <div className="flex flex-wrap items-center gap-2">
                 {kind !== null && <Badge variant="secondary">{FORM_TYPE_LABELS[kind]}</Badge>}

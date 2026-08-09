@@ -11,8 +11,7 @@ import {
     servedIgLabel,
     type Bundle,
     type CapabilityStatement,
-    type Questionnaire,
-} from '@/lib/fhir'
+    type Questionnaire, unescapeMarkup } from '@/lib/fhir'
 
 /**
  * The parsing rules, checked against what the server actually answers.
@@ -181,5 +180,17 @@ describe('canonicalId', () => {
     it('answers null for nothing to read', () => {
         expect(canonicalId(undefined)).toBeNull()
         expect(canonicalId('')).toBeNull()
+    })
+})
+
+describe('unescapeMarkup', () => {
+    it('reverses the emit-time escaping of the three markup entities', () => {
+        expect(unescapeMarkup('Age (&lt;5 - 49) &amp; over')).toBe('Age (<5 - 49) & over')
+        expect(unescapeMarkup('Age (&lt;5 &gt;5) &amp; sex')).toBe('Age (<5 >5) & sex')
+    })
+
+    it('leaves text without entities untouched and survives a real ampersand', () => {
+        expect(unescapeMarkup('Malaria cases')).toBe('Malaria cases')
+        expect(unescapeMarkup('A &amp;amp; B')).toBe('A &amp; B')
     })
 })
