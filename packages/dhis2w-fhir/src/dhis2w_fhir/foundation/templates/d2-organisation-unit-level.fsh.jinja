@@ -1,0 +1,11 @@
+Extension: {{ names.organisation_unit_level_extension }}
+Id: {{ names.organisation_unit_level_extension_id }}
+Title: "DHIS2 organisation unit level"
+Description: "The level of the DHIS2 organisation unit hierarchy a place sits at, as a code of the published level CodeSystem."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "Location"
+* value[x] only Coding
+* valueCoding 1..1
+* valueCoding from {{ level_value_set }} (extensible)

@@ -139,6 +139,7 @@ class Extension(Element):
     valueDecimal: int | float | None = None
     valueAttachment: Attachment | None = None
     valueCodeableConcept: CodeableConcept | None = None
+    valueCoding: Coding | None = None
     valueIdentifier: Identifier | None = None
     valueReference: Reference | None = None
     valuePeriod: Period | None = None

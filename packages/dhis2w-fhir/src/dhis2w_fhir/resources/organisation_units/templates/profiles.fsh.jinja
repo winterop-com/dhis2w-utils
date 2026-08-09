@@ -33,8 +33,9 @@ Description: "The physical place of a DHIS2 organisation unit."
 * name 1..1
 * status 1..1
 * position 0..1 MS
-* extension contains {{ boundary_extension_url }} named boundary 0..1
+* extension contains {{ boundary_extension_url }} named boundary 0..1 and {{ level_extension }} named level 1..1
 * extension[boundary] ^short = "The unit's DHIS2 geometry, carried as a GeoJSON Feature in the attachment."
+* extension[level] ^short = "The DHIS2 organisation unit level this place sits at."
 * managingOrganization 1..1
 * managingOrganization only Reference({{ names.organization_profile }})
 * partOf only Reference({{ names.location_profile }})

@@ -69,6 +69,16 @@ _EXPECTED_EXTENSIONS = [
 
 _BOUNDARY_GEOJSON = '{"coordinates":[[[0,0],[1,0],[1,1],[0,0]]],"type":"Polygon"}'
 
+#: What a level-2 unit's Location closes its extension list with - the level the place sits at.
+_LEVEL_EXTENSION = {
+    "url": f"{_CANONICAL}/StructureDefinition/d2-organisation-unit-level",
+    "valueCoding": {
+        "system": f"{_CANONICAL}/CodeSystem/d2-ou-level-cs",
+        "code": "level-2",
+        "display": "Level 2",
+    },
+}
+
 _UNIT = OrganisationUnitIn(
     uid="mOsABqg3Cqw",
     name="HC Photang",
@@ -214,21 +224,22 @@ def test_the_organization_carries_its_units_attribute_values() -> None:
 def test_the_location_carries_the_same_attribute_values_as_its_organization() -> None:
     """Both halves of the org-unit pair carry the unit's attribute values identically."""
     documents = _registry([_UNIT])
-    assert documents["registry/Location-mOsABqg3Cqw.json"]["extension"] == _EXPECTED_EXTENSIONS
+    assert documents["registry/Location-mOsABqg3Cqw.json"]["extension"] == [*_EXPECTED_EXTENSIONS, _LEVEL_EXTENSION]
     assert documents["registry/Organization-mOsABqg3Cqw.json"]["extension"] == _EXPECTED_EXTENSIONS
 
 
-def test_the_location_emits_the_boundary_first_and_the_attribute_values_after_it() -> None:
-    """The extension order is a contract: the GeoJSON boundary leads, then one per value in wire order."""
+def test_the_location_emits_the_boundary_first_the_values_next_and_the_level_last() -> None:
+    """The extension order is a contract: boundary, then one per value in wire order, then the level."""
     unit = _UNIT.model_copy(update={"boundary_geojson": _BOUNDARY_GEOJSON})
     extensions = _registry([unit])["registry/Location-mOsABqg3Cqw.json"]["extension"]
     assert [entry["url"] for entry in extensions] == [
         "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
         _EXTENSION_URL,
         _EXTENSION_URL,
+        _LEVEL_EXTENSION["url"],
     ]
     assert extensions[0]["valueAttachment"]["contentType"] == "application/geo+json"
-    assert extensions[1:] == _EXPECTED_EXTENSIONS
+    assert extensions[1:] == [*_EXPECTED_EXTENSIONS, _LEVEL_EXTENSION]
 
 
 def test_the_location_extension_order_is_byte_stable_across_runs() -> None:
@@ -287,11 +298,12 @@ def test_an_uncoded_attribute_omits_the_code_sub_extension_entirely() -> None:
 
 
 def test_an_object_without_attribute_values_emits_no_extension_at_all() -> None:
-    """Most DHIS2 objects carry none, so the key is left off rather than emitted as an empty array."""
+    """Most DHIS2 objects carry none, so no D2AttributeValue is emitted rather than an empty array."""
     unit = OrganisationUnitIn(uid="Ncd1aaaaaaa", name="Uncoded", level=1, path="/Ncd1aaaaaaa")
     documents = _registry([unit])
     assert "extension" not in documents["registry/Organization-Ncd1aaaaaaa.json"]
-    assert "extension" not in documents["registry/Location-Ncd1aaaaaaa.json"]
+    location = documents["registry/Location-Ncd1aaaaaaa.json"]
+    assert [entry["url"] for entry in location["extension"]] == [_LEVEL_EXTENSION["url"]]
     terminology = _terminology([OptionSetIn(uid="Xa1b2c3d4e5", name="Birth type")])
     assert "extension" not in terminology["terminology/CodeSystem-d2-os-Xa1b2c3d4e5-cs.json"]
     assert "extension" not in terminology["terminology/ValueSet-d2-os-Xa1b2c3d4e5-vs.json"]

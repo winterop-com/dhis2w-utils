@@ -273,6 +273,14 @@ async def test_live_store_serves_the_terminology_and_the_registry(
     locations = _bodies(store, "Location")
     assert sorted(locations) == ["ImspTQPwCqd", "O6uvpzGd5pu"]
     assert locations["O6uvpzGd5pu"]["position"] == {"longitude": -11.7383, "latitude": 7.9647}
+    assert locations["O6uvpzGd5pu"]["extension"][-1] == {
+        "url": f"{_CANONICAL}/StructureDefinition/d2-organisation-unit-level",
+        "valueCoding": {
+            "system": f"{_CANONICAL}/CodeSystem/d2-ou-level-cs",
+            "code": "level-2",
+            "display": "Level 2",
+        },
+    }
 
 
 @respx.mock

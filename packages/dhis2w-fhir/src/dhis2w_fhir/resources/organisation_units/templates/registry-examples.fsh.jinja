@@ -28,4 +28,5 @@ Usage: #example
 * position.longitude = {{ example.longitude }}
 * position.latitude = {{ example.latitude }}
 {% endif %}
+* extension[level].valueCoding = {{ example.level_code_system }}#level-{{ example.level }} "Level {{ example.level }}"
 * managingOrganization = Reference({{ example.organization_name }})

@@ -62,6 +62,22 @@ _RICHEST = OrganisationUnitIn(
     attribute_values=[AttributeValueIn(attribute_uid="ihn1wb9eho8", value="KE03")],
 )
 
+#: The extension every published Location closes with - the level of the hierarchy the place sits at.
+_LEVEL_EXTENSION_URL = "http://example.org/fhir/StructureDefinition/d2-organisation-unit-level"
+
+
+def _level_extension(level: int) -> dict[str, Any]:
+    """The D2OrganisationUnitLevel extension one level emits, drawn from the published level CodeSystem."""
+    return {
+        "url": _LEVEL_EXTENSION_URL,
+        "valueCoding": {
+            "system": "http://example.org/fhir/CodeSystem/d2-ou-level-cs",
+            "code": f"level-{level}",
+            "display": f"Level {level}",
+        },
+    }
+
+
 _EXPECTED_ROOT_LOCATION = {
     "resourceType": "Location",
     "id": "ImspTQPwCqd",
@@ -73,6 +89,7 @@ _EXPECTED_ROOT_LOCATION = {
     "name": "Sierra Leone",
     "description": "DHIS2 organisation unit Sierra Leone (ImspTQPwCqd), level 1 - physical location.",
     "status": "active",
+    "extension": [_level_extension(1)],
     "managingOrganization": {"reference": "Organization/ImspTQPwCqd"},
 }
 
@@ -118,6 +135,7 @@ _EXPECTED_DISTRICT_LOCATION = {
     "description": "DHIS2 organisation unit Bo (O6uvpzGd5pu), level 2 - physical location.",
     "status": "active",
     "position": {"longitude": -11.7383, "latitude": 7.9647},
+    "extension": [_level_extension(2)],
     "managingOrganization": {"reference": "Organization/O6uvpzGd5pu"},
     "partOf": {"reference": "Location/ImspTQPwCqd"},
 }
@@ -216,6 +234,7 @@ Usage: #example
 * identifier[dhis2code].value = "SL"
 * status = #active
 * name = "Sierra Leone"
+* extension[level].valueCoding = D2OU_Level_CS#level-1 "Level 1"
 * managingOrganization = Reference(D2OrganizationExample)
 """
 
@@ -420,16 +439,50 @@ def test_boundary_extension_emitted_for_point_geometry() -> None:
                 "title": "Pointy (Pnt1aaaaaaa)",
                 "size": 48,
             },
-        }
+        },
+        _level_extension(2),
     ]
     assert location["position"] == {"longitude": -11.7383, "latitude": 7.9647}
 
 
-def test_a_unit_without_geometry_omits_position_and_extension() -> None:
-    """No geometry means neither the position nor the boundary extension is emitted at all."""
+def test_a_unit_without_geometry_omits_position_and_the_boundary_extension() -> None:
+    """No geometry means no position and no boundary attachment; the level extension stands alone."""
     location = _documents(_instances([_ROOT]))["registry/Location-ImspTQPwCqd.json"]
     assert "position" not in location
-    assert "extension" not in location
+    assert location["extension"] == [_level_extension(1)]
+
+
+def test_every_location_states_the_level_it_sits_at() -> None:
+    """Each published Location carries the level as a coding of the published level CodeSystem."""
+    documents = _documents(_instances([_ROOT, _DISTRICT]))
+    assert documents["registry/Location-ImspTQPwCqd.json"]["extension"] == [_level_extension(1)]
+    assert documents["registry/Location-O6uvpzGd5pu.json"]["extension"] == [_level_extension(2)]
+
+
+def test_the_level_extension_rides_the_location_and_never_the_organization() -> None:
+    """The level is a property of the place; the Organization states the same coding as `type` instead."""
+    documents = _documents(_instances([_DISTRICT]))
+    organization = documents["registry/Organization-O6uvpzGd5pu.json"]
+    assert "extension" not in organization
+    assert organization["type"][0]["coding"][0] == _level_extension(2)["valueCoding"]
+
+
+def test_the_level_extension_follows_the_ig_canonical_and_the_naming_tokens() -> None:
+    """Both the extension url and the coding system are derived, never hard-coded."""
+    config = GenerateConfig(naming=NamingConfig(prefix="Dhis2", organisation_unit="OrgUnit"))
+    build = build_organisation_unit_instances(
+        [_ROOT], config, "https://ig.example/fhir", attribute_codes=AttributeCodeIndex()
+    )
+    extension = _documents(build)["registry/Location-ImspTQPwCqd.json"]["extension"][0]
+    assert extension["url"] == "https://ig.example/fhir/StructureDefinition/dhis2-organisation-unit-level"
+    assert extension["valueCoding"]["system"] == "https://ig.example/fhir/CodeSystem/dhis2-org-unit-level-cs"
+
+
+def test_the_location_profile_requires_the_level_extension() -> None:
+    """D2Location declares the level slice 1..1, so a Location without a level is not conformant."""
+    content = build_organisation_unit_profiles(_CONFIG, ig_status="draft").content
+    assert "and D2OrganisationUnitLevel named level 1..1" in content
+    assert '* extension[level] ^short = "The DHIS2 organisation unit level this place sits at."' in content
 
 
 def test_organisation_unit_terminology_properties() -> None:

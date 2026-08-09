@@ -18,7 +18,7 @@ _IDENTIFIER_SYSTEM_COUNT = 22
 
 
 def test_foundation_covers_expected_files() -> None:
-    """The target emits the aliases, the NamingSystems, the six extensions, and the capture contract."""
+    """The target emits the aliases, the NamingSystems, the seven extensions, and the capture contract."""
     assert set(_by_path(GenerateConfig())) == {
         "foundation/d2-aliases.fsh",
         "foundation/d2-naming-systems.fsh",
@@ -27,6 +27,7 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-attribute-value.fsh",
         "foundation/d2-organisation-unit.fsh",
         "foundation/d2-organisation-unit-assignment.fsh",
+        "foundation/d2-organisation-unit-level.fsh",
         "foundation/d2-tracker-enrollment.fsh",
         "foundation/d2-responses.fsh",
         "foundation/d2-generate-operation.fsh",
@@ -452,6 +453,47 @@ def test_the_assignment_extension_follows_the_configured_prefix() -> None:
     bare = FoundationNaming.from_naming(NamingConfig(prefix=""))
     assert bare.organisation_unit_assignment_extension == "D2OrganisationUnitAssignment"
     assert bare.organisation_unit_assignment_extension_id == "d2-organisation-unit-assignment"
+
+
+_ORGANISATION_UNIT_LEVEL_EXTENSION_GOLDEN = """Extension: D2OrganisationUnitLevel
+Id: d2-organisation-unit-level
+Title: "DHIS2 organisation unit level"
+Description: "The level of the DHIS2 organisation unit hierarchy a place sits at, as a code of the published \
+level CodeSystem."
+* ^status = #draft
+* ^experimental = true
+* ^context[+].type = #element
+* ^context[=].expression = "Location"
+* value[x] only Coding
+* valueCoding 1..1
+* valueCoding from D2OU_Level_VS (extensible)
+"""
+
+
+def test_the_organisation_unit_level_extension_is_a_stable_golden() -> None:
+    """D2OrganisationUnitLevel is contexted on Location and bound to the org-unit level ValueSet.
+
+    The Location is the hierarchy-bearing resource, so the level rides it rather than the
+    Organization - which states the same coding as `Organization.type` and needs no extension.
+    """
+    content = _by_path(GenerateConfig())["foundation/d2-organisation-unit-level.fsh"]
+
+    assert content == _ORGANISATION_UNIT_LEVEL_EXTENSION_GOLDEN
+
+
+def test_the_level_extension_follows_the_configured_naming_tokens() -> None:
+    """The extension rides the prefix token, and its binding rides the org-unit token."""
+    custom = FoundationNaming.from_naming(NamingConfig(prefix="Dhis2"))
+    assert custom.organisation_unit_level_extension == "Dhis2OrganisationUnitLevel"
+    assert custom.organisation_unit_level_extension_id == "dhis2-organisation-unit-level"
+    bare = FoundationNaming.from_naming(NamingConfig(prefix=""))
+    assert bare.organisation_unit_level_extension == "D2OrganisationUnitLevel"
+    assert bare.organisation_unit_level_extension_id == "d2-organisation-unit-level"
+    content = _by_path(GenerateConfig(naming=NamingConfig(prefix="Dhis2", organisation_unit="OrgUnit")))[
+        "foundation/d2-organisation-unit-level.fsh"
+    ]
+    assert "Extension: Dhis2OrganisationUnitLevel" in content
+    assert "* valueCoding from Dhis2OrgUnit_Level_VS (extensible)" in content
 
 
 def test_the_new_extensions_derive_their_publication_state_from_the_ig_status() -> None:
