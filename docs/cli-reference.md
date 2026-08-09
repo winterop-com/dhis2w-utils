@@ -10014,7 +10014,9 @@ Received QuestionnaireResponses are stored as receipts, so reading one back says
 
 `--ui` also serves the capture UI at `/`, same-origin with the FHIR routes it reads.
 
-Host, port, strict codes, and the UI come from `` in fhir.toml unless a flag overrides them.
+`--basemap` points the org-unit map at another tile source, and `--basemap none` draws no tiles at all.
+
+Host, port, strict codes, the UI, and the basemap come from `` in fhir.toml unless a flag overrides them.
 
 **Usage**:
 
@@ -10033,6 +10035,7 @@ $ d2w fhir serve [OPTIONS] [directory]
 * `--port <int>`: Port to listen on, overriding ` port` (default 8080).
 * `--strict-codes / --no-strict-codes`: Refuse a received answer whose code is outside the served terminology, overriding ` strict_codes`. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
 * `--ui / --no-ui`: Serve the capture UI at `/` alongside the FHIR routes, overriding ` ui`. The bundle is mounted around them and shadows none of them; a checkout that has never run `make build-frontend` is refused rather than served blank.
+* `--basemap <str>`: Raster tile template the capture UI&#x27;s organisation-unit map draws under the boundaries, overriding `[serve] basemap` (default: OpenStreetMap&#x27;s standard tiles). `--basemap none` turns the tiles off and leaves the boundaries on a plain canvas, which is what an air-gapped deployment wants - it is the only thing in the UI that reaches an origin other than this server.
 * `--help`: Show this message and exit.
 
 ### `d2w fhir forward`

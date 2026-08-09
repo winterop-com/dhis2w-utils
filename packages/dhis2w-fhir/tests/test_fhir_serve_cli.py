@@ -208,6 +208,29 @@ def test_a_serve_flag_beats_the_table_and_the_table_beats_the_default(
     assert recorded_run.application.state.settings.strict_codes is False
 
 
+def test_the_basemap_follows_the_same_three_way_precedence(workdir: Path, recorded_run: _RecordedRun) -> None:
+    """Tiles are on by default, the table restates them once per project, and a flag beats both."""
+    from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE
+
+    project = _scaffold(workdir)
+    _compile(project)
+
+    default_run = _runner.invoke(build_app(), ["fhir", "serve", "project"])
+    assert default_run.exit_code == 0, default_run.output
+    assert recorded_run.application.state.settings.basemap == DEFAULT_BASEMAP_TEMPLATE
+
+    _write_serve_table(project, 'basemap = "none"')
+    from_table = _runner.invoke(build_app(), ["fhir", "serve", "project"])
+    assert from_table.exit_code == 0, from_table.output
+    assert recorded_run.application.state.settings.basemap == "none"
+
+    from_flag = _runner.invoke(
+        build_app(), ["fhir", "serve", "project", "--basemap", "https://tiles.example/{z}/{x}/{y}.png"]
+    )
+    assert from_flag.exit_code == 0, from_flag.output
+    assert recorded_run.application.state.settings.basemap == "https://tiles.example/{z}/{x}/{y}.png"
+
+
 def test_serve_takes_the_profile_from_the_root_flag(
     workdir: Path, monkeypatch: pytest.MonkeyPatch, recorded_run: _RecordedRun
 ) -> None:

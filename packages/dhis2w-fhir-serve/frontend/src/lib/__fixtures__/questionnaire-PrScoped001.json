@@ -1,0 +1,38 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "PrScoped001",
+  "url": "http://localhost:8080/fhir/Questionnaire/PrScoped001",
+  "title": "Outbreak response",
+  "description": "DHIS2 event program Outbreak response (PrScoped001) as a data capture form.",
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "event"
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-assignment",
+      "valueReference": {
+        "reference": "List/d2-pr-PrScoped001-org-units"
+      }
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "PrScoped001"
+    }
+  ],
+  "name": "D2PR_PrScoped001",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Location"
+  ],
+  "item": [
+    {
+      "linkId": "DeCaseCount01",
+      "text": "Cases investigated",
+      "type": "integer"
+    }
+  ]
+}

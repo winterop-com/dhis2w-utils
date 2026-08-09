@@ -28,7 +28,7 @@ test('the bundle loads with no console errors and no failed requests', async ({ 
     expect(failedRequests, failedRequests.join('\n')).toEqual([])
 })
 
-test('the rail navigates all five pages', async ({ page }) => {
+test('the rail navigates all six pages', async ({ page }) => {
     await page.goto('/')
 
     // The rail's links carry the page name as their aria-label - see NAV_ITEMS
@@ -42,6 +42,10 @@ test('the rail navigates all five pages', async ({ page }) => {
     await rail.getByRole('link', { name: 'Responses' }).click()
     await expect(page).toHaveURL(/#\/responses$/)
     await expect(page.getByRole('heading', { name: 'Responses', level: 2 })).toBeVisible()
+
+    await rail.getByRole('link', { name: 'Org units' }).click()
+    await expect(page).toHaveURL(/#\/org-units$/)
+    await expect(page.getByRole('heading', { name: 'Org units', level: 2 })).toBeVisible()
 
     await rail.getByRole('link', { name: 'Terminology' }).click()
     await expect(page).toHaveURL(/#\/terminology$/)

@@ -1102,6 +1102,17 @@ def serve_command(
             "run `make build-frontend` is refused rather than served blank.",
         ),
     ] = None,
+    basemap: Annotated[
+        str | None,
+        typer.Option(
+            "--basemap",
+            help="Raster tile template the capture UI's organisation-unit map draws under the "
+            "boundaries, overriding `\\[serve] basemap` (default: OpenStreetMap's standard tiles). "
+            "`--basemap none` turns the tiles off and leaves the boundaries on a plain canvas, which "
+            "is what an air-gapped deployment wants - it is the only thing in the UI that reaches "
+            "an origin other than this server.",
+        ),
+    ] = None,
 ) -> None:
     """Serve the project's IG as a FHIR read and capture facade over HTTP.
 
@@ -1113,7 +1124,9 @@ def serve_command(
 
     `--ui` also serves the capture UI at `/`, same-origin with the FHIR routes it reads.
 
-    Host, port, strict codes, and the UI come from `[serve]` in fhir.toml unless a flag overrides them.
+    `--basemap` points the org-unit map at another tile source, and `--basemap none` draws no tiles at all.
+
+    Host, port, strict codes, the UI, and the basemap come from `[serve]` in fhir.toml unless a flag overrides them.
     """
     try:
         from dhis2w_fhir_serve import (
@@ -1134,6 +1147,7 @@ def serve_command(
     resolved_port = port if port is not None else serve_config.port
     resolved_strict_codes = strict_codes if strict_codes is not None else serve_config.strict_codes
     resolved_ui = ui if ui is not None else serve_config.ui
+    resolved_basemap = basemap if basemap is not None else serve_config.basemap
     if live:
         # Resolve the profile the live store will connect with before anything says the server is
         # starting, so an unknown profile fails as a failure rather than under a success banner.
@@ -1146,6 +1160,7 @@ def serve_command(
         profile=None,
         strict_codes=resolved_strict_codes,
         ui=resolved_ui,
+        basemap=resolved_basemap,
     )
     _preflight_bind(resolved_host, resolved_port)
     configure_logging()

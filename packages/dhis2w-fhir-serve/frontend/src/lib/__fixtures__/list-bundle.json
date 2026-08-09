@@ -1,0 +1,38 @@
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 1,
+  "link": [
+    {
+      "relation": "self",
+      "url": "http://serve.test/List"
+    }
+  ],
+  "entry": [
+    {
+      "fullUrl": "http://serve.test/List/d2-pr-PrScoped001-org-units",
+      "resource": {
+        "resourceType": "List",
+        "id": "d2-pr-PrScoped001-org-units",
+        "status": "current",
+        "mode": "snapshot",
+        "title": "Outbreak response - assigned organisation units",
+        "entry": [
+          {
+            "item": {
+              "reference": "Location/O6uvpzGd5pu"
+            }
+          },
+          {
+            "item": {
+              "reference": "Location/DiszpKrYNg8"
+            }
+          }
+        ]
+      },
+      "search": {
+        "mode": "match"
+      }
+    }
+  ]
+}

@@ -1,0 +1,493 @@
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 11,
+  "link": [
+    {
+      "relation": "self",
+      "url": "http://serve.test/Location"
+    }
+  ],
+  "entry": [
+    {
+      "fullUrl": "http://serve.test/Location/DiszpKrYNg8",
+      "resource": {
+        "resourceType": "Location",
+        "id": "DiszpKrYNg8",
+        "description": "DHIS2 organisation unit Ngelehun CHC (DiszpKrYNg8), level 4 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "DiszpKrYNg8"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_NGELEHUN"
+          }
+        ],
+        "name": "Ngelehun CHC",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-4",
+              "display": "Level 4"
+            }
+          }
+        ],
+        "position": {
+          "longitude": -11.7,
+          "latitude": 7.87
+        },
+        "partOf": {
+          "reference": "Location/YuQRtpLP10I"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/EJoI3HuIUEV",
+      "resource": {
+        "resourceType": "Location",
+        "id": "EJoI3HuIUEV",
+        "description": "DHIS2 organisation unit Kagbere CHC (EJoI3HuIUEV), level 4 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "EJoI3HuIUEV"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_KAGBERE"
+          }
+        ],
+        "name": "Kagbere CHC",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-4",
+              "display": "Level 4"
+            }
+          }
+        ],
+        "partOf": {
+          "reference": "Location/fdc6uOvgoji"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/ImspTQPwCqd",
+      "resource": {
+        "resourceType": "Location",
+        "id": "ImspTQPwCqd",
+        "description": "DHIS2 organisation unit Sierra Leone (ImspTQPwCqd), level 1 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "ImspTQPwCqd"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_SL"
+          }
+        ],
+        "name": "Sierra Leone",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+            "valueAttachment": {
+              "contentType": "application/geo+json",
+              "data": "eyJ0eXBlIjoiRmVhdHVyZSIsImdlb21ldHJ5Ijp7InR5cGUiOiJNdWx0aVBvbHlnb24iLCJjb29yZGluYXRlcyI6W1tbWy0xMy4zLDYuOV0sWy0xMC4zLDYuOV0sWy0xMC4zLDEwLjBdLFstMTMuMywxMC4wXSxbLTEzLjMsNi45XV1dXX0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6Ikltc3BUUVB3Q3FkIiwibGV2ZWwiOjEsIm5hbWUiOiJTaWVycmEgTGVvbmUifX0=",
+              "title": "Sierra Leone (ImspTQPwCqd)",
+              "size": 206
+            }
+          },
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-1",
+              "display": "Level 1"
+            }
+          }
+        ]
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/MgFYJDBqSSs",
+      "resource": {
+        "resourceType": "Location",
+        "id": "MgFYJDBqSSs",
+        "description": "DHIS2 organisation unit Yoni CHP (MgFYJDBqSSs), level 4 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "MgFYJDBqSSs"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_YONI"
+          }
+        ],
+        "name": "Yoni CHP",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+            "valueAttachment": {
+              "contentType": "application/geo+json",
+              "data": "eyJ0eXBlIjoiRmVhdHVyZSIsImdlb21ldHJ5Ijp7InR5cGUiOiJQb2ludCIsImNvb3JkaW5hdGVzIjpbLTEyLjEsOS4yXX0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6Ik1nRllKREJxU1NzIiwibGV2ZWwiOjQsIm5hbWUiOiJZb25pIENIUCJ9fQ==",
+              "title": "Yoni CHP (MgFYJDBqSSs)",
+              "size": 139
+            }
+          },
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-4",
+              "display": "Level 4"
+            }
+          }
+        ],
+        "partOf": {
+          "reference": "Location/fdc6uOvgoji"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/O6uvpzGd5pu",
+      "resource": {
+        "resourceType": "Location",
+        "id": "O6uvpzGd5pu",
+        "description": "DHIS2 organisation unit Bo (O6uvpzGd5pu), level 2 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "O6uvpzGd5pu"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_BO"
+          }
+        ],
+        "name": "Bo",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+            "valueAttachment": {
+              "contentType": "application/geo+json",
+              "data": "eyJ0eXBlIjoiRmVhdHVyZSIsImdlb21ldHJ5Ijp7InR5cGUiOiJQb2x5Z29uIiwiY29vcmRpbmF0ZXMiOltbWy0xMi4yLDcuNV0sWy0xMS4yLDcuNV0sWy0xMS4yLDguNF0sWy0xMi4yLDguNF0sWy0xMi4yLDcuNV1dXX0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6Ik82dXZwekdkNXB1IiwibGV2ZWwiOjIsIm5hbWUiOiJCbyJ9fQ==",
+              "title": "Bo (O6uvpzGd5pu)",
+              "size": 187
+            }
+          },
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-2",
+              "display": "Level 2"
+            }
+          }
+        ],
+        "position": {
+          "longitude": -11.74,
+          "latitude": 7.96
+        },
+        "partOf": {
+          "reference": "Location/ImspTQPwCqd"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/Rp268JB6Ne4",
+      "resource": {
+        "resourceType": "Location",
+        "id": "Rp268JB6Ne4",
+        "description": "DHIS2 organisation unit Adonkia CHP (Rp268JB6Ne4), level 4 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "Rp268JB6Ne4"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_ADONKIA"
+          }
+        ],
+        "name": "Adonkia CHP",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-4",
+              "display": "Level 4"
+            }
+          }
+        ],
+        "partOf": {
+          "reference": "Location/Unpublished01"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/YuQRtpLP10I",
+      "resource": {
+        "resourceType": "Location",
+        "id": "YuQRtpLP10I",
+        "description": "DHIS2 organisation unit Badjia (YuQRtpLP10I), level 3 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "YuQRtpLP10I"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_BADJIA"
+          }
+        ],
+        "name": "Badjia",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+            "valueAttachment": {
+              "contentType": "application/geo+json",
+              "data": "eyJ0eXBlIjoiRmVhdHVyZSIsImdlb21ldHJ5Ijp7InR5cGUiOiJQb2x5Z29uIiwiY29vcmRpbmF0ZXMiOltbWy0xMS45LDcuOF0sWy0xMS42LDcuOF0sWy0xMS42LDguMV0sWy0xMS45LDguMV0sWy0xMS45LDcuOF1dXX0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6Ill1UVJ0cExQMTBJIiwibGV2ZWwiOjMsIm5hbWUiOiJCYWRqaWEifX0=",
+              "title": "Badjia (YuQRtpLP10I)",
+              "size": 191
+            }
+          },
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-3",
+              "display": "Level 3"
+            }
+          }
+        ],
+        "position": {
+          "longitude": -11.75,
+          "latitude": 7.92
+        },
+        "partOf": {
+          "reference": "Location/O6uvpzGd5pu"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/d2-location-example",
+      "resource": {
+        "resourceType": "Location",
+        "id": "d2-location-example",
+        "meta": {
+          "profile": [
+            "http://localhost:8080/fhir/StructureDefinition/d2-location"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "ImspTQPwCqd"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_SL"
+          }
+        ],
+        "status": "active",
+        "name": "Sierra Leone",
+        "extension": [
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-1",
+              "display": "Level 1"
+            }
+          }
+        ],
+        "managingOrganization": {
+          "reference": "Organization/d2-organization-example"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/fdc6uOvgoji",
+      "resource": {
+        "resourceType": "Location",
+        "id": "fdc6uOvgoji",
+        "description": "DHIS2 organisation unit Bombali (fdc6uOvgoji), level 2 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "fdc6uOvgoji"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_BOMBALI"
+          }
+        ],
+        "name": "Bombali",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+            "valueAttachment": {
+              "contentType": "application/geo+json",
+              "data": "eyJ0eXBlIjoiRmVhdHVyZSIsImdlb21ldHJ5Ijp7InR5cGUiOiJQb2x5Z29uIiwiY29vcmRpbmF0ZXMiOltbWy0xMi42LDguOF0sWy0xMS43LDguOF0sWy0xMS43LDkuNl0sWy0xMi42LDkuNl0sWy0xMi42LDguOF1dXX0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6ImZkYzZ1T3Znb2ppIiwibGV2ZWwiOjIsIm5hbWUiOiJCb21iYWxpIn19",
+              "title": "Bombali (fdc6uOvgoji)",
+              "size": 192
+            }
+          },
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-2",
+              "display": "Level 2"
+            }
+          }
+        ],
+        "partOf": {
+          "reference": "Location/ImspTQPwCqd"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/lc3eMKXaEfw",
+      "resource": {
+        "resourceType": "Location",
+        "id": "lc3eMKXaEfw",
+        "description": "DHIS2 organisation unit Bargbe (lc3eMKXaEfw), level 3 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "lc3eMKXaEfw"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_BARGBE"
+          }
+        ],
+        "name": "Bargbe",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+            "valueAttachment": {
+              "contentType": "application/geo+json",
+              "data": "eyJ0eXBlIjoiRmVhdHVyZSIsImdlb21ldHJ5Ijp7InR5cGUiOiJQb2ludCIsImNvb3JkaW5hdGVzIjpbLTExLjUsNy42XX0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6ImxjM2VNS1hhRWZ3IiwibGV2ZWwiOjMsIm5hbWUiOiJCYXJnYmUifX0=",
+              "title": "Bargbe (lc3eMKXaEfw)",
+              "size": 137
+            }
+          },
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-3",
+              "display": "Level 3"
+            }
+          }
+        ],
+        "position": {
+          "longitude": -11.62,
+          "latitude": 7.72
+        },
+        "partOf": {
+          "reference": "Location/O6uvpzGd5pu"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/vWbkYPRmKyS",
+      "resource": {
+        "resourceType": "Location",
+        "id": "vWbkYPRmKyS",
+        "description": "DHIS2 organisation unit Baoma (vWbkYPRmKyS), level 3 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "vWbkYPRmKyS"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_BAOMA"
+          }
+        ],
+        "name": "Baoma",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+            "valueAttachment": {
+              "contentType": "application/geo+json",
+              "data": "dGhpcyBhdHRhY2htZW50IGlzIG5vdCBHZW9KU09O",
+              "title": "Baoma (vWbkYPRmKyS)",
+              "size": 30
+            }
+          },
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-3",
+              "display": "Level 3"
+            }
+          }
+        ],
+        "position": {
+          "longitude": -11.55,
+          "latitude": 8.12
+        },
+        "partOf": {
+          "reference": "Location/O6uvpzGd5pu"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    }
+  ]
+}

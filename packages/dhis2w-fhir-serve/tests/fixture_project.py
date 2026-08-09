@@ -4,6 +4,13 @@ The resources are the dhis2w-fhir goldens - one Questionnaire per form kind plus
 they bind, and the ConceptMap the emitter writes beside one of the option sets - so a test that
 accepts them is a test that the facade accepts the documented contract.
 
+Beside them sits an organisation-unit registry: ten Locations over four levels, carrying every
+geometry state a real selection produces, the curated profile exemplar a generated IG publishes
+beside them - a second Location claiming the root unit's uid, which a consumer has to deduplicate -
+and the assignment List that restricts one form to two of them. The goldens publish no registry,
+and a browser that folds `partOf` into a tree, decodes a boundary, and joins an assignment needs
+one to fold, decode, and join.
+
 This lives outside `conftest.py` because two callers need it and only one of them is pytest. The
 Playwright suite boots a real `d2w fhir serve --ui` and needs the same tree on disk first, which it
 gets by running this module:
@@ -16,6 +23,7 @@ second copy would be the same bytes going stale the first time the emitter chang
 
 from __future__ import annotations
 
+import base64
 import json
 import shutil
 from pathlib import Path
@@ -26,6 +34,7 @@ from dhis2w_fhir import build_option_set_concept_map_artifacts
 from dhis2w_fhir.config import FhirProject, load_fhir_config
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir_serve.spool import SPOOL_RELATIVE_PATH
+from pydantic import BaseModel, ConfigDict
 
 #: Where the dhis2w-fhir goldens live, relative to this file.
 GOLDEN_DIRECTORY = Path(__file__).resolve().parents[2] / "dhis2w-fhir" / "tests" / "data" / "r4"
@@ -48,6 +57,13 @@ identifier_system_base = "{CAPTURE_IDENTIFIER_BASE}"
 [generate.organisation_units]
 root = ""
 max_level = 0
+
+[serve]
+# No basemap tiles. The browser suite asserts that the org-units page issues no failing
+# request, and a run that reached tile.openstreetmap.org would be asserting on somebody
+# else's uptime - and would make a test suite that is meant to be offline talk to the
+# internet. The tiles-on path is covered by the vitest case over the style fork.
+basemap = "none"
 """
 
 #: The compiled Questionnaires the capture project serves - one per form kind, plus the tracker
@@ -178,7 +194,285 @@ SYMPTOM_VALUE_SET_BODY: dict[str, Any] = {
     "compose": {"include": [{"system": SYMPTOM_CODE_SYSTEM}]},
 }
 
+#: The urls the organisation-unit registry is published under, as `d2w fhir generate` derives them.
+ORG_UNIT_IDENTIFIER_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/id/org-unit"
+ORG_UNIT_CODE_IDENTIFIER_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/id/org-unit-code"
+ORG_UNIT_LEVEL_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-organisation-unit-level"
+ORG_UNIT_LEVEL_CODE_SYSTEM = f"{CAPTURE_CANONICAL}/CodeSystem/d2-ou-level-cs"
+ORG_UNIT_ASSIGNMENT_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-organisation-unit-assignment"
+BOUNDARY_EXTENSION = "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson"
+BOUNDARY_CONTENT_TYPE = "application/geo+json"
+
+
+class OrgUnitFixture(BaseModel):
+    """One organisation unit of the fixture registry, in the terms the Location emitter reads.
+
+    A hand-written miniature of what `d2w fhir generate` writes for a real selection: a hierarchy
+    deep enough to fold, every geometry state the emitter can produce (boundary and point, boundary
+    only, point only, neither), and one unit whose `partOf` names a unit the project never
+    published - which is what a consumer folding the hierarchy has to survive.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    name: str
+    code: str
+    level: int
+    parent_uid: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    boundary: dict[str, Any] | None = None
+    malformed_boundary: bool = False
+    """Publishes a geometry attachment whose payload is not GeoJSON, which a reader must skip rather than crash on."""
+
+    point_attachment: tuple[float, float] | None = None
+    """Publishes a Point geometry attachment - what DHIS2 stores for a facility - as (longitude, latitude).
+
+    The extension is named for boundaries and R4 documents it as one, but DHIS2 keeps a district's
+    polygon and a facility's pin in the same `geometry` field, so most of a real registry's
+    attachments are Points. A reader treating the attachment as polygon-or-failure reports every
+    facility as broken, which is what this state exists to catch.
+    """
+
+
+def _square(west: float, south: float, east: float, north: float) -> list[list[list[float]]]:
+    """One closed rectangular ring, as a Polygon's coordinate list."""
+    return [[[west, south], [east, south], [east, north], [west, north], [west, south]]]
+
+
+#: The fixture's organisation-unit hierarchy - four levels, ten units, every geometry state.
+#:
+#: The UIDs and names are the DHIS2 demo database's, because the capture goldens report against
+#: them: `Location/ImspTQPwCqd` is the unit the golden aggregate response names as its subject.
+#: The boundaries are hand-drawn rectangles rather than the real polygons - a browser proving it
+#: renders a MultiPolygon needs a MultiPolygon, not four hundred kilobytes of one.
+ORG_UNITS: tuple[OrgUnitFixture, ...] = (
+    OrgUnitFixture(
+        uid="ImspTQPwCqd",
+        name="Sierra Leone",
+        code="OU_SL",
+        level=1,
+        boundary={"type": "MultiPolygon", "coordinates": [_square(-13.3, 6.9, -10.3, 10.0)]},
+    ),
+    OrgUnitFixture(
+        uid="O6uvpzGd5pu",
+        name="Bo",
+        code="OU_BO",
+        level=2,
+        parent_uid="ImspTQPwCqd",
+        latitude=7.96,
+        longitude=-11.74,
+        boundary={"type": "Polygon", "coordinates": _square(-12.2, 7.5, -11.2, 8.4)},
+    ),
+    OrgUnitFixture(
+        uid="fdc6uOvgoji",
+        name="Bombali",
+        code="OU_BOMBALI",
+        level=2,
+        parent_uid="ImspTQPwCqd",
+        boundary={"type": "Polygon", "coordinates": _square(-12.6, 8.8, -11.7, 9.6)},
+    ),
+    OrgUnitFixture(
+        uid="YuQRtpLP10I",
+        name="Badjia",
+        code="OU_BADJIA",
+        level=3,
+        parent_uid="O6uvpzGd5pu",
+        latitude=7.92,
+        longitude=-11.75,
+        boundary={"type": "Polygon", "coordinates": _square(-11.9, 7.8, -11.6, 8.1)},
+    ),
+    OrgUnitFixture(
+        uid="lc3eMKXaEfw",
+        name="Bargbe",
+        code="OU_BARGBE",
+        level=3,
+        parent_uid="O6uvpzGd5pu",
+        latitude=7.72,
+        longitude=-11.62,
+        # Both renderings of one place, and deliberately not at the same coordinates: a reader has
+        # to state which one wins, and the drawn dot is the proof of which it picked.
+        point_attachment=(-11.5, 7.6),
+    ),
+    OrgUnitFixture(
+        uid="vWbkYPRmKyS",
+        name="Baoma",
+        code="OU_BAOMA",
+        level=3,
+        parent_uid="O6uvpzGd5pu",
+        latitude=8.12,
+        longitude=-11.55,
+        malformed_boundary=True,
+    ),
+    OrgUnitFixture(
+        uid="MgFYJDBqSSs",
+        name="Yoni CHP",
+        code="OU_YONI",
+        level=4,
+        parent_uid="fdc6uOvgoji",
+        point_attachment=(-12.1, 9.2),
+    ),
+    OrgUnitFixture(
+        uid="EJoI3HuIUEV",
+        name="Kagbere CHC",
+        code="OU_KAGBERE",
+        level=4,
+        parent_uid="fdc6uOvgoji",
+    ),
+    OrgUnitFixture(
+        uid="DiszpKrYNg8",
+        name="Ngelehun CHC",
+        code="OU_NGELEHUN",
+        level=4,
+        parent_uid="YuQRtpLP10I",
+        latitude=7.87,
+        longitude=-11.7,
+    ),
+    OrgUnitFixture(
+        uid="Rp268JB6Ne4",
+        name="Adonkia CHP",
+        code="OU_ADONKIA",
+        level=4,
+        parent_uid="Unpublished01",
+    ),
+)
+
+#: The event form whose organisation-unit assignment restricts it to two of the eight units.
+SCOPED_QUESTIONNAIRE_UID = "PrScoped001"
+SCOPED_QUESTIONNAIRE = f"{CAPTURE_CANONICAL}/Questionnaire/{SCOPED_QUESTIONNAIRE_UID}"
+SCOPED_ASSIGNMENT_LIST_ID = f"d2-pr-{SCOPED_QUESTIONNAIRE_UID}-org-units"
+
+#: The units that form may be captured against - one district and one facility, on different branches.
+SCOPED_ASSIGNMENT_UNITS = ("O6uvpzGd5pu", "DiszpKrYNg8")
+
+SCOPED_QUESTIONNAIRE_BODY: dict[str, Any] = {
+    "resourceType": "Questionnaire",
+    "id": SCOPED_QUESTIONNAIRE_UID,
+    "url": SCOPED_QUESTIONNAIRE,
+    "title": "Outbreak response",
+    "description": "DHIS2 event program Outbreak response (PrScoped001) as a data capture form.",
+    "extension": [
+        {"url": FORM_TYPE_URL, "valueCode": "event"},
+        {
+            "url": ORG_UNIT_ASSIGNMENT_EXTENSION,
+            "valueReference": {"reference": f"List/{SCOPED_ASSIGNMENT_LIST_ID}"},
+        },
+    ],
+    "identifier": [{"system": f"{CAPTURE_IDENTIFIER_BASE}/id/program", "value": SCOPED_QUESTIONNAIRE_UID}],
+    "name": f"D2PR_{SCOPED_QUESTIONNAIRE_UID}",
+    "status": "draft",
+    "experimental": True,
+    "subjectType": ["Location"],
+    "item": [{"linkId": "DeCaseCount01", "text": "Cases investigated", "type": "integer"}],
+}
+
 app = typer.Typer(add_completion=False, help="Write the capture fixture project used by the browser e2e suite.")
+
+
+def build_location(unit: OrgUnitFixture) -> dict[str, Any]:
+    """One Location, in the shape `dhis2w_fhir.resources.organisation_units.location` emits it."""
+    extensions: list[dict[str, Any]] = []
+    geometry = unit.boundary
+    if unit.point_attachment is not None:
+        geometry = {"type": "Point", "coordinates": [unit.point_attachment[0], unit.point_attachment[1]]}
+    if unit.malformed_boundary:
+        extensions.append(_geometry_attachment(unit, b"this attachment is not GeoJSON"))
+    elif geometry is not None:
+        feature = {
+            "type": "Feature",
+            "geometry": geometry,
+            "properties": {"dhis2Id": unit.uid, "level": unit.level, "name": unit.name},
+        }
+        extensions.append(_geometry_attachment(unit, json.dumps(feature, separators=(",", ":")).encode("utf-8")))
+    extensions.append(
+        {
+            "url": ORG_UNIT_LEVEL_EXTENSION,
+            "valueCoding": {
+                "system": ORG_UNIT_LEVEL_CODE_SYSTEM,
+                "code": f"level-{unit.level}",
+                "display": f"Level {unit.level}",
+            },
+        }
+    )
+    body: dict[str, Any] = {
+        "resourceType": "Location",
+        "id": unit.uid,
+        "description": f"DHIS2 organisation unit {unit.name} ({unit.uid}), level {unit.level} - physical location.",
+        "identifier": [
+            {"system": ORG_UNIT_IDENTIFIER_SYSTEM, "value": unit.uid},
+            {"system": ORG_UNIT_CODE_IDENTIFIER_SYSTEM, "value": unit.code},
+        ],
+        "name": unit.name,
+        "status": "active",
+        "extension": extensions,
+    }
+    if unit.latitude is not None and unit.longitude is not None:
+        body["position"] = {"longitude": unit.longitude, "latitude": unit.latitude}
+    if unit.parent_uid is not None:
+        body["partOf"] = {"reference": f"Location/{unit.parent_uid}"}
+    return body
+
+
+def _geometry_attachment(unit: OrgUnitFixture, payload: bytes) -> dict[str, Any]:
+    """The `location-boundary-geojson` extension carrying one payload, in the emitter's own shape."""
+    return {
+        "url": BOUNDARY_EXTENSION,
+        "valueAttachment": {
+            "contentType": BOUNDARY_CONTENT_TYPE,
+            "data": base64.b64encode(payload).decode("ascii"),
+            "title": f"{unit.name} ({unit.uid})",
+            "size": len(payload),
+        },
+    }
+
+
+def build_registry_exemplar() -> dict[str, Any]:
+    """The curated `Usage: #example` Location the IG publishes beside the registry profiles.
+
+    A real generated project ships this: the registry itself is pre-built JSON that SUSHI never
+    compiles, so `registry-examples.fsh` builds one worked example per registry profile out of the
+    selection's own root unit. It therefore carries that unit's real uid on the real org-unit
+    identifier system, under an id derived from the profile rather than from the unit, and with no
+    `partOf` - which is exactly the shape that folds into a hierarchy as a second, parentless copy
+    of the root. The fixture publishes one so the browser has to deduplicate it rather than showing
+    Sierra Leone twice.
+    """
+    root = ORG_UNITS[0]
+    return {
+        "resourceType": "Location",
+        "id": "d2-location-example",
+        "meta": {"profile": [f"{CAPTURE_CANONICAL}/StructureDefinition/d2-location"]},
+        "identifier": [
+            {"system": ORG_UNIT_IDENTIFIER_SYSTEM, "value": root.uid},
+            {"system": ORG_UNIT_CODE_IDENTIFIER_SYSTEM, "value": root.code},
+        ],
+        "status": "active",
+        "name": root.name,
+        "extension": [
+            {
+                "url": ORG_UNIT_LEVEL_EXTENSION,
+                "valueCoding": {
+                    "system": ORG_UNIT_LEVEL_CODE_SYSTEM,
+                    "code": f"level-{root.level}",
+                    "display": f"Level {root.level}",
+                },
+            }
+        ],
+        "managingOrganization": {"reference": "Organization/d2-organization-example"},
+    }
+
+
+def build_assignment_list() -> dict[str, Any]:
+    """The assignment artifact restricting the scoped form, in the shape the generate target writes it."""
+    return {
+        "resourceType": "List",
+        "id": SCOPED_ASSIGNMENT_LIST_ID,
+        "status": "current",
+        "mode": "snapshot",
+        "title": "Outbreak response - assigned organisation units",
+        "entry": [{"item": {"reference": f"Location/{uid}"}} for uid in SCOPED_ASSIGNMENT_UNITS],
+    }
 
 
 def golden(filename: str) -> dict[str, Any]:
@@ -207,6 +501,13 @@ def build_capture_project(destination: Path) -> FhirProject:
     for filename in (*CAPTURE_QUESTIONNAIRE_FILES, *CAPTURE_SUPPORT_FILES):
         write_resource(compiled / filename, golden(filename))
     write_resource(compiled / f"Questionnaire-{TEMPORAL_QUESTIONNAIRE_UID}.json", TEMPORAL_QUESTIONNAIRE_BODY)
+    write_resource(compiled / f"Questionnaire-{SCOPED_QUESTIONNAIRE_UID}.json", SCOPED_QUESTIONNAIRE_BODY)
+
+    registry = destination / "ig" / "input" / "resources" / "registry"
+    for unit in ORG_UNITS:
+        write_resource(registry / f"Location-{unit.uid}.json", build_location(unit))
+    write_resource(registry / "Location-d2-location-example.json", build_registry_exemplar())
+    write_resource(registry / f"List-{SCOPED_ASSIGNMENT_LIST_ID}.json", build_assignment_list())
 
     terminology = destination / "ig" / "input" / "resources" / "terminology"
     built = [*option_terminology(golden(TRACKER_RESPONSE_FILE)), SYMPTOM_CODE_SYSTEM_BODY, SYMPTOM_VALUE_SET_BODY]

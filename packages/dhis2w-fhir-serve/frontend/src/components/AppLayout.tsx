@@ -5,6 +5,7 @@ import {
     Inbox,
     LayoutDashboard,
     Library,
+    Network,
     PanelLeftClose,
     PanelLeftOpen,
     ServerCog,
@@ -43,6 +44,7 @@ export const NAV_ITEMS: NavItem[] = [
     { path: '', label: 'Overview', hint: 'The state of capture', icon: LayoutDashboard },
     { path: 'forms', label: 'Forms', hint: 'Questionnaires served', icon: ClipboardList },
     { path: 'responses', label: 'Responses', hint: 'What was captured', icon: Inbox },
+    { path: 'org-units', label: 'Org units', hint: 'The reporting hierarchy', icon: Network },
     { path: 'terminology', label: 'Terminology', hint: 'Codes and value sets', icon: Library },
     { path: 'server', label: 'Server', hint: 'What /metadata declares', icon: ServerCog },
 ]
@@ -74,10 +76,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }, [])
 
     return (
-        <div className="flex min-h-svh">
+        // `h-svh`, not `min-h-svh`: the shell claims the viewport and `main` is the one thing that
+        // scrolls. A shell that grew with its content could never tell a page how much room was
+        // left, which is what the org-unit map needs in order to take it - and it is also why there
+        // is exactly one scrollbar on every page here rather than a document one plus a panel one.
+        <div className="flex h-svh overflow-hidden">
             <aside
                 className={cn(
-                    'bg-sidebar hidden shrink-0 flex-col border-r transition-[width] duration-200 md:flex',
+                    'bg-sidebar hidden shrink-0 flex-col overflow-y-auto border-r transition-[width] duration-200 md:flex',
                     collapsed ? 'w-16' : 'w-60',
                 )}
             >
@@ -170,7 +176,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <div className="flex-1" />
             </aside>
 
-            <div className="flex min-w-0 flex-1 flex-col">
+            {/* `min-h-0` on the column and on `main`: without it a flex item's automatic minimum
+                is its content, and a page that wants to fill the viewport - the org-unit browser,
+                whose map takes the leftover height - could never be told how much leftover there
+                is. Pages that size to their content are unaffected, because a flex item still
+                floors at its content size unless it opts out with `min-h-0` of its own. */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 {/* Solid surface, no backdrop blur: blur is expensive to
                     composite on the field hardware this is meant to run on, and
                     an opaque header costs nothing. */}
@@ -242,7 +253,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     </div>
                 </header>
 
-                <main className="w-full flex-1 px-4 py-6 md:px-8">{children}</main>
+                {/* The scroll container for every page. Pages that size to their content scroll
+                    here exactly as they did when the document scrolled; pages that claim the
+                    height (org units) fit inside it and scroll nothing. */}
+                <main className="flex w-full min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 md:px-8">
+                    {children}
+                </main>
             </div>
         </div>
     )

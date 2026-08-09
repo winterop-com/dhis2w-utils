@@ -48,6 +48,13 @@ from dhis2w_fhir_serve.routes.spool import (
     SpoolRejectionIssue,
     SpoolResponseSummary,
 )
+from dhis2w_fhir_serve.routes.uiconfig import (
+    OPENSTREETMAP_ATTRIBUTION,
+    UI_CONFIG_PATH,
+    BasemapConfig,
+    UiConfig,
+    basemap_config,
+)
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import (
     FORWARDED_RESPONSES_RELATIVE_PATH,
@@ -105,6 +112,11 @@ __all__ = [
     "REJECTION_REPORT_SUFFIX",
     "SPOOL_PATH",
     "SPOOL_RELATIVE_PATH",
+    "OPENSTREETMAP_ATTRIBUTION",
+    "UI_CONFIG_PATH",
+    "BasemapConfig",
+    "UiConfig",
+    "basemap_config",
     "STATIC_DIRECTORY",
     "AmbiguousCodingError",
     "BadOperationError",

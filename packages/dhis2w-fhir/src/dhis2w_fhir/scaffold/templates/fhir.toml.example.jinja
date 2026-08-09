@@ -103,3 +103,11 @@ strict_codes = false                # true refuses a captured answer whose code 
                                     # the served terminology instead of warning and storing
 ui = false                          # true also serves the capture UI at / - `make serve-ui`
                                     # turns it on for one run without stating it here
+# Raster tiles the capture UI's org-unit map draws under the boundaries. The default is
+# OpenStreetMap's standard tiles, which need no key and are fine for a laptop running this
+# for an afternoon. A DEPLOYMENT SERVING THIS TO OTHER PEOPLE SHOULD POINT AT ITS OWN TILE
+# SOURCE: openstreetmap.org's tiles are a volunteer-funded service with no SLA and a usage
+# policy that a district office's daily traffic is not what they are there for.
+# "none" draws no tiles at all - the boundary-only canvas, which is what an air-gapped
+# deployment wants, and the only setting in the UI that reaches another origin.
+basemap = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"

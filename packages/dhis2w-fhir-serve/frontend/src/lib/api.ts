@@ -15,18 +15,22 @@
  * is exactly the arrangement in which a mistyped path returns 200 text/html and
  * a caller spends an afternoon on "why is my Bundle a string". The guard is the
  * router table of `dhis2w_fhir_serve.routes` written down: /metadata and /spool,
- * plus the six read types and QuestionnaireResponse the catch-alls answer for -
+ * plus the seven read types and QuestionnaireResponse the catch-alls answer for -
  * ConceptMap being both a read type and the one the type-level $translate hangs
  * off. Anything else is a programming error and is refused here rather than by
  * the server.
  *
- * ONE PATH HERE IS NOT FHIR. `/spool` answers plain JSON, not
+ * TWO PATHS HERE ARE NOT FHIR. `/spool` answers plain JSON, not
  * `application/fhir+json`: it serves the receipt *envelopes* - when the facade
  * accepted each submission, which of its three lifecycle directories the file
  * now sits in, and what DHIS2 said when it refused one - and none of those are
- * QuestionnaireResponse elements. `dhis2w_fhir_serve.routes.spool` argues that
- * choice in full. It still goes through this guard, because the reason for the
- * guard is the SPA fallback, and that applies to every path alike.
+ * QuestionnaireResponse elements. `/uiconfig` is the other, and answers the
+ * handful of run-time settings this UI has to act on - today the map's tile
+ * template, which is a property of how the process was started rather than of
+ * anything the guide published. `dhis2w_fhir_serve.routes.spool` argues the
+ * shape in full and `routes.uiconfig` inherits it. Both still go through this
+ * guard, because the reason for the guard is the SPA fallback, and that applies
+ * to every path alike.
  *
  * WHY NO QUERY LIBRARY. There is no react-query, swr, or zustand in this app on
  * purpose. The server answers whole Bundles off a store loaded once at startup,
@@ -44,6 +48,7 @@ import type {
     QuestionnaireResponse,
 } from '@/lib/fhir'
 import type { SpoolListing } from '@/lib/spool'
+import type { UiConfig } from '@/lib/uiconfig'
 
 /** The media type every FHIR request and response on this server carries. */
 export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
@@ -59,6 +64,7 @@ export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
 export const GUARDED_PATH_SEGMENTS = [
     'metadata',
     'spool',
+    'uiconfig',
     'Questionnaire',
     'QuestionnaireResponse',
     'CodeSystem',
@@ -66,6 +72,7 @@ export const GUARDED_PATH_SEGMENTS = [
     'ConceptMap',
     'Location',
     'Organization',
+    'List',
 ] as const
 
 /**
@@ -248,6 +255,16 @@ export async function postQuestionnaireResponse(
         headers: { 'Content-Type': FHIR_JSON_MEDIA_TYPE },
         body: JSON.stringify(response),
     })
+}
+
+/**
+ * The run-time settings this UI acts on - today, which tiles the org-unit map draws.
+ *
+ * Read once by the page that needs it. There is nothing to poll: the settings are resolved when
+ * the process starts, so a server that changed its mind about them would have restarted.
+ */
+export async function readUiConfig(): Promise<UiConfig> {
+    return readJson<UiConfig>('/uiconfig')
 }
 
 /**

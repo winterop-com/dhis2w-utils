@@ -152,6 +152,24 @@ class GenerateConfig(BaseModel):
         return [normalize_locale(locale) for locale in value]
 
 
+#: The raster tile template the capture UI's map draws under the organisation-unit boundaries.
+#:
+#: OpenStreetMap's standard tiles, because they need no key, no account, and no contract to try -
+#: which is what a capture UI someone runs on a laptop for an afternoon needs. The policy that
+#: comes with them is a volunteer-funded service with no SLA, so a deployment that serves this UI
+#: to a district office points `[serve] basemap` at its own tile source; the guide says so where
+#: the key is documented.
+DEFAULT_BASEMAP_TEMPLATE = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+#: The `[serve] basemap` value that turns the tiles off, leaving the boundaries on a plain canvas.
+#:
+#: A word rather than an empty string: `basemap = ""` reads like an oversight in a config file,
+#: and the whole point of the setting is that the boundary-only map is a deliberate posture - an
+#: air-gapped instance, a deployment that may not talk to a tile vendor, a test run that must make
+#: no external request.
+BASEMAP_DISABLED = "none"
+
+
 class ServeConfig(BaseModel):
     """How `d2w fhir serve` runs this project - the `[serve]` table of `fhir.toml`.
 
@@ -162,6 +180,12 @@ class ServeConfig(BaseModel):
 
     `ui` serves the capture UI at `/` alongside the FHIR routes. A project whose whole workflow is
     people filling in forms states it once here and gets the UI from every `make serve`.
+
+    `basemap` is the raster tile template under the capture UI's organisation-unit map. It is the
+    one setting here that makes the UI reach an origin other than this server, so it is stated
+    rather than assumed: `"none"` turns the tiles off and leaves the boundaries on a plain canvas,
+    which is the posture an air-gapped deployment wants and the one the browser test suite runs
+    under.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -170,6 +194,12 @@ class ServeConfig(BaseModel):
     port: int = 8080
     strict_codes: bool = False
     ui: bool = False
+    basemap: str = DEFAULT_BASEMAP_TEMPLATE
+
+    @property
+    def basemap_template(self) -> str | None:
+        """The tile template to draw, or None when the project has turned the basemap off."""
+        return None if self.basemap.strip().lower() == BASEMAP_DISABLED else self.basemap
 
 
 class FhirProjectConfig(BaseModel):
