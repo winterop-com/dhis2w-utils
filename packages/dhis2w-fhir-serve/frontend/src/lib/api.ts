@@ -15,7 +15,7 @@
  * is exactly the arrangement in which a mistyped path returns 200 text/html and
  * a caller spends an afternoon on "why is my Bundle a string". The guard is the
  * router table of `dhis2w_fhir_serve.routes` written down: /metadata and /spool,
- * plus the six read types and QuestionnaireResponse the catch-alls answer for -
+ * plus the seven read types and QuestionnaireResponse the catch-alls answer for -
  * ConceptMap being both a read type and the one the type-level $translate hangs
  * off. Anything else is a programming error and is refused here rather than by
  * the server.
@@ -66,6 +66,7 @@ export const GUARDED_PATH_SEGMENTS = [
     'ConceptMap',
     'Location',
     'Organization',
+    'List',
 ] as const
 
 /**

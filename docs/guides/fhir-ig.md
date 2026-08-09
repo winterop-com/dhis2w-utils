@@ -2392,6 +2392,43 @@ is no URL to configure and nothing to point at anything:
     `d2w fhir forward` in another terminal changes what this page shows with nothing
     restarted - hit **Reload**, or just switch back to the browser, which refetches on
     focus.
+- **Org units** is the reporting hierarchy: where a capture may happen, and which forms may
+  happen there. The left panel is the tree, folded from `Location.partOf` and expanded
+  lazily - a district's two hundred facilities cost one row until you open it. Each row
+  carries the unit's DHIS2 level, read off the `D2OrganisationUnitLevel` coding rather than
+  counted in `partOf` hops, which matters for the units at the top of a partial selection:
+  a project generated with a `root` or a `max_level` publishes a slice, so its own top units
+  name parents that were left out, and those are shown as **detached** roots rather than
+  dropped. The filter box narrows on name, uid, or org-unit code and keeps the ancestors of
+  every match, so a facility three levels down opens with its districts around it.
+
+    **The detail panel is the unit**: its name and description, its identifiers, its level,
+    its parent chain as breadcrumbs you can click, its children, and - the section worth
+    the page - **Forms reportable here**. That is the assignment join, in DHIS2's own two
+    phrases. A form publishing no `D2OrganisationUnitAssignment` is **assigned everywhere**,
+    so those collapse to one line ("All N published forms are assigned everywhere", or "N
+    more assigned everywhere" when the unit also has some of its own); the forms an
+    assignment List *does* name are listed under **Assigned to this unit** and linked. Which
+    is the question this page exists to answer, because a submission against a form the unit
+    is not assigned to is what DHIS2 refuses with `E1029`.
+
+    **The map draws boundaries and points, and nothing else.** No basemap, no tile server,
+    no fonts fetched from anywhere: the style is an empty background painted from the app's
+    own theme tokens, and every shape on it was decoded out of the base64 GeoJSON the
+    `location-boundary-geojson` extension carries on the Locations this server published. So
+    the map works offline, on the same origin as everything else, and tells no tile vendor
+    which districts you were looking at. A configurable basemap url is a later opt-in. The
+    selected unit is drawn at full strength, the units below it at partial, and every other
+    published boundary as a hairline - one hue, three emphases, with a legend, because a map
+    has no axis to explain itself with. Clicking a shape selects that unit. The selection
+    lives in the address (`#/org-units?unit=DiszpKrYNg8`), so a unit is a link you can send.
+
+    Three things degrade rather than break: a unit DHIS2 holds no geometry for is framed on
+    the nearest unit above it that has some, with a note saying so; a boundary attachment
+    that does not decode into a polygon is skipped and counted rather than blanking the map;
+    and a registry with no coordinates at all gets one sentence instead of an empty grey
+    rectangle. The renderer is the frontend's one heavy dependency, so the route lazy-loads
+    it - opening a form never downloads a map engine.
 - **Terminology** is a browser over all three terminology types. The listing has a
   section per type - code systems, value sets, concept maps - each row carrying the id,
   the DHIS2 identifiers the artifact was generated from, and the concept or mapping

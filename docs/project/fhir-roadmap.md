@@ -1615,20 +1615,41 @@ commitment.
     not the generator's to fix: a tracker event lands only against a real enrollment,
     which is the registration form's milestone below.
 
-- **The organisation-unit browser, with a map.** The registry already carries
-  everything a browser needs, in standard spellings: every Location names its parent
+- **The organisation-unit browser, with a map** - shipped as the capture UI's **Org
+  units** page. The registry already carried everything a browser needs, in standard
+  spellings: every Location names its parent
   (`partOf`, mirrored on the Organization side), its DHIS2 level (the
   `D2OrganisationUnitLevel` coding), and - for the units DHIS2 holds geometry on -
   its point (`position`) and its boundary polygon through the official HL7
-  `location-boundary-geojson` extension. The page: a lazily-expanded tree folded
-  from `partOf`, a detail panel per unit (identifiers, parent chain, children,
-  level, and the forms assignable there via the published assignment Lists), and a
-  map panel rendering boundaries and points with **MapLibre GL JS** - deliberately
-  **boundary-only, no external basemap tiles**, so the UI stays self-contained and
-  same-origin and works offline; a configurable basemap URL is a later opt-in, and
-  deck.gl-style data overlays only once there is data worth overlaying. MapLibre is
-  the frontend's first heavy dependency, so the route lazy-loads - the map engine
-  downloads only when the browser opens.
+  `location-boundary-geojson` extension. The page is what that description implied: a
+  lazily-expanded tree folded from `partOf`, a detail panel per unit (identifiers,
+  parent chain, children, level, and the forms reportable there via the published
+  assignment Lists), and a map panel rendering boundaries and points with **MapLibre
+  GL JS** - **boundary-only, no external basemap tiles**, so the UI stays
+  self-contained and same-origin and works offline; a configurable basemap URL is a
+  later opt-in, and deck.gl-style data overlays only once there is data worth
+  overlaying. MapLibre is the frontend's first heavy dependency, so the route
+  lazy-loads - the engine lands in its own chunk (~931 kB, 242 kB gzipped) and the
+  entry bundle grows by 18 kB.
+
+    **Three rules the flat Bundle does not state, folded in `lib/orgunits.ts`.** A unit
+    whose `partOf` names a Location the project never published is a flagged root
+    rather than a dropped row - that is what a selection with a `root` or a `max_level`
+    looks like from below, not a broken registry. The level is read off the coding
+    rather than counted in `partOf` hops, because those are exactly the units whose
+    served depth is smaller than their DHIS2 depth. And the assignment join never
+    materialises a form-times-unit pair for the common case: absence of the extension
+    means assigned everywhere, so those forms stay one list and only a form with a
+    published List adds per-unit entries. The page says "assigned everywhere" and
+    "assigned to this unit", which is what a DHIS2 administrator already calls them.
+
+    **The degradations are the design.** A boundary attachment that does not decode
+    into a polygon is skipped with a count rather than thrown; a selected unit with no
+    geometry frames on the nearest ancestor that has some, and says so; a registry with
+    no coordinates hides the map panel behind one sentence. The e2e fixture project
+    publishes a registry carrying every one of those states, plus one form restricted
+    to two of nine units, because none of these rules can fail visibly against a
+    registry of nothing.
 
 ### 9.2 Mid-term
 

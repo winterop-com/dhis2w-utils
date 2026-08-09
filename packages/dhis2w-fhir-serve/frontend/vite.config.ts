@@ -30,6 +30,7 @@ const proxiedPaths = [
     '/ConceptMap',
     '/Location',
     '/Organization',
+    '/List',
 ]
 const proxy = Object.fromEntries(proxiedPaths.map((prefix) => [prefix, { target, changeOrigin: true }]))
 

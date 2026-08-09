@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/components/AppLayout'
 import { FormFill } from '@/pages/FormFill'
 import { Forms } from '@/pages/Forms'
+import { OrgUnits } from '@/pages/OrgUnits'
 import { Overview } from '@/pages/Overview'
 import { ResponseDetail } from '@/pages/ResponseDetail'
 import { Responses } from '@/pages/Responses'
@@ -32,6 +33,13 @@ import { TerminologyDetail } from '@/pages/TerminologyDetail'
  * the questions that were asked, the third opens one terminology resource and
  * shows the codes inside it.
  *
+ * `/org-units` is the one page that keeps its selection in the query string
+ * (`#/org-units?unit=<uid>`) rather than in the path: the tree, the detail panel,
+ * and the map are one screen over one read, and a unit is a state of that screen
+ * rather than a document of its own. It is also the only route that lazy-loads
+ * anything - the map renderer is fetched when the page mounts, not with the
+ * bundle.
+ *
  * The index route is the Overview - the state of capture in one screen - and
  * every listing keeps a path of its own, so `/forms` is a link that can be sent
  * rather than "whatever the root happens to show".
@@ -45,6 +53,7 @@ export default function App() {
                 <Route path="forms/:questionnaireId" element={<FormFill />} />
                 <Route path="responses" element={<Responses />} />
                 <Route path="responses/:responseId" element={<ResponseDetail />} />
+                <Route path="org-units" element={<OrgUnits />} />
                 <Route path="terminology" element={<Terminology />} />
                 <Route path="terminology/:resourceType/:resourceId" element={<TerminologyDetail />} />
                 <Route path="server" element={<Server />} />

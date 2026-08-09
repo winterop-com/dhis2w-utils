@@ -56,12 +56,19 @@ export interface CodeableConcept {
     text?: string
 }
 
-/** Binary content by reference or inline; no control here fills one, but an answer can carry one. */
+/**
+ * Binary content by reference or inline; no control here fills one, but an answer can carry one.
+ *
+ * `data` is base64, and this is also how a Location carries its boundary polygon - the official
+ * `location-boundary-geojson` extension puts a whole GeoJSON Feature in here rather than giving
+ * geometry an element of its own. lib/orgunits.ts is what decodes it.
+ */
 export interface Attachment {
     contentType?: string
     url?: string
     title?: string
     data?: string
+    size?: number
 }
 
 /**
@@ -88,6 +95,7 @@ export interface Extension {
     valueReference?: Reference
     valueIdentifier?: Identifier
     valuePeriod?: Period
+    valueAttachment?: Attachment
     extension?: Extension[]
 }
 
@@ -242,6 +250,53 @@ export interface QuestionnaireResponse {
     item?: QuestionnaireResponseItem[]
 }
 
+/** Where a place is, as a single point - what DHIS2 holds for a facility. */
+export interface LocationPosition {
+    longitude: number
+    latitude: number
+    altitude?: number
+}
+
+/**
+ * One DHIS2 organisation unit as a place.
+ *
+ * `partOf` is the hierarchy - it names the parent unit's Location - and is the only element the
+ * tree is folded from. The level and the boundary polygon both ride on `extension`; lib/orgunits.ts
+ * is what reads them.
+ */
+export interface Location {
+    resourceType: 'Location'
+    id?: string
+    name?: string
+    description?: string
+    status?: string
+    identifier?: Identifier[]
+    position?: LocationPosition
+    extension?: Extension[]
+    partOf?: Reference
+    managingOrganization?: Reference
+}
+
+/** One member of a List: the resource it names. */
+export interface ResourceListEntry {
+    item: Reference
+}
+
+/**
+ * A curated set of references - which is how this IG publishes a form's organisation-unit assignment.
+ *
+ * Named `ResourceList` rather than `List` because the FHIR type name is a word every reader will
+ * mistake for a collection. `dhis2w_fhir_serve.capture.index` spells the Python side the same way.
+ */
+export interface ResourceList {
+    resourceType: 'List'
+    id?: string
+    status?: string
+    mode?: string
+    title?: string
+    entry?: ResourceListEntry[]
+}
+
 /** One property a CodeSystem declares its concepts may carry, as `CodeSystem.property`. */
 export interface CodeSystemPropertyDefinition {
     code: string
@@ -391,6 +446,8 @@ export type FhirResource =
     | CodeSystem
     | ValueSet
     | ConceptMap
+    | Location
+    | ResourceList
     | OperationOutcome
 
 /** One result inside a search Bundle. */
