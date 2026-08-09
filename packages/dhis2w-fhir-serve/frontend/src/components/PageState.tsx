@@ -17,12 +17,22 @@ export function PageState({
     error,
     empty,
     emptyMessage,
+    emptyRender,
     children,
 }: {
     loading: boolean
     error: string | null
     empty: boolean
-    emptyMessage: string
+    /** The one line the default empty card states. Omitted when `emptyRender` supplies the card. */
+    emptyMessage?: string
+    /**
+     * An empty state that is more than a sentence.
+     *
+     * Some empties are an invitation rather than a report - "nothing captured yet" is most useful
+     * with the way to capture the first thing next to it. Those get the whole card, in place of
+     * the sentence, rather than a paragraph that names an action a reader then has to go and find.
+     */
+    emptyRender?: ReactNode
     children: ReactNode
 }) {
     if (loading) {
@@ -49,6 +59,7 @@ export function PageState({
         )
     }
     if (empty) {
+        if (emptyRender !== undefined) return <>{emptyRender}</>
         return (
             <Card>
                 <CardContent className="text-muted-foreground py-8 text-sm">{emptyMessage}</CardContent>

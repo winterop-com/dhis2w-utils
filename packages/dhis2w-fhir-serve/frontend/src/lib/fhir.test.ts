@@ -6,7 +6,12 @@ import {
     bundleResources,
     canonicalId,
     declaredOperations,
+    formIdentifier,
+    formSlice,
+    formTitle,
     formTypeOf,
+    formsByTitle,
+    operationNames,
     questionCount,
     servedIgLabel,
     type Bundle,
@@ -180,6 +185,101 @@ describe('canonicalId', () => {
     it('answers null for nothing to read', () => {
         expect(canonicalId(undefined)).toBeNull()
         expect(canonicalId('')).toBeNull()
+    })
+})
+
+describe('naming a served form', () => {
+    it('reads the harvested bundle in title order, whatever order the server sent it in', () => {
+        const ordered = formsByTitle(bundleResources(questionnaireBundle))
+        expect(ordered.map(formTitle)).toEqual([
+            'ANC follow-up - ANC visit',
+            'Child Health',
+            'Child Programme - Baby Postnatal',
+            'Supervision visit',
+        ])
+    })
+
+    it('orders on the string it renders, not the escaped one the wire carries', () => {
+        // `&lt;` sorts under the ampersand while `<` sorts where a reader expects it, so a
+        // comparison taken before the unescape puts the row somewhere the eye cannot follow.
+        const forms: Questionnaire[] = [
+            { resourceType: 'Questionnaire', status: 'active', id: 'b', title: 'Bravo' },
+            { resourceType: 'Questionnaire', status: 'active', id: 'a', title: 'Age &lt;5' },
+        ]
+        expect(formsByTitle(forms).map(formTitle)).toEqual(['Age <5', 'Bravo'])
+    })
+
+    it('falls back from title to name to the id it is served under', () => {
+        expect(
+            formTitle({ resourceType: 'Questionnaire', status: 'active', name: 'ChildHealth' }),
+        ).toBe('ChildHealth')
+        expect(
+            formTitle({
+                resourceType: 'Questionnaire',
+                status: 'active',
+                url: 'http://example.org/fhir/Questionnaire/BfMAe6Itzgt',
+            }),
+        ).toBe('BfMAe6Itzgt')
+    })
+
+    it('ids a form by its own id, then by the canonical last segment', () => {
+        expect(formIdentifier({ resourceType: 'Questionnaire', status: 'active', id: 'abc' })).toBe('abc')
+        expect(
+            formIdentifier({
+                resourceType: 'Questionnaire',
+                status: 'active',
+                url: 'http://example.org/fhir/Questionnaire/xyz',
+            }),
+        ).toBe('xyz')
+        expect(formIdentifier({ resourceType: 'Questionnaire', status: 'active' })).toBe('')
+    })
+})
+
+describe('formSlice', () => {
+    const forms = bundleResources(questionnaireBundle)
+
+    it('takes the first of the title order and says how many it left behind', () => {
+        const slice = formSlice(forms, 2)
+        expect(slice.shown.map(formTitle)).toEqual(['ANC follow-up - ANC visit', 'Child Health'])
+        expect(slice.total).toBe(4)
+        expect(slice.hidden).toBe(2)
+    })
+
+    it('hides nothing when the limit is wider than the set', () => {
+        const slice = formSlice(forms, 8)
+        expect(slice.shown).toHaveLength(4)
+        expect(slice.hidden).toBe(0)
+    })
+
+    it('answers an empty slice for a project that publishes no forms', () => {
+        expect(formSlice([], 8)).toEqual({ shown: [], total: 0, hidden: 0 })
+    })
+})
+
+describe('operationNames', () => {
+    it('names each declared operation once, rest-level first', () => {
+        expect(operationNames(metadata)).toEqual(['translate', 'generate'])
+    })
+
+    it('drops the duplicate when one operation is declared on several resources', () => {
+        expect(
+            operationNames({
+                ...metadata,
+                rest: [
+                    {
+                        mode: 'server',
+                        resource: [
+                            { type: 'CodeSystem', operation: [{ name: 'translate' }] },
+                            { type: 'ConceptMap', operation: [{ name: 'translate' }] },
+                        ],
+                    },
+                ],
+            }),
+        ).toEqual(['translate'])
+    })
+
+    it('answers an empty list for a store that declares none', () => {
+        expect(operationNames(null)).toEqual([])
     })
 })
 

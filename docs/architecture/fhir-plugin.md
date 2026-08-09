@@ -86,7 +86,8 @@ Its `parameters:` block carries `excludexml` / `excludettl` (JSON is the only
 wire format worth a file and a rendered page per resource) plus one
 `path-resource` glob per predefined-resource sub-folder - `registry/` for the
 org-unit instances, `terminology/` for the option-set pairs, `concept-maps/` for
-the ConceptMap beside each pair, `categories/` for the category pairs:
+the ConceptMap beside each pair, `categories/` for the category pairs,
+`assignments/` for the organisation-unit assignment Lists:
 
 ```yaml
   path-resource:
@@ -94,6 +95,7 @@ the ConceptMap beside each pair, `categories/` for the category pairs:
     - input/resources/terminology/*
     - input/resources/concept-maps/*
     - input/resources/categories/*
+    - input/resources/assignments/*
 ```
 
 SUSHI recurses into sub-folders of `input/resources` and loads what it finds into
@@ -274,6 +276,21 @@ depends on `fhir.toml` alone and never opens a client:
   `QuestionnaireResponse`. It exists because a tracker-event response spends its
   `subject` on the patient, so the unit the event was captured at needs a slot of its
   own.
+- `d2-organisation-unit-assignment.fsh` - the `D2OrganisationUnitAssignment` extension,
+  `value[x] only Reference(List)` with `valueReference` 1..1, contexted on
+  `Questionnaire`. It names the `List` of Locations a form may be captured against.
+  `List` rather than `Group` because R4 binds `Group.member.entity` to
+  `Patient | Practitioner | PractitionerRole | Device | Medication | Substance | Group`
+  and `Group.type` to `person | animal | practitioner | device | medication | substance`:
+  a Location is neither a legal member nor a legal type, while `List.entry.item` is
+  `Reference(Resource)` and `List.mode` says `snapshot`.
+- `d2-organisation-unit-level.fsh` - the `D2OrganisationUnitLevel` extension, `value[x]
+  only Coding` with `valueCoding` 1..1 bound extensibly to the org-unit level ValueSet,
+  contexted on `Location`. Every registry Location carries one - the `D2Location` profile
+  slices it `named level 1..1` - so the DHIS2 hierarchy level is stated on the resource
+  rather than recovered by counting `partOf` hops. The Organization half gets none: it
+  already states the same coding as `Organization.type`, and a level is a property of the
+  place in the hierarchy, which is the Location.
 - `d2-tracker-enrollment.fsh` - the `D2TrackerEnrollment` extension, `value[x] only
   Identifier` with `valueIdentifier.system` fixed to `{base}/id/tracker-enrollment`
   and `valueIdentifier.value` 1..1, contexted on `QuestionnaireResponse`. It is named
@@ -1180,7 +1197,11 @@ The components:
   codegen refresh cannot introduce a silent `string`), the four sync directory names
   (`DATA_SET_DIRECTORY` / `EVENT_PROGRAM_DIRECTORY` / `TRACKER_PROGRAM_DIRECTORY` /
   `DATA_DICTIONARY_DIRECTORY`,
-  collected as `QUESTIONNAIRE_DIRECTORIES`), with `TargetSelection`, the
+  collected as `QUESTIONNAIRE_DIRECTORIES`), `assignments.py` emitting the
+  organisation-unit assignment `List` of every form whose assignment is a proper subset
+  of the published registry into `ASSIGNMENT_DIRECTORY` and answering with the
+  `AssignmentPlan` both Questionnaire emitters stamp their `D2OrganisationUnitAssignment`
+  extension from, with `TargetSelection`, the
   `QuestionnaireSourceIn` / `QuestionnaireSectionIn` / `QuestionnaireItemIn` /
   `ProgramContextIn` / `CategoryComboIn` / `CategoryOptionComboIn` projections, and
   `QuestionnaireNaming`
@@ -1215,14 +1236,15 @@ The components:
   derives every artifact name and id from the `[generate.naming]` tokens,
   `organization.py` builds the profiles artifact, the `REGISTRY_DIRECTORY`
   constant, and the Organization instances, `location.py` the Location instances
-  (position, boundary extension, `partOf`), `terminology.py` the level pair and
+  (position, boundary extension, level extension, `partOf`), `terminology.py` the level pair and
   the optional whole-selection pair. The two instance builders return
   `r4.schemas` models that `organization.py` serialises into `JsonArtifact`s;
   only the profiles and the terminology go through jinja. Group / group-set
   emission lands here next.
 - `foundation/` - the instance-independent artifacts: the DHIS2 identifier
   aliases, the NamingSystem declarations, the `D2Period` / `D2FormType` /
-  `D2AttributeValue` / `D2OrganisationUnit` / `D2TrackerEnrollment` extensions, the
+  `D2AttributeValue` / `D2OrganisationUnit` / `D2OrganisationUnitAssignment` /
+  `D2OrganisationUnitLevel` / `D2TrackerEnrollment` extensions, the
   three response profiles, and the CapabilityStatement, with `FoundationNaming` deriving
   their names from the prefix token. `attribute_values.py` additionally holds the
   `D2AttributeValue` builder the resource emitters call, which is why the only

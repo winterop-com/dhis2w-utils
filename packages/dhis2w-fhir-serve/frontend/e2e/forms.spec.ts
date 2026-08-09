@@ -11,7 +11,7 @@ import { expect, test } from '@playwright/test'
  */
 
 test('lists the fixture questionnaires with their form kinds', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/#/forms')
 
     const rows = page.getByRole('row')
     await expect(rows.filter({ hasText: 'Child Health' })).toHaveCount(1)
@@ -25,17 +25,17 @@ test('lists the fixture questionnaires with their form kinds', async ({ page }) 
 })
 
 test('states how many questions each form asks', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/#/forms')
 
     const temporal = page.getByRole('row').filter({ hasText: 'Temporal capture' })
     await expect(temporal).toHaveCount(1)
-    // Seven items, none of them a group or a display - see
+    // Eight items, none of them a group or a display - see
     // TEMPORAL_QUESTIONNAIRE_BODY in tests/fixture_project.py.
-    await expect(temporal.getByRole('cell', { name: '7', exact: true })).toBeVisible()
+    await expect(temporal.getByRole('cell', { name: '8', exact: true })).toBeVisible()
 })
 
 test('every row opens the form view on click', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/#/forms')
 
     const rows = page.getByRole('row').filter({ hasText: 'Child Health' })
     await expect(rows.first()).toBeVisible()

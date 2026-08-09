@@ -575,6 +575,61 @@ export function canonicalId(url: string | undefined): string | null {
     return segment ? segment : null
 }
 
+/**
+ * The id a served form is reachable under.
+ *
+ * `Questionnaire.id` when the resource states one, then the canonical's last segment - which is
+ * how this server ids everything it publishes. Empty string for a form carrying neither, which
+ * is a resource no route can open and a listing renders as such rather than linking nowhere.
+ */
+export function formIdentifier(questionnaire: Questionnaire): string {
+    return questionnaire.id ?? canonicalId(questionnaire.url) ?? ''
+}
+
+/**
+ * What a form is called, as page text.
+ *
+ * Title, then name, then the id it is served under - and unescaped, because the IG escapes `&`,
+ * `<`, and `>` in every published title. One function so a form is spelled the same on the
+ * overview, in the listing, and wherever else it is named.
+ */
+export function formTitle(questionnaire: Questionnaire): string {
+    return unescapeMarkup(questionnaire.title ?? questionnaire.name ?? formIdentifier(questionnaire))
+}
+
+/**
+ * Every served form in title order.
+ *
+ * Sorted on the same string that is rendered - so the order a reader sees is the order the
+ * comparison made, rather than one taken on the raw escaped title and shown unescaped.
+ */
+export function formsByTitle(questionnaires: Questionnaire[]): Questionnaire[] {
+    return questionnaires.toSorted((left, right) => formTitle(left).localeCompare(formTitle(right)))
+}
+
+/** What a fixed-size list of forms shows, and how much of the set it is leaving out. */
+export interface FormSlice {
+    /** The first `limit` forms in title order. */
+    shown: Questionnaire[]
+    /** How many forms the project publishes in total. */
+    total: number
+    /** How many of them the slice is not showing - zero when it shows all of them. */
+    hidden: number
+}
+
+/**
+ * The first `limit` forms in title order, with the size of the tail it is hiding.
+ *
+ * A quick-entry grid is a shortcut, not a listing: past a handful of cards the grid stops being
+ * faster to read than the Forms table. So the caller gets a slice plus the number it dropped,
+ * and can say "all N forms" honestly instead of implying the project publishes only what fits.
+ */
+export function formSlice(questionnaires: Questionnaire[], limit: number): FormSlice {
+    const ordered = formsByTitle(questionnaires)
+    const shown = ordered.slice(0, Math.max(limit, 0))
+    return { shown, total: ordered.length, hidden: ordered.length - shown.length }
+}
+
 /** Every operation a CapabilityStatement declares, rest-level and resource-level alike. */
 export function declaredOperations(
     capability: CapabilityStatement | null,
@@ -594,6 +649,20 @@ export function declaredOperations(
         })),
     )
     return [...restLevel, ...resourceLevel]
+}
+
+/**
+ * Every operation the statement declares, named once each, in declaration order.
+ *
+ * `declaredOperations` keeps the resource an operation hangs off, because the Server page states
+ * it per row. A one-line summary wants the other reading: `$translate` and `$generate` are two
+ * capabilities, and which resource type each is declared on is not what a strip of badges is
+ * saying. Declaration order rather than alphabetical, so the rest-level operations lead.
+ */
+export function operationNames(capability: CapabilityStatement | null): string[] {
+    const seen = new Set<string>()
+    for (const operation of declaredOperations(capability)) seen.add(operation.name)
+    return [...seen]
 }
 
 /**

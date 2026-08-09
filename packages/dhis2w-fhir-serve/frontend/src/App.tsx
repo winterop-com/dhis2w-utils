@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/components/AppLayout'
 import { FormFill } from '@/pages/FormFill'
 import { Forms } from '@/pages/Forms'
+import { Overview } from '@/pages/Overview'
 import { ResponseDetail } from '@/pages/ResponseDetail'
 import { Responses } from '@/pages/Responses'
 import { Server } from '@/pages/Server'
@@ -12,7 +13,7 @@ import { TerminologyDetail } from '@/pages/TerminologyDetail'
 /**
  * The route table.
  *
- * Flat and hash-routed. Flat because the four top-level pages are peers and the
+ * Flat and hash-routed. Flat because the five top-level pages are peers and the
  * three detail routes below are one segment deeper rather than a nested layout;
  * hash-routed because `d2w fhir serve --ui` mounts
  * the bundle as plain static files behind every FHIR route, and a static mount
@@ -30,19 +31,24 @@ import { TerminologyDetail } from '@/pages/TerminologyDetail'
  * answers back, the second opens one stored receipt with its answers joined to
  * the questions that were asked, the third opens one terminology resource and
  * shows the codes inside it.
+ *
+ * The index route is the Overview - the state of capture in one screen - and
+ * every listing keeps a path of its own, so `/forms` is a link that can be sent
+ * rather than "whatever the root happens to show".
  */
 export default function App() {
     return (
         <AppLayout>
             <Routes>
-                <Route index element={<Forms />} />
+                <Route index element={<Overview />} />
+                <Route path="forms" element={<Forms />} />
                 <Route path="forms/:questionnaireId" element={<FormFill />} />
                 <Route path="responses" element={<Responses />} />
                 <Route path="responses/:responseId" element={<ResponseDetail />} />
                 <Route path="terminology" element={<Terminology />} />
                 <Route path="terminology/:resourceType/:resourceId" element={<TerminologyDetail />} />
                 <Route path="server" element={<Server />} />
-                {/* An unknown hash route returns to the form list rather than a blank page. */}
+                {/* An unknown hash route returns to the overview rather than a blank page. */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </AppLayout>
