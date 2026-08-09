@@ -2192,8 +2192,48 @@ is no URL to configure and nothing to point at anything:
 - **Forms** lists every `Questionnaire` this server publishes, with the DHIS2 object
   kind each one came from (read off the `D2FormType` extension - a form carrying none is
   shown as such, because it is one the facade will refuse to capture against) and how
-  many questions it asks.
-- **Responses** is where stored receipts are read back.
+  many questions it asks. **Open one and you get the form itself** - every question as a
+  control its R4 item type asks for: a switch for a yes/no, a bounded number field for a
+  percentage, the browser's own date and time pickers, a text box for a comment, and a
+  dropdown for an option-set question whose choices come from expanding the ValueSet it
+  binds. A question that takes several answers gets add and remove rows. Every question
+  is labelled with its DHIS2 uid as well as its text, because that uid is what the
+  server's refusals, the spool, and DHIS2 itself all name it by.
+
+    **Fill with test data** answers the whole form from `$generate` and puts the answers
+    *into the form* rather than posting them - so you can change one field and submit
+    that. The seed it drew is in the toast; the same seed reproduces the same answers, so
+    a form that misbehaved can be asked for again. **Clear** empties it. **Submit** posts
+    a `QuestionnaireResponse` and takes you to Responses.
+
+    The context that submission carries - the reporting period, the organisation unit,
+    the tracked entity and enrollment - comes from `$generate` too, and this is worth
+    knowing: the page keeps the skeleton's envelope and replaces only its answers. That
+    is why a form filled in here is accepted by the same server's validator without you
+    naming a period or an org unit anywhere, and it is also why the submission reports
+    for whichever unit and period `$generate` chose. **This is a capture UI for exercising
+    a guide, not a data-entry client for a district office.**
+
+    A refused submission does not vanish into a toast: the validator's OperationOutcome
+    is rendered issue by issue above the buttons, each with its severity, its code, and
+    the question it is about - which is usually enough to fix the form without opening a
+    terminal.
+- **Responses** is every receipt this server holds, newest first: when it arrived, which
+  form it answers, how many answers it carries, its receipt id, and - the column that
+  matters - **which lifecycle state it is in**. `Received` is the queue
+  [`d2w fhir forward`](#forwarding-captured-responses) drains, `Forwarded` means DHIS2
+  took it, and `Rejected` means DHIS2 refused it. Opening a row shows the DHIS2 context
+  the receipt carries (reporting period, organisation unit, tracked entity, enrollment),
+  anything the server warned about when it accepted the capture, and for a rejection the
+  import report the forwarder stored beside it - the error code, the object DHIS2 named,
+  and what it said. Filter by state or by form; the state chips carry the counts, so the
+  queue depth is on screen without counting rows.
+
+    The lifecycle is which of `.serve/responses/{received,forwarded,rejected}/` the file
+    is in, and the server re-reads that directory to answer. So running
+    `d2w fhir forward` in another terminal changes what this page shows with nothing
+    restarted - hit **Reload**, or just switch back to the browser, which refetches on
+    focus.
 - **Terminology** lists the CodeSystems and ValueSets the project published with their
   concept counts, and says whether `$translate` is declared - which is the honest thing
   to say about ConceptMaps here, since the facade translates through them rather than
@@ -2221,6 +2261,15 @@ An installed wheel ships the built bundle. In a checkout it is a build artifact,
 error: `--ui` needs a built frontend at .../dhis2w_fhir_serve/static, and there is
 none. Build it with `make build-frontend` (an installed wheel ships it already).
 ```
+
+**The one endpoint that is not FHIR.** The Responses page reads `GET /spool`, which
+answers plain JSON rather than a Bundle. What it serves is the receipt *envelope* - the
+instant the facade accepted the submission, the form kind it was validated as, the
+warnings it recorded, the lifecycle state, and DHIS2's import report behind a rejection -
+and none of those are elements of a QuestionnaireResponse. The receipts themselves stay
+FHIR: `GET /QuestionnaireResponse` lists them and `GET /QuestionnaireResponse/{id}` reads
+one back verbatim, in whatever lifecycle state it is in, because forwarding a receipt
+must not expire the id its sender was handed.
 
 ### What this server is not
 

@@ -30,11 +30,38 @@ export interface Identifier {
     value?: string
 }
 
-/** A reference to another resource, by relative or absolute URL. */
+/**
+ * A reference to another resource, by relative or absolute URL.
+ *
+ * `type` is how a tracker response names its subject: the DHIS2 tracked entity has no FHIR
+ * resource published for it, so the reference carries an identifier and the type it would
+ * have been - `{"type": "Patient", "identifier": {...}}` - rather than a resolvable URL.
+ */
 export interface Reference {
     reference?: string
+    type?: string
     display?: string
     identifier?: Identifier
+}
+
+/** A time range, as the D2Period extension states the reporting period it covers. */
+export interface Period {
+    start?: string
+    end?: string
+}
+
+/** A concept stated as one or more codings plus the text it was chosen from. */
+export interface CodeableConcept {
+    coding?: Coding[]
+    text?: string
+}
+
+/** Binary content by reference or inline; no control here fills one, but an answer can carry one. */
+export interface Attachment {
+    contentType?: string
+    url?: string
+    title?: string
+    data?: string
 }
 
 /**
@@ -54,8 +81,13 @@ export interface Extension {
     valueBoolean?: boolean
     valueDate?: string
     valueDateTime?: string
+    valueTime?: string
+    valueUri?: string
     valueCoding?: Coding
+    valueCodeableConcept?: CodeableConcept
     valueReference?: Reference
+    valueIdentifier?: Identifier
+    valuePeriod?: Period
     extension?: Extension[]
 }
 
@@ -92,6 +124,9 @@ export interface QuestionnaireItem {
     maxLength?: number
     answerValueSet?: string
     answerOption?: QuestionnaireAnswerOption[]
+    initial?: QuestionnaireInitial[]
+    enableWhen?: QuestionnaireEnableWhen[]
+    enableBehavior?: QuestionnaireEnableBehavior
     code?: Coding[]
     extension?: Extension[]
     item?: QuestionnaireItem[]
@@ -102,6 +137,47 @@ export interface QuestionnaireAnswerOption {
     valueCoding?: Coding
     valueString?: string
     valueInteger?: number
+}
+
+/** The value a question starts out holding, before anyone has answered it. */
+export interface QuestionnaireInitial {
+    valueBoolean?: boolean
+    valueDecimal?: number
+    valueInteger?: number
+    valueDate?: string
+    valueDateTime?: string
+    valueTime?: string
+    valueString?: string
+    valueUri?: string
+    valueCoding?: Coding
+}
+
+/** The comparisons an `enableWhen` condition can make against another question's answer. */
+export type QuestionnaireEnableWhenOperator = 'exists' | '=' | '!=' | '>' | '<' | '>=' | '<='
+
+/** How several `enableWhen` conditions on one item combine. */
+export type QuestionnaireEnableBehavior = 'all' | 'any'
+
+/**
+ * One condition under which an item is asked at all.
+ *
+ * The DHIS2 generator emits none of these today - a compiled form asks every question
+ * unconditionally - so nothing in the goldens exercises this. It is typed and evaluated
+ * anyway because a hand-written or hand-edited Questionnaire served by `--live` may carry
+ * them, and a renderer that ignored `enableWhen` would silently ask questions the form
+ * says not to ask.
+ */
+export interface QuestionnaireEnableWhen {
+    question: string
+    operator: QuestionnaireEnableWhenOperator
+    answerBoolean?: boolean
+    answerDecimal?: number
+    answerInteger?: number
+    answerDate?: string
+    answerDateTime?: string
+    answerTime?: string
+    answerString?: string
+    answerCoding?: Coding
 }
 
 /** A capture form: what `GET /Questionnaire/{id}` answers with. */
@@ -132,6 +208,7 @@ export interface QuestionnaireResponseAnswer {
     valueUri?: string
     valueCoding?: Coding
     valueReference?: Reference
+    valueAttachment?: Attachment
     item?: QuestionnaireResponseItem[]
 }
 
@@ -178,7 +255,13 @@ export interface CodeSystem {
     concept?: { code: string; display?: string }[]
 }
 
-/** A value set, read only for what a listing needs to say about it. */
+/**
+ * A value set, read for what a listing needs to say about it and for what a choice question offers.
+ *
+ * `compose.include[].concept` is the enumerated form - a subset of one system. The DHIS2
+ * emitter writes the whole-system form (a bare `system`), and the option expander in
+ * hooks/use-valueset-options.ts reads the named CodeSystem when no concepts are enumerated.
+ */
 export interface ValueSet {
     resourceType: 'ValueSet'
     id?: string
@@ -186,7 +269,13 @@ export interface ValueSet {
     name?: string
     title?: string
     status: PublicationStatus
-    compose?: { include?: { system?: string }[] }
+    compose?: { include?: ValueSetInclude[] }
+}
+
+/** One `compose.include` of a ValueSet: a system, and optionally the concepts of it that are in. */
+export interface ValueSetInclude {
+    system?: string
+    concept?: { code: string; display?: string }[]
 }
 
 /** A concept map, read only for what a listing needs to say about it. */
@@ -326,6 +415,29 @@ export const FORM_TYPE_LABELS: Record<FormType, string> = {
     event: 'Event program',
     tracker: 'Tracker registration',
     'tracker-event': 'Tracker program stage',
+}
+
+/**
+ * The identifier-system suffix `$generate` states its seed under.
+ *
+ * The full system is `{canonical}/id/generate-seed`, and like every other canonical-derived url
+ * this UI meets it is matched on the suffix rather than hard-coded - the canonical is whatever
+ * that project's fhir.toml declares. `GENERATE_SEED_IDENTIFIER_SEGMENT` in
+ * `dhis2w_fhir_serve.capture.naming` is the Python side of the same string.
+ */
+export const GENERATE_SEED_IDENTIFIER_SUFFIX = '/id/generate-seed'
+
+/**
+ * The seed a generated response was drawn from, or null when it states none.
+ *
+ * Worth surfacing because it is the whole of the operation's reproducibility promise: the same
+ * form and the same seed answer with the same bytes, so a seed shown after a fill is a handle
+ * on data someone can ask for again.
+ */
+export function generateSeedOf(response: QuestionnaireResponse): string | null {
+    const identifier = response.identifier
+    if (!identifier?.system?.endsWith(GENERATE_SEED_IDENTIFIER_SUFFIX)) return null
+    return identifier.value ?? null
 }
 
 /** Pull the resources out of a search Bundle, dropping entries that carry none. */

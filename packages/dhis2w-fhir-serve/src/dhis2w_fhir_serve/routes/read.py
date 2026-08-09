@@ -9,6 +9,12 @@ The two catch-alls answer from two sources. Every definitional resource comes fr
 byte-faithful to what the IG published. QuestionnaireResponse comes from the spool, where each
 resource is a receipt of a submission - what a client sent, not what DHIS2 now holds.
 
+A receipt is answered whatever lifecycle state it is in. `d2w fhir forward` renames a drained
+receipt into `forwarded/` or `rejected/`, and a read that started 404-ing at that moment would
+expire the id a client was handed at capture time on a schedule nothing told it about. Which state
+a receipt is in is not a QuestionnaireResponse element, so it is not stated here; `GET /spool`
+answers that, along with the rest of the receipt envelope.
+
 Search is lenient in FHIR's own sense: an unrecognised parameter is ignored rather than refused,
 and the Bundle's `self` link echoes only the parameters that were honored, so a client can see
 what the server actually applied.
@@ -110,13 +116,13 @@ async def search_resource_type(request: Request, resource_type: str) -> Response
     base_url = _base_url(request)
     if resource_type == QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE:
         parsed_responses = parse_response_search(request.query_params)
-        envelopes = [
-            envelope
-            for envelope in context.spool.search(ids=parsed_responses.ids)
-            if not parsed_responses.questionnaires or envelope.questionnaire in parsed_responses.questionnaires
+        receipts = [
+            receipt
+            for receipt in context.spool.search(ids=parsed_responses.ids)
+            if not parsed_responses.questionnaires or receipt.questionnaire in parsed_responses.questionnaires
         ]
         entries = [
-            _bundle_entry(base_url, resource_type, envelope.response_id, envelope.response) for envelope in envelopes
+            _bundle_entry(base_url, resource_type, receipt.response_id, receipt.response) for receipt in receipts
         ]
         return _bundle_response(base_url, resource_type, parsed_responses.honored, entries)
     parsed = parse_store_search(request.query_params)
@@ -133,10 +139,10 @@ async def read_resource(request: Request, resource_type: str, resource_id: str) 
     context = serve_context(request)
     _require_served(resource_type)
     if resource_type == QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE:
-        envelope = context.spool.get(resource_id)
-        if envelope is None:
+        receipt = context.spool.get(resource_id)
+        if receipt is None:
             raise NotFoundError(resource_type, resource_id)
-        return JSONResponse(content=envelope.response, media_type=FHIR_JSON_MEDIA_TYPE)
+        return JSONResponse(content=receipt.response, media_type=FHIR_JSON_MEDIA_TYPE)
     entry = context.store.by_type_and_id(resource_type, resource_id)
     if entry is None:
         raise NotFoundError(resource_type, resource_id)

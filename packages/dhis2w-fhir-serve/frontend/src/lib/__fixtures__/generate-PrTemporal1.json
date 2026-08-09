@@ -1,0 +1,85 @@
+{
+  "resourceType": "QuestionnaireResponse",
+  "meta": {
+    "profile": [
+      "http://localhost:8080/fhir/StructureDefinition/d2-event-response"
+    ]
+  },
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "event"
+    }
+  ],
+  "identifier": {
+    "system": "http://localhost:8080/fhir/id/generate-seed",
+    "value": "7"
+  },
+  "questionnaire": "http://localhost:8080/fhir/Questionnaire/PrTemporal1",
+  "status": "completed",
+  "subject": {
+    "reference": "Location/u8jzPde0Igx"
+  },
+  "authored": "2026-07-20T04:00:00Z",
+  "item": [
+    {
+      "linkId": "DeVisitDate1",
+      "answer": [
+        {
+          "valueDate": "2026-07-22"
+        }
+      ]
+    },
+    {
+      "linkId": "DeVisitTime1",
+      "answer": [
+        {
+          "valueTime": "20:00:00"
+        }
+      ]
+    },
+    {
+      "linkId": "DeVisitStamp",
+      "answer": [
+        {
+          "valueDateTime": "2026-07-11T02:00:00Z"
+        }
+      ]
+    },
+    {
+      "linkId": "DeVisitLink1",
+      "answer": [
+        {
+          "valueUri": "https://example.invalid/DeVisitLink1"
+        }
+      ]
+    },
+    {
+      "linkId": "DeSymptoms01",
+      "answer": [
+        {
+          "valueCoding": {
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs",
+            "code": "OpFever0001",
+            "display": "Fever"
+          }
+        },
+        {
+          "valueCoding": {
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs",
+            "code": "OpCough0001",
+            "display": "Cough"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "DeCoverage01",
+      "answer": [
+        {
+          "valueDecimal": 58.3
+        }
+      ]
+    }
+  ]
+}

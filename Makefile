@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev build-frontend lint-frontend test-frontend docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev build-frontend lint-frontend test-frontend e2e-frontend docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -35,6 +35,9 @@ help:
 	@echo "  build-frontend   Build the React app into dhis2w-fhir-serve's static/ (run before 'make build')"
 	@echo "  lint-frontend    oxlint + tsc --noEmit over the frontend"
 	@echo "  test-frontend    vitest run over the frontend"
+	@echo "  e2e-frontend     Playwright specs against a real 'd2w fhir serve --ui' on :8377"
+	@echo "                   (prereqs, not run for you: 'make build-frontend' and"
+	@echo "                    'cd $(FRONTEND_DIR) && pnpm exec playwright install chromium')"
 	@echo ""
 	@echo "Docs:"
 	@echo "  docs             Alias for docs-serve"
@@ -173,6 +176,17 @@ lint-frontend:
 test-frontend:
 	@echo ">>> Running capture UI tests (vitest)"
 	@cd $(FRONTEND_DIR) && pnpm exec vitest run
+
+# Boots a real `d2w fhir serve --ui` on 8377 over a fixture IG project the config
+# writes from tests/fixture_project.py, so the suite exercises the actual router
+# table rather than a mock. Neither prerequisite is run automatically: the build
+# writes into the Python package, and downloading a browser is not something a
+# test command should do behind your back.
+e2e-frontend:
+	@echo ">>> Running capture UI browser tests (playwright, chromium, :8377)"
+	@echo "    Needs 'make build-frontend' first, and chromium installed once:"
+	@echo "    cd $(FRONTEND_DIR) && pnpm exec playwright install chromium"
+	@cd $(FRONTEND_DIR) && pnpm exec playwright test
 
 build:
 	@echo ">>> Building all workspace wheels"

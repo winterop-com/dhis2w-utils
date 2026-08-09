@@ -11,13 +11,19 @@ request is index lookups and nothing else. The store is either the compiled IG o
 `--live` - the same read set built off a DHIS2 instance through one client opened during startup
 and closed before the first request arrives.
 
+The receipt spool is the one exception, and deliberately so: it is a path rather than a loaded
+index, and every read of it re-reads the directory. `d2w fhir forward` runs as a separate process
+and renames receipt files between the spool's three lifecycle directories while the server is up,
+so anything cached would be stale within seconds of a drain.
+
 ## When to reach for it
 
 - Embed the facade in another ASGI process (`create_app`, `ServeSettings`).
 - Load a project's served resources without an HTTP server (`load_compiled_store`, `ResourceStore`,
   `SearchQuery`, `IdentifierToken`).
-- Read or write the received-response spool a running facade keeps
-  (`ResponseSpool`, `StoredResponseEnvelope`, `RECEIVED_RESPONSES_RELATIVE_PATH`).
+- Read or write the receipt spool a running facade keeps, in any of its three lifecycle states
+  (`ResponseSpool`, `StoredReceipt`, `StoredResponseEnvelope`, `ResponseLifecycle`,
+  `RECEIVED_RESPONSES_RELATIVE_PATH`).
 - Validate a QuestionnaireResponse against a served IG outside the endpoint
   (`validate_response`, `build_capture_index`, `CaptureNaming`, `CodingResolverSet`).
 - Generate a synthetic response against a served form (`generate_response`, `draw_seed`,
@@ -70,11 +76,21 @@ what the project publishes.
 
 ### Response spool
 
-Every received QuestionnaireResponse, held in memory and mirrored atomically to
-`.serve/responses/received/`. A stored response is a receipt - the submission as it arrived, never
-a live view of DHIS2 data.
+Every received QuestionnaireResponse, written atomically to `.serve/responses/received/` and read
+back from whichever of `received/`, `forwarded/`, and `rejected/` `d2w fhir forward` has since
+moved it to. The directory is the index and is re-read on every call, because the forwarder renames
+files while the server runs. A stored response is a receipt - the submission as it arrived, never a
+live view of DHIS2 data.
 
 ::: dhis2w_fhir_serve.spool
+
+### Spool listing
+
+`GET /spool` - the receipt envelopes with their lifecycle state, and the DHIS2 import report behind
+a rejection. Typed JSON rather than FHIR, because a receipt envelope has no FHIR analogue; the
+module docstring states the reasoning in full.
+
+::: dhis2w_fhir_serve.routes.spool
 
 ### Capture
 

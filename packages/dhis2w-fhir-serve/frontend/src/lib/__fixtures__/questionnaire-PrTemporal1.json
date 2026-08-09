@@ -1,0 +1,75 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "PrTemporal1",
+  "url": "http://localhost:8080/fhir/Questionnaire/PrTemporal1",
+  "title": "Temporal capture",
+  "description": "DHIS2 event program Temporal capture (PrTemporal1) as a data capture form.",
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "event"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "PrTemporal1"
+    }
+  ],
+  "name": "D2PR_PrTemporal1",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Location"
+  ],
+  "item": [
+    {
+      "linkId": "DeVisitDate1",
+      "text": "Visit date",
+      "type": "date"
+    },
+    {
+      "linkId": "DeVisitTime1",
+      "text": "Visit time",
+      "type": "time"
+    },
+    {
+      "linkId": "DeVisitStamp",
+      "text": "Visit stamp",
+      "type": "dateTime"
+    },
+    {
+      "linkId": "DeVisitLink1",
+      "text": "Visit link",
+      "type": "url"
+    },
+    {
+      "linkId": "DeSymptoms01",
+      "text": "Symptoms",
+      "type": "choice",
+      "repeats": true,
+      "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-OsSymptom01-vs"
+    },
+    {
+      "linkId": "DeCoverage01",
+      "text": "Coverage",
+      "type": "decimal",
+      "extension": [
+        {
+          "url": "http://hl7.org/fhir/StructureDefinition/minValue",
+          "valueDecimal": 0
+        },
+        {
+          "url": "http://hl7.org/fhir/StructureDefinition/maxValue",
+          "valueDecimal": 100
+        }
+      ]
+    },
+    {
+      "linkId": "DeOpenBind01",
+      "text": "Bound to terminology this project never published",
+      "type": "choice",
+      "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-Unpublished-vs"
+    }
+  ]
+}

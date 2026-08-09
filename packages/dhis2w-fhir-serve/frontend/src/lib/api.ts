@@ -14,10 +14,18 @@
  * so anything the FHIR routers do not claim falls through to the SPA shell. That
  * is exactly the arrangement in which a mistyped path returns 200 text/html and
  * a caller spends an afternoon on "why is my Bundle a string". The guard is the
- * router table of `dhis2w_fhir_serve.routes` written down: /metadata, plus the
- * five read types and QuestionnaireResponse the catch-alls answer for, plus
- * ConceptMap which is not a read type but carries $translate. Anything else is a
- * programming error and is refused here rather than by the server.
+ * router table of `dhis2w_fhir_serve.routes` written down: /metadata and /spool,
+ * plus the five read types and QuestionnaireResponse the catch-alls answer for,
+ * plus ConceptMap which is not a read type but carries $translate. Anything else
+ * is a programming error and is refused here rather than by the server.
+ *
+ * ONE PATH HERE IS NOT FHIR. `/spool` answers plain JSON, not
+ * `application/fhir+json`: it serves the receipt *envelopes* - when the facade
+ * accepted each submission, which of its three lifecycle directories the file
+ * now sits in, and what DHIS2 said when it refused one - and none of those are
+ * QuestionnaireResponse elements. `dhis2w_fhir_serve.routes.spool` argues that
+ * choice in full. It still goes through this guard, because the reason for the
+ * guard is the SPA fallback, and that applies to every path alike.
  *
  * WHY NO QUERY LIBRARY. There is no react-query, swr, or zustand in this app on
  * purpose. The server answers whole Bundles off a store loaded once at startup,
@@ -28,6 +36,7 @@
  */
 
 import type { Bundle, CapabilityStatement, OperationOutcome, QuestionnaireResponse } from '@/lib/fhir'
+import type { SpoolListing } from '@/lib/spool'
 
 /** The media type every FHIR request and response on this server carries. */
 export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
@@ -36,12 +45,13 @@ export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
  * Every path prefix `d2w fhir serve` claims ahead of the UI mount.
  *
  * Kept as a list rather than only a regex so the set is greppable from the
- * Python side: this must stay equal to `/metadata` plus
+ * Python side: this must stay equal to `/metadata` and `/spool` plus
  * `dhis2w_fhir_serve.routes.read.SERVED_RESOURCE_TYPES` plus ConceptMap. The
  * vite dev-server proxy in vite.config.ts proxies the same list.
  */
 export const GUARDED_PATH_SEGMENTS = [
     'metadata',
+    'spool',
     'Questionnaire',
     'QuestionnaireResponse',
     'CodeSystem',
@@ -209,6 +219,20 @@ export async function postQuestionnaireResponse(
         headers: { 'Content-Type': FHIR_JSON_MEDIA_TYPE },
         body: JSON.stringify(response),
     })
+}
+
+/**
+ * Every stored receipt with the lifecycle state its file is currently in.
+ *
+ * The server re-reads the spool directory to answer this, so a `d2w fhir
+ * forward` run in another terminal shows up on the next call with nothing
+ * restarted. That is what makes a reload button on the Responses page honest.
+ *
+ * Sent with `cache: 'no-store'`: this is the one read in the app whose answer
+ * changes without anything in the browser having done something.
+ */
+export async function readSpool(): Promise<SpoolListing> {
+    return readJson<SpoolListing>('/spool', { cache: 'no-store' })
 }
 
 /** One guarded request, parsed, with a refusal raised as the outcome the server sent. */

@@ -59,6 +59,13 @@ node_modules/
 # The directory itself is kept by a .gitkeep the vite build rewrites.
 packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/static/*
 !packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/static/.gitkeep
+# Browser e2e working state: the IG project the suite boots a server over is
+# rebuilt from tests/fixture_project.py on every run, and the reports are output.
+packages/dhis2w-fhir-serve/frontend/e2e/.fixture-project/
+packages/dhis2w-fhir-serve/frontend/test-results/
+packages/dhis2w-fhir-serve/frontend/playwright-report/
+packages/dhis2w-fhir-serve/frontend/blob-report/
+packages/dhis2w-fhir-serve/frontend/.playwright/
 
 # mypy / pyright / ruff caches
 .mypy_cache/

@@ -1365,15 +1365,30 @@ not SDC's `$populate`, which means fill-from-real-context - so the IG publishes 
 `OperationDefinition` and `/metadata` declares it on the `Questionnaire` resource entry,
 where R4 puts an instance-level operation.
 
-**The spool is the one stateful object.** `ResponseSpool` holds every received response
-in memory and mirrors each one to `.serve/responses/received/<id>.json`. Reads are
-memory-first: the process never re-scans the directory to answer a search. Writes are
-atomic (`mkstemp` in the same directory, then `os.replace`), so a reader never sees a
-half-written file and a crash leaves the directory consistent; `scan` rebuilds the index
-at startup. The files are also the queue the forwarding phase will drain, which is what
-makes `ls received/` the pending count with no extra bookkeeping. The receipt id is a
-uuid4 hex rather than a DHIS2 UID - a receipt is a resource the facade owns, and an
+**The spool is a directory, not an index.** `ResponseSpool` is a path plus the rules for
+reading it: `.serve/responses/{received,forwarded,rejected}/<id>.json`, one directory per
+lifecycle state, re-read on every call. That is deliberate, and it is the one place the
+facade pays for a read. `d2w fhir forward` is a separate process that renames files
+between those directories while the server is up, so an index built at startup would keep
+calling forwarded receipts `received` and a UI reading it would show a queue that never
+empties. Writes are atomic (`mkstemp` in the same directory, then `os.replace`), so a
+reader never sees a half-written file and a crash leaves the directory consistent, and
+`ls received/` is the pending count with no extra bookkeeping. The receipt id is a uuid4
+hex rather than a DHIS2 UID - a receipt is a resource the facade owns, and an
 11-character DHIS2-shaped id would read as one.
+
+**`GET /spool` is the one endpoint that is deliberately not FHIR.** The receipts
+themselves are `GET /QuestionnaireResponse`, and that search answers whatever state a
+receipt is in - draining a receipt must not expire the id its sender was handed. What the
+search cannot carry is the receipt *envelope*: when the facade accepted the submission,
+which DHIS2 form kind it was validated as, what it had to warn about, which directory the
+file now sits in, and the DHIS2 import report `d2w fhir forward` left beside a rejection.
+None of those are QuestionnaireResponse elements. Two could be forced into `meta`, and an
+`ImportSummary` could be bent into an `OperationOutcome`, but that spreads one record
+across a resource, a tag system this IG does not publish, and a second operation - and
+the import counts still have nowhere honest to go. So the envelope is served as what it
+is: typed JSON at a fixed one-segment lowercase path, which no PascalCase FHIR resource
+type can ever collide with.
 
 **What the store is not.** It is loaded once in the lifespan and held frozen on
 `app.state.context` for the life of the process. Nothing invalidates it, because nothing
@@ -1426,9 +1441,46 @@ path against the served set (`/metadata` plus `read.SERVED_RESOURCE_TYPES` plus
 run against fixtures harvested from a real facade over the committed goldens, so a change
 to the emitter that breaks the UI's reading of the wire breaks a test.
 
+**The form renderer takes its submission context from `$generate`, not from arithmetic.** A
+capture-valid QuestionnaireResponse is not only its answers: `capture/validate.py` checks a
+`meta.profile` naming the form kind's response profile, a D2Period on an aggregate submission,
+a Location subject, an `authored` instant on an event, a tracked entity identifier and an
+enrollment extension on a tracker event - all before it looks at a single answer. A browser
+deriving that would be a second implementation of DHIS2 period arithmetic and the organisation
+unit hierarchy, in a language with none of the tests. So `pages/FormFill.tsx` reads one
+`GET /Questionnaire/{id}/$generate` when the page opens, keeps the skeleton's envelope, throws
+away its answers, and puts the user's in their place. That call is pinned postable to this same
+server by `test_generate_endpoint.py`, so the context leaving the page is valid by construction
+and the operation earns a second consumer beyond its fill-with-test-data button. The seed
+identifier is dropped on the way out, because it names a draw the answers may no longer be.
+
+`lib/questionnaire.ts` is where that lives, and it is deliberately the only interesting file in
+the UI without a DOM in it: the item tree flattened into an ordered spec, one reducer keyed by
+`linkId` (which R4 makes unique per questionnaire and `conversion/context.py` already keys its
+own question index by), `enableWhen` as a derived predicate, and the assembly of the response.
+`ANSWER_ELEMENTS_BY_ITEM_TYPE` there is a transcription of the table of the same name in
+`dhis2w_fhir.conversion.context` - the UI must write the exact `value[x]` the validator demands,
+and the two tables drifting apart is what its tests over `$generate` goldens catch.
+
 The frontend has its own toolchain and its own make targets - `make frontend-dev`,
-`build-frontend`, `lint-frontend`, `test-frontend` - kept out of `make lint` and `make
-test` so those stay a pure-Python run on a machine with no node installed.
+`build-frontend`, `lint-frontend`, `test-frontend`, `e2e-frontend` - kept out of `make lint`
+and `make test` so those stay a pure-Python run on a machine with no node installed.
+
+`make e2e-frontend` is the browser suite: Playwright over chromium against a **real**
+`d2w fhir serve --ui` on its own port (8377, not 8080, where a local DHIS2 stack lives),
+booted by the config's `webServer` over a fixture IG project written from
+`packages/dhis2w-fhir-serve/tests/fixture_project.py` - the same builder the pytest suite
+uses, so there is one copy of the goldens in the workspace and the browser sees the IG the
+Python tests prove the capture path against. A mocked API would be the wrong thing to test:
+the failures worth catching here are of the router table - an asset arriving as an
+OperationOutcome, a path typo landing on the SPA shell with a 200 - and only the actual
+server serving the actual bundle can produce them. The suite covers the shell and the nav
+rail, the Forms listing, the operations the CapabilityStatement declares, and the capture
+loop twice over: once at the API level (`$generate`, POST, the receipt on the Responses
+page) and once through the renderer, as a person performs it. `make build-frontend` and
+`pnpm exec playwright install chromium` are documented prerequisites rather than things the
+target runs behind you: one writes into the Python package, and the other downloads a
+browser.
 
 ### What Dimension A concluded
 

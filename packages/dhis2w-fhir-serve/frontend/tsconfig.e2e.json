@@ -1,0 +1,27 @@
+{
+    "compilerOptions": {
+        "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo",
+        "target": "es2023",
+        "lib": ["ES2023", "DOM"],
+        "types": ["node"],
+        "skipLibCheck": true,
+
+        /* The e2e suite runs in node, under playwright's own runner - not through
+           vite - so it resolves the way node does rather than the way the bundler
+           does. Same strictness as the app; a spec that stops compiling is a spec
+           that stopped describing the UI. */
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
+        "allowImportingTsExtensions": true,
+        "verbatimModuleSyntax": true,
+        "moduleDetection": "force",
+        "noEmit": true,
+
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "erasableSyntaxOnly": true,
+        "noFallthroughCasesInSwitch": true
+    },
+    "include": ["playwright.config.ts", "e2e"]
+}
