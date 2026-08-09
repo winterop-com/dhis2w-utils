@@ -5,25 +5,41 @@ import {
     setWorkerUrl,
     type GeoJSONSource,
     type LngLatBoundsLike,
-    type StyleSpecification,
 } from 'maplibre-gl'
 // eslint-disable-next-line import/no-unresolved -- a Vite query suffix, resolved by the bundler
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 
+import {
+    BASEMAP_LAYER_ID,
+    GROUND_LAYER_ID,
+    RASTER_MUTING,
+    RASTER_PAINT_PROPERTIES,
+    baseStyle,
+    type MapPalette,
+} from '@/lib/basemap'
 import type { OrgUnitBoundary, OrgUnitPoint } from '@/lib/orgunits'
 import { boundsOf } from '@/lib/orgunits'
+import type { BasemapConfig } from '@/lib/uiconfig'
+import { cn } from '@/lib/utils'
 
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 /**
- * The registry as shapes: every published boundary and point, with the selection lit up.
+ * The registry as shapes: every published boundary and point, over a basemap, with the selection lit.
  *
- * NO BASEMAP, ON PURPOSE. The style has one background layer and the project's own GeoJSON on top
- * of it - no tile source, no sprite sheet, no glyph server. That is the whole reason this can ship
- * inside a facade that binds loopback: every byte the map draws came from `GET /Location` on the
- * same origin, so the page works with no internet and sends nothing to a tile vendor about which
- * districts someone was looking at. A configurable basemap url is a later opt-in; nothing here
- * reaches for one.
+ * THE BASEMAP IS RASTER TILES, AND IT IS THE DEFAULT. A boundary floating on a blank canvas answers
+ * "what shape is this district" and not "where is this district", and the second question is the
+ * one somebody opening a hierarchy actually has. So `[serve] basemap` states a `{z}/{x}/{y}`
+ * template - OpenStreetMap's standard tiles unless a deployment points it elsewhere - and this
+ * draws it under everything. The boundary-only canvas is still here and is one config value away
+ * (`basemap = "none"`), which is what an air-gapped deployment and the browser test suite both use;
+ * it is the fallback rather than the posture.
+ *
+ * WHAT THAT COSTS, STATED PLAINLY. Tiles are the only thing in this UI that reaches an origin other
+ * than the server it was served from, so the page no longer works offline by construction and the
+ * tile host learns which places were looked at. That is why it is configurable rather than
+ * hard-coded, why the server rather than the bundle decides, and why turning it off is a supported
+ * state rather than a broken one.
  *
  * WHY IT IS LAZY-LOADED. MapLibre is by a wide margin the heaviest thing this bundle can contain -
  * larger than React, the router, and every page put together. `pages/OrgUnits.tsx` mounts this
@@ -35,14 +51,30 @@ import 'maplibre-gl/dist/maplibre-gl.css'
  * same product in both themes and cannot drift from the palette. The encoding is an emphasis ramp
  * on one hue - the identity blue - over a neutral context tier:
  *
- *   - EVERY published boundary is drawn in `--border` at hairline width. It is chrome, in the same
- *     sense a gridline is: it says where the rest of the hierarchy is without competing.
+ *   - EVERY published boundary is drawn as a hairline. It is chrome, in the same sense a gridline
+ *     is: it says where the rest of the hierarchy is without competing.
  *   - THE UNITS BELOW THE SELECTION take the identity hue at partial strength.
  *   - THE SELECTED UNIT takes it at full strength and twice the stroke width.
  *
  * The two lit tiers differ in stroke width as well as in lightness, so the ranking survives a
  * colourblind reader and a monochrome print. A three-row legend is present because a map has no
  * axis and no labels: without it the blue means nothing.
+ *
+ * THE BASEMAP IS WHAT FORCED THE CASING, and this is the part worth reading before changing any
+ * number here. Over a flat surface the ramp is validated against that one background. Over tiles
+ * the background is every colour OSM draws, and the subtree stroke measured against the worst of
+ * them (a pink motorway, a white road) falls to 1.5:1 - far under the 3:1 a mark needs. The
+ * standard cartographic answer is a casing: a wider stroke in the surface colour, drawn underneath,
+ * so every boundary carries its own local background with it. With one, each stroke's neighbour is
+ * the surface again and the ramp holds exactly the contrast it was validated at. The context tier
+ * also changes over tiles - `--border` is a hairline tuned to sit one shade off a plain card and
+ * simply vanishes on a photograph of a city, so it becomes `--muted-foreground`, slightly wider and
+ * partly transparent.
+ *
+ * AND THE TILES ARE MUTED, PER THEME. Full-strength OSM in dark mode is a glare panel with a UI
+ * around it. `raster-brightness-max`, `raster-contrast`, `raster-saturation`, and `raster-opacity`
+ * push the tiles back to a ground in both modes - down to a pale wash on a light card, and to a
+ * dim grey on a dark one, in both cases quieter than the boundaries drawn on top.
  */
 
 /**
@@ -61,14 +93,6 @@ setWorkerUrl(workerUrl)
 /** What one shape is to the current selection, which is the only thing the map encodes with colour. */
 type EmphasisTier = 'selected' | 'within' | 'other'
 
-/** The tokens the style is painted from, resolved out of index.css. */
-interface MapPalette {
-    surface: string
-    context: string
-    contextInk: string
-    identity: string
-}
-
 /** The fallback palette, for the one case where a computed style cannot be read (jsdom, no layout). */
 const FALLBACK_PALETTE: Record<'light' | 'dark', MapPalette> = {
     light: { surface: '#ffffff', context: '#dee2e2', contextInk: '#5e6565', identity: '#0070a6' },
@@ -84,6 +108,8 @@ const POINT_ZOOM = 9
 export interface OrgUnitMapProps {
     boundaries: OrgUnitBoundary[]
     points: OrgUnitPoint[]
+    /** The tiles under the shapes, or null for the boundary-only canvas. */
+    basemap: BasemapConfig | null
     /** The unit the detail panel is showing, or null when nothing is selected. */
     selectedUnitId: string | null
     /** Every unit below the selected one, so the subtree can be lit at medium emphasis. */
@@ -97,6 +123,7 @@ export interface OrgUnitMapProps {
 export function OrgUnitMap({
     boundaries,
     points,
+    basemap,
     selectedUnitId,
     descendantUnitIds,
     focusUnitIds,
@@ -150,10 +177,13 @@ export function OrgUnitMap({
         try {
             instance = new MapLibreMap({
                 container: element,
-                style: emptyStyle(readPalette(element, isDarkTheme()).surface),
+                style: baseStyle(readPalette(element, isDarkTheme()), basemap, isDarkTheme()),
                 center: [0, 0],
                 zoom: 1,
-                attributionControl: false,
+                // MapLibre's own control, fed by the source's `attribution`, rather than a corner
+                // of markup this component draws: the credit is a condition of using the tiles, and
+                // the renderer that draws them is the right thing to be responsible for saying so.
+                attributionControl: basemap === null ? false : { compact: true },
                 // Nothing here is a globe-scale dataset and the flat projection keeps the shapes
                 // readable at district size, which is the zoom this map is actually used at.
                 pitchWithRotate: false,
@@ -181,7 +211,9 @@ export function OrgUnitMap({
             map.current = null
             instance.remove()
         }
-    }, [])
+        // Rebuilt when the tiles change, which in practice happens once - the settings are read
+        // before this mounts, and a running server does not change its mind about them.
+    }, [basemap])
 
     // The layers are (re)built whenever the theme changes, because every paint value is a token
     // and a token means something different under `.dark`. Rebuilding rather than patching each
@@ -191,10 +223,16 @@ export function OrgUnitMap({
         const element = container.current
         if (instance === null || element === null || !ready) return
         const palette = readPalette(element, dark)
-        instance.setPaintProperty('ground', 'background-color', palette.surface)
-        applyLayers(instance, palette, shapes, markers, select)
+        instance.setPaintProperty(GROUND_LAYER_ID, 'background-color', palette.surface)
+        if (basemap !== null) {
+            const muting = RASTER_MUTING[dark ? 'dark' : 'light']
+            for (const property of RASTER_PAINT_PROPERTIES) {
+                instance.setPaintProperty(BASEMAP_LAYER_ID, property, muting[property])
+            }
+        }
+        applyLayers(instance, palette, basemap !== null, shapes, markers, select)
         setPainted(true)
-    }, [ready, dark, shapes, markers])
+    }, [ready, dark, basemap, shapes, markers])
 
     useEffect(() => {
         const instance = map.current
@@ -212,14 +250,21 @@ export function OrgUnitMap({
     }, [ready, focus])
 
     return (
-        <div className="relative">
+        // The component fills whatever the page gives it rather than claiming a height of its own:
+        // the org-units page hands it the room the detail panel did not use, and the ResizeObserver
+        // above is what keeps the canvas honest as that changes.
+        <div className="relative flex min-h-[20rem] flex-1 flex-col">
             <div
                 ref={container}
                 data-testid="org-unit-map"
                 data-map-ready={painted ? 'true' : 'false'}
+                // Which palette the canvas was painted with. The map is the one surface in this app
+                // whose colours are not CSS, so a theme that reached the stylesheet but not the
+                // renderer is a bug no style assertion could see; this is what a test asserts on.
+                data-map-theme={dark ? 'dark' : 'light'}
                 aria-label="Organisation unit boundaries"
                 role="img"
-                className="bg-card h-[22rem] w-full overflow-hidden rounded-lg border"
+                className="bg-card min-h-0 w-full flex-1 overflow-hidden rounded-lg border"
             />
             {engineFailure !== null && (
                 <p
@@ -230,7 +275,7 @@ export function OrgUnitMap({
                     page is unaffected. ({engineFailure})
                 </p>
             )}
-            {engineFailure === null && <MapLegend />}
+            {engineFailure === null && <MapLegend overTiles={basemap !== null} />}
         </div>
     )
 }
@@ -242,7 +287,7 @@ export function OrgUnitMap({
  * has no axis, no labels, and three shades of one hue, so without a key the colour is decoration.
  * Each row carries text as well as a swatch, so identity is never colour alone.
  */
-function MapLegend() {
+function MapLegend({ overTiles }: { overTiles: boolean }) {
     return (
         <ul className="bg-card/90 text-muted-foreground absolute bottom-3 left-3 space-y-1 rounded-md border px-2.5 py-2 text-xs">
             <li className="flex items-center gap-2">
@@ -254,22 +299,16 @@ function MapLegend() {
                 Below the selection
             </li>
             <li className="flex items-center gap-2">
-                <span className="bg-border size-2.5 rounded-[2px]" aria-hidden />
+                {/* The swatch tracks the tier's real colour, which changes with the ground under
+                    it: a `--border` hairline is legible on a plain card and invisible on tiles. */}
+                <span
+                    className={cn('size-2.5 rounded-[2px]', overTiles ? 'bg-muted-foreground' : 'bg-border')}
+                    aria-hidden
+                />
                 Every other unit
             </li>
         </ul>
     )
-}
-
-/** The style a map with no basemap starts from: one painted background, nothing else. */
-function emptyStyle(surface: string): StyleSpecification {
-    return {
-        version: 8,
-        // No `glyphs` and no `sprite`: both would be network fetches, and this map draws no text
-        // and no icons. Declaring them would break the offline promise for nothing.
-        sources: {},
-        layers: [{ id: 'ground', type: 'background', paint: { 'background-color': surface } }],
-    }
 }
 
 /** Every boundary as a GeoJSON feature carrying the unit it belongs to and its emphasis. */
@@ -348,13 +387,17 @@ function framing(
 /**
  * Put the sources and layers on the map, replacing whatever is there.
  *
- * Six layers, painted from four tokens. The `match` expressions are what keep the encoding in one
- * place: a shape's tier is a property of the feature, so a selection change is one `setData` call
- * rather than a re-styled map.
+ * The `match` expressions are what keep the encoding in one place: a shape's tier is a property of
+ * the feature, so a selection change is one `setData` call rather than a re-styled map.
+ *
+ * THE STACK, BOTTOM UP: the painted ground, the muted tiles, the boundary fills, the casing, the
+ * boundary strokes, the points. The casing exists only over tiles and is the reason the ramp keeps
+ * its validated contrast there - see the module docstring.
  */
 function applyLayers(
     instance: MapLibreMap,
     palette: MapPalette,
+    overTiles: boolean,
     shapes: FeatureCollection,
     markers: FeatureCollection,
     select: { current: (unitId: string) => void },
@@ -366,7 +409,7 @@ function applyLayers(
         // first. Re-adding them would drop the click handlers with them.
         ;(shapeSource as GeoJSONSource).setData(shapes)
         ;(markerSource as GeoJSONSource).setData(markers)
-        repaint(instance, palette)
+        repaint(instance, palette, overTiles)
         return
     }
 
@@ -379,17 +422,46 @@ function applyLayers(
         source: 'org-unit-boundaries',
         paint: {
             'fill-color': ['match', ['get', 'tier'], 'other', palette.contextInk, palette.identity],
-            'fill-opacity': ['match', ['get', 'tier'], 'selected', 0.28, 'within', 0.1, 0.06],
+            // The context fill thins out over tiles: its job there is only to stay clickable, and a
+            // wash over every district would hide the very map it was added to show.
+            'fill-opacity': overTiles
+                ? ['match', ['get', 'tier'], 'selected', 0.22, 'within', 0.08, 0.01]
+                : ['match', ['get', 'tier'], 'selected', 0.28, 'within', 0.1, 0.06],
         },
     })
+    if (overTiles) {
+        instance.addLayer({
+            id: 'boundary-casing',
+            type: 'line',
+            source: 'org-unit-boundaries',
+            paint: {
+                'line-color': palette.surface,
+                'line-width': ['match', ['get', 'tier'], 'selected', 5, 'within', 3.75, 2.5],
+                'line-opacity': 0.75,
+            },
+        })
+    }
     instance.addLayer({
         id: 'boundary-line',
         type: 'line',
         source: 'org-unit-boundaries',
         paint: {
-            'line-color': ['match', ['get', 'tier'], 'other', palette.context, palette.identity],
-            'line-width': ['match', ['get', 'tier'], 'selected', 2, 'within', 1.25, 0.75],
-            'line-opacity': ['match', ['get', 'tier'], 'within', 0.55, 1],
+            // `--border` is tuned to sit one shade off a plain card. On a photograph of a city it is
+            // not a hairline, it is nothing - so over tiles the context tier takes the ink token and
+            // states itself at partial opacity instead.
+            'line-color': [
+                'match',
+                ['get', 'tier'],
+                'other',
+                overTiles ? palette.contextInk : palette.context,
+                palette.identity,
+            ],
+            'line-width': overTiles
+                ? ['match', ['get', 'tier'], 'selected', 2.25, 'within', 1.5, 1]
+                : ['match', ['get', 'tier'], 'selected', 2, 'within', 1.25, 0.75],
+            'line-opacity': overTiles
+                ? ['match', ['get', 'tier'], 'within', 0.7, 'other', 0.55, 1]
+                : ['match', ['get', 'tier'], 'within', 0.55, 1],
         },
     })
     instance.addLayer({
@@ -422,7 +494,7 @@ function applyLayers(
 }
 
 /** Re-token every paint value, which is what a theme flip needs and nothing else does. */
-function repaint(instance: MapLibreMap, palette: MapPalette): void {
+function repaint(instance: MapLibreMap, palette: MapPalette, overTiles: boolean): void {
     instance.setPaintProperty('boundary-fill', 'fill-color', [
         'match',
         ['get', 'tier'],
@@ -434,9 +506,10 @@ function repaint(instance: MapLibreMap, palette: MapPalette): void {
         'match',
         ['get', 'tier'],
         'other',
-        palette.context,
+        overTiles ? palette.contextInk : palette.context,
         palette.identity,
     ])
+    if (overTiles) instance.setPaintProperty('boundary-casing', 'line-color', palette.surface)
     instance.setPaintProperty('unit-point', 'circle-color', [
         'match',
         ['get', 'tier'],

@@ -7,6 +7,9 @@ import scopedQuestionnaireFixture from '@/lib/__fixtures__/questionnaire-PrScope
 import {
     ancestorsOf,
     assignedUnitIds,
+    attachmentGeometryOf,
+    dedupeByOrgUnitIdentifier,
+    orgUnitIdentifierValue,
     assignmentListIdOf,
     boundaryOf,
     boundsOf,
@@ -31,11 +34,16 @@ import { bundleResources, type Bundle, type Location, type Questionnaire, type R
  * hand-written guess at them. That matters most for the boundary: an attachment written by hand
  * would be exactly as valid as the reader assumed it was.
  *
- * The nine units are four levels of the DHIS2 demo hierarchy with every geometry state on them:
- * Sierra Leone carries a MultiPolygon, Bo a Polygon and a point, Bombali a Polygon and no point,
- * Bargbe and Ngelehun a point and no polygon, Baoma an attachment that is not GeoJSON at all,
- * Kagbere CHC nothing at all under a parent that has a boundary, and Adonkia CHP names a parent the
- * project never published.
+ * The bundle holds eleven Locations for ten organisation units: the eleventh is the curated
+ * profile exemplar a generated IG publishes beside the registry, which claims the root unit's uid
+ * on the same identifier system and hangs off nothing.
+ *
+ * The ten units are four levels of the DHIS2 demo hierarchy with every geometry state on them:
+ * Sierra Leone carries a MultiPolygon, Bo a Polygon and a position, Bombali a Polygon and no
+ * position, Ngelehun a position only, Bargbe a position AND a Point attachment that disagrees with
+ * it, Yoni CHP a Point attachment and no position - which is what DHIS2 stores for a facility -
+ * Baoma an attachment that is not GeoJSON at all, Kagbere CHC nothing at all under a parent that
+ * has a boundary, and Adonkia CHP names a parent the project never published.
  */
 
 const locations = bundleResources(locationBundleFixture as unknown as Bundle<Location>)
@@ -57,6 +65,26 @@ function withBoundaryData(data: string): Location {
     }
 }
 
+/** A Location claiming one organisation-unit uid and nothing else, for the tiebreak cases. */
+function claim(id: string): Location {
+    return {
+        resourceType: 'Location',
+        id,
+        name: 'Lone unit',
+        identifier: [{ system: 'http://dhis2.org/fhir/id/org-unit', value: 'OnlyOne0001' }],
+    }
+}
+
+/** A Location carrying an org-unit CODE identifier, which is a different system entirely. */
+function byCode(id: string): Location {
+    return {
+        resourceType: 'Location',
+        id,
+        name: id,
+        identifier: [{ system: 'http://dhis2.org/fhir/id/org-unit-code', value: 'OU_SHARED' }],
+    }
+}
+
 /** One Location of the fixture registry, by the DHIS2 uid it is served under. */
 function unit(id: string): Location {
     const found = locations.find((location) => location.id === id)
@@ -68,7 +96,7 @@ describe('folding the registry into a tree', () => {
     it('roots the units that name no parent', () => {
         const tree = buildOrgUnitTree(locations)
 
-        expect(tree.total).toBe(9)
+        expect(tree.total).toBe(10)
         expect(tree.roots.map((node) => node.id)).toContain('ImspTQPwCqd')
         expect(tree.byId.get('ImspTQPwCqd')?.parentId).toBeNull()
     })
@@ -113,7 +141,7 @@ describe('folding the registry into a tree', () => {
         const tree = buildOrgUnitTree(locations)
 
         // Every unit but Adonkia, which is orphaned, and Sierra Leone itself.
-        expect(tree.byId.get('ImspTQPwCqd')?.descendantCount).toBe(7)
+        expect(tree.byId.get('ImspTQPwCqd')?.descendantCount).toBe(8)
         expect(tree.byId.get('O6uvpzGd5pu')?.descendantCount).toBe(4)
         expect(tree.byId.get('DiszpKrYNg8')?.descendantCount).toBe(0)
     })
@@ -121,7 +149,7 @@ describe('folding the registry into a tree', () => {
     it('drops a Location carrying no id, which no route could open', () => {
         const tree = buildOrgUnitTree([...locations, { resourceType: 'Location', name: 'Nameless' }])
 
-        expect(tree.total).toBe(9)
+        expect(tree.total).toBe(10)
     })
 
     it('re-roots a partOf cycle instead of walking it forever', () => {
@@ -156,6 +184,91 @@ describe('folding the registry into a tree', () => {
             'vWbkYPRmKyS',
             'lc3eMKXaEfw',
         ])
+    })
+})
+
+describe('one organisation unit published as two Locations', () => {
+    it('folds the registry instance and drops the profile exemplar', () => {
+        const tree = buildOrgUnitTree(locations)
+
+        // Both documents claim `ImspTQPwCqd` on `{base}/id/org-unit`. The registry instance is what
+        // every other unit's partOf points at, so it is the one the hierarchy needs.
+        expect(tree.byId.has('ImspTQPwCqd')).toBe(true)
+        expect(tree.byId.has('d2-location-example')).toBe(false)
+        expect(tree.duplicateCount).toBe(1)
+    })
+
+    it('shows the root once rather than twice, which is the bug this exists for', () => {
+        const tree = buildOrgUnitTree(locations)
+
+        expect(tree.roots.filter((node) => node.name === 'Sierra Leone')).toHaveLength(1)
+        // And not as a flagged root either: the exemplar is not a detached unit, it is not a unit.
+        expect(tree.roots.map((node) => node.id)).toEqual(['ImspTQPwCqd', 'Rp268JB6Ne4'])
+    })
+
+    it('does not count the dropped copy among the units', () => {
+        const tree = buildOrgUnitTree(locations)
+
+        expect(locations).toHaveLength(11)
+        expect(tree.total).toBe(10)
+    })
+
+    it('keeps the instance the hierarchy hangs off even when it is listed second', () => {
+        const exemplar = locations.find((location) => location.id === 'd2-location-example')
+        const real = locations.find((location) => location.id === 'ImspTQPwCqd')
+        const others = locations.filter(
+            (location) => location.id !== 'd2-location-example' && location.id !== 'ImspTQPwCqd',
+        )
+
+        const reordered = buildOrgUnitTree([exemplar!, ...others, real!])
+
+        expect(reordered.byId.has('ImspTQPwCqd')).toBe(true)
+        expect(reordered.byId.has('d2-location-example')).toBe(false)
+    })
+
+    it('prefers the copy that names a parent when neither is pointed at', () => {
+        const orphanExemplar: Location = {
+            resourceType: 'Location',
+            id: 'd2-location-example',
+            name: 'Lone unit',
+            identifier: [{ system: 'http://dhis2.org/fhir/id/org-unit', value: 'OnlyOne0001' }],
+        }
+        const inTree: Location = {
+            resourceType: 'Location',
+            id: 'OnlyOne0001',
+            name: 'Lone unit',
+            identifier: [{ system: 'http://dhis2.org/fhir/id/org-unit', value: 'OnlyOne0001' }],
+            partOf: { reference: 'Location/Unpublished01' },
+        }
+
+        const tree = buildOrgUnitTree([orphanExemplar, inTree])
+
+        expect(tree.byId.has('OnlyOne0001')).toBe(true)
+        expect(tree.total).toBe(1)
+    })
+
+    it('falls back to the lowest resource id, and does so whatever order they arrive in', () => {
+        // Neither participates in any hierarchy, so the tiebreak is arbitrary - and the point of
+        // the rule is that it is the SAME arbitrary answer however the Bundle was ordered.
+        expect([...buildOrgUnitTree([claim('bbb'), claim('aaa')]).byId.keys()]).toEqual(['aaa'])
+        expect([...buildOrgUnitTree([claim('aaa'), claim('bbb')]).byId.keys()]).toEqual(['aaa'])
+    })
+
+    it('never drops a Location that claims no organisation unit', () => {
+        const nameless: Location = { resourceType: 'Location', id: 'no-identifier', name: 'Somewhere' }
+        const second: Location = { resourceType: 'Location', id: 'also-none', name: 'Elsewhere' }
+
+        const { kept, dropped } = dedupeByOrgUnitIdentifier([nameless, second])
+
+        expect(kept).toHaveLength(2)
+        expect(dropped).toEqual([])
+    })
+
+    it('does not confuse the org-unit-code system for the org-unit one', () => {
+        // Two units can share nothing on the uid system while carrying the same code, and a
+        // suffix match that was not exact at the end would silently merge them.
+        expect(dedupeByOrgUnitIdentifier([byCode('one'), byCode('two')]).dropped).toEqual([])
+        expect(orgUnitIdentifierValue(byCode('one'))).toBeNull()
     })
 })
 
@@ -214,7 +327,7 @@ describe('reading the level off the published coding', () => {
     })
 })
 
-describe('decoding the boundary attachment', () => {
+describe('decoding the geometry attachment', () => {
     it('reads a Polygon out of the base64 GeoJSON Feature', () => {
         const boundary = boundaryOf(unit('O6uvpzGd5pu'))
 
@@ -233,13 +346,44 @@ describe('decoding the boundary attachment', () => {
         expect(boundaryOf(unit('vWbkYPRmKyS'))).toBeNull()
     })
 
-    it('answers null for a unit publishing no boundary at all', () => {
-        expect(boundaryOf(unit('lc3eMKXaEfw'))).toBeNull()
+    it('answers null for a unit publishing no attachment at all', () => {
+        expect(boundaryOf(unit('DiszpKrYNg8'))).toBeNull()
+        expect(attachmentGeometryOf(unit('DiszpKrYNg8'))).toBeNull()
     })
 
-    it('refuses base64 that is not JSON and JSON that is not a polygon', () => {
-        expect(boundaryOf(withBoundaryData('not-base64-at-all!!'))).toBeNull()
-        expect(boundaryOf(withBoundaryData(btoa('{"type":"Feature"}')))).toBeNull()
+    it('reads a Point attachment as a point, which is what DHIS2 stores for a facility', () => {
+        const read = attachmentGeometryOf(unit('MgFYJDBqSSs'))
+
+        expect(read?.boundary).toBeNull()
+        expect(read?.unreadable).toBe(false)
+        expect(read?.points).toEqual([{ unitId: 'MgFYJDBqSSs', longitude: -12.1, latitude: 9.2 }])
+    })
+
+    it('reads a MultiPoint attachment as every point it holds', () => {
+        const many = btoa('{"type":"MultiPoint","coordinates":[[1,2],[3,4]]}')
+
+        const read = attachmentGeometryOf(withBoundaryData(many))
+
+        expect(read?.unreadable).toBe(false)
+        expect(read?.points).toEqual([
+            { unitId: 'X', longitude: 1, latitude: 2 },
+            { unitId: 'X', longitude: 3, latitude: 4 },
+        ])
+    })
+
+    it('calls an attachment unreadable only when it holds nothing this map can draw', () => {
+        const unreadable = (payload: string) => attachmentGeometryOf(withBoundaryData(payload))?.unreadable
+
+        expect(unreadable('not-base64-at-all!!')).toBe(true)
+        expect(unreadable(btoa('{"type":"Feature"}'))).toBe(true)
+        // A shape with no mark on this map. Counting it is the honest answer; drawing nothing and
+        // saying nothing would not be.
+        expect(unreadable(btoa('{"type":"LineString","coordinates":[[0,0],[1,1]]}'))).toBe(true)
+        expect(unreadable(btoa('{"type":"Point","coordinates":["west","north"]}'))).toBe(true)
+        expect(unreadable(btoa('{"type":"Point","coordinates":[1,2]}'))).toBe(false)
+    })
+
+    it('answers no boundary for a Point attachment, because a point is not a polygon', () => {
         expect(boundaryOf(withBoundaryData(btoa('{"type":"Point","coordinates":[1,2]}')))).toBeNull()
     })
 
@@ -265,14 +409,39 @@ describe('reading the whole registry geometry', () => {
         expect(geometry.points.some((point) => point.unitId === 'EJoI3HuIUEV')).toBe(false)
         expect(geometry.points.map((point) => point.unitId)).toEqual([
             'DiszpKrYNg8',
+            'MgFYJDBqSSs',
             'O6uvpzGd5pu',
             'YuQRtpLP10I',
             'lc3eMKXaEfw',
             'vWbkYPRmKyS',
         ])
-        // Baoma publishes an attachment that does not decode - one skip, and four shapes kept.
-        expect(geometry.skippedBoundaries).toBe(1)
+        // Baoma alone: its attachment is not GeoJSON. Yoni's Point attachment is a point, not a
+        // failure, which is the whole difference between this count and the one it replaced.
+        expect(geometry.unreadableGeometries).toBe(1)
         expect(hasGeometry(geometry)).toBe(true)
+    })
+
+    it('keeps the position when a unit states one twice, and never draws the same unit twice', () => {
+        const geometry = readGeometry(locations)
+
+        // Bargbe publishes a position AND a Point attachment at other coordinates. The R4 element
+        // is what every other FHIR client reads, so it is what the map draws - once.
+        const bargbe = geometry.points.filter((point) => point.unitId === 'lc3eMKXaEfw')
+        expect(bargbe).toEqual([{ unitId: 'lc3eMKXaEfw', longitude: -11.62, latitude: 7.72 }])
+    })
+
+    it('takes the attachment point for a unit that states no position, which is the facility case', () => {
+        const geometry = readGeometry(locations)
+
+        expect(geometry.points.filter((point) => point.unitId === 'MgFYJDBqSSs')).toEqual([
+            { unitId: 'MgFYJDBqSSs', longitude: -12.1, latitude: 9.2 },
+        ])
+    })
+
+    it('keeps the position of a unit whose attachment is unreadable', () => {
+        const geometry = readGeometry(locations)
+
+        expect(geometry.points.some((point) => point.unitId === 'vWbkYPRmKyS')).toBe(true)
     })
 
     it('reads a point in longitude-then-latitude order, the order GeoJSON itself uses', () => {
@@ -287,7 +456,7 @@ describe('reading the whole registry geometry', () => {
         const geometry = readGeometry([{ resourceType: 'Location', id: 'X', name: 'X' }])
 
         expect(hasGeometry(geometry)).toBe(false)
-        expect(geometry.skippedBoundaries).toBe(0)
+        expect(geometry.unreadableGeometries).toBe(0)
     })
 
     it('bounds a set of shapes over both the polygons and the points', () => {

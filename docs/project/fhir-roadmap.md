@@ -1625,12 +1625,21 @@ commitment.
   lazily-expanded tree folded from `partOf`, a detail panel per unit (identifiers,
   parent chain, children, level, and the forms reportable there via the published
   assignment Lists), and a map panel rendering boundaries and points with **MapLibre
-  GL JS** - **boundary-only, no external basemap tiles**, so the UI stays
-  self-contained and same-origin and works offline; a configurable basemap URL is a
-  later opt-in, and deck.gl-style data overlays only once there is data worth
-  overlaying. MapLibre is the frontend's first heavy dependency, so the route
-  lazy-loads - the engine lands in its own chunk (~931 kB, 242 kB gzipped) and the
-  entry bundle grows by 18 kB.
+  GL JS** over raster basemap tiles. MapLibre is the frontend's first heavy
+  dependency, so the route lazy-loads - the engine lands in its own chunk (~933 kB,
+  243 kB gzipped) and the entry bundle grows by 20 kB. deck.gl-style data overlays
+  stay out until there is data worth overlaying.
+
+    **The basemap shipped as the default rather than as the later opt-in this entry
+    planned.** Boundary-only was the right first posture and the wrong resting one: a
+    polygon on a blank canvas answers what shape a district is and not where it is,
+    which is the question somebody opening a hierarchy has. `[serve] basemap` states a
+    `{z}/{x}/{y}` template (OpenStreetMap's standard tiles by default, `"none"` for the
+    self-contained canvas, `--basemap` per run), the UI reads it from a typed
+    `GET /uiconfig` on `/spool`'s pattern, and the tiles are muted per theme so they
+    read as ground rather than glare. `"none"` keeps every property this entry
+    originally asked for - same-origin, offline, nothing told to a tile vendor - and is
+    what the browser suite runs under.
 
     **Three rules the flat Bundle does not state, folded in `lib/orgunits.ts`.** A unit
     whose `partOf` names a Location the project never published is a flagged root
@@ -1643,13 +1652,30 @@ commitment.
     published List adds per-unit entries. The page says "assigned everywhere" and
     "assigned to this unit", which is what a DHIS2 administrator already calls them.
 
-    **The degradations are the design.** A boundary attachment that does not decode
-    into a polygon is skipped with a count rather than thrown; a selected unit with no
-    geometry frames on the nearest ancestor that has some, and says so; a registry with
-    no coordinates hides the map panel behind one sentence. The e2e fixture project
-    publishes a registry carrying every one of those states, plus one form restricted
-    to two of nine units, because none of these rules can fail visibly against a
-    registry of nothing.
+    **The extension is not a polygon slot, and reading it as one was the first live
+    bug.** `location-boundary-geojson` carries DHIS2's `geometry` field verbatim, and
+    DHIS2 keeps a district's catchment polygon and a facility's pin in that same field -
+    so a real registry's attachments are mostly Points, and a decoder that admitted only
+    the polygonal types reported most of itself as broken. Points and MultiPoints are
+    drawn as points, merged with `Location.position` (which wins the dedupe, being the
+    R4 element every other client reads), and the unreadable count names only payloads
+    that are genuinely neither.
+
+    **A fourth rule the flat Bundle does not state: one unit can arrive as two
+    Locations.** The IG publishes a curated exemplar of the registry profiles beside the
+    registry itself, built from the selection's root unit and carrying that unit's uid
+    with no `partOf`, so a `partOf` fold shows the root twice. Locations are grouped by
+    the organisation-unit identifier they claim and the instance the hierarchy hangs off
+    is kept - by identifier rather than by resource id, because the id is emitter-derived
+    and the claim is not.
+
+    **The degradations are the design.** A geometry attachment holding nothing drawable
+    is skipped with a count rather than thrown; a selected unit with no geometry frames
+    on the nearest ancestor that has some, and says so; a registry with no coordinates
+    hides the map panel behind one sentence; tiles that fail leave the painted ground.
+    The e2e fixture project publishes a registry carrying every one of those states, the
+    profile exemplar, and one form assigned to two of ten units, because none of these
+    rules can fail visibly against a registry of nothing.
 
 ### 9.2 Mid-term
 

@@ -7,6 +7,8 @@ however the components are arranged internally.
 
 from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import (
+    BASEMAP_DISABLED,
+    DEFAULT_BASEMAP_TEMPLATE,
     FHIR_CONFIG_FILENAME,
     REPORTS_DIRECTORY,
     FhirProject,
@@ -323,11 +325,13 @@ __all__ = [
     "ATTRIBUTE_VALUE_SUB_EXTENSION",
     "AttributeCodeIndex",
     "AttributeValueIn",
+    "BASEMAP_DISABLED",
     "BOUNDS_BY_VALUE_TYPE",
     "BOUND_ELEMENTS_BY_ITEM_TYPE",
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
     "CATEGORY_DIRECTORY",
     "CATEGORY_OPTION_COMBO_TERMINOLOGY",
+    "DEFAULT_BASEMAP_TEMPLATE",
     "ASSIGNMENT_DIRECTORY",
     "CONCEPT_MAP_DIRECTORY",
     "CategoryComboIn",

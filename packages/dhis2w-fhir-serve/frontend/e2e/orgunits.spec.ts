@@ -3,10 +3,16 @@ import { expect, test } from '@playwright/test'
 /**
  * The organisation-unit browser, against the registry the fixture project really publishes.
  *
- * Nine Locations over four levels, with every geometry state on them and one form restricted to
- * two of them - see `ORG_UNITS` in packages/dhis2w-fhir-serve/tests/fixture_project.py. The reason
- * that registry exists at all is this page: `partOf` folding, boundary decoding, and the assignment
- * join are three rules whose failure modes are invisible against a registry of nothing.
+ * Ten organisation units over four levels published as eleven Locations - the eleventh being the
+ * curated profile exemplar a generated IG ships beside its registry - with every geometry state on
+ * them and one form assigned to two of them. See `ORG_UNITS` in
+ * packages/dhis2w-fhir-serve/tests/fixture_project.py. The reason that registry exists at all is
+ * this page: the `partOf` fold, the identifier dedupe, the geometry decode, and the assignment join
+ * are four rules whose failure modes are invisible against a registry of nothing.
+ *
+ * THE PROJECT SETS `basemap = "none"`. A suite that fetched real tiles would be asserting on
+ * somebody else's uptime and would make an offline test run reach the internet, so the browser here
+ * draws the boundary-only map. The tiles-on style is covered by src/lib/basemap.test.ts.
  *
  * WHAT THE MAP IS ASSERTED ON. Headless chromium here renders WebGL through SwiftShader, so the
  * canvas really is acquired and the assertion is the positive one: the canvas mounts, and the page
@@ -24,6 +30,11 @@ test('the tree renders the roots and expands on demand', async ({ page }) => {
     // Adonkia CHP names a parent this project never published, so it is a root of its own.
     await expect(page.getByRole('button', { name: 'Adonkia CHP', exact: true })).toBeVisible()
     await expect(page.getByText('name a parent this project did not publish')).toBeVisible()
+
+    // The registry also publishes the profile exemplar, which claims Sierra Leone's uid and hangs
+    // off nothing. One unit, one row - not two roots with the same name.
+    await expect(page.getByRole('button', { name: 'Sierra Leone', exact: true })).toHaveCount(1)
+    await expect(page.getByText('10 units')).toBeVisible()
 
     // A closed node renders none of its children - that is the whole point of lazy expansion.
     await expect(page.getByRole('button', { name: 'Bo', exact: true })).toHaveCount(0)
@@ -139,10 +150,12 @@ test('the map mounts a canvas, fetches everything it asks for, and logs nothing'
     await expect(map).toHaveAttribute('data-map-ready', 'true', { timeout: 15_000 })
     await expect(page.getByTestId('org-unit-map-unavailable')).toHaveCount(0)
 
-    // Four of the nine units publish a decodable boundary; Baoma's attachment is not GeoJSON and
-    // is counted rather than drawn.
-    await expect(page.getByText('4 boundaries, 5 points')).toBeVisible()
-    await expect(page.getByText('1 published boundary could not be decoded')).toBeVisible()
+    // Four polygons; six pins, two of which come from a Point attachment rather than a position.
+    // Only Baoma's payload is genuinely unreadable, and that is the only thing the caption counts.
+    await expect(page.getByText('4 boundaries, 6 points')).toBeVisible()
+    await expect(page.getByTestId('org-unit-map-unreadable')).toHaveText(
+        '1 published geometry could not be read and is not drawn.',
+    )
 
     expect(consoleErrors, consoleErrors.join('\n')).toEqual([])
     expect(failedRequests, failedRequests.join('\n')).toEqual([])
@@ -189,6 +202,87 @@ test('a unit with no geometry anywhere above it says so rather than framing on n
     await expect(page.getByTestId('org-unit-map-note')).toContainText(
         'none for any unit above it, so the map shows the whole registry instead',
     )
+})
+
+test('the served settings turn the tiles off, and the map honours that', async ({ page }) => {
+    const settings = await page.request.get('/uiconfig')
+
+    expect(settings.status()).toBe(200)
+    expect(await settings.json()).toEqual({ basemap: null })
+
+    const tileRequests: string[] = []
+    page.on('request', (request) => {
+        if (/tile|\.png($|\?)/.test(request.url()) && !request.url().includes('/assets/')) {
+            tileRequests.push(request.url())
+        }
+    })
+
+    await page.goto('/#/org-units?unit=O6uvpzGd5pu')
+    await expect(page.getByTestId('org-unit-map')).toHaveAttribute('data-map-ready', 'true', {
+        timeout: 15_000,
+    })
+
+    // No tiles asked for, and the caption says so rather than leaving a reader to wonder.
+    expect(tileRequests, tileRequests.join('\n')).toEqual([])
+    await expect(page.getByText('drawn from this server alone, with no basemap')).toBeVisible()
+})
+
+test('the theme reaches the renderer, not just the stylesheet', async ({ page }) => {
+    const consoleErrors: string[] = []
+    page.on('console', (message) => {
+        if (message.type() === 'error') consoleErrors.push(message.text())
+    })
+
+    await page.goto('/#/org-units?unit=O6uvpzGd5pu')
+    const map = page.getByTestId('org-unit-map')
+    await expect(map).toHaveAttribute('data-map-ready', 'true', { timeout: 15_000 })
+    await expect(map).toHaveAttribute('data-map-theme', 'light')
+
+    await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+
+    // The canvas is painted from resolved token values rather than from CSS, so a theme change has
+    // to be pushed into the renderer - and this is the assertion that it was.
+    await expect(map).toHaveAttribute('data-map-theme', 'dark')
+    await expect(map).toHaveAttribute('data-map-ready', 'true')
+    expect(consoleErrors, consoleErrors.join('\n')).toEqual([])
+})
+
+test('the map takes the height the page has left, and floors rather than collapsing', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1400 })
+    await page.goto('/#/org-units?unit=O6uvpzGd5pu')
+
+    const map = page.getByTestId('org-unit-map')
+    await expect(map).toHaveAttribute('data-map-ready', 'true', { timeout: 15_000 })
+
+    // On a tall screen the leftover after the detail panel is the map's, which is the whole point:
+    // the old fixed box left dead space under itself here.
+    const tall = (await map.boundingBox())?.height ?? 0
+    expect(tall).toBeGreaterThan(500)
+
+    // On a short one it stops at its floor instead of becoming a strip - and `main` scrolls, which
+    // the container observer follows without a reload.
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await expect.poll(async () => (await map.boundingBox())?.height ?? 0).toBeLessThan(tall)
+    expect((await map.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(300)
+})
+
+test('there is one scroll container on the page, and it is never the document', async ({ page }) => {
+    // Sequential on purpose: each iteration resizes the same page and reads what that did, so the
+    // steps cannot be run in parallel however much the linter would like them to be.
+    // oxlint-disable no-await-in-loop
+    for (const height of [1400, 900, 700]) {
+        await page.setViewportSize({ width: 1280, height })
+        await page.goto('/#/org-units?unit=O6uvpzGd5pu')
+        await expect(page.getByTestId('org-unit-map')).toHaveAttribute('data-map-ready', 'true', {
+            timeout: 15_000,
+        })
+
+        const documentScrolls = await page.evaluate(
+            () => document.documentElement.scrollHeight > document.documentElement.clientHeight + 2,
+        )
+        expect(documentScrolls, `the document scrolls at ${String(height)}px tall`).toBe(false)
+    }
+    // oxlint-enable no-await-in-loop
 })
 
 test('the rail reaches the page and the page is not the entry bundle', async ({ page }) => {

@@ -1,7 +1,7 @@
 {
   "resourceType": "Bundle",
   "type": "searchset",
-  "total": 9,
+  "total": 11,
   "link": [
     {
       "relation": "self",
@@ -122,6 +122,51 @@
             }
           }
         ]
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
+      "fullUrl": "http://serve.test/Location/MgFYJDBqSSs",
+      "resource": {
+        "resourceType": "Location",
+        "id": "MgFYJDBqSSs",
+        "description": "DHIS2 organisation unit Yoni CHP (MgFYJDBqSSs), level 4 - physical location.",
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "MgFYJDBqSSs"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_YONI"
+          }
+        ],
+        "name": "Yoni CHP",
+        "status": "active",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+            "valueAttachment": {
+              "contentType": "application/geo+json",
+              "data": "eyJ0eXBlIjoiRmVhdHVyZSIsImdlb21ldHJ5Ijp7InR5cGUiOiJQb2ludCIsImNvb3JkaW5hdGVzIjpbLTEyLjEsOS4yXX0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6Ik1nRllKREJxU1NzIiwibGV2ZWwiOjQsIm5hbWUiOiJZb25pIENIUCJ9fQ==",
+              "title": "Yoni CHP (MgFYJDBqSSs)",
+              "size": 139
+            }
+          },
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-4",
+              "display": "Level 4"
+            }
+          }
+        ],
+        "partOf": {
+          "reference": "Location/fdc6uOvgoji"
+        }
       },
       "search": {
         "mode": "match"
@@ -262,6 +307,46 @@
       }
     },
     {
+      "fullUrl": "http://serve.test/Location/d2-location-example",
+      "resource": {
+        "resourceType": "Location",
+        "id": "d2-location-example",
+        "meta": {
+          "profile": [
+            "http://localhost:8080/fhir/StructureDefinition/d2-location"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit",
+            "value": "ImspTQPwCqd"
+          },
+          {
+            "system": "http://dhis2.org/fhir/id/org-unit-code",
+            "value": "OU_SL"
+          }
+        ],
+        "status": "active",
+        "name": "Sierra Leone",
+        "extension": [
+          {
+            "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
+            "valueCoding": {
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+              "code": "level-1",
+              "display": "Level 1"
+            }
+          }
+        ],
+        "managingOrganization": {
+          "reference": "Organization/d2-organization-example"
+        }
+      },
+      "search": {
+        "mode": "match"
+      }
+    },
+    {
       "fullUrl": "http://serve.test/Location/fdc6uOvgoji",
       "resource": {
         "resourceType": "Location",
@@ -325,6 +410,15 @@
         "name": "Bargbe",
         "status": "active",
         "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+            "valueAttachment": {
+              "contentType": "application/geo+json",
+              "data": "eyJ0eXBlIjoiRmVhdHVyZSIsImdlb21ldHJ5Ijp7InR5cGUiOiJQb2ludCIsImNvb3JkaW5hdGVzIjpbLTExLjUsNy42XX0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6ImxjM2VNS1hhRWZ3IiwibGV2ZWwiOjMsIm5hbWUiOiJCYXJnYmUifX0=",
+              "title": "Bargbe (lc3eMKXaEfw)",
+              "size": 137
+            }
+          },
           {
             "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level",
             "valueCoding": {

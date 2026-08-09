@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir_serve.capture.validate import DEFAULT_STRICT_CODES
@@ -24,6 +25,11 @@ class ServeSettings(BaseModel):
     `ui` serves the built capture UI at `/`, same-origin with the FHIR routes it talks to. It is
     off by default: a facade is an endpoint first, and a process answering `/metadata` for a
     scripted client has no reason to also hold a React bundle open.
+
+    `basemap` is the raster tile template the UI's organisation-unit map draws under the
+    boundaries, and `"none"` turns it off. It lives here rather than being read from the project
+    at request time for the same reason `strict_codes` does: a flag may override the table, so the
+    resolved value is a property of this run.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -33,3 +39,4 @@ class ServeSettings(BaseModel):
     profile: str | None = None
     strict_codes: bool = DEFAULT_STRICT_CODES
     ui: bool = False
+    basemap: str = DEFAULT_BASEMAP_TEMPLATE

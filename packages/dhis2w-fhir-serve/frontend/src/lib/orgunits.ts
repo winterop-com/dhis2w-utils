@@ -53,6 +53,15 @@ export const ORG_UNIT_ASSIGNMENT_EXTENSION_SUFFIX = '/StructureDefinition/d2-org
  */
 export const BOUNDARY_EXTENSION_URL = 'http://hl7.org/fhir/StructureDefinition/location-boundary-geojson'
 
+/**
+ * The identifier system tail every published Location carries its DHIS2 organisation-unit uid on.
+ *
+ * The full system is `{identifier_system_base}/id/org-unit`, and the base is per-project - so this
+ * is matched on the tail like every other derived url here. `/id/org-unit-code` is a different
+ * system and does not match, because a suffix comparison against this string is exact at the end.
+ */
+export const ORG_UNIT_IDENTIFIER_SYSTEM_SUFFIX = '/id/org-unit'
+
 /** The prefix an assignment List entry names a unit with. */
 export const LOCATION_REFERENCE_PREFIX = 'Location/'
 
@@ -103,10 +112,17 @@ export interface OrgUnitNode {
 export interface OrgUnitTree {
     roots: OrgUnitNode[]
     byId: Map<string, OrgUnitNode>
-    /** How many units the registry publishes. */
+    /** How many organisation units the registry publishes, counting each one once. */
     total: number
     /** How many of them name a parent this project never published. */
     orphanCount: number
+    /**
+     * How many published Locations were a second copy of a unit already in the tree.
+     *
+     * Not an error and not rendered: it is the documentation exemplar the IG publishes beside the
+     * registry profiles. Kept as a number so the fold can be tested for having done the dropping.
+     */
+    duplicateCount: number
 }
 
 /** A polygonal shape, in the two GeoJSON geometry types DHIS2 stores a boundary as. */
@@ -127,12 +143,33 @@ export interface OrgUnitPoint {
     latitude: number
 }
 
-/** Everything the registry knows about where its units are, plus what could not be read. */
+/**
+ * What one Location's geometry attachment turned out to hold.
+ *
+ * Three outcomes rather than two, because the extension is not a polygon slot. It is DHIS2's
+ * `geometry` field, verbatim, and DHIS2 keeps a district's catchment polygon and a health post's
+ * pin in that same field - so the attachment holds a Polygon for some units and a Point for many
+ * more of them. Reading it as "polygon or failure" is what made a registry of 766 located units
+ * report 601 failures: those were the facilities.
+ */
+export interface AttachmentGeometry {
+    /** The polygonal shape, when the attachment held one. */
+    boundary: OrgUnitBoundary | null
+    /** The pins, when it held a Point or a MultiPoint instead. */
+    points: OrgUnitPoint[]
+    /** True when the attachment is there but holds nothing this map draws - the only real failure. */
+    unreadable: boolean
+}
+
+/** Everything the registry knows about where its units are, plus what genuinely could not be read. */
 export interface OrgUnitGeometry {
     boundaries: OrgUnitBoundary[]
     points: OrgUnitPoint[]
-    /** Units publishing a boundary attachment this reader could not decode into a polygon. */
-    skippedBoundaries: number
+    /**
+     * Attachments holding nothing drawable: not JSON, not GeoJSON, or a geometry type this map has
+     * no mark for (a LineString, a GeometryCollection). A Point is not one of these - it is a point.
+     */
+    unreadableGeometries: number
 }
 
 /**
@@ -172,10 +209,14 @@ export interface ReportableForms {
  * comparison made. Roots are sorted the same way, with the orphans last: a unit whose parent was
  * left out of the selection is a root by accident rather than by design, and putting it under the
  * real roots keeps the top of the tree readable.
+ *
+ * The set is deduplicated before anything is folded - see `dedupeByOrgUnitIdentifier` for why one
+ * organisation unit can arrive as two Locations.
  */
 export function buildOrgUnitTree(locations: Location[]): OrgUnitTree {
+    const { kept, dropped } = dedupeByOrgUnitIdentifier(locations)
     const byId = new Map<string, OrgUnitNode>()
-    for (const location of locations) {
+    for (const location of kept) {
         const id = location.id
         if (id === undefined || id === '') continue
         byId.set(id, {
@@ -228,7 +269,88 @@ export function buildOrgUnitTree(locations: Location[]): OrgUnitTree {
         byId,
         total: byId.size,
         orphanCount: roots.filter((node) => node.orphaned).length,
+        duplicateCount: dropped.length,
     }
+}
+
+/**
+ * One Location per organisation unit, when the store publishes more than one.
+ *
+ * WHY THIS IS NEEDED. A generated IG publishes the registry as pre-built JSON, and beside it a
+ * curated `Usage: #example` pair so the `D2Location` and `D2Organization` profiles have a worked
+ * example the publisher can validate against - `registry-examples.fsh`, built from the selection's
+ * own root unit. The exemplar therefore carries that unit's real DHIS2 uid on the real
+ * `{base}/id/org-unit` system, under a different resource id (`d2-location-example`) and with no
+ * `partOf`. The facade serves everything the project published, so a tree folded from `partOf`
+ * alone sees two Sierra Leones: the real root, and a second one that hangs off nothing.
+ *
+ * WHY IT IS NOT AN ID BLACKLIST. `d2-location-example` is what today's emitter happens to name it,
+ * derived from a profile id that the naming tokens can change. What is invariant is the claim the
+ * two documents make: the same organisation unit, stated as the same identifier value on the same
+ * system. So the grouping key is that value, and the system is recognised by its tail rather than
+ * by a hard-coded base, because the base is `[generate] identifier_system_base` and differs per
+ * project.
+ *
+ * WHICH ONE SURVIVES. The one that participates in the hierarchy, in this order:
+ *
+ *   1. A Location some other Location's `partOf` points at. Whatever else it is, the rest of the
+ *      registry hangs off it, and dropping it would detach every one of them.
+ *   2. Failing that, a Location that names a parent itself - it has a place in the tree, and the
+ *      exemplar by construction does not.
+ *   3. Failing both - a degenerate registry of one unit plus its exemplar, where neither document
+ *      participates in anything - the lowest resource id, sorted. That tiebreak is arbitrary and
+ *      admitted to be: what it buys is determinism, so the same store always folds the same way
+ *      rather than following whatever order the Bundle happened to arrive in.
+ *
+ * A Location carrying no org-unit identifier at all is never grouped and never dropped: it claims
+ * to be no particular unit, so nothing else can be a duplicate of it.
+ *
+ * ORGANIZATIONS WOULD NEED THE SAME RULE. The exemplar comes as a pair, and
+ * `Organization/d2-organization-example` carries the same uid on the same system. Nothing in this
+ * UI folds Organizations today; whatever does should call this, not reimplement it.
+ */
+export function dedupeByOrgUnitIdentifier(locations: Location[]): {
+    kept: Location[]
+    dropped: Location[]
+} {
+    const referenced = new Set<string>()
+    for (const location of locations) {
+        const parent = parentIdOf(location)
+        if (parent !== null && parent !== location.id) referenced.add(parent)
+    }
+
+    const claims = new Map<string, Location[]>()
+    for (const location of locations) {
+        const value = orgUnitIdentifierValue(location)
+        if (value === null) continue
+        const group = claims.get(value)
+        if (group === undefined) claims.set(value, [location])
+        else group.push(location)
+    }
+
+    const dropped = new Set<Location>()
+    for (const group of claims.values()) {
+        if (group.length < 2) continue
+        const winner =
+            group.find((candidate) => candidate.id !== undefined && referenced.has(candidate.id)) ??
+            group.find((candidate) => parentIdOf(candidate) !== null) ??
+            group.toSorted((left, right) => (left.id ?? '').localeCompare(right.id ?? ''))[0]
+        for (const candidate of group) if (candidate !== winner) dropped.add(candidate)
+    }
+
+    return {
+        kept: locations.filter((location) => !dropped.has(location)),
+        dropped: [...dropped],
+    }
+}
+
+/** The DHIS2 organisation-unit uid a Location claims to be, or null when it claims none. */
+export function orgUnitIdentifierValue(location: Location): string | null {
+    const identifier = (location.identifier ?? []).find((candidate) =>
+        (candidate.system ?? '').endsWith(ORG_UNIT_IDENTIFIER_SYSTEM_SUFFIX),
+    )
+    const value = identifier?.value
+    return value === undefined || value === '' ? null : value
 }
 
 /** The level a Location declares, or null when it declares none. */
@@ -321,14 +443,37 @@ export function matchesUnit(node: OrgUnitNode, lowercaseQuery: string): boolean 
     )
 }
 
-/** One unit's boundary polygon, decoded, or null when it publishes none this reader can read. */
-export function boundaryOf(location: Location): OrgUnitBoundary | null {
+/**
+ * Read one unit's geometry attachment, or null when it publishes none.
+ *
+ * The extension is DHIS2's `geometry` field carried verbatim, so what comes out of it is whatever
+ * DHIS2 stores for that unit: a catchment polygon for a district, a pin for a health post. Both
+ * are drawn; a geometry type with no mark on this map (a LineString, a GeometryCollection) and a
+ * payload that is not GeoJSON at all are the two cases that count as unreadable.
+ */
+export function attachmentGeometryOf(location: Location): AttachmentGeometry | null {
     const unitId = location.id
     if (unitId === undefined || unitId === '') return null
     const data = findExtension(location.extension, BOUNDARY_EXTENSION_URL)?.valueAttachment?.data
     if (data === undefined || data === '') return null
-    const geometry = decodeBoundaryGeometry(data)
-    return geometry === null ? null : { unitId, geometry }
+    const geometry = decodeGeometry(data)
+    if (geometry === null) return { boundary: null, points: [], unreadable: true }
+    if (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon') {
+        return { boundary: { unitId, geometry }, points: [], unreadable: false }
+    }
+    const positions = geometry.type === 'Point' ? [geometry.coordinates] : geometry.coordinates
+    const points = positions.flatMap((position) => {
+        const [longitude, latitude] = position
+        if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return []
+        return [{ unitId, longitude, latitude }]
+    })
+    // A Point whose coordinates are not numbers is as unreadable as a payload that is not JSON.
+    return { boundary: null, points, unreadable: points.length === 0 }
+}
+
+/** One unit's boundary polygon, decoded, or null when its attachment holds something else. */
+export function boundaryOf(location: Location): OrgUnitBoundary | null {
+    return attachmentGeometryOf(location)?.boundary ?? null
 }
 
 /** One unit's point, or null when DHIS2 holds no coordinates for it. */
@@ -346,28 +491,36 @@ export function hasGeometry(geometry: OrgUnitGeometry): boolean {
 }
 
 /**
- * Decode every boundary and read every point the registry publishes.
+ * Read every shape the registry publishes, in one pass.
  *
- * One pass over the whole set, because the map draws every shape at once and a per-unit decode on
- * selection would re-do the same base64 on every click. A unit whose attachment does not decode
- * into a polygon is counted rather than thrown: `skippedBoundaries` is what the page states, and
- * the other units keep their shapes.
+ * One pass over the whole set, because the map draws everything at once and a per-unit decode on
+ * selection would re-do the same base64 on every click. Nothing throws: an attachment holding
+ * something this map has no mark for is counted in `unreadableGeometries` and the other units keep
+ * their shapes.
+ *
+ * THE DEDUPE RULE: `position` WINS. A unit can state where it is twice - `Location.position`, and
+ * a Point inside the geometry attachment - and on a DHIS2-generated registry those are two
+ * renderings of one DHIS2 field, so they agree. When they do not, the R4 element wins: `position`
+ * is the standard place a Location says where it is, it is what every other FHIR client reads, and
+ * a map that drew the extension instead would disagree with all of them over the same document.
+ * The attachment's points are therefore used only for a unit that states no `position` - which is
+ * exactly the case they are needed for, and never adds a second dot on top of the first.
  */
 export function readGeometry(locations: Location[]): OrgUnitGeometry {
     const boundaries: OrgUnitBoundary[] = []
     const points: OrgUnitPoint[] = []
-    let skippedBoundaries = 0
+    let unreadableGeometries = 0
     for (const location of locations) {
-        const attachment = findExtension(location.extension, BOUNDARY_EXTENSION_URL)?.valueAttachment
-        if (attachment?.data !== undefined && attachment.data !== '') {
-            const boundary = boundaryOf(location)
-            if (boundary === null) skippedBoundaries += 1
-            else boundaries.push(boundary)
+        const attachment = attachmentGeometryOf(location)
+        if (attachment !== null) {
+            if (attachment.unreadable) unreadableGeometries += 1
+            if (attachment.boundary !== null) boundaries.push(attachment.boundary)
         }
-        const point = pointOf(location)
-        if (point !== null) points.push(point)
+        const position = pointOf(location)
+        if (position !== null) points.push(position)
+        else if (attachment !== null) points.push(...attachment.points)
     }
-    return { boundaries, points, skippedBoundaries }
+    return { boundaries, points, unreadableGeometries }
 }
 
 /** The bounding box `[west, south, east, north]` of a set of shapes, or null when they hold no coordinates. */
@@ -474,15 +627,27 @@ function findExtension(extensions: Extension[] | undefined, url: string): Extens
     return extensions?.find((candidate) => candidate.url === url || candidate.url.endsWith(url))
 }
 
+/** Every geometry type this map has a mark for - two areal, two punctual. */
+type DrawableGeometry =
+    | BoundaryGeometry
+    | { type: 'Point'; coordinates: number[] }
+    | { type: 'MultiPoint'; coordinates: number[][] }
+
 /**
- * Base64 to a boundary geometry, or null for anything this cannot read.
+ * Base64 to a geometry this map can draw, or null for anything it cannot.
  *
  * The payload is a GeoJSON Feature, so the geometry is one level in - but a hand-written registry
- * could put a bare geometry there, and reading both costs one branch. Everything else - invalid
- * base64, valid base64 that is not JSON, JSON that is not a Feature, a geometry type with no
- * polygons in it - answers null, which the caller counts.
+ * could put a bare geometry there, and reading both costs one branch.
+ *
+ * FOUR TYPES ARE DRAWABLE, not two. The extension's name says boundary and R4 documents it as one,
+ * but what DHIS2 puts in it is its own `geometry` field, and DHIS2 keeps a district's polygon and a
+ * facility's pin in that single field. So a Point here is a point, not a failure - reading only the
+ * polygonal types is what made a registry whose facilities outnumber its districts four to one
+ * report most of itself as broken. Null is kept for what it should always have meant: invalid
+ * base64, valid base64 that is not JSON, a Feature with no geometry, or a type this map has no mark
+ * for - a LineString, a GeometryCollection.
  */
-function decodeBoundaryGeometry(data: string): BoundaryGeometry | null {
+function decodeGeometry(data: string): DrawableGeometry | null {
     let parsed: unknown
     try {
         parsed = JSON.parse(decodeBase64(data))
@@ -499,6 +664,10 @@ function decodeBoundaryGeometry(data: string): BoundaryGeometry | null {
     if (candidate.type === 'Polygon') return { type: 'Polygon', coordinates: candidate.coordinates as number[][][] }
     if (candidate.type === 'MultiPolygon') {
         return { type: 'MultiPolygon', coordinates: candidate.coordinates as number[][][][] }
+    }
+    if (candidate.type === 'Point') return { type: 'Point', coordinates: candidate.coordinates as number[] }
+    if (candidate.type === 'MultiPoint') {
+        return { type: 'MultiPoint', coordinates: candidate.coordinates as number[][] }
     }
     return null
 }

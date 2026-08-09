@@ -586,6 +586,8 @@ host = "127.0.0.1"      # interface to bind
 port = 8080             # port to listen on
 strict_codes = false    # refuse an answer whose code is outside the served terminology
 ui = false              # also serve the capture UI at /
+basemap = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"   # tiles under the org-unit map;
+                                                             # "none" draws no tiles at all
 ```
 
 The only table `d2w fhir generate` never reads: it configures `d2w fhir serve`, and
@@ -2050,6 +2052,8 @@ host = "127.0.0.1"      # loopback: the facade has no authentication
 port = 8080             # a local dev DHIS2 commonly owns 8080; 8090 is the usual way out
 strict_codes = false    # true refuses an answer whose code is outside the served terminology
 ui = false              # true also serves the capture UI at / (see The capture UI below)
+basemap = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"   # raster tiles under the org-unit
+                                                             # map; "none" turns them off
 ```
 
 `make serve`, `make serve-live`, and `make serve-ui` read the table too, which is the point: a developer
@@ -2057,6 +2061,30 @@ whose DHIS2 stack already holds 8080 states `port = 8090` here and every invocat
 that project honours it. Precedence is **flag beats table beats default** - and
 `--strict-codes` has an explicit `--no-strict-codes` twin so all three levels are
 reachable from the command line.
+
+**`basemap` is the one setting that points the UI at another origin**, so it is worth a
+paragraph. The capture UI's [Org units](#the-capture-ui) map draws raster tiles under the
+boundaries, and the default is OpenStreetMap's standard tile server - it needs no key, no
+account, and no contract, which is what makes it the right default for somebody trying this
+out on a laptop. **A deployment serving this UI to other people should point it at its own
+tile source.** openstreetmap.org's tiles are a volunteer-funded service with no SLA, and a
+district office's daily traffic is not what that service is there for; their
+[tile usage policy](https://operations.osmfoundation.org/policies/tiles/) is the document to
+read before pointing anything durable at it. Any `{z}/{x}/{y}` raster template works:
+
+```toml
+[serve]
+basemap = "https://tiles.example.org/osm/{z}/{x}/{y}.png"   # your own tiles
+basemap = "none"                                            # no tiles at all
+```
+
+`--basemap` overrides it for one run, `--basemap none` included. **`none` is a supported
+posture, not a degraded one**: it draws the boundaries on a plain canvas, which is what an
+air-gapped instance wants and what this repository's own browser tests run under, so a test
+suite meant to be offline stays offline. Attribution is handled for you when the tiles are
+OpenStreetMap's - the map renders their required credit line itself. For any other source
+the server states no attribution, because it cannot know that source's terms, and
+**crediting it is the deployment's own obligation**.
 
 The default mode is fully offline. If the project has never been compiled, the server
 refuses to start and says what to run:
@@ -2412,23 +2440,41 @@ is no URL to configure and nothing to point at anything:
     is the question this page exists to answer, because a submission against a form the unit
     is not assigned to is what DHIS2 refuses with `E1029`.
 
-    **The map draws boundaries and points, and nothing else.** No basemap, no tile server,
-    no fonts fetched from anywhere: the style is an empty background painted from the app's
-    own theme tokens, and every shape on it was decoded out of the base64 GeoJSON the
-    `location-boundary-geojson` extension carries on the Locations this server published. So
-    the map works offline, on the same origin as everything else, and tells no tile vendor
-    which districts you were looking at. A configurable basemap url is a later opt-in. The
-    selected unit is drawn at full strength, the units below it at partial, and every other
+    **The map draws the boundaries and the points over a real basemap.** Raster tiles from
+    [`[serve] basemap`](#serve) go under everything - OpenStreetMap's standard tiles unless
+    the project points somewhere else - so a district reads as a place with towns and roads
+    in it rather than as a polygon floating in white. The shapes on top were decoded out of
+    the base64 GeoJSON the `location-boundary-geojson` extension carries on the Locations
+    this server published; that extension is DHIS2's `geometry` field verbatim, which means
+    it holds a **polygon for a district and a pin for a health post**, and both are drawn.
+    The selected unit is at full strength, the units below it at partial, every other
     published boundary as a hairline - one hue, three emphases, with a legend, because a map
     has no axis to explain itself with. Clicking a shape selects that unit. The selection
     lives in the address (`#/org-units?unit=DiszpKrYNg8`), so a unit is a link you can send.
 
-    Three things degrade rather than break: a unit DHIS2 holds no geometry for is framed on
-    the nearest unit above it that has some, with a note saying so; a boundary attachment
-    that does not decode into a polygon is skipped and counted rather than blanking the map;
-    and a registry with no coordinates at all gets one sentence instead of an empty grey
-    rectangle. The renderer is the frontend's one heavy dependency, so the route lazy-loads
-    it - opening a form never downloads a map engine.
+    The tiles are **muted per theme** rather than drawn at full strength - a tileset designed
+    for paper-white is a glare panel behind a dark UI - and each boundary carries a
+    surface-coloured casing under its stroke, which is what keeps the emphasis ramp legible
+    over a busy map instead of losing the pale tier against a motorway.
+
+    **`basemap = "none"` draws no tiles**, and that is a supported posture rather than a
+    broken one: the boundaries go back onto a plain canvas, the page reaches no origin but
+    this server, and the caption says so. It is what an air-gapped deployment wants.
+
+    Four things degrade rather than break: a unit DHIS2 holds no geometry for is framed on
+    the nearest unit above it that has some, with a note saying so; a geometry attachment
+    holding something this map cannot draw is skipped and counted rather than blanking the
+    map; a registry with no coordinates at all gets one sentence instead of an empty grey
+    rectangle; and tiles that fail to load leave the painted ground behind them, so an
+    offline laptop still gets its boundaries. The renderer is the frontend's one heavy
+    dependency, so the route lazy-loads it - opening a form never downloads a map engine.
+
+    **One organisation unit, one row.** A generated IG publishes the registry as JSON *and* a
+    curated exemplar of the registry profiles beside it, built from the selection's root unit
+    - so two Locations can carry the same DHIS2 uid, and a tree folded from `partOf` alone
+    would show that root twice. The page groups Locations by the organisation-unit identifier
+    they claim and keeps the one the hierarchy actually hangs off, so the exemplar never
+    appears as a second root and never counts toward the unit total.
 - **Terminology** is a browser over all three terminology types. The listing has a
   section per type - code systems, value sets, concept maps - each row carrying the id,
   the DHIS2 identifiers the artifact was generated from, and the concept or mapping

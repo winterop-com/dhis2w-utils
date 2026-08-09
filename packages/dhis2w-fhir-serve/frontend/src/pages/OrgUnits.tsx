@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
+import { useUiConfig } from '@/hooks/use-ui-config'
 import {
     formIdentifier,
     formTitle,
@@ -29,6 +30,7 @@ import {
     type OrgUnitTree,
 } from '@/lib/orgunits'
 import { identifierBadges } from '@/lib/terminology'
+import type { BasemapConfig } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
 /**
@@ -71,6 +73,7 @@ export function OrgUnits() {
     const registry = useFhirSearch<Location>('Location')
     const forms = useFhirSearch<Questionnaire>('Questionnaire')
     const assignments = useFhirSearch<ResourceList>('List')
+    const settings = useUiConfig()
     const [parameters, setParameters] = useSearchParams()
     const [query, setQuery] = useState('')
 
@@ -108,14 +111,20 @@ export function OrgUnits() {
     }, [filtered, selected, tree])
 
     return (
-        <>
+        // The one page in this app that claims the viewport rather than growing to its content:
+        // the map is worth more the bigger it is, and a fixed-height box with dead space under it
+        // on a tall screen is the shape this replaced.
+        <div className="flex min-h-0 flex-1 flex-col">
             <PageHeader
                 title="Org units"
                 description="The organisation units this guide published, as the hierarchy DHIS2 holds them in - what a capture may report for, and which forms it may report there."
             />
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(16rem,22rem)_1fr]">
-                <section className="space-y-3">
+            {/* `flex-1` without `min-h-0`: the row takes the leftover height when there is any -
+                which is what the map grows into - and floors at its own content when there is not,
+                so a short viewport scrolls `main` instead of crushing the panels. */}
+            <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(16rem,22rem)_1fr]">
+                <section className="flex min-h-0 flex-col gap-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <h3 className="text-base font-semibold">The hierarchy</h3>
                         {!registry.loading && registry.error === null && (
@@ -160,7 +169,10 @@ export function OrgUnits() {
                     </PageState>
                 </section>
 
-                <section className="min-w-0 space-y-6">
+                {/* No `min-h-0` on this column, deliberately: its automatic minimum is its own
+                    content, so a viewport too short for the detail panel makes the page scroll
+                    rather than squashing the map into a strip. */}
+                <section className="flex min-w-0 flex-col gap-6">
                     {selected === null ? (
                         <NothingSelected total={tree.total} loading={registry.loading} />
                     ) : (
@@ -182,10 +194,12 @@ export function OrgUnits() {
                         selected={selected}
                         loading={registry.loading}
                         onSelect={select}
+                        basemap={settings.config.basemap}
+                        settingsLoading={settings.loading}
                     />
                 </section>
             </div>
-        </>
+        </div>
     )
 }
 
@@ -228,7 +242,9 @@ function UnitTree({
     }
 
     return (
-        <ul className="show-scrollbars max-h-[32rem] overflow-y-auto rounded-lg border p-1">
+        // `min-h-0` is what lets this shrink below its content so the overflow is the list's own
+        // scrollbar rather than the page's.
+        <ul className="show-scrollbars min-h-0 flex-1 overflow-y-auto rounded-lg border p-1">
             {roots.map((node) => (
                 <UnitBranch
                     key={node.id}
@@ -603,12 +619,17 @@ function MapPanel({
     selected,
     loading,
     onSelect,
+    basemap,
+    settingsLoading,
 }: {
     tree: OrgUnitTree
     geometry: ReturnType<typeof readGeometry>
     selected: OrgUnitNode | null
     loading: boolean
     onSelect: (unitId: string) => void
+    basemap: BasemapConfig | null
+    /** True until `GET /uiconfig` has answered - the map is built once, against settled settings. */
+    settingsLoading: boolean
 }) {
     const descendantUnitIds = useMemo(
         () => new Set(selected === null ? [] : descendantIdsOf(selected)),
@@ -637,7 +658,7 @@ function MapPanel({
     if (loading) return null
     if (!hasGeometry(geometry)) {
         return (
-            <section className="space-y-3">
+            <section className="flex flex-col gap-3">
                 <h3 className="text-base font-semibold">On the map</h3>
                 <Card>
                     <CardContent className="text-muted-foreground py-6 text-sm">
@@ -652,29 +673,37 @@ function MapPanel({
     const selectedIsLocated = selected !== null && located.has(selected.id)
 
     return (
-        <section className="space-y-3">
+        // `flex-1` here and `min-h-0` all the way up is what makes the map take the height the
+        // detail panel above it did not use, at every viewport, with a floor so it never collapses
+        // to a sliver on a short one.
+        <section className="flex flex-1 flex-col gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-base font-semibold">On the map</h3>
                 <span className="text-muted-foreground text-xs">
-                    {geometry.boundaries.length} boundaries, {geometry.points.length} points - drawn from
-                    this server alone, with no basemap
+                    {shapeCount(geometry)}
+                    {basemap === null ? ' - drawn from this server alone, with no basemap' : ''}
                 </span>
             </div>
             <Suspense
                 fallback={
-                    <div className="bg-card text-muted-foreground flex h-[22rem] items-center justify-center rounded-lg border text-sm">
+                    <div className="bg-card text-muted-foreground flex min-h-[20rem] flex-1 items-center justify-center rounded-lg border text-sm">
                         Loading the map renderer
                     </div>
                 }
             >
-                <OrgUnitMap
-                    boundaries={geometry.boundaries}
-                    points={geometry.points}
-                    selectedUnitId={selected?.id ?? null}
-                    descendantUnitIds={descendantUnitIds}
-                    focusUnitIds={focus.unitIds}
-                    onSelect={onSelect}
-                />
+                {settingsLoading ? (
+                    <div className="bg-card min-h-[20rem] flex-1 rounded-lg border" />
+                ) : (
+                    <OrgUnitMap
+                        boundaries={geometry.boundaries}
+                        points={geometry.points}
+                        basemap={basemap}
+                        selectedUnitId={selected?.id ?? null}
+                        descendantUnitIds={descendantUnitIds}
+                        focusUnitIds={focus.unitIds}
+                        onSelect={onSelect}
+                    />
+                )}
             </Suspense>
             {selected !== null && !selectedIsLocated && (
                 <p data-testid="org-unit-map-note" className="text-muted-foreground text-xs">
@@ -683,15 +712,28 @@ function MapPanel({
                         : `DHIS2 holds no geometry for ${selected.name}, so the map is framed on ${focus.framedOn.name} - the nearest unit above it that has some.`}
                 </p>
             )}
-            {geometry.skippedBoundaries > 0 && (
-                <p className="text-muted-foreground text-xs">
-                    {geometry.skippedBoundaries} published{' '}
-                    {geometry.skippedBoundaries === 1 ? 'boundary' : 'boundaries'} could not be decoded
-                    into a polygon and {geometry.skippedBoundaries === 1 ? 'is' : 'are'} not drawn.
+            {geometry.unreadableGeometries > 0 && (
+                <p data-testid="org-unit-map-unreadable" className="text-muted-foreground text-xs">
+                    {geometry.unreadableGeometries} published{' '}
+                    {geometry.unreadableGeometries === 1 ? 'geometry' : 'geometries'} could not be read
+                    and {geometry.unreadableGeometries === 1 ? 'is' : 'are'} not drawn.
                 </p>
             )}
         </section>
     )
+}
+
+/**
+ * How much the map is drawing, in the two nouns the reader can see on it.
+ *
+ * Counted after the merge, so a facility whose geometry attachment holds a Point is a point here
+ * and not a boundary that failed - which is what the counts said before the decoder learned that
+ * DHIS2 keeps polygons and pins in one field.
+ */
+function shapeCount(geometry: ReturnType<typeof readGeometry>): string {
+    const boundaries = `${String(geometry.boundaries.length)} ${geometry.boundaries.length === 1 ? 'boundary' : 'boundaries'}`
+    const points = `${String(geometry.points.length)} ${geometry.points.length === 1 ? 'point' : 'points'}`
+    return `${boundaries}, ${points}`
 }
 
 /** What the right-hand side says before a unit is picked. */
