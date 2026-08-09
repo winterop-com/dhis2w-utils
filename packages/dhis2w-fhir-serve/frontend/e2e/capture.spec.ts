@@ -93,17 +93,56 @@ test('the reload button re-reads the spool', async ({ page, request }) => {
     await expect(page.getByRole('row').filter({ hasText: receiptId })).toHaveCount(1)
 })
 
-test('the detail dialog shows the receipt in full', async ({ page, request }) => {
+test('a row opens the receipt at its own route, with the answers on it', async ({ page, request }) => {
     const receiptId = await generateAndPost(request, AGGREGATE_FORM, 42)
 
     await page.goto('/#/responses')
-    await page.getByRole('row').filter({ hasText: receiptId }).getByRole('button', { name: 'Open' }).click()
+    await page.getByRole('row').filter({ hasText: receiptId }).click()
 
-    const dialog = page.getByRole('dialog')
-    await expect(dialog).toContainText(receiptId)
-    await expect(dialog).toContainText('Period')
-    await expect(dialog).toContainText('Organisation unit')
-    await expect(dialog).toContainText('GET /QuestionnaireResponse/')
+    // The route is the receipt id, which is what makes one receipt a link somebody can be sent.
+    await expect(page).toHaveURL(new RegExp(`#/responses/${receiptId}$`))
+    await expect(page.getByText(receiptId).first()).toBeVisible()
+    await expect(page.getByText('Received', { exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Capture context' })).toBeVisible()
+    await expect(page.getByText('Period', { exact: true })).toBeVisible()
+    await expect(page.getByText('Organisation unit')).toBeVisible()
+    await expect(page.getByText('GET /QuestionnaireResponse/')).toBeVisible()
+
+    // The headline: the answers joined to the questions the form asks. `Fixed, <1y` is the text
+    // of a category option combo cell, and the group above it is what makes it mean something.
+    const answers = page.getByRole('row').filter({ hasText: 's46m5MS0hxu.Prlt0C1RF0s' })
+    await expect(answers).toHaveCount(1)
+    await expect(answers).toContainText('BCG doses given')
+    await expect(answers).toContainText('Fixed, <1y')
+
+    await page.getByRole('link', { name: 'All responses' }).click()
+    await expect(page).toHaveURL(/#\/responses$/)
+})
+
+test('the receipt route is deep-linkable and shows the raw resource on demand', async ({
+    page,
+    request,
+}) => {
+    const receiptId = await generateAndPost(request, AGGREGATE_FORM, 43)
+
+    // Straight to the URL, with no listing visited first - the whole point of the route.
+    await page.goto(`/#/responses/${receiptId}`)
+
+    await expect(page.getByRole('heading', { name: 'Answers' })).toBeVisible()
+    await expect(page.getByText('generated from seed 43')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Raw QuestionnaireResponse' }).click()
+    await expect(page.getByText('"resourceType": "QuestionnaireResponse"')).toBeVisible()
+})
+
+test('a keyboard user opens a receipt the same way', async ({ page, request }) => {
+    const receiptId = await generateAndPost(request, AGGREGATE_FORM, 44)
+
+    await page.goto('/#/responses')
+    await page.getByRole('row').filter({ hasText: receiptId }).focus()
+    await page.keyboard.press('Enter')
+
+    await expect(page).toHaveURL(new RegExp(`#/responses/${receiptId}$`))
 })
 
 test('the lifecycle filter narrows the table', async ({ page, request }) => {

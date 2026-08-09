@@ -2237,12 +2237,30 @@ is no URL to configure and nothing to point at anything:
   form it answers, how many answers it carries, its receipt id, and - the column that
   matters - **which lifecycle state it is in**. `Received` is the queue
   [`d2w fhir forward`](#forwarding-captured-responses) drains, `Forwarded` means DHIS2
-  took it, and `Rejected` means DHIS2 refused it. Opening a row shows the DHIS2 context
-  the receipt carries (reporting period, organisation unit, tracked entity, enrollment),
-  anything the server warned about when it accepted the capture, and for a rejection the
-  import report the forwarder stored beside it - the error code, the object DHIS2 named,
-  and what it said. Filter by state or by form; the state chips carry the counts, so the
-  queue depth is on screen without counting rows.
+  took it, and `Rejected` means DHIS2 refused it. Filter by state or by form; the state
+  chips carry the counts, so the queue depth is on screen without counting rows.
+
+    **A row opens the receipt at `/responses/{id}`**, which is a page rather than a
+  dialog - so one receipt is a link you can send someone. It carries the whole receipt:
+  the form it answers (linked back to the form itself), its lifecycle badge, the DHIS2
+  context it states (reporting period and type, organisation unit, tracked entity,
+  enrollment, authored), and - when the receipt came from `$generate` - the seed it was
+  drawn from, which is what makes the same answers reproducible.
+
+    **The answers are on it, joined to the questions that were asked.** The page reads
+  the served `Questionnaire` as well as the receipt and puts them side by side: the
+  question text in the order the form asks it, with its enclosing groups - which is what
+  turns a disaggregated cell from `Fixed, <1y` into
+  `Immunization / BCG doses given - Fixed, <1y` - the link id beside it, and the value
+  rendered as what it is: a coded answer keeps both its display and the code DHIS2 will
+  store, a boolean reads as Yes or No, a repeating question shows every answer it was
+  given. Questions the submission left unanswered are absent, because the receipt holds
+  only the branches that were answered. **A form recompiled since the capture degrades
+  rather than blanks**: the receipt still renders against its link ids, with a line
+  saying the form is no longer served. Capture warnings get a section, a rejection gets
+  the import report the forwarder stored beside the receipt - the error code, the object
+  DHIS2 named, what it said - and a collapsible **Raw QuestionnaireResponse** shows the
+  stored document itself, so the page can be checked against the bytes.
 
     The lifecycle is which of `.serve/responses/{received,forwarded,rejected}/` the file
     is in, and the server re-reads that directory to answer. So running

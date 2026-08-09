@@ -20,6 +20,10 @@ export interface FhirResourceState<T> {
  * Nothing is cached. `d2w fhir serve` answers off a store loaded once at startup, so a re-read
  * costs one request against an in-memory dict and is always what the server currently holds -
  * which is the behaviour a page wants after the server has been restarted under it.
+ *
+ * An empty id reads nothing. That is the state a page is in while the id is still being derived
+ * from another read - the receipt page learns which form to read from the receipt - and asking
+ * for `/{type}/` would be a request whose answer is known to be useless.
  */
 export function useFhirResource<T>(resourceType: string, resourceId: string): FhirResourceState<T> {
     const [resource, setResource] = useState<T | null>(null)
@@ -27,6 +31,12 @@ export function useFhirResource<T>(resourceType: string, resourceId: string): Fh
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
+        if (resourceId === '') {
+            setResource(null)
+            setError(null)
+            setLoading(false)
+            return () => undefined
+        }
         let cancelled = false
         setLoading(true)
         setError(null)

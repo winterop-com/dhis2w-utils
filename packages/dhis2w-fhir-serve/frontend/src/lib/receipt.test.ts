@@ -1,0 +1,247 @@
+import { describe, expect, it } from 'vitest'
+
+import generateAggregateFixture from '@/lib/__fixtures__/generate-BfMAe6Itzgt.json'
+import generateEventFixture from '@/lib/__fixtures__/generate-EVTsupVis01.json'
+import generateTemporalFixture from '@/lib/__fixtures__/generate-PrTemporal1.json'
+import generateTrackerFixture from '@/lib/__fixtures__/generate-ZzYYXq4fJie.json'
+import temporalQuestionnaireFixture from '@/lib/__fixtures__/questionnaire-PrTemporal1.json'
+import questionnaireBundleFixture from '@/lib/__fixtures__/questionnaire-bundle.json'
+import {
+    bundleResources,
+    generateSeedOf,
+    type Bundle,
+    type Questionnaire,
+    type QuestionnaireResponse,
+} from '@/lib/fhir'
+import { flattenQuestionnaire } from '@/lib/questionnaire'
+import { formLabel, joinAnswersToQuestions } from '@/lib/receipt'
+import type { SpoolResponseSummary } from '@/lib/spool'
+
+/**
+ * The receipt page's reading of a stored capture, against captures a real server produced.
+ *
+ * The fixtures are the same ones the fill side is tested with: `GET /Questionnaire/{id}/$generate`
+ * responses harvested verbatim from an in-process `d2w fhir serve` over the committed goldens,
+ * and the Questionnaires those responses answer. That pairing is the whole point of this suite -
+ * the join is between two documents the server really serves, so a shape that drifts on either
+ * side fails here rather than on the page.
+ */
+
+const questionnaires = new Map(
+    bundleResources(questionnaireBundleFixture as unknown as Bundle<Questionnaire>).map((questionnaire) => [
+        questionnaire.id ?? '',
+        questionnaire,
+    ]),
+)
+
+/** One served form by its DHIS2 uid, failing loudly rather than testing against undefined. */
+function servedForm(id: string): Questionnaire {
+    const questionnaire = questionnaires.get(id)
+    if (questionnaire === undefined) throw new Error(`the fixture bundle serves no Questionnaire ${id}`)
+    return questionnaire
+}
+
+const aggregateResponse = generateAggregateFixture as unknown as QuestionnaireResponse
+const eventResponse = generateEventFixture as unknown as QuestionnaireResponse
+const trackerResponse = generateTrackerFixture as unknown as QuestionnaireResponse
+const temporalResponse = generateTemporalFixture as unknown as QuestionnaireResponse
+const temporalQuestionnaire = temporalQuestionnaireFixture as unknown as Questionnaire
+
+/** The rows one receipt joins to, against the form it answers. */
+function rowsFor(questionnaire: Questionnaire, response: QuestionnaireResponse) {
+    return joinAnswersToQuestions(flattenQuestionnaire(questionnaire), response)
+}
+
+describe('joining a receipt to the form it answers', () => {
+    it('gives every answered question its text, in the order the form asks them', () => {
+        const rows = rowsFor(servedForm('EVTsupVis01'), eventResponse)
+
+        expect(rows.map((row) => row.linkId)).toEqual(['s46m5MS0hxu', 'YtbsuPPo010'])
+        expect(rows[0]?.text).toBe('BCG doses given')
+        expect(rows[0]?.values).toEqual([{ kind: 'text', text: '404' }])
+        expect(rows.every((row) => row.known)).toBe(true)
+    })
+
+    it('carries the enclosing groups, which is what makes a disaggregated cell readable', () => {
+        const rows = rowsFor(servedForm('BfMAe6Itzgt'), aggregateResponse)
+
+        // `Fixed, <1y` is the whole question text of a category option combo cell, and it means
+        // nothing without the data element group above it.
+        const cell = rows.find((row) => row.linkId === 's46m5MS0hxu.Prlt0C1RF0s')
+        expect(cell?.text).toBe('Fixed, <1y')
+        expect(cell?.groupPath).toEqual(['Immunization', 'BCG doses given'])
+        expect(cell?.values).toEqual([{ kind: 'text', text: '331' }])
+    })
+
+    it('omits the questions the receipt left unanswered', () => {
+        const questionnaire = servedForm('BfMAe6Itzgt')
+        const spec = flattenQuestionnaire(questionnaire)
+        const rows = joinAnswersToQuestions(spec, {
+            resourceType: 'QuestionnaireResponse',
+            status: 'completed',
+            item: [
+                {
+                    linkId: 'Y2rk0vzgvAx',
+                    item: [{ linkId: 's46m5MS0hxu', item: [{ linkId: 's46m5MS0hxu.Prlt0C1RF0s', answer: [{ valueInteger: 12 }] }] }],
+                },
+            ],
+        })
+
+        // The form asks 128 questions; this receipt answers one, and a table of 127 empty rows
+        // would bury it.
+        expect(spec.questionLinkIds.length).toBeGreaterThan(1)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]?.linkId).toBe('s46m5MS0hxu.Prlt0C1RF0s')
+    })
+
+    it('keeps both halves of a coded answer', () => {
+        const rows = rowsFor(servedForm('ZzYYXq4fJie'), trackerResponse)
+
+        const coded = rows.find((row) => row.linkId === 'X8zyunlgUfM')
+        expect(coded?.values).toEqual([
+            {
+                kind: 'coding',
+                display: 'Mixed',
+                code: 'odMfnhhpjUj',
+                system: 'http://localhost:8080/fhir/CodeSystem/d2-os-x31y45jvIQL-cs',
+            },
+        ])
+    })
+
+    it('reads a boolean as the yes or no the form asked for', () => {
+        const rows = rowsFor(servedForm('ZzYYXq4fJie'), trackerResponse)
+
+        expect(rows.find((row) => row.linkId === 'FqlgKAG8HOu')?.values).toEqual([
+            { kind: 'text', text: 'No' },
+        ])
+        expect(rows.find((row) => row.linkId === 'rxBfISxXS2U')?.values).toEqual([
+            { kind: 'text', text: 'Yes' },
+        ])
+    })
+
+    it('keeps every answer of a repeating question, in the order they were given', () => {
+        const rows = rowsFor(temporalQuestionnaire, temporalResponse)
+
+        const repeats = rows.find((row) => row.linkId === 'DeSymptoms01')
+        expect(repeats?.values.length).toBeGreaterThan(1)
+        expect(repeats?.values.every((value) => value.kind === 'coding')).toBe(true)
+    })
+
+    it('shows dates, times, and urls as the literals the receipt states', () => {
+        const rows = rowsFor(temporalQuestionnaire, temporalResponse)
+        const value = (linkId: string) => rows.find((row) => row.linkId === linkId)?.values
+
+        expect(value('DeVisitDate1')).toEqual([{ kind: 'text', text: '2026-07-22' }])
+        expect(value('DeVisitTime1')).toEqual([{ kind: 'text', text: '20:00:00' }])
+        expect(value('DeVisitStamp')).toEqual([{ kind: 'text', text: '2026-07-11T02:00:00Z' }])
+        expect(value('DeVisitLink1')).toEqual([
+            { kind: 'text', text: 'https://example.invalid/DeVisitLink1' },
+        ])
+    })
+})
+
+describe('a receipt whose form is no longer served', () => {
+    it('degrades to link ids and values rather than to nothing', () => {
+        const rows = joinAnswersToQuestions(null, trackerResponse)
+
+        expect(rows.length).toBeGreaterThan(0)
+        expect(rows.every((row) => !row.known)).toBe(true)
+        expect(rows.every((row) => row.text === null)).toBe(true)
+        expect(rows.find((row) => row.linkId === 'X8zyunlgUfM')?.values).toEqual([
+            {
+                kind: 'coding',
+                display: 'Mixed',
+                code: 'odMfnhhpjUj',
+                system: 'http://localhost:8080/fhir/CodeSystem/d2-os-x31y45jvIQL-cs',
+            },
+        ])
+    })
+
+    it('keeps the nesting a stored aggregate receipt carries', () => {
+        const rows = joinAnswersToQuestions(null, aggregateResponse)
+
+        // With no form there are no texts, so the path is the enclosing link ids - still the
+        // difference between a readable cell and four hundred rows called `Fixed, <1y`.
+        const cell = rows.find((row) => row.linkId === 's46m5MS0hxu.Prlt0C1RF0s')
+        expect(cell?.groupPath).toEqual(['Y2rk0vzgvAx', 's46m5MS0hxu'])
+    })
+
+    it('still shows an answer to a question the rebuilt form has dropped', () => {
+        const rows = joinAnswersToQuestions(flattenQuestionnaire(servedForm('EVTsupVis01')), {
+            resourceType: 'QuestionnaireResponse',
+            status: 'completed',
+            item: [
+                { linkId: 's46m5MS0hxu', answer: [{ valueInteger: 1 }] },
+                { linkId: 'DeRemoved001', answer: [{ valueString: 'answered before the rebuild' }] },
+            ],
+        })
+
+        // The known questions come first, in the form's order; what the form no longer asks is
+        // last and says so, because a receipt is a record and a rebuild cannot edit it.
+        expect(rows.map((row) => row.linkId)).toEqual(['s46m5MS0hxu', 'DeRemoved001'])
+        expect(rows[0]?.known).toBe(true)
+        expect(rows[1]?.known).toBe(false)
+        expect(rows[1]?.values).toEqual([{ kind: 'text', text: 'answered before the rebuild' }])
+    })
+})
+
+describe('the seed a generated receipt states', () => {
+    it('reads the seed off the identifier the operation writes', () => {
+        // Every `$generate` fixture carries one, which is the operation's reproducibility
+        // promise surviving the post into the stored receipt.
+        expect(generateSeedOf(aggregateResponse)).toBe('7')
+        expect(generateSeedOf(trackerResponse)).toBe('7')
+    })
+
+    it('states none for a receipt a client filled in itself', () => {
+        expect(
+            generateSeedOf({ resourceType: 'QuestionnaireResponse', status: 'completed' }),
+        ).toBeNull()
+        expect(
+            generateSeedOf({
+                resourceType: 'QuestionnaireResponse',
+                status: 'completed',
+                identifier: { system: 'http://example.invalid/id/something-else', value: '7' },
+            }),
+        ).toBeNull()
+    })
+})
+
+/** One listing row, with only the fields the label rule reads. */
+function summary(overrides: Partial<SpoolResponseSummary> = {}): SpoolResponseSummary {
+    return {
+        response_id: 'abc123',
+        received_at: '2026-08-09T09:30:00Z',
+        lifecycle: 'received',
+        form_kind: 'aggregate',
+        questionnaire: 'http://localhost:8080/fhir/Questionnaire/BfMAe6Itzgt',
+        questionnaire_id: 'BfMAe6Itzgt',
+        answer_count: 12,
+        warnings: [],
+        ...overrides,
+    }
+}
+
+describe('naming the form a receipt answered', () => {
+    it('prefers the served title', () => {
+        expect(formLabel(summary(), servedForm('BfMAe6Itzgt'))).toBe('Child Health')
+    })
+
+    it('falls back to the id when the form is no longer served', () => {
+        expect(formLabel(summary(), undefined)).toBe('BfMAe6Itzgt')
+    })
+
+    it('falls back to the canonical when the spool states no id either', () => {
+        expect(formLabel(summary({ questionnaire_id: null }), undefined)).toBe('BfMAe6Itzgt')
+    })
+
+    it('unescapes the markup the guide emits into a title', () => {
+        expect(
+            formLabel(summary(), {
+                resourceType: 'Questionnaire',
+                status: 'active',
+                title: 'Weight &lt; 5kg &amp; under',
+            }),
+        ).toBe('Weight < 5kg & under')
+    })
+})
