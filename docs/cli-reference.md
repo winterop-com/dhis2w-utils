@@ -10153,6 +10153,9 @@ A data set and an event program are one Questionnaire each.
 
 A tracker program is one Questionnaire per program stage, filed under its program&#x27;s UID.
 
+A form whose DHIS2 organisation-unit assignment narrows the published registry also gets one
+List of the Locations it admits, into resources/assignments/.
+
 **Usage**:
 
 ```console

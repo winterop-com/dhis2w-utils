@@ -234,6 +234,26 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "organisation", "unit")
 
     @property
+    def organisation_unit_assignment_extension(self) -> str:
+        """FSH name of the organisation-unit-assignment Extension (e.g. `D2OrganisationUnitAssignment`)."""
+        return f"{self.definition_prefix}OrganisationUnitAssignment"
+
+    @property
+    def organisation_unit_assignment_extension_id(self) -> str:
+        """FHIR id of the organisation-unit-assignment Extension (e.g. `d2-organisation-unit-assignment`)."""
+        return join_id_tokens(self.definition_prefix, "organisation", "unit", "assignment")
+
+    @property
+    def organisation_unit_level_extension(self) -> str:
+        """FSH name of the organisation-unit-level Extension (e.g. `D2OrganisationUnitLevel`)."""
+        return f"{self.definition_prefix}OrganisationUnitLevel"
+
+    @property
+    def organisation_unit_level_extension_id(self) -> str:
+        """FHIR id of the organisation-unit-level Extension (e.g. `d2-organisation-unit-level`)."""
+        return join_id_tokens(self.definition_prefix, "organisation", "unit", "level")
+
+    @property
     def tracker_enrollment_extension(self) -> str:
         """FSH name of the tracker-enrollment Extension (e.g. `D2TrackerEnrollment`)."""
         return f"{self.definition_prefix}TrackerEnrollment"

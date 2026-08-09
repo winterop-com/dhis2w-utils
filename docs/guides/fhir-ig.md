@@ -717,6 +717,8 @@ never touches DHIS2:
   [The D2AttributeValue extension](#the-d2attributevalue-extension).
 - **`d2-organisation-unit.fsh`** - the `D2OrganisationUnit` extension, a reference to
   the published `Location` of the unit an event was captured at.
+- **`d2-organisation-unit-level.fsh`** - the `D2OrganisationUnitLevel` extension, the
+  hierarchy level a published `Location` sits at, as a `Coding` of the level CodeSystem.
 - **`d2-tracker-enrollment.fsh`** - the `D2TrackerEnrollment` extension, the DHIS2
   enrollment UID an event belongs to, as an `Identifier` pinned to the
   `{base}/id/tracker-enrollment` system.
@@ -1200,7 +1202,9 @@ converge: drop a category from the selection and its map goes with its pair.
 A DHIS2 data set, a DHIS2 event program, and one stage of a DHIS2 tracker program are
 all *data-capture forms*, and FHIR already has that resource: `Questionnaire`.
 `d2w fhir generate questionnaires` writes one file per selected target plus two support
-CodeSystem/ValueSet pairs, across four directories named for what they hold:
+CodeSystem/ValueSet pairs, across four directories named for what they hold, and the
+[organisation-unit assignment](#organisation-unit-assignment) of every form that has a
+narrower one into a fifth:
 
 ```
 ig/input/fsh/data-sets/<stem>.fsh         One Questionnaire per data set
@@ -1209,6 +1213,8 @@ ig/input/fsh/tracker-programs/            One Questionnaire per program stage,
   <program stem>/<stage stem>.fsh         nested under the program it belongs to
 ig/input/fsh/data-dictionary/             The shared data-element and
                                           category-option-combo terminology
+ig/input/resources/assignments/           One List of Locations per form whose
+  List-<id>.json                          assignment narrows the registry
 ```
 
 `<stem>` is each target's [identity stem](#the-identity-stem) - the DHIS2 UID
@@ -1388,6 +1394,68 @@ DHIS2 returned them. The data-element attribute values inside the form are not
 emitted; the `data-dictionary` CodeSystems carry concepts, which have no chosen
 carrier for them.
 
+### Organisation-unit assignment
+
+DHIS2 scopes every data set and every program to the organisation units it is
+*assigned to*. A capture against a unit outside that scope is not a malformed
+submission - it is a perfectly valid FHIR document DHIS2 refuses at write time with
+`E1029`. So the scope is published, as one `List` of Locations per form:
+
+```json
+{
+  "resourceType": "List",
+  "id": "d2-ds-BfMAe6Itzgt-org-units",
+  "identifier": [{ "system": "http://dhis2.org/fhir/id/data-set", "value": "BfMAe6Itzgt" }],
+  "status": "current",
+  "mode": "snapshot",
+  "title": "Child Health - assigned organisation units",
+  "entry": [{ "item": { "reference": "Location/ImspTQPwCqd" } }]
+}
+```
+
+The form names it through one extension, `D2OrganisationUnitAssignment`, contexted on
+`Questionnaire` and valued as `Reference(List)`:
+
+```
+* extension[D2OrganisationUnitAssignment].valueReference = Reference(List/d2-ds-BfMAe6Itzgt-org-units)
+```
+
+**`List`, not `Group`.** A group of places is the obvious modelling instinct, and R4
+does not allow it: `Group.member.entity` is bound to
+`Reference(Patient | Practitioner | PractitionerRole | Device | Medication | Substance | Group)`,
+and `Group.type` is a required binding over `person | animal | practitioner | device |
+medication | substance`. A Location is neither a legal member nor a legal type, so a
+Group of Locations is an artifact the validator rejects. `List.entry.item` is
+`Reference(Resource)` and `List.mode` says `snapshot`, which is exactly what an
+assignment is.
+
+**Absence means the whole registry.** The artifact is emitted **only when the assignment
+is a proper subset of the published organisation-unit selection.** A form assigned to
+every unit the registry publishes - the common national case - publishes nothing, and a
+consumer meeting a form with no assignment extension may report it for any unit in the
+registry. That is what a consumer already assumed before this artifact existed, so the
+economy costs nothing in meaning: on an instance where most forms are national, the IG
+grows by a handful of small documents rather than by one per form.
+
+The assignment is intersected with the published selection before it is judged, so a
+unit DHIS2 assigns but `[generate.organisation_units]` does not publish can never make an
+assignment look narrower than it is. A form whose intersection is *empty* publishes an
+empty List and one note: no published unit may report it, which is worth being told.
+
+**Tracker stages share their program's List.** DHIS2 hangs the assignment on the
+program, not on the stage, so every stage Questionnaire of one program references the
+same `d2-pr-<program stem>-org-units` artifact. A data set's List rides the `DS` naming
+token and its own stem, a program's the `PR` token and its own.
+
+**What the facade does with it.** `d2w fhir serve` reads the List a submitted form names
+and grades the organisation unit the response reports for - the `subject` on an aggregate
+or event response, the `D2OrganisationUnit` extension on a tracker event, and every
+`ORGANISATION_UNIT` answer - against it. A unit outside the assignment takes the same
+dial [a coded answer](#coded-answers-lenient-by-default) takes: a warning on the receipt
+by default, a 422 under `--strict-codes`. A form that publishes no List, or one the
+facade does not serve, is checked against nothing. `$generate` draws its Location from
+the assignment when there is one, so a generated response stays postable and forwardable.
+
 ### Example responses
 
 A `Questionnaire` says what a DHIS2 form asks. A `QuestionnaireResponse` says what
@@ -1516,7 +1584,8 @@ This target writes two trees. The definitional half is FSH under
 
 - **`profiles.fsh`** - the `D2Organization` and `D2Location` profiles.
 - **`org-unit-levels.fsh`** - the level CodeSystem/ValueSet backing
-  `Organization.type`, covering the levels actually present in the selection.
+  `Organization.type` and the Location's `D2OrganisationUnitLevel` extension, covering
+  the levels actually present in the selection.
 - **`org-units-terminology.fsh`** - only with `terminology = true`.
 
 The registry itself is pre-built FHIR JSON under `ig/input/resources/registry/`,
@@ -1537,9 +1606,16 @@ selection omits `partOf` and is reported, never dropped silently. A unit whose
 [`D2AttributeValue` extension](#the-d2attributevalue-extension) per value. This is
 where they are densest on a real instance: 244 of 300 organisation units on the
 Lao instance carry at least one. On the Location the order is a contract - the
-GeoJSON boundary extension is emitted first and the attribute values follow it,
-in the order DHIS2 returned them, so a regenerate of an unchanged unit produces a
-byte-identical file and the sync reports it unchanged.
+GeoJSON boundary extension is emitted first, the attribute values follow it in the
+order DHIS2 returned them, and the level closes the list, so a regenerate of an
+unchanged unit produces a byte-identical file and the sync reports it unchanged.
+
+**Every Location states its level.** The `D2Location` profile requires one
+`D2OrganisationUnitLevel` extension, whose `valueCoding` is the `level-<n>` code of the
+same `org-unit-levels.fsh` CodeSystem that backs `Organization.type` - so a consumer
+reads a place's level off the resource instead of counting `partOf` hops up the tree.
+The Organization of the same unit carries no such extension: it states the same coding
+as `Organization.type`, and a level is a property of the place in the hierarchy.
 
 **The profiles get one worked example each.** The registry ships as JSON SUSHI never
 compiles, so `D2Organization` and `D2Location` would otherwise publish no example at
@@ -1570,6 +1646,7 @@ parameters:
     - input/resources/terminology/*
     - input/resources/concept-maps/*
     - input/resources/categories/*
+    - input/resources/assignments/*
 ```
 
 SUSHI recurses into sub-folders of `input/resources` on its own; the IG Publisher
@@ -1626,8 +1703,10 @@ All three follow the `[generate.naming]` prefix, and all three take `^status` /
 `foundation/d2-capture-server.fsh` sits beside them: a `D2CaptureServer`
 CapabilityStatement of `kind = #requirements`, declaring `create` on
 `QuestionnaireResponse` with all three profiles as `supportedProfile`, plus `read` and
-`search-type` on the `Questionnaire`, `CodeSystem`, `ValueSet`, `Location`, and
-`Organization` resources a client resolves a form from. Its `date` is a fixed
+`search-type` on the `Questionnaire`, `CodeSystem`, `ValueSet`, `Location`,
+`Organization`, and `List` resources a client resolves a form from - `List` because a
+form's [organisation-unit assignment](#organisation-unit-assignment) is published as
+one, and a capture client constrains its Location picker by reading it. Its `date` is a fixed
 literal, for the same byte-stability reason the NamingSystem declarations pin
 theirs - R4 makes the element mandatory and a generated timestamp would rewrite the
 file on every run.
@@ -2121,6 +2200,16 @@ is a fact about the instance rather than a mistake by the client.
 anything else is a 422. One case is refused under either setting - two options matching
 one code is an ambiguity the server cannot resolve and leniency cannot paper over.
 
+**The same dial grades the organisation unit.** Where a form publishes an
+[organisation-unit assignment](#organisation-unit-assignment), the unit the response
+reports for is checked against it: the `subject` on an aggregate or event response, the
+`D2OrganisationUnit` extension on a tracker event, and every `ORGANISATION_UNIT` answer.
+A unit outside the assignment is a warning by default and a 422 under `--strict-codes`,
+for the same reason a drifted code is - the submission is well-formed FHIR, and what it
+names is a fact about the instance rather than a mistake in the document. DHIS2 refuses
+that write with `E1029`, which the diagnostics say. A form publishing no assignment is
+scoped to the whole registry and nothing is checked.
+
 The published contract stays strict either way. Leniency is a property of this server's
 runtime, not of what the IG asks for.
 
@@ -2174,6 +2263,21 @@ as a POST loop can chew through, so `--per-target` (default 25) is not bounded t
 ordinal, so a rerun over unchanged metadata writes byte-identical files and reports every
 one of them unchanged. `--output-dir` relocates the corpus off the project root.
 
+**The references are drawn to be instance-valid.** A load set exists to be forwarded, so
+it is measured by what DHIS2 accepts, and two reads make sure it does not spend that
+measurement on refusals already known about. Each response is captured at a unit drawn
+from the intersection of the published registry selection and its target's own DHIS2
+organisation-unit assignment - id-only, one request per kind, and a tracker stage is
+placed by its program's assignment because that is where DHIS2 hangs it - so no response
+names a unit its data set or program does not report for (`E1029`). And a data set whose
+own category combo is non-default is dropped, because a `QuestionnaireResponse` names no
+attribute option combo, so DHIS2 would key every response to the default one the data set
+does not admit (`E8023`, BUGS.md #41). A target the intersection leaves empty is dropped
+the same way. Both drops are reported as notes naming the targets, and
+`questionnaire_count` counts what the corpus covers rather than what the selection holds -
+a form the corpus cannot exercise is a fact worth reading, not one worth hiding behind
+responses nobody can accept.
+
 Then post the lot:
 
 ```bash
@@ -2204,6 +2308,24 @@ d2w fhir serve --ui          # or `make serve-ui` in a scaffolded project
 Open the address it prints. The UI reads the very endpoint it is served from, so there
 is no URL to configure and nothing to point at anything:
 
+- **Overview** is the root route, and answers one question: what is the state of capture
+  right now. **The spool pulse** is three counts off `GET /spool` - `Received`,
+  `Forwarded`, `Rejected` - with `Received` set large because it is the only one of the
+  three that is a task: it is the queue [`d2w fhir forward`](#forwarding-captured-responses)
+  drains. Each count is a link into the Responses table already narrowed to that state
+  (`#/responses?lifecycle=received`, which is a link you can send someone), and the
+  rejected count names the DHIS2 error code most of its receipts share - "Rejected 12" and
+  "Rejected 12, mostly E1029 Organisation unit is not assigned" lead to different
+  afternoons. The count is per receipt rather than per issue, because DHIS2 states a rule
+  once and then names every object that broke it, and one submission carrying forty rows of
+  the same code is still one stuck submission. **Capture a response** puts the served forms
+  underneath as quick-entry cards - title, DHIS2 kind, question count - each opening the
+  form itself, with the first eight by title shown and a link to the full listing past
+  that. **This server** closes with one strip: the guide being served and its version, the
+  store mode, how many resource types it answers for, and the operations it declares as
+  `$translate` / `$generate` badges. A project with nothing captured yet gets an invitation
+  to open a form rather than three zeroes, and each section fails on its own - a spool that
+  stops answering does not blank the forms beside it.
 - **Forms** lists every `Questionnaire` this server publishes, with the DHIS2 object
   kind each one came from (read off the `D2FormType` extension - a form carrying none is
   shown as such, because it is one the facade will refuse to capture against) and how
@@ -2238,7 +2360,10 @@ is no URL to configure and nothing to point at anything:
   matters - **which lifecycle state it is in**. `Received` is the queue
   [`d2w fhir forward`](#forwarding-captured-responses) drains, `Forwarded` means DHIS2
   took it, and `Rejected` means DHIS2 refused it. Filter by state or by form; the state
-  chips carry the counts, so the queue depth is on screen without counting rows.
+  chips carry the counts, so the queue depth is on screen without counting rows. The state
+  filter lives in the URL (`#/responses?lifecycle=rejected`), which is what lets the
+  Overview's tiles link straight into a narrowed table - and what makes "the ones DHIS2
+  refused" a link rather than a set of instructions.
 
     **A row opens the receipt at `/responses/{id}`**, which is a page rather than a
   dialog - so one receipt is a link you can send someone. It carries the whole receipt:

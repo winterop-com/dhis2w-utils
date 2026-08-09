@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
     ClipboardList,
     Inbox,
+    LayoutDashboard,
     Library,
     PanelLeftClose,
     PanelLeftOpen,
@@ -33,12 +34,14 @@ export interface NavItem {
  * ADDING A PAGE IS TWO EDITS: append an item here, and add the matching
  * `<Route>` in App.tsx. Nothing else in the shell knows the page exists - the
  * desktop rail, the mobile strip, and the header title all read this array. Keep
- * the order meaningful: it is the order of the capture loop itself, from the
- * forms a client can fill, through what came back, to the terminology and the
- * server behind both.
+ * the order meaningful: the overview first because it is what the root route
+ * answers, then the order of the capture loop itself - from the forms a client
+ * can fill, through what came back, to the terminology and the server behind
+ * both.
  */
 export const NAV_ITEMS: NavItem[] = [
-    { path: '', label: 'Forms', hint: 'Questionnaires served', icon: ClipboardList },
+    { path: '', label: 'Overview', hint: 'The state of capture', icon: LayoutDashboard },
+    { path: 'forms', label: 'Forms', hint: 'Questionnaires served', icon: ClipboardList },
     { path: 'responses', label: 'Responses', hint: 'What was captured', icon: Inbox },
     { path: 'terminology', label: 'Terminology', hint: 'Codes and value sets', icon: Library },
     { path: 'server', label: 'Server', hint: 'What /metadata declares', icon: ServerCog },
@@ -78,12 +81,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     collapsed ? 'w-16' : 'w-60',
                 )}
             >
-                <div className={cn('flex items-center gap-2 px-3 py-4', collapsed && 'justify-center px-0')}>
+                {/* The wordmark is the way home, which is the convention every
+                    other app in a browser has already taught. */}
+                <NavLink
+                    to="/"
+                    end
+                    aria-label="Capture overview"
+                    className={cn(
+                        'focus-visible:ring-ring/50 flex items-center gap-2 rounded-lg px-3 py-4 focus-visible:ring-[3px] focus-visible:outline-none',
+                        collapsed && 'justify-center px-0',
+                    )}
+                >
                     <div className="bg-foreground text-background dark:bg-primary dark:text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
                         <Stethoscope className="size-4" aria-hidden />
                     </div>
                     {!collapsed && <span className="text-lg font-bold tracking-tight">Capture</span>}
-                </div>
+                </NavLink>
 
                 <nav className="flex flex-col gap-1 px-2 py-2">
                     {NAV_ITEMS.map((item) => {

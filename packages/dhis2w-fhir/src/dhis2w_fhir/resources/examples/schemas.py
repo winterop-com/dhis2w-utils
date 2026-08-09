@@ -44,6 +44,22 @@ class ExampleAnswerRules(BaseModel):
     published_organisation_unit_uids: frozenset[str] | None = None
 
 
+class SyntheticPlacement(BaseModel):
+    """The organisation units one questionnaire target's synthetic responses may be captured at.
+
+    DHIS2 scopes every data set and program to the organisation units it is assigned to, and a
+    write against a unit outside that assignment is refused (`E1029`). The load-set path fills
+    this with the intersection of the published registry selection and the target's own DHIS2
+    assignment, sorted, so a generated response names a unit the target really reports for and
+    the guide really publishes a Location for. An empty intersection is not representable: the
+    target is dropped with a note before generation rather than pointed at a unit DHIS2 refuses.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    organisation_unit_uids: tuple[str, ...] = Field(min_length=1)
+
+
 class ExampleAnswerIn(BaseModel):
     """One captured value, keyed the way DHIS2 keys it: data element plus category option combo.
 

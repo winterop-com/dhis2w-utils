@@ -40,6 +40,7 @@ from dhis2w_fhir.names import code_or_uid, page_text, quote
 from dhis2w_fhir.notes import GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.resources.option_sets import option_set_identity_index
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
+from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CATEGORY_OPTION_COMBO_TERMINOLOGY,
     DATA_ELEMENT_TERMINOLOGY,
@@ -48,13 +49,13 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     FormKind,
     FormKindProfile,
     NumericBounds,
-    ProgramContextIn,
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
     QuestionnaireStemPlan,
     plan_questionnaire_stems,
     source_display_name,
+    source_program,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, FshBuild
@@ -298,6 +299,10 @@ class _QuestionnaireView(BaseModel):
     form_type_extension: str
     form_type_code_system: str
     form_type_code: str
+    assignment_extension: str
+    assignment_reference: str | None = None
+    """Literal `List/<id>` reference of the form's assignment artifact, or None when it publishes none."""
+
     attribute_value_extension: str
     ig_status: IgStatus
     attribute_values: list[_AttributeValueView] = Field(default_factory=list)
@@ -356,6 +361,7 @@ def build_questionnaire_artifacts(
     option_set_plan: OptionSetIdentityPlan,
     attribute_codes: AttributeCodeIndex,
     stem_plan: QuestionnaireStemPlan | None = None,
+    assignments: AssignmentPlan | None = None,
 ) -> FshBuild:
     """Build one `data-sets/` or `event-programs/` file per target plus the `data-dictionary/` support pairs.
 
@@ -365,8 +371,11 @@ def build_questionnaire_artifacts(
     read the attribute code out of. `stem_plan` is the questionnaire surface's identity-stem
     plan; a caller building several targets off one fetch passes the run's plan, and a caller
     without one gets it resolved here through the same `plan_questionnaire_stems` call.
+    `assignments` names the assignment List each form is scoped by; a form absent from the plan
+    carries no assignment extension, which means the whole published registry may report it.
     """
     build = FshBuild()
+    assignment_plan = assignments if assignments is not None else AssignmentPlan()
     plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
     build.notes.extend(plan.notes)
     names = QuestionnaireNaming.from_naming(config.naming)
@@ -392,6 +401,7 @@ def build_questionnaire_artifacts(
             ig_status=ig_status,
             attribute_codes=attribute_codes,
             identifier_system_base=config.identifier_system_base,
+            assignments=assignment_plan,
         )
         build.artifacts.append(
             FshArtifact(
@@ -501,16 +511,6 @@ def _source_relative_path(source: QuestionnaireSourceIn, stem_plan: Questionnair
     return f"{TRACKER_PROGRAM_DIRECTORY}/{stem_plan.programs.stem_for(source_program(source).uid)}/{stem}.fsh"
 
 
-def source_program(source: QuestionnaireSourceIn) -> ProgramContextIn:
-    """The program a tracker program stage belongs to, refusing a stage that arrived without one."""
-    if source.program is None:
-        raise ValueError(
-            f"tracker-event source {source.uid} carries no program context: a program stage is named, "
-            "grouped, and filed under the tracker program it belongs to"
-        )
-    return source.program
-
-
 def _questionnaire_view(
     source: QuestionnaireSourceIn,
     names: QuestionnaireNaming,
@@ -522,6 +522,7 @@ def _questionnaire_view(
     ig_status: IgStatus,
     attribute_codes: AttributeCodeIndex,
     identifier_system_base: str,
+    assignments: AssignmentPlan,
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders.
 
@@ -549,6 +550,8 @@ def _questionnaire_view(
         form_type_extension=foundation.form_type_extension,
         form_type_code_system=foundation.form_type_code_system,
         form_type_code=source.kind,
+        assignment_extension=foundation.organisation_unit_assignment_extension,
+        assignment_reference=assignments.reference_for(source),
         attribute_value_extension=foundation.attribute_value_extension,
         ig_status=ig_status,
         attribute_values=_attribute_value_views(source.attribute_values, attribute_codes),

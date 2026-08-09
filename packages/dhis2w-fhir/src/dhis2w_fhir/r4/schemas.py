@@ -139,6 +139,7 @@ class Extension(Element):
     valueDecimal: int | float | None = None
     valueAttachment: Attachment | None = None
     valueCodeableConcept: CodeableConcept | None = None
+    valueCoding: Coding | None = None
     valueIdentifier: Identifier | None = None
     valueReference: Reference | None = None
     valuePeriod: Period | None = None
@@ -240,6 +241,32 @@ class Location(DomainResource):
     extension: list[Extension] | None = None
     managingOrganization: Reference | None = None
     partOf: Reference | None = None
+
+
+class ListEntry(BackboneElement):
+    """`List.entry` - one resource the list names, as a reference."""
+
+    item: Reference
+
+
+class ResourceList(DomainResource):
+    """A FHIR R4 List, which is what carries a DHIS2 organisation-unit assignment.
+
+    R4 binds `Group.member.entity` to Patient, Practitioner, PractitionerRole, Device,
+    Medication, Substance, and Group, so a Location cannot be a Group member; `List.entry.item`
+    is `Reference(Resource)` and takes one. Named `ResourceList` because `List` is a built-in.
+    """
+
+    resourceType: Literal["List"] = "List"
+    id: str | None = None
+    meta: Meta | None = None
+    extension: list[Extension] | None = None
+    identifier: list[Identifier] | None = None
+    status: Literal["current", "retired", "entered-in-error"] = "current"
+    mode: Literal["working", "snapshot", "changes"] = "snapshot"
+    title: str | None = None
+    code: CodeableConcept | None = None
+    entry: list[ListEntry] | None = None
 
 
 class CodeSystem(DomainResource):

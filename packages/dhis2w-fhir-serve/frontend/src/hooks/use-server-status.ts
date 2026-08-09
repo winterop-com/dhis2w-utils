@@ -69,6 +69,11 @@ export async function refreshServerStatus(): Promise<void> {
     }
 }
 
+/** The status as of this instant - for callers reacting after an awaited refresh. */
+export function serverStatusSnapshot(): ServerStatus {
+    return status
+}
+
 /** Subscribe a component to the shared server status. */
 export function useServerStatus(): ServerStatus {
     return useSyncExternalStore(subscribe, snapshot, snapshot)

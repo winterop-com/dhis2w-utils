@@ -174,7 +174,7 @@ test.describe('filling a form in the browser', () => {
     }) => {
         const before = (await (await request.get('/spool')).json()) as { total: number }
 
-        await page.goto('/')
+        await page.goto('/#/forms')
         await page
             .getByRole('row')
             .filter({ hasText: 'Child Health' })

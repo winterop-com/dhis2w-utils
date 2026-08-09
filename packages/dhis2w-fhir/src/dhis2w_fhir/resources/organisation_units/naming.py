@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import join_id_tokens
 
 if TYPE_CHECKING:
@@ -94,6 +95,8 @@ class OrganisationUnitInstanceUrls(BaseModel):
     organization_profile: str
     location_profile: str
     level_code_system: str
+    level_extension: str
+    """Canonical of the D2OrganisationUnitLevel Extension every published Location states its level on."""
     identifier_system: str
     code_identifier_system: str
     identifier_system_base: str
@@ -103,11 +106,13 @@ class OrganisationUnitInstanceUrls(BaseModel):
     def from_config(cls, config: GenerateConfig, canonical: str) -> OrganisationUnitInstanceUrls:
         """Derive the instance URLs from the IG canonical plus the `[generate]` identifier system base."""
         names = OrganisationUnitNaming.from_naming(config.naming)
+        foundation = FoundationNaming.from_naming(config.naming)
         identifier_base = config.identifier_system_base
         return cls(
             organization_profile=f"{canonical}/StructureDefinition/{names.organization_profile_id}",
             location_profile=f"{canonical}/StructureDefinition/{names.location_profile_id}",
             level_code_system=f"{canonical}/CodeSystem/{names.terminology_id('level', 'cs')}",
+            level_extension=f"{canonical}/StructureDefinition/{foundation.organisation_unit_level_extension_id}",
             identifier_system=f"{identifier_base}/id/org-unit",
             code_identifier_system=f"{identifier_base}/id/org-unit-code",
             identifier_system_base=identifier_base,

@@ -11,6 +11,7 @@ from dhis2w_fhir.names import StemResolution, code_or_uid, flatten_whitespace, p
 from dhis2w_fhir.r4 import (
     BOUNDARY_EXTENSION_URL,
     Attachment,
+    Coding,
     Extension,
     Identifier,
     Location,
@@ -66,25 +67,46 @@ def build_location(
         description=page_string(description),
         status="inactive" if organisation_unit.closed else "active",
         position=position,
-        extension=_extensions(organisation_unit, attribute_codes, extension_url) or None,
+        extension=_extensions(organisation_unit, urls, attribute_codes, extension_url),
         managingOrganization=Reference(reference=f"Organization/{stems.stem_for(uid)}"),
         partOf=Reference(reference=f"Location/{stems.stem_for(parent_uid)}") if parent_uid is not None else None,
     )
 
 
 def _extensions(
-    organisation_unit: OrganisationUnitIn, attribute_codes: AttributeCodeIndex, extension_url: str
+    organisation_unit: OrganisationUnitIn,
+    urls: OrganisationUnitInstanceUrls,
+    attribute_codes: AttributeCodeIndex,
+    extension_url: str,
 ) -> list[Extension]:
-    """A Location's extensions in emission order: the GeoJSON boundary, then one per DHIS2 attribute value.
+    """A Location's extensions: the GeoJSON boundary, one per DHIS2 attribute value, then the level.
 
     The order is a contract rather than an accident. A regenerate of an unchanged unit has to
     produce a byte-identical file for `sync_artifacts` to report it unchanged, so the boundary
-    always leads and the attribute values always follow it in the order DHIS2 returned them.
+    always leads, the attribute values always follow it in the order DHIS2 returned them, and the
+    level closes the list.
     """
     return [
         *_boundary_extensions(organisation_unit),
         *attribute_value_extensions(organisation_unit.attribute_values, attribute_codes, extension_url),
+        _level_extension(organisation_unit, urls),
     ]
+
+
+def _level_extension(organisation_unit: OrganisationUnitIn, urls: OrganisationUnitInstanceUrls) -> Extension:
+    """The D2OrganisationUnitLevel extension stating which level of the DHIS2 hierarchy this place sits at.
+
+    A level is a property of the place in the hierarchy, and the Location is the hierarchy-bearing
+    resource - so the extension rides the Location alone. The Organization of the same unit gets
+    none: it already states the same coding as `Organization.type`, and it is the legal entity
+    rather than the place. The coding is drawn from the published level CodeSystem, so a consumer
+    reads the level off the resource instead of counting `partOf` hops.
+    """
+    level = organisation_unit.level
+    return Extension(
+        url=urls.level_extension,
+        valueCoding=Coding(system=urls.level_code_system, code=f"level-{level}", display=f"Level {level}"),
+    )
 
 
 def _boundary_extensions(organisation_unit: OrganisationUnitIn) -> list[Extension]:

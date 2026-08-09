@@ -291,6 +291,13 @@ def _mock_option_sets() -> None:
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
 
 
+def _mock_organisation_units(payload: dict[str, object] | None = None) -> None:
+    """Mock the light org-unit read the questionnaire target resolves published Location stems from."""
+    respx.get(f"{_HOST}/api/organisationUnits").mock(
+        return_value=httpx.Response(200, json=payload or {"organisationUnits": []})
+    )
+
+
 _runner = CliRunner()
 
 
@@ -615,6 +622,7 @@ async def _generated_data_set(tmp_path: Path, operands: list[dict[str, object]])
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_operand_payload(operands)))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
     _mock_option_sets()
+    _mock_organisation_units()
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
     return (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "BfMAe6Itzgt.fsh").read_text(encoding="utf-8")
 
@@ -634,9 +642,10 @@ async def test_the_data_set_fetch_asks_for_the_compulsory_operands(
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
     _mock_option_sets()
 
+    _mock_organisation_units()
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
-    fields = data_sets.calls.last.request.url.params["fields"]
+    fields = data_sets.calls[0].request.url.params["fields"]
     assert "compulsoryDataElementOperands[dataElement[id],categoryOptionCombo[id]]" in fields
 
 
@@ -892,11 +901,12 @@ async def test_generate_questionnaires_writes_the_target_directory(
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
     _mock_option_sets()
 
+    _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert data_sets.called
     assert programs.called
-    assert data_sets.calls.last.request.url.params["filter"] == "id:in:[BfMAe6Itzgt]"
+    assert data_sets.calls[0].request.url.params["filter"] == "id:in:[BfMAe6Itzgt]"
     assert report.questionnaire_count == 2
     assert report.written_files == [
         "data-sets/BfMAe6Itzgt.fsh",
@@ -904,7 +914,9 @@ async def test_generate_questionnaires_writes_the_target_directory(
         "data-dictionary/category-option-combos.fsh",
         "data-dictionary/data-elements.fsh",
     ]
-    assert report.target_directory == "data-sets, event-programs, tracker-programs, data-dictionary"
+    assert report.target_directory == (
+        "fsh/data-sets, fsh/event-programs, fsh/tracker-programs, fsh/data-dictionary, resources/assignments"
+    )
     fsh = tmp_path / "ig" / "input" / "fsh"
     assert not (fsh / "questionnaires").exists()
     assert (fsh / "event-programs" / "VBqh0ynB2wv.fsh").exists()
@@ -930,11 +942,13 @@ async def test_an_absent_selection_covers_the_whole_instance(
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
     _mock_option_sets()
 
+    _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
-    assert "filter" not in data_sets.calls.last.request.url.params
-    assert "filter" not in programs.calls.last.request.url.params
-    assert programs.calls.call_count == 1
+    assert "filter" not in data_sets.calls[0].request.url.params
+    assert "filter" not in programs.calls[0].request.url.params
+    # One sweep serves both program tables; the second read is the id-only assignment fetch.
+    assert programs.calls.call_count == 2
     assert report.questionnaire_count == 5
     assert report.written_files == [
         "data-sets/BfMAe6Itzgt.fsh",
@@ -967,6 +981,7 @@ async def test_the_stages_of_a_tracker_program_are_ordered_by_their_dhis2_sort_o
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
     _mock_option_sets()
 
+    _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert report.questionnaire_count == 2
@@ -1003,6 +1018,7 @@ async def test_an_explicit_tracker_selection_is_a_filtered_fetch_of_its_own(
     )
     _mock_option_sets()
 
+    _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     filters = [call.request.url.params.get("filter") for call in programs.calls]
@@ -1049,6 +1065,7 @@ async def test_a_stage_mixing_sectioned_and_unsectioned_elements_is_noted_as_a_s
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [loose]}))
     _mock_option_sets()
 
+    _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert [note.message for note in report.notes] == [
@@ -1074,6 +1091,7 @@ async def test_a_program_the_target_does_not_map_is_one_note_on_the_sweep(
     )
     _mock_option_sets()
 
+    _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert report.questionnaire_count == 3
@@ -1102,6 +1120,7 @@ async def test_each_directory_is_swept_against_its_own_files(
     respx.get(f"{_HOST}/api/dataSets").mock(side_effect=_data_sets)
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
     _mock_option_sets()
+    _mock_organisation_units()
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
 
@@ -1128,6 +1147,7 @@ async def test_a_tracker_program_under_the_event_table_is_refused_by_name(
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
 
     with pytest.raises(UnsupportedProgramError) as raised:
+        _mock_organisation_units()
         await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert str(raised.value) == (
@@ -1150,6 +1170,7 @@ async def test_an_event_program_under_the_tracker_table_is_refused_by_name(
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
 
     with pytest.raises(UnsupportedProgramError) as raised:
+        _mock_organisation_units()
         await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert str(raised.value) == (
@@ -1174,6 +1195,7 @@ async def test_an_unmatched_target_uid_is_noted(
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
     _mock_option_sets()
 
+    _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert report.questionnaire_count == 1
@@ -1208,6 +1230,7 @@ async def test_a_form_mixing_sectioned_and_unsectioned_elements_is_noted(
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
     _mock_option_sets()
 
+    _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert any("outside its sections" in note.message and "De4aaaaaaaa" in note.message for note in report.notes)
@@ -1380,6 +1403,7 @@ async def test_a_data_sets_unsectioned_elements_are_ordered_independently_of_the
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
     _mock_option_sets()
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=shuffled))
+    _mock_organisation_units()
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
     first = (tmp_path / "ig" / "input" / "fsh" / "data-sets" / "Ds3aaaaaaaa.fsh").read_text(encoding="utf-8")
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=reversed_order))
@@ -1444,6 +1468,7 @@ async def test_category_option_combos_are_ordered_independently_of_the_wire(
     respx.get(f"{_HOST}/api/dataSets").mock(
         return_value=httpx.Response(200, json=_disaggregated_payload(_SHUFFLED_OPTION_COMBOS))
     )
+    _mock_organisation_units()
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
     fsh = tmp_path / "ig" / "input" / "fsh"
     first = (fsh / "data-sets" / "Ds3aaaaaaaa.fsh").read_text(encoding="utf-8")
@@ -1647,6 +1672,7 @@ async def test_the_questionnaire_target_plans_option_set_names_over_the_whole_se
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
     option_sets = respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
 
+    _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     assert option_sets.called

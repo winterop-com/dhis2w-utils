@@ -190,6 +190,55 @@ export function rejectionSummary(rejection: SpoolRejection): string {
     return rest > 0 ? `${head} (+${rest} more)` : head
 }
 
+/** One DHIS2 error code, and how many refused receipts in a listing carry it. */
+export interface RejectionCause {
+    /** The DHIS2 error code, as the import report states it - `E1120`, `E8023`, and so on. */
+    code: string
+    /** What DHIS2 said the first time it used that code here, or null when it said only the code. */
+    message: string | null
+    /** How many receipts were refused with this code. */
+    receipts: number
+}
+
+/**
+ * The one thing most of this project's rejections have in common.
+ *
+ * COUNTED PER RECEIPT, NOT PER ISSUE. DHIS2 states a rule once and then names every object that
+ * broke it, so a single refused submission can carry forty rows of `E1029`. Counting issues would
+ * let one bad receipt outweigh every other cause in the spool; counting receipts answers the
+ * question a summary is actually asking - how many submissions are stuck on this. A receipt that
+ * carries two distinct codes counts once towards each.
+ *
+ * Null when nothing was refused, or when the stored reports name no error code at all - the
+ * caller says "rejected" plainly rather than inventing a cause.
+ */
+export function topRejectionCause(responses: SpoolResponseSummary[]): RejectionCause | null {
+    const causes = new Map<string, RejectionCause>()
+    for (const summary of responses) {
+        const rejection = summary.rejection
+        if (!rejection) continue
+        const codes = new Set(
+            rejection.issues.flatMap((issue) => (issue.error_code ? [issue.error_code] : [])),
+        )
+        for (const code of codes) {
+            const known = causes.get(code)
+            if (known) {
+                known.receipts += 1
+                continue
+            }
+            const stated = rejection.issues.find((issue) => issue.error_code === code)
+            causes.set(code, { code, message: stated?.message ?? null, receipts: 1 })
+        }
+    }
+    // Insertion order breaks a tie, and the listing arrives newest first - so two causes with the
+    // same weight resolve to the one that has bitten most recently.
+    let top: RejectionCause | null = null
+    for (const cause of causes.values()) {
+        if (top === null || cause.receipts > top.receipts) top = cause
+    }
+    return top
+}
+
 /** Every lifecycle state present in one listing, in the canonical order. */
 export function lifecyclesPresent(listing: SpoolListing): ResponseLifecycle[] {
     return RESPONSE_LIFECYCLES.filter((lifecycle) => listing.counts[lifecycle] > 0)

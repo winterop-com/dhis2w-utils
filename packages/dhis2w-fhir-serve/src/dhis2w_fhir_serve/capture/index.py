@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from dhis2w_fhir.r4 import Questionnaire, QuestionnaireItem, ValueSet
+from dhis2w_fhir.r4 import Questionnaire, QuestionnaireItem, ResourceList, ValueSet
 from dhis2w_fhir.resources.questionnaires.schemas import FORM_KIND_PROFILES, FormKind, NumericBounds
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
@@ -32,6 +32,11 @@ QuestionKind = Literal["plain", "cell"]
 
 #: The resource type a questionnaire canonical has to resolve to.
 QUESTIONNAIRE_RESOURCE_TYPE = "Questionnaire"
+
+#: The resource type a form's organisation-unit assignment is published as, and the prefix its
+#: `D2OrganisationUnitAssignment` extension references it by.
+ASSIGNMENT_RESOURCE_TYPE = "List"
+ASSIGNMENT_REFERENCE_PREFIX = f"{ASSIGNMENT_RESOURCE_TYPE}/"
 
 #: The separator a disaggregated cell's link id joins its data element and category option combo with.
 CELL_LINK_ID_SEPARATOR = "."
@@ -92,6 +97,24 @@ class CaptureQuestion(BaseModel):
     """Canonical of the CodeSystem a coded answer is resolved against, or None when the binding is open."""
 
 
+class CaptureAssignment(BaseModel):
+    """The organisation units one form may be captured against, as its published assignment List names them.
+
+    `references` holds the literal `Location/<id>` references the List entries carry, which is the
+    exact spelling a subject, a tracker organisation-unit extension, and an `ORGANISATION_UNIT`
+    answer are written in - so membership is a set lookup rather than a resolution.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    list_id: str
+    references: frozenset[str] = frozenset()
+
+    def admits(self, reference: str) -> bool:
+        """Whether one Location reference is inside the assignment."""
+        return reference in self.references
+
+
 class CaptureIndex(BaseModel):
     """One served Questionnaire flattened into the lookups a received response is validated with."""
 
@@ -105,6 +128,8 @@ class CaptureIndex(BaseModel):
     program_uid: str | None = None
     questions: dict[str, CaptureQuestion] = Field(default_factory=dict)
     group_link_ids: frozenset[str] = frozenset()
+    assignment: CaptureAssignment | None = None
+    """The form's organisation-unit assignment, or None - which means every published unit may report it."""
 
 
 class CaptureIndexCache(BaseModel):
@@ -166,6 +191,7 @@ def build_capture_index(
         program_uid=_program_uid(questionnaire, naming),
         questions=questions,
         group_link_ids=frozenset(group_link_ids),
+        assignment=_assignment(questionnaire, naming, store),
     )
 
 
@@ -180,6 +206,36 @@ def _form_kind(questionnaire: Questionnaire, naming: CaptureNaming, canonical: s
         if kind in declared:
             return kind
     raise UnreadableQuestionnaireError(f"the served Questionnaire `{canonical}` declares no known DHIS2 form kind")
+
+
+def _assignment(questionnaire: Questionnaire, naming: CaptureNaming, store: ResourceStore) -> CaptureAssignment | None:
+    """The assignment List the form names, or None when it names none or the facade does not serve it.
+
+    An unresolvable reference is treated as no assignment rather than as a refusal: the artifact is
+    optional by design, and a served IG missing one is the project's incomplete build rather than
+    the client's mistake - the same reasoning that leaves an unpublished ValueSet binding open.
+    """
+    for extension in questionnaire.extension or []:
+        if extension.url != naming.organisation_unit_assignment_url:
+            continue
+        reference = extension.valueReference.reference if extension.valueReference else None
+        if not reference or not reference.startswith(ASSIGNMENT_REFERENCE_PREFIX):
+            continue
+        list_id = reference.removeprefix(ASSIGNMENT_REFERENCE_PREFIX)
+        entry = store.by_type_and_id(ASSIGNMENT_RESOURCE_TYPE, list_id)
+        if entry is None:
+            return None
+        try:
+            published = ResourceList.model_validate(entry.body)
+        except ValidationError:
+            return None
+        return CaptureAssignment(
+            list_id=list_id,
+            references=frozenset(
+                item.item.reference for item in published.entry or [] if item.item.reference is not None
+            ),
+        )
+    return None
 
 
 def _program_uid(questionnaire: Questionnaire, naming: CaptureNaming) -> str | None:

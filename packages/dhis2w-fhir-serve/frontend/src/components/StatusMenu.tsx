@@ -11,9 +11,10 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { refreshServerStatus, useServerStatus } from '@/hooks/use-server-status'
+import { refreshServerStatus, serverStatusSnapshot, useServerStatus } from '@/hooks/use-server-status'
 import { servedIgLabel } from '@/lib/fhir'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 /**
  * Reachability light, plus what the server on the other end of it is serving.
@@ -76,7 +77,16 @@ export function StatusMenu() {
                 </Button>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end" sideOffset={8} className="w-[min(22rem,calc(100vw-1.5rem))]">
+            <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className="w-[min(22rem,calc(100vw-1.5rem))]"
+                onCloseAutoFocus={(event) => {
+                    // Radix re-focuses the trigger on close, which paints the focus ring after a
+                    // plain mouse dismiss; keyboard users re-enter via Tab as with any button.
+                    event.preventDefault()
+                }}
+            >
                 <DropdownMenuLabel className="flex items-center gap-2">
                     <StatusIcon className={cn('size-4', checking && 'animate-spin')} aria-hidden />
                     {label}
@@ -106,13 +116,33 @@ export function StatusMenu() {
 
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                    disabled={checking}
                     onSelect={(event) => {
                         event.preventDefault()
-                        void refreshServerStatus()
+                        void refreshServerStatus().then(() => {
+                            const after = serverStatusSnapshot()
+                            if (after.reachability !== 'ok') {
+                                toast.error('Server unreachable', {
+                                    description: 'The /metadata probe got no answer.',
+                                })
+                            } else if (after.capability === null) {
+                                toast.warning('Reachable, but not FHIR', {
+                                    description: 'The server answered without a readable CapabilityStatement.',
+                                })
+                            } else {
+                                toast.success('Conformance re-read', {
+                                    description: servedIgLabel(after.capability) ?? 'CapabilityStatement refreshed.',
+                                })
+                            }
+                        })
                     }}
                 >
-                    <ServerCog className="size-4" aria-hidden />
-                    Re-read /metadata
+                    {checking ? (
+                        <RefreshCw className="size-4 animate-spin" aria-hidden />
+                    ) : (
+                        <ServerCog className="size-4" aria-hidden />
+                    )}
+                    {checking ? 'Re-reading /metadata...' : 'Re-read /metadata'}
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>

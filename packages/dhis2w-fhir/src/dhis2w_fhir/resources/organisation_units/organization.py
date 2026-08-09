@@ -28,6 +28,7 @@ from dhis2w_fhir.foundation.attribute_values import (
     attribute_value_extensions,
     attribute_value_identifiers,
 )
+from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import (
     FHIR_ID_MAX_LENGTH,
@@ -117,6 +118,7 @@ def build_organisation_unit_profiles(config: GenerateConfig, *, ig_status: IgSta
         content=_ENVIRONMENT.get_template("profiles.fsh.jinja").render(
             names=names,
             boundary_extension_url=BOUNDARY_EXTENSION_URL,
+            level_extension=FoundationNaming.from_naming(config.naming).organisation_unit_level_extension,
             ig_status=ig_status,
             experimental=experimental_for_status(ig_status),
         ),
@@ -157,9 +159,10 @@ def build_registry_examples(
     pair fills that gap from the selection's own root unit: real UID, real code, real name, real
     level, so the publisher validates the profiles against data the instance actually holds.
 
-    The exemplar carries what the profiles constrain and nothing more - no boundary attachment,
-    no attribute values. A base64 GeoJSON blob illustrates the encoding rather than the contract,
-    and the registry's JSON instances are where a consumer reads a unit in full.
+    The exemplar carries what the profiles constrain and nothing more - the level the D2Location
+    profile requires 1..1, but no boundary attachment and no attribute values. A base64 GeoJSON
+    blob illustrates the encoding rather than the contract, and the registry's JSON instances are
+    where a consumer reads a unit in full.
 
     They live beside the profiles in `organization/`, not in `examples/`: that directory is swept
     by the examples target, whose sync deletes every file it did not produce.

@@ -212,6 +212,12 @@ from dhis2w_fhir.resources.questionnaires import (
     source_items,
     source_program,
 )
+from dhis2w_fhir.resources.questionnaires.assignments import (
+    ASSIGNMENT_DIRECTORY,
+    AssignmentIndex,
+    AssignmentPlan,
+    build_assignment_artifacts,
+)
 from dhis2w_fhir.resources.questionnaires.documents import (
     DataDictionaryDocumentBuild,
     QuestionnaireDocumentBuild,
@@ -322,6 +328,7 @@ __all__ = [
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
     "CATEGORY_DIRECTORY",
     "CATEGORY_OPTION_COMBO_TERMINOLOGY",
+    "ASSIGNMENT_DIRECTORY",
     "CONCEPT_MAP_DIRECTORY",
     "CategoryComboIn",
     "CategoryIdentity",
@@ -497,6 +504,9 @@ __all__ = [
     "build_organisation_unit_terminology",
     "build_page_artifacts",
     "build_project_context",
+    "AssignmentIndex",
+    "AssignmentPlan",
+    "build_assignment_artifacts",
     "build_questionnaire_artifacts",
     "build_questionnaire_documents",
     "build_registry_examples",

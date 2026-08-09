@@ -9,8 +9,11 @@ binding; `d2-form-type.fsh` defines the form-type Extension every generated Ques
 carries, plus its own CodeSystem/ValueSet pair; `d2-attribute-value.fsh` defines the complex
 Extension that carries a DHIS2 attribute value onto every resource that can hold one;
 `d2-organisation-unit.fsh` defines the Extension pointing a response at the Location of the
-organisation unit it was captured at, and `d2-tracker-enrollment.fsh` the Extension carrying
-the DHIS2 tracker enrollment an event belongs to.
+organisation unit it was captured at, `d2-organisation-unit-assignment.fsh` the Extension
+naming the List of Locations a form may be captured against, `d2-organisation-unit-level.fsh`
+the Extension stating the hierarchy level a published Location sits at, and
+`d2-tracker-enrollment.fsh` the Extension carrying the DHIS2 tracker enrollment an event
+belongs to.
 
 Three more artifacts turn that vocabulary into a capture contract a third party can build
 against without reading DHIS2: `d2-responses.fsh` profiles the QuestionnaireResponse a
@@ -82,8 +85,17 @@ _IDENTIFIER_SYSTEM_DECLARED_DATE = "2026-08-01"
 #: byte-stability reason the NamingSystem declarations pin theirs.
 _CAPTURE_SERVER_DECLARED_DATE = "2026-01-01"
 
-#: The resources a capture client reads to build a response, each supporting read and search.
-CAPTURE_SERVER_READ_RESOURCE_TYPES = ("Questionnaire", "CodeSystem", "ValueSet", "Location", "Organization")
+#: The resources a capture client reads to build a response, each supporting read and search. `List`
+#: is where a form's organisation-unit assignment is published, so a client constrains its Location
+#: picker by reading the List the form's `D2OrganisationUnitAssignment` extension names.
+CAPTURE_SERVER_READ_RESOURCE_TYPES = (
+    "Questionnaire",
+    "CodeSystem",
+    "ValueSet",
+    "Location",
+    "Organization",
+    "List",
+)
 
 #: What `CapabilityStatement.rest.documentation` states about the shape of one capture request.
 _CAPTURE_SERVER_REST_DOCUMENTATION = (
@@ -141,7 +153,8 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
     """Build the `foundation/` artifacts: the DHIS2 identifier systems and the D2Period extension."""
     names = FoundationNaming.from_naming(config.naming)
     experimental = experimental_for_status(ig_status)
-    location_profile = OrganisationUnitNaming.from_naming(config.naming).location_profile
+    organisation_unit_naming = OrganisationUnitNaming.from_naming(config.naming)
+    location_profile = organisation_unit_naming.location_profile
     aliases = _ENVIRONMENT.get_template("d2-aliases.fsh.jinja").render(
         identifier_system_base=config.identifier_system_base
     )
@@ -168,6 +181,17 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
     organisation_unit = _ENVIRONMENT.get_template("d2-organisation-unit.fsh.jinja").render(
         names=names,
         location_profile=location_profile,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
+    organisation_unit_assignment = _ENVIRONMENT.get_template("d2-organisation-unit-assignment.fsh.jinja").render(
+        names=names,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
+    organisation_unit_level = _ENVIRONMENT.get_template("d2-organisation-unit-level.fsh.jinja").render(
+        names=names,
+        level_value_set=organisation_unit_naming.level_value_set,
         ig_status=ig_status,
         experimental=experimental,
     )
@@ -245,6 +269,18 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             kind="extension",
             fsh_name=names.organisation_unit_extension,
             content=organisation_unit,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-organisation-unit-assignment.fsh",
+            kind="extension",
+            fsh_name=names.organisation_unit_assignment_extension,
+            content=organisation_unit_assignment,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-organisation-unit-level.fsh",
+            kind="extension",
+            fsh_name=names.organisation_unit_level_extension,
+            content=organisation_unit_level,
         ),
         FshArtifact(
             relative_path="foundation/d2-tracker-enrollment.fsh",

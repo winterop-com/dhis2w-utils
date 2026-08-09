@@ -100,7 +100,7 @@ export function Server() {
                                                 <TableCell>
                                                     <Badge variant="secondary">{operation.on}</Badge>
                                                 </TableCell>
-                                                <TableCell className="text-muted-foreground text-sm">
+                                                <TableCell className="text-muted-foreground text-sm whitespace-normal">
                                                     {operation.documentation ?? '-'}
                                                 </TableCell>
                                             </TableRow>

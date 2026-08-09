@@ -7,6 +7,7 @@ import {
     formatInstant,
     lifecyclesPresent,
     rejectionSummary,
+    topRejectionCause,
     type SpoolListing,
     type SpoolResponseSummary,
 } from '@/lib/spool'
@@ -131,6 +132,64 @@ describe('rejectionSummary', () => {
         expect(rejectionSummary({ created: 0, updated: 0, ignored: 0, issues: [] })).toBe(
             'DHIS2 gave no reason',
         )
+    })
+})
+
+describe('topRejectionCause', () => {
+    /** One refused receipt, with the codes its stored import report named. */
+    function rejected(codes: string[], message?: string): SpoolResponseSummary {
+        return summary({
+            lifecycle: 'rejected',
+            rejection: {
+                status: 'ERROR',
+                created: 0,
+                updated: 0,
+                ignored: codes.length,
+                issues: codes.map((code) => ({ error_code: code, message: message ?? null })),
+            },
+        })
+    }
+
+    it('names the code the most refused receipts share', () => {
+        const cause = topRejectionCause([
+            rejected(['E1029'], 'Organisation unit is not assigned'),
+            rejected(['E8023'], 'Attribute option combo not in category combo'),
+            rejected(['E1029'], 'Organisation unit is not assigned'),
+        ])
+        expect(cause).toEqual({
+            code: 'E1029',
+            message: 'Organisation unit is not assigned',
+            receipts: 2,
+        })
+    })
+
+    it('counts receipts rather than issues, so one bad submission cannot outweigh the rest', () => {
+        // DHIS2 states a rule once and then names every object that broke it, so a single
+        // receipt can carry forty rows of the same code. That is one stuck submission.
+        const cause = topRejectionCause([
+            rejected(Array.from({ length: 40 }, () => 'E1029')),
+            rejected(['E8023']),
+            rejected(['E8023']),
+        ])
+        expect(cause?.code).toBe('E8023')
+        expect(cause?.receipts).toBe(2)
+    })
+
+    it('counts a receipt once towards each distinct code it carries', () => {
+        const cause = topRejectionCause([rejected(['E1029', 'E8023', 'E1029'])])
+        expect(cause).toEqual({ code: 'E1029', message: null, receipts: 1 })
+    })
+
+    it('breaks a tie on the newest, because the listing arrives newest first', () => {
+        expect(topRejectionCause([rejected(['E8023']), rejected(['E1029'])])?.code).toBe('E8023')
+    })
+
+    it('says nothing when the reports named no error code at all', () => {
+        expect(topRejectionCause([rejected([])])).toBeNull()
+    })
+
+    it('says nothing when nothing was refused', () => {
+        expect(topRejectionCause([summary(), summary({ lifecycle: 'forwarded' })])).toBeNull()
     })
 })
 

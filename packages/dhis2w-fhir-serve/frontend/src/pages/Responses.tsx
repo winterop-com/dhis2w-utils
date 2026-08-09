@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
 
 import { PageHeader, PageState } from '@/components/PageState'
@@ -54,13 +54,31 @@ import { cn } from '@/lib/utils'
  * answers joined to the questions that were asked, the DHIS2 context it carries,
  * and the import report behind a rejection - is a route of its own, which is what
  * makes a particular receipt something you can send someone a link to.
+ *
+ * THE LIFECYCLE FILTER LIVES IN THE URL, as `?lifecycle=received` on the hash
+ * route. It is the one filter another page links into - the Overview's spool
+ * tiles are counts you click to act on, and landing on an unfiltered table would
+ * make the reader redo the narrowing they just asked for. A query parameter is
+ * the smallest mechanism that does that: no shared store, no navigation state to
+ * lose on a reload, and "responses that DHIS2 refused" becomes a link somebody
+ * can be sent. The form filter stays local, because nothing links into it.
+ * Selecting writes with `replace`, so paging through states does not stack a
+ * back-button entry per click.
  */
 export function Responses() {
     const navigate = useNavigate()
     const { listing, loading, error, refreshing, reload } = useSpool()
     const forms = useFhirSearch<Questionnaire>('Questionnaire')
-    const [lifecycleFilter, setLifecycleFilter] = useState<ResponseLifecycle | null>(null)
+    const [searchParameters, setSearchParameters] = useSearchParams()
     const [formFilter, setFormFilter] = useState<string | null>(null)
+
+    const asked = searchParameters.get('lifecycle')
+    // Validated against the vocabulary rather than trusted: `?lifecycle=nonsense` filters
+    // everything out silently, which reads as "this project has no receipts".
+    const lifecycleFilter = RESPONSE_LIFECYCLES.find((candidate) => candidate === asked) ?? null
+    const setLifecycleFilter = (next: ResponseLifecycle | null) => {
+        setSearchParameters(next === null ? {} : { lifecycle: next }, { replace: true })
+    }
 
     const formsByCanonical = useMemo(() => {
         const index = new Map<string, Questionnaire>()

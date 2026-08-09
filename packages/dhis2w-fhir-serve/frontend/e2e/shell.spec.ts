@@ -22,17 +22,22 @@ test('the bundle loads with no console errors and no failed requests', async ({ 
 
     await page.goto('/')
 
-    await expect(page.getByRole('heading', { name: 'Forms', level: 2 })).toBeVisible()
+    // The root route is the Overview, not a redirect to a listing.
+    await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible()
     expect(consoleErrors, consoleErrors.join('\n')).toEqual([])
     expect(failedRequests, failedRequests.join('\n')).toEqual([])
 })
 
-test('the rail navigates all four pages', async ({ page }) => {
+test('the rail navigates all five pages', async ({ page }) => {
     await page.goto('/')
 
     // The rail's links carry the page name as their aria-label - see NAV_ITEMS
     // in components/AppLayout.tsx, which is the one place a page is registered.
     const rail = page.getByRole('complementary')
+
+    await rail.getByRole('link', { name: 'Forms' }).click()
+    await expect(page).toHaveURL(/#\/forms$/)
+    await expect(page.getByRole('heading', { name: 'Forms', level: 2 })).toBeVisible()
 
     await rail.getByRole('link', { name: 'Responses' }).click()
     await expect(page).toHaveURL(/#\/responses$/)
@@ -46,8 +51,10 @@ test('the rail navigates all four pages', async ({ page }) => {
     await expect(page).toHaveURL(/#\/server$/)
     await expect(page.getByRole('heading', { name: 'Server', level: 2 })).toBeVisible()
 
-    await rail.getByRole('link', { name: 'Forms' }).click()
-    await expect(page.getByRole('heading', { name: 'Forms', level: 2 })).toBeVisible()
+    // Exact: the wordmark above the rail is a link home too, and its label
+    // ("Capture overview") contains this one.
+    await rail.getByRole('link', { name: 'Overview', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible()
 })
 
 test('a deep hash route survives a reload', async ({ page }) => {

@@ -274,7 +274,7 @@ function FormFillHeader({
     return (
         <div className="mb-6 space-y-2">
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground -ml-2">
-                <Link to="/">
+                <Link to="/forms">
                     <ArrowLeft className="size-4" />
                     All forms
                 </Link>

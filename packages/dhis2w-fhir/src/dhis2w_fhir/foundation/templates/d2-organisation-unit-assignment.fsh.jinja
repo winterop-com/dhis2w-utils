@@ -1,0 +1,10 @@
+Extension: {{ names.organisation_unit_assignment_extension }}
+Id: {{ names.organisation_unit_assignment_extension_id }}
+Title: "DHIS2 organisation unit assignment"
+Description: "The organisation units a form may be captured against, as a reference to the List of their Locations. Absent means every unit the registry publishes."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "Questionnaire"
+* value[x] only Reference(List)
+* valueReference 1..1

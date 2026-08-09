@@ -102,6 +102,8 @@ _DATA_SETS_PAYLOAD = {
             "id": "BfMAe6Itzgt",
             "name": "Child Health",
             "code": "DS_359711",
+            # Assigned to every published unit, so the data set publishes no assignment List.
+            "organisationUnits": [{"id": "ImspTQPwCqd"}, {"id": "O6uvpzGd5pu"}],
             "sections": [{"id": "Sec1aaaaaaa", "name": "Immunization", "dataElements": [{"id": "De1aaaaaaaa"}]}],
             "dataSetElements": [
                 {
@@ -124,6 +126,8 @@ _PROGRAMS_PAYLOAD = {
             "id": "VBqh0ynB2wv",
             "name": "Malaria case registration",
             "programType": "WITHOUT_REGISTRATION",
+            # A proper subset of the registry, so this program publishes an assignment List.
+            "organisationUnits": [{"id": "O6uvpzGd5pu"}],
             "programStages": [
                 {
                     "id": "pTo4uMt3xur",
@@ -269,6 +273,14 @@ async def test_live_store_serves_the_terminology_and_the_registry(
     locations = _bodies(store, "Location")
     assert sorted(locations) == ["ImspTQPwCqd", "O6uvpzGd5pu"]
     assert locations["O6uvpzGd5pu"]["position"] == {"longitude": -11.7383, "latitude": 7.9647}
+    assert locations["O6uvpzGd5pu"]["extension"][-1] == {
+        "url": f"{_CANONICAL}/StructureDefinition/d2-organisation-unit-level",
+        "valueCoding": {
+            "system": f"{_CANONICAL}/CodeSystem/d2-ou-level-cs",
+            "code": "level-2",
+            "display": "Level 2",
+        },
+    }
 
 
 @respx.mock
@@ -285,6 +297,7 @@ async def test_live_entries_are_indexed_and_marked_live(
     assert store.types_present() == (
         "CodeSystem",
         "ConceptMap",
+        "List",
         "Location",
         "Organization",
         "Questionnaire",

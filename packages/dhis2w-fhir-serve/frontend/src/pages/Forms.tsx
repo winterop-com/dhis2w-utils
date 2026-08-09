@@ -13,11 +13,14 @@ import {
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import {
     FORM_TYPE_LABELS,
-    canonicalId,
+    formIdentifier,
+    formTitle,
     formTypeOf,
+    formsByTitle,
     questionCount,
     type FormType,
-    type Questionnaire, unescapeMarkup } from '@/lib/fhir'
+    type Questionnaire,
+} from '@/lib/fhir'
 
 /**
  * Every form this server publishes, as one table.
@@ -33,9 +36,7 @@ import {
 export function Forms() {
     const navigate = useNavigate()
     const { resources, loading, error } = useFhirSearch<Questionnaire>('Questionnaire')
-    const questionnaires = resources.toSorted((left, right) =>
-        (left.title ?? left.id ?? '').localeCompare(right.title ?? right.id ?? ''),
-    )
+    const questionnaires = formsByTitle(resources)
 
     return (
         <>
@@ -61,13 +62,13 @@ export function Forms() {
                         </TableHeader>
                         <TableBody>
                             {questionnaires.map((questionnaire) => {
-                                const identifier = questionnaire.id ?? canonicalId(questionnaire.url) ?? ''
+                                const identifier = formIdentifier(questionnaire)
                                 return (
                                     <TableRow
                                         key={questionnaire.url ?? identifier}
                                         className="hover:bg-accent cursor-pointer"
                                         tabIndex={0}
-                                        aria-label={`Open ${questionnaire.title ?? questionnaire.name ?? identifier}`}
+                                        aria-label={`Open ${formTitle(questionnaire)}`}
                                         onClick={() => navigate(`/forms/${identifier}`)}
                                         onKeyDown={(event) => {
                                             if (event.key === 'Enter' || event.key === ' ') {
@@ -77,7 +78,7 @@ export function Forms() {
                                         }}
                                     >
                                         <TableCell className="font-medium">
-                                            {unescapeMarkup(questionnaire.title ?? questionnaire.name ?? identifier)}
+                                            {formTitle(questionnaire)}
                                         </TableCell>
                                         <TableCell>
                                             <FormTypeBadge kind={formTypeOf(questionnaire)} />

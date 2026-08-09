@@ -54,14 +54,17 @@ export const E2E_BASE_URL = `http://127.0.0.1:${String(E2E_PORT)}`
 
 export default defineConfig({
     testDir: './e2e',
-    // Files run in parallel; tests inside a file do not. One server means one
-    // spool, and the capture suite asserts on what is in it - "the listing was
-    // empty before this run posted anything" is only true if nothing else in
-    // that file is posting at the same moment.
+    // ONE SERVER, ONE SPOOL, ONE WORKER. The suite drives a single
+    // `d2w fhir serve --ui` process, and several specs assert on what is in its
+    // spool - "the listing was empty before this run posted anything", "the
+    // overview's Received count is the count the server reports". Neither is
+    // true if another file is posting receipts at the same moment, so the suite
+    // runs strictly in file order rather than fanning out across workers. The
+    // specs are fast; a shared mutable server is not something to race.
     fullyParallel: false,
     forbidOnly: Boolean(process.env.CI),
     retries: process.env.CI ? 1 : 0,
-    workers: process.env.CI ? 1 : undefined,
+    workers: 1,
     reporter: process.env.CI ? 'github' : 'list',
     use: {
         baseURL: E2E_BASE_URL,
