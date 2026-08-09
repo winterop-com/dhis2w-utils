@@ -2,8 +2,13 @@
 
 The factory takes settings and returns an app; everything the app serves is loaded once in the
 lifespan and held on `app.state.context`. That is what makes the facade cheap - the store is
-parsed once, the spool is scanned once, the CapabilityStatement is rendered once, and a request
-does index lookups and nothing else.
+parsed once, the CapabilityStatement is rendered once, and a request does index lookups and
+nothing else.
+
+The spool is the one exception, and deliberately so: it is a path, not a loaded index, and every
+read of it re-reads the directory. `d2w fhir forward` runs as a separate process and moves receipt
+files between the spool's three states while this server is up, so anything cached here would go
+stale within seconds of a drain. See `dhis2w_fhir_serve.spool`.
 
 The default mode is fully offline: a compiled IG on disk is the whole world, and no DHIS2 client
 is constructed anywhere in this module. `--live` swaps the store for one built from a DHIS2
@@ -28,7 +33,7 @@ from dhis2w_fhir_serve.log import LOGGER_NAME, RequestLogMiddleware
 from dhis2w_fhir_serve.metadata import build_metadata_body
 from dhis2w_fhir_serve.routes import register_routes
 from dhis2w_fhir_serve.settings import ServeSettings
-from dhis2w_fhir_serve.spool import RECEIVED_RESPONSES_RELATIVE_PATH, ResponseSpool
+from dhis2w_fhir_serve.spool import ResponseSpool
 from dhis2w_fhir_serve.store import ResourceStore, load_compiled_store
 
 #: The distribution the server reports as its software version.
@@ -41,7 +46,7 @@ logger = logging.getLogger(LOGGER_NAME)
 
 
 class ServeContext(BaseModel):
-    """Everything one running facade serves: the project, its resources, its receipts, its settings."""
+    """Everything one running facade serves: the project, its resources, its spool, its settings."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -60,6 +65,10 @@ def create_app(settings: ServeSettings) -> FastAPI:
     the CapabilityStatement at `/metadata`, not an OpenAPI schema. The two routes it serves are
     catch-alls over `application/fhir+json` bodies, which an OpenAPI document could only
     misdescribe as untyped JSON on a path variable.
+
+    `settings.ui` adds the built capture UI as a static mount at `/`, after every FHIR route.
+    A missing bundle raises here, while the app is being built, so `--ui` on a checkout that has
+    never built the frontend fails as one line rather than as a white page on the first request.
     """
     app = FastAPI(
         title=APPLICATION_TITLE,
@@ -72,7 +81,7 @@ def create_app(settings: ServeSettings) -> FastAPI:
     app.state.settings = settings
     app.add_middleware(RequestLogMiddleware)
     register_error_handlers(app)
-    register_routes(app)
+    register_routes(app, serve_ui=settings.ui)
     return app
 
 
@@ -95,11 +104,11 @@ def server_version() -> str:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    """Load the project, its store, and its spool once, and hold them for the life of the process."""
+    """Load the project and its store once, and point the facade at the spool it reads per request."""
     settings: ServeSettings = app.state.settings
     project = load_project(settings.project_dir)
     store = await build_store(settings, project)
-    spool = ResponseSpool.scan(project.project_root / RECEIVED_RESPONSES_RELATIVE_PATH)
+    spool = ResponseSpool.at(project.project_root)
     summary = store.summary()
     app.state.context = ServeContext(
         project=project,

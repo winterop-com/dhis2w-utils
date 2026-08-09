@@ -1,0 +1,13 @@
+{
+  "resourceType": "ValueSet",
+  "id": "d2-os-OsSymptom01-vs",
+  "url": "http://localhost:8080/fhir/ValueSet/d2-os-OsSymptom01-vs",
+  "status": "draft",
+  "compose": {
+    "include": [
+      {
+        "system": "http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs"
+      }
+    ]
+  }
+}

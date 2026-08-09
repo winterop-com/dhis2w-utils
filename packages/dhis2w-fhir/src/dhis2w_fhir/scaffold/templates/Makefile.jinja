@@ -52,6 +52,11 @@ serve:  ## Serve the compiled IG as a FHIR endpoint (run generate + sushi first)
 serve-live:  ## Serve straight from the DHIS2 instance, no compile needed
 	$(D2W) fhir serve --live
 
+.PHONY: serve-ui
+
+serve-ui:  ## Serve the FHIR endpoint plus the capture UI at / (open the printed URL in a browser)
+	$(D2W) fhir serve --ui
+
 .PHONY: forward forward-import
 
 forward:  ## Dry-run the capture spool against DHIS2 - validate only, nothing written, nothing moved

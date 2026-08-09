@@ -1087,6 +1087,15 @@ def serve_command(
             "the instance, not a client mistake.",
         ),
     ] = None,
+    ui: Annotated[
+        bool | None,
+        typer.Option(
+            "--ui/--no-ui",
+            help="Serve the capture UI at `/` alongside the FHIR routes, overriding `[serve] ui`. "
+            "The bundle is mounted around them and shadows none of them; a checkout that has never "
+            "run `make build-frontend` is refused rather than served blank.",
+        ),
+    ] = None,
 ) -> None:
     """Serve the project's IG as a FHIR read and capture facade over HTTP.
 
@@ -1096,7 +1105,9 @@ def serve_command(
 
     `--live` builds the store from the instance at startup, as the profile `d2w -p` names.
 
-    Host, port, and strict codes come from `[serve]` in fhir.toml unless a flag overrides them.
+    `--ui` also serves the capture UI at `/`, same-origin with the FHIR routes it reads.
+
+    Host, port, strict codes, and the UI come from `[serve]` in fhir.toml unless a flag overrides them.
     """
     try:
         from dhis2w_fhir_serve import (
@@ -1116,17 +1127,28 @@ def serve_command(
     resolved_host = host if host is not None else serve_config.host
     resolved_port = port if port is not None else serve_config.port
     resolved_strict_codes = strict_codes if strict_codes is not None else serve_config.strict_codes
+    resolved_ui = ui if ui is not None else serve_config.ui
     if live:
         # Resolve the profile the live store will connect with before anything says the server is
         # starting, so an unknown profile fails as a failure rather than under a success banner.
         service.resolve_generation_profile(project)
     elif not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
         raise CompiledIgMissingError
-    settings = ServeSettings(project_dir=directory, live=live, profile=None, strict_codes=resolved_strict_codes)
+    settings = ServeSettings(
+        project_dir=directory,
+        live=live,
+        profile=None,
+        strict_codes=resolved_strict_codes,
+        ui=resolved_ui,
+    )
     _preflight_bind(resolved_host, resolved_port)
     configure_logging()
-    _line(f"starting {project.project_root} on http://{resolved_host}:{resolved_port} (ctrl-c to stop)")
-    _run_server(create_app(settings), host=resolved_host, port=resolved_port)
+    # The app is built before the banner so a missing UI bundle refuses as one line here, the way
+    # a taken port does, rather than under a message saying the server is starting.
+    application = create_app(settings)
+    surface = "FHIR endpoint + capture UI" if resolved_ui else "FHIR endpoint"
+    _line(f"starting {project.project_root} on http://{resolved_host}:{resolved_port} as a {surface} (ctrl-c to stop)")
+    _run_server(application, host=resolved_host, port=resolved_port)
 
 
 def _run_server(application: Any, *, host: str, port: int) -> None:

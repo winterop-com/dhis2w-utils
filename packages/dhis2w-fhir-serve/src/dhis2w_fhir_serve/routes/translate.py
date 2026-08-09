@@ -4,9 +4,10 @@ One ConceptMap per option set takes the generated concept codes back to the DHIS
 where the option carries one, the DHIS2 option code. This operation is what makes that readable
 over the wire: hand it a concept and it answers with every DHIS2 identifier the maps state for it.
 
-ConceptMap is not a served read type - it is absent from `CAPTURE_SERVER_READ_RESOURCE_TYPES`, so
-`GET /ConceptMap/<id>` stays refused and the read set is unchanged. The maps are here to be
-translated through, not browsed, and the capture contract the IG publishes says exactly that.
+The maps are served as documents too - ConceptMap is in `SERVED_READ_RESOURCE_TYPES`, so
+`GET /ConceptMap/<id>` answers the published map verbatim. The two are complementary: a read hands
+over the whole mapping table for a person or a UI to look at, and this operation answers the one
+question a forwarder has, without its caller walking groups and elements.
 
 The path is fixed, so this router mounts ahead of the read catch-alls: `/{resource_type}/{resource_id}`
 matches `/ConceptMap/$translate` just as happily and would answer it as a read of a resource named

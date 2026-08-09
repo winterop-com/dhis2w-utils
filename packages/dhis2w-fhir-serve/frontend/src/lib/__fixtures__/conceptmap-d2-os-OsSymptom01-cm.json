@@ -1,0 +1,69 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-OsSymptom01-cm",
+  "url": "http://localhost:8080/fhir/ConceptMap/d2-os-OsSymptom01-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "OsSymptom01"
+  },
+  "name": "D2OS_OsSymptom01_CM",
+  "title": "Symptoms",
+  "description": "DHIS2 option set Symptoms (OsSymptom01). Every concept of D2OS_OsSymptom01_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://localhost:8080/fhir/ValueSet/d2-os-OsSymptom01-vs",
+  "group": [
+    {
+      "source": "http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "OpFever0001",
+          "display": "Fever",
+          "target": [
+            {
+              "code": "OpFever0001",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OpCough0001",
+          "display": "Cough",
+          "target": [
+            {
+              "code": "OpCough0001",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "OpFever0001",
+          "display": "Fever",
+          "target": [
+            {
+              "code": "FEVER",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OpCough0001",
+          "display": "Cough",
+          "target": [
+            {
+              "code": "COUGH",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

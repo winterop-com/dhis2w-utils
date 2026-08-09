@@ -1,0 +1,39 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-os-OsSymptom01-cs",
+  "url": "http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs",
+  "status": "draft",
+  "content": "complete",
+  "caseSensitive": true,
+  "valueSet": "http://localhost:8080/fhir/ValueSet/d2-os-OsSymptom01-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "OpFever0001",
+      "display": "Fever",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "FEVER"
+        }
+      ]
+    },
+    {
+      "code": "OpCough0001",
+      "display": "Cough",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COUGH"
+        }
+      ]
+    }
+  ],
+  "count": 2
+}

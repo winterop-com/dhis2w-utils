@@ -10,9 +10,15 @@ The QuestionnaireResponse entry is the one that says what the facade is: respons
 and stored as receipts. Reading one back returns the submission as it arrived, never a live view
 of what DHIS2 now holds.
 
+The read set is the capture contract's read types plus ConceptMap. The IG's `kind #requirements`
+statement names the resources a capture *client* resolves a form from, and ConceptMap is not one of
+them - it is what a forwarder reads a concept back into DHIS2 identifiers with. This installation
+serves it all the same, because the maps are published IG artifacts sitting in the same store as
+everything else, and an instance is free to support more than the statement it instantiates.
+
 `$translate` follows the same rule as the read types: it is declared only when the store actually
-holds ConceptMaps, and it is declared on `rest` rather than on a resource entry, because ConceptMap
-is translated through rather than read.
+holds ConceptMaps. It is declared on `rest` rather than on the ConceptMap entry because R4 defines
+it as a type-level operation, which is where `rest.operation` belongs.
 
 `$generate` is declared the other way round, on the Questionnaire resource entry, because it is an
 instance-level operation on a resource type this server does read - and it is declared only when the
@@ -53,6 +59,9 @@ if TYPE_CHECKING:
 
 #: The resource type the facade receives captures on, alongside the read types it serves.
 QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE = "QuestionnaireResponse"
+
+#: Every type the facade answers a read and a search for: the capture contract's, plus ConceptMap.
+SERVED_READ_RESOURCE_TYPES = (*CAPTURE_SERVER_READ_RESOURCE_TYPES, CONCEPT_MAP_RESOURCE_TYPE)
 
 #: The name the software element reports, matching the command that runs it.
 SOFTWARE_NAME = "d2w fhir serve"
@@ -99,7 +108,7 @@ def build_server_capability(
         _response_resource(project, canonical),
         *(
             _read_resource(resource_type, project.config.generate.identifier_system_base, canonical, names)
-            for resource_type in CAPTURE_SERVER_READ_RESOURCE_TYPES
+            for resource_type in SERVED_READ_RESOURCE_TYPES
             if resource_type in store_summary.counts_by_type
         ),
     ]
@@ -135,8 +144,8 @@ def build_server_capability(
 def _operations(store_summary: StoreSummary) -> list[CapabilityStatementOperation] | None:
     """Declare `$translate` when the store holds ConceptMaps, and declare nothing when it does not.
 
-    The operation is declared on `rest` rather than on `rest.resource`: ConceptMap is not a read
-    type here, so there is no resource entry to hang it off, and the operation is type-level anyway.
+    The operation is declared on `rest` rather than on the ConceptMap resource entry: R4 defines
+    `$translate` as a type-level operation, and `rest.operation` is where a type-level one belongs.
     """
     if CONCEPT_MAP_RESOURCE_TYPE not in store_summary.counts_by_type:
         return None

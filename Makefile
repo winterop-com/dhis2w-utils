@@ -1,6 +1,14 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev build-frontend lint-frontend test-frontend e2e-frontend docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
+
+# The capture UI. It is the one part of this workspace that needs node, and it is
+# deliberately kept out of `make lint` / `make test` so those stay a pure-Python run
+# on a machine with no node at all. CI wiring for the frontend targets is a follow-up.
+FRONTEND_DIR := packages/dhis2w-fhir-serve/frontend
+# Where a running `d2w fhir serve` is, for the dev server to proxy FHIR calls to.
+# Match `[serve] port` in the project you are serving.
+SERVE_TARGET ?= http://127.0.0.1:8080
 
 # Silence Material for MkDocs' "Currently unlicensed" / MkDocs 2.0 build notice.
 # https://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/
@@ -17,10 +25,19 @@ help:
 	@echo "  test-contract    Run live-schema contract tests against play.im.dhis2.org"
 	@echo "  test-durations   Show 20 slowest tests"
 	@echo "  coverage         Run tests with coverage reporting"
-	@echo "  build            Build all workspace wheels"
+	@echo "  build            Build all workspace wheels (run build-frontend first, or the wheel ships no UI)"
 	@echo "  publish-client   Upload dhis2w-client wheel to PyPI (requires UV_PUBLISH_TOKEN env)"
 	@echo "  deps-upgrade     Re-resolve uv.lock to pick up newer versions"
 	@echo "  clean            Remove caches, build artifacts, coverage output"
+	@echo ""
+	@echo "Capture UI (needs node + pnpm; not part of lint/test):"
+	@echo "  frontend-dev     Vite dev server, proxying FHIR calls to \$$(SERVE_TARGET) (default :8080)"
+	@echo "  build-frontend   Build the React app into dhis2w-fhir-serve's static/ (run before 'make build')"
+	@echo "  lint-frontend    oxlint + tsc --noEmit over the frontend"
+	@echo "  test-frontend    vitest run over the frontend"
+	@echo "  e2e-frontend     Playwright specs against a real 'd2w fhir serve --ui' on :8377"
+	@echo "                   (prereqs, not run for you: 'make build-frontend' and"
+	@echo "                    'cd $(FRONTEND_DIR) && pnpm exec playwright install chromium')"
 	@echo ""
 	@echo "Docs:"
 	@echo "  docs             Alias for docs-serve"
@@ -141,8 +158,39 @@ docs-build: docs-cli docs-mcp docs-d2path
 
 docs: docs-serve
 
+frontend-dev:
+	@echo ">>> Vite dev server; FHIR calls proxy to $(SERVE_TARGET)"
+	@echo "    Start the endpoint it talks to first: 'd2w fhir serve' in your IG project"
+	@cd $(FRONTEND_DIR) && VITE_SERVE_TARGET=$(SERVE_TARGET) pnpm dev
+
+build-frontend:
+	@echo ">>> Building the capture UI into packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/static"
+	@cd $(FRONTEND_DIR) && pnpm install --frozen-lockfile && pnpm build
+
+lint-frontend:
+	@echo ">>> Linting the capture UI (oxlint)"
+	@cd $(FRONTEND_DIR) && pnpm exec oxlint
+	@echo ">>> Type-checking the capture UI (tsc)"
+	@cd $(FRONTEND_DIR) && pnpm exec tsc -b --force
+
+test-frontend:
+	@echo ">>> Running capture UI tests (vitest)"
+	@cd $(FRONTEND_DIR) && pnpm exec vitest run
+
+# Boots a real `d2w fhir serve --ui` on 8377 over a fixture IG project the config
+# writes from tests/fixture_project.py, so the suite exercises the actual router
+# table rather than a mock. Neither prerequisite is run automatically: the build
+# writes into the Python package, and downloading a browser is not something a
+# test command should do behind your back.
+e2e-frontend:
+	@echo ">>> Running capture UI browser tests (playwright, chromium, :8377)"
+	@echo "    Needs 'make build-frontend' first, and chromium installed once:"
+	@echo "    cd $(FRONTEND_DIR) && pnpm exec playwright install chromium"
+	@cd $(FRONTEND_DIR) && pnpm exec playwright test
+
 build:
 	@echo ">>> Building all workspace wheels"
+	@echo "    (the dhis2w-fhir-serve wheel ships whatever 'make build-frontend' last produced)"
 	@$(UV) build --all-packages
 
 publish-client:

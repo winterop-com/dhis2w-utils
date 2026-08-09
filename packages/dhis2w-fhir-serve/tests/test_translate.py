@@ -12,6 +12,7 @@ import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 import pytest
@@ -304,13 +305,46 @@ async def test_a_call_missing_a_required_parameter_is_an_operation_outcome(
 
 
 async def test_the_operation_wins_over_the_read_catch_all(translate_client: httpx.AsyncClient) -> None:
+    """`$translate` is a resource id as far as the catch-all is concerned, so mount order decides."""
     operation = await translate_client.get(_TRANSLATE_PATH, params={"system": _CODE_SYSTEM, "code": _CONCEPT_CODE})
-    read = await translate_client.get("/ConceptMap/d2-os-Xa1b2c3d4e5-cm")
+    missing = await translate_client.get("/ConceptMap/no-such-map")
 
     assert operation.status_code == 200
     assert operation.json()["resourceType"] == "Parameters"
-    assert read.status_code == 404
-    assert read.json()["issue"][0]["code"] == "not-supported"
+    assert missing.status_code == 404
+    assert missing.json()["issue"][0]["code"] == "not-found"
+
+
+async def test_a_concept_map_is_read_as_the_document_the_project_published(
+    translate_client: httpx.AsyncClient,
+) -> None:
+    response = await translate_client.get("/ConceptMap/d2-os-Xa1b2c3d4e5-cm")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == _FHIR_JSON
+    body = response.json()
+    assert body["resourceType"] == "ConceptMap"
+    assert body["url"] == _CONCEPT_MAP
+    assert body["group"][0]["source"] == _CODE_SYSTEM
+    assert _CONCEPT_CODE in [element["code"] for element in body["group"][0]["element"]]
+
+
+async def test_searching_concept_maps_answers_both_families(translate_client: httpx.AsyncClient) -> None:
+    response = await translate_client.get("/ConceptMap")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["type"] == "searchset"
+    assert sorted(entry["resource"]["url"] for entry in body["entry"]) == [_CATEGORY_CONCEPT_MAP, _CONCEPT_MAP]
+
+
+async def test_searching_concept_maps_by_url_selects_one_map(translate_client: httpx.AsyncClient) -> None:
+    response = await translate_client.get("/ConceptMap", params={"url": _CONCEPT_MAP})
+
+    body = response.json()
+    assert body["total"] == 1
+    assert body["entry"][0]["resource"]["url"] == _CONCEPT_MAP
+    assert body["link"][0]["url"] == f"{_BASE_URL}/ConceptMap?{urlencode({'url': _CONCEPT_MAP})}"
 
 
 async def test_metadata_declares_the_operation_when_the_store_holds_concept_maps(
@@ -322,7 +356,16 @@ async def test_metadata_declares_the_operation_when_the_store_holds_concept_maps
     assert [operation["name"] for operation in operations] == ["translate"]
     assert operations[0]["definition"] == "http://hl7.org/fhir/OperationDefinition/ConceptMap-translate"
     assert operations[0]["documentation"]
-    assert "ConceptMap" not in [resource["type"] for resource in body["rest"][0]["resource"]]
+
+
+async def test_metadata_declares_concept_map_as_a_read_type(translate_client: httpx.AsyncClient) -> None:
+    """The maps are read as well as translated through, so the statement carries a ConceptMap entry."""
+    body = (await translate_client.get("/metadata")).json()
+
+    entry = next(resource for resource in body["rest"][0]["resource"] if resource["type"] == "ConceptMap")
+    assert [interaction["code"] for interaction in entry["interaction"]] == ["read", "search-type"]
+    assert [parameter["name"] for parameter in entry["searchParam"]] == ["_id", "url", "identifier"]
+    assert "operation" not in entry
 
 
 async def test_metadata_declares_no_operation_when_the_store_holds_no_concept_map(

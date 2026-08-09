@@ -237,8 +237,45 @@ def test_serve_announces_the_address_before_the_server_starts(workdir: Path, rec
     result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--port", "9123"])
 
     assert result.exit_code == 0, result.output
-    assert f"starting {project.resolve()} on http://127.0.0.1:9123 (ctrl-c to stop)" in result.stderr
+    expected = f"starting {project.resolve()} on http://127.0.0.1:9123 as a FHIR endpoint (ctrl-c to stop)"
+    assert expected in result.stderr
     assert recorded_run.calls == 1
+
+
+def test_serve_ui_without_a_built_bundle_refuses_before_the_banner(
+    workdir: Path, monkeypatch: pytest.MonkeyPatch, recorded_run: _RecordedRun
+) -> None:
+    """`--ui` on a checkout that never built the frontend is one line, not a page that loads blank."""
+    from dhis2w_fhir_serve import ui as ui_module
+
+    project = _scaffold(workdir)
+    _compile(project)
+    monkeypatch.setattr(ui_module, "STATIC_DIRECTORY", workdir / "never-built")
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--ui"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, ui_module.UiBundleMissingError)
+    assert "make build-frontend" in str(result.exception)
+    assert recorded_run.calls == 0
+    assert "starting" not in result.stderr
+
+
+def test_serve_ui_says_the_surface_it_is_serving(workdir: Path, recorded_run: _RecordedRun) -> None:
+    """With a bundle present the banner names the UI, so a caller knows to open the address."""
+    from dhis2w_fhir_serve import ui as ui_module
+
+    if not ui_module.ui_bundle_present():
+        pytest.skip("no built frontend; run `make build-frontend`")
+
+    project = _scaffold(workdir)
+    _compile(project)
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--ui", "--port", "9124"])
+
+    assert result.exit_code == 0, result.output
+    assert "http://127.0.0.1:9124 as a FHIR endpoint + capture UI" in result.stderr
+    assert recorded_run.application.state.settings.ui is True
 
 
 def test_serve_live_resolves_the_profile_before_it_says_anything(

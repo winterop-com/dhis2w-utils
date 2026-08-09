@@ -13,10 +13,10 @@ authored as FSH and only exist as JSON once SUSHI has compiled them, and no FSH 
 this process. That costs the live store nothing: a capture server reads Questionnaire, CodeSystem,
 ValueSet, Location, and Organization (`CAPTURE_SERVER_READ_RESOURCE_TYPES`), every one of which
 comes out of a JSON builder here. Both ConceptMap families - option sets and categories - ride
-along with the terminology they map, so `$translate` answers from a live store exactly as it does
-from a compiled one, even though no read is served on ConceptMap. The IG's own CapabilityStatement
-is still named by `/metadata`,
-which `instantiates` it by canonical - a URL derived from config, needing no artifact to state.
+along with the terminology they map, so a live store serves the same reads, searches, and
+`$translate` answers over the maps that a compiled one does. The IG's own CapabilityStatement is
+still named by `/metadata`, which `instantiates` it by canonical - a URL derived from config,
+needing no artifact to state.
 """
 
 from __future__ import annotations

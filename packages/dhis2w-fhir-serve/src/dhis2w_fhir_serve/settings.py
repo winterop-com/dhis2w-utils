@@ -20,6 +20,10 @@ class ServeSettings(BaseModel):
 
     `strict_codes` is the runtime source every capture is validated against; the default it
     starts from lives with the capture path, in `capture.validate.DEFAULT_STRICT_CODES`.
+
+    `ui` serves the built capture UI at `/`, same-origin with the FHIR routes it talks to. It is
+    off by default: a facade is an endpoint first, and a process answering `/metadata` for a
+    scripted client has no reason to also hold a React bundle open.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -28,3 +32,4 @@ class ServeSettings(BaseModel):
     live: bool = False
     profile: str | None = None
     strict_codes: bool = DEFAULT_STRICT_CODES
+    ui: bool = False

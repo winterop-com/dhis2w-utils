@@ -159,6 +159,9 @@ class ServeConfig(BaseModel):
     developer whose DHIS2 stack already owns 8080 states another port once here and every
     `make serve` and bare `d2w fhir serve` in that project honours it. A command-line flag still
     wins over the table, and the table wins over these defaults.
+
+    `ui` serves the capture UI at `/` alongside the FHIR routes. A project whose whole workflow is
+    people filling in forms states it once here and gets the UI from every `make serve`.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -166,6 +169,7 @@ class ServeConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8080
     strict_codes: bool = False
+    ui: bool = False
 
 
 class FhirProjectConfig(BaseModel):

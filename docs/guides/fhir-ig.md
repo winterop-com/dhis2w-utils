@@ -585,10 +585,11 @@ for flows that want the hierarchy as codes rather than as resources.
 host = "127.0.0.1"      # interface to bind
 port = 8080             # port to listen on
 strict_codes = false    # refuse an answer whose code is outside the served terminology
+ui = false              # also serve the capture UI at /
 ```
 
 The only table `d2w fhir generate` never reads: it configures `d2w fhir serve`, and
-`make serve` / `make serve-live` read it too. A command-line flag wins over it.
+`make serve` / `make serve-live` / `make serve-ui` read it too. A command-line flag wins over it.
 See [Serving the IG](#serve-in-fhirtoml).
 
 ## Generate targets
@@ -1736,8 +1737,9 @@ curl -s 'localhost:8080/Questionnaire?identifier=http://example.org/fhir/demo/id
   | jq '.entry[].resource.title'
 ```
 
-Six resource types are served: `Questionnaire`, `CodeSystem`, `ValueSet`, `Location`,
+Seven resource types are served: `Questionnaire`, `CodeSystem`, `ValueSet`, `Location`,
 and `Organization` - the read set a capture client resolves a form from - plus
+`ConceptMap`, whose maps are published artifacts in the same store, plus
 `QuestionnaireResponse`, which is the one type the facade also receives. Anything else
 is refused with an OperationOutcome saying this server does not serve that type, rather
 than a bare 404 that would read as "no such resource".
@@ -1829,10 +1831,24 @@ OperationOutcome - and `targetsystem` is optional, selecting one group instead o
 of them. Both R4's lowercase `targetsystem` and the `targetSystem` real clients also
 send are read.
 
-The operation is declared at `rest.operation` in the `/metadata` CapabilityStatement,
-and only when the store actually holds ConceptMaps, because `/metadata` never
-advertises what the store cannot answer. Plain reads of `ConceptMap` are not served -
-the maps back the operation rather than being part of the capture read set.
+The operation is declared at `rest.operation` in the `/metadata` CapabilityStatement -
+at rest level rather than on a resource entry, because R4 makes it type-level - and only
+when the store actually holds ConceptMaps, because `/metadata` never advertises what the
+store cannot answer.
+
+The maps are served as documents too: `GET /ConceptMap/<id>` answers the published map
+verbatim and `GET /ConceptMap` searches them like any other type, with the same `_id`,
+`url`, and `identifier` parameters. The two are complementary - a read hands over the
+whole mapping table for a person to look at, the operation answers the one question a
+forwarder has without its caller walking groups and elements.
+
+```bash
+# Every map the project published, as a searchset.
+curl -s localhost:8080/ConceptMap | jq '.entry[].resource.id'
+
+# One map, byte-faithful: its groups, its elements, and the DHIS2 systems it targets.
+curl -s localhost:8080/ConceptMap/d2-os-Qdm5fPK5Ra9-cm | jq '.group[].target'
+```
 
 ### `$generate`
 
@@ -1954,9 +1970,10 @@ it is stated once:
 host = "127.0.0.1"      # loopback: the facade has no authentication
 port = 8080             # a local dev DHIS2 commonly owns 8080; 8090 is the usual way out
 strict_codes = false    # true refuses an answer whose code is outside the served terminology
+ui = false              # true also serves the capture UI at / (see The capture UI below)
 ```
 
-`make serve` and `make serve-live` read the table too, which is the point: a developer
+`make serve`, `make serve-live`, and `make serve-ui` read the table too, which is the point: a developer
 whose DHIS2 stack already holds 8080 states `port = 8090` here and every invocation in
 that project honours it. Precedence is **flag beats table beats default** - and
 `--strict-codes` has an explicit `--no-strict-codes` twin so all three levels are
@@ -2175,8 +2192,138 @@ gitignores it, and `d2w fhir generate` deliberately does not write it - a load s
 is test data, and the IG publisher has no business rendering a page per synthetic
 response.
 
+### The capture UI
+
+`d2w fhir serve --ui` serves a browser UI alongside the FHIR routes, same-origin with
+them, at the same address:
+
+```bash
+d2w fhir serve --ui          # or `make serve-ui` in a scaffolded project
+```
+
+Open the address it prints. The UI reads the very endpoint it is served from, so there
+is no URL to configure and nothing to point at anything:
+
+- **Forms** lists every `Questionnaire` this server publishes, with the DHIS2 object
+  kind each one came from (read off the `D2FormType` extension - a form carrying none is
+  shown as such, because it is one the facade will refuse to capture against) and how
+  many questions it asks. **Open one and you get the form itself** - every question as a
+  control its R4 item type asks for: a switch for a yes/no, a bounded number field for a
+  percentage, the browser's own date and time pickers, a text box for a comment, and a
+  dropdown for an option-set question whose choices come from expanding the ValueSet it
+  binds. A question that takes several answers gets add and remove rows. Every question
+  is labelled with its DHIS2 uid as well as its text, because that uid is what the
+  server's refusals, the spool, and DHIS2 itself all name it by.
+
+    **Fill with test data** answers the whole form from `$generate` and puts the answers
+    *into the form* rather than posting them - so you can change one field and submit
+    that. The seed it drew is in the toast; the same seed reproduces the same answers, so
+    a form that misbehaved can be asked for again. **Clear** empties it. **Submit** posts
+    a `QuestionnaireResponse` and takes you to Responses.
+
+    The context that submission carries - the reporting period, the organisation unit,
+    the tracked entity and enrollment - comes from `$generate` too, and this is worth
+    knowing: the page keeps the skeleton's envelope and replaces only its answers. That
+    is why a form filled in here is accepted by the same server's validator without you
+    naming a period or an org unit anywhere, and it is also why the submission reports
+    for whichever unit and period `$generate` chose. **This is a capture UI for exercising
+    a guide, not a data-entry client for a district office.**
+
+    A refused submission does not vanish into a toast: the validator's OperationOutcome
+    is rendered issue by issue above the buttons, each with its severity, its code, and
+    the question it is about - which is usually enough to fix the form without opening a
+    terminal.
+- **Responses** is every receipt this server holds, newest first: when it arrived, which
+  form it answers, how many answers it carries, its receipt id, and - the column that
+  matters - **which lifecycle state it is in**. `Received` is the queue
+  [`d2w fhir forward`](#forwarding-captured-responses) drains, `Forwarded` means DHIS2
+  took it, and `Rejected` means DHIS2 refused it. Filter by state or by form; the state
+  chips carry the counts, so the queue depth is on screen without counting rows.
+
+    **A row opens the receipt at `/responses/{id}`**, which is a page rather than a
+  dialog - so one receipt is a link you can send someone. It carries the whole receipt:
+  the form it answers (linked back to the form itself), its lifecycle badge, the DHIS2
+  context it states (reporting period and type, organisation unit, tracked entity,
+  enrollment, authored), and - when the receipt came from `$generate` - the seed it was
+  drawn from, which is what makes the same answers reproducible.
+
+    **The answers are on it, joined to the questions that were asked.** The page reads
+  the served `Questionnaire` as well as the receipt and puts them side by side: the
+  question text in the order the form asks it, with its enclosing groups - which is what
+  turns a disaggregated cell from `Fixed, <1y` into
+  `Immunization / BCG doses given - Fixed, <1y` - the link id beside it, and the value
+  rendered as what it is: a coded answer keeps both its display and the code DHIS2 will
+  store, a boolean reads as Yes or No, a repeating question shows every answer it was
+  given. Questions the submission left unanswered are absent, because the receipt holds
+  only the branches that were answered. **A form recompiled since the capture degrades
+  rather than blanks**: the receipt still renders against its link ids, with a line
+  saying the form is no longer served. Capture warnings get a section, a rejection gets
+  the import report the forwarder stored beside the receipt - the error code, the object
+  DHIS2 named, what it said - and a collapsible **Raw QuestionnaireResponse** shows the
+  stored document itself, so the page can be checked against the bytes.
+
+    The lifecycle is which of `.serve/responses/{received,forwarded,rejected}/` the file
+    is in, and the server re-reads that directory to answer. So running
+    `d2w fhir forward` in another terminal changes what this page shows with nothing
+    restarted - hit **Reload**, or just switch back to the browser, which refetches on
+    focus.
+- **Terminology** is a browser over all three terminology types. The listing has a
+  section per type - code systems, value sets, concept maps - each row carrying the id,
+  the DHIS2 identifiers the artifact was generated from, and the concept or mapping
+  count, with one filter box narrowing all three at once. Opening a row is where the
+  actual codes are:
+
+    - A **code system** shows every concept as a table, with one column per property the
+      system declares - which is where the DHIS2 option code sits beside the concept code
+      that stands for it. Filter over code, display, and property values; a long system
+      (organisation units run to thousands) pages at 200 rows with a shown-of-total line.
+    - A **value set** shows what it composes, linked to the code systems it names, and
+      expands them by reading those systems - the same two reads a choice question makes,
+      because this server publishes no `$expand`.
+    - A **concept map** shows every mapping it states, one table per group, so the target
+      system, the target code, and the equivalence are on the row.
+
+    Both detail pages carry a **`$translate` tester**: type or click a concept code,
+    optionally pick a target system, and the answer comes back from the running server -
+    the same operation `d2w fhir forward` resolves a coded answer with. A code the maps
+    say nothing about answers with the message the operation states, not an error.
+- **Server** renders `/metadata` in full: the declared operations (`$translate`,
+  `$generate`), the interactions and search parameters per resource type, and the store
+  mode this process is running in.
+
+The header carries a reachability light and, behind it, what the server said about
+itself - which is worth a glance before blaming a form: a UI pointed at a stale `--live`
+process and one pointed at a freshly compiled IG look identical until you read the
+conformance document.
+
+**The UI shadows nothing.** Its bundle is mounted in two pieces around the FHIR routes -
+the asset tree ahead of the read catch-alls, the shell after everything - so
+`/metadata`, `/Questionnaire`, and every other served path answer exactly as they do
+without `--ui`, and a resource type the facade does not serve is still an
+OperationOutcome rather than a page. Routing inside the UI is hash-based (`#/responses`),
+so a reload on any page works with no server-side rewrite.
+
+An installed wheel ships the built bundle. In a checkout it is a build artifact, so
+`--ui` before `make build-frontend` refuses in one line rather than serving a blank page:
+
+```
+error: `--ui` needs a built frontend at .../dhis2w_fhir_serve/static, and there is
+none. Build it with `make build-frontend` (an installed wheel ships it already).
+```
+
+**The one endpoint that is not FHIR.** The Responses page reads `GET /spool`, which
+answers plain JSON rather than a Bundle. What it serves is the receipt *envelope* - the
+instant the facade accepted the submission, the form kind it was validated as, the
+warnings it recorded, the lifecycle state, and DHIS2's import report behind a rejection -
+and none of those are elements of a QuestionnaireResponse. The receipts themselves stay
+FHIR: `GET /QuestionnaireResponse` lists them and `GET /QuestionnaireResponse/{id}` reads
+one back verbatim, in whatever lifecycle state it is in, because forwarding a receipt
+must not expire the id its sender was handed.
+
 ### What this server is not
 
+- **The UI is not authenticated either.** It is the same process on the same port, so
+  everything the "No authentication" note below says applies to it unchanged.
 - **One process, one project.** There is no clustering and no shared state. The spool
   assumes a single writing process, which is what `d2w fhir serve` is.
 - **The store is a snapshot.** It is read once at startup - from disk, or from the
@@ -2734,6 +2881,7 @@ make sushi      Compile FSH to FHIR resources
 make build      Run the full IG publisher
 make serve      Serve the compiled IG as a FHIR endpoint (run generate + sushi first)
 make serve-live Serve straight from the DHIS2 instance, no compile needed
+make serve-ui   Serve the FHIR endpoint plus the capture UI at /
 make refresh    Force-refresh everything: clean-all, upgrade, generate, validate, build
 make clean      Remove build output
 make clean-all  Also remove the terminology cache and the package cache volume
