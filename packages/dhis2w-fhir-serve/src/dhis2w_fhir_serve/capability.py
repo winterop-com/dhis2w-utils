@@ -13,13 +13,23 @@ of what DHIS2 now holds.
 `$translate` follows the same rule as the read types: it is declared only when the store actually
 holds ConceptMaps, and it is declared on `rest` rather than on a resource entry, because ConceptMap
 is translated through rather than read.
+
+`$generate` is declared the other way round, on the Questionnaire resource entry, because it is an
+instance-level operation on a resource type this server does read - and it is declared only when the
+store holds Questionnaires, for the same reason `$translate` waits for ConceptMaps. Its definition is
+the OperationDefinition the project's own IG publishes, not an HL7 one: `$generate` is a custom
+operation, deliberately not SDC's `$populate`.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from dhis2w_fhir.foundation import CAPTURE_SERVER_READ_RESOURCE_TYPES, build_response_profile_declarations
+from dhis2w_fhir.foundation import (
+    CAPTURE_SERVER_READ_RESOURCE_TYPES,
+    GENERATE_OPERATION_CODE,
+    build_response_profile_declarations,
+)
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.r4 import (
     CapabilityStatement,
@@ -57,6 +67,14 @@ TRANSLATE_DOCUMENTATION = (
     "published ConceptMaps map it onto."
 )
 
+#: The resource type `$generate` is answered on, and what the operation states about its output.
+QUESTIONNAIRE_RESOURCE_TYPE = "Questionnaire"
+GENERATE_DOCUMENTATION = (
+    "Generate a synthetic QuestionnaireResponse against one served form, optionally from a named "
+    "`seed` for a reproducible answer. The generated response is postable to this server's own "
+    "QuestionnaireResponse endpoint unchanged."
+)
+
 #: What the QuestionnaireResponse entry states about the resources it holds.
 RESPONSE_DOCUMENTATION = "One response per request; stored responses are receipts of what was submitted"
 
@@ -80,7 +98,7 @@ def build_server_capability(
     resources = [
         _response_resource(project, canonical),
         *(
-            _read_resource(resource_type, project.config.generate.identifier_system_base)
+            _read_resource(resource_type, project.config.generate.identifier_system_base, canonical, names)
             for resource_type in CAPTURE_SERVER_READ_RESOURCE_TYPES
             if resource_type in store_summary.counts_by_type
         ),
@@ -131,6 +149,25 @@ def _operations(store_summary: StoreSummary) -> list[CapabilityStatementOperatio
     ]
 
 
+def _generate_operation(
+    resource_type: str, canonical: str, names: FoundationNaming
+) -> list[CapabilityStatementOperation] | None:
+    """Declare `$generate` on the Questionnaire entry, naming the OperationDefinition this IG publishes.
+
+    Every other read type gets nothing: `$generate` fills a form, and Questionnaire is the only
+    resource type this server serves that is one.
+    """
+    if resource_type != QUESTIONNAIRE_RESOURCE_TYPE:
+        return None
+    return [
+        CapabilityStatementOperation(
+            name=GENERATE_OPERATION_CODE,
+            definition=f"{canonical}/OperationDefinition/{names.generate_operation_id}",
+            documentation=GENERATE_DOCUMENTATION,
+        )
+    ]
+
+
 def _response_resource(project: FhirProject, canonical: str) -> CapabilityStatementResource:
     """Declare the capture type: create, read, search, and the response profiles this project generated."""
     declarations = build_response_profile_declarations(project.config.generate)
@@ -154,10 +191,16 @@ def _response_resource(project: FhirProject, canonical: str) -> CapabilityStatem
     )
 
 
-def _read_resource(resource_type: str, identifier_system_base: str) -> CapabilityStatementResource:
+def _read_resource(
+    resource_type: str,
+    identifier_system_base: str,
+    canonical: str,
+    names: FoundationNaming,
+) -> CapabilityStatementResource:
     """Declare one read type the store holds, with the three search parameters the facade answers."""
     return CapabilityStatementResource(
         type=resource_type,
+        operation=_generate_operation(resource_type, canonical, names),
         interaction=[
             CapabilityStatementInteraction(code="read"),
             CapabilityStatementInteraction(code="search-type"),

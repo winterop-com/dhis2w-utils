@@ -13,6 +13,15 @@ if TYPE_CHECKING:
 
 _DEFINITION_FALLBACK_PREFIX = "D2"
 
+#: The code a capture server answers the synthetic-response operation under, as
+#: `GET|POST [base]/Questionnaire/{id}/$generate`. Deliberately not SDC's `$populate`: that
+#: operation means fill-from-real-context, and answering it with invented data would mislead
+#: every client that knows what it means.
+GENERATE_OPERATION_CODE = "generate"
+
+#: The one input parameter `$generate` takes - the RNG seed that makes a generated response reproducible.
+GENERATE_SEED_PARAMETER = "seed"
+
 
 class IdentifierSystemSubject(BaseModel):
     """One DHIS2 object kind whose UID, and optionally whose code, gets an identifier system."""
@@ -263,6 +272,16 @@ class FoundationNaming(BaseModel):
     def tracker_event_response_profile_id(self) -> str:
         """FHIR id of the tracker-event QuestionnaireResponse profile (e.g. `d2-tracker-event-response`)."""
         return join_id_tokens(self.definition_prefix, "tracker", "event", "response")
+
+    @property
+    def generate_operation(self) -> str:
+        """FSH name of the `$generate` OperationDefinition instance (e.g. `D2GenerateOperation`)."""
+        return f"{self.definition_prefix}GenerateOperation"
+
+    @property
+    def generate_operation_id(self) -> str:
+        """FHIR id of the `$generate` OperationDefinition instance (e.g. `d2-generate`)."""
+        return join_id_tokens(self.definition_prefix, "generate")
 
     @property
     def capture_server(self) -> str:

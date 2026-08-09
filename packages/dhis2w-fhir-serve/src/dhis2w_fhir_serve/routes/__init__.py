@@ -18,10 +18,12 @@ def register_routes(app: FastAPI) -> None:
     """
     from dhis2w_fhir_serve.metadata import router as metadata_router
     from dhis2w_fhir_serve.routes.capture import router as capture_router
+    from dhis2w_fhir_serve.routes.generate import router as generate_router
     from dhis2w_fhir_serve.routes.read import router as read_router
     from dhis2w_fhir_serve.routes.translate import router as translate_router
 
     app.include_router(metadata_router)
     app.include_router(capture_router)
     app.include_router(translate_router)
+    app.include_router(generate_router)
     app.include_router(read_router)

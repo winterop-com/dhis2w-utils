@@ -507,6 +507,7 @@ class ParametersParameter(BackboneElement):
     name: str | None = None
     valueBoolean: bool | None = None
     valueCode: str | None = None
+    valueInteger: int | None = None
     valueString: str | None = None
     valueUri: str | None = None
     valueCoding: Coding | None = None
@@ -622,6 +623,14 @@ class CapabilityStatementSearchParam(BackboneElement):
     documentation: str | None = None
 
 
+class CapabilityStatementOperation(BackboneElement):
+    """`CapabilityStatement.rest.operation` and `.rest.resource.operation` - one operation the endpoint answers."""
+
+    name: str | None = None
+    definition: str | None = None
+    documentation: str | None = None
+
+
 class CapabilityStatementResource(BackboneElement):
     """`CapabilityStatement.rest.resource` - one resource type the endpoint serves, and how."""
 
@@ -631,14 +640,7 @@ class CapabilityStatementResource(BackboneElement):
     documentation: str | None = None
     interaction: list[CapabilityStatementInteraction] | None = None
     searchParam: list[CapabilityStatementSearchParam] | None = None
-
-
-class CapabilityStatementOperation(BackboneElement):
-    """`CapabilityStatement.rest.operation` - one operation the endpoint answers across resource types."""
-
-    name: str | None = None
-    definition: str | None = None
-    documentation: str | None = None
+    operation: list[CapabilityStatementOperation] | None = None
 
 
 class CapabilityStatementRest(BackboneElement):

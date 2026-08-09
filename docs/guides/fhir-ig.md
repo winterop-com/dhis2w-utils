@@ -722,8 +722,15 @@ never touches DHIS2:
 - **`d2-responses.fsh`** - the `D2AggregateResponse`, `D2EventResponse`, and
   `D2TrackerEventResponse` profiles every captured `QuestionnaireResponse` has to
   meet. See [The capture contract](#the-capture-contract).
+- **`d2-generate-operation.fsh`** - the `D2GenerateOperation` OperationDefinition
+  defining `$generate`, the instance-level operation that answers a served
+  `Questionnaire` with a synthetic response postable straight back. See
+  [`$generate`](#generate).
 - **`d2-capture-server.fsh`** - the `D2CaptureServer` CapabilityStatement stating
-  the interactions a server accepting those responses supports.
+  the interactions a server accepting those responses supports. It stays a
+  `kind #requirements` statement of what *any* DHIS2 capture server has to do, so it
+  does not declare `$generate` - a server that only receives captures is still
+  conformant.
 
 ### The D2Period extension
 
@@ -1742,7 +1749,7 @@ the parameters the server actually applied, so a client can see what it got.
 
 ### `$translate`
 
-The one operation the facade answers, over [every ConceptMap the project
+One of the two operations the facade answers, over [every ConceptMap the project
 publishes](#conceptmaps-the-route-back-to-dhis2): R4's type-level
 `ConceptMap/$translate`, which takes a generated concept code back to the DHIS2
 identifiers it stands for. The store reads `input/resources/` whole and the operation
@@ -1826,6 +1833,109 @@ The operation is declared at `rest.operation` in the `/metadata` CapabilityState
 and only when the store actually holds ConceptMaps, because `/metadata` never
 advertises what the store cannot answer. Plain reads of `ConceptMap` are not served -
 the maps back the operation rather than being part of the capture read set.
+
+### `$generate`
+
+The other operation: hand it a served form and it answers with a synthetic
+`QuestionnaireResponse` filled in against that form's own rules.
+
+```bash
+# Instance-level, on the form's own resource id. GET is the everyday spelling.
+curl -s 'localhost:8080/Questionnaire/BfMAe6Itzgt/$generate' | jq '.status, .subject'
+
+# Post it straight back. This is the invariant the operation is built around.
+curl -s 'localhost:8080/Questionnaire/BfMAe6Itzgt/$generate' \
+  | curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8080/QuestionnaireResponse \
+      -H 'Content-Type: application/fhir+json' --data-binary @-
+# 201
+```
+
+**`$generate` output posted back to the same server's `POST /QuestionnaireResponse`
+answers 201.** That is the whole point of it, and it is a test rather than a claim -
+per form kind, in both modes, and with `--strict-codes` on. Two things follow from it.
+A capture UI gets its "fill with test data" button by calling one endpoint and shipping
+the answer to the endpoint it was already posting to. And a stress corpus becomes an API
+loop rather than a CLI run: `d2w fhir generate load-set` writes a corpus to disk,
+`$generate` hands one out per request.
+
+**It is deliberately not SDC's `$populate`.** `$populate` means *fill this form from real
+context about a real subject*; `$generate` invents its data. Answering `$populate` with
+invented values would mislead every client that knows what it means, so this is a custom
+operation with its own `OperationDefinition`, published by the project's own IG at
+`{canonical}/OperationDefinition/d2-generate` and declared in `/metadata` on the
+`Questionnaire` resource entry (which is where R4 puts an instance-level operation, as
+against `$translate`'s type-level `rest.operation`).
+
+**The `seed` parameter makes it reproducible.** Same form, same seed, same bytes - nothing
+in the fill reads a clock beyond the calendar day. Name it on the query for the GET
+spelling, or in a `Parameters` body for the POST one:
+
+```bash
+curl -s 'localhost:8080/Questionnaire/BfMAe6Itzgt/$generate?seed=4242'
+
+curl -s -X POST 'localhost:8080/Questionnaire/BfMAe6Itzgt/$generate' \
+  -H 'Content-Type: application/fhir+json' \
+  -d '{"resourceType":"Parameters","parameter":[{"name":"seed","valueInteger":4242}]}'
+```
+
+A call naming no seed is answered from one the server drew - which is not a lesser mode,
+because **the seed comes back on the response**. It rides as the response's business
+identifier, under `{canonical}/id/generate-seed`:
+
+```json
+{
+  "resourceType": "QuestionnaireResponse",
+  "meta": { "profile": ["http://example.org/fhir/demo/StructureDefinition/d2-aggregate-response"] },
+  "identifier": { "system": "http://example.org/fhir/demo/id/generate-seed", "value": "4242" },
+  "questionnaire": "http://example.org/fhir/demo/Questionnaire/BfMAe6Itzgt",
+  "status": "completed"
+}
+```
+
+`identifier` is where R4 puts the business identifier of a response, it survives the post
+into the stored receipt, and it needs no out-of-band header - so a corpus you generated
+last week can be regenerated exactly by reading the seeds off it. Seeds are R4 `integer`s,
+so they run `0` to `2147483647`; anything else is a 400 OperationOutcome.
+
+What gets filled in:
+
+| Question | Generated answer |
+| --- | --- |
+| integer / decimal | inside the `minValue` / `maxValue` extensions the form pins, and inside `0..1000` when it pins neither |
+| boolean | `true` or `false` |
+| date / dateTime / time | inside the reporting period an aggregate form reports for, else the last thirty days |
+| string / text | `Example <linkId>` |
+| url | `https://example.invalid/<linkId>` |
+| choice / open-choice | a real concept of the CodeSystem behind the question's `answerValueSet`, in the concept-code spelling the contract asks for - two distinct ones when the question repeats |
+| reference | the organisation unit the response reports for |
+| a `choice` whose ValueSet this project never published | left unanswered - inventing a code would only make the server warn about its own output |
+
+And the context each form kind's response profile requires: an aggregate response gets a
+`D2Period` and a `Location` subject, an event response an `authored` instant, and a
+tracker-event response an `authored` instant, an organisation-unit extension, a tracker
+enrollment, and a tracked-entity subject. The tracked entity and the enrollment are
+**shaped synthetic UIDs** - they name nothing on any instance. That is what makes the form
+kind generatable at all: the capture contract checks the shape of those identifiers, not
+their existence.
+
+Two facts a compiled `Questionnaire` does not carry, and the rules used instead:
+
+- **The data set's period type.** A generated aggregate response needs a DHIS2 reporting
+  period, and the compiled form says nothing about which type its data set reports on. The
+  rule is: **the period type declared by a served example response answering the same
+  questionnaire** - a compiled IG ships its `Usage: #example` instances, and each aggregate
+  one carries the real type on its `D2Period` - and **`Monthly`** when the store holds no
+  such example, which is every `--live` store. Whichever type is decided, the response
+  carries the newest *completed* period of it, so the value moves with the calendar and
+  with nothing else. Serve compiled when the exact period type matters.
+- **`TRUE_ONLY` versus `BOOLEAN`.** The questionnaire emitter answers both DHIS2 value
+  types as a `boolean` item, so a generated answer to either is a random `true` or `false`.
+  A `TRUE_ONLY` data element only ever holds `true` in DHIS2 - a generated `false` for one
+  is a value the *form* admits but the instance would not store.
+
+A Questionnaire this server does not hold is a 404 OperationOutcome, the same answer a
+read of it gives. One it holds but cannot read as a capture form - no `D2FormType`, an item
+type with no answer element - is a 422 saying so.
 
 ### The two modes
 

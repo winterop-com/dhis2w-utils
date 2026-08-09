@@ -28,8 +28,34 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-organisation-unit.fsh",
         "foundation/d2-tracker-enrollment.fsh",
         "foundation/d2-responses.fsh",
+        "foundation/d2-generate-operation.fsh",
         "foundation/d2-capture-server.fsh",
     }
+
+
+def test_the_generate_operation_is_declared_instance_level_on_questionnaire() -> None:
+    """`$generate` is a custom instance-level operation on Questionnaire, taking one optional seed."""
+    content = _by_path(GenerateConfig())["foundation/d2-generate-operation.fsh"]
+
+    assert "InstanceOf: OperationDefinition" in content
+    assert '* id = "d2-generate"' in content
+    assert "* code = #generate" in content
+    assert "* resource[+] = #Questionnaire" in content
+    assert "* system = false\n* type = false\n* instance = true" in content
+    assert "* affectsState = false" in content
+    assert "* parameter[+].name = #seed" in content
+    assert "* parameter[=].use = #in" in content
+    assert "* parameter[+].name = #return" in content
+    assert "* parameter[=].type = #QuestionnaireResponse" in content
+    assert "not SDC's $populate" in content
+
+
+def test_the_generate_operation_follows_the_configured_prefix() -> None:
+    """The operation rides the same naming token every other foundation artifact does."""
+    content = _by_path(GenerateConfig(naming=NamingConfig(prefix="LAO")))["foundation/d2-generate-operation.fsh"]
+
+    assert "Instance: LAOGenerateOperation" in content
+    assert '* id = "lao-generate"' in content
 
 
 def test_aliases_come_from_the_configured_identifier_base() -> None:

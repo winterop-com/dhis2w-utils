@@ -80,6 +80,16 @@ class BadSearchError(ServeError):
         super().__init__(diagnostics)
 
 
+class BadOperationError(ServeError):
+    """The parameters an operation was invoked with cannot be read as what the operation declares."""
+
+    status_code = 400
+    issue_code = "invalid"
+
+    def __init__(self, diagnostics: str) -> None:
+        super().__init__(diagnostics)
+
+
 class MethodNotAllowedError(ServeError):
     """The path is served, but not for that HTTP method."""
 

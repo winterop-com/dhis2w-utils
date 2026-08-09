@@ -23,6 +23,7 @@ from dhis2w_fhir_serve.capture.index import (
     build_capture_index,
 )
 from dhis2w_fhir_serve.capture.naming import (
+    GENERATE_SEED_IDENTIFIER_SEGMENT,
     PERIOD_ISO_SUB_EXTENSION,
     PERIOD_RANGE_SUB_EXTENSION,
     PERIOD_TYPE_SUB_EXTENSION,
@@ -62,6 +63,7 @@ __all__ = [
     "CELL_LINK_ID_SEPARATOR",
     "DEFAULT_STRICT_CODES",
     "FORM_KINDS",
+    "GENERATE_SEED_IDENTIFIER_SEGMENT",
     "ONE_RESPONSE_PER_REQUEST",
     "OPTION_CODE_PROPERTY",
     "OPTION_UID_PROPERTY",

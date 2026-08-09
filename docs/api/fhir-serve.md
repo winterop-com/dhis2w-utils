@@ -20,6 +20,8 @@ and closed before the first request arrives.
   (`ResponseSpool`, `StoredResponseEnvelope`, `RECEIVED_RESPONSES_RELATIVE_PATH`).
 - Validate a QuestionnaireResponse against a served IG outside the endpoint
   (`validate_response`, `build_capture_index`, `CaptureNaming`, `CodingResolverSet`).
+- Generate a synthetic response against a served form (`generate_response`, `draw_seed`,
+  `resolve_period_type`, `MAXIMUM_SEED`).
 - Render the FHIR error and outcome bodies the facade answers with (`outcome`, `rejection_outcome`,
   `success_outcome`, `build_server_capability`).
 
@@ -102,6 +104,16 @@ from the spool for QuestionnaireResponse.
 `POST /QuestionnaireResponse` - the one write the facade accepts.
 
 ::: dhis2w_fhir_serve.routes.capture
+
+### Generating a response
+
+`GET|POST /Questionnaire/{id}/$generate` and the synthesizer behind it: one served form filled in
+from the very capture index a submission is validated against, so the generated response posts back
+at the same server for a 201.
+
+::: dhis2w_fhir_serve.routes.generate
+
+::: dhis2w_fhir_serve.synthesize
 
 ### Conformance
 

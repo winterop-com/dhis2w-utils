@@ -8,6 +8,7 @@ from dhis2w_fhir_serve.app import ServeContext, build_store, create_app, server_
 from dhis2w_fhir_serve.capability import build_server_capability
 from dhis2w_fhir_serve.capture import (
     DEFAULT_STRICT_CODES,
+    GENERATE_SEED_IDENTIFIER_SEGMENT,
     AmbiguousCodingError,
     CaptureIndex,
     CaptureIndexCache,
@@ -28,6 +29,7 @@ from dhis2w_fhir_serve.capture import (
 )
 from dhis2w_fhir_serve.errors import (
     FHIR_JSON_MEDIA_TYPE,
+    BadOperationError,
     BadSearchError,
     MethodNotAllowedError,
     NotFoundError,
@@ -56,13 +58,27 @@ from dhis2w_fhir_serve.store import (
     StoreSummary,
     load_compiled_store,
 )
+from dhis2w_fhir_serve.synthesize import (
+    DEFAULT_PERIOD_TYPE,
+    GENERATED_STATUS,
+    MAXIMUM_SEED,
+    DateWindow,
+    draw_seed,
+    generate_response,
+    resolve_period_type,
+)
 
 __all__ = [
     "COMPILED_RESOURCES_RELATIVE_PATH",
+    "DEFAULT_PERIOD_TYPE",
     "DEFAULT_STRICT_CODES",
     "FHIR_JSON_MEDIA_TYPE",
+    "GENERATED_STATUS",
+    "GENERATE_SEED_IDENTIFIER_SEGMENT",
+    "MAXIMUM_SEED",
     "RECEIVED_RESPONSES_RELATIVE_PATH",
     "AmbiguousCodingError",
+    "BadOperationError",
     "BadSearchError",
     "CaptureIndex",
     "CaptureIndexCache",
@@ -73,6 +89,7 @@ __all__ = [
     "CodingResolver",
     "CodingResolverSet",
     "CompiledIgMissingError",
+    "DateWindow",
     "IdentifierToken",
     "MethodNotAllowedError",
     "NotFoundError",
@@ -98,11 +115,14 @@ __all__ = [
     "configure_logging",
     "create_app",
     "current_instant",
+    "draw_seed",
+    "generate_response",
     "load_compiled_store",
     "new_response_id",
     "outcome",
     "register_error_handlers",
     "rejection_outcome",
+    "resolve_period_type",
     "server_version",
     "success_outcome",
     "validate_response",
