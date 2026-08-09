@@ -34,10 +34,13 @@ from dhis2w_fhir.r4 import (
     QuestionnaireResponseItem,
     Reference,
 )
+from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
 from dhis2w_fhir.resources.examples import (
     ExampleAnswerRules,
     ExampleTally,
     example_answers,
+    example_attribute_combo_assignments,
+    example_attribute_option_combo,
     example_authored,
     example_concept_assignments,
     example_is_complete,
@@ -55,6 +58,7 @@ if TYPE_CHECKING:
     from dhis2w_fhir.period.schemas import PeriodValue
     from dhis2w_fhir.resources.examples.schemas import (
         ExampleAnswer,
+        ExampleAttributeOptionCombo,
         ExampleItem,
         ExampleResponseIn,
         ExampleTrackerContext,
@@ -118,6 +122,7 @@ class _ExampleSystems(BaseModel):
     identifier_base: str
     form_type_extension_url: str
     period_extension_url: str
+    attribute_option_combo_extension_url: str
     organisation_unit_extension_url: str
     tracker_enrollment_extension_url: str
     aggregate_response_profile_url: str
@@ -133,6 +138,9 @@ class _ExampleSystems(BaseModel):
             identifier_base=f"{config.identifier_system_base}/id",
             form_type_extension_url=_definition_url(canonical, foundation.form_type_extension_id),
             period_extension_url=_definition_url(canonical, foundation.period_extension_id),
+            attribute_option_combo_extension_url=_definition_url(
+                canonical, foundation.attribute_option_combo_extension_id
+            ),
             organisation_unit_extension_url=_definition_url(canonical, foundation.organisation_unit_extension_id),
             tracker_enrollment_extension_url=_definition_url(canonical, foundation.tracker_enrollment_extension_id),
             aggregate_response_profile_url=_definition_url(canonical, foundation.aggregate_response_profile_id),
@@ -168,6 +176,7 @@ def build_example_documents(
     published_organisation_unit_uids: frozenset[str] | None = None,
     stem_plan: QuestionnaireStemPlan | None = None,
     organisation_unit_stems: StemResolution | None = None,
+    attribute_combos: AttributeComboPlan | None = None,
 ) -> ExampleDocumentBuild:
     """Build one FHIR QuestionnaireResponse per example response, keyed by the instance id the FSH path declares.
 
@@ -180,7 +189,8 @@ def build_example_documents(
     `questionnaire` canonical and every `Location/...` reference follow. A response whose target is
     not among `sources` is skipped, exactly as the FSH path skips it. The response's own id stays
     the DHIS2 DATA identifier it embeds (an event UID, a period, a reporting unit), whatever the
-    naming source.
+    naming source. `attribute_combos` is the attribute-option-combo plan the questionnaire target
+    published, the same plan the FSH path codes its `D2AttributeOptionCombo` extension from.
     """
     systems = _ExampleSystems.from_config(config, canonical)
     plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
@@ -191,6 +201,8 @@ def build_example_documents(
     sources_by_uid = {source.uid: source for source in sources}
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
     assignments = example_concept_assignments(option_sets, config)
+    attribute_combo_plan = attribute_combos if attribute_combos is not None else AttributeComboPlan()
+    attribute_combo_assignments = example_attribute_combo_assignments(sources, config)
     tally = ExampleTally()
     documents: list[QuestionnaireResponse] = []
     for response in responses:
@@ -210,6 +222,8 @@ def build_example_documents(
                 rules,
                 target_stem=plan.targets.stem_for(source.uid),
                 organisation_unit_stems=organisation_unit_stems,
+                attribute_combos=attribute_combo_plan,
+                attribute_combo_assignments=attribute_combo_assignments,
             )
         )
     notes = list(tally.to_notes())
@@ -238,9 +252,14 @@ def _response_document(
     *,
     target_stem: str,
     organisation_unit_stems: StemResolution | None,
+    attribute_combos: AttributeComboPlan,
+    attribute_combo_assignments: dict[str, ConceptAssignmentPlan],
 ) -> QuestionnaireResponse:
     """Build one example's QuestionnaireResponse, every name already resolved to the URL it is served under."""
     period = example_period(response, source, tally)
+    attribute_option_combo = example_attribute_option_combo(
+        response, source, attribute_combos, attribute_combo_assignments, tally
+    )
     answers = example_answers(response, source, option_sets_by_uid, assignments, tally, rules)
     authored = example_authored(response, tally, rules)
     tracker = example_tracker_context(response, source, tally)
@@ -248,7 +267,16 @@ def _response_document(
     return QuestionnaireResponse(
         id=response.instance_id,
         meta=Meta(profile=[systems.response_profile_url(source.kind)]) if complete else None,
-        extension=_extensions(source.kind, period, tracker, systems, organisation_unit_stems),
+        extension=_extensions(
+            source.kind,
+            period,
+            attribute_option_combo,
+            tracker,
+            systems,
+            canonical,
+            attribute_combos,
+            organisation_unit_stems,
+        ),
         questionnaire=systems.questionnaire_url(target_stem),
         status=_status_code(response.status_code),
         subject=_subject(response, tracker, systems, organisation_unit_stems),
@@ -260,15 +288,19 @@ def _response_document(
 def _extensions(
     kind: FormKind,
     period: PeriodValue | None,
+    attribute_option_combo: ExampleAttributeOptionCombo | None,
     tracker: ExampleTrackerContext | None,
     systems: _ExampleSystems,
+    canonical: str,
+    attribute_combos: AttributeComboPlan,
     organisation_unit_stems: StemResolution | None,
 ) -> list[Extension]:
     """The extensions one response carries, in the order its kind's response profile slices them.
 
     A tracker-event response leads with the organisation unit it was captured at and the
-    enrollment it belongs to, an aggregate response leads with its reporting period, and every
-    kind closes with the form type - which is the order the compiled instances carry.
+    enrollment it belongs to, an aggregate response leads with its reporting period and then the
+    attribute option combo its values are keyed under, and every kind closes with the form type -
+    which is the order the compiled instances carry.
     """
     extensions: list[Extension] = []
     if tracker is not None:
@@ -292,8 +324,30 @@ def _extensions(
             )
     if period is not None:
         extensions.append(_period_extension(period, systems))
+    if attribute_option_combo is not None:
+        extensions.append(
+            _attribute_option_combo_extension(attribute_option_combo, systems, canonical, attribute_combos)
+        )
     extensions.append(Extension(url=systems.form_type_extension_url, valueCode=kind))
     return extensions
+
+
+def _attribute_option_combo_extension(
+    combo: ExampleAttributeOptionCombo,
+    systems: _ExampleSystems,
+    canonical: str,
+    attribute_combos: AttributeComboPlan,
+) -> Extension:
+    """The D2AttributeOptionCombo extension: one coding into the vocabulary the form declares."""
+    identity = attribute_combos.identities[combo.combo_uid]
+    return Extension(
+        url=systems.attribute_option_combo_extension_url,
+        valueCoding=Coding(
+            system=code_system_canonical(canonical, identity.code_system_id),
+            code=combo.concept_code,
+            display=flatten_whitespace(combo.display),
+        ),
+    )
 
 
 def _period_extension(period: PeriodValue, systems: _ExampleSystems) -> Extension:

@@ -26,6 +26,7 @@ from dhis2w_fhir_serve.store import ResourceStore, load_compiled_store
 from fastapi import FastAPI
 from fixture_project import (
     AGGREGATE_RESPONSE_FILE,
+    ATTRIBUTE_COMBO_RESPONSE_FILE,
     CAPTURE_CANONICAL,
     CAPTURE_IDENTIFIER_BASE,
     EVENT_RESPONSE_FILE,
@@ -269,3 +270,9 @@ def event_response() -> dict[str, Any]:
 def tracker_response() -> dict[str, Any]:
     """The golden tracker-event submission, exactly as the IG publishes it."""
     return golden(TRACKER_RESPONSE_FILE)
+
+
+@pytest.fixture
+def attribute_combo_response() -> dict[str, Any]:
+    """The golden submission of the non-default-combo data set, which names its attribute option combo."""
+    return golden(ATTRIBUTE_COMBO_RESPONSE_FILE)

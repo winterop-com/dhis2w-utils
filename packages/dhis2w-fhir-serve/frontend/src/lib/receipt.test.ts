@@ -1,20 +1,23 @@
 import { describe, expect, it } from 'vitest'
 
+import attributeCodeSystemFixture from '@/lib/__fixtures__/codesystem-d2-aoc-idcDPkDtepR-cs.json'
 import generateAggregateFixture from '@/lib/__fixtures__/generate-BfMAe6Itzgt.json'
 import generateEventFixture from '@/lib/__fixtures__/generate-EVTsupVis01.json'
 import generateTemporalFixture from '@/lib/__fixtures__/generate-PrTemporal1.json'
 import generateTrackerFixture from '@/lib/__fixtures__/generate-ZzYYXq4fJie.json'
 import temporalQuestionnaireFixture from '@/lib/__fixtures__/questionnaire-PrTemporal1.json'
 import questionnaireBundleFixture from '@/lib/__fixtures__/questionnaire-bundle.json'
+import attributeComboResponseFixture from '@/lib/__fixtures__/response-TuL8IOPzpHh.json'
 import {
     bundleResources,
     generateSeedOf,
     type Bundle,
+    type CodeSystem,
     type Questionnaire,
     type QuestionnaireResponse,
 } from '@/lib/fhir'
 import { flattenQuestionnaire } from '@/lib/questionnaire'
-import { formLabel, joinAnswersToQuestions } from '@/lib/receipt'
+import { attributeOptionComboFact, formLabel, joinAnswersToQuestions } from '@/lib/receipt'
 import type { SpoolResponseSummary } from '@/lib/spool'
 
 /**
@@ -33,6 +36,10 @@ const questionnaires = new Map(
         questionnaire,
     ]),
 )
+
+const attributeComboResponse = attributeComboResponseFixture as unknown as QuestionnaireResponse
+const attributeCodeSystem = attributeCodeSystemFixture as unknown as CodeSystem
+const generateAggregate = generateAggregateFixture as unknown as QuestionnaireResponse
 
 /** One served form by its DHIS2 uid, failing loudly rather than testing against undefined. */
 function servedForm(id: string): Questionnaire {
@@ -243,5 +250,53 @@ describe('naming the form a receipt answered', () => {
                 title: 'Weight &lt; 5kg &amp; under',
             }),
         ).toBe('Weight < 5kg & under')
+    })
+})
+
+/**
+ * The combo fact, read off a stored receipt the way the receipt page reads it.
+ *
+ * The response is the emitter's published example for the golden aggregate form whose data set
+ * rides a non-default category combo, and the CodeSystem is the vocabulary it names - so the
+ * resolution below goes through the same two documents a served facade would hand the page.
+ */
+describe('the attribute option combo on a receipt', () => {
+    it('names the combo by the vocabulary title and resolves the display through it', () => {
+        expect(attributeOptionComboFact(attributeComboResponse, attributeCodeSystem)).toEqual({
+            label: 'Reporting for Project',
+            value: 'Provide access to primary health care (BqblOcSwGey)',
+            mono: false,
+        })
+    })
+
+    it('falls back to the display the receipt itself carries when the vocabulary is gone', () => {
+        expect(attributeOptionComboFact(attributeComboResponse, null)).toEqual({
+            label: 'Attribute option combo',
+            value: 'Provide access to primary health care (BqblOcSwGey)',
+            mono: false,
+        })
+    })
+
+    it('degrades to system and code when nothing can name the concept', () => {
+        const bare: QuestionnaireResponse = {
+            resourceType: 'QuestionnaireResponse',
+            status: 'completed',
+            extension: [
+                {
+                    url: 'http://localhost:8080/fhir/StructureDefinition/d2-attribute-option-combo',
+                    valueCoding: { system: 'http://example.org/CodeSystem/gone', code: 'BqblOcSwGey' },
+                },
+            ],
+        }
+
+        expect(attributeOptionComboFact(bare, null)).toEqual({
+            label: 'Attribute option combo',
+            value: 'http://example.org/CodeSystem/gone | BqblOcSwGey',
+            mono: true,
+        })
+    })
+
+    it('answers nothing for a receipt on the default combo, which states no extension', () => {
+        expect(attributeOptionComboFact(generateAggregate, attributeCodeSystem)).toBeNull()
     })
 })

@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
+import attributeCodeSystemFixture from '@/lib/__fixtures__/codesystem-d2-aoc-idcDPkDtepR-cs.json'
 import metadataFixture from '@/lib/__fixtures__/metadata.json'
+import attributeComboFormFixture from '@/lib/__fixtures__/questionnaire-TuL8IOPzpHh.json'
 import questionnaireBundleFixture from '@/lib/__fixtures__/questionnaire-bundle.json'
+import attributeComboResponseFixture from '@/lib/__fixtures__/response-TuL8IOPzpHh.json'
+import attributeValueSetFixture from '@/lib/__fixtures__/valueset-d2-aoc-idcDPkDtepR-vs.json'
 import {
+    attributeOptionComboExtensionUrl,
+    attributeOptionComboLabel,
+    attributeOptionCombosOf,
+    attributeOptionComboOf,
     bundleResources,
     canonicalId,
+    conceptDisplay,
     declaredOperations,
     formIdentifier,
     formSlice,
@@ -16,7 +25,10 @@ import {
     servedIgLabel,
     type Bundle,
     type CapabilityStatement,
-    type Questionnaire, unescapeMarkup } from '@/lib/fhir'
+    type CodeSystem,
+    type Questionnaire,
+    type QuestionnaireResponse,
+    type ValueSet, unescapeMarkup } from '@/lib/fhir'
 
 /**
  * The parsing rules, checked against what the server actually answers.
@@ -31,6 +43,17 @@ import {
 
 const metadata = metadataFixture as CapabilityStatement
 const questionnaireBundle = questionnaireBundleFixture as unknown as Bundle<Questionnaire>
+const attributeComboForm = attributeComboFormFixture as unknown as Questionnaire
+const attributeComboResponse = attributeComboResponseFixture as unknown as QuestionnaireResponse
+const attributeValueSet = attributeValueSetFixture as unknown as ValueSet
+const attributeCodeSystem = attributeCodeSystemFixture as unknown as CodeSystem
+
+/** One form of the served bundle by its DHIS2 uid, failing loudly rather than testing undefined. */
+function servedForm(id: string): Questionnaire {
+    const found = bundleResources(questionnaireBundle).find((questionnaire) => questionnaire.id === id)
+    if (found === undefined) throw new Error(`the fixture bundle serves no Questionnaire ${id}`)
+    return found
+}
 
 describe('a real /Questionnaire bundle', () => {
     it('yields one resource per entry', () => {
@@ -292,5 +315,63 @@ describe('unescapeMarkup', () => {
     it('leaves text without entities untouched and survives a real ampersand', () => {
         expect(unescapeMarkup('Malaria cases')).toBe('Malaria cases')
         expect(unescapeMarkup('A &amp;amp; B')).toBe('A &amp; B')
+    })
+})
+
+/**
+ * The attribute-option-combo contract, read off the artifacts the wave that added it emits.
+ *
+ * `Questionnaire-TuL8IOPzpHh` is the golden aggregate form whose DHIS2 data set rides a
+ * non-default category combo, and the ValueSet and CodeSystem beside it are the vocabulary it
+ * names. All three are the emitter's own bytes, so the suffix matching below is checked against
+ * the urls the guide really publishes rather than against a spelling invented here.
+ */
+describe('the attribute option combo a form reports for', () => {
+    it('reads the ValueSet a non-default-combo form declares', () => {
+        expect(attributeOptionCombosOf(attributeComboForm)).toBe(attributeValueSet.url)
+    })
+
+    it('answers null for a form on the default combo, which is every other served form', () => {
+        expect(attributeOptionCombosOf(servedForm('BfMAe6Itzgt'))).toBeNull()
+    })
+
+    it('derives the response-side url from the form-side one, off the same canonical', () => {
+        expect(attributeOptionComboExtensionUrl(attributeComboForm)).toBe(
+            'http://localhost:8080/fhir/StructureDefinition/d2-attribute-option-combo',
+        )
+        expect(attributeOptionComboExtensionUrl(servedForm('BfMAe6Itzgt'))).toBeNull()
+    })
+
+    it('tells the plural extension from the singular one, which differ by a character', () => {
+        // The form declares the vocabulary and answers no combo of its own; reading it as one
+        // would put a canonical where a Coding belongs.
+        expect(
+            attributeOptionComboOf({
+                resourceType: 'QuestionnaireResponse',
+                status: 'completed',
+                extension: attributeComboForm.extension,
+            }),
+        ).toBeNull()
+    })
+
+    it('reads the coding a stored response reports under', () => {
+        const coding = attributeOptionComboOf(attributeComboResponse)
+        expect(coding?.system).toBe(attributeCodeSystem.url)
+        expect(coding?.code).toBe('BqblOcSwGey')
+    })
+
+    it('names the choice by the vocabulary title, and by the artifact when there is none', () => {
+        expect(attributeOptionComboLabel(attributeValueSet.title)).toBe('Reporting for Project')
+        expect(attributeOptionComboLabel(attributeCodeSystem.title)).toBe('Reporting for Project')
+        expect(attributeOptionComboLabel(null)).toBe('Attribute option combo')
+        expect(attributeOptionComboLabel('   ')).toBe('Attribute option combo')
+        expect(attributeOptionComboLabel('Weight &lt; 5kg')).toBe('Reporting for Weight < 5kg')
+    })
+
+    it('resolves a concept display through the served CodeSystem', () => {
+        expect(conceptDisplay(attributeCodeSystem, 'pO5CEqK6c1s')).toBe('Improve access to clean water')
+        expect(conceptDisplay(attributeCodeSystem, 'NotAConcept')).toBeNull()
+        expect(conceptDisplay(null, 'pO5CEqK6c1s')).toBeNull()
+        expect(conceptDisplay(attributeCodeSystem, undefined)).toBeNull()
     })
 })

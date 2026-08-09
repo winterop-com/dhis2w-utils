@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Eraser, Send, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { AttributeOptionComboPicker } from '@/components/AttributeOptionComboPicker'
 import { PageState } from '@/components/PageState'
 import { QuestionnaireForm } from '@/components/QuestionnaireItem'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -10,10 +11,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { FhirRequestError, generateResponse, postQuestionnaireResponse, readResource } from '@/lib/api'
 import {
+    attributeOptionCombosOf,
     FORM_TYPE_LABELS,
     formTypeOf,
     generateSeedOf,
     questionCount,
+    type Coding,
     type OperationOutcomeIssue,
     type Questionnaire,
     type QuestionnaireResponse, unescapeMarkup } from '@/lib/fhir'
@@ -23,6 +26,8 @@ import {
     buildQuestionnaireResponse,
     flattenQuestionnaire,
     initialAnswers,
+    openedAttributeOptionCombo,
+    refilledAttributeOptionCombo,
     unansweredRequiredLinkIds,
     type AnswerState,
 } from '@/lib/questionnaire'
@@ -49,6 +54,14 @@ import {
  * names the item each issue is about (`QuestionnaireResponse.item.where(linkId='...')`), so its
  * OperationOutcome is shown issue by issue above the action bar rather than flattened into a
  * toast that loses everything after the first line.
+ *
+ * ONE PIECE OF CONTEXT IS THE USER'S, AND IT IS THE ONLY DISABLED BUTTON HERE. A data set on a
+ * non-default category combo declares its attribute option combos as a vocabulary, and a response
+ * to it has to name one - it is the third key of every value it carries, beside the organisation
+ * unit and the period. Nothing derives it, not even the server, so it is picked above the form and
+ * Submit refuses until it is. That is the one place a stated-reason disabled control beats posting
+ * and rendering the refusal: the answer is a fact about the submission the person came here with,
+ * not something they could read off the form and correct.
  */
 export function FormFill() {
     const { questionnaireId = '' } = useParams()
@@ -62,6 +75,7 @@ export function FormFill() {
     const [issues, setIssues] = useState<OperationOutcomeIssue[]>([])
     const [busy, setBusy] = useState(false)
     const [filling, setFilling] = useState(false)
+    const [attributeOptionCombo, setAttributeOptionCombo] = useState<Coding | null>(null)
 
     const spec = useMemo(
         () => flattenQuestionnaire(questionnaire ?? { resourceType: 'Questionnaire', status: 'unknown' }),
@@ -75,6 +89,7 @@ export function FormFill() {
         setQuestionnaire(null)
         setEnvelope(null)
         setIssues([])
+        setAttributeOptionCombo(null)
         readResource<Questionnaire>('Questionnaire', questionnaireId)
             .then((resource) => {
                 if (cancelled) return
@@ -85,7 +100,9 @@ export function FormFill() {
                 // reading a form and being able to submit one are different capabilities, and a
                 // slow or refused `$generate` should not keep the questions off the page.
                 return generateResponse(questionnaireId).then((skeleton) => {
-                    if (!cancelled) setEnvelope(skeleton)
+                    if (cancelled) return
+                    setEnvelope(skeleton)
+                    setAttributeOptionCombo((current) => openedAttributeOptionCombo(current, skeleton))
                 })
             })
             .catch((failure: unknown) => {
@@ -110,6 +127,7 @@ export function FormFill() {
         generateResponse(questionnaireId)
             .then((generated) => {
                 setEnvelope(generated)
+                setAttributeOptionCombo((current) => refilledAttributeOptionCombo(current, generated))
                 dispatch({
                     kind: 'replace',
                     answers: answersFromResponse(flattenQuestionnaire(questionnaire), generated),
@@ -146,15 +164,19 @@ export function FormFill() {
     }
 
     const missingRequired = unansweredRequiredLinkIds(spec, answers)
+    const attributeOptionCombos = attributeOptionCombosOf(questionnaire)
+    // Declared and unchosen is the one state Submit refuses in. A form that declares no vocabulary
+    // reports for the default combo, which is what absence means, and nothing is asked.
+    const missingAttributeOptionCombo = attributeOptionCombos !== null && attributeOptionCombo === null
 
     const submit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
-        if (busy) return
+        if (busy || missingAttributeOptionCombo) return
         setBusy(true)
         setIssues([])
         try {
             const receipt = await postQuestionnaireResponse(
-                buildQuestionnaireResponse(spec, answers, questionnaire, envelope),
+                buildQuestionnaireResponse(spec, answers, questionnaire, envelope, attributeOptionCombo),
             )
             toast.success('The server accepted this submission', {
                 description: `Stored as ${receipt.id ?? 'a new receipt'}.`,
@@ -189,6 +211,14 @@ export function FormFill() {
                 </Alert>
             )}
 
+            {attributeOptionCombos !== null && (
+                <AttributeOptionComboPicker
+                    canonical={attributeOptionCombos}
+                    selected={attributeOptionCombo}
+                    onChange={setAttributeOptionCombo}
+                />
+            )}
+
             <QuestionnaireForm spec={spec} answers={answers} dispatch={dispatch} />
 
             {issues.length > 0 && (
@@ -207,7 +237,7 @@ export function FormFill() {
             {/* Sticky rather than fixed: it belongs to the form, so it scrolls with it on a
                 short one and pins itself over a long one. */}
             <div className="bg-sidebar sticky bottom-0 z-10 mt-6 -mx-4 flex flex-wrap items-center gap-2 border-t px-4 py-3 md:-mx-8 md:px-8">
-                <Button type="submit" disabled={busy}>
+                <Button type="submit" disabled={busy || missingAttributeOptionCombo}>
                     <Send className="size-4" />
                     {busy ? 'Submitting' : 'Submit'}
                 </Button>
@@ -219,7 +249,11 @@ export function FormFill() {
                     type="button"
                     variant="ghost"
                     onClick={() => {
+                        // Everything the person entered goes, the reporting context included: it is
+                        // their input rather than the server's context, and it is the only control
+                        // here a Radix select cannot be returned to unchosen any other way.
                         dispatch({ kind: 'replace', answers: initialAnswers(spec) })
+                        setAttributeOptionCombo(null)
                         setIssues([])
                     }}
                 >
@@ -227,6 +261,13 @@ export function FormFill() {
                     Clear
                 </Button>
                 <div className="flex-1" />
+                {/* The reason a disabled button always states, because a control that refuses
+                    without saying why is worse than one that posts and is refused. */}
+                {missingAttributeOptionCombo && (
+                    <p className="text-muted-foreground text-xs">
+                        Choose what this submission reports for before submitting
+                    </p>
+                )}
                 {missingRequired.length > 0 && (
                     <p className="text-muted-foreground text-xs">
                         {missingRequired.length} required{' '}

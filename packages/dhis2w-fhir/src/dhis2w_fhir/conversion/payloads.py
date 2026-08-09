@@ -1,7 +1,9 @@
 """The three payload translators: one per DHIS2 form kind, each writing the import shape DHIS2 reads.
 
-    aggregate      -> a `/api/dataValueSets` envelope: data set, ISO period, organisation unit,
-                      and one data value per answered cell, each carrying its category option combo.
+    aggregate      -> a `/api/dataValueSets` envelope: data set, ISO period, organisation unit, the
+                      attribute option combo the whole report is filed under where the form declares
+                      a vocabulary for one, and one data value per answered cell, each carrying its
+                      category option combo.
     event          -> one `/api/tracker` event of an event program: program, organisation unit,
                       occurrence, status, and one data value per answered question.
     tracker-event  -> the same event, plus the program stage it belongs to, the tracked entity it
@@ -43,6 +45,7 @@ from dhis2w_fhir.conversion.schemas import (
 from dhis2w_fhir.conversion.values import (
     LOCATION_REFERENCE_PREFIX,
     answer_wire_value,
+    resolve_option,
     resolve_organisation_unit,
     wall_clock_notes,
     wall_clock_reading,
@@ -162,6 +165,7 @@ def translate_aggregate_response(
         )
     period = _period(response, context, notes, refusals)
     organisation_unit = _subject_organisation_unit(response, context, notes, refusals)
+    attribute_option_combo = _attribute_option_combo(response, form, context, notes, refusals)
     complete_date = _complete_date(response, context, notes)
     translated = translate_answers(response, form, context)
     notes.extend(translated.notes)
@@ -174,6 +178,7 @@ def translate_aggregate_response(
             dataSet=data_set,
             period=period,
             orgUnit=organisation_unit,
+            attributeOptionCombo=attribute_option_combo,
             completeDate=complete_date,
             dataValues=[
                 DataValue(
@@ -390,6 +395,108 @@ def _period(
             )
         )
     return parsed.iso
+
+
+def _attribute_option_combo(
+    response: QuestionnaireResponse,
+    form: FormSpec,
+    context: ConversionContext,
+    notes: list[ConversionNote],
+    refusals: list[ConversionRefusal],
+) -> str | None:
+    """The third key of a data value set, resolved off the response's D2AttributeOptionCombo extension.
+
+    Whether the response has to carry one is a fact about the form: a data set on the default
+    category combo declares no vocabulary, its values are keyed under the one attribute option
+    combo it has, and DHIS2 fills the field itself - so a form declaring none writes nothing here
+    and a response carrying the extension anyway is noted rather than written. A form that does
+    declare one and a response that does not name it is refused, because DHIS2 refuses that write
+    with `E8023` and a payload we know it will not take is worse than a named refusal.
+
+    Resolution is the coded answer's, against the very option table a coded answer resolves
+    through: the concept code first (which is the DHIS2 UID under `concept_code_source = "id"`),
+    then - leniently - the UID the CodeSystem's `dhis2-id` property carries and the DHIS2 code, both
+    of them refined by whatever the combo's own ConceptMap maps onto
+    `{base}/id/category-option-combo`.
+    """
+    extensions = _extensions(response, context.naming.attribute_option_combo_url)
+    declared = form.attribute_option_combo_value_set
+    if declared is None:
+        if extensions:
+            notes.append(
+                ConversionNote(
+                    category=ConversionNoteCategory.ATTRIBUTE_OPTION_COMBO_IGNORED,
+                    message=f"`{form.canonical}` declares no attribute-option-combo vocabulary, so the "
+                    f"response's `{context.naming.attribute_option_combo_url}` extension is not written; its "
+                    f"data set rides the default category combo",
+                )
+            )
+        return None
+    if len(extensions) != 1:
+        refusals.append(
+            ConversionRefusal(
+                category=ConversionRefusalCategory.MISSING_ATTRIBUTE_OPTION_COMBO,
+                element="QuestionnaireResponse.extension",
+                reason=f"`{form.canonical}` keys its values from `{declared}`, and the response carries "
+                f"{len(extensions)} `{context.naming.attribute_option_combo_url}` extensions rather than "
+                f"exactly one; DHIS2 refuses a write naming no attribute option combo with E8023",
+            )
+        )
+        return None
+    coding = extensions[0].valueCoding
+    code = coding.code if coding is not None else None
+    if not code:
+        refusals.append(
+            ConversionRefusal(
+                category=ConversionRefusalCategory.MISSING_ATTRIBUTE_OPTION_COMBO,
+                element="QuestionnaireResponse.extension",
+                reason="the D2AttributeOptionCombo extension carries a coding with no code, so which "
+                "attribute option combo the values are keyed under is unknown",
+            )
+        )
+        return None
+    table = context.option_tables.get(form.attribute_option_combo_system or "")
+    if table is None:
+        notes.append(
+            ConversionNote(
+                category=ConversionNoteCategory.CODED_ANSWER_UNCHECKED,
+                message=f"the context carries no CodeSystem behind `{declared}`, so `{code}` goes to DHIS2 as "
+                f'the attribute option combo UID it is under `concept_code_source = "id"`',
+            )
+        )
+        return code
+    lookup = resolve_option(table, code, context.coded_answer_mode)
+    if lookup.ambiguous_option_uids:
+        refusals.append(
+            ConversionRefusal(
+                category=ConversionRefusalCategory.UNRESOLVABLE_ATTRIBUTE_OPTION_COMBO,
+                element="QuestionnaireResponse.extension",
+                reason=f"`{code}` names more than one attribute option combo of `{table.system}` "
+                f"({', '.join(lookup.ambiguous_option_uids)})",
+            )
+        )
+        return None
+    if lookup.option is None:
+        refusals.append(
+            ConversionRefusal(
+                category=ConversionRefusalCategory.UNRESOLVABLE_ATTRIBUTE_OPTION_COMBO,
+                element="QuestionnaireResponse.extension",
+                reason=f"`{table.system}` holds no attribute option combo `{code}` under the "
+                f"`{context.coded_answer_mode}` coded-answer dial; DHIS2 refuses a write keyed to a combo "
+                f"its data set does not carry with E8023",
+            )
+        )
+        return None
+    if not lookup.option.matched_contract_spelling:
+        notes.append(
+            ConversionNote(
+                category=ConversionNoteCategory.CODED_ANSWER_FALLBACK,
+                message=f"the attribute option combo `{code}` matched {lookup.option.entry.option_uid} by "
+                f"{lookup.option.matched_by}; the contract asks for concept code "
+                f"`{lookup.option.entry.concept_code}`",
+            )
+        )
+    return lookup.option.entry.option_uid
 
 
 def _subject_organisation_unit(

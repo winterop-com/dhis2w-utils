@@ -90,6 +90,8 @@ export interface Extension {
     valueDateTime?: string
     valueTime?: string
     valueUri?: string
+    /** A url naming a definitional resource - how a form binds its attribute-combo vocabulary. */
+    valueCanonical?: string
     valueCoding?: Coding
     valueCodeableConcept?: CodeableConcept
     valueReference?: Reference
@@ -565,6 +567,93 @@ export const FORM_TYPE_LABELS: Record<FormType, string> = {
     event: 'Event program',
     tracker: 'Tracker registration',
     'tracker-event': 'Tracker program stage',
+}
+
+/**
+ * The extension a Questionnaire names its attribute-option-combo vocabulary on.
+ *
+ * The full url is `{canonical}/StructureDefinition/d2-attribute-option-combos`, and it is valued
+ * `canonical(ValueSet)` - the set of attribute option combos a data set on a non-default category
+ * combo files each of its responses under. Matched on the suffix for the same reason the form-type
+ * extension is: the canonical is whatever that project's fhir.toml declares.
+ */
+export const ATTRIBUTE_OPTION_COMBOS_EXTENSION_SUFFIX = '/StructureDefinition/d2-attribute-option-combos'
+
+/**
+ * The extension a QuestionnaireResponse states the one combo it reports for on.
+ *
+ * Singular, `valueCoding`, and one character away from the form-side url above - which is a
+ * property of the IG worth reading twice, because `endsWith` on the singular suffix is exactly
+ * what tells the two apart: `...d2-attribute-option-combos` does not end in `...d2-attribute-option-combo`.
+ */
+export const ATTRIBUTE_OPTION_COMBO_EXTENSION_SUFFIX = '/StructureDefinition/d2-attribute-option-combo'
+
+/**
+ * The ValueSet canonical a form draws its reporting combos from, or null when it declares none.
+ *
+ * Null is the ordinary case and it means the default combo: a data set on the default category
+ * combo publishes no vocabulary, and absence is how the guide spells "there is nothing to pick".
+ */
+export function attributeOptionCombosOf(questionnaire: Questionnaire): string | null {
+    const extension = questionnaire.extension?.find((candidate) =>
+        candidate.url.endsWith(ATTRIBUTE_OPTION_COMBOS_EXTENSION_SUFFIX),
+    )
+    return extension?.valueCanonical ?? null
+}
+
+/** The combo one response reports for, or null when it states none. */
+export function attributeOptionComboOf(response: QuestionnaireResponse): Coding | null {
+    const extension = response.extension?.find((candidate) =>
+        candidate.url.endsWith(ATTRIBUTE_OPTION_COMBO_EXTENSION_SUFFIX),
+    )
+    return extension?.valueCoding ?? null
+}
+
+/**
+ * The url a response states its combo under, derived from the form that declared the vocabulary.
+ *
+ * Both extensions are published under the same canonical, so the response-side url is the
+ * form-side url with its own suffix in place of the plural one. Deriving it rather than
+ * hard-coding a canonical is what keeps this UI working against any project's fhir.toml, and
+ * deriving it from the *form* rather than from the served base url is what keeps it right when a
+ * facade serves a guide compiled under a different canonical than it answers on.
+ */
+export function attributeOptionComboExtensionUrl(questionnaire: Questionnaire): string | null {
+    const declared = questionnaire.extension?.find((candidate) =>
+        candidate.url.endsWith(ATTRIBUTE_OPTION_COMBOS_EXTENSION_SUFFIX),
+    )
+    if (declared === undefined) return null
+    const canonical = declared.url.slice(0, declared.url.length - ATTRIBUTE_OPTION_COMBOS_EXTENSION_SUFFIX.length)
+    return `${canonical}${ATTRIBUTE_OPTION_COMBO_EXTENSION_SUFFIX}`
+}
+
+/**
+ * What the reporting-context control is called, on the form and on the receipt.
+ *
+ * The DHIS2 word is "attribute option combo", which is the artifact's name rather than anything a
+ * data clerk says out loud; the combo's own name - the category combo the data set rides, "Project"
+ * - is what the person filling the form is actually choosing between. So the title of the published
+ * vocabulary leads whenever there is one, and the artifact name is the honest fallback for a
+ * project whose ValueSet states no title. One function, so the picker and the receipt say the same
+ * thing about the same fact.
+ */
+export function attributeOptionComboLabel(title: string | null | undefined): string {
+    const stated = title === null || title === undefined ? '' : unescapeMarkup(title).trim()
+    return stated === '' ? 'Attribute option combo' : `Reporting for ${stated}`
+}
+
+/**
+ * How one concept of a served CodeSystem is displayed, or null when it holds no such code.
+ *
+ * A stored coding carries its own `display`, but a receipt read months later is better served by
+ * what the system says now - and a coding written by a client that sent code and system alone has
+ * no display at all. Null rather than the code, so the caller decides what an unresolvable concept
+ * renders as.
+ */
+export function conceptDisplay(codeSystem: CodeSystem | null, code: string | null | undefined): string | null {
+    if (codeSystem === null || code === null || code === undefined) return null
+    const concept = codeSystem.concept?.find((candidate) => candidate.code === code)
+    return concept?.display === undefined ? null : unescapeMarkup(concept.display)
 }
 
 /**

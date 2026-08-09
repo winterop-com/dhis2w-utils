@@ -11,7 +11,10 @@ on receipt without being honoured on generation.
 Nothing here invents terminology. A coded answer is a concept the served CodeSystem really publishes,
 carried in the exact spelling the contract asks for (the concept code, never the DHIS2 code or UID
 fall-backs), so a strict-codes server accepts what a lenient one does. A question bound to terminology
-this project never published is left unanswered rather than answered with something invented.
+this project never published is left unanswered rather than answered with something invented. The
+attribute option combo an aggregate response is filed under is drawn the same way, out of the very
+vocabulary the form declares, so a data set on a non-default category combo generates a response its
+own capture path accepts.
 
 Two facts a compiled Questionnaire does not carry, and how they are decided here:
 
@@ -242,8 +245,26 @@ class _Generator(BaseModel):
             )
         if period is not None:
             extensions.append(_period_extension(period, self.naming))
+        extensions.extend(self._attribute_option_combo())
         extensions.append(Extension(url=self.naming.form_type_url, valueCode=self.index.form_kind))
         return extensions
+
+    def _attribute_option_combo(self) -> tuple[Extension, ...]:
+        """The third key of an aggregate report, drawn from the vocabulary the form declares - or nothing.
+
+        A data set on the default category combo declares none and its responses carry none, which
+        is what the capture contract expects of them. Where a vocabulary is declared the concept is
+        a real one of the published CodeSystem, carried in the spelling the contract asks for, so a
+        `--strict-codes` server accepts the response its own `$generate` produced. A declared
+        vocabulary this project never published leaves the extension off: inventing a code would
+        make the server warn about its own output, exactly as an unpublished `answerValueSet` does.
+        """
+        declared = self.index.attribute_option_combos
+        resolver = self.resolvers.for_system(declared.system) if declared and declared.system else None
+        if declared is None or declared.system is None or resolver is None or not resolver.options:
+            return ()
+        drawn = resolver.options[self._random.randrange(len(resolver.options))]
+        return (Extension(url=self.naming.attribute_option_combo_url, valueCoding=_coding(declared.system, drawn)),)
 
     def _subject(self, tracker: _TrackerContext | None) -> Reference:
         """Who the response is about: the tracked entity of a tracker event, else the reporting unit."""

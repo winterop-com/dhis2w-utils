@@ -33,6 +33,7 @@ from dhis2w_fhir import (
     GenerateConfig,
     OptionSetIn,
     QuestionnaireSourceIn,
+    build_attribute_combo_artifacts,
     build_data_dictionary_documents,
     build_questionnaire_documents,
     option_set_identities,
@@ -84,6 +85,7 @@ def _built_questionnaires() -> dict[str, Any]:
         ig_status="draft",
         option_set_plan=option_set_identities(option_sets, config),
         attribute_codes=AttributeCodeIndex.model_validate(_fixture("attribute-codes")),
+        attribute_combos=build_attribute_combo_artifacts(sources, config, _CANONICAL, ig_status="draft").plan,
     )
     assert [note.message for note in build.notes] == []
     return {str(questionnaire.id): _emitted(questionnaire) for questionnaire in build.questionnaires}
@@ -124,3 +126,11 @@ def test_a_built_support_value_set_equals_the_one_sushi_compiled(value_set_id: s
     build = build_data_dictionary_documents(_sources(), _config(), _CANONICAL, ig_status="draft")
     built = {str(value_set.id): _emitted(value_set) for value_set in build.value_sets}
     assert built[value_set_id] == _golden(f"ValueSet-{value_set_id}")
+
+
+@pytest.mark.parametrize("stem", ["CodeSystem-d2-aoc-idcDPkDtepR-cs", "ValueSet-d2-aoc-idcDPkDtepR-vs"])
+def test_the_attribute_option_combo_pair_equals_the_one_sushi_compiled(stem: str) -> None:
+    """The one data set on a non-default combo publishes the pair its Questionnaire binds by canonical."""
+    build = build_attribute_combo_artifacts(_sources(), _config(), _CANONICAL, ig_status="draft")
+    built = {artifact.relative_path.rsplit("/", 1)[-1]: json.loads(artifact.content) for artifact in build.artifacts}
+    assert built[f"{stem}.json"] == _golden(stem)

@@ -836,6 +836,39 @@ capture contract entirely.
 **Depends on it.** Whether a third party can construct a *complete* aggregate
 capture from the published IG alone, which is the stated readiness bar.
 
+**The attribute option combo is RESOLVED: the extension, with the vocabulary
+published.** `D2AttributeOptionCombo` sits on the `QuestionnaireResponse` beside
+`D2Period`, carrying one `Coding` (`valueCoding` 1..1). What makes it usable from
+the guide alone rather than only from DHIS2 is the half the option list did not
+name: the IG publishes the vocabulary. Every distinct non-default attribute
+category combo a selected data set rides emits a CodeSystem/ValueSet pair under
+the `AOC` naming token into `ig/input/resources/attribute-option-combos/`, plus a
+ConceptMap back to `<base>/id/category-option-combo` and its `-code` sibling, and
+the form declares which pair its responses draw from through
+`D2AttributeOptionCombos` on the `Questionnaire` (`valueCanonical` to the
+ValueSet). A default-combo data set publishes nothing and its responses carry
+nothing - absence means the default combo, the same economy the organisation-unit
+assignment keeps. The aggregate response profile slices the response-side
+extension `0..1`, because requiredness is a fact about the form rather than about
+the kind, and states the per-form rule in prose. That prose rule is enforced end to
+end rather than only written: `d2w fhir serve` grades a response against what its
+form declares - a missing combo, an unheld concept, and the mirror case of a combo
+named against a form declaring none all warn by default and refuse under
+`--strict-codes`, on the dial an organisation unit outside the assignment already
+rides - `$generate` draws a valid concept out of the declared vocabulary so the
+post-back-201 invariant holds for a non-default data set too, and `d2w fhir forward`
+writes `DataValueSet.attributeOptionCombo` off the coding, resolved on the same
+tiers a coded answer resolves through. The shipped record is in
+[9.1](#91-near-term).
+
+**Completeness registration is still OPEN.** Nothing above expresses whether a
+reported period is *complete*: `/api/dataValueSets` takes a `completeDate` the
+forwarder currently derives from `QuestionnaireResponse.authored`, and DHIS2's
+`completeDataSetRegistrations` is a separate resource with its own
+`(dataSet, period, orgUnit, attributeOptionCombo)` key and its own completed-by
+and completed-on facts. Whether that becomes a second extension, a status code on
+the response, or an out-of-scope declaration is untouched by this decision.
+
 ### 5.5 Event geometry
 
 **Question.** DHIS2 events carry their own coordinates. Nothing in the generated
@@ -1600,20 +1633,74 @@ commitment.
   stays reproducible from instance state and every other synthetic value stays on the
   response's own stream unmoved.
 
-    **The AOC class is a drop rather than a pick, and that is the honest shape until
-    5.4 resolves.** A `QuestionnaireResponse` expresses no attribute option combo at
-    all, so a data set whose category combo does not admit the default one cannot be
-    rescued by choosing better - there is nowhere to carry the choice. Those targets
-    emit nothing, with a note naming them, and so do targets the intersection leaves
-    empty; `LoadSetReport.questionnaire_count` now counts the targets the corpus
-    covers rather than the ones the selection holds. A load set is measured by what
-    DHIS2 accepts, and filling it with refusals we could predict corrupts the very
-    number it exists to produce. When open decision 5.4 lands an attribute-option-combo
-    carrier, the drop becomes the pick this entry originally described.
+    **The AOC class is a pick too, now that the response can carry the choice.** A
+    data set on a non-default category combo draws one of the attribute option combos
+    it really holds, on a seeded stream of its own, and carries it as
+    `D2AttributeOptionCombo` - so the third key of the data value set is stated and
+    there is no `E8023` left to predict. A target the intersection of registry and
+    assignment leaves empty is still dropped, with a note naming it, and
+    `LoadSetReport.questionnaire_count` counts the targets the corpus covers rather
+    than the ones the selection holds. A load set is measured by what DHIS2 accepts,
+    and filling it with refusals we could predict corrupts the very number it exists
+    to produce.
 
     The tracker remainder (`E1313` - an enrollment naming no real TrackedEntity) is
     not the generator's to fix: a tracker event lands only against a real enrollment,
     which is the registration form's milestone below.
+
+- **The attribute option combo, published as terminology** - shipped, and it is what
+  [decision 5.4](#54-where-attributeoptioncombo-and-data-set-completeness-live)
+  resolves for the AOC half.
+
+    A DHIS2 data value set is keyed by `(orgUnit, period, attributeOptionCombo)` and
+    the FHIR shape expressed only two of the three, so a data set on a non-default
+    category combo could not round-trip: DHIS2 refused every capture against one with
+    `E8023`, and `generate load-set` skipped those data sets outright rather than
+    write a corpus of known refusals.
+
+    The carrier is an extension, and the vocabulary behind it is what makes the guide
+    self-sufficient. `D2AttributeOptionCombo` sits on the response beside `D2Period`
+    with `valueCoding` 1..1; `D2AttributeOptionCombos` sits on the form with
+    `valueCanonical` to the ValueSet its responses draw from - a canonical because a
+    ValueSet is a definitional resource, where the assignment extension points at a
+    `List` instance and is a literal reference. One CodeSystem/ValueSet pair per
+    *distinct* non-default attribute category combo lands in
+    `ig/input/resources/attribute-option-combos/` under a naming token of its own
+    (`AOC`, not the data dictionary's `COC`: one codes a question's disaggregation
+    cells, the other codes the combo a whole response is filed under), shared by every
+    data set on that combo, with a ConceptMap per pair taking each concept back to
+    both DHIS2 identifiers. A default-combo data set publishes nothing, and absence
+    means the default combo - the assignment target's economy, applied again.
+
+    Both example paths carry it: the instance-sourced path already grouped by the full
+    data-value key, so the combo it read travels onto the response, and the synthetic
+    path draws one off a stream seeded by target UID and ordinal, which is what
+    un-skips a non-default data set in `generate load-set`. The metadata cost is zero
+    extra requests - the combo rides the data-set projection the forms already fetch,
+    so `--live` serves the pairs too.
+
+    **The capture and conversion halves land in the same wave.** Publishing the
+    vocabulary states the rule; the server and the forwarder are what hold anybody to
+    it. `d2w fhir serve` grades the third key in a phase of its own, right after the
+    organisation-unit assignment and on the same dial: a form declaring
+    `D2AttributeOptionCombos` whose response names no `D2AttributeOptionCombo`, and a
+    response naming a concept the served vocabulary does not hold, are warnings on the
+    receipt by default and 422s under `--strict-codes`, with `E8023` in the diagnostics
+    the way the assignment's carry `E1029`. The mirror grades too - a combo named against
+    a form declaring none would be stored and then silently not written - while a coding
+    from another system and a coding with no code are refused under either setting,
+    because those are malformed rather than drifted. `$generate` draws a real concept out
+    of the declared vocabulary in the concept-code spelling, which is what keeps the
+    post-back-201 invariant holding for a non-default data set with `--strict-codes` on.
+    And `d2w fhir forward` writes `DataValueSet.attributeOptionCombo`, resolving the
+    coding on the option-set tiers - the concept code, which under
+    `concept_code_source = "id"` is the DHIS2 UID itself, then the CodeSystem's
+    `dhis2-id` property and the combo's own ConceptMap group onto
+    `{base}/id/category-option-combo` - and refusing rather than posting a payload DHIS2
+    would answer `E8023` to, under two refusal kinds of its own
+    (`missing-attribute-option-combo`, `unresolvable-attribute-option-combo`).
+
+    What is left open is the other half of 5.4: data-set completeness registration.
 
 - **The organisation-unit browser, with a map** - shipped as the capture UI's **Org
   units** page. The registry already carried everything a browser needs, in standard

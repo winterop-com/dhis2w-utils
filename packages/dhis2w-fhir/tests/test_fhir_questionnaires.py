@@ -915,7 +915,8 @@ async def test_generate_questionnaires_writes_the_target_directory(
         "data-dictionary/data-elements.fsh",
     ]
     assert report.target_directory == (
-        "fsh/data-sets, fsh/event-programs, fsh/tracker-programs, fsh/data-dictionary, resources/assignments"
+        "fsh/data-sets, fsh/event-programs, fsh/tracker-programs, fsh/data-dictionary, resources/assignments, "
+        "resources/attribute-option-combos, resources/concept-maps"
     )
     fsh = tmp_path / "ig" / "input" / "fsh"
     assert not (fsh / "questionnaires").exists()

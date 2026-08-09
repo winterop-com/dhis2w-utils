@@ -104,7 +104,7 @@ test('the forms reportable here name the ones assigned to the unit and collapse 
 
     // The forms assigned everywhere are a count until asked for, because naming them at every unit
     // would bury the one that is assigned here specifically.
-    const collapsed = page.getByRole('button', { name: /5 more assigned everywhere/ })
+    const collapsed = page.getByRole('button', { name: /6 more assigned everywhere/ })
     await expect(collapsed).toBeVisible()
     await expect(page.getByRole('link', { name: 'Child Health' })).toHaveCount(0)
     await collapsed.click()
@@ -116,7 +116,7 @@ test('a unit outside the assignment is offered only the forms assigned everywher
 
     await expect(page.getByText('Assigned to this unit')).toHaveCount(0)
     await expect(
-        page.getByRole('button', { name: 'All 5 published forms are assigned everywhere' }),
+        page.getByRole('button', { name: 'All 6 published forms are assigned everywhere' }),
     ).toBeVisible()
 })
 

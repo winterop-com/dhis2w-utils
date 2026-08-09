@@ -272,3 +272,46 @@ def test_the_written_report_lists_each_rejections_reasons(forward_project: Path)
     assert "| Responses | Code | What DHIS2 said |" in written
     assert "E1029 Ev1aaaaaaaa Event OrganisationUnit" in written
     assert "E1313 Ev1aaaaaaaa Enrollment" in written
+
+
+def _attribute_combo_report(root: Path) -> ForwardReport:
+    """One run whose single response was refused for naming no attribute option combo."""
+    return ForwardReport(
+        project_root=root,
+        dry_run=True,
+        coded_answer_mode=CodedAnswerMode.LENIENT,
+        spooled=1,
+        outcomes=(
+            ForwardOutcome(
+                response_id="TuL8IOPzpHh-202607-ImspTQPwCqd",
+                questionnaire="http://example.org/fhir/Questionnaire/TuL8IOPzpHh",
+                target_kind=ConversionTargetKind.DATA_VALUE_SET,
+                kind=ForwardOutcomeKind.REFUSED,
+                refusals=(
+                    ConversionRefusal(
+                        category=ConversionRefusalCategory.MISSING_ATTRIBUTE_OPTION_COMBO,
+                        element="QuestionnaireResponse.extension",
+                        reason="the form keys its values from `http://example.org/fhir/ValueSet/d2-aoc-idcDPkDtepR-vs`"
+                        ", so its responses carry exactly one extension, not 0; DHIS2 refuses a write naming no "
+                        "attribute option combo with E8023",
+                    ),
+                ),
+                spool_path=".serve/responses/received/TuL8IOPzpHh-202607-ImspTQPwCqd.json",
+            ),
+        ),
+    )
+
+
+def test_an_attribute_option_combo_refusal_names_itself_in_the_terminal(forward_project: Path) -> None:
+    """A refusal a reader has to act on says which rule broke and which DHIS2 error it predicts."""
+    result, _ = _invoke(["--no-progress", "--details"], _attribute_combo_report(forward_project))
+    assert "missing-attribute-option-combo" in result.output
+    assert "refused by the translator" in result.output
+
+
+def test_an_attribute_option_combo_refusal_is_written_out_in_full(forward_project: Path) -> None:
+    """The terminal truncates a long reason to one line; the written report is where the whole of it lives."""
+    _invoke(["--no-progress"], _attribute_combo_report(forward_project))
+    written = (forward_project / "reports" / "fhir-forward-report.md").read_text(encoding="utf-8")
+    assert "missing-attribute-option-combo" in written
+    assert "E8023" in written

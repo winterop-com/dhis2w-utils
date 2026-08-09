@@ -44,6 +44,7 @@ IDENTIFIER_SYSTEM_SUBJECTS = (
     IdentifierSystemSubject(segment="option", token="Option", label="option"),
     IdentifierSystemSubject(segment="category", token="Category", label="category"),
     IdentifierSystemSubject(segment="category-option", token="CategoryOption", label="category option"),
+    IdentifierSystemSubject(segment="category-combo", token="CategoryCombo", label="category combo"),
     IdentifierSystemSubject(segment="data-set", token="DataSet", label="data set"),
     IdentifierSystemSubject(segment="program", token="Program", label="program"),
     IdentifierSystemSubject(segment="data-element", token="DataElement", label="data element"),
@@ -84,8 +85,10 @@ class ResponseProfileDeclaration(BaseModel):
     reporting period; `authored_required` marks the contracts whose response reports the moment
     the data was captured; `tracker_context_required` marks the tracker-event contract, whose
     response carries the tracker enrollment it belongs to, the organisation unit the event was
-    captured at, and a Patient subject identified by tracked-entity UID. The flags are what the
-    shared template branches on.
+    captured at, and a Patient subject identified by tracked-entity UID.
+    `attribute_option_combo_allowed` marks the contract whose response may name the DHIS2
+    attribute option combo its values are keyed under - the aggregate one, since only a data
+    value set carries that third key. The flags are what the shared template branches on.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -98,6 +101,7 @@ class ResponseProfileDeclaration(BaseModel):
     period_required: bool = False
     authored_required: bool = False
     tracker_context_required: bool = False
+    attribute_option_combo_allowed: bool = False
 
     @property
     def title_literal(self) -> str:
@@ -222,6 +226,37 @@ class FoundationNaming(BaseModel):
     def attribute_value_extension_id(self) -> str:
         """FHIR id of the attribute-value Extension (e.g. `d2-attribute-value`)."""
         return join_id_tokens(self.definition_prefix, "attribute", "value")
+
+    @property
+    def attribute_option_combo_extension(self) -> str:
+        """FSH name of the response-side attribute-option-combo Extension (e.g. `D2AttributeOptionCombo`).
+
+        Singular: it carries the one combo a response's values are keyed under. Its plural
+        sibling `attribute_option_combos_extension` sits on the Questionnaire and names the
+        vocabulary that one is drawn from - the two differ by a single character on purpose,
+        the way `D2OrganisationUnit` and `D2OrganisationUnitAssignment` do.
+        """
+        return f"{self.definition_prefix}AttributeOptionCombo"
+
+    @property
+    def attribute_option_combo_extension_id(self) -> str:
+        """FHIR id of the response-side attribute-option-combo Extension (e.g. `d2-attribute-option-combo`)."""
+        return join_id_tokens(self.definition_prefix, "attribute", "option", "combo")
+
+    @property
+    def attribute_option_combos_extension(self) -> str:
+        """FSH name of the form-side attribute-option-combo Extension (e.g. `D2AttributeOptionCombos`).
+
+        Plural: it names the ValueSet of every attribute option combo the form admits, which is
+        what a capture client picks one from and what a server validates the response's coding
+        against.
+        """
+        return f"{self.definition_prefix}AttributeOptionCombos"
+
+    @property
+    def attribute_option_combos_extension_id(self) -> str:
+        """FHIR id of the form-side attribute-option-combo Extension (e.g. `d2-attribute-option-combos`)."""
+        return join_id_tokens(self.definition_prefix, "attribute", "option", "combos")
 
     @property
     def organisation_unit_extension(self) -> str:

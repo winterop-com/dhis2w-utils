@@ -27,6 +27,8 @@ from dhis2w_fhir import (
     OptionSetIn,
     QuestionnaireItemIn,
     QuestionnaireSourceIn,
+    build_attribute_combo_artifacts,
+    build_attribute_combo_concept_maps,
     build_example_documents,
     build_questionnaire_documents,
     build_synthetic_responses,
@@ -45,7 +47,11 @@ from dhis2w_fhir.conversion import (
 from dhis2w_fhir.r4 import Identifier, Location, QuestionnaireResponse
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, build_option_set_concept_maps
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn
-from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireSectionIn
+from dhis2w_fhir.resources.questionnaires.schemas import (
+    CategoryComboIn,
+    CategoryOptionComboIn,
+    QuestionnaireSectionIn,
+)
 from dhis2w_fhir.spool import (
     FORWARDED_RESPONSES_RELATIVE_PATH,
     RECEIVED_RESPONSES_RELATIVE_PATH,
@@ -166,6 +172,15 @@ def _write_resource(path: Path, resource: Any) -> None:
     path.write_text(resource.model_dump_json(exclude_none=True, by_alias=True, indent=2), encoding="utf-8")
 
 
+def _form_kind(document: QuestionnaireResponse) -> str:
+    """The DHIS2 form kind one published response declares, which is what its receipt records."""
+    naming = ConversionNaming.from_config(GenerateConfig(), _CANONICAL)
+    for extension in document.extension or []:
+        if extension.url == naming.form_type_url and extension.valueCode:
+            return extension.valueCode
+    return "event"
+
+
 def _fill_spool(root: Path, documents: list[QuestionnaireResponse]) -> None:
     """Write the receipt envelopes `d2w fhir serve` would have left for these responses."""
     directory = root / RECEIVED_RESPONSES_RELATIVE_PATH
@@ -174,7 +189,7 @@ def _fill_spool(root: Path, documents: list[QuestionnaireResponse]) -> None:
         envelope = {
             "response_id": document.id,
             "received_at": "2026-08-08T09:00:00Z",
-            "form_kind": "aggregate" if "BfMAe6Itzgt" in (document.questionnaire or "") else "event",
+            "form_kind": _form_kind(document),
             "questionnaire": document.questionnaire or "",
             "warnings": [],
             "response": json.loads(document.model_dump_json(exclude_none=True, by_alias=True)),
@@ -662,3 +677,151 @@ async def test_the_rejections_roll_up_by_cause_with_the_quoted_uids_generalised(
     assert [reason.responses for reason in report.rejection_reasons] == sorted(
         (reason.responses for reason in report.rejection_reasons), reverse=True
     )
+
+
+#: The data set on a non-default attribute category combo, whose every value carries a third key.
+_PROJECT_COMBO = CategoryComboIn(
+    uid="idcDPkDtepR",
+    name="Project",
+    option_combos=[
+        CategoryOptionComboIn(uid="Aoc1aaaaaaa", name="Clean water", code="PRJ_WATER"),
+        CategoryOptionComboIn(uid="Aoc2aaaaaaa", name="Basic education", code="PRJ_SCHOOL"),
+    ],
+)
+
+_PROJECT_DATA_SET = QuestionnaireSourceIn(
+    uid="TuL8IOPzpHh",
+    name="Project funding",
+    kind="aggregate",
+    period_type="Monthly",
+    attribute_combo=_PROJECT_COMBO,
+    sections=[
+        QuestionnaireSectionIn(
+            uid="Sec2aaaaaaa",
+            name="Funding",
+            items=[QuestionnaireItemIn(uid="Dea0aaaaaaa", name="Amount spent", value_type="INTEGER")],
+        )
+    ],
+)
+
+_PROJECT_COMBO_SYSTEM = f"{_CANONICAL}/CodeSystem/d2-aoc-idcDPkDtepR-cs"
+
+
+def _write_combo_project(root: Path) -> None:
+    """Write a project whose one data set rides a non-default combo, terminology and ConceptMap included."""
+    (root / "fhir.toml").write_text(_FHIR_TOML.format(strict="false"), encoding="utf-8")
+    compiled_directory = root / "ig" / "fsh-generated" / "resources"
+    compiled_directory.mkdir(parents=True, exist_ok=True)
+    predefined_directory = root / "ig" / "input" / "resources"
+    predefined_directory.mkdir(parents=True, exist_ok=True)
+    config = GenerateConfig()
+    sources = [_PROJECT_DATA_SET]
+    combos = build_attribute_combo_artifacts(sources, config, _CANONICAL, ig_status="draft")
+    build = build_questionnaire_documents(
+        sources,
+        config,
+        _CANONICAL,
+        ig_status="draft",
+        option_set_plan=option_set_identities([], config),
+        attribute_codes=AttributeCodeIndex(),
+        attribute_combos=combos.plan,
+    )
+    for questionnaire in build.questionnaires:
+        _write_resource(compiled_directory / f"Questionnaire-{questionnaire.id}.json", questionnaire)
+    for artifact in combos.artifacts:
+        name = artifact.relative_path.rsplit("/", 1)[-1]
+        (predefined_directory / name).write_text(artifact.content, encoding="utf-8")
+    for concept_map in build_attribute_combo_concept_maps(sources, config, _CANONICAL, ig_status="draft"):
+        _write_resource(predefined_directory / f"ConceptMap-{concept_map.id}.json", concept_map)
+    naming = ConversionNaming.from_config(config, _CANONICAL)
+    _write_resource(
+        predefined_directory / f"Location-{_ROOT_ORG_UNIT}.json",
+        Location(
+            id=_ROOT_ORG_UNIT, identifier=[Identifier(system=naming.organisation_unit_system, value=_ROOT_ORG_UNIT)]
+        ),
+    )
+
+
+def _combo_documents(config: GenerateConfig) -> list[QuestionnaireResponse]:
+    """The one example response the non-default-combo data set publishes, keyed to a real combo."""
+    sources = [_PROJECT_DATA_SET]
+    captured = build_synthetic_responses(sources, [], 1, _ROOT_ORG_UNIT, _REFERENCE_DATE).responses
+    return list(
+        build_example_documents(
+            sources,
+            captured,
+            [],
+            config,
+            _CANONICAL,
+            option_set_plan=option_set_identities([], config),
+            attribute_combos=build_attribute_combo_artifacts(sources, config, _CANONICAL, ig_status="draft").plan,
+        ).responses
+    )
+
+
+@pytest.fixture
+def combo_forward_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A project holding only the non-default-combo data set, its spool filled with that form's example."""
+    config_dir = tmp_path / ".config" / "dhis2"
+    config_dir.mkdir(parents=True)
+    (config_dir / "profiles.toml").write_text(
+        f"""
+default = "probe"
+
+[profiles.probe]
+base_url = "{_BASE_URL}"
+auth = "pat"
+token = "d2p_test"
+"""
+    )
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir.parent))
+    monkeypatch.delenv("DHIS2_PROFILE", raising=False)
+    root = tmp_path / "combo-project"
+    root.mkdir()
+    _write_combo_project(root)
+    _fill_spool(root, _combo_documents(GenerateConfig()))
+    monkeypatch.chdir(root)
+    return root
+
+
+@respx.mock
+async def test_a_non_default_data_set_posts_its_attribute_option_combo_on_the_wire(
+    combo_forward_project: Path,
+) -> None:
+    """The third key rides the `/api/dataValueSets` envelope, resolved back to the DHIS2 UID it names."""
+    routes = _mock_instance()
+
+    report = await _forward(combo_forward_project)
+
+    assert report.refused == ()
+    assert routes["aggregate"].call_count == 1
+    body = json.loads(routes["aggregate"].calls.last.request.content)
+    assert body["dataSet"] == "TuL8IOPzpHh"
+    assert body["attributeOptionCombo"] in {"Aoc1aaaaaaa", "Aoc2aaaaaaa"}
+
+
+@respx.mock
+async def test_a_response_naming_no_attribute_option_combo_is_refused_and_stays_in_the_queue(
+    combo_forward_project: Path,
+) -> None:
+    """A payload DHIS2 would refuse with `E8023` never reaches it, and the refusal reads as one line."""
+    routes = _mock_instance()
+    naming = ConversionNaming.from_config(GenerateConfig(), _CANONICAL)
+    for path in (combo_forward_project / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"):
+        envelope = json.loads(path.read_text(encoding="utf-8"))
+        envelope["response"]["extension"] = [
+            extension
+            for extension in envelope["response"]["extension"]
+            if extension["url"] != naming.attribute_option_combo_url
+        ]
+        path.write_text(json.dumps(envelope, indent=2), encoding="utf-8")
+
+    report = await _forward(combo_forward_project)
+
+    assert routes["aggregate"].call_count == 0
+    assert len(report.refused) == 1
+    refusal = report.refused[0].refusals[0]
+    assert refusal.category == "missing-attribute-option-combo"
+    assert "E8023" in refusal.reason
+    assert report.refused[0].spool_path.startswith(RECEIVED_RESPONSES_RELATIVE_PATH)

@@ -117,6 +117,14 @@ d2w fhir generate categories
 # non-default category combo becomes a group with one child per option combo. A stage's
 # Questionnaire is subjectType #Patient and carries a $DHIS2-PROGRAM identifier slice, so
 # Questionnaire?identifier=<base>/id/program|<programUid> selects a program's stages.
+# The target also writes the context a form is captured in, as pre-built FHIR JSON: the
+# organisation-unit assignment List under ig/input/resources/assignments/, and - for a data
+# set whose own category combo is not the default one - the attribute option combos its
+# values are keyed by, as a CodeSystem/ValueSet pair under
+# ig/input/resources/attribute-option-combos/ plus a ConceptMap back to the DHIS2
+# identifiers. The Questionnaire names that pair through a D2AttributeOptionCombos
+# extension, and a response answering it carries a D2AttributeOptionCombo coding out of it.
+# A data set on the default combo publishes neither, because absence means the default.
 # Narrow the targets with [generate.data_sets] / [generate.event_programs] /
 # [generate.tracker_programs] include_ids; absent or empty means every object of that
 # kind, and a program listed under the wrong table fails the run by name.
@@ -183,8 +191,10 @@ d2w fhir generate pages
 # Re-running replaces previously generated .fsh and .md files (identified by their header
 # line); hand-authored ones are never touched. JSON carries no header, so each JSON target
 # owns its directory outright and clears what it did not write - option-sets owns
-# ig/input/resources/terminology/ and ig/input/resources/concept-maps/, categories owns
-# ig/input/resources/categories/, and org-units owns ig/input/resources/registry/.
+# ig/input/resources/terminology/, categories owns ig/input/resources/categories/,
+# questionnaires owns ig/input/resources/{assignments,attribute-option-combos}/, and
+# org-units owns ig/input/resources/registry/. The three ConceptMap families share
+# ig/input/resources/concept-maps/ and each sweeps only its own file-name prefix.
 d2w fhir generate
 
 # Every command with an instance behind it narrates its steps on stderr as they complete:

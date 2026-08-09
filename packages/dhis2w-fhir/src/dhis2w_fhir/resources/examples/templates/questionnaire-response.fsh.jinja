@@ -11,6 +11,9 @@ Usage: #example
 * extension[{{ example.period.extension }}].extension[period].valuePeriod.start = "{{ example.period.start_date }}"
 * extension[{{ example.period.extension }}].extension[period].valuePeriod.end = "{{ example.period.end_date }}"
 {% endif %}
+{% if example.attribute_option_combo is not none %}
+* extension[{{ example.attribute_option_combo.extension }}].valueCoding = {{ example.attribute_option_combo.coding_literal }}
+{% endif %}
 {% if example.tracker is not none %}
 {% if example.tracker.enrollment_uid is not none %}
 * extension[{{ example.tracker.enrollment_extension }}].valueIdentifier.system = $DHIS2-TRACKER-ENROLLMENT

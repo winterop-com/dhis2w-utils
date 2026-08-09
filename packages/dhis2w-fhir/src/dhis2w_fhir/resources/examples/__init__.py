@@ -43,11 +43,14 @@ from dhis2w_fhir.r4.primitives import (
     seconds_precision,
     zoned_date_time,
 )
+from dhis2w_fhir.resources.attribute_combos import attribute_combo_sources
+from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
 from dhis2w_fhir.resources.examples.schemas import (
     MAXIMUM_EXAMPLES_PER_TARGET,
     ExampleAnswer,
     ExampleAnswerIn,
     ExampleAnswerRules,
+    ExampleAttributeOptionCombo,
     ExampleCoding,
     ExampleItem,
     ExampleResponseIn,
@@ -95,6 +98,7 @@ __all__ = [
     "ExampleAnswer",
     "ExampleAnswerIn",
     "ExampleAnswerRules",
+    "ExampleAttributeOptionCombo",
     "ExampleCoding",
     "ExampleItem",
     "ExampleResponseIn",
@@ -108,6 +112,8 @@ __all__ = [
     "build_example_artifacts",
     "build_synthetic_responses",
     "example_answers",
+    "example_attribute_combo_assignments",
+    "example_attribute_option_combo",
     "example_authored",
     "example_concept_assignments",
     "example_is_complete",
@@ -265,6 +271,15 @@ class _PeriodExtensionView(BaseModel):
     end_date: datetime.date
 
 
+class _AttributeOptionComboView(BaseModel):
+    """The D2AttributeOptionCombo extension of one example: its slice name and the coding literal it carries."""
+
+    model_config = ConfigDict(frozen=True)
+
+    extension: str
+    coding_literal: str
+
+
 class _TrackerContextView(BaseModel):
     """The tracker context of one example: the enrollment, the tracked entity, and the unit it was captured at.
 
@@ -316,6 +331,7 @@ class _ExampleView(BaseModel):
     organisation_unit_stem: str
     status_code: str
     period: _PeriodExtensionView | None = None
+    attribute_option_combo: _AttributeOptionComboView | None = None
     tracker: _TrackerContextView | None = None
     authored: str | None = None
     items: list[_ItemView] = Field(default_factory=list)
@@ -331,6 +347,7 @@ class ExampleTally(BaseModel):
     unknown_data_elements: list[str] = Field(default_factory=list)
     untyped_values: list[str] = Field(default_factory=list)
     uncoded_options: list[str] = Field(default_factory=list)
+    uncoded_attribute_option_combos: list[str] = Field(default_factory=list)
     unpublished_organisation_units: list[str] = Field(default_factory=list)
     periodless_data_sets: list[str] = Field(default_factory=list)
     unauthored_responses: list[str] = Field(default_factory=list)
@@ -364,6 +381,16 @@ class ExampleTally(BaseModel):
                     f"{len(self.uncoded_options)} example answers select an option the CodeSystem holds no "
                     "concept for; left unanswered",
                     self.uncoded_options,
+                )
+            )
+        if self.uncoded_attribute_option_combos:
+            notes.append(
+                aggregate_generate_note(
+                    GenerateNoteCategory.INSTANCE_DATA_GAP,
+                    f"{len(self.uncoded_attribute_option_combos)} examples are keyed to an attribute option "
+                    "combo the form's published vocabulary holds no concept for; the response carries no "
+                    "D2AttributeOptionCombo extension",
+                    self.uncoded_attribute_option_combos,
                 )
             )
         if self.unpublished_organisation_units:
@@ -420,6 +447,7 @@ def build_example_artifacts(
     published_organisation_unit_uids: frozenset[str] | None = None,
     stem_plan: QuestionnaireStemPlan | None = None,
     organisation_unit_stems: StemResolution | None = None,
+    attribute_combos: AttributeComboPlan | None = None,
 ) -> FshBuild:
     """Build one `examples/<targetStem>-<n>.fsh` QuestionnaireResponse per example response.
 
@@ -440,6 +468,10 @@ def build_example_artifacts(
     not know the registry) keeps the DHIS2 ids. Neither plan touches the example's own id:
     an instance id embeds DHIS2 DATA identifiers (an event UID, a period, a reporting unit),
     which are data rather than metadata stems and ride whatever the naming source is.
+
+    `attribute_combos` is the attribute-option-combo plan the questionnaire target published, so
+    a response keyed to a non-default combo names the very CodeSystem the same run wrote; a
+    build handed none emits no `D2AttributeOptionCombo` extension at all.
     """
     build = FshBuild()
     plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
@@ -451,6 +483,8 @@ def build_example_artifacts(
     sources_by_uid = {source.uid: source for source in sources}
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
     assignments = example_concept_assignments(option_sets, config)
+    attribute_combo_plan = attribute_combos if attribute_combos is not None else AttributeComboPlan()
+    attribute_combo_assignments = example_attribute_combo_assignments(sources, config)
     template = _ENVIRONMENT.get_template("questionnaire-response.fsh.jinja")
     tally = ExampleTally()
     ordinals: dict[str, int] = {}
@@ -472,6 +506,8 @@ def build_example_artifacts(
             rules,
             target_stem=plan.targets.stem_for(source.uid),
             organisation_unit_stems=organisation_unit_stems,
+            attribute_combos=attribute_combo_plan,
+            attribute_combo_assignments=attribute_combo_assignments,
         )
         build.artifacts.append(
             FshArtifact(
@@ -492,6 +528,49 @@ def build_example_artifacts(
             )
         )
     return build
+
+
+def example_attribute_combo_assignments(
+    sources: list[QuestionnaireSourceIn], config: GenerateConfig
+) -> dict[str, ConceptAssignmentPlan]:
+    """Run the shared concept-code assignment once per non-default attribute combo, indexed by combo UID.
+
+    The attribute-combo terminology emitter builds its concepts from the very same call, so an
+    example's `D2AttributeOptionCombo` coding can only ever name a concept the published
+    CodeSystem really holds. The notes stay on the plan and go unread here, exactly as the
+    option-set assignment's do: a fall-back is a fact about the CodeSystem, so the terminology
+    target reports it.
+    """
+    return {combo.uid: concept_assignments(combo, config) for combo in attribute_combo_sources(sources)}
+
+
+def example_attribute_option_combo(
+    response: ExampleResponseIn,
+    source: QuestionnaireSourceIn,
+    attribute_combos: AttributeComboPlan,
+    assignments: dict[str, ConceptAssignmentPlan],
+    tally: ExampleTally,
+) -> ExampleAttributeOptionCombo | None:
+    """The attribute option combo one response is keyed under, as the coding both emitters write.
+
+    None when the form publishes no vocabulary - its data set rides the default category combo,
+    so the default attribute option combo is the only key its values take and the guide says
+    that by publishing nothing. None too when the response names a combo the published
+    CodeSystem holds no concept for, which is tallied rather than emitted as a dangling coding.
+    """
+    identity = attribute_combos.identity_for(source.uid)
+    combo = source.attribute_combo
+    if identity is None or combo is None or response.attribute_option_combo_uid is None:
+        return None
+    option_combo = next(
+        (entry for entry in combo.option_combos if entry.uid == response.attribute_option_combo_uid), None
+    )
+    plan = assignments.get(combo.uid)
+    concept_code = plan.code_for(option_combo.uid) if plan is not None and option_combo is not None else None
+    if option_combo is None or concept_code is None:
+        tally.uncoded_attribute_option_combos.append(f"{response.attribute_option_combo_uid} in {response.instance_id}")
+        return None
+    return ExampleAttributeOptionCombo(combo_uid=combo.uid, concept_code=concept_code, display=option_combo.name)
 
 
 def example_concept_assignments(
@@ -534,6 +613,11 @@ def build_synthetic_responses(
     same question - one entry per target, holding the units that target may report for - and a
     placed target draws its unit from a generator seeded off the target UID and the ordinal
     alone, so the pick is reproducible and every other value on the target's stream is unmoved.
+
+    A data set on a non-default category combo draws its attribute option combo the same way,
+    off a stream of its own: DHIS2 refuses a write keyed to a combo the data set does not carry
+    (`E8023`), so the pick comes from the very option combos the published vocabulary is built
+    from, and it is reproducible for the same reason the placement is.
     """
     build = SyntheticBuild()
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
@@ -605,6 +689,7 @@ def _synthetic_response(
         organisation_unit_uid=organisation_unit_uid,
         status_code=COMPLETED_STATUS,
         period=period,
+        attribute_option_combo_uid=_drawn_attribute_option_combo(source, ordinal),
         authored=authored,
         tracked_entity_uid=tracked_entity_uid,
         enrollment_uid=enrollment_uid,
@@ -626,6 +711,20 @@ def _placed_organisation_unit(
     seed = _seed(f"{target_uid}:organisation-unit", ordinal)
     generator = random.Random(seed)  # noqa: S311 - an illustrative placement, not a secret
     return placement.organisation_unit_uids[generator.randrange(len(placement.organisation_unit_uids))]
+
+
+def _drawn_attribute_option_combo(source: QuestionnaireSourceIn, ordinal: int) -> str | None:
+    """The seeded attribute option combo one target's `n`-th response is keyed under, or None on the default combo.
+
+    Drawn on a generator of its own, seeded off the target UID and the ordinal, so a corpus is
+    reproducible from the instance state alone and adding the pick leaves every value the
+    response's main stream produces exactly where it was.
+    """
+    combo = source.attribute_combo
+    if source.kind != "aggregate" or combo is None or combo.is_default or not combo.option_combos:
+        return None
+    generator = random.Random(_seed(f"{source.uid}:attribute-option-combo", ordinal))  # noqa: S311 - illustrative
+    return combo.option_combos[generator.randrange(len(combo.option_combos))].uid
 
 
 def _seed(target_uid: str, ordinal: int) -> int:
@@ -829,11 +928,16 @@ def _example_view(
     *,
     target_stem: str,
     organisation_unit_stems: StemResolution | None,
+    attribute_combos: AttributeComboPlan,
+    attribute_combo_assignments: dict[str, ConceptAssignmentPlan],
 ) -> _ExampleView:
     """Project one example response onto the view the QuestionnaireResponse template renders."""
     label = _KIND_LABELS[source.kind]
     display_name = source_display_name(source)
     period = example_period(response, source, tally)
+    attribute_option_combo = example_attribute_option_combo(
+        response, source, attribute_combos, attribute_combo_assignments, tally
+    )
     answers = example_answers(response, source, option_sets_by_uid, assignments, tally, rules)
     authored = example_authored(response, tally, rules)
     tracker = example_tracker_context(response, source, tally)
@@ -851,6 +955,7 @@ def _example_view(
         organisation_unit_stem=location_stem(response.organisation_unit_uid, organisation_unit_stems),
         status_code=response.status_code,
         period=_period_view(period, foundation),
+        attribute_option_combo=_attribute_option_combo_view(attribute_option_combo, foundation, attribute_combos),
         tracker=_tracker_view(tracker, foundation, organisation_unit_stems),
         authored=authored,
         items=_item_views(example_items(source, answers), identities, organisation_unit_stems, depth=0),
@@ -878,6 +983,21 @@ def _period_view(period: PeriodValue | None, foundation: FoundationNaming) -> _P
         period_type=period.period_type,
         start_date=period.start_date,
         end_date=period.end_date,
+    )
+
+
+def _attribute_option_combo_view(
+    combo: ExampleAttributeOptionCombo | None,
+    foundation: FoundationNaming,
+    attribute_combos: AttributeComboPlan,
+) -> _AttributeOptionComboView | None:
+    """The D2AttributeOptionCombo extension one example renders, coded from the run's published pair."""
+    if combo is None:
+        return None
+    identity = attribute_combos.identities[combo.combo_uid]
+    return _AttributeOptionComboView(
+        extension=foundation.attribute_option_combo_extension,
+        coding_literal=f"{identity.code_system_name}{fsh_code(combo.concept_code)} {quote(combo.display)}",
     )
 
 

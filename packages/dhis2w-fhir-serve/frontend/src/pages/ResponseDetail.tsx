@@ -17,18 +17,22 @@ import {
 import { useFhirResource } from '@/hooks/use-fhir-resource'
 import { useSpool } from '@/hooks/use-spool'
 import {
+    attributeOptionComboOf,
     canonicalId,
     generateSeedOf,
+    type CodeSystem,
     type Questionnaire,
     type QuestionnaireResponse,
     unescapeMarkup,
 } from '@/lib/fhir'
 import { flattenQuestionnaire } from '@/lib/questionnaire'
 import {
+    attributeOptionComboFact,
     formLabel,
     joinAnswersToQuestions,
     type ReceiptAnswerRow,
     type ReceiptAnswerValue,
+    type ReceiptContextFact,
 } from '@/lib/receipt'
 import {
     captureContext,
@@ -80,6 +84,15 @@ export function ResponseDetail() {
     // rebuilt-guide notice at a page whose form is about to load.
     const formMissing = form.error !== null || questionnaireId === ''
     const formPending = !formMissing && form.resource === null
+
+    // The combo the submission reports for is on the resource, not in the spool - so the vocabulary
+    // it was chosen from is a fourth read, and one that is allowed to answer nothing: the fact
+    // degrades to the system and code the receipt itself holds.
+    const attributeOptionCombo = stored.resource === null ? null : attributeOptionComboOf(stored.resource)
+    const attributeCodeSystem = useFhirResource<CodeSystem>(
+        'CodeSystem',
+        canonicalId(attributeOptionCombo?.system) ?? '',
+    )
 
     const rows = useMemo(() => {
         if (stored.resource === null) return []
@@ -136,22 +149,9 @@ export function ResponseDetail() {
                             spoolError={spoolError}
                         />
 
-                        {summary !== null && captureContext(summary).length > 0 && (
-                            <section className="space-y-3">
-                                <div className="space-y-0.5">
-                                    <h3 className="text-base font-semibold">Capture context</h3>
-                                    <p className="text-muted-foreground text-sm">
-                                        What the submission reports for and from - read off the
-                                        stored resource, not looked up in DHIS2.
-                                    </p>
-                                </div>
-                                <dl className="grid gap-x-6 gap-y-3 rounded-lg border p-4 text-sm sm:grid-cols-3">
-                                    {captureContext(summary).map((fact) => (
-                                        <Fact key={fact.label} label={fact.label} value={fact.value} mono />
-                                    ))}
-                                </dl>
-                            </section>
-                        )}
+                        <CaptureContextSection
+                            facts={contextFacts(summary, stored.resource, attributeCodeSystem.resource)}
+                        />
 
                         <AnswersSection rows={rows} formMissing={formMissing} formLoading={formPending} />
 
@@ -185,6 +185,49 @@ export function ResponseDetail() {
             </PageState>
         </>
     )
+}
+
+/**
+ * What the submission reports for and from, from both places those facts live.
+ *
+ * The spool derives the period, the unit, and the tracker handles when it indexes a receipt; the
+ * attribute option combo is read straight off the stored resource, which is why this section
+ * appears for a receipt the spool has no row for at all. Every fact is the receipt's own - nothing
+ * here is looked up in DHIS2.
+ */
+function CaptureContextSection({ facts }: { facts: ReceiptContextFact[] }) {
+    if (facts.length === 0) return null
+    return (
+        <section className="space-y-3">
+            <div className="space-y-0.5">
+                <h3 className="text-base font-semibold">Capture context</h3>
+                <p className="text-muted-foreground text-sm">
+                    What the submission reports for and from - read off the stored resource, not
+                    looked up in DHIS2.
+                </p>
+            </div>
+            <dl className="grid gap-x-6 gap-y-3 rounded-lg border p-4 text-sm sm:grid-cols-3">
+                {facts.map((fact) => (
+                    <Fact key={fact.label} label={fact.label} value={fact.value} mono={fact.mono} />
+                ))}
+            </dl>
+        </section>
+    )
+}
+
+/** The spool's derived facts and the resource's own, in one list for one grid. */
+function contextFacts(
+    summary: SpoolResponseSummary | null,
+    stored: QuestionnaireResponse | null,
+    attributeCodeSystem: CodeSystem | null,
+): ReceiptContextFact[] {
+    // Everything the spool derives is an identifier - a period, a uid - so all of it reads mono.
+    const derived =
+        summary === null
+            ? []
+            : captureContext(summary).map((fact) => ({ label: fact.label, value: fact.value, mono: true }))
+    const combo = stored === null ? null : attributeOptionComboFact(stored, attributeCodeSystem)
+    return combo === null ? derived : [...derived, combo]
 }
 
 /** The header block: when it arrived, what it is, and the handles it is found by again. */

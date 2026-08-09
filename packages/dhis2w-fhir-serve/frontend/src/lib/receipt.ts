@@ -20,7 +20,7 @@
  * Everything here is pure. The reads happen in the page.
  */
 
-import { canonicalId, type Questionnaire, type QuestionnaireResponse, type QuestionnaireResponseAnswer, type QuestionnaireResponseItem, unescapeMarkup } from '@/lib/fhir'
+import { attributeOptionComboLabel, attributeOptionComboOf, canonicalId, conceptDisplay, type CodeSystem, type Questionnaire, type QuestionnaireResponse, type QuestionnaireResponseAnswer, type QuestionnaireResponseItem, unescapeMarkup } from '@/lib/fhir'
 import type { QuestionnaireSpec } from '@/lib/questionnaire'
 import type { SpoolResponseSummary } from '@/lib/spool'
 
@@ -131,6 +131,46 @@ export function formLabel(summary: SpoolResponseSummary, form: Questionnaire | u
             canonicalId(summary.questionnaire) ??
             summary.questionnaire,
     )
+}
+
+/** One labelled fact of a receipt's capture context, and whether it reads as a code or as prose. */
+export interface ReceiptContextFact {
+    label: string
+    value: string
+    /** True when the value is an identifier rather than something written for a person to read. */
+    mono: boolean
+}
+
+/**
+ * The attribute option combo a receipt reports for, as a fact for the capture-context grid.
+ *
+ * WHY IT IS READ OFF THE RESOURCE AND NOT THE SPOOL. The period and the organisation unit come
+ * from the spool listing, which derives them when it indexes a receipt. This one comes from the
+ * stored document itself, so it is on the page for a receipt the spool has no row for at all -
+ * and the extension is right there in the resource, which makes a second derivation of it a
+ * second thing that can disagree.
+ *
+ * WHY THE CODESYSTEM IS A SEPARATE ARGUMENT. The coding carries a display, but the served
+ * vocabulary is the authority on what a concept is called now, and a coding written by a client
+ * that sent system and code alone carries none. When neither answers - a guide recompiled since
+ * the capture, a system this server never published - the fact degrades to the two strings the
+ * receipt really holds, mono, rather than to a blank cell: `system|code` is exactly what someone
+ * needs to go and look the combo up in DHIS2.
+ */
+export function attributeOptionComboFact(
+    response: QuestionnaireResponse,
+    codeSystem: CodeSystem | null,
+): ReceiptContextFact | null {
+    const coding = attributeOptionComboOf(response)
+    if (coding === null) return null
+    const label = attributeOptionComboLabel(codeSystem?.title ?? codeSystem?.name)
+    const resolved =
+        conceptDisplay(codeSystem, coding.code) ??
+        (coding.display === undefined ? null : unescapeMarkup(coding.display))
+    if (resolved === null) {
+        return { label, value: `${coding.system ?? 'no system'} | ${coding.code ?? 'no code'}`, mono: true }
+    }
+    return { label, value: coding.code === undefined ? resolved : `${resolved} (${coding.code})`, mono: false }
 }
 
 /** One answered item of a stored response, read in document order with its ancestry. */

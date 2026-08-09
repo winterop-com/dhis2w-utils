@@ -40,8 +40,14 @@ AGGREGATE_QUESTIONNAIRE = f"{CANONICAL}/Questionnaire/{AGGREGATE_ID}"
 EVENT_QUESTIONNAIRE = f"{CANONICAL}/Questionnaire/{EVENT_ID}"
 TRACKER_QUESTIONNAIRE = f"{CANONICAL}/Questionnaire/{TRACKER_EVENT_ID}"
 
+#: The aggregate form whose data set rides a non-default category combo, and the vocabulary it
+#: declares - a generated response for it has to name one attribute option combo of that pair.
+ATTRIBUTE_COMBO_ID = "TuL8IOPzpHh"
+ATTRIBUTE_COMBO_URL = f"{CANONICAL}/StructureDefinition/d2-attribute-option-combo"
+ATTRIBUTE_COMBO_CODE_SYSTEM = f"{CANONICAL}/CodeSystem/d2-aoc-idcDPkDtepR-cs"
+
 #: Every form the golden project serves, including the two extra event forms.
-EVERY_FORM_ID = (AGGREGATE_ID, EVENT_ID, TRACKER_EVENT_ID, "PsAncVisit1", "PrTemporal1")
+EVERY_FORM_ID = (AGGREGATE_ID, EVENT_ID, TRACKER_EVENT_ID, "PsAncVisit1", "PrTemporal1", ATTRIBUTE_COMBO_ID)
 
 FHIR_JSON = {"Content-Type": "application/fhir+json"}
 
@@ -216,6 +222,26 @@ async def test_an_aggregate_response_reports_for_a_served_location(capture_clien
     assert response["status"] == "completed"
     assert response["subject"]["reference"].startswith("Location/")
     assert _extensions(response, FORM_TYPE_URL)[0]["valueCode"] == "aggregate"
+
+
+async def test_a_generated_response_names_an_attribute_option_combo_its_form_declares(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """A form declaring a vocabulary generates a response drawing one real concept of it, never an invented one."""
+    response = (await _generate(capture_client, ATTRIBUTE_COMBO_ID, seed=3)).json()
+
+    carried = _extensions(response, ATTRIBUTE_COMBO_URL)
+
+    assert len(carried) == 1
+    assert carried[0]["valueCoding"]["system"] == ATTRIBUTE_COMBO_CODE_SYSTEM
+    assert carried[0]["valueCoding"]["code"] in {"pO5CEqK6c1s", "sSeEjeQ0Rgt", "oawMLLH7OjA", "BqblOcSwGey"}
+
+
+async def test_a_default_combo_form_generates_no_attribute_option_combo(capture_client: httpx.AsyncClient) -> None:
+    """Absence means the default combo, so a form declaring nothing generates nothing to declare."""
+    response = (await _generate(capture_client, AGGREGATE_ID, seed=3)).json()
+
+    assert _extensions(response, ATTRIBUTE_COMBO_URL) == []
 
 
 async def test_an_event_response_records_when_it_was_captured(capture_client: httpx.AsyncClient) -> None:

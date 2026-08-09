@@ -40,6 +40,12 @@ class CaptureNaming(BaseModel):
     period_url: str
     organisation_unit_url: str
     organisation_unit_assignment_url: str
+    attribute_option_combos_url: str
+    """Extension url a Questionnaire declares the attribute-option-combo ValueSet its responses key from."""
+
+    attribute_option_combo_url: str
+    """Extension url a QuestionnaireResponse names the attribute option combo its values are keyed under."""
+
     tracker_enrollment_url: str
     tracked_entity_system: str
     tracker_enrollment_system: str
@@ -64,6 +70,8 @@ class CaptureNaming(BaseModel):
             organisation_unit_assignment_url=_definition_url(
                 canonical, names.organisation_unit_assignment_extension_id
             ),
+            attribute_option_combos_url=_definition_url(canonical, names.attribute_option_combos_extension_id),
+            attribute_option_combo_url=_definition_url(canonical, names.attribute_option_combo_extension_id),
             tracker_enrollment_url=_definition_url(canonical, names.tracker_enrollment_extension_id),
             tracked_entity_system=_identifier_system(base, "TrackedEntity"),
             tracker_enrollment_system=_identifier_system(base, "TrackerEnrollment"),
