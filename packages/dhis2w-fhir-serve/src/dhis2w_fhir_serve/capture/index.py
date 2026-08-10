@@ -4,10 +4,12 @@ A compiled Questionnaire is a tree; validating an answer against it is a lookup.
 that flattening once - every question keyed by its `linkId`, every group link id in a set - so a
 submission with two thousand cells costs two thousand dictionary hits and no tree walks.
 
-Two link-id shapes reach a question. A plain question is one DHIS2 data element, and its link id
-is the data element UID. A cell of a disaggregated aggregate form is one data element crossed
-with one category option combo, and its link id is `<dataElement>.<categoryOptionCombo>` - the
-form the questionnaire emitter writes and the only place the pair is carried on the wire.
+Two link-id shapes reach a question. A plain question is one DHIS2 data element - or, on a tracker
+registration form, one tracked entity attribute - and its link id is that object's UID, which is
+why `CaptureQuestion.data_element_uid` carries an attribute UID for the registration kind. A cell
+of a disaggregated aggregate form is one data element crossed with one category option combo, and
+its link id is `<dataElement>.<categoryOptionCombo>` - the form the questionnaire emitter writes
+and the only place the pair is carried on the wire.
 
 Terminology binding is resolved here too. A `#choice` question names an `answerValueSet`, and the
 CodeSystem behind it is what a coded answer's codes are resolved against. When the value set is
@@ -63,10 +65,9 @@ ANSWER_ELEMENTS_BY_ITEM_TYPE = {
 #: The item types that carry no answer of their own and only nest other items.
 _STRUCTURAL_ITEM_TYPES = ("group", "display")
 
-#: The DHIS2 form kinds this server captures a response for. Narrower than the kinds a generated
-#: Questionnaire may declare: the tracker registration form is generated, published, and served,
-#: but nothing turns a response against it into a DHIS2 payload, so a response declaring it is
-#: refused by name rather than accepted into a spool no drain can empty.
+#: The DHIS2 form kinds this server captures a response for - every kind a generated Questionnaire
+#: declares. A form whose kind is not here is refused when its index is first asked for, rather
+#: than at the end of a capture that had nowhere to go.
 FORM_KINDS: tuple[FormKind, ...] = CAPTURED_FORM_KINDS
 
 #: The extensions a numeric question carries its inclusive bounds on.
@@ -90,6 +91,8 @@ class CaptureQuestion(BaseModel):
     link_id: str
     kind: QuestionKind
     data_element_uid: str
+    """The DHIS2 object the question asks: a data element, or a tracked entity attribute on the registration kind."""
+
     category_option_combo_uid: str | None = None
     item_type: str
     answer_element: str
@@ -140,7 +143,7 @@ class CaptureIndex(BaseModel):
     canonical: str
     form_kind: FormKind
     target_uid: str
-    """The DHIS2 data set, event program, or program stage UID the form was generated from."""
+    """The DHIS2 data set, program, or program stage UID the form was generated from."""
 
     program_uid: str | None = None
     questions: dict[str, CaptureQuestion] = Field(default_factory=dict)

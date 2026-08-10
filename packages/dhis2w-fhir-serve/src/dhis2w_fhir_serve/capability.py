@@ -180,9 +180,9 @@ def _generate_operation(
 def _response_resource(project: FhirProject, canonical: str) -> CapabilityStatementResource:
     """Declare the capture type: create, read, search, and the response profiles this server captures.
 
-    The registration contract is generated and published for a client to build against, and it is
-    left off here for the same reason `d2-capture-server.fsh` leaves it off: this facade has no
-    DHIS2 payload to translate such a response into, so claiming the interaction would be a lie.
+    The profiles are `CAPTURED_FORM_KINDS` resolved through the project's own naming, which is the
+    same list `d2-capture-server.fsh` declares - a statement of what this facade both validates on
+    receipt and translates into a DHIS2 payload on forward.
     """
     declarations = build_captured_response_profile_declarations(project.config.generate)
     return CapabilityStatementResource(

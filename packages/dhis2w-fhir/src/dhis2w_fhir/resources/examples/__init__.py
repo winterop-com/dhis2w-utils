@@ -57,6 +57,7 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleSelection,
     ExampleSource,
     ExampleTrackerContext,
+    RegistrationIdentities,
     SyntheticPlacement,
 )
 from dhis2w_fhir.resources.option_sets import concept_assignments, option_set_identity_index
@@ -75,6 +76,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireStemPlan,
     plan_questionnaire_stems,
     source_display_name,
+    source_program,
 )
 from dhis2w_fhir.writer import FshArtifact, FshBuild
 
@@ -106,6 +108,7 @@ __all__ = [
     "ExampleSource",
     "ExampleTally",
     "ExampleTrackerContext",
+    "RegistrationIdentities",
     "SyntheticBuild",
     "SyntheticPlacement",
     "answer_element",
@@ -121,6 +124,7 @@ __all__ = [
     "example_period",
     "example_tracker_context",
     "location_stem",
+    "registration_identities",
     "response_status_code",
     "zoned_date_time",
 ]
@@ -602,6 +606,19 @@ class SyntheticBuild(BaseModel):
     notes: list[GenerateNote] = Field(default_factory=list)
 
 
+def registration_identities(program_uid: str, ordinal: int) -> RegistrationIdentities:
+    """The tracked entity and enrollment one tracker program's `n`-th registration mints.
+
+    A pure function of the program and the ordinal, so the registration that mints the pair and
+    every stage response assigned to it derive the identical UIDs without threading values between
+    them. Drawn on a stream of its own, seeded the way every other synthetic draw is.
+    """
+    generator = random.Random(_seed(f"{program_uid}:registration", ordinal))  # noqa: S311 - illustrative, not a secret
+    return RegistrationIdentities(
+        tracked_entity_uid=_synthetic_uid(generator), enrollment_uid=_synthetic_uid(generator)
+    )
+
+
 def build_synthetic_responses(
     sources: list[QuestionnaireSourceIn],
     option_sets: list[OptionSetIn],
@@ -610,6 +627,7 @@ def build_synthetic_responses(
     today: datetime.date,
     *,
     placements: dict[str, SyntheticPlacement] | None = None,
+    registration_program_uids: frozenset[str] = frozenset(),
 ) -> SyntheticBuild:
     """Generate `per_target` deterministic example responses per target, answering every question it can.
 
@@ -628,6 +646,14 @@ def build_synthetic_responses(
     off a stream of its own: DHIS2 refuses a write keyed to a combo the data set does not carry
     (`E8023`), so the pick comes from the very option combos the published vocabulary is built
     from, and it is reproducible for the same reason the placement is.
+
+    `registration_program_uids` names the tracker programs whose registration form the same run
+    emits responses for, and it is what makes a corpus internally consistent. A stage response of
+    one of those programs answers against a registration of the same run rather than minting a
+    pair nothing creates: its ordinal is assigned round-robin across the `per_target` registrations
+    of its program, so every registration carries stage events and every stage event has an
+    enrollment to land on. A program absent from the set - or a run emitting no registrations at
+    all, which is the examples path - mints the pair on the response's own stream, as before.
     """
     build = SyntheticBuild()
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
@@ -643,6 +669,7 @@ def build_synthetic_responses(
                     _placed_organisation_unit(placement, source.uid, ordinal, organisation_unit_uid),
                     today,
                     unanswerable,
+                    _assigned_registration(source, ordinal, per_target, registration_program_uids),
                 )
             )
     if unanswerable:
@@ -657,6 +684,28 @@ def build_synthetic_responses(
     return build
 
 
+def _assigned_registration(
+    source: QuestionnaireSourceIn,
+    ordinal: int,
+    per_target: int,
+    registration_program_uids: frozenset[str],
+) -> RegistrationIdentities | None:
+    """The registration one synthetic tracker response answers against, or None when it mints its own pair.
+
+    A registration response is assigned itself: its pair is the one it mints, so the `n`-th
+    registration of a program and the stage responses that answer it derive the same two UIDs. A
+    stage response is assigned round-robin across its program's registrations, so a corpus of
+    `per_target` of each spreads the events evenly and reproducibly over the people.
+    """
+    if source.kind not in _TRACKER_KINDS:
+        return None
+    program_uid = source_program(source).uid
+    if program_uid not in registration_program_uids or per_target < 1:
+        return None
+    registration_ordinal = ordinal if source.kind == "tracker" else (ordinal - 1) % per_target + 1
+    return registration_identities(program_uid, registration_ordinal)
+
+
 def _synthetic_response(
     source: QuestionnaireSourceIn,
     option_sets_by_uid: dict[str, OptionSetIn],
@@ -664,6 +713,7 @@ def _synthetic_response(
     organisation_unit_uid: str,
     today: datetime.date,
     unanswerable: list[str],
+    registration: RegistrationIdentities | None = None,
 ) -> ExampleResponseIn:
     """Generate one target's `n`-th example: its period or occurrence, its tracker context, then its answers."""
     generator = random.Random(_seed(source.uid, ordinal))  # noqa: S311 - illustrative values, not a secret
@@ -678,8 +728,12 @@ def _synthetic_response(
     enrolled_at: str | None = None
     incident_at: str | None = None
     if source.kind in _TRACKER_KINDS:
+        # Drawn whatever the assignment, so an assigned response's other values stay where they were.
         tracked_entity_uid = _synthetic_uid(generator)
         enrollment_uid = _synthetic_uid(generator)
+        if registration is not None:
+            tracked_entity_uid = registration.tracked_entity_uid
+            enrollment_uid = registration.enrollment_uid
     if source.kind == "tracker":
         enrolled_at = f"{window.pick_date(generator).isoformat()}T{_pick_hour(generator)}:00:00Z"
         if source.displays_incident_date:

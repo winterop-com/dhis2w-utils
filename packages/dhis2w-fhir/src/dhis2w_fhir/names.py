@@ -170,6 +170,17 @@ def is_valid_fhir_id(value: str) -> bool:
 #: The R4 `id` length limit every emitted artifact id is bounded against.
 FHIR_ID_MAX_LENGTH = 64
 
+#: How many characters a DHIS2 UID carries, and the shape of them: one ASCII letter, then ten
+#: alphanumeric places. It is the one thing a reader can check about a client-minted DHIS2
+#: identifier without an instance to ask, which is what the registration capture contract leans on.
+DHIS2_UID_LENGTH = 11
+_DHIS2_UID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9]{10}$")
+
+
+def is_dhis2_uid(value: str) -> bool:
+    """Check `value` against the DHIS2 UID shape: one ASCII letter followed by ten alphanumeric places."""
+    return _DHIS2_UID_PATTERN.match(value) is not None
+
 
 def bounded_slug(slug: str, uid: str, limit: int) -> str:
     """Truncate an over-long slug and append the UID so bounded slugs stay unique."""

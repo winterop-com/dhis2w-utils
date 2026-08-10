@@ -1,4 +1,4 @@
-"""The three payload translators: one per DHIS2 form kind, each writing the import shape DHIS2 reads.
+"""The four payload translators: one per DHIS2 form kind, each writing the import shape DHIS2 reads.
 
     aggregate      -> a `/api/dataValueSets` envelope: data set, ISO period, organisation unit, the
                       attribute option combo the whole report is filed under where the form declares
@@ -6,8 +6,13 @@
                       category option combo.
     event          -> one `/api/tracker` event of an event program: program, organisation unit,
                       occurrence, status, and one data value per answered question.
-    tracker-event  -> the same event, plus the program stage it belongs to, the tracked entity it
-                      was captured for, and the enrollment it sits on.
+    tracker        -> one `/api/tracker` tracked entity: its client-minted UID, the tracked entity
+                      type the form names, the organisation unit that owns it, one attribute per
+                      answered question, and the single enrollment the response creates - minted
+                      UID, program, organisation unit, enrolment date, incident date where one was
+                      stated, and `ACTIVE` status.
+    tracker-event  -> the same event as `event`, plus the program stage it belongs to, the tracked
+                      entity it was captured for, and the enrollment it sits on.
 
 Every fact a payload carries is read out of the response through an identifier or an extension,
 never out of a URL. A Questionnaire's canonical segment is an identity stem, and a Location's id
@@ -28,9 +33,13 @@ from typing import TYPE_CHECKING
 from dhis2w_client.generated.v42.oas import (
     DataValue,
     DataValueSet,
+    EnrollmentStatus,
     EventStatus,
+    TrackerAttribute,
     TrackerDataValue,
+    TrackerEnrollment,
     TrackerEvent,
+    TrackerTrackedEntity,
 )
 from pydantic import BaseModel, ConfigDict
 
@@ -64,11 +73,13 @@ __all__ = [
     "PERIOD_ISO_SUB_EXTENSION",
     "PERIOD_RANGE_SUB_EXTENSION",
     "PERIOD_TYPE_SUB_EXTENSION",
+    "REGISTERED_ENROLLMENT_STATUS",
     "TranslatedAnswer",
     "TranslatedAnswers",
     "translate_aggregate_response",
     "translate_event_response",
     "translate_tracker_event_response",
+    "translate_tracker_registration_response",
 ]
 
 #: The sub-extension urls D2Period slices its three facts under, as `d2-period.fsh.jinja` names them.
@@ -104,6 +115,11 @@ _COLLAPSING_RESPONSE_STATUSES = frozenset({"completed", "amended"})
 
 #: How many dash-separated parts a full calendar date carries, which is what a `completeDate` is.
 _DATE_PART_SEPARATOR = "T"
+
+#: The status the enrollment a registration creates is imported under. A registration form is
+#: answered when a person is enrolled, and DHIS2 spells a live enrollment `ACTIVE` - completing or
+#: cancelling one is a later act against an enrollment that already exists.
+REGISTERED_ENROLLMENT_STATUS = EnrollmentStatus.ACTIVE
 
 
 class TranslatedAnswer(BaseModel):
@@ -145,6 +161,12 @@ class EventTranslation(_Outcome):
 
     event: TrackerEvent | None = None
     target_kind: ConversionTargetKind = ConversionTargetKind.EVENT
+
+
+class RegistrationTranslation(_Outcome):
+    """One registration response translated: the tracked entity it creates, or the reasons it produced none."""
+
+    tracked_entity: TrackerTrackedEntity | None = None
 
 
 def translate_aggregate_response(
@@ -256,6 +278,62 @@ def translate_tracker_event_response(
             occurredAt=occurred_at,
             status=status,
             dataValues=_tracker_data_values(translated),
+        ),
+    )
+
+
+def translate_tracker_registration_response(
+    response: QuestionnaireResponse, form: FormSpec, context: ConversionContext
+) -> RegistrationTranslation:
+    """Translate one registration response into the `/api/tracker` tracked entity and enrollment it creates.
+
+    Both DHIS2 identities are the client's: the tracked entity UID the subject identifier carries
+    and the enrollment UID the `D2TrackerEnrollment` extension carries are minted by whoever filled
+    the form, and they travel to DHIS2 as sent. That is what lets the stage events of the same
+    enrollment be captured before either identity exists, and it is why a registration is posted
+    before them.
+
+    The attributes are the form's own answers, serialised through the value-type machinery a data
+    element's answers go through - a tracked entity attribute has the same DHIS2 value types, binds
+    option sets the same way, and its coded answers resolve against the published ValueSets on the
+    same strict/lenient dial.
+    """
+    notes: list[ConversionNote] = []
+    refusals: list[ConversionRefusal] = []
+    program = _program(form, context, refusals)
+    tracked_entity_type = _tracked_entity_type(form, context, refusals)
+    organisation_unit = _extension_organisation_unit(response, context, notes, refusals)
+    tracked_entity = _tracked_entity(response, context, notes, refusals)
+    enrollment = _enrollment(response, context, refusals)
+    enrolled_at = _enrollment_date(response, context.naming.enrolled_at_url, context, notes, refusals, required=True)
+    incident_at = _enrollment_date(response, context.naming.incident_at_url, context, notes, refusals, required=False)
+    translated = translate_answers(response, form, context)
+    notes.extend(translated.notes)
+    refusals.extend(translated.refusals)
+    if refusals or program is None or tracked_entity_type is None or organisation_unit is None:
+        return RegistrationTranslation(notes=tuple(notes), refusals=tuple(refusals))
+    if tracked_entity is None or enrollment is None or enrolled_at is None:
+        return RegistrationTranslation(notes=tuple(notes), refusals=tuple(refusals))
+    return RegistrationTranslation(
+        notes=tuple(notes),
+        tracked_entity=TrackerTrackedEntity(
+            trackedEntity=tracked_entity,
+            trackedEntityType=tracked_entity_type,
+            orgUnit=organisation_unit,
+            attributes=[
+                TrackerAttribute(attribute=answer.question.data_element_uid, value=answer.value)
+                for answer in translated.answers
+            ],
+            enrollments=[
+                TrackerEnrollment(
+                    enrollment=enrollment,
+                    program=program,
+                    orgUnit=organisation_unit,
+                    enrolledAt=enrolled_at,
+                    occurredAt=incident_at,
+                    status=REGISTERED_ENROLLMENT_STATUS,
+                )
+            ],
         ),
     )
 
@@ -517,10 +595,11 @@ def _extension_organisation_unit(
     notes: list[ConversionNote],
     refusals: list[ConversionRefusal],
 ) -> str | None:
-    """The organisation unit a tracker event was captured at, off its D2OrganisationUnit extension.
+    """The organisation unit a tracker response names, off its D2OrganisationUnit extension.
 
-    A tracker-event response's subject is the tracked entity, so the capture unit rides on an
-    extension of its own rather than on `subject`.
+    A tracker response's subject is the tracked entity, so the unit rides on an extension of its
+    own rather than on `subject`: for a stage event it is where the event happened, and for a
+    registration it is the unit that owns the person and the enrollment being created.
     """
     extensions = _extensions(response, context.naming.organisation_unit_url)
     if len(extensions) != 1:
@@ -620,6 +699,66 @@ def _program_stage(form: FormSpec, context: ConversionContext, refusals: list[Co
     return form.program_stage_uid
 
 
+def _tracked_entity_type(form: FormSpec, context: ConversionContext, refusals: list[ConversionRefusal]) -> str | None:
+    """The DHIS2 type a registration enrols a person as, off the form's tracked-entity-type identifier.
+
+    A tracker program without a tracked entity type cannot register anybody, so a form carrying no
+    such identifier is refused by name rather than posted for DHIS2 to reject: the gap is in the
+    guide - or in the instance the guide was generated from - and naming it here says which.
+    """
+    if form.tracked_entity_type_uid is None:
+        refusals.append(
+            ConversionRefusal(
+                category=ConversionRefusalCategory.MISSING_TRACKED_ENTITY_TYPE,
+                element="Questionnaire.identifier",
+                reason=f"`{form.canonical}` carries no `{context.naming.tracked_entity_type_system}` identifier, "
+                f"so the tracked entity type it enrols a person as is unknown",
+            )
+        )
+    return form.tracked_entity_type_uid
+
+
+def _enrollment_date(
+    response: QuestionnaireResponse,
+    url: str,
+    context: ConversionContext,
+    notes: list[ConversionNote],
+    refusals: list[ConversionRefusal],
+    *,
+    required: bool,
+) -> datetime.datetime | None:
+    """One date the enrollment carries, as the zone-less wall clock DHIS2 stores it in (BUGS.md #62).
+
+    `enrolledAt` is required because DHIS2 requires every enrollment to say when it began;
+    `occurredAt` - the incident date - is written only where the response states one, because the
+    registration profile slices it 0..1 and a program that displays no incident date has none.
+    """
+    extensions = _extensions(response, url)
+    if not extensions:
+        if required:
+            refusals.append(
+                ConversionRefusal(
+                    category=ConversionRefusalCategory.MISSING_ENROLLMENT_DATE,
+                    element="QuestionnaireResponse.extension",
+                    reason=f"the response carries no `{url}` extension, so when the enrollment began is unknown",
+                )
+            )
+        return None
+    value = extensions[0].valueDateTime
+    reading = wall_clock_reading(value or "", context.timezone)
+    if not value or reading.moment is None:
+        refusals.append(
+            ConversionRefusal(
+                category=ConversionRefusalCategory.MALFORMED_ENROLLMENT_DATE,
+                element="QuestionnaireResponse.extension",
+                reason=f"`{value}` does not read as an instant, so the enrollment date `{url}` states is unknown",
+            )
+        )
+        return None
+    notes.extend(wall_clock_notes(reading, context, link_id=None))
+    return reading.moment
+
+
 def _occurred_at(
     response: QuestionnaireResponse,
     context: ConversionContext,
@@ -699,14 +838,14 @@ def _tracked_entity(
     notes: list[ConversionNote],
     refusals: list[ConversionRefusal],
 ) -> str | None:
-    """The tracked entity a tracker event was captured for, off the response's subject identifier."""
+    """The tracked entity a tracker response is about, off its subject identifier - minted by a registration."""
     subject = response.subject
     identifier = subject.identifier if subject is not None else None
     if subject is not None and subject.reference:
         notes.append(
             ConversionNote(
                 category=ConversionNoteCategory.SUBJECT_REFERENCE_IGNORED,
-                message=f"the subject reference `{subject.reference}` is not read: a tracker event names its "
+                message=f"the subject reference `{subject.reference}` is not read: a tracker response names its "
                 f"tracked entity by identifier under `{context.naming.tracked_entity_system}`",
             )
         )
@@ -725,7 +864,7 @@ def _tracked_entity(
 def _enrollment(
     response: QuestionnaireResponse, context: ConversionContext, refusals: list[ConversionRefusal]
 ) -> str | None:
-    """The enrollment a tracker event sits on, off its D2TrackerEnrollment extension."""
+    """The enrollment a tracker response names, off its D2TrackerEnrollment extension - minted by a registration."""
     extensions = _extensions(response, context.naming.tracker_enrollment_url)
     identifier = extensions[0].valueIdentifier if len(extensions) == 1 else None
     if identifier is None or not identifier.value or identifier.system != context.naming.tracker_enrollment_system:

@@ -262,10 +262,10 @@ depends on `fhir.toml` alone and never opens a client:
   consumer branch without re-reading the questionnaire. All four have a generator;
   `tracker` is the registration form a tracker program enrols a person through, whose
   questions are the program's tracked entity attributes rather than a stage's data
-  elements. `CAPTURED_FORM_KINDS` is the narrower tuple beside `FORM_KIND_PROFILES`
-  naming the kinds a capture server accepts a response for and the translator converts -
-  the registration kind is generated, published, and served before anything captures it,
-  and a server that accepted one would have nothing to translate it into.
+  elements. `CAPTURED_FORM_KINDS` is the tuple beside `FORM_KIND_PROFILES` naming the
+  kinds a capture server accepts a response for and the translator converts, and it now
+  holds all four - it is the one switch serve's index, the conversion gate, the
+  `supportedProfile` declarations, `/metadata`, and the load set all read.
 - `d2-attribute-value.fsh` - the `D2AttributeValue` extension, a complex extension of
   `attributeId` (string, 1..1), `attributeCode` (string, 0..1) and `value` (string,
   1..1), contexted on the five resource types that carry one: `Organization`,

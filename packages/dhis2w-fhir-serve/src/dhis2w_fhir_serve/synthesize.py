@@ -16,7 +16,7 @@ attribute option combo an aggregate response is filed under is drawn the same wa
 vocabulary the form declares, so a data set on a non-default category combo generates a response its
 own capture path accepts.
 
-Two facts a compiled Questionnaire does not carry, and how they are decided here:
+Three facts a compiled Questionnaire does not carry, and how they are decided here:
 
 * **The data set's period type.** A generated aggregate response needs a DHIS2 reporting period, and
   the compiled form says nothing about which type its data set reports on. The rule is: the period
@@ -25,6 +25,13 @@ Two facts a compiled Questionnaire does not carry, and how they are decided here
   and `Monthly` when the store holds no such example (which is every `--live` store, since a live
   build serves the read set and no examples). The response always carries the newest *completed*
   period of whichever type was decided, so the value moves with the calendar and nothing else.
+* **Whether a tracker program displays an incident date.** `D2IncidentAt` is 0..1 on the
+  registration contract, and DHIS2's `displayIncidentDate` never reaches the compiled Questionnaire -
+  it is a fact about the program, and the form publishes no slot for it. The rule mirrors the period
+  type exactly: the incident date is generated when a served example response answering the same
+  questionnaire carries one, and left off when none does. Both directions are honest - an enrollment
+  date is always generated because the contract requires one, and an incident date is generated only
+  where the guide itself shows one, which is the only statement the store makes about the program.
 * **`TRUE_ONLY` versus `BOOLEAN`.** The emitter answers both DHIS2 value types as a `boolean` item,
   so a generated answer to either is a random `true` or `false`. A `TRUE_ONLY` data element only ever
   holds `true` in DHIS2, and a generated `false` for one is a value the form admits but the instance
@@ -53,6 +60,7 @@ from dhis2w_fhir.r4 import (
     QuestionnaireResponseItem,
     Reference,
 )
+from dhis2w_fhir.resources.questionnaires.schemas import FormKind
 from pydantic import BaseModel, ConfigDict, PrivateAttr, ValidationError
 
 from dhis2w_fhir_serve.capture.index import CaptureIndex, CaptureQuestion
@@ -84,8 +92,14 @@ GENERATED_STATUS: Final[Literal["completed"]] = "completed"
 RESPONSE_RESOURCE_TYPE = "QuestionnaireResponse"
 LOCATION_RESOURCE_TYPE = "Location"
 
-#: The resource type a tracker-event response names its tracked-entity subject as.
+#: The resource type a tracker response names its tracked-entity subject as.
 TRACKER_SUBJECT_TYPE = "Patient"
+
+#: The form kinds whose generated response carries a tracker context - the person and the enrollment.
+_TRACKER_FORM_KINDS: tuple[FormKind, ...] = ("tracker", "tracker-event")
+
+#: The form kind whose generated response mints that context rather than naming an existing one.
+_REGISTRATION_FORM_KIND: FormKind = "tracker"
 
 #: The item types that carry no answer of their own and only nest other items.
 _STRUCTURAL_ITEM_TYPES = ("group", "display")
@@ -171,17 +185,26 @@ def generate_response(
         seed=seed,
         window=window,
         location_id=_capture_location_id(index, store, seed),
+        incident_date_shown=resolves_incident_date(index, naming, store),
     )
     return generator.build(questionnaire, period)
 
 
 class _TrackerContext(BaseModel):
-    """The two DHIS2 data identifiers a generated tracker event carries: its subject and its enrollment."""
+    """The DHIS2 data identifiers a generated tracker response carries, plus the dates a registration adds.
+
+    A stage response names a person and an enrollment that already exist and dates neither. A
+    registration response mints both and states when the enrollment began, which is what the
+    contract requires of it - and, where the guide's own examples show one, when the incident it
+    follows occurred.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     tracked_entity_uid: str
     enrollment_uid: str
+    enrolled_at: str | None = None
+    incident_at: str | None = None
 
 
 class _Generator(BaseModel):
@@ -195,6 +218,8 @@ class _Generator(BaseModel):
     seed: int
     window: DateWindow
     location_id: str
+    incident_date_shown: bool = False
+    """Whether a served example of this form carries an incident date, which is what decides generating one."""
 
     _random: random.Random = PrivateAttr(default_factory=random.Random)
 
@@ -209,7 +234,7 @@ class _Generator(BaseModel):
         question's value - a response's timestamp and its tracker UIDs stay what they were.
         """
         authored = self._date_time() if self.index.form_kind != "aggregate" else None
-        tracker = self._tracker_context() if self.index.form_kind == "tracker-event" else None
+        tracker = self._tracker_context() if self.index.form_kind in _TRACKER_FORM_KINDS else None
         return QuestionnaireResponse(
             meta=Meta(profile=[self.naming.response_profile_url(self.index.form_kind)]),
             identifier=Identifier(system=self.naming.generate_seed_system, value=str(self.seed)),
@@ -222,8 +247,21 @@ class _Generator(BaseModel):
         )
 
     def _tracker_context(self) -> _TrackerContext:
-        """Draw the tracked entity and the enrollment a generated tracker event belongs to."""
-        return _TrackerContext(tracked_entity_uid=self._uid(), enrollment_uid=self._uid())
+        """Draw the tracked entity and the enrollment a generated tracker response names, dating a minted one.
+
+        The two UIDs are drawn first whatever the kind, so adding the registration dates leaves a
+        generated stage response byte-identical to what the same seed produced before them.
+        """
+        tracked_entity_uid = self._uid()
+        enrollment_uid = self._uid()
+        if self.index.form_kind != _REGISTRATION_FORM_KIND:
+            return _TrackerContext(tracked_entity_uid=tracked_entity_uid, enrollment_uid=enrollment_uid)
+        return _TrackerContext(
+            tracked_entity_uid=tracked_entity_uid,
+            enrollment_uid=enrollment_uid,
+            enrolled_at=self._date_time(),
+            incident_at=self._date_time() if self.incident_date_shown else None,
+        )
 
     def _extensions(self, period: PeriodValue | None, tracker: _TrackerContext | None) -> list[Extension]:
         """The extensions the declared form kind's response profile slices, in the order it slices them."""
@@ -243,6 +281,10 @@ class _Generator(BaseModel):
                     ),
                 )
             )
+            if tracker.enrolled_at is not None:
+                extensions.append(Extension(url=self.naming.enrolled_at_url, valueDateTime=tracker.enrolled_at))
+            if tracker.incident_at is not None:
+                extensions.append(Extension(url=self.naming.incident_at_url, valueDateTime=tracker.incident_at))
         if period is not None:
             extensions.append(_period_extension(period, self.naming))
         extensions.extend(self._attribute_option_combo())
@@ -267,7 +309,7 @@ class _Generator(BaseModel):
         return (Extension(url=self.naming.attribute_option_combo_url, valueCoding=_coding(declared.system, drawn)),)
 
     def _subject(self, tracker: _TrackerContext | None) -> Reference:
-        """Who the response is about: the tracked entity of a tracker event, else the reporting unit."""
+        """Who the response is about: the tracked entity of a tracker response, else the reporting unit."""
         if tracker is not None:
             return Reference(
                 type=TRACKER_SUBJECT_TYPE,
@@ -360,9 +402,11 @@ class _Generator(BaseModel):
     def _uid(self) -> str:
         """A seeded DHIS2-shaped UID for the tracker context this response is captured in.
 
-        The tracked entity and the enrollment a generated tracker event names do not exist on any
+        The tracked entity and the enrollment a generated tracker response names do not exist on any
         instance. The capture contract checks the shape of those identifiers, not their existence,
-        which is what lets a form kind whose context is data rather than metadata be generated at all.
+        which is what lets a form kind whose context is data rather than metadata be generated at all -
+        and what makes a generated registration response mean the same thing as a real one, since a
+        real client mints those identifiers too.
         """
         return _shaped_uid(self._random)
 
@@ -443,6 +487,31 @@ def resolve_period_type(canonical: str, naming: CaptureNaming, store: ResourceSt
         if declared in PERIOD_TYPE_NAMES:
             return declared
     return DEFAULT_PERIOD_TYPE
+
+
+def resolves_incident_date(index: CaptureIndex, naming: CaptureNaming, store: ResourceStore) -> bool:
+    """Decide whether a generated registration response dates the incident its enrollment follows.
+
+    The compiled Questionnaire does not carry the program's `displayIncidentDate`, so the rule is
+    the one the period type follows: a served example response answering the same form is the
+    guide's own statement about the program, and an incident date is generated exactly where one
+    of those carries it. A store holding no such example - which is every `--live` store - generates
+    none, because `D2IncidentAt` is 0..1 and a response leaving it off is a complete response.
+    """
+    if index.form_kind != _REGISTRATION_FORM_KIND:
+        return False
+    for entry in store.entries:
+        if entry.resource_type != RESPONSE_RESOURCE_TYPE:
+            continue
+        try:
+            example = QuestionnaireResponse.model_validate(entry.body)
+        except ValidationError:
+            continue
+        if example.questionnaire != index.canonical:
+            continue
+        if any(extension.url == naming.incident_at_url for extension in example.extension or []):
+            return True
+    return False
 
 
 def _declared_period_type(example: QuestionnaireResponse, naming: CaptureNaming) -> str | None:

@@ -64,11 +64,13 @@ from dhis2w_fhir.foundation import (
 )
 from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, normalize_locale
 from dhis2w_fhir.names import (
+    DHIS2_UID_LENGTH,
     CodeStemError,
     NamingSource,
     StemResolution,
     StemSubject,
     fsh_stem_segment,
+    is_dhis2_uid,
     markdown_text,
     resolve_identity_stems,
 )
@@ -407,6 +409,7 @@ __all__ = [
     "ConversionResult",
     "ConversionTargetKind",
     "DATA_ELEMENT_TERMINOLOGY",
+    "DHIS2_UID_LENGTH",
     "DEFAULT_BASEMAP_TEMPLATE",
     "DEFAULT_LOAD_SET_PER_TARGET",
     "DEFAULT_SUSHI_TIMEOUT_SECONDS",
@@ -598,6 +601,7 @@ __all__ = [
     "generate_load_set",
     "generate_note",
     "generated_header",
+    "is_dhis2_uid",
     "is_disaggregated",
     "is_generated_file",
     "is_multi_valued",

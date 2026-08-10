@@ -60,6 +60,21 @@ class SyntheticPlacement(BaseModel):
     organisation_unit_uids: tuple[str, ...] = Field(min_length=1)
 
 
+class RegistrationIdentities(BaseModel):
+    """The two DHIS2 identities one registration response mints: the person, and the enrollment it creates.
+
+    A corpus is internally consistent only when the stage responses of a tracker program answer
+    against an enrollment something in the same corpus creates, so the pair is derived from the
+    program UID and the registration's ordinal and read twice - once by the registration that mints
+    it, once by every stage response assigned to it.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    tracked_entity_uid: str
+    enrollment_uid: str
+
+
 class ExampleAnswerIn(BaseModel):
     """One captured value, keyed the way DHIS2 keys it: data element plus category option combo.
 

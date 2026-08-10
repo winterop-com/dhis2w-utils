@@ -3,6 +3,7 @@
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.foundation import CAPTURE_SERVER_READ_RESOURCE_TYPES, FoundationNaming, build_foundation_artifacts
 from dhis2w_fhir.period import PERIOD_TYPE_DEFINITIONS
+from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS
 from dhis2w_fhir.status import IgStatus
 
 
@@ -508,11 +509,13 @@ def test_the_enrollment_date_extensions_follow_the_naming_prefix() -> None:
     assert "Id: dhis2-incident-at" in custom
 
 
-def test_the_capture_server_claims_no_profile_it_cannot_translate() -> None:
-    """The registration contract is published for clients to build against, not claimed as a served interaction."""
+def test_the_capture_server_claims_every_profile_it_translates() -> None:
+    """The declared profiles are `CAPTURED_FORM_KINDS`, so the statement cannot claim an unserved interaction."""
     capture_server = _by_path(GenerateConfig())["foundation/d2-capture-server.fsh"]
+    declared = [line for line in capture_server.splitlines() if "supportedProfile" in line]
+    assert len(declared) == len(CAPTURED_FORM_KINDS)
+    assert "Canonical(D2TrackerRegistrationResponse)" in capture_server
     assert "Canonical(D2TrackerEventResponse)" in capture_server
-    assert "Canonical(D2TrackerRegistrationResponse)" not in capture_server
 
 
 _ORGANISATION_UNIT_EXTENSION_GOLDEN = """Extension: D2OrganisationUnit
@@ -622,8 +625,9 @@ _CAPTURE_SERVER_GOLDEN = """Instance: D2CaptureServer
 InstanceOf: CapabilityStatement
 Title: "DHIS2 capture server"
 Description: "The interactions a server capturing DHIS2 data as QuestionnaireResponses supports: \
-one response created per request, against the aggregate, event, or tracker event response profile, \
-plus read and search over the definitional resources a capture client resolves a form from."
+one response created per request, against the aggregate, event, tracker registration, or tracker \
+event response profile, plus read and search over the definitional resources a capture client \
+resolves a form from."
 Usage: #definition
 * id = "d2-capture-server"
 * name = "D2CaptureServer"
@@ -642,6 +646,7 @@ response per form submission, and the server accepts exactly one response per re
 * rest.resource[=].interaction[+].code = #create
 * rest.resource[=].supportedProfile[+] = Canonical(D2AggregateResponse)
 * rest.resource[=].supportedProfile[+] = Canonical(D2EventResponse)
+* rest.resource[=].supportedProfile[+] = Canonical(D2TrackerRegistrationResponse)
 * rest.resource[=].supportedProfile[+] = Canonical(D2TrackerEventResponse)
 * rest.resource[+].type = #Questionnaire
 * rest.resource[=].interaction[+].code = #read

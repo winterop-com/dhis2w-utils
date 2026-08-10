@@ -63,7 +63,7 @@ async def test_metadata_says_stored_responses_are_receipts_not_live_data(client:
     )
 
 
-async def test_metadata_declares_capture_against_the_three_response_profiles(client: httpx.AsyncClient) -> None:
+async def test_metadata_declares_capture_against_every_captured_response_profile(client: httpx.AsyncClient) -> None:
     response_resource = _resource(await _metadata(client), "QuestionnaireResponse")
 
     interactions = response_resource["interaction"]
@@ -71,6 +71,7 @@ async def test_metadata_declares_capture_against_the_three_response_profiles(cli
     assert response_resource["supportedProfile"] == [
         f"{CANONICAL}/StructureDefinition/d2-aggregate-response",
         f"{CANONICAL}/StructureDefinition/d2-event-response",
+        f"{CANONICAL}/StructureDefinition/d2-tracker-registration-response",
         f"{CANONICAL}/StructureDefinition/d2-tracker-event-response",
     ]
 

@@ -479,3 +479,115 @@ test.describe('a form asking for an organisation unit as an answer', () => {
         await expect(tree).toHaveCount(0)
     })
 })
+
+/**
+ * Registering a person: the form kind whose whole submission is context.
+ *
+ * A tracker registration answers the tracked entity attributes and files an enrollment, and every
+ * fact about that enrollment - the tracked entity uid, the enrollment uid, the date it begins, the
+ * date of the incident it follows - rides the envelope rather than any answer. So this walks the
+ * one thing the other capture specs cannot: that a person can read those facts before submitting,
+ * and find them again on the receipt afterwards.
+ *
+ * THE FORM IS DISCOVERED, NOT NAMED. Every other spec here hard-codes the uid of the form it
+ * drives, because those forms have been in the fixture project since it was written. This one asks
+ * the server which of its Questionnaires declares the `tracker` form type, so the spec is about
+ * the kind rather than about one fixture's choice of uid - and so it starts passing the moment the
+ * project publishes a registration form, with nothing to unskip by hand.
+ */
+test.describe('a tracker registration form', () => {
+    /** The kind's code in the D2FormType terminology - `tracker-event` is the program stage. */
+    const REGISTRATION_FORM_TYPE = 'tracker'
+
+    /** What one served form states about itself, as far as finding the registration one needs. */
+    interface ServedForm {
+        id: string
+        title: string
+    }
+
+    /** The registration form this project publishes, or null when it publishes none. */
+    async function registrationForm(request: APIRequestContext): Promise<ServedForm | null> {
+        const bundle = await request.get('/Questionnaire', { headers: { Accept: FHIR_JSON } })
+        expect(bundle.status(), await bundle.text()).toBe(200)
+        const body = (await bundle.json()) as {
+            entry?: {
+                resource?: {
+                    id?: string
+                    title?: string
+                    name?: string
+                    extension?: { url: string; valueCode?: string }[]
+                }
+            }[]
+        }
+        for (const entry of body.entry ?? []) {
+            const resource = entry.resource
+            if (resource?.id === undefined) continue
+            const declared = resource.extension?.find((candidate) =>
+                candidate.url.endsWith('/StructureDefinition/d2-form-type'),
+            )
+            if (declared?.valueCode !== REGISTRATION_FORM_TYPE) continue
+            return { id: resource.id, title: resource.title ?? resource.name ?? resource.id }
+        }
+        return null
+    }
+
+    test('opens as a registration, states the enrollment it files, and puts it on the receipt', async ({
+        page,
+        request,
+    }) => {
+        const form = await registrationForm(request)
+        test.skip(
+            form === null,
+            'this project publishes no tracker registration form, so there is no kind to capture against',
+        )
+        // Narrowed for the compiler; `test.skip` above has already ended the run when it is null.
+        if (form === null) return
+
+        // `$generate` is what makes a registration postable - the minted uids and the enrollment
+        // dates are all its work - so a server that does not answer for the kind is a dependency
+        // this spec states rather than a failure it reports.
+        const skeleton = await request.get(`/Questionnaire/${form.id}/$generate?seed=5`, {
+            headers: { Accept: FHIR_JSON },
+        })
+        test.skip(
+            skeleton.status() !== 200,
+            'this server does not answer $generate for the tracker kind, so a registration cannot be filled here',
+        )
+
+        // The listing names the kind in the words the whole UI uses for it.
+        await page.goto('/#/forms')
+        const listed = page.getByRole('row').filter({ hasText: form.title }).first()
+        await expect(listed).toContainText('Tracker registration')
+
+        const opened = page.waitForResponse((response) => response.url().includes('$generate'))
+        await listed.click()
+        await expect(page).toHaveURL(new RegExp(`#/forms/${form.id}$`))
+        await opened
+
+        // The three facts the envelope carries and no question holds. Read-only on purpose: the
+        // server draws them as part of the skeleton that makes the submission postable, and a
+        // person seeing what they are about to file is what this block is for.
+        const enrollment = page.getByRole('heading', { name: 'Enrollment', exact: true })
+        await expect(enrollment).toBeVisible()
+        await expect(page.getByText('Enrolled at', { exact: true })).toBeVisible()
+
+        await page.getByRole('button', { name: 'Fill with test data' }).click()
+        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+
+        await page.getByRole('button', { name: 'Submit' }).click()
+        await expect(page.getByText('The server accepted this submission')).toBeVisible()
+        await expect(page).toHaveURL(/#\/responses$/)
+
+        const receipt = page.getByRole('row').filter({ hasText: form.title }).first()
+        await expect(receipt).toContainText('Tracker registration')
+        await receipt.click()
+
+        // The receipt states the same enrollment the form showed, under the same labels - the two
+        // minted uids mono, because they are handles to type into DHIS2, and the date as prose.
+        await expect(page.getByRole('heading', { name: 'Capture context' })).toBeVisible()
+        await expect(page.getByText('Tracked entity', { exact: true })).toBeVisible()
+        await expect(page.getByText('Enrollment', { exact: true })).toBeVisible()
+        await expect(page.getByText('Enrolled at', { exact: true })).toBeVisible()
+        await expect(page.getByText('Organisation unit', { exact: true })).toBeVisible()
+    })
+})

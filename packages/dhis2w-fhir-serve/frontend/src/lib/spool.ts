@@ -163,6 +163,19 @@ export function formatInstant(instant: string): string {
 export const ORGANISATION_UNIT_FACT_LABEL = 'Organisation unit'
 
 /**
+ * What the two tracker handles are labelled, exported for the same reason the unit's label is.
+ *
+ * The spool derives both when it indexes a receipt, and the stored resource carries both too - a
+ * registration response mints them. A page that reads the resource has to state the fact under
+ * the same label the spool would have, or one receipt would show the enrollment twice under two
+ * spellings.
+ */
+export const TRACKED_ENTITY_FACT_LABEL = 'Tracked entity'
+
+/** What the enrollment handle is labelled, wherever it is read from. */
+export const TRACKER_ENROLLMENT_FACT_LABEL = 'Enrollment'
+
+/**
  * The DHIS2 context one receipt carries, as label/value pairs for a detail view.
  *
  * Which facts exist depends on the form kind - an aggregate response reports for
@@ -175,8 +188,8 @@ export function captureContext(summary: SpoolResponseSummary): { label: string; 
         ['Period', summary.period],
         ['Period type', summary.period_type],
         [ORGANISATION_UNIT_FACT_LABEL, summary.organisation_unit],
-        ['Tracked entity', summary.tracked_entity],
-        ['Enrollment', summary.tracker_enrollment],
+        [TRACKED_ENTITY_FACT_LABEL, summary.tracked_entity],
+        [TRACKER_ENROLLMENT_FACT_LABEL, summary.tracker_enrollment],
         ['Authored', summary.authored],
         ['Response status', summary.status],
     ]

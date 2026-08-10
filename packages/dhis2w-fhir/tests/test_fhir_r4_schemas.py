@@ -25,6 +25,7 @@ from dhis2w_fhir.r4 import (
     ValueSet,
     json_resource,
 )
+from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS
 
 _DATA_DIRECTORY = Path(__file__).parent / "data" / "r4"
 
@@ -292,7 +293,7 @@ def test_a_capability_statement_carries_its_supported_profiles_and_interactions(
     assert response_resource.interaction is not None
     assert [interaction.code for interaction in response_resource.interaction] == ["create"]
     assert response_resource.supportedProfile is not None
-    assert len(response_resource.supportedProfile) == 3
+    assert len(response_resource.supportedProfile) == len(CAPTURED_FORM_KINDS)
 
 
 def test_a_capability_statement_declares_operations_on_its_rest_element() -> None:

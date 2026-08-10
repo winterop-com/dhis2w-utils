@@ -1663,8 +1663,8 @@ commitment.
     not the generator's to fix: a tracker event lands only against a real enrollment,
     which is the registration form's milestone below.
 
-- **The tracker registration form** - shipped, definition half whole; capture and
-  conversion are the next wave.
+- **The tracker registration form** - shipped whole: published, captured, converted,
+  and forwarded.
 
     A tracker program had every stage published and no way to reach any of them. That
     is what `d2w fhir forward` was reporting when it refused every tracker event with
@@ -1721,13 +1721,34 @@ commitment.
     since it shipped, applied to the form that creates the enrollment. What 5.2 now
     decides is purely the resource layer on top.
 
-    **What has not shipped is capture.** Nothing translates a registration response into
-    a DHIS2 `/api/tracker` payload, so `d2w fhir serve` refuses one by name at capture
-    and leaves the profile off its CapabilityStatement rather than spooling a receipt no
-    drain can empty, and `generate load-set` leaves registration forms out of the corpus
-    with a note. `CAPTURED_FORM_KINDS` is the one tuple naming the kinds a server
-    captures and the translator converts; the registration kind joins it when the
-    conversion half lands, and that is the wave that finally clears `E1313`.
+    **Capture checks the shape of what the client minted, and says what it cannot check.**
+    `CAPTURED_FORM_KINDS` holds all four kinds, which is the one switch serve's index,
+    the conversion gate, the `supportedProfile` declarations, `/metadata`, and the load
+    set all read. The envelope phase grades a DHIS2-UID shape on both minted identifiers,
+    one organisation unit, and an enrolment date that parses - and stops there on purpose.
+    Uniqueness of a `unique` attribute is global instance state DHIS2 enforces at import,
+    and whether an incident date belongs is a fact about the program the compiled
+    Questionnaire does not publish, so a carried one is graded on its primitive alone.
+    `$generate` follows the same rule from the other side: it always writes `D2EnrolledAt`
+    and writes `D2IncidentAt` only where a served example of the form carries one, exactly
+    as it reads a data set's period type off a served example.
+
+    **Conversion writes the tracked entity it creates.** One `/api/tracker`
+    `trackedEntities` entry - the minted UID, the tracked entity type off `$DHIS2-TET`
+    (refused by name when the form carries none, because a program without one cannot
+    register anybody), the owning unit, one `TrackerAttribute` per answered question
+    through the value-type and coded-answer machinery a data element's answer uses, and
+    the single `ACTIVE` enrollment with `enrolledAt` required and `occurredAt` written
+    only where an incident date was stated. The models are the generated OpenAPI
+    `TrackerTrackedEntity` / `TrackerEnrollment` / `TrackerAttribute`, reused rather than
+    hand-rolled.
+
+    **Registrations post before events**, which is what finally clears `E1313`: a drain
+    orders by payload kind rather than tracking dependencies, so the enrollment a stage
+    response of the same drain answers against exists by the time DHIS2 reads the event.
+    `generate load-set` covers registration targets for the same reason and threads the
+    minted pairs through the program's stage responses, so a corpus is internally
+    consistent and a single forward run lands both halves.
 
 - **The attribute option combo, published as terminology** - shipped, and it is what
   [decision 5.4](#54-where-attributeoptioncombo-and-data-set-completeness-live)

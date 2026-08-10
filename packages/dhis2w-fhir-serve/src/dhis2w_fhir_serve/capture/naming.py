@@ -47,6 +47,12 @@ class CaptureNaming(BaseModel):
     """Extension url a QuestionnaireResponse names the attribute option combo its values are keyed under."""
 
     tracker_enrollment_url: str
+    enrolled_at_url: str
+    """Extension url a registration response dates the enrollment it mints from."""
+
+    incident_at_url: str
+    """Extension url a registration response dates the incident that enrollment follows."""
+
     tracked_entity_system: str
     tracker_enrollment_system: str
     program_identifier_system: str
@@ -74,6 +80,8 @@ class CaptureNaming(BaseModel):
             attribute_option_combos_url=_definition_url(canonical, names.attribute_option_combos_extension_id),
             attribute_option_combo_url=_definition_url(canonical, names.attribute_option_combo_extension_id),
             tracker_enrollment_url=_definition_url(canonical, names.tracker_enrollment_extension_id),
+            enrolled_at_url=_definition_url(canonical, names.enrolled_at_extension_id),
+            incident_at_url=_definition_url(canonical, names.incident_at_extension_id),
             tracked_entity_system=_identifier_system(base, "TrackedEntity"),
             tracker_enrollment_system=_identifier_system(base, "TrackerEnrollment"),
             program_identifier_system=_identifier_system(base, "Program"),

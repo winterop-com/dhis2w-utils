@@ -20,11 +20,13 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, load_project
 from dhis2w_fhir.conversion.artifacts import (
-    bound_data_element_uids,
+    BoundQuestionUids,
+    bound_question_uids,
     build_project_context,
     load_compiled_artifacts,
 )
 from dhis2w_fhir.conversion.schemas import (
+    FORWARD_TARGET_ORDER,
     CodedAnswerMode,
     ConversionNaming,
     ConversionNote,
@@ -111,7 +113,6 @@ from dhis2w_fhir.resources.questionnaires.assignments import (
     build_assignment_artifacts,
 )
 from dhis2w_fhir.resources.questionnaires.schemas import (
-    CAPTURED_FORM_KINDS,
     CategoryComboIn,
     CategoryOptionComboIn,
     FormKind,
@@ -141,10 +142,12 @@ if TYPE_CHECKING:
     from dhis2w_client.generated.v42.schemas import (
         Attribute,
         Category,
+        DataElement,
         DataSet,
         OptionSet,
         OrganisationUnit,
         Program,
+        TrackedEntityAttribute,
     )
     from dhis2w_core.progress import ProgressReporter
 
@@ -1240,6 +1243,11 @@ async def generate_load_set(
     no `E8023` either. A target left with no published unit assigned to it is dropped with a note
     naming it: a corpus exists to be forwarded, and a response nobody can accept measures a
     refusal we already knew about.
+
+    A tracker program's corpus is internally consistent for the same reason. The registration
+    responses mint the tracked entity and enrollment identities, and the program's stage responses
+    answer against those very identities rather than inventing pairs nothing creates - so a drain,
+    which posts registrations before events, lands both.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
@@ -1274,6 +1282,7 @@ async def generate_load_set(
             root_uid,
             datetime.now(tz=UTC).date(),
             placements=plan.placements,
+            registration_program_uids=plan.registration_program_uids,
         )
         notes.extend(synthetic.notes)
         build = build_example_documents(
@@ -1326,6 +1335,11 @@ class _LoadSetPlan(BaseModel):
     sources: list[QuestionnaireSourceIn] = Field(default_factory=list)
     placements: dict[str, SyntheticPlacement] = Field(default_factory=dict)
     notes: list[GenerateNote] = Field(default_factory=list)
+
+    @property
+    def registration_program_uids(self) -> frozenset[str]:
+        """The tracker programs the corpus emits registrations for, whose stage events reuse those identities."""
+        return frozenset(source.uid for source in self.sources if source.kind == "tracker")
 
 
 async def _fetch_load_set_assignments(
@@ -1389,12 +1403,14 @@ def _plan_load_set(
 
     A target is placed on the intersection of the published registry selection and its own DHIS2
     assignment, sorted so the seeded pick is reproducible whatever order the instance answered in.
-    Two classes are dropped rather than emitted, both for the same reason - a load set is measured
-    by what DHIS2 accepts, so a response nobody can accept is noise in the very number the corpus
-    exists to produce. A target the intersection leaves empty is one: every response would name a
-    unit the container does not report for, which DHIS2 refuses with `E1029`. A target of a form
-    kind outside `CAPTURED_FORM_KINDS` is the other: the corpus is POSTed at a capture server, and
-    a registration response is refused at the door.
+    One class is dropped rather than emitted: a target the intersection leaves empty, because every
+    response would name a unit the container does not report for and DHIS2 refuses that with
+    `E1029`. A load set is measured by what DHIS2 accepts, so a response nobody can accept is noise
+    in the very number the corpus exists to produce.
+
+    Every form kind is covered. A tracker program contributes its registration form and its stages
+    together, and the stages answer against the very enrollments the registrations mint - which is
+    what makes the corpus internally consistent, given that a drain posts registrations first.
 
     A data set on a non-default category combo is covered like any other. Its responses carry the
     `D2AttributeOptionCombo` extension, drawn from the attribute option combos the data set really
@@ -1402,28 +1418,14 @@ def _plan_load_set(
     """
     plan = _LoadSetPlan()
     unplaced: list[str] = []
-    uncaptured: list[str] = []
     for source in sources:
-        label = f"{source.name} ({source.uid})"
-        if source.kind not in CAPTURED_FORM_KINDS:
-            uncaptured.append(label)
-            continue
         assignment = assignments.get(assignment_container_uid(source))
         units = sorted(published_organisation_unit_uids & assignment.organisation_unit_uids) if assignment else []
         if not units:
-            unplaced.append(label)
+            unplaced.append(f"{source.name} ({source.uid})")
             continue
         plan.sources.append(source)
         plan.placements[source.uid] = SyntheticPlacement(organisation_unit_uids=tuple(units))
-    if uncaptured:
-        plan.notes.append(
-            aggregate_generate_note(
-                GenerateNoteCategory.EMPTY_SELECTION,
-                f"{len(uncaptured)} questionnaire targets are of a form kind no capture server accepts a "
-                "response for; no load-set responses emitted for them",
-                uncaptured,
-            )
-        )
     if unplaced:
         plan.notes.append(
             aggregate_generate_note(
@@ -3301,8 +3303,13 @@ FORWARD_STEPS = 6
 #: The `/api/dataValueSets` endpoint one aggregate response is imported through.
 _DATA_VALUE_SETS_PATH = "/api/dataValueSets"
 
-#: The `/api/tracker` endpoint both event kinds are imported through.
+#: The `/api/tracker` endpoint both event kinds and every registration are imported through.
 _TRACKER_PATH = "/api/tracker"
+
+#: The `/api/tracker` bundle key each payload kind rides under: an event, or the tracked entity a
+#: registration creates with its enrollment nested inside it.
+_TRACKER_EVENTS_KEY = "events"
+_TRACKER_TRACKED_ENTITIES_KEY = "trackedEntities"
 
 #: What a dry run adds to an aggregate post. v42 spells validate-only on this endpoint as `dryRun`,
 #: and the import runs every rule it would run for real while committing nothing.
@@ -3317,8 +3324,9 @@ _TRACKER_PARAMS = {"importStrategy": "CREATE", "async": "false"}
 #: validate-only mode is `importMode=VALIDATE`, which runs the whole validation pass and persists nothing.
 _TRACKER_DRY_RUN_PARAMS = {"importMode": "VALIDATE"}
 
-#: The data-element projection the value-type read asks for - the one fact the compiled IG cannot carry,
-#: because R4 spells `BOOLEAN` and `TRUE_ONLY` as the same `#boolean` item type.
+#: The projection the value-type read asks for - the one fact the compiled IG cannot carry, because
+#: R4 spells `BOOLEAN` and `TRUE_ONLY` as the same `#boolean` item type. The same two fields answer
+#: for both objects a question is asked from, so one shape serves both reads.
 _VALUE_TYPE_FIELDS = "id,valueType"
 
 #: How many UIDs one `id:in:[...]` filter carries before the value-type read is split across requests.
@@ -3450,7 +3458,14 @@ class ForwardOutcome(BaseModel):
 
 
 class ForwardReport(BaseModel):
-    """The outcome of draining one project's capture spool into DHIS2, in the order it was drained."""
+    """The outcome of draining one project's capture spool into DHIS2, in the order it was drained.
+
+    `outcomes` is in spool order, which is not the posting order: payloads go to DHIS2 in
+    `FORWARD_TARGET_ORDER`, registrations first, so an enrollment exists before the stage events of
+    the same drain answer against it. The two orders are deliberately separate - a report reads
+    back as the spool it drained, and the posting order is a fact about the run rather than about
+    any one receipt.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -3539,6 +3554,13 @@ async def forward_responses(
     bind - the one fact the compiled IG cannot carry, since R4 spells `BOOLEAN` and `TRUE_ONLY` as the
     same `#boolean` item type - and then posts every translated payload through the same connection.
 
+    Registrations post first. A tracker program's registration response creates the enrollment its
+    stage responses answer against, and a client captures both in one sitting, so a drain holding
+    the pair posts the tracked entity before the events - otherwise DHIS2 refuses each event with
+    `E1313` for an enrollment that does not exist yet. Nothing tracks which event belongs to which
+    registration: the ordering is by payload kind, and a registration DHIS2 rejects leaves its
+    events to fail as they would have anyway, for the next drain to retry.
+
     `coded_answer_mode` defaults to what `[serve] strict_codes` says, so a project that captures
     strictly forwards strictly without stating it twice.
     """
@@ -3556,12 +3578,12 @@ async def forward_responses(
     )
 
     naming = ConversionNaming.from_config(project.config.generate, project.config.ig.canonical)
-    data_element_uids = bound_data_element_uids(artifacts, naming)
+    bound = bound_question_uids(artifacts, naming)
     dry_run = not import_responses
     async with open_client(profile) as client:
         progress.step("value types", "reading the value types the forms bind")
-        value_types = await _fetch_value_types(client, data_element_uids, progress=progress)
-        progress.complete(f"{len(value_types):,} of {len(data_element_uids):,} data element(s) typed")
+        value_types = await _fetch_value_types(client, bound, progress=progress)
+        progress.complete(f"{len(value_types):,} of {bound.total:,} question object(s) typed")
 
         context = build_project_context(
             project,
@@ -3598,24 +3620,45 @@ def _configured_coded_answer_mode(project: FhirProject) -> CodedAnswerMode:
 
 async def _fetch_value_types(
     client: Dhis2Client,
-    uids: Sequence[str],
+    bound: BoundQuestionUids,
     *,
     progress: _StepAnnouncer,
 ) -> dict[str, str]:
-    """Read the DHIS2 value type of every data element the published forms bind, in id-only batches."""
+    """Read the DHIS2 value type of every object the published forms ask a question from, in id-only batches.
+
+    Two reads over one table. A link id names a data element on three form kinds and a tracked
+    entity attribute on the registration one, and the two live behind different endpoints - but a
+    UID identifies exactly one DHIS2 object, so both answers land in the single
+    `value_types_by_data_element` map the translation context takes.
+    """
     value_types: dict[str, str] = {}
-    for start in range(0, len(uids), _VALUE_TYPE_BATCH_SIZE):
-        batch = list(uids[start : start + _VALUE_TYPE_BATCH_SIZE])
-        progress.tick(f"reading value types ({min(start + len(batch), len(uids)):,}/{len(uids):,})")
-        models = await client.resources.data_elements.list(
-            fields=_VALUE_TYPE_FIELDS,
-            filters=[_uid_filter(batch)],
-            paging=False,
+    for batch in _uid_batches(bound.data_element_uids):
+        progress.tick(_value_type_caption(len(value_types) + len(batch), bound.total))
+        data_elements: list[DataElement] = await client.resources.data_elements.list(
+            fields=_VALUE_TYPE_FIELDS, filters=[_uid_filter(batch)], paging=False
         )
-        for model in models:
-            if model.id and model.valueType is not None:
-                value_types[model.id] = model.valueType.value
+        for data_element in data_elements:
+            if data_element.id and data_element.valueType is not None:
+                value_types[data_element.id] = data_element.valueType.value
+    for batch in _uid_batches(bound.tracked_entity_attribute_uids):
+        progress.tick(_value_type_caption(len(value_types) + len(batch), bound.total))
+        attributes: list[TrackedEntityAttribute] = await client.resources.tracked_entity_attributes.list(
+            fields=_VALUE_TYPE_FIELDS, filters=[_uid_filter(batch)], paging=False
+        )
+        for attribute in attributes:
+            if attribute.id and attribute.valueType is not None:
+                value_types[attribute.id] = attribute.valueType.value
     return value_types
+
+
+def _uid_batches(uids: Sequence[str]) -> list[list[str]]:
+    """Split one read's UIDs into the batches an `id:in:[...]` filter carries without growing unbounded."""
+    return [list(uids[start : start + _VALUE_TYPE_BATCH_SIZE]) for start in range(0, len(uids), _VALUE_TYPE_BATCH_SIZE)]
+
+
+def _value_type_caption(read: int, total: int) -> str:
+    """The live caption the value-type step re-writes itself with as the two reads drain."""
+    return f"reading value types ({min(read, total):,}/{total:,})"
 
 
 def _post_caption(posted: int, total: int, *, dry_run: bool) -> str:
@@ -3636,10 +3679,18 @@ async def _post_translations(
 
     One payload per POST is what makes the outcome attributable: DHIS2 answers a bundle with one
     report for the bundle, and a spool whose receipts move individually needs one answer each.
+
+    The order is `FORWARD_TARGET_ORDER` and then the spool's, which is what makes one drain
+    internally consistent: a registration creates the enrollment a stage event captured seconds
+    later answers against, and DHIS2 refuses an event naming an enrollment it cannot find with
+    `E1313`. Posting every registration first is the whole of the coordination - there is no
+    dependency graph, and a registration DHIS2 rejects still leaves its stage events to fail
+    `E1313`, which the next drain retries once the cause is fixed.
     """
-    translated = [
-        (entry, result) for entry, result in zip(spooled, conversion.results, strict=True) if not result.is_refused
-    ]
+    translated = sorted(
+        ((entry, result) for entry, result in zip(spooled, conversion.results, strict=True) if not result.is_refused),
+        key=lambda pair: _post_order(pair[1]),
+    )
     imports: dict[str, ForwardImportOutcome] = {}
     for posted, (entry, result) in enumerate(translated, start=1):
         imports[entry.response_id] = await _post_result(client, result, dry_run=dry_run)
@@ -3648,16 +3699,27 @@ async def _post_translations(
     return imports
 
 
+def _post_order(result: ConversionResult) -> int:
+    """Where one translated payload sits in the posting order its target kind gives it."""
+    if result.target_kind is None or result.target_kind not in FORWARD_TARGET_ORDER:
+        return len(FORWARD_TARGET_ORDER)
+    return FORWARD_TARGET_ORDER.index(result.target_kind)
+
+
 async def _post_result(client: Dhis2Client, result: ConversionResult, *, dry_run: bool) -> ForwardImportOutcome:
     """Post one translated payload to the endpoint its target kind names, and project DHIS2's answer."""
     if result.data_value_set is not None:
         params = dict(_DATA_VALUE_SETS_DRY_RUN_PARAMS) if dry_run else {}
         body = result.data_value_set.model_dump(by_alias=True, exclude_none=True, mode="json")
         return _aggregate_import_outcome(await _post_body(client, _DATA_VALUE_SETS_PATH, body, params))
-    if result.event is None:
-        raise ValueError("a translated result carries neither a data value set nor an event")
     params = {**_TRACKER_PARAMS, **(_TRACKER_DRY_RUN_PARAMS if dry_run else {})}
-    body = {"events": [result.event.model_dump(by_alias=True, exclude_none=True, mode="json")]}
+    if result.tracked_entity is not None:
+        registration = result.tracked_entity.model_dump(by_alias=True, exclude_none=True, mode="json")
+        body = {_TRACKER_TRACKED_ENTITIES_KEY: [registration]}
+        return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
+    if result.event is None:
+        raise ValueError("a translated result carries no data value set, no tracked entity, and no event")
+    body = {_TRACKER_EVENTS_KEY: [result.event.model_dump(by_alias=True, exclude_none=True, mode="json")]}
     return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
 
 

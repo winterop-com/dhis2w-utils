@@ -1499,13 +1499,14 @@ capture has no attribute option combo, so a registration form declares no
 DHIS2 identities rather than naming existing ones - see
 [`D2TrackerRegistrationResponse`](#the-capture-contract).
 
-**Published, not yet captured.** The form, its terminology, and its response profile all
-ship, and `d2w fhir serve` serves the Questionnaire for a client to read. What does not
-ship yet is capture: nothing translates a registration response into a DHIS2
-`/api/tracker` payload, so the facade refuses one by name and leaves it off its
-CapabilityStatement rather than spooling a receipt no drain can empty. `generate
-load-set` leaves registration forms out of the corpus for the same reason, with a note
-naming them.
+**Captured and forwarded.** `d2w fhir serve` accepts a registration response, spools the
+receipt, and declares the profile on its CapabilityStatement; `d2w fhir forward`
+translates it into the `/api/tracker` tracked entity and enrollment it creates. Because
+the enrollment a stage response answers against is what a registration creates, a drain
+posts every registration **before** any event - see
+[What one run does](#what-one-run-does). `generate load-set` covers registration forms
+for the same reason: its stage responses answer against the very identities its
+registration responses mint, so the corpus is internally consistent.
 
 ### Organisation-unit assignment
 
@@ -1887,7 +1888,7 @@ All four follow the `[generate.naming]` prefix, and all four take `^status` /
 `foundation/d2-capture-server.fsh` sits beside them: a `D2CaptureServer`
 CapabilityStatement of `kind = #requirements`, declaring `create` on
 `QuestionnaireResponse` with the profiles a server captures today as
-`supportedProfile` - the aggregate, event, and tracker-event three - plus `read` and
+`supportedProfile` - all four of them - plus `read` and
 `search-type` on the `Questionnaire`, `CodeSystem`, `ValueSet`, `Location`,
 `Organization`, and `List` resources a client resolves a form from - `List` because a
 form's [organisation-unit assignment](#organisation-unit-assignment) is published as
@@ -1937,6 +1938,24 @@ dates the enrollment too: `D2EnrolledAt` 1..1 is when it begins, and `D2Incident
 is when the incident it follows occurred - `0..1` because a DHIS2 program states through
 `displayIncidentDate` whether it collects one at all, so a response to a form whose
 program does not carries none.
+
+**What a capture server can honestly check about a minted identifier.** Its *shape* - a
+DHIS2 UID, one ASCII letter and ten alphanumeric places - and nothing else. A facade
+holds no instance data, so "does this person exist" is not a question it can answer, and
+a registration is precisely the response for which the answer is meant to be no. Two
+consequences the capture path states out loud:
+
+- **Uniqueness is not checked.** A `unique` tracked entity attribute is a business
+  identifier, and whether a value is already taken is global instance state. `d2w fhir
+  serve` stores the receipt; DHIS2 refuses the duplicate at import, and the rejection
+  comes back through `d2w fhir forward` like any other.
+- **The incident date is graded on its primitive alone.** The compiled Questionnaire
+  publishes no statement of `displayIncidentDate`, so a response is accepted with
+  `D2IncidentAt` and without it; what capture does check is that a carried one reads as
+  an R4 `dateTime`. `$generate` follows the same honest rule - it always generates
+  `D2EnrolledAt`, and generates `D2IncidentAt` only when a served example response of
+  the same form carries one, exactly as it reads a data set's period type off a served
+  example.
 
 **Identifier-keyed, and only identifier-keyed.** A registration response publishes no
 `Patient`, no `EpisodeOfCare`, and no `CarePlan` - it mints the DHIS2 identifiers and
@@ -2542,6 +2561,16 @@ naming it, and `questionnaire_count` counts what the corpus covers rather than w
 selection holds - a form the corpus cannot exercise is a fact worth reading, not one
 worth hiding behind responses nobody can accept.
 
+**A tracker program's corpus is internally consistent.** Every form kind is covered,
+registration forms included, and the two halves of a tracker program agree: the
+registration responses mint the tracked entity and enrollment UIDs, and the program's
+stage responses answer against those very pairs rather than inventing enrollments
+nothing creates. The pair is a pure function of the program UID and the registration's
+ordinal, and stage responses are assigned across the registrations round-robin, so the
+assignment is reproducible and every registration carries events. Since a drain posts
+[registrations before events](#what-one-run-does), forwarding the whole corpus lands
+both halves in one run.
+
 Then post the lot:
 
 ```bash
@@ -2636,6 +2665,15 @@ is no URL to configure and nothing to point at anything:
     filed under - the one control here that does block Submit until it has a value, because
     nothing derives it.
 
+    **A tracker registration form shows the enrollment it is about to file**, in the same
+    row as those two and read-only: when the enrollment begins (`D2EnrolledAt`), when the
+    incident it follows occurred (`D2IncidentAt`, on a program that collects one), and the
+    DHIS2 uid the enrollment will be created under - the one the response mints for itself.
+    None of the three is a question on the form, and none of them is a choice you brought
+    with you the way the unit and the combo are, so they come off the `$generate` envelope
+    and ride the submission unchanged. They are on screen because a submission carrying a
+    date nobody saw is worse than one carrying a date nobody can change.
+
     A refused submission does not vanish into a toast: the validator's OperationOutcome
     is rendered issue by issue above the buttons, each with its severity, its code, and
     the question it is about - which is usually enough to fix the form without opening a
@@ -2655,7 +2693,12 @@ is no URL to configure and nothing to point at anything:
   the form it answers (linked back to the form itself), its lifecycle badge, the DHIS2
   context it states (reporting period and type, organisation unit, tracked entity,
   enrollment, authored), and - when the receipt came from `$generate` - the seed it was
-  drawn from, which is what makes the same answers reproducible.
+  drawn from, which is what makes the same answers reproducible. **A registration receipt
+  states its enrollment dates too** - enrolled at, and the incident date when the program
+  collects one - read straight off the stored resource, because the spool derives neither
+  and a receipt that named the person enrolled without saying when would be a registration
+  read as half of itself. The tracked entity and the enrollment are stated once whichever
+  of the two sources answered for them.
 
     **The answers are on it, joined to the questions that were asked.** The page reads
   the served `Questionnaire` as well as the receipt and puts them side by side: the
@@ -2832,6 +2875,7 @@ endpoint on the real instance, under that endpoint's own validate-only mode.
 | Payload | Endpoint | Dry run | Import |
 | --- | --- | --- | --- |
 | Aggregate response | `POST /api/dataValueSets` | `dryRun=true` | *(no extra parameter)* |
+| Tracker registration | `POST /api/tracker` | `importMode=VALIDATE` | *(no extra parameter)* |
 | Event / tracker event | `POST /api/tracker` | `importMode=VALIDATE` | *(no extra parameter)* |
 
 Both endpoints run every rule they would run for a committed import and persist nothing,
@@ -2855,12 +2899,26 @@ Six steps, each narrated on stderr:
    uncompiled project is a one-line refusal naming `d2w fhir generate` and `make sushi`.
 3. **Read the value types** - one id-only
    `/api/dataElements?fields=id,valueType&filter=id:in:[...]` for the data elements the
-   published forms bind. This is the one fact the compiled IG cannot carry: R4 spells
-   DHIS2's `BOOLEAN` and `TRUE_ONLY` as the same `#boolean` item type, and only the value
-   type tells them apart. Without it a `TRUE_ONLY` question would be written as `BOOLEAN`.
+   published forms bind, plus the same read against `/api/trackedEntityAttributes` for the
+   attributes a registration form asks. This is the one fact the compiled IG cannot carry:
+   R4 spells DHIS2's `BOOLEAN` and `TRUE_ONLY` as the same `#boolean` item type, and only
+   the value type tells them apart. Without it a `TRUE_ONLY` question would be written as
+   `BOOLEAN`.
 4. **Translate** - each response through `dhis2w_fhir.conversion`, all-or-nothing.
-5. **Post** - one payload per response, through the one client the run opened.
+5. **Post** - one payload per response, **registrations first**, through the one client
+   the run opened.
 6. **File** - each receipt into what it became (import runs only).
+
+**Registrations post before events.** A client enrols a person and captures that
+enrollment's first stage events in one sitting, so a single drain routinely holds both -
+and the enrollment the events name is what the registration creates. DHIS2 refuses an
+event whose enrollment it cannot find with `E1313`, so the posting order is by payload
+kind: every tracked entity first, then the data value sets and the events, each group in
+spool order. Nothing tracks which event belongs to which registration - there is no
+dependency graph, and a registration DHIS2 rejects leaves its stage events to fail
+`E1313` exactly as they would have. The receipts stay in the queue and the next run is
+the retry. The **report** reads back in spool order regardless: it is a record of the
+spool it drained, and the posting order is a fact about the run.
 
 A refusal comes back differently from each endpoint, and the run reads both: `/api/dataValueSets`
 answers a `409` whose body is a `WebMessage` wrapping an `ImportSummary`, while `/api/tracker`
@@ -2887,6 +2945,32 @@ stem, and under `naming.source = "code"` that stem is not a DHIS2 UID:
 | `completeDate` | the day of the response's `authored` instant, noted | left unset |
 | `dataValues[].dataElement` / `.categoryOptionCombo` | the answered item's link id, `<dataElement>.<categoryOptionCombo>` for a disaggregated cell | refused (`unknown-link-id`) |
 | `dataValues[].value` | the answer's `value[x]`, per the question's DHIS2 value type | refused, per the reason |
+
+### What a translated registration payload is built from
+
+A registration response becomes one `/api/tracker` `trackedEntities` entry carrying the
+single enrollment it creates. Both DHIS2 identities travel as the client minted them,
+which is the whole point of the contract:
+
+| DHIS2 field | Read from | If it is missing |
+| --- | --- | --- |
+| `trackedEntity` | `subject.identifier` under `{base}/id/tracked-entity` | refused (`missing-subject`) |
+| `trackedEntityType` | the form's `{base}/id/tracked-entity-type` identifier | refused (`missing-tracked-entity-type`) |
+| `orgUnit` | the `D2OrganisationUnit` extension, resolved through the published Location's `{base}/id/org-unit` identifier | refused (`missing-organisation-unit` / `unresolvable-organisation-unit`) |
+| `attributes[].attribute` | the answered item's link id, which on a registration form is the tracked entity attribute UID | refused (`unknown-link-id`) |
+| `attributes[].value` | the answer's `value[x]`, through the same value-type serialisation a data element's answer goes through | refused, per the reason |
+| `enrollments[].enrollment` | the `D2TrackerEnrollment` extension's identifier under `{base}/id/tracker-enrollment` | refused (`missing-enrollment`) |
+| `enrollments[].program` | the form's `{base}/id/program` identifier | refused (`missing-target-identifier`) |
+| `enrollments[].orgUnit` | the same unit the tracked entity is owned by | as above |
+| `enrollments[].enrolledAt` | the `D2EnrolledAt` extension, read back to the zone-less wall clock DHIS2 stores | refused (`missing-enrollment-date` / `malformed-enrollment-date`) |
+| `enrollments[].occurredAt` | the `D2IncidentAt` extension, the same way | left unset |
+| `enrollments[].status` | fixed `ACTIVE` - a registration form is answered when a person is enrolled | n/a |
+
+The payload models are the generated OpenAPI ones - `TrackerTrackedEntity`,
+`TrackerEnrollment`, `TrackerAttribute`, `EnrollmentStatus` - the same discipline the
+event path follows with `TrackerEvent`. Coded attributes resolve through the published
+ValueSets on the strict/lenient dial a coded data element resolves on, because a tracked
+entity attribute has the same DHIS2 value types and binds option sets the same way.
 
 **The attribute option combo resolves in the same tiers a coded answer does.** The concept
 code first - which under `concept_code_source = "id"` *is* the DHIS2 category option combo

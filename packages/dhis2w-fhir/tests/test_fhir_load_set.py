@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -539,9 +540,10 @@ async def test_the_assignment_aware_pick_is_reproducible(
     assert picks == _subjects(third / "load", _PROGRAM_UID)
 
 
-#: A tracker program whose registration form the corpus has to leave out - a capture server has no
-#: DHIS2 payload to translate a registration response into, so a corpus holding one measures nothing.
+#: A tracker program whose whole capture surface the corpus covers: the registration form that mints
+#: the enrollment identities, and the stage form whose events answer against those very identities.
 _TRACKER_PROGRAM_UID = "IpHINAT79UW"
+_TRACKER_STAGE_UID = "A03MvHHogjR"
 
 _TRACKER_PROGRAMS_PAYLOAD: dict[str, object] = {
     "programs": [
@@ -575,14 +577,8 @@ _TRACKER_PROGRAMS_PAYLOAD: dict[str, object] = {
 }
 
 
-@respx.mock
-async def test_a_tracker_registration_form_contributes_no_load_set_responses(
-    probe_profile: None,  # noqa: ARG001
-    mock_system_info: Callable[..., None],
-    tmp_path: Path,
-) -> None:
-    """The corpus is POSTed at a capture server, so a form kind no server captures is dropped with a note."""
-    mock_system_info("v42")
+async def _tracker_run(tmp_path: Path, per_target: int) -> service.LoadSetReport:
+    """Scaffold a project holding one tracker program and generate a corpus over its whole surface."""
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_TRACKER_PROGRAMS_PAYLOAD))
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
@@ -596,13 +592,89 @@ async def test_a_tracker_registration_form_contributes_no_load_set_responses(
         tracker_program_ids=[_TRACKER_PROGRAM_UID],
     )
     await service.init_project(tmp_path, options)
+    return await service.generate_load_set(resolve_profile("probe"), load_project(tmp_path), per_target=per_target)
 
-    report = await service.generate_load_set(resolve_profile("probe"), load_project(tmp_path), per_target=2)
 
-    assert report.questionnaire_count == 1
-    assert not _load_files(tmp_path, _TRACKER_PROGRAM_UID)
-    assert len(_load_files(tmp_path, "A03MvHHogjR")) == 2
-    assert [note.message for note in report.notes if "no capture server accepts" in note.message] == [
-        "1 questionnaire targets are of a form kind no capture server accepts a response for; "
-        "no load-set responses emitted for them: Child Programme (IpHINAT79UW)"
-    ]
+def _documents(tmp_path: Path, target_uid: str) -> list[dict[str, Any]]:
+    """One target's corpus documents, parsed, in file-name order."""
+    return [json.loads(path.read_text(encoding="utf-8")) for path in _load_files(tmp_path, target_uid)]
+
+
+def _minted_pair(document: dict[str, Any]) -> tuple[str, str]:
+    """The tracked entity and enrollment UIDs one tracker response names."""
+    enrollment = next(
+        extension["valueIdentifier"]["value"]
+        for extension in document["extension"]
+        if extension["url"].endswith("d2-tracker-enrollment")
+    )
+    return (document["subject"]["identifier"]["value"], enrollment)
+
+
+@respx.mock
+async def test_a_tracker_program_contributes_registrations_and_stage_events(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Every form kind is captured now, so a tracker program's whole surface lands in the corpus."""
+    mock_system_info("v42")
+
+    report = await _tracker_run(tmp_path, per_target=2)
+
+    assert report.questionnaire_count == _QUESTIONNAIRE_COUNT
+    assert len(_load_files(tmp_path, _TRACKER_PROGRAM_UID)) == 2
+    assert len(_load_files(tmp_path, _TRACKER_STAGE_UID)) == 2
+    assert not [note for note in report.notes if "no capture server accepts" in note.message]
+
+
+@respx.mock
+async def test_a_registration_response_states_the_enrollment_it_mints(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A registration is the response that creates the enrollment, so it dates it and names the type."""
+    mock_system_info("v42")
+
+    await _tracker_run(tmp_path, per_target=1)
+
+    registration = _documents(tmp_path, _TRACKER_PROGRAM_UID)[0]
+    urls = [extension["url"] for extension in registration["extension"]]
+    assert registration["meta"]["profile"] == [f"{_CANONICAL}/StructureDefinition/d2-tracker-registration-response"]
+    assert f"{_CANONICAL}/StructureDefinition/d2-enrolled-at" in urls
+    assert urls[-1] == f"{_CANONICAL}/StructureDefinition/d2-form-type"
+
+
+@respx.mock
+async def test_stage_events_answer_against_the_registrations_of_the_same_corpus(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The corpus is internally consistent: every stage event names a pair a registration in it mints."""
+    mock_system_info("v42")
+
+    await _tracker_run(tmp_path, per_target=3)
+
+    minted = {_minted_pair(document) for document in _documents(tmp_path, _TRACKER_PROGRAM_UID)}
+    used = [_minted_pair(document) for document in _documents(tmp_path, _TRACKER_STAGE_UID)]
+    assert len(minted) == 3
+    assert set(used) == minted
+
+
+@respx.mock
+async def test_the_registration_identities_are_reproducible(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Same instance state, same minted identities: the pair is seeded off the program and the ordinal."""
+    mock_system_info("v42")
+
+    await _tracker_run(tmp_path, per_target=2)
+    first = _documents(tmp_path, _TRACKER_PROGRAM_UID)
+    rerun = await service.generate_load_set(resolve_profile("probe"), load_project(tmp_path), per_target=2)
+    second = _documents(tmp_path, _TRACKER_PROGRAM_UID)
+
+    assert [_minted_pair(document) for document in first] == [_minted_pair(document) for document in second]
+    assert rerun.written_files == []

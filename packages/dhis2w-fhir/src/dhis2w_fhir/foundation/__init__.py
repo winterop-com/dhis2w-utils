@@ -139,9 +139,9 @@ _GENERATE_RETURN_DOCUMENTATION = (
 _CAPTURE_SERVER_TITLE = "DHIS2 capture server"
 _CAPTURE_SERVER_DESCRIPTION = (
     "The interactions a server capturing DHIS2 data as QuestionnaireResponses supports: one "
-    "response created per request, against the aggregate, event, or tracker event response "
-    "profile, plus read and search over the definitional resources a capture client resolves "
-    "a form from."
+    "response created per request, against the aggregate, event, tracker registration, or "
+    "tracker event response profile, plus read and search over the definitional resources a "
+    "capture client resolves a form from."
 )
 
 _ENVIRONMENT = Environment(
@@ -407,12 +407,10 @@ def build_response_profile_declarations(config: GenerateConfig) -> list[Response
 
 
 def build_captured_response_profile_declarations(config: GenerateConfig) -> list[ResponseProfileDeclaration]:
-    """The response contracts a capture server states support for - the ones it can translate into DHIS2 today.
+    """The response contracts a capture server states support for - the ones it translates into DHIS2.
 
-    Narrower than `build_response_profile_declarations` for the reason `CAPTURED_FORM_KINDS` is
-    narrower than `FORM_KIND_PROFILES`: the registration contract is published so a client can
-    build against it, and a CapabilityStatement claiming an interaction no server performs would
-    be a lie about the running facade.
+    Filtered through `CAPTURED_FORM_KINDS` rather than assumed equal to the published set, so the
+    CapabilityStatement can only ever claim an interaction the capture and forward paths perform.
     """
     return [
         declaration

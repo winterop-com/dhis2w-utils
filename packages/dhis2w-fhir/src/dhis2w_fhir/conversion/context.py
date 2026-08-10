@@ -13,6 +13,12 @@ Two things the compiled IG deliberately does not publish are threaded in by the 
 them. Without it a boolean question is read as `BOOLEAN` and the response carries a note saying so.
 The other is the project **timezone**, which is what a zoned R4 timestamp is read back through
 (BUGS.md #62).
+
+A tracker registration form's questions are the program's tracked entity attributes, and they are
+read through the very same walk: an attribute has the DHIS2 value types a data element has, binds
+option sets the same way, and lands on the same `QuestionSpec`. `value_types_by_data_element` is
+keyed by whichever object the link ids name, so a caller wanting `TRUE_ONLY` right on a
+registration form passes the attributes' value types in the same table.
 """
 
 from __future__ import annotations
@@ -187,6 +193,7 @@ def build_form_spec(
         data_set_uid=target_uid if form_kind == "aggregate" else None,
         program_uid=target_uid if form_kind == "event" else _identifier_value(questionnaire, naming.program_system),
         program_stage_uid=target_uid if form_kind == "tracker-event" else None,
+        tracked_entity_type_uid=_identifier_value(questionnaire, naming.tracked_entity_type_system),
         questions=questions,
         group_link_ids=frozenset(group_link_ids),
         attribute_option_combo_value_set=value_set,

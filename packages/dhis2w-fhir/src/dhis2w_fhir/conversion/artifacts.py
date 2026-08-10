@@ -35,15 +35,19 @@ if TYPE_CHECKING:
 
 __all__ = [
     "COMPILED_RESOURCES_RELATIVE_PATH",
+    "BoundQuestionUids",
     "CompiledArtifacts",
     "CompiledIgMissingError",
-    "bound_data_element_uids",
+    "bound_question_uids",
     "build_project_context",
     "load_compiled_artifacts",
 ]
 
 #: Directory under the IG that SUSHI compiles the emitted FSH into.
 COMPILED_RESOURCES_RELATIVE_PATH = "fsh-generated/resources"
+
+#: The form kind whose questions are tracked entity attributes rather than data elements.
+_REGISTRATION_FORM_KIND = "tracker"
 
 #: The one resource type an unreadable document fails the load over, because a skipped form refuses
 #: every response answering it - and refuses it as a fact about the data rather than about the guide.
@@ -139,19 +143,46 @@ def load_compiled_artifacts(project: FhirProject) -> CompiledArtifacts:
     )
 
 
-def bound_data_element_uids(artifacts: CompiledArtifacts, naming: ConversionNaming) -> tuple[str, ...]:
-    """Every DHIS2 data element the published forms bind, sorted, read through the link-id grammar itself.
+class BoundQuestionUids(BaseModel):
+    """The DHIS2 objects one published guide asks questions from, split by the endpoint that types them.
+
+    Both halves feed the same `value_types_by_data_element` table the context takes, because a link
+    id names one object whichever kind of form carries it - the split exists only because a data
+    element's value type is read from `/api/dataElements` and an attribute's from
+    `/api/trackedEntityAttributes`.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    data_element_uids: tuple[str, ...] = ()
+    tracked_entity_attribute_uids: tuple[str, ...] = ()
+
+    @property
+    def total(self) -> int:
+        """How many DHIS2 objects the published forms ask a question from, across both kinds."""
+        return len(self.data_element_uids) + len(self.tracked_entity_attribute_uids)
+
+
+def bound_question_uids(artifacts: CompiledArtifacts, naming: ConversionNaming) -> BoundQuestionUids:
+    """Every DHIS2 object the published forms ask a question from, sorted, read through the link-id grammar.
 
     The forms are flattened with the very call the context builds them with, so the UIDs asked of the
     instance are exactly the ones a translated answer will be keyed by - a disaggregated cell's
-    `<dataElement>.<categoryOptionCombo>` link id contributing its data element once.
+    `<dataElement>.<categoryOptionCombo>` link id contributing its data element once. A tracker
+    registration form's link ids are tracked entity attribute UIDs, so they are collected apart:
+    they are the same question grammar keyed to a different DHIS2 object, and a different endpoint
+    types them.
     """
-    uids = {
-        question.data_element_uid
-        for questionnaire in artifacts.questionnaires
-        for question in build_form_spec(questionnaire, naming, {}, {}).questions.values()
-    }
-    return tuple(sorted(uids))
+    data_elements: set[str] = set()
+    attributes: set[str] = set()
+    for questionnaire in artifacts.questionnaires:
+        form = build_form_spec(questionnaire, naming, {}, {})
+        collected = attributes if form.form_kind == _REGISTRATION_FORM_KIND else data_elements
+        collected.update(question.data_element_uid for question in form.questions.values())
+    return BoundQuestionUids(
+        data_element_uids=tuple(sorted(data_elements)),
+        tracked_entity_attribute_uids=tuple(sorted(attributes)),
+    )
 
 
 def build_project_context(

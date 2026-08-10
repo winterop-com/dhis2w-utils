@@ -7,9 +7,10 @@ caller assembles once from the compiled IG artifacts; the outcome side (`Convers
 answers with.
 
 The DHIS2 payloads themselves are the generated OpenAPI models: `DataValueSet` / `DataValue` for
-the aggregate envelope and `TrackerEvent` / `TrackerDataValue` for both event kinds. Nothing is
-hand-rolled - those schemas carry every field the import endpoints read, and every wire value
-they carry is a string, so a lexical decimal and a DHIS2 option code survive untouched.
+the aggregate envelope, `TrackerEvent` / `TrackerDataValue` for both event kinds, and
+`TrackerTrackedEntity` / `TrackerEnrollment` / `TrackerAttribute` for the registration one.
+Nothing is hand-rolled - those schemas carry every field the import endpoints read, and every wire
+value they carry is a string, so a lexical decimal and a DHIS2 option code survive untouched.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from dhis2w_client.generated.v42.oas import DataValueSet, TrackerEvent
+from dhis2w_client.generated.v42.oas import DataValueSet, TrackerEvent, TrackerTrackedEntity
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import IDENTIFIER_SYSTEM_SUBJECTS, FoundationNaming
@@ -48,6 +49,7 @@ OPTION_CODE_TIER = "option-code"
 
 __all__ = [
     "CONCEPT_CODE_TIER",
+    "FORWARD_TARGET_ORDER",
     "OPTION_CODE_TIER",
     "OPTION_UID_TIER",
     "CodedAnswerMode",
@@ -80,6 +82,9 @@ class ConversionTargetKind(StrEnum):
     #: The `/api/tracker` event an event program's response reports as.
     EVENT = "event"
 
+    #: The `/api/tracker` tracked entity and enrollment a tracker registration response creates.
+    TRACKER = "tracker"
+
     #: The `/api/tracker` event a tracker program stage's response reports as, on its enrollment.
     TRACKER_EVENT = "tracker-event"
 
@@ -88,8 +93,19 @@ class ConversionTargetKind(StrEnum):
 TARGET_KINDS_BY_FORM_KIND: dict[FormKind, ConversionTargetKind] = {
     "aggregate": ConversionTargetKind.DATA_VALUE_SET,
     "event": ConversionTargetKind.EVENT,
+    "tracker": ConversionTargetKind.TRACKER,
     "tracker-event": ConversionTargetKind.TRACKER_EVENT,
 }
+
+#: The order a drain posts its payloads in. A registration creates the enrollment a stage event of
+#: the same drain answers against, and DHIS2 refuses an event whose enrollment it cannot find with
+#: `E1313` - so registrations go first and every other payload follows in spool order.
+FORWARD_TARGET_ORDER: tuple[ConversionTargetKind, ...] = (
+    ConversionTargetKind.TRACKER,
+    ConversionTargetKind.DATA_VALUE_SET,
+    ConversionTargetKind.EVENT,
+    ConversionTargetKind.TRACKER_EVENT,
+)
 
 
 class CodedAnswerMode(StrEnum):
@@ -161,7 +177,7 @@ class ConversionNoteCategory(StrEnum):
     #: The data value set's `completeDate` was taken from the response's `authored` instant.
     COMPLETE_DATE_DERIVED = "complete-date-derived"
 
-    #: A tracker-event response carries a subject reference, which its tracked-entity identifier supersedes.
+    #: A tracker response carries a subject reference, which its tracked-entity identifier supersedes.
     SUBJECT_REFERENCE_IGNORED = "subject-reference-ignored"
 
     #: An item answering a group's link id, which carries no data value of its own.
@@ -228,11 +244,20 @@ class ConversionRefusalCategory(StrEnum):
     #: A coded answer names a code more than one option of the terminology carries.
     AMBIGUOUS_CODING = "ambiguous-coding"
 
-    #: A tracker-event response names no tracked entity.
+    #: A tracker response names no tracked entity.
     MISSING_SUBJECT = "missing-subject"
 
-    #: A tracker-event response names no enrollment.
+    #: A tracker response names no enrollment.
     MISSING_ENROLLMENT = "missing-enrollment"
+
+    #: A registration form's Questionnaire names no tracked entity type, so there is nothing to enrol a person as.
+    MISSING_TRACKED_ENTITY_TYPE = "missing-tracked-entity-type"
+
+    #: A registration response states no enrollment date, which DHIS2 requires of every enrollment.
+    MISSING_ENROLLMENT_DATE = "missing-enrollment-date"
+
+    #: A registration response's enrollment or incident date does not read as an instant.
+    MALFORMED_ENROLLMENT_DATE = "malformed-enrollment-date"
 
     #: An event response records no `authored` instant, which is the moment the event occurred.
     MISSING_OCCURRENCE = "missing-occurrence"
@@ -280,6 +305,12 @@ class ConversionNaming(BaseModel):
     period_url: str
     organisation_unit_url: str
     tracker_enrollment_url: str
+    enrolled_at_url: str
+    """Canonical of the extension a registration response dates the enrollment it mints from."""
+
+    incident_at_url: str
+    """Canonical of the extension a registration response dates the incident that enrollment follows."""
+
     attribute_option_combos_url: str
     """Canonical of the Questionnaire extension a form declares its attribute-option-combo ValueSet on."""
 
@@ -290,6 +321,9 @@ class ConversionNaming(BaseModel):
     data_set_system: str
     program_system: str
     program_stage_system: str
+    tracked_entity_type_system: str
+    """The DHIS2 identifier system a registration form names the type it enrols a person as under."""
+
     tracked_entity_system: str
     tracker_enrollment_system: str
     option_code_system: str
@@ -314,12 +348,15 @@ class ConversionNaming(BaseModel):
             period_url=_definition_url(canonical, names.period_extension_id),
             organisation_unit_url=_definition_url(canonical, names.organisation_unit_extension_id),
             tracker_enrollment_url=_definition_url(canonical, names.tracker_enrollment_extension_id),
+            enrolled_at_url=_definition_url(canonical, names.enrolled_at_extension_id),
+            incident_at_url=_definition_url(canonical, names.incident_at_extension_id),
             attribute_option_combos_url=_definition_url(canonical, names.attribute_option_combos_extension_id),
             attribute_option_combo_url=_definition_url(canonical, names.attribute_option_combo_extension_id),
             organisation_unit_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["OrgUnit"]),
             data_set_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["DataSet"]),
             program_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["Program"]),
             program_stage_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["ProgramStage"]),
+            tracked_entity_type_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["TrackedEntityType"]),
             tracked_entity_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["TrackedEntity"]),
             tracker_enrollment_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["TrackerEnrollment"]),
             option_code_system=_identifier_system(base, _OPTION_CODE_SEGMENT),
@@ -417,7 +454,9 @@ class QuestionSpec(BaseModel):
 
     `data_element_uid` and `category_option_combo_uid` come straight from the link-id grammar:
     a plain question's link id is the data element UID, and a disaggregated aggregate cell's is
-    `<dataElement>.<categoryOptionCombo>` - the very key a DHIS2 data value carries.
+    `<dataElement>.<categoryOptionCombo>` - the very key a DHIS2 data value carries. A tracker
+    registration form asks tracked entity attributes rather than data elements, and its link ids
+    are attribute UIDs, so `data_element_uid` is the attribute a `TrackerAttribute` is keyed by.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -453,6 +492,9 @@ class FormSpec(BaseModel):
     data_set_uid: str | None = None
     program_uid: str | None = None
     program_stage_uid: str | None = None
+    tracked_entity_type_uid: str | None = None
+    """The DHIS2 type a registration form enrols a person as, off the form's `$DHIS2-TET` identifier."""
+
     questions: dict[str, QuestionSpec] = Field(default_factory=dict)
     group_link_ids: frozenset[str] = frozenset()
     attribute_option_combo_value_set: str | None = None
@@ -496,10 +538,10 @@ class ConversionContext(BaseModel):
 class ConversionResult(BaseModel):
     """What one QuestionnaireResponse translated into: a payload, or the reasons there is none.
 
-    Exactly one of `data_value_set` and `event` is set when `refusals` is empty, and `target_kind`
-    names which. A refused response carries neither: a response the translator cannot read whole
-    produces a named refusal rather than a partial payload that would import the half of itself
-    that happened to parse.
+    Exactly one of `data_value_set`, `event`, and `tracked_entity` is set when `refusals` is empty,
+    and `target_kind` names which. A refused response carries none of them: a response the
+    translator cannot read whole produces a named refusal rather than a partial payload that would
+    import the half of itself that happened to parse.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -509,6 +551,9 @@ class ConversionResult(BaseModel):
     target_kind: ConversionTargetKind | None = None
     data_value_set: DataValueSet | None = None
     event: TrackerEvent | None = None
+    tracked_entity: TrackerTrackedEntity | None = None
+    """The person and the enrollment a registration response creates, carried whole for one `/api/tracker` post."""
+
     notes: tuple[ConversionNote, ...] = ()
     refusals: tuple[ConversionRefusal, ...] = ()
 
@@ -519,7 +564,11 @@ class ConversionResult(BaseModel):
 
 
 class ConversionReport(BaseModel):
-    """The outcome of translating a batch of spooled responses, in the order they were drained."""
+    """The outcome of translating a batch of spooled responses, in the order they were drained.
+
+    The order here is the spool's, not the posting order: a caller draining into DHIS2 posts
+    `FORWARD_TARGET_ORDER` so a registration lands before the stage events of the same drain.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -544,3 +593,8 @@ class ConversionReport(BaseModel):
     def events(self) -> tuple[TrackerEvent, ...]:
         """Every event the batch produced, ready to post to `/api/tracker`."""
         return tuple(result.event for result in self.results if result.event is not None)
+
+    @property
+    def tracked_entities(self) -> tuple[TrackerTrackedEntity, ...]:
+        """Every registration the batch produced, ready to post to `/api/tracker` before its events."""
+        return tuple(result.tracked_entity for result in self.results if result.tracked_entity is not None)

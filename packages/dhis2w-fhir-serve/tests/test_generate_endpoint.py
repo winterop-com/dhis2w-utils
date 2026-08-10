@@ -46,8 +46,27 @@ ATTRIBUTE_COMBO_ID = "TuL8IOPzpHh"
 ATTRIBUTE_COMBO_URL = f"{CANONICAL}/StructureDefinition/d2-attribute-option-combo"
 ATTRIBUTE_COMBO_CODE_SYSTEM = f"{CANONICAL}/CodeSystem/d2-aoc-idcDPkDtepR-cs"
 
-#: Every form the golden project serves, including the two extra event forms.
-EVERY_FORM_ID = (AGGREGATE_ID, EVENT_ID, TRACKER_EVENT_ID, "PsAncVisit1", "PrTemporal1", ATTRIBUTE_COMBO_ID)
+#: The tracker program whose registration form the fixture writes, and the two dates its response
+#: may carry - the enrolment date the contract requires, and the incident date it slices 0..1.
+REGISTRATION_ID = "PrAncCare01"
+REGISTRATION_QUESTIONNAIRE = f"{CANONICAL}/Questionnaire/{REGISTRATION_ID}"
+ENROLLED_AT_URL = f"{CANONICAL}/StructureDefinition/d2-enrolled-at"
+INCIDENT_AT_URL = f"{CANONICAL}/StructureDefinition/d2-incident-at"
+ORGANISATION_UNIT_URL = f"{CANONICAL}/StructureDefinition/d2-organisation-unit"
+
+#: How many places a DHIS2 UID carries, which is all a generated tracker identifier claims to be.
+UID_LENGTH = 11
+
+#: Every form the golden project serves, including the two extra event forms and the registration one.
+EVERY_FORM_ID = (
+    AGGREGATE_ID,
+    EVENT_ID,
+    TRACKER_EVENT_ID,
+    "PsAncVisit1",
+    "PrTemporal1",
+    ATTRIBUTE_COMBO_ID,
+    REGISTRATION_ID,
+)
 
 FHIR_JSON = {"Content-Type": "application/fhir+json"}
 
@@ -264,6 +283,82 @@ async def test_a_tracker_event_response_carries_its_synthetic_context(capture_cl
     assert subject["identifier"]["system"] == TRACKED_ENTITY_SYSTEM
     assert len(subject["identifier"]["value"]) == 11
     assert len(enrollment["value"]) == 11
+
+
+async def test_a_registration_response_mints_the_identities_it_creates(capture_client: httpx.AsyncClient) -> None:
+    """A registration is answered before either identity exists, so `$generate` mints both, shaped as DHIS2 UIDs."""
+    response = (await _generate(capture_client, REGISTRATION_ID, seed=5)).json()
+
+    subject = response["subject"]
+    enrollment = _extensions(response, TRACKER_ENROLLMENT_URL)[0]["valueIdentifier"]
+
+    assert response["questionnaire"] == REGISTRATION_QUESTIONNAIRE
+    assert subject["type"] == "Patient"
+    assert subject["identifier"]["system"] == TRACKED_ENTITY_SYSTEM
+    assert len(subject["identifier"]["value"]) == UID_LENGTH
+    assert len(enrollment["value"]) == UID_LENGTH
+    assert subject["identifier"]["value"] != enrollment["value"]
+
+
+async def test_a_registration_response_dates_the_enrollment_it_creates(capture_client: httpx.AsyncClient) -> None:
+    """DHIS2 requires every enrollment to say when it began, so the enrolment date is always generated."""
+    response = (await _generate(capture_client, REGISTRATION_ID, seed=5)).json()
+
+    enrolled_at = _extensions(response, ENROLLED_AT_URL)
+
+    assert len(enrolled_at) == 1
+    assert enrolled_at[0]["valueDateTime"].endswith("Z")
+
+
+async def test_a_registration_response_carries_no_incident_date_the_guide_never_shows(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """The compiled form does not say whether its program displays one, so an unshown date is not invented."""
+    response = (await _generate(capture_client, REGISTRATION_ID, seed=5)).json()
+
+    assert _extensions(response, INCIDENT_AT_URL) == []
+
+
+async def test_a_registration_response_follows_the_incident_date_a_served_example_shows(
+    capture_project: FhirProject,
+    write_resource: Callable[[Path, dict[str, Any]], None],
+) -> None:
+    """A compiled IG ships its example instances, and one carrying D2IncidentAt is the guide's own statement."""
+    write_resource(
+        capture_project.ig_directory / "fsh-generated" / "resources" / "QuestionnaireResponse-incident.json",
+        {
+            "resourceType": "QuestionnaireResponse",
+            "id": f"{REGISTRATION_ID}-example-9",
+            "questionnaire": REGISTRATION_QUESTIONNAIRE,
+            "status": "completed",
+            "extension": [{"url": INCIDENT_AT_URL, "valueDateTime": "2026-01-02T00:00:00Z"}],
+        },
+    )
+    app = create_app(ServeSettings(project_dir=capture_project.project_root))
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://serve.test") as client:
+            generated = await _generate(client, REGISTRATION_ID, seed=5)
+            posted = await _post_back(client, generated)
+
+    incident_at = _extensions(generated.json(), INCIDENT_AT_URL)
+
+    assert len(incident_at) == 1
+    assert incident_at[0]["valueDateTime"].endswith("Z")
+    assert posted.status_code == 201
+
+
+async def test_a_registration_response_names_the_unit_that_owns_the_enrollment(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """A registration's subject is the person, so the organisation unit rides on its own extension."""
+    response = (await _generate(capture_client, REGISTRATION_ID, seed=5)).json()
+
+    organisation_units = _extensions(response, ORGANISATION_UNIT_URL)
+
+    assert len(organisation_units) == 1
+    assert organisation_units[0]["valueReference"]["reference"].startswith("Location/")
 
 
 async def test_a_generated_response_declares_its_form_kind_profile(capture_client: httpx.AsyncClient) -> None:

@@ -32,6 +32,8 @@ import {
     attributeOptionComboFact,
     formLabel,
     joinAnswersToQuestions,
+    mergeContextFacts,
+    trackerContextFacts,
     type ReceiptAnswerRow,
     type ReceiptAnswerValue,
     type ReceiptContextFact,
@@ -240,6 +242,14 @@ function CaptureContextSection({ facts }: { facts: ReceiptContextFact[] }) {
  * The spool has no registry and states the bare uid; the served Location names it, so the fact
  * becomes `Ngelehun CHC (DiszpKrYNg8)` in prose - the same shape the attribute option combo takes
  * once its CodeSystem has answered, and the same degradation to the mono uid when nothing does.
+ *
+ * THREE GROUPS, MERGED RATHER THAN CONCATENATED. The spool's derivations lead because they are
+ * the ones this page has already resolved further. The tracker context follows and overlaps them
+ * by two facts - the tracked entity and the enrollment, which the spool derives and the resource
+ * also carries - so the merge keeps the spool's and adds the two enrollment dates, which live
+ * nowhere but on the resource. The attribute option combo is last for the same reason it is read
+ * separately: it comes off the stored document, so it is here for a receipt the spool never
+ * indexed.
  */
 function contextFacts(
     summary: SpoolResponseSummary | null,
@@ -256,8 +266,9 @@ function contextFacts(
                   if (named === undefined) return { label: fact.label, value: fact.value, mono: true }
                   return { label: fact.label, value: `${named.name} (${fact.value})`, mono: false }
               })
-    const combo = stored === null ? null : attributeOptionComboFact(stored, attributeCodeSystem)
-    return combo === null ? derived : [...derived, combo]
+    if (stored === null) return derived
+    const combo = attributeOptionComboFact(stored, attributeCodeSystem)
+    return mergeContextFacts(derived, trackerContextFacts(stored), combo === null ? [] : [combo])
 }
 
 /** The header block: when it arrived, what it is, and the handles it is found by again. */

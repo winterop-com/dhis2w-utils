@@ -97,10 +97,12 @@ FORM_KIND_PROFILES: dict[FormKind, FormKindProfile] = {
 }
 
 #: The form kinds a capture server accepts a response for and the translator turns into a DHIS2
-#: payload. Narrower than `FORM_KIND_PROFILES` on purpose: the registration form is generated,
-#: published, and served as a Questionnaire before anything captures a response against it, and a
-#: server that accepted one would have nothing to translate it into.
-CAPTURED_FORM_KINDS: tuple[FormKind, ...] = ("aggregate", "event", "tracker-event")
+#: payload. Every generated kind is one: an aggregate response becomes a `/api/dataValueSets`
+#: envelope, an event and a tracker-event response become one `/api/tracker` event each, and a
+#: registration response becomes the `/api/tracker` tracked entity and enrollment it mints. The
+#: tuple stays the single switch the capture surface keys off - serve's index, the conversion
+#: gate, the `supportedProfile` declarations, `/metadata`, and the load set all read it.
+CAPTURED_FORM_KINDS: tuple[FormKind, ...] = ("aggregate", "event", "tracker", "tracker-event")
 
 
 class TargetSelection(BaseModel):

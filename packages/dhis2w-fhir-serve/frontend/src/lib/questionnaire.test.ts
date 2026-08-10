@@ -13,7 +13,10 @@ import attributeComboResponseFixture from '@/lib/__fixtures__/response-TuL8IOPzp
 import {
     attributeOptionComboOf,
     bundleResources,
+    enrolledAtOf,
+    incidentAtOf,
     questionCount,
+    trackerEnrollmentOf,
     type Bundle,
     type Questionnaire,
     type QuestionnaireResponse,
@@ -40,7 +43,7 @@ import {
     unansweredRequiredLinkIds,
     type AnswerState,
 } from '@/lib/questionnaire'
-import { reportingUnitOf } from '@/lib/orgunits'
+import { carriesUnitOnExtension, reportingUnitOf } from '@/lib/orgunits'
 
 /**
  * The renderer's reading of a form, checked against forms the server really serves.
@@ -891,5 +894,102 @@ describe('the organisation unit a submission reports from', () => {
         })
         expect(refilledReportingUnit(chosen, drawnNothing, scopedForm)).toEqual(chosen)
         expect(refilledReportingUnit(null, null, scopedForm)).toBeNull()
+    })
+})
+
+/**
+ * A registration submission, rebuilt: the two dates ride it untouched.
+ *
+ * `D2EnrolledAt` and `D2IncidentAt` are the enrollment's own facts, and this page derives neither
+ * - they come off the `$generate` envelope exactly as `D2Period` does for an aggregate capture,
+ * and the whole contract is that a rebuild changes only what the user owns. The organisation unit
+ * is what the user owns here, and the registration kind carries it on the extension rather than on
+ * `subject` for the same reason a stage response does: the subject is the person.
+ *
+ * The documents are written from the published profile (`D2TrackerRegistrationResponse`) rather
+ * than harvested, because the fixture project publishes no registration form yet; the browser
+ * suite is what walks the same rebuild against a real server.
+ */
+describe('rebuilding a tracker registration', () => {
+    const registrationForm: Questionnaire = {
+        resourceType: 'Questionnaire',
+        id: 'PrTracker001',
+        url: 'http://localhost:8080/fhir/Questionnaire/PrTracker001',
+        status: 'active',
+        extension: [
+            { url: 'http://localhost:8080/fhir/StructureDefinition/d2-form-type', valueCode: 'tracker' },
+        ],
+        item: [{ linkId: 'TeaFirstNm1', text: 'First name', type: 'string' }],
+    }
+
+    const registrationSkeleton: QuestionnaireResponse = {
+        resourceType: 'QuestionnaireResponse',
+        status: 'completed',
+        questionnaire: 'http://localhost:8080/fhir/Questionnaire/PrTracker001',
+        subject: {
+            type: 'Patient',
+            identifier: { system: 'http://dhis2.org/fhir/id/tracked-entity', value: 'wJt3Qy1PxLd' },
+        },
+        extension: [
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit',
+                valueReference: { reference: 'Location/DiszpKrYNg8' },
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-tracker-enrollment',
+                valueIdentifier: {
+                    system: 'http://dhis2.org/fhir/id/tracker-enrollment',
+                    value: 'Qm4bTnPzKdE',
+                },
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-enrolled-at',
+                valueDateTime: '2026-07-21T04:00:00Z',
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-incident-at',
+                valueDateTime: '2026-07-14T04:00:00Z',
+            },
+            { url: 'http://localhost:8080/fhir/StructureDefinition/d2-form-type', valueCode: 'tracker' },
+        ],
+        item: [{ linkId: 'TeaFirstNm1', answer: [{ valueString: 'Sarah' }] }],
+    }
+
+    it('carries the unit on the extension, as the registration profile pins it', () => {
+        expect(carriesUnitOnExtension('tracker')).toBe(true)
+        expect(reportingUnitOf(registrationSkeleton, 'tracker')).toEqual({
+            reference: 'Location/DiszpKrYNg8',
+        })
+    })
+
+    it('rewrites the unit in place and leaves both enrollment dates exactly where they were', () => {
+        const chosen: Reference = { reference: 'Location/O6uvpzGd5pu', display: 'Bo' }
+        const spec = flattenQuestionnaire(registrationForm)
+        const built = buildQuestionnaireResponse(
+            spec,
+            { TeaFirstNm1: [{ text: 'Amina', coding: null, reference: null }] },
+            registrationForm,
+            registrationSkeleton,
+            { ...NO_CAPTURE_CONTEXT, reportingUnit: chosen },
+        )
+
+        expect(reportingUnitOf(built, 'tracker')).toEqual(chosen)
+        // The minted subject is the server's, and so are the dates: only the unit moved.
+        expect(built.subject).toEqual(registrationSkeleton.subject)
+        expect(enrolledAtOf(built)).toBe('2026-07-21T04:00:00Z')
+        expect(incidentAtOf(built)).toBe('2026-07-14T04:00:00Z')
+        expect(trackerEnrollmentOf(built)).toBe('Qm4bTnPzKdE')
+        expect(built.extension?.map((extension) => extension.url)).toEqual(
+            registrationSkeleton.extension?.map((extension) => extension.url),
+        )
+        expect(built.item).toEqual([{ linkId: 'TeaFirstNm1', answer: [{ valueString: 'Amina' }] }])
+    })
+
+    it('leaves the whole envelope alone when no unit was picked', () => {
+        const spec = flattenQuestionnaire(registrationForm)
+        const built = buildQuestionnaireResponse(spec, {}, registrationForm, registrationSkeleton, NO_CAPTURE_CONTEXT)
+
+        expect(built.extension).toEqual(registrationSkeleton.extension)
+        expect(built.subject).toEqual(registrationSkeleton.subject)
     })
 })

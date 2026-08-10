@@ -260,11 +260,11 @@ def test_a_registration_form_publishes_no_attribute_option_combo_vocabulary() ->
     assert all(extension["url"].endswith("d2-form-type") for extension in _document()["extension"])
 
 
-def test_the_registration_kind_is_published_but_not_yet_captured() -> None:
-    """The form kind is generated and served; nothing translates a response against it into DHIS2 yet."""
+def test_the_registration_kind_is_captured_like_every_other_kind() -> None:
+    """The switch is one tuple, and every generated form kind is on it: served, captured, forwarded."""
     assert "tracker" in FORM_KIND_PROFILES
-    assert "tracker" not in CAPTURED_FORM_KINDS
-    assert set(CAPTURED_FORM_KINDS) < set(FORM_KIND_PROFILES)
+    assert "tracker" in CAPTURED_FORM_KINDS
+    assert set(CAPTURED_FORM_KINDS) == set(FORM_KIND_PROFILES)
 
 
 def test_the_option_set_closure_reaches_the_sets_only_an_attribute_binds() -> None:
