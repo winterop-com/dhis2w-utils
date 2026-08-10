@@ -202,7 +202,7 @@ function subtitleFor(
     counts: SpoolCounts,
     cause: RejectionCause | null,
 ): string {
-    if (lifecycle === 'received') return 'awaiting forward'
+    if (lifecycle === 'received') return 'not yet sent to DHIS2'
     if (lifecycle === 'forwarded') return 'accepted by DHIS2'
     if (counts.rejected === 0 || cause === null) return 'refused by DHIS2'
     const message = cause.message === null ? null : generalisedCauseMessage(cause.message)
