@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FeatureCollection } from 'geojson'
 import {
+    FullscreenControl,
     Map as MapLibreMap,
     setWorkerUrl,
     type GeoJSONSource,
@@ -158,6 +159,10 @@ export function OrgUnitMap({
     // an empty scene. `data-map-ready` is what a browser test waits for instead of guessing.
     const [painted, setPainted] = useState(false)
     const [dark, setDark] = useState(() => isDarkTheme())
+    // The camera's real zoom after every movement settles, exposed as a data attribute: "the fit
+    // framed something bounded rather than the world" is a fact only the engine holds, and a test
+    // that read pixel colours to infer it would be guessing.
+    const [zoom, setZoom] = useState<number | null>(null)
 
     const shapes = useMemo(
         () => shapeCollection(boundaries, selectedUnitId, descendantUnitIds),
@@ -210,12 +215,23 @@ export function OrgUnitMap({
             return
         }
 
+        // The one navigation control this map carries. `container` is the wrapper around the
+        // canvas rather than the canvas div itself, so the legend rides into fullscreen too - a
+        // map whose colours mean nothing without the key must not shed the key at exactly the
+        // size it is easiest to read. Entering and leaving fullscreen is just a resize of the
+        // container, which the ResizeObserver below already follows; no extra wiring.
+        instance.addControl(
+            new FullscreenControl({ container: element.parentElement ?? undefined }),
+            'top-right',
+        )
+
         map.current = instance
         instance.on('error', (event) => {
             // A style or source error must not leave a blank rectangle with no explanation.
             setEngineFailure(event.error.message)
         })
         instance.on('load', () => setReady(true))
+        instance.on('moveend', () => setZoom(instance.getZoom()))
 
         const resize = new ResizeObserver(() => instance.resize())
         resize.observe(element)
@@ -224,6 +240,7 @@ export function OrgUnitMap({
             resize.disconnect()
             setReady(false)
             setPainted(false)
+            setZoom(null)
             map.current = null
             instance.remove()
         }
@@ -274,6 +291,7 @@ export function OrgUnitMap({
                 ref={container}
                 data-testid="org-unit-map"
                 data-map-ready={painted ? 'true' : 'false'}
+                data-map-zoom={zoom === null ? undefined : zoom.toFixed(2)}
                 // Which palette the canvas was painted with. The map is the one surface in this app
                 // whose colours are not CSS, so a theme that reached the stylesheet but not the
                 // renderer is a bug no style assertion could see; this is what a test asserts on.

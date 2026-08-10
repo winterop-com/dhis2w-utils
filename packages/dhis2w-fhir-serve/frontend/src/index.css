@@ -192,6 +192,22 @@
     }
 }
 
+/* MapLibre draws its corner controls (fullscreen, attribution) from its own
+   stylesheet: a white chip with a black glyph, whatever the theme. Repainted
+   here with the app's tokens so the chrome follows the surface it sits on. The
+   glyphs are background-image SVGs whose paths CSS colour cannot reach, so dark
+   mode inverts them instead. */
+.maplibregl-ctrl-group {
+    background: var(--card);
+    border: 1px solid var(--border);
+}
+.maplibregl-ctrl-group:not(:empty) {
+    box-shadow: none;
+}
+.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+    filter: invert(1);
+}
+
 /* Always-visible thin scrollbars, so a horizontally scrollable table advertises
    that it scrolls instead of hiding the bar until the pointer arrives. Applied
    to the wrappers around wide resource tables. */

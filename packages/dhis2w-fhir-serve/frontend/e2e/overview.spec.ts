@@ -71,7 +71,7 @@ test('the three tiles carry the counts the spool reports', async ({ page, reques
     expect(await tileCount(page, 'rejected')).toBe(0)
 
     // The received tile is the one that is a task, and says so.
-    await expect(page.getByRole('link', { name: /^Received/ })).toContainText('awaiting forward')
+    await expect(page.getByRole('link', { name: /^Received/ })).toContainText('not yet sent to DHIS2')
 })
 
 test('a tile opens the responses already filtered to its state', async ({ page, request }) => {

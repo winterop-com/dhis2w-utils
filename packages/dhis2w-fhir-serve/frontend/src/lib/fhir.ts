@@ -683,9 +683,70 @@ export const INCIDENT_AT_EXTENSION_SUFFIX = '/StructureDefinition/d2-incident-at
  *
  * `{identifier_system_base}/id/tracked-entity`, on `subject.identifier` rather than on a
  * reference - the person has no published resource, so the identifier is the subject. Matched on
- * the tail like every other derived system this UI meets.
+ * the tail like every other derived system this UI meets. `/id/tracked-entity-type` is a
+ * different system and does not match, because the suffix comparison is exact at the end.
  */
 export const TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX = '/id/tracked-entity'
+
+/** The identifier system the enrollment extension's `valueIdentifier` names its uid under. */
+export const TRACKER_ENROLLMENT_IDENTIFIER_SYSTEM_SUFFIX = '/id/tracker-enrollment'
+
+/**
+ * The identifier system a Questionnaire names the DHIS2 program it belongs to under.
+ *
+ * A program-stage form carries it as a grouping identifier and a registration form carries it as
+ * its own identity - which is exactly the join a stage form needs to find the registrations of
+ * its program. `/id/program-stage` and `/id/program-code` are different systems and do not
+ * match, because the suffix comparison is exact at the end.
+ */
+export const PROGRAM_IDENTIFIER_SYSTEM_SUFFIX = '/id/program'
+
+/**
+ * The DHIS2 program uid a Questionnaire belongs to, or null when it names none.
+ *
+ * The value alone does not say the form is a tracker one - an event program's form carries the
+ * program identifier too, because the form IS the program - so callers joining tracker surfaces
+ * pair this with `formTypeOf`.
+ */
+export function programOf(questionnaire: Questionnaire): string | null {
+    const identifier = questionnaire.identifier?.find((candidate) =>
+        candidate.system?.endsWith(PROGRAM_IDENTIFIER_SYSTEM_SUFFIX),
+    )
+    return identifier?.value ?? null
+}
+
+/**
+ * The identifier-system base a form's DHIS2 identifiers are published under, or null.
+ *
+ * Read off the form's own program identifier rather than configured, on the same argument every
+ * other canonical-derived url follows: the base is whatever that project's fhir.toml declares,
+ * and the form already states it. This is what lets a chosen tracker context be written onto a
+ * response even when `$generate` was refused and there is no envelope to copy the spelling from.
+ */
+export function identifierSystemBaseOf(questionnaire: Questionnaire): string | null {
+    const identifier = questionnaire.identifier?.find((candidate) =>
+        candidate.system?.endsWith(PROGRAM_IDENTIFIER_SYSTEM_SUFFIX),
+    )
+    const system = identifier?.system
+    if (system === undefined) return null
+    return system.slice(0, system.length - PROGRAM_IDENTIFIER_SYSTEM_SUFFIX.length)
+}
+
+/**
+ * The url a response states its enrollment under, derived from the form's own declarations.
+ *
+ * The extension is published under the IG canonical, and the one canonical-rooted url every
+ * served form carries is its form-type extension - so the response-side url is that url with the
+ * enrollment suffix in place of the form-type one. Derived rather than hard-coded for the same
+ * reason `attributeOptionComboExtensionUrl` is, and null for a form that declares no kind at all
+ * - which is a form this server refuses to capture against anyway.
+ */
+export function trackerEnrollmentExtensionUrl(questionnaire: Questionnaire): string | null {
+    const declared = questionnaire.extension?.find((candidate) => candidate.url.endsWith(FORM_TYPE_EXTENSION_SUFFIX))
+    if (declared === undefined) return null
+    const canonical = declared.url.slice(0, declared.url.length - FORM_TYPE_EXTENSION_SUFFIX.length)
+    return `${canonical}${TRACKER_ENROLLMENT_EXTENSION_SUFFIX}`
+}
 
 /** When the enrollment a registration response creates begins, or null when it states none. */
 export function enrolledAtOf(response: QuestionnaireResponse): string | null {

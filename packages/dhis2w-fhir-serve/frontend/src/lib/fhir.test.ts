@@ -25,12 +25,15 @@ import {
     formTitle,
     formTypeOf,
     formsByTitle,
+    identifierSystemBaseOf,
     incidentAtOf,
     operationNames,
+    programOf,
     questionCount,
     servedIgLabel,
     trackedEntityOf,
     trackerEnrollmentOf,
+    trackerEnrollmentExtensionUrl,
     type Bundle,
     type CapabilityStatement,
     type CodeSystem,
@@ -537,5 +540,49 @@ describe('the tracker context on a response envelope', () => {
         }
         expect(incidentAtOf(enrolledOnly)).toBeNull()
         expect(enrolledAtOf(enrolledOnly)).toBe('2026-07-21T04:00:00Z')
+    })
+})
+
+describe('the program a form belongs to', () => {
+    it('reads the program uid off a real stage form, where it is a grouping identifier', () => {
+        expect(programOf(servedForm('PsAncVisit1'))).toBe('PrAncCare01')
+    })
+
+    it('reads it off an event form too, where the form is the program', () => {
+        // Which is exactly why the value alone cannot say "tracker": callers joining tracker
+        // surfaces pair this with `formTypeOf`.
+        expect(programOf(servedForm('EVTsupVis01'))).toBe('EVTsupVis01')
+        expect(formTypeOf(servedForm('EVTsupVis01'))).toBe('event')
+    })
+
+    it('does not read `/id/program-stage` as the program, because the suffix match is exact', () => {
+        const stageOnly: Questionnaire = {
+            resourceType: 'Questionnaire',
+            status: 'active',
+            identifier: [{ system: 'http://dhis2.org/fhir/id/program-stage', value: 'PsAncVisit1' }],
+        }
+        expect(programOf(stageOnly)).toBeNull()
+    })
+
+    it('states the absence for a form naming no program at all', () => {
+        expect(programOf(servedForm('BfMAe6Itzgt'))).toBeNull()
+    })
+})
+
+describe('the derived tracker spellings the no-envelope rewrite falls back on', () => {
+    it('derives the identifier-system base off the form’s own program identifier', () => {
+        expect(identifierSystemBaseOf(servedForm('PsAncVisit1'))).toBe('http://dhis2.org/fhir')
+    })
+
+    it('derives the enrollment extension url off the form-type declaration’s canonical', () => {
+        expect(trackerEnrollmentExtensionUrl(servedForm('PsAncVisit1'))).toBe(
+            'http://localhost:8080/fhir/StructureDefinition/d2-tracker-enrollment',
+        )
+    })
+
+    it('answers null for a form that states neither, rather than guessing a spelling', () => {
+        const bare: Questionnaire = { resourceType: 'Questionnaire', status: 'active' }
+        expect(identifierSystemBaseOf(bare)).toBeNull()
+        expect(trackerEnrollmentExtensionUrl(bare)).toBeNull()
     })
 })

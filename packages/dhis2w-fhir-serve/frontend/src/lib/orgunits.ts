@@ -823,6 +823,65 @@ export function boundsOf(boundaries: OrgUnitBoundary[], points: OrgUnitPoint[]):
     return west === Infinity ? null : [west, south, east, north]
 }
 
+/** What a unit's extent actually covers, so a caption can say what is being shown. */
+export type ExtentCoverage = 'own' | 'descendants' | 'ancestor' | 'registry' | 'none'
+
+/** Where one unit is, to the resolution the registry holds - a rectangle, and what it is a rectangle of. */
+export interface UnitExtent {
+    /** `[west, south, east, north]`, or null when nothing anywhere carries coordinates. */
+    bounds: [number, number, number, number] | null
+    coverage: ExtentCoverage
+    /** The located unit ids whose shapes compose the bounds - what a map fits, empty for `registry`. */
+    unitIds: string[]
+    /** The ancestor the bounds belong to, when the coverage is `ancestor`. */
+    framedOnUnitId: string | null
+}
+
+/**
+ * The extent one unit should be framed on.
+ *
+ * FIT PRIORITY, STATED ONCE: the unit's own geometry; else the union bounding box of its subtree's
+ * boundaries and points - a level-1 unit with no polygon of its own is where its districts are,
+ * not where its country's ancestor is; else the nearest located ancestor; else the whole
+ * registry's extent. Exported as a pure function because a unit's extent is an answer other
+ * consumers want too (climate services read org-unit extents), not just this map's framing.
+ */
+export function unitExtent(tree: OrgUnitTree, unitId: string, geometry: OrgUnitGeometry): UnitExtent {
+    const located = new Set<string>()
+    for (const boundary of geometry.boundaries) located.add(boundary.unitId)
+    for (const point of geometry.points) located.add(point.unitId)
+    const boundsAmong = (unitIds: string[]): [number, number, number, number] | null => {
+        const wanted = new Set(unitIds)
+        return boundsOf(
+            geometry.boundaries.filter((boundary) => wanted.has(boundary.unitId)),
+            geometry.points.filter((point) => wanted.has(point.unitId)),
+        )
+    }
+
+    if (located.has(unitId)) {
+        return { bounds: boundsAmong([unitId]), coverage: 'own', unitIds: [unitId], framedOnUnitId: null }
+    }
+    const node = tree.byId.get(unitId)
+    const below = node === undefined ? [] : descendantIdsOf(node).filter((id) => located.has(id))
+    if (below.length > 0) {
+        return { bounds: boundsAmong(below), coverage: 'descendants', unitIds: below, framedOnUnitId: null }
+    }
+    const ancestor = ancestorsOf(tree, unitId)
+        .toReversed()
+        .find((candidate) => located.has(candidate.id))
+    if (ancestor !== undefined) {
+        return {
+            bounds: boundsAmong([ancestor.id]),
+            coverage: 'ancestor',
+            unitIds: [ancestor.id],
+            framedOnUnitId: ancestor.id,
+        }
+    }
+    const registry = boundsOf(geometry.boundaries, geometry.points)
+    if (registry === null) return { bounds: null, coverage: 'none', unitIds: [], framedOnUnitId: null }
+    return { bounds: registry, coverage: 'registry', unitIds: [], framedOnUnitId: null }
+}
+
 /**
  * Join the served forms to the served assignment Lists.
  *
