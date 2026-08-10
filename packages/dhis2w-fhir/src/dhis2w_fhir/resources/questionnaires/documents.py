@@ -67,6 +67,7 @@ from dhis2w_fhir.resources.questionnaires import (
     is_disaggregated,
     is_multi_valued,
     item_type,
+    question_entity_level,
     source_description,
 )
 from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
@@ -184,6 +185,7 @@ class _QuestionnaireSystems(BaseModel):
     assignment_extension_url: str
     attribute_option_combos_extension_url: str
     attribute_value_extension_url: str
+    entity_level_extension_url: str
     data_element_code_system_url: str
     tracked_entity_attribute_code_system_url: str
     category_option_combo_code_system_url: str
@@ -206,6 +208,7 @@ class _QuestionnaireSystems(BaseModel):
                 f"{canonical}/StructureDefinition/{foundation.attribute_option_combos_extension_id}"
             ),
             attribute_value_extension_url=attribute_value_extension_url(config, canonical),
+            entity_level_extension_url=f"{canonical}/StructureDefinition/{foundation.entity_level_extension_id}",
             data_element_code_system_url=code_system_canonical(canonical, names.data_element_code_system_id),
             tracked_entity_attribute_code_system_url=code_system_canonical(
                 canonical, names.tracked_entity_attribute_code_system_id
@@ -507,6 +510,7 @@ def _data_element_items(
     repeats = is_multi_valued(item.value_type, resolved_item_type) or None
     bounds = _bound_extensions(item.value_type, resolved_item_type)
     if not is_disaggregated(item, source.kind):
+        extensions = [*bounds, *_entity_level_extension(item, source.kind, systems)]
         return [
             QuestionnaireItem(
                 linkId=item.uid,
@@ -516,7 +520,7 @@ def _data_element_items(
                 answerValueSet=answer_value_set,
                 required=item.compulsory or None,
                 repeats=repeats,
-                extension=bounds or None,
+                extension=extensions or None,
             )
         ]
     category_combo = item.category_combo
@@ -550,6 +554,16 @@ def _data_element_items(
             item=cells or None,
         )
     ]
+
+
+def _entity_level_extension(
+    item: QuestionnaireItemIn, kind: FormKind, systems: _QuestionnaireSystems
+) -> tuple[Extension, ...]:
+    """The D2EntityLevel extension one registration question carries, or nothing on every other question."""
+    entity_level = question_entity_level(item, kind)
+    if entity_level is None:
+        return ()
+    return (Extension(url=systems.entity_level_extension_url, valueBoolean=entity_level),)
 
 
 def _item_control_extension() -> Extension:
@@ -599,7 +613,7 @@ def _data_element_concepts(data_elements: dict[str, QuestionnaireItemIn]) -> lis
     """One concept per referenced data element, carrying its DHIS2 code and its domain type."""
     concepts: list[CodeSystemConcept] = []
     for item in sorted(data_elements.values(), key=lambda entry: (entry.name, entry.uid)):
-        properties = [CodeSystemConceptProperty(code=_CODE_PROPERTY, valueString=code_or_uid(None, item.uid))]
+        properties = _code_property(item.code)
         domain = domain_code(item.domain_type)
         if domain is not None:
             properties.append(CodeSystemConceptProperty(code=_DOMAIN_PROPERTY, valueCode=domain))
@@ -615,7 +629,7 @@ def _tracked_entity_attribute_concepts(attributes: dict[str, QuestionnaireItemIn
             code=item.uid,
             display=flatten_whitespace(item.name),
             property=[
-                CodeSystemConceptProperty(code=_CODE_PROPERTY, valueString=code_or_uid(item.code, item.uid)),
+                *_code_property(item.code),
                 CodeSystemConceptProperty(code=_VALUE_TYPE_PROPERTY, valueCode=item.value_type),
                 CodeSystemConceptProperty(code=_UNIQUE_PROPERTY, valueBoolean=item.unique),
             ],
@@ -630,14 +644,21 @@ def _option_combo_concepts(option_combos: dict[str, CategoryOptionComboIn]) -> l
         CodeSystemConcept(
             code=option_combo.uid,
             display=flatten_whitespace(option_combo.name),
-            property=[
-                CodeSystemConceptProperty(
-                    code=_CODE_PROPERTY, valueString=code_or_uid(option_combo.code, option_combo.uid)
-                )
-            ],
+            property=_code_property(option_combo.code) or None,
         )
         for option_combo in sorted(option_combos.values(), key=lambda entry: (entry.name, entry.uid))
     ]
+
+
+def _code_property(code: str | None) -> list[CodeSystemConceptProperty]:
+    """The `dhis2-code` property one concept carries, or nothing at all when DHIS2 states no code.
+
+    A concept's own code is already the DHIS2 UID, so falling back to it here would publish the UID
+    twice - once truthfully, once under a label saying it is the object's DHIS2 code.
+    """
+    if not code:
+        return []
+    return [CodeSystemConceptProperty(code=_CODE_PROPERTY, valueString=code)]
 
 
 def _support_pair(
@@ -690,14 +711,19 @@ def _property_declarations(
 ) -> list[CodeSystemProperty]:
     """Declare every concept property the built concepts actually carry, under the configured property base."""
     property_base = f"{config.identifier_system_base}/property"
-    declarations = [
-        CodeSystemProperty(
-            code=_CODE_PROPERTY,
-            uri=f"{property_base}/{_CODE_PROPERTY}",
-            description=terminology.code_property_description,
-            type="string",
+    declarations: list[CodeSystemProperty] = []
+    carries_code = any(
+        concept_property.code == _CODE_PROPERTY for concept in concepts for concept_property in concept.property or []
+    )
+    if carries_code:
+        declarations.append(
+            CodeSystemProperty(
+                code=_CODE_PROPERTY,
+                uri=f"{property_base}/{_CODE_PROPERTY}",
+                description=terminology.code_property_description,
+                type="string",
+            )
         )
-    ]
     carries_domain = any(
         concept_property.code == _DOMAIN_PROPERTY for concept in concepts for concept_property in concept.property or []
     )

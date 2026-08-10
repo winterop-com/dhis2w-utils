@@ -8,9 +8,10 @@
                       occurrence, status, and one data value per answered question.
     tracker        -> one `/api/tracker` tracked entity: its client-minted UID, the tracked entity
                       type the form names, the organisation unit that owns it, one attribute per
-                      answered question, and the single enrollment the response creates - minted
-                      UID, program, organisation unit, enrolment date, incident date where one was
-                      stated, and `ACTIVE` status.
+                      answered entity-level question, and the single enrollment the response
+                      creates - minted UID, program, organisation unit, enrolment date, incident
+                      date where one was stated, `ACTIVE` status, and one attribute per answered
+                      program-only question.
     tracker-event  -> the same event as `event`, plus the program stage it belongs to, the tracked
                       entity it was captured for, and the enrollment it sits on.
 
@@ -297,6 +298,13 @@ def translate_tracker_registration_response(
     element's answers go through - a tracked entity attribute has the same DHIS2 value types, binds
     option sets the same way, and its coded answers resolve against the published ValueSets on the
     same strict/lenient dial.
+
+    DHIS2 imports those answers at two levels, and the form says which is which: a question whose
+    `D2EntityLevel` extension is true asks a tracked entity attribute of the program's tracked
+    entity type, and its value is stated on the tracked entity; a question stating false asks an
+    attribute only the program collects, and its value is stated on the enrollment. A question
+    stating no level at all - a guide compiled before the extension was published - is written on
+    the tracked entity, which is where every registration answer went before the split.
     """
     notes: list[ConversionNote] = []
     refusals: list[ConversionRefusal] = []
@@ -320,10 +328,7 @@ def translate_tracker_registration_response(
             trackedEntity=tracked_entity,
             trackedEntityType=tracked_entity_type,
             orgUnit=organisation_unit,
-            attributes=[
-                TrackerAttribute(attribute=answer.question.data_element_uid, value=answer.value)
-                for answer in translated.answers
-            ],
+            attributes=_registration_attributes(translated, entity_level=True),
             enrollments=[
                 TrackerEnrollment(
                     enrollment=enrollment,
@@ -332,6 +337,7 @@ def translate_tracker_registration_response(
                     enrolledAt=enrolled_at,
                     occurredAt=incident_at,
                     status=REGISTERED_ENROLLMENT_STATUS,
+                    attributes=_registration_attributes(translated, entity_level=False) or None,
                 )
             ],
         ),
@@ -405,6 +411,24 @@ def _item(
     refusals.extend(wire.refusals)
     if wire.value is not None:
         answers.append(TranslatedAnswer(question=question, value=wire.value))
+
+
+def _registration_attributes(translated: TranslatedAnswers, *, entity_level: bool) -> list[TrackerAttribute]:
+    """The answers of one registration belonging to a single DHIS2 level, in the response's own order.
+
+    A question stating no level counts as entity-level, so a guide compiled before `D2EntityLevel`
+    was published writes every answer where it wrote them before: on the tracked entity.
+    """
+    return [
+        TrackerAttribute(attribute=answer.question.data_element_uid, value=answer.value)
+        for answer in translated.answers
+        if _is_entity_level(answer) is entity_level
+    ]
+
+
+def _is_entity_level(answer: TranslatedAnswer) -> bool:
+    """Whether one answered question's value is stated on the tracked entity rather than the enrollment."""
+    return answer.question.entity_level is not False
 
 
 def _tracker_data_values(translated: TranslatedAnswers) -> list[TrackerDataValue]:

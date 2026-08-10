@@ -148,7 +148,7 @@ class SupportTerminologyProfile(BaseModel):
 
 #: The support pair over every data element the generated questionnaires ask a question from.
 DATA_ELEMENT_TERMINOLOGY = SupportTerminologyProfile(
-    title="DHIS2 Data Elements",
+    title="DHIS2 data elements",
     description=(
         "DHIS2 data elements captured by the generated questionnaires. Concept codes are DHIS2 data element UIDs."
     ),
@@ -158,7 +158,7 @@ DATA_ELEMENT_TERMINOLOGY = SupportTerminologyProfile(
 
 #: The support pair over every tracked entity attribute the generated registration forms ask about.
 TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY = SupportTerminologyProfile(
-    title="DHIS2 Tracked Entity Attributes",
+    title="DHIS2 tracked entity attributes",
     description=(
         "DHIS2 tracked entity attributes captured by the generated tracker registration forms. "
         "Concept codes are DHIS2 tracked entity attribute UIDs."
@@ -169,7 +169,7 @@ TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY = SupportTerminologyProfile(
 
 #: The support pair over every category option combo the generated questionnaires disaggregate by.
 CATEGORY_OPTION_COMBO_TERMINOLOGY = SupportTerminologyProfile(
-    title="DHIS2 Category Option Combos",
+    title="DHIS2 category option combos",
     description=(
         "DHIS2 category option combos the generated questionnaires disaggregate by. "
         "Concept codes are DHIS2 category option combo UIDs."
@@ -233,6 +233,13 @@ class QuestionnaireItemIn(BaseModel):
     way it codes every metadata object, and a unique attribute is a business identifier rather
     than a description. Both ride onto the attribute support CodeSystem as concept properties.
 
+    `entity_level` is the fact about the *pair* - this attribute on this program's tracked entity
+    type - that decides where DHIS2 imports the answer: True when the attribute is one of the
+    type's own `trackedEntityTypeAttributes`, so its value belongs on the tracked entity, False
+    when the program asks it and the type does not collect it, so its value belongs on the
+    enrollment. None means the fetch could not say, and every consumer then reads the answer as
+    entity-level, which is what a form published before the fact was fetched states.
+
     A DHIS2 form makes a question mandatory at two grains, and the projection carries both:
     `compulsory` marks the data element itself (a registration form's `mandatory` attribute lands
     here too), and `required_option_combo_uids` marks the single disaggregated cells a data set
@@ -250,6 +257,7 @@ class QuestionnaireItemIn(BaseModel):
     option_set_uid: str | None = None
     compulsory: bool = False
     unique: bool = False
+    entity_level: bool | None = None
     required_option_combo_uids: list[str] = Field(default_factory=list)
     category_combo: CategoryComboIn | None = None
 

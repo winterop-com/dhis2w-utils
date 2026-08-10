@@ -1766,6 +1766,21 @@ commitment.
     `TrackerTrackedEntity` / `TrackerEnrollment` / `TrackerAttribute`, reused rather than
     hand-rolled.
 
+    **An answer states which of the two DHIS2 levels it belongs to.** DHIS2 collects a
+    registration answer either for the tracked entity - the attribute is one of the
+    tracked entity type's own `trackedEntityTypeAttributes` - or for the program alone,
+    and the import endpoint keeps them apart: the first belongs on
+    `trackedEntities[].attributes`, the second on `enrollments[].attributes`. The type's
+    join rides the program read the form was already built from
+    (`trackedEntityType[id,trackedEntityTypeAttributes[trackedEntityAttribute[id]]]`), and
+    the guide publishes the answer per question as `D2EntityLevel`, a `boolean` extension
+    on `Questionnaire.item`. It is on the item and not a `D2TEA_CS` concept property
+    because membership is a fact about the attribute **and the tracked entity type**
+    together: one dictionary is shared by every registration form of the run, and two
+    programs on different types can disagree about one attribute. The conversion splits by
+    what the item states, and a question stating nothing is written on the tracked entity,
+    so a guide compiled before the extension translates exactly as it did.
+
     **Registrations post before events**, which is what finally clears `E1313`: a drain
     orders by payload kind rather than tracking dependencies, so the enrollment a stage
     response of the same drain answers against exists by the time DHIS2 reads the event.

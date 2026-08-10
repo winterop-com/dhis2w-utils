@@ -15,8 +15,10 @@ the Extension stating the hierarchy level a published Location sits at,
 `d2-attribute-option-combos.fsh` the Extension naming the ValueSet of attribute option combos
 a form's responses may be keyed under, `d2-attribute-option-combo.fsh` the Extension carrying
 the one an aggregate response was captured under, `d2-tracker-enrollment.fsh` the Extension
-carrying the DHIS2 tracker enrollment a response belongs to, and `d2-enrollment-dates.fsh` the
-two Extensions dating that enrollment - when it began, and when the incident it follows occurred.
+carrying the DHIS2 tracker enrollment a response belongs to, `d2-enrollment-dates.fsh` the
+two Extensions dating that enrollment - when it began, and when the incident it follows occurred -
+and `d2-entity-level.fsh` the Extension stating which DHIS2 level a registration question's answer
+is imported at: the tracked entity itself, or the enrollment the response creates.
 
 Three more artifacts turn that vocabulary into a capture contract a third party can build
 against without reading DHIS2: `d2-responses.fsh` profiles the QuestionnaireResponse a
@@ -222,6 +224,11 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         ig_status=ig_status,
         experimental=experimental,
     )
+    entity_level = _ENVIRONMENT.get_template("d2-entity-level.fsh.jinja").render(
+        names=names,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     responses = _ENVIRONMENT.get_template("d2-responses.fsh.jinja").render(
         names=names,
         profiles=build_response_profile_declarations(config),
@@ -327,6 +334,12 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             kind="extension",
             fsh_name=names.enrolled_at_extension,
             content=enrollment_dates,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-entity-level.fsh",
+            kind="extension",
+            fsh_name=names.entity_level_extension,
+            content=entity_level,
         ),
         FshArtifact(
             relative_path="foundation/d2-responses.fsh",

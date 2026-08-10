@@ -362,6 +362,16 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "incident", "at")
 
     @property
+    def entity_level_extension(self) -> str:
+        """FSH name of the entity-level Extension (e.g. `D2EntityLevel`)."""
+        return f"{self.definition_prefix}EntityLevel"
+
+    @property
+    def entity_level_extension_id(self) -> str:
+        """FHIR id of the entity-level Extension (e.g. `d2-entity-level`)."""
+        return join_id_tokens(self.definition_prefix, "entity", "level")
+
+    @property
     def aggregate_response_profile(self) -> str:
         """FSH name of the aggregate QuestionnaireResponse profile (e.g. `D2AggregateResponse`)."""
         return f"{self.definition_prefix}AggregateResponse"

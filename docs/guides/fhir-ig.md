@@ -776,6 +776,10 @@ never touches DHIS2:
   two `dateTime`s a DHIS2 enrollment carries: when it began, and when the incident it
   follows occurred. Both sit on a registration response. See
   [The tracker registration form](#the-tracker-registration-form).
+- **`d2-entity-level.fsh`** - the `D2EntityLevel` extension, a `boolean` on
+  `Questionnaire.item` saying which DHIS2 level a registration question's answer is
+  imported at: the tracked entity, or the enrollment. See
+  [The tracker registration form](#the-tracker-registration-form).
 - **`d2-responses.fsh`** - the `D2AggregateResponse`, `D2EventResponse`,
   `D2TrackerRegistrationResponse`, and `D2TrackerEventResponse` profiles every captured
   `QuestionnaireResponse` has to meet. See [The capture contract](#the-capture-contract).
@@ -904,9 +908,15 @@ EpisodeOfCare, MeasureReport identifiers will follow it).
 - **Instances** carry identifier slices discriminated on `system`:
   `{base}/id/<kind>` holds the UID and `{base}/id/<kind>-code` holds the code.
   Both slices are always emitted, on the Organization and on the Location alike.
-- **Terminology concepts** carry the complementary identifier as a concept
+- **Option-set concepts** carry the complementary identifier as a concept
   property: in id mode every concept gets `dhis2-code`, in code mode every
-  concept gets `dhis2-id`. No concept goes without the pair.
+  concept gets `dhis2-id`. No option goes without the pair - a DHIS2 option must
+  have a code, so there is always one to carry.
+- **Data-dictionary and registry concepts** carry `dhis2-code` only where DHIS2
+  states a code. A data element, a tracked entity attribute, a category option
+  combo, or an organisation unit may have none, and the concept code is the UID
+  already - repeating it under a `dhis2-code` label would publish a code the
+  instance does not hold.
 - **Option-set CodeSystems and ValueSets** carry the source set's own pair as
   `identifier` business identifiers, under `{base}/id/option-set` and
   `{base}/id/option-set-code` - the same two URLs the `$DHIS2-OS` /
@@ -1426,7 +1436,14 @@ attribute a registration form asks about as `D2TEA_CS`, and
 `D2COC_CS`. Which pair an item's `code` points into is a property of the form kind - a
 registration form asks tracked entity attributes, everything else asks data elements - so
 a response can be read back to DHIS2 without consulting the questionnaire. A pair whose
-objects nothing in the run references is not written at all. All three
+objects nothing in the run references is not written at all.
+
+**A concept states a `dhis2-code` only where DHIS2 states one.** The concept code is the
+DHIS2 UID already, so an object DHIS2 left uncoded - and plenty are, `Gender` and
+`Last name` among them - publishes no `dhis2-code` property rather than repeating its UID
+under a label that says otherwise. A pair whose objects are all uncoded declares no such
+property either, the way a pair whose data elements carry no domain type declares no
+`domain`. All three
 are FSH, under `ig/input/fsh/data-dictionary/` - a different tree from the pre-built
 option-set JSON in `ig/input/resources/terminology/`, and files that carry
 enough concepts to dominate what the FSH compile costs (see
@@ -1522,6 +1539,35 @@ text, and DHIS2's `mandatory` on the join becomes `required = true`.
 | `programTrackedEntityAttributes.mandatory` | `required = true` |
 | Attribute with an option set | `type = #choice` plus `answerValueSet` pointing at that set's generated ValueSet |
 | `trackedEntityType` | an identifier slice under `$DHIS2-TET`, and the `subjectType` the form declares |
+| `trackedEntityType.trackedEntityTypeAttributes` | `D2EntityLevel` on each item - `true` for an attribute the type collects, `false` for one only the program asks |
+
+**Its questions are asked at two DHIS2 levels.** DHIS2 collects a registration answer
+either for the *tracked entity* - the attribute is one of the tracked entity type's own
+`trackedEntityTypeAttributes`, so every program enrolling that type collects it - or for
+the *program* alone, in which case the value belongs to the enrollment rather than to the
+person. The import endpoint keeps them apart: an entity-level value goes on
+`trackedEntities[].attributes`, a program-only value on `enrollments[].attributes`, and
+DHIS2 refuses a program-only attribute stated at the entity level. So the form states
+which is which, on every question:
+
+```
+* item[=].extension[+].url = "http://dhis2.org/fhir/StructureDefinition/d2-entity-level"
+* item[=].extension[=].valueBoolean = false
+```
+
+The fact rides the program read the form already costs -
+`trackedEntityType[id,trackedEntityTypeAttributes[trackedEntityAttribute[id]]]` - so
+publishing the split is worth no extra request.
+
+**Why the item and not `D2TEA_CS`.** Entity-level membership is a fact about the *pair*,
+not about the attribute: `Date of birth` is entity-level for a tracked entity type that
+collects it and program-only for a program on a type that does not, and `D2TEA_CS` is one
+dictionary shared by every registration form of the run - it has one entry per attribute
+and could only state one of the two. The item extension states the fact where the pair
+lives, so a third party converting from the guide alone reads the right level per form.
+A question carrying no `D2EntityLevel` at all - a guide compiled before the extension was
+published - is read as entity-level, which is where every registration answer went before
+the split.
 
 **A tracked entity is not always a person.** The form declares what it is answered about
 on `subjectType`, and that follows the program's tracked entity type through
@@ -1534,11 +1580,15 @@ gets by configuring nothing.
 **`D2TEA_CS`, the attribute half of the data dictionary.** Because the questions are a
 different DHIS2 object, they get a support pair of their own -
 `data-dictionary/tracked-entity-attributes.fsh`, mirroring `D2DE_CS` concept for concept
-under the `TEA` token. Every concept carries the attribute's `dhis2-code` and its
+under the `TEA` token. Every concept carries the attribute's `dhis2-code` (where DHIS2
+states one) and its
 `value-type`, plus one property the data-element pair has no use for: `unique`, a boolean
 saying whether DHIS2 declares the attribute a business identifier - a national ID, a case
 number - rather than a description of the person. A run whose forms ask no attributes
 writes no such file, the same way a run that disaggregates nothing writes no `D2COC_CS`.
+Every property it carries is a fact about the attribute itself, which is why the
+entity-level split is published on the item instead: that one belongs to the attribute and
+the tracked entity type together.
 
 **It shares its program's assignment.** DHIS2 hangs the organisation-unit assignment on
 the program, so the registration form references the same
@@ -3065,8 +3115,9 @@ which is the whole point of the contract:
 | `trackedEntity` | `subject.identifier` under `{base}/id/tracked-entity` | refused (`missing-subject`) |
 | `trackedEntityType` | the form's `{base}/id/tracked-entity-type` identifier | refused (`missing-tracked-entity-type`) |
 | `orgUnit` | the `D2OrganisationUnit` extension, resolved through the published Location's `{base}/id/org-unit` identifier | refused (`missing-organisation-unit` / `unresolvable-organisation-unit`) |
-| `attributes[].attribute` | the answered item's link id, which on a registration form is the tracked entity attribute UID | refused (`unknown-link-id`) |
+| `attributes[].attribute` | the answered item's link id, which on a registration form is the tracked entity attribute UID - written here when the item's `D2EntityLevel` is `true` or absent | refused (`unknown-link-id`) |
 | `attributes[].value` | the answer's `value[x]`, through the same value-type serialisation a data element's answer goes through | refused, per the reason |
+| `enrollments[].attributes[]` | the answers of the items whose `D2EntityLevel` is `false` - the attributes the program asks and the tracked entity type does not collect | unwritten where the form has none |
 | `enrollments[].enrollment` | the `D2TrackerEnrollment` extension's identifier under `{base}/id/tracker-enrollment` | refused (`missing-enrollment`) |
 | `enrollments[].program` | the form's `{base}/id/program` identifier | refused (`missing-target-identifier`) |
 | `enrollments[].orgUnit` | the same unit the tracked entity is owned by | as above |
@@ -3079,6 +3130,13 @@ The payload models are the generated OpenAPI ones - `TrackerTrackedEntity`,
 event path follows with `TrackerEvent`. Coded attributes resolve through the published
 ValueSets on the strict/lenient dial a coded data element resolves on, because a tracked
 entity attribute has the same DHIS2 value types and binds option sets the same way.
+
+**The answers land at the two levels the form publishes.** DHIS2 takes an attribute of the
+tracked entity type on the tracked entity and an attribute only the program asks on the
+enrollment, so the translator splits the response's answers by each item's `D2EntityLevel`
+extension - see [The tracker registration form](#the-tracker-registration-form). A guide
+whose registration items state no level puts every answer on the tracked entity, which is
+what a form published before the extension existed means.
 
 **The attribute option combo resolves in the same tiers a coded answer does.** The concept
 code first - which under `concept_code_source = "id"` *is* the DHIS2 category option combo

@@ -327,6 +327,12 @@ depends on `fhir.toml` alone and never opens a client:
   program that collects no incident date emit no `D2IncidentAt`. `dateTime` rather than
   `date` because DHIS2 writes both as timestamps, and both go through the same
   zone normalisation `authored` goes through (BUGS.md #62).
+- `d2-entity-level.fsh` - the `D2EntityLevel` extension, `value[x] only boolean` with
+  `valueBoolean` 1..1, contexted on `Questionnaire.item`. It states which DHIS2 level a
+  registration question's answer is imported at, and it sits on the item rather than on a
+  `D2TEA_CS` concept property because the fact belongs to the pair: an attribute is
+  entity-level for the tracked entity type that collects it, and two programs on different
+  types can disagree about the same attribute, which one dictionary entry cannot say twice.
 - `d2-responses.fsh` - the `D2AggregateResponse`, `D2EventResponse`,
   `D2TrackerRegistrationResponse`, and `D2TrackerEventResponse` profiles on
   `QuestionnaireResponse`, one per form kind. Each slices the extensions its kind has
@@ -616,14 +622,18 @@ deletion is still scoped to header-bearing generated files, and a subdirectory t
 sweep emptied is removed with them. The JSON sweep keeps its flat
 whole-directory-ownership semantics - it has no nested target.
 
-`D2DE_CS` carries three concept properties: `dhis2-code` (the DHIS2 code, falling back to the
-UID), `domain` - a `code` valued `#aggregate` or `#tracker` from the data element's DHIS2
-`domainType`, omitted along with its declaration when the instance answers none - and
-`value-type`. All take a `<identifier_system_base>/property/<code>` URI, the same scheme the
-option-set terminology uses.
+`D2DE_CS` carries three concept properties: `dhis2-code` (the data element's DHIS2 code, which
+the questionnaire fetch reads with the rest of the question detail), `domain` - a `code` valued
+`#aggregate` or `#tracker` from the data element's DHIS2 `domainType` - and `value-type`. All
+take a `<identifier_system_base>/property/<code>` URI, the same scheme the option-set
+terminology uses. Every one of the three is omitted along with its declaration when no concept
+carries it, and `dhis2-code` is omitted per concept as well: a DHIS2 object may have no code,
+the concept code is its UID already, and a fall-back would publish the UID twice - once
+truthfully, once labelled as the object's DHIS2 code.
 
 `D2TEA_CS` is its twin over the objects a registration form asks its questions from. It
-declares `dhis2-code` and `value-type` the same way, and one property the data-element pair
+declares `dhis2-code` and `value-type` the same way, on the same terms, and one property the
+data-element pair
 has no use for: `unique`, a `boolean` from the attribute's DHIS2 `unique` flag, which is what
 tells a consumer that a question identifies the person - a national id, a case number - rather
 than describing them. Which pair a form's questions land in is a property of the form *kind*,

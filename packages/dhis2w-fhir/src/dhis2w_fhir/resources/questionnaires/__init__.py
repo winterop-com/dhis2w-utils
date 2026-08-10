@@ -111,6 +111,7 @@ __all__ = [
     "link_id_collisions",
     "plan_questionnaire_stems",
     "question_code_system",
+    "question_entity_level",
     "source_description",
     "source_items",
     "source_program",
@@ -272,6 +273,9 @@ class _ItemView(BaseModel):
     required: bool = False
     repeats: bool = False
     item_control: bool = False
+    entity_level: bool | None = None
+    """Whether the question's answer belongs to the tracked entity, or None when the form states no level."""
+
     bounds: list[_BoundView] = Field(default_factory=list)
 
 
@@ -356,6 +360,14 @@ class _QuestionnaireView(BaseModel):
     """FSH name of the ValueSet of attribute option combos the form admits, or None on a default combo."""
 
     attribute_value_extension: str
+    entity_level_extension_url: str
+    """Absolute URL of the D2EntityLevel extension a registration question states its level on.
+
+    Written as a URL rather than as the FSH name every other extension of this template takes:
+    SUSHI merges a named extension slice into whatever soft-indexed `extension[+]` entry precedes
+    it on the same element, and a numeric question already carries its bounds there.
+    """
+
     ig_status: IgStatus
     attribute_values: list[_AttributeValueView] = Field(default_factory=list)
     items: list[_ItemView] = Field(default_factory=list)
@@ -373,7 +385,9 @@ class _SupportConcept(BaseModel):
 
     uid: str
     display_literal: str
-    code_literal: str
+    code_literal: str | None = None
+    """The DHIS2 code as an FSH literal, or None when DHIS2 states none and the property is left off."""
+
     domain_code: str | None = None
     value_type_code: str | None = None
     unique_literal: str | None = None
@@ -402,6 +416,11 @@ class _SupportTerminologyView(BaseModel):
     def experimental(self) -> bool:
         """Whether the support pair is experimental - derived from the IG status."""
         return experimental_for_status(self.ig_status)
+
+    @property
+    def declares_code(self) -> bool:
+        """Whether any concept carries a DHIS2 code, so the CodeSystem must declare the property."""
+        return any(concept.code_literal is not None for concept in self.concepts)
 
     @property
     def declares_domain(self) -> bool:
@@ -650,6 +669,7 @@ def _questionnaire_view(
         attribute_option_combos_extension=foundation.attribute_option_combos_extension,
         attribute_option_combo_value_set=_attribute_option_combo_value_set(source, attribute_combos),
         attribute_value_extension=foundation.attribute_value_extension,
+        entity_level_extension_url=f"{canonical}/StructureDefinition/{foundation.entity_level_extension_id}",
         ig_status=ig_status,
         attribute_values=_attribute_value_views(source.attribute_values, attribute_codes),
         items=_item_views(source, names, identities),
@@ -806,6 +826,7 @@ def _question_views(
                 answer_value_set=answer_value_set,
                 required=item.compulsory,
                 repeats=repeats,
+                entity_level=question_entity_level(item, kind),
                 bounds=bounds,
             )
         ]
@@ -852,6 +873,21 @@ def _bound_views(value_type: str, item_type: str) -> list[_BoundView]:
     if bounds.maximum_value is not None:
         views.append(_BoundView(url=MAXIMUM_VALUE_EXTENSION_URL, element=element, literal=str(bounds.maximum_value)))
     return views
+
+
+def question_entity_level(item: QuestionnaireItemIn, kind: FormKind) -> bool | None:
+    """Which DHIS2 level one question's answer is imported at, or None when the form states no level.
+
+    Only a registration form has two levels to choose between: a tracked entity attribute of the
+    program's tracked entity type is stated on the tracked entity, an attribute only the program
+    asks is stated on the enrollment. Every other form kind asks data elements, which have no such
+    split, so the extension is written on registration questions and nowhere else. A registration
+    question whose projection carries no level - a guide generated before the fact was fetched -
+    states none either, and a consumer reads its answer as entity-level.
+    """
+    if FORM_KIND_PROFILES[kind].question_subject != "tracked-entity-attribute":
+        return None
+    return item.entity_level
 
 
 def is_disaggregated(item: QuestionnaireItemIn, kind: FormKind) -> bool:
@@ -943,7 +979,7 @@ def _data_element_terminology(
         _SupportConcept(
             uid=item.uid,
             display_literal=quote(item.name),
-            code_literal=quote(code_or_uid(None, item.uid)),
+            code_literal=quote(item.code) if item.code else None,
             domain_code=domain_code(item.domain_type),
             value_type_code=item.value_type,
         )
@@ -979,7 +1015,7 @@ def _tracked_entity_attribute_terminology(
         _SupportConcept(
             uid=item.uid,
             display_literal=quote(item.name),
-            code_literal=quote(code_or_uid(item.code, item.uid)),
+            code_literal=quote(item.code) if item.code else None,
             value_type_code=item.value_type,
             unique_literal="true" if item.unique else "false",
         )
@@ -1010,7 +1046,7 @@ def _option_combo_terminology(
         _SupportConcept(
             uid=option_combo.uid,
             display_literal=quote(option_combo.name),
-            code_literal=quote(code_or_uid(option_combo.code, option_combo.uid)),
+            code_literal=quote(option_combo.code) if option_combo.code else None,
         )
         for option_combo in sorted(option_combos.values(), key=lambda item: (item.name, item.uid))
     ]

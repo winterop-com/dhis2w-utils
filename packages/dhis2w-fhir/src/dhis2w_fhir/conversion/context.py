@@ -19,6 +19,11 @@ read through the very same walk: an attribute has the DHIS2 value types a data e
 option sets the same way, and lands on the same `QuestionSpec`. `value_types_by_data_element` is
 keyed by whichever object the link ids name, so a caller wanting `TRUE_ONLY` right on a
 registration form passes the attributes' value types in the same table.
+
+One thing a registration question does carry that a data element's cannot: the `D2EntityLevel`
+extension, which says whether DHIS2 imports its answer onto the tracked entity or onto the
+enrollment. It is read off the item here, so the translator splits the answers by what the guide
+published rather than by anything the caller has to supply.
 """
 
 from __future__ import annotations
@@ -179,6 +184,7 @@ def build_form_spec(
     group_link_ids: set[str] = set()
     _walk(
         questionnaire.item or [],
+        naming,
         code_system_urls_by_value_set,
         value_types_by_data_element,
         questions,
@@ -356,6 +362,7 @@ def _identifier_value(questionnaire: Questionnaire, system: str) -> str | None:
 
 def _walk(
     items: Sequence[QuestionnaireItem],
+    naming: ConversionNaming,
     code_system_urls_by_value_set: dict[str, str],
     value_types_by_data_element: dict[str, str],
     questions: dict[str, QuestionSpec],
@@ -369,13 +376,23 @@ def _walk(
         if item.type in _STRUCTURAL_ITEM_TYPES:
             group_link_ids.add(link_id)
         else:
-            questions[link_id] = _question(item, link_id, code_system_urls_by_value_set, value_types_by_data_element)
-        _walk(item.item or [], code_system_urls_by_value_set, value_types_by_data_element, questions, group_link_ids)
+            questions[link_id] = _question(
+                item, link_id, naming, code_system_urls_by_value_set, value_types_by_data_element
+            )
+        _walk(
+            item.item or [],
+            naming,
+            code_system_urls_by_value_set,
+            value_types_by_data_element,
+            questions,
+            group_link_ids,
+        )
 
 
 def _question(
     item: QuestionnaireItem,
     link_id: str,
+    naming: ConversionNaming,
     code_system_urls_by_value_set: dict[str, str],
     value_types_by_data_element: dict[str, str],
 ) -> QuestionSpec:
@@ -400,7 +417,16 @@ def _question(
         repeats=repeats,
         option_system=code_system_urls_by_value_set.get(item.answerValueSet or ""),
         value_type=value_type,
+        entity_level=_entity_level(item, naming),
     )
+
+
+def _entity_level(item: QuestionnaireItem, naming: ConversionNaming) -> bool | None:
+    """The DHIS2 level one question states its answer is imported at, off its D2EntityLevel extension."""
+    for extension in item.extension or []:
+        if extension.url == naming.entity_level_url and extension.valueBoolean is not None:
+            return extension.valueBoolean
+    return None
 
 
 def _wire_kind(base_kind: WireValueKind, *, repeats: bool, value_type: str | None) -> WireValueKind:

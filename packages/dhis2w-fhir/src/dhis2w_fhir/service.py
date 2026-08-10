@@ -176,8 +176,12 @@ _ORGANISATION_UNIT_FIELDS = (
     "id,code,name,shortName,description,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,"
     f"closedDate,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS}"
 )
+#: The data-element projection every form kind's questions are built from. `code` rides it for the
+#: data dictionary, which publishes the DHIS2 code of the object a question is asked from the way
+#: the attribute dictionary publishes an attribute's - a data element DHIS2 left uncoded publishes
+#: no code rather than its UID under a `dhis2-code` label.
 _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
-    "dataElement[id,name,formName,valueType,domainType,optionSet[id],"
+    "dataElement[id,code,name,formName,valueType,domainType,optionSet[id],"
     "categoryCombo[id,name,isDefault,categoryOptionCombos[id,name,code]]]"
 )
 #: The data set's own category combo - the attribute combo whose option combos are the third key
@@ -206,8 +210,13 @@ _PROGRAM_STAGE_FIELDS = (
 #: `programTrackedEntityAttributes` is the join table, so `mandatory` and `sortOrder` sit on the
 #: join while the question detail sits on the attribute it references - the very shape
 #: `programStageDataElements` has, which is why the two read the same way.
+#:
+#: The tracked entity type carries its own join beside its UID, and that second join is what says
+#: at which DHIS2 level an answer is imported: an attribute the type collects is stated on the
+#: tracked entity, an attribute only the program asks is stated on the enrollment. It rides the
+#: program read the form already costs, so knowing the level is worth no extra request.
 _PROGRAM_ATTRIBUTE_FIELDS = (
-    "trackedEntityType[id],displayIncidentDate,"
+    "trackedEntityType[id,trackedEntityTypeAttributes[trackedEntityAttribute[id]]],displayIncidentDate,"
     "programTrackedEntityAttributes[mandatory,sortOrder,"
     "trackedEntityAttribute[id,name,code,formName,valueType,unique,optionSet[id]]]"
 )
@@ -2799,6 +2808,32 @@ def _tracked_entity_type_uid(model: Program) -> str | None:
     return _optional_text(reference.id) if reference is not None else None
 
 
+def _tracked_entity_type_attribute_uids(model: Program) -> frozenset[str] | None:
+    """The attributes a program's tracked entity type collects itself, or None when the instance sent none.
+
+    DHIS2 asks its registration questions at two levels: a `trackedEntityTypeAttribute` is
+    collected for the entity whichever program enrols it, while an attribute only
+    `programTrackedEntityAttributes` names is the program's own. An empty set is a type that
+    collects nothing, so every question of the program is program-only; None is a program the
+    read answered no type join for, and the form then states no level at all.
+    """
+    reference = model.trackedEntityType
+    if reference is None:
+        return None
+    raw_attributes = (reference.model_extra or {}).get("trackedEntityTypeAttributes")
+    if not isinstance(raw_attributes, list):
+        return None
+    uids: set[str] = set()
+    for entry in raw_attributes:
+        if not isinstance(entry, dict):
+            continue
+        attribute = _tracked_entity_attribute_reference(entry)
+        uid = _optional_text(attribute.get("id")) if attribute is not None else None
+        if uid is not None:
+            uids.add(uid)
+    return frozenset(uids)
+
+
 def _registration_items(model: Program) -> list[QuestionnaireItemIn]:
     """One tracker program's registration questions, ordered by DHIS2 sort order then attribute name and UID.
 
@@ -2806,6 +2841,9 @@ def _registration_items(model: Program) -> list[QuestionnaireItemIn]:
     holds exactly what a stage's `programStageDataElements` join holds: whether the question is
     mandatory on this program, and where it sits in the form. So the two read the same way, and
     an attribute is projected onto the very question shape a data element is.
+
+    The tracked entity type's own join decides one thing the program's join cannot: whether the
+    answer is imported onto the tracked entity or onto the enrollment.
     """
     raw_attributes = model.programTrackedEntityAttributes
     entries = [
@@ -2814,8 +2852,15 @@ def _registration_items(model: Program) -> list[QuestionnaireItemIn]:
         if isinstance(entry, dict) and _tracked_entity_attribute_reference(entry) is not None
     ]
     entries.sort(key=_registration_item_sort_key)
+    entity_level_uids = _tracked_entity_type_attribute_uids(model)
     return [
-        _tracked_entity_attribute_item(reference, mandatory=bool(entry.get("mandatory")))
+        _tracked_entity_attribute_item(
+            reference,
+            mandatory=bool(entry.get("mandatory")),
+            entity_level=None
+            if entity_level_uids is None
+            else _optional_text(reference.get("id")) in entity_level_uids,
+        )
         for entry in entries
         if (reference := _tracked_entity_attribute_reference(entry)) is not None
     ]
@@ -2836,7 +2881,9 @@ def _registration_item_sort_key(entry: dict[str, object]) -> tuple[int, str, str
     return (_sort_order(entry), _optional_text(reference.get("name")) or uid, uid)
 
 
-def _tracked_entity_attribute_item(raw: dict[str, object], *, mandatory: bool) -> QuestionnaireItemIn:
+def _tracked_entity_attribute_item(
+    raw: dict[str, object], *, mandatory: bool, entity_level: bool | None
+) -> QuestionnaireItemIn:
     """Map one wire tracked entity attribute into the question projection both emitters consume."""
     uid = _optional_text(raw.get("id")) or ""
     option_set = raw.get("optionSet")
@@ -2850,6 +2897,7 @@ def _tracked_entity_attribute_item(raw: dict[str, object], *, mandatory: bool) -
         option_set_uid=option_set_uid,
         compulsory=mandatory,
         unique=bool(raw.get("unique")),
+        entity_level=entity_level,
     )
 
 
@@ -2979,6 +3027,7 @@ def _questionnaire_item(raw: dict[str, object], *, compulsory: bool) -> Question
     return QuestionnaireItemIn(
         uid=uid,
         name=_optional_text(raw.get("name")) or uid,
+        code=_optional_text(raw.get("code")),
         form_name=_optional_text(raw.get("formName")),
         value_type=_optional_text(raw.get("valueType")) or "",
         domain_type=_optional_text(raw.get("domainType")) or "",

@@ -4,18 +4,32 @@
   "content": "complete",
   "name": "D2TEA_CS",
   "id": "d2-tea-cs",
-  "title": "DHIS2 Tracked Entity Attributes",
+  "title": "DHIS2 tracked entity attributes",
   "description": "DHIS2 tracked entity attributes captured by the generated tracker registration forms. Concept codes are DHIS2 tracked entity attribute UIDs.",
   "url": "http://example.org/fhir/CodeSystem/d2-tea-cs",
   "concept": [
     {
-      "code": "Tea2aaaaaaa",
-      "display": "Marital status",
+      "code": "Tea3aaaaaaa",
+      "display": "Household size",
       "property": [
         {
           "code": "dhis2-code",
-          "valueString": "Tea2aaaaaaa"
+          "valueString": "TEA_HOUSEHOLD_SIZE"
         },
+        {
+          "code": "value-type",
+          "valueCode": "INTEGER_POSITIVE"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": false
+        }
+      ]
+    },
+    {
+      "code": "Tea2aaaaaaa",
+      "display": "Marital status",
+      "property": [
         {
           "code": "value-type",
           "valueCode": "TEXT"
@@ -68,5 +82,5 @@
       "type": "boolean"
     }
   ],
-  "count": 2
+  "count": 3
 }

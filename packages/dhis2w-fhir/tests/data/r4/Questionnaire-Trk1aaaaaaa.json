@@ -48,7 +48,13 @@
       ],
       "text": "National id",
       "type": "string",
-      "required": true
+      "required": true,
+      "extension": [
+        {
+          "url": "http://example.org/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
     },
     {
       "linkId": "Tea2aaaaaaa",
@@ -61,7 +67,35 @@
       ],
       "text": "Marital status",
       "type": "choice",
-      "answerValueSet": "http://example.org/fhir/ValueSet/d2-os-Os3aaaaaaaa-vs"
+      "answerValueSet": "http://example.org/fhir/ValueSet/d2-os-Os3aaaaaaaa-vs",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "Tea3aaaaaaa",
+      "code": [
+        {
+          "code": "Tea3aaaaaaa",
+          "system": "http://example.org/fhir/CodeSystem/d2-tea-cs",
+          "display": "Household size"
+        }
+      ],
+      "text": "Household size",
+      "type": "integer",
+      "extension": [
+        {
+          "url": "http://hl7.org/fhir/StructureDefinition/minValue",
+          "valueInteger": 1
+        },
+        {
+          "url": "http://example.org/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": false
+        }
+      ]
     }
   ]
 }

@@ -33,6 +33,7 @@ from dhis2w_fhir.resources.questionnaires import (
     bound_option_set_uids,
     grouping_identifiers,
     question_code_system,
+    question_entity_level,
 )
 from dhis2w_fhir.resources.questionnaires.assignments import assignment_container, assignment_container_uid
 from dhis2w_fhir.resources.questionnaires.schemas import (
@@ -53,9 +54,11 @@ _CANONICAL = "http://example.org/fhir"
 #: The option set only a tracked entity attribute binds, which is what makes the closure's reach visible.
 _MARITAL_STATUS = OptionSetIn(uid="Os3aaaaaaaa", name="Marital status")
 
-#: The registration form the goldens were compiled from: one unique coded attribute, one bound to
-#: an option set. `form_name` differs from `name` on the first, so the question text and the concept
-#: display are visibly drawn from different fields.
+#: The registration form the goldens were compiled from: one unique attribute the tracked entity
+#: type collects, one bound to an option set, and one the program alone asks - which is what makes
+#: both DHIS2 levels visible in one form. `form_name` differs from `name` on the first, so the
+#: question text and the concept display are visibly drawn from different fields; the program-only
+#: one is numeric, so its `D2EntityLevel` extension is emitted beside a bound rather than alone.
 _REGISTRATION = QuestionnaireSourceIn(
     uid="Trk1aaaaaaa",
     name="Child Programme",
@@ -72,8 +75,22 @@ _REGISTRATION = QuestionnaireSourceIn(
             value_type="TEXT",
             compulsory=True,
             unique=True,
+            entity_level=True,
         ),
-        QuestionnaireItemIn(uid="Tea2aaaaaaa", name="Marital status", value_type="TEXT", option_set_uid="Os3aaaaaaaa"),
+        QuestionnaireItemIn(
+            uid="Tea2aaaaaaa",
+            name="Marital status",
+            value_type="TEXT",
+            option_set_uid="Os3aaaaaaaa",
+            entity_level=True,
+        ),
+        QuestionnaireItemIn(
+            uid="Tea3aaaaaaa",
+            name="Household size",
+            code="TEA_HOUSEHOLD_SIZE",
+            value_type="INTEGER_POSITIVE",
+            entity_level=False,
+        ),
     ],
 )
 
@@ -179,7 +196,7 @@ def test_attributes_become_questions_the_way_data_elements_do() -> None:
     assert "* item[=].required = true" in content
     assert "* item[=].answerValueSet = Canonical(D2OS_Os3aaaaaaaa_VS)" in content
     items = _document()["item"]
-    assert [item["linkId"] for item in items] == ["Tea1aaaaaaa", "Tea2aaaaaaa"]
+    assert [item["linkId"] for item in items] == ["Tea1aaaaaaa", "Tea2aaaaaaa", "Tea3aaaaaaa"]
     assert items[0]["required"] is True
     assert items[1]["type"] == "choice"
     assert items[1]["answerValueSet"] == "http://example.org/fhir/ValueSet/d2-os-Os3aaaaaaaa-vs"
@@ -195,7 +212,7 @@ def test_a_registration_question_is_coded_from_the_attribute_vocabulary() -> Non
     assert '* item[=].code = D2TEA_CS#Tea1aaaaaaa "National identifier"' in content
     assert "D2DE_CS" not in content
     codings = [item["code"][0]["system"] for item in _document()["item"]]
-    assert codings == ["http://example.org/fhir/CodeSystem/d2-tea-cs"] * 2
+    assert codings == ["http://example.org/fhir/CodeSystem/d2-tea-cs"] * 3
 
 
 def test_the_attribute_vocabulary_is_its_own_data_dictionary_pair() -> None:
@@ -215,7 +232,72 @@ def test_the_attribute_vocabulary_states_the_code_the_value_type_and_the_uniquen
     assert '* #Tea1aaaaaaa ^property[=].valueString = "TEA_NATIONAL_ID"' in content
     assert "* #Tea1aaaaaaa ^property[=].valueBoolean = true" in content
     assert "* #Tea2aaaaaaa ^property[=].valueBoolean = false" in content
-    assert '* #Tea2aaaaaaa ^property[=].valueString = "Tea2aaaaaaa"' in content
+
+
+def test_an_attribute_dhis2_left_uncoded_publishes_no_dhis2_code() -> None:
+    """The concept code is the UID already, so an uncoded attribute states no code rather than repeating it."""
+    content = _fsh()["data-dictionary/tracked-entity-attributes.fsh"]
+    assert "* #Tea2aaaaaaa ^property[=].valueString" not in content
+    assert '* #Tea3aaaaaaa ^property[=].valueString = "TEA_HOUSEHOLD_SIZE"' in content
+    properties = {
+        entry["code"]
+        for concept in _dumped(
+            build_data_dictionary_documents(
+                [_REGISTRATION], GenerateConfig(), _CANONICAL, ig_status="draft"
+            ).code_systems[0]
+        )["concept"]
+        if concept["code"] == "Tea2aaaaaaa"
+        for entry in concept["property"]
+    }
+    assert properties == {"value-type", "unique"}
+
+
+#: The URL the registration items state their DHIS2 level under, as both emitters resolve it.
+_ENTITY_LEVEL_EXTENSION = f"{_CANONICAL}/StructureDefinition/d2-entity-level"
+
+
+def test_a_registration_question_states_which_dhis2_level_its_answer_is_imported_at() -> None:
+    """DHIS2 collects an attribute for the entity or for the program, and the form says which."""
+    content = _fsh()[f"tracker-programs/Trk1aaaaaaa/{REGISTRATION_FILE_STEM}.fsh"]
+    assert f'* item[=].extension[+].url = "{_ENTITY_LEVEL_EXTENSION}"\n* item[=].extension[=].valueBoolean = true' in (
+        content
+    )
+    assert "* item[=].extension[=].valueBoolean = false" in content
+    levels = {
+        item["linkId"]: extension["valueBoolean"]
+        for item in _document()["item"]
+        for extension in item.get("extension", [])
+        if extension["url"] == _ENTITY_LEVEL_EXTENSION
+    }
+    assert levels == {"Tea1aaaaaaa": True, "Tea2aaaaaaa": True, "Tea3aaaaaaa": False}
+
+
+def test_the_entity_level_extension_rides_beside_a_numeric_questions_bounds() -> None:
+    """An attribute carrying both writes two extensions, the bound first - the order SUSHI compiles."""
+    household = next(item for item in _document()["item"] if item["linkId"] == "Tea3aaaaaaa")
+    assert [extension["url"] for extension in household["extension"]] == [
+        "http://hl7.org/fhir/StructureDefinition/minValue",
+        _ENTITY_LEVEL_EXTENSION,
+    ]
+
+
+def test_a_registration_form_the_fetch_could_not_level_states_no_level_at_all() -> None:
+    """An unknown level is published as no extension rather than as a guess at the entity level."""
+    unlevelled = _REGISTRATION.model_copy(
+        update={"flat_items": [item.model_copy(update={"entity_level": None}) for item in _REGISTRATION.flat_items]}
+    )
+    assert "d2-entity-level" not in _fsh([unlevelled])[f"tracker-programs/Trk1aaaaaaa/{REGISTRATION_FILE_STEM}.fsh"]
+    assert all("extension" not in item for item in _document(unlevelled)["item"] if item["linkId"] != "Tea3aaaaaaa")
+
+
+def test_only_a_registration_question_states_a_dhis2_level() -> None:
+    """A data element has no such split, so a stage form's questions carry the extension on no path."""
+    levelled = _BIRTH_STAGE.model_copy(
+        update={"flat_items": [item.model_copy(update={"entity_level": True}) for item in _BIRTH_STAGE.flat_items]}
+    )
+    assert question_entity_level(levelled.flat_items[0], "tracker-event") is None
+    assert "d2-entity-level" not in _fsh([levelled])["tracker-programs/Trk1aaaaaaa/Stg1aaaaaaa.fsh"]
+    assert all("extension" not in item for item in _document(levelled)["item"])
 
 
 def test_the_data_element_vocabulary_keeps_its_own_property_prose() -> None:
