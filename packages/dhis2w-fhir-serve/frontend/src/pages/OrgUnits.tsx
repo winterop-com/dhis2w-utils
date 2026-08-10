@@ -1,6 +1,7 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronDown, ChevronRight, MapPin, PanelRightClose, PanelRightOpen, Search } from 'lucide-react'
+import { usePanelRef } from 'react-resizable-panels'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
 import { PageHeader, PageState } from '@/components/PageState'
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
@@ -65,19 +67,30 @@ const OrgUnitMap = lazy(async () => {
 /** The query parameter one selected unit is shareable under. */
 const UNIT_PARAM = 'unit'
 
-/** How many children the inspector names before it defers to the tree. */
-const CHILD_PREVIEW = 8
-
 /** How many receipts the Captured here section names before it defers to the responses page. */
 const RECENT_RECEIPTS = 5
 
 /**
  * The width at which the page runs three panes: tree, map canvas, inspector rail.
  *
- * Below it, three panes would crush each other - a 340px rail beside a 300px tree leaves no map -
- * so the page falls back to two columns with the selection's sections behind tabs instead.
+ * Below it, three panes would crush each other - even at their minimum sizes the tree and the rail
+ * leave no map worth reading - so the page falls back to two columns with the selection's sections
+ * behind tabs instead.
  */
 const THREE_PANE_QUERY = '(min-width: 1100px)'
+
+/**
+ * The pane divider, invisible until pointed at.
+ *
+ * The bar is transparent at rest so the layout reads as three panes, not five columns; hovering,
+ * dragging, or keyboard focus paints it. The `w-1.5` strip is also the pointer target - wide
+ * enough to hit, narrow enough that the panes still sit close.
+ */
+const PANE_HANDLE =
+    'mx-1 w-1.5 rounded-full bg-transparent transition-colors hover:bg-border active:bg-border focus-visible:bg-border'
+
+/** The width the inspector rail keeps when collapsed: room for the expand control, nothing else. */
+const RAIL_COLLAPSED_SIZE = '2.5rem'
 
 /** Whether the viewport is wide enough for the three-pane layout, tracked live. */
 function useThreePane(): boolean {
@@ -99,14 +112,14 @@ function useThreePane(): boolean {
  * of them is required for this page to be useful. The tree and the map render off the registry
  * alone; every other section states its own absence.
  *
- * THE SELECTION IS IN THE URL. `#/org-units?unit=DiszpKrYNg8` is a link that opens one facility
- * with its ancestors expanded and the map framed on it, which is what makes a unit something you
- * can send someone rather than a set of directions through a tree.
+ * THE SELECTION IS IN THE URL. `#/organisation-units?unit=DiszpKrYNg8` is a link that opens one
+ * facility with its ancestors expanded and the map framed on it, which is what makes an
+ * organisation unit something you can send someone rather than a set of directions through a tree.
  *
- * THE SHAPE IS A GIS TOOL'S. Wide viewports run three panes: the tree, the map as the
+ * THE SHAPE IS A GIS TOOL'S. Wide viewports run three resizable panes: the tree, the map as the
  * always-visible centre canvas, and a collapsible inspector rail carrying everything else about
  * the selection - identity, the forms shelved by kind, the captures this server received, the
- * remaining facts. Below `THREE_PANE_QUERY` the page falls back to two columns with the
+ * children below it. Below `THREE_PANE_QUERY` the page falls back to two columns with the
  * selection's sections behind tabs (Map the default).
  *
  * WHAT THIS PAGE IS NOT. It is not an editor and not a picker. DHIS2 owns the hierarchy; this is
@@ -124,8 +137,28 @@ export function OrgUnits() {
     const threePane = useThreePane()
     // The rail choice lives for this mount of the page and nowhere else - deliberately plain
     // state, not storage: an inspector someone shut is not a standing preference the way the
-    // app sidebar's width is.
-    const [railOpen, setRailOpen] = useState(true)
+    // app sidebar's width is. It starts open only when the mount already has a selection - a
+    // `?unit=` deep link arrives selected and deserves the open rail; a plain visit starts with
+    // the tree and the map, and the rail opens when something is picked.
+    const [railOpen, setRailOpen] = useState(() => (parameters.get(UNIT_PARAM) ?? '') !== '')
+    // The rail pane's collapse is owned by the panel so that the chevron and dragging the handle
+    // shut agree; `railOpen` mirrors it (via onResize below) and survives breakpoint crossings.
+    const railPanel = usePanelRef()
+
+    // The panel mounts expanded (its defaultSize) and is collapsed before first paint when the
+    // mirror says closed - which is also what re-collapses it when the viewport crosses back over
+    // the three-pane breakpoint. Collapsing an already-collapsed panel is a no-op, so the mirror
+    // updating from onResize never loops this.
+    useLayoutEffect(() => {
+        if (threePane && !railOpen) railPanel.current?.collapse()
+    }, [threePane, railOpen, railPanel])
+
+    const toggleRail = useCallback(() => {
+        const panel = railPanel.current
+        if (panel === null) return
+        if (panel.isCollapsed()) panel.expand()
+        else panel.collapse()
+    }, [railPanel])
 
     const tree = useMemo(() => buildOrgUnitTree(registry.resources), [registry.resources])
     const geometry = useMemo(() => readGeometry(registry.resources), [registry.resources])
@@ -140,7 +173,11 @@ export function OrgUnits() {
     }, [forms.resources])
 
     const requested = parameters.get(UNIT_PARAM) ?? ''
-    const selected = tree.byId.get(requested) ?? null
+    // Arriving with no unit named selects the hierarchy's root by default - the page then opens
+    // framing the country with the tree anchored, not an empty prompt. The default is a view,
+    // not a user act: it neither writes ?unit= nor opens the inspector rail (railOpen keys on
+    // the parameter alone), so the first click a person makes still behaves like a first click.
+    const selected = tree.byId.get(requested) ?? (requested === '' ? (tree.roots[0] ?? null) : null)
     const filtered = useMemo(() => matchingUnitIds(tree, query), [tree, query])
     const catalog = useMemo(
         () => (selected === null ? null : catalogueForms(reportableFormsAt(assignmentIndex, selected.id), formsById)),
@@ -154,11 +191,13 @@ export function OrgUnits() {
             // Replace rather than push: clicking through a tree is browsing one page, and a back
             // button that walks every unit visited is a worse answer than one that leaves.
             setParameters(next, { replace: true })
-            // A selection is a question about a unit, so the inspector opens to answer it even
-            // when it was collapsed - collapsing is a view choice, not a standing instruction.
+            // A selection is a question about an organisation unit, so the inspector opens to
+            // answer it even when it was collapsed - collapsing is a view choice, not a standing
+            // instruction. The state covers the narrow layout; the panel call covers the pane.
             setRailOpen(true)
+            railPanel.current?.expand()
         },
-        [parameters, setParameters],
+        [parameters, setParameters, railPanel],
     )
 
     const expanded = useMemo(() => {
@@ -167,79 +206,86 @@ export function OrgUnits() {
         return open
     }, [filtered, selected, tree])
 
+    // The tree pane, shared by both layouts: a pane of the three-pane run, a column of the
+    // narrow grid.
+    const hierarchyPane = (
+        <section className="flex h-full min-h-0 flex-1 flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-base font-semibold">Hierarchy</h3>
+                {!registry.loading && registry.error === null && (
+                    <span className="text-muted-foreground text-xs">
+                        {tree.total.toLocaleString('en')} organisation unit{tree.total === 1 ? '' : 's'}
+                    </span>
+                )}
+            </div>
+            <div className="relative">
+                <Search
+                    className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+                    aria-hidden
+                />
+                <Input
+                    className="pl-9"
+                    aria-label="Filter organisation units"
+                    placeholder="Filter by name, uid, or code"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                />
+            </div>
+            <PageState
+                loading={registry.loading}
+                error={registry.error}
+                empty={tree.total === 0}
+                emptyMessage="This project publishes no organisation units. `[generate.organisation_units]` in fhir.toml is what selects them - a `root` of nothing and a `max_level` of 0 publishes none."
+            >
+                <UnitTree
+                    tree={tree}
+                    selectedId={selected?.id ?? null}
+                    expanded={expanded}
+                    filtered={query.trim() === '' ? null : filtered}
+                    onSelect={select}
+                />
+                {tree.orphanCount > 0 && (
+                    <p className="text-muted-foreground text-xs">
+                        {tree.orphanCount} organisation unit{tree.orphanCount === 1 ? '' : 's'} name a
+                        parent this project did not publish, so they are shown as roots. That is what a
+                        selection with a `root` or a `max_level` looks like from below.
+                    </p>
+                )}
+            </PageState>
+        </section>
+    )
+
     return (
         // The one page in this app that claims the viewport rather than growing to its content:
         // the map is worth more the bigger it is, and a fixed-height box with dead space under it
         // on a tall screen is the shape this replaced.
         <div className="flex min-h-0 flex-1 flex-col">
             <PageHeader
-                title="Org units"
-                description="The organisation units this guide published, as the hierarchy DHIS2 holds them in - what a capture may report for, and which forms it may report there."
+                title="Organisation units"
+                description="The organisation units this guide published, as the hierarchy the DHIS2 instance holds them in - what a capture may report for, and which forms it may report there."
             />
 
-            {/* `flex-1` without `min-h-0`: the row takes the leftover height when there is any -
-                which is what the map grows into - and floors at its own content when there is not,
-                so a short viewport scrolls `main` instead of crushing the panels. */}
-            <div
-                className={cn(
-                    'grid flex-1 gap-6',
-                    threePane
-                        ? 'grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)_auto]'
-                        : 'lg:grid-cols-[minmax(16rem,22rem)_1fr]',
-                )}
-            >
-                <section className="flex min-h-0 flex-col gap-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h3 className="text-base font-semibold">The hierarchy</h3>
-                        {!registry.loading && registry.error === null && (
-                            <span className="text-muted-foreground font-mono text-xs">
-                                {tree.total} units
-                            </span>
-                        )}
-                    </div>
-                    <div className="relative">
-                        <Search
-                            className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
-                            aria-hidden
-                        />
-                        <Input
-                            className="pl-9"
-                            aria-label="Filter organisation units"
-                            placeholder="Filter by name, uid, or code"
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                        />
-                    </div>
-                    <PageState
-                        loading={registry.loading}
-                        error={registry.error}
-                        empty={tree.total === 0}
-                        emptyMessage="This project publishes no organisation units. `[generate.organisation_units]` in fhir.toml is what selects them - a `root` of nothing and a `max_level` of 0 publishes none."
+            {threePane ? (
+                // Three resizable panes. The sizes are per-mount state, same posture as the rail
+                // choice - deliberately not persisted: a width dragged for one reading session is
+                // not a standing preference. The `min-h` floor is what keeps a short viewport
+                // scrolling `main` instead of crushing the panes - a panel group clips its
+                // content, so without the floor nothing would ever overflow.
+                <ResizablePanelGroup className="min-h-[30rem] flex-1">
+                    <ResizablePanel
+                        id="hierarchy"
+                        defaultSize="22%"
+                        minSize="15%"
+                        maxSize="40%"
+                        className="flex min-h-0 flex-col"
                     >
-                        <UnitTree
-                            tree={tree}
-                            selectedId={selected?.id ?? null}
-                            expanded={expanded}
-                            filtered={query.trim() === '' ? null : filtered}
-                            onSelect={select}
-                        />
-                        {tree.orphanCount > 0 && (
-                            <p className="text-muted-foreground text-xs">
-                                {tree.orphanCount} unit{tree.orphanCount === 1 ? '' : 's'} name a parent
-                                this project did not publish, so they are shown as roots. That is what a
-                                selection with a `root` or a `max_level` looks like from below.
-                            </p>
-                        )}
-                    </PageState>
-                </section>
-
-                {threePane ? (
-                    <>
-                        {/* The centre canvas. At this width the map is never behind anything:
-                            collapsing the rail hands it the rail's width too. No `min-h-0`,
-                            deliberately - the map's own floor is the pane's minimum, so a viewport
-                            too short for it scrolls `main` rather than crushing the canvas. */}
-                        <section className="flex min-w-0 flex-col">
+                        {hierarchyPane}
+                    </ResizablePanel>
+                    <ResizableHandle className={PANE_HANDLE} />
+                    {/* The centre canvas. At this width the map is never behind anything:
+                        collapsing the rail hands it the rail's width too. */}
+                    <ResizablePanel id="map" minSize="30%" className="flex min-h-0 min-w-0 flex-col">
+                        <section className="flex h-full min-w-0 flex-col">
                             <MapPanel
                                 tree={tree}
                                 geometry={geometry}
@@ -250,7 +296,26 @@ export function OrgUnits() {
                                 settingsLoading={settings.loading}
                             />
                         </section>
-                        <InspectorRail open={railOpen} onToggle={() => setRailOpen((value) => !value)}>
+                    </ResizablePanel>
+                    <ResizableHandle className={PANE_HANDLE} />
+                    {/* `collapsible` is what makes the chevron and dragging the handle shut agree:
+                        both land the pane on RAIL_COLLAPSED_SIZE, and onResize keeps the mirror
+                        state true to whichever control moved it. */}
+                    <ResizablePanel
+                        id="rail"
+                        collapsible
+                        collapsedSize={RAIL_COLLAPSED_SIZE}
+                        defaultSize="24%"
+                        minSize="18%"
+                        maxSize="40%"
+                        panelRef={railPanel}
+                        onResize={() => {
+                            const panel = railPanel.current
+                            if (panel !== null) setRailOpen(!panel.isCollapsed())
+                        }}
+                        className="flex min-h-0 flex-col"
+                    >
+                        <InspectorRail open={railOpen} onToggle={toggleRail}>
                             {selected === null || catalog === null ? (
                                 <NothingSelected total={tree.total} loading={registry.loading} />
                             ) : (
@@ -264,19 +329,19 @@ export function OrgUnits() {
                                         error={forms.error ?? assignments.error}
                                     />
                                     <CapturedHere node={selected} formsById={formsById} spool={spool} />
-                                    <section className="space-y-2">
-                                        <h4 className="text-sm font-semibold">Details</h4>
-                                        <UnitFacts node={selected} onSelect={select} />
-                                    </section>
+                                    <UnitChildren key={selected.id} node={selected} onSelect={select} />
                                 </>
                             )}
                         </InspectorRail>
-                    </>
-                ) : (
-                    // The narrow fallback: two columns, and the selection's sections behind tabs.
-                    // No `min-h-0` on this column, deliberately: its automatic minimum is its own
-                    // content, so a viewport too short for the panels makes the page scroll rather
-                    // than squashing the map into a strip.
+                    </ResizablePanel>
+                </ResizablePanelGroup>
+            ) : (
+                // The narrow fallback: two columns, and the selection's sections behind tabs.
+                // `flex-1` without `min-h-0`: the row takes the leftover height when there is any -
+                // which is what the map grows into - and floors at its own content when there is
+                // not, so a short viewport scrolls `main` instead of crushing the panels.
+                <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(16rem,22rem)_1fr]">
+                    {hierarchyPane}
                     <section className="flex min-w-0 flex-col gap-6">
                         {selected === null || catalog === null ? (
                             <>
@@ -313,8 +378,8 @@ export function OrgUnits() {
                             </>
                         )}
                     </section>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     )
 }
@@ -352,7 +417,7 @@ function UnitTree({
     if (roots.length === 0) {
         return (
             <p className="text-muted-foreground rounded-lg border px-4 py-8 text-sm">
-                No unit matches that filter.
+                No organisation unit matches that filter.
             </p>
         )
     }
@@ -445,7 +510,11 @@ function UnitBranch({
                     aria-current={isSelected ? 'true' : undefined}
                     className="hover:bg-accent/40 focus-visible:ring-ring/50 flex min-w-0 flex-1 items-center gap-2 rounded px-1.5 py-1 text-left text-sm focus-visible:ring-[3px] focus-visible:outline-none"
                 >
-                    <span className="truncate">{node.name}</span>
+                    {/* A tree row stays one line, so the name may truncate - the title carries
+                        the full name for exactly that case. */}
+                    <span className="truncate" title={node.name}>
+                        {node.name}
+                    </span>
                     {node.level !== null && (
                         <span className="text-muted-foreground shrink-0 font-mono text-[10px]" aria-hidden>
                             {node.level.code}
@@ -484,13 +553,14 @@ function UnitBranch({
 }
 
 /**
- * The right rail: everything about the selected unit that is not the map.
+ * The right rail: everything about the selected organisation unit that is not the map.
  *
- * STACKED SECTIONS, NOT TABS, deliberately: at 340px wide, tab triggers would cost a row to say
+ * STACKED SECTIONS, NOT TABS, deliberately: at rail widths, tab triggers would cost a row to say
  * what four short headings already say, while hiding most of the content behind clicks. A rail
- * this narrow reads best as one scroll with quiet headings. Sticky headings were considered and
- * skipped - the sections are short enough that a sticky bar would mostly overlap the next heading.
- * The collapse toggle mirrors the main sidebar's.
+ * this narrow reads best as one scroll with quiet headings. NO HEADING OF ITS OWN: the rail opens
+ * with the selected organisation unit's name and level, and that compact header is the heading -
+ * a generic label above it would state nothing the header does not. The collapse toggle mirrors
+ * the main sidebar's.
  */
 function InspectorRail({
     open,
@@ -503,42 +573,41 @@ function InspectorRail({
 }) {
     if (!open) {
         return (
-            <aside aria-label="Unit inspector" className="flex flex-col">
+            <aside aria-label="Organisation unit details" className="flex h-full flex-col items-center">
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={onToggle}
-                            aria-label="Expand the unit inspector"
+                            aria-label="Expand the details panel"
                             className="text-muted-foreground hover:text-foreground"
                         >
                             <PanelRightOpen className="size-4" />
                         </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="left">Expand the unit inspector</TooltipContent>
+                    <TooltipContent side="left">Expand the details panel</TooltipContent>
                 </Tooltip>
             </aside>
         )
     }
 
     return (
-        <aside aria-label="Unit inspector" className="flex min-h-0 w-[21.25rem] flex-col gap-3">
-            <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold">This unit</h3>
+        <aside aria-label="Organisation unit details" className="flex h-full min-h-0 flex-col gap-1">
+            <div className="-mb-1 flex items-center justify-end">
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={onToggle}
-                            aria-label="Collapse the unit inspector"
+                            aria-label="Collapse the details panel"
                             className="text-muted-foreground hover:text-foreground"
                         >
                             <PanelRightClose className="size-4" />
                         </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="left">Collapse the unit inspector</TooltipContent>
+                    <TooltipContent side="left">Collapse the details panel</TooltipContent>
                 </Tooltip>
             </div>
             {/* The rail scrolls on its own; the map beside it never does. */}
@@ -574,9 +643,11 @@ function UnitHeader({
                         no level stated
                     </Badge>
                 ) : (
+                    // One spelling of one fact: the human one. The machine casing (`level-1`)
+                    // stays in machine contexts - the tree row's mono chip - not beside its own
+                    // translation.
                     <Badge variant="secondary" data-testid="org-unit-level">
                         {node.level.display ?? node.level.code}
-                        <span className="ml-1 font-mono text-[10px] opacity-70">{node.level.code}</span>
                     </Badge>
                 )}
             </div>
@@ -584,8 +655,18 @@ function UnitHeader({
                 <p className="text-muted-foreground text-sm">{node.location.description}</p>
             )}
             <IdentifierBadges badges={badges} />
+            {node.orphaned && (
+                <p className="text-muted-foreground text-sm">
+                    Its parent is{' '}
+                    <span className="font-mono text-xs">
+                        Location/{node.unresolvedParentId ?? 'unknown'}
+                    </span>
+                    , which this project does not publish - so it sits at the top of the served tree
+                    rather than where the DHIS2 instance holds it.
+                </p>
+            )}
             {chain.length > 0 && (
-                <nav aria-label="Parent units" className="flex flex-wrap items-center gap-1 text-sm">
+                <nav aria-label="Parent organisation units" className="flex flex-wrap items-center gap-1 text-sm">
                     {chain.map((ancestor) => (
                         <span key={ancestor.id} className="flex items-center gap-1">
                             <button
@@ -688,57 +769,73 @@ function UnitTabs({
                 />
             </TabsContent>
             <TabsContent value="details" className="space-y-4">
-                <UnitFacts node={node} onSelect={onSelect} />
+                <UnitChildren key={node.id} node={node} onSelect={onSelect} />
                 <CapturedHere node={node} formsById={formsById} spool={spool} />
             </TabsContent>
         </Tabs>
     )
 }
 
-/** The facts the identity strip does not carry: how much sits below this unit, and the start of it. */
-function UnitFacts({ node, onSelect }: { node: OrgUnitNode; onSelect: (unitId: string) => void }) {
-    const shown = node.children.slice(0, CHILD_PREVIEW)
+/** A stable empty set: the mini tree implies no expansions - only its own chevrons open rows. */
+const NO_IMPLIED_EXPANSIONS = new Set<string>()
 
+/**
+ * The subtree below the selected organisation unit, in the same row idiom as the hierarchy pane.
+ *
+ * Direct children render collapsed; a chevron opens a branch on demand, so a district with two
+ * hundred facilities costs its own rows only when asked - the same lazy rendering as the main
+ * tree. Selecting a row re-roots this view to that organisation unit, exactly like a tree click.
+ *
+ * Mount it keyed on the selected unit's id, so one subtree's expansions never leak into the next
+ * selection's.
+ */
+function UnitChildren({ node, onSelect }: { node: OrgUnitNode; onSelect: (unitId: string) => void }) {
+    const [opened, setOpened] = useState<Set<string>>(new Set())
+    const toggle = useCallback((unitId: string) => {
+        setOpened((previous) => {
+            const next = new Set(previous)
+            if (next.has(unitId)) next.delete(unitId)
+            else next.add(unitId)
+            return next
+        })
+    }, [])
+
+    const direct = node.children.length
     return (
-        <div className="space-y-3 rounded-lg border p-4">
-            <p className="text-muted-foreground text-sm">
-                {node.children.length} direct {node.children.length === 1 ? 'child' : 'children'}
-                {node.descendantCount > node.children.length
-                    ? `, ${String(node.descendantCount)} below in all`
-                    : ''}
-            </p>
-
-            {node.orphaned && (
-                <p className="text-muted-foreground text-sm">
-                    Its parent is{' '}
-                    <span className="font-mono text-xs">
-                        Location/{node.unresolvedParentId ?? 'unknown'}
+        <section className="space-y-2" data-testid="org-unit-children">
+            <h4 className="text-sm font-semibold">
+                Children
+                {direct > 0 && (
+                    <span className="text-muted-foreground ml-2 text-xs font-normal">
+                        {direct.toLocaleString('en')} direct
+                        {node.descendantCount > direct
+                            ? `, ${node.descendantCount.toLocaleString('en')} below`
+                            : ''}
                     </span>
-                    , which this project does not publish - so it sits at the top of the served tree
-                    rather than at the top of DHIS2's.
+                )}
+            </h4>
+            {direct === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                    This organisation unit has no children - it is a leaf of the published hierarchy.
                 </p>
-            )}
-
-            {shown.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                    {shown.map((child) => (
-                        <Button
+            ) : (
+                <ul className="rounded-lg border p-1">
+                    {node.children.map((child) => (
+                        <UnitBranch
                             key={child.id}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onSelect(child.id)}
-                        >
-                            {child.name}
-                        </Button>
+                            node={child}
+                            depth={0}
+                            selectedId={null}
+                            opened={opened}
+                            expanded={NO_IMPLIED_EXPANSIONS}
+                            filtered={null}
+                            onToggle={toggle}
+                            onSelect={onSelect}
+                        />
                     ))}
-                    {node.children.length > shown.length && (
-                        <span className="text-muted-foreground text-xs">
-                            and {node.children.length - shown.length} more in the tree
-                        </span>
-                    )}
-                </div>
+                </ul>
             )}
-        </div>
+        </section>
     )
 }
 
@@ -850,7 +947,7 @@ function FormCatalogSections({
                 // published assignment happens to leave out. Only the first may say "no forms".
                 emptyMessage={
                     published > 0
-                        ? `None of the ${String(published)} published ${published === 1 ? 'form' : 'forms'} is assigned to this unit.`
+                        ? `None of the ${String(published)} published ${published === 1 ? 'form' : 'forms'} is assigned to this organisation unit.`
                         : 'Nothing is assigned here, and nothing is assigned everywhere either - which means this project publishes no forms at all.'
                 }
             >
@@ -996,14 +1093,17 @@ function FormRow({
     note?: string
 }) {
     return (
-        <li className="flex min-w-0 items-center gap-2 text-sm">
-            <Link to={`/forms/${formId}`} className="text-primary min-w-0 truncate hover:underline">
+        // `items-baseline` + `break-words`, not `truncate`: a shelf row's title wraps to as many
+        // lines as it needs, and the note and badge hang off its first line. An ellipsis here hid
+        // the difference between two forms whose names share a long prefix.
+        <li className="flex min-w-0 items-baseline gap-2 text-sm">
+            <Link to={`/forms/${formId}`} className="text-primary min-w-0 break-words hover:underline">
                 {questionnaire === null ? formId : formTitle(questionnaire)}
             </Link>
             {note !== undefined && <span className="text-muted-foreground shrink-0 text-xs">{note}</span>}
             {assignedHere && (
                 <Badge variant="outline" className="text-muted-foreground shrink-0 text-[10px]">
-                    assigned to this unit
+                    assigned to this organisation unit
                 </Badge>
             )}
         </li>
@@ -1064,7 +1164,7 @@ function CapturedHere({
                 loading={spool.loading}
                 error={spool.error}
                 empty={here.length === 0}
-                emptyMessage="No capture this server received names this unit."
+                emptyMessage="No capture this server received names this organisation unit."
             >
                 <div className="space-y-2">
                     <div className="flex flex-wrap gap-1.5">
@@ -1078,20 +1178,23 @@ function CapturedHere({
                             </Badge>
                         ))}
                     </div>
-                    <ul className="space-y-1">
+                    <ul className="space-y-1.5">
+                        {/* Two lines per receipt, not one truncated one: the form's label wraps
+                            in full, and the when-and-state line sits muted under it. An ellipsis
+                            at rail width cut every long form name to the same prefix. */}
                         {recent.map((summary) => (
                             <li key={summary.response_id}>
                                 <Link
                                     to={`/responses/${summary.response_id}`}
-                                    className="hover:bg-accent/40 -mx-1 flex min-w-0 items-center gap-2 rounded px-1 py-0.5 text-sm"
+                                    className="hover:bg-accent/40 -mx-1 flex min-w-0 flex-col gap-0.5 rounded px-1 py-1 text-sm"
                                 >
-                                    <span className="min-w-0 flex-1 truncate">
+                                    <span className="min-w-0 break-words">
                                         {receiptFormLabel(summary, formsById)}
                                     </span>
-                                    <span className="text-muted-foreground shrink-0 text-xs">
+                                    <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
                                         {formatInstant(summary.received_at)}
+                                        <LifecycleBadge summary={summary} showWarnings={false} />
                                     </span>
-                                    <LifecycleBadge summary={summary} showWarnings={false} />
                                 </Link>
                             </li>
                         ))}
@@ -1103,12 +1206,12 @@ function CapturedHere({
             </PageState>
             {belowCount > 0 && (
                 <p className="text-muted-foreground text-xs">
-                    {belowCount} more below this unit, at its descendants.
+                    {belowCount} more below this organisation unit, at its descendants.
                 </p>
             )}
             <p className="text-muted-foreground text-xs">
-                Captures this server received. What DHIS2 itself holds at this unit is the output
-                leg, and is not read here.
+                Captures this server received. What the DHIS2 instance holds at this organisation
+                unit is the output leg, and is not read here.
             </p>
         </section>
     )
@@ -1163,11 +1266,12 @@ function MapPanel({
     if (!hasGeometry(geometry)) {
         return (
             <section className="flex flex-col gap-3">
-                <h3 className="text-base font-semibold">On the map</h3>
+                <h3 className="text-base font-semibold">Map</h3>
                 <Card>
                     <CardContent className="text-muted-foreground py-6 text-sm">
-                        This registry holds no coordinates - DHIS2 has neither a point nor a boundary for
-                        any of the published units, so there is nothing to draw.
+                        This registry holds no coordinates - this DHIS2 instance stores neither a point
+                        nor a boundary for any of the published organisation units, so there is nothing
+                        to draw.
                     </CardContent>
                 </Card>
             </section>
@@ -1180,7 +1284,7 @@ function MapPanel({
         // to a sliver on a short one.
         <section className="flex flex-1 flex-col gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="text-base font-semibold">On the map</h3>
+                <h3 className="text-base font-semibold">Map</h3>
                 <span className="text-muted-foreground text-xs">
                     {shapeCount(geometry)}
                     {basemap === null ? ' - drawn from this server alone, with no basemap' : ''}
@@ -1199,6 +1303,9 @@ function MapPanel({
                     <OrgUnitMap
                         boundaries={geometry.boundaries}
                         points={geometry.points}
+                        // W-POL: seam added by W-GLOBE - the map's click popup reads a unit's
+                        // name, level, and parent off the folded tree.
+                        tree={tree}
                         basemap={basemap}
                         selectedUnitId={selected?.id ?? null}
                         descendantUnitIds={descendantUnitIds}
@@ -1210,13 +1317,13 @@ function MapPanel({
             {selected !== null && extent !== null && extent.coverage !== 'own' && (
                 <p data-testid="org-unit-map-note" className="text-muted-foreground text-xs">
                     {extent.coverage === 'descendants' &&
-                        `DHIS2 holds no geometry for ${selected.name} itself, so the map shows the units below it - which is where it is, to the resolution the registry holds.`}
+                        `This DHIS2 instance stores no boundary for ${selected.name}, so the map frames the organisation units below it.`}
                     {extent.coverage === 'ancestor' &&
-                        `DHIS2 holds no geometry for ${selected.name}, so the map is framed on ${
+                        `This DHIS2 instance stores no boundary for ${selected.name}, so the map frames ${
                             tree.byId.get(extent.framedOnUnitId ?? '')?.name ?? extent.framedOnUnitId
-                        } - the nearest unit above it that has some.`}
+                        } - the nearest organisation unit above it that has one.`}
                     {extent.coverage === 'registry' &&
-                        `DHIS2 holds no geometry for ${selected.name}, and none for any unit above or below it, so the map shows the whole registry instead.`}
+                        `This DHIS2 instance stores no boundary for ${selected.name}, and none for any organisation unit above or below it, so the map shows the whole registry instead.`}
                 </p>
             )}
             {geometry.unreadableGeometries > 0 && (
@@ -1250,8 +1357,8 @@ function NothingSelected({ total, loading }: { total: number; loading: boolean }
         <Card>
             <CardContent className="text-muted-foreground flex items-center gap-3 py-6 text-sm">
                 <MapPin className="size-4 shrink-0" aria-hidden />
-                Pick a unit in the tree, or click a shape on the map. The one you pick goes into the
-                address, so a unit is a link you can send.
+                Pick an organisation unit in the tree, or click a shape on the map. The one you pick
+                goes into the address, so an organisation unit is a link you can send.
             </CardContent>
         </Card>
     )
