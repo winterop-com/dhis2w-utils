@@ -318,6 +318,90 @@ test.describe('a form whose assignment narrows where it may be reported from', (
         // as the place it is, with the uid DHIS2 stores beside it.
         await expect(page.getByText(`${CHOSEN_UNIT} (${CHOSEN_UNIT_UID})`)).toBeVisible()
     })
+
+    /**
+     * The same offer, walked as the hierarchy instead of typed at.
+     *
+     * The fixture's assignment is the shape this mode exists for: it names Bo and Ngelehun CHC, and
+     * Ngelehun sits under Badjia, a district it does not name. So the tree has to keep two
+     * unassigned units as unpickable context - they are the chain that says which Ngelehun CHC this
+     * is - while dropping Bombali's whole branch, which admits nothing anywhere below it. What is
+     * chosen at the end goes through the same submit path a searched choice does.
+     */
+    test('browses the hierarchy, disables what is not assigned, prunes what leads nowhere', async ({
+        page,
+    }) => {
+        const opened = page.waitForResponse((response) => response.url().includes('$generate'))
+        await page.goto(`/#/forms/${SCOPED_FORM}`)
+        await opened
+
+        const picker = page.getByLabel('Reporting from')
+        await picker.click()
+        await page.getByRole('button', { name: 'Browse' }).click()
+
+        // Opened on the selection's ancestors, so the unit the picker holds is on screen without a
+        // chevron being clicked - which is the whole difference from a tree that opens collapsed.
+        const tree = page.getByRole('tree', { name: 'Organisation unit hierarchy' })
+        await expect(tree).toBeVisible()
+        await expect(tree.getByRole('treeitem')).toHaveCount(4)
+        await expect(tree.getByRole('treeitem', { name: 'Sierra Leone', exact: true })).toBeVisible()
+        await expect(tree.getByRole('treeitem', { name: CHOSEN_UNIT, exact: true })).toBeVisible()
+        await expect(tree.getByRole('treeitem', { name: 'Badjia', exact: true })).toBeVisible()
+        await expect(tree.getByRole('treeitem', { name: DRAWN_UNIT, exact: true })).toBeVisible()
+
+        // Pruned, not disabled: nothing under Bombali is assigned, so the branch is not drawn at
+        // all. Bo's two other districts and Adonkia CHP, the detached root, go the same way.
+        await expect(
+            tree.getByRole('treeitem', { name: /Bombali|Kagbere|Yoni|Bargbe|Baoma|Adonkia/ }),
+        ).toHaveCount(0)
+
+        const unassigned = tree.getByRole('treeitem', { name: 'Badjia', exact: true })
+        await expect(unassigned).toHaveAttribute('aria-disabled', 'true')
+        await expect(tree.getByRole('treeitem', { name: 'Sierra Leone', exact: true })).toHaveAttribute(
+            'aria-disabled',
+            'true',
+        )
+        await expect(tree.getByRole('treeitem', { name: CHOSEN_UNIT, exact: true })).not.toHaveAttribute(
+            'aria-disabled',
+            'true',
+        )
+
+        // Clicking one changes nothing: the popover stays open and the picker keeps what it held.
+        // Forced past the actionability wait, because the row states that it is disabled and the
+        // point of the assertion is what the click does when it lands anyway.
+        await unassigned.click({ force: true })
+        await expect(tree).toBeVisible()
+        await expect(picker).toContainText(DRAWN_UNIT)
+
+        // The chevron is expansion and never selection, so folding a district up cannot answer the
+        // control by accident - not even on a row that is itself a choice.
+        await page.getByRole('button', { name: `Collapse ${CHOSEN_UNIT}` }).click()
+        await expect(tree.getByRole('treeitem')).toHaveCount(2)
+        await expect(picker).toContainText(DRAWN_UNIT)
+        await page.getByRole('button', { name: `Expand ${CHOSEN_UNIT}` }).click()
+        await expect(tree.getByRole('treeitem', { name: DRAWN_UNIT, exact: true })).toBeVisible()
+
+        // Typing is searching in either mode: the query overrides Browse rather than landing in a
+        // box that does nothing.
+        await page.getByPlaceholder('Search by name, uid, or code').fill('bo')
+        await expect(tree).toHaveCount(0)
+        await expect(page.getByRole('option', { name: new RegExp(`^${CHOSEN_UNIT}\\b`) })).toBeVisible()
+
+        // And the toggle takes it back, with the query cleared.
+        await page.getByRole('button', { name: 'Browse' }).click()
+        await expect(tree.getByRole('treeitem')).toHaveCount(4)
+
+        await tree.getByRole('treeitem', { name: CHOSEN_UNIT, exact: true }).click()
+        await expect(picker).toContainText(CHOSEN_UNIT)
+
+        // The round trip is unchanged by which mode found the unit.
+        await page.getByRole('button', { name: 'Submit' }).click()
+        await expect(page.getByText('The server accepted this submission')).toBeVisible()
+        await expect(page).toHaveURL(/#\/responses$/)
+
+        await page.getByRole('row').filter({ hasText: 'Outbreak response' }).first().click()
+        await expect(page.getByText(`${CHOSEN_UNIT} (${CHOSEN_UNIT_UID})`)).toBeVisible()
+    })
 })
 
 /**
@@ -364,5 +448,34 @@ test.describe('a form asking for an organisation unit as an answer', () => {
         // The name this UI wrote onto the reference's display, with the uid DHIS2 stores beside it.
         await expect(row).toContainText('Bombali')
         await expect(row).toContainText('fdc6uOvgoji')
+    })
+
+    /**
+     * The tree by keyboard alone, on the form whose offer is the whole registry.
+     *
+     * Browse hands the keyboard to the tree the moment it opens, so a person who never touches the
+     * mouse arrows down the hierarchy and presses Enter - the same two keys cmdk's list answers to
+     * in search mode, which is the habit worth keeping across the toggle.
+     */
+    test('walks the hierarchy with the arrow keys and picks with Enter', async ({ page }) => {
+        const opened = page.waitForResponse((response) => response.url().includes('$generate'))
+        await page.goto(`/#/forms/${TEMPORAL_FORM}`)
+        await opened
+
+        const answer = page.getByLabel('Visited unit')
+        await answer.click()
+        await page.getByRole('button', { name: 'Browse' }).click()
+
+        // Nothing is held, so the tree opens one level down: the root and the detached unit, with
+        // the keyboard already standing on the first row.
+        const tree = page.getByRole('tree', { name: 'Organisation unit hierarchy' })
+        await expect(tree.getByRole('treeitem', { name: 'Sierra Leone', exact: true })).toBeFocused()
+
+        // One row down is the root's first district, and Enter answers with it - no assignment
+        // narrows this form, so every row on the way is a choice.
+        await page.keyboard.press('ArrowDown')
+        await page.keyboard.press('Enter')
+        await expect(answer).toContainText('Bo')
+        await expect(tree).toHaveCount(0)
     })
 })
