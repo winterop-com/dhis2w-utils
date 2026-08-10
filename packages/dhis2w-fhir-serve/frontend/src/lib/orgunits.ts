@@ -765,13 +765,19 @@ export function hasGeometry(geometry: OrgUnitGeometry): boolean {
  * something this map has no mark for is counted in `unreadableGeometries` and the other units keep
  * their shapes.
  *
- * THE DEDUPE RULE: `position` WINS. A unit can state where it is twice - `Location.position`, and
- * a Point inside the geometry attachment - and on a DHIS2-generated registry those are two
- * renderings of one DHIS2 field, so they agree. When they do not, the R4 element wins: `position`
- * is the standard place a Location says where it is, it is what every other FHIR client reads, and
- * a map that drew the extension instead would disagree with all of them over the same document.
- * The attachment's points are therefore used only for a unit that states no `position` - which is
- * exactly the case they are needed for, and never adds a second dot on top of the first.
+ * TWO DEDUPE RULES, ONE PER PAIR OF SOURCES. A unit can state where it is more than once, and each
+ * pair resolves to one mark:
+ *
+ *   - `position` WINS OVER THE ATTACHMENT'S POINT. Both are renderings of one DHIS2 field on a
+ *     generated registry, so they agree; when they do not, the R4 element wins - `position` is the
+ *     standard place a Location says where it is, it is what every other FHIR client reads, and a
+ *     map that drew the extension instead would disagree with all of them over the same document.
+ *     The attachment's points are used only for a unit that states no `position`.
+ *   - THE BOUNDARY WINS OVER `position`. DHIS2 keeps one geometry per unit, but its exporter also
+ *     fills `coordinates` with the polygon's centroid, which a generated registry renders as
+ *     `position` beside the boundary attachment. Drawing both puts a facility-sized dot in the
+ *     middle of every district's own polygon - so a unit whose attachment holds a polygon is a
+ *     boundary and nothing else, mirroring the rule above: one unit, one mark.
  */
 export function readGeometry(locations: Location[]): OrgUnitGeometry {
     const boundaries: OrgUnitBoundary[] = []
@@ -781,7 +787,10 @@ export function readGeometry(locations: Location[]): OrgUnitGeometry {
         const attachment = attachmentGeometryOf(location)
         if (attachment !== null) {
             if (attachment.unreadable) unreadableGeometries += 1
-            if (attachment.boundary !== null) boundaries.push(attachment.boundary)
+            if (attachment.boundary !== null) {
+                boundaries.push(attachment.boundary)
+                continue
+            }
         }
         const position = pointOf(location)
         if (position !== null) points.push(position)

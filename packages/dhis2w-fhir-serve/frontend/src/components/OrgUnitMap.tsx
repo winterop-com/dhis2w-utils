@@ -54,11 +54,15 @@ import 'maplibre-gl/dist/maplibre-gl.css'
  *   - EVERY published boundary is drawn as a hairline. It is chrome, in the same sense a gridline
  *     is: it says where the rest of the hierarchy is without competing.
  *   - THE UNITS BELOW THE SELECTION take the identity hue at partial strength.
- *   - THE SELECTED UNIT takes it at full strength and twice the stroke width.
+ *   - THE SELECTED UNIT takes `--primary-emphasis` - the same hue pushed to the end of its
+ *     lightness ramp - at three times the context stroke width, with a heavier fill.
  *
- * The two lit tiers differ in stroke width as well as in lightness, so the ranking survives a
- * colourblind reader and a monochrome print. A three-row legend is present because a map has no
- * axis and no labels: without it the blue means nothing.
+ * The lightness spread is what keeps the two lit tiers apart: the subtree stroke composites to
+ * roughly `--primary` at half strength, and the emphasis step holds 3:1 or better against it in
+ * both themes, over the muted tiles and over the plain card alike. The tiers differ in stroke
+ * width (3 : 1.5 : 1 over tiles) as well as in lightness, so the ranking survives a colourblind
+ * reader and a monochrome print. A three-row legend is present because a map has no axis and no
+ * labels: without it the blue means nothing.
  *
  * THE BASEMAP IS WHAT FORCED THE CASING, and this is the part worth reading before changing any
  * number here. Over a flat surface the ramp is validated against that one background. Over tiles
@@ -95,8 +99,20 @@ type EmphasisTier = 'selected' | 'within' | 'other'
 
 /** The fallback palette, for the one case where a computed style cannot be read (jsdom, no layout). */
 const FALLBACK_PALETTE: Record<'light' | 'dark', MapPalette> = {
-    light: { surface: '#ffffff', context: '#dee2e2', contextInk: '#5e6565', identity: '#0070a6' },
-    dark: { surface: '#131717', context: '#2a2f2f', contextInk: '#8d9494', identity: '#3faff3' },
+    light: {
+        surface: '#ffffff',
+        context: '#dee2e2',
+        contextInk: '#5e6565',
+        identity: '#0070a6',
+        identityStrong: '#00477f',
+    },
+    dark: {
+        surface: '#131717',
+        context: '#2a2f2f',
+        contextInk: '#8d9494',
+        identity: '#3faff3',
+        identityStrong: '#80d8ff',
+    },
 }
 
 /** How wide a margin `fitBounds` leaves around what it is fitting, in pixels. */
@@ -291,7 +307,7 @@ function MapLegend({ overTiles }: { overTiles: boolean }) {
     return (
         <ul className="bg-card/90 text-muted-foreground absolute bottom-3 left-3 space-y-1 rounded-md border px-2.5 py-2 text-xs">
             <li className="flex items-center gap-2">
-                <span className="bg-primary size-2.5 rounded-[2px]" aria-hidden />
+                <span className="bg-primary-emphasis size-2.5 rounded-[2px]" aria-hidden />
                 Selected unit
             </li>
             <li className="flex items-center gap-2">
@@ -423,10 +439,12 @@ function applyLayers(
         paint: {
             'fill-color': ['match', ['get', 'tier'], 'other', palette.contextInk, palette.identity],
             // The context fill thins out over tiles: its job there is only to stay clickable, and a
-            // wash over every district would hide the very map it was added to show.
+            // wash over every district would hide the very map it was added to show. The selected
+            // fill is heavy enough to separate from the subtree wash by fill alone, so the tier
+            // ranking holds even where two boundaries share an edge and the strokes merge.
             'fill-opacity': overTiles
-                ? ['match', ['get', 'tier'], 'selected', 0.22, 'within', 0.08, 0.01]
-                : ['match', ['get', 'tier'], 'selected', 0.28, 'within', 0.1, 0.06],
+                ? ['match', ['get', 'tier'], 'selected', 0.3, 'within', 0.08, 0.01]
+                : ['match', ['get', 'tier'], 'selected', 0.36, 'within', 0.1, 0.06],
         },
     })
     if (overTiles) {
@@ -436,7 +454,7 @@ function applyLayers(
             source: 'org-unit-boundaries',
             paint: {
                 'line-color': palette.surface,
-                'line-width': ['match', ['get', 'tier'], 'selected', 5, 'within', 3.75, 2.5],
+                'line-width': ['match', ['get', 'tier'], 'selected', 6, 'within', 3.75, 2.5],
                 'line-opacity': 0.75,
             },
         })
@@ -448,17 +466,21 @@ function applyLayers(
         paint: {
             // `--border` is tuned to sit one shade off a plain card. On a photograph of a city it is
             // not a hairline, it is nothing - so over tiles the context tier takes the ink token and
-            // states itself at partial opacity instead.
+            // states itself at partial opacity instead. The selected stroke takes the emphasis step
+            // of the identity ramp, which is what keeps it apart from the subtree tier in lightness
+            // as well as in width.
             'line-color': [
                 'match',
                 ['get', 'tier'],
                 'other',
                 overTiles ? palette.contextInk : palette.context,
+                'selected',
+                palette.identityStrong,
                 palette.identity,
             ],
             'line-width': overTiles
-                ? ['match', ['get', 'tier'], 'selected', 2.25, 'within', 1.5, 1]
-                : ['match', ['get', 'tier'], 'selected', 2, 'within', 1.25, 0.75],
+                ? ['match', ['get', 'tier'], 'selected', 3, 'within', 1.5, 1]
+                : ['match', ['get', 'tier'], 'selected', 2.75, 'within', 1.25, 0.75],
             'line-opacity': overTiles
                 ? ['match', ['get', 'tier'], 'within', 0.7, 'other', 0.55, 1]
                 : ['match', ['get', 'tier'], 'within', 0.55, 1],
@@ -469,8 +491,16 @@ function applyLayers(
         type: 'circle',
         source: 'org-unit-points',
         paint: {
-            'circle-color': ['match', ['get', 'tier'], 'other', palette.contextInk, palette.identity],
-            'circle-radius': ['match', ['get', 'tier'], 'selected', 6, 'within', 4.5, 3.5],
+            'circle-color': [
+                'match',
+                ['get', 'tier'],
+                'other',
+                palette.contextInk,
+                'selected',
+                palette.identityStrong,
+                palette.identity,
+            ],
+            'circle-radius': ['match', ['get', 'tier'], 'selected', 7, 'within', 4.5, 3.5],
             'circle-opacity': ['match', ['get', 'tier'], 'within', 0.75, 1],
             // The ring is the surface itself, which is how two markers that overlap stay two
             // markers rather than becoming one blob.
@@ -507,6 +537,8 @@ function repaint(instance: MapLibreMap, palette: MapPalette, overTiles: boolean)
         ['get', 'tier'],
         'other',
         overTiles ? palette.contextInk : palette.context,
+        'selected',
+        palette.identityStrong,
         palette.identity,
     ])
     if (overTiles) instance.setPaintProperty('boundary-casing', 'line-color', palette.surface)
@@ -515,6 +547,8 @@ function repaint(instance: MapLibreMap, palette: MapPalette, overTiles: boolean)
         ['get', 'tier'],
         'other',
         palette.contextInk,
+        'selected',
+        palette.identityStrong,
         palette.identity,
     ])
     instance.setPaintProperty('unit-point', 'circle-stroke-color', palette.surface)
@@ -539,6 +573,7 @@ function readPalette(element: HTMLElement, dark: boolean): MapPalette {
         context: token('--border', fallback.context),
         contextInk: token('--muted-foreground', fallback.contextInk),
         identity: token('--primary', fallback.identity),
+        identityStrong: token('--primary-emphasis', fallback.identityStrong),
     }
 }
 

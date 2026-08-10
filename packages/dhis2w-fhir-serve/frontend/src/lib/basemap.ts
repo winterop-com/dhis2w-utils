@@ -40,6 +40,8 @@ export interface MapPalette {
     context: string
     contextInk: string
     identity: string
+    /** The identity hue at the end of its lightness ramp - `--primary-emphasis`, the selected tier's ink. */
+    identityStrong: string
 }
 
 /** The paint properties that mute a raster layer, named once so a theme change can walk them. */

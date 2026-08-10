@@ -515,6 +515,7 @@ function ReportableForms({
     const [showEverywhere, setShowEverywhere] = useState(false)
     const everywhere = reportable.universalFormIds.length
     const here = reportable.restrictedFormIds
+    const published = formsById.size
 
     return (
         <section className="space-y-3">
@@ -530,7 +531,13 @@ function ReportableForms({
                 loading={loading}
                 error={error}
                 empty={everywhere === 0 && here.length === 0}
-                emptyMessage="Nothing is assigned here, and nothing is assigned everywhere either - which means this project publishes no forms at all."
+                // Two different absences: a project with no forms at all, and a unit that every
+                // published assignment happens to leave out. Only the first may say "no forms".
+                emptyMessage={
+                    published > 0
+                        ? `None of the ${String(published)} published ${published === 1 ? 'form' : 'forms'} is assigned to this unit.`
+                        : 'Nothing is assigned here, and nothing is assigned everywhere either - which means this project publishes no forms at all.'
+                }
             >
                 <Card>
                     <CardContent className="space-y-4 py-4">
@@ -550,33 +557,35 @@ function ReportableForms({
                             </div>
                         )}
 
-                        <div className="space-y-2">
-                            <button
-                                type="button"
-                                onClick={() => setShowEverywhere((open) => !open)}
-                                aria-expanded={showEverywhere}
-                                className="hover:text-foreground text-muted-foreground flex items-center gap-1.5 text-sm"
-                            >
-                                {showEverywhere ? (
-                                    <ChevronDown className="size-3.5" aria-hidden />
-                                ) : (
-                                    <ChevronRight className="size-3.5" aria-hidden />
+                        {everywhere > 0 && (
+                            <div className="space-y-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEverywhere((open) => !open)}
+                                    aria-expanded={showEverywhere}
+                                    className="hover:text-foreground text-muted-foreground flex items-center gap-1.5 text-sm"
+                                >
+                                    {showEverywhere ? (
+                                        <ChevronDown className="size-3.5" aria-hidden />
+                                    ) : (
+                                        <ChevronRight className="size-3.5" aria-hidden />
+                                    )}
+                                    {/* Two readings of the same set, because the sentence a unit with no
+                                        named assignment wants is "all of them" and the sentence a unit
+                                        with one wants is "and these others as well". */}
+                                    {here.length === 0
+                                        ? `All ${String(everywhere)} published ${everywhere === 1 ? 'form is' : 'forms are'} assigned everywhere`
+                                        : `${String(everywhere)} more assigned everywhere`}
+                                </button>
+                                {showEverywhere && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {reportable.universalFormIds.map((formId) => (
+                                            <FormLink key={formId} formId={formId} formsById={formsById} />
+                                        ))}
+                                    </div>
                                 )}
-                                {/* Two readings of the same set, because the sentence a unit with no
-                                    named assignment wants is "all of them" and the sentence a unit
-                                    with one wants is "and these others as well". */}
-                                {here.length === 0
-                                    ? `All ${String(everywhere)} published ${everywhere === 1 ? 'form is' : 'forms are'} assigned everywhere`
-                                    : `${String(everywhere)} more assigned everywhere`}
-                            </button>
-                            {showEverywhere && (
-                                <div className="flex flex-wrap gap-2">
-                                    {reportable.universalFormIds.map((formId) => (
-                                        <FormLink key={formId} formId={formId} formsById={formsById} />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
                         {unresolvedAssignmentFormIds.length > 0 && (
                             <p className="text-muted-foreground text-xs">

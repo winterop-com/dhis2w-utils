@@ -61,6 +61,7 @@
     --color-secondary: var(--secondary);
     --color-primary-foreground: var(--primary-foreground);
     --color-primary: var(--primary);
+    --color-primary-emphasis: var(--primary-emphasis);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
@@ -92,6 +93,11 @@
     --popover-foreground: oklch(0.22 0.008 195);
     --primary: oklch(0.52 0.12 240);
     --primary-foreground: oklch(1 0 0);
+    /* The identity hue pushed to the end of its lightness ramp, for the one mark
+       per page that must outrank every primary-tinted neighbour - the selected
+       boundary on the org-unit map. Same hue, so it reads as "more of the same
+       blue" rather than as a fourth colour. */
+    --primary-emphasis: oklch(0.38 0.13 240);
     --secondary: oklch(0.985 0.003 195);
     --secondary-foreground: oklch(0.24 0.008 195);
     --muted: oklch(0.965 0.003 195);
@@ -142,6 +148,7 @@
     --popover-foreground: oklch(0.95 0.004 195);
     --primary: oklch(0.72 0.14 240);
     --primary-foreground: oklch(0.16 0.006 195);
+    --primary-emphasis: oklch(0.85 0.12 240);
     --secondary: oklch(0.24 0.006 195);
     --secondary-foreground: oklch(0.95 0.004 195);
     --muted: oklch(0.24 0.006 195);

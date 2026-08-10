@@ -205,8 +205,24 @@ function subtitleFor(
     if (lifecycle === 'received') return 'awaiting forward'
     if (lifecycle === 'forwarded') return 'accepted by DHIS2'
     if (counts.rejected === 0 || cause === null) return 'refused by DHIS2'
-    const named = cause.message === null ? cause.code : `${cause.code} ${cause.message}`
+    const message = cause.message === null ? null : generalisedCauseMessage(cause.message)
+    const named = message === null || message === '' ? cause.code : `${cause.code} ${message}`
     return cause.receipts === counts.rejected ? named : `mostly ${named}`
+}
+
+/**
+ * A DHIS2 issue message with its backtick-quoted instances generalised away.
+ *
+ * The tile summarises a cause, and DHIS2 writes each message about one object - "Event `abc` ..."
+ * - so the verbatim first message reads as a single event's story on a tile counting many. The
+ * quoted uids become an ellipsis, which is the same generalisation the forward report's rollup
+ * groups rejections by.
+ */
+function generalisedCauseMessage(message: string): string {
+    return message
+        .replace(/`[^`]*`/g, '...')
+        .replace(/\s+/g, ' ')
+        .trim()
 }
 
 /**

@@ -150,9 +150,11 @@ test('the map mounts a canvas, fetches everything it asks for, and logs nothing'
     await expect(map).toHaveAttribute('data-map-ready', 'true', { timeout: 15_000 })
     await expect(page.getByTestId('org-unit-map-unavailable')).toHaveCount(0)
 
-    // Four polygons; six pins, two of which come from a Point attachment rather than a position.
-    // Only Baoma's payload is genuinely unreadable, and that is the only thing the caption counts.
-    await expect(page.getByText('4 boundaries, 6 points')).toBeVisible()
+    // Four polygons; four pins, one of which comes from a Point attachment rather than a position.
+    // Bo and Badjia state a centroid position beside their polygons and the boundary wins, so
+    // neither adds a pin. Only Baoma's payload is genuinely unreadable, and that is the only
+    // thing the caption counts.
+    await expect(page.getByText('4 boundaries, 4 points')).toBeVisible()
     await expect(page.getByTestId('org-unit-map-unreadable')).toHaveText(
         '1 published geometry could not be read and is not drawn.',
     )

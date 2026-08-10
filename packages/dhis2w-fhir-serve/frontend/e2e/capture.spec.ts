@@ -481,6 +481,52 @@ test.describe('a form asking for an organisation unit as an answer', () => {
 })
 
 /**
+ * The tracker-event stage form, filled in the browser: the receipt that is about a person.
+ *
+ * A tracker event reports against an enrollment rather than a place, so its receipt carries the
+ * tracked entity and enrollment uids on the envelope - the two handles the forwarder posts under
+ * `/api/tracker`. This walks the one path no other fill spec reaches: a submission whose capture
+ * context is entity-level, and whose coded answers come back with both halves of the coding.
+ */
+test.describe('filling a tracker-event form', () => {
+    /** The program-stage form of the tracker goldens, with coded questions bound to published sets. */
+    const TRACKER_EVENT_FORM = 'ZzYYXq4fJie'
+
+    test('fills the stage form, submits, and the receipt names the entity and enrollment', async ({
+        page,
+    }) => {
+        // The skeleton mints the tracker pair; awaiting it is what makes the fill submittable.
+        const opened = page.waitForResponse((response) => response.url().includes('$generate'))
+        await page.goto(`/#/forms/${TRACKER_EVENT_FORM}`)
+        await opened
+
+        await page.getByRole('button', { name: 'Fill with test data' }).click()
+        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+
+        await page.getByRole('button', { name: 'Submit' }).click()
+        await expect(page.getByText('The server accepted this submission')).toBeVisible()
+        await expect(page).toHaveURL(/#\/responses$/)
+
+        const listed = page.getByRole('row').filter({ hasText: 'Baby Postnatal' }).first()
+        await expect(listed).toContainText('Tracker program stage')
+        await listed.click()
+
+        // The entity-level context: the tracked entity and the enrollment, on the envelope rather
+        // than in any answer, under the same labels the registration receipt uses.
+        await expect(page.getByRole('heading', { name: 'Capture context' })).toBeVisible()
+        await expect(page.getByText('Tracked entity', { exact: true })).toBeVisible()
+        await expect(page.getByText('Enrollment', { exact: true })).toBeVisible()
+
+        // A coded answer keeps both halves: the display a person reads, and the DHIS2 option uid
+        // the forwarder writes. The published option set holds one concept, so the draw is it.
+        const coded = page.getByRole('row').filter({ hasText: 'X8zyunlgUfM' })
+        await expect(coded).toHaveCount(1)
+        await expect(coded).toContainText('Mixed')
+        await expect(coded).toContainText('odMfnhhpjUj')
+    })
+})
+
+/**
  * Registering a person: the form kind whose whole submission is context.
  *
  * A tracker registration answers the tracked entity attributes and files an enrollment, and every

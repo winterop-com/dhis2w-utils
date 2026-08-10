@@ -25,6 +25,7 @@ const PALETTE: MapPalette = {
     context: '#dee2e2',
     contextInk: '#5e6565',
     identity: '#0070a6',
+    identityStrong: '#00477f',
 }
 
 const OSM = {

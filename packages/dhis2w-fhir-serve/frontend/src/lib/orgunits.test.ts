@@ -418,11 +418,11 @@ describe('reading the whole registry geometry', () => {
         // Kagbere CHC publishes neither, which is what the map's ancestor fallback exists for.
         expect(geometry.boundaries.some((boundary) => boundary.unitId === 'EJoI3HuIUEV')).toBe(false)
         expect(geometry.points.some((point) => point.unitId === 'EJoI3HuIUEV')).toBe(false)
+        // Bo and Badjia publish a position beside their polygons - the exporter's centroid - and
+        // the boundary wins, so neither is in the point set at all.
         expect(geometry.points.map((point) => point.unitId)).toEqual([
             'DiszpKrYNg8',
             'MgFYJDBqSSs',
-            'O6uvpzGd5pu',
-            'YuQRtpLP10I',
             'lc3eMKXaEfw',
             'vWbkYPRmKyS',
         ])
@@ -453,6 +453,14 @@ describe('reading the whole registry geometry', () => {
         const geometry = readGeometry(locations)
 
         expect(geometry.points.some((point) => point.unitId === 'vWbkYPRmKyS')).toBe(true)
+    })
+
+    it('draws a unit with a boundary as the boundary alone, dropping its centroid position', () => {
+        const geometry = readGeometry(locations)
+
+        // Bo states both: a Polygon attachment and a position inside it. One unit, one mark.
+        expect(geometry.boundaries.some((boundary) => boundary.unitId === 'O6uvpzGd5pu')).toBe(true)
+        expect(geometry.points.some((point) => point.unitId === 'O6uvpzGd5pu')).toBe(false)
     })
 
     it('reads a point in longitude-then-latitude order, the order GeoJSON itself uses', () => {

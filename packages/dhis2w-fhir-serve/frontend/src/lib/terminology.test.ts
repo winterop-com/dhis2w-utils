@@ -330,9 +330,9 @@ describe('matchesQuery', () => {
  * attribute as unique across the instance. A table that read only the string variants would show
  * an empty column for it, and an empty cell reads as "not unique" rather than as "not rendered",
  * which is the wrong answer twice over. Written from the emitter
- * (dhis2w_fhir's questionnaires/templates/support-terminology.fsh.jinja) rather than harvested,
- * because the fixture project publishes no registration form yet; the e2e terminology walkthrough
- * is what checks the same column against a real server.
+ * (dhis2w_fhir's questionnaires/templates/support-terminology.fsh.jinja) rather than harvested, so
+ * the column rules are pinned without a server; the e2e terminology walkthrough checks the same
+ * columns against the `d2-tea-cs` the fixture project really publishes.
  */
 describe('a tracked-entity-attribute support system', () => {
     const attributes: CodeSystem = {
