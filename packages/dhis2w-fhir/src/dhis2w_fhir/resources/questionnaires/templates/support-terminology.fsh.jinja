@@ -17,6 +17,12 @@ Description: {{ terminology.description_literal }}
 * ^property[=].description = "DHIS2 data element domain type."
 * ^property[=].type = #code
 {% endif %}
+{% if terminology.declares_value_type %}
+* ^property[+].code = #value-type
+* ^property[=].uri = "{{ terminology.property_base }}/value-type"
+* ^property[=].description = "DHIS2 data element value type."
+* ^property[=].type = #code
+{% endif %}
 {% for concept in terminology.concepts %}
 * #{{ concept.uid }} {{ concept.display_literal }}
 * #{{ concept.uid }} ^property[+].code = #dhis2-code
@@ -24,6 +30,10 @@ Description: {{ terminology.description_literal }}
 {% if concept.domain_code is not none %}
 * #{{ concept.uid }} ^property[+].code = #domain
 * #{{ concept.uid }} ^property[=].valueCode = #{{ concept.domain_code }}
+{% endif %}
+{% if concept.value_type_code is not none %}
+* #{{ concept.uid }} ^property[+].code = #value-type
+* #{{ concept.uid }} ^property[=].valueCode = #{{ concept.value_type_code }}
 {% endif %}
 {% endfor %}
 

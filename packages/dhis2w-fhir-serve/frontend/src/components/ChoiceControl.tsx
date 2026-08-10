@@ -10,7 +10,7 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { useValueSetOptions, type ValueSetOption } from '@/hooks/use-valueset-options'
-import type { QuestionnaireNode, AnswerSlot } from '@/lib/questionnaire'
+import { EMPTY_SLOT, type QuestionnaireNode, type AnswerSlot } from '@/lib/questionnaire'
 
 /**
  * The control for a coded question - the one kind of answer that is not typed but picked.
@@ -64,7 +64,7 @@ export function ChoiceControl({
                     disabled={disabled || expansion.loading || options.length === 0}
                     onValueChange={(code) => {
                         const option = options.find((candidate) => candidate.coding.code === code)
-                        if (option !== undefined) onChange({ text: '', coding: option.coding })
+                        if (option !== undefined) onChange({ ...EMPTY_SLOT, coding: option.coding })
                     }}
                 >
                     <SelectTrigger id={controlId} className="w-full max-w-md">
@@ -87,7 +87,7 @@ export function ChoiceControl({
                         variant="ghost"
                         size="icon"
                         aria-label={`Clear ${node.text ?? node.linkId}`}
-                        onClick={() => onChange({ text: '', coding: null })}
+                        onClick={() => onChange(EMPTY_SLOT)}
                     >
                         <X className="size-4" />
                     </Button>
@@ -101,7 +101,7 @@ export function ChoiceControl({
                     placeholder="Or type an answer this list does not have"
                     value={slot.text}
                     disabled={disabled}
-                    onChange={(event) => onChange({ text: event.target.value, coding: null })}
+                    onChange={(event) => onChange({ ...EMPTY_SLOT, text: event.target.value })}
                 />
             )}
 

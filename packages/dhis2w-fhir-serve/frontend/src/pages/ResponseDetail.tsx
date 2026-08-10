@@ -15,6 +15,7 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { useFhirResource } from '@/hooks/use-fhir-resource'
+import { useOrgUnitRegistry } from '@/hooks/use-org-unit-scope'
 import { useSpool } from '@/hooks/use-spool'
 import {
     attributeOptionComboOf,
@@ -25,6 +26,7 @@ import {
     type QuestionnaireResponse,
     unescapeMarkup,
 } from '@/lib/fhir'
+import type { OrgUnitChoice } from '@/lib/orgunits'
 import { flattenQuestionnaire } from '@/lib/questionnaire'
 import {
     attributeOptionComboFact,
@@ -37,6 +39,7 @@ import {
 import {
     captureContext,
     formatInstant,
+    ORGANISATION_UNIT_FACT_LABEL,
     rejectionSummary,
     type SpoolRejection,
     type SpoolRejectionIssue,
@@ -94,6 +97,11 @@ export function ResponseDetail() {
         canonicalId(attributeOptionCombo?.system) ?? '',
     )
 
+    // The registry, for the same reason the CodeSystem above is read: a receipt names organisation
+    // units by uid, and the served Location is the authority on what each one is called. Cached
+    // module-wide, so this is free for anyone who reached the receipt by filling a form.
+    const registry = useOrgUnitRegistry()
+
     const rows = useMemo(() => {
         if (stored.resource === null) return []
         const spec = form.resource === null ? null : flattenQuestionnaire(form.resource)
@@ -150,10 +158,20 @@ export function ResponseDetail() {
                         />
 
                         <CaptureContextSection
-                            facts={contextFacts(summary, stored.resource, attributeCodeSystem.resource)}
+                            facts={contextFacts(
+                                summary,
+                                stored.resource,
+                                attributeCodeSystem.resource,
+                                registry.byId,
+                            )}
                         />
 
-                        <AnswersSection rows={rows} formMissing={formMissing} formLoading={formPending} />
+                        <AnswersSection
+                            rows={rows}
+                            units={registry.byId}
+                            formMissing={formMissing}
+                            formLoading={formPending}
+                        />
 
                         {summary !== null && summary.warnings.length > 0 && (
                             <section className="space-y-2">
@@ -215,17 +233,29 @@ function CaptureContextSection({ facts }: { facts: ReceiptContextFact[] }) {
     )
 }
 
-/** The spool's derived facts and the resource's own, in one list for one grid. */
+/**
+ * The spool's derived facts and the resource's own, in one list for one grid.
+ *
+ * The organisation unit is the one derived fact this page can say more about than the spool did.
+ * The spool has no registry and states the bare uid; the served Location names it, so the fact
+ * becomes `Ngelehun CHC (DiszpKrYNg8)` in prose - the same shape the attribute option combo takes
+ * once its CodeSystem has answered, and the same degradation to the mono uid when nothing does.
+ */
 function contextFacts(
     summary: SpoolResponseSummary | null,
     stored: QuestionnaireResponse | null,
     attributeCodeSystem: CodeSystem | null,
+    units: ReadonlyMap<string, OrgUnitChoice>,
 ): ReceiptContextFact[] {
-    // Everything the spool derives is an identifier - a period, a uid - so all of it reads mono.
+    // Everything else the spool derives is an identifier - a period, a uid - so all of it reads mono.
     const derived =
         summary === null
             ? []
-            : captureContext(summary).map((fact) => ({ label: fact.label, value: fact.value, mono: true }))
+            : captureContext(summary).map((fact) => {
+                  const named = fact.label === ORGANISATION_UNIT_FACT_LABEL ? units.get(fact.value) : undefined
+                  if (named === undefined) return { label: fact.label, value: fact.value, mono: true }
+                  return { label: fact.label, value: `${named.name} (${fact.value})`, mono: false }
+              })
     const combo = stored === null ? null : attributeOptionComboFact(stored, attributeCodeSystem)
     return combo === null ? derived : [...derived, combo]
 }
@@ -286,10 +316,13 @@ function ReceiptFacts({
  */
 function AnswersSection({
     rows,
+    units,
     formMissing,
     formLoading,
 }: {
     rows: ReceiptAnswerRow[]
+    /** The registry, so an organisation-unit answer carrying no display still reads as a place. */
+    units: ReadonlyMap<string, OrgUnitChoice>
     formMissing: boolean
     formLoading: boolean
 }) {
@@ -358,6 +391,7 @@ function AnswersSection({
                                                     // oxlint-disable-next-line react/no-array-index-key
                                                     key={`${String(position)}:${valueKey(value)}`}
                                                     value={value}
+                                                    unitNames={units}
                                                 />
                                             ))}
                                         </div>
@@ -372,9 +406,39 @@ function AnswersSection({
     )
 }
 
-/** One answer value: a coding keeps both halves, everything else is the literal it was. */
-function AnswerValue({ value }: { value: ReceiptAnswerValue }) {
+/**
+ * One answer value: a coding and a reference keep both halves, everything else is the literal it was.
+ *
+ * THE NAME IS LOOKED UP WHEN THE ANSWER CARRIES NONE. This UI writes an organisation-unit answer
+ * with its unit's name on the reference's `display`, so a receipt captured here reads as a place.
+ * A `$generate` skeleton writes the bare `Location/<stem>`, and so does any client that sent the
+ * reference alone - so the registry is asked, on the same argument the attribute option combo's
+ * fact makes: the served resource is the authority on what a published unit is called now. When
+ * neither answers, the reference itself is shown, which is exactly what the receipt holds.
+ */
+function AnswerValue({
+    value,
+    unitNames,
+}: {
+    value: ReceiptAnswerValue
+    unitNames: ReadonlyMap<string, OrgUnitChoice>
+}) {
     if (value.kind === 'text') return <span className="text-sm">{value.text}</span>
+    if (value.kind === 'reference') {
+        const named = value.display ?? (value.unitId === null ? null : (unitNames.get(value.unitId)?.name ?? null))
+        return (
+            <span className="flex flex-wrap items-center gap-2">
+                <span className={named === null ? 'text-muted-foreground font-mono text-xs' : 'text-sm'}>
+                    {named ?? value.reference}
+                </span>
+                {named !== null && value.unitId !== null && (
+                    <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
+                        {value.unitId}
+                    </Badge>
+                )}
+            </span>
+        )
+    }
     return (
         <span className="flex flex-wrap items-center gap-2">
             <span className="text-sm">{value.display}</span>
@@ -389,7 +453,9 @@ function AnswerValue({ value }: { value: ReceiptAnswerValue }) {
 
 /** What one value is keyed by inside a repeating answer. */
 function valueKey(value: ReceiptAnswerValue): string {
-    return value.kind === 'text' ? value.text : `${value.system ?? ''}|${value.code ?? ''}`
+    if (value.kind === 'text') return value.text
+    if (value.kind === 'reference') return value.reference
+    return `${value.system ?? ''}|${value.code ?? ''}`
 }
 
 /**

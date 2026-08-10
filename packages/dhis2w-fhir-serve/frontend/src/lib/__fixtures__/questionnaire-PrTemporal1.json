@@ -44,6 +44,11 @@
       "type": "url"
     },
     {
+      "linkId": "DeVisitUnit1",
+      "text": "Visited unit",
+      "type": "reference"
+    },
+    {
       "linkId": "DeSymptoms01",
       "text": "Symptoms",
       "type": "choice",

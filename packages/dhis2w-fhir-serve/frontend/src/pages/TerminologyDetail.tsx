@@ -180,7 +180,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                         <TableHead>Code</TableHead>
                                         <TableHead>Display</TableHead>
                                         {columns.map((column) => (
-                                            <TableHead key={column.code} title={column.uri}>
+                                            <TableHead key={column.code} title={column.description ?? column.uri}>
                                                 {column.label}
                                             </TableHead>
                                         ))}

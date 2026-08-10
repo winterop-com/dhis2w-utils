@@ -454,7 +454,7 @@ def _assignment_issues(
     assignment = index.assignment
     if assignment is None:
         return ()
-    if form_kind == "tracker-event":
+    if form_kind in ("tracker", "tracker-event"):
         extensions = _extensions(response, naming.organisation_unit_url)
         reference = extensions[0].valueReference if extensions else None
         expression = "QuestionnaireResponse.extension"

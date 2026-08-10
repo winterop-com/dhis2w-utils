@@ -1,12 +1,36 @@
 {
   "resourceType": "CodeSystem",
-  "status": "draft",
-  "content": "complete",
-  "name": "D2DE_CS",
   "id": "d2-de-cs",
+  "url": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+  "name": "D2DE_CS",
   "title": "DHIS2 Data Elements",
   "description": "DHIS2 data elements captured by the generated questionnaires. Concept codes are DHIS2 data element UIDs.",
-  "url": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 70,
+  "valueSet": "http://localhost:8080/fhir/ValueSet/d2-de-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 data element code.",
+      "type": "string"
+    },
+    {
+      "code": "domain",
+      "uri": "http://dhis2.org/fhir/property/domain",
+      "description": "DHIS2 data element domain type.",
+      "type": "code"
+    },
+    {
+      "code": "value-type",
+      "uri": "http://dhis2.org/fhir/property/value-type",
+      "description": "DHIS2 data element value type.",
+      "type": "code"
+    }
+  ],
   "concept": [
     {
       "code": "DeAncDanger",
@@ -19,6 +43,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "BOOLEAN"
         }
       ]
     },
@@ -33,6 +61,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "INTEGER"
         }
       ]
     },
@@ -47,6 +79,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "INTEGER_POSITIVE"
         }
       ]
     },
@@ -61,6 +97,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "INTEGER"
         }
       ]
     },
@@ -75,6 +115,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "FILE_RESOURCE"
         }
       ]
     },
@@ -89,6 +133,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -103,6 +151,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -117,6 +169,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -131,6 +187,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -145,6 +205,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -159,6 +223,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -173,6 +241,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "LONG_TEXT"
         }
       ]
     },
@@ -187,6 +259,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "BOOLEAN"
         }
       ]
     },
@@ -201,6 +277,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -215,6 +295,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -229,6 +313,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -243,6 +331,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -257,6 +349,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -271,6 +367,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -285,6 +385,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -299,6 +403,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "BOOLEAN"
         }
       ]
     },
@@ -313,6 +421,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -327,6 +439,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -341,6 +457,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -355,6 +475,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
         }
       ]
     },
@@ -369,6 +493,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "LONG_TEXT"
         }
       ]
     },
@@ -383,6 +511,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "BOOLEAN"
         }
       ]
     },
@@ -397,6 +529,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -411,6 +547,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "BOOLEAN"
         }
       ]
     },
@@ -425,6 +565,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -439,6 +583,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -453,6 +601,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -467,6 +619,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -481,6 +637,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -495,6 +655,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -509,6 +673,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -523,6 +691,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -537,6 +709,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -551,6 +727,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -565,6 +745,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -579,6 +763,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -593,6 +781,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -607,6 +799,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -621,6 +817,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -635,6 +835,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -649,6 +853,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -663,6 +871,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -677,6 +889,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -691,6 +907,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -705,6 +925,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -719,6 +943,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -733,6 +961,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -747,6 +979,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -761,6 +997,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -775,6 +1015,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -789,6 +1033,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -803,6 +1051,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -817,6 +1069,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -831,6 +1087,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -845,6 +1105,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -859,6 +1123,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -873,6 +1141,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "BOOLEAN"
         }
       ]
     },
@@ -887,6 +1159,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "BOOLEAN"
         }
       ]
     },
@@ -901,6 +1177,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -915,6 +1195,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -929,6 +1213,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -943,6 +1231,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -957,6 +1249,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -971,6 +1267,10 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     },
@@ -985,26 +1285,12 @@
         {
           "code": "domain",
           "valueCode": "aggregate"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "NUMBER"
         }
       ]
     }
-  ],
-  "experimental": true,
-  "caseSensitive": true,
-  "valueSet": "http://localhost:8080/fhir/ValueSet/d2-de-vs",
-  "property": [
-    {
-      "code": "dhis2-code",
-      "uri": "http://dhis2.org/fhir/property/dhis2-code",
-      "description": "DHIS2 data element code.",
-      "type": "string"
-    },
-    {
-      "code": "domain",
-      "uri": "http://dhis2.org/fhir/property/domain",
-      "description": "DHIS2 data element domain type.",
-      "type": "code"
-    }
-  ],
-  "count": 70
+  ]
 }

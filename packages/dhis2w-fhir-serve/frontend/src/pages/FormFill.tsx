@@ -4,11 +4,14 @@ import { ArrowLeft, Eraser, Send, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AttributeOptionComboPicker } from '@/components/AttributeOptionComboPicker'
+import { OrgUnitScopeProvider } from '@/components/OrgUnitPicker'
 import { PageState } from '@/components/PageState'
 import { QuestionnaireForm } from '@/components/QuestionnaireItem'
+import { ReportingUnitPicker } from '@/components/ReportingUnitPicker'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
 import { FhirRequestError, generateResponse, postQuestionnaireResponse, readResource } from '@/lib/api'
 import {
     attributeOptionCombosOf,
@@ -19,7 +22,9 @@ import {
     type Coding,
     type OperationOutcomeIssue,
     type Questionnaire,
-    type QuestionnaireResponse, unescapeMarkup } from '@/lib/fhir'
+    type QuestionnaireResponse,
+    type Reference, unescapeMarkup } from '@/lib/fhir'
+import { orgUnitReference, referencedUnitId } from '@/lib/orgunits'
 import {
     answersFromResponse,
     answersReducer,
@@ -27,10 +32,13 @@ import {
     flattenQuestionnaire,
     initialAnswers,
     openedAttributeOptionCombo,
+    openedReportingUnit,
     refilledAttributeOptionCombo,
+    refilledReportingUnit,
     unansweredRequiredLinkIds,
     type AnswerState,
 } from '@/lib/questionnaire'
+import { cn } from '@/lib/utils'
 
 /**
  * One form, filled in and posted back.
@@ -55,13 +63,20 @@ import {
  * OperationOutcome is shown issue by issue above the action bar rather than flattened into a
  * toast that loses everything after the first line.
  *
- * ONE PIECE OF CONTEXT IS THE USER'S, AND IT IS THE ONLY DISABLED BUTTON HERE. A data set on a
- * non-default category combo declares its attribute option combos as a vocabulary, and a response
- * to it has to name one - it is the third key of every value it carries, beside the organisation
- * unit and the period. Nothing derives it, not even the server, so it is picked above the form and
- * Submit refuses until it is. That is the one place a stated-reason disabled control beats posting
- * and rendering the refusal: the answer is a fact about the submission the person came here with,
- * not something they could read off the form and correct.
+ * TWO PIECES OF CONTEXT ARE THE USER'S, AND ONE OF THEM IS THE ONLY DISABLED BUTTON HERE. A data
+ * set on a non-default category combo declares its attribute option combos as a vocabulary, and a
+ * response to it has to name one - it is the third key of every value it carries, beside the
+ * organisation unit and the period. Nothing derives it, not even the server, so it is picked above
+ * the form and Submit refuses until it is. That is the one place a stated-reason disabled control
+ * beats posting and rendering the refusal: the answer is a fact about the submission the person
+ * came here with, not something they could read off the form and correct.
+ *
+ * The organisation unit sits beside it and behaves differently on exactly one point. `$generate`
+ * draws a unit the form's assignment admits, so the picker arrives answered and Submit is never
+ * blocked on it - but which unit is a choice rather than a fact about the form, so the draw is a
+ * proposal and changing it rewrites the built response. Both pickers are fed by one read of the
+ * registry, published to the form through `OrgUnitScopeProvider` so the `ORGANISATION_UNIT`
+ * questions inside it pick from the same set.
  */
 export function FormFill() {
     const { questionnaireId = '' } = useParams()
@@ -76,6 +91,8 @@ export function FormFill() {
     const [busy, setBusy] = useState(false)
     const [filling, setFilling] = useState(false)
     const [attributeOptionCombo, setAttributeOptionCombo] = useState<Coding | null>(null)
+    const [reportingUnit, setReportingUnit] = useState<Reference | null>(null)
+    const orgUnitScope = useFormOrgUnitScope(questionnaire)
 
     const spec = useMemo(
         () => flattenQuestionnaire(questionnaire ?? { resourceType: 'Questionnaire', status: 'unknown' }),
@@ -90,6 +107,7 @@ export function FormFill() {
         setEnvelope(null)
         setIssues([])
         setAttributeOptionCombo(null)
+        setReportingUnit(null)
         readResource<Questionnaire>('Questionnaire', questionnaireId)
             .then((resource) => {
                 if (cancelled) return
@@ -103,6 +121,7 @@ export function FormFill() {
                     if (cancelled) return
                     setEnvelope(skeleton)
                     setAttributeOptionCombo((current) => openedAttributeOptionCombo(current, skeleton))
+                    setReportingUnit((current) => openedReportingUnit(current, skeleton, resource))
                 })
             })
             .catch((failure: unknown) => {
@@ -128,6 +147,7 @@ export function FormFill() {
             .then((generated) => {
                 setEnvelope(generated)
                 setAttributeOptionCombo((current) => refilledAttributeOptionCombo(current, generated))
+                setReportingUnit((current) => refilledReportingUnit(current, generated, questionnaire))
                 dispatch({
                     kind: 'replace',
                     answers: answersFromResponse(flattenQuestionnaire(questionnaire), generated),
@@ -176,7 +196,10 @@ export function FormFill() {
         setIssues([])
         try {
             const receipt = await postQuestionnaireResponse(
-                buildQuestionnaireResponse(spec, answers, questionnaire, envelope, attributeOptionCombo),
+                buildQuestionnaireResponse(spec, answers, questionnaire, envelope, {
+                    attributeOptionCombo,
+                    reportingUnit,
+                }),
             )
             toast.success('The server accepted this submission', {
                 description: `Stored as ${receipt.id ?? 'a new receipt'}.`,
@@ -211,15 +234,31 @@ export function FormFill() {
                 </Alert>
             )}
 
-            {attributeOptionCombos !== null && (
-                <AttributeOptionComboPicker
-                    canonical={attributeOptionCombos}
-                    selected={attributeOptionCombo}
-                    onChange={setAttributeOptionCombo}
-                />
-            )}
+            <OrgUnitScopeProvider scope={orgUnitScope}>
+                {/* Side by side on a wide screen, because they are two facts about one submission
+                    and reading them together is how a person checks they are filing the right
+                    thing. Stacked below that, in the order DHIS2 keys a value by. */}
+                <div
+                    className={cn(
+                        'mb-4 grid gap-4',
+                        attributeOptionCombos !== null && 'lg:grid-cols-2',
+                    )}
+                >
+                    <ReportingUnitPicker
+                        selectedUnitId={referencedUnitId(reportingUnit)}
+                        onChange={(choice) => setReportingUnit(orgUnitReference(choice))}
+                    />
+                    {attributeOptionCombos !== null && (
+                        <AttributeOptionComboPicker
+                            canonical={attributeOptionCombos}
+                            selected={attributeOptionCombo}
+                            onChange={setAttributeOptionCombo}
+                        />
+                    )}
+                </div>
 
-            <QuestionnaireForm spec={spec} answers={answers} dispatch={dispatch} />
+                <QuestionnaireForm spec={spec} answers={answers} dispatch={dispatch} />
+            </OrgUnitScopeProvider>
 
             {issues.length > 0 && (
                 <div className="mt-4 grid gap-2">
@@ -249,9 +288,11 @@ export function FormFill() {
                     type="button"
                     variant="ghost"
                     onClick={() => {
-                        // Everything the person entered goes, the reporting context included: it is
-                        // their input rather than the server's context, and it is the only control
-                        // here a Radix select cannot be returned to unchosen any other way.
+                        // Everything the person entered goes, the combo included: it is their input
+                        // rather than the server's context, and it is the only control here a Radix
+                        // select cannot be returned to unchosen any other way. The reporting unit
+                        // stays, because clearing it would empty a control the form cannot be
+                        // submitted well without and that nothing on this page would refill.
                         dispatch({ kind: 'replace', answers: initialAnswers(spec) })
                         setAttributeOptionCombo(null)
                         setIssues([])

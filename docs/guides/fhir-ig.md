@@ -2467,9 +2467,11 @@ is no URL to configure and nothing to point at anything:
   control its R4 item type asks for: a switch for a yes/no, a bounded number field for a
   percentage, the browser's own date and time pickers, a text box for a comment, and a
   dropdown for an option-set question whose choices come from expanding the ValueSet it
-  binds. A question that takes several answers gets add and remove rows. Every question
-  is labelled with its DHIS2 uid as well as its text, because that uid is what the
-  server's refusals, the spool, and DHIS2 itself all name it by.
+  binds, and a searchable organisation-unit picker for a DHIS2 `ORGANISATION_UNIT` data
+  element - the value type the emitter writes as a `reference` question. A question that
+  takes several answers gets add and remove rows. Every question is labelled with its
+  DHIS2 uid as well as its text, because that uid is what the server's refusals, the
+  spool, and DHIS2 itself all name it by.
 
     **Fill with test data** answers the whole form from `$generate` and puts the answers
     *into the form* rather than posting them - so you can change one field and submit
@@ -2477,13 +2479,29 @@ is no URL to configure and nothing to point at anything:
     a form that misbehaved can be asked for again. **Clear** empties it. **Submit** posts
     a `QuestionnaireResponse` and takes you to Responses.
 
-    The context that submission carries - the reporting period, the organisation unit,
-    the tracked entity and enrollment - comes from `$generate` too, and this is worth
-    knowing: the page keeps the skeleton's envelope and replaces only its answers. That
-    is why a form filled in here is accepted by the same server's validator without you
-    naming a period or an org unit anywhere, and it is also why the submission reports
-    for whichever unit and period `$generate` chose. **This is a capture UI for exercising
-    a guide, not a data-entry client for a district office.**
+    The context that submission carries - the reporting period, the tracked entity and
+    enrollment - comes from `$generate` too, and this is worth knowing: the page keeps the
+    skeleton's envelope and replaces only its answers. That is why a form filled in here is
+    accepted by the same server's validator without you naming a period anywhere, and it is
+    also why the submission reports for whichever period `$generate` chose. **This is a
+    capture UI for exercising a guide, not a data-entry client for a district office.**
+
+    Two facts about the submission are yours rather than the server's, and they sit above
+    the questions where the context lives. **Reporting from** is the organisation unit the
+    capture reports for - `subject` on an aggregate or event response, the
+    `D2OrganisationUnit` extension on a tracker one, and the picker writes whichever of the
+    two the form's kind pins. `$generate` draws a unit the form admits, so the control opens
+    already answered and Submit is never blocked on it; changing it is a choice, because a
+    supervisor covering four facilities reports the same form from a different one each
+    morning. **What it offers is the published registry narrowed to the form's own
+    `D2OrganisationUnitAssignment` List** - which is exactly the set the facade grades a
+    submission against, so the control cannot produce a capture the server refuses with
+    `E1029`. Search it by name, uid, or DHIS2 code. The same picker fills every
+    `ORGANISATION_UNIT` question in the form below, off the same one read of the registry.
+    Beside it, for a data set on a non-default category combo, is the
+    [attribute option combo](#attribute-option-combos) the whole submission is
+    filed under - the one control here that does block Submit until it has a value, because
+    nothing derives it.
 
     A refused submission does not vanish into a toast: the validator's OperationOutcome
     is rendered issue by issue above the buttons, each with its severity, its code, and
@@ -2513,7 +2531,10 @@ is no URL to configure and nothing to point at anything:
   `Immunization / BCG doses given - Fixed, <1y` - the link id beside it, and the value
   rendered as what it is: a coded answer keeps both its display and the code DHIS2 will
   store, a boolean reads as Yes or No, a repeating question shows every answer it was
-  given. Questions the submission left unanswered are absent, because the receipt holds
+  given, and an organisation-unit answer reads as the place it names - the served
+  `Location` is asked for the name when the stored reference carries none, which is what
+  turns a bare `Location/DiszpKrYNg8` into `Ngelehun CHC` with the uid beside it. The
+  organisation unit in the capture context above is named the same way. Questions the submission left unanswered are absent, because the receipt holds
   only the branches that were answered. **A form recompiled since the capture degrades
   rather than blanks**: the receipt still renders against its link ids, with a line
   saying the form is no longer served. Capture warnings get a section, a rejection gets

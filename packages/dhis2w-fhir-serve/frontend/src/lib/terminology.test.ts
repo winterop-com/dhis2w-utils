@@ -40,28 +40,31 @@ const translateFound = translateFoundFixture as Parameters
 const translateNotFound = translateNotFoundFixture as Parameters
 
 describe('concept property columns', () => {
-    it('discovers a column per declared property, headed by its description', () => {
+    it('discovers a column per declared property, headed by the code as words with the description as tooltip', () => {
         expect(conceptPropertyColumns(dataElements)).toEqual([
             {
                 code: 'dhis2-code',
-                label: 'DHIS2 data element code',
+                label: 'Code',
+                description: 'DHIS2 data element code',
                 uri: 'http://dhis2.org/fhir/property/dhis2-code',
                 declared: true,
             },
             {
                 code: 'domain',
-                label: 'DHIS2 data element domain type',
+                label: 'Domain',
+                description: 'DHIS2 data element domain type',
                 uri: 'http://dhis2.org/fhir/property/domain',
                 declared: true,
             },
         ])
     })
 
-    it('falls back to the property code when the system describes none', () => {
+    it('heads the column from the code alone when the system describes none', () => {
         expect(conceptPropertyColumns(optionSet)).toEqual([
             {
                 code: 'dhis2-code',
-                label: 'dhis2-code',
+                label: 'Code',
+                description: undefined,
                 uri: 'http://dhis2.org/fhir/property/dhis2-code',
                 declared: true,
             },

@@ -412,14 +412,18 @@ def test_the_naming_tokens_flow_into_the_names_and_the_support_ids() -> None:
 
 
 def test_the_data_element_code_system_declares_the_domain_property_only_when_a_concept_carries_one() -> None:
-    """A data element DHIS2 sent no domain type for leaves the property undeclared."""
+    """A data element DHIS2 sent no domain type for leaves the property undeclared; value-type always rides."""
     with_domain = build_data_dictionary_documents([_DATA_SET], GenerateConfig(), _CANONICAL, ig_status="draft")
     assert [entry["code"] for entry in _emitted(with_domain.code_systems[0])["property"]] == [
         "dhis2-code",
         "domain",
+        "value-type",
     ]
     without = build_data_dictionary_documents([_STAGE], GenerateConfig(), _CANONICAL, ig_status="draft")
-    assert [entry["code"] for entry in _emitted(without.code_systems[0])["property"]] == ["dhis2-code"]
+    assert [entry["code"] for entry in _emitted(without.code_systems[0])["property"]] == [
+        "dhis2-code",
+        "value-type",
+    ]
 
 
 def test_the_support_value_set_includes_its_whole_code_system() -> None:

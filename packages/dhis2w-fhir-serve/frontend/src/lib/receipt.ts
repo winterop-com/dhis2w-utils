@@ -21,19 +21,26 @@
  */
 
 import { attributeOptionComboLabel, attributeOptionComboOf, canonicalId, conceptDisplay, type CodeSystem, type Questionnaire, type QuestionnaireResponse, type QuestionnaireResponseAnswer, type QuestionnaireResponseItem, unescapeMarkup } from '@/lib/fhir'
+import { referencedUnitId } from '@/lib/orgunits'
 import type { QuestionnaireSpec } from '@/lib/questionnaire'
 import type { SpoolResponseSummary } from '@/lib/spool'
 
 /**
- * One value an answer carried, reduced to the two things a receipt table renders differently.
+ * One value an answer carried, reduced to the three things a receipt table renders differently.
  *
  * A coding keeps its halves apart on purpose: the display is what a person reads and the code is
  * what DHIS2 stores, and a receipt that showed only one of them would be unusable for exactly
  * the person who opens it - "Fever" is not what the forwarder writes, and `OpFever0001` is not
  * what anyone recognises.
+ *
+ * A reference keeps its halves apart for the same reason. A DHIS2 `ORGANISATION_UNIT` answer is a
+ * `Location/<stem>`, and the stem is the organisation-unit uid the forwarder writes - so the uid is
+ * kept beside whatever name the answer carries, and the unit id is kept on its own so a page with
+ * the registry in hand can name a reference that carries no display at all.
  */
 export type ReceiptAnswerValue =
     | { kind: 'coding'; display: string; code: string | null; system: string | null }
+    | { kind: 'reference'; display: string | null; reference: string; unitId: string | null }
     | { kind: 'text'; text: string }
 
 /** One answered question of a receipt, joined to the question the form asks. */
@@ -239,8 +246,14 @@ function answerValue(answer: QuestionnaireResponseAnswer): ReceiptAnswerValue | 
     if (text !== undefined) return { kind: 'text', text }
     if (answer.valueReference !== undefined) {
         const reference = answer.valueReference
-        const named = reference.display ?? reference.reference ?? reference.identifier?.value
-        return { kind: 'text', text: named === undefined ? 'a reference' : named }
+        const stated = reference.reference ?? reference.identifier?.value
+        if (stated === undefined) return { kind: 'text', text: 'a reference' }
+        return {
+            kind: 'reference',
+            display: reference.display === undefined ? null : unescapeMarkup(reference.display),
+            reference: stated,
+            unitId: referencedUnitId(reference),
+        }
     }
     if (answer.valueAttachment !== undefined) {
         const attachment = answer.valueAttachment

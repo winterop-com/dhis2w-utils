@@ -154,6 +154,15 @@ export function formatInstant(instant: string): string {
 }
 
 /**
+ * What the organisation-unit fact is labelled, exported because a page resolves that one further.
+ *
+ * The spool derives it as a bare DHIS2 uid, which is the only thing it can honestly say - it has no
+ * registry. A page that has read the registry can name the unit, and it finds the fact to upgrade
+ * by this label rather than by its position in the list.
+ */
+export const ORGANISATION_UNIT_FACT_LABEL = 'Organisation unit'
+
+/**
  * The DHIS2 context one receipt carries, as label/value pairs for a detail view.
  *
  * Which facts exist depends on the form kind - an aggregate response reports for
@@ -165,7 +174,7 @@ export function captureContext(summary: SpoolResponseSummary): { label: string; 
     const pairs: [string, string | null | undefined][] = [
         ['Period', summary.period],
         ['Period type', summary.period_type],
-        ['Organisation unit', summary.organisation_unit],
+        [ORGANISATION_UNIT_FACT_LABEL, summary.organisation_unit],
         ['Tracked entity', summary.tracked_entity],
         ['Enrollment', summary.tracker_enrollment],
         ['Authored', summary.authored],

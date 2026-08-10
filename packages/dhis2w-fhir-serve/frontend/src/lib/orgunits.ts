@@ -29,8 +29,16 @@
  * lets all four rules be tested against harvested documents with no server running.
  */
 
-import type { Extension, Location, Questionnaire, ResourceList } from '@/lib/fhir'
-import { formIdentifier, unescapeMarkup } from '@/lib/fhir'
+import type {
+    Extension,
+    FormType,
+    Location,
+    Questionnaire,
+    QuestionnaireResponse,
+    Reference,
+    ResourceList,
+} from '@/lib/fhir'
+import { FORM_TYPE_EXTENSION_SUFFIX, formIdentifier, unescapeMarkup } from '@/lib/fhir'
 
 /**
  * The extension a Location states its DHIS2 hierarchy level on.
@@ -43,6 +51,16 @@ export const ORG_UNIT_LEVEL_EXTENSION_SUFFIX = '/StructureDefinition/d2-organisa
 
 /** The extension a Questionnaire names its assignment List on, matched on the same kind of suffix. */
 export const ORG_UNIT_ASSIGNMENT_EXTENSION_SUFFIX = '/StructureDefinition/d2-organisation-unit-assignment'
+
+/**
+ * The extension a tracker response states the unit it reports from on.
+ *
+ * One character shy of two of its neighbours, and `endsWith` is what tells the three apart: a url
+ * ending in `-level` or `-assignment` does not end in this. The response side of the contract
+ * rather than the form side - an aggregate or event response names its unit as `subject`, and a
+ * tracker one names it here because its subject is the tracked entity.
+ */
+export const ORG_UNIT_EXTENSION_SUFFIX = '/StructureDefinition/d2-organisation-unit'
 
 /**
  * The extension a boundary polygon travels on.
@@ -434,13 +452,131 @@ export function matchingUnitIds(tree: OrgUnitTree, query: string): Set<string> {
     return visible
 }
 
-/** Whether one unit answers a filter - on its name, its id, or any identifier value it carries. */
-export function matchesUnit(node: OrgUnitNode, lowercaseQuery: string): boolean {
+/**
+ * Whether one unit answers a filter - on its name, its id, or any identifier value it carries.
+ *
+ * Typed on the three fields it reads rather than on a whole `OrgUnitNode`, so the picker's rows
+ * are matched by this one function instead of by a second reading of the same rule. The identifier
+ * sweep is what makes a DHIS2 code (`OU_NGELEHUN`) a thing a person can type.
+ */
+export function matchesUnit(node: Pick<OrgUnitNode, 'id' | 'name' | 'location'>, lowercaseQuery: string): boolean {
     if (node.name.toLowerCase().includes(lowercaseQuery)) return true
     if (node.id.toLowerCase().includes(lowercaseQuery)) return true
     return (node.location.identifier ?? []).some((identifier) =>
         (identifier.value ?? '').toLowerCase().includes(lowercaseQuery),
     )
+}
+
+/** One unit as a picker offers it: what it is called, where it sits, and what it writes. */
+export interface OrgUnitChoice {
+    id: string
+    /** The unit's name as page text, unescaped - the same string the tree renders. */
+    name: string
+    location: Location
+    level: OrgUnitLevel | null
+    /** The parent's name, as muted context on the row - null for a root of the served tree. */
+    parentName: string | null
+}
+
+/**
+ * The units a picker may offer, in the order the tree renders them.
+ *
+ * PRE-ORDER, NOT ALPHABETICAL. A flat alphabetical list of 1,300 units puts a district between two
+ * facilities of a different district, which is the one ordering a person reading DHIS2's hierarchy
+ * cannot navigate. Walking the folded tree keeps every unit under the one it belongs to, and the
+ * parent's name on each row is what makes that readable once the search has broken the list up.
+ *
+ * `admitted` is the form's assignment: a set of unit ids when the form publishes one, and null when
+ * it publishes none - which means the whole registry, exactly as the facade grades it. An empty set
+ * is not the same as null and offers nothing, because that is what the server would accept.
+ */
+export function orgUnitChoices(tree: OrgUnitTree, admitted: ReadonlySet<string> | null): OrgUnitChoice[] {
+    const choices: OrgUnitChoice[] = []
+    const walk = (node: OrgUnitNode, parentName: string | null): void => {
+        if (admitted === null || admitted.has(node.id)) {
+            choices.push({ id: node.id, name: node.name, location: node.location, level: node.level, parentName })
+        }
+        for (const child of node.children) walk(child, node.name)
+    }
+    for (const root of tree.roots) walk(root, null)
+    return choices
+}
+
+/**
+ * The reference a chosen unit is written as.
+ *
+ * `Location/<stem>` is the whole of what the capture contract checks - `_is_location_reference` in
+ * `dhis2w_fhir_serve.capture.validate` reads the shape, and the forwarder reads the stem back as
+ * the DHIS2 organisation-unit uid. The display rides along only when the registry states a name:
+ * `orgUnitName` falls back to the id, and a reference whose display repeats its own reference says
+ * nothing and would read as a name on every receipt that showed it.
+ */
+export function orgUnitReference(choice: OrgUnitChoice): Reference {
+    const stated = choice.location.name
+    return {
+        reference: `${LOCATION_REFERENCE_PREFIX}${choice.id}`,
+        ...(stated === undefined || stated === '' ? {} : { display: choice.name }),
+    }
+}
+
+/** The unit id a `Location/<stem>` reference names, or null when it names something else. */
+export function referencedUnitId(reference: Reference | null | undefined): string | null {
+    const stated = reference?.reference
+    if (stated === undefined || !stated.startsWith(LOCATION_REFERENCE_PREFIX)) return null
+    const id = stated.slice(LOCATION_REFERENCE_PREFIX.length)
+    return id === '' ? null : id
+}
+
+/**
+ * The unit ids one form's assignment admits, or null for "every unit the registry publishes".
+ *
+ * The same three-way reading `buildFormAssignments` applies across all forms, for the one form a
+ * capture screen is filling. Null is the answer for two different absences and deliberately so: a
+ * form that declares no assignment extension is assigned everywhere, and a form naming a List this
+ * server does not publish is read as assigned everywhere too - which is how
+ * `dhis2w_fhir_serve.capture.index._assignment` grades it, so a picker that narrowed there would
+ * offer less than the server accepts. A published List is exactly its entries, empty included.
+ */
+export function admittedUnitIds(list: ResourceList | null): ReadonlySet<string> | null {
+    return list === null ? null : new Set(assignedUnitIds(list))
+}
+
+/**
+ * The organisation unit a response reports from, wherever its form kind carries it.
+ *
+ * TWO PLACES, ONE FACT. An aggregate or event response names its unit as `subject`, because that
+ * is what the submission is about. A tracker response's subject is the tracked entity - a person,
+ * not a place - so the unit rides the `d2-organisation-unit` extension instead, and
+ * `dhis2w_fhir_serve.capture.validate._tracker_context_issues` requires exactly one of them.
+ * Reading both here is what lets one picker serve all four kinds.
+ */
+export function reportingUnitOf(response: QuestionnaireResponse, formKind: FormType | null): Reference | null {
+    if (!carriesUnitOnExtension(formKind)) return response.subject ?? null
+    const extension = findExtension(response.extension, ORG_UNIT_EXTENSION_SUFFIX)
+    return extension?.valueReference ?? null
+}
+
+/** Whether a form kind states its unit on the extension rather than on `subject`. */
+export function carriesUnitOnExtension(formKind: FormType | null): boolean {
+    return formKind === 'tracker' || formKind === 'tracker-event'
+}
+
+/**
+ * The url a response states its organisation unit under, derived from the form that declared its kind.
+ *
+ * Every extension of this IG hangs off one canonical, and a served capture form always carries the
+ * form-type extension - it is what `formTypeOf` reads - so its url is the canonical this project
+ * publishes under, whatever `fhir.toml` set it to. Deriving rather than hard-coding is the same
+ * rule `attributeOptionComboExtensionUrl` follows, and for the same reason: a facade can serve a
+ * guide compiled under a different canonical than it answers on.
+ */
+export function organisationUnitExtensionUrl(questionnaire: Questionnaire): string | null {
+    const declared = questionnaire.extension?.find((candidate) =>
+        candidate.url.endsWith(FORM_TYPE_EXTENSION_SUFFIX),
+    )
+    if (declared === undefined) return null
+    const canonical = declared.url.slice(0, declared.url.length - FORM_TYPE_EXTENSION_SUFFIX.length)
+    return `${canonical}${ORG_UNIT_EXTENSION_SUFFIX}`
 }
 
 /**

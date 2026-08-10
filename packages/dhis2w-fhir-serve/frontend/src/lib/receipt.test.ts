@@ -138,11 +138,58 @@ describe('joining a receipt to the form it answers', () => {
         const rows = rowsFor(temporalQuestionnaire, temporalResponse)
         const value = (linkId: string) => rows.find((row) => row.linkId === linkId)?.values
 
-        expect(value('DeVisitDate1')).toEqual([{ kind: 'text', text: '2026-07-22' }])
+        expect(value('DeVisitDate1')).toEqual([{ kind: 'text', text: '2026-07-23' }])
         expect(value('DeVisitTime1')).toEqual([{ kind: 'text', text: '20:00:00' }])
-        expect(value('DeVisitStamp')).toEqual([{ kind: 'text', text: '2026-07-11T02:00:00Z' }])
+        expect(value('DeVisitStamp')).toEqual([{ kind: 'text', text: '2026-07-12T02:00:00Z' }])
         expect(value('DeVisitLink1')).toEqual([
             { kind: 'text', text: 'https://example.invalid/DeVisitLink1' },
+        ])
+    })
+
+    it('keeps an organisation-unit answer`s reference and its unit id apart', () => {
+        const rows = rowsFor(temporalQuestionnaire, temporalResponse)
+        const value = rows.find((row) => row.linkId === 'DeVisitUnit1')?.values
+
+        // A `$generate` skeleton names the unit and nothing else, so `display` is null and the
+        // receipt page is what looks the name up. The unit id is the DHIS2 uid the forwarder
+        // writes, which is why it is carried on its own rather than only inside the reference.
+        expect(value).toEqual([
+            {
+                kind: 'reference',
+                display: null,
+                reference: 'Location/DiszpKrYNg8',
+                unitId: 'DiszpKrYNg8',
+            },
+        ])
+    })
+
+    it('carries the display a capture client wrote, so a receipt reads as a place', () => {
+        const answered: QuestionnaireResponse = {
+            resourceType: 'QuestionnaireResponse',
+            status: 'completed',
+            item: [
+                {
+                    linkId: 'DeVisitUnit1',
+                    answer: [
+                        {
+                            valueReference: {
+                                reference: 'Location/DiszpKrYNg8',
+                                display: 'Ngelehun CHC',
+                            },
+                        },
+                    ],
+                },
+            ],
+        }
+        const rows = rowsFor(temporalQuestionnaire, answered)
+
+        expect(rows[0].values).toEqual([
+            {
+                kind: 'reference',
+                display: 'Ngelehun CHC',
+                reference: 'Location/DiszpKrYNg8',
+                unitId: 'DiszpKrYNg8',
+            },
         ])
     })
 })
