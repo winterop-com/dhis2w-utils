@@ -91,7 +91,8 @@ export function AttributeOptionComboPicker({
 
             {expansion.error !== null && (
                 <p className="text-destructive text-xs">
-                    The combos this form reports for could not be read: {expansion.error}
+                    The attribute option combos this form reports for could not be read:{' '}
+                    {expansion.error}
                 </p>
             )}
             {expansion.error === null && !expansion.loading && expansion.options.length === 0 && (
@@ -107,6 +108,6 @@ export function AttributeOptionComboPicker({
 
 /** What the trigger says while there is nothing to pick from yet. */
 function placeholder(loading: boolean, optionCount: number): string {
-    if (loading) return 'Reading the combos this form reports for'
-    return optionCount === 0 ? 'No combos published' : 'Not chosen'
+    if (loading) return 'Reading the attribute option combos this form reports for'
+    return optionCount === 0 ? 'No attribute option combos published' : 'Not chosen'
 }

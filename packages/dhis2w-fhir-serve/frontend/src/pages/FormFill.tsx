@@ -197,12 +197,12 @@ export function FormFill() {
                 setIssues([])
                 const seed = generateSeedOf(generated)
                 toast.success(
-                    seed === null ? 'Filled with generated answers' : `Filled with generated answers, seed ${seed}`,
+                    seed === null ? 'Filled with test data' : `Filled with test data, seed ${seed}`,
                     { description: 'Change anything you like before submitting.' },
                 )
             })
             .catch((failure: unknown) => {
-                toast.error('The server would not generate answers to this form', {
+                toast.error('The server could not fill this form with test data', {
                     description: failure instanceof Error ? failure.message : String(failure),
                 })
             })
@@ -255,7 +255,11 @@ export function FormFill() {
         } catch (failure: unknown) {
             if (failure instanceof FhirRequestError && failure.outcome !== null) {
                 setIssues(failure.outcome.issue)
-                toast.error(`The server refused this submission (${failure.outcome.issue.length} issues)`)
+                toast.error(
+                    `The server refused this submission (${failure.outcome.issue.length} ${
+                        failure.outcome.issue.length === 1 ? 'issue' : 'issues'
+                    })`,
+                )
             } else {
                 toast.error('This submission could not be sent', {
                     description: failure instanceof Error ? failure.message : String(failure),
@@ -336,7 +340,7 @@ export function FormFill() {
                 </Button>
                 <Button type="button" variant="outline" disabled={filling} onClick={fillWithTestData}>
                     <Sparkles className="size-4" />
-                    {filling ? 'Generating' : 'Fill with test data'}
+                    {filling ? 'Filling' : 'Fill with test data'}
                 </Button>
                 <Button
                     type="button"

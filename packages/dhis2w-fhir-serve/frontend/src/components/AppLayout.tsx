@@ -41,10 +41,10 @@ export interface NavItem {
  * both.
  */
 export const NAV_ITEMS: NavItem[] = [
-    { path: '', label: 'Overview', hint: 'The state of capture', icon: LayoutDashboard },
+    { path: '', label: 'Overview', hint: 'State of capture', icon: LayoutDashboard },
     { path: 'forms', label: 'Forms', hint: 'Questionnaires served', icon: ClipboardList },
     { path: 'responses', label: 'Responses', hint: 'What was captured', icon: Inbox },
-    { path: 'org-units', label: 'Org units', hint: 'The reporting hierarchy', icon: Network },
+    { path: 'organisation-units', label: 'Organisation units', hint: 'Reporting hierarchy', icon: Network },
     { path: 'terminology', label: 'Terminology', hint: 'Codes and value sets', icon: Library },
     { path: 'server', label: 'Server', hint: 'What /metadata declares', icon: ServerCog },
 ]

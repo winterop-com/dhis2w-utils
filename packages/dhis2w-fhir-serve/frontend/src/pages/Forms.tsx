@@ -48,7 +48,7 @@ export function Forms() {
                 loading={loading}
                 error={error}
                 empty={questionnaires.length === 0}
-                emptyMessage="This project publishes no Questionnaires. Run `make generate` then `make sushi` to compile the IG, or serve it with --live."
+                emptyMessage="This project publishes no Questionnaires. Run `make generate` then `make sushi` to compile the implementation guide, or serve it with --live."
             >
                 <div className="show-scrollbars overflow-x-auto rounded-lg border">
                     <Table>

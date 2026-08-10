@@ -43,9 +43,9 @@ test('the rail navigates all six pages', async ({ page }) => {
     await expect(page).toHaveURL(/#\/responses$/)
     await expect(page.getByRole('heading', { name: 'Responses', level: 2 })).toBeVisible()
 
-    await rail.getByRole('link', { name: 'Org units' }).click()
-    await expect(page).toHaveURL(/#\/org-units$/)
-    await expect(page.getByRole('heading', { name: 'Org units', level: 2 })).toBeVisible()
+    await rail.getByRole('link', { name: 'Organisation units' }).click()
+    await expect(page).toHaveURL(/#\/organisation-units$/)
+    await expect(page.getByRole('heading', { name: 'Organisation units', level: 2 })).toBeVisible()
 
     await rail.getByRole('link', { name: 'Terminology' }).click()
     await expect(page).toHaveURL(/#\/terminology$/)

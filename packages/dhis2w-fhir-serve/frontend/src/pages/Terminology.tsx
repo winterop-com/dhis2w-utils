@@ -140,7 +140,7 @@ export function Terminology() {
                     error={conceptMaps.error}
                     rows={conceptMapRows}
                     query={query}
-                    emptyMessage="This project published no ConceptMaps. Generate the option sets or categories the forms bind, then recompile and restart."
+                    emptyMessage="This project published no ConceptMaps. Run `make generate` then `make sushi` to compile the option sets and categories the forms bind, then restart the server."
                 />
             </section>
         </>

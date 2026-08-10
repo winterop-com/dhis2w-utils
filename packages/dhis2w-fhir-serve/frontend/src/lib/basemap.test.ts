@@ -2,11 +2,18 @@ import { describe, expect, it } from 'vitest'
 
 import {
     BASEMAP_LAYER_ID,
+    FLAT_SKY,
     GROUND_LAYER_ID,
     RASTER_MUTING,
     RASTER_PAINT_PROPERTIES,
     RASTER_TILE_SIZE,
+    STARFIELD_LAYERS,
+    STARFIELD_SEED,
     baseStyle,
+    globeSky,
+    starfieldPaint,
+    starfieldTile,
+    unitPopupContent,
     type MapPalette,
 } from '@/lib/basemap'
 import uiConfigNoneFixture from '@/lib/__fixtures__/uiconfig-none.json'
@@ -25,7 +32,8 @@ const PALETTE: MapPalette = {
     context: '#dee2e2',
     contextInk: '#5e6565',
     identity: '#0070a6',
-    identityStrong: '#00477f',
+    selection: '#d97706',
+    selectionEdge: '#b45309',
 }
 
 const OSM = {
@@ -110,5 +118,125 @@ describe('the style with a basemap', () => {
         for (const mode of ['light', 'dark'] as const) {
             expect(Object.keys(RASTER_MUTING[mode]).toSorted()).toEqual([...RASTER_PAINT_PROPERTIES].toSorted())
         }
+    })
+})
+
+describe('the globe sky', () => {
+    it('leaves space transparent for the starfield, and keeps the theme on the transition hues', () => {
+        const sky = globeSky(PALETTE)
+
+        // Space is see-through: what surrounds the sphere is the starfield element behind the
+        // canvas, not a colour of the sky's own. The transition and fog hues stay tokens.
+        expect(sky['sky-color']).toBe('transparent')
+        expect(sky['fog-color']).toBe(PALETTE.surface)
+        expect(sky['horizon-color']).toBe(PALETTE.identity)
+    })
+
+    it('fades the atmosphere out with zoom, and the flat sky wears none at all', () => {
+        const blend = globeSky(PALETTE)['atmosphere-blend']
+
+        expect(blend).toEqual(['interpolate', ['linear'], ['zoom'], 0, 0.45, 4, 0.45, 6, 0])
+        expect(FLAT_SKY).toEqual({ 'atmosphere-blend': 0 })
+    })
+})
+
+describe('the starfield', () => {
+    it('is deterministic: the same seed grows the same sky, star for star', () => {
+        for (const layer of STARFIELD_LAYERS) {
+            expect(starfieldTile(layer, STARFIELD_SEED)).toEqual(starfieldTile(layer, STARFIELD_SEED))
+        }
+        expect(starfieldPaint()).toEqual(starfieldPaint())
+    })
+
+    it('keeps every star on its tile, inside the ranges its layer states', () => {
+        for (const layer of STARFIELD_LAYERS) {
+            const stars = starfieldTile(layer, STARFIELD_SEED)
+            expect(stars).toHaveLength(layer.starCount)
+            for (const star of stars) {
+                expect(star.x).toBeGreaterThanOrEqual(0)
+                expect(star.x).toBeLessThanOrEqual(layer.tileSize)
+                expect(star.y).toBeGreaterThanOrEqual(0)
+                expect(star.y).toBeLessThanOrEqual(layer.tileSize)
+                expect(star.radius).toBeGreaterThanOrEqual(layer.radius[0])
+                expect(star.radius).toBeLessThanOrEqual(layer.radius[1])
+                expect(star.opacity).toBeGreaterThanOrEqual(layer.opacity[0])
+                expect(star.opacity).toBeLessThanOrEqual(layer.opacity[1])
+            }
+        }
+    })
+
+    it('paints deep space as the base and every layer as a self-contained data URI', () => {
+        const paint = starfieldPaint()
+
+        // Near-black with a faint blue cast, in both themes: space is dark over the light UI too.
+        expect(paint.backgroundColor).toBe('#05080f')
+        // One tiled image per layer, each a data URI - the sky makes no network request.
+        const images = paint.backgroundImage.split(', ')
+        expect(images).toHaveLength(STARFIELD_LAYERS.length)
+        for (const image of images) {
+            expect(image).toMatch(/^url\("data:image\/svg\+xml,/)
+        }
+    })
+
+    it('shows a few hundred stars on a typical viewport, however the tiles repeat', () => {
+        // A 1000 x 600 map: each layer contributes (viewport area / tile area) * its star count.
+        const viewportArea = 1000 * 600
+        const visible = STARFIELD_LAYERS.reduce(
+            (total, layer) => total + (viewportArea / (layer.tileSize * layer.tileSize)) * layer.starCount,
+            0,
+        )
+        expect(visible).toBeGreaterThan(200)
+        expect(visible).toBeLessThan(400)
+    })
+})
+
+describe('the popup lines', () => {
+    it('says the name, the level the human way, the parent, and what sits below', () => {
+        const content = unitPopupContent({
+            name: 'Bo',
+            level: { code: 'level-2', display: 'District', system: null, depth: 2 },
+            parentName: 'Sierra Leone',
+            descendantCount: 4,
+        })
+
+        expect(content).toEqual({
+            name: 'Bo',
+            levelLabel: 'District',
+            parentName: 'Sierra Leone',
+            belowLine: '4 organisation units below',
+        })
+    })
+
+    it('spells a display-less level as Level <n>, never in the machine casing', () => {
+        const content = unitPopupContent({
+            name: 'Bo',
+            level: { code: 'level-2', display: null, system: null, depth: 2 },
+            parentName: null,
+            descendantCount: 0,
+        })
+
+        expect(content.levelLabel).toBe('Level 2')
+        expect(content.levelLabel).not.toContain('level-')
+    })
+
+    it('keeps the bare code for a level whose code carries no number to spell', () => {
+        const content = unitPopupContent({
+            name: 'Bo',
+            level: { code: 'custom-tier', display: null, system: null, depth: null },
+            parentName: null,
+            descendantCount: 0,
+        })
+
+        expect(content.levelLabel).toBe('custom-tier')
+    })
+
+    it('omits every line it has nothing to say on, singular included', () => {
+        const leaf = unitPopupContent({ name: 'Ngelehun CHC', level: null, parentName: null, descendantCount: 0 })
+        const one = unitPopupContent({ name: 'Badjia', level: null, parentName: 'Bo', descendantCount: 1 })
+
+        expect(leaf.levelLabel).toBeNull()
+        expect(leaf.parentName).toBeNull()
+        expect(leaf.belowLine).toBeNull()
+        expect(one.belowLine).toBe('1 organisation unit below')
     })
 })

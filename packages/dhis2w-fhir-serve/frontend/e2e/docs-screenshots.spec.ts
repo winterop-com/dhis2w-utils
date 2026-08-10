@@ -101,7 +101,7 @@ test.describe('docs screenshots', () => {
         await expect(page.getByLabel('Reporting from')).toBeVisible()
         await expect(page.getByLabel('Reporting for Project')).toBeVisible()
         await page.getByRole('button', { name: 'Fill with test data' }).click()
-        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
 
         await page.screenshot({
             path: path.join(screenshotDirectory, 'capture-ui-form-fill.png'),

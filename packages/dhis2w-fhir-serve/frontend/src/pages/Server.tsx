@@ -38,7 +38,7 @@ export function Server() {
         <>
             <PageHeader
                 title="Server"
-                description="The CapabilityStatement this process serves, which is the contract - there is no OpenAPI document."
+                description="The CapabilityStatement this server publishes at /metadata. It is the server's whole contract: there is no OpenAPI document."
             />
             <PageState
                 loading={checking && capability === null}

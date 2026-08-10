@@ -107,7 +107,7 @@ export function Responses() {
         <>
             <PageHeader
                 title="Responses"
-                description="Every capture this server stored, as the receipt it was stored as - and where that receipt is now."
+                description="Every capture this server stored as a receipt, and where each receipt is now."
             />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -131,7 +131,7 @@ export function Responses() {
                 loading={loading}
                 error={error}
                 empty={listing.total === 0}
-                emptyMessage="Nothing has been captured into this project yet. A response arrives here when a client POSTs one to /QuestionnaireResponse - fill a form in from the Forms page, or ask the server for a synthetic one with GET /Questionnaire/{id}/$generate and post it back."
+                emptyMessage="Nothing has been captured into this project yet. A receipt arrives here when a client POSTs a QuestionnaireResponse - fill a form in from the Forms page, or ask the server for a synthetic one with GET /Questionnaire/{id}/$generate and post it back."
             >
                 {rows.length === 0 ? (
                     <Card>

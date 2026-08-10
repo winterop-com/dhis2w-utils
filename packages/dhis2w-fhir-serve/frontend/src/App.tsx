@@ -33,12 +33,12 @@ import { TerminologyDetail } from '@/pages/TerminologyDetail'
  * the questions that were asked, the third opens one terminology resource and
  * shows the codes inside it.
  *
- * `/org-units` is the one page that keeps its selection in the query string
- * (`#/org-units?unit=<uid>`) rather than in the path: the tree, the detail panel,
- * and the map are one screen over one read, and a unit is a state of that screen
- * rather than a document of its own. It is also the only route that lazy-loads
- * anything - the map renderer is fetched when the page mounts, not with the
- * bundle.
+ * `/organisation-units` is the one page that keeps its selection in the query
+ * string (`#/organisation-units?unit=<uid>`) rather than in the path: the tree,
+ * the detail panel, and the map are one screen over one read, and an
+ * organisation unit is a state of that screen rather than a document of its
+ * own. It is also the only route that lazy-loads anything - the map renderer is
+ * fetched when the page mounts, not with the bundle.
  *
  * The index route is the Overview - the state of capture in one screen - and
  * every listing keeps a path of its own, so `/forms` is a link that can be sent
@@ -53,7 +53,7 @@ export default function App() {
                 <Route path="forms/:questionnaireId" element={<FormFill />} />
                 <Route path="responses" element={<Responses />} />
                 <Route path="responses/:responseId" element={<ResponseDetail />} />
-                <Route path="org-units" element={<OrgUnits />} />
+                <Route path="organisation-units" element={<OrgUnits />} />
                 <Route path="terminology" element={<Terminology />} />
                 <Route path="terminology/:resourceType/:resourceId" element={<TerminologyDetail />} />
                 <Route path="server" element={<Server />} />

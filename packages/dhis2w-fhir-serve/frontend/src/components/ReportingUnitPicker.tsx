@@ -64,14 +64,14 @@ export function ReportingUnitPicker({
             {!scope.loading && scope.error === null && offered > 0 && (
                 <p className="text-muted-foreground text-xs">
                     {scope.restricted
-                        ? `${String(offered)} ${offered === 1 ? 'unit is' : 'units are'} assigned to this form. A capture anywhere else is what DHIS2 refuses with E1029.`
-                        : `This form is assigned everywhere, so any of the ${String(offered)} published units may report it.`}
+                        ? `${String(offered)} ${offered === 1 ? 'organisation unit is' : 'organisation units are'} assigned to this form. A capture anywhere else is what DHIS2 refuses with E1029.`
+                        : `This form is assigned everywhere, so any of the ${String(offered)} published organisation units may report it.`}
                 </p>
             )}
             {selectedUnitId === null && !scope.loading && offered > 0 && (
                 <p className="text-muted-foreground text-xs">
-                    Nothing is chosen yet, because the server's skeleton has not answered. Pick a
-                    unit, or submit and let the server name what it needs.
+                    Nothing is chosen yet, because the server's skeleton has not answered. Pick an
+                    organisation unit, or submit and let the server name what it needs.
                 </p>
             )}
         </div>

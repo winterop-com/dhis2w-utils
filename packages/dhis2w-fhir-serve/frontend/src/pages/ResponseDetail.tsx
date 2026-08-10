@@ -179,7 +179,7 @@ export function ResponseDetail() {
                             <section className="space-y-2">
                                 <h3 className="flex items-center gap-2 text-base font-semibold">
                                     <TriangleAlert className="text-status-refused size-4" aria-hidden />
-                                    Recorded on capture
+                                    Warnings recorded on capture
                                 </h3>
                                 <ul className="text-muted-foreground space-y-1 rounded-lg border p-4 text-sm">
                                     {summary.warnings.map((warning) => (
@@ -354,8 +354,9 @@ function AnswersSection({
             {formMissing && (
                 <p className="text-muted-foreground rounded-lg border px-4 py-3 text-sm">
                     This server no longer serves the form this receipt answers, so there are no
-                    question texts to show - a guide recompiled since the capture does this. The
-                    link ids and the values are the receipt's own, and they are unchanged.
+                    question texts to show - an implementation guide recompiled since the capture
+                    does this. The link ids and the values are the receipt's own, and they are
+                    unchanged.
                 </p>
             )}
 

@@ -61,7 +61,10 @@
     --color-secondary: var(--secondary);
     --color-primary-foreground: var(--primary-foreground);
     --color-primary: var(--primary);
-    --color-primary-emphasis: var(--primary-emphasis);
+    /* The org-unit map's selection mark - see the tokens below. Utilities so the
+       map legend's chips can wear the exact colours the renderer paints. */
+    --color-map-selection: var(--map-selection);
+    --color-map-selection-edge: var(--map-selection-edge);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
@@ -93,11 +96,13 @@
     --popover-foreground: oklch(0.22 0.008 195);
     --primary: oklch(0.52 0.12 240);
     --primary-foreground: oklch(1 0 0);
-    /* The identity hue pushed to the end of its lightness ramp, for the one mark
-       per page that must outrank every primary-tinted neighbour - the selected
-       boundary on the org-unit map. Same hue, so it reads as "more of the same
-       blue" rather than as a fourth colour. */
-    --primary-emphasis: oklch(0.38 0.13 240);
+    /* The org-unit map's selection mark: an amber pair, deliberately a second
+       hue category, so the selected shape is not a stronger shade of the blue
+       the subtree tier already spends. `--map-selection` fills the area (and
+       the legend's chip); `--map-selection-edge` is its stroke and the colour
+       of a selected point marker. Nothing off the map may spend these. */
+    --map-selection: oklch(0.67 0.18 58); /* #d97706 */
+    --map-selection-edge: oklch(0.55 0.16 50); /* #b45309 */
     --secondary: oklch(0.985 0.003 195);
     --secondary-foreground: oklch(0.24 0.008 195);
     --muted: oklch(0.965 0.003 195);
@@ -148,7 +153,8 @@
     --popover-foreground: oklch(0.95 0.004 195);
     --primary: oklch(0.72 0.14 240);
     --primary-foreground: oklch(0.16 0.006 195);
-    --primary-emphasis: oklch(0.85 0.12 240);
+    --map-selection: oklch(0.77 0.19 70); /* #f59e0b */
+    --map-selection-edge: oklch(0.85 0.17 85); /* #fbbf24 */
     --secondary: oklch(0.24 0.006 195);
     --secondary-foreground: oklch(0.95 0.004 195);
     --muted: oklch(0.24 0.006 195);
@@ -206,6 +212,63 @@
 }
 .dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
     filter: invert(1);
+}
+
+/* The popup a click on the map opens - MapLibre's own chrome (a white card, a
+   white tip, a black close glyph) repainted from the same tokens as the rest of
+   the app's cards, in both themes. The content inside it is the component's own
+   markup and styles itself; this is only the shell. */
+.maplibregl-popup-content {
+    background: var(--card);
+    color: var(--card-foreground);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) * 0.8);
+    box-shadow: none;
+    padding: 0.625rem 0.75rem;
+    font-family: var(--font-sans);
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+    border-bottom-color: var(--card);
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+    border-top-color: var(--card);
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+    border-right-color: var(--card);
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+    border-left-color: var(--card);
+}
+.maplibregl-popup-close-button {
+    color: var(--muted-foreground);
+    font-size: 1rem;
+    padding: 0 0.4rem;
+}
+.maplibregl-popup-close-button:hover {
+    color: var(--foreground);
+    background: transparent;
+}
+
+/* The starfield behind the globe fades in once as the projection transition
+   runs, instead of popping - a single entrance, not an ongoing animation. The
+   stars themselves are static; a reader who asked for reduced motion gets the
+   sky without even the fade. */
+.map-starfield {
+    animation: map-starfield-in 700ms ease-out;
+}
+@keyframes map-starfield-in {
+    from {
+        opacity: 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .map-starfield {
+        animation: none;
+    }
 }
 
 /* Always-visible thin scrollbars, so a horizontally scrollable table advertises

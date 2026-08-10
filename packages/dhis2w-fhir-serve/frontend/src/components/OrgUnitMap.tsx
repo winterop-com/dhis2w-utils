@@ -3,22 +3,34 @@ import type { FeatureCollection } from 'geojson'
 import {
     FullscreenControl,
     Map as MapLibreMap,
+    Popup,
     setWorkerUrl,
     type GeoJSONSource,
+    type IControl,
     type LngLatBoundsLike,
+    type LngLatLike,
+    type MapGeoJSONFeature,
+    type Point,
+    type PointLike,
+    type SkySpecification,
 } from 'maplibre-gl'
 // eslint-disable-next-line import/no-unresolved -- a Vite query suffix, resolved by the bundler
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 
 import {
     BASEMAP_LAYER_ID,
+    FLAT_SKY,
     GROUND_LAYER_ID,
     RASTER_MUTING,
     RASTER_PAINT_PROPERTIES,
     baseStyle,
+    globeSky,
+    starfieldPaint,
+    unitPopupContent,
     type MapPalette,
+    type UnitPopupContent,
 } from '@/lib/basemap'
-import type { OrgUnitBoundary, OrgUnitPoint } from '@/lib/orgunits'
+import type { OrgUnitBoundary, OrgUnitPoint, OrgUnitTree } from '@/lib/orgunits'
 import { boundsOf } from '@/lib/orgunits'
 import type { BasemapConfig } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
@@ -49,21 +61,29 @@ import 'maplibre-gl/dist/maplibre-gl.css'
  *
  * COLOUR IS THE APP'S, RESOLVED AT RUNTIME. Every colour below is read out of the CSS custom
  * properties in index.css at style-build time rather than written as a hex here, so the map is the
- * same product in both themes and cannot drift from the palette. The encoding is an emphasis ramp
- * on one hue - the identity blue - over a neutral context tier:
+ * same product in both themes and cannot drift from the palette. The encoding is two hues over a
+ * neutral context tier:
  *
  *   - EVERY published boundary is drawn as a hairline. It is chrome, in the same sense a gridline
  *     is: it says where the rest of the hierarchy is without competing.
- *   - THE UNITS BELOW THE SELECTION take the identity hue at partial strength.
- *   - THE SELECTED UNIT takes `--primary-emphasis` - the same hue pushed to the end of its
- *     lightness ramp - at three times the context stroke width, with a heavier fill.
+ *   - THE UNITS BELOW THE SELECTION take the identity blue at partial strength.
+ *   - THE SELECTED UNIT takes the amber pair `--map-selection` / `--map-selection-edge` - a
+ *     second hue category, not a stronger blue - at three and a half times the context stroke
+ *     width, with a heavier fill. A hue split rather than a lightness step, because the one shape
+ *     the page is about must not be a matter of degree against the subtree wash around it.
  *
- * The lightness spread is what keeps the two lit tiers apart: the subtree stroke composites to
- * roughly `--primary` at half strength, and the emphasis step holds 3:1 or better against it in
- * both themes, over the muted tiles and over the plain card alike. The tiers differ in stroke
- * width (3 : 1.5 : 1 over tiles) as well as in lightness, so the ranking survives a colourblind
- * reader and a monochrome print. A three-row legend is present because a map has no axis and no
- * labels: without it the blue means nothing.
+ * The amber edge holds its contrast on every ground it meets: about 5:1 against the light card and
+ * 8:1 against the dark one, and 3:1 or better over the muted tiles. The tiers still differ in
+ * stroke width (3.5 : 1.5 : 1 over tiles) as well as in colour, so the ranking survives a
+ * colourblind reader and a monochrome print - and blue against amber is the pairing that survives
+ * the common colour deficiencies. A three-row legend is present because a map has no axis and no
+ * labels: without it neither hue means anything.
+ *
+ * CLICKING IS TWO GESTURES. A left-click on any shape - a boundary at any level, or a point -
+ * opens a popup naming the unit: name, level, parent, what sits below, and an Open action that
+ * selects it. A right-click on a shape is the drill-down: it selects the unit outright, with the
+ * framing that follows. Where shapes stack, the point outranks the boundaries under it - the
+ * smaller mark is the harder one to have meant anything else by.
  *
  * THE BASEMAP IS WHAT FORCED THE CASING, and this is the part worth reading before changing any
  * number here. Over a flat surface the ramp is validated against that one background. Over tiles
@@ -105,14 +125,16 @@ const FALLBACK_PALETTE: Record<'light' | 'dark', MapPalette> = {
         context: '#dee2e2',
         contextInk: '#5e6565',
         identity: '#0070a6',
-        identityStrong: '#00477f',
+        selection: '#d97706',
+        selectionEdge: '#b45309',
     },
     dark: {
         surface: '#131717',
         context: '#2a2f2f',
         contextInk: '#8d9494',
         identity: '#3faff3',
-        identityStrong: '#80d8ff',
+        selection: '#f59e0b',
+        selectionEdge: '#fbbf24',
     },
 }
 
@@ -122,9 +144,58 @@ const FIT_PADDING = 32
 /** How far in the map goes for a unit that is a single point with nothing around it. */
 const POINT_ZOOM = 9
 
+/** How far around the cursor a point still counts as hit, in pixels - a pin is a small target. */
+const POINT_HIT_RADIUS = 5
+
+/**
+ * Below these zooms a left-click drills in instead of asking, because the shapes are too small for
+ * the click to have meant one of them. Chosen by eye against the Sierra Leone registry: around 5.5
+ * a district polygon is tens of pixels and reads as a shape, while a facility pin stays a
+ * three-pixel speck in a cloud of specks until roughly district zoom, where neighbouring pins
+ * separate - hence the higher bar for points.
+ */
+const BOUNDARY_POPUP_MIN_ZOOM = 5.5
+const POINT_POPUP_MIN_ZOOM = 8.5
+
+/** How far one drill step eases in: two levels quadruples the scale - progressive, not a jump. */
+const DRILL_ZOOM_STEP = 2
+
+/** What the globe button offers while the map is flat. */
+const ENTER_GLOBE_LABEL = 'View as a globe'
+
+/** What it offers while the globe is up. */
+const EXIT_GLOBE_LABEL = 'View as a flat map'
+
+/** What the recenter button offers while a unit is selected. */
+const RECENTER_SELECTION_LABEL = 'Center on the selected organisation unit'
+
+/** What it offers while nothing is - the framing target is then the whole registry. */
+const RECENTER_REGISTRY_LABEL = 'Center on the organisation units'
+
+/**
+ * The recenter glyph: a crosshair, as a data-uri background image.
+ *
+ * Drawn the way MapLibre draws its own control glyphs - a dark image on the chip - so the
+ * `.dark ... invert(1)` rule in index.css themes it exactly like the fullscreen and globe icons.
+ */
+const RECENTER_ICON = `url("data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg>',
+)}")`
+
+/** Which projection the canvas is drawing, exposed on the container so a test can read it. */
+type MapProjection = 'mercator' | 'globe'
+
+/**
+ * The universe, painted once at module load: deterministic strings, so there is nothing to memoise
+ * per mount and the sky in every screenshot is the same sky.
+ */
+const STARFIELD_PAINT = starfieldPaint()
+
 export interface OrgUnitMapProps {
     boundaries: OrgUnitBoundary[]
     points: OrgUnitPoint[]
+    /** The folded registry, which is where the popup reads a unit's name, level, and parent. */
+    tree: OrgUnitTree
     /** The tiles under the shapes, or null for the boundary-only canvas. */
     basemap: BasemapConfig | null
     /** The unit the detail panel is showing, or null when nothing is selected. */
@@ -133,6 +204,7 @@ export interface OrgUnitMapProps {
     descendantUnitIds: Set<string>
     /** What the map should frame - the selection's own extent, or the whole registry's. */
     focusUnitIds: string[]
+    /** Select one unit: where a right-click on a shape and the popup's Open action both land. */
     onSelect: (unitId: string) => void
 }
 
@@ -140,6 +212,7 @@ export interface OrgUnitMapProps {
 export function OrgUnitMap({
     boundaries,
     points,
+    tree,
     basemap,
     selectedUnitId,
     descendantUnitIds,
@@ -148,10 +221,14 @@ export function OrgUnitMap({
 }: OrgUnitMapProps) {
     const container = useRef<HTMLDivElement>(null)
     const map = useRef<MapLibreMap | null>(null)
-    // Held in a ref as well as in props so the click handler - registered once, on a map that
-    // outlives any single render - always calls the current one.
+    // Held in refs as well as in props so the click handlers - registered once, on a map that
+    // outlives any single render - always read the current ones.
     const select = useRef(onSelect)
     select.current = onSelect
+    const registry = useRef(tree)
+    registry.current = tree
+    // The one popup this map shows at a time, owned here so a new click replaces the old card.
+    const popup = useRef<Popup | null>(null)
 
     const [engineFailure, setEngineFailure] = useState<string | null>(null)
     const [ready, setReady] = useState(false)
@@ -163,6 +240,9 @@ export function OrgUnitMap({
     // framed something bounded rather than the world" is a fact only the engine holds, and a test
     // that read pixel colours to infer it would be guessing.
     const [zoom, setZoom] = useState<number | null>(null)
+    // Which projection the canvas is drawing, exposed the same way and for the same reason.
+    const [projection, setProjection] = useState<MapProjection>('mercator')
+    const projectionNow = useRef<MapProjection>('mercator')
 
     const shapes = useMemo(
         () => shapeCollection(boundaries, selectedUnitId, descendantUnitIds),
@@ -176,6 +256,11 @@ export function OrgUnitMap({
         () => framing(boundaries, points, focusUnitIds),
         [boundaries, points, focusUnitIds],
     )
+    // The current framing target, readable by the recenter control at click time.
+    const focusNow = useRef(focus)
+    focusNow.current = focus
+    // The recenter control itself, held so a selection change can restate what it centres on.
+    const recenter = useRef<RecenterControl | null>(null)
 
     // The theme is a class on <html>, set by next-themes. Watching the attribute rather than
     // calling useTheme keeps this component usable outside the provider - and it is the resolved
@@ -205,8 +290,8 @@ export function OrgUnitMap({
                 // of markup this component draws: the credit is a condition of using the tiles, and
                 // the renderer that draws them is the right thing to be responsible for saying so.
                 attributionControl: basemap === null ? false : { compact: true },
-                // Nothing here is a globe-scale dataset and the flat projection keeps the shapes
-                // readable at district size, which is the zoom this map is actually used at.
+                // Rotation and pitch stay off: district shapes are read north-up, and the globe
+                // view is a projection change through its own control, not a free camera.
                 pitchWithRotate: false,
                 dragRotate: false,
             })
@@ -215,22 +300,54 @@ export function OrgUnitMap({
             return
         }
 
-        // The one navigation control this map carries. `container` is the wrapper around the
-        // canvas rather than the canvas div itself, so the legend rides into fullscreen too - a
-        // map whose colours mean nothing without the key must not shed the key at exactly the
-        // size it is easiest to read. Entering and leaving fullscreen is just a resize of the
+        // The corner controls. For fullscreen, `container` is the wrapper around the canvas
+        // rather than the canvas div itself, so the legend rides into fullscreen too - a map
+        // whose colours mean nothing without the key must not shed the key at exactly the size
+        // it is easiest to read. Entering and leaving fullscreen is just a resize of the
         // container, which the ResizeObserver below already follows; no extra wiring.
         instance.addControl(
             new FullscreenControl({ container: element.parentElement ?? undefined }),
             'top-right',
         )
+        // The globe toggle, in the same corner. Feature-detected rather than assumed, so an
+        // engine without projections simply has no button instead of a button that throws.
+        if (typeof instance.setProjection === 'function') {
+            instance.addControl(
+                new GlobeToggleControl({
+                    sky: () => globeSky(readPalette(element, isDarkTheme())),
+                    onProjectionChange: (next) => {
+                        projectionNow.current = next
+                        setProjection(next)
+                    },
+                }),
+                'top-right',
+            )
+        }
+        // The recenter control, last in the stack: back to the current framing target - the
+        // selection's extent, or the whole registry's - in whichever projection is up.
+        const recenterControl = new RecenterControl(() => {
+            const extent = focusNow.current
+            if (extent !== null) easeToExtent(instance, extent)
+        })
+        instance.addControl(recenterControl, 'top-right')
+        recenter.current = recenterControl
 
         map.current = instance
         instance.on('error', (event) => {
             // A style or source error must not leave a blank rectangle with no explanation.
             setEngineFailure(event.error.message)
         })
-        instance.on('load', () => setReady(true))
+        instance.on('load', () => {
+            // The compact attribution starts expanded and only minimises on the first drag; this
+            // map starts it closed. The credit stays one tap away behind the i-button, which is
+            // what using the tiles requires.
+            const attribution = element.querySelector('.maplibregl-ctrl-attrib')
+            if (attribution !== null && attribution.classList.contains('maplibregl-compact')) {
+                attribution.classList.remove('maplibregl-compact-show')
+                attribution.setAttribute('open', '')
+            }
+            setReady(true)
+        })
         instance.on('moveend', () => setZoom(instance.getZoom()))
 
         const resize = new ResizeObserver(() => instance.resize())
@@ -241,6 +358,11 @@ export function OrgUnitMap({
             setReady(false)
             setPainted(false)
             setZoom(null)
+            setProjection('mercator')
+            projectionNow.current = 'mercator'
+            popup.current?.remove()
+            popup.current = null
+            recenter.current = null
             map.current = null
             instance.remove()
         }
@@ -263,24 +385,26 @@ export function OrgUnitMap({
                 instance.setPaintProperty(BASEMAP_LAYER_ID, property, muting[property])
             }
         }
-        applyLayers(instance, palette, basemap !== null, shapes, markers, select)
+        applyLayers(instance, palette, basemap !== null, shapes, markers, { select, registry, popup })
+        if (projectionNow.current === 'globe' && typeof instance.setSky === 'function') {
+            // A theme flip while the globe is up re-tokens the sky with everything else.
+            instance.setSky(globeSky(palette))
+        }
         setPainted(true)
     }, [ready, dark, basemap, shapes, markers])
 
     useEffect(() => {
         const instance = map.current
         if (instance === null || !ready || focus === null) return
-        const [west, south, east, north] = focus
-        const bounds: LngLatBoundsLike = [
-            [west, south],
-            [east, north],
-        ]
-        if (west === east && south === north) {
-            instance.easeTo({ center: [west, south], zoom: POINT_ZOOM, duration: 400 })
-            return
-        }
-        instance.fitBounds(bounds, { padding: FIT_PADDING, duration: 400, maxZoom: 12 })
+        // A new framing means a new subject, and a popup about the old one would ride along.
+        popup.current?.remove()
+        easeToExtent(instance, focus)
     }, [ready, focus])
+
+    // What the recenter control centres on is a fact about the selection, restated when it moves.
+    useEffect(() => {
+        recenter.current?.setSubject(selectedUnitId !== null)
+    }, [ready, selectedUnitId])
 
     return (
         // The component fills whatever the page gives it rather than claiming a height of its own:
@@ -296,17 +420,35 @@ export function OrgUnitMap({
                 // whose colours are not CSS, so a theme that reached the stylesheet but not the
                 // renderer is a bug no style assertion could see; this is what a test asserts on.
                 data-map-theme={dark ? 'dark' : 'light'}
-                aria-label="Organisation unit boundaries"
+                // Which projection the canvas is drawing - the globe toggle's effect is otherwise
+                // a fact only the renderer holds.
+                data-map-projection={projection}
+                aria-label="Organisation unit map"
                 role="img"
-                className="bg-card min-h-0 w-full flex-1 overflow-hidden rounded-lg border"
-            />
+                // `isolate` opens a stacking context so the starfield's negative z-index sits
+                // above this div's own card background and below everything MapLibre draws.
+                className="bg-card isolate min-h-0 w-full flex-1 overflow-hidden rounded-lg border"
+            >
+                {/* THE UNIVERSE. In globe projection the engine leaves the canvas transparent
+                    around the sphere (see globeSky), and this is what shows through: deep space
+                    with a deterministic starfield, dark in both themes because space is. It exists
+                    only while the globe is up, so it never fights the flat map or the light UI. */}
+                {projection === 'globe' && (
+                    <div
+                        data-testid="org-unit-map-starfield"
+                        aria-hidden="true"
+                        className="map-starfield pointer-events-none absolute inset-0 -z-10"
+                        style={STARFIELD_PAINT}
+                    />
+                )}
+            </div>
             {engineFailure !== null && (
                 <p
                     data-testid="org-unit-map-unavailable"
                     className="text-muted-foreground bg-card absolute inset-0 flex items-center rounded-lg border px-4 text-sm"
                 >
-                    The map could not start, so the boundaries are not drawn. Everything else on this
-                    page is unaffected. ({engineFailure})
+                    The map could not start, so the organisation units are not drawn. Everything
+                    else on this page is unaffected. ({engineFailure})
                 </p>
             )}
             {engineFailure === null && <MapLegend overTiles={basemap !== null} />}
@@ -319,27 +461,32 @@ export function OrgUnitMap({
  *
  * A legend is not automatic - most charts here carry none - but this one earns its place: the map
  * has no axis, no labels, and three shades of one hue, so without a key the colour is decoration.
- * Each row carries text as well as a swatch, so identity is never colour alone.
+ * Each row carries text as well as a swatch, so identity is never colour alone - and each row
+ * explains itself on hover, because the tier names lean on a selection model a reader who is not
+ * steeped in DHIS2 has not met yet.
  */
 function MapLegend({ overTiles }: { overTiles: boolean }) {
     return (
         <ul className="bg-card/90 text-muted-foreground absolute bottom-3 left-3 space-y-1 rounded-md border px-2.5 py-2 text-xs">
-            <li className="flex items-center gap-2">
-                <span className="bg-primary-emphasis size-2.5 rounded-[2px]" aria-hidden />
-                Selected unit
+            <li className="flex items-center gap-2" title="The organisation unit you picked.">
+                <span className="bg-map-selection size-2.5 rounded-[2px]" aria-hidden />
+                Selected organisation unit
             </li>
-            <li className="flex items-center gap-2">
+            <li className="flex items-center gap-2" title="Organisation units inside the one you picked.">
                 <span className="bg-primary/55 size-2.5 rounded-[2px]" aria-hidden />
                 Below the selection
             </li>
-            <li className="flex items-center gap-2">
+            <li
+                className="flex items-center gap-2"
+                title="Organisation units this guide publishes that are outside your selection."
+            >
                 {/* The swatch tracks the tier's real colour, which changes with the ground under
                     it: a `--border` hairline is legible on a plain card and invisible on tiles. */}
                 <span
                     className={cn('size-2.5 rounded-[2px]', overTiles ? 'bg-muted-foreground' : 'bg-border')}
                     aria-hidden
                 />
-                Every other unit
+                Other organisation units
             </li>
         </ul>
     )
@@ -434,7 +581,7 @@ function applyLayers(
     overTiles: boolean,
     shapes: FeatureCollection,
     markers: FeatureCollection,
-    select: { current: (unitId: string) => void },
+    handles: InteractionHandles,
 ): void {
     const shapeSource = instance.getSource('org-unit-boundaries')
     const markerSource = instance.getSource('org-unit-points')
@@ -455,13 +602,22 @@ function applyLayers(
         type: 'fill',
         source: 'org-unit-boundaries',
         paint: {
-            'fill-color': ['match', ['get', 'tier'], 'other', palette.contextInk, palette.identity],
+            'fill-color': [
+                'match',
+                ['get', 'tier'],
+                'other',
+                palette.contextInk,
+                'selected',
+                palette.selection,
+                palette.identity,
+            ],
             // The context fill thins out over tiles: its job there is only to stay clickable, and a
             // wash over every district would hide the very map it was added to show. The selected
-            // fill is heavy enough to separate from the subtree wash by fill alone, so the tier
-            // ranking holds even where two boundaries share an edge and the strokes merge.
+            // fill is in its own hue and heavy enough to separate from the subtree wash by fill
+            // alone, so the tier ranking holds even where two boundaries share an edge and the
+            // strokes merge.
             'fill-opacity': overTiles
-                ? ['match', ['get', 'tier'], 'selected', 0.3, 'within', 0.08, 0.01]
+                ? ['match', ['get', 'tier'], 'selected', 0.35, 'within', 0.08, 0.01]
                 : ['match', ['get', 'tier'], 'selected', 0.36, 'within', 0.1, 0.06],
         },
     })
@@ -484,20 +640,19 @@ function applyLayers(
         paint: {
             // `--border` is tuned to sit one shade off a plain card. On a photograph of a city it is
             // not a hairline, it is nothing - so over tiles the context tier takes the ink token and
-            // states itself at partial opacity instead. The selected stroke takes the emphasis step
-            // of the identity ramp, which is what keeps it apart from the subtree tier in lightness
-            // as well as in width.
+            // states itself at partial opacity instead. The selected stroke takes the amber edge,
+            // which is what keeps it apart from the subtree tier in hue as well as in width.
             'line-color': [
                 'match',
                 ['get', 'tier'],
                 'other',
                 overTiles ? palette.contextInk : palette.context,
                 'selected',
-                palette.identityStrong,
+                palette.selectionEdge,
                 palette.identity,
             ],
             'line-width': overTiles
-                ? ['match', ['get', 'tier'], 'selected', 3, 'within', 1.5, 1]
+                ? ['match', ['get', 'tier'], 'selected', 3.5, 'within', 1.5, 1]
                 : ['match', ['get', 'tier'], 'selected', 2.75, 'within', 1.25, 0.75],
             'line-opacity': overTiles
                 ? ['match', ['get', 'tier'], 'within', 0.7, 'other', 0.55, 1]
@@ -509,13 +664,15 @@ function applyLayers(
         type: 'circle',
         source: 'org-unit-points',
         paint: {
+            // The selected marker takes the amber edge, so a selected facility and a selected
+            // district carry the same mark.
             'circle-color': [
                 'match',
                 ['get', 'tier'],
                 'other',
                 palette.contextInk,
                 'selected',
-                palette.identityStrong,
+                palette.selectionEdge,
                 palette.identity,
             ],
             'circle-radius': ['match', ['get', 'tier'], 'selected', 7, 'within', 4.5, 3.5],
@@ -527,11 +684,30 @@ function applyLayers(
         },
     })
 
+    // LEFT-CLICK ASKS, RIGHT-CLICK MOVES. A left-click on any shape opens the popup naming its
+    // unit, with Open as the deliberate step into it - unless the map is still too far out for
+    // the click to have meant one shape, in which case it eases a step in toward the click
+    // instead: progressive drill, popup once the features read. A right-click is the drill-down
+    // whatever the zoom, and selects outright. Registered on the map rather than per layer so the
+    // gestures share one answer to "what did the cursor land on" - the point over the boundary,
+    // the topmost fill otherwise.
+    instance.on('click', (event) => {
+        const hit = featureHitAt(instance, event.point)
+        if (hit === null) return
+        const threshold = hit.kind === 'point' ? POINT_POPUP_MIN_ZOOM : BOUNDARY_POPUP_MIN_ZOOM
+        if (instance.getZoom() < threshold) {
+            instance.easeTo({ center: event.lngLat, zoom: instance.getZoom() + DRILL_ZOOM_STEP, duration: 400 })
+            return
+        }
+        openUnitPopup(instance, hit.unitId, event.lngLat, handles)
+    })
+    instance.on('contextmenu', (event) => {
+        // Listening here is also what keeps the browser's own menu off the canvas: MapLibre
+        // prevents the default whenever the map has a contextmenu listener.
+        const hit = featureHitAt(instance, event.point)
+        if (hit !== null) handles.select.current(hit.unitId)
+    })
     for (const layer of ['boundary-fill', 'unit-point']) {
-        instance.on('click', layer, (event) => {
-            const unitId = event.features?.[0]?.properties?.unitId
-            if (typeof unitId === 'string') select.current(unitId)
-        })
         instance.on('mouseenter', layer, () => {
             instance.getCanvas().style.cursor = 'pointer'
         })
@@ -541,6 +717,117 @@ function applyLayers(
     }
 }
 
+/** The refs the map's one-time event handlers read through, so they never go stale. */
+interface InteractionHandles {
+    select: { current: (unitId: string) => void }
+    registry: { current: OrgUnitTree }
+    popup: { current: Popup | null }
+}
+
+/** What a cursor position landed on: which unit, and whether by its pin or by its boundary. */
+interface FeatureHit {
+    unitId: string
+    kind: 'point' | 'boundary'
+}
+
+/** The shape under a cursor position: a point when one is near, else the topmost boundary. */
+function featureHitAt(instance: MapLibreMap, position: Point): FeatureHit | null {
+    const around: [PointLike, PointLike] = [
+        [position.x - POINT_HIT_RADIUS, position.y - POINT_HIT_RADIUS],
+        [position.x + POINT_HIT_RADIUS, position.y + POINT_HIT_RADIUS],
+    ]
+    const pin: MapGeoJSONFeature | undefined = instance.queryRenderedFeatures(around, {
+        layers: ['unit-point'],
+    })[0]
+    const feature = pin ?? instance.queryRenderedFeatures(position, { layers: ['boundary-fill'] })[0]
+    const unitId: unknown = feature?.properties['unitId']
+    if (typeof unitId !== 'string') return null
+    return { unitId, kind: pin === undefined ? 'boundary' : 'point' }
+}
+
+/**
+ * Ease the camera onto one extent - the shared move behind the framing effect and the recenter
+ * control. A degenerate extent is a single point, which no fit can frame, so it gets the point
+ * zoom instead. Works in either projection: the engine's own fit resolves the camera on the globe
+ * exactly as it does on the flat map.
+ */
+function easeToExtent(instance: MapLibreMap, extent: [number, number, number, number]): void {
+    const [west, south, east, north] = extent
+    if (west === east && south === north) {
+        instance.easeTo({ center: [west, south], zoom: POINT_ZOOM, duration: 400 })
+        return
+    }
+    const bounds: LngLatBoundsLike = [
+        [west, south],
+        [east, north],
+    ]
+    instance.fitBounds(bounds, { padding: FIT_PADDING, duration: 400, maxZoom: 12 })
+}
+
+/** Open the info popup for one unit, replacing whichever popup is already up. */
+function openUnitPopup(
+    instance: MapLibreMap,
+    unitId: string,
+    at: LngLatLike,
+    handles: InteractionHandles,
+): void {
+    const node = handles.registry.current.byId.get(unitId)
+    const parentName =
+        node === undefined || node.parentId === null
+            ? null
+            : (handles.registry.current.byId.get(node.parentId)?.name ?? null)
+    const content = unitPopupContent({
+        name: node?.name ?? unitId,
+        level: node?.level ?? null,
+        parentName,
+        descendantCount: node?.descendantCount ?? 0,
+    })
+    handles.popup.current?.remove()
+    const card = new Popup({ closeOnClick: true, maxWidth: '18rem', offset: 12 })
+    card.setDOMContent(
+        popupElement(content, () => {
+            handles.select.current(unitId)
+            card.remove()
+        }),
+    )
+    card.setLngLat(at).addTo(instance)
+    handles.popup.current = card
+}
+
+/**
+ * The popup's markup, built as DOM rather than HTML: a unit's name is registry text, and text it
+ * stays - `textContent` cannot become markup however the name is spelled.
+ */
+function popupElement(content: UnitPopupContent, onOpen: () => void): HTMLElement {
+    const root = document.createElement('div')
+    root.dataset.testid = 'org-unit-map-popup'
+    root.className = 'space-y-1'
+    const name = document.createElement('p')
+    name.className = 'text-sm font-semibold'
+    name.textContent = content.name
+    root.append(name)
+    const lines: [string | null, boolean][] = [
+        [content.levelLabel, false],
+        [content.parentName, true],
+        [content.belowLine, true],
+    ]
+    for (const [line, muted] of lines) {
+        if (line === null) continue
+        const paragraph = document.createElement('p')
+        paragraph.className = muted ? 'text-muted-foreground text-xs' : 'text-xs'
+        paragraph.textContent = line
+        root.append(paragraph)
+    }
+    const open = document.createElement('button')
+    open.type = 'button'
+    open.dataset.testid = 'org-unit-map-popup-open'
+    open.className = 'text-primary mt-1 block text-sm hover:underline'
+    open.textContent = 'Open'
+    open.addEventListener('click', onOpen)
+    root.append(open)
+    return root
+}
+
 /** Re-token every paint value, which is what a theme flip needs and nothing else does. */
 function repaint(instance: MapLibreMap, palette: MapPalette, overTiles: boolean): void {
     instance.setPaintProperty('boundary-fill', 'fill-color', [
@@ -548,6 +835,8 @@ function repaint(instance: MapLibreMap, palette: MapPalette, overTiles: boolean)
         ['get', 'tier'],
         'other',
         palette.contextInk,
+        'selected',
+        palette.selection,
         palette.identity,
     ])
     instance.setPaintProperty('boundary-line', 'line-color', [
@@ -556,7 +845,7 @@ function repaint(instance: MapLibreMap, palette: MapPalette, overTiles: boolean)
         'other',
         overTiles ? palette.contextInk : palette.context,
         'selected',
-        palette.identityStrong,
+        palette.selectionEdge,
         palette.identity,
     ])
     if (overTiles) instance.setPaintProperty('boundary-casing', 'line-color', palette.surface)
@@ -566,10 +855,142 @@ function repaint(instance: MapLibreMap, palette: MapPalette, overTiles: boolean)
         'other',
         palette.contextInk,
         'selected',
-        palette.identityStrong,
+        palette.selectionEdge,
         palette.identity,
     ])
     instance.setPaintProperty('unit-point', 'circle-stroke-color', palette.surface)
+}
+
+/**
+ * The recenter control: back to the current framing target, in whichever projection is up.
+ *
+ * The target itself lives with the component - the selection's extent by the unitExtent priority,
+ * or the whole registry's when nothing is selected - so the control is only the button and the
+ * words. What it centres on changes with the selection, and `setSubject` is how the component
+ * keeps the label honest.
+ */
+class RecenterControl implements IControl {
+    private readonly onRecenter: () => void
+    private container: HTMLElement | null = null
+    private button: HTMLButtonElement | null = null
+
+    constructor(onRecenter: () => void) {
+        this.onRecenter = onRecenter
+    }
+
+    /** Build the button in MapLibre's control chrome. */
+    onAdd(): HTMLElement {
+        const container = document.createElement('div')
+        container.className = 'maplibregl-ctrl maplibregl-ctrl-group'
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.title = RECENTER_REGISTRY_LABEL
+        button.setAttribute('aria-label', RECENTER_REGISTRY_LABEL)
+        const icon = document.createElement('span')
+        icon.className = 'maplibregl-ctrl-icon'
+        icon.setAttribute('aria-hidden', 'true')
+        icon.style.backgroundImage = RECENTER_ICON
+        button.append(icon)
+        button.addEventListener('click', this.onRecenter)
+        container.append(button)
+        this.container = container
+        this.button = button
+        return container
+    }
+
+    /** Take the chrome down. */
+    onRemove(): void {
+        this.container?.remove()
+        this.container = null
+        this.button = null
+    }
+
+    /** Say what the button centres on - the selection while there is one, the registry otherwise. */
+    setSubject(hasSelection: boolean): void {
+        const button = this.button
+        if (button === null) return
+        const label = hasSelection ? RECENTER_SELECTION_LABEL : RECENTER_REGISTRY_LABEL
+        button.title = label
+        button.setAttribute('aria-label', label)
+    }
+}
+
+/** What the globe toggle needs from the component: a sky, and somewhere to say what happened. */
+interface GlobeToggleOptions {
+    sky: () => SkySpecification
+    onProjectionChange: (projection: MapProjection) => void
+}
+
+/**
+ * The globe toggle, in MapLibre's own control chrome.
+ *
+ * A pure projection switch: the camera stays exactly where it is, framed on whatever was framed,
+ * and only the geometry under it curves. The way to the from-space view is the same as on any
+ * map - zoom out - and the recenter control is the way back to the shapes. MapLibre's stock
+ * GlobeControl is not used because this one also dresses the globe in the token sky, keeps the
+ * button's words honest, and tells the component which projection is up; its icon classes are
+ * reused, so the glyph and its dark-theme inversion are the same chrome as the other corner
+ * buttons.
+ */
+class GlobeToggleControl implements IControl {
+    private readonly options: GlobeToggleOptions
+    private map: MapLibreMap | null = null
+    private container: HTMLElement | null = null
+    private button: HTMLButtonElement | null = null
+    private globeUp = false
+
+    constructor(options: GlobeToggleOptions) {
+        this.options = options
+    }
+
+    /** Build the button in MapLibre's control chrome and remember the map it steers. */
+    onAdd(map: MapLibreMap): HTMLElement {
+        this.map = map
+        const container = document.createElement('div')
+        container.className = 'maplibregl-ctrl maplibregl-ctrl-group'
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'maplibregl-ctrl-globe'
+        button.title = ENTER_GLOBE_LABEL
+        button.setAttribute('aria-label', ENTER_GLOBE_LABEL)
+        button.setAttribute('aria-pressed', 'false')
+        const icon = document.createElement('span')
+        icon.className = 'maplibregl-ctrl-icon'
+        icon.setAttribute('aria-hidden', 'true')
+        button.append(icon)
+        button.addEventListener('click', () => {
+            this.toggle()
+        })
+        container.append(button)
+        this.container = container
+        this.button = button
+        return container
+    }
+
+    /** Take the chrome down and forget the map. */
+    onRemove(): void {
+        this.container?.remove()
+        this.container = null
+        this.button = null
+        this.map = null
+    }
+
+    /** Switch the projection in place - the camera does not move, the geometry under it curves. */
+    private toggle(): void {
+        const map = this.map
+        const button = this.button
+        if (map === null || button === null) return
+        this.globeUp = !this.globeUp
+        map.setProjection({ type: this.globeUp ? 'globe' : 'mercator' })
+        if (typeof map.setSky === 'function') map.setSky(this.globeUp ? this.options.sky() : FLAT_SKY)
+        const label = this.globeUp ? EXIT_GLOBE_LABEL : ENTER_GLOBE_LABEL
+        button.title = label
+        button.setAttribute('aria-label', label)
+        button.setAttribute('aria-pressed', this.globeUp ? 'true' : 'false')
+        if (this.globeUp) button.classList.replace('maplibregl-ctrl-globe', 'maplibregl-ctrl-globe-enabled')
+        else button.classList.replace('maplibregl-ctrl-globe-enabled', 'maplibregl-ctrl-globe')
+        this.options.onProjectionChange(this.globeUp ? 'globe' : 'mercator')
+    }
 }
 
 /**
@@ -591,7 +1012,8 @@ function readPalette(element: HTMLElement, dark: boolean): MapPalette {
         context: token('--border', fallback.context),
         contextInk: token('--muted-foreground', fallback.contextInk),
         identity: token('--primary', fallback.identity),
-        identityStrong: token('--primary-emphasis', fallback.identityStrong),
+        selection: token('--map-selection', fallback.selection),
+        selectionEdge: token('--map-selection-edge', fallback.selectionEdge),
     }
 }
 
