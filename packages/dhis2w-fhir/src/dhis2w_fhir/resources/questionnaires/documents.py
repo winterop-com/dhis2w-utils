@@ -60,15 +60,14 @@ from dhis2w_fhir.resources.questionnaires import (
     ITEM_CONTROL_EXTENSION_URL,
     MAXIMUM_VALUE_EXTENSION_URL,
     MINIMUM_VALUE_EXTENSION_URL,
-    PROGRAM_IDENTIFIER_SEGMENT,
     bound_option_set_uids,
     collect_referenced_objects,
     domain_code,
+    grouping_identifiers,
     is_disaggregated,
     is_multi_valued,
     item_type,
     source_description,
-    source_program,
 )
 from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
@@ -76,20 +75,26 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     DATA_ELEMENT_TERMINOLOGY,
     DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
-    VALUE_TYPE_PROPERTY_DESCRIPTION,
+    TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY,
+    UNIQUE_PROPERTY_DESCRIPTION,
     CategoryOptionComboIn,
+    FormKind,
     FormKindProfile,
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
     QuestionnaireStemPlan,
+    ReferencedObjects,
     SupportTerminologyProfile,
+    form_subject_type,
     plan_questionnaire_stems,
     source_display_name,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from dhis2w_fhir.attributes import AttributeCodeIndex
     from dhis2w_fhir.config import GenerateConfig
     from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
@@ -131,8 +136,11 @@ _CODE_PROPERTY = "dhis2-code"
 #: The concept property only the data-element CodeSystem declares, carrying the DHIS2 domain type.
 _DOMAIN_PROPERTY = "domain"
 
-#: The concept property only the data-element CodeSystem declares, carrying the DHIS2 value type.
+#: The concept property the data-element and attribute CodeSystems declare, carrying the DHIS2 value type.
 _VALUE_TYPE_PROPERTY = "value-type"
+
+#: The concept property only the attribute CodeSystem declares, marking a business identifier.
+_UNIQUE_PROPERTY = "unique"
 
 
 class QuestionnaireDocumentBuild(BaseModel):
@@ -177,6 +185,7 @@ class _QuestionnaireSystems(BaseModel):
     attribute_option_combos_extension_url: str
     attribute_value_extension_url: str
     data_element_code_system_url: str
+    tracked_entity_attribute_code_system_url: str
     category_option_combo_code_system_url: str
 
     @classmethod
@@ -198,6 +207,9 @@ class _QuestionnaireSystems(BaseModel):
             ),
             attribute_value_extension_url=attribute_value_extension_url(config, canonical),
             data_element_code_system_url=code_system_canonical(canonical, names.data_element_code_system_id),
+            tracked_entity_attribute_code_system_url=code_system_canonical(
+                canonical, names.tracked_entity_attribute_code_system_id
+            ),
             category_option_combo_code_system_url=code_system_canonical(
                 canonical, names.category_option_combo_code_system_id
             ),
@@ -206,6 +218,12 @@ class _QuestionnaireSystems(BaseModel):
     def identifier_system(self, segment: str) -> str:
         """The DHIS2 identifier system one object kind is named under (e.g. `.../id/data-set`)."""
         return f"{self.identifier_base}/{segment}"
+
+    def question_code_system_url(self, kind: FormKind) -> str:
+        """The support CodeSystem URL one form kind's questions are coded from - the twin of `question_code_system`."""
+        if FORM_KIND_PROFILES[kind].question_subject == "tracked-entity-attribute":
+            return self.tracked_entity_attribute_code_system_url
+        return self.data_element_code_system_url
 
     def questionnaire_url(self, stem: str) -> str:
         """Canonical URL one form's Questionnaire is published at, closing on its identity stem."""
@@ -263,6 +281,7 @@ def build_questionnaire_documents(
             attribute_codes=attribute_codes,
             assignments=assignment_plan,
             attribute_combos=attribute_combo_plan,
+            tracked_entity_types=config.tracked_entity_types,
         )
         for source in sorted(sources, key=lambda item: (item.name, item.uid))
     ]
@@ -288,19 +307,19 @@ def build_data_dictionary_documents(
 ) -> DataDictionaryDocumentBuild:
     """Build the support CodeSystem/ValueSet pairs over the objects the given forms reference.
 
-    One pair over every data element a question is asked from, one over every category option
-    combo the aggregate forms disaggregate by - the JSON twin of `data-dictionary/`.
+    One pair over every data element a question is asked from, one over every tracked entity
+    attribute a registration form asks about, one over every category option combo the aggregate
+    forms disaggregate by - the JSON twin of `data-dictionary/`.
     """
     names = QuestionnaireNaming.from_naming(config.naming)
-    data_elements: dict[str, QuestionnaireItemIn] = {}
-    option_combos: dict[str, CategoryOptionComboIn] = {}
+    referenced = ReferencedObjects()
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
-        collect_referenced_objects(source, data_elements, option_combos)
+        collect_referenced_objects(source, referenced)
     pairs: list[_SupportPair] = []
-    if data_elements:
+    if referenced.data_elements:
         pairs.append(
             _support_pair(
-                _data_element_concepts(data_elements),
+                _data_element_concepts(referenced.data_elements),
                 DATA_ELEMENT_TERMINOLOGY,
                 config,
                 canonical,
@@ -311,10 +330,24 @@ def build_data_dictionary_documents(
                 ig_status=ig_status,
             )
         )
-    if option_combos:
+    if referenced.tracked_entity_attributes:
         pairs.append(
             _support_pair(
-                _option_combo_concepts(option_combos),
+                _tracked_entity_attribute_concepts(referenced.tracked_entity_attributes),
+                TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY,
+                config,
+                canonical,
+                code_system_name=names.tracked_entity_attribute_code_system,
+                code_system_id=names.tracked_entity_attribute_code_system_id,
+                value_set_name=names.tracked_entity_attribute_value_set,
+                value_set_id=names.tracked_entity_attribute_value_set_id,
+                ig_status=ig_status,
+            )
+        )
+    if referenced.option_combos:
+        pairs.append(
+            _support_pair(
+                _option_combo_concepts(referenced.option_combos),
                 CATEGORY_OPTION_COMBO_TERMINOLOGY,
                 config,
                 canonical,
@@ -342,6 +375,7 @@ def _questionnaire_document(
     attribute_codes: AttributeCodeIndex,
     assignments: AssignmentPlan,
     attribute_combos: AttributeComboPlan,
+    tracked_entity_types: Mapping[str, str],
 ) -> Questionnaire:
     """Build one form's Questionnaire, every name already resolved to the URL it is served under.
 
@@ -349,7 +383,8 @@ def _questionnaire_document(
     `name` - while the identifier slices keep the DHIS2 id and code as the data they are.
     `title` carries the DHIS2 name verbatim because it is data, while `description` is the page
     furniture the IG publisher pastes into HTML and takes the same markup escaping the FSH
-    `Description:` keyword does.
+    `Description:` keyword does. `tracked_entity_types` is the project's tracked-entity-type map,
+    read through the very `form_subject_type` call the FSH path reads it through.
     """
     profile = FORM_KIND_PROFILES[source.kind]
     return Questionnaire(
@@ -369,7 +404,7 @@ def _questionnaire_document(
         name=names.questionnaire_name(source.kind, stem_plan.targets.fsh_segment_for(source.uid)),
         status=ig_status,
         experimental=experimental_for_status(ig_status),
-        subjectType=[profile.subject_type],
+        subjectType=[form_subject_type(source, tracked_entity_types)],
         code=[Coding(system=systems.form_type_code_system_url, code=source.kind)],
         item=_items(source, systems, identities) or None,
     )
@@ -406,7 +441,7 @@ def _identifiers(
     systems: _QuestionnaireSystems,
     attribute_codes: AttributeCodeIndex,
 ) -> list[Identifier]:
-    """One form's DHIS2 identifiers: its UID, its code, the program grouping a stage, then its unique values."""
+    """One form's DHIS2 identifiers: its UID, its code, whatever groups it, then its unique attribute values."""
     identifiers = [
         Identifier(system=systems.identifier_system(profile.identifier_segment), value=source.uid),
         Identifier(
@@ -414,10 +449,10 @@ def _identifiers(
             value=code_or_uid(source.code, source.uid),
         ),
     ]
-    if source.kind == "tracker-event":
-        identifiers.append(
-            Identifier(system=systems.identifier_system(PROGRAM_IDENTIFIER_SEGMENT), value=source_program(source).uid)
-        )
+    identifiers.extend(
+        Identifier(system=systems.identifier_system(grouping.segment), value=grouping.value)
+        for grouping in grouping_identifiers(source)
+    )
     identifiers.extend(
         attribute_value_identifiers(source.attribute_values, attribute_codes, systems.identifier_system_base)
     )
@@ -459,7 +494,13 @@ def _data_element_items(
     its answer binding, its repeats, and its bounds - only the `linkId`, the text, the code, and
     which cells are required differ.
     """
-    code = [Coding(system=systems.data_element_code_system_url, code=item.uid, display=flatten_whitespace(item.name))]
+    code = [
+        Coding(
+            system=systems.question_code_system_url(source.kind),
+            code=item.uid,
+            display=flatten_whitespace(item.name),
+        )
+    ]
     text = flatten_whitespace(item.form_name or item.name)
     resolved_item_type = _item_type_code(item_type(item))
     answer_value_set = _answer_value_set(item, identities, systems.canonical)
@@ -567,6 +608,22 @@ def _data_element_concepts(data_elements: dict[str, QuestionnaireItemIn]) -> lis
     return concepts
 
 
+def _tracked_entity_attribute_concepts(attributes: dict[str, QuestionnaireItemIn]) -> list[CodeSystemConcept]:
+    """One concept per referenced tracked entity attribute: its DHIS2 code, its value type, its uniqueness."""
+    return [
+        CodeSystemConcept(
+            code=item.uid,
+            display=flatten_whitespace(item.name),
+            property=[
+                CodeSystemConceptProperty(code=_CODE_PROPERTY, valueString=code_or_uid(item.code, item.uid)),
+                CodeSystemConceptProperty(code=_VALUE_TYPE_PROPERTY, valueCode=item.value_type),
+                CodeSystemConceptProperty(code=_UNIQUE_PROPERTY, valueBoolean=item.unique),
+            ],
+        )
+        for item in sorted(attributes.values(), key=lambda entry: (entry.name, entry.uid))
+    ]
+
+
 def _option_combo_concepts(option_combos: dict[str, CategoryOptionComboIn]) -> list[CodeSystemConcept]:
     """One concept per referenced category option combo, carrying the DHIS2 code it disaggregates under."""
     return [
@@ -663,8 +720,20 @@ def _property_declarations(
             CodeSystemProperty(
                 code=_VALUE_TYPE_PROPERTY,
                 uri=f"{property_base}/{_VALUE_TYPE_PROPERTY}",
-                description=VALUE_TYPE_PROPERTY_DESCRIPTION,
+                description=terminology.value_type_property_description,
                 type="code",
+            )
+        )
+    carries_unique = any(
+        concept_property.code == _UNIQUE_PROPERTY for concept in concepts for concept_property in concept.property or []
+    )
+    if carries_unique:
+        declarations.append(
+            CodeSystemProperty(
+                code=_UNIQUE_PROPERTY,
+                uri=f"{property_base}/{_UNIQUE_PROPERTY}",
+                description=UNIQUE_PROPERTY_DESCRIPTION,
+                type="boolean",
             )
         )
     return declarations

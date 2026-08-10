@@ -23,10 +23,10 @@ Usage: #definition
 * identifier[=].value = "{{ questionnaire.uid }}"
 * identifier[+].system = {{ questionnaire.identifier_code_system }}
 * identifier[=].value = {{ questionnaire.identifier_code_literal }}
-{% if questionnaire.grouping_identifier is not none %}
-* identifier[+].system = {{ questionnaire.grouping_identifier.system }}
-* identifier[=].value = {{ questionnaire.grouping_identifier.value_literal }}
-{% endif %}
+{% for grouping_identifier in questionnaire.grouping_identifiers %}
+* identifier[+].system = {{ grouping_identifier.system }}
+* identifier[=].value = {{ grouping_identifier.value_literal }}
+{% endfor %}
 {% for attribute_identifier in questionnaire.attribute_identifiers %}
 * identifier[+].system = {{ attribute_identifier.system_literal }}
 * identifier[=].value = {{ attribute_identifier.value_literal }}

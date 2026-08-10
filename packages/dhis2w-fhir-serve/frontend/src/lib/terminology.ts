@@ -273,3 +273,37 @@ export function translationResult(parameters: Parameters): TranslationResult {
 function namedPart(parts: ParametersParameter[], name: string): ParametersParameter | undefined {
     return parts.find((part) => part.name === name)
 }
+
+/**
+ * How many of a resource's own codes a query matches - the deep half of the listing filter.
+ *
+ * The listing rows are systems, but the thing a user often remembers is a code inside one:
+ * searching "first" should surface the CodeSystem holding the concept "First name (Play)"
+ * rather than answer nothing because no system is *titled* first. CodeSystems count matching
+ * concepts (code and display), ConceptMaps matching mapping rows (source and target codes and
+ * displays), and enumerated ValueSet compositions their stated concepts; a ValueSet that only
+ * composes whole systems carries no codes of its own and counts zero.
+ */
+export function matchingCodeCount(
+    resource: CodeSystem | ValueSet | ConceptMap,
+    query: string,
+): number {
+    if (query.trim() === '') return 0
+    if (resource.resourceType === 'CodeSystem') {
+        return (resource.concept ?? []).filter((concept) =>
+            matchesQuery(query, concept.code, concept.display),
+        ).length
+    }
+    if (resource.resourceType === 'ValueSet') {
+        return (resource.compose?.include ?? [])
+            .flatMap((include) => include.concept ?? [])
+            .filter((concept) => matchesQuery(query, concept.code, concept.display)).length
+    }
+    return (resource.group ?? [])
+        .flatMap((group) => group.element ?? [])
+        .filter(
+            (element) =>
+                matchesQuery(query, element.code, element.display) ||
+                (element.target ?? []).some((target) => matchesQuery(query, target.code, target.display)),
+        ).length
+}

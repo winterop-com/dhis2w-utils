@@ -767,8 +767,23 @@ under either setting - that is ambiguity, not leniency.
 
 ### 5.2 The tracker shape
 
-**Question.** Alongside `Patient`, does a tracker enrollment map to
+**Question.** Alongside the subject resource, does a tracker enrollment map to
 `EpisodeOfCare` or to `CarePlan`?
+
+**Settled: which resource type the subject is, is the project's to say.** A DHIS2
+tracked entity type is not always a person - buildings, herds, water points, and
+equipment are real tracked entity types - so `[generate.tracked_entity_types]` maps a
+type's UID onto the FHIR resource type its registrations are about (`Patient`, `Person`,
+`Practitioner`, `RelatedPerson`, `Group`, `Device`, `Location`, `Organization`,
+`Specimen`), defaulting to `Patient` for a type it never mentions. One resolution feeds
+the `subjectType` of the registration form and of every stage form of that program, the
+`subject.type` of the examples and of `$generate`, and the reference targets the two
+tracker response profiles admit; a capture server reads the type off the compiled
+Questionnaire, never off `fhir.toml`. The map is keyed by tracked entity type rather
+than by program because the type owns the nature of the thing, so two programs tracking
+one type agree by construction. What is still open here is the **resource layer** - the
+subject remains a logical identifier and no instance of any of those types is published,
+which is the half this decision still has to make alongside the enrollment resource.
 
 **Options.** `EpisodeOfCare` reads as the administrative period of care, which
 is closer to what a DHIS2 enrollment records. `CarePlan` reads as the intended
@@ -795,12 +810,28 @@ is exactly what SDC `$extract` keys on to project a response into coded
 substrate a clinical layer would be built on, not a competing representation of it -
 whichever way 5.2 is decided.
 
-**Depends on it.** `Patient` instances, the enrollment resource itself, and the
-registration form (the `tracker` code sitting in `D2FormType_CS`, which captures
-tracked entity attributes rather than a stage's data elements). The per-stage
-Questionnaires and the tracker-event capture contract do *not*: they ship today,
-keyed to the tracked entity and the enrollment by identifier, so the enrollment
-resource is an addition rather than a prerequisite.
+**Depends on it.** Subject instances - `Patient` or whichever type a project's tracked
+entity types resolve to - and the enrollment resource itself. The
+per-stage Questionnaires and the tracker-event capture contract do *not*: they ship
+today, keyed to the tracked entity and the enrollment by identifier, so the
+enrollment resource is an addition rather than a prerequisite.
+
+**Deferred by design, and the registration form shipped without it.** The
+registration form was the last thing this decision was blocking, and the block was
+never real: a registration response mints a tracked entity UID and an enrollment UID
+and carries the program's tracked entity attributes as answers, which is exactly the
+identifier-keyed contract the tracker-event kind already keeps. It ships that way -
+`D2TrackerRegistrationResponse` with a logical `Patient` subject under
+`{base}/id/tracked-entity`, `D2TrackerEnrollment` under
+`{base}/id/tracker-enrollment`, and `D2EnrolledAt` / `D2IncidentAt` dating the
+enrollment - and publishes no `Patient`, no `EpisodeOfCare`, and no `CarePlan`.
+
+So what stays open is narrower than it was, and is now purely about the **resource
+layer**: whether a DHIS2 enrollment additionally becomes an `EpisodeOfCare` or a
+`CarePlan`, and whether the tracked entity additionally becomes a `Patient` the
+subject can point at by reference rather than by identifier. Both are additions on
+top of a contract that already round-trips. Nothing on the generate path is waiting
+on the answer, which is the strongest argument for taking the time to get it right.
 
 ### 5.3 The extraction mechanism
 
@@ -1648,6 +1679,100 @@ commitment.
     not the generator's to fix: a tracker event lands only against a real enrollment,
     which is the registration form's milestone below.
 
+- **The tracker registration form** - shipped whole: published, captured, converted,
+  and forwarded.
+
+    A tracker program had every stage published and no way to reach any of them. That
+    is what `d2w fhir forward` was reporting when it refused every tracker event with
+    `E1313` / `E1079`: the enrollments those responses named did not exist on the
+    instance, and nothing the guide published created one. A stage is a *visit*, and
+    nothing is captured at a visit until somebody is enrolled - so the program itself
+    is a form, and answering it is what enrols them.
+
+    **The program is the form**, published at
+    `tracker-programs/<program stem>/registration.fsh` beside the stage files under a
+    fixed name rather than a stem, because the file already sits in the program's own
+    directory. Its identity is the program's own - the `PR` naming token,
+    `$DHIS2-PROGRAM` / `$DHIS2-PROGRAM-CODE`, the very pair a stage carries as its
+    grouping identifier - so one identifier search now returns a program's whole
+    capture surface rather than only its stages. A `$DHIS2-TET` slice names the tracked
+    entity type it enrols a person as, `trackedEntityType` joining
+    `IDENTIFIER_SYSTEM_SUBJECTS` for it. It shares its program's assignment `List`
+    (DHIS2 hangs the assignment on the program) and declares no attribute-option-combo
+    vocabulary (tracker capture has no third key).
+
+    **Its questions are tracked entity attributes, typed exactly as data elements are.**
+    `programTrackedEntityAttributes` is the same shape `programStageDataElements` is -
+    a join carrying `mandatory` and `sortOrder` around the object that carries the
+    question detail - so an attribute projects onto the very `QuestionnaireItemIn` a
+    data element does and every rule downstream applies unchanged. What differs is the
+    vocabulary its `code` points into: `D2TEA_CS` / `_VS`, mirroring `D2DE_CS` with
+    `dhis2-code` and `value-type`, plus `unique` - a boolean marking the attributes
+    DHIS2 declares business identifiers, which is also the groundwork for nominating
+    one as the subject identifier later. **The option-set closure grew to reach them**:
+    it was written over data elements, so a set only an attribute bound would have gone
+    unpublished with a published form still binding it. It is over questions now, on
+    the generate path and in `resolve_validation_scope` alike, so generate and validate
+    cannot disagree about what the run publishes. A tracked entity attribute joins the
+    closure without joining the `dataElements` scope surface, because it is not a data
+    element and that surface answers for what `d2w fhir validate` grades as one.
+
+    **The response profile mints what it names, which is the whole point.**
+    `D2TrackerRegistrationResponse` keys exactly as `D2TrackerEventResponse` does - a
+    logical `Patient` subject under `{base}/id/tracked-entity`, `D2TrackerEnrollment`
+    under `{base}/id/tracker-enrollment`, `D2OrganisationUnit` for the capture unit -
+    with one difference the profile states outright: nothing on the instance holds
+    either UID yet, because this response is what creates them, so the **client** mints
+    both as DHIS2 UIDs. That is what lets a client enrol a person and capture the
+    enrollment's first stage events in one submission run, naming the enrollment its
+    stage responses answer against before any of them is sent. Two new foundation
+    extensions date the enrollment: `D2EnrolledAt` 1..1, and `D2IncidentAt` 0..1 -
+    `0..1` rather than 1..1 because a DHIS2 program says through `displayIncidentDate`
+    whether it collects an incident date at all, which the source projection carries so
+    the examples of a program that does not emit none.
+
+    **Identifier-keyed, deferring [5.2](#52-the-tracker-shape) by design.** No
+    `Patient`, `EpisodeOfCare`, or `CarePlan` resource is published. That is not a gap
+    waiting on the decision - it is the same contract the tracker-event kind has kept
+    since it shipped, applied to the form that creates the enrollment. What 5.2 now
+    decides is purely the resource layer on top.
+
+    **What kind of thing is enrolled is configurable.** `[generate.tracked_entity_types]`
+    maps a tracked entity type UID onto the FHIR resource type its registrations are
+    about, so a project tracking herds publishes `subjectType = #Group` on the
+    registration form and on every stage form of that program, and the response profiles
+    admit the union of `Patient` and whatever the project configured. An unmapped type is
+    a `Patient`, so a person-tracking project configures nothing.
+
+    **Capture checks the shape of what the client minted, and says what it cannot check.**
+    `CAPTURED_FORM_KINDS` holds all four kinds, which is the one switch serve's index,
+    the conversion gate, the `supportedProfile` declarations, `/metadata`, and the load
+    set all read. The envelope phase grades a DHIS2-UID shape on both minted identifiers,
+    one organisation unit, and an enrolment date that parses - and stops there on purpose.
+    Uniqueness of a `unique` attribute is global instance state DHIS2 enforces at import,
+    and whether an incident date belongs is a fact about the program the compiled
+    Questionnaire does not publish, so a carried one is graded on its primitive alone.
+    `$generate` follows the same rule from the other side: it always writes `D2EnrolledAt`
+    and writes `D2IncidentAt` only where a served example of the form carries one, exactly
+    as it reads a data set's period type off a served example.
+
+    **Conversion writes the tracked entity it creates.** One `/api/tracker`
+    `trackedEntities` entry - the minted UID, the tracked entity type off `$DHIS2-TET`
+    (refused by name when the form carries none, because a program without one cannot
+    register anybody), the owning unit, one `TrackerAttribute` per answered question
+    through the value-type and coded-answer machinery a data element's answer uses, and
+    the single `ACTIVE` enrollment with `enrolledAt` required and `occurredAt` written
+    only where an incident date was stated. The models are the generated OpenAPI
+    `TrackerTrackedEntity` / `TrackerEnrollment` / `TrackerAttribute`, reused rather than
+    hand-rolled.
+
+    **Registrations post before events**, which is what finally clears `E1313`: a drain
+    orders by payload kind rather than tracking dependencies, so the enrollment a stage
+    response of the same drain answers against exists by the time DHIS2 reads the event.
+    `generate load-set` covers registration targets for the same reason and threads the
+    minted pairs through the program's stage responses, so a corpus is internally
+    consistent and a single forward run lands both halves.
+
 - **The attribute option combo, published as terminology** - shipped, and it is what
   [decision 5.4](#54-where-attributeoptioncombo-and-data-set-completeness-live)
   resolves for the AOC half.
@@ -1814,23 +1939,29 @@ commitment.
   carries 45,880 concepts, against one or two values per organisation unit - so
   this wants its own measurement rather than riding along with the resource-level
   shape.
-- **Tracker programs as Questionnaires.** A `WITH_REGISTRATION` program publishes
-  one `Questionnaire` per program stage under `tracker-programs/<program
-  uid>/<stage uid>.fsh`, and `D2TrackerEventResponse` is the capture contract for
-  an event of one - the `tracker-event` code, a logical `Patient` subject
-  identified by tracked-entity UID, and the `D2TrackerEnrollment` /
-  `D2OrganisationUnit` extensions. What remains is the registration half: the
-  `tracker` code of `D2FormType_CS` for the registration form (whose questions are
-  tracked entity attributes, not a stage's data elements), `Patient` instances so
-  the subject becomes a resolvable reference, and the enrollment resource itself.
-  All three are gated on open decision 5.2.
-- **A tracked entity attribute as the subject identifier.** A tracker-event
-  response identifies its subject by the DHIS2 tracked entity UID under
+- **Tracker programs as Questionnaires** - the definition half is shipped whole. A
+  `WITH_REGISTRATION` program publishes one `Questionnaire` per program stage under
+  `tracker-programs/<program stem>/<stage stem>.fsh` **plus its own registration
+  form** at `registration.fsh` in the same directory, and both capture contracts
+  are published: `D2TrackerEventResponse` for an event of an enrollment, and
+  `D2TrackerRegistrationResponse` for the enrollment itself. See
+  the registration entry under [9.1](#91-near-term) for what
+  shipped and what has not. Which resource type the subject is follows the program's
+  tracked entity type through `[generate.tracked_entity_types]`, so a project tracking
+  herds or water points publishes forms that say so. What remains is the resource
+  layer - instances of that type so the subject becomes a resolvable reference, and the
+  enrollment resource itself - which is what
+  [decision 5.2](#52-the-tracker-shape) is now narrowed to.
+- **A tracked entity attribute as the subject identifier.** A tracker response
+  identifies its subject by the DHIS2 tracked entity UID under
   `{base}/id/tracked-entity`. A later step lets an instance nominate a *unique*
   tracked entity attribute - a national ID, an MRN - as the subject identifier
   instead, under its own declared identifier system, so a response identifies the
-  person by something the receiving system already knows. That needs TEA support,
-  which arrives with the registration form above.
+  person by something the receiving system already knows. The support it needed is
+  now there: `D2TEA_CS` carries a `unique` boolean per attribute, so the guide
+  already states which attributes are business identifiers. What is left is the
+  nomination itself - which attribute an instance elects, and how a server resolves
+  a person by it.
 - **Org unit groups and group sets.** DHIS2 classifications beyond the level
   hierarchy - facility type, ownership - mapped to additional
   `Organization.type` codings from group-set CodeSystems, tokens `OUG` / `OUGS`

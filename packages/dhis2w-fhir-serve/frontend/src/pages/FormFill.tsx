@@ -15,10 +15,13 @@ import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
 import { FhirRequestError, generateResponse, postQuestionnaireResponse, readResource } from '@/lib/api'
 import {
     attributeOptionCombosOf,
+    enrolledAtOf,
     FORM_TYPE_LABELS,
     formTypeOf,
     generateSeedOf,
+    incidentAtOf,
     questionCount,
+    trackerEnrollmentOf,
     type Coding,
     type OperationOutcomeIssue,
     type Questionnaire,
@@ -38,6 +41,8 @@ import {
     unansweredRequiredLinkIds,
     type AnswerState,
 } from '@/lib/questionnaire'
+import { ENROLLED_AT_FACT_LABEL, INCIDENT_AT_FACT_LABEL } from '@/lib/receipt'
+import { formatInstant, TRACKER_ENROLLMENT_FACT_LABEL } from '@/lib/spool'
 import { cn } from '@/lib/utils'
 
 /**
@@ -77,6 +82,14 @@ import { cn } from '@/lib/utils'
  * proposal and changing it rewrites the built response. Both pickers are fed by one read of the
  * registry, published to the form through `OrgUnitScopeProvider` so the `ORGANISATION_UNIT`
  * questions inside it pick from the same set.
+ *
+ * EVERYTHING ELSE THE ENVELOPE CARRIES IS SHOWN AND NOT ASKED. A tracker registration files an
+ * enrollment, and when it begins - `D2EnrolledAt`, plus `D2IncidentAt` on a program that collects
+ * one - is context no question on the form holds. It is displayed above the questions rather than
+ * turned into a control: unlike the unit and the combo, an enrollment date is not a choice the
+ * person came here with, and the server draws it as part of the same skeleton that makes the
+ * submission postable. Shown rather than hidden, because a person should be able to read every
+ * fact their submission will carry.
  */
 export function FormFill() {
     const { questionnaireId = '' } = useParams()
@@ -185,6 +198,10 @@ export function FormFill() {
 
     const missingRequired = unansweredRequiredLinkIds(spec, answers)
     const attributeOptionCombos = attributeOptionCombosOf(questionnaire)
+    // Read off the envelope rather than off the form kind: a registration response is the only one
+    // that carries an enrollment date, so the presence of the fact is what decides the block is
+    // shown, and a `$generate` that never answered simply has nothing to state.
+    const enrolledAt = envelope === null ? null : enrolledAtOf(envelope)
     // Declared and unchosen is the one state Submit refuses in. A form that declares no vocabulary
     // reports for the default combo, which is what absence means, and nothing is asked.
     const missingAttributeOptionCombo = attributeOptionCombos !== null && attributeOptionCombo === null
@@ -241,7 +258,7 @@ export function FormFill() {
                 <div
                     className={cn(
                         'mb-4 grid gap-4',
-                        attributeOptionCombos !== null && 'lg:grid-cols-2',
+                        (attributeOptionCombos !== null || enrolledAt !== null) && 'lg:grid-cols-2',
                     )}
                 >
                     <ReportingUnitPicker
@@ -254,6 +271,9 @@ export function FormFill() {
                             selected={attributeOptionCombo}
                             onChange={setAttributeOptionCombo}
                         />
+                    )}
+                    {enrolledAt !== null && envelope !== null && (
+                        <EnrollmentContext enrolledAt={enrolledAt} envelope={envelope} />
                     )}
                 </div>
 
@@ -317,6 +337,62 @@ export function FormFill() {
                 )}
             </div>
         </form>
+    )
+}
+
+/**
+ * When the enrollment a registration creates begins - stated, not asked.
+ *
+ * WHY THIS IS READ-ONLY. A registration response carries three facts no question on the form
+ * holds: when the enrollment begins, when the incident it follows occurred, and the DHIS2 uid the
+ * enrollment will be created under. All three come off the `$generate` envelope, on exactly the
+ * argument the whole page is built on - the envelope is the server's and the answers are the
+ * user's. The organisation unit and the attribute option combo are the two documented exceptions,
+ * and each earns it: the unit is a choice a supervisor makes every morning, and the combo is
+ * derivable from nothing at all. An enrollment date is neither: the server draws it as part of the
+ * same skeleton that makes the submission postable, and a control over it would be a fourth thing
+ * that can disagree with the envelope for no case anyone has yet.
+ *
+ * So it is shown rather than hidden, because a submission carrying a date the person never saw is
+ * worse than one carrying a date they cannot change - and it is shown in the same words the
+ * receipt uses, so the fact reads identically before and after the capture.
+ */
+function EnrollmentContext({
+    enrolledAt,
+    envelope,
+}: {
+    enrolledAt: string
+    envelope: QuestionnaireResponse
+}) {
+    const incidentAt = incidentAtOf(envelope)
+    const enrollment = trackerEnrollmentOf(envelope)
+    return (
+        <div className="grid gap-2 rounded-lg border p-4">
+            <h3 className="text-sm font-medium">Enrollment</h3>
+            <p className="text-muted-foreground text-sm">
+                What this registration files the enrollment under. It comes from the server's{' '}
+                <code className="font-mono">$generate</code> skeleton rather than from an answer,
+                and it rides the submission unchanged.
+            </p>
+            <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                <div className="min-w-0">
+                    <dt className="text-muted-foreground text-xs">{ENROLLED_AT_FACT_LABEL}</dt>
+                    <dd className="break-words">{formatInstant(enrolledAt)}</dd>
+                </div>
+                {incidentAt !== null && (
+                    <div className="min-w-0">
+                        <dt className="text-muted-foreground text-xs">{INCIDENT_AT_FACT_LABEL}</dt>
+                        <dd className="break-words">{formatInstant(incidentAt)}</dd>
+                    </div>
+                )}
+                {enrollment !== null && (
+                    <div className="min-w-0">
+                        <dt className="text-muted-foreground text-xs">{TRACKER_ENROLLMENT_FACT_LABEL}</dt>
+                        <dd className="font-mono text-xs break-words">{enrollment}</dd>
+                    </div>
+                )}
+            </dl>
+        </div>
     )
 }
 

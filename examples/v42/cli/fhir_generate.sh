@@ -128,6 +128,11 @@ d2w fhir generate categories
 # Narrow the targets with [generate.data_sets] / [generate.event_programs] /
 # [generate.tracker_programs] include_ids; absent or empty means every object of that
 # kind, and a program listed under the wrong table fails the run by name.
+# A tracked entity is not always a person: [generate.tracked_entity_types] maps a tracked
+# entity type UID onto the FHIR resource type its registrations are about (Patient, Person,
+# Practitioner, RelatedPerson, Group, Device, Location, Organization, Specimen), which sets
+# the subjectType of the program's registration form and of every stage form of that
+# program. An unmapped type is a Patient, so a person-tracking project maps nothing.
 d2w fhir generate questionnaires
 
 # Examples: one Usage: #example QuestionnaireResponse per configured example under

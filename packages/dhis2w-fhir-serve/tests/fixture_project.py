@@ -4,6 +4,12 @@ The resources are the dhis2w-fhir goldens - one Questionnaire per form kind plus
 they bind, and the ConceptMap the emitter writes beside one of the option sets - so a test that
 accepts them is a test that the facade accepts the documented contract.
 
+One form is written here rather than harvested: the registration form of the tracker program whose
+stage form the goldens already publish. It gives the fixture a whole tracker surface - register a
+person against `PrAncCare01`, mint the identifier pair, then answer `PsAncVisit1` with the same
+pair - which is what the capture, `$generate`, and e2e paths all need to exercise the registration
+contract end to end.
+
 Beside them sits an organisation-unit registry: ten Locations over four levels, carrying every
 geometry state a real selection produces, the curated profile exemplar a generated IG publishes
 beside them - a second Location claiming the root unit's uid, which a consumer has to deduplicate -
@@ -361,6 +367,184 @@ SCOPED_ASSIGNMENT_LIST_ID = f"d2-pr-{SCOPED_QUESTIONNAIRE_UID}-org-units"
 #: The units that form may be captured against - one district and one facility, on different branches.
 SCOPED_ASSIGNMENT_UNITS = ("O6uvpzGd5pu", "DiszpKrYNg8")
 
+#: The tracker program whose stage form `PsAncVisit1` the goldens already publish. Its registration
+#: form is written here so the fixture carries one whole tracker surface: a client registers a
+#: person against `PrAncCare01`, mints the pair, and answers `PsAncVisit1` with the same UIDs.
+REGISTRATION_PROGRAM_UID = "PrAncCare01"
+REGISTRATION_QUESTIONNAIRE = f"{CAPTURE_CANONICAL}/Questionnaire/{REGISTRATION_PROGRAM_UID}"
+REGISTRATION_TRACKED_ENTITY_TYPE_UID = "TetPerson01"
+
+#: The assignment that program is scoped to - the same two units the scoped event form uses, so a
+#: registration outside them is the one case the assignment dial grades for the tracker kinds.
+REGISTRATION_ASSIGNMENT_LIST_ID = f"d2-pr-{REGISTRATION_PROGRAM_UID}-org-units"
+
+#: The tracked entity attributes that form asks: a unique business identifier DHIS2 alone can check
+#: for uniqueness, a date, and one bound to a published option set.
+REGISTRATION_UNIQUE_ATTRIBUTE = "TeaNationId"
+REGISTRATION_DATE_ATTRIBUTE = "TeaBirthDat"
+REGISTRATION_CODED_ATTRIBUTE = "TeaSex00001"
+
+#: The vocabulary that coded attribute binds - written here in the emitter's own id-mode shape.
+SEX_CODE_SYSTEM = f"{CAPTURE_CANONICAL}/CodeSystem/d2-os-OsSex000001-cs"
+SEX_VALUE_SET = f"{CAPTURE_CANONICAL}/ValueSet/d2-os-OsSex000001-vs"
+
+#: The support pair the registration form's item codes are drawn from, as `D2TEA_CS` publishes it.
+TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM = f"{CAPTURE_CANONICAL}/CodeSystem/d2-tea-cs"
+TRACKED_ENTITY_ATTRIBUTE_VALUE_SET = f"{CAPTURE_CANONICAL}/ValueSet/d2-tea-vs"
+
+#: The extensions and identifier systems a registration response carries beyond the tracker pair.
+ENROLLED_AT_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-enrolled-at"
+INCIDENT_AT_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-incident-at"
+TRACKED_ENTITY_TYPE_IDENTIFIER_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/id/tracked-entity-type"
+
+REGISTRATION_QUESTIONNAIRE_BODY: dict[str, Any] = {
+    "resourceType": "Questionnaire",
+    "id": REGISTRATION_PROGRAM_UID,
+    "url": REGISTRATION_QUESTIONNAIRE,
+    "title": "Antenatal care",
+    "description": (
+        f"DHIS2 tracker program Antenatal care ({REGISTRATION_PROGRAM_UID}) as a registration form: "
+        "the tracked entity attributes captured when a person is enrolled in the program."
+    ),
+    "extension": [
+        {"url": FORM_TYPE_URL, "valueCode": "tracker"},
+        {
+            "url": ORG_UNIT_ASSIGNMENT_EXTENSION,
+            "valueReference": {"reference": f"List/{REGISTRATION_ASSIGNMENT_LIST_ID}"},
+        },
+    ],
+    "identifier": [
+        {"system": f"{CAPTURE_IDENTIFIER_BASE}/id/program", "value": REGISTRATION_PROGRAM_UID},
+        {"system": f"{CAPTURE_IDENTIFIER_BASE}/id/program-code", "value": "PR_ANC"},
+        {"system": TRACKED_ENTITY_TYPE_IDENTIFIER_SYSTEM, "value": REGISTRATION_TRACKED_ENTITY_TYPE_UID},
+    ],
+    "name": f"D2PR_{REGISTRATION_PROGRAM_UID}",
+    "status": "draft",
+    "experimental": True,
+    "subjectType": ["Patient"],
+    "code": [{"system": f"{CAPTURE_CANONICAL}/CodeSystem/d2-form-type-cs", "code": "tracker"}],
+    "item": [
+        {
+            "linkId": REGISTRATION_UNIQUE_ATTRIBUTE,
+            "code": [
+                {
+                    "system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM,
+                    "code": REGISTRATION_UNIQUE_ATTRIBUTE,
+                    "display": "National identifier",
+                }
+            ],
+            "text": "National id",
+            "type": "string",
+            "required": True,
+        },
+        {
+            "linkId": REGISTRATION_DATE_ATTRIBUTE,
+            "code": [
+                {
+                    "system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM,
+                    "code": REGISTRATION_DATE_ATTRIBUTE,
+                    "display": "Date of birth",
+                }
+            ],
+            "text": "Date of birth",
+            "type": "date",
+        },
+        {
+            "linkId": REGISTRATION_CODED_ATTRIBUTE,
+            "code": [
+                {"system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM, "code": REGISTRATION_CODED_ATTRIBUTE, "display": "Sex"}
+            ],
+            "text": "Sex",
+            "type": "choice",
+            "answerValueSet": SEX_VALUE_SET,
+        },
+    ],
+}
+
+#: The option set the registration form's coded attribute is answered from, in id mode like the rest.
+SEX_CODE_SYSTEM_BODY: dict[str, Any] = {
+    "resourceType": "CodeSystem",
+    "id": SEX_CODE_SYSTEM.rsplit("/", 1)[-1],
+    "url": SEX_CODE_SYSTEM,
+    "status": "draft",
+    "content": "complete",
+    "caseSensitive": True,
+    "valueSet": SEX_VALUE_SET,
+    "property": [{"code": "dhis2-code", "uri": OPTION_CODE_PROPERTY_URI, "type": "string"}],
+    "concept": [
+        {"code": "OpFemale001", "display": "Female", "property": [{"code": "dhis2-code", "valueString": "F"}]},
+        {"code": "OpMale00001", "display": "Male", "property": [{"code": "dhis2-code", "valueString": "M"}]},
+    ],
+    "count": 2,
+}
+
+SEX_VALUE_SET_BODY: dict[str, Any] = {
+    "resourceType": "ValueSet",
+    "id": SEX_VALUE_SET.rsplit("/", 1)[-1],
+    "url": SEX_VALUE_SET,
+    "status": "draft",
+    "compose": {"include": [{"system": SEX_CODE_SYSTEM}]},
+}
+
+#: The data-dictionary pair over the attributes the registration form asks, as `D2TEA_CS` publishes
+#: it: the DHIS2 code, the value type, and whether DHIS2 declares the attribute unique.
+TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
+    "resourceType": "CodeSystem",
+    "id": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM.rsplit("/", 1)[-1],
+    "url": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM,
+    "name": "D2TEA_CS",
+    "title": "DHIS2 Tracked Entity Attributes",
+    "status": "draft",
+    "content": "complete",
+    "caseSensitive": True,
+    "valueSet": TRACKED_ENTITY_ATTRIBUTE_VALUE_SET,
+    "property": [
+        {"code": "dhis2-code", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/dhis2-code", "type": "string"},
+        {"code": "value-type", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/value-type", "type": "code"},
+        {"code": "unique", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/unique", "type": "boolean"},
+    ],
+    "concept": [
+        {
+            "code": REGISTRATION_DATE_ATTRIBUTE,
+            "display": "Date of birth",
+            "property": [
+                {"code": "dhis2-code", "valueString": "TEA_BIRTH_DATE"},
+                {"code": "value-type", "valueCode": "DATE"},
+                {"code": "unique", "valueBoolean": False},
+            ],
+        },
+        {
+            "code": REGISTRATION_UNIQUE_ATTRIBUTE,
+            "display": "National identifier",
+            "property": [
+                {"code": "dhis2-code", "valueString": "TEA_NATIONAL_ID"},
+                {"code": "value-type", "valueCode": "TEXT"},
+                {"code": "unique", "valueBoolean": True},
+            ],
+        },
+        {
+            "code": REGISTRATION_CODED_ATTRIBUTE,
+            "display": "Sex",
+            "property": [
+                {"code": "dhis2-code", "valueString": "TEA_SEX"},
+                {"code": "value-type", "valueCode": "TEXT"},
+                {"code": "unique", "valueBoolean": False},
+            ],
+        },
+    ],
+    "count": 3,
+}
+
+TRACKED_ENTITY_ATTRIBUTE_VALUE_SET_BODY: dict[str, Any] = {
+    "resourceType": "ValueSet",
+    "id": TRACKED_ENTITY_ATTRIBUTE_VALUE_SET.rsplit("/", 1)[-1],
+    "url": TRACKED_ENTITY_ATTRIBUTE_VALUE_SET,
+    "name": "D2TEA_VS",
+    "title": "DHIS2 Tracked Entity Attributes",
+    "status": "draft",
+    "compose": {"include": [{"system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM}]},
+}
+
 SCOPED_QUESTIONNAIRE_BODY: dict[str, Any] = {
     "resourceType": "Questionnaire",
     "id": SCOPED_QUESTIONNAIRE_UID,
@@ -478,14 +662,14 @@ def build_registry_exemplar() -> dict[str, Any]:
     }
 
 
-def build_assignment_list() -> dict[str, Any]:
-    """The assignment artifact restricting the scoped form, in the shape the generate target writes it."""
+def build_assignment_list(list_id: str, title: str) -> dict[str, Any]:
+    """One assignment artifact restricting a form, in the shape the generate target writes it."""
     return {
         "resourceType": "List",
-        "id": SCOPED_ASSIGNMENT_LIST_ID,
+        "id": list_id,
         "status": "current",
         "mode": "snapshot",
-        "title": "Outbreak response - assigned organisation units",
+        "title": title,
         "entry": [{"item": {"reference": f"Location/{uid}"}} for uid in SCOPED_ASSIGNMENT_UNITS],
     }
 
@@ -517,15 +701,31 @@ def build_capture_project(destination: Path) -> FhirProject:
         write_resource(compiled / filename, golden(filename))
     write_resource(compiled / f"Questionnaire-{TEMPORAL_QUESTIONNAIRE_UID}.json", TEMPORAL_QUESTIONNAIRE_BODY)
     write_resource(compiled / f"Questionnaire-{SCOPED_QUESTIONNAIRE_UID}.json", SCOPED_QUESTIONNAIRE_BODY)
+    write_resource(compiled / f"Questionnaire-{REGISTRATION_PROGRAM_UID}.json", REGISTRATION_QUESTIONNAIRE_BODY)
 
     registry = destination / "ig" / "input" / "resources" / "registry"
     for unit in ORG_UNITS:
         write_resource(registry / f"Location-{unit.uid}.json", build_location(unit))
     write_resource(registry / "Location-d2-location-example.json", build_registry_exemplar())
-    write_resource(registry / f"List-{SCOPED_ASSIGNMENT_LIST_ID}.json", build_assignment_list())
+    write_resource(
+        registry / f"List-{SCOPED_ASSIGNMENT_LIST_ID}.json",
+        build_assignment_list(SCOPED_ASSIGNMENT_LIST_ID, "Outbreak response - assigned organisation units"),
+    )
+    write_resource(
+        registry / f"List-{REGISTRATION_ASSIGNMENT_LIST_ID}.json",
+        build_assignment_list(REGISTRATION_ASSIGNMENT_LIST_ID, "Antenatal care - assigned organisation units"),
+    )
 
     terminology = destination / "ig" / "input" / "resources" / "terminology"
-    built = [*option_terminology(golden(TRACKER_RESPONSE_FILE)), SYMPTOM_CODE_SYSTEM_BODY, SYMPTOM_VALUE_SET_BODY]
+    built = [
+        *option_terminology(golden(TRACKER_RESPONSE_FILE)),
+        SYMPTOM_CODE_SYSTEM_BODY,
+        SYMPTOM_VALUE_SET_BODY,
+        SEX_CODE_SYSTEM_BODY,
+        SEX_VALUE_SET_BODY,
+        TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY,
+        TRACKED_ENTITY_ATTRIBUTE_VALUE_SET_BODY,
+    ]
     for resource in built:
         write_resource(terminology / f"{resource['resourceType']}-{resource['id']}.json", resource)
 

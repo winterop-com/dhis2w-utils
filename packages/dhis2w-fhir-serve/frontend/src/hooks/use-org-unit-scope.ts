@@ -6,7 +6,9 @@ import {
     admittedUnitIds,
     assignmentListIdOf,
     buildOrgUnitTree,
+    orgUnitBrowseTree,
     orgUnitChoices,
+    type OrgUnitBrowseNode,
     type OrgUnitChoice,
 } from '@/lib/orgunits'
 
@@ -35,6 +37,12 @@ export interface OrgUnitScope {
     choices: OrgUnitChoice[]
     /** The same set by id, so a stored reference can be shown as the unit it names. */
     byId: ReadonlyMap<string, OrgUnitChoice>
+    /**
+     * The same offer as a hierarchy: the registry folded, with every branch it admits nothing in
+     * pruned away and the units it does not admit kept as disabled context. Folded once here beside
+     * the flat offer, because both are derived from the same tree and the same assignment.
+     */
+    browseRoots: OrgUnitBrowseNode[]
     /** True when the form publishes an assignment List - so this is narrower than the registry. */
     restricted: boolean
     /** How many units the registry publishes, so an empty offer can say what it is empty of. */
@@ -48,6 +56,7 @@ export interface OrgUnitScope {
 export const EMPTY_ORG_UNIT_SCOPE: OrgUnitScope = {
     choices: [],
     byId: new Map(),
+    browseRoots: [],
     restricted: false,
     registryTotal: 0,
     loading: false,
@@ -123,10 +132,12 @@ async function readScope(assignmentListId: string | null): Promise<OrgUnitScope>
         assignmentListId === null ? Promise.resolve(null) : readAssignment(assignmentListId),
     ])
     const tree = buildOrgUnitTree(locations)
-    const choices = orgUnitChoices(tree, admittedUnitIds(list))
+    const admitted = admittedUnitIds(list)
+    const choices = orgUnitChoices(tree, admitted)
     return {
         choices,
         byId: new Map(choices.map((choice) => [choice.id, choice])),
+        browseRoots: orgUnitBrowseTree(tree, admitted),
         restricted: list !== null,
         registryTotal: tree.total,
         loading: false,

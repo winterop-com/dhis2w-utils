@@ -14,14 +14,17 @@ import {
     assignmentListIdOf,
     boundaryOf,
     boundsOf,
+    browseAncestorIds,
     buildFormAssignments,
     buildOrgUnitTree,
     carriesUnitOnExtension,
     descendantIdsOf,
+    expandedForSelection,
     hasGeometry,
     levelOf,
     matchesUnit,
     matchingUnitIds,
+    orgUnitBrowseTree,
     orgUnitChoices,
     orgUnitReference,
     organisationUnitExtensionUrl,
@@ -29,6 +32,7 @@ import {
     readGeometry,
     referencedUnitId,
     reportableFormsAt,
+    visibleBrowseRows,
 } from '@/lib/orgunits'
 import { bundleResources, type Bundle, type Location, type Questionnaire, type ResourceList } from '@/lib/fhir'
 
@@ -611,6 +615,107 @@ describe('offering the units a form may be captured against', () => {
         expect(matching('ngelehun')).toEqual(['DiszpKrYNg8'])
         expect(matching('diszpkryng8')).toEqual(['DiszpKrYNg8'])
         expect(matching('ou_ngelehun')).toEqual(['DiszpKrYNg8'])
+    })
+})
+
+/**
+ * The same offer as a hierarchy: what is pruned, what is disabled, and what it opens on.
+ *
+ * The fixture registry is the exact shape this mode exists for. `PrScoped001` admits Bo and
+ * Ngelehun CHC, and Ngelehun sits under Badjia - a district the assignment does not name - so the
+ * tree has to keep an unadmitted unit as context while dropping Bombali's whole branch, which
+ * admits nothing anywhere below it. A picker that hid every unadmitted unit would hang the facility
+ * off nothing; one that kept them all would render eight rows to offer two.
+ */
+describe('browsing the units a form may be captured against', () => {
+    const tree = buildOrgUnitTree(locations)
+    const scopedList = lists.find((list) => list.id === 'd2-pr-PrScoped001-org-units') ?? null
+    const admitted = admittedUnitIds(scopedList)
+
+    /** Every id the browse tree keeps, in the order the rows would render fully expanded. */
+    const kept = (roots: ReturnType<typeof orgUnitBrowseTree>) =>
+        visibleBrowseRows(roots, new Set(tree.byId.keys())).map((row) => row.node.id)
+
+    it('keeps the whole registry for a form that declares no assignment, admitting everything', () => {
+        const roots = orgUnitBrowseTree(tree, null)
+
+        expect(kept(roots)).toHaveLength(tree.total)
+        expect(kept(roots).slice(0, 4)).toEqual([
+            'ImspTQPwCqd',
+            'O6uvpzGd5pu',
+            'YuQRtpLP10I',
+            'DiszpKrYNg8',
+        ])
+        expect(visibleBrowseRows(roots, new Set(tree.byId.keys())).every((row) => row.node.admitted)).toBe(
+            true,
+        )
+    })
+
+    it('prunes a branch admitting nothing and keeps an unadmitted unit that leads to one', () => {
+        const roots = orgUnitBrowseTree(tree, admitted)
+
+        // Sierra Leone and Badjia are not assigned and are kept: they are the chain that says which
+        // Ngelehun CHC this is. Bombali, its two facilities, Bargbe, Baoma and the detached Adonkia
+        // CHP admit nothing below them and are gone entirely.
+        expect(kept(roots)).toEqual(['ImspTQPwCqd', 'O6uvpzGd5pu', 'YuQRtpLP10I', 'DiszpKrYNg8'])
+    })
+
+    it('marks exactly the assigned units as pickable', () => {
+        const roots = orgUnitBrowseTree(tree, admitted)
+        const rows = visibleBrowseRows(roots, new Set(tree.byId.keys()))
+        const admittedIds = rows.filter((row) => row.node.admitted).map((row) => row.node.id)
+
+        expect(admittedIds).toEqual(['O6uvpzGd5pu', 'DiszpKrYNg8'])
+        expect(rows.map((row) => row.depth)).toEqual([0, 1, 2, 3])
+    })
+
+    it('prunes everything for an assignment naming no published unit', () => {
+        const empty: ResourceList = { resourceType: 'List', id: 'empty', entry: [] }
+
+        expect(orgUnitBrowseTree(tree, admittedUnitIds(empty))).toEqual([])
+    })
+
+    it('finds the chain above a unit, and answers null for one the tree pruned away', () => {
+        const roots = orgUnitBrowseTree(tree, admitted)
+
+        expect(browseAncestorIds(roots, 'DiszpKrYNg8')).toEqual([
+            'ImspTQPwCqd',
+            'O6uvpzGd5pu',
+            'YuQRtpLP10I',
+        ])
+        expect(browseAncestorIds(roots, 'ImspTQPwCqd')).toEqual([])
+        expect(browseAncestorIds(roots, 'fdc6uOvgoji')).toBeNull()
+    })
+
+    it('opens on the selection`s ancestors, and on the roots when nothing is held', () => {
+        const roots = orgUnitBrowseTree(tree, admitted)
+
+        expect([...expandedForSelection(roots, 'DiszpKrYNg8')]).toEqual([
+            'ImspTQPwCqd',
+            'O6uvpzGd5pu',
+            'YuQRtpLP10I',
+        ])
+        // A root has no ancestors, and a collapsed tree is not an opening state - so it falls back
+        // to the same one level down that an empty picker opens on.
+        expect([...expandedForSelection(roots, 'ImspTQPwCqd')]).toEqual(['ImspTQPwCqd'])
+        expect([...expandedForSelection(roots, null)]).toEqual(['ImspTQPwCqd'])
+        expect([...expandedForSelection(roots, 'fdc6uOvgoji')]).toEqual(['ImspTQPwCqd'])
+    })
+
+    it('draws a closed branch as one row, and states the nesting on every row it draws', () => {
+        const roots = orgUnitBrowseTree(tree, null)
+        const rows = visibleBrowseRows(roots, expandedForSelection(roots, null))
+
+        // Sierra Leone open, its two districts closed - so Ngelehun CHC is four levels down and not
+        // mounted at all. The detached root is the second row of the top level.
+        expect(rows.map((row) => row.node.id)).toEqual([
+            'ImspTQPwCqd',
+            'O6uvpzGd5pu',
+            'fdc6uOvgoji',
+            'Rp268JB6Ne4',
+        ])
+        expect(rows[1]).toMatchObject({ depth: 1, parentId: 'ImspTQPwCqd', positionInParent: 1, siblingCount: 2 })
+        expect(rows[3]).toMatchObject({ depth: 0, parentId: null, positionInParent: 2, siblingCount: 2 })
     })
 })
 

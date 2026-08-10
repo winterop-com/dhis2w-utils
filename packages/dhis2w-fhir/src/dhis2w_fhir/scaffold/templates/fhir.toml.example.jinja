@@ -76,6 +76,16 @@ program_stage = "PS"                # tracker program stage Questionnaire names;
 # stage, filed under tracker-programs/<program stem>/<stage stem>.fsh).
 # include_ids = ["IpHINAT79UW"]
 
+[generate.tracked_entity_types]
+# What each tracked entity type IS, as the FHIR resource type every form of every program
+# tracking it declares its subject as (Questionnaire.subjectType, and subject.type on the
+# responses). A DHIS2 tracked entity is not always a person: a type this table never mentions
+# is a "Patient", so a person-tracking project leaves the table out entirely.
+# One of: Patient, Person, Practitioner, RelatedPerson, Group, Device, Location,
+# Organization, Specimen.
+# "Kd6Nk9wnAJa" = "Group"             # a livestock herd tracked through a vaccination programme
+# "Bx8L1nQ4EiP" = "Location"          # a water point tracked through a maintenance programme
+
 [generate.examples]
 # Example QuestionnaireResponses per questionnaire target, generated locally by default -
 # no data endpoint is called unless `source` below opts in. 0 disables the target, 10 is

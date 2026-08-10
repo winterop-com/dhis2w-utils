@@ -60,6 +60,21 @@ class SyntheticPlacement(BaseModel):
     organisation_unit_uids: tuple[str, ...] = Field(min_length=1)
 
 
+class RegistrationIdentities(BaseModel):
+    """The two DHIS2 identities one registration response mints: the person, and the enrollment it creates.
+
+    A corpus is internally consistent only when the stage responses of a tracker program answer
+    against an enrollment something in the same corpus creates, so the pair is derived from the
+    program UID and the registration's ordinal and read twice - once by the registration that mints
+    it, once by every stage response assigned to it.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    tracked_entity_uid: str
+    enrollment_uid: str
+
+
 class ExampleAnswerIn(BaseModel):
     """One captured value, keyed the way DHIS2 keys it: data element plus category option combo.
 
@@ -77,9 +92,13 @@ class ExampleAnswerIn(BaseModel):
 class ExampleResponseIn(BaseModel):
     """One example response: which form it answers, the context it was captured in, and its values.
 
-    `tracked_entity_uid` and `enrollment_uid` are carried exactly by tracker-event responses:
-    a tracker event belongs to one enrollment of one tracked entity, and both UIDs travel onto
-    the response as the subject identifier and the enrollment extension.
+    `tracked_entity_uid` and `enrollment_uid` are carried by both tracker kinds: a tracker event
+    belongs to one enrollment of one tracked entity, and a registration response creates that
+    pair. Both UIDs travel onto the response as the subject identifier and the enrollment
+    extension either way - what differs is who authored them, which the response profiles say.
+
+    `enrolled_at` and `incident_at` are carried by a registration response alone: they are the
+    two dates the enrollment it creates holds, and only the form that creates one states them.
 
     `attribute_option_combo_uid` is the third key of an aggregate response - a data value set is
     keyed by `(orgUnit, period, attributeOptionCombo)`. It rides onto the response as the
@@ -99,6 +118,8 @@ class ExampleResponseIn(BaseModel):
     authored: str | None = None
     tracked_entity_uid: str | None = None
     enrollment_uid: str | None = None
+    enrolled_at: str | None = None
+    incident_at: str | None = None
     answers: list[ExampleAnswerIn] = Field(default_factory=list)
 
 
@@ -164,15 +185,26 @@ class ExampleItem(BaseModel):
 
 
 class ExampleTrackerContext(BaseModel):
-    """The tracker context one stage response carries: the enrollment, the tracked entity, the capture unit."""
+    """The tracker context one tracker response carries: the enrollment, the tracked entity, the capture unit.
+
+    A registration response fills the same three and adds the enrollment's dates, because it is
+    the response that creates the enrollment the stage responses are captured against.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     organisation_unit_uid: str
     enrollment_uid: str | None = None
     tracked_entity_uid: str | None = None
+    enrolled_at: str | None = None
+    incident_at: str | None = None
 
     @property
     def is_complete(self) -> bool:
         """Whether both the enrollment and the tracked entity a tracker event always carries are present."""
         return self.enrollment_uid is not None and self.tracked_entity_uid is not None
+
+    @property
+    def is_registration_complete(self) -> bool:
+        """Whether the pair a registration mints is present and dated, which its profile requires 1..1."""
+        return self.is_complete and self.enrolled_at is not None

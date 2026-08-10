@@ -1,0 +1,17 @@
+{
+  "resourceType": "ValueSet",
+  "status": "draft",
+  "name": "D2TEA_VS",
+  "id": "d2-tea-vs",
+  "title": "DHIS2 Tracked Entity Attributes",
+  "description": "DHIS2 tracked entity attributes captured by the generated tracker registration forms. Concept codes are DHIS2 tracked entity attribute UIDs.",
+  "url": "http://example.org/fhir/ValueSet/d2-tea-vs",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/CodeSystem/d2-tea-cs"
+      }
+    ]
+  }
+}

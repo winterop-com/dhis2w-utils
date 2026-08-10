@@ -1245,3 +1245,187 @@ def test_the_form_spec_carries_the_vocabulary_its_questionnaire_declares() -> No
     assert project.attribute_option_combo_system == _PROJECT_COMBO_SYSTEM
     assert default.attribute_option_combo_value_set is None
     assert default.attribute_option_combo_system is None
+
+
+#: The tracker program whose registration form the round trip below goes through, and the type it
+#: enrols a person as. The stage `_BIRTH_STAGE` belongs to this very program, so the two forms are
+#: one capture surface: a registration mints the pair, a stage response answers against it.
+_CHILD_PROGRAMME = QuestionnaireSourceIn(
+    uid="IpHINAT79UW",
+    name="Child Programme",
+    code="PR_CHILD",
+    kind="tracker",
+    tracked_entity_type_uid="nEenWmSyUEp",
+    displays_incident_date=True,
+    flat_items=[
+        QuestionnaireItemIn(
+            uid="w75KJ2mc4zz", name="First name", code="TEA_FIRST_NAME", value_type="TEXT", compulsory=True, unique=True
+        ),
+        QuestionnaireItemIn(uid="iESIqZ0R0R0", name="Date of birth", value_type="DATE"),
+        QuestionnaireItemIn(uid="cejWyOfXge6", name="Gender", value_type="TEXT", option_set_uid="Os1aaaaaaaa"),
+    ],
+)
+
+#: The same program with no tracked entity type, which is the one thing a registration cannot do without.
+_TYPELESS_PROGRAMME = _CHILD_PROGRAMME.model_copy(update={"tracked_entity_type_uid": None})
+
+#: The values an instance really holds for one enrolled person, as `_fetch_registration_responses` reads them.
+_REGISTRATION_VALUES = {"w75KJ2mc4zz": "Amara", "iESIqZ0R0R0": "2019-04-02", "cejWyOfXge6": "F"}
+
+_ENROLLED_AT = "2026-01-04T08:00:00"
+_INCIDENT_AT = "2026-01-02T08:00:00"
+
+
+def _registration_response(**overrides: object) -> ExampleResponseIn:
+    """One captured registration: the person a program enrolled, and the enrollment that enrolled them."""
+    captured = ExampleResponseIn(
+        instance_id="En1aaaaaaaa",
+        target_uid=_CHILD_PROGRAMME.uid,
+        kind="tracker",
+        organisation_unit_uid=_CLINIC_ORG_UNIT,
+        status_code="completed",
+        authored=_ENROLLED_AT,
+        tracked_entity_uid=_TRACKED_ENTITY,
+        enrollment_uid=_ENROLLMENT,
+        enrolled_at=_ENROLLED_AT,
+        incident_at=_INCIDENT_AT,
+        answers=[ExampleAnswerIn(data_element_uid=uid, value=value) for uid, value in _REGISTRATION_VALUES.items()],
+    )
+    return captured.model_copy(update=overrides)
+
+
+def _registration_document(**overrides: object) -> QuestionnaireResponse:
+    """The QuestionnaireResponse the examples target publishes for one captured registration."""
+    return _document(_registration_response(**overrides), [_CHILD_PROGRAMME])
+
+
+def _attributes(result: ConversionResult) -> dict[str, str | None]:
+    """The tracked entity attributes one translated registration carries, keyed by attribute UID."""
+    assert result.tracked_entity is not None
+    return {attribute.attribute or "": attribute.value for attribute in result.tracked_entity.attributes or []}
+
+
+def _enrollment(result: ConversionResult) -> object:
+    """The single enrollment one translated registration creates."""
+    assert result.tracked_entity is not None
+    assert result.tracked_entity.enrollments is not None
+    assert len(result.tracked_entity.enrollments) == 1
+    return result.tracked_entity.enrollments[0]
+
+
+def test_a_registration_comes_back_to_the_attributes_it_was_built_from() -> None:
+    """QR -> DHIS2 inverts DHIS2 -> QR for a registration too: same attributes, same wire values."""
+    result = translate_response(_registration_document(), _context([_CHILD_PROGRAMME]))
+
+    assert result.refusals == ()
+    assert result.target_kind == ConversionTargetKind.TRACKER
+    assert _attributes(result) == _REGISTRATION_VALUES
+
+
+def test_a_registration_carries_the_identities_the_response_minted() -> None:
+    """The client's UIDs travel to DHIS2 as sent, which is what lets a stage response answer them."""
+    result = translate_response(_registration_document(), _context([_CHILD_PROGRAMME]))
+    enrollment = _enrollment(result)
+
+    assert result.tracked_entity is not None
+    assert result.tracked_entity.trackedEntity == _TRACKED_ENTITY
+    assert result.tracked_entity.trackedEntityType == _CHILD_PROGRAMME.tracked_entity_type_uid
+    assert result.tracked_entity.orgUnit == _CLINIC_ORG_UNIT
+    assert enrollment.enrollment == _ENROLLMENT  # type: ignore[attr-defined]
+    assert enrollment.program == _CHILD_PROGRAMME.uid  # type: ignore[attr-defined]
+    assert enrollment.orgUnit == _CLINIC_ORG_UNIT  # type: ignore[attr-defined]
+    assert enrollment.status is not None  # type: ignore[attr-defined]
+    assert enrollment.status.value == "ACTIVE"  # type: ignore[attr-defined]
+
+
+def test_a_registrations_enrollment_dates_come_back_as_the_wall_clock_dhis2_stores() -> None:
+    """`enrolledAt` and `occurredAt` are the two dates the enrollment holds, zone-less as DHIS2 keeps them."""
+    result = translate_response(_registration_document(), _context([_CHILD_PROGRAMME]))
+    enrollment = _enrollment(result)
+
+    assert enrollment.enrolledAt == datetime.datetime.fromisoformat(_ENROLLED_AT)  # type: ignore[attr-defined]
+    assert enrollment.occurredAt == datetime.datetime.fromisoformat(_INCIDENT_AT)  # type: ignore[attr-defined]
+
+
+def test_a_registration_without_an_incident_date_writes_none() -> None:
+    """`D2IncidentAt` is 0..1, so a program that displays no incident date leaves `occurredAt` unwritten."""
+    document = _registration_document(incident_at=None)
+
+    result = translate_response(document, _context([_CHILD_PROGRAMME]))
+    enrollment = _enrollment(result)
+
+    assert result.refusals == ()
+    assert enrollment.occurredAt is None  # type: ignore[attr-defined]
+
+
+def test_a_registration_stating_no_enrollment_date_refuses() -> None:
+    """DHIS2 requires every enrollment to say when it began, so a response that states none is refused by name."""
+    document = _with_extension(_registration_document(), _NAMING.enrolled_at_url, None)
+
+    result = translate_response(document, _context([_CHILD_PROGRAMME]))
+
+    assert _refusal_categories(result) == {ConversionRefusalCategory.MISSING_ENROLLMENT_DATE}
+
+
+def test_a_registration_whose_enrollment_date_is_not_an_instant_refuses() -> None:
+    """A date that does not read as an instant would import an enrollment beginning nowhere."""
+    document = _with_extension(
+        _registration_document(), _NAMING.enrolled_at_url, Extension(url=_NAMING.enrolled_at_url, valueDateTime="soon")
+    )
+
+    result = translate_response(document, _context([_CHILD_PROGRAMME]))
+
+    assert _refusal_categories(result) == {ConversionRefusalCategory.MALFORMED_ENROLLMENT_DATE}
+
+
+def test_a_form_naming_no_tracked_entity_type_refuses() -> None:
+    """A tracker program without a tracked entity type cannot register anybody, so the gap is named here."""
+    document = _document(_registration_response(), [_TYPELESS_PROGRAMME])
+
+    result = translate_response(document, _context([_TYPELESS_PROGRAMME]))
+
+    assert _refusal_categories(result) == {ConversionRefusalCategory.MISSING_TRACKED_ENTITY_TYPE}
+
+
+def test_a_registration_naming_no_tracked_entity_refuses() -> None:
+    """The subject identifier is the person the response creates, so a response without one creates nobody."""
+    document = _registration_document().model_copy(update={"subject": None})
+
+    result = translate_response(document, _context([_CHILD_PROGRAMME]))
+
+    assert ConversionRefusalCategory.MISSING_SUBJECT in _refusal_categories(result)
+
+
+def test_a_registrations_coded_attribute_resolves_through_the_published_value_set() -> None:
+    """An option-bound attribute is a coded question, so it resolves on the same dial a data element does."""
+    document = _registration_document()
+
+    strict = translate_response(document, _context([_CHILD_PROGRAMME], coded_answer_mode=CodedAnswerMode.STRICT))
+    lenient = translate_response(document, _context([_CHILD_PROGRAMME]))
+
+    assert _attributes(strict)["cejWyOfXge6"] == "F"
+    assert _attributes(lenient)["cejWyOfXge6"] == "F"
+
+
+def test_the_form_spec_carries_the_tracked_entity_type_its_questionnaire_names() -> None:
+    """The type is read off the form's own identifier slice, never guessed from the program."""
+    context = _context([_CHILD_PROGRAMME, _BIRTH_STAGE])
+    registration = context.forms[f"{_CANONICAL}/Questionnaire/{_CHILD_PROGRAMME.uid}"]
+    stage = context.forms[f"{_CANONICAL}/Questionnaire/{_BIRTH_STAGE.uid}"]
+
+    assert registration.tracked_entity_type_uid == "nEenWmSyUEp"
+    assert registration.target_kind == ConversionTargetKind.TRACKER
+    assert stage.tracked_entity_type_uid is None
+
+
+def test_a_registration_and_its_stage_event_agree_on_the_pair_they_name() -> None:
+    """One capture surface: what the registration mints is what the stage response answers against."""
+    context = _context([_CHILD_PROGRAMME, _BIRTH_STAGE])
+
+    registration = translate_response(_registration_document(), context)
+    stage = translate_response(_tracker_document(), context)
+
+    assert registration.tracked_entity is not None
+    assert stage.event is not None
+    assert registration.tracked_entity.trackedEntity == stage.event.trackedEntity
+    assert _enrollment(registration).enrollment == stage.event.enrollment  # type: ignore[attr-defined]

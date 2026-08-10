@@ -20,10 +20,10 @@
  * Everything here is pure. The reads happen in the page.
  */
 
-import { attributeOptionComboLabel, attributeOptionComboOf, canonicalId, conceptDisplay, type CodeSystem, type Questionnaire, type QuestionnaireResponse, type QuestionnaireResponseAnswer, type QuestionnaireResponseItem, unescapeMarkup } from '@/lib/fhir'
+import { attributeOptionComboLabel, attributeOptionComboOf, canonicalId, conceptDisplay, enrolledAtOf, incidentAtOf, trackedEntityOf, trackerEnrollmentOf, type CodeSystem, type Questionnaire, type QuestionnaireResponse, type QuestionnaireResponseAnswer, type QuestionnaireResponseItem, unescapeMarkup } from '@/lib/fhir'
 import { referencedUnitId } from '@/lib/orgunits'
 import type { QuestionnaireSpec } from '@/lib/questionnaire'
-import type { SpoolResponseSummary } from '@/lib/spool'
+import { formatInstant, TRACKED_ENTITY_FACT_LABEL, TRACKER_ENROLLMENT_FACT_LABEL, type SpoolResponseSummary } from '@/lib/spool'
 
 /**
  * One value an answer carried, reduced to the three things a receipt table renders differently.
@@ -178,6 +178,63 @@ export function attributeOptionComboFact(
         return { label, value: `${coding.system ?? 'no system'} | ${coding.code ?? 'no code'}`, mono: true }
     }
     return { label, value: coding.code === undefined ? resolved : `${resolved} (${coding.code})`, mono: false }
+}
+
+/** What the enrollment's start is labelled on a receipt. */
+export const ENROLLED_AT_FACT_LABEL = 'Enrolled at'
+
+/** What the incident the enrollment follows is labelled, on the programs that collect one. */
+export const INCIDENT_AT_FACT_LABEL = 'Incident date'
+
+/**
+ * The tracker context a response carries in its own envelope, as facts for the capture-context grid.
+ *
+ * WHY THE RESOURCE AND NOT ONLY THE SPOOL. The spool derives the tracked entity and the enrollment
+ * when it indexes a receipt, so for most receipts these repeat what it already said - and the
+ * merge below drops the repeat. The two dates are the reason this exists: `D2EnrolledAt` and
+ * `D2IncidentAt` are QuestionnaireResponse extensions and nothing else on the page reads them, so
+ * a registration receipt without this would show which person was enrolled and never say when.
+ * Reading all four from one place also means a receipt the spool has no row for still states its
+ * whole tracker context, the same way the attribute option combo does.
+ *
+ * The dates read as local time rather than as the stored instant, because an enrollment date is
+ * something a person checks against a calendar; the two uids stay mono, because they are handles
+ * to type into DHIS2. Absence is ordinary throughout - an aggregate response has none of these,
+ * and a program that displays no incident date generates responses that carry three of the four.
+ */
+export function trackerContextFacts(response: QuestionnaireResponse): ReceiptContextFact[] {
+    const enrolledAt = enrolledAtOf(response)
+    const incidentAt = incidentAtOf(response)
+    const trackedEntity = trackedEntityOf(response)
+    const enrollment = trackerEnrollmentOf(response)
+    const facts: ReceiptContextFact[] = []
+    if (trackedEntity !== null) facts.push({ label: TRACKED_ENTITY_FACT_LABEL, value: trackedEntity, mono: true })
+    if (enrollment !== null) facts.push({ label: TRACKER_ENROLLMENT_FACT_LABEL, value: enrollment, mono: true })
+    if (enrolledAt !== null) facts.push({ label: ENROLLED_AT_FACT_LABEL, value: formatInstant(enrolledAt), mono: false })
+    if (incidentAt !== null) facts.push({ label: INCIDENT_AT_FACT_LABEL, value: formatInstant(incidentAt), mono: false })
+    return facts
+}
+
+/**
+ * Several sources of capture context in one list, the first statement of a label winning.
+ *
+ * The grid is keyed by label and the same fact reaches it from two directions - the spool derives
+ * the tracked entity and the enrollment while the stored resource carries them - so a plain
+ * concatenation would render one enrollment twice. First wins rather than last because the caller
+ * orders its groups by how much each can say: the spool's facts are already resolved against the
+ * registry by the time they arrive here, and the resource's are the bare uids.
+ */
+export function mergeContextFacts(...groups: ReceiptContextFact[][]): ReceiptContextFact[] {
+    const stated = new Set<string>()
+    const merged: ReceiptContextFact[] = []
+    for (const group of groups) {
+        for (const fact of group) {
+            if (stated.has(fact.label)) continue
+            stated.add(fact.label)
+            merged.push(fact)
+        }
+    }
+    return merged
 }
 
 /** One answered item of a stored response, read in document order with its ancestry. */

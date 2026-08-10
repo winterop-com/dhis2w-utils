@@ -20,8 +20,7 @@ import {
     pageOf,
     systemLabel,
     targetSystems,
-    translationResult,
-} from '@/lib/terminology'
+    translationResult, matchingCodeCount } from '@/lib/terminology'
 
 /**
  * The terminology reading rules, checked against what the server actually answers.
@@ -319,5 +318,88 @@ describe('matchesQuery', () => {
 
     it('admits everything for a blank query', () => {
         expect(matchesQuery('  ', undefined, null)).toBe(true)
+    })
+})
+
+/**
+ * The support CodeSystem behind a tracker registration form, and its one boolean column.
+ *
+ * `D2TEA_CS` is the data dictionary of tracked entity attributes - the terminology the questions
+ * of a registration Questionnaire are coded through - and it declares one property no other
+ * generated system does: `unique`, valued `valueBoolean`, saying whether DHIS2 enforces the
+ * attribute as unique across the instance. A table that read only the string variants would show
+ * an empty column for it, and an empty cell reads as "not unique" rather than as "not rendered",
+ * which is the wrong answer twice over. Written from the emitter
+ * (dhis2w_fhir's questionnaires/templates/support-terminology.fsh.jinja) rather than harvested,
+ * because the fixture project publishes no registration form yet; the e2e terminology walkthrough
+ * is what checks the same column against a real server.
+ */
+describe('a tracked-entity-attribute support system', () => {
+    const attributes: CodeSystem = {
+        resourceType: 'CodeSystem',
+        id: 'd2-tea-cs',
+        status: 'active',
+        property: [
+            { code: 'dhis2-code', type: 'string', description: 'The DHIS2 code.' },
+            { code: 'value-type', type: 'code', description: 'The DHIS2 value type.' },
+            { code: 'unique', type: 'boolean', description: 'Whether DHIS2 enforces uniqueness.' },
+        ],
+        concept: [
+            {
+                code: 'TeaNatId001',
+                display: 'National identifier',
+                property: [
+                    { code: 'dhis2-code', valueString: 'TEA_NAT_ID' },
+                    { code: 'value-type', valueCode: 'TEXT' },
+                    { code: 'unique', valueBoolean: true },
+                ],
+            },
+            {
+                code: 'TeaFirstNm1',
+                display: 'First name',
+                property: [
+                    { code: 'dhis2-code', valueString: 'TEA_FIRST_NAME' },
+                    { code: 'value-type', valueCode: 'TEXT' },
+                    { code: 'unique', valueBoolean: false },
+                ],
+            },
+        ],
+    }
+
+    it('heads the boolean column with the property code said as words', () => {
+        expect(conceptPropertyColumns(attributes).map((column) => column.label)).toEqual([
+            'Code',
+            'Value type',
+            'Unique',
+        ])
+    })
+
+    it('renders both booleans, so an unset column is not read as a false one', () => {
+        const unique = attributes.concept?.[0]
+        const ordinary = attributes.concept?.[1]
+        expect(conceptPropertyValue(unique!, 'unique')).toBe('true')
+        expect(conceptPropertyValue(ordinary!, 'unique')).toBe('false')
+    })
+
+    it('finds a concept by its boolean property, because the filter reads every column', () => {
+        expect(filterConcepts(attributes.concept ?? [], 'true').map((concept) => concept.code)).toEqual([
+            'TeaNatId001',
+        ])
+    })
+})
+
+describe('matching codes inside a listed resource', () => {
+    it('counts concepts a query matches by code or display', () => {
+        expect(matchingCodeCount(dataElements, 'DeAncDanger')).toBe(1)
+        expect(matchingCodeCount(dataElements, 'zzz-nothing')).toBe(0)
+    })
+
+    it('answers zero for an empty query - the deep filter only bites while searching', () => {
+        expect(matchingCodeCount(dataElements, '')).toBe(0)
+    })
+
+    it('counts mapping rows on a concept map by source and target spellings', () => {
+        expect(matchingCodeCount(conceptMap, 'OpFever0001')).toBeGreaterThan(0)
+        expect(matchingCodeCount(conceptMap, 'FEVER')).toBeGreaterThan(0)
     })
 })

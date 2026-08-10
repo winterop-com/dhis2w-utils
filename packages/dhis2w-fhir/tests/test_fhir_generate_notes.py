@@ -29,7 +29,7 @@ _EMISSION_INVENTORY: dict[str, dict[GenerateNoteCategory, int]] = {
     "names.py": {GenerateNoteCategory.STEM_FALLBACK: 1},
     "resources/examples/__init__.py": {
         GenerateNoteCategory.ANSWER_FALLBACK: 1,
-        GenerateNoteCategory.INSTANCE_DATA_GAP: 4,
+        GenerateNoteCategory.INSTANCE_DATA_GAP: 5,
         GenerateNoteCategory.SELECTION_GAP: 1,
         GenerateNoteCategory.SKIPPED_QUESTION: 4,
     },

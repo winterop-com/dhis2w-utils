@@ -8,16 +8,32 @@ so one round trip reports every problem at that level rather than one at a time.
 
     0. Read the body      - JSON, `resourceType`, and the R4 shape of a QuestionnaireResponse (400).
     1. Read the contract  - the D2FormType kind, then the invariants that kind's profile pins (422).
-    2. Resolve the form   - the questionnaire canonical, its served Questionnaire, and its index (422).
+    2. Resolve the form   - the questionnaire canonical, its served Questionnaire, its index, and
+                            the resource type that form declares its subject is (422).
     3. Read the assignment - the organisation unit the response reports for, against the form's List (422).
     4. Read the third key - the attribute option combo, against the vocabulary the form declares (422).
     5. Read the period    - an aggregate response's ISO period, its type, and the range it claims (422).
     6. Walk the answers   - every item against the index: link ids, cardinality, types, terminology (422).
 
-Three of those grade against the strictness dial rather than absolutely. A coded answer in a
+Four of those grade against the strictness dial rather than absolutely. A coded answer in a
 spelling the contract does not ask for, an organisation unit outside the form's published
-assignment, and an attribute option combo that disagrees with what the form declares are all
-warnings by default and refusals under `--strict-codes`.
+assignment, an attribute option combo that disagrees with what the form declares, and a subject
+typed as a resource the form is not answered about are all warnings by default and refusals under
+`--strict-codes`.
+
+Phase 1 is where the tracker registration contract is read, and it is the one contract whose
+identifiers the client mints: the tracked entity the response is subject to and the enrollment its
+extension names do not exist on any instance yet. Two things follow. The identifiers are checked
+for **shape** - a DHIS2 UID, one ASCII letter and ten alphanumeric places - because that is
+everything a server without an instance can honestly say about a minted identifier. And a unique
+tracked entity attribute is **not** checked for uniqueness: this facade holds no instance data, so
+a global uniqueness claim it cannot verify would be a lie. DHIS2 enforces uniqueness at import
+time, and the receipt is refused there rather than here.
+
+The incident date is graded the same honest way. `D2IncidentAt` is 0..1 on the registration
+profile and the compiled Questionnaire carries no statement of whether its program displays one, so
+capture checks that a carried incident date reads as an R4 `dateTime` and never that it is present
+or absent - the form does not say, and inventing the rule would refuse valid submissions.
 
 Warnings never reject. They record what the server had to interpret or could not check - a code
 sent in a spelling the contract does not ask for, a required question left unanswered, a date
@@ -33,6 +49,7 @@ from __future__ import annotations
 import json
 from typing import Any, Final, cast
 
+from dhis2w_fhir.names import DHIS2_UID_LENGTH, is_dhis2_uid
 from dhis2w_fhir.period import parse_period
 from dhis2w_fhir.r4 import (
     Extension,
@@ -95,6 +112,12 @@ ONE_RESPONSE_PER_REQUEST = (
 #: The prefix a subject or organisation-unit reference names a DHIS2 organisation unit under.
 LOCATION_REFERENCE_PREFIX = "Location/"
 
+#: The form kinds whose response is about a tracked entity rather than about an organisation unit.
+_TRACKER_FORM_KINDS: tuple[FormKind, ...] = ("tracker", "tracker-event")
+
+#: How a refusal spells the DHIS2 UID shape a tracker identifier is checked against.
+_UID_SHAPE_DESCRIPTION = f"one ASCII letter followed by {DHIS2_UID_LENGTH - 1} alphanumeric places"
+
 #: Every `value[x]` element an answer may carry, in the order R4 declares them.
 ANSWER_VALUE_ELEMENTS = (
     "valueBoolean",
@@ -151,6 +174,7 @@ def validate_response(
 
     resolvers = CodingResolverSet(store=store)
     index = _resolve_index(response.questionnaire or "", form_kind, indexes, naming, store)
+    _settle(_subject_type_issues(response, index, form_kind, strict=strict_codes), warnings)
     _settle(_assignment_issues(response, index, naming, form_kind, strict=strict_codes), warnings)
     _settle(_attribute_option_combo_issues(response, index, naming, resolvers, strict=strict_codes), warnings)
     if form_kind == "aggregate":
@@ -247,6 +271,10 @@ def _profile_issues(
     elif form_kind == "event":
         issues.extend(_authored_issues(response))
         issues.extend(_location_subject_issues(response))
+    elif form_kind == "tracker":
+        issues.extend(_authored_issues(response))
+        issues.extend(_tracker_subject_issues(response, naming))
+        issues.extend(_registration_context_issues(response, naming))
     else:
         issues.extend(_authored_issues(response))
         issues.extend(_tracker_subject_issues(response, naming))
@@ -347,7 +375,13 @@ def _location_subject_issues(response: QuestionnaireResponse) -> tuple[CaptureIs
 
 
 def _tracker_subject_issues(response: QuestionnaireResponse, naming: CaptureNaming) -> tuple[CaptureIssue, ...]:
-    """The tracked entity a tracker-event response is about, named by DHIS2 UID rather than referenced."""
+    """The tracked entity a tracker response is about, named by DHIS2 UID rather than referenced.
+
+    Both tracker kinds read the same subject: a registration response mints the UID and a stage
+    response names one already minted, and either way the identifier is the only thing that
+    identifies the person. The shape is checked because it is the one fact a facade holding no
+    instance data can state about a DHIS2 identifier; whether the person exists is DHIS2's to say.
+    """
     subject = response.subject
     if subject is None:
         return (_error("required", "QuestionnaireResponse.subject", "the response names no subject"),)
@@ -357,7 +391,7 @@ def _tracker_subject_issues(response: QuestionnaireResponse, naming: CaptureNami
             _warning(
                 "informational",
                 "QuestionnaireResponse.subject.reference",
-                f"the subject reference `{subject.reference}` is ignored: a tracker event names its tracked "
+                f"the subject reference `{subject.reference}` is ignored: a tracker response names its tracked "
                 f"entity by identifier under `{naming.tracked_entity_system}`",
             )
         )
@@ -370,7 +404,8 @@ def _tracker_subject_issues(response: QuestionnaireResponse, naming: CaptureNami
                 f"the subject carries no tracked-entity identifier under `{naming.tracked_entity_system}`",
             )
         )
-    elif identifier.system != naming.tracked_entity_system:
+        return tuple(issues)
+    if identifier.system != naming.tracked_entity_system:
         issues.append(
             _error(
                 "value",
@@ -378,53 +413,89 @@ def _tracker_subject_issues(response: QuestionnaireResponse, naming: CaptureNami
                 f"the subject identifier names `{identifier.system}`, not `{naming.tracked_entity_system}`",
             )
         )
+    if not is_dhis2_uid(identifier.value):
+        issues.append(
+            _error(
+                "value",
+                "QuestionnaireResponse.subject.identifier.value",
+                f"`{identifier.value}` is not a DHIS2 UID ({_UID_SHAPE_DESCRIPTION})",
+            )
+        )
     return tuple(issues)
 
 
 def _tracker_context_issues(response: QuestionnaireResponse, naming: CaptureNaming) -> tuple[CaptureIssue, ...]:
     """The two facts a tracker event carries beyond its answers: where it happened, and which enrollment it is on."""
-    issues: list[CaptureIssue] = []
+    issues = list(_organisation_unit_extension_issues(response, naming, "a tracker event"))
+    issues.extend(_enrollment_extension_issues(response, naming, "a tracker event"))
+    return tuple(issues)
+
+
+def _registration_context_issues(response: QuestionnaireResponse, naming: CaptureNaming) -> tuple[CaptureIssue, ...]:
+    """The enrollment a registration response creates: where it is owned, its minted UID, and its dates.
+
+    `D2EnrolledAt` is required because DHIS2 requires every enrollment to say when it began.
+    `D2IncidentAt` is optional and only graded on the primitive it carries - whether the program
+    displays an incident date is a fact the compiled Questionnaire does not publish.
+    """
+    issues = list(_organisation_unit_extension_issues(response, naming, "a registration"))
+    issues.extend(_enrollment_extension_issues(response, naming, "a registration"))
+    issues.extend(_enrollment_date_issues(response, naming.enrolled_at_url, "enrolled at", required=True))
+    issues.extend(_enrollment_date_issues(response, naming.incident_at_url, "incident at", required=False))
+    return tuple(issues)
+
+
+def _organisation_unit_extension_issues(
+    response: QuestionnaireResponse, naming: CaptureNaming, subject_label: str
+) -> tuple[CaptureIssue, ...]:
+    """The one organisation unit a tracker response names on its D2OrganisationUnit extension."""
     organisation_units = _extensions(response, naming.organisation_unit_url)
     if len(organisation_units) != 1:
-        issues.append(
+        return (
             _error(
                 "required" if not organisation_units else "invariant",
                 "QuestionnaireResponse.extension",
-                f"a tracker event carries exactly one `{naming.organisation_unit_url}` extension, "
+                f"{subject_label} carries exactly one `{naming.organisation_unit_url}` extension, "
                 f"not {len(organisation_units)}",
-            )
+            ),
         )
-    else:
-        reference = organisation_units[0].valueReference
-        if reference is None or not reference.reference or not _is_location_reference(reference.reference):
-            issues.append(
-                _error(
-                    "value",
-                    "QuestionnaireResponse.extension",
-                    f"the organisation unit extension carries no `{LOCATION_REFERENCE_PREFIX}<uid>` reference",
-                )
-            )
+    reference = organisation_units[0].valueReference
+    if reference is None or not reference.reference or not _is_location_reference(reference.reference):
+        return (
+            _error(
+                "value",
+                "QuestionnaireResponse.extension",
+                f"the organisation unit extension carries no `{LOCATION_REFERENCE_PREFIX}<uid>` reference",
+            ),
+        )
+    return ()
+
+
+def _enrollment_extension_issues(
+    response: QuestionnaireResponse, naming: CaptureNaming, subject_label: str
+) -> tuple[CaptureIssue, ...]:
+    """The enrollment identifier a tracker response carries: one extension, the right system, a UID shape."""
     enrollments = _extensions(response, naming.tracker_enrollment_url)
     if len(enrollments) != 1:
-        issues.append(
+        return (
             _error(
                 "required" if not enrollments else "invariant",
                 "QuestionnaireResponse.extension",
-                f"a tracker event carries exactly one `{naming.tracker_enrollment_url}` extension, "
+                f"{subject_label} carries exactly one `{naming.tracker_enrollment_url}` extension, "
                 f"not {len(enrollments)}",
-            )
+            ),
         )
-        return tuple(issues)
     identifier = enrollments[0].valueIdentifier
     if identifier is None or not identifier.value:
-        issues.append(
+        return (
             _error(
                 "required",
                 "QuestionnaireResponse.extension",
                 "the tracker enrollment extension carries no identifier value",
-            )
+            ),
         )
-    elif identifier.system != naming.tracker_enrollment_system:
+    issues: list[CaptureIssue] = []
+    if identifier.system != naming.tracker_enrollment_system:
         issues.append(
             _error(
                 "value",
@@ -432,7 +503,95 @@ def _tracker_context_issues(response: QuestionnaireResponse, naming: CaptureNami
                 f"the tracker enrollment names `{identifier.system}`, not `{naming.tracker_enrollment_system}`",
             )
         )
+    if not is_dhis2_uid(identifier.value):
+        issues.append(
+            _error(
+                "value",
+                "QuestionnaireResponse.extension",
+                f"the tracker enrollment `{identifier.value}` is not a DHIS2 UID ({_UID_SHAPE_DESCRIPTION})",
+            )
+        )
     return tuple(issues)
+
+
+def _enrollment_date_issues(
+    response: QuestionnaireResponse, url: str, label: str, *, required: bool
+) -> tuple[CaptureIssue, ...]:
+    """One enrollment date: how many the profile admits, and whether what arrived is an R4 dateTime."""
+    carried = list(_extensions(response, url))
+    if not carried:
+        if required:
+            return (
+                _error(
+                    "required",
+                    "QuestionnaireResponse.extension",
+                    f"a registration states when the enrollment began, so it carries one `{url}` extension",
+                ),
+            )
+        return ()
+    if len(carried) > 1:
+        return (
+            _error(
+                "invariant",
+                "QuestionnaireResponse.extension",
+                f"a registration carries at most one `{url}` extension, not {len(carried)}",
+            ),
+        )
+    value = carried[0].valueDateTime
+    if not value:
+        return (
+            _error(
+                "required",
+                "QuestionnaireResponse.extension",
+                f"the {label} extension carries no `valueDateTime`",
+            ),
+        )
+    if not is_fhir_date_time(value):
+        return (
+            _error(
+                "value",
+                "QuestionnaireResponse.extension",
+                f"the {label} date `{value}` is not an R4 dateTime",
+            ),
+        )
+    return ()
+
+
+def _subject_type_issues(
+    response: QuestionnaireResponse,
+    index: CaptureIndex,
+    form_kind: FormKind,
+    *,
+    strict: bool,
+) -> tuple[CaptureIssue, ...]:
+    """Grade the resource type a tracker response types its subject as against the type the form declares.
+
+    A DHIS2 tracked entity is whatever the program tracks - a person, a herd, a building - and the
+    served Questionnaire states which through `subjectType`. This is the only place that statement
+    is read: `fhir.toml` is the generator's input and never reaches the server, so the compiled
+    form is the contract.
+
+    `Reference.type` is optional in R4 and a response that leaves it off is naming its subject by
+    identifier alone, which is what the profile asks for - so an absent type checks nothing. A type
+    that disagrees with the form grades on the dial a coded answer does: a warning on the receipt
+    by default, a refusal under `--strict-codes`.
+    """
+    if form_kind not in _TRACKER_FORM_KINDS:
+        return ()
+    subject = response.subject
+    if subject is None or not subject.type or subject.type == index.subject_type:
+        return ()
+    return (
+        CaptureIssue(
+            severity="error" if strict else "warning",
+            code="business-rule",
+            expression="QuestionnaireResponse.subject.type",
+            diagnostics=(
+                f"the response types its subject as `{subject.type}`, and the form is answered about a "
+                f"`{index.subject_type}`"
+            ),
+        ),
+    )
 
 
 def _assignment_issues(

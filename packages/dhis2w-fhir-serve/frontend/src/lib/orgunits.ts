@@ -502,6 +502,137 @@ export function orgUnitChoices(tree: OrgUnitTree, admitted: ReadonlySet<string> 
     return choices
 }
 
+/** One row of a picker's browsable hierarchy: what it is, whether it may be picked, what is under it. */
+export interface OrgUnitBrowseNode {
+    id: string
+    /** The unit's name as page text - the same string the tree and the flat offer render. */
+    name: string
+    level: OrgUnitLevel | null
+    /**
+     * True when the form's assignment admits this unit, so the row is a choice rather than context.
+     *
+     * False rows are kept and shown disabled, never hidden: a district that is not itself assigned
+     * is the thing that tells two facilities of the same name apart.
+     */
+    admitted: boolean
+    /** The children that survived pruning - a branch admitting nothing anywhere is not here at all. */
+    children: OrgUnitBrowseNode[]
+}
+
+/** One visible row of a browsable hierarchy, as the keyboard walks it: the node, and where it sits. */
+export interface OrgUnitBrowseRow {
+    node: OrgUnitBrowseNode
+    /** How many units sit above it in the rendered tree, so a root is 0. */
+    depth: number
+    /** The row above it that owns it, so ArrowLeft on a closed node has somewhere to go. */
+    parentId: string | null
+    /** Which of its parent's children it is, counting from one - `aria-posinset` verbatim. */
+    positionInParent: number
+    /** How many children that parent has - `aria-setsize` verbatim. */
+    siblingCount: number
+}
+
+/**
+ * The hierarchy a picker browses: the whole tree, minus every branch the form admits nothing in.
+ *
+ * TWO RULES, AND THEY ARE DIFFERENT RULES. A unit outside the assignment is **disabled**, not
+ * hidden, because an assignment List names exact units and can therefore admit a facility whose
+ * district it does not - `PrScoped001` admits Bo and Ngelehun CHC, and Ngelehun's own district
+ * Badjia is not admitted. Dropping Badjia would leave the facility hanging off nothing, and the
+ * parent chain is precisely what disambiguates the repeated facility names a national registry is
+ * full of. But a branch with no admitted unit anywhere below it is **pruned**, because it is
+ * offering nothing and a tree that renders 1,300 unpickable rows is a tree nobody browses.
+ *
+ * One post-order pass, so admitted-descendant presence is just `children.length` after the
+ * children have been pruned - no second walk and no memo table. `admitted === null` is the form
+ * that declares no assignment: every unit is admitted, so nothing prunes and nothing disables.
+ */
+export function orgUnitBrowseTree(tree: OrgUnitTree, admitted: ReadonlySet<string> | null): OrgUnitBrowseNode[] {
+    const keep = (node: OrgUnitNode): OrgUnitBrowseNode | null => {
+        const children = node.children.flatMap((child) => {
+            const kept = keep(child)
+            return kept === null ? [] : [kept]
+        })
+        const isAdmitted = admitted === null || admitted.has(node.id)
+        if (!isAdmitted && children.length === 0) return null
+        return { id: node.id, name: node.name, level: node.level, admitted: isAdmitted, children }
+    }
+    return tree.roots.flatMap((root) => {
+        const kept = keep(root)
+        return kept === null ? [] : [kept]
+    })
+}
+
+/**
+ * The ids above one unit in a browsable hierarchy, root first, or null when the tree has no such unit.
+ *
+ * Null and the empty array are different answers and both happen: a unit pruned out of the tree is
+ * null, and a unit that is itself a root has no ancestors at all.
+ */
+export function browseAncestorIds(roots: OrgUnitBrowseNode[], unitId: string): string[] | null {
+    const walk = (node: OrgUnitBrowseNode, chain: string[]): string[] | null => {
+        if (node.id === unitId) return chain
+        for (const child of node.children) {
+            const found = walk(child, [...chain, node.id])
+            if (found !== null) return found
+        }
+        return null
+    }
+    for (const root of roots) {
+        const found = walk(root, [])
+        if (found !== null) return found
+    }
+    return null
+}
+
+/**
+ * What a browsable hierarchy opens with: the selection in view, or the roots one level down.
+ *
+ * A picker holding a unit should open showing it, not showing a collapsed root the reader has to
+ * click four times to get back to where they already are - so the selection's ancestors are open.
+ * With nothing held, and for a selection that is itself a root, the answer is the roots' own
+ * children: one level is enough to show the shape without mounting a national hierarchy.
+ */
+export function expandedForSelection(roots: OrgUnitBrowseNode[], selectedUnitId: string | null): Set<string> {
+    const chain = selectedUnitId === null ? null : browseAncestorIds(roots, selectedUnitId)
+    if (chain !== null && chain.length > 0) return new Set(chain)
+    return new Set(roots.map((root) => root.id))
+}
+
+/**
+ * The rows a browsable hierarchy is currently drawing, in the order they appear on screen.
+ *
+ * The keyboard's model of the tree. ArrowDown is the next entry of this array whatever depth it is
+ * at, which is what makes arrowing off the last facility of one district land on the next district
+ * rather than stopping - and a closed node contributes exactly one row, which is the same rule that
+ * keeps the tree cheap to render. It is also the DOM's model of it: the rows render flat with
+ * `aria-level`, `aria-posinset`, and `aria-setsize`, which is the shape ARIA defines for a tree
+ * whose branches are not nested elements.
+ */
+export function visibleBrowseRows(
+    roots: OrgUnitBrowseNode[],
+    expanded: ReadonlySet<string>,
+): OrgUnitBrowseRow[] {
+    const rows: OrgUnitBrowseRow[] = []
+    const walk = (
+        node: OrgUnitBrowseNode,
+        depth: number,
+        parentId: string | null,
+        positionInParent: number,
+        siblingCount: number,
+    ): void => {
+        rows.push({ node, depth, parentId, positionInParent, siblingCount })
+        if (node.children.length === 0 || !expanded.has(node.id)) return
+        node.children.forEach((child, index) => {
+            walk(child, depth + 1, node.id, index + 1, node.children.length)
+        })
+    }
+    roots.forEach((root, index) => {
+        walk(root, 0, null, index + 1, roots.length)
+    })
+    return rows
+}
+
 /**
  * The reference a chosen unit is written as.
  *

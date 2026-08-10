@@ -1,5 +1,16 @@
-import { createContext, use, useMemo, useState, type ReactNode } from 'react'
-import { ChevronsUpDown, Loader2 } from 'lucide-react'
+import {
+    createContext,
+    use,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type KeyboardEvent,
+    type ReactNode,
+    type RefObject,
+} from 'react'
+import { Check, ChevronDown, ChevronRight, ChevronsUpDown, Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -11,7 +22,13 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { EMPTY_ORG_UNIT_SCOPE, type OrgUnitScope } from '@/hooks/use-org-unit-scope'
-import { matchesUnit, type OrgUnitChoice } from '@/lib/orgunits'
+import {
+    expandedForSelection,
+    matchesUnit,
+    visibleBrowseRows,
+    type OrgUnitBrowseNode,
+    type OrgUnitChoice,
+} from '@/lib/orgunits'
 import { cn } from '@/lib/utils'
 
 /**
@@ -23,6 +40,9 @@ import { cn } from '@/lib/utils'
  * on screen, and one more character of search reaches any of it.
  */
 const MAX_ROWS = 100
+
+/** The two ways this control finds a unit: by typing at it, or by walking the hierarchy. */
+type PickerMode = 'search' | 'browse'
 
 /**
  * The organisation units the form on screen may be captured against.
@@ -57,12 +77,19 @@ export function useOrgUnitScope(): OrgUnitScope {
  * submission the server refuses on this ground, which is a better arrangement than a free choice
  * corrected by a warning after the round trip.
  *
- * WHY A SEARCH BOX AND NOT A TREE. The org-units page renders the hierarchy as a tree because
- * browsing it is the point there. Picking is a different task: a person filling a form knows which
- * facility they are at and wants to type three letters of its name, not click down four levels. So
- * the list is flat, ordered the way the tree walks - every unit under the one it belongs to, with
- * the parent's name beside it - and searched by name, uid, or DHIS2 code through the same
- * `matchesUnit` rule the tree filter uses.
+ * SEARCH IS PRIMARY, BROWSE IS BESIDE IT. A person filling a form usually knows which facility they
+ * are at and wants to type three letters of its name, so the search box is what the popover opens
+ * on and nothing about it changed. But a flat result list drops the parent chain, and a national
+ * registry has four "Ngelehun CHC"s in four districts - so **Browse** switches the result area to
+ * the hierarchy itself, lazily expanded exactly as the org-units page expands it, which is the one
+ * shape that tells those four apart. Both are searched and rendered by the same rules: `matchesUnit`
+ * for what answers a query, and the folded tree for what sits under what.
+ *
+ * THE MODE RULE, STATED ONCE. The toggle is the only thing that sets the mode; a non-empty query
+ * forces Search whatever the mode says. So typing while browsing shows results (typing is
+ * searching - there is no dead input), clearing the query returns to Browse if that is what the
+ * toggle last chose, and pressing Browse clears the query because otherwise the query would
+ * immediately override it.
  */
 export function OrgUnitPicker({
     controlId,
@@ -88,6 +115,9 @@ export function OrgUnitPicker({
     const scope = useOrgUnitScope()
     const [open, setOpen] = useState(false)
     const [query, setQuery] = useState('')
+    const [mode, setMode] = useState<PickerMode>('search')
+    const searchRef = useRef<HTMLInputElement>(null)
+    const treeRef = useRef<HTMLDivElement>(null)
 
     const matched = useMemo(() => {
         const needle = query.trim().toLowerCase()
@@ -97,11 +127,29 @@ export function OrgUnitPicker({
 
     const selected = selectedUnitId === null ? null : (scope.byId.get(selectedUnitId) ?? null)
     const shown = matched.slice(0, MAX_ROWS)
+    const browsing = mode === 'browse' && query.trim() === ''
 
     const choose = (choice: OrgUnitChoice | null) => {
         onChange(choice)
         setOpen(false)
         setQuery('')
+    }
+
+    const chooseById = (unitId: string) => {
+        const choice = scope.byId.get(unitId)
+        if (choice !== undefined) choose(choice)
+    }
+
+    /** Hand the keyboard to the tree, from the search box the popover opens focused on. */
+    const enterTree = () => {
+        treeRef.current?.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]')?.focus()
+    }
+
+    /** A character typed at the tree is a search: the query starts over with it, in the search box. */
+    const searchFor = (character: string) => {
+        setMode('search')
+        setQuery(character)
+        searchRef.current?.focus()
     }
 
     if (!scope.loading && scope.error === null && scope.choices.length === 0) {
@@ -147,43 +195,84 @@ export function OrgUnitPicker({
                         DHIS2 code find a unit here exactly as they do there. */}
                     <Command shouldFilter={false}>
                         <CommandInput
+                            ref={searchRef}
                             placeholder="Search by name, uid, or code"
                             value={query}
                             onValueChange={setQuery}
+                            onKeyDown={(event) => {
+                                if (!browsing) return
+                                if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+                                // cmdk's root would move its own selection through a list that is
+                                // not rendered right now, so the event stops here.
+                                event.preventDefault()
+                                event.stopPropagation()
+                                enterTree()
+                            }}
                         />
-                        <CommandList>
-                            <CommandEmpty>No unit matches that search.</CommandEmpty>
-                            {shown.map((choice) => (
-                                <CommandItem
-                                    key={choice.id}
-                                    value={choice.id}
-                                    data-checked={choice.id === selectedUnitId ? 'true' : 'false'}
-                                    onSelect={() => choose(choice)}
-                                >
-                                    <span className="truncate">{choice.name}</span>
-                                    {choice.level !== null && (
-                                        <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
-                                            {choice.level.code}
-                                        </span>
-                                    )}
-                                    {choice.parentName !== null && (
-                                        <span className="text-muted-foreground truncate text-xs">
-                                            in {choice.parentName}
-                                        </span>
-                                    )}
-                                </CommandItem>
-                            ))}
-                            {/* Last, and only while nothing is being searched for. cmdk selects the
-                                first row, so unanswering has to be somewhere a person typing three
-                                letters and pressing Enter cannot land on by accident. */}
-                            {clearable && selected !== null && query.trim() === '' && (
-                                <CommandItem value="clear-this-answer" onSelect={() => choose(null)}>
-                                    <span className="text-muted-foreground">Clear this answer</span>
-                                </CommandItem>
-                            )}
-                        </CommandList>
+                        <ModeToggle
+                            mode={browsing ? 'browse' : 'search'}
+                            onChange={(next) => {
+                                setMode(next)
+                                // A query left standing would force Search straight back on.
+                                if (next === 'browse') setQuery('')
+                            }}
+                        />
+                        {browsing ? (
+                            <OrgUnitBrowser
+                                containerRef={treeRef}
+                                roots={scope.browseRoots}
+                                selectedUnitId={selectedUnitId}
+                                onChoose={chooseById}
+                                onTypeAhead={searchFor}
+                                onLeaveTop={() => searchRef.current?.focus()}
+                            />
+                        ) : (
+                            <CommandList>
+                                <CommandEmpty>No unit matches that search.</CommandEmpty>
+                                {shown.map((choice) => (
+                                    <CommandItem
+                                        key={choice.id}
+                                        value={choice.id}
+                                        data-checked={choice.id === selectedUnitId ? 'true' : 'false'}
+                                        onSelect={() => choose(choice)}
+                                    >
+                                        <span className="truncate">{choice.name}</span>
+                                        {choice.level !== null && (
+                                            <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
+                                                {choice.level.code}
+                                            </span>
+                                        )}
+                                        {choice.parentName !== null && (
+                                            <span className="text-muted-foreground truncate text-xs">
+                                                in {choice.parentName}
+                                            </span>
+                                        )}
+                                    </CommandItem>
+                                ))}
+                                {/* Last, and only while nothing is being searched for. cmdk selects the
+                                    first row, so unanswering has to be somewhere a person typing three
+                                    letters and pressing Enter cannot land on by accident. */}
+                                {clearable && selected !== null && query.trim() === '' && (
+                                    <CommandItem value="clear-this-answer" onSelect={() => choose(null)}>
+                                        <span className="text-muted-foreground">Clear this answer</span>
+                                    </CommandItem>
+                                )}
+                            </CommandList>
+                        )}
                     </Command>
-                    {matched.length > shown.length && (
+                    {/* Browse has no cmdk row to hang unanswering off, so the way back to no answer
+                        at all is a footer under the tree - out of the arrow keys' path, which is the
+                        same reason the search mode keeps it last. */}
+                    {browsing && clearable && selected !== null && (
+                        <button
+                            type="button"
+                            onClick={() => choose(null)}
+                            className="text-muted-foreground hover:text-foreground w-full border-t px-3 py-2 text-left text-xs"
+                        >
+                            Clear this answer
+                        </button>
+                    )}
+                    {!browsing && matched.length > shown.length && (
                         <p className="text-muted-foreground border-t px-3 py-2 text-xs">
                             {matched.length - shown.length} more match - narrow the search to reach them.
                         </p>
@@ -199,6 +288,265 @@ export function OrgUnitPicker({
             )}
         </div>
     )
+}
+
+/**
+ * The two ways to find a unit, as two words under the search box.
+ *
+ * Deliberately the least chrome that still reads as a choice: two ghost buttons with the active one
+ * filled, rather than a segmented control or a pair of icons. The search box above it is what this
+ * control is, and a toggle that competed with it for attention would be arguing the opposite.
+ */
+function ModeToggle({ mode, onChange }: { mode: PickerMode; onChange: (mode: PickerMode) => void }) {
+    return (
+        <div role="group" aria-label="How to find a unit" className="flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
+            {(['search', 'browse'] as const).map((candidate) => (
+                <button
+                    key={candidate}
+                    type="button"
+                    aria-pressed={mode === candidate}
+                    onClick={() => onChange(candidate)}
+                    className={cn(
+                        'focus-visible:ring-ring/50 rounded px-2 py-0.5 text-xs focus-visible:ring-[3px] focus-visible:outline-none',
+                        mode === candidate
+                            ? 'bg-muted text-foreground'
+                            : 'text-muted-foreground hover:text-foreground',
+                    )}
+                >
+                    {candidate === 'search' ? 'Search' : 'Browse'}
+                </button>
+            ))}
+        </div>
+    )
+}
+
+/**
+ * The hierarchy, in the popover, walkable by keyboard.
+ *
+ * WHY IT IS NOT A `CommandList`. cmdk owns one focus model: the input keeps DOM focus and the rows
+ * are a selection it moves with the arrow keys. A tree needs ArrowLeft and ArrowRight to mean
+ * collapse and expand, and needs its rows focusable so a screen reader announces the level and the
+ * expanded state - neither of which cmdk's list can express. So this is a plain `role="tree"` with
+ * a roving tabindex, rendered as a sibling of the search box inside the same `Command`, and every
+ * key it handles is stopped here rather than left to bubble into cmdk's root handler. The
+ * compromise that buys consistency: the tree takes focus when Browse opens, and any printable
+ * character typed at it goes straight back to the search box as a fresh query - so typing is
+ * searching in both modes, which is the one habit a person carries between them.
+ *
+ * WHY THE ROWS ARE FLAT. `visibleBrowseRows` is the same array the keyboard walks and the DOM
+ * renders, so ArrowDown and the next element are the same thing by construction. The nesting is
+ * stated as `aria-level` / `aria-posinset` / `aria-setsize`, which is ARIA's own shape for a tree
+ * whose branches are not nested elements.
+ */
+function OrgUnitBrowser({
+    containerRef,
+    roots,
+    selectedUnitId,
+    onChoose,
+    onTypeAhead,
+    onLeaveTop,
+}: {
+    containerRef: RefObject<HTMLDivElement | null>
+    roots: OrgUnitBrowseNode[]
+    selectedUnitId: string | null
+    onChoose: (unitId: string) => void
+    onTypeAhead: (character: string) => void
+    /** ArrowUp off the first row goes back where the popover opened - the search box. */
+    onLeaveTop: () => void
+}) {
+    const opening = useMemo(() => expandedForSelection(roots, selectedUnitId), [roots, selectedUnitId])
+    const [expanded, setExpanded] = useState(opening)
+    const [openedFrom, setOpenedFrom] = useState(opening)
+    if (openedFrom !== opening) {
+        // The scope finished reading, or the selection changed under an open popover. Either way the
+        // hand-made expansions were about a different tree, so the opening state starts over.
+        setOpenedFrom(opening)
+        setExpanded(opening)
+    }
+
+    const rows = useMemo(() => visibleBrowseRows(roots, expanded), [roots, expanded])
+    const [activeUnitId, setActiveUnitId] = useState<string | null>(null)
+    const active = activeRowId(rows, activeUnitId, selectedUnitId)
+
+    const focusRow = useCallback(
+        (unitId: string) => {
+            setActiveUnitId(unitId)
+            containerRef.current?.querySelector<HTMLElement>(`[data-unit-id="${unitId}"]`)?.focus()
+        },
+        [containerRef],
+    )
+
+    // Browse mode is a tree you operate, so it opens with the keyboard already in it. Typing is
+    // still searching: the typeahead below hands the character and the focus back to the search box.
+    useEffect(() => {
+        containerRef.current?.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]')?.focus()
+    }, [containerRef])
+
+    const toggle = useCallback((unitId: string, open: boolean) => {
+        setExpanded((previous) => {
+            const next = new Set(previous)
+            if (open) next.add(unitId)
+            else next.delete(unitId)
+            return next
+        })
+    }, [])
+
+    /** The selected row, scrolled to as it mounts - a picker must open showing what it holds. */
+    const showSelected = useCallback((element: HTMLDivElement | null) => {
+        element?.scrollIntoView({ block: 'nearest' })
+    }, [])
+
+    const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.altKey || event.ctrlKey || event.metaKey) return
+        const index = rows.findIndex((row) => row.node.id === active)
+        if (index === -1) return
+        const row = rows[index]
+        const open = expanded.has(row.node.id) && row.node.children.length > 0
+
+        const handled = (): boolean => {
+            switch (event.key) {
+                case 'ArrowDown':
+                    if (index + 1 < rows.length) focusRow(rows[index + 1].node.id)
+                    return true
+                case 'ArrowUp':
+                    if (index === 0) onLeaveTop()
+                    else focusRow(rows[index - 1].node.id)
+                    return true
+                case 'ArrowRight':
+                    if (row.node.children.length === 0) return true
+                    if (open) focusRow(row.node.children[0].id)
+                    else toggle(row.node.id, true)
+                    return true
+                case 'ArrowLeft':
+                    if (open) toggle(row.node.id, false)
+                    else if (row.parentId !== null) focusRow(row.parentId)
+                    return true
+                case 'Home':
+                    focusRow(rows[0].node.id)
+                    return true
+                case 'End':
+                    focusRow(rows[rows.length - 1].node.id)
+                    return true
+                case 'Enter':
+                case ' ':
+                    if (row.node.admitted) onChoose(row.node.id)
+                    return true
+                default:
+                    if (event.key.length !== 1) return false
+                    onTypeAhead(event.key)
+                    return true
+            }
+        }
+
+        if (!handled()) return
+        // Nothing the tree understands reaches cmdk's root, which would otherwise be moving a
+        // selection through a list this mode does not render.
+        event.preventDefault()
+        event.stopPropagation()
+    }
+
+    if (rows.length === 0) {
+        return (
+            <p className="text-muted-foreground px-3 py-6 text-center text-sm">
+                There is no hierarchy to browse.
+            </p>
+        )
+    }
+
+    return (
+        <div
+            ref={containerRef}
+            role="tree"
+            aria-label="Organisation unit hierarchy"
+            onKeyDown={onKeyDown}
+            className="show-scrollbars max-h-72 overflow-y-auto px-2 py-1.5"
+        >
+            {rows.map((row) => {
+                const node = row.node
+                const isOpen = expanded.has(node.id) && node.children.length > 0
+                const isSelected = node.id === selectedUnitId
+                return (
+                    <div
+                        key={node.id}
+                        ref={isSelected ? showSelected : undefined}
+                        role="treeitem"
+                        data-unit-id={node.id}
+                        // Named by the unit and nothing else: the level chip is decoration, and the
+                        // chevron beside it is a control with a name of its own that would otherwise
+                        // be read as part of this row's.
+                        aria-label={node.name}
+                        aria-level={row.depth + 1}
+                        aria-posinset={row.positionInParent}
+                        aria-setsize={row.siblingCount}
+                        aria-selected={isSelected}
+                        aria-expanded={node.children.length > 0 ? isOpen : undefined}
+                        aria-disabled={node.admitted ? undefined : true}
+                        tabIndex={node.id === active ? 0 : -1}
+                        onClick={() => {
+                            if (node.admitted) onChoose(node.id)
+                        }}
+                        onFocus={() => setActiveUnitId(node.id)}
+                        className={cn(
+                            'focus-visible:ring-ring/50 flex items-center gap-1 rounded-sm py-1 pr-2 text-sm focus-visible:ring-[3px] focus-visible:outline-none',
+                            node.admitted
+                                ? 'hover:bg-muted cursor-default'
+                                : 'text-muted-foreground cursor-not-allowed',
+                            isSelected && 'bg-muted text-foreground',
+                        )}
+                        style={{ paddingLeft: `${String(row.depth * 0.85 + 0.25)}rem` }}
+                    >
+                        {node.children.length > 0 ? (
+                            <button
+                                type="button"
+                                tabIndex={-1}
+                                aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${node.name}`}
+                                onClick={(event) => {
+                                    // A chevron opens a branch; it never picks the unit beside it.
+                                    event.stopPropagation()
+                                    toggle(node.id, !isOpen)
+                                }}
+                                className="text-muted-foreground hover:text-foreground flex size-5 shrink-0 items-center justify-center rounded"
+                            >
+                                {isOpen ? (
+                                    <ChevronDown className="size-3.5" aria-hidden />
+                                ) : (
+                                    <ChevronRight className="size-3.5" aria-hidden />
+                                )}
+                            </button>
+                        ) : (
+                            <span className="size-5 shrink-0" aria-hidden />
+                        )}
+                        <span className="truncate">{node.name}</span>
+                        {node.level !== null && (
+                            <span className="text-muted-foreground shrink-0 font-mono text-[10px]" aria-hidden>
+                                {node.level.code}
+                            </span>
+                        )}
+                        {isSelected && <Check className="ml-auto size-4 shrink-0" aria-hidden />}
+                    </div>
+                )
+            })}
+        </div>
+    )
+}
+
+/**
+ * Which row the arrow keys are standing on.
+ *
+ * A roving tabindex needs exactly one row to be tabbable, and the row it was on can have been
+ * collapsed out from under it - so the answer falls back through what the tree is actually showing:
+ * the row last focused, else the unit this picker holds, else the first row.
+ */
+function activeRowId(
+    rows: ReturnType<typeof visibleBrowseRows>,
+    activeUnitId: string | null,
+    selectedUnitId: string | null,
+): string | null {
+    const showing = (unitId: string | null) =>
+        unitId !== null && rows.some((row) => row.node.id === unitId)
+    if (showing(activeUnitId)) return activeUnitId
+    if (showing(selectedUnitId)) return selectedUnitId
+    return rows[0]?.node.id ?? null
 }
 
 /** What the trigger says while there is nothing chosen. */

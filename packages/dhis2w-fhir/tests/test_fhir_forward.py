@@ -40,16 +40,18 @@ from dhis2w_fhir.conversion import (
     CompiledArtifactReadError,
     CompiledIgMissingError,
     ConversionNaming,
-    bound_data_element_uids,
+    bound_question_uids,
     build_project_context,
     load_compiled_artifacts,
 )
 from dhis2w_fhir.r4 import Identifier, Location, QuestionnaireResponse
+from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, build_option_set_concept_maps
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
+    ProgramContextIn,
     QuestionnaireSectionIn,
 )
 from dhis2w_fhir.spool import (
@@ -350,9 +352,8 @@ def _rejected_tracker_other_unit() -> httpx.Response:
     )
 
 
-@pytest.fixture
-def forward_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A project with a compiled guide, a filled spool, and a `probe` profile pointing at the mock."""
+def _write_probe_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point profile resolution at a `probe` profile whose base url is the mocked instance."""
     config_dir = tmp_path / ".config" / "dhis2"
     config_dir.mkdir(parents=True)
     (config_dir / "profiles.toml").write_text(
@@ -368,6 +369,12 @@ token = "d2p_test"
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir.parent))
     monkeypatch.delenv("DHIS2_PROFILE", raising=False)
+
+
+@pytest.fixture
+def forward_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A project with a compiled guide, a filled spool, and a `probe` profile pointing at the mock."""
+    _write_probe_profile(tmp_path, monkeypatch)
     root = tmp_path / "project"
     root.mkdir()
     _write_project(root)
@@ -617,7 +624,9 @@ def test_the_bound_data_elements_are_read_through_the_link_id_grammar(forward_pr
     project = load_project(forward_project)
     artifacts = load_compiled_artifacts(project)
     naming = ConversionNaming.from_config(project.config.generate, project.config.ig.canonical)
-    assert bound_data_element_uids(artifacts, naming) == tuple(sorted(_VALUE_TYPES))
+    bound = bound_question_uids(artifacts, naming)
+    assert bound.data_element_uids == tuple(sorted(_VALUE_TYPES))
+    assert bound.tracked_entity_attribute_uids == ()
 
 
 @respx.mock
@@ -825,3 +834,161 @@ async def test_a_response_naming_no_attribute_option_combo_is_refused_and_stays_
     assert refusal.category == "missing-attribute-option-combo"
     assert "E8023" in refusal.reason
     assert report.refused[0].spool_path.startswith(RECEIVED_RESPONSES_RELATIVE_PATH)
+
+
+#: A tracker program and one of its stages, which the ordering case drains together. Their receipts
+#: land in the spool the other way round - `A03MvHHogjR-...` sorts before `En1aaaaaaaa` - so a run
+#: that posted in spool order would post the event first, which is exactly what `E1313` refuses.
+_TRACKER_PROGRAM = QuestionnaireSourceIn(
+    uid="IpHINAT79UW",
+    name="Child Programme",
+    kind="tracker",
+    tracked_entity_type_uid="nEenWmSyUEp",
+    flat_items=[QuestionnaireItemIn(uid="w75KJ2mc4zz", name="First name", value_type="TEXT", compulsory=True)],
+)
+
+_BIRTH_STAGE = QuestionnaireSourceIn(
+    uid="A03MvHHogjR",
+    name="Birth",
+    kind="tracker-event",
+    program=ProgramContextIn(uid="IpHINAT79UW", name="Child Programme"),
+    flat_items=[QuestionnaireItemIn(uid="a3kGcGDCuk6", name="Apgar Score", value_type="INTEGER")],
+)
+
+_TRACKER_SOURCES = [_TRACKER_PROGRAM, _BIRTH_STAGE]
+
+#: The tracker identities the two receipts share, as one client capturing both in a sitting mints them.
+_MINTED_TRACKED_ENTITY = "TeAaBbCcDd1"
+_MINTED_ENROLLMENT = "EnAaBbCcDd1"
+
+
+def _tracker_captures() -> list[ExampleResponseIn]:
+    """One registration and one stage event of the same enrollment, as a client captured them."""
+    return [
+        ExampleResponseIn(
+            instance_id="En1aaaaaaaa",
+            target_uid=_TRACKER_PROGRAM.uid,
+            kind="tracker",
+            organisation_unit_uid=_ROOT_ORG_UNIT,
+            status_code="completed",
+            authored="2026-01-04T08:00:00Z",
+            tracked_entity_uid=_MINTED_TRACKED_ENTITY,
+            enrollment_uid=_MINTED_ENROLLMENT,
+            enrolled_at="2026-01-04T08:00:00Z",
+            answers=[ExampleAnswerIn(data_element_uid="w75KJ2mc4zz", value="Amara")],
+        ),
+        ExampleResponseIn(
+            instance_id="A03MvHHogjR-example-1",
+            target_uid=_BIRTH_STAGE.uid,
+            kind="tracker-event",
+            organisation_unit_uid=_ROOT_ORG_UNIT,
+            status_code="completed",
+            authored="2026-01-05T09:30:00Z",
+            tracked_entity_uid=_MINTED_TRACKED_ENTITY,
+            enrollment_uid=_MINTED_ENROLLMENT,
+            answers=[ExampleAnswerIn(data_element_uid="a3kGcGDCuk6", value="9")],
+        ),
+    ]
+
+
+def _write_tracker_project(root: Path) -> None:
+    """Write a project publishing one tracker program's whole capture surface, and nothing else."""
+    (root / "fhir.toml").write_text(_FHIR_TOML.format(strict="false"), encoding="utf-8")
+    compiled_directory = root / "ig" / "fsh-generated" / "resources"
+    compiled_directory.mkdir(parents=True, exist_ok=True)
+    predefined_directory = root / "ig" / "input" / "resources"
+    predefined_directory.mkdir(parents=True, exist_ok=True)
+    config = GenerateConfig()
+    build = build_questionnaire_documents(
+        _TRACKER_SOURCES,
+        config,
+        _CANONICAL,
+        ig_status="draft",
+        option_set_plan=option_set_identities([], config),
+        attribute_codes=AttributeCodeIndex(),
+    )
+    for questionnaire in build.questionnaires:
+        _write_resource(compiled_directory / f"Questionnaire-{questionnaire.id}.json", questionnaire)
+    naming = ConversionNaming.from_config(config, _CANONICAL)
+    _write_resource(
+        predefined_directory / f"Location-{_ROOT_ORG_UNIT}.json",
+        Location(
+            id=_ROOT_ORG_UNIT, identifier=[Identifier(system=naming.organisation_unit_system, value=_ROOT_ORG_UNIT)]
+        ),
+    )
+    documents = build_example_documents(
+        _TRACKER_SOURCES,
+        _tracker_captures(),
+        [],
+        config,
+        _CANONICAL,
+        option_set_plan=option_set_identities([], config),
+    ).responses
+    _fill_spool(root, list(documents))
+
+
+def _mock_tracker_instance() -> respx.Route:
+    """Mock the version probe, both value-type reads, and the one import endpoint a tracker drain posts to."""
+    respx.get(f"{_BASE_URL}/api/system/info").mock(return_value=httpx.Response(200, json={"version": "2.42.0"}))
+    respx.get(f"{_BASE_URL}/api/dataElements").mock(
+        return_value=httpx.Response(200, json={"dataElements": [{"id": "a3kGcGDCuk6", "valueType": "INTEGER"}]})
+    )
+    respx.get(f"{_BASE_URL}/api/trackedEntityAttributes").mock(
+        return_value=httpx.Response(200, json={"trackedEntityAttributes": [{"id": "w75KJ2mc4zz", "valueType": "TEXT"}]})
+    )
+    return respx.post(f"{_BASE_URL}/api/tracker").mock(return_value=_accepted_tracker())
+
+
+@pytest.fixture
+def tracker_forward_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A project publishing one tracker program's whole surface, its spool holding a registration and a stage."""
+    _write_probe_profile(tmp_path, monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    _write_tracker_project(root)
+    monkeypatch.chdir(root)
+    return root
+
+
+@respx.mock
+async def test_a_registration_posts_before_the_events_of_the_same_drain(tracker_forward_project: Path) -> None:
+    """An event's enrollment may have been minted seconds earlier, so the registration goes to DHIS2 first."""
+    tracker = _mock_tracker_instance()
+
+    report = await _forward(tracker_forward_project, import_responses=True)
+
+    posted = [json.loads(call.request.content) for call in tracker.calls]
+    assert [sorted(body) for body in posted] == [["trackedEntities"], ["events"]]
+    assert report.rejected == ()
+    assert len(report.accepted) == 2
+
+
+@respx.mock
+async def test_a_posted_registration_carries_the_enrollment_its_stage_event_names(
+    tracker_forward_project: Path,
+) -> None:
+    """The pair travels as minted, which is what makes a drain of both land rather than earn `E1313`."""
+    tracker = _mock_tracker_instance()
+
+    await _forward(tracker_forward_project, import_responses=True)
+
+    registration, event = (json.loads(call.request.content) for call in tracker.calls)
+    tracked_entity = registration["trackedEntities"][0]
+    assert tracked_entity["trackedEntity"] == _MINTED_TRACKED_ENTITY
+    assert tracked_entity["trackedEntityType"] == "nEenWmSyUEp"
+    assert tracked_entity["enrollments"][0]["enrollment"] == _MINTED_ENROLLMENT
+    assert tracked_entity["enrollments"][0]["status"] == "ACTIVE"
+    assert event["events"][0]["enrollment"] == _MINTED_ENROLLMENT
+    assert event["events"][0]["trackedEntity"] == _MINTED_TRACKED_ENTITY
+
+
+@respx.mock
+async def test_the_report_reads_back_in_spool_order_whatever_the_posting_order_was(
+    tracker_forward_project: Path,
+) -> None:
+    """Two orders, deliberately separate: the report is the spool it drained, the posting order is the run's."""
+    _mock_tracker_instance()
+
+    report = await _forward(tracker_forward_project, import_responses=True)
+
+    assert [outcome.response_id for outcome in report.outcomes] == ["A03MvHHogjR-example-1", "En1aaaaaaaa"]

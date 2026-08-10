@@ -6,8 +6,9 @@ whether the two agree. Only then does the form kind's payload translator run.
 
 The batch form drains a spool the same way one response at a time, so a `ConversionReport` is one
 result per submission in the order they were drained - a refusal never stops the responses behind
-it, and a caller posts `report.data_value_sets` and `report.events` while routing `report.refused`
-back to whoever sent them.
+it, and a caller posts `report.tracked_entities`, `report.data_value_sets`, and `report.events`
+while routing `report.refused` back to whoever sent them. Registrations first: a stage event of the
+same drain answers against an enrollment the registration is what creates.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from dhis2w_fhir.conversion.payloads import (
     translate_aggregate_response,
     translate_event_response,
     translate_tracker_event_response,
+    translate_tracker_registration_response,
 )
 from dhis2w_fhir.conversion.schemas import (
     TARGET_KINDS_BY_FORM_KIND,
@@ -26,7 +28,7 @@ from dhis2w_fhir.conversion.schemas import (
     ConversionReport,
     ConversionResult,
 )
-from dhis2w_fhir.resources.questionnaires.schemas import FORM_KIND_PROFILES, FormKind
+from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS, FormKind
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -64,6 +66,8 @@ def translate_response(response: QuestionnaireResponse, context: ConversionConte
         )
     if form.form_kind == "aggregate":
         return _aggregate_result(response, form, context)
+    if form.form_kind == "tracker":
+        return _registration_result(response, form, context)
     return _event_result(response, form, context)
 
 
@@ -80,6 +84,21 @@ def _aggregate_result(response: QuestionnaireResponse, form: FormSpec, context: 
         questionnaire=form.canonical,
         target_kind=TARGET_KINDS_BY_FORM_KIND[form.form_kind],
         data_value_set=translation.data_value_set,
+        notes=translation.notes,
+        refusals=translation.refusals,
+    )
+
+
+def _registration_result(
+    response: QuestionnaireResponse, form: FormSpec, context: ConversionContext
+) -> ConversionResult:
+    """Run the registration translator and carry its outcome onto the result the caller reads."""
+    translation = translate_tracker_registration_response(response, form, context)
+    return ConversionResult(
+        response_id=response.id,
+        questionnaire=form.canonical,
+        target_kind=TARGET_KINDS_BY_FORM_KIND[form.form_kind],
+        tracked_entity=translation.tracked_entity,
         notes=translation.notes,
         refusals=translation.refusals,
     )
@@ -111,7 +130,7 @@ def _declared_form_kind(response: QuestionnaireResponse, context: ConversionCont
     }
     if len(declared) != 1:
         return None
-    for kind in FORM_KIND_PROFILES:
+    for kind in CAPTURED_FORM_KINDS:
         if kind in declared:
             return kind
     return None

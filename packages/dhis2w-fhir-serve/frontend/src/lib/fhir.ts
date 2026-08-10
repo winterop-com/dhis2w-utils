@@ -657,6 +657,76 @@ export function conceptDisplay(codeSystem: CodeSystem | null, code: string | nul
 }
 
 /**
+ * The extension a tracker response names the DHIS2 enrollment it belongs to on.
+ *
+ * Valued `Identifier` rather than `Reference`, because this guide publishes no resource for a
+ * DHIS2 enrollment: the identifier *is* the enrollment. A registration response mints the value
+ * itself - a client-generated DHIS2 uid - which is what lets a stage response answer against an
+ * enrollment before either of them has reached DHIS2.
+ */
+export const TRACKER_ENROLLMENT_EXTENSION_SUFFIX = '/StructureDefinition/d2-tracker-enrollment'
+
+/** The extension a registration response dates its enrollment with - required on that profile. */
+export const ENROLLED_AT_EXTENSION_SUFFIX = '/StructureDefinition/d2-enrolled-at'
+
+/**
+ * The extension a registration response dates the incident its enrollment follows with.
+ *
+ * Optional, and absence is a fact about the *program*: one that does not display an incident date
+ * generates a form whose responses carry none, so a missing value here is not a gap in the
+ * capture.
+ */
+export const INCIDENT_AT_EXTENSION_SUFFIX = '/StructureDefinition/d2-incident-at'
+
+/**
+ * The identifier system a tracker response names its tracked entity under.
+ *
+ * `{identifier_system_base}/id/tracked-entity`, on `subject.identifier` rather than on a
+ * reference - the person has no published resource, so the identifier is the subject. Matched on
+ * the tail like every other derived system this UI meets.
+ */
+export const TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX = '/id/tracked-entity'
+
+/** When the enrollment a registration response creates begins, or null when it states none. */
+export function enrolledAtOf(response: QuestionnaireResponse): string | null {
+    return responseExtension(response, ENROLLED_AT_EXTENSION_SUFFIX)?.valueDateTime ?? null
+}
+
+/** When the incident the enrollment follows occurred, or null - which most programs are. */
+export function incidentAtOf(response: QuestionnaireResponse): string | null {
+    return responseExtension(response, INCIDENT_AT_EXTENSION_SUFFIX)?.valueDateTime ?? null
+}
+
+/**
+ * The DHIS2 enrollment uid a tracker response names, or null when it names none.
+ *
+ * The same read for both tracker kinds: a registration response mints the uid and a stage
+ * response quotes one that was minted for it, and the extension is spelled identically either
+ * way.
+ */
+export function trackerEnrollmentOf(response: QuestionnaireResponse): string | null {
+    return responseExtension(response, TRACKER_ENROLLMENT_EXTENSION_SUFFIX)?.valueIdentifier?.value ?? null
+}
+
+/**
+ * The DHIS2 tracked-entity uid a response is about, or null when its subject is not one.
+ *
+ * The system is checked rather than assumed: an aggregate or event response's subject is a
+ * `Location`, and reading its identifier as a person would be wrong in a way nothing downstream
+ * could catch.
+ */
+export function trackedEntityOf(response: QuestionnaireResponse): string | null {
+    const identifier = response.subject?.identifier
+    if (!identifier?.system?.endsWith(TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX)) return null
+    return identifier.value ?? null
+}
+
+/** One extension of a response by the url tail the IG publishes it under. */
+function responseExtension(response: QuestionnaireResponse, suffix: string): Extension | undefined {
+    return response.extension?.find((candidate) => candidate.url.endsWith(suffix))
+}
+
+/**
  * The identifier-system suffix `$generate` states its seed under.
  *
  * The full system is `{canonical}/id/generate-seed`, and like every other canonical-derived url

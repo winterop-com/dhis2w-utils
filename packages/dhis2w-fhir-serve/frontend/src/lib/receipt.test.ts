@@ -17,8 +17,14 @@ import {
     type QuestionnaireResponse,
 } from '@/lib/fhir'
 import { flattenQuestionnaire } from '@/lib/questionnaire'
-import { attributeOptionComboFact, formLabel, joinAnswersToQuestions } from '@/lib/receipt'
-import type { SpoolResponseSummary } from '@/lib/spool'
+import {
+    attributeOptionComboFact,
+    formLabel,
+    joinAnswersToQuestions,
+    mergeContextFacts,
+    trackerContextFacts,
+} from '@/lib/receipt'
+import { formatInstant, type SpoolResponseSummary } from '@/lib/spool'
 
 /**
  * The receipt page's reading of a stored capture, against captures a real server produced.
@@ -345,5 +351,119 @@ describe('the attribute option combo on a receipt', () => {
 
     it('answers nothing for a receipt on the default combo, which states no extension', () => {
         expect(attributeOptionComboFact(generateAggregate, attributeCodeSystem)).toBeNull()
+    })
+})
+
+/**
+ * The tracker context a receipt carries, and the merge that keeps one fact one row.
+ *
+ * The two dates exist nowhere but on the stored resource - the spool has no column for either -
+ * so a registration receipt would otherwise say who was enrolled and never when. The two uids do
+ * exist in both places, which is the whole reason the merge is not a concatenation: the grid is
+ * keyed by label, and a receipt that stated its enrollment twice would be rendering the same fact
+ * as two.
+ */
+describe('the tracker context on a receipt', () => {
+    /** A registration receipt as the profile requires it: minted identities, both dates. */
+    const registration: QuestionnaireResponse = {
+        resourceType: 'QuestionnaireResponse',
+        status: 'completed',
+        subject: {
+            type: 'Patient',
+            identifier: { system: 'http://dhis2.org/fhir/id/tracked-entity', value: 'wJt3Qy1PxLd' },
+        },
+        extension: [
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-tracker-enrollment',
+                valueIdentifier: {
+                    system: 'http://dhis2.org/fhir/id/tracker-enrollment',
+                    value: 'Qm4bTnPzKdE',
+                },
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-enrolled-at',
+                valueDateTime: '2026-07-21T04:00:00Z',
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-incident-at',
+                valueDateTime: '2026-07-14T04:00:00Z',
+            },
+            { url: 'http://localhost:8080/fhir/StructureDefinition/d2-form-type', valueCode: 'tracker' },
+        ],
+    }
+
+    it('states all four facts a registration files, identities mono and dates as prose', () => {
+        expect(trackerContextFacts(registration)).toEqual([
+            { label: 'Tracked entity', value: 'wJt3Qy1PxLd', mono: true },
+            { label: 'Enrollment', value: 'Qm4bTnPzKdE', mono: true },
+            // Read against the same formatter rather than a literal, so the assertion does not
+            // depend on the timezone the suite happens to run in.
+            { label: 'Enrolled at', value: formatInstant('2026-07-21T04:00:00Z'), mono: false },
+            { label: 'Incident date', value: formatInstant('2026-07-14T04:00:00Z'), mono: false },
+        ])
+    })
+
+    it('renders the dates rather than repeating the stored instant', () => {
+        const enrolled = trackerContextFacts(registration).find((fact) => fact.label === 'Enrolled at')
+        expect(enrolled?.value).not.toBe('2026-07-21T04:00:00Z')
+    })
+
+    it('leaves out the incident date a program that displays none never files', () => {
+        const withoutIncident = {
+            ...registration,
+            extension: registration.extension?.filter(
+                (candidate) => !candidate.url.endsWith('d2-incident-at'),
+            ),
+        }
+        expect(trackerContextFacts(withoutIncident).map((fact) => fact.label)).toEqual([
+            'Tracked entity',
+            'Enrollment',
+            'Enrolled at',
+        ])
+    })
+
+    it('states the two identities a real stage receipt carries, and no dates', () => {
+        expect(trackerContextFacts(trackerResponse)).toEqual([
+            { label: 'Tracked entity', value: 'zPde0IgxLd6', mono: true },
+            { label: 'Enrollment', value: 'GncfBAepfJB', mono: true },
+        ])
+    })
+
+    it('answers nothing at all for an aggregate receipt', () => {
+        expect(trackerContextFacts(generateAggregate)).toEqual([])
+    })
+})
+
+describe('merging the sources of capture context', () => {
+    it('keeps the first statement of a label and drops the repeat', () => {
+        const spool = [
+            { label: 'Organisation unit', value: 'Ngelehun CHC (DiszpKrYNg8)', mono: false },
+            { label: 'Enrollment', value: 'Qm4bTnPzKdE', mono: true },
+        ]
+        const resource = [
+            { label: 'Enrollment', value: 'Qm4bTnPzKdE', mono: true },
+            { label: 'Enrolled at', value: 'Jul 21, 2026', mono: false },
+        ]
+
+        expect(mergeContextFacts(spool, resource)).toEqual([
+            { label: 'Organisation unit', value: 'Ngelehun CHC (DiszpKrYNg8)', mono: false },
+            // The spool's, because the page has already resolved it further than the resource can.
+            { label: 'Enrollment', value: 'Qm4bTnPzKdE', mono: true },
+            { label: 'Enrolled at', value: 'Jul 21, 2026', mono: false },
+        ])
+    })
+
+    it('keeps every label exactly once, which is what the grid keys on', () => {
+        const merged = mergeContextFacts(
+            [{ label: 'Enrollment', value: 'one', mono: true }],
+            [{ label: 'Enrollment', value: 'two', mono: true }],
+            [{ label: 'Enrollment', value: 'three', mono: true }],
+        )
+        expect(merged).toEqual([{ label: 'Enrollment', value: 'one', mono: true }])
+    })
+
+    it('answers an empty list when nothing states anything', () => {
+        expect(mergeContextFacts([], [])).toEqual([])
+        expect(mergeContextFacts()).toEqual([])
     })
 })

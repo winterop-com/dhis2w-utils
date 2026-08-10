@@ -4,10 +4,12 @@ A compiled Questionnaire is a tree; validating an answer against it is a lookup.
 that flattening once - every question keyed by its `linkId`, every group link id in a set - so a
 submission with two thousand cells costs two thousand dictionary hits and no tree walks.
 
-Two link-id shapes reach a question. A plain question is one DHIS2 data element, and its link id
-is the data element UID. A cell of a disaggregated aggregate form is one data element crossed
-with one category option combo, and its link id is `<dataElement>.<categoryOptionCombo>` - the
-form the questionnaire emitter writes and the only place the pair is carried on the wire.
+Two link-id shapes reach a question. A plain question is one DHIS2 data element - or, on a tracker
+registration form, one tracked entity attribute - and its link id is that object's UID, which is
+why `CaptureQuestion.data_element_uid` carries an attribute UID for the registration kind. A cell
+of a disaggregated aggregate form is one data element crossed with one category option combo, and
+its link id is `<dataElement>.<categoryOptionCombo>` - the form the questionnaire emitter writes
+and the only place the pair is carried on the wire.
 
 Terminology binding is resolved here too. A `#choice` question names an `answerValueSet`, and the
 CodeSystem behind it is what a coded answer's codes are resolved against. When the value set is
@@ -20,8 +22,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from dhis2w_fhir.r4 import Questionnaire, QuestionnaireItem, ResourceList, ValueSet
-from dhis2w_fhir.resources.questionnaires.schemas import FORM_KIND_PROFILES, FormKind, NumericBounds
+from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE, Questionnaire, QuestionnaireItem, ResourceList, ValueSet
+from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS, FormKind, NumericBounds
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
 from dhis2w_fhir_serve.capture.naming import CaptureNaming
@@ -63,8 +65,10 @@ ANSWER_ELEMENTS_BY_ITEM_TYPE = {
 #: The item types that carry no answer of their own and only nest other items.
 _STRUCTURAL_ITEM_TYPES = ("group", "display")
 
-#: The DHIS2 form kinds a served Questionnaire may declare.
-FORM_KINDS: tuple[FormKind, ...] = tuple(FORM_KIND_PROFILES)
+#: The DHIS2 form kinds this server captures a response for - every kind a generated Questionnaire
+#: declares. A form whose kind is not here is refused when its index is first asked for, rather
+#: than at the end of a capture that had nowhere to go.
+FORM_KINDS: tuple[FormKind, ...] = CAPTURED_FORM_KINDS
 
 #: The extensions a numeric question carries its inclusive bounds on.
 _MINIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/minValue"
@@ -87,6 +91,8 @@ class CaptureQuestion(BaseModel):
     link_id: str
     kind: QuestionKind
     data_element_uid: str
+    """The DHIS2 object the question asks: a data element, or a tracked entity attribute on the registration kind."""
+
     category_option_combo_uid: str | None = None
     item_type: str
     answer_element: str
@@ -137,9 +143,19 @@ class CaptureIndex(BaseModel):
     canonical: str
     form_kind: FormKind
     target_uid: str
-    """The DHIS2 data set, event program, or program stage UID the form was generated from."""
+    """The DHIS2 data set, program, or program stage UID the form was generated from."""
 
     program_uid: str | None = None
+    subject_type: str = DEFAULT_SUBJECT_RESOURCE_TYPE
+    """The resource type the form declares its responses are about - `Questionnaire.subjectType`.
+
+    A DHIS2 tracked entity type is not always a person, so a project maps its types onto the FHIR
+    resource types they are and the generated form states the answer. The served form is the only
+    place this facade reads it from: `fhir.toml` is the generator's input and is not on the server
+    at all, so what a capture is checked against and what `$generate` mints is what the compiled
+    Questionnaire says.
+    """
+
     questions: dict[str, CaptureQuestion] = Field(default_factory=dict)
     group_link_ids: frozenset[str] = frozenset()
     assignment: CaptureAssignment | None = None
@@ -206,6 +222,7 @@ def build_capture_index(
         form_kind=form_kind,
         target_uid=canonical.rsplit("/", 1)[-1],
         program_uid=_program_uid(questionnaire, naming),
+        subject_type=_subject_type(questionnaire),
         questions=questions,
         group_link_ids=frozenset(group_link_ids),
         assignment=_assignment(questionnaire, naming, store),
@@ -231,7 +248,12 @@ def _attribute_option_combos(
 
 
 def _form_kind(questionnaire: Questionnaire, naming: CaptureNaming, canonical: str) -> FormKind:
-    """The DHIS2 form kind the questionnaire declares on its D2FormType extension."""
+    """The DHIS2 form kind the questionnaire declares on its D2FormType extension.
+
+    Only a kind this server captures resolves: a form the facade serves and reads but cannot
+    accept an answer to is refused here, when the index is first asked for, rather than at the
+    end of a capture that had nowhere to go.
+    """
     declared = {
         extension.valueCode
         for extension in questionnaire.extension or []
@@ -240,7 +262,10 @@ def _form_kind(questionnaire: Questionnaire, naming: CaptureNaming, canonical: s
     for kind in FORM_KINDS:
         if kind in declared:
             return kind
-    raise UnreadableQuestionnaireError(f"the served Questionnaire `{canonical}` declares no known DHIS2 form kind")
+    raise UnreadableQuestionnaireError(
+        f"the served Questionnaire `{canonical}` declares no DHIS2 form kind this server captures "
+        f"({', '.join(FORM_KINDS)})"
+    )
 
 
 def _assignment(questionnaire: Questionnaire, naming: CaptureNaming, store: ResourceStore) -> CaptureAssignment | None:
@@ -279,6 +304,19 @@ def _program_uid(questionnaire: Questionnaire, naming: CaptureNaming) -> str | N
         if identifier.system == naming.program_identifier_system and identifier.value:
             return identifier.value
     return None
+
+
+def _subject_type(questionnaire: Questionnaire) -> str:
+    """The resource type the form is answered about, or the default when it declares none.
+
+    R4 makes `subjectType` optional and repeatable; a generated form always states exactly one, so
+    the first entry is the answer and a form that states nothing is read as the default a project
+    that configures nothing gets.
+    """
+    for resource_type in questionnaire.subjectType or []:
+        if resource_type:
+            return resource_type
+    return DEFAULT_SUBJECT_RESOURCE_TYPE
 
 
 def _walk(

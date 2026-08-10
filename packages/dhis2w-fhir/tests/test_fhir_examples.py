@@ -131,6 +131,30 @@ _BIRTH_STAGE = QuestionnaireSourceIn(
     flat_items=[QuestionnaireItemIn(uid="De9aaaaaaaa", name="Seen at", value_type="DATETIME")],
 )
 
+_CHILD_REGISTRATION = QuestionnaireSourceIn(
+    uid="IpHINAT79UW",
+    name="Child Programme",
+    code="PR_CHILD",
+    kind="tracker",
+    tracked_entity_type_uid="nEenWmSyUEp",
+    displays_incident_date=True,
+    flat_items=[
+        QuestionnaireItemIn(
+            uid="Tea1aaaaaaa",
+            name="National identifier",
+            code="TEA_NATIONAL_ID",
+            form_name="National id",
+            value_type="TEXT",
+            compulsory=True,
+            unique=True,
+        ),
+        QuestionnaireItemIn(uid="Tea2aaaaaaa", name="Date of birth", value_type="DATE"),
+    ],
+)
+
+#: The same program with `displayIncidentDate` off, which is what makes D2IncidentAt disappear.
+_CHILD_REGISTRATION_WITHOUT_INCIDENT = _CHILD_REGISTRATION.model_copy(update={"displays_incident_date": False})
+
 _REFERRAL_PROGRAM = QuestionnaireSourceIn(
     uid="Pr1aaaaaaaa",
     name="Referral",
@@ -205,6 +229,33 @@ Usage: #example
 * item[+].linkId = "De9aaaaaaaa"
 * item[=].answer[+].valueDateTime = "2026-07-26T05:00:00Z"
 """
+
+_SYNTHETIC_REGISTRATION_GOLDEN = (
+    """Instance: QuestionnaireResponse-IpHINAT79UW-example-1
+InstanceOf: D2TrackerRegistrationResponse
+Title: "Example response - Child Programme"
+Description: "Example QuestionnaireResponse against the DHIS2 tracker program registration """
+    """Child Programme (IpHINAT79UW)."
+Usage: #example
+* id = "IpHINAT79UW-example-1"
+* extension[D2FormType].valueCode = #tracker
+* extension[D2TrackerEnrollment].valueIdentifier.system = $DHIS2-TRACKER-ENROLLMENT
+* extension[D2TrackerEnrollment].valueIdentifier.value = "jvImhO30zrp"
+* extension[D2OrganisationUnit].valueReference = Reference(Location/ImspTQPwCqd)
+* extension[D2EnrolledAt].valueDateTime = "2026-07-15T08:00:00Z"
+* extension[D2IncidentAt].valueDateTime = "2026-07-11T09:00:00Z"
+* questionnaire = "http://example.org/fhir/Questionnaire/IpHINAT79UW"
+* status = #completed
+* subject.type = "Patient"
+* subject.identifier.system = $DHIS2-TE
+* subject.identifier.value = "ByaTNM2MoVs"
+* authored = "2026-07-08T22:00:00Z"
+* item[+].linkId = "Tea1aaaaaaa"
+* item[=].answer[+].valueString = "National identifier ByaTNM2MoVs"
+* item[+].linkId = "Tea2aaaaaaa"
+* item[=].answer[+].valueDate = "2026-07-22"
+"""
+)
 
 _SYNTHETIC_TRACKER_EVENT_GOLDEN = (
     """Instance: QuestionnaireResponse-A03MvHHogjR-example-1
@@ -391,6 +442,21 @@ _TRACKER_PROGRAMS_PAYLOAD = {
             "id": "IpHINAT79UW",
             "name": "Child Programme",
             "programType": "WITH_REGISTRATION",
+            "trackedEntityType": {"id": "nEenWmSyUEp"},
+            "displayIncidentDate": True,
+            "programTrackedEntityAttributes": [
+                {
+                    "mandatory": True,
+                    "sortOrder": 1,
+                    "trackedEntityAttribute": {
+                        "id": "w75KJ2mc4zz",
+                        "name": "First name",
+                        "code": "first-name",
+                        "valueType": "TEXT",
+                        "unique": False,
+                    },
+                }
+            ],
             "programStages": [
                 {
                     "id": "A03MvHHogjR",
@@ -408,6 +474,21 @@ _TRACKER_PROGRAMS_PAYLOAD = {
             ],
         }
     ]
+}
+
+#: One person enrolled in that program, as `/api/tracker/trackedEntities?program=...` answers it.
+_TRACKED_ENTITY = {
+    "trackedEntity": "Te1aaaaaaaa",
+    "attributes": [{"attribute": "w75KJ2mc4zz", "value": "Amara"}],
+    "enrollments": [
+        {
+            "enrollment": "En1aaaaaaaa",
+            "enrolledAt": "2026-07-01T09:00:00.000",
+            "occurredAt": "2026-06-28T00:00:00.000",
+            "orgUnit": "Ou1aaaaaaaa",
+            "program": "IpHINAT79UW",
+        }
+    ],
 }
 
 #: One event of that stage, as `/api/tracker/events?programStage=...` answers it.
@@ -561,6 +642,32 @@ def test_synthetic_data_set_example_is_a_stable_golden() -> None:
 def test_synthetic_event_example_is_a_stable_golden() -> None:
     """An event program carries `authored` and no D2Period, and answers its flat questions."""
     assert _synthetic([_EVENT_PROGRAM])[f"{EXAMPLES_DIRECTORY}/VBqh0ynB2wv-1.fsh"] == _SYNTHETIC_EVENT_GOLDEN
+
+
+def test_synthetic_registration_example_carries_the_whole_enrollment_envelope() -> None:
+    """A registration mints both identities it creates, dates the enrollment, and answers its attributes."""
+    artifacts = _synthetic([_CHILD_REGISTRATION], [])
+    assert artifacts[f"{EXAMPLES_DIRECTORY}/IpHINAT79UW-1.fsh"] == _SYNTHETIC_REGISTRATION_GOLDEN
+
+
+def test_synthetic_registration_identifiers_are_dhis2_shaped_and_distinct() -> None:
+    """Both minted UIDs are the eleven characters DHIS2 accepts, and the person is not the enrollment."""
+    build = build_synthetic_responses([_CHILD_REGISTRATION], [], 1, _ROOT_ORG_UNIT, _TODAY)
+    response = build.responses[0]
+    assert response.tracked_entity_uid is not None
+    assert response.enrollment_uid is not None
+    assert response.tracked_entity_uid != response.enrollment_uid
+    for uid in (response.tracked_entity_uid, response.enrollment_uid):
+        assert len(uid) == 11
+        assert uid[0].isalpha()
+        assert uid.isalnum()
+
+
+def test_a_program_that_collects_no_incident_date_says_so_by_carrying_none() -> None:
+    """D2IncidentAt is 0..1 because a DHIS2 program states whether it collects one at all."""
+    content = _synthetic([_CHILD_REGISTRATION_WITHOUT_INCIDENT], [])[f"{EXAMPLES_DIRECTORY}/IpHINAT79UW-1.fsh"]
+    assert "D2EnrolledAt" in content
+    assert "D2IncidentAt" not in content
 
 
 def test_synthetic_tracker_event_example_is_a_stable_golden() -> None:
@@ -1023,6 +1130,13 @@ def _mock_tracker_metadata() -> None:
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ROOT_PAYLOAD))
 
 
+def _mock_tracked_entities(entities: list[dict[str, object]] | None = None) -> respx.Route:
+    """Mock `/api/tracker/trackedEntities`, which the program's registration form reads its examples from."""
+    return respx.get(f"{_HOST}/api/tracker/trackedEntities").mock(
+        return_value=httpx.Response(200, json={"instances": [_TRACKED_ENTITY] if entities is None else entities})
+    )
+
+
 @respx.mock
 async def test_instance_mode_reads_a_stages_events_by_program_stage(
     probe_profile: None,  # noqa: ARG001
@@ -1033,6 +1147,7 @@ async def test_instance_mode_reads_a_stages_events_by_program_stage(
     mock_system_info("v42")
     await _scaffold_tracker_project(tmp_path, examples='per_target = 1\nsource = "instance"')
     _mock_tracker_metadata()
+    _mock_tracked_entities()
     events = respx.get(f"{_HOST}/api/tracker/events").mock(
         return_value=httpx.Response(200, json={"instances": [_TRACKER_EVENT]})
     )
@@ -1045,7 +1160,7 @@ async def test_instance_mode_reads_a_stages_events_by_program_stage(
     assert params["fields"] == (
         "event,orgUnit,occurredAt,status,enrollment,trackedEntity,dataValues[dataElement,value]"
     )
-    assert report.example_count == 1
+    assert report.example_count == 2
     assert [note.message for note in report.notes] == []
     content = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "A03MvHHogjR-1.fsh").read_text(encoding="utf-8")
     assert "Instance: QuestionnaireResponse-Ev2aaaaaaaa" in content
@@ -1059,6 +1174,39 @@ async def test_instance_mode_reads_a_stages_events_by_program_stage(
 
 
 @respx.mock
+async def test_instance_mode_reads_a_registration_from_the_people_the_program_enrolled(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A registration example is one enrollment: the person's attribute values plus the dates the enrollment holds."""
+    mock_system_info("v42")
+    await _scaffold_tracker_project(tmp_path, examples='per_target = 1\nsource = "instance"')
+    _mock_tracker_metadata()
+    tracked_entities = _mock_tracked_entities()
+    respx.get(f"{_HOST}/api/tracker/events").mock(return_value=httpx.Response(200, json={"instances": []}))
+
+    await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
+
+    params = tracked_entities.calls.last.request.url.params
+    assert params["program"] == "IpHINAT79UW"
+    assert params["fields"] == (
+        "trackedEntity,attributes[attribute,value],enrollments[enrollment,enrolledAt,occurredAt,orgUnit,program]"
+    )
+    content = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "IpHINAT79UW-1.fsh").read_text(encoding="utf-8")
+    assert "Instance: QuestionnaireResponse-En1aaaaaaaa" in content
+    assert "InstanceOf: D2TrackerRegistrationResponse" in content
+    assert "* extension[D2FormType].valueCode = #tracker" in content
+    assert '* extension[D2TrackerEnrollment].valueIdentifier.value = "En1aaaaaaaa"' in content
+    assert "* extension[D2OrganisationUnit].valueReference = Reference(Location/Ou1aaaaaaaa)" in content
+    assert '* extension[D2EnrolledAt].valueDateTime = "2026-07-01T09:00:00.000Z"' in content
+    assert '* extension[D2IncidentAt].valueDateTime = "2026-06-28T00:00:00.000Z"' in content
+    assert '* subject.identifier.value = "Te1aaaaaaaa"' in content
+    assert '* item[+].linkId = "w75KJ2mc4zz"' in content
+    assert '* item[=].answer[+].valueString = "Amara"' in content
+
+
+@respx.mock
 async def test_a_stage_event_missing_its_enrollment_degrades_to_the_base_resource(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
@@ -1068,6 +1216,7 @@ async def test_a_stage_event_missing_its_enrollment_degrades_to_the_base_resourc
     mock_system_info("v42")
     await _scaffold_tracker_project(tmp_path, examples='per_target = 1\nsource = "instance"')
     _mock_tracker_metadata()
+    _mock_tracked_entities([])
     without_enrollment = {key: value for key, value in _TRACKER_EVENT.items() if key != "enrollment"}
     respx.get(f"{_HOST}/api/tracker/events").mock(
         return_value=httpx.Response(200, json={"instances": [without_enrollment]})
@@ -1077,8 +1226,9 @@ async def test_a_stage_event_missing_its_enrollment_degrades_to_the_base_resourc
 
     assert report.example_count == 1
     assert [note.message for note in report.notes] == [
+        "1 questionnaire targets hold no data on the instance; no examples emitted: Child Programme (IpHINAT79UW)",
         "1 examples lack the enrollment or tracked entity a tracker event carries; the base "
-        "QuestionnaireResponse is declared instead of the tracker event response profile: Ev2aaaaaaaa"
+        "QuestionnaireResponse is declared instead of the tracker event response profile: Ev2aaaaaaaa",
     ]
     content = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "A03MvHHogjR-1.fsh").read_text(encoding="utf-8")
     assert "InstanceOf: QuestionnaireResponse\n" in content
@@ -1558,3 +1708,112 @@ def test_an_occurrence_in_an_impossible_zone_is_dropped_with_a_note() -> None:
     )
     assert "* authored" not in build.artifacts[0].content
     assert any("base QuestionnaireResponse declared" in note.message for note in build.notes)
+
+
+#: One registration form per DHIS2 value type a unique attribute can carry, so the spelling rule is
+#: checked per type rather than on the one TEXT case a real program happens to ask.
+_UNIQUE_VALUE_TYPES = ("TEXT", "LONG_TEXT", "USERNAME", "EMAIL", "PHONE_NUMBER", "URL", "INTEGER")
+
+#: The value types a unique attribute cannot be made distinct in - a boolean has two values, a
+#: `LETTER` fifty-two, and an option-bound attribute only as many as its set holds.
+_INDISTINCT_VALUE_TYPES = ("BOOLEAN", "LETTER", "DATE")
+
+
+def _unique_registration(value_type: str, *, option_set_uid: str | None = None) -> QuestionnaireSourceIn:
+    """A registration form asking one unique attribute of the named value type, and nothing else."""
+    return QuestionnaireSourceIn(
+        uid="IpHINAT79UW",
+        name="Child Programme",
+        kind="tracker",
+        tracked_entity_type_uid="nEenWmSyUEp",
+        flat_items=[
+            QuestionnaireItemIn(
+                uid="Tea1aaaaaaa",
+                name="Unique ID",
+                value_type=value_type,
+                unique=True,
+                option_set_uid=option_set_uid,
+            )
+        ],
+    )
+
+
+def _unique_values(source: QuestionnaireSourceIn, per_target: int, option_sets: list[OptionSetIn]) -> list[str]:
+    """The values `per_target` registrations answer the form's single unique attribute with."""
+    build = build_synthetic_responses([source], option_sets, per_target, _ROOT_ORG_UNIT, _TODAY)
+    return [answer.value for response in build.responses for answer in response.answers]
+
+
+@pytest.mark.parametrize("value_type", _UNIQUE_VALUE_TYPES)
+def test_a_unique_attribute_answers_distinctly_per_registration(value_type: str) -> None:
+    """One invented constant registers one person and cascades every enrollment behind it into `E1064`."""
+    values = _unique_values(_unique_registration(value_type), 12, [])
+
+    assert len(values) == 12
+    assert len(set(values)) == 12
+
+
+def test_a_unique_attributes_value_carries_the_identity_that_minted_it() -> None:
+    """The distinctness comes from the response's own minted UID, not from the RNG stream."""
+    build = build_synthetic_responses([_unique_registration("TEXT")], [], 3, _ROOT_ORG_UNIT, _TODAY)
+
+    for response in build.responses:
+        assert response.tracked_entity_uid is not None
+        assert response.tracked_entity_uid in response.answers[0].value
+
+
+def test_a_unique_numeric_attribute_stays_inside_the_sign_its_value_type_admits() -> None:
+    """A distinct number is still a legal one: DHIS2 refuses a negative `INTEGER_POSITIVE` whatever else it is."""
+    positive = _unique_values(_unique_registration("INTEGER_POSITIVE"), 8, [])
+    negative = _unique_values(_unique_registration("INTEGER_NEGATIVE"), 8, [])
+    zero_or_positive = _unique_values(_unique_registration("INTEGER_ZERO_OR_POSITIVE"), 8, [])
+
+    assert all(int(value) > 0 for value in positive)
+    assert all(int(value) < 0 for value in negative)
+    assert all(int(value) >= 0 for value in zero_or_positive)
+    assert len(set(positive)) == len(set(negative)) == len(set(zero_or_positive)) == 8
+
+
+def test_a_unique_email_and_url_keep_the_shape_their_value_type_asks_for() -> None:
+    """A distinct value that stopped being an email would trade one refusal for another."""
+    emails = _unique_values(_unique_registration("EMAIL"), 4, [])
+    urls = _unique_values(_unique_registration("URL"), 4, [])
+    phones = _unique_values(_unique_registration("PHONE_NUMBER"), 4, [])
+
+    assert all(value.endswith("@example.invalid") and value.count("@") == 1 for value in emails)
+    assert all(value.startswith("https://example.invalid/") for value in urls)
+    assert all(value.startswith("+") and value[1:].isdigit() for value in phones)
+
+
+@pytest.mark.parametrize("value_type", _INDISTINCT_VALUE_TYPES)
+def test_a_unique_attribute_with_no_room_for_distinctness_is_tallied_rather_than_faked(value_type: str) -> None:
+    """Inventing a value outside what the type admits trades a refusal we can explain for one we cannot."""
+    build = build_synthetic_responses([_unique_registration(value_type)], [], 4, _ROOT_ORG_UNIT, _TODAY)
+
+    messages = [note.message for note in build.notes]
+
+    assert any("no room for a corpus-distinct value" in message and "E1064" in message for message in messages)
+    assert any("Unique ID (Tea1aaaaaaa)" in message for message in messages)
+
+
+def test_a_unique_option_bound_attribute_keeps_answering_its_own_option_set() -> None:
+    """An option-bound answer has to name a concept the CodeSystem holds, so distinctness gives way to codability."""
+    gender = _OPTION_SETS[0]
+    source = _unique_registration("TEXT", option_set_uid=gender.uid)
+
+    values = _unique_values(source, 4, [gender])
+    build = build_synthetic_responses([source], [gender], 4, _ROOT_ORG_UNIT, _TODAY)
+
+    assert set(values) <= {option.code for option in gender.options}
+    assert any("no room for a corpus-distinct value" in note.message for note in build.notes)
+
+
+def test_an_attribute_the_instance_does_not_call_unique_is_answered_as_it_always_was() -> None:
+    """The rule is keyed on DHIS2's own `unique` flag, so an ordinary attribute keeps its illustrative value."""
+    ordinary = _unique_registration("TEXT").model_copy(
+        update={"flat_items": [QuestionnaireItemIn(uid="Tea1aaaaaaa", name="Unique ID", value_type="TEXT")]}
+    )
+
+    values = _unique_values(ordinary, 3, [])
+
+    assert values == ["Example Unique ID"] * 3

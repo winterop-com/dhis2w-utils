@@ -242,7 +242,7 @@ def test_a_response_declaring_two_form_types_is_refused(
     assert "more than one DHIS2 form type" in _diagnostics(rejection.issues)
 
 
-def test_a_form_kind_this_server_does_not_capture_is_refused(
+def test_a_form_kind_no_generated_questionnaire_declares_is_refused(
     tracker_response: dict[str, Any],
     capture_indexes: CaptureIndexCache,
     capture_naming: CaptureNaming,
@@ -250,7 +250,7 @@ def test_a_form_kind_this_server_does_not_capture_is_refused(
 ) -> None:
     for extension in tracker_response["extension"]:
         if extension["url"] == capture_naming.form_type_url:
-            extension["valueCode"] = "tracker"
+            extension["valueCode"] = "dataset"
 
     rejection = _refuse(tracker_response, capture_indexes, capture_naming, capture_store)
 

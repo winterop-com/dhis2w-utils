@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import attributeCodeSystemFixture from '@/lib/__fixtures__/codesystem-d2-aoc-idcDPkDtepR-cs.json'
+import generateAggregateFixture from '@/lib/__fixtures__/generate-BfMAe6Itzgt.json'
+import generateTrackerEventFixture from '@/lib/__fixtures__/generate-ZzYYXq4fJie.json'
 import metadataFixture from '@/lib/__fixtures__/metadata.json'
 import attributeComboFormFixture from '@/lib/__fixtures__/questionnaire-TuL8IOPzpHh.json'
 import questionnaireBundleFixture from '@/lib/__fixtures__/questionnaire-bundle.json'
@@ -15,14 +17,20 @@ import {
     canonicalId,
     conceptDisplay,
     declaredOperations,
+    enrolledAtOf,
+    FORM_TYPE_LABELS,
+    FORM_TYPES,
     formIdentifier,
     formSlice,
     formTitle,
     formTypeOf,
     formsByTitle,
+    incidentAtOf,
     operationNames,
     questionCount,
     servedIgLabel,
+    trackedEntityOf,
+    trackerEnrollmentOf,
     type Bundle,
     type CapabilityStatement,
     type CodeSystem,
@@ -47,6 +55,8 @@ const attributeComboForm = attributeComboFormFixture as unknown as Questionnaire
 const attributeComboResponse = attributeComboResponseFixture as unknown as QuestionnaireResponse
 const attributeValueSet = attributeValueSetFixture as unknown as ValueSet
 const attributeCodeSystem = attributeCodeSystemFixture as unknown as CodeSystem
+const aggregateSkeleton = generateAggregateFixture as unknown as QuestionnaireResponse
+const trackerEventSkeleton = generateTrackerEventFixture as unknown as QuestionnaireResponse
 
 /** One form of the served bundle by its DHIS2 uid, failing loudly rather than testing undefined. */
 function servedForm(id: string): Questionnaire {
@@ -373,5 +383,159 @@ describe('the attribute option combo a form reports for', () => {
         expect(conceptDisplay(attributeCodeSystem, 'NotAConcept')).toBeNull()
         expect(conceptDisplay(null, 'pO5CEqK6c1s')).toBeNull()
         expect(conceptDisplay(attributeCodeSystem, undefined)).toBeNull()
+    })
+})
+
+/**
+ * The four DHIS2 objects a capture form can have come from, as this UI names them.
+ *
+ * `tracker` is the registration form - one Questionnaire per tracker program, asking the tracked
+ * entity attributes - and it is one character away from `tracker-event`, the program stage. The
+ * two are different forms of different shapes producing different DHIS2 payloads, so the pair
+ * being spelled apart is worth an assertion of its own: a label lookup that fell through would
+ * render a registration form as a bare code in every listing that shows the kind.
+ */
+describe('the form-kind vocabulary', () => {
+    it('carries every code of the D2FormType terminology, registration included', () => {
+        expect([...FORM_TYPES]).toEqual(['aggregate', 'event', 'tracker', 'tracker-event'])
+    })
+
+    it('names each kind, and never leaves one to render as its code', () => {
+        expect(FORM_TYPE_LABELS.tracker).toBe('Tracker registration')
+        expect(FORM_TYPE_LABELS['tracker-event']).toBe('Tracker program stage')
+        for (const kind of FORM_TYPES) expect(FORM_TYPE_LABELS[kind], kind).not.toBe('')
+    })
+
+    it('reads the registration kind off a form that declares it', () => {
+        expect(
+            formTypeOf({
+                resourceType: 'Questionnaire',
+                status: 'active',
+                extension: [
+                    {
+                        url: 'http://localhost:8080/fhir/StructureDefinition/d2-form-type',
+                        valueCode: 'tracker',
+                    },
+                ],
+            }),
+        ).toBe('tracker')
+    })
+})
+
+/**
+ * The tracker facts a response carries in its envelope rather than in an answer.
+ *
+ * WHERE THE REGISTRATION DOCUMENT COMES FROM. Two of the three fixtures here are harvested
+ * `$generate` output, and they are what prove the readers against the wire - a tracker event's
+ * enrollment and tracked entity are read off a real one, and an aggregate response is what proves
+ * a `Location` subject is not mistaken for a person. The registration envelope is written from the
+ * published profile instead (`D2TrackerRegistrationResponse` in dhis2w_fhir's
+ * foundation/templates/d2-responses.fsh.jinja), because the dates are the half of the contract no
+ * harvested fixture carries yet. The e2e capture walkthrough is what pins the same reading against
+ * a real server.
+ */
+describe('the tracker context on a response envelope', () => {
+    /** A registration response as the profile requires it: minted identities, both dates. */
+    const registration: QuestionnaireResponse = {
+        resourceType: 'QuestionnaireResponse',
+        status: 'completed',
+        questionnaire: 'http://localhost:8080/fhir/Questionnaire/PrTracker001',
+        subject: {
+            type: 'Patient',
+            identifier: { system: 'http://dhis2.org/fhir/id/tracked-entity', value: 'wJt3Qy1PxLd' },
+        },
+        extension: [
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit',
+                valueReference: { reference: 'Location/DiszpKrYNg8' },
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-tracker-enrollment',
+                valueIdentifier: {
+                    system: 'http://dhis2.org/fhir/id/tracker-enrollment',
+                    value: 'Qm4bTnPzKdE',
+                },
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-enrolled-at',
+                valueDateTime: '2026-07-21T04:00:00Z',
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-incident-at',
+                valueDateTime: '2026-07-14T04:00:00Z',
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-form-type',
+                valueCode: 'tracker',
+            },
+        ],
+    }
+
+    it('reads both enrollment dates a registration files', () => {
+        expect(enrolledAtOf(registration)).toBe('2026-07-21T04:00:00Z')
+        expect(incidentAtOf(registration)).toBe('2026-07-14T04:00:00Z')
+    })
+
+    it('reads the identities a registration mints for itself', () => {
+        expect(trackedEntityOf(registration)).toBe('wJt3Qy1PxLd')
+        expect(trackerEnrollmentOf(registration)).toBe('Qm4bTnPzKdE')
+    })
+
+    it('reads the same two identities off a real tracker-event skeleton', () => {
+        // The stage response quotes an enrollment rather than minting one, and the extension is
+        // spelled identically - which is what lets one reader serve both tracker kinds.
+        expect(trackedEntityOf(trackerEventSkeleton)).toBe('zPde0IgxLd6')
+        expect(trackerEnrollmentOf(trackerEventSkeleton)).toBe('GncfBAepfJB')
+    })
+
+    it('states no enrollment date for a stage response, because the profile carries none', () => {
+        expect(enrolledAtOf(trackerEventSkeleton)).toBeNull()
+        expect(incidentAtOf(trackerEventSkeleton)).toBeNull()
+    })
+
+    it('never reads a Location subject as a person', () => {
+        // An aggregate response's subject is the organisation unit it reports from, identified by
+        // reference and not by a tracked-entity identifier at all.
+        expect(trackedEntityOf(aggregateSkeleton)).toBeNull()
+        expect(trackerEnrollmentOf(aggregateSkeleton)).toBeNull()
+        expect(enrolledAtOf(aggregateSkeleton)).toBeNull()
+    })
+
+    it('refuses a subject identifier from a system that is not the tracked-entity one', () => {
+        expect(
+            trackedEntityOf({
+                resourceType: 'QuestionnaireResponse',
+                status: 'completed',
+                subject: {
+                    type: 'Patient',
+                    identifier: { system: 'http://example.org/id/person', value: 'wJt3Qy1PxLd' },
+                },
+            }),
+        ).toBeNull()
+    })
+
+    it('states the absence of every fact rather than guessing one', () => {
+        const bare: QuestionnaireResponse = { resourceType: 'QuestionnaireResponse', status: 'completed' }
+        expect(enrolledAtOf(bare)).toBeNull()
+        expect(incidentAtOf(bare)).toBeNull()
+        expect(trackerEnrollmentOf(bare)).toBeNull()
+        expect(trackedEntityOf(bare)).toBeNull()
+    })
+
+    it('tells the incident date from the enrollment date, which share a url stem', () => {
+        // `endsWith` is exact at the end, so `...d2-enrolled-at` cannot answer for
+        // `...d2-incident-at` - the same rule the attribute-option-combo pair relies on.
+        const enrolledOnly: QuestionnaireResponse = {
+            resourceType: 'QuestionnaireResponse',
+            status: 'completed',
+            extension: [
+                {
+                    url: 'http://localhost:8080/fhir/StructureDefinition/d2-enrolled-at',
+                    valueDateTime: '2026-07-21T04:00:00Z',
+                },
+            ],
+        }
+        expect(incidentAtOf(enrolledOnly)).toBeNull()
+        expect(enrolledAtOf(enrolledOnly)).toBe('2026-07-21T04:00:00Z')
     })
 })

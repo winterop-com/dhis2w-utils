@@ -131,6 +131,13 @@ def assignment_container_uid(source: QuestionnaireSourceIn) -> str:
     return source.uid if source.kind != "tracker-event" else source_program(source).uid
 
 
+#: The form kinds whose assignment hangs on the tracker program rather than on the form itself. A
+#: registration form *is* its program, so it is in here for its stem rather than for its UID: both
+#: tracker kinds have to resolve the one container through the program surface, or a run would name
+#: one program's List twice under two stems.
+_PROGRAM_CONTAINER_KINDS = frozenset({"tracker", "tracker-event"})
+
+
 def assignment_container_kind(kind: FormKind) -> AssignmentContainerKind:
     """Which DHIS2 object kind holds one form kind's assignment."""
     return "data-set" if kind == "aggregate" else "program"
@@ -139,11 +146,12 @@ def assignment_container_kind(kind: FormKind) -> AssignmentContainerKind:
 def assignment_container(source: QuestionnaireSourceIn, stem_plan: QuestionnaireStemPlan) -> AssignmentContainer:
     """The assignment container of one form, resolved through the surface its identity stem lives on.
 
-    A data set and an event program are their own container, so the stem is the form target's. A
-    tracker stage's container is its program, whose stem is the directory segment the stage files
-    already nest under - which is what makes every stage of a program share one artifact.
+    A data set and an event program are their own container, so the stem is the form target's.
+    Both tracker kinds resolve to the program, whose stem is the directory segment their files
+    already nest under - which is what makes a program's registration form and every one of its
+    stages share the one artifact DHIS2 hangs the assignment on.
     """
-    if source.kind == "tracker-event":
+    if source.kind in _PROGRAM_CONTAINER_KINDS:
         program = source_program(source)
         return AssignmentContainer(
             uid=program.uid,

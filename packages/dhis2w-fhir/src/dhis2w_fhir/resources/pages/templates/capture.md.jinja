@@ -168,12 +168,12 @@ enrollment. It follows the event response, with the context an enrolled tracked 
 
 {% endif %}
 **1. Name the tracked entity.** `subject` is a logical reference: this guide publishes no
-`Patient` resource, so the response carries no `reference` and identifies the DHIS2 tracked
+`{{ capture.tracker_subject_type }}` resource, so the response carries no `reference` and identifies the DHIS2 tracked
 entity instead. The tracked entity resolves against DHIS2:
 
 ```
 "subject": {
-  "type": "Patient",
+  "type": "{{ capture.tracker_subject_type }}",
   "identifier": { "system": "{{ capture.tracked_entity_system }}", "value": "<trackedEntityUid>" }
 }
 ```

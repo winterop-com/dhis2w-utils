@@ -7,8 +7,11 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir.names import join_id_tokens, page_text
+from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE, SUBJECT_RESOURCE_TYPES
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from dhis2w_fhir.config import NamingConfig
 
 _DEFINITION_FALLBACK_PREFIX = "D2"
@@ -52,6 +55,7 @@ IDENTIFIER_SYSTEM_SUBJECTS = (
         segment="category-option-combo", token="CategoryOptionCombo", label="category option combo"
     ),
     IdentifierSystemSubject(segment="program-stage", token="ProgramStage", label="program stage"),
+    IdentifierSystemSubject(segment="tracked-entity-type", token="TrackedEntityType", label="tracked entity type"),
     IdentifierSystemSubject(segment="tracked-entity", token="TrackedEntity", label="tracked entity", has_code=False),
     IdentifierSystemSubject(
         segment="tracker-enrollment", token="TrackerEnrollment", label="tracker enrollment", has_code=False
@@ -78,6 +82,41 @@ FORM_TYPE_DEFINITIONS: tuple[FormTypeDefinition, ...] = (
 )
 
 
+class TrackerSubjectTypes(BaseModel):
+    """The resource types a tracker response's subject may be, as one project's response profiles pin them.
+
+    A response profile is published once for the whole project, so it cannot pin the subject type
+    of one program: it admits every type the project's tracked entity types resolve to. The
+    default is always among them - a tracked entity type the project maps to nothing is a
+    `Patient` - so a project that maps nothing publishes `Reference(Patient)` and a project that
+    tracks herds beside people publishes `Reference(Patient or Group)`. The order is the one
+    `SUBJECT_RESOURCE_TYPES` declares, so the published constraint is a function of which types
+    are configured and not of the order they were written in.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    resource_types: tuple[str, ...] = (DEFAULT_SUBJECT_RESOURCE_TYPE,)
+
+    @classmethod
+    def of_mapping(cls, tracked_entity_types: Mapping[str, str]) -> TrackerSubjectTypes:
+        """The admitted set of one project's `[generate.tracked_entity_types]` table."""
+        configured = set(tracked_entity_types.values()) | {DEFAULT_SUBJECT_RESOURCE_TYPE}
+        return cls(resource_types=tuple(name for name in SUBJECT_RESOURCE_TYPES if name in configured))
+
+    @property
+    def reference_targets(self) -> str:
+        """The FSH reference-target list a `subject only Reference(...)` rule takes (e.g. `Patient or Group`)."""
+        return " or ".join(self.resource_types)
+
+    @property
+    def subject_noun(self) -> str:
+        """What the profile's prose calls the subject: a person while that is all the project tracks."""
+        if self.resource_types == (DEFAULT_SUBJECT_RESOURCE_TYPE,):
+            return "person"
+        return "tracked entity"
+
+
 class ResponseProfileDeclaration(BaseModel):
     """One QuestionnaireResponse profile as the responses template renders it.
 
@@ -85,10 +124,13 @@ class ResponseProfileDeclaration(BaseModel):
     reporting period; `authored_required` marks the contracts whose response reports the moment
     the data was captured; `tracker_context_required` marks the tracker-event contract, whose
     response carries the tracker enrollment it belongs to, the organisation unit the event was
-    captured at, and a Patient subject identified by tracked-entity UID.
+    captured at, and a tracked-entity subject identified by DHIS2 UID.
     `attribute_option_combo_allowed` marks the contract whose response may name the DHIS2
     attribute option combo its values are keyed under - the aggregate one, since only a data
-    value set carries that third key. The flags are what the shared template branches on.
+    value set carries that third key. `registration_context_required` marks the tracker
+    registration contract, whose response mints the tracked entity and the enrollment it is
+    creating rather than naming ones that already exist, and states when the enrollment began.
+    The flags are what the shared template branches on.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -101,6 +143,7 @@ class ResponseProfileDeclaration(BaseModel):
     period_required: bool = False
     authored_required: bool = False
     tracker_context_required: bool = False
+    registration_context_required: bool = False
     attribute_option_combo_allowed: bool = False
 
     @property
@@ -299,6 +342,26 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "tracker", "enrollment")
 
     @property
+    def enrolled_at_extension(self) -> str:
+        """FSH name of the enrollment-date Extension (e.g. `D2EnrolledAt`)."""
+        return f"{self.definition_prefix}EnrolledAt"
+
+    @property
+    def enrolled_at_extension_id(self) -> str:
+        """FHIR id of the enrollment-date Extension (e.g. `d2-enrolled-at`)."""
+        return join_id_tokens(self.definition_prefix, "enrolled", "at")
+
+    @property
+    def incident_at_extension(self) -> str:
+        """FSH name of the incident-date Extension (e.g. `D2IncidentAt`)."""
+        return f"{self.definition_prefix}IncidentAt"
+
+    @property
+    def incident_at_extension_id(self) -> str:
+        """FHIR id of the incident-date Extension (e.g. `d2-incident-at`)."""
+        return join_id_tokens(self.definition_prefix, "incident", "at")
+
+    @property
     def aggregate_response_profile(self) -> str:
         """FSH name of the aggregate QuestionnaireResponse profile (e.g. `D2AggregateResponse`)."""
         return f"{self.definition_prefix}AggregateResponse"
@@ -317,6 +380,16 @@ class FoundationNaming(BaseModel):
     def event_response_profile_id(self) -> str:
         """FHIR id of the event QuestionnaireResponse profile (e.g. `d2-event-response`)."""
         return join_id_tokens(self.definition_prefix, "event", "response")
+
+    @property
+    def tracker_registration_response_profile(self) -> str:
+        """FSH name of the tracker registration QuestionnaireResponse profile (e.g. `D2TrackerRegistrationResponse`)."""
+        return f"{self.definition_prefix}TrackerRegistrationResponse"
+
+    @property
+    def tracker_registration_response_profile_id(self) -> str:
+        """FHIR id of the registration QuestionnaireResponse profile (e.g. `d2-tracker-registration-response`)."""
+        return join_id_tokens(self.definition_prefix, "tracker", "registration", "response")
 
     @property
     def tracker_event_response_profile(self) -> str:

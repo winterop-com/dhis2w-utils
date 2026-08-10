@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING
 from dhis2w_fhir.foundation import (
     CAPTURE_SERVER_READ_RESOURCE_TYPES,
     GENERATE_OPERATION_CODE,
-    build_response_profile_declarations,
+    build_captured_response_profile_declarations,
 )
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.r4 import (
@@ -178,8 +178,13 @@ def _generate_operation(
 
 
 def _response_resource(project: FhirProject, canonical: str) -> CapabilityStatementResource:
-    """Declare the capture type: create, read, search, and the response profiles this project generated."""
-    declarations = build_response_profile_declarations(project.config.generate)
+    """Declare the capture type: create, read, search, and the response profiles this server captures.
+
+    The profiles are `CAPTURED_FORM_KINDS` resolved through the project's own naming, which is the
+    same list `d2-capture-server.fsh` declares - a statement of what this facade both validates on
+    receipt and translates into a DHIS2 payload on forward.
+    """
+    declarations = build_captured_response_profile_declarations(project.config.generate)
     return CapabilityStatementResource(
         type=QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE,
         supportedProfile=[f"{canonical}/StructureDefinition/{declaration.profile_id}" for declaration in declarations],

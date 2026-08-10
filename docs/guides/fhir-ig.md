@@ -486,7 +486,7 @@ reported as a note rather than silently ignored. A narrowed list is still unione
 with whatever the selected data sets, event programs, and tracker program stages
 bind their data elements to, so a questionnaire never points at a ValueSet the IG
 does not contain
-(see [Data set, event program, and tracker stage forms](#data-set-event-program-and-tracker-stage-forms)).
+(see [Data set, event program, and tracker forms](#data-set-event-program-and-tracker-forms)).
 
 ### `[generate.categories]`
 
@@ -556,6 +556,46 @@ The two program tables are read independently, each on its own terms:
   under [generate.event_programs]`. UIDs the instance answers nothing for stay an
   aggregate note naming the table they were listed in.
 
+### `[generate.tracked_entity_types]`
+
+```toml
+[generate.tracked_entity_types]
+# "Kd6Nk9wnAJa" = "Group"       # a livestock herd tracked through a vaccination programme
+# "Bx8L1nQ4EiP" = "Location"    # a water point tracked through a maintenance programme
+```
+
+**What each tracked entity type IS.** DHIS2 tracks people most of the time, and buildings,
+herds, water points, vehicles, and lab samples the rest of the time - all through the same
+registration-and-stages shape. This table maps a tracked entity type UID onto the FHIR
+resource type its registrations are about, and one entry feeds every artifact that has to
+say so:
+
+- `Questionnaire.subjectType` on the program's registration form **and** on every stage
+  form of that program - a stage captures a visit by the very entity the registration
+  enrolled, so the two cannot disagree.
+- `subject.type` on the generated example responses, and on whatever `$generate` mints
+  when the compiled form is served.
+- The reference targets the two tracker response profiles admit (see
+  [The capture contract](#the-capture-contract)).
+
+**The key is the tracked entity type, not the program.** The type is what owns the nature
+of the thing, so two programs tracking the same type agree by construction and neither can
+be configured into disagreeing with the other.
+
+**A type this table never mentions is a `Patient`.** A project that tracks people
+configures nothing here, and everything it generates is what it would have generated
+without the table at all.
+
+The admitted resource types are `Patient`, `Person`, `Practitioner`, `RelatedPerson`,
+`Group`, `Device`, `Location`, `Organization`, and `Specimen` - a deliberate subset of
+R4's resource-types ValueSet, being the types a longitudinal DHIS2 record is plausibly
+kept about. Anything else is refused when `fhir.toml` is read, naming the type it was
+mapped on and listing what it could have been: a typo here would mis-type every form of
+every program tracking that type.
+
+Selecting the programs is still `[generate.tracker_programs]`' job - naming a type here
+selects nothing.
+
 ### `[generate.examples]`
 
 ```toml
@@ -608,7 +648,7 @@ d2w fhir generate                All seven, in that order, off one pass over the
 d2w fhir generate foundation     Identifier aliases + the D2Period / D2FormType / D2AttributeValue extensions
 d2w fhir generate option-sets    Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate categories     Categories -> CodeSystem/ValueSet pairs
-d2w fhir generate questionnaires Data sets + event programs + tracker program stages -> Questionnaire instances
+d2w fhir generate questionnaires Data sets + event programs + tracker programs -> Questionnaire instances
 d2w fhir generate examples       Example QuestionnaireResponses answering those Questionnaires
 d2w fhir generate org-units      Org units -> Organization/Location instances
 d2w fhir generate pages          Narrative site pages + per-artifact intros
@@ -720,7 +760,7 @@ never touches DHIS2:
   a DHIS2 identifier under it means. See [Identifiers](#identifiers).
 - **`d2-period.fsh`** - the `D2Period` extension plus its terminology.
 - **`d2-form-type.fsh`** - the `D2FormType` extension plus its terminology. See
-  [Data set, event program, and tracker stage forms](#data-set-event-program-and-tracker-stage-forms).
+  [Data set, event program, and tracker forms](#data-set-event-program-and-tracker-forms).
 - **`d2-attribute-value.fsh`** - the `D2AttributeValue` extension every resource
   carrying DHIS2 attribute values points at. See
   [The D2AttributeValue extension](#the-d2attributevalue-extension).
@@ -729,11 +769,16 @@ never touches DHIS2:
 - **`d2-organisation-unit-level.fsh`** - the `D2OrganisationUnitLevel` extension, the
   hierarchy level a published `Location` sits at, as a `Coding` of the level CodeSystem.
 - **`d2-tracker-enrollment.fsh`** - the `D2TrackerEnrollment` extension, the DHIS2
-  enrollment UID an event belongs to, as an `Identifier` pinned to the
-  `{base}/id/tracker-enrollment` system.
-- **`d2-responses.fsh`** - the `D2AggregateResponse`, `D2EventResponse`, and
-  `D2TrackerEventResponse` profiles every captured `QuestionnaireResponse` has to
-  meet. See [The capture contract](#the-capture-contract).
+  enrollment UID a response belongs to, as an `Identifier` pinned to the
+  `{base}/id/tracker-enrollment` system. A registration response mints the UID of the
+  enrollment it creates; an event response names the enrollment it was captured under.
+- **`d2-enrollment-dates.fsh`** - the `D2EnrolledAt` and `D2IncidentAt` extensions, the
+  two `dateTime`s a DHIS2 enrollment carries: when it began, and when the incident it
+  follows occurred. Both sit on a registration response. See
+  [The tracker registration form](#the-tracker-registration-form).
+- **`d2-responses.fsh`** - the `D2AggregateResponse`, `D2EventResponse`,
+  `D2TrackerRegistrationResponse`, and `D2TrackerEventResponse` profiles every captured
+  `QuestionnaireResponse` has to meet. See [The capture contract](#the-capture-contract).
 - **`d2-generate-operation.fsh`** - the `D2GenerateOperation` OperationDefinition
   defining `$generate`, the instance-level operation that answers a served
   `Questionnaire` with a synthetic response postable straight back. See
@@ -870,16 +915,22 @@ EpisodeOfCare, MeasureReport identifiers will follow it).
 
 - **Questionnaires** carry the source object's pair: a data set through `$DHIS2-DS` /
   `$DHIS2-DS-CODE`, an event program through `$DHIS2-PROGRAM` /
-  `$DHIS2-PROGRAM-CODE`, and a tracker program stage through `$DHIS2-PS` /
-  `$DHIS2-PS-CODE`.
+  `$DHIS2-PROGRAM-CODE`, a tracker program stage through `$DHIS2-PS` / `$DHIS2-PS-CODE`,
+  and a tracker program's registration form through `$DHIS2-PROGRAM` /
+  `$DHIS2-PROGRAM-CODE`, because that form *is* the program.
 - **Tracker stage Questionnaires carry a third slice**, `$DHIS2-PROGRAM` holding the
   UID of the program the stage belongs to. That slice is the grouping handle: a
-  program's stages are one search on any FHIR server, in the order the server returns
-  them.
+  program's whole capture surface - its registration form, whose own identity is that
+  same pair, and every one of its stages - is one search on any FHIR server, in the
+  order the server returns them.
 
     ```
     GET Questionnaire?identifier=http://dhis2.org/fhir/id/program|IpHINAT79UW
     ```
+
+- **A registration Questionnaire carries a third slice too**, `$DHIS2-TET` holding the
+  UID of the tracked entity type it enrols a person as - what a client needs to know
+  before it can name the person its response creates.
 
 **A unique attribute's values are identifiers.** A DHIS2 attribute value is an
 arbitrary key-value pair, so it normally rides the
@@ -907,9 +958,9 @@ be worse than none. What `d2-naming-systems.fsh` declares is the fixed family be
 **Every system is declared as a NamingSystem.** `foundation/d2-naming-systems.fsh`
 emits one `NamingSystem` per identifier system - a UID system and a code system for
 each of the organisation unit, option set, category, data set, program, data element,
-category option combo, and program stage, plus a UID system alone for the tracked
-entity and the tracker enrollment. Those last two are data objects rather than
-metadata: DHIS2 gives them no `code` attribute, so there is no code system to declare.
+category option combo, program stage, and tracked entity type, plus a UID system alone
+for the tracked entity and the tracker enrollment. Those last two are data objects rather
+than metadata: DHIS2 gives them no `code` attribute, so there is no code system to declare.
 Each declaration is `kind = #identifier` with a single
 preferred `uri` uniqueId and a description of the convention, the code slot's UID
 fall-back included. Without them, a validator meeting `{base}/id/org-unit` has no
@@ -1206,12 +1257,13 @@ sweeping away the category maps; instead each target sweeps only the file-name p
 its own id stem produces (`ConceptMap-d2-os-`, `ConceptMap-d2-cat-`). Both still
 converge: drop a category from the selection and its map goes with its pair.
 
-### Data set, event program, and tracker stage forms
+### Data set, event program, and tracker forms
 
-A DHIS2 data set, a DHIS2 event program, and one stage of a DHIS2 tracker program are
-all *data-capture forms*, and FHIR already has that resource: `Questionnaire`.
-`d2w fhir generate questionnaires` writes one file per selected target plus two support
-CodeSystem/ValueSet pairs, across four directories named for what they hold, and the
+A DHIS2 data set, a DHIS2 event program, one stage of a DHIS2 tracker program, and the
+registration a tracker program enrols a person through are all *data-capture forms*, and
+FHIR already has that resource: `Questionnaire`. `d2w fhir generate questionnaires`
+writes one file per selected target plus three support CodeSystem/ValueSet pairs, across
+four directories named for what they hold, and the
 [organisation-unit assignment](#organisation-unit-assignment) of every form that has a
 narrower one into a fifth:
 
@@ -1220,8 +1272,11 @@ ig/input/fsh/data-sets/<stem>.fsh         One Questionnaire per data set
 ig/input/fsh/event-programs/<stem>.fsh    One Questionnaire per event program
 ig/input/fsh/tracker-programs/            One Questionnaire per program stage,
   <program stem>/<stage stem>.fsh         nested under the program it belongs to
-ig/input/fsh/data-dictionary/             The shared data-element and
-                                          category-option-combo terminology
+ig/input/fsh/tracker-programs/            The program's own registration form,
+  <program stem>/registration.fsh         beside the stages it enrols people into
+ig/input/fsh/data-dictionary/             The shared data-element, tracked-entity-
+                                          attribute, and category-option-combo
+                                          terminology
 ig/input/resources/assignments/           One List of Locations per form whose
   List-<id>.json                          assignment narrows the registry
 ig/input/resources/                       One CodeSystem/ValueSet pair per
@@ -1250,7 +1305,7 @@ include_ids = ["BfMAe6Itzgt"]       # Child Health
 include_ids = ["VBqh0ynB2wv"]       # Malaria case registration
 
 [generate.tracker_programs]
-include_ids = ["IpHINAT79UW"]       # Child Programme - one Questionnaire per stage
+include_ids = ["IpHINAT79UW"]       # Child Programme - a registration form plus one per stage
 ```
 
 ```bash
@@ -1275,13 +1330,23 @@ name.
 resolves on its own, and three things name the program around it: the `title` reads
 `<program name> - <stage name>` ("Child Programme - Birth"), the file sits under
 `tracker-programs/<program UID>/`, and a third identifier slice holds the program UID
-under `$DHIS2-PROGRAM` - the search handle that selects a whole program's stages (see
-[Identifiers](#identifiers)).
+under `$DHIS2-PROGRAM` - the search handle that selects a whole program's capture
+surface (see [Identifiers](#identifiers)).
+
+**A tracker program publishes one more form: its registration.** A stage is a visit,
+and nothing is captured at a visit until somebody is enrolled - so the program itself is
+a form, and answering it is what enrols a person. See
+[The tracker registration form](#the-tracker-registration-form) for what it asks and what
+answering it carries.
 
 **`subjectType` says who the form is answered for.** A data set and an event program
-declare `#Location` - a DHIS2 form is answered *for an organisation unit*. A tracker
-stage declares `#Patient`: the form is answered for the enrolled person, and the
-organisation unit rides the response as an extension instead.
+declare `#Location` - a DHIS2 form is answered *for an organisation unit*. Both tracker
+forms declare the resource type of the thing the program tracks: a registration form is
+answered *about the entity being enrolled* and a stage form *about the entity already
+enrolled*, and the organisation unit rides the response as an extension instead. That
+type is `#Patient` unless the project says otherwise - a DHIS2 tracked entity type is not
+always a person, and [`[generate.tracked_entity_types]`](#generatetracked_entity_types)
+is where a project names what its herds, water points, or households really are.
 
 | DHIS2 | FHIR |
 | --- | --- |
@@ -1355,11 +1420,15 @@ category option combos as columns.
 
 **The support terminology.** `data-dictionary/data-elements.fsh` publishes every data
 element the generated questionnaires reference as one `D2DE_CS` CodeSystem (plus its
-ValueSet), and `data-dictionary/category-option-combos.fsh` does the same for every
-category option combo as `D2COC_CS`. Each item's `code` points into them, so a
-response can be read back to DHIS2 without consulting the questionnaire. These two
+ValueSet), `data-dictionary/tracked-entity-attributes.fsh` does the same for every
+attribute a registration form asks about as `D2TEA_CS`, and
+`data-dictionary/category-option-combos.fsh` for every category option combo as
+`D2COC_CS`. Which pair an item's `code` points into is a property of the form kind - a
+registration form asks tracked entity attributes, everything else asks data elements - so
+a response can be read back to DHIS2 without consulting the questionnaire. A pair whose
+objects nothing in the run references is not written at all. All three
 are FSH, under `ig/input/fsh/data-dictionary/` - a different tree from the pre-built
-option-set JSON in `ig/input/resources/terminology/`, and two files that carry
+option-set JSON in `ig/input/resources/terminology/`, and files that carry
 enough concepts to dominate what the FSH compile costs (see
 [Build time and the two caches](#build-time-and-the-two-caches)). Each of the four
 directories is swept against its own files, so narrowing the data-set selection
@@ -1369,8 +1438,12 @@ its files - a program dropped from the selection leaves no folder behind.
 
 **The option-set closure.** When `[generate.option_sets] include_ids` narrows the
 terminology and a selected form binds a question to an option set outside that
-list, the set is added anyway and the run says so in a note. An empty option-set list
-already means every option set, so the union is a no-op there.
+list, the set is added anyway and the run says so in a note. The closure is over
+*questions*, not over data elements: an option set only a tracker program's registration
+form binds - through one of its tracked entity attributes - joins the selection exactly
+as one a data element binds does, and `d2w fhir validate` resolves its scope the same
+way, so the two never disagree about what is published. An empty option-set list already
+means every option set, so the union is a no-op there.
 
 **Safeguards, loud when you named the UID.** The two program tables select opposite
 `programType`s, so a UID listed under the wrong one fails the run by name rather than
@@ -1386,8 +1459,8 @@ would make that mode unusable, so the sweep routes each program by its live
 elements no section references are emitted after the sectioned ones, also with a note.
 
 **`D2FormType`.** Every generated Questionnaire states which kind of DHIS2 form it
-came from twice: as `Questionnaire.code` (`D2FormType_CS#aggregate`, `#event`, or
-`#tracker-event`) and
+came from twice: as `Questionnaire.code` (`D2FormType_CS#aggregate`, `#event`,
+`#tracker`, or `#tracker-event`) and
 through the `D2FormType` extension, whose context covers `Questionnaire` **and**
 `QuestionnaireResponse`. That second context is what
 [Example responses](#example-responses) uses: a data value set becomes a
@@ -1407,6 +1480,84 @@ attribute values ride onto its Questionnaire as one
 DHIS2 returned them. The data-element attribute values inside the form are not
 emitted; the `data-dictionary` CodeSystems carry concepts, which have no chosen
 carrier for them.
+
+### The tracker registration form
+
+A `WITH_REGISTRATION` program has two capture points, not one. A stage is a *visit*, and
+nothing is captured at a visit until somebody is enrolled - so the program itself is a
+form, and answering it is what enrols them. That form is published as one more
+`Questionnaire`, beside the program's stages:
+
+```
+ig/input/fsh/tracker-programs/<program stem>/registration.fsh
+ig/input/fsh/tracker-programs/<program stem>/<stage stem>.fsh
+```
+
+A fixed file name rather than a stem: the file already sits in the program's own
+directory, and `registration.fsh` says what it is at a glance.
+
+**The form is the program.** Its `id`, its canonical URL, and its identifiers are the
+program's own - `$DHIS2-PROGRAM` / `$DHIS2-PROGRAM-CODE`, the very pair a stage form
+carries as its grouping identifier. So one search selects a tracker program's whole
+capture surface, registration and stages together:
+
+```
+GET [base]/Questionnaire?identifier=http://dhis2.org/fhir/id/program|IpHINAT79UW
+```
+
+`Questionnaire.name` takes the `PR` token (`D2PR_IpHINAT79UW`), because the form it
+names *is* the program's own form, whichever kind of program that is.
+
+**Its questions are tracked entity attributes.** A stage asks data elements; a
+registration asks the program's `programTrackedEntityAttributes`, in DHIS2 sort order,
+through the very same typing: the attribute's `valueType` picks the item type off
+the same value-type table, an attribute bound to an option set becomes a `#choice`
+answered from that set's published ValueSet, `formName` (else `name`) is the question
+text, and DHIS2's `mandatory` on the join becomes `required = true`.
+
+| DHIS2 | FHIR |
+| --- | --- |
+| Tracked entity attribute | `item`, `linkId` the TEA UID, `text` its form name (else its name) |
+| `programTrackedEntityAttributes.sortOrder` | the order items are emitted in |
+| `programTrackedEntityAttributes.mandatory` | `required = true` |
+| Attribute with an option set | `type = #choice` plus `answerValueSet` pointing at that set's generated ValueSet |
+| `trackedEntityType` | an identifier slice under `$DHIS2-TET`, and the `subjectType` the form declares |
+
+**A tracked entity is not always a person.** The form declares what it is answered about
+on `subjectType`, and that follows the program's tracked entity type through
+[`[generate.tracked_entity_types]`](#generatetracked_entity_types): a project tracking
+herds maps its herd type to `Group` once, and the registration form, every stage form of
+that program, the example responses, and whatever `$generate` mints all say `Group`. A
+type the table never mentions is a `Patient`, which is what a person-tracking project
+gets by configuring nothing.
+
+**`D2TEA_CS`, the attribute half of the data dictionary.** Because the questions are a
+different DHIS2 object, they get a support pair of their own -
+`data-dictionary/tracked-entity-attributes.fsh`, mirroring `D2DE_CS` concept for concept
+under the `TEA` token. Every concept carries the attribute's `dhis2-code` and its
+`value-type`, plus one property the data-element pair has no use for: `unique`, a boolean
+saying whether DHIS2 declares the attribute a business identifier - a national ID, a case
+number - rather than a description of the person. A run whose forms ask no attributes
+writes no such file, the same way a run that disaggregates nothing writes no `D2COC_CS`.
+
+**It shares its program's assignment.** DHIS2 hangs the organisation-unit assignment on
+the program, so the registration form references the same
+`d2-pr-<program stem>-org-units` List every stage of that program references. Tracker
+capture has no attribute option combo, so a registration form declares no
+`D2AttributeOptionCombos` vocabulary either.
+
+**What answering it carries.** A registration response is the one document that *mints*
+DHIS2 identities rather than naming existing ones - see
+[`D2TrackerRegistrationResponse`](#the-capture-contract).
+
+**Captured and forwarded.** `d2w fhir serve` accepts a registration response, spools the
+receipt, and declares the profile on its CapabilityStatement; `d2w fhir forward`
+translates it into the `/api/tracker` tracked entity and enrollment it creates. Because
+the enrollment a stage response answers against is what a registration creates, a drain
+posts every registration **before** any event - see
+[What one run does](#what-one-run-does). `generate load-set` covers registration forms
+for the same reason: its stage responses answer against the very identities its
+registration responses mint, so the corpus is internally consistent.
 
 ### Organisation-unit assignment
 
@@ -1627,6 +1778,13 @@ Answers come from the values the server actually holds.
   response keyed by the event UID, with the DHIS2 event status mapped onto the
   response status (`COMPLETED` to `completed`, `ACTIVE` to `in-progress`, `SKIPPED`
   to `stopped`, and the scheduled / overdue / visited states to `completed`).
+- **Tracker registration forms** read `GET /api/tracker/trackedEntities` selected by
+  `program=<uid>` and ordered by `createdAt:desc`, with
+  `fields=trackedEntity,attributes[attribute,value],enrollments[enrollment,enrolledAt,occurredAt,orgUnit,program]`.
+  One response per **enrollment** rather than per person - the same person may be enrolled
+  in the program twice, and each enrollment is one answer to the registration form - keyed
+  by the enrollment UID, carrying the person's attribute values as the answers and the
+  enrollment's dates as `D2EnrolledAt` and (when the program collects one) `D2IncidentAt`.
 - **Tracker program stages** read the same endpoint per stage, selected by
   `programStage=<uid>` alongside its `program=<uid>` - DHIS2 answers `400` to a
   `programStage` read that omits the program even though the stage pins it
@@ -1767,19 +1925,21 @@ against them. Three artifacts make the IG a complete contract for that, so a thi
 party needs the published guide and nothing else - no access to this repo, no access
 to the DHIS2 instance's metadata API, no conversation.
 
-**Three profiles**, in `foundation/d2-responses.fsh`, one per form kind:
+**Four profiles**, in `foundation/d2-responses.fsh`, one per form kind:
 
 | Profile | Parent | What it pins |
 | --- | --- | --- |
 | `D2AggregateResponse` | `QuestionnaireResponse` | `D2Period` 1..1, `D2AttributeOptionCombo` 0..1, `D2FormType` 1..1 fixed to `#aggregate`, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
 | `D2EventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#event`, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
-| `D2TrackerEventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker-event`, `D2TrackerEnrollment` 1..1, `D2OrganisationUnit` 1..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(Patient)` with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
+| `D2TrackerRegistrationResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker`, `D2OrganisationUnit` 1..1, `D2TrackerEnrollment` 1..1, `D2EnrolledAt` 1..1, `D2IncidentAt` 0..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(Patient)` - plus every other type `[generate.tracked_entity_types]` names - with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
+| `D2TrackerEventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker-event`, `D2TrackerEnrollment` 1..1, `D2OrganisationUnit` 1..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(Patient)` - plus every other type `[generate.tracked_entity_types]` names - with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
 
-All three follow the `[generate.naming]` prefix, and all three take `^status` /
+All four follow the `[generate.naming]` prefix, and all four take `^status` /
 `^experimental` from the `[ig] status` dial like every other definitional artifact.
 `foundation/d2-capture-server.fsh` sits beside them: a `D2CaptureServer`
 CapabilityStatement of `kind = #requirements`, declaring `create` on
-`QuestionnaireResponse` with all three profiles as `supportedProfile`, plus `read` and
+`QuestionnaireResponse` with the profiles a server captures today as
+`supportedProfile` - all four of them - plus `read` and
 `search-type` on the `Questionnaire`, `CodeSystem`, `ValueSet`, `Location`,
 `Organization`, and `List` resources a client resolves a form from - `List` because a
 form's [organisation-unit assignment](#organisation-unit-assignment) is published as
@@ -1797,15 +1957,25 @@ a server enforces is
 carries `D2AttributeOptionCombos` has to carry `D2AttributeOptionCombo`, coded from the
 ValueSet that extension names.
 
-**The Patient subject is logical, not resolvable.** This guide publishes no `Patient`
-instances - DHIS2 holds the tracked entities and this IG describes forms, not people.
-So a tracker-event response carries no `subject.reference` at all: it states
-`subject.type = "Patient"` and identifies the person through
+**The tracked-entity subject is logical, not resolvable.** This guide publishes no
+`Patient` instances - DHIS2 holds the tracked entities and this IG describes forms, not
+people. So a tracker-event response carries no `subject.reference` at all: it states
+`subject.type = "Patient"` and identifies the entity through
 `subject.identifier`, whose `system` is fixed to `{base}/id/tracked-entity` and whose
 value is the DHIS2 tracked entity UID. That is the FHIR-native spelling for "this
 subject is real, and it lives in a system this document does not contain".
 
-**The organisation unit moves to an extension.** `subject` is the patient, so the unit
+**The two tracker profiles admit every type the project configured.** A response profile
+is published once for the whole IG, so it cannot pin the subject type of one program: it
+admits the union of `Patient` and every type
+[`[generate.tracked_entity_types]`](#generatetracked_entity_types) names. A project that
+tracks only people publishes `subject only Reference(Patient)`, exactly as it always did;
+a project that tracks herds beside people publishes
+`subject only Reference(Patient or Group)`. Which type a given form's responses actually
+carry is pinned by that form's own `subjectType`, and a capture server reads it from the
+compiled Questionnaire - `fhir.toml` never reaches a running facade.
+
+**The organisation unit moves to an extension.** `subject` is the tracked entity, so the unit
 the event was captured at rides on `D2OrganisationUnit` as a `valueReference` to that
 unit's published `Location` - the same registry an aggregate response's `subject`
 points at. `D2TrackerEnrollment` carries the second required fact as a
@@ -1816,6 +1986,46 @@ enrollment the event belongs to without inventing a resource for it.
 `d2w data tracker enrollment list` lists a program's enrollments and the tracked entity
 each one registers. Resolving a person to an enrollment is a DHIS2 operation; the IG's
 job is to state, unambiguously, which two UIDs the response has to carry.
+
+**A registration response mints them instead.** `D2TrackerRegistrationResponse` carries
+the same two identifiers in the same two places - `subject.identifier` under
+`{base}/id/tracked-entity` and `D2TrackerEnrollment` under
+`{base}/id/tracker-enrollment` - but nothing on the instance holds either UID yet,
+because the response is what creates them. The **client** mints both, as DHIS2 UIDs:
+eleven characters, the first a letter, the rest alphanumeric. That is what lets a client
+enrol a person and capture the enrollment's first stage events in one breath, naming the
+enrollment its stage responses answer against before any of them is sent. The response
+dates the enrollment too: `D2EnrolledAt` 1..1 is when it begins, and `D2IncidentAt` 0..1
+is when the incident it follows occurred - `0..1` because a DHIS2 program states through
+`displayIncidentDate` whether it collects one at all, so a response to a form whose
+program does not carries none.
+
+**What a capture server can honestly check about a minted identifier.** Its *shape* - a
+DHIS2 UID, one ASCII letter and ten alphanumeric places - and nothing else. A facade
+holds no instance data, so "does this person exist" is not a question it can answer, and
+a registration is precisely the response for which the answer is meant to be no. Two
+consequences the capture path states out loud:
+
+- **Uniqueness is not checked.** A `unique` tracked entity attribute is a business
+  identifier, and whether a value is already taken is global instance state. `d2w fhir
+  serve` stores the receipt; DHIS2 refuses the duplicate at import, and the rejection
+  comes back through `d2w fhir forward` like any other.
+- **The incident date is graded on its primitive alone.** The compiled Questionnaire
+  publishes no statement of `displayIncidentDate`, so a response is accepted with
+  `D2IncidentAt` and without it; what capture does check is that a carried one reads as
+  an R4 `dateTime`. `$generate` follows the same honest rule - it always generates
+  `D2EnrolledAt`, and generates `D2IncidentAt` only when a served example response of
+  the same form carries one, exactly as it reads a data set's period type off a served
+  example.
+
+**Identifier-keyed, and only identifier-keyed.** A registration response publishes no
+`Patient`, no `EpisodeOfCare`, and no `CarePlan` - it mints the DHIS2 identifiers and
+carries the attribute values, exactly as the tracker-event contract already references
+both purely by identifier. Whether a DHIS2 enrollment additionally maps to an
+`EpisodeOfCare` or a `CarePlan` is
+[decision 5.2](../project/fhir-roadmap.md#52-the-tracker-shape), and it stays open: the
+resource layer is an addition on top of the identifier contract, not a prerequisite for
+it.
 
 **The Capture page**, `pagecontent/capture.md`, is the prose half. It walks an
 aggregate response, an event response, and a tracker event response step by step
@@ -2343,6 +2553,14 @@ names is a fact about the instance rather than a mistake in the document. DHIS2 
 that write with `E1029`, which the diagnostics say. A form publishing no assignment is
 scoped to the whole registry and nothing is checked.
 
+**The same dial grades the subject type.** A tracker form states what it is answered
+about on `subjectType`, and a response typing its subject as something else - a `Patient`
+sent to a form asking for a `Group` - is a warning by default and a 422 under
+`--strict-codes`. `Reference.type` is optional in R4 and the profile asks for the subject
+by identifier, so a response that carries no type at all is complete and nothing is
+checked. The server reads the declared type off the compiled Questionnaire and nowhere
+else: `fhir.toml` is the generator's input and never reaches a running facade.
+
 The published contract stays strict either way. Leniency is a property of this server's
 runtime, not of what the IG asks for.
 
@@ -2411,6 +2629,55 @@ intersection of registry and assignment leaves empty is dropped, reported as a n
 naming it, and `questionnaire_count` counts what the corpus covers rather than what the
 selection holds - a form the corpus cannot exercise is a fact worth reading, not one
 worth hiding behind responses nobody can accept.
+
+**A tracker program's corpus is internally consistent.** Every form kind is covered,
+registration forms included, and the two halves of a tracker program agree: the
+registration responses mint the tracked entity and enrollment UIDs, and the program's
+stage responses answer against those very pairs rather than inventing enrollments
+nothing creates. The pair is a pure function of the program UID and the registration's
+ordinal - the program UID is in the seed material, which is what keeps one program's
+identities out of another's - and stage responses are assigned across their own
+program's registrations round-robin, so the assignment is reproducible and every
+registration carries events. Since a drain posts
+[registrations before events](#what-one-run-does), forwarding the whole corpus lands
+both halves in one run.
+
+**And no two registrations claim one business identifier.** DHIS2 refuses a second
+tracked entity carrying a `unique` attribute's value with `E1064`, and it refuses the
+enrollment nested in it and every event on that enrollment with it - so one invented
+constant across a corpus registers exactly one person and takes the rest down. A unique
+attribute is therefore answered from the response's own minted tracked-entity UID, in
+the spelling its value type admits:
+
+| Value type | What a unique attribute is answered with |
+| --- | --- |
+| `TEXT`, `LONG_TEXT`, `USERNAME` | the question's name plus the minted UID |
+| `EMAIL` | `<minted uid>@example.invalid` |
+| `PHONE_NUMBER` | `+` and eleven digits derived from the minted UID |
+| `URL` | `https://example.invalid/<minted uid>` |
+| `INTEGER` family | a nine-digit number derived from the minted UID, on whichever side of zero the type admits |
+| everything else | the ordinary draw, and a note naming the question |
+
+The last row is the honest half. A `BOOLEAN` has two values, a `LETTER` fifty-two, and
+an option-bound attribute only as many as its option set holds - so distinctness is not
+available, and inventing a value outside what the type admits to dodge a duplicate would
+trade a refusal that can be explained for one that cannot. The run says which questions
+those are instead.
+
+**A corpus imports once.** It mints the DHIS2 identities it names, so re-importing the
+same corpus is refused on the identities themselves - `E1002` for the tracked entity,
+`E1080` for the enrollment - whatever the values say, because `importStrategy=CREATE`
+means create. Salting only the unique values would not help: the UIDs repeat too. So the
+knob is a run salt, which moves every drawn value at once:
+
+```bash
+d2w fhir generate load-set --per-target 25                    # the corpus
+d2w fhir generate load-set --per-target 25 --salt second-run  # a different corpus
+```
+
+The same salt reproduces the same corpus - a salt is a handle on the draw, not a source
+of entropy - so a named run is as replayable as the unsalted one, and an unsalted run is
+byte-identical to what it always was.
 
 Then post the lot:
 
@@ -2496,12 +2763,24 @@ is no URL to configure and nothing to point at anything:
     morning. **What it offers is the published registry narrowed to the form's own
     `D2OrganisationUnitAssignment` List** - which is exactly the set the facade grades a
     submission against, so the control cannot produce a capture the server refuses with
-    `E1029`. Search it by name, uid, or DHIS2 code. The same picker fills every
+    `E1029`. Search it by name, uid, or DHIS2 code - or switch the same popover to **Browse**
+    and walk the hierarchy itself, where the units the assignment does not name are shown
+    disabled as the parent chain that tells two facilities of the same name apart, and a
+    branch it admits nothing in is not drawn at all. The same picker fills every
     `ORGANISATION_UNIT` question in the form below, off the same one read of the registry.
     Beside it, for a data set on a non-default category combo, is the
     [attribute option combo](#attribute-option-combos) the whole submission is
     filed under - the one control here that does block Submit until it has a value, because
     nothing derives it.
+
+    **A tracker registration form shows the enrollment it is about to file**, in the same
+    row as those two and read-only: when the enrollment begins (`D2EnrolledAt`), when the
+    incident it follows occurred (`D2IncidentAt`, on a program that collects one), and the
+    DHIS2 uid the enrollment will be created under - the one the response mints for itself.
+    None of the three is a question on the form, and none of them is a choice you brought
+    with you the way the unit and the combo are, so they come off the `$generate` envelope
+    and ride the submission unchanged. They are on screen because a submission carrying a
+    date nobody saw is worse than one carrying a date nobody can change.
 
     A refused submission does not vanish into a toast: the validator's OperationOutcome
     is rendered issue by issue above the buttons, each with its severity, its code, and
@@ -2522,7 +2801,12 @@ is no URL to configure and nothing to point at anything:
   the form it answers (linked back to the form itself), its lifecycle badge, the DHIS2
   context it states (reporting period and type, organisation unit, tracked entity,
   enrollment, authored), and - when the receipt came from `$generate` - the seed it was
-  drawn from, which is what makes the same answers reproducible.
+  drawn from, which is what makes the same answers reproducible. **A registration receipt
+  states its enrollment dates too** - enrolled at, and the incident date when the program
+  collects one - read straight off the stored resource, because the spool derives neither
+  and a receipt that named the person enrolled without saying when would be a registration
+  read as half of itself. The tracked entity and the enrollment are stated once whichever
+  of the two sources answered for them.
 
     **The answers are on it, joined to the questions that were asked.** The page reads
   the served `Questionnaire` as well as the receipt and puts them side by side: the
@@ -2699,6 +2983,7 @@ endpoint on the real instance, under that endpoint's own validate-only mode.
 | Payload | Endpoint | Dry run | Import |
 | --- | --- | --- | --- |
 | Aggregate response | `POST /api/dataValueSets` | `dryRun=true` | *(no extra parameter)* |
+| Tracker registration | `POST /api/tracker` | `importMode=VALIDATE` | *(no extra parameter)* |
 | Event / tracker event | `POST /api/tracker` | `importMode=VALIDATE` | *(no extra parameter)* |
 
 Both endpoints run every rule they would run for a committed import and persist nothing,
@@ -2722,12 +3007,26 @@ Six steps, each narrated on stderr:
    uncompiled project is a one-line refusal naming `d2w fhir generate` and `make sushi`.
 3. **Read the value types** - one id-only
    `/api/dataElements?fields=id,valueType&filter=id:in:[...]` for the data elements the
-   published forms bind. This is the one fact the compiled IG cannot carry: R4 spells
-   DHIS2's `BOOLEAN` and `TRUE_ONLY` as the same `#boolean` item type, and only the value
-   type tells them apart. Without it a `TRUE_ONLY` question would be written as `BOOLEAN`.
+   published forms bind, plus the same read against `/api/trackedEntityAttributes` for the
+   attributes a registration form asks. This is the one fact the compiled IG cannot carry:
+   R4 spells DHIS2's `BOOLEAN` and `TRUE_ONLY` as the same `#boolean` item type, and only
+   the value type tells them apart. Without it a `TRUE_ONLY` question would be written as
+   `BOOLEAN`.
 4. **Translate** - each response through `dhis2w_fhir.conversion`, all-or-nothing.
-5. **Post** - one payload per response, through the one client the run opened.
+5. **Post** - one payload per response, **registrations first**, through the one client
+   the run opened.
 6. **File** - each receipt into what it became (import runs only).
+
+**Registrations post before events.** A client enrols a person and captures that
+enrollment's first stage events in one sitting, so a single drain routinely holds both -
+and the enrollment the events name is what the registration creates. DHIS2 refuses an
+event whose enrollment it cannot find with `E1313`, so the posting order is by payload
+kind: every tracked entity first, then the data value sets and the events, each group in
+spool order. Nothing tracks which event belongs to which registration - there is no
+dependency graph, and a registration DHIS2 rejects leaves its stage events to fail
+`E1313` exactly as they would have. The receipts stay in the queue and the next run is
+the retry. The **report** reads back in spool order regardless: it is a record of the
+spool it drained, and the posting order is a fact about the run.
 
 A refusal comes back differently from each endpoint, and the run reads both: `/api/dataValueSets`
 answers a `409` whose body is a `WebMessage` wrapping an `ImportSummary`, while `/api/tracker`
@@ -2754,6 +3053,32 @@ stem, and under `naming.source = "code"` that stem is not a DHIS2 UID:
 | `completeDate` | the day of the response's `authored` instant, noted | left unset |
 | `dataValues[].dataElement` / `.categoryOptionCombo` | the answered item's link id, `<dataElement>.<categoryOptionCombo>` for a disaggregated cell | refused (`unknown-link-id`) |
 | `dataValues[].value` | the answer's `value[x]`, per the question's DHIS2 value type | refused, per the reason |
+
+### What a translated registration payload is built from
+
+A registration response becomes one `/api/tracker` `trackedEntities` entry carrying the
+single enrollment it creates. Both DHIS2 identities travel as the client minted them,
+which is the whole point of the contract:
+
+| DHIS2 field | Read from | If it is missing |
+| --- | --- | --- |
+| `trackedEntity` | `subject.identifier` under `{base}/id/tracked-entity` | refused (`missing-subject`) |
+| `trackedEntityType` | the form's `{base}/id/tracked-entity-type` identifier | refused (`missing-tracked-entity-type`) |
+| `orgUnit` | the `D2OrganisationUnit` extension, resolved through the published Location's `{base}/id/org-unit` identifier | refused (`missing-organisation-unit` / `unresolvable-organisation-unit`) |
+| `attributes[].attribute` | the answered item's link id, which on a registration form is the tracked entity attribute UID | refused (`unknown-link-id`) |
+| `attributes[].value` | the answer's `value[x]`, through the same value-type serialisation a data element's answer goes through | refused, per the reason |
+| `enrollments[].enrollment` | the `D2TrackerEnrollment` extension's identifier under `{base}/id/tracker-enrollment` | refused (`missing-enrollment`) |
+| `enrollments[].program` | the form's `{base}/id/program` identifier | refused (`missing-target-identifier`) |
+| `enrollments[].orgUnit` | the same unit the tracked entity is owned by | as above |
+| `enrollments[].enrolledAt` | the `D2EnrolledAt` extension, read back to the zone-less wall clock DHIS2 stores | refused (`missing-enrollment-date` / `malformed-enrollment-date`) |
+| `enrollments[].occurredAt` | the `D2IncidentAt` extension, the same way | left unset |
+| `enrollments[].status` | fixed `ACTIVE` - a registration form is answered when a person is enrolled | n/a |
+
+The payload models are the generated OpenAPI ones - `TrackerTrackedEntity`,
+`TrackerEnrollment`, `TrackerAttribute`, `EnrollmentStatus` - the same discipline the
+event path follows with `TrackerEvent`. Coded attributes resolve through the published
+ValueSets on the strict/lenient dial a coded data element resolves on, because a tracked
+entity attribute has the same DHIS2 value types and binds option sets the same way.
 
 **The attribute option combo resolves in the same tiers a coded answer does.** The concept
 code first - which under `concept_code_source = "id"` *is* the DHIS2 category option combo
