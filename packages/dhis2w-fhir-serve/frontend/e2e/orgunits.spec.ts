@@ -61,13 +61,18 @@ test('the tree renders the roots and expands on demand', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Sierra Leone', exact: true })).toHaveCount(1)
     await expect(page.getByText('10 organisation units')).toBeVisible()
 
-    // A closed node renders none of its children - that is the whole point of lazy expansion.
+    // The page opens on the root selected and EXPANDED - the districts are on screen without a
+    // click. Lazy expansion still holds below them: a district's own children stay unrendered.
+    await expect(page.getByRole('button', { name: 'Bo', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Bombali', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Ngelehun CHC', exact: true })).toHaveCount(0)
+
+    // Collapsing the root takes the districts off screen - expansion is still the reader's to undo.
+    await page.getByRole('button', { name: 'Collapse Sierra Leone' }).click()
     await expect(page.getByRole('button', { name: 'Bo', exact: true })).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Expand Sierra Leone' }).click()
-
     await expect(page.getByRole('button', { name: 'Bo', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Bombali', exact: true })).toBeVisible()
 })
 
 test('the filter opens the ancestors of what it matches', async ({ page }) => {
@@ -104,7 +109,7 @@ test('the rail starts closed on a plain visit, and a selection opens it', async 
 test('selecting a unit fills the inspector, and puts the unit in the address', async ({ page }) => {
     await page.goto('/#/organisation-units')
 
-    await page.getByRole('button', { name: 'Expand Sierra Leone' }).click()
+    // The root arrives expanded, so Bo is one click away.
     await page.getByRole('button', { name: 'Bo', exact: true }).click()
 
     await expect(page).toHaveURL(/#\/organisation-units\?unit=O6uvpzGd5pu$/)
@@ -358,8 +363,10 @@ test('below the three-pane breakpoint the sections sit behind tabs, and Map is t
     await page.getByRole('tab', { name: 'Details' }).click()
     await expect(page.getByTestId('org-unit-children')).toContainText('3 direct')
 
-    // A new selection opens on Map again - the tab is view state, not part of the link.
-    await page.getByRole('button', { name: 'Badjia', exact: true }).click()
+    // A new selection opens on Map again - the tab is view state, not part of the link. Badjia
+    // renders in both the hierarchy pane and the Details tab's children tree; the children tree
+    // is the one on screen, so the click is scoped to it.
+    await page.getByTestId('org-unit-children').getByRole('button', { name: 'Badjia', exact: true }).click()
     await expect(page).toHaveURL(/#\/organisation-units\?unit=YuQRtpLP10I$/)
     await expect(page.getByRole('tab', { name: 'Map', selected: true })).toBeVisible()
 })
