@@ -79,7 +79,7 @@ models and ship no templates.
 | `resources/option_sets/__init__.py` | The pre-built CodeSystem/ValueSet JSON pair per option set, `TERMINOLOGY_DIRECTORY`, `option_set_identities`, `option_set_identity_index`, `concept_assignments`, `max_slug_length`, `option_set_code_fallback`, `option_set_fsh_name`. |
 | `resources/option_sets/schemas.py` | `OptionSetSelection`, `OptionIn`, `ConceptSourceIn` (the concept-source projection categories share), `OptionSetIn`, `ConceptAssignment`, `ConceptAssignmentPlan`, `OptionSetIdentity`, `OptionSetIdentityPlan`, `OptionSetIdentityIndex`. |
 | `resources/categories/__init__.py` | The pre-built CodeSystem/ValueSet JSON pair per DHIS2 category, `CATEGORY_DIRECTORY`, `build_category_artifacts`, `category_identities`, `category_fsh_name`, `max_category_slug_length`. Concepts are built by the option-set component's `build_concepts`, so both terminology sources assign concept codes in one place. |
-| `resources/categories/schemas.py` | `CategorySelection`, `CategoryIn` (a `ConceptSourceIn`), `CategoryIdentity`, `CategoryIdentityPlan`. |
+| `resources/categories/schemas.py` | `CategorySelection`, `CategoryIn` (a `ConceptSourceIn`), `CategoryIdentity`, `CategoryIdentityPlan`, `DEFAULT_CATEGORY_NAME`, `is_default_category`. |
 | `resources/questionnaires/__init__.py` | One Questionnaire per form plus the two support terminology pairs; `ITEM_TYPES_BY_VALUE_TYPE`, `BOUNDS_BY_VALUE_TYPE`, `QUESTIONNAIRE_DIRECTORIES`, `domain_code`, `is_multi_valued`. |
 | `resources/questionnaires/documents.py` | The JSON twin of the FSH emitter: `build_questionnaire_documents` and `build_data_dictionary_documents` return finished R4 documents with every name already absolute, through the same exported decisions (`item_type`, `is_disaggregated`, `source_description`, `source_program`, `FormKindProfile` / `FORM_KIND_PROFILES`) the FSH path calls. `test_fhir_questionnaire_parity.py` gates the equality against SUSHI output. |
 | `resources/questionnaires/schemas.py` | `TargetSelection`, `NumericBounds`, `CategoryOptionComboIn`, `CategoryComboIn`, `QuestionnaireItemIn`, `QuestionnaireSectionIn`, `QuestionnaireSourceIn`, `QuestionnaireNaming`, the `FormKind` alias. |
@@ -245,7 +245,8 @@ rather than sentinel placeholders, so the file parses to exactly these defaults.
 | `[generate.naming] program` | string | `PR` | May be empty. Names an event program's Questionnaire. |
 | `[generate.naming] program_stage` | string | `PS` | May be empty. Names a tracker program stage's Questionnaire. |
 | `[generate.option_sets] include_ids` | list of string | `[]` | Empty means all. |
-| `[generate.categories] include_ids` | list of string | `[]` | Empty means all, DHIS2's own `default` category included. No closure - nothing generated today binds a category. |
+| `[generate.categories] include_ids` | list of string | `[]` | Empty means all except DHIS2's built-in `default` placeholder; an entry naming its UID brings it in. No closure - nothing generated today binds a category. |
+| `[generate.categories] include_default` | bool | `false` | Opts DHIS2's built-in `default` category back into the target. Detection is the reserved name (`/api/categories` carries no `isDefault` flag), matched case-sensitively. |
 | `[generate.organisation_units] root` | string or absent | `None` | `""` is coerced to unset. Filters with DHIS2 `path:like`. |
 | `[generate.organisation_units] max_level` | int or absent | `None` | `0` is coerced to unset. Filters with `level:le`. |
 | `[generate.organisation_units] terminology` | bool | `false` | Also emit the whole-selection CodeSystem/ValueSet. |
@@ -1454,6 +1455,18 @@ commitment.
     moment the target writes them. The live store builds them from the same category
     inputs. Byte parity with SUSHI is gated by a second golden,
     `tests/data/r4/ConceptMap-d2-cat-sex-cm.json`.
+
+- **The default category stays home** - shipped. DHIS2's built-in `default` category
+  is the placeholder meaning "no disaggregation was entered" - it exists on every
+  instance and exchanges no information, yet the target published it as a CS/VS pair
+  titled `default`. `[generate.categories] include_default = false` now skips it on
+  every path that applies the selection (`generate categories`, `generate full`,
+  `serve --live`) and on `validate`'s scope resolution, so the ignored object grades
+  as instance hygiene. An `include_ids` entry naming its UID wins over the flag, and
+  `include_default = true` restores the previous output byte for byte. Detection is
+  the reserved, rename-protected name - `/api/categories` carries no `isDefault` -
+  matched case-sensitively. The default category option combo needed nothing: only
+  non-default combos contribute combos to `D2COC_CS`, so it never surfaces there.
 
 - **Naming source: the id -> code migration path** - shipped:
   `[generate.naming] source = "id" | "code-or-id" | "code"`, default `"id"`. The

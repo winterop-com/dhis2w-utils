@@ -393,6 +393,55 @@ async def test_scope_resolution_mirrors_the_generate_selection(
 
 
 @respx.mock
+async def test_the_default_category_leaves_the_scope_unless_asked_back(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+) -> None:
+    """Validate must not grade an artifact the guide will not publish - and the asks that publish it win."""
+    mock_system_info("v42")
+    routes = _mock_scope_endpoints(
+        categories=[{"id": "GLevLNI9wkl", "name": "default"}, {"id": "Ca1aaaaaaaa", "name": "Sex"}]
+    )
+
+    async with open_client(resolve_profile("probe")) as client:
+        skipped = await service.resolve_validation_scope(client, GenerateConfig())
+        opted_in = await service.resolve_validation_scope(
+            client, GenerateConfig.model_validate({"categories": {"include_default": True}})
+        )
+        named = await service.resolve_validation_scope(
+            client, GenerateConfig.model_validate({"categories": {"include_ids": ["GLevLNI9wkl"]}})
+        )
+
+    assert skipped.categories == frozenset({"Ca1aaaaaaaa"})
+    assert opted_in.categories == frozenset({"GLevLNI9wkl", "Ca1aaaaaaaa"})
+    # The narrowed fetch filters server-side (the mock answers everything regardless), so the
+    # named default stays in scope and the request itself states the include_ids filter.
+    assert "GLevLNI9wkl" in named.categories
+    request_url = str(routes["categories"].calls.last.request.url)
+    assert "GLevLNI9wkl" in request_url
+
+
+def test_code_coverage_counts_follow_the_categories_scope() -> None:
+    """A default category out of scope leaves the categories coverage denominator with the others."""
+    scope = ValidationScope(categories=frozenset({"Ca1aaaaaaaa"}))
+    report = build_code_validation(
+        [],
+        [
+            _collection(
+                "categories",
+                MetadataItemIn(uid="Ca1aaaaaaaa", name="Sex", code="SEX"),
+                MetadataItemIn(uid="GLevLNI9wkl", name="default"),
+            )
+        ],
+        _CONFIG,
+        scope=scope,
+    )
+    assert report.code_coverage is not None
+    by_surface = {surface.surface: surface for surface in report.code_coverage.surfaces}
+    assert (by_surface["categories"].usable_count, by_surface["categories"].object_count) == (1, 1)
+
+
+@respx.mock
 async def test_scope_resolution_applies_the_shared_organisation_unit_filters(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],

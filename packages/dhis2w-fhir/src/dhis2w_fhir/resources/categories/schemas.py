@@ -9,14 +9,37 @@ from pydantic import BaseModel, ConfigDict, Field
 from dhis2w_fhir.notes import GenerateNote
 from dhis2w_fhir.resources.option_sets.schemas import ConceptSourceIn
 
+#: The name DHIS2 reserves for its built-in default category - the placeholder every instance
+#: holds meaning "no disaggregation was entered".
+DEFAULT_CATEGORY_NAME = "default"
+
+
+def is_default_category(name: str) -> bool:
+    """Whether a category is DHIS2's built-in default placeholder, by its reserved name.
+
+    `/api/categories` carries no `isDefault` flag (categoryCombo and categoryOption do), so the
+    name is the one signal the wire offers. It is an honest one: DHIS2 hardcodes the default
+    category's name as exactly `default` and protects the object from rename and deletion, so
+    the match is case-sensitive on that reserved spelling and a user category named `Default`
+    is not mistaken for it.
+    """
+    return name == DEFAULT_CATEGORY_NAME
+
 
 class CategorySelection(BaseModel):
     """Which DHIS2 categories to generate - the `[generate.categories]` table of `fhir.toml`.
 
     UIDs only: names are not unique in DHIS2. An empty (or absent) list means all categories.
+
+    `include_default` covers the one category an empty list still leaves out: DHIS2's built-in
+    `default` category, the placeholder meaning "nothing was entered". It exists on every
+    instance and exchanges no information, so publishing its CodeSystem/ValueSet pair states
+    nothing a consumer can use - it is skipped unless this flag opts it back in or an
+    `include_ids` entry names it outright, in which case the explicit ask wins.
     """
 
     include_ids: list[str] = Field(default_factory=list)
+    include_default: bool = False
 
 
 class CategoryIn(ConceptSourceIn):

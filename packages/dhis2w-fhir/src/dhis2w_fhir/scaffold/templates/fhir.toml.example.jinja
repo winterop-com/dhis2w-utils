@@ -59,6 +59,10 @@ program_stage = "PS"                # tracker program stage Questionnaire names;
 # category UIDs to include (absent = all); each one emits a CodeSystem/ValueSet pair
 # whose concepts are that category's category options.
 # include_ids = ["O5P6e8yu1T6"]
+# DHIS2's built-in "default" category is its placeholder for no-disaggregation - it exists
+# on every instance and carries no information, so it is skipped unless a consumer needs
+# it spelled out. An include_ids entry naming its UID also brings it in.
+# include_default = false
 
 [generate.data_sets]
 # Data set UIDs to emit as Questionnaires (absent or empty = all data sets).

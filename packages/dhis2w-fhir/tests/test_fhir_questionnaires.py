@@ -25,6 +25,7 @@ from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentityPlan, Opt
 from dhis2w_fhir.resources.questionnaires import (
     BOUNDS_BY_VALUE_TYPE,
     ITEM_TYPES_BY_VALUE_TYPE,
+    collect_referenced_objects,
     link_id_collisions,
 )
 from dhis2w_fhir.resources.questionnaires.schemas import (
@@ -34,6 +35,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireItemIn,
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
+    ReferencedObjects,
     TargetSelection,
     source_display_name,
 )
@@ -622,6 +624,30 @@ def test_a_tracker_only_combo_is_absent_from_the_data_dictionary() -> None:
     assert "data-dictionary/category-option-combos.fsh" not in artifacts or (
         "Coc1aaaaaaa" not in artifacts.get("data-dictionary/category-option-combos.fsh", "")
     )
+
+
+def test_the_default_category_option_combo_never_reaches_the_coc_dictionary() -> None:
+    """`include_default` has nothing to govern in `d2-coc-cs`: only non-default combos contribute combos.
+
+    A data element on DHIS2's built-in default combo asks one flat question - no per-combo child
+    items - and `collect_referenced_objects` collects no option combo from it, so the default
+    category option combo structurally cannot surface in the D2COC dictionary even when the wire
+    carries it on the combo projection.
+    """
+    default_with_combo = CategoryComboIn(
+        uid="bjDvmb4bfuf",
+        name="default",
+        is_default=True,
+        option_combos=[CategoryOptionComboIn(uid="HllvX50cXC0", name="default")],
+    )
+    item = _BCG.model_copy(update={"category_combo": default_with_combo})
+    source = QuestionnaireSourceIn(uid="BfMAe6Itzgt", name="Child Health", kind="aggregate", flat_items=[item])
+    referenced = ReferencedObjects()
+    collect_referenced_objects(source, referenced)
+    assert referenced.option_combos == {}
+    artifacts = _artifacts([source])
+    assert "De1aaaaaaaa.HllvX50cXC0" not in artifacts["data-sets/BfMAe6Itzgt.fsh"]
+    assert "data-dictionary/category-option-combos.fsh" not in artifacts
 
 
 def test_compulsory_event_question_is_required() -> None:

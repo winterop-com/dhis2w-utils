@@ -493,6 +493,7 @@ does not contain
 ```toml
 [generate.categories]
 # include_ids = ["O5P6e8yu1T6"]     # category UIDs to include; absent means all
+# include_default = false           # DHIS2's built-in "default" category stays out
 ```
 
 Reads exactly like `[generate.option_sets]`: UIDs only, absent or empty means
@@ -501,8 +502,17 @@ nothing is reported as a note. There is no closure - nothing generated today
 binds a category, so the list stands on its own rather than being unioned with
 what the forms reference.
 
-DHIS2's own `default` category is a category like any other here: it is emitted
-by default and it can be named in `include_ids` or left out by naming the others.
+DHIS2's own `default` category - the built-in placeholder every instance holds,
+meaning "no disaggregation was entered" - is the one category "all" does not
+cover. It exchanges no information, so its CodeSystem/ValueSet pair would title
+a guide artifact "default" and state nothing a consumer can use; it is skipped
+unless `include_default = true` opts it back in or an `include_ids` entry names
+its UID outright, in which case the explicit ask wins. The wire carries no
+`isDefault` flag on `/api/categories`, so detection is the reserved name DHIS2
+hardcodes and protects: exactly `default`, matched case-sensitively - a user
+category named `Default` is a category like any other. `d2w fhir validate`
+resolves its categories scope through the same rule, so an ignored default
+category grades as instance hygiene rather than build impact.
 
 ### `[generate.data_sets]`, `[generate.event_programs]`, and `[generate.tracker_programs]`
 
@@ -1104,7 +1114,8 @@ with [`d2w fhir init --refresh`](#refreshing-a-projects-scaffold).
 
 Narrow the selection with
 [`[generate.categories]` `include_ids`](#generatecategories) - absent or empty
-means every category, DHIS2's own `default` category included.
+means every category except DHIS2's built-in `default` placeholder, which
+`include_default = true` (or an `include_ids` entry naming it) brings back.
 
 ### ConceptMaps: the route back to DHIS2
 

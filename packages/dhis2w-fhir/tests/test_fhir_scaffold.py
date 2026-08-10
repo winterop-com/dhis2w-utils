@@ -144,6 +144,7 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     assert config.generate.data_sets.include_ids == []
     assert config.generate.event_programs.include_ids == []
     assert config.generate.tracker_programs.include_ids == []
+    assert config.generate.categories.include_default is False
     assert config.generate.examples.per_target == 1
     assert config.generate.examples.source == "synthetic"
     assert config.serve.host == "127.0.0.1"
@@ -171,11 +172,13 @@ def test_fhir_toml_example_comments_out_the_unset_placeholders() -> None:
     assert '# include_ids = ["BfMAe6Itzgt"]' in example
     assert '# include_ids = ["VBqh0ynB2wv"]' in example
     assert '# include_ids = ["IpHINAT79UW"]' in example
+    assert "# include_default = false" in example
     assert "\nroot =" not in example
     assert "\nmax_level =" not in example
     assert "\nlocales =" not in example
     assert "\ntimezone =" not in example
     assert "\ninclude_ids =" not in example
+    assert "\ninclude_default =" not in example
 
 
 def test_data_definition_targets_are_seeded_into_fhir_toml() -> None:
