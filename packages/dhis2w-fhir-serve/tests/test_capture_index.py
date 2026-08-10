@@ -167,7 +167,7 @@ def test_a_questionnaire_declaring_no_form_kind_is_refused(
     body = load_golden("Questionnaire-EVTsupVis01.json")
     body["extension"] = [{"url": capture_naming.form_type_url, "valueCode": "made-up"}]
 
-    with pytest.raises(UnreadableQuestionnaireError, match="no known DHIS2 form kind"):
+    with pytest.raises(UnreadableQuestionnaireError, match="no DHIS2 form kind this server captures"):
         build_capture_index(body, capture_naming, capture_store)
 
 

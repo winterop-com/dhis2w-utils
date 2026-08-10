@@ -74,12 +74,18 @@ class FormRow(BaseModel):
 
 
 class TrackerProgramGroup(BaseModel):
-    """One tracker program of the forms page: its identity and the stage forms it groups."""
+    """One tracker program of the forms page: its identity, its registration form, and its stage forms.
+
+    `registration` is the form that enrols a person into the program. It is None only when the
+    run skipped that form - a program whose registration would emit one linkId twice - so the
+    page catalogs the stages it does publish rather than dropping the whole program.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
     name: str
+    registration: FormRow | None = None
     stages: list[FormRow] = Field(default_factory=list)
 
 

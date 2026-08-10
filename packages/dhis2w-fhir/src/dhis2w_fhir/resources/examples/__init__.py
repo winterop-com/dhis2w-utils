@@ -204,8 +204,12 @@ DEFAULT_ANSWER_ELEMENT = "valueString"
 _KIND_LABELS: dict[FormKind, str] = {
     "aggregate": "data set",
     "event": "event program",
+    "tracker": "tracker program registration",
     "tracker-event": "tracker program stage",
 }
+
+#: The form kinds whose response carries a tracker context - the enrollment and the person it is on.
+_TRACKER_KINDS: frozenset[FormKind] = frozenset({"tracker", "tracker-event"})
 
 #: How many days back a synthetic event may have occurred.
 _SYNTHETIC_EVENT_WINDOW_DAYS = 30
@@ -285,15 +289,21 @@ class _TrackerContextView(BaseModel):
 
     `organisation_unit_stem` is the capture unit's identity stem - the id its published Location
     carries - while the enrollment and tracked-entity UIDs stay the DHIS2 data identifiers they are.
+    The two dates are filled by a registration example alone, which is the one that creates the
+    enrollment they date.
     """
 
     model_config = ConfigDict(frozen=True)
 
     enrollment_extension: str
     organisation_unit_extension: str
+    enrolled_at_extension: str
+    incident_at_extension: str
     organisation_unit_stem: str
     enrollment_uid: str | None = None
     tracked_entity_uid: str | None = None
+    enrolled_at: str | None = None
+    incident_at: str | None = None
 
 
 class _Answer(BaseModel):
@@ -665,9 +675,15 @@ def _synthetic_response(
         authored = f"{window.pick_date(generator).isoformat()}T{_pick_hour(generator)}:00:00Z"
     tracked_entity_uid: str | None = None
     enrollment_uid: str | None = None
-    if source.kind == "tracker-event":
+    enrolled_at: str | None = None
+    incident_at: str | None = None
+    if source.kind in _TRACKER_KINDS:
         tracked_entity_uid = _synthetic_uid(generator)
         enrollment_uid = _synthetic_uid(generator)
+    if source.kind == "tracker":
+        enrolled_at = f"{window.pick_date(generator).isoformat()}T{_pick_hour(generator)}:00:00Z"
+        if source.displays_incident_date:
+            incident_at = f"{window.pick_date(generator).isoformat()}T{_pick_hour(generator)}:00:00Z"
     answers: list[ExampleAnswerIn] = []
     for key in _answerable_keys(source):
         option_set = option_sets_by_uid.get(key.item.option_set_uid or "")
@@ -693,6 +709,8 @@ def _synthetic_response(
         authored=authored,
         tracked_entity_uid=tracked_entity_uid,
         enrollment_uid=enrollment_uid,
+        enrolled_at=enrolled_at,
+        incident_at=incident_at,
         answers=answers,
     )
 
@@ -881,17 +899,27 @@ def example_period(
 
 
 def example_tracker_context(
-    response: ExampleResponseIn, source: QuestionnaireSourceIn, tally: ExampleTally
+    response: ExampleResponseIn, source: QuestionnaireSourceIn, tally: ExampleTally, rules: ExampleAnswerRules
 ) -> ExampleTrackerContext | None:
-    """The tracker context a stage's response carries, tallied when the enrollment or tracked entity is missing."""
-    if source.kind != "tracker-event":
+    """The tracker context a tracker response carries, tallied when a fact its profile requires is missing.
+
+    A registration response is graded on one fact more than a stage response: the enrollment it
+    creates has to say when it began, which is what DHIS2 requires of every enrollment. Both of
+    its dates go through the very normalisation `authored` goes through, because DHIS2 writes an
+    enrollment date in the same zone-less spelling it writes an event's occurrence in (BUGS.md #62).
+    """
+    if source.kind not in _TRACKER_KINDS:
         return None
+    registration = source.kind == "tracker"
     context = ExampleTrackerContext(
         organisation_unit_uid=response.organisation_unit_uid,
         enrollment_uid=response.enrollment_uid,
         tracked_entity_uid=response.tracked_entity_uid,
+        enrolled_at=_example_date_time(response.enrolled_at, response, tally, rules) if registration else None,
+        incident_at=_example_date_time(response.incident_at, response, tally, rules) if registration else None,
     )
-    if not context.is_complete:
+    complete = context.is_registration_complete if source.kind == "tracker" else context.is_complete
+    if not complete:
         tally.incomplete_tracker_responses.append(response.instance_id)
     return context
 
@@ -910,6 +938,8 @@ def example_is_complete(
     """
     if kind == "aggregate":
         return period is not None
+    if kind == "tracker":
+        return authored is not None and tracker is not None and tracker.is_registration_complete
     if kind == "tracker-event":
         return authored is not None and tracker is not None and tracker.is_complete
     return authored is not None
@@ -940,7 +970,7 @@ def _example_view(
     )
     answers = example_answers(response, source, option_sets_by_uid, assignments, tally, rules)
     authored = example_authored(response, tally, rules)
-    tracker = example_tracker_context(response, source, tally)
+    tracker = example_tracker_context(response, source, tally, rules)
     complete = example_is_complete(source.kind, period=period, authored=authored, tracker=tracker)
     return _ExampleView(
         instance_id=response.instance_id,
@@ -1006,15 +1036,19 @@ def _tracker_view(
     foundation: FoundationNaming,
     organisation_unit_stems: StemResolution | None,
 ) -> _TrackerContextView | None:
-    """The tracker extensions one stage response renders, under the run's foundation names."""
+    """The tracker extensions one tracker response renders, under the run's foundation names."""
     if context is None:
         return None
     return _TrackerContextView(
         enrollment_extension=foundation.tracker_enrollment_extension,
         organisation_unit_extension=foundation.organisation_unit_extension,
+        enrolled_at_extension=foundation.enrolled_at_extension,
+        incident_at_extension=foundation.incident_at_extension,
         organisation_unit_stem=location_stem(context.organisation_unit_uid, organisation_unit_stems),
         enrollment_uid=context.enrollment_uid,
         tracked_entity_uid=context.tracked_entity_uid,
+        enrolled_at=context.enrolled_at,
+        incident_at=context.incident_at,
     )
 
 
@@ -1024,6 +1058,8 @@ def _response_profile(kind: FormKind, foundation: FoundationNaming, *, complete:
         return _BASE_RESPONSE_RESOURCE
     if kind == "aggregate":
         return foundation.aggregate_response_profile
+    if kind == "tracker":
+        return foundation.tracker_registration_response_profile
     if kind == "tracker-event":
         return foundation.tracker_event_response_profile
     return foundation.event_response_profile
@@ -1031,12 +1067,24 @@ def _response_profile(kind: FormKind, foundation: FoundationNaming, *, complete:
 
 def example_authored(response: ExampleResponseIn, tally: ExampleTally, rules: ExampleAnswerRules) -> str | None:
     """The response's authoring timestamp as an R4 dateTime, dropped and tallied when it is not one."""
-    if response.authored is None:
+    return _example_date_time(response.authored, response, tally, rules)
+
+
+def _example_date_time(
+    value: str | None, response: ExampleResponseIn, tally: ExampleTally, rules: ExampleAnswerRules
+) -> str | None:
+    """One DHIS2 timestamp as an R4 dateTime, dropped and tallied when it is not one.
+
+    DHIS2 writes every timestamp in the same zone-less spelling (BUGS.md #62), so a response's
+    `authored` and the two dates its enrollment carries are read against the configured zone the
+    same way, and one that will not read is dropped rather than emitted as an invalid primitive.
+    """
+    if value is None:
         return None
-    normalized = zoned_date_time(response.authored.strip(), rules.timezone)
+    normalized = zoned_date_time(value.strip(), rules.timezone)
     if is_fhir_date_time(normalized):
         return normalized
-    tally.unauthored_responses.append(f"{response.instance_id} = {response.authored!r}")
+    tally.unauthored_responses.append(f"{response.instance_id} = {value!r}")
     return None
 
 

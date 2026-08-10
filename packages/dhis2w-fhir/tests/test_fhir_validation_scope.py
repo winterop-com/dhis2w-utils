@@ -355,6 +355,9 @@ async def test_scope_resolution_mirrors_the_generate_selection(
                     },
                     {"id": "Ps3aaaaaaaa", "programStageDataElements": []},
                 ],
+                "programTrackedEntityAttributes": [
+                    {"trackedEntityAttribute": {"id": "Tea1aaaaaaa", "optionSet": {"id": "OsVaaaaaaaa"}}}
+                ],
             },
         ],
         option_sets=[
@@ -362,6 +365,7 @@ async def test_scope_resolution_mirrors_the_generate_selection(
             {"id": "OsYaaaaaaaa"},
             {"id": "OsZaaaaaaaa"},
             {"id": "OsWaaaaaaaa"},
+            {"id": "OsVaaaaaaaa"},
             {"id": "OsUaaaaaaaa"},
         ],
         categories=[{"id": "Ca1aaaaaaaa"}],
@@ -378,9 +382,12 @@ async def test_scope_resolution_mirrors_the_generate_selection(
     assert scope.programs == frozenset({"Pr1aaaaaaaa", "Pr2aaaaaaaa"})
     # Only a tracker stage emits its own Questionnaire; the event program's stage is not a surface.
     assert scope.program_stages == frozenset({"Ps2aaaaaaaa", "Ps3aaaaaaaa"})
+    # A tracked entity attribute is a question but not a data element, so it joins the option-set
+    # closure without joining the surface `dataElements` answers for.
     assert scope.data_elements == frozenset({"De1aaaaaaaa", "De2aaaaaaaa", "De3aaaaaaaa"})
-    # Configured set plus the closure the selected forms bind; the unbound, unconfigured set stays out.
-    assert scope.option_sets == frozenset({"OsYaaaaaaaa", "OsXaaaaaaaa", "OsWaaaaaaaa", "OsZaaaaaaaa"})
+    # Configured set plus the closure the selected forms bind - the registration form's attribute
+    # binding included; the unbound, unconfigured set stays out.
+    assert scope.option_sets == frozenset({"OsYaaaaaaaa", "OsXaaaaaaaa", "OsWaaaaaaaa", "OsZaaaaaaaa", "OsVaaaaaaaa"})
     assert scope.categories == frozenset({"Ca1aaaaaaaa"})
     assert scope.organisation_units == frozenset({"Ou1aaaaaaaa"})
 

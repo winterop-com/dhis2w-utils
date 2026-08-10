@@ -55,6 +55,7 @@ class CaptureNaming(BaseModel):
 
     aggregate_response_profile_url: str
     event_response_profile_url: str
+    tracker_registration_response_profile_url: str
     tracker_event_response_profile_url: str
 
     @classmethod
@@ -79,6 +80,9 @@ class CaptureNaming(BaseModel):
             generate_seed_system=f"{canonical}/{GENERATE_SEED_IDENTIFIER_SEGMENT}",
             aggregate_response_profile_url=_definition_url(canonical, names.aggregate_response_profile_id),
             event_response_profile_url=_definition_url(canonical, names.event_response_profile_id),
+            tracker_registration_response_profile_url=_definition_url(
+                canonical, names.tracker_registration_response_profile_id
+            ),
             tracker_event_response_profile_url=_definition_url(canonical, names.tracker_event_response_profile_id),
         )
 
@@ -86,6 +90,8 @@ class CaptureNaming(BaseModel):
         """The QuestionnaireResponse profile one DHIS2 form kind's complete response declares."""
         if form_kind == "aggregate":
             return self.aggregate_response_profile_url
+        if form_kind == "tracker":
+            return self.tracker_registration_response_profile_url
         if form_kind == "tracker-event":
             return self.tracker_event_response_profile_url
         return self.event_response_profile_url

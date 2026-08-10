@@ -136,6 +136,7 @@ class Extension(Element):
     valueCode: str | None = None
     valueCanonical: str | None = None
     valueString: str | None = None
+    valueDateTime: str | None = None
     valueInteger: int | None = None
     valueDecimal: int | float | None = None
     valueAttachment: Attachment | None = None
@@ -175,6 +176,7 @@ class CodeSystemConceptProperty(BackboneElement):
     code: str | None = None
     valueCode: str | None = None
     valueString: str | None = None
+    valueBoolean: bool | None = None
 
 
 class CodeSystemConceptDesignation(BackboneElement):

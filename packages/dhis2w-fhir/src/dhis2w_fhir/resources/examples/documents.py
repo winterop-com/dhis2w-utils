@@ -125,8 +125,11 @@ class _ExampleSystems(BaseModel):
     attribute_option_combo_extension_url: str
     organisation_unit_extension_url: str
     tracker_enrollment_extension_url: str
+    enrolled_at_extension_url: str
+    incident_at_extension_url: str
     aggregate_response_profile_url: str
     event_response_profile_url: str
+    tracker_registration_response_profile_url: str
     tracker_event_response_profile_url: str
 
     @classmethod
@@ -143,8 +146,13 @@ class _ExampleSystems(BaseModel):
             ),
             organisation_unit_extension_url=_definition_url(canonical, foundation.organisation_unit_extension_id),
             tracker_enrollment_extension_url=_definition_url(canonical, foundation.tracker_enrollment_extension_id),
+            enrolled_at_extension_url=_definition_url(canonical, foundation.enrolled_at_extension_id),
+            incident_at_extension_url=_definition_url(canonical, foundation.incident_at_extension_id),
             aggregate_response_profile_url=_definition_url(canonical, foundation.aggregate_response_profile_id),
             event_response_profile_url=_definition_url(canonical, foundation.event_response_profile_id),
+            tracker_registration_response_profile_url=_definition_url(
+                canonical, foundation.tracker_registration_response_profile_id
+            ),
             tracker_event_response_profile_url=_definition_url(canonical, foundation.tracker_event_response_profile_id),
         )
 
@@ -160,6 +168,8 @@ class _ExampleSystems(BaseModel):
         """Canonical URL of the QuestionnaireResponse profile one form kind's complete response conforms to."""
         if kind == "aggregate":
             return self.aggregate_response_profile_url
+        if kind == "tracker":
+            return self.tracker_registration_response_profile_url
         if kind == "tracker-event":
             return self.tracker_event_response_profile_url
         return self.event_response_profile_url
@@ -262,7 +272,7 @@ def _response_document(
     )
     answers = example_answers(response, source, option_sets_by_uid, assignments, tally, rules)
     authored = example_authored(response, tally, rules)
-    tracker = example_tracker_context(response, source, tally)
+    tracker = example_tracker_context(response, source, tally, rules)
     complete = example_is_complete(source.kind, period=period, authored=authored, tracker=tracker)
     return QuestionnaireResponse(
         id=response.instance_id,
@@ -297,10 +307,10 @@ def _extensions(
 ) -> list[Extension]:
     """The extensions one response carries, in the order its kind's response profile slices them.
 
-    A tracker-event response leads with the organisation unit it was captured at and the
-    enrollment it belongs to, an aggregate response leads with its reporting period and then the
-    attribute option combo its values are keyed under, and every kind closes with the form type -
-    which is the order the compiled instances carry.
+    A tracker response leads with the organisation unit it was captured at and the enrollment it
+    belongs to - a registration response then dates that enrollment - an aggregate response leads
+    with its reporting period and then the attribute option combo its values are keyed under, and
+    every kind closes with the form type, which is the order the compiled instances carry.
     """
     extensions: list[Extension] = []
     if tracker is not None:
@@ -322,6 +332,10 @@ def _extensions(
                     ),
                 )
             )
+        if tracker.enrolled_at is not None:
+            extensions.append(Extension(url=systems.enrolled_at_extension_url, valueDateTime=tracker.enrolled_at))
+        if tracker.incident_at is not None:
+            extensions.append(Extension(url=systems.incident_at_extension_url, valueDateTime=tracker.incident_at))
     if period is not None:
         extensions.append(_period_extension(period, systems))
     if attribute_option_combo is not None:

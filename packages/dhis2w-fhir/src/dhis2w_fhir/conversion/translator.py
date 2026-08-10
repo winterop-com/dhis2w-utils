@@ -26,7 +26,7 @@ from dhis2w_fhir.conversion.schemas import (
     ConversionReport,
     ConversionResult,
 )
-from dhis2w_fhir.resources.questionnaires.schemas import FORM_KIND_PROFILES, FormKind
+from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS, FormKind
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -111,7 +111,7 @@ def _declared_form_kind(response: QuestionnaireResponse, context: ConversionCont
     }
     if len(declared) != 1:
         return None
-    for kind in FORM_KIND_PROFILES:
+    for kind in CAPTURED_FORM_KINDS:
         if kind in declared:
             return kind
     return None

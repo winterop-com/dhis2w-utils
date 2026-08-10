@@ -537,3 +537,72 @@ async def test_the_assignment_aware_pick_is_reproducible(
     picks = _subjects(first / "load", _PROGRAM_UID)
     assert picks == _subjects(second / "load", _PROGRAM_UID)
     assert picks == _subjects(third / "load", _PROGRAM_UID)
+
+
+#: A tracker program whose registration form the corpus has to leave out - a capture server has no
+#: DHIS2 payload to translate a registration response into, so a corpus holding one measures nothing.
+_TRACKER_PROGRAM_UID = "IpHINAT79UW"
+
+_TRACKER_PROGRAMS_PAYLOAD: dict[str, object] = {
+    "programs": [
+        {
+            "id": _TRACKER_PROGRAM_UID,
+            "name": "Child Programme",
+            "programType": "WITH_REGISTRATION",
+            "trackedEntityType": {"id": "nEenWmSyUEp"},
+            "organisationUnits": [{"id": _SHARED_UNIT}],
+            "programTrackedEntityAttributes": [
+                {
+                    "mandatory": True,
+                    "sortOrder": 1,
+                    "trackedEntityAttribute": {"id": "Tea1aaaaaaa", "name": "First name", "valueType": "TEXT"},
+                }
+            ],
+            "programStages": [
+                {
+                    "id": "A03MvHHogjR",
+                    "programStageSections": [],
+                    "programStageDataElements": [
+                        {
+                            "compulsory": True,
+                            "dataElement": {"id": "a3kGcGDCuk6", "name": "Apgar Score", "valueType": "INTEGER"},
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+}
+
+
+@respx.mock
+async def test_a_tracker_registration_form_contributes_no_load_set_responses(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The corpus is POSTed at a capture server, so a form kind no server captures is dropped with a note."""
+    mock_system_info("v42")
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_TRACKER_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORG_UNITS_PAYLOAD))
+    options = InitOptions(
+        ig_id="dhis2.fhir.load",
+        canonical=_CANONICAL,
+        name="Dhis2FhirLoad",
+        title="Load IG",
+        publisher="Example Org",
+        tracker_program_ids=[_TRACKER_PROGRAM_UID],
+    )
+    await service.init_project(tmp_path, options)
+
+    report = await service.generate_load_set(resolve_profile("probe"), load_project(tmp_path), per_target=2)
+
+    assert report.questionnaire_count == 1
+    assert not _load_files(tmp_path, _TRACKER_PROGRAM_UID)
+    assert len(_load_files(tmp_path, "A03MvHHogjR")) == 2
+    assert [note.message for note in report.notes if "no capture server accepts" in note.message] == [
+        "1 questionnaire targets are of a form kind no capture server accepts a response for; "
+        "no load-set responses emitted for them: Child Programme (IpHINAT79UW)"
+    ]

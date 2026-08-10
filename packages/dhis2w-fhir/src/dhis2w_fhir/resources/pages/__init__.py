@@ -100,6 +100,7 @@ SITE_PAGE_FILENAMES = ("forms.md", "registry.md", "terminology.md", "identifiers
 _KIND_LABELS: dict[FormKind, str] = {
     "aggregate": "data set",
     "event": "event program",
+    "tracker": "tracker program registration",
     "tracker-event": "tracker program stage",
 }
 
@@ -226,8 +227,11 @@ def _form_row(source: QuestionnaireSourceIn, stem: str) -> FormRow:
         code=markdown_text(code_or_uid(source.code, source.uid), table_cell=True),
         description=markdown_text(source.description or ""),
         period_type=markdown_text(source.period_type or _ABSENT_TEXT, table_cell=True),
-        program_uid=source.program.uid if source.program is not None else "",
-        program_name=markdown_text(source.program.name, table_cell=True) if source.program is not None else "",
+        program_uid=source.uid if source.kind == "tracker" else (source.program.uid if source.program else ""),
+        program_name=markdown_text(
+            source.name if source.kind == "tracker" else (source.program.name if source.program else ""),
+            table_cell=True,
+        ),
         section_count=len(source.sections),
         question_count=len(_source_items(source)),
         unsectioned_question_count=len(source.flat_items),
@@ -250,16 +254,32 @@ def _forms_page(forms: list[FormRow]) -> FshArtifact:
 
 
 def _tracker_program_groups(forms: list[FormRow]) -> list[TrackerProgramGroup]:
-    """Group the tracker stages by their program, programs by name then UID and stages in catalog order."""
+    """Group each tracker program's forms: the registration that enrols, then the stages in catalog order.
+
+    Programs sort by name then UID, so the catalog reads in the same order whichever of a
+    program's forms the run reached first.
+    """
     stages_by_program: dict[str, list[FormRow]] = {}
+    registrations: dict[str, FormRow] = {}
     names_by_program: dict[str, str] = {}
     for form in forms:
-        if form.kind != "tracker-event":
+        if form.kind == "tracker":
+            registrations.setdefault(form.program_uid, form)
+        elif form.kind == "tracker-event":
+            stages_by_program.setdefault(form.program_uid, []).append(form)
+        else:
             continue
-        stages_by_program.setdefault(form.program_uid, []).append(form)
         names_by_program.setdefault(form.program_uid, form.program_name)
-    ordered = sorted(stages_by_program, key=lambda uid: (names_by_program[uid], uid))
-    return [TrackerProgramGroup(uid=uid, name=names_by_program[uid], stages=stages_by_program[uid]) for uid in ordered]
+    ordered = sorted(names_by_program, key=lambda uid: (names_by_program[uid], uid))
+    return [
+        TrackerProgramGroup(
+            uid=uid,
+            name=names_by_program[uid],
+            registration=registrations.get(uid),
+            stages=stages_by_program.get(uid, []),
+        )
+        for uid in ordered
+    ]
 
 
 def _registry_page(organisation_units: list[OrganisationUnitIn], config: GenerateConfig) -> FshArtifact:
@@ -304,10 +324,12 @@ def _terminology_page(pages: PagesIn, config: GenerateConfig) -> FshArtifact:
 
 
 def _support_code_systems(pages: PagesIn, config: GenerateConfig) -> list[SupportCodeSystemRow]:
-    """The support CodeSystems this run emits, in artifact order - the two data-dictionary pairs, then foundation."""
+    """The support CodeSystems this run emits, in artifact order - the data-dictionary pairs, then foundation."""
     questionnaire_names = QuestionnaireNaming.from_naming(config.naming)
     foundation = FoundationNaming.from_naming(config.naming)
-    items = [item for source in pages.forms for item in _source_items(source)]
+    registration_forms = [source for source in pages.forms if source.kind == "tracker"]
+    items = [item for source in pages.forms if source.kind != "tracker" for item in _source_items(source)]
+    attributes = [item for source in registration_forms for item in _source_items(source)]
     rows: list[SupportCodeSystemRow] = []
     if items:
         rows.append(
@@ -316,6 +338,15 @@ def _support_code_systems(pages: PagesIn, config: GenerateConfig) -> list[Suppor
                 fsh_name=questionnaire_names.data_element_code_system,
                 code_system_id=questionnaire_names.data_element_code_system_id,
                 description="Every DHIS2 data element the generated questionnaires ask for.",
+            )
+        )
+    if attributes:
+        rows.append(
+            SupportCodeSystemRow(
+                label="Tracked entity attributes",
+                fsh_name=questionnaire_names.tracked_entity_attribute_code_system,
+                code_system_id=questionnaire_names.tracked_entity_attribute_code_system_id,
+                description="Every DHIS2 tracked entity attribute the generated registration forms ask for.",
             )
         )
     if any(_is_disaggregated(item) for item in items):

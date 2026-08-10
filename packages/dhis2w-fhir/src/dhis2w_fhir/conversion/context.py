@@ -30,7 +30,7 @@ from dhis2w_fhir.conversion.schemas import (
     QuestionSpec,
     WireValueKind,
 )
-from dhis2w_fhir.resources.questionnaires.schemas import FORM_KIND_PROFILES, FormKind
+from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS, FormKind
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -320,16 +320,23 @@ def _organisation_unit_uids(locations: Sequence[Location], naming: ConversionNam
 
 
 def _form_kind(questionnaire: Questionnaire, naming: ConversionNaming, canonical: str) -> FormKind:
-    """The DHIS2 form kind the Questionnaire declares on its D2FormType extension."""
+    """The DHIS2 form kind the Questionnaire declares on its D2FormType extension.
+
+    Only a kind `TARGET_KINDS_BY_FORM_KIND` maps resolves: a form whose responses this translator
+    has no DHIS2 payload for is refused when its context is built, not when its answers are read.
+    """
     declared = {
         extension.valueCode
         for extension in questionnaire.extension or []
         if extension.url == naming.form_type_url and extension.valueCode is not None
     }
-    for kind in FORM_KIND_PROFILES:
+    for kind in CAPTURED_FORM_KINDS:
         if kind in declared:
             return kind
-    raise ConversionContextError(f"the served Questionnaire `{canonical}` declares no known DHIS2 form kind")
+    raise ConversionContextError(
+        f"the served Questionnaire `{canonical}` declares no DHIS2 form kind this translator converts "
+        f"({', '.join(CAPTURED_FORM_KINDS)})"
+    )
 
 
 def _identifier_value(questionnaire: Questionnaire, system: str) -> str | None:

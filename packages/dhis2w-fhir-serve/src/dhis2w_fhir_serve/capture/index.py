@@ -21,7 +21,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from dhis2w_fhir.r4 import Questionnaire, QuestionnaireItem, ResourceList, ValueSet
-from dhis2w_fhir.resources.questionnaires.schemas import FORM_KIND_PROFILES, FormKind, NumericBounds
+from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS, FormKind, NumericBounds
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
 from dhis2w_fhir_serve.capture.naming import CaptureNaming
@@ -63,8 +63,11 @@ ANSWER_ELEMENTS_BY_ITEM_TYPE = {
 #: The item types that carry no answer of their own and only nest other items.
 _STRUCTURAL_ITEM_TYPES = ("group", "display")
 
-#: The DHIS2 form kinds a served Questionnaire may declare.
-FORM_KINDS: tuple[FormKind, ...] = tuple(FORM_KIND_PROFILES)
+#: The DHIS2 form kinds this server captures a response for. Narrower than the kinds a generated
+#: Questionnaire may declare: the tracker registration form is generated, published, and served,
+#: but nothing turns a response against it into a DHIS2 payload, so a response declaring it is
+#: refused by name rather than accepted into a spool no drain can empty.
+FORM_KINDS: tuple[FormKind, ...] = CAPTURED_FORM_KINDS
 
 #: The extensions a numeric question carries its inclusive bounds on.
 _MINIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/minValue"
@@ -231,7 +234,12 @@ def _attribute_option_combos(
 
 
 def _form_kind(questionnaire: Questionnaire, naming: CaptureNaming, canonical: str) -> FormKind:
-    """The DHIS2 form kind the questionnaire declares on its D2FormType extension."""
+    """The DHIS2 form kind the questionnaire declares on its D2FormType extension.
+
+    Only a kind this server captures resolves: a form the facade serves and reads but cannot
+    accept an answer to is refused here, when the index is first asked for, rather than at the
+    end of a capture that had nowhere to go.
+    """
     declared = {
         extension.valueCode
         for extension in questionnaire.extension or []
@@ -240,7 +248,10 @@ def _form_kind(questionnaire: Questionnaire, naming: CaptureNaming, canonical: s
     for kind in FORM_KINDS:
         if kind in declared:
             return kind
-    raise UnreadableQuestionnaireError(f"the served Questionnaire `{canonical}` declares no known DHIS2 form kind")
+    raise UnreadableQuestionnaireError(
+        f"the served Questionnaire `{canonical}` declares no DHIS2 form kind this server captures "
+        f"({', '.join(FORM_KINDS)})"
+    )
 
 
 def _assignment(questionnaire: Questionnaire, naming: CaptureNaming, store: ResourceStore) -> CaptureAssignment | None:

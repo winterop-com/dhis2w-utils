@@ -8,7 +8,7 @@ Generated from the DHIS2 {{ intro.kind_label }} {{ intro.form.name }} ({{ intro.
 | --- | --- |
 | DHIS2 id | `{{ intro.form.uid }}` |
 | DHIS2 code | `{{ intro.form.code }}` |
-{% if intro.form.program_uid %}
+{% if intro.form.program_uid and intro.form.kind != "tracker" %}
 | Program | {{ intro.form.program_name }} (`{{ intro.form.program_uid }}`) |
 {% endif %}
 {% if intro.form.kind == "aggregate" %}

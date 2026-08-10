@@ -1,22 +1,31 @@
-"""FSH emission for DHIS2 data sets, event programs, and tracker program stages: one Questionnaire per form.
+"""FSH emission for DHIS2 data sets, event programs, and tracker programs: one Questionnaire per form.
 
-A data set, an event program, or one stage of a tracker program IS a
-data-capture form, so it maps onto a `Questionnaire`: sections become `#group`
-items, data elements become questions typed from their DHIS2 `valueType`,
+A data set, an event program, one stage of a tracker program, and the
+registration a tracker program enrols a person through are all data-capture
+forms, so each maps onto a `Questionnaire`: sections become `#group` items,
+data elements become questions typed from their DHIS2 `valueType`,
 option-set-bound elements become `#choice` items answered from the option-set
 ValueSet, and a data element disaggregated by a non-default category combo
-becomes a group with one child question per category option combo.
+becomes a group with one child question per category option combo. A tracker
+program's registration form asks the program's tracked entity attributes
+through the very same typing, so an attribute bound to an option set becomes
+the same `#choice` question a data element does.
 
 Every instance is `Usage: #definition` with the bare UID as its `id`, carries
 both DHIS2 identifiers, and states which kind of DHIS2 form it came from
 twice: through the `D2FormType` extension and as `Questionnaire.code`. A
 tracker program stage carries a third, grouping identifier naming the program
-it belongs to, so one search selects every stage of that program.
+it belongs to, so one search selects the program's whole capture surface - the
+registration form, whose own identifiers are the program's, answers that same
+search. A registration form carries one more: the tracked entity type it
+enrols a person as.
 
 The output splits by what it describes: `data-sets/<uid>.fsh`,
-`event-programs/<uid>.fsh`, `tracker-programs/<program uid>/<stage uid>.fsh`,
-and `data-dictionary/` for the two support CodeSystem/ValueSet pairs every form
-kind shares - one over every data element they reference, one over every
+`event-programs/<uid>.fsh`, `tracker-programs/<program uid>/<stage uid>.fsh`
+with the program's `registration.fsh` beside its stages, and
+`data-dictionary/` for the three support CodeSystem/ValueSet pairs the form
+kinds share - one over every data element they reference, one over every
+tracked entity attribute a registration form asks about, one over every
 category option combo. The support pairs live under this target's own
 directories, so the option-set terminology target's cleanup can never delete
 them.
@@ -45,7 +54,10 @@ from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CATEGORY_OPTION_COMBO_TERMINOLOGY,
     DATA_ELEMENT_TERMINOLOGY,
+    DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
+    TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY,
+    UNIQUE_PROPERTY_DESCRIPTION,
     CategoryOptionComboIn,
     FormKind,
     FormKindProfile,
@@ -54,6 +66,8 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireNaming,
     QuestionnaireSourceIn,
     QuestionnaireStemPlan,
+    ReferencedObjects,
+    SupportTerminologyProfile,
     plan_questionnaire_stems,
     source_display_name,
     source_program,
@@ -78,9 +92,12 @@ __all__ = [
     "MINIMUM_VALUE_EXTENSION_URL",
     "PROGRAM_IDENTIFIER_SEGMENT",
     "QUESTIONNAIRE_DIRECTORIES",
+    "REGISTRATION_FILE_STEM",
+    "TRACKED_ENTITY_TYPE_IDENTIFIER_SEGMENT",
     "TRACKER_PROGRAM_DIRECTORY",
     "NumericBounds",
     "QuestionnaireStemPlan",
+    "ReferencedObjects",
     "bound_option_set_uids",
     "build_questionnaire_artifacts",
     "collect_referenced_objects",
@@ -90,6 +107,7 @@ __all__ = [
     "item_type",
     "link_id_collisions",
     "plan_questionnaire_stems",
+    "question_code_system",
     "source_description",
     "source_items",
     "source_program",
@@ -214,6 +232,17 @@ _PROGRAM_IDENTIFIER_SYSTEM = "$DHIS2-PROGRAM"
 #: The identifier-system segment that alias expands to, which the JSON path writes absolutely.
 PROGRAM_IDENTIFIER_SEGMENT = "program"
 
+#: The alias a registration form names the tracked entity type it enrols a person as under.
+_TRACKED_ENTITY_TYPE_IDENTIFIER_SYSTEM = "$DHIS2-TET"
+
+#: The identifier-system segment that alias expands to, which the JSON path writes absolutely.
+TRACKED_ENTITY_TYPE_IDENTIFIER_SEGMENT = "tracked-entity-type"
+
+#: The file name a tracker program's registration form is written under, beside its stage files.
+#: A fixed stem rather than the program's: the file already sits in the program's own directory,
+#: and `registration.fsh` says what the form is at a glance.
+REGISTRATION_FILE_STEM = "registration"
+
 
 class _BoundView(BaseModel):
     """One `minValue` / `maxValue` extension on a question: its url and the typed literal it carries."""
@@ -257,8 +286,23 @@ class _AttributeValueView(BaseModel):
     value_literal: str
 
 
+class GroupingIdentifier(BaseModel):
+    """One identifier that groups a Questionnaire under a parent DHIS2 object, spelled for both emitters.
+
+    Carried twice for the reason `FormKindProfile` carries its systems twice: the FSH path writes
+    the `$DHIS2-*` alias `foundation/d2-aliases.fsh` declares and the JSON path writes the
+    absolute URL that alias expands to, and the two must never disagree.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    alias: str
+    segment: str
+    value: str
+
+
 class _GroupingIdentifierView(BaseModel):
-    """One identifier that groups a Questionnaire under a parent object, as its FSH system and value literal."""
+    """One grouping identifier as the FSH literals the template writes."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -295,7 +339,7 @@ class _QuestionnaireView(BaseModel):
     identifier_system: str
     identifier_code_system: str
     identifier_code_literal: str
-    grouping_identifier: _GroupingIdentifierView | None = None
+    grouping_identifiers: list[_GroupingIdentifierView] = Field(default_factory=list)
     attribute_identifiers: list[_AttributeIdentifierView] = Field(default_factory=list)
     form_type_extension: str
     form_type_code_system: str
@@ -320,7 +364,7 @@ class _QuestionnaireView(BaseModel):
 
 
 class _SupportConcept(BaseModel):
-    """One data element or category option combo as a concept of a support CodeSystem."""
+    """One data element, tracked entity attribute, or category option combo as a support CodeSystem concept."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -329,6 +373,7 @@ class _SupportConcept(BaseModel):
     code_literal: str
     domain_code: str | None = None
     value_type_code: str | None = None
+    unique_literal: str | None = None
 
 
 class _SupportTerminologyView(BaseModel):
@@ -344,6 +389,9 @@ class _SupportTerminologyView(BaseModel):
     description_literal: str
     property_base: str
     property_description_literal: str
+    domain_property_description_literal: str
+    value_type_property_description_literal: str
+    unique_property_description_literal: str
     ig_status: IgStatus
     concepts: list[_SupportConcept] = Field(default_factory=list)
 
@@ -361,6 +409,11 @@ class _SupportTerminologyView(BaseModel):
     def declares_value_type(self) -> bool:
         """Whether any concept carries the value-type property, so the CodeSystem must declare it."""
         return any(concept.value_type_code is not None for concept in self.concepts)
+
+    @property
+    def declares_unique(self) -> bool:
+        """Whether any concept carries the unique property, so the CodeSystem must declare it."""
+        return any(concept.unique_literal is not None for concept in self.concepts)
 
 
 def build_questionnaire_artifacts(
@@ -397,8 +450,7 @@ def build_questionnaire_artifacts(
     names = QuestionnaireNaming.from_naming(config.naming)
     foundation = FoundationNaming.from_naming(config.naming)
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
-    data_elements: dict[str, QuestionnaireItemIn] = {}
-    option_combos: dict[str, CategoryOptionComboIn] = {}
+    referenced = ReferencedObjects()
     colliding: list[str] = []
     template = _ENVIRONMENT.get_template("questionnaire.fsh.jinja")
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
@@ -406,7 +458,7 @@ def build_questionnaire_artifacts(
         if collisions:
             colliding.append(f"{source_display_name(source)} ({source.uid}) on {', '.join(collisions)}")
             continue
-        collect_referenced_objects(source, data_elements, option_combos)
+        collect_referenced_objects(source, referenced)
         view = _questionnaire_view(
             source,
             names,
@@ -435,10 +487,16 @@ def build_questionnaire_artifacts(
                 ),
             )
         )
-    if data_elements:
-        build.artifacts.append(_data_element_terminology(data_elements, names, config, ig_status=ig_status))
-    if option_combos:
-        build.artifacts.append(_option_combo_terminology(option_combos, names, config, ig_status=ig_status))
+    if referenced.data_elements:
+        build.artifacts.append(_data_element_terminology(referenced.data_elements, names, config, ig_status=ig_status))
+    if referenced.tracked_entity_attributes:
+        build.artifacts.append(
+            _tracked_entity_attribute_terminology(
+                referenced.tracked_entity_attributes, names, config, ig_status=ig_status
+            )
+        )
+    if referenced.option_combos:
+        build.artifacts.append(_option_combo_terminology(referenced.option_combos, names, config, ig_status=ig_status))
     if colliding:
         build.notes.append(
             aggregate_generate_note(
@@ -508,9 +566,10 @@ def _item_link_ids(item: QuestionnaireItemIn, kind: FormKind) -> list[str]:
 
 
 #: The sync directory each form kind is written to.
-_DIRECTORIES_BY_KIND = {
+_DIRECTORIES_BY_KIND: dict[FormKind, str] = {
     "aggregate": DATA_SET_DIRECTORY,
     "event": EVENT_PROGRAM_DIRECTORY,
+    "tracker": TRACKER_PROGRAM_DIRECTORY,
     "tracker-event": TRACKER_PROGRAM_DIRECTORY,
 }
 
@@ -521,7 +580,15 @@ def _source_directory(source: QuestionnaireSourceIn) -> str:
 
 
 def _source_relative_path(source: QuestionnaireSourceIn, stem_plan: QuestionnaireStemPlan) -> str:
-    """The file one form's identity stem names, a tracker program stage nested under its program's stem."""
+    """The file one form's identity stem names, both tracker forms nested under their program's stem.
+
+    A tracker program's directory holds its registration form beside its stage forms, so one
+    program's whole capture surface is one directory: `registration.fsh` names the form that
+    enrols the person, and a stage's own stem names each visit captured afterwards.
+    """
+    if source.kind == "tracker":
+        program_stem = stem_plan.programs.stem_for(source.uid)
+        return f"{TRACKER_PROGRAM_DIRECTORY}/{program_stem}/{REGISTRATION_FILE_STEM}.fsh"
     stem = stem_plan.targets.stem_for(source.uid)
     if source.kind != "tracker-event":
         return f"{_source_directory(source)}/{stem}.fsh"
@@ -561,7 +628,10 @@ def _questionnaire_view(
         identifier_system=profile.identifier_system,
         identifier_code_system=profile.identifier_code_system,
         identifier_code_literal=quote(code_or_uid(source.code, source.uid)),
-        grouping_identifier=_grouping_identifier(source),
+        grouping_identifiers=[
+            _GroupingIdentifierView(system=identifier.alias, value_literal=quote(identifier.value))
+            for identifier in grouping_identifiers(source)
+        ],
         attribute_identifiers=_attribute_identifier_views(
             source.attribute_values, attribute_codes, identifier_system_base
         ),
@@ -590,21 +660,53 @@ def _attribute_option_combo_value_set(
 def source_description(source: QuestionnaireSourceIn, profile: FormKindProfile) -> str:
     """The prose one form's Questionnaire describes itself with, a program stage naming its program too."""
     opening = f"DHIS2 {profile.label} {source.name} ({source.uid})"
+    if source.kind == "tracker":
+        return (
+            f"{opening} as a registration form: the tracked entity attributes captured when a person "
+            "is enrolled in the program."
+        )
     if source.kind != "tracker-event":
         return f"{opening} as a data capture form."
     program = source_program(source)
     return f"{opening} of program {program.name} ({program.uid}) as a data capture form."
 
 
-def _grouping_identifier(source: QuestionnaireSourceIn) -> _GroupingIdentifierView | None:
-    """The identifier grouping one form under a parent object - a program stage's program, and only that.
+def question_code_system(kind: FormKind, names: QuestionnaireNaming) -> str:
+    """The support CodeSystem one form kind's questions are coded from - `D2DE_CS`, or `D2TEA_CS`."""
+    if FORM_KIND_PROFILES[kind].question_subject == "tracked-entity-attribute":
+        return names.tracked_entity_attribute_code_system
+    return names.data_element_code_system
 
-    Searching `Questionnaire?identifier={base}/id/program|<program uid>` selects every stage of
-    one tracker program, which is how a client fetches the whole program's data capture surface.
+
+def grouping_identifiers(source: QuestionnaireSourceIn) -> list[GroupingIdentifier]:
+    """The identifiers grouping one form under a parent DHIS2 object, in emission order.
+
+    Searching `Questionnaire?identifier={base}/id/program|<program uid>` selects a tracker
+    program's whole capture surface: every stage carries the program as a grouping identifier,
+    and the registration form carries it as its own identity. A registration form adds the
+    tracked entity type it enrols a person as, which is what a client needs to know before it
+    can name the person the response creates.
     """
+    if source.kind == "tracker":
+        tracked_entity_type_uid = source.tracked_entity_type_uid
+        if tracked_entity_type_uid is None:
+            return []
+        return [
+            GroupingIdentifier(
+                alias=_TRACKED_ENTITY_TYPE_IDENTIFIER_SYSTEM,
+                segment=TRACKED_ENTITY_TYPE_IDENTIFIER_SEGMENT,
+                value=tracked_entity_type_uid,
+            )
+        ]
     if source.kind != "tracker-event":
-        return None
-    return _GroupingIdentifierView(system=_PROGRAM_IDENTIFIER_SYSTEM, value_literal=quote(source_program(source).uid))
+        return []
+    return [
+        GroupingIdentifier(
+            alias=_PROGRAM_IDENTIFIER_SYSTEM,
+            segment=PROGRAM_IDENTIFIER_SEGMENT,
+            value=source_program(source).uid,
+        )
+    ]
 
 
 def _attribute_identifier_views(
@@ -659,27 +761,27 @@ def _item_views(
             )
         )
         for item in section.items:
-            views.extend(_data_element_views(item, names, identities, depth=1, kind=source.kind))
+            views.extend(_question_views(item, names, identities, depth=1, kind=source.kind))
     for item in source.flat_items:
-        views.extend(_data_element_views(item, names, identities, depth=0, kind=source.kind))
+        views.extend(_question_views(item, names, identities, depth=0, kind=source.kind))
     return views
 
 
-def _data_element_views(
+def _question_views(
     item: QuestionnaireItemIn,
     names: QuestionnaireNaming,
     identities: dict[str, OptionSetIdentity],
     depth: int,
     kind: FormKind,
 ) -> list[_ItemView]:
-    """Build one data element's item lines: a question, or a group with one child per option combo.
+    """Build one question's item lines: a question, or a group with one child per option combo.
 
     A disaggregated cell asks the very question its data element does, one category option combo
     at a time, so every child takes the element's effective item type, its answer binding, and
     its repeats - only the `linkId`, the text, and the code differ. Only an aggregate source
     disaggregates; see `is_disaggregated` for why event-kind questions stay flat.
     """
-    code_token = f"{names.data_element_code_system}#{item.uid} {quote(item.name)}"
+    code_token = f"{question_code_system(kind, names)}#{item.uid} {quote(item.name)}"
     text_literal = quote(item.form_name or item.name)
     resolved_item_type = item_type(item)
     answer_value_set = _answer_value_set(item, identities)
@@ -803,18 +905,23 @@ def _set_path(depth: int) -> str:
     return f"{'item[=].' * depth}item[=]"
 
 
-def collect_referenced_objects(
-    source: QuestionnaireSourceIn,
-    data_elements: dict[str, QuestionnaireItemIn],
-    option_combos: dict[str, CategoryOptionComboIn],
-) -> None:
-    """Record every data element and category option combo one source's items reference."""
+def collect_referenced_objects(source: QuestionnaireSourceIn, referenced: ReferencedObjects) -> None:
+    """Record every question object and category option combo one source's items reference.
+
+    A form's questions land in the dictionary its kind asks from: a registration form's questions
+    are the program's tracked entity attributes, everything else's are data elements.
+    """
+    questions = (
+        referenced.tracked_entity_attributes
+        if FORM_KIND_PROFILES[source.kind].question_subject == "tracked-entity-attribute"
+        else referenced.data_elements
+    )
     for item in source_items(source):
-        data_elements.setdefault(item.uid, item)
+        questions.setdefault(item.uid, item)
         if not is_disaggregated(item, source.kind) or item.category_combo is None:
             continue
         for option_combo in item.category_combo.option_combos:
-            option_combos.setdefault(option_combo.uid, option_combo)
+            referenced.option_combos.setdefault(option_combo.uid, option_combo)
 
 
 def _data_element_terminology(
@@ -835,23 +942,52 @@ def _data_element_terminology(
         )
         for item in sorted(data_elements.values(), key=lambda item: (item.name, item.uid))
     ]
-    view = _SupportTerminologyView(
+    return _support_terminology_artifact(
+        concepts,
+        DATA_ELEMENT_TERMINOLOGY,
+        config,
+        file_stem="data-elements",
         code_system=names.data_element_code_system,
         code_system_id=names.data_element_code_system_id,
         value_set=names.data_element_value_set,
         value_set_id=names.data_element_value_set_id,
-        title_literal=quote(DATA_ELEMENT_TERMINOLOGY.title),
-        description_literal=quote(DATA_ELEMENT_TERMINOLOGY.description),
-        property_base=f"{config.identifier_system_base}/property",
-        property_description_literal=quote(DATA_ELEMENT_TERMINOLOGY.code_property_description),
         ig_status=ig_status,
-        concepts=concepts,
     )
-    return FshArtifact(
-        relative_path=f"{DATA_DICTIONARY_DIRECTORY}/data-elements.fsh",
-        kind="terminology-pair",
-        fsh_name=names.data_element_code_system,
-        content=_ENVIRONMENT.get_template("support-terminology.fsh.jinja").render(terminology=view),
+
+
+def _tracked_entity_attribute_terminology(
+    attributes: dict[str, QuestionnaireItemIn],
+    names: QuestionnaireNaming,
+    config: GenerateConfig,
+    *,
+    ig_status: IgStatus,
+) -> FshArtifact:
+    """Build `data-dictionary/tracked-entity-attributes.fsh` over every attribute a registration form asks.
+
+    The twin of the data-element pair, over the objects a registration form asks its questions
+    from: the same `dhis2-code` and `value-type` properties, plus `unique`, because a unique
+    tracked entity attribute is the business identifier the person is found by.
+    """
+    concepts = [
+        _SupportConcept(
+            uid=item.uid,
+            display_literal=quote(item.name),
+            code_literal=quote(code_or_uid(item.code, item.uid)),
+            value_type_code=item.value_type,
+            unique_literal="true" if item.unique else "false",
+        )
+        for item in sorted(attributes.values(), key=lambda item: (item.name, item.uid))
+    ]
+    return _support_terminology_artifact(
+        concepts,
+        TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY,
+        config,
+        file_stem="tracked-entity-attributes",
+        code_system=names.tracked_entity_attribute_code_system,
+        code_system_id=names.tracked_entity_attribute_code_system_id,
+        value_set=names.tracked_entity_attribute_value_set,
+        value_set_id=names.tracked_entity_attribute_value_set_id,
+        ig_status=ig_status,
     )
 
 
@@ -871,21 +1007,50 @@ def _option_combo_terminology(
         )
         for option_combo in sorted(option_combos.values(), key=lambda item: (item.name, item.uid))
     ]
-    view = _SupportTerminologyView(
+    return _support_terminology_artifact(
+        concepts,
+        CATEGORY_OPTION_COMBO_TERMINOLOGY,
+        config,
+        file_stem="category-option-combos",
         code_system=names.category_option_combo_code_system,
         code_system_id=names.category_option_combo_code_system_id,
         value_set=names.category_option_combo_value_set,
         value_set_id=names.category_option_combo_value_set_id,
-        title_literal=quote(CATEGORY_OPTION_COMBO_TERMINOLOGY.title),
-        description_literal=quote(CATEGORY_OPTION_COMBO_TERMINOLOGY.description),
+        ig_status=ig_status,
+    )
+
+
+def _support_terminology_artifact(
+    concepts: list[_SupportConcept],
+    terminology: SupportTerminologyProfile,
+    config: GenerateConfig,
+    *,
+    file_stem: str,
+    code_system: str,
+    code_system_id: str,
+    value_set: str,
+    value_set_id: str,
+    ig_status: IgStatus,
+) -> FshArtifact:
+    """Render one data-dictionary pair through the template every support pair shares."""
+    view = _SupportTerminologyView(
+        code_system=code_system,
+        code_system_id=code_system_id,
+        value_set=value_set,
+        value_set_id=value_set_id,
+        title_literal=quote(terminology.title),
+        description_literal=quote(terminology.description),
         property_base=f"{config.identifier_system_base}/property",
-        property_description_literal=quote(CATEGORY_OPTION_COMBO_TERMINOLOGY.code_property_description),
+        property_description_literal=quote(terminology.code_property_description),
+        domain_property_description_literal=quote(DOMAIN_PROPERTY_DESCRIPTION),
+        value_type_property_description_literal=quote(terminology.value_type_property_description),
+        unique_property_description_literal=quote(UNIQUE_PROPERTY_DESCRIPTION),
         ig_status=ig_status,
         concepts=concepts,
     )
     return FshArtifact(
-        relative_path=f"{DATA_DICTIONARY_DIRECTORY}/category-option-combos.fsh",
+        relative_path=f"{DATA_DICTIONARY_DIRECTORY}/{file_stem}.fsh",
         kind="terminology-pair",
-        fsh_name=names.category_option_combo_code_system,
+        fsh_name=code_system,
         content=_ENVIRONMENT.get_template("support-terminology.fsh.jinja").render(terminology=view),
     )

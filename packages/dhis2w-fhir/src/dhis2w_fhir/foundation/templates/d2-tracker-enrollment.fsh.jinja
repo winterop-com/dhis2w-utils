@@ -1,7 +1,7 @@
 Extension: {{ names.tracker_enrollment_extension }}
 Id: {{ names.tracker_enrollment_extension_id }}
 Title: "DHIS2 tracker enrollment"
-Description: "The DHIS2 tracker enrollment an event was captured under, carried as the enrollment UID."
+Description: "The DHIS2 tracker enrollment a response belongs to, carried as the enrollment UID. A registration response mints the UID of the enrollment it creates; an event response names the enrollment it was captured under."
 * ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * ^context[+].type = #element

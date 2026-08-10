@@ -22,6 +22,12 @@ Usage: #example
 {% if example.tracker.organisation_unit_stem %}
 * extension[{{ example.tracker.organisation_unit_extension }}].valueReference = Reference(Location/{{ example.tracker.organisation_unit_stem }})
 {% endif %}
+{% if example.tracker.enrolled_at is not none %}
+* extension[{{ example.tracker.enrolled_at_extension }}].valueDateTime = "{{ example.tracker.enrolled_at }}"
+{% endif %}
+{% if example.tracker.incident_at is not none %}
+* extension[{{ example.tracker.incident_at_extension }}].valueDateTime = "{{ example.tracker.incident_at }}"
+{% endif %}
 {% endif %}
 * questionnaire = "{{ example.questionnaire_url }}"
 * status = #{{ example.status_code }}

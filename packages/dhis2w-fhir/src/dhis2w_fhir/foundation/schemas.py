@@ -52,6 +52,7 @@ IDENTIFIER_SYSTEM_SUBJECTS = (
         segment="category-option-combo", token="CategoryOptionCombo", label="category option combo"
     ),
     IdentifierSystemSubject(segment="program-stage", token="ProgramStage", label="program stage"),
+    IdentifierSystemSubject(segment="tracked-entity-type", token="TrackedEntityType", label="tracked entity type"),
     IdentifierSystemSubject(segment="tracked-entity", token="TrackedEntity", label="tracked entity", has_code=False),
     IdentifierSystemSubject(
         segment="tracker-enrollment", token="TrackerEnrollment", label="tracker enrollment", has_code=False
@@ -88,7 +89,10 @@ class ResponseProfileDeclaration(BaseModel):
     captured at, and a Patient subject identified by tracked-entity UID.
     `attribute_option_combo_allowed` marks the contract whose response may name the DHIS2
     attribute option combo its values are keyed under - the aggregate one, since only a data
-    value set carries that third key. The flags are what the shared template branches on.
+    value set carries that third key. `registration_context_required` marks the tracker
+    registration contract, whose response mints the tracked entity and the enrollment it is
+    creating rather than naming ones that already exist, and states when the enrollment began.
+    The flags are what the shared template branches on.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -101,6 +105,7 @@ class ResponseProfileDeclaration(BaseModel):
     period_required: bool = False
     authored_required: bool = False
     tracker_context_required: bool = False
+    registration_context_required: bool = False
     attribute_option_combo_allowed: bool = False
 
     @property
@@ -299,6 +304,26 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "tracker", "enrollment")
 
     @property
+    def enrolled_at_extension(self) -> str:
+        """FSH name of the enrollment-date Extension (e.g. `D2EnrolledAt`)."""
+        return f"{self.definition_prefix}EnrolledAt"
+
+    @property
+    def enrolled_at_extension_id(self) -> str:
+        """FHIR id of the enrollment-date Extension (e.g. `d2-enrolled-at`)."""
+        return join_id_tokens(self.definition_prefix, "enrolled", "at")
+
+    @property
+    def incident_at_extension(self) -> str:
+        """FSH name of the incident-date Extension (e.g. `D2IncidentAt`)."""
+        return f"{self.definition_prefix}IncidentAt"
+
+    @property
+    def incident_at_extension_id(self) -> str:
+        """FHIR id of the incident-date Extension (e.g. `d2-incident-at`)."""
+        return join_id_tokens(self.definition_prefix, "incident", "at")
+
+    @property
     def aggregate_response_profile(self) -> str:
         """FSH name of the aggregate QuestionnaireResponse profile (e.g. `D2AggregateResponse`)."""
         return f"{self.definition_prefix}AggregateResponse"
@@ -317,6 +342,16 @@ class FoundationNaming(BaseModel):
     def event_response_profile_id(self) -> str:
         """FHIR id of the event QuestionnaireResponse profile (e.g. `d2-event-response`)."""
         return join_id_tokens(self.definition_prefix, "event", "response")
+
+    @property
+    def tracker_registration_response_profile(self) -> str:
+        """FSH name of the tracker registration QuestionnaireResponse profile (e.g. `D2TrackerRegistrationResponse`)."""
+        return f"{self.definition_prefix}TrackerRegistrationResponse"
+
+    @property
+    def tracker_registration_response_profile_id(self) -> str:
+        """FHIR id of the registration QuestionnaireResponse profile (e.g. `d2-tracker-registration-response`)."""
+        return join_id_tokens(self.definition_prefix, "tracker", "registration", "response")
 
     @property
     def tracker_event_response_profile(self) -> str:

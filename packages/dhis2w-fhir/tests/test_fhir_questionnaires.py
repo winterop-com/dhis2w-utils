@@ -217,6 +217,36 @@ _SHARED_GENDER_ELEMENT = {
     "optionSet": {"id": "Os1aaaaaaaa"},
 }
 
+#: The tracked entity attributes the program's registration form asks. Like the stage questions,
+#: they arrive in the wrong order (National id sorts first, Marital status second) and the emitted
+#: form has to sort them. `Os3aaaaaaaa` is bound by an attribute and by nothing else, which is what
+#: proves the option-set closure reaches past the data elements.
+_REGISTRATION_ATTRIBUTES = [
+    {
+        "mandatory": False,
+        "sortOrder": 2,
+        "trackedEntityAttribute": {
+            "id": "Tea2aaaaaaa",
+            "name": "Marital status",
+            "valueType": "TEXT",
+            "unique": False,
+            "optionSet": {"id": "Os3aaaaaaaa"},
+        },
+    },
+    {
+        "mandatory": True,
+        "sortOrder": 1,
+        "trackedEntityAttribute": {
+            "id": "Tea1aaaaaaa",
+            "name": "National identifier",
+            "code": "TEA_NATIONAL_ID",
+            "formName": "National id",
+            "valueType": "TEXT",
+            "unique": True,
+        },
+    },
+]
+
 #: A two-stage tracker program whose wire order is deliberately not its DHIS2 sort order, at both
 #: grains: the stages arrive Baby Postnatal (sortOrder 2) first, and Baby Postnatal's questions
 #: arrive Gender (sortOrder 2) first. Both stages capture Gender, so the data dictionary joins them.
@@ -224,6 +254,9 @@ _TRACKER_PROGRAM = {
     "id": "IpHINAT79UW",
     "name": "Child Programme",
     "programType": "WITH_REGISTRATION",
+    "trackedEntityType": {"id": "nEenWmSyUEp"},
+    "displayIncidentDate": True,
+    "programTrackedEntityAttributes": _REGISTRATION_ATTRIBUTES,
     "programStages": [
         {
             "id": "ZzYYXq4fJie",
@@ -282,6 +315,7 @@ _OPTION_SETS_PAYLOAD = {
     "optionSets": [
         {"id": "Os1aaaaaaaa", "name": "Gender"},
         {"id": "Os2aaaaaaaa", "name": "Severity"},
+        {"id": "Os3aaaaaaaa", "name": "Marital status"},
     ]
 }
 
@@ -950,15 +984,17 @@ async def test_an_absent_selection_covers_the_whole_instance(
     assert "filter" not in programs.calls[0].request.url.params
     # One sweep serves both program tables; the second read is the id-only assignment fetch.
     assert programs.calls.call_count == 2
-    assert report.questionnaire_count == 5
+    assert report.questionnaire_count == 6
     assert report.written_files == [
         "data-sets/BfMAe6Itzgt.fsh",
         "data-sets/Ds2aaaaaaaa.fsh",
         "event-programs/VBqh0ynB2wv.fsh",
         "tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh",
         "tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh",
+        "tracker-programs/IpHINAT79UW/registration.fsh",
         "data-dictionary/category-option-combos.fsh",
         "data-dictionary/data-elements.fsh",
+        "data-dictionary/tracked-entity-attributes.fsh",
     ]
     assert [note.message for note in report.notes if "skipped" in note.message] == []
     dictionary = (tmp_path / "ig" / "input" / "fsh" / "data-dictionary" / "data-elements.fsh").read_text(
@@ -985,7 +1021,7 @@ async def test_the_stages_of_a_tracker_program_are_ordered_by_their_dhis2_sort_o
     _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
-    assert report.questionnaire_count == 2
+    assert report.questionnaire_count == 3
     tracker = tmp_path / "ig" / "input" / "fsh" / "tracker-programs" / "IpHINAT79UW"
     birth = (tracker / "A03MvHHogjR.fsh").read_text(encoding="utf-8")
     postnatal = (tracker / "ZzYYXq4fJie.fsh").read_text(encoding="utf-8")
@@ -1024,7 +1060,7 @@ async def test_an_explicit_tracker_selection_is_a_filtered_fetch_of_its_own(
 
     filters = [call.request.url.params.get("filter") for call in programs.calls]
     assert "id:in:[IpHINAT79UW,Missing1234]" in filters
-    assert report.questionnaire_count == 2
+    assert report.questionnaire_count == 3
     assert any("Missing1234" in note.message and "matched no tracker program" in note.message for note in report.notes)
 
 
@@ -1095,7 +1131,7 @@ async def test_a_program_the_target_does_not_map_is_one_note_on_the_sweep(
     _mock_organisation_units()
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
-    assert report.questionnaire_count == 3
+    assert report.questionnaire_count == 4
     assert [note.message for note in report.notes if "skipped" in note.message] == [
         "1 programs have a programType the questionnaire target does not map; skipped: Legacy programme (Pr9aaaaaaaa)"
     ]
@@ -1318,7 +1354,7 @@ async def test_generate_full_without_selection_tables_still_emits_questionnaires
 
     assert data_sets.called
     assert programs.called
-    assert report.questionnaires.questionnaire_count == 5
+    assert report.questionnaires.questionnaire_count == 6
     assert "data-sets/BfMAe6Itzgt.fsh" in report.questionnaires.written_files
     assert "tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh" in report.questionnaires.written_files
 

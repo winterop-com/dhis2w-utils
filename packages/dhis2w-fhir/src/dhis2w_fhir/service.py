@@ -111,6 +111,7 @@ from dhis2w_fhir.resources.questionnaires.assignments import (
     build_assignment_artifacts,
 )
 from dhis2w_fhir.resources.questionnaires.schemas import (
+    CAPTURED_FORM_KINDS,
     CategoryComboIn,
     CategoryOptionComboIn,
     FormKind,
@@ -197,8 +198,19 @@ _PROGRAM_STAGE_FIELDS = (
     "programStageSections[id,name,dataElements[id]],"
     f"programStageDataElements[compulsory,sortOrder,{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
 )
+#: The registration projection a tracker program's own form is built from: the type of person it
+#: enrols, whether its enrollments date the incident they follow, and the attributes it asks for.
+#: `programTrackedEntityAttributes` is the join table, so `mandatory` and `sortOrder` sit on the
+#: join while the question detail sits on the attribute it references - the very shape
+#: `programStageDataElements` has, which is why the two read the same way.
+_PROGRAM_ATTRIBUTE_FIELDS = (
+    "trackedEntityType[id],displayIncidentDate,"
+    "programTrackedEntityAttributes[mandatory,sortOrder,"
+    "trackedEntityAttribute[id,name,code,formName,valueType,unique,optionSet[id]]]"
+)
 _PROGRAM_FIELDS = (
-    f"id,name,code,description,programType,{_ATTRIBUTE_VALUE_FIELDS},programStages[{_PROGRAM_STAGE_FIELDS}]"
+    f"id,name,code,description,programType,{_ATTRIBUTE_VALUE_FIELDS},{_PROGRAM_ATTRIBUTE_FIELDS},"
+    f"programStages[{_PROGRAM_STAGE_FIELDS}]"
 )
 
 #: The attribute projection the emit-time join reads: an attribute's UID, its code, and whether
@@ -222,8 +234,17 @@ _EXAMPLE_TRACKER_EVENT_FIELDS = "event,orgUnit,occurredAt,status,enrollment,trac
 #: How many candidate periods the data-value discovery tries before giving a data set up.
 _EXAMPLE_PERIOD_ATTEMPTS = 6
 
+#: The tracked-entity projection one registration example is built from: the person's identity and
+#: attribute values, plus the enrollments that registered them - one example response per enrollment.
+_EXAMPLE_TRACKED_ENTITY_FIELDS = (
+    "trackedEntity,attributes[attribute,value],enrollments[enrollment,enrolledAt,occurredAt,orgUnit,program]"
+)
+
 #: The envelope keys the tracker events endpoint has answered under.
 _EVENT_ENVELOPE_KEYS = ("instances", "events")
+
+#: The envelope keys the tracked entities endpoint has answered under.
+_TRACKED_ENTITY_ENVELOPE_KEYS = ("instances", "trackedEntities")
 
 #: Where the synthetic load set is written, relative to the project root. It is not IG input: the
 #: files are a corpus to POST at a running `d2w fhir serve`, so they sit beside `ig/` rather than
@@ -550,13 +571,18 @@ async def validate_codes(
 #: The id-only data-set projection scope resolution reads: membership alone, no form detail.
 _SCOPE_DATA_SET_FIELDS = "id,dataSetElements[dataElement[id,optionSet[id]]]"
 
-#: The id-only program projection scope resolution reads: the routing type, the stages, and each
-#: stage's data-element references with the option set every element binds.
-_SCOPE_PROGRAM_FIELDS = "id,programType,programStages[id,programStageDataElements[dataElement[id,optionSet[id]]]]"
+#: The id-only program projection scope resolution reads: the routing type, the stages with each
+#: stage's data-element references, and the tracked entity attributes a tracker program's
+#: registration form asks - every one of them carrying the option set it binds, because the
+#: option-set closure is the union of what the whole capture surface binds.
+_SCOPE_PROGRAM_FIELDS = (
+    "id,programType,programStages[id,programStageDataElements[dataElement[id,optionSet[id]]]],"
+    "programTrackedEntityAttributes[trackedEntityAttribute[id,optionSet[id]]]"
+)
 
 
 class _ScopeBindings(BaseModel):
-    """The data elements the selected containers carry, and the option sets those elements bind."""
+    """The data elements the selected containers carry, and the option sets they and the attributes bind."""
 
     data_element_uids: set[str] = Field(default_factory=set)
     option_set_uids: set[str] = Field(default_factory=set)
@@ -567,6 +593,15 @@ class _ScopeBindings(BaseModel):
         if uid is None:
             return
         self.data_element_uids.add(uid)
+        self.collect_option_set(reference)
+
+    def collect_option_set(self, reference: dict[str, object]) -> None:
+        """Record the option set one wire reference binds, when it binds one.
+
+        A tracked entity attribute goes through here rather than through `collect`: it binds an
+        option set the same way a data element does, but it is not a data element, and the
+        `dataElements` scope surface answers for what `d2w fhir validate` grades as one.
+        """
         option_set = reference.get("optionSet")
         if isinstance(option_set, dict):
             option_set_uid = _optional_text(option_set.get("id"))
@@ -585,6 +620,17 @@ def _collect_stage_elements(stage: dict[str, object], bindings: _ScopeBindings) 
             bindings.collect(reference)
 
 
+def _collect_registration_attributes(program: Program, bindings: _ScopeBindings) -> None:
+    """Mine one tracker program's registration attributes into the scope bindings' option-set closure."""
+    raw_attributes = program.programTrackedEntityAttributes
+    for entry in raw_attributes if isinstance(raw_attributes, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        reference = _tracked_entity_attribute_reference(entry)
+        if reference is not None:
+            bindings.collect_option_set(reference)
+
+
 async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) -> ValidationScope:
     """Resolve the UID sets the configured selection emits, from a handful of id-only reads.
 
@@ -596,9 +642,12 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
 
     A data element is in scope when a selected data set or a selected program's stage carries it;
     an event program contributes its single stage's elements (the stage itself is not a surface -
-    only a tracker stage emits its own Questionnaire). A program named under the selection table
-    its type does not belong to contributes nothing here: that misconfiguration is generate's
-    refusal to raise, not validate's.
+    only a tracker stage emits its own Questionnaire). A tracker program's tracked entity
+    attributes contribute their option sets to the closure without joining the data-element
+    surface: a registration form asks them as questions, so the sets they bind are published, but
+    an attribute is not a data element and `dataElements` is what that surface answers for. A
+    program named under the selection table its type does not belong to contributes nothing here:
+    that misconfiguration is generate's refusal to raise, not validate's.
     """
     bindings = _ScopeBindings()
     data_set_ids = config.data_sets.include_ids
@@ -640,6 +689,7 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
         if as_tracker and program_type == _TRACKER_PROGRAM_TYPE:
             programs.add(uid)
             tracker_programs.add(uid)
+            _collect_registration_attributes(program, bindings)
             for stage in stages:
                 stage_uid = _optional_text(stage.get("id"))
                 if stage_uid is not None:
@@ -1339,11 +1389,12 @@ def _plan_load_set(
 
     A target is placed on the intersection of the published registry selection and its own DHIS2
     assignment, sorted so the seeded pick is reproducible whatever order the instance answered in.
-    One class is dropped rather than emitted: a target the intersection leaves empty, because
-    every response would name a unit the container does not report for and DHIS2 refuses that with
-    `E1029`. Dropping beats reusing the registry root: a load set is measured by what DHIS2
-    accepts, so a response nobody can accept is noise in the very number the corpus exists to
-    produce.
+    Two classes are dropped rather than emitted, both for the same reason - a load set is measured
+    by what DHIS2 accepts, so a response nobody can accept is noise in the very number the corpus
+    exists to produce. A target the intersection leaves empty is one: every response would name a
+    unit the container does not report for, which DHIS2 refuses with `E1029`. A target of a form
+    kind outside `CAPTURED_FORM_KINDS` is the other: the corpus is POSTed at a capture server, and
+    a registration response is refused at the door.
 
     A data set on a non-default category combo is covered like any other. Its responses carry the
     `D2AttributeOptionCombo` extension, drawn from the attribute option combos the data set really
@@ -1351,8 +1402,12 @@ def _plan_load_set(
     """
     plan = _LoadSetPlan()
     unplaced: list[str] = []
+    uncaptured: list[str] = []
     for source in sources:
         label = f"{source.name} ({source.uid})"
+        if source.kind not in CAPTURED_FORM_KINDS:
+            uncaptured.append(label)
+            continue
         assignment = assignments.get(assignment_container_uid(source))
         units = sorted(published_organisation_unit_uids & assignment.organisation_unit_uids) if assignment else []
         if not units:
@@ -1360,6 +1415,15 @@ def _plan_load_set(
             continue
         plan.sources.append(source)
         plan.placements[source.uid] = SyntheticPlacement(organisation_unit_uids=tuple(units))
+    if uncaptured:
+        plan.notes.append(
+            aggregate_generate_note(
+                GenerateNoteCategory.EMPTY_SELECTION,
+                f"{len(uncaptured)} questionnaire targets are of a form kind no capture server accepts a "
+                "response for; no load-set responses emitted for them",
+                uncaptured,
+            )
+        )
     if unplaced:
         plan.notes.append(
             aggregate_generate_note(
@@ -1453,6 +1517,8 @@ async def _fetch_instance_responses(
         progress.tick(f"example responses: {source.name} ({index}/{len(sources)})")
         if source.kind == "aggregate":
             found = await _fetch_data_value_responses(client, source, per_target, root_uid, today)
+        elif source.kind == "tracker":
+            found = await _fetch_registration_responses(client, source, per_target)
         else:
             found = await _fetch_event_responses(client, source, per_target)
         if not found:
@@ -1601,6 +1667,101 @@ async def _fetch_event_responses(
     return responses
 
 
+async def _fetch_registration_responses(
+    client: Dhis2Client, source: QuestionnaireSourceIn, per_target: int
+) -> list[ExampleResponseIn]:
+    """Read the most recently enrolled people of one tracker program as registration example responses.
+
+    One response per enrollment rather than per tracked entity: a person may be enrolled in the
+    same program twice, and each enrollment is one answer to the registration form. The attribute
+    values ride on the tracked entity, so every enrollment of one person answers the same
+    questions - which is exactly what DHIS2 holds, and what re-registering the person would send.
+    """
+    raw = await client.get_raw(
+        "/api/tracker/trackedEntities",
+        params={
+            "program": source.uid,
+            "pageSize": per_target,
+            "order": "createdAt:desc",
+            "fields": _EXAMPLE_TRACKED_ENTITY_FIELDS,
+        },
+    )
+    responses: list[ExampleResponseIn] = []
+    for entry in _tracked_entity_entries(raw):
+        tracked_entity_uid = _optional_text(entry.get("trackedEntity"))
+        if tracked_entity_uid is None:
+            continue
+        answers = _registration_answers(entry.get("attributes"))
+        for enrollment in _program_enrollments(entry.get("enrollments"), source.uid):
+            enrollment_uid = _optional_text(enrollment.get("enrollment"))
+            organisation_unit_uid = _optional_text(enrollment.get("orgUnit"))
+            enrolled_at = _optional_text(enrollment.get("enrolledAt"))
+            incident_at = _optional_text(enrollment.get("occurredAt")) if source.displays_incident_date else None
+            if enrollment_uid is None or organisation_unit_uid is None:
+                continue
+            responses.append(
+                ExampleResponseIn(
+                    instance_id=enrollment_uid,
+                    target_uid=source.uid,
+                    kind="tracker",
+                    organisation_unit_uid=organisation_unit_uid,
+                    status_code=COMPLETED_STATUS,
+                    authored=enrolled_at,
+                    tracked_entity_uid=tracked_entity_uid,
+                    enrollment_uid=enrollment_uid,
+                    enrolled_at=enrolled_at,
+                    incident_at=incident_at,
+                    answers=answers,
+                )
+            )
+    return responses[:per_target]
+
+
+def _tracked_entity_entries(raw: dict[str, object]) -> list[dict[str, object]]:
+    """The tracked entity list of a tracker response, under whichever envelope key the instance answered with."""
+    for key in _TRACKED_ENTITY_ENVELOPE_KEYS:
+        entries = raw.get(key)
+        if isinstance(entries, list):
+            return [entry for entry in entries if isinstance(entry, dict)]
+    return []
+
+
+def _program_enrollments(raw_enrollments: object, program_uid: str) -> list[dict[str, object]]:
+    """One person's enrollments in the program the registration form was generated from, newest first.
+
+    The program is filtered here rather than assumed: a person tracked in several programs
+    carries an enrollment for each, and only the ones in this program answer this form. The
+    order is the enrollment date and then the UID, so a regenerate of unchanged instance data
+    picks the same enrollments whatever order DHIS2 answered in.
+    """
+    entries = [
+        entry
+        for entry in (raw_enrollments if isinstance(raw_enrollments, list) else [])
+        if isinstance(entry, dict) and _optional_text(entry.get("program")) == program_uid
+    ]
+    entries.sort(key=_enrollment_sort_key, reverse=True)
+    return entries
+
+
+def _enrollment_sort_key(entry: dict[str, object]) -> tuple[str, str]:
+    """The order one person's enrollments are read in: the enrollment date, then the enrollment UID."""
+    return (_optional_text(entry.get("enrolledAt")) or "", _optional_text(entry.get("enrollment")) or "")
+
+
+def _registration_answers(raw_attributes: object) -> list[ExampleAnswerIn]:
+    """Map one tracked entity's attribute values into the example projection, keyed by attribute UID."""
+    answers: list[ExampleAnswerIn] = []
+    for entry in raw_attributes if isinstance(raw_attributes, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        attribute_uid = _optional_text(entry.get("attribute"))
+        value = entry.get("value")
+        if attribute_uid is None or not isinstance(value, str):
+            continue
+        answers.append(ExampleAnswerIn(data_element_uid=attribute_uid, value=value))
+    return answers
+
+
 def _event_entries(raw: dict[str, object]) -> list[dict[str, object]]:
     """The event list of a tracker response, under whichever envelope key the instance answered with."""
     for key in _EVENT_ENVELOPE_KEYS:
@@ -1629,6 +1790,7 @@ def _event_answers(raw_values: object) -> list[ExampleAnswerIn]:
 _SOURCE_CODE_COLLECTIONS: dict[str, str] = {
     "aggregate": "dataSets",
     "event": "programs",
+    "tracker": "programs",
     "tracker-event": "programStages",
 }
 
@@ -2268,7 +2430,8 @@ def _option_set_closure(
         notes.append(
             aggregate_generate_note(
                 GenerateNoteCategory.SELECTION_CLOSURE,
-                f"{len(added)} option sets added by the data set / event program closure",
+                f"{len(added)} option sets added by the form closure - what the selected data sets, event "
+                "programs, tracker registration forms, and tracker stages bind their questions to",
                 added,
             )
         )
@@ -2556,11 +2719,12 @@ def _event_program_source(model: Program, notes: list[GenerateNote]) -> Question
 
 
 def _tracker_program_sources(model: Program, notes: list[GenerateNote]) -> list[QuestionnaireSourceIn]:
-    """Map a program with registration onto one Questionnaire source per stage, in the program's stage order.
+    """Map a program with registration onto its registration form plus one source per stage, in stage order.
 
-    A tracker program is a sequence of visits rather than a single form, so each stage is its own
-    data-capture form and carries the program as the context its name, its grouping identifier,
-    and its file path are built from.
+    A tracker program captures at two grains, so it publishes two kinds of form. The registration
+    form is the program's own: it asks the program's tracked entity attributes, and answering it
+    is what enrols a person. Each stage is then a visit of that enrollment, carrying the program
+    as the context its name, its grouping identifier, and its file path are built from.
     """
     uid = model.id or ""
     name = model.name or uid
@@ -2571,7 +2735,7 @@ def _tracker_program_sources(model: Program, notes: list[GenerateNote]) -> list[
             "selected under [generate.event_programs]"
         )
     program = ProgramContextIn(uid=uid, name=name, code=model.code)
-    sources: list[QuestionnaireSourceIn] = []
+    sources: list[QuestionnaireSourceIn] = [_registration_source(model, notes)]
     for stage in sorted(_program_stages(model), key=_stage_sort_key):
         stage_uid = _optional_text(stage.get("id")) or ""
         sources.append(
@@ -2589,6 +2753,90 @@ def _tracker_program_sources(model: Program, notes: list[GenerateNote]) -> list[
             )
         )
     return sources
+
+
+def _registration_source(model: Program, notes: list[GenerateNote]) -> QuestionnaireSourceIn:
+    """Map a tracker program onto its registration form - the program's own identity, its attributes as questions.
+
+    The form is the program, so it takes the program's UID, name, code, description, and
+    annotating attribute values. What it adds is the enrollment context a client needs before it
+    can answer: the type of person it enrols, and whether an enrollment of this program dates the
+    incident it follows.
+    """
+    uid = model.id or ""
+    return _questionnaire_source(
+        uid=uid,
+        name=model.name or uid,
+        code=model.code,
+        description=model.description,
+        kind="tracker",
+        items=_registration_items(model),
+        raw_sections=None,
+        attribute_values=_attribute_value_inputs(model.attributeValues),
+        notes=notes,
+        displays_incident_date=bool(model.displayIncidentDate),
+        tracked_entity_type_uid=_tracked_entity_type_uid(model),
+    )
+
+
+def _tracked_entity_type_uid(model: Program) -> str | None:
+    """The DHIS2 tracked entity type a program enrols a person as, or None when the instance sent none."""
+    reference = model.trackedEntityType
+    return _optional_text(reference.id) if reference is not None else None
+
+
+def _registration_items(model: Program) -> list[QuestionnaireItemIn]:
+    """One tracker program's registration questions, ordered by DHIS2 sort order then attribute name and UID.
+
+    `programTrackedEntityAttributes` is the join between the program and its attributes, and it
+    holds exactly what a stage's `programStageDataElements` join holds: whether the question is
+    mandatory on this program, and where it sits in the form. So the two read the same way, and
+    an attribute is projected onto the very question shape a data element is.
+    """
+    raw_attributes = model.programTrackedEntityAttributes
+    entries = [
+        entry
+        for entry in (raw_attributes if isinstance(raw_attributes, list) else [])
+        if isinstance(entry, dict) and _tracked_entity_attribute_reference(entry) is not None
+    ]
+    entries.sort(key=_registration_item_sort_key)
+    return [
+        _tracked_entity_attribute_item(reference, mandatory=bool(entry.get("mandatory")))
+        for entry in entries
+        if (reference := _tracked_entity_attribute_reference(entry)) is not None
+    ]
+
+
+def _tracked_entity_attribute_reference(entry: dict[str, object]) -> dict[str, object] | None:
+    """The tracked entity attribute one `programTrackedEntityAttribute` references, or None when it names none."""
+    reference = entry.get("trackedEntityAttribute")
+    if not isinstance(reference, dict) or not reference.get("id"):
+        return None
+    return reference
+
+
+def _registration_item_sort_key(entry: dict[str, object]) -> tuple[int, str, str]:
+    """The order a registration form's questions are emitted in: sort order, then the attribute's name and UID."""
+    reference = _tracked_entity_attribute_reference(entry) or {}
+    uid = _optional_text(reference.get("id")) or ""
+    return (_sort_order(entry), _optional_text(reference.get("name")) or uid, uid)
+
+
+def _tracked_entity_attribute_item(raw: dict[str, object], *, mandatory: bool) -> QuestionnaireItemIn:
+    """Map one wire tracked entity attribute into the question projection both emitters consume."""
+    uid = _optional_text(raw.get("id")) or ""
+    option_set = raw.get("optionSet")
+    option_set_uid = _optional_text(option_set.get("id")) if isinstance(option_set, dict) else None
+    return QuestionnaireItemIn(
+        uid=uid,
+        name=_optional_text(raw.get("name")) or uid,
+        code=_optional_text(raw.get("code")),
+        form_name=_optional_text(raw.get("formName")),
+        value_type=_optional_text(raw.get("valueType")) or "",
+        option_set_uid=option_set_uid,
+        compulsory=mandatory,
+        unique=bool(raw.get("unique")),
+    )
 
 
 def _stage_items(stage: dict[str, object]) -> list[QuestionnaireItemIn]:
@@ -2630,6 +2878,7 @@ def _stage_element_sort_key(entry: dict[str, object]) -> tuple[int, str, str]:
 _SOURCE_LABELS_BY_KIND = {
     "aggregate": "data set",
     "event": "event program",
+    "tracker": "tracker program registration",
     "tracker-event": "tracker program stage",
 }
 
@@ -2647,6 +2896,8 @@ def _questionnaire_source(
     period_type: str | None = None,
     program: ProgramContextIn | None = None,
     attribute_combo: CategoryComboIn | None = None,
+    displays_incident_date: bool = False,
+    tracked_entity_type_uid: str | None = None,
 ) -> QuestionnaireSourceIn:
     """Split one form's data elements into its sections plus whatever the sections leave out."""
     sections = _questionnaire_sections(raw_sections, items)
@@ -2670,6 +2921,8 @@ def _questionnaire_source(
         period_type=period_type,
         program=program,
         attribute_combo=attribute_combo,
+        displays_incident_date=displays_incident_date,
+        tracked_entity_type_uid=tracked_entity_type_uid,
         sections=sections,
         flat_items=flat_items,
         attribute_values=attribute_values,

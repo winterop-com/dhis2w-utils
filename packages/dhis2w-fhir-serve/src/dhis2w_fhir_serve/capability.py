@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING
 from dhis2w_fhir.foundation import (
     CAPTURE_SERVER_READ_RESOURCE_TYPES,
     GENERATE_OPERATION_CODE,
-    build_response_profile_declarations,
+    build_captured_response_profile_declarations,
 )
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.r4 import (
@@ -178,8 +178,13 @@ def _generate_operation(
 
 
 def _response_resource(project: FhirProject, canonical: str) -> CapabilityStatementResource:
-    """Declare the capture type: create, read, search, and the response profiles this project generated."""
-    declarations = build_response_profile_declarations(project.config.generate)
+    """Declare the capture type: create, read, search, and the response profiles this server captures.
+
+    The registration contract is generated and published for a client to build against, and it is
+    left off here for the same reason `d2-capture-server.fsh` leaves it off: this facade has no
+    DHIS2 payload to translate such a response into, so claiming the interaction would be a lie.
+    """
+    declarations = build_captured_response_profile_declarations(project.config.generate)
     return CapabilityStatementResource(
         type=QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE,
         supportedProfile=[f"{canonical}/StructureDefinition/{declaration.profile_id}" for declaration in declarations],

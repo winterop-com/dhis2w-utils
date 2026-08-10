@@ -13,12 +13,12 @@ def _by_path(config: GenerateConfig, *, ig_status: IgStatus = "draft") -> dict[s
 
 
 #: The DHIS2 identifier systems declared: a UID system per object kind, plus a code system for the
-#: eleven kinds that carry a DHIS2 code.
-_IDENTIFIER_SYSTEM_COUNT = 24
+#: twelve kinds that carry a DHIS2 code.
+_IDENTIFIER_SYSTEM_COUNT = 26
 
 
 def test_foundation_covers_expected_files() -> None:
-    """The target emits the aliases, the NamingSystems, the nine extensions, and the capture contract."""
+    """The target emits the aliases, the NamingSystems, the eleven extensions, and the capture contract."""
     assert set(_by_path(GenerateConfig())) == {
         "foundation/d2-aliases.fsh",
         "foundation/d2-naming-systems.fsh",
@@ -31,6 +31,7 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-attribute-option-combos.fsh",
         "foundation/d2-organisation-unit-level.fsh",
         "foundation/d2-tracker-enrollment.fsh",
+        "foundation/d2-enrollment-dates.fsh",
         "foundation/d2-responses.fsh",
         "foundation/d2-generate-operation.fsh",
         "foundation/d2-capture-server.fsh",
@@ -94,6 +95,7 @@ def test_tracker_aliases_are_emitted() -> None:
     aliases = _by_path(GenerateConfig())["foundation/d2-aliases.fsh"]
     assert "Alias: $DHIS2-PS = http://dhis2.org/fhir/id/program-stage" in aliases
     assert "Alias: $DHIS2-PS-CODE = http://dhis2.org/fhir/id/program-stage-code" in aliases
+    assert "Alias: $DHIS2-TET = http://dhis2.org/fhir/id/tracked-entity-type" in aliases
     assert "Alias: $DHIS2-TE = http://dhis2.org/fhir/id/tracked-entity" in aliases
     assert "Alias: $DHIS2-TRACKER-ENROLLMENT = http://dhis2.org/fhir/id/tracker-enrollment" in aliases
 
@@ -297,6 +299,46 @@ at one organisation unit, answered on the linkIds of the event program's Questio
 * authored 1..1
 """
 
+_TRACKER_REGISTRATION_RESPONSE_GOLDEN = """Profile: D2TrackerRegistrationResponse
+Parent: QuestionnaireResponse
+Id: d2-tracker-registration-response
+Title: "DHIS2 tracker registration response"
+Description: "One submission of a DHIS2 tracker program's registration form: the tracked entity \
+attributes captured when a person is enrolled, answered on the linkIds of the program's \
+Questionnaire. The response mints both DHIS2 identities it creates - the tracked entity it is \
+subject to and the enrollment its extension names - so a client can capture the enrollment's \
+first stage events in the same breath, before either identity exists on the instance."
+* ^status = #draft
+* ^experimental = true
+* extension contains
+    D2OrganisationUnit named D2OrganisationUnit 1..1 and
+    D2TrackerEnrollment named D2TrackerEnrollment 1..1 and
+    D2EnrolledAt named D2EnrolledAt 1..1 and
+    D2IncidentAt named D2IncidentAt 0..1 and
+    D2FormType named D2FormType 1..1
+* extension[D2OrganisationUnit] ^short = "The DHIS2 organisation unit the person is enrolled at, \
+which becomes the organisation unit of both the tracked entity and the enrollment."
+* extension[D2TrackerEnrollment] ^short = "The DHIS2 enrollment this registration creates. The \
+client mints the value as a DHIS2 UID - eleven characters, the first a letter - so the response \
+names the enrollment its own stage responses will be captured against before any of them is sent."
+* extension[D2EnrolledAt] ^short = "When the enrollment begins."
+* extension[D2IncidentAt] ^short = "When the incident the enrollment follows occurred. Carried by \
+a response to a form whose program collects one, and absent otherwise."
+* extension[D2FormType] ^short = "The DHIS2 form kind this response answers."
+* extension[D2FormType].valueCode = #tracker (exactly)
+* questionnaire 1..1
+* subject 1..1
+* subject only Reference(Patient)
+* subject.identifier 1..1
+* subject.identifier.system 1..1
+* subject.identifier.system = "http://dhis2.org/fhir/id/tracked-entity" (exactly)
+* subject.identifier.value 1..1
+* subject ^short = "The DHIS2 tracked entity this registration creates, named by identifier rather \
+than by reference: this guide publishes no Patient resource, so the identifier is the person. The \
+client mints the value as a DHIS2 UID, the same way it mints the enrollment."
+* authored 1..1
+"""
+
 _TRACKER_EVENT_RESPONSE_GOLDEN = """Profile: D2TrackerEventResponse
 Parent: QuestionnaireResponse
 Id: d2-tracker-event-response
@@ -325,30 +367,44 @@ entity by identifier."
 """
 
 
-def test_the_three_response_profiles_are_stable_goldens() -> None:
-    """All three halves of the capture contract are emitted verbatim into one foundation file."""
+def test_the_four_response_profiles_are_stable_goldens() -> None:
+    """All four quarters of the capture contract are emitted verbatim into one foundation file."""
     responses = _by_path(GenerateConfig())["foundation/d2-responses.fsh"]
-    assert responses == "\n".join((_AGGREGATE_RESPONSE_GOLDEN, _EVENT_RESPONSE_GOLDEN, _TRACKER_EVENT_RESPONSE_GOLDEN))
+    assert responses == "\n".join(
+        (
+            _AGGREGATE_RESPONSE_GOLDEN,
+            _EVENT_RESPONSE_GOLDEN,
+            _TRACKER_REGISTRATION_RESPONSE_GOLDEN,
+            _TRACKER_EVENT_RESPONSE_GOLDEN,
+        )
+    )
 
 
 def test_the_response_profiles_pin_the_context_a_capture_client_has_to_send() -> None:
     """Each profile makes its own form kind's context mandatory and fixes the form-type code."""
     responses = _by_path(GenerateConfig())["foundation/d2-responses.fsh"]
     aggregate, _, rest = responses.partition("Profile: D2EventResponse")
-    event, _, tracker_event = rest.partition("Profile: D2TrackerEventResponse")
+    event, _, rest = rest.partition("Profile: D2TrackerRegistrationResponse")
+    registration, _, tracker_event = rest.partition("Profile: D2TrackerEventResponse")
     assert "D2Period named D2Period 1..1" in aggregate
     assert "* extension[D2FormType].valueCode = #aggregate (exactly)" in aggregate
     assert "* authored 1..1" not in aggregate
     assert "D2Period" not in event
     assert "* extension[D2FormType].valueCode = #event (exactly)" in event
     assert "* authored 1..1" in event
+    assert "D2Period" not in registration
+    assert "D2EnrolledAt named D2EnrolledAt 1..1" in registration
+    assert "D2IncidentAt named D2IncidentAt 0..1" in registration
+    assert "* extension[D2FormType].valueCode = #tracker (exactly)" in registration
+    assert "* authored 1..1" in registration
     assert "D2Period" not in tracker_event
     assert "D2OrganisationUnit named D2OrganisationUnit 1..1" in tracker_event
     assert "D2TrackerEnrollment named D2TrackerEnrollment 1..1" in tracker_event
     assert "* extension[D2FormType].valueCode = #tracker-event (exactly)" in tracker_event
+    assert "D2EnrolledAt" not in tracker_event
     assert "* authored 1..1" in tracker_event
     assert responses.count("* subject only Reference(D2Location)") == 2
-    assert responses.count("* questionnaire 1..1") == 3
+    assert responses.count("* questionnaire 1..1") == 4
 
 
 def test_the_tracker_event_response_subjects_the_tracked_entity_by_identifier() -> None:
@@ -370,11 +426,11 @@ def test_the_tracker_event_response_subjects_the_tracked_entity_by_identifier() 
 def test_the_response_profiles_derive_their_publication_state_from_the_ig_status() -> None:
     """Every profile carries ^status and ^experimental straight off `[ig] status`."""
     draft = _by_path(GenerateConfig())["foundation/d2-responses.fsh"]
-    assert draft.count("* ^status = #draft") == 3
-    assert draft.count("* ^experimental = true") == 3
+    assert draft.count("* ^status = #draft") == 4
+    assert draft.count("* ^experimental = true") == 4
     active = _by_path(GenerateConfig(), ig_status="active")["foundation/d2-responses.fsh"]
-    assert active.count("* ^status = #active") == 3
-    assert active.count("* ^experimental = false") == 3
+    assert active.count("* ^status = #active") == 4
+    assert active.count("* ^experimental = false") == 4
     assert "* ^status = #draft" not in active
     assert "* ^experimental = true" not in active
 
@@ -382,7 +438,9 @@ def test_the_response_profiles_derive_their_publication_state_from_the_ig_status
 _TRACKER_ENROLLMENT_EXTENSION_GOLDEN = """Extension: D2TrackerEnrollment
 Id: d2-tracker-enrollment
 Title: "DHIS2 tracker enrollment"
-Description: "The DHIS2 tracker enrollment an event was captured under, carried as the enrollment UID."
+Description: "The DHIS2 tracker enrollment a response belongs to, carried as the enrollment UID. \
+A registration response mints the UID of the enrollment it creates; an event response names the \
+enrollment it was captured under."
 * ^status = #draft
 * ^experimental = true
 * ^context[+].type = #element
@@ -407,6 +465,54 @@ def test_the_tracker_enrollment_extension_system_follows_the_configured_identifi
         '* valueIdentifier.system = "https://example.org/dhis2/id/tracker-enrollment" (exactly)'
         in custom["foundation/d2-tracker-enrollment.fsh"]
     )
+
+
+_ENROLLMENT_DATES_GOLDEN = """Extension: D2EnrolledAt
+Id: d2-enrolled-at
+Title: "DHIS2 enrollment date"
+Description: "The moment a DHIS2 tracker enrollment began - the enrolledAt of the enrollment a \
+registration response creates."
+* ^status = #draft
+* ^experimental = true
+* ^context[+].type = #element
+* ^context[=].expression = "QuestionnaireResponse"
+* value[x] only dateTime
+* valueDateTime 1..1
+
+Extension: D2IncidentAt
+Id: d2-incident-at
+Title: "DHIS2 incident date"
+Description: "The moment the incident a DHIS2 tracker enrollment follows occurred - the occurredAt \
+of the enrollment. A program states whether it collects one through displayIncidentDate, and a \
+registration form generated from a program that does not carries none."
+* ^status = #draft
+* ^experimental = true
+* ^context[+].type = #element
+* ^context[=].expression = "QuestionnaireResponse"
+* value[x] only dateTime
+* valueDateTime 1..1
+"""
+
+
+def test_the_enrollment_date_extensions_are_a_stable_golden() -> None:
+    """The two dates a DHIS2 enrollment carries land as one foundation file of two dateTime extensions."""
+    assert _by_path(GenerateConfig())["foundation/d2-enrollment-dates.fsh"] == _ENROLLMENT_DATES_GOLDEN
+
+
+def test_the_enrollment_date_extensions_follow_the_naming_prefix() -> None:
+    """Both extensions take the `[generate.naming]` prefix the rest of the D2 family takes."""
+    custom = _by_path(GenerateConfig(naming=NamingConfig(prefix="Dhis2")))["foundation/d2-enrollment-dates.fsh"]
+    assert "Extension: Dhis2EnrolledAt" in custom
+    assert "Id: dhis2-enrolled-at" in custom
+    assert "Extension: Dhis2IncidentAt" in custom
+    assert "Id: dhis2-incident-at" in custom
+
+
+def test_the_capture_server_claims_no_profile_it_cannot_translate() -> None:
+    """The registration contract is published for clients to build against, not claimed as a served interaction."""
+    capture_server = _by_path(GenerateConfig())["foundation/d2-capture-server.fsh"]
+    assert "Canonical(D2TrackerEventResponse)" in capture_server
+    assert "Canonical(D2TrackerRegistrationResponse)" not in capture_server
 
 
 _ORGANISATION_UNIT_EXTENSION_GOLDEN = """Extension: D2OrganisationUnit

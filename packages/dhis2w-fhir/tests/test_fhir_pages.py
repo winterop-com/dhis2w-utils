@@ -93,6 +93,17 @@ _POSTNATAL_STAGE = QuestionnaireSourceIn(
     flat_items=[QuestionnaireItemIn(uid="De9aaaaaaaa", name="Weight", value_type="NUMBER")],
 )
 
+_CHILD_REGISTRATION = QuestionnaireSourceIn(
+    uid="IpHINAT79UW",
+    name="Child Programme",
+    code="PR_CHILD",
+    kind="tracker",
+    tracked_entity_type_uid="nEenWmSyUEp",
+    flat_items=[
+        QuestionnaireItemIn(uid="Tea1aaaaaaa", name="National identifier", value_type="TEXT", unique=True),
+    ],
+)
+
 _SCREENING_STAGE = QuestionnaireSourceIn(
     uid="oRySG82BKE6",
     name="Screening",
@@ -149,7 +160,7 @@ def _pages_input() -> PagesIn:
 def _tracker_pages_input() -> PagesIn:
     """The fixture the tracker-program page tests render from, two programs deep."""
     return PagesIn(
-        forms=[_DATA_SET, _EVENT_PROGRAM, _POSTNATAL_STAGE, _BIRTH_STAGE, _SCREENING_STAGE],
+        forms=[_DATA_SET, _EVENT_PROGRAM, _POSTNATAL_STAGE, _BIRTH_STAGE, _SCREENING_STAGE, _CHILD_REGISTRATION],
         option_sets=[_DESCRIBED_OPTION_SET, _PLAIN_OPTION_SET],
         organisation_units=[_ROOT_UNIT, _CHILD_UNIT],
     )
@@ -216,7 +227,7 @@ def test_forms_page_groups_every_tracker_stage_under_its_program() -> None:
     """A stage is catalogued under the tracker program it belongs to, programs ordered by name."""
     forms = _tracker_pages()["forms.md"]
     assert "## Tracker programs" in forms
-    assert "Each stage of a tracker program is its own form, answered once per event of an enrollment." in forms
+    assert "the registration form enrols a person," in forms
     assert "### Adult \\| Programme (uy2gU8kT1jF)" in forms
     assert "### Child Programme (IpHINAT79UW)" in forms
     assert forms.index("### Adult \\| Programme (uy2gU8kT1jF)") < forms.index("### Child Programme (IpHINAT79UW)")
@@ -224,6 +235,18 @@ def test_forms_page_groups_every_tracker_stage_under_its_program() -> None:
     assert "| [Postnatal](Questionnaire-ZzYYXq4fJie.html) | `ZzYYXq4fJie` | `ZzYYXq4fJie` | 0 | 1 |" in forms
     assert "| [Screening](Questionnaire-oRySG82BKE6.html) | `oRySG82BKE6` | `oRySG82BKE6` | 0 | 1 |" in forms
     assert forms.index("](Questionnaire-A03MvHHogjR.html)") < forms.index("](Questionnaire-ZzYYXq4fJie.html)")
+
+
+def test_forms_page_lists_a_programs_registration_form_ahead_of_its_stages() -> None:
+    """A tracker program's own form comes first: nothing is captured at a stage before someone is enrolled."""
+    forms = _tracker_pages()["forms.md"]
+    child = forms[forms.index("### Child Programme (IpHINAT79UW)") :]
+    assert "#### Registration" in child
+    assert "#### Stages" in child
+    assert child.index("#### Registration") < child.index("#### Stages")
+    assert "| [Child Programme](Questionnaire-IpHINAT79UW.html) | `IpHINAT79UW` | `PR_CHILD` | 0 | 1 |" in child
+    adult = forms[forms.index("### Adult \\| Programme (uy2gU8kT1jF)") : forms.index("### Child Programme")]
+    assert "#### Registration" not in adult
 
 
 def test_forms_page_tracker_catalog_carries_no_period_column() -> None:

@@ -23,7 +23,12 @@ if TYPE_CHECKING:
     from dhis2w_fhir.config import NamingConfig
 
 #: The form kinds a Questionnaire is generated from, and the D2FormType code each carries.
-FormKind = Literal["aggregate", "event", "tracker-event"]
+FormKind = Literal["aggregate", "event", "tracker", "tracker-event"]
+
+#: The DHIS2 object a form kind's questions are asked from, which decides the support CodeSystem
+#: an item's `code` is drawn from: a data set, an event program, and a tracker program stage all
+#: ask data elements, while a tracker registration form asks the program's tracked entity attributes.
+QuestionSubject = Literal["data-element", "tracked-entity-attribute"]
 
 #: The trailing token every organisation-unit assignment List id ends in, after the token and stem.
 ASSIGNMENT_ID_SUFFIX = "org-units"
@@ -47,11 +52,14 @@ class FormKindProfile(BaseModel):
     code_identifier_segment: str
     subject_type: str
     label: str
+    question_subject: QuestionSubject = "data-element"
 
 
 #: The DHIS2 identifier systems, subject type, and prose label each form kind carries. An aggregate
-#: or event form is reported for an organisation unit, while a tracker program stage captures one
-#: enrolled person's visit, so the subject of the stage form is the patient.
+#: or event form is reported for an organisation unit, while a tracker registration form enrols one
+#: person and a tracker program stage captures that person's visit, so the subject of both tracker
+#: forms is the patient. The registration form is the tracker program's own form, so it rides the
+#: program's identifier systems - the very ones its stage forms carry as a grouping identifier.
 FORM_KIND_PROFILES: dict[FormKind, FormKindProfile] = {
     "aggregate": FormKindProfile(
         identifier_system="$DHIS2-DS",
@@ -69,6 +77,15 @@ FORM_KIND_PROFILES: dict[FormKind, FormKindProfile] = {
         subject_type="Location",
         label="event program",
     ),
+    "tracker": FormKindProfile(
+        identifier_system="$DHIS2-PROGRAM",
+        identifier_code_system="$DHIS2-PROGRAM-CODE",
+        identifier_segment="program",
+        code_identifier_segment="program-code",
+        subject_type="Patient",
+        label="tracker program",
+        question_subject="tracked-entity-attribute",
+    ),
     "tracker-event": FormKindProfile(
         identifier_system="$DHIS2-PS",
         identifier_code_system="$DHIS2-PS-CODE",
@@ -78,6 +95,12 @@ FORM_KIND_PROFILES: dict[FormKind, FormKindProfile] = {
         label="tracker program stage",
     ),
 }
+
+#: The form kinds a capture server accepts a response for and the translator turns into a DHIS2
+#: payload. Narrower than `FORM_KIND_PROFILES` on purpose: the registration form is generated,
+#: published, and served as a Questionnaire before anything captures a response against it, and a
+#: server that accepted one would have nothing to translate it into.
+CAPTURED_FORM_KINDS: tuple[FormKind, ...] = ("aggregate", "event", "tracker-event")
 
 
 class TargetSelection(BaseModel):
@@ -100,6 +123,9 @@ class SupportTerminologyProfile(BaseModel):
     The FSH target quotes these into `support-terminology.fsh.jinja` and the JSON target writes
     them onto the built `CodeSystem` and `ValueSet`, so the compiled guide and the served
     documents describe the same terminology in the same words.
+
+    `value_type_property_description` is per-pair because the two pairs that declare a value type
+    describe a different DHIS2 object; a pair whose concepts carry no value type never renders it.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -107,6 +133,7 @@ class SupportTerminologyProfile(BaseModel):
     title: str
     description: str
     code_property_description: str
+    value_type_property_description: str = ""
 
 
 #: The support pair over every data element the generated questionnaires ask a question from.
@@ -116,6 +143,18 @@ DATA_ELEMENT_TERMINOLOGY = SupportTerminologyProfile(
         "DHIS2 data elements captured by the generated questionnaires. Concept codes are DHIS2 data element UIDs."
     ),
     code_property_description="DHIS2 data element code.",
+    value_type_property_description="DHIS2 data element value type.",
+)
+
+#: The support pair over every tracked entity attribute the generated registration forms ask about.
+TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY = SupportTerminologyProfile(
+    title="DHIS2 Tracked Entity Attributes",
+    description=(
+        "DHIS2 tracked entity attributes captured by the generated tracker registration forms. "
+        "Concept codes are DHIS2 tracked entity attribute UIDs."
+    ),
+    code_property_description="DHIS2 tracked entity attribute code.",
+    value_type_property_description="DHIS2 tracked entity attribute value type.",
 )
 
 #: The support pair over every category option combo the generated questionnaires disaggregate by.
@@ -131,8 +170,10 @@ CATEGORY_OPTION_COMBO_TERMINOLOGY = SupportTerminologyProfile(
 #: The description of the `domain` concept property, which only the data-element pair declares.
 DOMAIN_PROPERTY_DESCRIPTION = "DHIS2 data element domain type."
 
-#: What the `value-type` concept property carries on the data-element CodeSystem.
-VALUE_TYPE_PROPERTY_DESCRIPTION = "DHIS2 data element value type."
+#: The description of the `unique` concept property, which only the attribute pair declares. A
+#: unique tracked entity attribute is a business identifier - a national id, a case number - so a
+#: consumer reading the vocabulary can tell which questions identify the person from which describe them.
+UNIQUE_PROPERTY_DESCRIPTION = "Whether DHIS2 declares the tracked entity attribute unique."
 
 
 class NumericBounds(BaseModel):
@@ -172,25 +213,33 @@ class CategoryComboIn(BaseModel):
 
 
 class QuestionnaireItemIn(BaseModel):
-    """One data element as a question: its value type, its domain, its option set, and its disaggregation.
+    """One data element or tracked entity attribute as a question: its value type, its option set, its disaggregation.
 
-    `domain_type` is the DHIS2 `AGGREGATE` / `TRACKER` split, carried as a concept property on
-    the data-element support CodeSystem. It is empty when the instance sent none.
+    `domain_type` is the DHIS2 `AGGREGATE` / `TRACKER` split a data element carries, emitted as a
+    concept property on the data-element support CodeSystem. It is empty when the instance sent
+    none, and a tracked entity attribute has no domain at all.
+
+    `code` and `unique` are the tracked entity attribute's own facts: DHIS2 codes an attribute the
+    way it codes every metadata object, and a unique attribute is a business identifier rather
+    than a description. Both ride onto the attribute support CodeSystem as concept properties.
 
     A DHIS2 form makes a question mandatory at two grains, and the projection carries both:
-    `compulsory` marks the data element itself, and `required_option_combo_uids` marks the
-    single disaggregated cells a data set names through a compulsory operand.
+    `compulsory` marks the data element itself (a registration form's `mandatory` attribute lands
+    here too), and `required_option_combo_uids` marks the single disaggregated cells a data set
+    names through a compulsory operand.
     """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
     name: str
+    code: str | None = None
     form_name: str | None = None
     value_type: str
     domain_type: str = ""
     option_set_uid: str | None = None
     compulsory: bool = False
+    unique: bool = False
     required_option_combo_uids: list[str] = Field(default_factory=list)
     category_combo: CategoryComboIn | None = None
 
@@ -231,12 +280,18 @@ class QuestionnaireSourceIn(BaseModel):
 
     `program` is set exactly when `kind` is `tracker-event`: the source is then one program
     stage, so `uid`, `name`, `code`, and `description` are the stage's own and `program`
-    names the tracker program the stage belongs to.
+    names the tracker program the stage belongs to. A `tracker` source names no program because
+    it *is* one: the registration form is the tracker program's own form, so `uid`, `name`, and
+    `code` are the program's and its questions are the program's tracked entity attributes.
 
     `attribute_combo` is the data set's own category combo - the third key of every value it
     holds, beside the organisation unit and the period. Only an aggregate form carries one, and
     a non-default one is what makes the form publish an attribute-option-combo vocabulary and
     its responses name a combo out of it.
+
+    `displays_incident_date` is the tracker program's `displayIncidentDate`, which says whether an
+    enrollment states the date of the incident it tracks beside the date it began. Only a `tracker`
+    source carries it, and it is what makes a registration response carry the incident-date extension.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -249,13 +304,33 @@ class QuestionnaireSourceIn(BaseModel):
     period_type: str | None = None
     program: ProgramContextIn | None = None
     attribute_combo: CategoryComboIn | None = None
+    displays_incident_date: bool = False
+    tracked_entity_type_uid: str | None = None
+    """The DHIS2 tracked entity type a registration form enrols a person as; None on every other kind."""
+
     sections: list[QuestionnaireSectionIn] = Field(default_factory=list)
     flat_items: list[QuestionnaireItemIn] = Field(default_factory=list)
     attribute_values: list[AttributeValueIn] = Field(default_factory=list)
 
 
+class ReferencedObjects(BaseModel):
+    """The DHIS2 objects one run's forms reference, gathered into the data dictionary both emitters publish.
+
+    One entry per support pair: the data elements the questions are asked from, the tracked entity
+    attributes the registration forms ask about, and the category option combos the aggregate
+    forms disaggregate by. Each is keyed by UID and holds the first projection that named it, so
+    a data element two data sets share becomes one concept rather than two.
+    """
+
+    data_elements: dict[str, QuestionnaireItemIn] = Field(default_factory=dict)
+    tracked_entity_attributes: dict[str, QuestionnaireItemIn] = Field(default_factory=dict)
+    option_combos: dict[str, CategoryOptionComboIn] = Field(default_factory=dict)
+
+
 def source_program(source: QuestionnaireSourceIn) -> ProgramContextIn:
-    """The program a tracker program stage belongs to, refusing a stage that arrived without one."""
+    """The tracker program one source belongs to: a registration form's own identity, else its stage's program."""
+    if source.kind == "tracker":
+        return ProgramContextIn(uid=source.uid, name=source.name, code=source.code)
     if source.program is None:
         raise ValueError(
             f"tracker-event source {source.uid} carries no program context: a program stage is named, "
@@ -312,7 +387,9 @@ def plan_questionnaire_stems(sources: list[QuestionnaireSourceIn], source: Namin
     target_subjects = [StemSubject(uid=item.uid, code=item.code, label=source_display_name(item)) for item in sources]
     programs: dict[str, ProgramContextIn] = {}
     for item in sources:
-        if item.program is not None:
+        if item.kind == "tracker":
+            programs.setdefault(item.uid, source_program(item))
+        elif item.program is not None:
             programs.setdefault(item.program.uid, item.program)
     program_subjects = [
         StemSubject(uid=program.uid, code=program.code, label=program.name) for program in programs.values()
@@ -355,8 +432,18 @@ class QuestionnaireNaming(BaseModel):
         )
 
     def source_token(self, kind: FormKind) -> str:
-        """The naming token one form kind composes its name from (`DS`, `PR`, `PS`)."""
-        return {"aggregate": self.data_set, "event": self.program, "tracker-event": self.program_stage}[kind]
+        """The naming token one form kind composes its name from (`DS`, `PR`, `PS`).
+
+        A tracker registration form takes the program token, because the form it names *is* the
+        program's own form - `D2PR_<program>` is the form of program X whichever kind of program
+        X is, while `D2PS_<stage>` is one visit of a tracker program.
+        """
+        return {
+            "aggregate": self.data_set,
+            "event": self.program,
+            "tracker": self.program,
+            "tracker-event": self.program_stage,
+        }[kind]
 
     def questionnaire_name(self, kind: FormKind, stem_segment: str) -> str:
         """Computational `Questionnaire.name` for one source (e.g. `D2DS_BfMAe6Itzgt`, `D2PS_A03MvHHogjR`).
@@ -402,6 +489,26 @@ class QuestionnaireNaming(BaseModel):
     def data_element_value_set_id(self) -> str:
         """FHIR id of the data-element support ValueSet (e.g. `d2-de-vs`)."""
         return join_id_tokens(self.prefix, "de", "vs")
+
+    @property
+    def tracked_entity_attribute_code_system(self) -> str:
+        """FSH name of the tracked-entity-attribute support CodeSystem (e.g. `D2TEA_CS`)."""
+        return f"{self.prefix}TEA_CS"
+
+    @property
+    def tracked_entity_attribute_code_system_id(self) -> str:
+        """FHIR id of the tracked-entity-attribute support CodeSystem (e.g. `d2-tea-cs`)."""
+        return join_id_tokens(self.prefix, "tea", "cs")
+
+    @property
+    def tracked_entity_attribute_value_set(self) -> str:
+        """FSH name of the tracked-entity-attribute support ValueSet (e.g. `D2TEA_VS`)."""
+        return f"{self.prefix}TEA_VS"
+
+    @property
+    def tracked_entity_attribute_value_set_id(self) -> str:
+        """FHIR id of the tracked-entity-attribute support ValueSet (e.g. `d2-tea-vs`)."""
+        return join_id_tokens(self.prefix, "tea", "vs")
 
     @property
     def category_option_combo_code_system(self) -> str:

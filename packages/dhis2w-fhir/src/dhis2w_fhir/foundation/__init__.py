@@ -14,8 +14,9 @@ naming the List of Locations a form may be captured against, `d2-organisation-un
 the Extension stating the hierarchy level a published Location sits at,
 `d2-attribute-option-combos.fsh` the Extension naming the ValueSet of attribute option combos
 a form's responses may be keyed under, `d2-attribute-option-combo.fsh` the Extension carrying
-the one an aggregate response was captured under, and `d2-tracker-enrollment.fsh` the Extension
-carrying the DHIS2 tracker enrollment an event belongs to.
+the one an aggregate response was captured under, `d2-tracker-enrollment.fsh` the Extension
+carrying the DHIS2 tracker enrollment a response belongs to, and `d2-enrollment-dates.fsh` the
+two Extensions dating that enrollment - when it began, and when the incident it follows occurred.
 
 Three more artifacts turn that vocabulary into a capture contract a third party can build
 against without reading DHIS2: `d2-responses.fsh` profiles the QuestionnaireResponse a
@@ -52,6 +53,7 @@ from dhis2w_fhir.foundation.schemas import (
 from dhis2w_fhir.names import page_text
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
 from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
+from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact
 
@@ -73,6 +75,7 @@ __all__ = [
     "ResponseProfileDeclaration",
     "attribute_value_extension_url",
     "attribute_value_extensions",
+    "build_captured_response_profile_declarations",
     "build_foundation_artifacts",
     "build_response_profile_declarations",
 ]
@@ -213,6 +216,11 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         ig_status=ig_status,
         experimental=experimental,
     )
+    enrollment_dates = _ENVIRONMENT.get_template("d2-enrollment-dates.fsh.jinja").render(
+        names=names,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     responses = _ENVIRONMENT.get_template("d2-responses.fsh.jinja").render(
         names=names,
         profiles=build_response_profile_declarations(config),
@@ -236,7 +244,7 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
     )
     capture_server = _ENVIRONMENT.get_template("d2-capture-server.fsh.jinja").render(
         names=names,
-        profiles=build_response_profile_declarations(config),
+        profiles=build_captured_response_profile_declarations(config),
         title_literal=page_text(_CAPTURE_SERVER_TITLE),
         description_literal=page_text(_CAPTURE_SERVER_DESCRIPTION),
         rest_documentation=_CAPTURE_SERVER_REST_DOCUMENTATION,
@@ -313,6 +321,12 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             content=tracker_enrollment,
         ),
         FshArtifact(
+            relative_path="foundation/d2-enrollment-dates.fsh",
+            kind="extension",
+            fsh_name=names.enrolled_at_extension,
+            content=enrollment_dates,
+        ),
+        FshArtifact(
             relative_path="foundation/d2-responses.fsh",
             kind="profile",
             fsh_name=names.aggregate_response_profile,
@@ -334,7 +348,7 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
 
 
 def build_response_profile_declarations(config: GenerateConfig) -> list[ResponseProfileDeclaration]:
-    """Declare the QuestionnaireResponse contract per form kind: aggregate, then event, then tracker event."""
+    """Declare the QuestionnaireResponse contract per form kind, in the order D2FormType_CS lists them."""
     names = FoundationNaming.from_naming(config.naming)
     return [
         ResponseProfileDeclaration(
@@ -362,6 +376,21 @@ def build_response_profile_declarations(config: GenerateConfig) -> list[Response
             authored_required=True,
         ),
         ResponseProfileDeclaration(
+            name=names.tracker_registration_response_profile,
+            profile_id=names.tracker_registration_response_profile_id,
+            form_type_code="tracker",
+            title="DHIS2 tracker registration response",
+            description=(
+                "One submission of a DHIS2 tracker program's registration form: the tracked entity attributes "
+                "captured when a person is enrolled, answered on the linkIds of the program's Questionnaire. "
+                "The response mints both DHIS2 identities it creates - the tracked entity it is subject to and "
+                "the enrollment its extension names - so a client can capture the enrollment's first stage "
+                "events in the same breath, before either identity exists on the instance."
+            ),
+            authored_required=True,
+            registration_context_required=True,
+        ),
+        ResponseProfileDeclaration(
             name=names.tracker_event_response_profile,
             profile_id=names.tracker_event_response_profile_id,
             form_type_code="tracker-event",
@@ -374,6 +403,21 @@ def build_response_profile_declarations(config: GenerateConfig) -> list[Response
             authored_required=True,
             tracker_context_required=True,
         ),
+    ]
+
+
+def build_captured_response_profile_declarations(config: GenerateConfig) -> list[ResponseProfileDeclaration]:
+    """The response contracts a capture server states support for - the ones it can translate into DHIS2 today.
+
+    Narrower than `build_response_profile_declarations` for the reason `CAPTURED_FORM_KINDS` is
+    narrower than `FORM_KIND_PROFILES`: the registration contract is published so a client can
+    build against it, and a CapabilityStatement claiming an interaction no server performs would
+    be a lie about the running facade.
+    """
+    return [
+        declaration
+        for declaration in build_response_profile_declarations(config)
+        if declaration.form_type_code in CAPTURED_FORM_KINDS
     ]
 
 

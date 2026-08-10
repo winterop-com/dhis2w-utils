@@ -14,14 +14,20 @@ Description: {{ terminology.description_literal }}
 {% if terminology.declares_domain %}
 * ^property[+].code = #domain
 * ^property[=].uri = "{{ terminology.property_base }}/domain"
-* ^property[=].description = "DHIS2 data element domain type."
+* ^property[=].description = {{ terminology.domain_property_description_literal }}
 * ^property[=].type = #code
 {% endif %}
 {% if terminology.declares_value_type %}
 * ^property[+].code = #value-type
 * ^property[=].uri = "{{ terminology.property_base }}/value-type"
-* ^property[=].description = "DHIS2 data element value type."
+* ^property[=].description = {{ terminology.value_type_property_description_literal }}
 * ^property[=].type = #code
+{% endif %}
+{% if terminology.declares_unique %}
+* ^property[+].code = #unique
+* ^property[=].uri = "{{ terminology.property_base }}/unique"
+* ^property[=].description = {{ terminology.unique_property_description_literal }}
+* ^property[=].type = #boolean
 {% endif %}
 {% for concept in terminology.concepts %}
 * #{{ concept.uid }} {{ concept.display_literal }}
@@ -34,6 +40,10 @@ Description: {{ terminology.description_literal }}
 {% if concept.value_type_code is not none %}
 * #{{ concept.uid }} ^property[+].code = #value-type
 * #{{ concept.uid }} ^property[=].valueCode = #{{ concept.value_type_code }}
+{% endif %}
+{% if concept.unique_literal is not none %}
+* #{{ concept.uid }} ^property[+].code = #unique
+* #{{ concept.uid }} ^property[=].valueBoolean = {{ concept.unique_literal }}
 {% endif %}
 {% endfor %}
 

@@ -236,7 +236,7 @@ async def test_live_store_publishes_the_questionnaires_the_compiled_ig_would(
     store = await _built_store(live_project)
 
     questionnaires = _bodies(store, "Questionnaire")
-    assert sorted(questionnaires) == ["A03MvHHogjR", "BfMAe6Itzgt", "VBqh0ynB2wv"]
+    assert sorted(questionnaires) == ["A03MvHHogjR", "BfMAe6Itzgt", "IpHINAT79UW", "VBqh0ynB2wv"]
     data_set = questionnaires["BfMAe6Itzgt"]
     assert data_set["url"] == f"{_CANONICAL}/Questionnaire/BfMAe6Itzgt"
     assert data_set["name"] == "D2DS_BfMAe6Itzgt"
@@ -244,6 +244,7 @@ async def test_live_store_publishes_the_questionnaires_the_compiled_ig_would(
     assert {"system": f"{_IDENTIFIER_BASE}/data-set", "value": "BfMAe6Itzgt"} in data_set["identifier"]
     assert store.by_canonical(f"{_CANONICAL}/Questionnaire/VBqh0ynB2wv") is not None
     assert questionnaires[_TRACKER_STAGE_UID]["name"] == "D2PS_A03MvHHogjR"
+    assert questionnaires[_TRACKER_PROGRAM_UID]["name"] == "D2PR_IpHINAT79UW"
 
 
 @respx.mock
@@ -304,7 +305,7 @@ async def test_live_entries_are_indexed_and_marked_live(
         "ValueSet",
     )
     grouped = store.search("Questionnaire", _identifier_query(f"{_IDENTIFIER_BASE}/program", _TRACKER_PROGRAM_UID))
-    assert [entry.resource_id for entry in grouped] == [_TRACKER_STAGE_UID]
+    assert sorted(entry.resource_id for entry in grouped) == [_TRACKER_STAGE_UID, _TRACKER_PROGRAM_UID]
     registry = store.search("Organization", _identifier_query(None, "ImspTQPwCqd"))
     assert [entry.resource_id for entry in registry] == ["ImspTQPwCqd"]
 
@@ -433,5 +434,7 @@ async def test_live_facade_answers_reads_and_searches_over_the_built_store(
     assert read.status_code == 200
     assert read.json()["url"] == f"{_CANONICAL}/Questionnaire/BfMAe6Itzgt"
     bundle = search.json()
-    assert bundle["total"] == 1
-    assert bundle["entry"][0]["resource"]["id"] == _TRACKER_STAGE_UID
+    # One search over the program identifier selects the program's whole capture surface: the
+    # registration form that enrols a person, and every stage form the enrollment is captured on.
+    assert bundle["total"] == 2
+    assert sorted(entry["resource"]["id"] for entry in bundle["entry"]) == [_TRACKER_STAGE_UID, _TRACKER_PROGRAM_UID]
