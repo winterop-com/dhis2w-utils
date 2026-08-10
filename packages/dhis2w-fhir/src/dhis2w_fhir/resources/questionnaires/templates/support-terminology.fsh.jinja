@@ -7,10 +7,12 @@ Description: {{ terminology.description_literal }}
 * ^content = #complete
 * ^caseSensitive = true
 * ^valueSet = Canonical({{ terminology.value_set }})
+{% if terminology.declares_code %}
 * ^property[+].code = #dhis2-code
 * ^property[=].uri = "{{ terminology.property_base }}/dhis2-code"
 * ^property[=].description = {{ terminology.property_description_literal }}
 * ^property[=].type = #string
+{% endif %}
 {% if terminology.declares_domain %}
 * ^property[+].code = #domain
 * ^property[=].uri = "{{ terminology.property_base }}/domain"
@@ -31,8 +33,10 @@ Description: {{ terminology.description_literal }}
 {% endif %}
 {% for concept in terminology.concepts %}
 * #{{ concept.uid }} {{ concept.display_literal }}
+{% if concept.code_literal is not none %}
 * #{{ concept.uid }} ^property[+].code = #dhis2-code
 * #{{ concept.uid }} ^property[=].valueString = {{ concept.code_literal }}
+{% endif %}
 {% if concept.domain_code is not none %}
 * #{{ concept.uid }} ^property[+].code = #domain
 * #{{ concept.uid }} ^property[=].valueCode = #{{ concept.domain_code }}

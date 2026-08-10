@@ -54,9 +54,15 @@ _AGE_COMBO = CategoryComboIn(
     ],
 )
 
+#: The same disaggregation with no DHIS2 code on either combo - what an uncoded dictionary reads as.
+_UNCODED_AGE_COMBO = _AGE_COMBO.model_copy(
+    update={"option_combos": [combo.model_copy(update={"code": None}) for combo in _AGE_COMBO.option_combos]}
+)
+
 _BCG = QuestionnaireItemIn(
     uid="De1aaaaaaaa",
     name="BCG doses given",
+    code="DE_BCG_DOSES",
     form_name="BCG",
     value_type="INTEGER_ZERO_OR_POSITIVE",
     category_combo=_DEFAULT_COMBO,
@@ -146,6 +152,7 @@ _DATA_SETS_PAYLOAD = {
                     "dataElement": {
                         "id": "De1aaaaaaaa",
                         "name": "BCG doses given",
+                        "code": "DE_BCG_DOSES",
                         "formName": "BCG",
                         "valueType": "INTEGER_ZERO_OR_POSITIVE",
                         "categoryCombo": {
@@ -220,7 +227,8 @@ _SHARED_GENDER_ELEMENT = {
 #: The tracked entity attributes the program's registration form asks. Like the stage questions,
 #: they arrive in the wrong order (National id sorts first, Marital status second) and the emitted
 #: form has to sort them. `Os3aaaaaaaa` is bound by an attribute and by nothing else, which is what
-#: proves the option-set closure reaches past the data elements.
+#: proves the option-set closure reaches past the data elements. Marital status is asked by the
+#: program alone: the tracked entity type does not collect it, so its answer is the enrollment's.
 _REGISTRATION_ATTRIBUTES = [
     {
         "mandatory": False,
@@ -247,6 +255,13 @@ _REGISTRATION_ATTRIBUTES = [
     },
 ]
 
+#: The attributes the program's tracked entity type collects itself - the join that decides which
+#: registration answers DHIS2 imports onto the entity and which onto the enrollment.
+_TRACKED_ENTITY_TYPE = {
+    "id": "nEenWmSyUEp",
+    "trackedEntityTypeAttributes": [{"trackedEntityAttribute": {"id": "Tea1aaaaaaa"}}],
+}
+
 #: A two-stage tracker program whose wire order is deliberately not its DHIS2 sort order, at both
 #: grains: the stages arrive Baby Postnatal (sortOrder 2) first, and Baby Postnatal's questions
 #: arrive Gender (sortOrder 2) first. Both stages capture Gender, so the data dictionary joins them.
@@ -254,7 +269,7 @@ _TRACKER_PROGRAM = {
     "id": "IpHINAT79UW",
     "name": "Child Programme",
     "programType": "WITH_REGISTRATION",
-    "trackedEntityType": {"id": "nEenWmSyUEp"},
+    "trackedEntityType": _TRACKED_ENTITY_TYPE,
     "displayIncidentDate": True,
     "programTrackedEntityAttributes": _REGISTRATION_ATTRIBUTES,
     "programStages": [
@@ -862,21 +877,49 @@ def test_data_element_support_terminology_lists_every_referenced_element() -> No
     assert "* ^valueSet = Canonical(D2DE_VS)" in content
     assert '* ^property[=].uri = "http://dhis2.org/fhir/property/dhis2-code"' in content
     assert '* #De1aaaaaaaa "BCG doses given"' in content
-    assert '* #De1aaaaaaaa ^property[=].valueString = "De1aaaaaaaa"' in content
+    assert '* #De1aaaaaaaa ^property[=].valueString = "DE_BCG_DOSES"' in content
     assert '* #qrur9Dvnyt5 "Age in years"' in content
     assert "ValueSet: D2DE_VS" in content
     assert "Id: d2-de-vs" in content
     assert "* include codes from system D2DE_CS" in content
 
 
-def test_category_option_combo_support_terminology_falls_back_to_the_uid() -> None:
-    """The COC CodeSystem carries each combo's DHIS2 code, repeating the UID when there is none."""
+def test_a_dictionary_concept_states_the_dhis2_code_only_where_dhis2_states_one() -> None:
+    """A concept's code is already the UID, so an uncoded object publishes no `dhis2-code` at all."""
     content = _artifacts([_DATA_SET])["data-dictionary/category-option-combos.fsh"]
     assert "CodeSystem: D2COC_CS" in content
     assert "Id: d2-coc-cs" in content
     assert '* #Coc1aaaaaaa ^property[=].valueString = "U1"' in content
-    assert '* #Coc2aaaaaaa ^property[=].valueString = "Coc2aaaaaaa"' in content
+    assert "Coc2aaaaaaa" in content
+    assert "* #Coc2aaaaaaa ^property" not in content
     assert "ValueSet: D2COC_VS" in content
+    elements = _artifacts([_DATA_SET])["data-dictionary/data-elements.fsh"]
+    assert "* #De3aaaaaaaa ^property[=].code = #dhis2-code" not in elements
+    assert "* #De3aaaaaaaa ^property[=].valueCode = #TEXT" in elements
+
+
+def test_a_dictionary_declares_the_dhis2_code_property_only_when_a_concept_carries_it() -> None:
+    """The COC pair of a form whose combos DHIS2 left uncoded declares no code property either."""
+    uncoded = _DATA_SET.model_copy(
+        update={
+            "sections": [
+                section.model_copy(
+                    update={
+                        "items": [
+                            item.model_copy(update={"code": None, "category_combo": _UNCODED_AGE_COMBO})
+                            if item.category_combo is _AGE_COMBO
+                            else item.model_copy(update={"code": None})
+                            for item in section.items
+                        ]
+                    }
+                )
+                for section in _DATA_SET.sections
+            ]
+        }
+    )
+    artifacts = _artifacts([uncoded])
+    assert "dhis2-code" not in artifacts["data-dictionary/category-option-combos.fsh"]
+    assert "dhis2-code" not in artifacts["data-dictionary/data-elements.fsh"]
 
 
 def test_support_terminology_is_only_emitted_when_referenced() -> None:
@@ -1169,6 +1212,39 @@ async def test_each_directory_is_swept_against_its_own_files(
     assert (fsh / "data-sets" / "BfMAe6Itzgt.fsh").exists()
     assert (fsh / "event-programs" / "VBqh0ynB2wv.fsh").exists()
     assert (fsh / "data-dictionary" / "data-elements.fsh").exists()
+
+
+@respx.mock
+async def test_a_registration_form_states_the_dhis2_level_of_every_attribute_it_asks(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The tracked entity type's own join rides the program read, and the form publishes what it says."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    programs = respx.get(f"{_HOST}/api/programs").mock(
+        return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]})
+    )
+    _mock_option_sets()
+
+    _mock_organisation_units()
+    await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    fields = [call.request.url.params.get("fields") for call in programs.calls]
+    assert any(
+        "trackedEntityType[id,trackedEntityTypeAttributes[trackedEntityAttribute[id]]]" in (field or "")
+        for field in fields
+    )
+    registration = (
+        tmp_path / "ig" / "input" / "fsh" / "tracker-programs" / "IpHINAT79UW" / "registration.fsh"
+    ).read_text(encoding="utf-8")
+    national_id, marital_status = registration.index('"Tea1aaaaaaa"'), registration.index('"Tea2aaaaaaa"')
+    assert registration.index("valueBoolean = true") in range(national_id, marital_status)
+    assert registration.index("valueBoolean = false") > marital_status
 
 
 @respx.mock

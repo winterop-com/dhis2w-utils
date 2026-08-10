@@ -49,9 +49,12 @@ _AGE_COMBO = CategoryComboIn(
     ],
 )
 
+#: A data element DHIS2 codes, beside `_GENDER` which it does not - the pair the data dictionary's
+#: `dhis2-code` property is written for and left off for.
 _BCG = QuestionnaireItemIn(
     uid="De1aaaaaaaa",
     name="BCG doses given",
+    code="DE_BCG_DOSES",
     form_name="BCG",
     value_type="INTEGER_ZERO_OR_POSITIVE",
     domain_type="AGGREGATE",
@@ -411,8 +414,8 @@ def test_the_naming_tokens_flow_into_the_names_and_the_support_ids() -> None:
     assert [code_system.name for code_system in build.code_systems] == ["DhisDE_CS", "DhisCOC_CS"]
 
 
-def test_the_data_element_code_system_declares_the_domain_property_only_when_a_concept_carries_one() -> None:
-    """A data element DHIS2 sent no domain type for leaves the property undeclared; value-type always rides."""
+def test_the_data_element_code_system_declares_only_the_properties_its_concepts_carry() -> None:
+    """A property no concept carries is left undeclared - the domain and the DHIS2 code alike."""
     with_domain = build_data_dictionary_documents([_DATA_SET], GenerateConfig(), _CANONICAL, ig_status="draft")
     assert [entry["code"] for entry in _emitted(with_domain.code_systems[0])["property"]] == [
         "dhis2-code",
@@ -420,10 +423,18 @@ def test_the_data_element_code_system_declares_the_domain_property_only_when_a_c
         "value-type",
     ]
     without = build_data_dictionary_documents([_STAGE], GenerateConfig(), _CANONICAL, ig_status="draft")
-    assert [entry["code"] for entry in _emitted(without.code_systems[0])["property"]] == [
-        "dhis2-code",
-        "value-type",
-    ]
+    assert [entry["code"] for entry in _emitted(without.code_systems[0])["property"]] == ["value-type"]
+
+
+def test_a_concept_states_no_dhis2_code_when_dhis2_states_none() -> None:
+    """The concept code is already the UID, so a fall-back would publish it twice, once under a wrong label."""
+    build = build_data_dictionary_documents([_DATA_SET], GenerateConfig(), _CANONICAL, ig_status="draft")
+    concepts = {concept["code"]: concept for concept in _emitted(build.code_systems[0])["concept"]}
+    coded = [entry for entry in concepts["De1aaaaaaaa"]["property"] if entry["code"] == "dhis2-code"]
+    uncoded = [entry for entry in concepts["De3aaaaaaaa"]["property"] if entry["code"] == "dhis2-code"]
+
+    assert coded == [{"code": "dhis2-code", "valueString": "DE_BCG_DOSES"}]
+    assert uncoded == []
 
 
 def test_the_support_value_set_includes_its_whole_code_system() -> None:

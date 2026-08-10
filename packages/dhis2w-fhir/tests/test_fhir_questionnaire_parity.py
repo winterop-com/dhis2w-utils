@@ -19,6 +19,12 @@ seeded FHIR metadata (`make dhis2-up`, profile `local_basic`):
 
 The goldens are SUSHI's own output and are never edited by hand: when this test fails, the
 builder is what changed.
+
+The committed source fixtures were fetched before the data-element projection carried `code`, so
+every data element in them is uncoded and `D2DE_CS` publishes no `dhis2-code` property at all -
+which is exactly what an uncoded dictionary looks like. A re-harvest against a live stack fills
+the codes in; the coded and uncoded shapes are pinned by name in
+`test_fhir_questionnaire_documents.py`.
 """
 
 from __future__ import annotations

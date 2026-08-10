@@ -311,6 +311,9 @@ class ConversionNaming(BaseModel):
     incident_at_url: str
     """Canonical of the extension a registration response dates the incident that enrollment follows."""
 
+    entity_level_url: str
+    """Canonical of the item extension a registration question states which DHIS2 level it is imported at on."""
+
     attribute_option_combos_url: str
     """Canonical of the Questionnaire extension a form declares its attribute-option-combo ValueSet on."""
 
@@ -350,6 +353,7 @@ class ConversionNaming(BaseModel):
             tracker_enrollment_url=_definition_url(canonical, names.tracker_enrollment_extension_id),
             enrolled_at_url=_definition_url(canonical, names.enrolled_at_extension_id),
             incident_at_url=_definition_url(canonical, names.incident_at_extension_id),
+            entity_level_url=_definition_url(canonical, names.entity_level_extension_id),
             attribute_option_combos_url=_definition_url(canonical, names.attribute_option_combos_extension_id),
             attribute_option_combo_url=_definition_url(canonical, names.attribute_option_combo_extension_id),
             organisation_unit_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["OrgUnit"]),
@@ -473,6 +477,16 @@ class QuestionSpec(BaseModel):
 
     value_type: str | None = None
     """The DHIS2 value type behind the question, when the caller supplied one; the compiled IG publishes none."""
+
+    entity_level: bool | None = None
+    """Which DHIS2 level a registration answer is imported at, off the question's D2EntityLevel extension.
+
+    True is a tracked entity attribute of the program's tracked entity type, whose value is stated
+    on the tracked entity; False is an attribute only the program asks, whose value is stated on
+    the enrollment the registration creates. None is a form that states no level - every other form
+    kind, and a registration form published before the guide carried the extension - and the
+    translator then writes the answer on the tracked entity.
+    """
 
 
 class FormSpec(BaseModel):

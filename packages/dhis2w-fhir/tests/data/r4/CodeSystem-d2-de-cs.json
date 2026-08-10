@@ -1,45 +1,17 @@
 {
   "resourceType": "CodeSystem",
-  "id": "d2-de-cs",
-  "url": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
-  "name": "D2DE_CS",
-  "title": "DHIS2 Data Elements",
-  "description": "DHIS2 data elements captured by the generated questionnaires. Concept codes are DHIS2 data element UIDs.",
   "status": "draft",
-  "experimental": true,
-  "caseSensitive": true,
   "content": "complete",
-  "count": 70,
-  "valueSet": "http://localhost:8080/fhir/ValueSet/d2-de-vs",
-  "property": [
-    {
-      "code": "dhis2-code",
-      "uri": "http://dhis2.org/fhir/property/dhis2-code",
-      "description": "DHIS2 data element code.",
-      "type": "string"
-    },
-    {
-      "code": "domain",
-      "uri": "http://dhis2.org/fhir/property/domain",
-      "description": "DHIS2 data element domain type.",
-      "type": "code"
-    },
-    {
-      "code": "value-type",
-      "uri": "http://dhis2.org/fhir/property/value-type",
-      "description": "DHIS2 data element value type.",
-      "type": "code"
-    }
-  ],
+  "name": "D2DE_CS",
+  "id": "d2-de-cs",
+  "title": "DHIS2 data elements",
+  "description": "DHIS2 data elements captured by the generated questionnaires. Concept codes are DHIS2 data element UIDs.",
+  "url": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
   "concept": [
     {
       "code": "DeAncDanger",
       "display": "ANC danger signs present",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "DeAncDanger"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -55,10 +27,6 @@
       "display": "ANC systolic blood pressure",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "DeAncBpSys1"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -72,10 +40,6 @@
       "code": "DeAncVisNo1",
       "display": "ANC visit number",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "DeAncVisNo1"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -91,10 +55,6 @@
       "display": "BCG doses given",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "s46m5MS0hxu"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -108,10 +68,6 @@
       "code": "uf3svrmp8Oj",
       "display": "Birth certificate",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "uf3svrmp8Oj"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -127,10 +83,6 @@
       "display": "Children getting therapeutic feeding",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "qw2sIef52Fu"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -144,10 +96,6 @@
       "code": "Y53Jcc9LBYh",
       "display": "Children supplied with food supplemements",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "Y53Jcc9LBYh"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -163,10 +111,6 @@
       "display": "Fully Immunized child",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "UOlfIjgN8X6"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -180,10 +124,6 @@
       "code": "z7duEFcpApd",
       "display": "LLITN given at Penta3",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "z7duEFcpApd"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -199,10 +139,6 @@
       "display": "MCH ARV at birth",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "wQLfBvPrXqq"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -216,10 +152,6 @@
       "code": "a3kGcGDCuk6",
       "display": "MCH Apgar Score",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "a3kGcGDCuk6"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -235,10 +167,6 @@
       "display": "MCH Apgar comment",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "H6uSAMO5WLD"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -252,10 +180,6 @@
       "code": "bx6fsa0t90x",
       "display": "MCH BCG dose",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "bx6fsa0t90x"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -271,10 +195,6 @@
       "display": "MCH Child ARVs",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "sj3j9Hwc7so"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -288,10 +208,6 @@
       "code": "pOe0ogW4OWd",
       "display": "MCH DPT dose",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "pOe0ogW4OWd"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -307,10 +223,6 @@
       "display": "MCH HIV Test Type",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "hDZbpskhqDd"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -324,10 +236,6 @@
       "code": "lNNb3truQoi",
       "display": "MCH IPT dose",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "lNNb3truQoi"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -343,10 +251,6 @@
       "display": "MCH Infant Feeding",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "X8zyunlgUfM"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -360,10 +264,6 @@
       "code": "cYGaxwK615G",
       "display": "MCH Infant HIV Test Result",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "cYGaxwK615G"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -379,10 +279,6 @@
       "display": "MCH Infant Weight (g)",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "GQY2lXrypjO"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -396,10 +292,6 @@
       "code": "FqlgKAG8HOu",
       "display": "MCH Measles dose",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "FqlgKAG8HOu"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -415,10 +307,6 @@
       "display": "MCH OPV dose",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "ebaJjqltK5N"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -432,10 +320,6 @@
       "code": "vTUhAUZFoys",
       "display": "MCH Penta dose",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "vTUhAUZFoys"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -451,10 +335,6 @@
       "display": "MCH Results given to caretaker",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "BeynU4L6VCQ"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -468,10 +348,6 @@
       "code": "aei1xRjSU2l",
       "display": "MCH Septrin Given",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "aei1xRjSU2l"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -487,10 +363,6 @@
       "display": "MCH Visit Comment",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "OuJ6sgPyAbC"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -504,10 +376,6 @@
       "code": "HLmTEmupdX0",
       "display": "MCH Vit A",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "HLmTEmupdX0"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -523,10 +391,6 @@
       "display": "MCH Weight (g)",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "UXz7xuGCEhU"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -540,10 +404,6 @@
       "code": "rxBfISxXS2U",
       "display": "MCH Yellow fever dose",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "rxBfISxXS2U"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -559,10 +419,6 @@
       "display": "Measles doses given",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "YtbsuPPo010"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -576,10 +432,6 @@
       "code": "d5xTg3WR3DP",
       "display": "Mebendazole/Albendazole (for children 12-59 months)",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "d5xTg3WR3DP"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -595,10 +447,6 @@
       "display": "Newborn protected at birth against tetanus (TT2+)",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "DUSpd8Jq3M7"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -612,10 +460,6 @@
       "code": "x3Do5e7g4Qo",
       "display": "OPV0 doses given",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "x3Do5e7g4Qo"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -631,10 +475,6 @@
       "display": "OPV1 doses given",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "pikOziyCXbM"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -648,10 +488,6 @@
       "code": "O05mAByOgAv",
       "display": "OPV2 doses given",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "O05mAByOgAv"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -667,10 +503,6 @@
       "display": "OPV3 doses given",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "vI2csg55S9C"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -684,10 +516,6 @@
       "code": "xc8gmAKfO95",
       "display": "PCV1 doses given",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "xc8gmAKfO95"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -703,10 +531,6 @@
       "display": "PCV2 doses given",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "mGN1az8Xub6"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -720,10 +544,6 @@
       "code": "L2kxa2IA2cs",
       "display": "PCV3 doses given",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "L2kxa2IA2cs"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -739,10 +559,6 @@
       "display": "Penta1 doses given",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "fClA2Erf6IO"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -756,10 +572,6 @@
       "code": "I78gJm4KBo7",
       "display": "Penta2 doses given",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "I78gJm4KBo7"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -775,10 +587,6 @@
       "display": "Penta3 doses given",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "n6aMJNLdvep"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -792,10 +600,6 @@
       "code": "dU0GquGkGQr",
       "display": "Q_Early breastfeeding (within 1 hr after delivery) at BCG",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "dU0GquGkGQr"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -811,10 +615,6 @@
       "display": "Q_Exclusive breastfeeding at time of Penta 3",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "pEOVd4Z3TAS"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -828,10 +628,6 @@
       "code": "Rmixc9wJl0G",
       "display": "Q_LLITN given at time of 2nd Vit A dose",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "Rmixc9wJl0G"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -847,10 +643,6 @@
       "display": "Q_Slept under LLIN last night Measles",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "GCGfEY82Wz6"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -864,10 +656,6 @@
       "code": "ca8lfO062zg",
       "display": "Q_Vitamin A received 4-6 months ago at 12-59 dose",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "ca8lfO062zg"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -883,10 +671,6 @@
       "display": "Stock PHU discarded BCG",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "cZnQDuF3IDz"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -900,10 +684,6 @@
       "code": "FvKdfA2SuWI",
       "display": "Stock PHU discarded Measles",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "FvKdfA2SuWI"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -919,10 +699,6 @@
       "display": "Stock PHU discarded OPV",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "WVrH6j3Wfye"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -936,10 +712,6 @@
       "code": "p1MDHOT6ENy",
       "display": "Stock PHU dispensed BCG",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "p1MDHOT6ENy"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -955,10 +727,6 @@
       "display": "Stock PHU dispensed Measles",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "lVknokmR4Ip"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -972,10 +740,6 @@
       "code": "FTINmL2lehN",
       "display": "Stock PHU dispensed OPV",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "FTINmL2lehN"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -991,10 +755,6 @@
       "display": "Stock PHU received BCG",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "axVhq1itoQD"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -1008,10 +768,6 @@
       "code": "XNrjXqZrHD8",
       "display": "Stock PHU received Measles",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "XNrjXqZrHD8"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -1027,10 +783,6 @@
       "display": "Stock PHU received OPV",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "nGCLjZDn0Q4"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -1044,10 +796,6 @@
       "code": "t99PL3gUxIl",
       "display": "Stock PHU start balance BCG",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "t99PL3gUxIl"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -1063,10 +811,6 @@
       "display": "Stock PHU start balance Measles",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "vEAo4KwsAzl"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -1080,10 +824,6 @@
       "code": "iuSIObmKutb",
       "display": "Stock PHU start balance OPV",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "iuSIObmKutb"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -1099,10 +839,6 @@
       "display": "Vitamin A given to < 5y",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "tU7GixyHhsv"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -1116,10 +852,6 @@
       "code": "vANAXwtLwcT",
       "display": "WHOMCH Hemoglobin value",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "vANAXwtLwcT"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -1135,10 +867,6 @@
       "display": "WHOMCH Smoking",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "sWoqcoByYmD"
-        },
-        {
           "code": "domain",
           "valueCode": "tracker"
         },
@@ -1152,10 +880,6 @@
       "code": "Ok9OQpitjQr",
       "display": "WHOMCH Smoking cessation counselling provided",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "Ok9OQpitjQr"
-        },
         {
           "code": "domain",
           "valueCode": "tracker"
@@ -1171,10 +895,6 @@
       "display": "Weight for age below lower line (red)",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "bTcRDVjC66S"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -1188,10 +908,6 @@
       "code": "ldGXl6SEdqf",
       "display": "Weight for age between middle and lower line (yellow)",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "ldGXl6SEdqf"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -1207,10 +923,6 @@
       "display": "Weight for age on or above middle line (green)",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "NLnXLV5YpZF"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -1224,10 +936,6 @@
       "code": "pnL2VG8Bn7N",
       "display": "Weight for height 70-79 percent",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "pnL2VG8Bn7N"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -1243,10 +951,6 @@
       "display": "Weight for height 80 percent and above",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "qPVDd87kS9Z"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -1260,10 +964,6 @@
       "code": "lVsbKXoF0zX",
       "display": "Weight for height below 70 percent",
       "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "lVsbKXoF0zX"
-        },
         {
           "code": "domain",
           "valueCode": "aggregate"
@@ -1279,10 +979,6 @@
       "display": "Yellow Fever doses given",
       "property": [
         {
-          "code": "dhis2-code",
-          "valueString": "l6byfWFUGaP"
-        },
-        {
           "code": "domain",
           "valueCode": "aggregate"
         },
@@ -1292,5 +988,23 @@
         }
       ]
     }
-  ]
+  ],
+  "experimental": true,
+  "caseSensitive": true,
+  "valueSet": "http://localhost:8080/fhir/ValueSet/d2-de-vs",
+  "property": [
+    {
+      "code": "domain",
+      "uri": "http://dhis2.org/fhir/property/domain",
+      "description": "DHIS2 data element domain type.",
+      "type": "code"
+    },
+    {
+      "code": "value-type",
+      "uri": "http://dhis2.org/fhir/property/value-type",
+      "description": "DHIS2 data element value type.",
+      "type": "code"
+    }
+  ],
+  "count": 70
 }

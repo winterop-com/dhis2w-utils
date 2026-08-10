@@ -844,7 +844,12 @@ _TRACKER_PROGRAM = QuestionnaireSourceIn(
     name="Child Programme",
     kind="tracker",
     tracked_entity_type_uid="nEenWmSyUEp",
-    flat_items=[QuestionnaireItemIn(uid="w75KJ2mc4zz", name="First name", value_type="TEXT", compulsory=True)],
+    flat_items=[
+        QuestionnaireItemIn(
+            uid="w75KJ2mc4zz", name="First name", value_type="TEXT", compulsory=True, entity_level=True
+        ),
+        QuestionnaireItemIn(uid="TeaHousehld", name="Household size", value_type="INTEGER", entity_level=False),
+    ],
 )
 
 _BIRTH_STAGE = QuestionnaireSourceIn(
@@ -875,7 +880,10 @@ def _tracker_captures() -> list[ExampleResponseIn]:
             tracked_entity_uid=_MINTED_TRACKED_ENTITY,
             enrollment_uid=_MINTED_ENROLLMENT,
             enrolled_at="2026-01-04T08:00:00Z",
-            answers=[ExampleAnswerIn(data_element_uid="w75KJ2mc4zz", value="Amara")],
+            answers=[
+                ExampleAnswerIn(data_element_uid="w75KJ2mc4zz", value="Amara"),
+                ExampleAnswerIn(data_element_uid="TeaHousehld", value="4"),
+            ],
         ),
         ExampleResponseIn(
             instance_id="A03MvHHogjR-example-1",
@@ -934,7 +942,15 @@ def _mock_tracker_instance() -> respx.Route:
         return_value=httpx.Response(200, json={"dataElements": [{"id": "a3kGcGDCuk6", "valueType": "INTEGER"}]})
     )
     respx.get(f"{_BASE_URL}/api/trackedEntityAttributes").mock(
-        return_value=httpx.Response(200, json={"trackedEntityAttributes": [{"id": "w75KJ2mc4zz", "valueType": "TEXT"}]})
+        return_value=httpx.Response(
+            200,
+            json={
+                "trackedEntityAttributes": [
+                    {"id": "w75KJ2mc4zz", "valueType": "TEXT"},
+                    {"id": "TeaHousehld", "valueType": "INTEGER"},
+                ]
+            },
+        )
     )
     return respx.post(f"{_BASE_URL}/api/tracker").mock(return_value=_accepted_tracker())
 
@@ -980,6 +996,21 @@ async def test_a_posted_registration_carries_the_enrollment_its_stage_event_name
     assert tracked_entity["enrollments"][0]["status"] == "ACTIVE"
     assert event["events"][0]["enrollment"] == _MINTED_ENROLLMENT
     assert event["events"][0]["trackedEntity"] == _MINTED_TRACKED_ENTITY
+
+
+@respx.mock
+async def test_a_posted_registration_states_each_answer_at_the_dhis2_level_the_form_published(
+    tracker_forward_project: Path,
+) -> None:
+    """An entity attribute is written on the person, a program-only attribute on the enrollment it creates."""
+    tracker = _mock_tracker_instance()
+
+    await _forward(tracker_forward_project, import_responses=True)
+
+    registration = json.loads(tracker.calls[0].request.content)
+    tracked_entity = registration["trackedEntities"][0]
+    assert tracked_entity["attributes"] == [{"attribute": "w75KJ2mc4zz", "value": "Amara"}]
+    assert tracked_entity["enrollments"][0]["attributes"] == [{"attribute": "TeaHousehld", "value": "4"}]
 
 
 @respx.mock

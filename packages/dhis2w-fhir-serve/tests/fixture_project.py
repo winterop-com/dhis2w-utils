@@ -379,10 +379,15 @@ REGISTRATION_TRACKED_ENTITY_TYPE_UID = "TetPerson01"
 REGISTRATION_ASSIGNMENT_LIST_ID = f"d2-pr-{REGISTRATION_PROGRAM_UID}-org-units"
 
 #: The tracked entity attributes that form asks: a unique business identifier DHIS2 alone can check
-#: for uniqueness, a date, and one bound to a published option set.
+#: for uniqueness, a date, one bound to a published option set, and one the program asks that its
+#: tracked entity type does not collect - the last is what makes both DHIS2 import levels visible.
 REGISTRATION_UNIQUE_ATTRIBUTE = "TeaNationId"
 REGISTRATION_DATE_ATTRIBUTE = "TeaBirthDat"
 REGISTRATION_CODED_ATTRIBUTE = "TeaSex00001"
+REGISTRATION_PROGRAM_ONLY_ATTRIBUTE = "TeaHousehld"
+
+#: The extension a registration question states its DHIS2 import level on.
+ENTITY_LEVEL_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-entity-level"
 
 #: The vocabulary that coded attribute binds - written here in the emitter's own id-mode shape.
 SEX_CODE_SYSTEM = f"{CAPTURE_CANONICAL}/CodeSystem/d2-os-OsSex000001-cs"
@@ -436,6 +441,7 @@ REGISTRATION_QUESTIONNAIRE_BODY: dict[str, Any] = {
             "text": "National id",
             "type": "string",
             "required": True,
+            "extension": [{"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": True}],
         },
         {
             "linkId": REGISTRATION_DATE_ATTRIBUTE,
@@ -448,6 +454,7 @@ REGISTRATION_QUESTIONNAIRE_BODY: dict[str, Any] = {
             ],
             "text": "Date of birth",
             "type": "date",
+            "extension": [{"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": True}],
         },
         {
             "linkId": REGISTRATION_CODED_ATTRIBUTE,
@@ -457,6 +464,23 @@ REGISTRATION_QUESTIONNAIRE_BODY: dict[str, Any] = {
             "text": "Sex",
             "type": "choice",
             "answerValueSet": SEX_VALUE_SET,
+            "extension": [{"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": True}],
+        },
+        {
+            "linkId": REGISTRATION_PROGRAM_ONLY_ATTRIBUTE,
+            "code": [
+                {
+                    "system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM,
+                    "code": REGISTRATION_PROGRAM_ONLY_ATTRIBUTE,
+                    "display": "Household size",
+                }
+            ],
+            "text": "Household size",
+            "type": "integer",
+            "extension": [
+                {"url": "http://hl7.org/fhir/StructureDefinition/minValue", "valueInteger": 1},
+                {"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": False},
+            ],
         },
     ],
 }
@@ -493,7 +517,7 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
     "id": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM.rsplit("/", 1)[-1],
     "url": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM,
     "name": "D2TEA_CS",
-    "title": "DHIS2 Tracked Entity Attributes",
+    "title": "DHIS2 tracked entity attributes",
     "status": "draft",
     "content": "complete",
     "caseSensitive": True,
@@ -510,6 +534,15 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
             "property": [
                 {"code": "dhis2-code", "valueString": "TEA_BIRTH_DATE"},
                 {"code": "value-type", "valueCode": "DATE"},
+                {"code": "unique", "valueBoolean": False},
+            ],
+        },
+        {
+            "code": REGISTRATION_PROGRAM_ONLY_ATTRIBUTE,
+            "display": "Household size",
+            "property": [
+                {"code": "dhis2-code", "valueString": "TEA_HOUSEHOLD_SIZE"},
+                {"code": "value-type", "valueCode": "INTEGER_POSITIVE"},
                 {"code": "unique", "valueBoolean": False},
             ],
         },
@@ -532,7 +565,7 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
             ],
         },
     ],
-    "count": 3,
+    "count": 4,
 }
 
 TRACKED_ENTITY_ATTRIBUTE_VALUE_SET_BODY: dict[str, Any] = {
@@ -540,7 +573,7 @@ TRACKED_ENTITY_ATTRIBUTE_VALUE_SET_BODY: dict[str, Any] = {
     "id": TRACKED_ENTITY_ATTRIBUTE_VALUE_SET.rsplit("/", 1)[-1],
     "url": TRACKED_ENTITY_ATTRIBUTE_VALUE_SET,
     "name": "D2TEA_VS",
-    "title": "DHIS2 Tracked Entity Attributes",
+    "title": "DHIS2 tracked entity attributes",
     "status": "draft",
     "compose": {"include": [{"system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM}]},
 }

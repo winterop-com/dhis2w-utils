@@ -1269,6 +1269,20 @@ _CHILD_PROGRAMME = QuestionnaireSourceIn(
 #: The same program with no tracked entity type, which is the one thing a registration cannot do without.
 _TYPELESS_PROGRAMME = _CHILD_PROGRAMME.model_copy(update={"tracked_entity_type_uid": None})
 
+#: The attributes of that program the tracked entity type collects itself; the third is the
+#: program's own, so its answer belongs on the enrollment rather than on the person.
+_ENTITY_LEVEL_ATTRIBUTES = frozenset({"w75KJ2mc4zz", "iESIqZ0R0R0"})
+
+#: The same program as a guide that states its levels - which is what a live fetch now publishes.
+_LEVELLED_PROGRAMME = _CHILD_PROGRAMME.model_copy(
+    update={
+        "flat_items": [
+            item.model_copy(update={"entity_level": item.uid in _ENTITY_LEVEL_ATTRIBUTES})
+            for item in _CHILD_PROGRAMME.flat_items
+        ]
+    }
+)
+
 #: The values an instance really holds for one enrolled person, as `_fetch_registration_responses` reads them.
 _REGISTRATION_VALUES = {"w75KJ2mc4zz": "Amara", "iESIqZ0R0R0": "2019-04-02", "cejWyOfXge6": "F"}
 
@@ -1320,6 +1334,46 @@ def test_a_registration_comes_back_to_the_attributes_it_was_built_from() -> None
     assert result.refusals == ()
     assert result.target_kind == ConversionTargetKind.TRACKER
     assert _attributes(result) == _REGISTRATION_VALUES
+
+
+def test_a_registration_splits_its_answers_by_the_level_the_form_publishes() -> None:
+    """DHIS2 collects an entity attribute for the person and a program attribute for the enrollment."""
+    document = _document(_registration_response(), [_LEVELLED_PROGRAMME])
+
+    result = translate_response(document, _context([_LEVELLED_PROGRAMME]))
+    enrollment = _enrollment(result)
+
+    assert result.refusals == ()
+    enrollment_attributes = enrollment.attributes  # type: ignore[attr-defined]
+    assert _attributes(result) == {uid: _REGISTRATION_VALUES[uid] for uid in _ENTITY_LEVEL_ATTRIBUTES}
+    assert [(attribute.attribute, attribute.value) for attribute in enrollment_attributes] == [("cejWyOfXge6", "F")]
+
+
+def test_a_registration_form_stating_no_level_writes_every_answer_on_the_person() -> None:
+    """A guide compiled before D2EntityLevel keeps the one level it published: the tracked entity."""
+    result = translate_response(_registration_document(), _context([_CHILD_PROGRAMME]))
+    enrollment = _enrollment(result)
+
+    assert _attributes(result) == _REGISTRATION_VALUES
+    assert enrollment.attributes is None  # type: ignore[attr-defined]
+
+
+def test_a_registration_questions_level_is_read_off_the_served_form() -> None:
+    """The split is a fact the compiled guide publishes, so the context carries it question by question."""
+    context = _context([_LEVELLED_PROGRAMME])
+    questions = context.forms[f"{_CANONICAL}/Questionnaire/{_LEVELLED_PROGRAMME.uid}"].questions
+
+    assert {link_id: question.entity_level for link_id, question in questions.items()} == {
+        "w75KJ2mc4zz": True,
+        "iESIqZ0R0R0": True,
+        "cejWyOfXge6": False,
+    }
+    assert all(
+        question.entity_level is None
+        for question in _context([_CHILD_PROGRAMME])
+        .forms[f"{_CANONICAL}/Questionnaire/{_CHILD_PROGRAMME.uid}"]
+        .questions.values()
+    )
 
 
 def test_a_registration_carries_the_identities_the_response_minted() -> None:
