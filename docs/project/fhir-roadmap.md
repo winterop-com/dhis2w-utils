@@ -767,8 +767,23 @@ under either setting - that is ambiguity, not leniency.
 
 ### 5.2 The tracker shape
 
-**Question.** Alongside `Patient`, does a tracker enrollment map to
+**Question.** Alongside the subject resource, does a tracker enrollment map to
 `EpisodeOfCare` or to `CarePlan`?
+
+**Settled: which resource type the subject is, is the project's to say.** A DHIS2
+tracked entity type is not always a person - buildings, herds, water points, and
+equipment are real tracked entity types - so `[generate.tracked_entity_types]` maps a
+type's UID onto the FHIR resource type its registrations are about (`Patient`, `Person`,
+`Practitioner`, `RelatedPerson`, `Group`, `Device`, `Location`, `Organization`,
+`Specimen`), defaulting to `Patient` for a type it never mentions. One resolution feeds
+the `subjectType` of the registration form and of every stage form of that program, the
+`subject.type` of the examples and of `$generate`, and the reference targets the two
+tracker response profiles admit; a capture server reads the type off the compiled
+Questionnaire, never off `fhir.toml`. The map is keyed by tracked entity type rather
+than by program because the type owns the nature of the thing, so two programs tracking
+one type agree by construction. What is still open here is the **resource layer** - the
+subject remains a logical identifier and no instance of any of those types is published,
+which is the half this decision still has to make alongside the enrollment resource.
 
 **Options.** `EpisodeOfCare` reads as the administrative period of care, which
 is closer to what a DHIS2 enrollment records. `CarePlan` reads as the intended
@@ -795,7 +810,8 @@ is exactly what SDC `$extract` keys on to project a response into coded
 substrate a clinical layer would be built on, not a competing representation of it -
 whichever way 5.2 is decided.
 
-**Depends on it.** `Patient` instances and the enrollment resource itself. The
+**Depends on it.** Subject instances - `Patient` or whichever type a project's tracked
+entity types resolve to - and the enrollment resource itself. The
 per-stage Questionnaires and the tracker-event capture contract do *not*: they ship
 today, keyed to the tracked entity and the enrollment by identifier, so the
 enrollment resource is an addition rather than a prerequisite.
@@ -1721,6 +1737,13 @@ commitment.
     since it shipped, applied to the form that creates the enrollment. What 5.2 now
     decides is purely the resource layer on top.
 
+    **What kind of thing is enrolled is configurable.** `[generate.tracked_entity_types]`
+    maps a tracked entity type UID onto the FHIR resource type its registrations are
+    about, so a project tracking herds publishes `subjectType = #Group` on the
+    registration form and on every stage form of that program, and the response profiles
+    admit the union of `Patient` and whatever the project configured. An unmapped type is
+    a `Patient`, so a person-tracking project configures nothing.
+
     **Capture checks the shape of what the client minted, and says what it cannot check.**
     `CAPTURED_FORM_KINDS` holds all four kinds, which is the one switch serve's index,
     the conversion gate, the `supportedProfile` declarations, `/metadata`, and the load
@@ -1923,9 +1946,11 @@ commitment.
   are published: `D2TrackerEventResponse` for an event of an enrollment, and
   `D2TrackerRegistrationResponse` for the enrollment itself. See
   the registration entry under [9.1](#91-near-term) for what
-  shipped and what has not. What remains is the resource layer - `Patient`
-  instances so the subject becomes a resolvable reference, and the enrollment
-  resource itself - which is what
+  shipped and what has not. Which resource type the subject is follows the program's
+  tracked entity type through `[generate.tracked_entity_types]`, so a project tracking
+  herds or water points publishes forms that say so. What remains is the resource
+  layer - instances of that type so the subject becomes a resolvable reference, and the
+  enrollment resource itself - which is what
   [decision 5.2](#52-the-tracker-shape) is now narrowed to.
 - **A tracked entity attribute as the subject identifier.** A tracker response
   identifies its subject by the DHIS2 tracked entity UID under

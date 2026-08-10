@@ -8,16 +8,18 @@ so one round trip reports every problem at that level rather than one at a time.
 
     0. Read the body      - JSON, `resourceType`, and the R4 shape of a QuestionnaireResponse (400).
     1. Read the contract  - the D2FormType kind, then the invariants that kind's profile pins (422).
-    2. Resolve the form   - the questionnaire canonical, its served Questionnaire, and its index (422).
+    2. Resolve the form   - the questionnaire canonical, its served Questionnaire, its index, and
+                            the resource type that form declares its subject is (422).
     3. Read the assignment - the organisation unit the response reports for, against the form's List (422).
     4. Read the third key - the attribute option combo, against the vocabulary the form declares (422).
     5. Read the period    - an aggregate response's ISO period, its type, and the range it claims (422).
     6. Walk the answers   - every item against the index: link ids, cardinality, types, terminology (422).
 
-Three of those grade against the strictness dial rather than absolutely. A coded answer in a
+Four of those grade against the strictness dial rather than absolutely. A coded answer in a
 spelling the contract does not ask for, an organisation unit outside the form's published
-assignment, and an attribute option combo that disagrees with what the form declares are all
-warnings by default and refusals under `--strict-codes`.
+assignment, an attribute option combo that disagrees with what the form declares, and a subject
+typed as a resource the form is not answered about are all warnings by default and refusals under
+`--strict-codes`.
 
 Phase 1 is where the tracker registration contract is read, and it is the one contract whose
 identifiers the client mints: the tracked entity the response is subject to and the enrollment its
@@ -110,6 +112,9 @@ ONE_RESPONSE_PER_REQUEST = (
 #: The prefix a subject or organisation-unit reference names a DHIS2 organisation unit under.
 LOCATION_REFERENCE_PREFIX = "Location/"
 
+#: The form kinds whose response is about a tracked entity rather than about an organisation unit.
+_TRACKER_FORM_KINDS: tuple[FormKind, ...] = ("tracker", "tracker-event")
+
 #: How a refusal spells the DHIS2 UID shape a tracker identifier is checked against.
 _UID_SHAPE_DESCRIPTION = f"one ASCII letter followed by {DHIS2_UID_LENGTH - 1} alphanumeric places"
 
@@ -169,6 +174,7 @@ def validate_response(
 
     resolvers = CodingResolverSet(store=store)
     index = _resolve_index(response.questionnaire or "", form_kind, indexes, naming, store)
+    _settle(_subject_type_issues(response, index, form_kind, strict=strict_codes), warnings)
     _settle(_assignment_issues(response, index, naming, form_kind, strict=strict_codes), warnings)
     _settle(_attribute_option_combo_issues(response, index, naming, resolvers, strict=strict_codes), warnings)
     if form_kind == "aggregate":
@@ -549,6 +555,43 @@ def _enrollment_date_issues(
             ),
         )
     return ()
+
+
+def _subject_type_issues(
+    response: QuestionnaireResponse,
+    index: CaptureIndex,
+    form_kind: FormKind,
+    *,
+    strict: bool,
+) -> tuple[CaptureIssue, ...]:
+    """Grade the resource type a tracker response types its subject as against the type the form declares.
+
+    A DHIS2 tracked entity is whatever the program tracks - a person, a herd, a building - and the
+    served Questionnaire states which through `subjectType`. This is the only place that statement
+    is read: `fhir.toml` is the generator's input and never reaches the server, so the compiled
+    form is the contract.
+
+    `Reference.type` is optional in R4 and a response that leaves it off is naming its subject by
+    identifier alone, which is what the profile asks for - so an absent type checks nothing. A type
+    that disagrees with the form grades on the dial a coded answer does: a warning on the receipt
+    by default, a refusal under `--strict-codes`.
+    """
+    if form_kind not in _TRACKER_FORM_KINDS:
+        return ()
+    subject = response.subject
+    if subject is None or not subject.type or subject.type == index.subject_type:
+        return ()
+    return (
+        CaptureIssue(
+            severity="error" if strict else "warning",
+            code="business-rule",
+            expression="QuestionnaireResponse.subject.type",
+            diagnostics=(
+                f"the response types its subject as `{subject.type}`, and the form is answered about a "
+                f"`{index.subject_type}`"
+            ),
+        ),
+    )
 
 
 def _assignment_issues(

@@ -272,9 +272,12 @@ data value carries.
 
 `Questionnaire.subjectType` states what kind of resource the form is answered *for*.
 A DHIS2 data set and event program declare `#Location`, because a DHIS2 form is
-answered for an organisation unit; a tracker stage declares `#Patient`, because it is
-answered for the enrolled person - and the organisation unit moves onto the
-response's `D2OrganisationUnit` extension instead.
+answered for an organisation unit; a tracker form declares whatever the program's
+tracked entity type is, because it is answered for the enrolled entity - and the
+organisation unit moves onto the response's `D2OrganisationUnit` extension instead.
+That is `#Patient` unless the project says otherwise: a DHIS2 tracked entity type is
+not always a person, and a project tracking herds or water points maps its types onto
+`#Group` or `#Location` in `fhir.toml`.
 
 ### QuestionnaireResponse
 
@@ -428,7 +431,7 @@ Every row is something `d2w fhir generate` actually emits.
 | Organisation unit geometry | `Location.position` plus the `location-boundary-geojson` extension |
 | Aggregate data set | One `Questionnaire`, `subjectType = #Location` |
 | Event program | One `Questionnaire`, `subjectType = #Location` |
-| Tracker program stage | One `Questionnaire` per stage, `subjectType = #Patient` |
+| Tracker program stage | One `Questionnaire` per stage, `subjectType` the program's tracked entity type (`#Patient` by default) |
 | Section | An `item` of `type = #group` |
 | Data element on a form | A child `item`, `linkId` the data element UID |
 | Disaggregated data element | A group with one child per option combo, `linkId` `<deUid>.<cocUid>` |
@@ -439,7 +442,7 @@ Every row is something `d2w fhir generate` actually emits.
 | Attribute value | One `D2AttributeValue` extension |
 | UID and code | Two `identifier` slices: `{base}/id/<kind>` and `{base}/id/<kind>-code` |
 | Each identifier system's convention | One `NamingSystem` declaration |
-| Tracked entity | A logical `Patient` subject - `subject.identifier`, no `reference` |
+| Tracked entity | A logical subject of the form's own `subjectType` - `subject.identifier`, no `reference` |
 | Enrollment | The `D2TrackerEnrollment` extension, as a `valueIdentifier` |
 | Organisation unit of a tracker event | The `D2OrganisationUnit` extension |
 | `NAME` translation | A concept `designation`, or the standard translation extension |

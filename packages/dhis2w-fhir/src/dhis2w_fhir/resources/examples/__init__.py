@@ -74,6 +74,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireItemIn,
     QuestionnaireSourceIn,
     QuestionnaireStemPlan,
+    form_subject_type,
     plan_questionnaire_stems,
     source_display_name,
     source_program,
@@ -294,11 +295,13 @@ class _TrackerContextView(BaseModel):
     `organisation_unit_stem` is the capture unit's identity stem - the id its published Location
     carries - while the enrollment and tracked-entity UIDs stay the DHIS2 data identifiers they are.
     The two dates are filled by a registration example alone, which is the one that creates the
-    enrollment they date.
+    enrollment they date. `subject_type` is the resource type the form declares its subject as -
+    a `Patient` unless the project maps the program's tracked entity type to something else.
     """
 
     model_config = ConfigDict(frozen=True)
 
+    subject_type: str
     enrollment_extension: str
     organisation_unit_extension: str
     enrolled_at_extension: str
@@ -522,6 +525,7 @@ def build_example_artifacts(
             organisation_unit_stems=organisation_unit_stems,
             attribute_combos=attribute_combo_plan,
             attribute_combo_assignments=attribute_combo_assignments,
+            subject_type=form_subject_type(source, config.tracked_entity_types),
         )
         build.artifacts.append(
             FshArtifact(
@@ -1014,8 +1018,13 @@ def _example_view(
     organisation_unit_stems: StemResolution | None,
     attribute_combos: AttributeComboPlan,
     attribute_combo_assignments: dict[str, ConceptAssignmentPlan],
+    subject_type: str,
 ) -> _ExampleView:
-    """Project one example response onto the view the QuestionnaireResponse template renders."""
+    """Project one example response onto the view the QuestionnaireResponse template renders.
+
+    `subject_type` is the resource type the form's own Questionnaire declares its subject as, so
+    an example of a tracker form names the very type the form it answers asks for.
+    """
     label = _KIND_LABELS[source.kind]
     display_name = source_display_name(source)
     period = example_period(response, source, tally)
@@ -1040,7 +1049,7 @@ def _example_view(
         status_code=response.status_code,
         period=_period_view(period, foundation),
         attribute_option_combo=_attribute_option_combo_view(attribute_option_combo, foundation, attribute_combos),
-        tracker=_tracker_view(tracker, foundation, organisation_unit_stems),
+        tracker=_tracker_view(tracker, foundation, organisation_unit_stems, subject_type=subject_type),
         authored=authored,
         items=_item_views(example_items(source, answers), identities, organisation_unit_stems, depth=0),
     )
@@ -1089,11 +1098,14 @@ def _tracker_view(
     context: ExampleTrackerContext | None,
     foundation: FoundationNaming,
     organisation_unit_stems: StemResolution | None,
+    *,
+    subject_type: str,
 ) -> _TrackerContextView | None:
     """The tracker extensions one tracker response renders, under the run's foundation names."""
     if context is None:
         return None
     return _TrackerContextView(
+        subject_type=subject_type,
         enrollment_extension=foundation.tracker_enrollment_extension,
         organisation_unit_extension=foundation.organisation_unit_extension,
         enrolled_at_extension=foundation.enrolled_at_extension,

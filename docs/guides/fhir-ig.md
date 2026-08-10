@@ -556,6 +556,46 @@ The two program tables are read independently, each on its own terms:
   under [generate.event_programs]`. UIDs the instance answers nothing for stay an
   aggregate note naming the table they were listed in.
 
+### `[generate.tracked_entity_types]`
+
+```toml
+[generate.tracked_entity_types]
+# "Kd6Nk9wnAJa" = "Group"       # a livestock herd tracked through a vaccination programme
+# "Bx8L1nQ4EiP" = "Location"    # a water point tracked through a maintenance programme
+```
+
+**What each tracked entity type IS.** DHIS2 tracks people most of the time, and buildings,
+herds, water points, vehicles, and lab samples the rest of the time - all through the same
+registration-and-stages shape. This table maps a tracked entity type UID onto the FHIR
+resource type its registrations are about, and one entry feeds every artifact that has to
+say so:
+
+- `Questionnaire.subjectType` on the program's registration form **and** on every stage
+  form of that program - a stage captures a visit by the very entity the registration
+  enrolled, so the two cannot disagree.
+- `subject.type` on the generated example responses, and on whatever `$generate` mints
+  when the compiled form is served.
+- The reference targets the two tracker response profiles admit (see
+  [The capture contract](#the-capture-contract)).
+
+**The key is the tracked entity type, not the program.** The type is what owns the nature
+of the thing, so two programs tracking the same type agree by construction and neither can
+be configured into disagreeing with the other.
+
+**A type this table never mentions is a `Patient`.** A project that tracks people
+configures nothing here, and everything it generates is what it would have generated
+without the table at all.
+
+The admitted resource types are `Patient`, `Person`, `Practitioner`, `RelatedPerson`,
+`Group`, `Device`, `Location`, `Organization`, and `Specimen` - a deliberate subset of
+R4's resource-types ValueSet, being the types a longitudinal DHIS2 record is plausibly
+kept about. Anything else is refused when `fhir.toml` is read, naming the type it was
+mapped on and listing what it could have been: a typo here would mis-type every form of
+every program tracking that type.
+
+Selecting the programs is still `[generate.tracker_programs]`' job - naming a type here
+selects nothing.
+
 ### `[generate.examples]`
 
 ```toml
@@ -1301,9 +1341,12 @@ answering it carries.
 
 **`subjectType` says who the form is answered for.** A data set and an event program
 declare `#Location` - a DHIS2 form is answered *for an organisation unit*. Both tracker
-forms declare `#Patient`: a registration form is answered *about the person being
-enrolled* and a stage form *about the person already enrolled*, and the organisation unit
-rides the response as an extension instead.
+forms declare the resource type of the thing the program tracks: a registration form is
+answered *about the entity being enrolled* and a stage form *about the entity already
+enrolled*, and the organisation unit rides the response as an extension instead. That
+type is `#Patient` unless the project says otherwise - a DHIS2 tracked entity type is not
+always a person, and [`[generate.tracked_entity_types]`](#generatetracked_entity_types)
+is where a project names what its herds, water points, or households really are.
 
 | DHIS2 | FHIR |
 | --- | --- |
@@ -1478,7 +1521,15 @@ text, and DHIS2's `mandatory` on the join becomes `required = true`.
 | `programTrackedEntityAttributes.sortOrder` | the order items are emitted in |
 | `programTrackedEntityAttributes.mandatory` | `required = true` |
 | Attribute with an option set | `type = #choice` plus `answerValueSet` pointing at that set's generated ValueSet |
-| `trackedEntityType` | an identifier slice under `$DHIS2-TET` |
+| `trackedEntityType` | an identifier slice under `$DHIS2-TET`, and the `subjectType` the form declares |
+
+**A tracked entity is not always a person.** The form declares what it is answered about
+on `subjectType`, and that follows the program's tracked entity type through
+[`[generate.tracked_entity_types]`](#generatetracked_entity_types): a project tracking
+herds maps its herd type to `Group` once, and the registration form, every stage form of
+that program, the example responses, and whatever `$generate` mints all say `Group`. A
+type the table never mentions is a `Patient`, which is what a person-tracking project
+gets by configuring nothing.
 
 **`D2TEA_CS`, the attribute half of the data dictionary.** Because the questions are a
 different DHIS2 object, they get a support pair of their own -
@@ -1880,8 +1931,8 @@ to the DHIS2 instance's metadata API, no conversation.
 | --- | --- | --- |
 | `D2AggregateResponse` | `QuestionnaireResponse` | `D2Period` 1..1, `D2AttributeOptionCombo` 0..1, `D2FormType` 1..1 fixed to `#aggregate`, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
 | `D2EventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#event`, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
-| `D2TrackerRegistrationResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker`, `D2OrganisationUnit` 1..1, `D2TrackerEnrollment` 1..1, `D2EnrolledAt` 1..1, `D2IncidentAt` 0..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(Patient)` with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
-| `D2TrackerEventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker-event`, `D2TrackerEnrollment` 1..1, `D2OrganisationUnit` 1..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(Patient)` with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
+| `D2TrackerRegistrationResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker`, `D2OrganisationUnit` 1..1, `D2TrackerEnrollment` 1..1, `D2EnrolledAt` 1..1, `D2IncidentAt` 0..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(Patient)` - plus every other type `[generate.tracked_entity_types]` names - with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
+| `D2TrackerEventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker-event`, `D2TrackerEnrollment` 1..1, `D2OrganisationUnit` 1..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(Patient)` - plus every other type `[generate.tracked_entity_types]` names - with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
 
 All four follow the `[generate.naming]` prefix, and all four take `^status` /
 `^experimental` from the `[ig] status` dial like every other definitional artifact.
@@ -1906,15 +1957,25 @@ a server enforces is
 carries `D2AttributeOptionCombos` has to carry `D2AttributeOptionCombo`, coded from the
 ValueSet that extension names.
 
-**The Patient subject is logical, not resolvable.** This guide publishes no `Patient`
-instances - DHIS2 holds the tracked entities and this IG describes forms, not people.
-So a tracker-event response carries no `subject.reference` at all: it states
-`subject.type = "Patient"` and identifies the person through
+**The tracked-entity subject is logical, not resolvable.** This guide publishes no
+`Patient` instances - DHIS2 holds the tracked entities and this IG describes forms, not
+people. So a tracker-event response carries no `subject.reference` at all: it states
+`subject.type = "Patient"` and identifies the entity through
 `subject.identifier`, whose `system` is fixed to `{base}/id/tracked-entity` and whose
 value is the DHIS2 tracked entity UID. That is the FHIR-native spelling for "this
 subject is real, and it lives in a system this document does not contain".
 
-**The organisation unit moves to an extension.** `subject` is the patient, so the unit
+**The two tracker profiles admit every type the project configured.** A response profile
+is published once for the whole IG, so it cannot pin the subject type of one program: it
+admits the union of `Patient` and every type
+[`[generate.tracked_entity_types]`](#generatetracked_entity_types) names. A project that
+tracks only people publishes `subject only Reference(Patient)`, exactly as it always did;
+a project that tracks herds beside people publishes
+`subject only Reference(Patient or Group)`. Which type a given form's responses actually
+carry is pinned by that form's own `subjectType`, and a capture server reads it from the
+compiled Questionnaire - `fhir.toml` never reaches a running facade.
+
+**The organisation unit moves to an extension.** `subject` is the tracked entity, so the unit
 the event was captured at rides on `D2OrganisationUnit` as a `valueReference` to that
 unit's published `Location` - the same registry an aggregate response's `subject`
 points at. `D2TrackerEnrollment` carries the second required fact as a
@@ -2491,6 +2552,14 @@ for the same reason a drifted code is - the submission is well-formed FHIR, and 
 names is a fact about the instance rather than a mistake in the document. DHIS2 refuses
 that write with `E1029`, which the diagnostics say. A form publishing no assignment is
 scoped to the whole registry and nothing is checked.
+
+**The same dial grades the subject type.** A tracker form states what it is answered
+about on `subjectType`, and a response typing its subject as something else - a `Patient`
+sent to a form asking for a `Group` - is a warning by default and a 422 under
+`--strict-codes`. `Reference.type` is optional in R4 and the profile asks for the subject
+by identifier, so a response that carries no type at all is complete and nothing is
+checked. The server reads the declared type off the compiled Questionnaire and nowhere
+else: `fhir.toml` is the generator's input and never reaches a running facade.
 
 The published contract stays strict either way. Leniency is a property of this server's
 runtime, not of what the IG asks for.

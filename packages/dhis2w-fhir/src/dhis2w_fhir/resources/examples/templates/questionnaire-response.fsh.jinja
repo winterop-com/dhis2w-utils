@@ -34,7 +34,7 @@ Usage: #example
 {% if example.tracker is none %}
 * subject = Reference(Location/{{ example.organisation_unit_stem }})
 {% elif example.tracker.tracked_entity_uid is not none %}
-* subject.type = "Patient"
+* subject.type = "{{ example.tracker.subject_type }}"
 * subject.identifier.system = $DHIS2-TE
 * subject.identifier.value = "{{ example.tracker.tracked_entity_uid }}"
 {% endif %}

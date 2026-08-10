@@ -2736,7 +2736,9 @@ def _tracker_program_sources(model: Program, notes: list[GenerateNote]) -> list[
             f"program {name!r} ({uid}) has programType {program_type}; a WITHOUT_REGISTRATION program is "
             "selected under [generate.event_programs]"
         )
-    program = ProgramContextIn(uid=uid, name=name, code=model.code)
+    program = ProgramContextIn(
+        uid=uid, name=name, code=model.code, tracked_entity_type_uid=_tracked_entity_type_uid(model)
+    )
     sources: list[QuestionnaireSourceIn] = [_registration_source(model, notes)]
     for stage in sorted(_program_stages(model), key=_stage_sort_key):
         stage_uid = _optional_text(stage.get("id")) or ""

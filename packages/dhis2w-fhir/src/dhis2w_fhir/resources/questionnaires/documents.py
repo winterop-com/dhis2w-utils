@@ -86,12 +86,15 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireStemPlan,
     ReferencedObjects,
     SupportTerminologyProfile,
+    form_subject_type,
     plan_questionnaire_stems,
     source_display_name,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from dhis2w_fhir.attributes import AttributeCodeIndex
     from dhis2w_fhir.config import GenerateConfig
     from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
@@ -278,6 +281,7 @@ def build_questionnaire_documents(
             attribute_codes=attribute_codes,
             assignments=assignment_plan,
             attribute_combos=attribute_combo_plan,
+            tracked_entity_types=config.tracked_entity_types,
         )
         for source in sorted(sources, key=lambda item: (item.name, item.uid))
     ]
@@ -371,6 +375,7 @@ def _questionnaire_document(
     attribute_codes: AttributeCodeIndex,
     assignments: AssignmentPlan,
     attribute_combos: AttributeComboPlan,
+    tracked_entity_types: Mapping[str, str],
 ) -> Questionnaire:
     """Build one form's Questionnaire, every name already resolved to the URL it is served under.
 
@@ -378,7 +383,8 @@ def _questionnaire_document(
     `name` - while the identifier slices keep the DHIS2 id and code as the data they are.
     `title` carries the DHIS2 name verbatim because it is data, while `description` is the page
     furniture the IG publisher pastes into HTML and takes the same markup escaping the FSH
-    `Description:` keyword does.
+    `Description:` keyword does. `tracked_entity_types` is the project's tracked-entity-type map,
+    read through the very `form_subject_type` call the FSH path reads it through.
     """
     profile = FORM_KIND_PROFILES[source.kind]
     return Questionnaire(
@@ -398,7 +404,7 @@ def _questionnaire_document(
         name=names.questionnaire_name(source.kind, stem_plan.targets.fsh_segment_for(source.uid)),
         status=ig_status,
         experimental=experimental_for_status(ig_status),
-        subjectType=[profile.subject_type],
+        subjectType=[form_subject_type(source, tracked_entity_types)],
         code=[Coding(system=systems.form_type_code_system_url, code=source.kind)],
         item=_items(source, systems, identities) or None,
     )

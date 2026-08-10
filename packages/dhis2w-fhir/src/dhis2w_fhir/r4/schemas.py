@@ -411,6 +411,34 @@ class QuestionnaireItem(BackboneElement):
     item: list[QuestionnaireItem] | None = None
 
 
+#: The FHIR resource type a tracker form's subject is, for a tracked entity type the project maps
+#: to none. DHIS2's own default tracked entity type is a person, so an unmapped type is a Patient.
+DEFAULT_SUBJECT_RESOURCE_TYPE = "Patient"
+
+#: The FHIR resource types a DHIS2 tracked entity type may be published as, in the order a refusal
+#: lists them - the default first, the rest as R4 groups them: people, then groups, then things.
+#:
+#: R4 binds `Questionnaire.subjectType` to the whole resource-types ValueSet, which is every one of
+#: the ~145 R4 resource types. This is a deliberate subset of it: a tracked entity is the thing a
+#: DHIS2 longitudinal record is kept about, and in practice that is a person under care (`Patient`),
+#: a person who is not (`Person`, `Practitioner`, `RelatedPerson`), a household or a herd (`Group`),
+#: a piece of equipment (`Device`), a building or a site (`Location`), an institution
+#: (`Organization`), or a sample under test (`Specimen`). Nothing else in R4 can be the subject of a
+#: registration in any DHIS2 sense, so a name outside this set is a typo worth refusing at load
+#: rather than a choice worth honouring in every emitted form.
+SUBJECT_RESOURCE_TYPES: tuple[str, ...] = (
+    DEFAULT_SUBJECT_RESOURCE_TYPE,
+    "Person",
+    "Practitioner",
+    "RelatedPerson",
+    "Group",
+    "Device",
+    "Location",
+    "Organization",
+    "Specimen",
+)
+
+
 class Questionnaire(DomainResource):
     """A FHIR R4 Questionnaire as generated from one DHIS2 data set, event program, or program stage."""
 

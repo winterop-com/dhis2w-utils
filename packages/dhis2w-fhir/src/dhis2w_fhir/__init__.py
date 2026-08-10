@@ -277,6 +277,8 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     ReferencedObjects,
     SupportTerminologyProfile,
     TargetSelection,
+    form_subject_type,
+    form_tracked_entity_type_uid,
     plan_questionnaire_stems,
     source_display_name,
 )
@@ -595,6 +597,8 @@ __all__ = [
     "example_tracker_context",
     "fetch_live_ig_inputs",
     "find_project_fhir_config",
+    "form_subject_type",
+    "form_tracked_entity_type_uid",
     "forward_responses",
     "fsh_stem_segment",
     "generate_full",

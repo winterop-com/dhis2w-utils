@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from dhis2w_fhir.r4 import Questionnaire, QuestionnaireItem, ResourceList, ValueSet
+from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE, Questionnaire, QuestionnaireItem, ResourceList, ValueSet
 from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS, FormKind, NumericBounds
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
@@ -146,6 +146,16 @@ class CaptureIndex(BaseModel):
     """The DHIS2 data set, program, or program stage UID the form was generated from."""
 
     program_uid: str | None = None
+    subject_type: str = DEFAULT_SUBJECT_RESOURCE_TYPE
+    """The resource type the form declares its responses are about - `Questionnaire.subjectType`.
+
+    A DHIS2 tracked entity type is not always a person, so a project maps its types onto the FHIR
+    resource types they are and the generated form states the answer. The served form is the only
+    place this facade reads it from: `fhir.toml` is the generator's input and is not on the server
+    at all, so what a capture is checked against and what `$generate` mints is what the compiled
+    Questionnaire says.
+    """
+
     questions: dict[str, CaptureQuestion] = Field(default_factory=dict)
     group_link_ids: frozenset[str] = frozenset()
     assignment: CaptureAssignment | None = None
@@ -212,6 +222,7 @@ def build_capture_index(
         form_kind=form_kind,
         target_uid=canonical.rsplit("/", 1)[-1],
         program_uid=_program_uid(questionnaire, naming),
+        subject_type=_subject_type(questionnaire),
         questions=questions,
         group_link_ids=frozenset(group_link_ids),
         assignment=_assignment(questionnaire, naming, store),
@@ -293,6 +304,19 @@ def _program_uid(questionnaire: Questionnaire, naming: CaptureNaming) -> str | N
         if identifier.system == naming.program_identifier_system and identifier.value:
             return identifier.value
     return None
+
+
+def _subject_type(questionnaire: Questionnaire) -> str:
+    """The resource type the form is answered about, or the default when it declares none.
+
+    R4 makes `subjectType` optional and repeatable; a generated form always states exactly one, so
+    the first entry is the answer and a form that states nothing is read as the default a project
+    that configures nothing gets.
+    """
+    for resource_type in questionnaire.subjectType or []:
+        if resource_type:
+            return resource_type
+    return DEFAULT_SUBJECT_RESOURCE_TYPE
 
 
 def _walk(

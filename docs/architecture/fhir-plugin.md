@@ -336,9 +336,11 @@ depends on `fhir.toml` alone and never opens a client:
   to the kind's own code), requires `questionnaire`, requires `subject`, and requires
   `authored` on all but the aggregate one. The aggregate and event profiles restrict
   `subject` to `Reference(D2Location)`; both tracker ones restrict it to
-  `Reference(Patient)` and make it a *logical* reference - `subject.identifier` 1..1
-  with `system` fixed to `{base}/id/tracked-entity` - because the IG publishes no
-  `Patient` instances and the tracked entity resolves against DHIS2 instead. What
+  `Reference(Patient)` - plus every other resource type the project's tracked entity
+  types resolve to, since one profile is published for the whole IG - and make it a
+  *logical* reference - `subject.identifier` 1..1 with `system` fixed to
+  `{base}/id/tracked-entity` - because the IG publishes no subject instances at all and
+  the tracked entity resolves against DHIS2 instead. What
   separates the two tracker contracts is who authored those identifiers: a stage
   response names a tracked entity and an enrollment that already exist, a registration
   response mints both, which is stated on the profile's `^short` rather than left to
@@ -650,10 +652,14 @@ plus `/Questionnaire/<stem>`, `status` and `experimental`, both DHIS2 identifier
 (`$DHIS2-DS` / `$DHIS2-PROGRAM` / `$DHIS2-PS` and their code slots), and `name`
 composed from the naming tokens (`D2DS_BfMAe6Itzgt`, `D2PS_A03MvHHogjR`).
 `subjectType` states who the form is answered for: `#Location` for a data set and an
-event program (a DHIS2 form is answered for an organisation unit), `#Patient` for both
-tracker forms (a registration is answered about the person being enrolled and a stage
-about the person already enrolled, and the organisation unit moves onto the response's
-`D2OrganisationUnit` extension).
+event program (a DHIS2 form is answered for an organisation unit), and the program's
+own tracked entity type for both tracker forms (a registration is answered about the
+entity being enrolled and a stage about the entity already enrolled, and the
+organisation unit moves onto the response's `D2OrganisationUnit` extension).
+`form_subject_type` resolves that one type for every consumer: `[generate.tracked_entity_types]`
+maps a tracked entity type UID onto the FHIR resource type it is, keyed by type rather
+than by program so two programs tracking one type cannot disagree, and an unmapped type
+is the form kind's own default - a `Patient`.
 
 A tracker stage's identity is the *stage's* - its UID, its code, its description, its
 attribute values - and the program travels beside it as `ProgramContextIn`, which

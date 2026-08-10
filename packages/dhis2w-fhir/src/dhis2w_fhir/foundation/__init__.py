@@ -49,6 +49,7 @@ from dhis2w_fhir.foundation.schemas import (
     FoundationNaming,
     NamingSystemDeclaration,
     ResponseProfileDeclaration,
+    TrackerSubjectTypes,
 )
 from dhis2w_fhir.names import page_text
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
@@ -225,6 +226,7 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         names=names,
         profiles=build_response_profile_declarations(config),
         location_profile=location_profile,
+        tracker_subject_types=TrackerSubjectTypes.of_mapping(config.tracked_entity_types),
         tracked_entity_system=f"{config.identifier_system_base}/id/tracked-entity",
         ig_status=ig_status,
         experimental=experimental,

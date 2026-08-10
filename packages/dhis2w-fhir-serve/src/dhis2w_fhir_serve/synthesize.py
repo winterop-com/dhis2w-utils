@@ -92,9 +92,6 @@ GENERATED_STATUS: Final[Literal["completed"]] = "completed"
 RESPONSE_RESOURCE_TYPE = "QuestionnaireResponse"
 LOCATION_RESOURCE_TYPE = "Location"
 
-#: The resource type a tracker response names its tracked-entity subject as.
-TRACKER_SUBJECT_TYPE = "Patient"
-
 #: The form kinds whose generated response carries a tracker context - the person and the enrollment.
 _TRACKER_FORM_KINDS: tuple[FormKind, ...] = ("tracker", "tracker-event")
 
@@ -309,10 +306,15 @@ class _Generator(BaseModel):
         return (Extension(url=self.naming.attribute_option_combo_url, valueCoding=_coding(declared.system, drawn)),)
 
     def _subject(self, tracker: _TrackerContext | None) -> Reference:
-        """Who the response is about: the tracked entity of a tracker response, else the reporting unit."""
+        """Who the response is about: the tracked entity of a tracker response, else the reporting unit.
+
+        A tracked entity is named as the resource type the served form declares - a person unless
+        the project generating it mapped its tracked entity type to something else - so a
+        generated response carries the very type the form it answers asks for.
+        """
         if tracker is not None:
             return Reference(
-                type=TRACKER_SUBJECT_TYPE,
+                type=self.index.subject_type,
                 identifier=Identifier(system=self.naming.tracked_entity_system, value=tracker.tracked_entity_uid),
             )
         return Reference(reference=f"{LOCATION_RESOURCE_TYPE}/{self.location_id}")

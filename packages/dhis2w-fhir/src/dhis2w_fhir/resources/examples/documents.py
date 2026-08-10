@@ -51,7 +51,11 @@ from dhis2w_fhir.resources.examples import (
 )
 from dhis2w_fhir.resources.option_sets import code_system_canonical, option_set_identity_index
 from dhis2w_fhir.resources.questionnaires import bound_option_set_uids
-from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireStemPlan, plan_questionnaire_stems
+from dhis2w_fhir.resources.questionnaires.schemas import (
+    QuestionnaireStemPlan,
+    form_subject_type,
+    plan_questionnaire_stems,
+)
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
@@ -83,9 +87,6 @@ TRACKED_ENTITY_IDENTIFIER_SEGMENT = "tracked-entity"
 
 #: The DHIS2 identifier system an enrollment is named under - the `$DHIS2-TRACKER-ENROLLMENT` alias resolved.
 TRACKER_ENROLLMENT_IDENTIFIER_SEGMENT = "tracker-enrollment"
-
-#: The resource type a tracker-event response names its tracked-entity subject as.
-_TRACKER_SUBJECT_TYPE = "Patient"
 
 #: The `QuestionnaireResponse.status` codes R4 admits, which a DHIS2 event status maps onto.
 _ResponseStatusCode = Literal["in-progress", "completed", "amended", "entered-in-error", "stopped"]
@@ -234,6 +235,7 @@ def build_example_documents(
                 organisation_unit_stems=organisation_unit_stems,
                 attribute_combos=attribute_combo_plan,
                 attribute_combo_assignments=attribute_combo_assignments,
+                subject_type=form_subject_type(source, config.tracked_entity_types),
             )
         )
     notes = list(tally.to_notes())
@@ -264,8 +266,13 @@ def _response_document(
     organisation_unit_stems: StemResolution | None,
     attribute_combos: AttributeComboPlan,
     attribute_combo_assignments: dict[str, ConceptAssignmentPlan],
+    subject_type: str,
 ) -> QuestionnaireResponse:
-    """Build one example's QuestionnaireResponse, every name already resolved to the URL it is served under."""
+    """Build one example's QuestionnaireResponse, every name already resolved to the URL it is served under.
+
+    `subject_type` is the resource type the form's own Questionnaire declares its subject as, read
+    through the very `form_subject_type` call the FSH path reads it through.
+    """
     period = example_period(response, source, tally)
     attribute_option_combo = example_attribute_option_combo(
         response, source, attribute_combos, attribute_combo_assignments, tally
@@ -289,7 +296,7 @@ def _response_document(
         ),
         questionnaire=systems.questionnaire_url(target_stem),
         status=_status_code(response.status_code),
-        subject=_subject(response, tracker, systems, organisation_unit_stems),
+        subject=_subject(response, tracker, systems, organisation_unit_stems, subject_type=subject_type),
         authored=authored,
         item=_items(example_items(source, answers), identities, canonical, organisation_unit_stems) or None,
     )
@@ -384,18 +391,20 @@ def _subject(
     tracker: ExampleTrackerContext | None,
     systems: _ExampleSystems,
     organisation_unit_stems: StemResolution | None,
+    *,
+    subject_type: str,
 ) -> Reference | None:
     """The subject of one response: the tracked entity a tracker event was captured for, else the Location.
 
     A tracker-event response naming no tracked entity carries no subject at all, because the only
-    subject its profile admits is a Patient identified by tracked-entity UID.
+    subject its profile admits is a tracked entity identified by DHIS2 UID.
     """
     if tracker is None:
         return Reference(reference=f"Location/{location_stem(response.organisation_unit_uid, organisation_unit_stems)}")
     if tracker.tracked_entity_uid is None:
         return None
     return Reference(
-        type=_TRACKER_SUBJECT_TYPE,
+        type=subject_type,
         identifier=Identifier(
             system=systems.identifier_system(TRACKED_ENTITY_IDENTIFIER_SEGMENT), value=tracker.tracked_entity_uid
         ),

@@ -68,6 +68,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireStemPlan,
     ReferencedObjects,
     SupportTerminologyProfile,
+    form_subject_type,
     plan_questionnaire_stems,
     source_display_name,
     source_program,
@@ -76,6 +77,8 @@ from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, FshBuild
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
     from dhis2w_fhir.config import GenerateConfig
 
@@ -471,6 +474,7 @@ def build_questionnaire_artifacts(
             identifier_system_base=config.identifier_system_base,
             assignments=assignment_plan,
             attribute_combos=attribute_combo_plan,
+            tracked_entity_types=config.tracked_entity_types,
         )
         build.artifacts.append(
             FshArtifact(
@@ -608,11 +612,14 @@ def _questionnaire_view(
     identifier_system_base: str,
     assignments: AssignmentPlan,
     attribute_combos: AttributeComboPlan,
+    tracked_entity_types: Mapping[str, str],
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders.
 
     The identity stem carries the artifact identity - the instance name, the `id`, the canonical
     URL, the FSH name segment - while `uid` stays the DHIS2 identifier value the resource exposes.
+    `tracked_entity_types` is the project's tracked-entity-type map, which is what decides the
+    `subjectType` a tracker form declares.
     """
     profile = FORM_KIND_PROFILES[source.kind]
     display_name = source_display_name(source)
@@ -624,7 +631,7 @@ def _questionnaire_view(
         title_literal=page_text(f"Questionnaire - {display_name}"),
         title_element_literal=quote(display_name),
         description_literal=page_text(source_description(source, profile)),
-        subject_type=profile.subject_type,
+        subject_type=form_subject_type(source, tracked_entity_types),
         identifier_system=profile.identifier_system,
         identifier_code_system=profile.identifier_code_system,
         identifier_code_literal=quote(code_or_uid(source.code, source.uid)),

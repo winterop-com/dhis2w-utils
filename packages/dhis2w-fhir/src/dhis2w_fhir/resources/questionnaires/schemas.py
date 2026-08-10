@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,6 +19,7 @@ from dhis2w_fhir.names import (
     resolve_identity_stems,
 )
 from dhis2w_fhir.notes import GenerateNote
+from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import NamingConfig
@@ -42,6 +44,11 @@ class FormKindProfile(BaseModel):
     declares, and the JSON path writes the absolute URL that alias expands to,
     `{identifier_system_base}/id/{segment}`. A guard test renders the alias file and asserts
     every pair still resolves to the same system.
+
+    `subject_type` is the resource type a form of this kind is answered about when the project
+    says nothing else. It is the whole answer on the two organisation-unit kinds and the default
+    on the two tracker kinds, where `[generate.tracked_entity_types]` maps a tracked entity type
+    onto the resource type it really is; `form_subject_type` is where the two meet.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -57,8 +64,9 @@ class FormKindProfile(BaseModel):
 
 #: The DHIS2 identifier systems, subject type, and prose label each form kind carries. An aggregate
 #: or event form is reported for an organisation unit, while a tracker registration form enrols one
-#: person and a tracker program stage captures that person's visit, so the subject of both tracker
-#: forms is the patient. The registration form is the tracker program's own form, so it rides the
+#: tracked entity and a tracker program stage captures that entity's visit, so the subject of both
+#: tracker forms is whatever the program's tracked entity type is - a person unless the project
+#: says otherwise. The registration form is the tracker program's own form, so it rides the
 #: program's identifier systems - the very ones its stage forms carry as a grouping identifier.
 FORM_KIND_PROFILES: dict[FormKind, FormKindProfile] = {
     "aggregate": FormKindProfile(
@@ -82,7 +90,7 @@ FORM_KIND_PROFILES: dict[FormKind, FormKindProfile] = {
         identifier_code_system="$DHIS2-PROGRAM-CODE",
         identifier_segment="program",
         code_identifier_segment="program-code",
-        subject_type="Patient",
+        subject_type=DEFAULT_SUBJECT_RESOURCE_TYPE,
         label="tracker program",
         question_subject="tracked-entity-attribute",
     ),
@@ -91,7 +99,7 @@ FORM_KIND_PROFILES: dict[FormKind, FormKindProfile] = {
         identifier_code_system="$DHIS2-PS-CODE",
         identifier_segment="program-stage",
         code_identifier_segment="program-stage-code",
-        subject_type="Patient",
+        subject_type=DEFAULT_SUBJECT_RESOURCE_TYPE,
         label="tracker program stage",
     ),
 }
@@ -261,6 +269,9 @@ class ProgramContextIn(BaseModel):
 
     The identity its questionnaires carry in titles, identifiers, and intros. `code` is the
     program's DHIS2 code, which the stem plan resolves the program's directory segment from.
+    `tracked_entity_type_uid` is what the program tracks, which is what decides the subject type
+    of every stage form of the program - a stage captures a visit by the very entity the
+    registration form enrolled, so the two forms state the same subject.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -268,6 +279,7 @@ class ProgramContextIn(BaseModel):
     uid: str
     name: str
     code: str | None = None
+    tracked_entity_type_uid: str | None = None
 
 
 class QuestionnaireSourceIn(BaseModel):
@@ -308,7 +320,12 @@ class QuestionnaireSourceIn(BaseModel):
     attribute_combo: CategoryComboIn | None = None
     displays_incident_date: bool = False
     tracked_entity_type_uid: str | None = None
-    """The DHIS2 tracked entity type a registration form enrols a person as; None on every other kind."""
+    """The DHIS2 tracked entity type a registration form enrols an entity as; None on every other kind.
+
+    A stage form of the same program carries it on `program` instead, because a stage belongs to
+    the program rather than being it; `form_tracked_entity_type_uid` reads whichever of the two
+    a form holds.
+    """
 
     sections: list[QuestionnaireSectionIn] = Field(default_factory=list)
     flat_items: list[QuestionnaireItemIn] = Field(default_factory=list)
@@ -332,7 +349,12 @@ class ReferencedObjects(BaseModel):
 def source_program(source: QuestionnaireSourceIn) -> ProgramContextIn:
     """The tracker program one source belongs to: a registration form's own identity, else its stage's program."""
     if source.kind == "tracker":
-        return ProgramContextIn(uid=source.uid, name=source.name, code=source.code)
+        return ProgramContextIn(
+            uid=source.uid,
+            name=source.name,
+            code=source.code,
+            tracked_entity_type_uid=source.tracked_entity_type_uid,
+        )
     if source.program is None:
         raise ValueError(
             f"tracker-event source {source.uid} carries no program context: a program stage is named, "
@@ -346,6 +368,36 @@ def source_display_name(source: QuestionnaireSourceIn) -> str:
     if source.program is None:
         return source.name
     return f"{source.program.name} - {source.name}"
+
+
+def form_tracked_entity_type_uid(source: QuestionnaireSourceIn) -> str | None:
+    """The DHIS2 tracked entity type one form is about: the registration form's own, else its program's."""
+    if source.kind == "tracker":
+        return source.tracked_entity_type_uid
+    if source.kind == "tracker-event" and source.program is not None:
+        return source.program.tracked_entity_type_uid
+    return None
+
+
+def form_subject_type(source: QuestionnaireSourceIn, tracked_entity_types: Mapping[str, str]) -> str:
+    """The FHIR resource type one form's subject is, resolved once for every consumer of the form.
+
+    A DHIS2 tracked entity type is whatever the project tracks - a person, a household, a
+    building, a herd - so `[generate.tracked_entity_types]` maps the type's UID onto the R4
+    resource type it really is and every form of every program tracking it follows. A type the
+    project maps to nothing keeps the form kind's own subject: a `Patient` for the two tracker
+    kinds, the reporting `Location` for the two organisation-unit kinds.
+
+    The map is keyed by tracked entity type rather than by program because the type is what owns
+    the nature of the thing: two programs tracking the same type agree by construction, and
+    naming the type once is what makes a registration form and every stage form of that program
+    state the same subject.
+    """
+    default = FORM_KIND_PROFILES[source.kind].subject_type
+    uid = form_tracked_entity_type_uid(source)
+    if uid is None:
+        return default
+    return tracked_entity_types.get(uid, default)
 
 
 #: The surface label questionnaire-target stem notes and refusals name their offenders under.

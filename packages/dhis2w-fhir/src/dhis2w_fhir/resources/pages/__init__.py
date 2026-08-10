@@ -32,6 +32,7 @@ from dhis2w_fhir.names import StemResolution, code_or_uid, markdown_text
 from dhis2w_fhir.period.parser import parse_period
 from dhis2w_fhir.period.recent import recent_periods
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
+from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE
 from dhis2w_fhir.resources.examples import MULTI_VALUE_TYPE, STATUS_BY_EVENT_STATUS, answer_element
 from dhis2w_fhir.resources.option_sets import option_set_code_fallback, option_set_identities
 from dhis2w_fhir.resources.organisation_units import organisation_unit_stem_subjects, plan_organisation_unit_stems
@@ -67,6 +68,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireNaming,
     QuestionnaireSourceIn,
     QuestionnaireStemPlan,
+    form_subject_type,
     plan_questionnaire_stems,
     source_display_name,
 )
@@ -429,6 +431,7 @@ def _capture_page(
     """Build `capture.md`: what a capture client sends, worked once per form kind, and how answers are typed."""
     foundation = FoundationNaming.from_naming(config.naming)
     organisation_unit = min(pages.organisation_units, key=lambda item: (item.level, item.path, item.uid), default=None)
+    tracker_event = _capture_form_example(pages.forms, "tracker-event", canonical, stem_plan, config)
     view = CaptureView(
         canonical=canonical,
         period_extension=foundation.period_extension,
@@ -455,9 +458,12 @@ def _capture_page(
             organisation_unit_stems.stem_for(organisation_unit.uid) if organisation_unit is not None else ""
         ),
         organisation_unit_name=markdown_text(organisation_unit.name) if organisation_unit is not None else "",
-        aggregate=_capture_form_example(pages.forms, "aggregate", canonical, stem_plan),
-        event=_capture_form_example(pages.forms, "event", canonical, stem_plan),
-        tracker_event=_capture_form_example(pages.forms, "tracker-event", canonical, stem_plan),
+        tracker_subject_type=(
+            tracker_event.subject_type if tracker_event is not None else DEFAULT_SUBJECT_RESOURCE_TYPE
+        ),
+        aggregate=_capture_form_example(pages.forms, "aggregate", canonical, stem_plan, config),
+        event=_capture_form_example(pages.forms, "event", canonical, stem_plan, config),
+        tracker_event=tracker_event,
         event_statuses=[
             EventStatusRow(event_status=event_status, response_status=STATUS_BY_EVENT_STATUS[event_status])
             for event_status in sorted(STATUS_BY_EVENT_STATUS)
@@ -468,7 +474,11 @@ def _capture_page(
 
 
 def _capture_form_example(
-    forms: list[QuestionnaireSourceIn], kind: FormKind, canonical: str, stem_plan: QuestionnaireStemPlan
+    forms: list[QuestionnaireSourceIn],
+    kind: FormKind,
+    canonical: str,
+    stem_plan: QuestionnaireStemPlan,
+    config: GenerateConfig,
 ) -> CaptureFormExample | None:
     """Work one selected form of `kind` through the contract: its Questionnaire, its period, and its linkIds."""
     candidates = [source for source in forms if source.kind == kind and _source_items(source)]
@@ -480,6 +490,7 @@ def _capture_form_example(
         name=markdown_text(source_display_name(source)),
         questionnaire_url=f"{canonical}/Questionnaire/{stem_plan.targets.stem_for(source.uid)}",
         form_type_code=source.kind,
+        subject_type=form_subject_type(source, config.tracked_entity_types),
         period=_capture_period(source),
         links=_capture_links(source),
     )

@@ -15,6 +15,8 @@ from dhis2w_fhir.r4.primitives import (
 )
 from dhis2w_fhir.r4.schemas import (
     BOUNDARY_EXTENSION_URL,
+    DEFAULT_SUBJECT_RESOURCE_TYPE,
+    SUBJECT_RESOURCE_TYPES,
     Attachment,
     BackboneElement,
     Bundle,
@@ -76,9 +78,11 @@ from dhis2w_fhir.r4.schemas import (
 
 __all__ = [
     "BOUNDARY_EXTENSION_URL",
+    "DEFAULT_SUBJECT_RESOURCE_TYPE",
     "FHIR_DATE_PATTERN",
     "FHIR_DATE_TIME_PATTERN",
     "FHIR_TIME_PATTERN",
+    "SUBJECT_RESOURCE_TYPES",
     "Attachment",
     "BackboneElement",
     "Bundle",

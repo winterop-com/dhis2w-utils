@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dhis2w_fhir.i18n import normalize_locale
 from dhis2w_fhir.names import NamingSource, strip_trailing_slash
+from dhis2w_fhir.r4 import SUBJECT_RESOURCE_TYPES
 from dhis2w_fhir.resources.categories.schemas import CategorySelection
 from dhis2w_fhir.resources.examples.schemas import ExampleSelection
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetSelection
@@ -121,6 +122,13 @@ class GenerateConfig(BaseModel):
     `timezone` is the IANA zone the instance's zone-less timestamps are wall-clock readings in
     (BUGS.md #62). Naming it turns every emitted `dateTime` into the numeric offset that zone
     was on at that very instant, DST included; leaving it unset keeps the UTC reading.
+
+    `tracked_entity_types` maps a DHIS2 tracked entity type UID onto the FHIR resource type its
+    registrations are about. A DHIS2 tracked entity is not always a person - a project tracks
+    households, buildings, herds, and equipment as readily as patients - so the type says what it
+    is and every form of every program tracking it follows. A type named here is not selected by
+    it: selection stays with the three data-definition tables, and a type this table never
+    mentions is a `Patient`, which is what keeps a person-tracking project's config empty.
     """
 
     identifier_system_base: str = "http://dhis2.org/fhir"
@@ -134,9 +142,22 @@ class GenerateConfig(BaseModel):
     data_sets: TargetSelection = Field(default_factory=TargetSelection)
     event_programs: TargetSelection = Field(default_factory=TargetSelection)
     tracker_programs: TargetSelection = Field(default_factory=TargetSelection)
+    tracked_entity_types: dict[str, str] = Field(default_factory=dict)
     examples: ExampleSelection = Field(default_factory=ExampleSelection)
 
     _normalize_identifier_base = field_validator("identifier_system_base")(strip_trailing_slash)
+
+    @field_validator("tracked_entity_types")
+    @classmethod
+    def _known_subject_resource_types(cls, value: dict[str, str]) -> dict[str, str]:
+        """Require an R4 resource type a tracked entity can be - a typo here mis-types every form of a program."""
+        for uid, resource_type in value.items():
+            if resource_type not in SUBJECT_RESOURCE_TYPES:
+                raise ValueError(
+                    f"tracked entity type {uid} is mapped to {resource_type!r}, which is not a FHIR resource "
+                    f"type a tracked entity is published as: name one of {', '.join(SUBJECT_RESOURCE_TYPES)}"
+                )
+        return value
 
     @field_validator("timezone")
     @classmethod

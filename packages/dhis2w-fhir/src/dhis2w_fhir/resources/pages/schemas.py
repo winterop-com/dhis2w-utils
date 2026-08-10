@@ -7,6 +7,7 @@ import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import NamingSystemDeclaration
+from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIn
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
 from dhis2w_fhir.resources.questionnaires.schemas import FormKind, QuestionnaireSourceIn
@@ -258,6 +259,7 @@ class CaptureFormExample(BaseModel):
     name: str
     questionnaire_url: str
     form_type_code: FormKind
+    subject_type: str = DEFAULT_SUBJECT_RESOURCE_TYPE
     period: CapturePeriodExample | None = None
     links: list[CaptureLinkRow] = Field(default_factory=list)
 
@@ -314,6 +316,14 @@ class CaptureView(BaseModel):
     organisation_unit_uid: str
     organisation_unit_stem: str
     organisation_unit_name: str
+    tracker_subject_type: str = DEFAULT_SUBJECT_RESOURCE_TYPE
+    """The resource type the worked tracker walkthrough names its subject as.
+
+    The selected stage form's own `subjectType`, so a project tracking herds reads a
+    walkthrough about a `Group`; the default where the project selected no tracker form to
+    work through.
+    """
+
     aggregate: CaptureFormExample | None = None
     event: CaptureFormExample | None = None
     tracker_event: CaptureFormExample | None = None
