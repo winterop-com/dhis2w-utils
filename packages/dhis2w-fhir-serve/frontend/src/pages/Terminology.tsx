@@ -22,6 +22,7 @@ import {
     identifierBadges,
     mappingCount,
     matchesQuery,
+    matchingCodeCount,
     type IdentifierBadge,
 } from '@/lib/terminology'
 
@@ -48,6 +49,7 @@ export function Terminology() {
         () =>
             codeSystems.resources.map((resource) => ({
                 ...listingRow(resource.title, resource.name, resource.id, resource.url),
+                resource,
                 count: resource.count ?? resource.concept?.length ?? null,
                 identifiers: identifierBadges(resource.identifier),
             })),
@@ -58,6 +60,7 @@ export function Terminology() {
         () =>
             valueSets.resources.map((resource) => ({
                 ...listingRow(resource.title, resource.name, resource.id, resource.url),
+                resource,
                 count: enumeratedConceptCount(resource) || composedSystems(resource).length,
                 identifiers: identifierBadges(resource.identifier),
             })),
@@ -68,6 +71,7 @@ export function Terminology() {
         () =>
             conceptMaps.resources.map((resource) => ({
                 ...listingRow(resource.title, resource.name, resource.id, resource.url),
+                resource,
                 count: mappingCount(resource),
                 identifiers: identifierBadges(resource.identifier),
             })),
@@ -150,6 +154,7 @@ interface TerminologyRow {
     identifier: string
     count: number | null
     identifiers: IdentifierBadge[]
+    resource: CodeSystem | ValueSet | ConceptMap
 }
 
 /** The naming every listing row shares: a title to sort by, and the id the detail route uses. */
@@ -187,10 +192,13 @@ function TerminologySection({
 }) {
     const navigate = useNavigate()
     const matching = rows
-        .filter((row) =>
-            matchesQuery(query, row.title, row.identifier, ...row.identifiers.map((badge) => badge.value)),
-        )
-        .toSorted((left, right) => left.title.localeCompare(right.title))
+        .map((row) => ({
+            row,
+            codeMatches: matchingCodeCount(row.resource, query),
+            shallow: matchesQuery(query, row.title, row.identifier, ...row.identifiers.map((badge) => badge.value)),
+        }))
+        .filter((entry) => entry.shallow || entry.codeMatches > 0)
+        .toSorted((left, right) => left.row.title.localeCompare(right.row.title))
     const filteredAway = query.trim() !== '' && rows.length > 0 && matching.length === 0
 
     return (
@@ -225,7 +233,7 @@ function TerminologySection({
                                                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {matching.map((row) => (
+                            {matching.map(({ row, codeMatches }) => (
                                 <TableRow
                                     key={row.key}
                                     className="hover:bg-accent cursor-pointer"
@@ -239,7 +247,14 @@ function TerminologySection({
                                         }
                                     }}
                                 >
-                                    <TableCell className="font-medium">{row.title}</TableCell>
+                                    <TableCell className="font-medium">
+                                        {row.title}
+                                        {codeMatches > 0 && (
+                                            <span className="text-muted-foreground ml-2 text-xs font-normal">
+                                                {codeMatches} matching {codeMatches === 1 ? 'code' : 'codes'}
+                                            </span>
+                                        )}
+                                    </TableCell>
                                     <TableCell className="text-muted-foreground font-mono text-xs">
                                         {row.identifier}
                                     </TableCell>

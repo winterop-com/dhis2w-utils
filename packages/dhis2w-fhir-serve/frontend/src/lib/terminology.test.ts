@@ -20,8 +20,7 @@ import {
     pageOf,
     systemLabel,
     targetSystems,
-    translationResult,
-} from '@/lib/terminology'
+    translationResult, matchingCodeCount } from '@/lib/terminology'
 
 /**
  * The terminology reading rules, checked against what the server actually answers.
@@ -386,5 +385,21 @@ describe('a tracked-entity-attribute support system', () => {
         expect(filterConcepts(attributes.concept ?? [], 'true').map((concept) => concept.code)).toEqual([
             'TeaNatId001',
         ])
+    })
+})
+
+describe('matching codes inside a listed resource', () => {
+    it('counts concepts a query matches by code or display', () => {
+        expect(matchingCodeCount(dataElements, 'DeAncDanger')).toBe(1)
+        expect(matchingCodeCount(dataElements, 'zzz-nothing')).toBe(0)
+    })
+
+    it('answers zero for an empty query - the deep filter only bites while searching', () => {
+        expect(matchingCodeCount(dataElements, '')).toBe(0)
+    })
+
+    it('counts mapping rows on a concept map by source and target spellings', () => {
+        expect(matchingCodeCount(conceptMap, 'OpFever0001')).toBeGreaterThan(0)
+        expect(matchingCodeCount(conceptMap, 'FEVER')).toBeGreaterThan(0)
     })
 })
