@@ -5,6 +5,7 @@ import locationBundleFixture from '@/lib/__fixtures__/location-bundle.json'
 import questionnaireBundleFixture from '@/lib/__fixtures__/questionnaire-bundle.json'
 import scopedQuestionnaireFixture from '@/lib/__fixtures__/questionnaire-PrScoped001.json'
 import {
+    admittedUnitIds,
     ancestorsOf,
     assignedUnitIds,
     attachmentGeometryOf,
@@ -15,12 +16,18 @@ import {
     boundsOf,
     buildFormAssignments,
     buildOrgUnitTree,
+    carriesUnitOnExtension,
     descendantIdsOf,
     hasGeometry,
     levelOf,
+    matchesUnit,
     matchingUnitIds,
+    orgUnitChoices,
+    orgUnitReference,
+    organisationUnitExtensionUrl,
     pointOf,
     readGeometry,
+    referencedUnitId,
     reportableFormsAt,
 } from '@/lib/orgunits'
 import { bundleResources, type Bundle, type Location, type Questionnaire, type ResourceList } from '@/lib/fhir'
@@ -526,5 +533,127 @@ describe('joining the forms to their organisation-unit assignments', () => {
         }
 
         expect(assignedUnitIds(mixed)).toEqual(['DiszpKrYNg8'])
+    })
+})
+
+/**
+ * What a picker may offer, and what a chosen unit is written as.
+ *
+ * THE OFFER IS THE INTERSECTION THE SERVER GRADES. `PrScoped001` publishes an assignment naming two
+ * of the ten units, and `dhis2w_fhir_serve.capture.validate._assignment_issues` refuses a capture
+ * outside it - so the set below is not a UI convenience, it is the set the facade accepts. The
+ * absence of an artifact is the whole registry, and so is an artifact this server does not publish,
+ * because that is how `capture.index._assignment` reads it.
+ */
+describe('offering the units a form may be captured against', () => {
+    const tree = buildOrgUnitTree(locations)
+    const scopedList = lists.find((list) => list.id === 'd2-pr-PrScoped001-org-units') ?? null
+
+    it('offers the whole registry to a form that declares no assignment', () => {
+        expect(admittedUnitIds(null)).toBeNull()
+        expect(orgUnitChoices(tree, null)).toHaveLength(tree.total)
+    })
+
+    it('offers exactly the units a published assignment names', () => {
+        const admitted = admittedUnitIds(scopedList)
+
+        expect([...(admitted ?? [])].toSorted()).toEqual(['DiszpKrYNg8', 'O6uvpzGd5pu'])
+        expect(orgUnitChoices(tree, admitted).map((choice) => choice.id)).toEqual([
+            'O6uvpzGd5pu',
+            'DiszpKrYNg8',
+        ])
+    })
+
+    it('offers nothing at all for an assignment naming no published unit', () => {
+        const empty: ResourceList = { resourceType: 'List', id: 'empty', entry: [] }
+
+        // Not the same as no assignment: an empty List is a form assigned nowhere, and offering the
+        // registry there would offer exactly what the server refuses with E1029.
+        expect(orgUnitChoices(tree, admittedUnitIds(empty))).toEqual([])
+    })
+
+    it('walks the tree rather than the alphabet, and names each row`s parent', () => {
+        const choices = orgUnitChoices(tree, null)
+
+        expect(choices.map((choice) => choice.id)).toEqual([
+            'ImspTQPwCqd',
+            'O6uvpzGd5pu',
+            'YuQRtpLP10I',
+            'DiszpKrYNg8',
+            'vWbkYPRmKyS',
+            'lc3eMKXaEfw',
+            'fdc6uOvgoji',
+            'EJoI3HuIUEV',
+            'MgFYJDBqSSs',
+            // The detached unit sorts last for the same reason it does in the tree: its parent was
+            // left out of the selection, so it is a root by accident rather than by design.
+            'Rp268JB6Ne4',
+        ])
+        expect(choices[0].parentName).toBeNull()
+        expect(choices[1].parentName).toBe('Sierra Leone')
+        expect(choices[3].name).toBe('Ngelehun CHC')
+        expect(choices[3].level?.code).toBe('level-4')
+    })
+
+    it('keeps the hierarchy`s parent on a row whose parent is not itself offered', () => {
+        const choices = orgUnitChoices(tree, admittedUnitIds(scopedList))
+
+        // Badjia sits between Bo and Ngelehun CHC and is not assigned. The row still says where the
+        // facility is, because that is a fact about the registry rather than about the offer.
+        expect(choices[1].parentName).toBe('Badjia')
+    })
+
+    it('finds a unit by name, uid, or DHIS2 code, through the rule the tree filter uses', () => {
+        const choices = orgUnitChoices(tree, null)
+        const matching = (query: string) =>
+            choices.filter((choice) => matchesUnit(choice, query)).map((choice) => choice.id)
+
+        expect(matching('ngelehun')).toEqual(['DiszpKrYNg8'])
+        expect(matching('diszpkryng8')).toEqual(['DiszpKrYNg8'])
+        expect(matching('ou_ngelehun')).toEqual(['DiszpKrYNg8'])
+    })
+})
+
+/** How a chosen unit is written back, and read back off a submission. */
+describe('an organisation unit as a reference', () => {
+    const tree = buildOrgUnitTree(locations)
+    const choices = orgUnitChoices(tree, null)
+    const named = choices.find((choice) => choice.id === 'DiszpKrYNg8')
+
+    it('writes `Location/<stem>` with the registry`s name as the display', () => {
+        expect(orgUnitReference(named!)).toEqual({
+            reference: 'Location/DiszpKrYNg8',
+            display: 'Ngelehun CHC',
+        })
+    })
+
+    it('carries no display for a unit the registry does not name', () => {
+        const anonymous = { id: 'X', name: 'X', location: { resourceType: 'Location' as const, id: 'X' }, level: null, parentName: null }
+
+        // `orgUnitName` falls back to the id, and a display that repeats the reference says
+        // nothing - so it is left off rather than written as a name.
+        expect(orgUnitReference(anonymous)).toEqual({ reference: 'Location/X' })
+    })
+
+    it('reads the unit id back off a reference, and refuses one naming something else', () => {
+        expect(referencedUnitId({ reference: 'Location/DiszpKrYNg8' })).toBe('DiszpKrYNg8')
+        expect(referencedUnitId({ reference: 'Organization/DiszpKrYNg8' })).toBeNull()
+        expect(referencedUnitId({ reference: 'Location/' })).toBeNull()
+        expect(referencedUnitId(null)).toBeNull()
+    })
+
+    it('derives the response-side extension url from the form`s own canonical', () => {
+        expect(organisationUnitExtensionUrl(scopedQuestionnaire)).toBe(
+            'http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit',
+        )
+        expect(organisationUnitExtensionUrl({ resourceType: 'Questionnaire', status: 'draft' })).toBeNull()
+    })
+
+    it('knows which form kinds carry their unit on the extension rather than on subject', () => {
+        expect(carriesUnitOnExtension('aggregate')).toBe(false)
+        expect(carriesUnitOnExtension('event')).toBe(false)
+        expect(carriesUnitOnExtension('tracker')).toBe(true)
+        expect(carriesUnitOnExtension('tracker-event')).toBe(true)
+        expect(carriesUnitOnExtension(null)).toBe(false)
     })
 })

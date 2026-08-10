@@ -256,3 +256,113 @@ test.describe('a form whose data set reports per attribute option combo', () => 
         await expect(page.getByText(ATTRIBUTE_COMBO_CHOICE)).toBeVisible()
     })
 })
+
+/**
+ * The other piece of capture context a person supplies, on the form whose assignment narrows it.
+ *
+ * `PrScoped001` publishes an organisation-unit assignment naming two of the ten units this project
+ * publishes, and the facade grades a submission's unit against exactly that List - `E1029` is what
+ * DHIS2 refuses a capture outside it with. So the picker offering two rows rather than ten is not a
+ * convenience: it is the difference between a control that can produce a refused submission and one
+ * that cannot. This walks it end to end - the offer, the search, the change, and the unit on the
+ * receipt afterwards.
+ */
+test.describe('a form whose assignment narrows where it may be reported from', () => {
+    /** The event form restricted to one district and one facility, on different branches. */
+    const SCOPED_FORM = 'PrScoped001'
+
+    /** What `$generate` draws for it: the first unit its assignment admits, sorted. */
+    const DRAWN_UNIT = 'Ngelehun CHC'
+
+    /** The other one, chosen here by its DHIS2 code to prove the search reads identifiers too. */
+    const CHOSEN_UNIT = 'Bo'
+    const CHOSEN_UNIT_CODE = 'OU_BO'
+    const CHOSEN_UNIT_UID = 'O6uvpzGd5pu'
+
+    test('offers only the assigned units, narrows on search, and puts the chosen one on the receipt', async ({
+        page,
+    }) => {
+        // The skeleton is awaited rather than raced: the drawn unit lands in the picker as the
+        // pre-selection, and "already answered" is the state this spec starts from.
+        const opened = page.waitForResponse((response) => response.url().includes('$generate'))
+        await page.goto(`/#/forms/${SCOPED_FORM}`)
+        await opened
+
+        const picker = page.getByLabel('Reporting from')
+        await expect(picker).toBeVisible()
+        await expect(picker).toContainText(DRAWN_UNIT)
+        await expect(page.getByText('2 units are assigned to this form')).toBeVisible()
+
+        // Two of ten. The registry the org-units page browses is the same one this reads.
+        await picker.click()
+        await expect(page.getByRole('option')).toHaveCount(2)
+
+        const search = page.getByPlaceholder('Search by name, uid, or code')
+        await search.fill('ngele')
+        await expect(page.getByRole('option')).toHaveCount(1)
+
+        await search.fill(CHOSEN_UNIT_CODE)
+        await expect(page.getByRole('option')).toHaveCount(1)
+        // The row is the unit's name, its level, and the parent it sits under - so it is matched on
+        // the name it starts with rather than on the whole line.
+        await page.getByRole('option', { name: new RegExp(`^${CHOSEN_UNIT}\\b`) }).click()
+        await expect(picker).toContainText(CHOSEN_UNIT)
+
+        await page.getByRole('button', { name: 'Submit' }).click()
+        await expect(page.getByText('The server accepted this submission')).toBeVisible()
+        await expect(page).toHaveURL(/#\/responses$/)
+
+        await page.getByRole('row').filter({ hasText: 'Outbreak response' }).first().click()
+        await expect(page.getByRole('heading', { name: 'Capture context' })).toBeVisible()
+        // Named rather than left as a uid: the receipt page reads the registry, so the unit reads
+        // as the place it is, with the uid DHIS2 stores beside it.
+        await expect(page.getByText(`${CHOSEN_UNIT} (${CHOSEN_UNIT_UID})`)).toBeVisible()
+    })
+})
+
+/**
+ * A DHIS2 `ORGANISATION_UNIT` data element, filled in.
+ *
+ * The emitter writes that value type as a `reference` question, and `PrTemporal1` asks one -
+ * "Visited unit". It used to render as "not filled in this UI"; it is the same picker the reporting
+ * unit uses, in the field grid. This form publishes no assignment, so the offer is the whole
+ * registry - which is the other half of the intersection the spec above covers.
+ */
+test.describe('a form asking for an organisation unit as an answer', () => {
+    const TEMPORAL_FORM = 'PrTemporal1'
+
+    test('fills a reference question from the registry and shows the unit on the receipt', async ({
+        page,
+    }) => {
+        const opened = page.waitForResponse((response) => response.url().includes('$generate'))
+        await page.goto(`/#/forms/${TEMPORAL_FORM}`)
+        await opened
+
+        const answer = page.getByLabel('Visited unit')
+        await expect(answer).toBeVisible()
+        await expect(page.getByText('is not filled in this UI')).toHaveCount(0)
+        await expect(page.getByText('assigned everywhere')).toBeVisible()
+
+        // The draw answers the question too, and a refill is what pours those answers into the
+        // form - so this is the pre-selection landing, not the envelope's own unit.
+        await page.getByRole('button', { name: 'Fill with test data' }).click()
+        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+        await expect(answer).toContainText('Ngelehun CHC')
+
+        await answer.click()
+        await page.getByPlaceholder('Search by name, uid, or code').fill('bombali')
+        await page.getByRole('option', { name: /Bombali/ }).click()
+        await expect(answer).toContainText('Bombali')
+
+        await page.getByRole('button', { name: 'Submit' }).click()
+        await expect(page.getByText('The server accepted this submission')).toBeVisible()
+
+        await page.getByRole('row').filter({ hasText: 'Temporal capture' }).first().click()
+        const row = page.getByRole('row').filter({ hasText: 'DeVisitUnit1' })
+        await expect(row).toHaveCount(1)
+        await expect(row).toContainText('Visited unit')
+        // The name this UI wrote onto the reference's display, with the uid DHIS2 stores beside it.
+        await expect(row).toContainText('Bombali')
+        await expect(row).toContainText('fdc6uOvgoji')
+    })
+})

@@ -22,7 +22,8 @@
  * WHY SLOTS HOLD LITERALS, NOT value[x]. A `value[x]` is a settled fact; "", "-" and "1." are
  * all states a numeric field passes through on the way to one, and a reducer holding
  * `valueDecimal: NaN` mid-keystroke is a reducer that fights its own controls. So a slot holds
- * the literal the control shows plus the concept a coded control picked, and the conversion to
+ * the literal the control shows, plus the concept a coded control picked and the resource a
+ * reference control picked - the two kinds of answer that arrive settled - and the conversion to
  * `value[x]` happens once, in `buildQuestionnaireResponse`, against the answer element the
  * question's item type pins. The temporal normalisers below are part of that conversion: an
  * `<input type="time">` yields `20:00`, and R4 `time` requires seconds, so what the browser
@@ -35,6 +36,7 @@ import {
     attributeOptionComboExtensionUrl,
     attributeOptionComboOf,
     ATTRIBUTE_OPTION_COMBO_EXTENSION_SUFFIX,
+    formTypeOf,
     type Coding,
     type Extension,
     type Questionnaire,
@@ -48,7 +50,14 @@ import {
     type QuestionnaireResponse,
     type QuestionnaireResponseAnswer,
     type QuestionnaireResponseItem,
+    type Reference,
 } from '@/lib/fhir'
+import {
+    carriesUnitOnExtension,
+    ORG_UNIT_EXTENSION_SUFFIX,
+    organisationUnitExtensionUrl,
+    reportingUnitOf,
+} from '@/lib/orgunits'
 
 /** The standard R4 extensions a numeric question carries its inclusive bounds on. */
 export const MINIMUM_VALUE_EXTENSION_URL = 'http://hl7.org/fhir/StructureDefinition/minValue'
@@ -87,10 +96,14 @@ export type AnswerElement = Exclude<keyof QuestionnaireResponseAnswer, 'item'>
 /**
  * The elements this UI can actually fill.
  *
- * `valueAttachment` needs a file, `valueReference` needs a resource picker over organisation
- * units; neither is something a test-data capture screen should fake. Questions answering on
- * them are rendered as read-only notices, and `buildQuestionnaireResponse` writes no answer
- * for them - which is a submission missing an answer, not a submission carrying a wrong one.
+ * `valueAttachment` is the one left out: it needs a file, and a capture screen that invented one
+ * would be inventing content rather than context. A question answering on it is rendered as a
+ * read-only notice, and `buildQuestionnaireResponse` writes no answer for it - which is a
+ * submission missing an answer, not a submission carrying a wrong one.
+ *
+ * `valueReference` is in, and it is the only element here whose control needs the server: a DHIS2
+ * `ORGANISATION_UNIT` data element answers as a reference to a published Location, so the picker
+ * offers the registry narrowed to the form's own assignment. See components/OrgUnitPicker.tsx.
  */
 export const FILLABLE_ANSWER_ELEMENTS: ReadonlySet<AnswerElement> = new Set<AnswerElement>([
     'valueBoolean',
@@ -102,6 +115,7 @@ export const FILLABLE_ANSWER_ELEMENTS: ReadonlySet<AnswerElement> = new Set<Answ
     'valueString',
     'valueUri',
     'valueCoding',
+    'valueReference',
 ])
 
 /** One flattened item: everything a control needs to render itself and write its answer back. */
@@ -156,7 +170,16 @@ export interface QuestionnaireSpec {
     questionLinkIds: string[]
 }
 
-/** One answer slot as the form holds it mid-edit: the literal a control shows, and the concept it picked. */
+/**
+ * One answer slot as the form holds it mid-edit: the literal a control shows, and what it picked.
+ *
+ * THREE FIELDS, NOT ONE STRING. A picked concept and a picked resource are settled values with no
+ * half-typed states, so neither travels through `text`: a `Coding` has a system and a display
+ * beside its code, a `Reference` has a display beside its `Location/<stem>`, and squeezing either
+ * into the string a keyboard writes would mean parsing it back out at submit time and losing
+ * whatever the wire carried. Exactly one of the three is meaningful per question, and which one is
+ * decided by the item type's answer element rather than by inspecting the slot.
+ */
 export interface AnswerSlot {
     /**
      * What every text-shaped control holds verbatim - strings, numbers mid-typing, dates,
@@ -165,13 +188,15 @@ export interface AnswerSlot {
     text: string
     /** The concept a coded control picked, or null for every other control and for none picked. */
     coding: Coding | null
+    /** The resource a reference control picked, or null for every other control and for none picked. */
+    reference: Reference | null
 }
 
 /** Every answer of one form, keyed by link id; a question with no entry is unanswered. */
 export type AnswerState = Readonly<Record<string, readonly AnswerSlot[]>>
 
 /** A slot holding nothing, which is what a fresh repeat row and a cleared control both are. */
-export const EMPTY_SLOT: AnswerSlot = { text: '', coding: null }
+export const EMPTY_SLOT: AnswerSlot = { text: '', coding: null, reference: null }
 
 /** Everything that can happen to the answers of one form. */
 export type AnswerAction =
@@ -283,21 +308,26 @@ export function isEnabled(spec: QuestionnaireSpec, linkId: string, answers: Answ
  * With no envelope at all the response is still assembled, and the server's refusal naming the
  * missing context is a better error than a button that refuses to submit.
  *
- * THE ONE PIECE OF CONTEXT THE USER OWNS is the attribute option combo. It is the third key of a
- * DHIS2 data value - beside the organisation unit and the period - and unlike those two it is not
- * derivable from anything: which project a month of stock figures is reported under is a fact only
- * the person filling the form has. So it is not taken from the envelope but *written over* it:
- * whatever the picker holds replaces whatever `$generate` happened to draw, on exactly the
- * philosophy the answers follow. A null choice leaves the envelope's extensions as they came,
- * which is the whole of the default-combo case - a form declaring no vocabulary has nothing to
- * pick and nothing to write.
+ * TWO PIECES OF CONTEXT ARE THE USER'S, and both are *written over* the envelope rather than taken
+ * from it - on exactly the philosophy the answers follow. The attribute option combo is the third
+ * key of a DHIS2 data value, beside the organisation unit and the period, and unlike those two it
+ * is derivable from nothing: which project a month of stock figures is reported under is a fact
+ * only the person filling the form has. The organisation unit is derivable - `$generate` draws one
+ * the form admits - but it is a choice, not a fact about the form: a district officer covering four
+ * facilities reports the same form from a different one each morning, and a screen that made them
+ * accept whichever unit the draw happened to pick would be a screen for one facility.
+ *
+ * A null in either leaves the envelope exactly as it came. For the combo that is the whole of the
+ * default-combo case - a form declaring no vocabulary has nothing to pick and nothing to write. For
+ * the unit it is the case where `$generate` was refused: there is no envelope to correct, and the
+ * server's refusal naming the missing context is a better answer than a guess at it.
  */
 export function buildQuestionnaireResponse(
     spec: QuestionnaireSpec,
     answers: AnswerState,
     questionnaire: Questionnaire,
     envelope: QuestionnaireResponse | null,
-    attributeOptionCombo: Coding | null,
+    context: CaptureContext,
 ): QuestionnaireResponse {
     const enabled = enabledLinkIds(spec, answers)
     const item = spec.rootLinkIds.flatMap((linkId) => {
@@ -305,18 +335,34 @@ export function buildQuestionnaireResponse(
         return built === null ? [] : [built]
     })
     const questionnaireUrl = questionnaire.url ?? envelope?.questionnaire
-    const extension = extensionsWithAttributeOptionCombo(questionnaire, envelope, attributeOptionCombo)
+    const withCombo = extensionsWithAttributeOptionCombo(questionnaire, envelope, context.attributeOptionCombo)
+    const onExtension = carriesUnitOnExtension(formTypeOf(questionnaire))
+    const extension = onExtension
+        ? extensionsWithReportingUnit(questionnaire, withCombo, context.reportingUnit)
+        : withCombo
+    const subject = onExtension ? envelope?.subject : (context.reportingUnit ?? envelope?.subject)
     return {
         resourceType: 'QuestionnaireResponse',
         ...(envelope?.meta ? { meta: envelope.meta } : {}),
         ...(questionnaireUrl ? { questionnaire: questionnaireUrl } : {}),
         status: 'completed',
         ...(extension.length > 0 ? { extension } : {}),
-        ...(envelope?.subject ? { subject: envelope.subject } : {}),
+        ...(subject ? { subject } : {}),
         ...(envelope?.authored ? { authored: envelope.authored } : {}),
         ...(item.length > 0 ? { item } : {}),
     }
 }
+
+/** The capture context this screen owns, as against the envelope `$generate` drew around it. */
+export interface CaptureContext {
+    /** The attribute option combo the whole submission is filed under, or null when none is chosen. */
+    attributeOptionCombo: Coding | null
+    /** The organisation unit the submission reports from, or null to keep whatever the envelope drew. */
+    reportingUnit: Reference | null
+}
+
+/** Nothing chosen, which is what a form holds before its skeleton lands. */
+export const NO_CAPTURE_CONTEXT: CaptureContext = { attributeOptionCombo: null, reportingUnit: null }
 
 /**
  * The picker's selection when a form is first opened: whatever is chosen, else what the server drew.
@@ -350,6 +396,40 @@ export function refilledAttributeOptionCombo(
 }
 
 /**
+ * The reporting unit when a form is first opened: whatever is chosen, else what the server drew.
+ *
+ * The same rule the combo follows, and for the same two reasons. `$generate` picks a unit the
+ * form's assignment admits (`_capture_location_id` in `dhis2w_fhir_serve.synthesize`), so the form
+ * opens already reporting from somewhere postable; and the skeleton is read after the form is on
+ * screen, so a person who picked while it was in flight keeps their choice.
+ */
+export function openedReportingUnit(
+    current: Reference | null,
+    envelope: QuestionnaireResponse | null,
+    questionnaire: Questionnaire | null,
+): Reference | null {
+    if (current !== null) return current
+    if (envelope === null || questionnaire === null) return null
+    return reportingUnitOf(envelope, formTypeOf(questionnaire))
+}
+
+/**
+ * The reporting unit after "fill with test data": what the fresh draw states, else what is chosen.
+ *
+ * The other order, because a refill is the server proposing a whole submission - envelope included
+ * - and a draw that states no unit leaves the selection alone rather than emptying a control the
+ * person had already answered.
+ */
+export function refilledReportingUnit(
+    current: Reference | null,
+    envelope: QuestionnaireResponse | null,
+    questionnaire: Questionnaire | null,
+): Reference | null {
+    if (envelope === null || questionnaire === null) return current
+    return reportingUnitOf(envelope, formTypeOf(questionnaire)) ?? current
+}
+
+/**
  * The envelope's extensions with the chosen combo written into them.
  *
  * The url is the envelope's own spelling when it already carries the extension, so a project served
@@ -370,6 +450,28 @@ function extensionsWithAttributeOptionCombo(
     const written: Extension = { url, valueCoding: attributeOptionCombo }
     // Replaced where the server wrote it, so a rebuilt response reads as the same document rather
     // than as one with its context shuffled to the end.
+    if (stated === undefined) return [...carried, written]
+    return carried.map((candidate) => (candidate === stated ? written : candidate))
+}
+
+/**
+ * The extensions with the chosen organisation unit written into them, for a tracker response.
+ *
+ * The same replace-in-place discipline the combo follows: the envelope's own url wins when it
+ * already states one, the form's canonical is the fallback, and nothing is written under a url
+ * neither of them names. `carriesUnitOnExtension` is what decides this runs at all - an aggregate
+ * or event response names its unit as `subject` and never reaches here.
+ */
+function extensionsWithReportingUnit(
+    questionnaire: Questionnaire,
+    carried: Extension[],
+    reportingUnit: Reference | null,
+): Extension[] {
+    if (reportingUnit === null) return carried
+    const stated = carried.find((candidate) => candidate.url.endsWith(ORG_UNIT_EXTENSION_SUFFIX))
+    const url = stated?.url ?? organisationUnitExtensionUrl(questionnaire)
+    if (url === null) return carried
+    const written: Extension = { url, valueReference: reportingUnit }
     if (stated === undefined) return [...carried, written]
     return carried.map((candidate) => (candidate === stated ? written : candidate))
 }
@@ -447,6 +549,10 @@ export function slotAnswer(node: QuestionnaireNode, slot: AnswerSlot): Questionn
             // free-text half of that control produces. A closed `choice` has no such spelling.
             if (node.type === 'open-choice' && slot.text.trim() !== '') return { valueString: slot.text }
             return null
+        case 'valueReference':
+            // No text spelling to fall back on: a DHIS2 `ORGANISATION_UNIT` answer is a reference
+            // to a published Location or it is nothing, and the capture validator reads the shape.
+            return slot.reference === null ? null : { valueReference: slot.reference }
         default:
             return null
     }
@@ -716,13 +822,14 @@ function buildItem(
  * question's own answer element cannot decide this one.
  */
 function slotFromAnswer(answer: QuestionnaireResponseAnswer): AnswerSlot | null {
-    if (answer.valueCoding !== undefined) return { text: '', coding: answer.valueCoding }
-    if (answer.valueBoolean !== undefined) return { text: String(answer.valueBoolean), coding: null }
-    if (answer.valueDecimal !== undefined) return { text: String(answer.valueDecimal), coding: null }
-    if (answer.valueInteger !== undefined) return { text: String(answer.valueInteger), coding: null }
+    if (answer.valueCoding !== undefined) return { ...EMPTY_SLOT, coding: answer.valueCoding }
+    if (answer.valueReference !== undefined) return { ...EMPTY_SLOT, reference: answer.valueReference }
+    if (answer.valueBoolean !== undefined) return { ...EMPTY_SLOT, text: String(answer.valueBoolean) }
+    if (answer.valueDecimal !== undefined) return { ...EMPTY_SLOT, text: String(answer.valueDecimal) }
+    if (answer.valueInteger !== undefined) return { ...EMPTY_SLOT, text: String(answer.valueInteger) }
     const text = answer.valueDate ?? answer.valueDateTime ?? answer.valueTime ?? answer.valueString ?? answer.valueUri
-    if (text !== undefined) return { text, coding: null }
-    // valueAttachment and valueReference have no control here, so there is nothing to fill.
+    if (text !== undefined) return { ...EMPTY_SLOT, text }
+    // valueAttachment has no control here, so there is nothing to fill.
     return null
 }
 

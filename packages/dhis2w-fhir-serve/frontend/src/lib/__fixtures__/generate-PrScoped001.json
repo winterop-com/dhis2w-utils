@@ -15,7 +15,7 @@
     "system": "http://localhost:8080/fhir/id/generate-seed",
     "value": "7"
   },
-  "questionnaire": "http://localhost:8080/fhir/Questionnaire/EVTsupVis01",
+  "questionnaire": "http://localhost:8080/fhir/Questionnaire/PrScoped001",
   "status": "completed",
   "subject": {
     "reference": "Location/DiszpKrYNg8"
@@ -23,18 +23,10 @@
   "authored": "2026-07-21T04:00:00Z",
   "item": [
     {
-      "linkId": "s46m5MS0hxu",
+      "linkId": "DeCaseCount01",
       "answer": [
         {
           "valueInteger": 404
-        }
-      ]
-    },
-    {
-      "linkId": "YtbsuPPo010",
-      "answer": [
-        {
-          "valueDecimal": 650.9
         }
       ]
     }

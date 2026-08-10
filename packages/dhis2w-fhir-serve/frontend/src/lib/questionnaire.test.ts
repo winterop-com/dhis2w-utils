@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import generateAggregateFixture from '@/lib/__fixtures__/generate-BfMAe6Itzgt.json'
 import generateEventFixture from '@/lib/__fixtures__/generate-EVTsupVis01.json'
+import generateScopedFixture from '@/lib/__fixtures__/generate-PrScoped001.json'
 import generateTemporalFixture from '@/lib/__fixtures__/generate-PrTemporal1.json'
 import generateTrackerFixture from '@/lib/__fixtures__/generate-ZzYYXq4fJie.json'
+import scopedQuestionnaireFixture from '@/lib/__fixtures__/questionnaire-PrScoped001.json'
 import temporalQuestionnaireFixture from '@/lib/__fixtures__/questionnaire-PrTemporal1.json'
 import attributeComboFormFixture from '@/lib/__fixtures__/questionnaire-TuL8IOPzpHh.json'
 import questionnaireBundleFixture from '@/lib/__fixtures__/questionnaire-bundle.json'
@@ -15,6 +17,7 @@ import {
     type Bundle,
     type Questionnaire,
     type QuestionnaireResponse,
+    type Reference,
 } from '@/lib/fhir'
 import {
     answersFromResponse,
@@ -28,12 +31,16 @@ import {
     isAnswered,
     normaliseDateTime,
     normaliseTime,
+    NO_CAPTURE_CONTEXT,
     openedAttributeOptionCombo,
+    openedReportingUnit,
     refilledAttributeOptionCombo,
+    refilledReportingUnit,
     slotAnswer,
     unansweredRequiredLinkIds,
     type AnswerState,
 } from '@/lib/questionnaire'
+import { reportingUnitOf } from '@/lib/orgunits'
 
 /**
  * The renderer's reading of a form, checked against forms the server really serves.
@@ -168,6 +175,7 @@ describe('flattening a compiled Questionnaire', () => {
             DeVisitTime1: 'valueTime',
             DeVisitStamp: 'valueDateTime',
             DeVisitLink1: 'valueUri',
+            DeVisitUnit1: 'valueReference',
             DeSymptoms01: 'valueCoding',
             DeCoverage01: 'valueDecimal',
             DeOpenBind01: 'valueCoding',
@@ -289,7 +297,7 @@ const conditionalSpec = flattenQuestionnaire(CONDITIONAL_FORM)
 /** Answers as literals, which is what a control writes and the reducer holds. */
 function answersOf(literals: Record<string, string>): AnswerState {
     return Object.fromEntries(
-        Object.entries(literals).map(([linkId, text]) => [linkId, [{ text, coding: null }]]),
+        Object.entries(literals).map(([linkId, text]) => [linkId, [{ ...EMPTY_SLOT, text }]]),
     )
 }
 
@@ -384,9 +392,9 @@ describe('enableWhen', () => {
     }
 
     it('matches a coded condition on code and system together', () => {
-        const matching = { 'q-coding': [{ text: '', coding: { system: 'http://example.org/cs', code: 'YES' } }] }
-        const wrongSystem = { 'q-coding': [{ text: '', coding: { system: 'http://other.org/cs', code: 'YES' } }] }
-        const wrongCode = { 'q-coding': [{ text: '', coding: { system: 'http://example.org/cs', code: 'NO' } }] }
+        const matching = { 'q-coding': [{ text: '', coding: { system: 'http://example.org/cs', code: 'YES' }, reference: null }] }
+        const wrongSystem = { 'q-coding': [{ text: '', coding: { system: 'http://other.org/cs', code: 'YES' }, reference: null }] }
+        const wrongCode = { 'q-coding': [{ text: '', coding: { system: 'http://example.org/cs', code: 'NO' }, reference: null }] }
 
         expect(enabledLinkIds(conditionalSpec, matching).has('d-coded')).toBe(true)
         expect(enabledLinkIds(conditionalSpec, wrongSystem).has('d-coded')).toBe(false)
@@ -407,7 +415,7 @@ describe('enableWhen', () => {
     it('keeps a disabled item’s answers in state but writes none of them', () => {
         const answers = { ...answersOf({ 'q-boolean': 'false' }), ...answersOf({ 'd-in-group': 'typed earlier' }) }
 
-        const built = buildQuestionnaireResponse(conditionalSpec, answers, CONDITIONAL_FORM, null, null)
+        const built = buildQuestionnaireResponse(conditionalSpec, answers, CONDITIONAL_FORM, null, NO_CAPTURE_CONTEXT)
 
         expect(answers['d-in-group']).toHaveLength(1)
         expect(JSON.stringify(built.item ?? [])).not.toContain('typed earlier')
@@ -429,7 +437,7 @@ describe('the answers reducer', () => {
         }
 
         expect(initialAnswers(flattenQuestionnaire(withInitial))).toEqual({
-            greeting: [{ text: 'hello', coding: null }],
+            greeting: [{ text: 'hello', coding: null, reference: null }],
         })
     })
 
@@ -438,18 +446,18 @@ describe('the answers reducer', () => {
             kind: 'set',
             linkId: 'DeCoverage01',
             index: 0,
-            slot: { text: '42', coding: null },
+            slot: { text: '42', coding: null, reference: null },
         })
 
-        expect(next).toEqual({ DeCoverage01: [{ text: '42', coding: null }] })
+        expect(next).toEqual({ DeCoverage01: [{ text: '42', coding: null, reference: null }] })
     })
 
     it('leaves the state it was given untouched', () => {
-        const before: AnswerState = { DeCoverage01: [{ text: '1', coding: null }] }
+        const before: AnswerState = { DeCoverage01: [{ text: '1', coding: null, reference: null }] }
 
-        answersReducer(before, { kind: 'set', linkId: 'DeCoverage01', index: 0, slot: { text: '2', coding: null } })
+        answersReducer(before, { kind: 'set', linkId: 'DeCoverage01', index: 0, slot: { text: '2', coding: null, reference: null } })
 
-        expect(before).toEqual({ DeCoverage01: [{ text: '1', coding: null }] })
+        expect(before).toEqual({ DeCoverage01: [{ text: '1', coding: null, reference: null }] })
     })
 
     it('clears one question without touching its neighbours', () => {
@@ -473,12 +481,12 @@ describe('the answers reducer', () => {
             kind: 'set',
             linkId: 'DeSymptoms01',
             index: 1,
-            slot: { text: '', coding: { code: 'OpCough0001' } },
+            slot: { text: '', coding: { code: 'OpCough0001' }, reference: null },
         })
 
         expect(one.DeSymptoms01).toEqual([EMPTY_SLOT])
         expect(two.DeSymptoms01).toHaveLength(2)
-        expect(filled.DeSymptoms01?.[1]).toEqual({ text: '', coding: { code: 'OpCough0001' } })
+        expect(filled.DeSymptoms01?.[1]).toEqual({ text: '', coding: { code: 'OpCough0001' }, reference: null })
 
         const afterFirstRemoved = answersReducer(filled, {
             kind: 'remove-repeat',
@@ -486,7 +494,7 @@ describe('the answers reducer', () => {
             index: 0,
         })
 
-        expect(afterFirstRemoved.DeSymptoms01).toEqual([{ text: '', coding: { code: 'OpCough0001' } }])
+        expect(afterFirstRemoved.DeSymptoms01).toEqual([{ text: '', coding: { code: 'OpCough0001' }, reference: null }])
 
         const afterLastRemoved = answersReducer(afterFirstRemoved, {
             kind: 'remove-repeat',
@@ -503,7 +511,7 @@ describe('the answers reducer', () => {
         const next = answersReducer(answersOf({ DeCoverage01: '1' }), { kind: 'replace', answers: generated })
 
         expect(next).toBe(generated)
-        expect(next.DeCoverage01).toEqual([{ text: '58.3', coding: null }])
+        expect(next.DeCoverage01).toEqual([{ text: '58.3', coding: null, reference: null }])
     })
 })
 
@@ -514,26 +522,26 @@ describe('what counts as an answer', () => {
         const decimal = spec.byLinkId.get('DeCoverage01')
         const date = spec.byLinkId.get('DeVisitDate1')
 
-        expect(slotAnswer(decimal!, { text: '58.3', coding: null })).toEqual({ valueDecimal: 58.3 })
-        expect(slotAnswer(decimal!, { text: '', coding: null })).toBeNull()
-        expect(slotAnswer(decimal!, { text: 'banana', coding: null })).toBeNull()
-        expect(slotAnswer(date!, { text: '2026-07-22', coding: null })).toEqual({ valueDate: '2026-07-22' })
+        expect(slotAnswer(decimal!, { text: '58.3', coding: null, reference: null })).toEqual({ valueDecimal: 58.3 })
+        expect(slotAnswer(decimal!, { text: '', coding: null, reference: null })).toBeNull()
+        expect(slotAnswer(decimal!, { text: 'banana', coding: null, reference: null })).toBeNull()
+        expect(slotAnswer(date!, { text: '2026-07-22', coding: null, reference: null })).toEqual({ valueDate: '2026-07-22' })
     })
 
     it('refuses a non-whole number on a question that answers as integer', () => {
         const ancSpec = flattenQuestionnaire(servedForm('PsAncVisit1'))
         const visitNumber = ancSpec.byLinkId.get('DeAncVisNo1')
 
-        expect(slotAnswer(visitNumber!, { text: '3', coding: null })).toEqual({ valueInteger: 3 })
-        expect(slotAnswer(visitNumber!, { text: '3.5', coding: null })).toBeNull()
+        expect(slotAnswer(visitNumber!, { text: '3', coding: null, reference: null })).toEqual({ valueInteger: 3 })
+        expect(slotAnswer(visitNumber!, { text: '3.5', coding: null, reference: null })).toBeNull()
     })
 
     it('holds false as an answer, and nothing as none', () => {
         const trackerSpec = flattenQuestionnaire(servedForm('ZzYYXq4fJie'))
         const measles = trackerSpec.byLinkId.get('FqlgKAG8HOu')
 
-        expect(slotAnswer(measles!, { text: 'false', coding: null })).toEqual({ valueBoolean: false })
-        expect(isAnswered(measles!, { FqlgKAG8HOu: [{ text: 'false', coding: null }] })).toBe(true)
+        expect(slotAnswer(measles!, { text: 'false', coding: null, reference: null })).toEqual({ valueBoolean: false })
+        expect(isAnswered(measles!, { FqlgKAG8HOu: [{ text: 'false', coding: null, reference: null }] })).toBe(true)
         expect(isAnswered(measles!, { FqlgKAG8HOu: [EMPTY_SLOT] })).toBe(false)
     })
 
@@ -548,10 +556,10 @@ describe('what counts as an answer', () => {
         }
         const openSpec = flattenQuestionnaire(openForm)
 
-        expect(slotAnswer(openSpec.byLinkId.get('open')!, { text: 'other', coding: null })).toEqual({
+        expect(slotAnswer(openSpec.byLinkId.get('open')!, { text: 'other', coding: null, reference: null })).toEqual({
             valueString: 'other',
         })
-        expect(slotAnswer(openSpec.byLinkId.get('closed')!, { text: 'other', coding: null })).toBeNull()
+        expect(slotAnswer(openSpec.byLinkId.get('closed')!, { text: 'other', coding: null, reference: null })).toBeNull()
     })
 
     it('names every required question the form is still waiting on', () => {
@@ -594,7 +602,7 @@ describe('rebuilding a QuestionnaireResponse', () => {
                 answersFromResponse(spec, generated),
                 questionnaire,
                 generated,
-                null,
+                NO_CAPTURE_CONTEXT,
             )
 
             expect(rebuilt.item).toEqual(generated.item)
@@ -603,7 +611,7 @@ describe('rebuilding a QuestionnaireResponse', () => {
         it(`keeps the ${id} envelope the server built, and drops the seed identifier`, () => {
             const spec = flattenQuestionnaire(questionnaire)
 
-            const rebuilt = buildQuestionnaireResponse(spec, {}, questionnaire, generated, null)
+            const rebuilt = buildQuestionnaireResponse(spec, {}, questionnaire, generated, NO_CAPTURE_CONTEXT)
 
             expect(rebuilt.resourceType).toBe('QuestionnaireResponse')
             expect(rebuilt.status).toBe('completed')
@@ -624,7 +632,7 @@ describe('rebuilding a QuestionnaireResponse', () => {
         const dataElement = spec.byLinkId.get(section?.childLinkIds[0] ?? '')
         const cell = dataElement?.childLinkIds[1] ?? ''
 
-        const built = buildQuestionnaireResponse(spec, answersOf({ [cell]: '12' }), questionnaire, null, null)
+        const built = buildQuestionnaireResponse(spec, answersOf({ [cell]: '12' }), questionnaire, null, NO_CAPTURE_CONTEXT)
 
         // One answered cell yields one branch: the whole rest of a 200-question form is absent,
         // and the two groups above the cell are there only because it is.
@@ -640,12 +648,12 @@ describe('rebuilding a QuestionnaireResponse', () => {
         const spec = flattenQuestionnaire(temporalQuestionnaire)
         const answers: AnswerState = {
             DeSymptoms01: [
-                { text: '', coding: { system: 'http://example.org/cs', code: 'OpFever0001', display: 'Fever' } },
-                { text: '', coding: { system: 'http://example.org/cs', code: 'OpCough0001', display: 'Cough' } },
+                { text: '', coding: { system: 'http://example.org/cs', code: 'OpFever0001', display: 'Fever' }, reference: null },
+                { text: '', coding: { system: 'http://example.org/cs', code: 'OpCough0001', display: 'Cough' }, reference: null },
             ],
         }
 
-        const built = buildQuestionnaireResponse(spec, answers, temporalQuestionnaire, null, null)
+        const built = buildQuestionnaireResponse(spec, answers, temporalQuestionnaire, null, NO_CAPTURE_CONTEXT)
 
         expect(built.item).toEqual([
             {
@@ -667,14 +675,14 @@ describe('rebuilding a QuestionnaireResponse', () => {
         const spec = flattenQuestionnaire(unfillable)
 
         expect(spec.byLinkId.get('photo')?.fillable).toBe(false)
-        expect(buildQuestionnaireResponse(spec, answersOf({ photo: 'anything' }), unfillable, null, null).item).toBeUndefined()
+        expect(buildQuestionnaireResponse(spec, answersOf({ photo: 'anything' }), unfillable, null, NO_CAPTURE_CONTEXT).item).toBeUndefined()
     })
 
     it('assembles a response with no envelope rather than refusing to build one', () => {
         const questionnaire = servedForm('EVTsupVis01')
         const spec = flattenQuestionnaire(questionnaire)
 
-        const built = buildQuestionnaireResponse(spec, answersOf({ s46m5MS0hxu: '148' }), questionnaire, null, null)
+        const built = buildQuestionnaireResponse(spec, answersOf({ s46m5MS0hxu: '148' }), questionnaire, null, NO_CAPTURE_CONTEXT)
 
         expect(built).toEqual({
             resourceType: 'QuestionnaireResponse',
@@ -702,7 +710,7 @@ describe('the attribute option combo a submission reports for', () => {
     }
 
     it('writes the chosen coding onto a response built from no envelope at all', () => {
-        const built = buildQuestionnaireResponse(spec, {}, attributeComboForm, null, chosen)
+        const built = buildQuestionnaireResponse(spec, {}, attributeComboForm, null, { ...NO_CAPTURE_CONTEXT, attributeOptionCombo: chosen })
 
         expect(built.extension).toEqual([
             {
@@ -713,7 +721,7 @@ describe('the attribute option combo a submission reports for', () => {
     })
 
     it('replaces the envelope`s combo in place, keeping every other piece of context', () => {
-        const built = buildQuestionnaireResponse(spec, {}, attributeComboForm, attributeComboResponse, chosen)
+        const built = buildQuestionnaireResponse(spec, {}, attributeComboForm, attributeComboResponse, { ...NO_CAPTURE_CONTEXT, attributeOptionCombo: chosen })
 
         // The picker wins over the draw, on the same philosophy the answers follow - and the
         // period, the form type, and the order they were written in are the server's own.
@@ -725,14 +733,14 @@ describe('the attribute option combo a submission reports for', () => {
     })
 
     it('leaves the envelope untouched when nothing was chosen, which is the default-combo case', () => {
-        const built = buildQuestionnaireResponse(spec, {}, attributeComboForm, attributeComboResponse, null)
+        const built = buildQuestionnaireResponse(spec, {}, attributeComboForm, attributeComboResponse, NO_CAPTURE_CONTEXT)
 
         expect(built.extension).toEqual(attributeComboResponse.extension)
     })
 
     it('writes nothing at all for a form that declares no vocabulary', () => {
         const questionnaire = servedForm('BfMAe6Itzgt')
-        const built = buildQuestionnaireResponse(flattenQuestionnaire(questionnaire), {}, questionnaire, null, chosen)
+        const built = buildQuestionnaireResponse(flattenQuestionnaire(questionnaire), {}, questionnaire, null, { ...NO_CAPTURE_CONTEXT, attributeOptionCombo: chosen })
 
         expect(built.extension).toBeUndefined()
     })
@@ -753,5 +761,135 @@ describe('the attribute option combo a submission reports for', () => {
             chosen,
         )
         expect(refilledAttributeOptionCombo(null, null)).toBeNull()
+    })
+})
+
+/**
+ * A DHIS2 `ORGANISATION_UNIT` data element, answered.
+ *
+ * The emitter writes that value type as a `reference` item and nothing else writes one, so the
+ * whole of this case is a `Location/<stem>` on `valueReference`. `PrTemporal1` carries one -
+ * `DeVisitUnit1` - and its `$generate` skeleton answers it, which is what makes the round trip
+ * above a test of this slot rather than of the six that were already there.
+ */
+describe('a reference answer', () => {
+    const spec = flattenQuestionnaire(temporalQuestionnaire)
+    const node = spec.byLinkId.get('DeVisitUnit1')
+    const picked: Reference = { reference: 'Location/DiszpKrYNg8', display: 'Ngelehun CHC' }
+
+    it('is fillable, and answers on valueReference', () => {
+        expect(node?.answerElement).toBe('valueReference')
+        expect(node?.fillable).toBe(true)
+    })
+
+    it('carries the reference on its own slot field, never through the text a keyboard writes', () => {
+        expect(slotAnswer(node!, { ...EMPTY_SLOT, reference: picked })).toEqual({ valueReference: picked })
+        // A text spelling of a reference is not an answer: the capture validator reads the
+        // `value[x]` the item type pins, and a `valueString` there is refused outright.
+        expect(slotAnswer(node!, { ...EMPTY_SLOT, text: 'Location/DiszpKrYNg8' })).toBeNull()
+        expect(slotAnswer(node!, EMPTY_SLOT)).toBeNull()
+    })
+
+    it('counts as answered only once a unit has been picked', () => {
+        expect(isAnswered(node!, { DeVisitUnit1: [EMPTY_SLOT] })).toBe(false)
+        expect(isAnswered(node!, { DeVisitUnit1: [{ ...EMPTY_SLOT, reference: picked }] })).toBe(true)
+    })
+
+    it('reads the drawn answer back as a pre-selection', () => {
+        const answers = answersFromResponse(spec, generateTemporalFixture as unknown as QuestionnaireResponse)
+
+        expect(answers.DeVisitUnit1?.[0]?.reference?.reference).toBe('Location/DiszpKrYNg8')
+        expect(answers.DeVisitUnit1?.[0]?.text).toBe('')
+        expect(answers.DeVisitUnit1?.[0]?.coding).toBeNull()
+    })
+})
+
+/**
+ * The other piece of envelope context the user owns, and the two places a form kind carries it.
+ *
+ * ONE FACT, TWO ELEMENTS. An aggregate or event response names its organisation unit as `subject`;
+ * a tracker one's subject is the tracked entity, so the unit rides the `d2-organisation-unit`
+ * extension instead. `dhis2w_fhir_serve.capture.validate` checks whichever of the two the declared
+ * kind pins, so writing to the wrong one would be refused - which is what these assert against the
+ * server's own skeletons for all three kinds.
+ */
+describe('the organisation unit a submission reports from', () => {
+    const scopedForm = scopedQuestionnaireFixture as unknown as Questionnaire
+    const scopedSkeleton = generateScopedFixture as unknown as QuestionnaireResponse
+    const trackerForm = servedForm('ZzYYXq4fJie')
+    const trackerSkeleton = generateTrackerFixture as unknown as QuestionnaireResponse
+    const aggregateForm = servedForm('BfMAe6Itzgt')
+    const aggregateSkeleton = generateAggregateFixture as unknown as QuestionnaireResponse
+    const chosen: Reference = { reference: 'Location/O6uvpzGd5pu', display: 'Bo' }
+
+    it('reads the drawn unit off whichever element the form kind carries it on', () => {
+        expect(reportingUnitOf(aggregateSkeleton, 'aggregate')).toEqual({ reference: 'Location/DiszpKrYNg8' })
+        expect(reportingUnitOf(scopedSkeleton, 'event')).toEqual({ reference: 'Location/DiszpKrYNg8' })
+        expect(reportingUnitOf(trackerSkeleton, 'tracker-event')).toEqual({
+            reference: 'Location/DiszpKrYNg8',
+        })
+    })
+
+    it('rewrites an aggregate response`s subject and leaves the period where the server wrote it', () => {
+        const spec = flattenQuestionnaire(aggregateForm)
+        const built = buildQuestionnaireResponse(spec, {}, aggregateForm, aggregateSkeleton, {
+            ...NO_CAPTURE_CONTEXT,
+            reportingUnit: chosen,
+        })
+
+        expect(built.subject).toEqual(chosen)
+        expect(built.extension).toEqual(aggregateSkeleton.extension)
+    })
+
+    it('rewrites an event response`s subject', () => {
+        const spec = flattenQuestionnaire(scopedForm)
+        const built = buildQuestionnaireResponse(spec, {}, scopedForm, scopedSkeleton, {
+            ...NO_CAPTURE_CONTEXT,
+            reportingUnit: chosen,
+        })
+
+        expect(built.subject).toEqual(chosen)
+    })
+
+    it('rewrites a tracker event`s extension in place and never touches its tracked-entity subject', () => {
+        const spec = flattenQuestionnaire(trackerForm)
+        const built = buildQuestionnaireResponse(spec, {}, trackerForm, trackerSkeleton, {
+            ...NO_CAPTURE_CONTEXT,
+            reportingUnit: chosen,
+        })
+
+        expect(built.subject).toEqual(trackerSkeleton.subject)
+        expect(reportingUnitOf(built, 'tracker-event')).toEqual(chosen)
+        // Replaced where the server wrote it: the enrollment and the form type keep their places,
+        // so a rebuilt response reads as the same document rather than as a reshuffled one.
+        expect(built.extension?.map((extension) => extension.url)).toEqual(
+            trackerSkeleton.extension?.map((extension) => extension.url),
+        )
+    })
+
+    it('keeps whatever the envelope drew when nothing was picked', () => {
+        const spec = flattenQuestionnaire(trackerForm)
+        const built = buildQuestionnaireResponse(spec, {}, trackerForm, trackerSkeleton, NO_CAPTURE_CONTEXT)
+
+        expect(built.extension).toEqual(trackerSkeleton.extension)
+        expect(built.subject).toEqual(trackerSkeleton.subject)
+    })
+
+    it('pre-selects the drawn unit when a form opens, and never over a choice already made', () => {
+        expect(openedReportingUnit(null, scopedSkeleton, scopedForm)).toEqual({
+            reference: 'Location/DiszpKrYNg8',
+        })
+        expect(openedReportingUnit(chosen, scopedSkeleton, scopedForm)).toEqual(chosen)
+        expect(openedReportingUnit(null, null, scopedForm)).toBeNull()
+    })
+
+    it('takes the fresh draw on a refill, and keeps the choice when the draw states none', () => {
+        const drawnNothing: QuestionnaireResponse = { resourceType: 'QuestionnaireResponse', status: 'completed' }
+
+        expect(refilledReportingUnit(chosen, scopedSkeleton, scopedForm)).toEqual({
+            reference: 'Location/DiszpKrYNg8',
+        })
+        expect(refilledReportingUnit(chosen, drawnNothing, scopedForm)).toEqual(chosen)
+        expect(refilledReportingUnit(null, null, scopedForm)).toBeNull()
     })
 })

@@ -2,10 +2,12 @@ import type { Dispatch } from 'react'
 import { Plus, X } from 'lucide-react'
 
 import { ChoiceControl } from '@/components/ChoiceControl'
+import { OrgUnitPicker } from '@/components/OrgUnitPicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { orgUnitReference, referencedUnitId } from '@/lib/orgunits'
 import {
     dateTimeInputValue,
     EMPTY_SLOT,
@@ -28,9 +30,15 @@ import {
  * leave is that a `datetime-local` yields no timezone and a `time` yields no seconds, and R4
  * demands both - closed by the normalisers in lib/questionnaire.ts, not here.
  *
- * WHY SOME QUESTIONS HAVE NO CONTROL. `attachment` needs a file and `reference` needs a picker
- * over organisation units; `quantity` has no DHIS2 wire spelling at all. Rather than fake any
- * of the three, the question is shown, named, and stated as unfillable here.
+ * WHY A REFERENCE QUESTION IS A UNIT PICKER. `reference` is what the emitter writes for a DHIS2
+ * `ORGANISATION_UNIT` data element and nothing else, so the only resource one can name is a
+ * published Location - and the set it may name is the form's own assignment, which is what
+ * `OrgUnitPicker` offers. It is the one control here that needs the server, and the one whose
+ * answer is a `value[x]` the reducer holds settled rather than a literal.
+ *
+ * WHY SOME QUESTIONS STILL HAVE NO CONTROL. `attachment` needs a file and `quantity` has no DHIS2
+ * wire spelling at all. Rather than fake either, the question is shown, named, and stated as
+ * unfillable here.
  */
 export function AnswerControl({
     node,
@@ -124,7 +132,7 @@ function SlotControl({
     onChange: (slot: AnswerSlot) => void
 }) {
     const disabled = node.readOnly
-    const write = (text: string) => onChange({ text, coding: null })
+    const write = (text: string) => onChange({ ...EMPTY_SLOT, text })
 
     switch (node.type) {
         case 'boolean':
@@ -241,6 +249,24 @@ function SlotControl({
                     disabled={disabled}
                     clearable={!node.repeats}
                     onChange={onChange}
+                />
+            )
+        case 'reference':
+            return (
+                <OrgUnitPicker
+                    controlId={controlId}
+                    selectedUnitId={referencedUnitId(slot.reference)}
+                    disabled={disabled}
+                    required={node.required}
+                    clearable={!node.repeats}
+                    className="max-w-md"
+                    placeholder="No organisation unit chosen"
+                    onChange={(choice) =>
+                        onChange({
+                            ...EMPTY_SLOT,
+                            reference: choice === null ? null : orgUnitReference(choice),
+                        })
+                    }
                 />
             )
         default:

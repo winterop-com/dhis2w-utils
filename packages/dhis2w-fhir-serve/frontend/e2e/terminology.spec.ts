@@ -60,8 +60,13 @@ test('a long code system pages rather than rendering thousands of rows', async (
     await page.goto('/#/terminology/CodeSystem/d2-de-cs')
 
     await expect(page.getByText(/Showing \d+ of 70 concepts/)).toBeVisible()
-    await expect(page.getByRole('columnheader', { name: 'DHIS2 data element code' })).toBeVisible()
-    await expect(page.getByRole('columnheader', { name: 'DHIS2 data element domain type' })).toBeVisible()
+    // Headed by the property code said as words: the page already names the system, so repeating
+    // "DHIS2 data element" in every column says nothing. The declared sentence is the tooltip.
+    await expect(
+        page.getByRole('columnheader', { name: 'Code', description: 'DHIS2 data element code' }),
+    ).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Domain', exact: true })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Value type', exact: true })).toBeVisible()
 
     await page.getByRole('textbox', { name: 'Filter concepts' }).fill('danger')
     await expect(page.getByText(/Showing 1 of 1 concepts/)).toBeVisible()
