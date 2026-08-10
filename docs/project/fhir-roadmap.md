@@ -2018,6 +2018,20 @@ commitment.
 
 ### 9.3 Long-term
 
+- **Full circle: DHIS2 in, DHIS2 out.** The input leg is closed - a form captured in
+  the browser lands in DHIS2 through the spool and the forwarder, every kind, measured
+  at 225/225/0. The output leg is the next phase: the same facade answering FHIR
+  consumers **from DHIS2's data**, not just its metadata - stored
+  QuestionnaireResponses served from live `dataValueSets` / tracker reads (the
+  instance-sourced example builders already prove the projection), so a FHIR client
+  can round-trip: capture through the guide, read back through the guide, without
+  ever speaking the DHIS2 API. Serve's `--live` mode is the natural host (it already
+  holds a client at startup); the open questions are freshness (per-request reads
+  versus a refresh cadence against a national instance's latencies) and scope (which
+  consumers get the read surface - the capture UI's Responses page reading live DHIS2
+  would be its first customer, closing the loop the receipts deliberately do not:
+  a receipt is the submission as received, the output leg is what DHIS2 made of it).
+
 - **`d2w fhir push`** - outbound delivery of the generated resources into a real
   FHIR system: transaction bundles against a target server, with the DHIS2
   identifier systems as the reconciliation key.
