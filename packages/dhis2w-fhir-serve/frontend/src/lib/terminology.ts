@@ -32,6 +32,8 @@ export const CONCEPT_PAGE_SIZE = 200
 export interface ConceptPropertyColumn {
     code: string
     label: string
+    /** The declared description, tooltip-length, when the CodeSystem states one. */
+    description?: string
     uri?: string
     /** False when no concept of the system declaring it carries a value. */
     declared: boolean
@@ -80,11 +82,19 @@ export interface TranslationResult {
 /**
  * The property columns a concept table shows, declarations first.
  *
- * A CodeSystem's `property` is the authority on order and on how a column is headed - the
- * emitter writes a `description` there ("DHIS2 option code.") that is far better than the bare
- * code. But a property carried by a concept and declared nowhere is real data, and dropping it
- * would silently hide a column, so those follow in first-seen order and are marked undeclared.
+ * A CodeSystem's `property` is the authority on order; the column is HEADED by the property
+ * code said as words ("dhis2-code" is "Code", "value-type" is "Value type") because the page
+ * already names the system - repeating "DHIS2 data element" in every header says nothing. The
+ * declared `description` keeps the full sentence as the header's tooltip. A property carried
+ * by a concept and declared nowhere is real data, and dropping it would silently hide a
+ * column, so those follow in first-seen order and are marked undeclared.
  */
+/** A property code said as words: the dhis2- prefix dropped, hyphens spaced, first letter up. */
+export function propertyColumnLabel(code: string): string {
+    const bare = code.replace(/^dhis2-/, '').replaceAll('-', ' ').trim()
+    return bare === '' ? code : bare.charAt(0).toUpperCase() + bare.slice(1)
+}
+
 export function conceptPropertyColumns(codeSystem: CodeSystem): ConceptPropertyColumn[] {
     const carried = new Set<string>()
     for (const concept of codeSystem.concept ?? []) {
@@ -92,14 +102,15 @@ export function conceptPropertyColumns(codeSystem: CodeSystem): ConceptPropertyC
     }
     const columns: ConceptPropertyColumn[] = (codeSystem.property ?? []).map((property) => ({
         code: property.code,
-        label: property.description?.replace(/\.$/, '') ?? property.code,
+        label: propertyColumnLabel(property.code),
+        description: property.description?.replace(/\.$/, '') ?? undefined,
         uri: property.uri,
         declared: true,
     }))
     const known = new Set(columns.map((column) => column.code))
     for (const code of carried) {
         if (known.has(code)) continue
-        columns.push({ code, label: code, declared: false })
+        columns.push({ code, label: propertyColumnLabel(code), declared: false })
     }
     return columns
 }

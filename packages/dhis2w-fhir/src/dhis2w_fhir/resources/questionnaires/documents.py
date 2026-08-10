@@ -76,6 +76,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     DATA_ELEMENT_TERMINOLOGY,
     DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
+    VALUE_TYPE_PROPERTY_DESCRIPTION,
     CategoryOptionComboIn,
     FormKindProfile,
     QuestionnaireItemIn,
@@ -129,6 +130,9 @@ _CODE_PROPERTY = "dhis2-code"
 
 #: The concept property only the data-element CodeSystem declares, carrying the DHIS2 domain type.
 _DOMAIN_PROPERTY = "domain"
+
+#: The concept property only the data-element CodeSystem declares, carrying the DHIS2 value type.
+_VALUE_TYPE_PROPERTY = "value-type"
 
 
 class QuestionnaireDocumentBuild(BaseModel):
@@ -558,6 +562,7 @@ def _data_element_concepts(data_elements: dict[str, QuestionnaireItemIn]) -> lis
         domain = domain_code(item.domain_type)
         if domain is not None:
             properties.append(CodeSystemConceptProperty(code=_DOMAIN_PROPERTY, valueCode=domain))
+        properties.append(CodeSystemConceptProperty(code=_VALUE_TYPE_PROPERTY, valueCode=item.value_type))
         concepts.append(CodeSystemConcept(code=item.uid, display=flatten_whitespace(item.name), property=properties))
     return concepts
 
@@ -645,6 +650,20 @@ def _property_declarations(
                 code=_DOMAIN_PROPERTY,
                 uri=f"{property_base}/{_DOMAIN_PROPERTY}",
                 description=DOMAIN_PROPERTY_DESCRIPTION,
+                type="code",
+            )
+        )
+    carries_value_type = any(
+        concept_property.code == _VALUE_TYPE_PROPERTY
+        for concept in concepts
+        for concept_property in concept.property or []
+    )
+    if carries_value_type:
+        declarations.append(
+            CodeSystemProperty(
+                code=_VALUE_TYPE_PROPERTY,
+                uri=f"{property_base}/{_VALUE_TYPE_PROPERTY}",
+                description=VALUE_TYPE_PROPERTY_DESCRIPTION,
                 type="code",
             )
         )

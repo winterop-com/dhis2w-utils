@@ -131,6 +131,9 @@ CATEGORY_OPTION_COMBO_TERMINOLOGY = SupportTerminologyProfile(
 #: The description of the `domain` concept property, which only the data-element pair declares.
 DOMAIN_PROPERTY_DESCRIPTION = "DHIS2 data element domain type."
 
+#: What the `value-type` concept property carries on the data-element CodeSystem.
+VALUE_TYPE_PROPERTY_DESCRIPTION = "DHIS2 data element value type."
+
 
 class NumericBounds(BaseModel):
     """The inclusive range one DHIS2 numeric value type admits, either end open when DHIS2 leaves it open."""

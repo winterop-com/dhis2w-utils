@@ -328,6 +328,7 @@ class _SupportConcept(BaseModel):
     display_literal: str
     code_literal: str
     domain_code: str | None = None
+    value_type_code: str | None = None
 
 
 class _SupportTerminologyView(BaseModel):
@@ -355,6 +356,11 @@ class _SupportTerminologyView(BaseModel):
     def declares_domain(self) -> bool:
         """Whether any concept carries a domain, and the CodeSystem must therefore declare the property."""
         return any(concept.domain_code is not None for concept in self.concepts)
+
+    @property
+    def declares_value_type(self) -> bool:
+        """Whether any concept carries the value-type property, so the CodeSystem must declare it."""
+        return any(concept.value_type_code is not None for concept in self.concepts)
 
 
 def build_questionnaire_artifacts(
@@ -825,6 +831,7 @@ def _data_element_terminology(
             display_literal=quote(item.name),
             code_literal=quote(code_or_uid(None, item.uid)),
             domain_code=domain_code(item.domain_type),
+            value_type_code=item.value_type,
         )
         for item in sorted(data_elements.values(), key=lambda item: (item.name, item.uid))
     ]
