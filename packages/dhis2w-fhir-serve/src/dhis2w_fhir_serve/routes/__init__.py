@@ -10,9 +10,16 @@ than something the UI module could arrange for itself. Its asset tree is a fixed
 with the other fixed paths, ahead of the catch-alls that would otherwise claim
 `/assets/<file>`; its shell is a catch-all of its own and mounts after everything. See
 `dhis2w_fhir_serve.ui` for what each mount is and why the split is not optional.
+
+Every GET route also answers HEAD. RFC 9110 defines HEAD as GET without the body, and FHIR
+liveness probes lean on that - a monitor asking `HEAD /metadata` is asking whether the server is
+up, and a 405 there reads as down. FastAPI registers only the methods a decorator names, so the
+parity is applied here in one sweep over each router as it is mounted rather than repeated (and
+one day forgotten) on every route. The UI mounts need no sweep: `StaticFiles` answers HEAD itself.
 """
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
+from fastapi.routing import APIRoute
 
 __all__ = ["register_routes"]
 
@@ -35,12 +42,23 @@ def register_routes(app: FastAPI, serve_ui: bool = False) -> None:
 
     if serve_ui:
         mount_ui_assets(app)
-    app.include_router(metadata_router)
-    app.include_router(capture_router)
-    app.include_router(spool_router)
-    app.include_router(ui_config_router)
-    app.include_router(translate_router)
-    app.include_router(generate_router)
-    app.include_router(read_router)
+    for router in (
+        metadata_router,
+        capture_router,
+        spool_router,
+        ui_config_router,
+        translate_router,
+        generate_router,
+        read_router,
+    ):
+        _accept_head_wherever_get_is_served(router)
+        app.include_router(router)
     if serve_ui:
         mount_ui_shell(app)
+
+
+def _accept_head_wherever_get_is_served(router: APIRouter) -> None:
+    """Answer HEAD on every GET route - Starlette runs the endpoint and the server withholds the body."""
+    for route in router.routes:
+        if isinstance(route, APIRoute) and route.methods and "GET" in route.methods:
+            route.methods.add("HEAD")

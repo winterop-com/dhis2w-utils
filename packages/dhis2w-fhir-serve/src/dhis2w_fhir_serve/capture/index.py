@@ -22,7 +22,15 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE, Questionnaire, QuestionnaireItem, ResourceList, ValueSet
+from dhis2w_fhir.r4 import (
+    DEFAULT_SUBJECT_RESOURCE_TYPE,
+    CodeSystem,
+    CodeSystemConcept,
+    Questionnaire,
+    QuestionnaireItem,
+    ResourceList,
+    ValueSet,
+)
 from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS, FormKind, NumericBounds
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
@@ -74,6 +82,14 @@ FORM_KINDS: tuple[FormKind, ...] = CAPTURED_FORM_KINDS
 _MINIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/minValue"
 _MAXIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/maxValue"
 
+#: The resource type a question's support terminology resolves to.
+_CODE_SYSTEM_RESOURCE_TYPE = "CodeSystem"
+
+#: The concept properties the generated support CodeSystems ride DHIS2 facts on: the value type
+#: the data-element and attribute pairs both declare, and the uniqueness only the attribute pair does.
+_VALUE_TYPE_PROPERTY = "value-type"
+_UNIQUE_PROPERTY = "unique"
+
 
 class UnreadableQuestionnaireError(LookupError):
     """Raised when a canonical does not resolve to a Questionnaire this facade can check answers against."""
@@ -101,6 +117,31 @@ class CaptureQuestion(BaseModel):
     bounds: NumericBounds | None = None
     option_system: str | None = None
     """Canonical of the CodeSystem a coded answer is resolved against, or None when the binding is open."""
+
+    value_type: str | None = None
+    """The DHIS2 value type the served support CodeSystem states for the question's object, when it serves one."""
+
+    unique: bool = False
+    """Whether the served terminology declares the question's tracked entity attribute a unique business identifier."""
+
+    display: str | None = None
+    """What the question's object is called - the support CodeSystem's display, else the item's own coding's."""
+
+
+class QuestionFacts(BaseModel):
+    """The DHIS2 facts a support-CodeSystem concept states about one question's object.
+
+    A question's item codes its data element or tracked entity attribute from the generated
+    support pair, and that CodeSystem's concept carries what the compiled Questionnaire itself
+    does not: the DHIS2 value type, and - for a tracked entity attribute - whether DHIS2 declares
+    it unique. Everything defaults to the absence a store without the pair serves.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    value_type: str | None = None
+    unique: bool = False
+    display: str | None = None
 
 
 class CaptureAssignment(BaseModel):
@@ -215,7 +256,8 @@ def build_capture_index(
 
     questions: dict[str, CaptureQuestion] = {}
     group_link_ids: set[str] = set()
-    _walk(questionnaire.item or [], store, questions, group_link_ids)
+    facts_cache: dict[str, dict[str, QuestionFacts]] = {}
+    _walk(questionnaire.item or [], store, questions, group_link_ids, facts_cache)
 
     return CaptureIndex(
         canonical=canonical,
@@ -324,6 +366,7 @@ def _walk(
     store: ResourceStore,
     questions: dict[str, CaptureQuestion],
     group_link_ids: set[str],
+    facts_cache: dict[str, dict[str, QuestionFacts]],
 ) -> None:
     """Collect every question and every group of one item subtree, in document order."""
     for item in items:
@@ -332,13 +375,18 @@ def _walk(
             raise UnreadableQuestionnaireError("the served Questionnaire carries an item with no `linkId`")
         if item.type in _STRUCTURAL_ITEM_TYPES:
             group_link_ids.add(link_id)
-            _walk(item.item or [], store, questions, group_link_ids)
+            _walk(item.item or [], store, questions, group_link_ids, facts_cache)
             continue
-        questions[link_id] = _question(item, link_id, store)
-        _walk(item.item or [], store, questions, group_link_ids)
+        questions[link_id] = _question(item, link_id, store, facts_cache)
+        _walk(item.item or [], store, questions, group_link_ids, facts_cache)
 
 
-def _question(item: QuestionnaireItem, link_id: str, store: ResourceStore) -> CaptureQuestion:
+def _question(
+    item: QuestionnaireItem,
+    link_id: str,
+    store: ResourceStore,
+    facts_cache: dict[str, dict[str, QuestionFacts]],
+) -> CaptureQuestion:
     """Read one answerable item into the question a received answer is checked against."""
     answer_element = ANSWER_ELEMENTS_BY_ITEM_TYPE.get(item.type or "")
     if answer_element is None:
@@ -346,6 +394,7 @@ def _question(item: QuestionnaireItem, link_id: str, store: ResourceStore) -> Ca
             f"the served Questionnaire answers `{link_id}` as `{item.type}`, which carries no capture element"
         )
     data_element_uid, separator, category_option_combo_uid = link_id.partition(CELL_LINK_ID_SEPARATOR)
+    facts = _question_facts(item, store, facts_cache)
     return CaptureQuestion(
         link_id=link_id,
         kind="cell" if separator else "plain",
@@ -357,7 +406,68 @@ def _question(item: QuestionnaireItem, link_id: str, store: ResourceStore) -> Ca
         required=bool(item.required),
         bounds=_bounds(item),
         option_system=_option_system(item, store),
+        value_type=facts.value_type,
+        unique=facts.unique,
+        display=facts.display or _coding_display(item),
     )
+
+
+def _question_facts(
+    item: QuestionnaireItem,
+    store: ResourceStore,
+    facts_cache: dict[str, dict[str, QuestionFacts]],
+) -> QuestionFacts:
+    """The support-CodeSystem facts behind one question, resolved through the item's own coding."""
+    for coding in item.code or []:
+        if not coding.system or not coding.code:
+            continue
+        facts = _facts_for_system(coding.system, store, facts_cache).get(coding.code)
+        if facts is not None:
+            return facts
+    return QuestionFacts()
+
+
+def _facts_for_system(
+    system: str,
+    store: ResourceStore,
+    facts_cache: dict[str, dict[str, QuestionFacts]],
+) -> dict[str, QuestionFacts]:
+    """Every concept's facts of one served support CodeSystem, parsed once per system per index build."""
+    held = facts_cache.get(system)
+    if held is not None:
+        return held
+    built: dict[str, QuestionFacts] = {}
+    entry = store.by_canonical(system)
+    if entry is not None and entry.resource_type == _CODE_SYSTEM_RESOURCE_TYPE:
+        try:
+            code_system = CodeSystem.model_validate(entry.body)
+        except ValidationError:
+            code_system = None
+        for concept in (code_system.concept if code_system is not None else None) or []:
+            if concept.code:
+                built[concept.code] = _concept_facts(concept)
+    facts_cache[system] = built
+    return built
+
+
+def _concept_facts(concept: CodeSystemConcept) -> QuestionFacts:
+    """Read one support concept's DHIS2 properties into the facts a question carries."""
+    value_type: str | None = None
+    unique = False
+    for concept_property in concept.property or []:
+        if concept_property.code == _VALUE_TYPE_PROPERTY and concept_property.valueCode:
+            value_type = concept_property.valueCode
+        if concept_property.code == _UNIQUE_PROPERTY:
+            unique = bool(concept_property.valueBoolean)
+    return QuestionFacts(value_type=value_type, unique=unique, display=concept.display)
+
+
+def _coding_display(item: QuestionnaireItem) -> str | None:
+    """The display the item's own coding carries, which is the object's name as the emitter wrote it."""
+    for coding in item.code or []:
+        if coding.display:
+            return coding.display
+    return None
 
 
 def _bounds(item: QuestionnaireItem) -> NumericBounds | None:

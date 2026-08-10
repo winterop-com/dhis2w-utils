@@ -16,6 +16,14 @@ attribute option combo an aggregate response is filed under is drawn the same wa
 vocabulary the form declares, so a data set on a non-default category combo generates a response its
 own capture path accepts.
 
+The organisation unit a response reports for is part of the seeded draw, not a fixture: the same
+seed names the same unit and different seeds range over the whole admitted set - the form's
+published assignment where it has one, the served registry where it does not. And a `unique`
+tracked entity attribute is never answered with a constant: DHIS2 refuses the second registration
+carrying a repeated unique value with `E1064`, so the answer embeds the response's own minted
+tracked-entity UID - the one value no other generated registration holds - through the same rule
+the examples emitter uses (`dhis2w_fhir.resources.examples._distinct_unique_value`).
+
 Three facts a compiled Questionnaire does not carry, and how they are decided here:
 
 * **The data set's period type.** A generated aggregate response needs a DHIS2 reporting period, and
@@ -60,7 +68,8 @@ from dhis2w_fhir.r4 import (
     QuestionnaireResponseItem,
     Reference,
 )
-from dhis2w_fhir.resources.questionnaires.schemas import FormKind
+from dhis2w_fhir.resources.examples import _distinct_unique_value
+from dhis2w_fhir.resources.questionnaires.schemas import FormKind, QuestionnaireItemIn
 from pydantic import BaseModel, ConfigDict, PrivateAttr, ValidationError
 
 from dhis2w_fhir_serve.capture.index import CaptureIndex, CaptureQuestion
@@ -232,6 +241,11 @@ class _Generator(BaseModel):
         """
         authored = self._date_time() if self.index.form_kind != "aggregate" else None
         tracker = self._tracker_context() if self.index.form_kind in _TRACKER_FORM_KINDS else None
+        unique_token = (
+            tracker.tracked_entity_uid
+            if tracker is not None and self.index.form_kind == _REGISTRATION_FORM_KIND
+            else None
+        )
         return QuestionnaireResponse(
             meta=Meta(profile=[self.naming.response_profile_url(self.index.form_kind)]),
             identifier=Identifier(system=self.naming.generate_seed_system, value=str(self.seed)),
@@ -240,7 +254,7 @@ class _Generator(BaseModel):
             status=GENERATED_STATUS,
             subject=self._subject(tracker),
             authored=authored,
-            item=self._items(questionnaire.item or []) or None,
+            item=self._items(questionnaire.item or [], unique_token) or None,
         )
 
     def _tracker_context(self) -> _TrackerContext:
@@ -319,29 +333,33 @@ class _Generator(BaseModel):
             )
         return Reference(reference=f"{LOCATION_RESOURCE_TYPE}/{self.location_id}")
 
-    def _items(self, items: list[QuestionnaireItem]) -> list[QuestionnaireResponseItem]:
+    def _items(self, items: list[QuestionnaireItem], unique_token: str | None) -> list[QuestionnaireResponseItem]:
         """Mirror the form's item tree in document order, keeping only the branches an answer reaches."""
         generated: list[QuestionnaireResponseItem] = []
         for item in items:
             link_id = item.linkId
             if not link_id:
                 continue
-            nested = self._items(item.item or [])
+            nested = self._items(item.item or [], unique_token)
             if item.type in _STRUCTURAL_ITEM_TYPES:
                 if nested:
                     generated.append(QuestionnaireResponseItem(linkId=link_id, item=nested))
                 continue
-            answers = self._answers(self.index.questions.get(link_id))
+            answers = self._answers(self.index.questions.get(link_id), unique_token)
             if answers or nested:
                 generated.append(QuestionnaireResponseItem(linkId=link_id, answer=answers or None, item=nested or None))
         return generated
 
-    def _answers(self, question: CaptureQuestion | None) -> list[QuestionnaireResponseAnswer]:
+    def _answers(self, question: CaptureQuestion | None, unique_token: str | None) -> list[QuestionnaireResponseAnswer]:
         """Every answer one question gets: a repeating coded question two selections, everything else one."""
         if question is None or question.answer_element in _UNGENERATED_ANSWER_ELEMENTS:
             return []
         if question.answer_element == "valueCoding":
             return self._coded_answers(question)
+        if unique_token is not None and question.unique:
+            distinct = _distinct_answer(question, unique_token)
+            if distinct is not None:
+                return [distinct]
         answer = self._answer(question)
         return [answer] if answer is not None else []
 
@@ -411,6 +429,41 @@ class _Generator(BaseModel):
         real client mints those identifiers too.
         """
         return _shaped_uid(self._random)
+
+
+def _distinct_answer(question: CaptureQuestion, token: str) -> QuestionnaireResponseAnswer | None:
+    """The answer a `unique` tracked entity attribute gets: a value carrying the minted tracked-entity UID.
+
+    DHIS2 refuses a second tracked entity repeating a unique attribute's value with `E1064`, so a
+    generated registration answers such a question from its own minted UID - the one value no other
+    generated response holds - through the very rule the examples emitter uses. The rule speaks
+    DHIS2 value types, which is why the question's `value_type` fact gates it: a store serving no
+    attribute CodeSystem states no value type, and the ordinary draw stands. A bounded integer
+    stands on the ordinary draw too - a distinct value has to range wider than any bound admits,
+    and generating outside the form's own bounds would break the post-back invariant.
+    """
+    if question.value_type is None:
+        return None
+    if question.bounds is not None:
+        return None
+    value = _distinct_unique_value(
+        QuestionnaireItemIn(
+            uid=question.data_element_uid,
+            name=question.display or question.link_id,
+            value_type=question.value_type,
+            unique=True,
+        ),
+        token,
+    )
+    if value is None:
+        return None
+    if question.answer_element == "valueString":
+        return QuestionnaireResponseAnswer(valueString=value)
+    if question.answer_element == "valueUri":
+        return QuestionnaireResponseAnswer(valueUri=value)
+    if question.answer_element == "valueInteger":
+        return QuestionnaireResponseAnswer(valueInteger=int(value))
+    return None
 
 
 def _shaped_uid(generator: random.Random) -> str:
@@ -528,20 +581,36 @@ def _declared_period_type(example: QuestionnaireResponse, naming: CaptureNaming)
 
 
 def _capture_location_id(index: CaptureIndex, store: ResourceStore, seed: int) -> str:
-    """The Location a generated response reports for: one the form admits, else one served, else a shaped UID.
+    """The Location a generated response reports for: a seeded draw across the units the form admits.
 
-    The form's published assignment comes first, because a generated response is meant to be
-    postable straight back and DHIS2 refuses a capture outside the assignment with `E1029`. Absent
-    an assignment, any served Location will do - it makes the response forwardable, since the DHIS2
-    organisation unit behind it really exists. A store publishing no registry (a project generated
-    without an org-unit selection) falls back to a seeded UID, which the capture contract admits
-    because it checks the reference's shape rather than its target.
+    The admitted set is the form's published assignment where it has one - a generated response is
+    meant to be postable straight back, and DHIS2 refuses a capture outside the assignment with
+    `E1029` - intersected with the served registry so the drawn unit really exists (the whole
+    assignment stands when the store serves none of it). A form publishing no assignment draws
+    across the whole served registry. The unit is part of the seed's draw like every other value:
+    the same seed names the same unit, and different seeds range over the whole admitted set. A
+    store publishing no registry (a project generated without an org-unit selection) falls back to
+    a seeded UID, which the capture contract admits because it checks the reference's shape rather
+    than its target.
     """
+    admitted = _admitted_location_ids(index, store)
+    generator = random.Random(seed)  # noqa: S311 - a reproducibility handle, not a secret
+    if admitted:
+        return admitted[generator.randrange(len(admitted))]
+    return _shaped_uid(generator)
+
+
+def _admitted_location_ids(index: CaptureIndex, store: ResourceStore) -> tuple[str, ...]:
+    """The Location ids a generated response may report for, sorted so the seeded draw is stable."""
+    prefix = f"{LOCATION_RESOURCE_TYPE}/"
     assignment = index.assignment
-    if assignment is not None and assignment.references:
-        admitted = sorted(assignment.references)[0]
-        return admitted.removeprefix(f"{LOCATION_RESOURCE_TYPE}/")
-    for entry in store.entries:
-        if entry.resource_type == LOCATION_RESOURCE_TYPE:
-            return entry.resource_id
-    return _shaped_uid(random.Random(seed))  # noqa: S311 - a shaped placeholder identifier, not a secret
+    assigned = (
+        sorted({reference.removeprefix(prefix) for reference in assignment.references if reference.startswith(prefix)})
+        if assignment is not None
+        else []
+    )
+    served = {entry.resource_id for entry in store.entries if entry.resource_type == LOCATION_RESOURCE_TYPE}
+    if assigned:
+        intersected = [resource_id for resource_id in assigned if resource_id in served]
+        return tuple(intersected or assigned)
+    return tuple(sorted(served))
