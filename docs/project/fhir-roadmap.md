@@ -8,7 +8,7 @@ The single source of truth for where `dhis2w-fhir` is going and what a reviewer
 should look at. Everything roadmap-shaped or review-shaped about the FHIR plugin
 lives here; the [FHIR plugin architecture](../architecture/fhir-plugin.md) page
 describes how the package is built, and the
-[FHIR IG guide](../guides/fhir-ig.md) is the task-oriented manual. Nothing is
+[`d2w fhir` series](../guides/fhir/index.md) is the task-oriented manual. Nothing is
 stated in two places.
 
 ## 1. How to use this document
@@ -220,41 +220,23 @@ codes FHIR-safe?" - is a read, so it is the one tool.
 
 ### 2.4 Every `fhir.toml` key and its default
 
-Read from `config.py` and the emitter selection schemas; the scaffolded
-`fhir.toml.example` documents the same set with commented, real-shaped examples
-rather than sentinel placeholders, so the file parses to exactly these defaults.
+The per-key catalog lives in the user guides, one page per table, each key with
+its default, its refusal text, and when to change it:
 
-| Key | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `profile` | string or absent | `None` | Names a d2w profile. Explicit `-p` / `DHIS2_PROFILE` wins. |
-| `[ig] id` | string | required | |
-| `[ig] canonical` | string | required | Trailing slashes stripped. |
-| `[ig] name` | string | required | |
-| `[ig] title` | string | required | |
-| `[ig] publisher` | string | required | |
-| `[ig] status` | `draft` / `active` | `draft` | The single life-cycle dial. |
-| `[generate] identifier_system_base` | string | `http://dhis2.org/fhir` | Trailing slashes stripped. Live: the aliases, the NamingSystems, and every `^property` URI derive from it. |
-| `[generate] concept_code_source` | `id` / `code` | `id` | |
-| `[generate] locales` | list of string | `[]` | Normalised to BCP-47 on load. Empty means every locale found. |
-| `[generate.naming] source` | `id` / `name` | `id` | |
-| `[generate.naming] prefix` | string | `D2` | May be empty. Letter-leading alphanumeric otherwise. |
-| `[generate.naming] option_set` | string | `OS` | May be empty. |
-| `[generate.naming] category` | string | `CAT` | May be empty. Names a category's `D2CAT_<slug>_CS` / `_VS` pair. There is deliberately no `category_option` key - category options are concepts, and concepts have no token. |
-| `[generate.naming] organisation_unit` | string | `OU` | Must stay non-empty - an empty token degenerates the org-unit names to bare `_CS` / `_Level_CS`. |
-| `[generate.naming] data_set` | string | `DS` | May be empty. |
-| `[generate.naming] program` | string | `PR` | May be empty. Names an event program's Questionnaire. |
-| `[generate.naming] program_stage` | string | `PS` | May be empty. Names a tracker program stage's Questionnaire. |
-| `[generate.option_sets] include_ids` | list of string | `[]` | Empty means all. |
-| `[generate.categories] include_ids` | list of string | `[]` | Empty means all except DHIS2's built-in `default` placeholder; an entry naming its UID brings it in. No closure - nothing generated today binds a category. |
-| `[generate.categories] include_default` | bool | `false` | Opts DHIS2's built-in `default` category back into the target. Detection is the reserved name (`/api/categories` carries no `isDefault` flag), matched case-sensitively. |
-| `[generate.organisation_units] root` | string or absent | `None` | `""` is coerced to unset. Filters with DHIS2 `path:like`. |
-| `[generate.organisation_units] max_level` | int or absent | `None` | `0` is coerced to unset. Filters with `level:le`. |
-| `[generate.organisation_units] terminology` | bool | `false` | Also emit the whole-selection CodeSystem/ValueSet. |
-| `[generate.data_sets] include_ids` | list of string | `[]` | Empty means all. |
-| `[generate.event_programs] include_ids` | list of string | `[]` | Empty means all. Selects `WITHOUT_REGISTRATION` programs; a `WITH_REGISTRATION` UID listed here is refused by name. |
-| `[generate.tracker_programs] include_ids` | list of string | `[]` | Empty means all. Selects `WITH_REGISTRATION` programs, one Questionnaire per program stage; a `WITHOUT_REGISTRATION` UID listed here is refused by name. |
-| `[generate.examples] per_target` | int | `1` | Validated `0..10` against `MAXIMUM_EXAMPLES_PER_TARGET`. `0` disables the target, which still sweeps its directory clean. |
-| `[generate.examples] source` | `synthetic` / `instance` | `synthetic` | |
+- [The settings file](../guides/fhir/301-fhir-toml.md) - discovery, the
+  `fhir.toml` / `fhir.toml.example` split, editing rules, and the two
+  silent-unset values (`root = ""`, `max_level = 0`).
+- [Who the guide is](../guides/fhir/301-identity.md) - `profile` and `[ig]`.
+- [How things are generated](../guides/fhir/301-generation.md) - `[generate]`
+  and `[generate.naming]`.
+- [What goes in](../guides/fhir/301-what-goes-in.md) - the selection tables,
+  `[generate.tracked_entity_types]`, `[generate.examples]`, and
+  `[generate.organisation_units]`.
+- [Serving it](../guides/fhir/301-serving.md) - `[serve]`.
+
+`config.py` and the emitter selection schemas stay the source of truth; the
+scaffolded `fhir.toml.example` states every key with its default and points
+each one at its section of those pages.
 
 ### 2.5 Every scaffolded file
 
@@ -1076,8 +1058,8 @@ sit one level down in `r4/primitives.py` - `FHIR_DATE_PATTERN`,
 them - which is what lets the capture path check a received value against exactly
 what the emitter would have written.
 
-*The prose contract.* `docs/guides/fhir-ig.md`, the "The capture contract"
-section, and the generated `capture.md` behind
+*The prose contract.* `docs/guides/fhir/401-capture-contract.md` and the
+generated `capture.md` behind
 `resources/pages/__init__.py`'s `_capture_page`.
 
 **Risks already suspected.**
@@ -1330,7 +1312,7 @@ reads the QA summary will find nothing in this class.
 
 The measured numbers, the root cause behind the largest one, and the levers that
 are and are not worth pulling. The full step-by-step table lives in the
-[FHIR IG guide](../guides/fhir-ig.md#build-time-and-the-two-caches); it is not
+[Compile and publish page](../guides/fhir/201-build-and-publish.md#size-the-build); it is not
 repeated here.
 
 **Generation is not the cost.** On the Sierra Leone demo (171 option sets, 2,664
@@ -2095,7 +2077,7 @@ terminology rather than as ad-hoc codings.
 
 The **canonical naming-token registry** - every token these draw from, with its
 DHIS2 object - stays in the
-[FHIR IG guide](../guides/fhir-ig.md#the-canonical-token-registry). It is
+[naming configuration page](../guides/fhir/301-generation.md#naming). It is
 reference material a user needs while writing `[generate.naming]`, not roadmap
 material, so it belongs beside the configuration reference rather than here. The
 table above is the roadmap-shaped half: which chains are worth generating and in
@@ -2133,8 +2115,9 @@ what order.
 
 - [FHIR plugin architecture](../architecture/fhir-plugin.md) - how the package
   is laid out and why.
-- [FHIR IG guide](../guides/fhir-ig.md) - the task-oriented manual: quickstart,
-  the full `fhir.toml` reference, the capture contract, and the build-time table.
+- [`d2w fhir` series](../guides/fhir/index.md) - the task-oriented manual: the
+  quickstart, the full `fhir.toml` reference, the capture contract, and the
+  build-time table, as graded 101/201/301/401 pages.
 - [`dhis2w_fhir` API reference](../api/fhir.md) - the importable surface.
 - [Upstream DHIS2 quirks](upstream-quirks.md) - `BUGS.md` rendered, including
   entries #62, #63, and #64.

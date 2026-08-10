@@ -23,11 +23,11 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   features:
-    # Five top-level tabs (Get started / Architecture / Client / CLI / MCP)
-    # keep the surface-distinction visible up top while each tab carries its
-    # own focused sidebar tree — splits the formerly 70-item flat sidebar
-    # so the Python API surface (45 pages) gets its own home instead of
-    # dominating every page's left rail.
+    # Top-level tabs (Get started / Architecture / Client / CLI / MCP / FHIR /
+    # Query language / Project) keep the surface-distinction visible up top
+    # while each tab carries its own focused sidebar tree, so the Python API
+    # surface (45 pages) gets its own home instead of dominating every page's
+    # left rail.
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
@@ -40,11 +40,11 @@ theme:
     - content.code.copy
 
 nav:
-  # Five top-level tabs. The three surfaces (Client / CLI / MCP) get their
-  # own tab; "Get started" carries the landing page, walkthroughs, guides,
-  # examples index, and maintainer-facing pages (release, testing,
-  # troubleshooting, decisions, lessons, roadmap); Architecture carries
-  # the cross-cutting and per-plugin design docs.
+  # The three surfaces (Client / CLI / MCP) get their own tab, and so do the
+  # FHIR series and the query language; "Get started" carries the landing
+  # page, walkthroughs, guides, examples index, and maintainer-facing pages
+  # (release, testing, troubleshooting, decisions, lessons, roadmap);
+  # Architecture carries the cross-cutting and per-plugin design docs.
   - Get started:
       - Home: index.md
       - Why dhis2w?: announcement.md
@@ -53,10 +53,6 @@ nav:
       - Walkthrough: walkthrough.md
       - More guides:
           - Visualizations: guides/visualizations.md
-          - FHIR for DHIS2 people: guides/fhir-101.md
-          - FHIR IG generation: guides/fhir-ig.md
-          - FHIR API reference: api/fhir.md
-          - FHIR facade server reference: api/fhir-serve.md
           - Playwright PAT helper: pat-helper.md
           - Manual testing: manual-testing.md
       - Examples index: examples.md
@@ -185,6 +181,38 @@ nav:
           - Design: architecture/mcp-bridge.md
       - Router:
           - Design: architecture/mcp-router.md
+  - FHIR:
+      - Overview: guides/fhir/index.md
+      - 101 - Understand:
+          - What and why: guides/fhir/101-what-and-why.md
+          - FHIR for DHIS2 people: guides/fhir/101-fhir-concepts.md
+          - Quickstart: guides/fhir/101-quickstart.md
+      - 201 - Operate a project:
+          - Set up a project: guides/fhir/201-set-up-a-project.md
+          - Validate an instance: guides/fhir/201-validate.md
+          - Generate the IG source: guides/fhir/201-generate.md
+          - Compile and publish: guides/fhir/201-build-and-publish.md
+          - Serve the IG: guides/fhir/201-serve.md
+          - The capture UI: guides/fhir/201-capture-ui.md
+          - Forward captured responses: guides/fhir/201-forward.md
+          - Troubleshooting: guides/fhir/201-troubleshooting.md
+      - 301 - Configure fhir.toml:
+          - The settings file: guides/fhir/301-fhir-toml.md
+          - Identity - profile and ig: guides/fhir/301-identity.md
+          - What goes in - selection: guides/fhir/301-what-goes-in.md
+          - How things are generated: guides/fhir/301-generation.md
+          - Serving: guides/fhir/301-serving.md
+      - 401 - Integrate and extend:
+          - The capture contract: guides/fhir/401-capture-contract.md
+          - Consume the FHIR API: guides/fhir/401-consume-the-fhir-api.md
+          - Identifiers and extensions: guides/fhir/401-identifiers-and-extensions.md
+          - Terminology and ConceptMaps: guides/fhir/401-terminology-and-conceptmaps.md
+          - Custom subject types: guides/fhir/401-custom-subject-types.md
+          - Regeneration and hand-authoring: guides/fhir/401-regeneration-and-hand-authoring.md
+      - Reference:
+          - CLI reference: cli-reference.md
+          - dhis2w_fhir API: api/fhir.md
+          - dhis2w_fhir_serve API: api/fhir-serve.md
   - Query language:
       - Introduction: query/index.md
       - d2ql tutorial: guides/d2ql-tutorial.md

@@ -1,6 +1,6 @@
 # FHIR IG generation (`dhis2w_fhir`)
 
-`dhis2w_fhir` is the package behind [`d2w fhir`](../guides/fhir-ig.md): the `fhir.toml`
+`dhis2w_fhir` is the package behind [`d2w fhir`](../guides/fhir/index.md): the `fhir.toml`
 document, the emitters that turn DHIS2 metadata into an Implementation Guide - FSH for the
 definitional artifacts, pre-built R4 JSON for the organisation-unit registry, the
 option-set terminology, and the category terminology - and the DHIS2 period grammar they
@@ -73,7 +73,7 @@ string, so the code is a lookup rather than part of the value.
 What a generate target has to say about a run, as a model rather than a sentence. A
 `GenerateNote` carries the kind of decision it records (`GenerateNoteCategory`) beside
 the human text, and `echoes_validate` says whether the kind only restates a finding
-[`d2w fhir validate`](../guides/fhir-ig.md#validation) reports on the instance - which is
+[`d2w fhir validate`](../guides/fhir/201-validate.md) reports on the instance - which is
 what lets a bare run count those apart from what generation itself found.
 
 ::: dhis2w_fhir.notes
@@ -129,8 +129,8 @@ directly under the same conventions.
 
 ### Package surface
 
-The names below re-export from `dhis2w_fhir` itself; the guide's
-[generate targets](../guides/fhir-ig.md#generate-targets) section covers what each emitter
+The names below re-export from `dhis2w_fhir` itself; the
+[generate page](../guides/fhir/201-generate.md) covers what each emitter
 produces.
 
 ::: dhis2w_fhir

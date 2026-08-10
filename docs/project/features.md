@@ -572,3 +572,113 @@ dhis2w-codegen   workspace-only generator
 No dependency cycles. `dhis2w-client` is standalone. Browser automation is
 always optional.
 
+
+---
+
+## FHIR guide: task pages (docs/guides/fhir/)
+
+Task-first operator documentation for the FHIR IG toolchain, one job per page:
+
+- [Set up an IG project](../guides/fhir/201-set-up-a-project.md) - `d2w fhir
+  init` and its flags, the pinned `uv` toolchain, profile resolution order,
+  `init --refresh` and `make update`.
+- [Validate the instance](../guides/fhir/201-validate.md) - the FHIR-safety
+  check: severity as build impact, the scope column, the `--code-source`
+  dial, report files, the CI exit-1 gate.
+- [Generate the IG source](../guides/fhir/201-generate.md) - the eight
+  generate targets, directory ownership and sync, selection narrowing,
+  notes and validate echoes, site pages.
+- [Build and publish the guide](../guides/fhir/201-build-and-publish.md) -
+  the scaffolded Makefile, the three build knobs, registry scale, the two
+  caches, publishing `ig/output/`.
+- [Troubleshooting](../guides/fhir/201-troubleshooting.md) - every literal
+  `d2w fhir` refusal plus the SUSHI / IG publisher failure modes, as
+  symptom, cause, fix.
+
+## FHIR guide: series index, 101 tier, and 401 reference pages (docs/guides/fhir/)
+
+The graded series' front door, its understand-tier, and the integrate-tier
+reference pages on identity and terminology:
+
+- [The `d2w fhir` series index](../guides/fhir/index.md) - the "I am a..."
+  router (implementer / M&E configurer / integration developer / operator)
+  and the full 101/201/301/401 page map; also the FHIR top-level tab's
+  Overview page.
+- [What `d2w fhir` is and why](../guides/fhir/101-what-and-why.md) - why a
+  ministry publishes an IG, what each verb produces, what adopting the
+  toolchain costs. No commands.
+- [FHIR for DHIS2 people](../guides/fhir/101-fhir-concepts.md) - every FHIR
+  term the series uses, explained in DHIS2 terms.
+- [Quickstart: six commands to a served IG](../guides/fhir/101-quickstart.md) -
+  scaffold, sync, profile, validate, generate, and compile, each command with
+  captured real output.
+- [Identifiers and the D2 extensions](../guides/fhir/401-identifiers-and-extensions.md) -
+  the `D2Period` and `D2AttributeValue` extensions, the identifier families,
+  NamingSystems, and the UID fall-back rules.
+- [Terminology and ConceptMaps](../guides/fhir/401-terminology-and-conceptmaps.md) -
+  the option-set and category CodeSystem/ValueSet pairs, the per-object
+  ConceptMaps, the two-group shape, and UID-versus-code target guidance.
+
+## FHIR guide: configure tier - fhir.toml explained (docs/guides/fhir/)
+
+The configuration reference for the person who owns what the guide contains -
+an M&E officer editing one text file. Every `fhir.toml` option gets the same
+per-option treatment: plain words, a concrete change scenario, an example, the
+default and leave-it-out behaviour, and the exact refusal text a mistake
+produces (captured from real misconfigured runs):
+
+- [The settings file: fhir.toml](../guides/fhir/301-fhir-toml.md) - what the
+  file is, how commands discover it, the `fhir.toml` / `fhir.toml.example`
+  split, TOML editing rules, the silently-ignored-misspelling trap, the two
+  silent-unset values (`root = ""`, `max_level = 0`), and the three
+  read-before-you-decide options.
+- [Who the guide is](../guides/fhir/301-identity.md) - `profile` and the six
+  `[ig]` options.
+- [How things are generated](../guides/fhir/301-generation.md) - the four
+  `[generate]` options, the nine `[generate.naming]` pieces and their shared
+  token rule, and the `naming.source` re-identification warning.
+- [What goes in](../guides/fhir/301-what-goes-in.md) - the five selection
+  tables, `include_default`, `[generate.tracked_entity_types]`,
+  `[generate.examples]`, and the org-unit scope with the `max_level` cost
+  warning.
+- [Serving it](../guides/fhir/301-serving.md) - the five `[serve]` options,
+  with the `host` exposure warning and the `basemap` outbound-call note.
+
+The scaffolded `fhir.toml.example` carries a one-line comment per option
+pointing at its section on these pages, and the scaffolded `fhir.toml` header
+names both the example file and the series.
+
+## FHIR guide: serve, capture, forward, and integrate (docs/guides/fhir/)
+
+The operator's serve-and-forward pages and the integration developer's
+contract pages, split out of the single FHIR IG guide:
+
+- [Serve the guide](../guides/fhir/201-serve.md) - `d2w fhir serve` in both
+  modes, `[serve]` in practice with the flag-beats-table-beats-default rule,
+  receipts as the storage model, the strict/lenient dial across all four
+  things it grades, the spool on disk, and load sets.
+- [Capture in the browser](../guides/fhir/201-capture-ui.md) - the capture
+  UI page by page with screenshots produced by a committed, skipped-by-
+  default Playwright spec against the fixture suite server
+  (`frontend/e2e/docs-screenshots.spec.ts`), including how to re-shoot them.
+- [Forward captures into DHIS2](../guides/fhir/201-forward.md) - the
+  dry-run-first workflow on DHIS2's own validate-only modes, the six steps
+  of a run, the three receipt states, refusal versus rejection, the
+  translated-payload field tables, and a worked run with the rejection
+  rollup.
+- [The capture contract](../guides/fhir/401-capture-contract.md) - the four
+  response profiles, the requirements CapabilityStatement, the logical
+  tracked-entity subject, minted identifiers and what a server can honestly
+  check about them, and the required-question and numeric-bound rules.
+- [Consume the FHIR API](../guides/fhir/401-consume-the-fhir-api.md) - the
+  served read set and searches, `$translate` and `$generate` with real
+  requests and responses, the capture POST with its validation phases, and
+  the two non-FHIR endpoints `/spool` and `/uiconfig`.
+- [Custom subject types](../guides/fhir/401-custom-subject-types.md) -
+  `[generate.tracked_entity_types]` end to end: the admitted resource
+  types, everything one mapping feeds, and the union rule the two tracker
+  response profiles publish under.
+- [Regeneration and hand-authoring](../guides/fhir/401-regeneration-and-hand-authoring.md) -
+  the generated-header contract, the directories generation owns outright,
+  what is scaffolded as yours, what to commit, and the duplicate-definition
+  recovery.
