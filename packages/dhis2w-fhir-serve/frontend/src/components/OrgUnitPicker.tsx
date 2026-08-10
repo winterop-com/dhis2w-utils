@@ -299,7 +299,7 @@ export function OrgUnitPicker({
  */
 function ModeToggle({ mode, onChange }: { mode: PickerMode; onChange: (mode: PickerMode) => void }) {
     return (
-        <div role="group" aria-label="How to find a unit" className="flex items-center gap-1 px-2 pt-1.5">
+        <div role="group" aria-label="How to find a unit" className="flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
             {(['search', 'browse'] as const).map((candidate) => (
                 <button
                     key={candidate}
@@ -459,7 +459,7 @@ function OrgUnitBrowser({
             role="tree"
             aria-label="Organisation unit hierarchy"
             onKeyDown={onKeyDown}
-            className="show-scrollbars max-h-72 overflow-y-auto p-1"
+            className="show-scrollbars max-h-72 overflow-y-auto px-2 py-1.5"
         >
             {rows.map((row) => {
                 const node = row.node
