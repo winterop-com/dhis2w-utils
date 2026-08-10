@@ -251,7 +251,7 @@ Usage: #example
 * subject.identifier.value = "ByaTNM2MoVs"
 * authored = "2026-07-08T22:00:00Z"
 * item[+].linkId = "Tea1aaaaaaa"
-* item[=].answer[+].valueString = "Example National identifier"
+* item[=].answer[+].valueString = "National identifier ByaTNM2MoVs"
 * item[+].linkId = "Tea2aaaaaaa"
 * item[=].answer[+].valueDate = "2026-07-22"
 """
@@ -1708,3 +1708,112 @@ def test_an_occurrence_in_an_impossible_zone_is_dropped_with_a_note() -> None:
     )
     assert "* authored" not in build.artifacts[0].content
     assert any("base QuestionnaireResponse declared" in note.message for note in build.notes)
+
+
+#: One registration form per DHIS2 value type a unique attribute can carry, so the spelling rule is
+#: checked per type rather than on the one TEXT case a real program happens to ask.
+_UNIQUE_VALUE_TYPES = ("TEXT", "LONG_TEXT", "USERNAME", "EMAIL", "PHONE_NUMBER", "URL", "INTEGER")
+
+#: The value types a unique attribute cannot be made distinct in - a boolean has two values, a
+#: `LETTER` fifty-two, and an option-bound attribute only as many as its set holds.
+_INDISTINCT_VALUE_TYPES = ("BOOLEAN", "LETTER", "DATE")
+
+
+def _unique_registration(value_type: str, *, option_set_uid: str | None = None) -> QuestionnaireSourceIn:
+    """A registration form asking one unique attribute of the named value type, and nothing else."""
+    return QuestionnaireSourceIn(
+        uid="IpHINAT79UW",
+        name="Child Programme",
+        kind="tracker",
+        tracked_entity_type_uid="nEenWmSyUEp",
+        flat_items=[
+            QuestionnaireItemIn(
+                uid="Tea1aaaaaaa",
+                name="Unique ID",
+                value_type=value_type,
+                unique=True,
+                option_set_uid=option_set_uid,
+            )
+        ],
+    )
+
+
+def _unique_values(source: QuestionnaireSourceIn, per_target: int, option_sets: list[OptionSetIn]) -> list[str]:
+    """The values `per_target` registrations answer the form's single unique attribute with."""
+    build = build_synthetic_responses([source], option_sets, per_target, _ROOT_ORG_UNIT, _TODAY)
+    return [answer.value for response in build.responses for answer in response.answers]
+
+
+@pytest.mark.parametrize("value_type", _UNIQUE_VALUE_TYPES)
+def test_a_unique_attribute_answers_distinctly_per_registration(value_type: str) -> None:
+    """One invented constant registers one person and cascades every enrollment behind it into `E1064`."""
+    values = _unique_values(_unique_registration(value_type), 12, [])
+
+    assert len(values) == 12
+    assert len(set(values)) == 12
+
+
+def test_a_unique_attributes_value_carries_the_identity_that_minted_it() -> None:
+    """The distinctness comes from the response's own minted UID, not from the RNG stream."""
+    build = build_synthetic_responses([_unique_registration("TEXT")], [], 3, _ROOT_ORG_UNIT, _TODAY)
+
+    for response in build.responses:
+        assert response.tracked_entity_uid is not None
+        assert response.tracked_entity_uid in response.answers[0].value
+
+
+def test_a_unique_numeric_attribute_stays_inside_the_sign_its_value_type_admits() -> None:
+    """A distinct number is still a legal one: DHIS2 refuses a negative `INTEGER_POSITIVE` whatever else it is."""
+    positive = _unique_values(_unique_registration("INTEGER_POSITIVE"), 8, [])
+    negative = _unique_values(_unique_registration("INTEGER_NEGATIVE"), 8, [])
+    zero_or_positive = _unique_values(_unique_registration("INTEGER_ZERO_OR_POSITIVE"), 8, [])
+
+    assert all(int(value) > 0 for value in positive)
+    assert all(int(value) < 0 for value in negative)
+    assert all(int(value) >= 0 for value in zero_or_positive)
+    assert len(set(positive)) == len(set(negative)) == len(set(zero_or_positive)) == 8
+
+
+def test_a_unique_email_and_url_keep_the_shape_their_value_type_asks_for() -> None:
+    """A distinct value that stopped being an email would trade one refusal for another."""
+    emails = _unique_values(_unique_registration("EMAIL"), 4, [])
+    urls = _unique_values(_unique_registration("URL"), 4, [])
+    phones = _unique_values(_unique_registration("PHONE_NUMBER"), 4, [])
+
+    assert all(value.endswith("@example.invalid") and value.count("@") == 1 for value in emails)
+    assert all(value.startswith("https://example.invalid/") for value in urls)
+    assert all(value.startswith("+") and value[1:].isdigit() for value in phones)
+
+
+@pytest.mark.parametrize("value_type", _INDISTINCT_VALUE_TYPES)
+def test_a_unique_attribute_with_no_room_for_distinctness_is_tallied_rather_than_faked(value_type: str) -> None:
+    """Inventing a value outside what the type admits trades a refusal we can explain for one we cannot."""
+    build = build_synthetic_responses([_unique_registration(value_type)], [], 4, _ROOT_ORG_UNIT, _TODAY)
+
+    messages = [note.message for note in build.notes]
+
+    assert any("no room for a corpus-distinct value" in message and "E1064" in message for message in messages)
+    assert any("Unique ID (Tea1aaaaaaa)" in message for message in messages)
+
+
+def test_a_unique_option_bound_attribute_keeps_answering_its_own_option_set() -> None:
+    """An option-bound answer has to name a concept the CodeSystem holds, so distinctness gives way to codability."""
+    gender = _OPTION_SETS[0]
+    source = _unique_registration("TEXT", option_set_uid=gender.uid)
+
+    values = _unique_values(source, 4, [gender])
+    build = build_synthetic_responses([source], [gender], 4, _ROOT_ORG_UNIT, _TODAY)
+
+    assert set(values) <= {option.code for option in gender.options}
+    assert any("no room for a corpus-distinct value" in note.message for note in build.notes)
+
+
+def test_an_attribute_the_instance_does_not_call_unique_is_answered_as_it_always_was() -> None:
+    """The rule is keyed on DHIS2's own `unique` flag, so an ordinary attribute keeps its illustrative value."""
+    ordinary = _unique_registration("TEXT").model_copy(
+        update={"flat_items": [QuestionnaireItemIn(uid="Tea1aaaaaaa", name="Unique ID", value_type="TEXT")]}
+    )
+
+    values = _unique_values(ordinary, 3, [])
+
+    assert values == ["Example Unique ID"] * 3

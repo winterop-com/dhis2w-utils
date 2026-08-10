@@ -747,6 +747,13 @@ def generate_load_set_command(
             help="How many synthetic responses each questionnaire target contributes.",
         ),
     ] = DEFAULT_LOAD_SET_PER_TARGET,
+    salt: Annotated[
+        str,
+        typer.Option(
+            "--salt",
+            help="Mint a different corpus from the same metadata - name any string to move every drawn value.",
+        ),
+    ] = "",
     output_dir: Annotated[
         Path | None,
         typer.Option(
@@ -762,6 +769,10 @@ def generate_load_set_command(
     A load set is test data, not IG source: it lands beside `ig/` rather than inside it.
 
     The scaffold gitignores it, and `d2w fhir generate` never writes it.
+
+    A corpus mints the DHIS2 identities it names, so it imports once: DHIS2 refuses a second import
+    of the same corpus with E1002 and E1080 because those UIDs already exist. Pass `--salt` to mint
+    a fresh corpus for a second import; the same salt reproduces the same corpus.
     """
     from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
@@ -773,6 +784,7 @@ def generate_load_set_command(
                 generation.profile,
                 project,
                 per_target=per_target,
+                salt=salt,
                 output_directory=output_dir,
                 reporter=reporter,
             )

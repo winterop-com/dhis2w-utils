@@ -1220,6 +1220,7 @@ async def generate_load_set(
     project: FhirProject,
     *,
     per_target: int = DEFAULT_LOAD_SET_PER_TARGET,
+    salt: str = "",
     output_directory: Path | None = None,
     reporter: ProgressReporter | None = None,
 ) -> LoadSetReport:
@@ -1247,7 +1248,15 @@ async def generate_load_set(
     A tracker program's corpus is internally consistent for the same reason. The registration
     responses mint the tracked entity and enrollment identities, and the program's stage responses
     answer against those very identities rather than inventing pairs nothing creates - so a drain,
-    which posts registrations before events, lands both.
+    which posts registrations before events, lands both. A `unique` tracked entity attribute is
+    answered from the minting response's own identity, because DHIS2 refuses a second registration
+    claiming one business identifier with `E1064` and takes its enrollment and events down with it.
+
+    **A corpus imports once.** It mints the UIDs it names, so a second import of the same corpus is
+    refused by DHIS2 on the identities themselves - `E1002` for the tracked entity and `E1080` for
+    the enrollment - whatever the values say, because `importStrategy=CREATE` means create. `salt`
+    is the answer to that: it moves every seeded draw of the run, so a salted run is a different
+    corpus rather than a second copy of the same one.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
@@ -1283,6 +1292,7 @@ async def generate_load_set(
             datetime.now(tz=UTC).date(),
             placements=plan.placements,
             registration_program_uids=plan.registration_program_uids,
+            salt=salt,
         )
         notes.extend(synthetic.notes)
         build = build_example_documents(

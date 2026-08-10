@@ -232,6 +232,23 @@ _SEED_BYTES = 8
 #: The host a synthetic URL points at - `.invalid` is reserved by RFC 2606 and resolves nowhere.
 _SYNTHETIC_URL_HOST = "https://example.invalid"
 
+#: The domain a synthetic EMAIL answer lands in, reserved by RFC 2606 for the same reason.
+_SYNTHETIC_EMAIL_DOMAIN = "example.invalid"
+
+#: The DHIS2 value types a *unique* attribute's value can be spelled corpus-distinct in by carrying
+#: the response's own minted identity: a free-text field takes it verbatim, and the three shaped
+#: textual types take it in their own shape. Everything else is drawn as usual and tallied.
+_UNIQUE_TEXT_VALUE_TYPES = frozenset({"TEXT", "LONG_TEXT", "USERNAME"})
+_EMAIL_VALUE_TYPE = "EMAIL"
+_PHONE_NUMBER_VALUE_TYPE = "PHONE_NUMBER"
+
+#: How many digits a distinct numeric value for a unique attribute is drawn across. Nine keeps every
+#: value inside the 32-bit signed range DHIS2 stores an `INTEGER` in, while leaving a billion of them.
+_UNIQUE_NUMBER_DIGITS = 9
+
+#: How many digits a distinct `PHONE_NUMBER` carries after its leading `+`.
+_UNIQUE_PHONE_DIGITS = 11
+
 #: The birth-date range a synthetic `AGE` answer is drawn from.
 _SYNTHETIC_AGE_EARLIEST = datetime.date(1950, 1, 1)
 _SYNTHETIC_AGE_LATEST = datetime.date(2015, 12, 31)
@@ -610,14 +627,16 @@ class SyntheticBuild(BaseModel):
     notes: list[GenerateNote] = Field(default_factory=list)
 
 
-def registration_identities(program_uid: str, ordinal: int) -> RegistrationIdentities:
+def registration_identities(program_uid: str, ordinal: int, salt: str = "") -> RegistrationIdentities:
     """The tracked entity and enrollment one tracker program's `n`-th registration mints.
 
-    A pure function of the program and the ordinal, so the registration that mints the pair and
-    every stage response assigned to it derive the identical UIDs without threading values between
-    them. Drawn on a stream of its own, seeded the way every other synthetic draw is.
+    A pure function of the program, the ordinal, and the run salt, so the registration that mints
+    the pair and every stage response assigned to it derive the identical UIDs without threading
+    values between them. The program UID is in the seed material, which is what keeps one program's
+    identities out of another's - an event answering an enrollment of the wrong program is what
+    DHIS2 refuses with `E1079`. Drawn on a stream of its own, seeded the way every other draw is.
     """
-    generator = random.Random(_seed(f"{program_uid}:registration", ordinal))  # noqa: S311 - illustrative, not a secret
+    generator = random.Random(_seed(f"{program_uid}:registration", ordinal, salt))  # noqa: S311 - not a secret
     return RegistrationIdentities(
         tracked_entity_uid=_synthetic_uid(generator), enrollment_uid=_synthetic_uid(generator)
     )
@@ -632,6 +651,7 @@ def build_synthetic_responses(
     *,
     placements: dict[str, SyntheticPlacement] | None = None,
     registration_program_uids: frozenset[str] = frozenset(),
+    salt: str = "",
 ) -> SyntheticBuild:
     """Generate `per_target` deterministic example responses per target, answering every question it can.
 
@@ -658,10 +678,17 @@ def build_synthetic_responses(
     of its program, so every registration carries stage events and every stage event has an
     enrollment to land on. A program absent from the set - or a run emitting no registrations at
     all, which is the examples path - mints the pair on the response's own stream, as before.
+
+    A `unique` tracked entity attribute is answered from the response's own minted identity, so no
+    two registrations of one corpus claim the same business identifier - DHIS2 refuses the second
+    with `E1064`, and the enrollment behind it, and every event on that enrollment. `salt` moves
+    every draw of the run at once, which is what a caller wanting a *second* importable corpus
+    passes: the identities a corpus mints are as much a one-shot as the values it invents.
     """
     build = SyntheticBuild()
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
     unanswerable: list[str] = []
+    indistinct: list[str] = []
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
         placement = (placements or {}).get(source.uid)
         for ordinal in range(1, per_target + 1):
@@ -670,10 +697,12 @@ def build_synthetic_responses(
                     source,
                     option_sets_by_uid,
                     ordinal,
-                    _placed_organisation_unit(placement, source.uid, ordinal, organisation_unit_uid),
+                    _placed_organisation_unit(placement, source.uid, ordinal, organisation_unit_uid, salt),
                     today,
                     unanswerable,
-                    _assigned_registration(source, ordinal, per_target, registration_program_uids),
+                    indistinct,
+                    _assigned_registration(source, ordinal, per_target, registration_program_uids, salt),
+                    salt,
                 )
             )
     if unanswerable:
@@ -685,6 +714,16 @@ def build_synthetic_responses(
                 sorted(set(unanswerable)),
             )
         )
+    if indistinct:
+        build.notes.append(
+            aggregate_generate_note(
+                GenerateNoteCategory.INSTANCE_DATA_GAP,
+                f"{len(set(indistinct))} unique tracked entity attributes have a value type with no room for a "
+                "corpus-distinct value, so their answers repeat; DHIS2 refuses every registration after the "
+                "first with E1064",
+                sorted(set(indistinct)),
+            )
+        )
     return build
 
 
@@ -693,6 +732,7 @@ def _assigned_registration(
     ordinal: int,
     per_target: int,
     registration_program_uids: frozenset[str],
+    salt: str = "",
 ) -> RegistrationIdentities | None:
     """The registration one synthetic tracker response answers against, or None when it mints its own pair.
 
@@ -707,7 +747,7 @@ def _assigned_registration(
     if program_uid not in registration_program_uids or per_target < 1:
         return None
     registration_ordinal = ordinal if source.kind == "tracker" else (ordinal - 1) % per_target + 1
-    return registration_identities(program_uid, registration_ordinal)
+    return registration_identities(program_uid, registration_ordinal, salt)
 
 
 def _synthetic_response(
@@ -717,10 +757,12 @@ def _synthetic_response(
     organisation_unit_uid: str,
     today: datetime.date,
     unanswerable: list[str],
+    indistinct: list[str],
     registration: RegistrationIdentities | None = None,
+    salt: str = "",
 ) -> ExampleResponseIn:
     """Generate one target's `n`-th example: its period or occurrence, its tracker context, then its answers."""
-    generator = random.Random(_seed(source.uid, ordinal))  # noqa: S311 - illustrative values, not a secret
+    generator = random.Random(_seed(source.uid, ordinal, salt))  # noqa: S311 - illustrative values, not a secret
     period = _synthetic_period(source, today)
     window = _SyntheticWindow.of_period(period) if period is not None else _SyntheticWindow.recent(today)
     instance_id = f"{source.uid}-example-{ordinal}"
@@ -743,9 +785,12 @@ def _synthetic_response(
         if source.displays_incident_date:
             incident_at = f"{window.pick_date(generator).isoformat()}T{_pick_hour(generator)}:00:00Z"
     answers: list[ExampleAnswerIn] = []
+    unique_token = tracked_entity_uid or instance_id
     for key in _answerable_keys(source):
         option_set = option_sets_by_uid.get(key.item.option_set_uid or "")
-        value = _synthetic_value(key.item, option_set, generator, window, instance_id, organisation_unit_uid)
+        value = _synthetic_value(
+            key.item, option_set, generator, window, instance_id, organisation_unit_uid, unique_token, indistinct
+        )
         if value is None:
             unanswerable.append(f"{key.item.name} ({key.item.uid})")
             continue
@@ -763,7 +808,7 @@ def _synthetic_response(
         organisation_unit_uid=organisation_unit_uid,
         status_code=COMPLETED_STATUS,
         period=period,
-        attribute_option_combo_uid=_drawn_attribute_option_combo(source, ordinal),
+        attribute_option_combo_uid=_drawn_attribute_option_combo(source, ordinal, salt),
         authored=authored,
         tracked_entity_uid=tracked_entity_uid,
         enrollment_uid=enrollment_uid,
@@ -774,7 +819,7 @@ def _synthetic_response(
 
 
 def _placed_organisation_unit(
-    placement: SyntheticPlacement | None, target_uid: str, ordinal: int, fallback: str
+    placement: SyntheticPlacement | None, target_uid: str, ordinal: int, fallback: str, salt: str = ""
 ) -> str:
     """The seeded capture unit for one target's `n`-th response, or `fallback` when it was placed nowhere.
 
@@ -784,12 +829,12 @@ def _placed_organisation_unit(
     """
     if placement is None:
         return fallback
-    seed = _seed(f"{target_uid}:organisation-unit", ordinal)
+    seed = _seed(f"{target_uid}:organisation-unit", ordinal, salt)
     generator = random.Random(seed)  # noqa: S311 - an illustrative placement, not a secret
     return placement.organisation_unit_uids[generator.randrange(len(placement.organisation_unit_uids))]
 
 
-def _drawn_attribute_option_combo(source: QuestionnaireSourceIn, ordinal: int) -> str | None:
+def _drawn_attribute_option_combo(source: QuestionnaireSourceIn, ordinal: int, salt: str = "") -> str | None:
     """The seeded attribute option combo one target's `n`-th response is keyed under, or None on the default combo.
 
     Drawn on a generator of its own, seeded off the target UID and the ordinal, so a corpus is
@@ -799,14 +844,65 @@ def _drawn_attribute_option_combo(source: QuestionnaireSourceIn, ordinal: int) -
     combo = source.attribute_combo
     if source.kind != "aggregate" or combo is None or combo.is_default or not combo.option_combos:
         return None
-    generator = random.Random(_seed(f"{source.uid}:attribute-option-combo", ordinal))  # noqa: S311 - illustrative
+    generator = random.Random(_seed(f"{source.uid}:attribute-option-combo", ordinal, salt))  # noqa: S311 - drawn
     return combo.option_combos[generator.randrange(len(combo.option_combos))].uid
 
 
-def _seed(target_uid: str, ordinal: int) -> int:
-    """The RNG seed for one target's `n`-th example: the leading 64 bits of a SHA-256 digest."""
-    digest = hashlib.sha256(f"{target_uid}:{ordinal}".encode()).digest()
+def _seed(target_uid: str, ordinal: int, salt: str = "") -> int:
+    """The RNG seed for one target's `n`-th example: the leading 64 bits of a SHA-256 digest.
+
+    `salt` moves every draw of a run at once, which is what mints a *second* corpus rather than a
+    second copy of the first. An empty salt - the default, and every examples build - hashes the
+    same material it always did, so an unsalted run stays byte-identical.
+    """
+    material = f"{target_uid}:{ordinal}:{salt}" if salt else f"{target_uid}:{ordinal}"
+    digest = hashlib.sha256(material.encode()).digest()
     return int.from_bytes(digest[:_SEED_BYTES], "big")
+
+
+def _token_number(token: str, digits: int) -> int:
+    """A deterministic non-negative number of at most `digits` places, derived from one identity token."""
+    drawn = int.from_bytes(hashlib.sha256(token.encode()).digest()[:_SEED_BYTES], "big")
+    modulus: int = 10**digits
+    return drawn % modulus
+
+
+def _distinct_unique_value(item: QuestionnaireItemIn, token: str) -> str | None:
+    """A corpus-distinct value for a unique attribute, or None when its value type admits none.
+
+    DHIS2 refuses a second tracked entity carrying a `unique` attribute's value with `E1064`, so a
+    corpus answering one question with one invented constant registers exactly one person and
+    cascades every enrollment and event behind it into failure. The value therefore carries the
+    response's own minted tracked-entity UID - the one thing no other response in the corpus holds -
+    spelled the way the attribute's value type admits.
+
+    A value type with no room for it answers None and is tallied rather than faked: an option-bound
+    attribute has only as many values as its option set holds, a `LETTER` has 52, and a date or a
+    boolean has fewer still. Inventing a value outside what the type admits to dodge a duplicate
+    would trade a refusal we can explain for one we cannot.
+    """
+    value_type = item.value_type
+    if value_type in _UNIQUE_TEXT_VALUE_TYPES:
+        return f"{item.name} {token}"
+    if value_type == _EMAIL_VALUE_TYPE:
+        return f"{token.lower()}@{_SYNTHETIC_EMAIL_DOMAIN}"
+    if value_type == _PHONE_NUMBER_VALUE_TYPE:
+        return f"+{_token_number(token, _UNIQUE_PHONE_DIGITS):0{_UNIQUE_PHONE_DIGITS}d}"
+    if value_type == URI_VALUE_TYPE:
+        return f"{_SYNTHETIC_URL_HOST}/{token}"
+    if value_type in INTEGER_VALUE_TYPES:
+        return str(_distinct_integer(value_type, token))
+    return None
+
+
+def _distinct_integer(value_type: str, token: str) -> int:
+    """One distinct whole number for a unique attribute, on whichever side of zero its value type admits."""
+    drawn = _token_number(token, _UNIQUE_NUMBER_DIGITS)
+    if value_type == "INTEGER_NEGATIVE":
+        return -(drawn + 1)
+    if value_type == "INTEGER_POSITIVE":
+        return drawn + 1
+    return drawn
 
 
 def _synthetic_uid(generator: random.Random) -> str:
@@ -860,11 +956,24 @@ def _synthetic_value(
     window: _SyntheticWindow,
     instance_id: str,
     organisation_unit_uid: str,
+    unique_token: str,
+    indistinct: list[str],
 ) -> str | None:
-    """Generate one DHIS2-shaped value string for a question; None when the type is not worth faking."""
+    """Generate one DHIS2-shaped value string for a question; None when the type is not worth faking.
+
+    A `unique` attribute is answered from `unique_token` where its value type has room for it, so
+    two registrations of one corpus never collide on `E1064`; where it has none, the ordinary draw
+    stands and the question is tallied onto `indistinct` so the run says which values it cannot
+    make distinct rather than leaving the refusal to be discovered at import.
+    """
     value_type = item.value_type
     if value_type in _UNSYNTHESIZABLE_VALUE_TYPES:
         return None
+    if item.unique:
+        distinct = None if item.option_set_uid is not None else _distinct_unique_value(item, unique_token)
+        if distinct is not None:
+            return distinct
+        indistinct.append(f"{item.name} ({item.uid})")
     if item.option_set_uid is not None and option_set is not None and option_set.options:
         return _synthetic_option_value(value_type, option_set, generator)
     if value_type == ORGANISATION_UNIT_VALUE_TYPE:

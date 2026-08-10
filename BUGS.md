@@ -3760,3 +3760,62 @@ and a client parsing error bodies as JSON gets a parse failure instead of a mess
 `packages/dhis2w-fhir/src/dhis2w_fhir/service.py`.
 
 **Verifier:** none yet.
+
+### 68. A tracker event naming a non-existent enrollment is reported as `E1079` "different Program", not as a missing enrollment
+
+`E1079` states that an event's program differs from the program of the enrollment it
+names. When the enrollment does not exist at all - because the `trackedEntities`
+payload that would have created it was refused earlier in the same import - the same
+`E1079` is raised anyway, naming the absent enrollment and asserting a program
+mismatch that cannot be true of an object nobody has. It arrives beside `E1313`
+("of an Enrollment does not reference a TrackedEntity"), which is equally about
+resolution rather than about the reference the payload carries.
+
+**Observed on:** DHIS2 2.42 (`dhis2/core:2.42`, 2026-08-10).
+
+**Repro:**
+
+```bash
+# Create a tracked entity whose unique attribute value is already taken, so the whole
+# entry - and the enrollment nested in it - is refused with E1064.
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/tracker?importStrategy=CREATE&async=false' -d '{
+    "trackedEntities": [{
+      "trackedEntity": "TeAaBbCcDd1", "trackedEntityType": "MCPQUTHX1Ze", "orgUnit": "DiszpKrYNg8",
+      "attributes": [{"attribute": "lZGmxYbs97q", "value": "<a value another person already holds>"}],
+      "enrollments": [{"enrollment": "EnAaBbCcDd1", "program": "IpHINAT79UW",
+                       "orgUnit": "DiszpKrYNg8", "enrolledAt": "2026-07-20T09:00:00", "status": "ACTIVE"}]}]}'
+
+# Now post an event of that same program against the enrollment that was never created.
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/tracker?importStrategy=CREATE&async=false' -d '{
+    "events": [{"program": "IpHINAT79UW", "programStage": "A03MvHHogjR", "enrollment": "EnAaBbCcDd1",
+                "orgUnit": "DiszpKrYNg8", "occurredAt": "2026-07-21T09:00:00", "status": "COMPLETED"}]}'
+```
+
+**Expected:** an error saying the enrollment `EnAaBbCcDd1` does not exist - DHIS2 has
+`E1081` ("Enrollment ... could not be found") for exactly that.
+
+**Actual:** `E1079` - "Event: `<uid>` Program: `IpHINAT79UW` is different from Program
+defined in Enrollment `EnAaBbCcDd1`" - plus `E1313`. Both describe a relationship
+between the event and an enrollment that does not exist.
+
+**Impact:** the reported cause misdirects. A forwarder rolling rejections up by error
+code reports "events reference enrollments of another program", which sends a reader
+looking for a cross-program mix-up in the payload builder when the real cause is a
+refusal several entries earlier in the same run. This cost a full diagnosis cycle on
+`d2w fhir forward`: the 48 `E1079`s of one drain were, every one of them, the stage
+events of the 24 registrations `E1064` had refused - verified by matching each
+enrollment named in an `E1079` against the enrollments minted by the refused
+registrations (24 of 24).
+
+**Workaround in this repo:** none possible on the read side - the code is what DHIS2
+sends. The cause is addressed instead: `d2w fhir generate load-set` answers a `unique`
+tracked entity attribute from the minting response's own identity so the `E1064` never
+happens (`_distinct_unique_value` in
+`packages/dhis2w-fhir/src/dhis2w_fhir/resources/examples/__init__.py`), and
+`d2w fhir forward` posts registrations before events so an enrollment exists by the
+time its events are read (`FORWARD_TARGET_ORDER` in
+`packages/dhis2w-fhir/src/dhis2w_fhir/conversion/schemas.py`).
+
+**Verifier:** none yet.

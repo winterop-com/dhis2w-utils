@@ -678,3 +678,232 @@ async def test_the_registration_identities_are_reproducible(
 
     assert [_minted_pair(document) for document in first] == [_minted_pair(document) for document in second]
     assert rerun.written_files == []
+
+
+#: A second tracker program, so the identity threading is exercised across programs rather than
+#: within one. Its stage is the one an event of the *other* program must never answer against:
+#: DHIS2 refuses an event whose enrollment belongs to another program with `E1079`.
+_SECOND_PROGRAM_UID = "PrAncCare01"
+_SECOND_STAGE_UID = "PsAncVisit1"
+
+#: The unique tracked entity attribute both programs ask, which is what makes a colliding synthetic
+#: value a duplicate DHIS2 refuses with `E1064` rather than a harmless repeat.
+_UNIQUE_ATTRIBUTE_UID = "lZGmxYbs97q"
+
+_TWO_TRACKER_PROGRAMS_PAYLOAD: dict[str, object] = {
+    "programs": [
+        {
+            "id": _TRACKER_PROGRAM_UID,
+            "name": "Child Programme",
+            "programType": "WITH_REGISTRATION",
+            "trackedEntityType": {"id": "nEenWmSyUEp"},
+            "organisationUnits": [{"id": _SHARED_UNIT}],
+            "programTrackedEntityAttributes": [
+                {
+                    "mandatory": True,
+                    "sortOrder": 1,
+                    "trackedEntityAttribute": {
+                        "id": _UNIQUE_ATTRIBUTE_UID,
+                        "name": "Unique ID (Play)",
+                        "valueType": "TEXT",
+                        "unique": True,
+                    },
+                }
+            ],
+            "programStages": [
+                {
+                    "id": _TRACKER_STAGE_UID,
+                    "programStageSections": [],
+                    "programStageDataElements": [
+                        {
+                            "compulsory": True,
+                            "dataElement": {"id": "a3kGcGDCuk6", "name": "Apgar Score", "valueType": "INTEGER"},
+                        }
+                    ],
+                }
+            ],
+        },
+        {
+            "id": _SECOND_PROGRAM_UID,
+            "name": "Antenatal care",
+            "programType": "WITH_REGISTRATION",
+            "trackedEntityType": {"id": "nEenWmSyUEp"},
+            "organisationUnits": [{"id": _SHARED_UNIT}],
+            "programTrackedEntityAttributes": [
+                {
+                    "mandatory": True,
+                    "sortOrder": 1,
+                    "trackedEntityAttribute": {
+                        "id": _UNIQUE_ATTRIBUTE_UID,
+                        "name": "Unique ID (Play)",
+                        "valueType": "TEXT",
+                        "unique": True,
+                    },
+                }
+            ],
+            "programStages": [
+                {
+                    "id": _SECOND_STAGE_UID,
+                    "programStageSections": [],
+                    "programStageDataElements": [
+                        {
+                            "compulsory": True,
+                            "dataElement": {"id": "DeAncVisNo1", "name": "Visit number", "valueType": "INTEGER"},
+                        }
+                    ],
+                }
+            ],
+        },
+    ]
+}
+
+#: Which tracker program each stage of the two-program corpus belongs to.
+_PROGRAM_BY_STAGE = {_TRACKER_STAGE_UID: _TRACKER_PROGRAM_UID, _SECOND_STAGE_UID: _SECOND_PROGRAM_UID}
+
+
+async def _two_program_run(tmp_path: Path, per_target: int) -> service.LoadSetReport:
+    """Scaffold a project holding two tracker programs and generate one corpus over both surfaces."""
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_TWO_TRACKER_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORG_UNITS_PAYLOAD))
+    options = InitOptions(
+        ig_id="dhis2.fhir.load",
+        canonical=_CANONICAL,
+        name="Dhis2FhirLoad",
+        title="Load IG",
+        publisher="Example Org",
+        tracker_program_ids=[_TRACKER_PROGRAM_UID, _SECOND_PROGRAM_UID],
+    )
+    await service.init_project(tmp_path, options)
+    return await service.generate_load_set(resolve_profile("probe"), load_project(tmp_path), per_target=per_target)
+
+
+@respx.mock
+async def test_no_event_answers_an_enrollment_minted_for_another_program(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """DHIS2 refuses an event whose enrollment belongs to another program with `E1079`, so none crosses."""
+    mock_system_info("v42")
+
+    await _two_program_run(tmp_path, per_target=4)
+
+    minted = {
+        program_uid: {_minted_pair(document) for document in _documents(tmp_path, program_uid)}
+        for program_uid in (_TRACKER_PROGRAM_UID, _SECOND_PROGRAM_UID)
+    }
+    assert all(len(pairs) == 4 for pairs in minted.values())
+    assert not minted[_TRACKER_PROGRAM_UID] & minted[_SECOND_PROGRAM_UID]
+    for stage_uid, program_uid in _PROGRAM_BY_STAGE.items():
+        used = {_minted_pair(document) for document in _documents(tmp_path, stage_uid)}
+        assert used, f"{stage_uid} contributed no events"
+        assert used <= minted[program_uid], f"{stage_uid} answers an enrollment of another program"
+
+
+def _unique_answers(tmp_path: Path, program_uid: str) -> list[str]:
+    """Every value one program's registrations answer the unique tracked entity attribute with."""
+    return [
+        answer["valueString"]
+        for document in _documents(tmp_path, program_uid)
+        for item in document["item"]
+        if item["linkId"] == _UNIQUE_ATTRIBUTE_UID
+        for answer in item["answer"]
+    ]
+
+
+@respx.mock
+async def test_no_two_registrations_claim_one_unique_attribute_value(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """DHIS2 refuses a second registration claiming one business identifier with `E1064`, so none repeats.
+
+    The two programs of this corpus ask the *same* unique attribute, which is what a real instance
+    does with a national id - so the values have to be distinct across the whole corpus, not merely
+    within one program's own responses.
+    """
+    mock_system_info("v42")
+
+    await _two_program_run(tmp_path, per_target=4)
+
+    values = _unique_answers(tmp_path, _TRACKER_PROGRAM_UID) + _unique_answers(tmp_path, _SECOND_PROGRAM_UID)
+    assert len(values) == 8
+    assert len(set(values)) == 8
+
+
+@respx.mock
+async def test_a_unique_attribute_value_carries_the_identity_that_minted_it(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The distinctness is not luck: the value carries the one thing no other response in the corpus holds."""
+    mock_system_info("v42")
+
+    await _two_program_run(tmp_path, per_target=2)
+
+    for document in _documents(tmp_path, _TRACKER_PROGRAM_UID):
+        tracked_entity, _ = _minted_pair(document)
+        answered = next(
+            answer["valueString"]
+            for item in document["item"]
+            if item["linkId"] == _UNIQUE_ATTRIBUTE_UID
+            for answer in item["answer"]
+        )
+        assert tracked_entity in answered
+
+
+@respx.mock
+async def test_a_salted_corpus_is_a_different_corpus_and_reproducible(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A corpus mints the identities it names, so a second import needs a second corpus, not a rerun.
+
+    DHIS2 refuses re-importing one under `importStrategy=CREATE` with `E1002` / `E1080` - those UIDs
+    already exist - so `--salt` moves every drawn value at once. The same salt reproduces the same
+    corpus, because a salt is a handle on the draw rather than a source of entropy.
+    """
+    mock_system_info("v42")
+    await _two_program_run(tmp_path, per_target=2)
+    unsalted = {_minted_pair(document) for document in _documents(tmp_path, _TRACKER_PROGRAM_UID)}
+
+    project = load_project(tmp_path)
+    for directory, salt in ((tmp_path / "first", "second-run"), (tmp_path / "second", "second-run")):
+        await service.generate_load_set(
+            resolve_profile("probe"), project, per_target=2, salt=salt, output_directory=directory
+        )
+    salted = {_minted_pair(document) for document in _documents(tmp_path / "first", _TRACKER_PROGRAM_UID)}
+    replayed = {_minted_pair(document) for document in _documents(tmp_path / "second", _TRACKER_PROGRAM_UID)}
+
+    assert not salted & unsalted
+    assert salted == replayed
+
+
+@respx.mock
+async def test_a_salted_corpus_keeps_its_stage_events_on_its_own_enrollments(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The salt moves the identities as one, so the threading that makes a corpus consistent survives it."""
+    mock_system_info("v42")
+    await _two_program_run(tmp_path, per_target=3)
+    elsewhere = tmp_path / "salted"
+
+    await service.generate_load_set(
+        resolve_profile("probe"), load_project(tmp_path), per_target=3, salt="rerun", output_directory=elsewhere
+    )
+
+    minted = {
+        program_uid: {_minted_pair(document) for document in _documents(elsewhere, program_uid)}
+        for program_uid in (_TRACKER_PROGRAM_UID, _SECOND_PROGRAM_UID)
+    }
+    for stage_uid, program_uid in _PROGRAM_BY_STAGE.items():
+        used = {_minted_pair(document) for document in _documents(elsewhere, stage_uid)}
+        assert used
+        assert used <= minted[program_uid]

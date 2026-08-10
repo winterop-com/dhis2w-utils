@@ -2635,10 +2635,49 @@ registration forms included, and the two halves of a tracker program agree: the
 registration responses mint the tracked entity and enrollment UIDs, and the program's
 stage responses answer against those very pairs rather than inventing enrollments
 nothing creates. The pair is a pure function of the program UID and the registration's
-ordinal, and stage responses are assigned across the registrations round-robin, so the
-assignment is reproducible and every registration carries events. Since a drain posts
+ordinal - the program UID is in the seed material, which is what keeps one program's
+identities out of another's - and stage responses are assigned across their own
+program's registrations round-robin, so the assignment is reproducible and every
+registration carries events. Since a drain posts
 [registrations before events](#what-one-run-does), forwarding the whole corpus lands
 both halves in one run.
+
+**And no two registrations claim one business identifier.** DHIS2 refuses a second
+tracked entity carrying a `unique` attribute's value with `E1064`, and it refuses the
+enrollment nested in it and every event on that enrollment with it - so one invented
+constant across a corpus registers exactly one person and takes the rest down. A unique
+attribute is therefore answered from the response's own minted tracked-entity UID, in
+the spelling its value type admits:
+
+| Value type | What a unique attribute is answered with |
+| --- | --- |
+| `TEXT`, `LONG_TEXT`, `USERNAME` | the question's name plus the minted UID |
+| `EMAIL` | `<minted uid>@example.invalid` |
+| `PHONE_NUMBER` | `+` and eleven digits derived from the minted UID |
+| `URL` | `https://example.invalid/<minted uid>` |
+| `INTEGER` family | a nine-digit number derived from the minted UID, on whichever side of zero the type admits |
+| everything else | the ordinary draw, and a note naming the question |
+
+The last row is the honest half. A `BOOLEAN` has two values, a `LETTER` fifty-two, and
+an option-bound attribute only as many as its option set holds - so distinctness is not
+available, and inventing a value outside what the type admits to dodge a duplicate would
+trade a refusal that can be explained for one that cannot. The run says which questions
+those are instead.
+
+**A corpus imports once.** It mints the DHIS2 identities it names, so re-importing the
+same corpus is refused on the identities themselves - `E1002` for the tracked entity,
+`E1080` for the enrollment - whatever the values say, because `importStrategy=CREATE`
+means create. Salting only the unique values would not help: the UIDs repeat too. So the
+knob is a run salt, which moves every drawn value at once:
+
+```bash
+d2w fhir generate load-set --per-target 25                    # the corpus
+d2w fhir generate load-set --per-target 25 --salt second-run  # a different corpus
+```
+
+The same salt reproduces the same corpus - a salt is a handle on the draw, not a source
+of entropy - so a named run is as replayable as the unsalted one, and an unsalted run is
+byte-identical to what it always was.
 
 Then post the lot:
 

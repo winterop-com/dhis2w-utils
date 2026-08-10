@@ -10223,6 +10223,10 @@ A load set is test data, not IG source: it lands beside `ig/` rather than inside
 
 The scaffold gitignores it, and `d2w fhir generate` never writes it.
 
+A corpus mints the DHIS2 identities it names, so it imports once: DHIS2 refuses a second import
+of the same corpus with E1002 and E1080 because those UIDs already exist. Pass `--salt` to mint
+a fresh corpus for a second import; the same salt reproduces the same corpus.
+
 **Usage**:
 
 ```console
@@ -10232,6 +10236,7 @@ $ d2w fhir generate load-set [OPTIONS]
 **Options**:
 
 * `--per-target <int range>`: How many synthetic responses each questionnaire target contributes.  [default: 25; x&gt;=1]
+* `--salt <str>`: Mint a different corpus from the same metadata - name any string to move every drawn value.
 * `--output-dir <directory>`: Directory to write the `load/` corpus into (default: the project root).
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
