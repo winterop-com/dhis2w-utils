@@ -22,10 +22,13 @@ import datetime
 import pytest
 from dhis2w_fhir import (
     AttributeCodeIndex,
+    AttributeComboPlan,
     GenerateConfig,
     OptionSetIn,
     QuestionnaireItemIn,
     QuestionnaireSourceIn,
+    build_attribute_combo_artifacts,
+    build_attribute_combo_concept_maps,
     build_example_documents,
     build_questionnaire_documents,
     option_set_identities,
@@ -40,6 +43,7 @@ from dhis2w_fhir.conversion import (
     ConversionTargetKind,
     WireValueKind,
     build_conversion_context,
+    build_option_table,
     decimal_wire_value,
     translate_response,
     translate_responses,
@@ -236,6 +240,37 @@ _DATA_SET = QuestionnaireSourceIn(
     ],
 )
 
+#: A non-default attribute category combo: two attribute option combos, one of them without a DHIS2
+#: code, so a code-mode run has to fall the second concept back onto its UID.
+_PROJECT_COMBO = CategoryComboIn(
+    uid="idcDPkDtepR",
+    name="Project",
+    option_combos=[
+        CategoryOptionComboIn(uid="Aoc1aaaaaaa", name="Clean water", code="PRJ_WATER"),
+        CategoryOptionComboIn(uid="Aoc2aaaaaaa", name="Basic education"),
+    ],
+)
+
+#: The data set on that combo - every value it holds is keyed by one of its attribute option combos.
+_PROJECT_DATA_SET = QuestionnaireSourceIn(
+    uid="TuL8IOPzpHh",
+    name="Project funding",
+    kind="aggregate",
+    period_type="Monthly",
+    attribute_combo=_PROJECT_COMBO,
+    sections=[
+        QuestionnaireSectionIn(
+            uid="Sec2aaaaaaa",
+            name="Funding",
+            items=[QuestionnaireItemIn(uid="Dea0aaaaaaa", name="Amount spent", value_type="INTEGER")],
+        )
+    ],
+)
+
+#: The pair the run publishes for that combo, which a response codes its third key from.
+_PROJECT_COMBO_SYSTEM = f"{_CANONICAL}/CodeSystem/d2-aoc-idcDPkDtepR-cs"
+_PROJECT_COMBO_VALUE_SET = f"{_CANONICAL}/ValueSet/d2-aoc-idcDPkDtepR-vs"
+
 _BIRTH_STAGE = QuestionnaireSourceIn(
     uid="A03MvHHogjR",
     name="Birth",
@@ -281,6 +316,7 @@ def _context(
     """Assemble the translation context from the very artifacts a generate run publishes."""
     resolved_config = config if config is not None else GenerateConfig()
     plan = option_set_identities(_OPTION_SETS, resolved_config)
+    combos = build_attribute_combo_artifacts(sources, resolved_config, _CANONICAL, ig_status="draft")
     questionnaires = build_questionnaire_documents(
         sources,
         resolved_config,
@@ -288,8 +324,15 @@ def _context(
         ig_status="draft",
         option_set_plan=plan,
         attribute_codes=AttributeCodeIndex(),
+        attribute_combos=combos.plan,
     ).questionnaires
     code_systems, value_sets = _terminology(_OPTION_SETS, resolved_config)
+    for artifact in combos.artifacts:
+        name = artifact.relative_path.rsplit("/", 1)[-1]
+        if name.startswith("CodeSystem-"):
+            code_systems.append(CodeSystem.model_validate_json(artifact.content))
+        elif name.startswith("ValueSet-"):
+            value_sets.append(ValueSet.model_validate_json(artifact.content))
     naming = ConversionNaming.from_config(resolved_config, _CANONICAL)
     stems = (
         stems_by_uid
@@ -303,7 +346,10 @@ def _context(
         code_systems=code_systems,
         value_sets=value_sets,
         concept_maps=(
-            build_option_set_concept_maps(_OPTION_SETS, resolved_config, _CANONICAL, ig_status="draft")
+            [
+                *build_option_set_concept_maps(_OPTION_SETS, resolved_config, _CANONICAL, ig_status="draft"),
+                *build_attribute_combo_concept_maps(sources, resolved_config, _CANONICAL, ig_status="draft"),
+            ]
             if with_concept_maps
             else ()
         ),
@@ -329,8 +375,14 @@ def _document(
         resolved_config,
         _CANONICAL,
         option_set_plan=option_set_identities(_OPTION_SETS, resolved_config),
+        attribute_combos=_attribute_combo_plan(sources, resolved_config),
     )
     return build.responses[0]
+
+
+def _attribute_combo_plan(sources: list[QuestionnaireSourceIn], config: GenerateConfig) -> AttributeComboPlan:
+    """The attribute-option-combo plan the questionnaire target publishes for one selection."""
+    return build_attribute_combo_artifacts(sources, config, _CANONICAL, ig_status="draft").plan
 
 
 def _with_answers(
@@ -961,3 +1013,235 @@ def test_a_batch_report_keeps_one_result_per_response_and_routes_the_refusals() 
     assert len(report.refused) == 1
     assert len(report.events) == 1
     assert report.data_value_sets == ()
+
+
+def _project_response(attribute_option_combo_uid: str | None = "Aoc1aaaaaaa") -> ExampleResponseIn:
+    """One captured data value set of the data set on a non-default category combo."""
+    return ExampleResponseIn(
+        instance_id="TuL8IOPzpHh-202601-ImspTQPwCqd",
+        target_uid=_PROJECT_DATA_SET.uid,
+        kind="aggregate",
+        organisation_unit_uid=_ROOT_ORG_UNIT,
+        status_code="completed",
+        period=_MONTHLY_PERIOD,
+        attribute_option_combo_uid=attribute_option_combo_uid,
+        answers=[ExampleAnswerIn(data_element_uid="Dea0aaaaaaa", value="41")],
+    )
+
+
+def _project_document(
+    *, config: GenerateConfig | None = None, attribute_option_combo_uid: str | None = "Aoc1aaaaaaa"
+) -> QuestionnaireResponse:
+    """The QuestionnaireResponse the examples target publishes for that data set."""
+    return _document(_project_response(attribute_option_combo_uid), [_PROJECT_DATA_SET], config=config)
+
+
+def _translate_project(
+    document: QuestionnaireResponse,
+    *,
+    config: GenerateConfig | None = None,
+    coded_answer_mode: CodedAnswerMode = CodedAnswerMode.LENIENT,
+) -> ConversionResult:
+    """Translate one response against the data set on the non-default combo."""
+    return translate_response(
+        document, _context([_PROJECT_DATA_SET], config=config, coded_answer_mode=coded_answer_mode)
+    )
+
+
+def _with_attribute_option_combo(response: QuestionnaireResponse, coding: Coding | None) -> QuestionnaireResponse:
+    """One response with its D2AttributeOptionCombo extension replaced, or dropped when there is none."""
+    replacement = None if coding is None else Extension(url=_NAMING.attribute_option_combo_url, valueCoding=coding)
+    return _with_extension(response, _NAMING.attribute_option_combo_url, replacement)
+
+
+def test_a_non_default_data_set_writes_the_attribute_option_combo_its_response_names() -> None:
+    """The third key of the data value set comes off the response's D2AttributeOptionCombo extension."""
+    result = _translate_project(_project_document())
+    assert result.refusals == ()
+    assert result.data_value_set is not None
+    assert result.data_value_set.attributeOptionCombo == "Aoc1aaaaaaa"
+
+
+def test_a_default_combo_data_set_writes_no_attribute_option_combo_at_all() -> None:
+    """Absence means the default combo, which DHIS2 fills in itself - so the field stays unset."""
+    result = translate_response(_aggregate_document(), _context([_DATA_SET]))
+    assert result.data_value_set is not None
+    assert result.data_value_set.attributeOptionCombo is None
+
+
+def test_an_id_mode_concept_code_is_the_attribute_option_combo_uid_itself() -> None:
+    """Under `concept_code_source = "id"` the concept code the response carries is already the DHIS2 UID."""
+    document = _project_document()
+    coding = next(
+        extension.valueCoding
+        for extension in document.extension or []
+        if extension.url == _NAMING.attribute_option_combo_url
+    )
+    assert coding is not None
+    assert coding.system == _PROJECT_COMBO_SYSTEM
+    assert coding.code == "Aoc1aaaaaaa"
+
+
+def test_a_code_mode_response_resolves_its_combo_through_the_dhis2_id_property() -> None:
+    """Under `concept_code_source = "code"` the concept code is the DHIS2 code, and `dhis2-id` carries the UID."""
+    document = _project_document(config=_CODE_CONCEPTS)
+    coding = next(
+        extension.valueCoding
+        for extension in document.extension or []
+        if extension.url == _NAMING.attribute_option_combo_url
+    )
+    assert coding is not None
+    assert coding.code == "PRJ_WATER"
+
+    result = _translate_project(document, config=_CODE_CONCEPTS)
+
+    assert result.refusals == ()
+    assert result.data_value_set is not None
+    assert result.data_value_set.attributeOptionCombo == "Aoc1aaaaaaa"
+
+
+def test_a_code_mode_combo_without_a_dhis2_code_still_resolves_off_its_uid_concept() -> None:
+    """An option combo DHIS2 holds no code for takes the UID as its concept code, and comes back as that UID."""
+    result = _translate_project(
+        _project_document(config=_CODE_CONCEPTS, attribute_option_combo_uid="Aoc2aaaaaaa"), config=_CODE_CONCEPTS
+    )
+    assert result.refusals == ()
+    assert result.data_value_set is not None
+    assert result.data_value_set.attributeOptionCombo == "Aoc2aaaaaaa"
+
+
+def test_the_combos_concept_map_carries_the_uid_a_hand_written_code_system_lost() -> None:
+    """The `{base}/id/category-option-combo` group is the third tier, and the option table really reads it."""
+    build = build_attribute_combo_artifacts([_PROJECT_DATA_SET], _CODE_CONCEPTS, _CANONICAL, ig_status="draft")
+    published = next(
+        CodeSystem.model_validate_json(artifact.content)
+        for artifact in build.artifacts
+        if artifact.relative_path.rsplit("/", 1)[-1].startswith("CodeSystem-")
+    )
+    stripped = published.model_copy(
+        update={"concept": [concept.model_copy(update={"property": None}) for concept in published.concept or []]}
+    )
+    maps = build_attribute_combo_concept_maps([_PROJECT_DATA_SET], _CODE_CONCEPTS, _CANONICAL, ig_status="draft")
+
+    naming = ConversionNaming.from_config(_CODE_CONCEPTS, _CANONICAL)
+    without_map = build_option_table(stripped, naming)
+    with_map = build_option_table(stripped, naming, maps)
+
+    assert {entry.concept_code: entry.option_uid for entry in without_map.entries}["PRJ_WATER"] == "PRJ_WATER"
+    assert {entry.concept_code: entry.option_uid for entry in with_map.entries}["PRJ_WATER"] == "Aoc1aaaaaaa"
+
+
+def test_a_lenient_run_resolves_a_combo_sent_in_the_other_spelling_and_says_so() -> None:
+    """The dial that grades a coded answer grades the attribute option combo the same way."""
+    document = _with_attribute_option_combo(_project_document(), Coding(system=_PROJECT_COMBO_SYSTEM, code="PRJ_WATER"))
+
+    result = _translate_project(document)
+
+    assert result.refusals == ()
+    assert result.data_value_set is not None
+    assert result.data_value_set.attributeOptionCombo == "Aoc1aaaaaaa"
+    assert ConversionNoteCategory.CODED_ANSWER_FALLBACK in _note_categories(result)
+
+
+def test_a_strict_run_refuses_the_spelling_a_lenient_one_resolves() -> None:
+    """Strict accepts the concept code the published CodeSystem carries and nothing else."""
+    document = _with_attribute_option_combo(_project_document(), Coding(system=_PROJECT_COMBO_SYSTEM, code="PRJ_WATER"))
+
+    result = _translate_project(document, coded_answer_mode=CodedAnswerMode.STRICT)
+
+    assert result.data_value_set is None
+    assert _refusal_categories(result) == {ConversionRefusalCategory.UNRESOLVABLE_ATTRIBUTE_OPTION_COMBO}
+
+
+def test_a_response_naming_no_combo_against_a_form_that_declares_one_refuses_naming_e8023() -> None:
+    """A payload DHIS2 would refuse is worse than a named refusal, so the response never becomes one."""
+    result = _translate_project(_with_attribute_option_combo(_project_document(), None))
+
+    assert result.data_value_set is None
+    assert _refusal_categories(result) == {ConversionRefusalCategory.MISSING_ATTRIBUTE_OPTION_COMBO}
+    assert "E8023" in result.refusals[0].reason
+
+
+def test_a_response_naming_two_combos_refuses_rather_than_picking_one() -> None:
+    """The response profile slices the extension `0..1`, and two of them names no single key."""
+    document = _project_document()
+    doubled = document.model_copy(
+        update={
+            "extension": [
+                *(document.extension or []),
+                Extension(
+                    url=_NAMING.attribute_option_combo_url,
+                    valueCoding=Coding(system=_PROJECT_COMBO_SYSTEM, code="Aoc2aaaaaaa"),
+                ),
+            ]
+        }
+    )
+
+    result = _translate_project(doubled)
+
+    assert _refusal_categories(result) == {ConversionRefusalCategory.MISSING_ATTRIBUTE_OPTION_COMBO}
+
+
+def test_a_combo_coding_with_no_code_refuses() -> None:
+    """A coding naming a system and nothing else says which vocabulary, not which combo."""
+    document = _with_attribute_option_combo(_project_document(), Coding(system=_PROJECT_COMBO_SYSTEM))
+
+    result = _translate_project(document)
+
+    assert _refusal_categories(result) == {ConversionRefusalCategory.MISSING_ATTRIBUTE_OPTION_COMBO}
+
+
+def test_a_combo_the_published_vocabulary_does_not_hold_refuses() -> None:
+    """DHIS2 refuses a write keyed to a combo its data set does not carry, so the translator does first."""
+    document = _with_attribute_option_combo(
+        _project_document(), Coding(system=_PROJECT_COMBO_SYSTEM, code="Aoc9aaaaaaa")
+    )
+
+    result = _translate_project(document)
+
+    assert _refusal_categories(result) == {ConversionRefusalCategory.UNRESOLVABLE_ATTRIBUTE_OPTION_COMBO}
+
+
+def test_a_combo_named_against_a_form_that_declares_none_is_noted_rather_than_written() -> None:
+    """A default-combo data set has one attribute option combo, so a named one is not the payload's to carry."""
+    document = _with_attribute_option_combo(
+        _aggregate_document(), Coding(system=_PROJECT_COMBO_SYSTEM, code="Aoc1aaaaaaa")
+    )
+
+    result = translate_response(document, _context([_DATA_SET]))
+
+    assert result.refusals == ()
+    assert result.data_value_set is not None
+    assert result.data_value_set.attributeOptionCombo is None
+    assert ConversionNoteCategory.ATTRIBUTE_OPTION_COMBO_IGNORED in _note_categories(result)
+
+
+def test_a_combo_whose_code_system_the_context_never_read_goes_through_unchecked() -> None:
+    """An unpublished vocabulary is the guide's incomplete build, and the id-mode concept code is the UID."""
+    context = _context([_PROJECT_DATA_SET])
+    without_terminology = context.model_copy(
+        update={
+            "option_tables": {
+                system: table for system, table in context.option_tables.items() if system != _PROJECT_COMBO_SYSTEM
+            }
+        }
+    )
+
+    result = translate_response(_project_document(), without_terminology)
+
+    assert result.refusals == ()
+    assert result.data_value_set is not None
+    assert result.data_value_set.attributeOptionCombo == "Aoc1aaaaaaa"
+    assert ConversionNoteCategory.CODED_ANSWER_UNCHECKED in _note_categories(result)
+
+
+def test_the_form_spec_carries_the_vocabulary_its_questionnaire_declares() -> None:
+    """The declaration is read off `D2AttributeOptionCombos`, and the CodeSystem behind it off the ValueSet."""
+    context = _context([_PROJECT_DATA_SET, _DATA_SET])
+    project = context.forms[f"{_CANONICAL}/Questionnaire/{_PROJECT_DATA_SET.uid}"]
+    default = context.forms[f"{_CANONICAL}/Questionnaire/{_DATA_SET.uid}"]
+
+    assert project.attribute_option_combo_value_set == _PROJECT_COMBO_VALUE_SET
+    assert project.attribute_option_combo_system == _PROJECT_COMBO_SYSTEM
+    assert default.attribute_option_combo_value_set is None
+    assert default.attribute_option_combo_system is None

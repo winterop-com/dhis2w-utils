@@ -1118,6 +1118,33 @@
     "code": "DS_1149441",
     "kind": "aggregate",
     "period_type": "Monthly",
+    "attribute_combo": {
+      "uid": "idcDPkDtepR",
+      "name": "Project",
+      "is_default": false,
+      "option_combos": [
+        {
+          "uid": "pO5CEqK6c1s",
+          "name": "Improve access to clean water",
+          "code": "COC_1452092"
+        },
+        {
+          "uid": "sSeEjeQ0Rgt",
+          "name": "Improve access to medicines",
+          "code": "COC_1452091"
+        },
+        {
+          "uid": "oawMLLH7OjA",
+          "name": "Provide access to basic education",
+          "code": "COC_1452090"
+        },
+        {
+          "uid": "BqblOcSwGey",
+          "name": "Provide access to primary health care",
+          "code": "COC_1452093"
+        }
+      ]
+    },
     "sections": [],
     "flat_items": [
       {

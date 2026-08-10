@@ -134,6 +134,7 @@ class Extension(Element):
     url: str
     extension: list[Extension] | None = None
     valueCode: str | None = None
+    valueCanonical: str | None = None
     valueString: str | None = None
     valueInteger: int | None = None
     valueDecimal: int | float | None = None

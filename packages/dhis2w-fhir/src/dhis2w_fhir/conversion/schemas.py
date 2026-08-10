@@ -34,7 +34,22 @@ _SEGMENTS_BY_TOKEN = {subject.token: subject.segment for subject in IDENTIFIER_S
 #: than an identifier any generated resource carries.
 _OPTION_CODE_SEGMENT = "option-code"
 
+#: The suffix a ConceptMap's DHIS2-code target namespace takes over its UID sibling's segment.
+_CODE_SEGMENT_SUFFIX = "-code"
+
+CONCEPT_CODE_TIER = "concept-code"
+"""The spelling the contract asks for: the concept code the served CodeSystem publishes."""
+
+OPTION_UID_TIER = "option-uid"
+"""The first lenient fall-back: the DHIS2 UID of the option, sent against a code-mode CodeSystem."""
+
+OPTION_CODE_TIER = "option-code"
+"""The second lenient fall-back: the DHIS2 code of the option, sent against an id-mode CodeSystem."""
+
 __all__ = [
+    "CONCEPT_CODE_TIER",
+    "OPTION_CODE_TIER",
+    "OPTION_UID_TIER",
     "CodedAnswerMode",
     "ConversionContext",
     "ConversionNaming",
@@ -152,6 +167,9 @@ class ConversionNoteCategory(StrEnum):
     #: An item answering a group's link id, which carries no data value of its own.
     GROUP_ITEM_IGNORED = "group-item-ignored"
 
+    #: A response names an attribute option combo its form declares no vocabulary for, so it is not written.
+    ATTRIBUTE_OPTION_COMBO_IGNORED = "attribute-option-combo-ignored"
+
 
 class ConversionRefusalCategory(StrEnum):
     """The kind of refusal one untranslatable response raised, named so a caller can route it."""
@@ -185,6 +203,12 @@ class ConversionRefusalCategory(StrEnum):
 
     #: An aggregate response carries no D2Period extension.
     MISSING_PERIOD = "missing-period"
+
+    #: The form declares an attribute-option-combo vocabulary and the response names no concept of it.
+    MISSING_ATTRIBUTE_OPTION_COMBO = "missing-attribute-option-combo"
+
+    #: The response names an attribute option combo the declared vocabulary holds no concept for.
+    UNRESOLVABLE_ATTRIBUTE_OPTION_COMBO = "unresolvable-attribute-option-combo"
 
     #: An aggregate response's ISO period does not read as a DHIS2 period.
     MALFORMED_PERIOD = "malformed-period"
@@ -256,6 +280,12 @@ class ConversionNaming(BaseModel):
     period_url: str
     organisation_unit_url: str
     tracker_enrollment_url: str
+    attribute_option_combos_url: str
+    """Canonical of the Questionnaire extension a form declares its attribute-option-combo ValueSet on."""
+
+    attribute_option_combo_url: str
+    """Canonical of the QuestionnaireResponse extension one response names its attribute option combo on."""
+
     organisation_unit_system: str
     data_set_system: str
     program_system: str
@@ -268,6 +298,12 @@ class ConversionNaming(BaseModel):
     option_uid_system: str
     """The DHIS2 identifier namespace an option-set ConceptMap carries its option UIDs onto."""
 
+    attribute_option_combo_uid_system: str
+    """The DHIS2 identifier namespace an attribute-combo ConceptMap carries its option-combo UIDs onto."""
+
+    attribute_option_combo_code_system: str
+    """The DHIS2 identifier namespace an attribute-combo ConceptMap carries its option-combo codes onto."""
+
     @classmethod
     def from_config(cls, config: GenerateConfig, canonical: str) -> ConversionNaming:
         """Derive every conversion name from the IG canonical plus the `[generate]` naming tokens and base."""
@@ -278,6 +314,8 @@ class ConversionNaming(BaseModel):
             period_url=_definition_url(canonical, names.period_extension_id),
             organisation_unit_url=_definition_url(canonical, names.organisation_unit_extension_id),
             tracker_enrollment_url=_definition_url(canonical, names.tracker_enrollment_extension_id),
+            attribute_option_combos_url=_definition_url(canonical, names.attribute_option_combos_extension_id),
+            attribute_option_combo_url=_definition_url(canonical, names.attribute_option_combo_extension_id),
             organisation_unit_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["OrgUnit"]),
             data_set_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["DataSet"]),
             program_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["Program"]),
@@ -286,6 +324,10 @@ class ConversionNaming(BaseModel):
             tracker_enrollment_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["TrackerEnrollment"]),
             option_code_system=_identifier_system(base, _OPTION_CODE_SEGMENT),
             option_uid_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["Option"]),
+            attribute_option_combo_uid_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["CategoryOptionCombo"]),
+            attribute_option_combo_code_system=_identifier_system(
+                base, f"{_SEGMENTS_BY_TOKEN['CategoryOptionCombo']}{_CODE_SEGMENT_SUFFIX}"
+            ),
         )
 
     def target_identifier_system(self, form_kind: FormKind) -> str:
@@ -333,6 +375,11 @@ class ResolvedOption(BaseModel):
     entry: OptionEntry
     matched_by: str
     """`concept-code`, `option-uid`, or `option-code` - which of the three tiers the code hit."""
+
+    @property
+    def matched_contract_spelling(self) -> bool:
+        """Whether the received code was the concept code the contract asks for, rather than a fall-back."""
+        return self.matched_by == CONCEPT_CODE_TIER
 
 
 class OptionLookup(BaseModel):
@@ -390,7 +437,13 @@ class QuestionSpec(BaseModel):
 
 
 class FormSpec(BaseModel):
-    """One served Questionnaire flattened into what a response answering it translates through."""
+    """One served Questionnaire flattened into what a response answering it translates through.
+
+    `attribute_option_combo_value_set` is the vocabulary the form's `D2AttributeOptionCombos`
+    extension declares, and its presence is what makes the response-side extension required: a
+    data set on the default category combo declares none, and its values are keyed under the one
+    attribute option combo it has.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -402,6 +455,11 @@ class FormSpec(BaseModel):
     program_stage_uid: str | None = None
     questions: dict[str, QuestionSpec] = Field(default_factory=dict)
     group_link_ids: frozenset[str] = frozenset()
+    attribute_option_combo_value_set: str | None = None
+    """Canonical of the ValueSet the form declares its responses key their values from, or None."""
+
+    attribute_option_combo_system: str | None = None
+    """Canonical of the CodeSystem behind that ValueSet, or None when the context does not carry it."""
 
 
 class ConversionContext(BaseModel):

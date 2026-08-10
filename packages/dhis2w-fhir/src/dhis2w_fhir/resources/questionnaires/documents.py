@@ -47,6 +47,7 @@ from dhis2w_fhir.r4 import (
     ValueSetCompose,
     ValueSetInclude,
 )
+from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
 from dhis2w_fhir.resources.option_sets import (
     code_system_canonical,
     option_set_identity_index,
@@ -169,6 +170,7 @@ class _QuestionnaireSystems(BaseModel):
     form_type_extension_url: str
     form_type_code_system_url: str
     assignment_extension_url: str
+    attribute_option_combos_extension_url: str
     attribute_value_extension_url: str
     data_element_code_system_url: str
     category_option_combo_code_system_url: str
@@ -186,6 +188,9 @@ class _QuestionnaireSystems(BaseModel):
             form_type_code_system_url=code_system_canonical(canonical, foundation.form_type_code_system_id),
             assignment_extension_url=(
                 f"{canonical}/StructureDefinition/{foundation.organisation_unit_assignment_extension_id}"
+            ),
+            attribute_option_combos_extension_url=(
+                f"{canonical}/StructureDefinition/{foundation.attribute_option_combos_extension_id}"
             ),
             attribute_value_extension_url=attribute_value_extension_url(config, canonical),
             data_element_code_system_url=code_system_canonical(canonical, names.data_element_code_system_id),
@@ -222,6 +227,7 @@ def build_questionnaire_documents(
     attribute_codes: AttributeCodeIndex,
     stem_plan: QuestionnaireStemPlan | None = None,
     assignments: AssignmentPlan | None = None,
+    attribute_combos: AttributeComboPlan | None = None,
 ) -> QuestionnaireDocumentBuild:
     """Build one FHIR Questionnaire per data set, event program, and tracker program stage.
 
@@ -232,11 +238,14 @@ def build_questionnaire_documents(
     `stem_plan` is the questionnaire surface's identity-stem plan; left None it resolves here
     through the very `plan_questionnaire_stems` call the FSH target resolves through, so the two
     paths cannot disagree on an id, a canonical URL, or a name. `assignments` names the
-    assignment List each form is scoped by, the same plan the FSH path renders its extension from.
+    assignment List each form is scoped by, and `attribute_combos` the attribute-option-combo
+    ValueSet each form's responses are keyed from - the same two plans the FSH path renders its
+    extensions from.
     """
     names = QuestionnaireNaming.from_naming(config.naming)
     systems = _QuestionnaireSystems.from_config(config, canonical)
     assignment_plan = assignments if assignments is not None else AssignmentPlan()
+    attribute_combo_plan = attribute_combos if attribute_combos is not None else AttributeComboPlan()
     plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
     questionnaires = [
@@ -249,6 +258,7 @@ def build_questionnaire_documents(
             ig_status=ig_status,
             attribute_codes=attribute_codes,
             assignments=assignment_plan,
+            attribute_combos=attribute_combo_plan,
         )
         for source in sorted(sources, key=lambda item: (item.name, item.uid))
     ]
@@ -327,6 +337,7 @@ def _questionnaire_document(
     ig_status: IgStatus,
     attribute_codes: AttributeCodeIndex,
     assignments: AssignmentPlan,
+    attribute_combos: AttributeComboPlan,
 ) -> Questionnaire:
     """Build one form's Questionnaire, every name already resolved to the URL it is served under.
 
@@ -345,6 +356,7 @@ def _questionnaire_document(
         extension=[
             Extension(url=systems.form_type_extension_url, valueCode=source.kind),
             *_assignment_extension(source, systems, assignments),
+            *_attribute_option_combos_extension(source, systems, attribute_combos),
             *attribute_value_extensions(
                 source.attribute_values, attribute_codes, systems.attribute_value_extension_url
             ),
@@ -367,6 +379,21 @@ def _assignment_extension(
     if reference is None:
         return ()
     return (Extension(url=systems.assignment_extension_url, valueReference=Reference(reference=reference)),)
+
+
+def _attribute_option_combos_extension(
+    source: QuestionnaireSourceIn, systems: _QuestionnaireSystems, attribute_combos: AttributeComboPlan
+) -> tuple[Extension, ...]:
+    """The D2AttributeOptionCombos extension of one form, or nothing when it rides the default combo."""
+    identity = attribute_combos.identity_for(source.uid)
+    if identity is None:
+        return ()
+    return (
+        Extension(
+            url=systems.attribute_option_combos_extension_url,
+            valueCanonical=value_set_canonical(systems.canonical, identity.value_set_id),
+        ),
+    )
 
 
 def _identifiers(

@@ -10,12 +10,14 @@ so one round trip reports every problem at that level rather than one at a time.
     1. Read the contract  - the D2FormType kind, then the invariants that kind's profile pins (422).
     2. Resolve the form   - the questionnaire canonical, its served Questionnaire, and its index (422).
     3. Read the assignment - the organisation unit the response reports for, against the form's List (422).
-    4. Read the period    - an aggregate response's ISO period, its type, and the range it claims (422).
-    5. Walk the answers   - every item against the index: link ids, cardinality, types, terminology (422).
+    4. Read the third key - the attribute option combo, against the vocabulary the form declares (422).
+    5. Read the period    - an aggregate response's ISO period, its type, and the range it claims (422).
+    6. Walk the answers   - every item against the index: link ids, cardinality, types, terminology (422).
 
-Two of those grade against the strictness dial rather than absolutely. A coded answer in a
-spelling the contract does not ask for and an organisation unit outside the form's published
-assignment are both warnings by default and refusals under `--strict-codes`.
+Three of those grade against the strictness dial rather than absolutely. A coded answer in a
+spelling the contract does not ask for, an organisation unit outside the form's published
+assignment, and an attribute option combo that disagrees with what the form declares are all
+warnings by default and refusals under `--strict-codes`.
 
 Warnings never reject. They record what the server had to interpret or could not check - a code
 sent in a spelling the contract does not ask for, a required question left unanswered, a date
@@ -46,6 +48,7 @@ from dhis2w_fhir_serve.capture.index import (
     ASSIGNMENT_REFERENCE_PREFIX,
     FORM_KINDS,
     CaptureAssignment,
+    CaptureAttributeOptionCombos,
     CaptureIndex,
     CaptureIndexCache,
     CaptureQuestion,
@@ -110,6 +113,9 @@ ANSWER_VALUE_ELEMENTS = (
 #: How many dash-separated parts a full calendar date carries; a captured date is never partial.
 _FULL_DATE_PARTS = 3
 
+#: Where an attribute-option-combo issue points: the response's own extension list.
+_COMBO_EXPRESSION = "QuestionnaireResponse.extension"
+
 
 class ValidatedCapture(BaseModel):
     """A submission that cleared every phase: what it is, what it answers, and what the server noted."""
@@ -143,14 +149,13 @@ def validate_response(
     form_kind = _declared_form_kind(response, naming)
     _settle(_profile_issues(response, naming, form_kind), warnings)
 
+    resolvers = CodingResolverSet(store=store)
     index = _resolve_index(response.questionnaire or "", form_kind, indexes, naming, store)
     _settle(_assignment_issues(response, index, naming, form_kind, strict=strict_codes), warnings)
+    _settle(_attribute_option_combo_issues(response, index, naming, resolvers, strict=strict_codes), warnings)
     if form_kind == "aggregate":
         _settle(_period_issues(response, naming), warnings)
-    _settle(
-        _ItemValidator(index=index, resolvers=CodingResolverSet(store=store), strict=strict_codes).run(response),
-        warnings,
-    )
+    _settle(_ItemValidator(index=index, resolvers=resolvers, strict=strict_codes).run(response), warnings)
 
     return ValidatedCapture(
         form_kind=form_kind,
@@ -470,6 +475,140 @@ def _assignment_issue(assignment: CaptureAssignment, reference: str, expression:
         diagnostics=(
             f"`{reference}` is not in the form's organisation-unit assignment "
             f"(`{ASSIGNMENT_REFERENCE_PREFIX}{assignment.list_id}`); DHIS2 refuses a capture there with E1029"
+        ),
+    )
+
+
+def _attribute_option_combo_issues(
+    response: QuestionnaireResponse,
+    index: CaptureIndex,
+    naming: CaptureNaming,
+    resolvers: CodingResolverSet,
+    *,
+    strict: bool,
+) -> tuple[CaptureIssue, ...]:
+    """Grade the attribute option combo a response is filed under against what its form declares.
+
+    A data value set is keyed by `(orgUnit, period, attributeOptionCombo)`, and whether the third
+    key has to be stated is a fact about the form: a data set on the default category combo has one
+    attribute option combo and declares no vocabulary, so its responses name none. Where the form
+    does declare one - a `D2AttributeOptionCombos` extension naming the ValueSet - a response that
+    names none is exactly the write DHIS2 refuses with `E8023`, and it grades on the dial an
+    organisation unit outside the assignment grades on: a warning on the receipt by default, a
+    refusal under `--strict-codes`.
+
+    The mirror grades too. A response naming a combo against a form that declares none would be
+    stored and then silently not written, because the payload has no field for it - so the client
+    is told rather than left to discover it at forward time.
+    """
+    declared = index.attribute_option_combos
+    carried = _extensions(response, naming.attribute_option_combo_url)
+    if declared is None:
+        return () if not carried else (_undeclared_combo_issue(index, naming, strict=strict),)
+    if len(carried) != 1:
+        return (_missing_combo_issue(declared, naming, len(carried), strict=strict),)
+    return _combo_coding_issues(carried[0], declared, resolvers, strict=strict)
+
+
+def _combo_coding_issues(
+    extension: Extension,
+    declared: CaptureAttributeOptionCombos,
+    resolvers: CodingResolverSet,
+    *,
+    strict: bool,
+) -> tuple[CaptureIssue, ...]:
+    """Check the one coding a declared response carries: its system, then the concept it names."""
+    coding = extension.valueCoding
+    if coding is None or not coding.code:
+        return (
+            _error(
+                "required",
+                _COMBO_EXPRESSION,
+                f"the `{declared.value_set}` attribute option combo is named by a `valueCoding` carrying a "
+                f"code, and this one carries none",
+            ),
+        )
+    if declared.system is None:
+        return (
+            _warning(
+                "not-found",
+                _COMBO_EXPRESSION,
+                f"`{declared.value_set}` is not served here, so the attribute option combo `{coding.code}` "
+                f"was stored without being checked",
+            ),
+        )
+    if coding.system and coding.system != declared.system:
+        return (
+            _error(
+                "code-invalid",
+                _COMBO_EXPRESSION,
+                f"the attribute option combo is coded from `{declared.system}`, not `{coding.system}`",
+            ),
+        )
+    resolver = resolvers.for_system(declared.system)
+    if resolver is None:
+        return (
+            _warning(
+                "not-found",
+                _COMBO_EXPRESSION,
+                f"the code system `{declared.system}` is not served here, so the attribute option combo "
+                f"`{coding.code}` was stored unchecked",
+            ),
+        )
+    try:
+        resolved = resolver.resolve(coding.code, strict=strict)
+    except AmbiguousCodingError as error:
+        return (_error("multiple-matches", _COMBO_EXPRESSION, error.diagnostics),)
+    except UnresolvableCodingError:
+        return (
+            CaptureIssue(
+                severity="error" if strict else "warning",
+                code="code-invalid",
+                expression=_COMBO_EXPRESSION,
+                diagnostics=(
+                    f"`{coding.code}` is no attribute option combo of `{declared.value_set}`; DHIS2 refuses a "
+                    f"write keyed to a combo its data set does not carry with E8023"
+                ),
+            ),
+        )
+    if resolved.matched_by != "concept-code":
+        return (
+            _warning(
+                "code-invalid",
+                _COMBO_EXPRESSION,
+                f"the attribute option combo code '{coding.code}' matched {resolved.option_uid} by "
+                f"{resolved.matched_by}; the contract expects concept code '{resolved.concept_code}'",
+            ),
+        )
+    return ()
+
+
+def _missing_combo_issue(
+    declared: CaptureAttributeOptionCombos, naming: CaptureNaming, carried: int, *, strict: bool
+) -> CaptureIssue:
+    """What a client is told when the form declares a vocabulary and the response names no one concept of it."""
+    return CaptureIssue(
+        severity="error" if strict else "warning",
+        code="business-rule",
+        expression=_COMBO_EXPRESSION,
+        diagnostics=(
+            f"the form keys its values from `{declared.value_set}`, so its responses carry exactly one "
+            f"`{naming.attribute_option_combo_url}` extension, not {carried}; DHIS2 refuses a write naming no "
+            f"attribute option combo with E8023"
+        ),
+    )
+
+
+def _undeclared_combo_issue(index: CaptureIndex, naming: CaptureNaming, *, strict: bool) -> CaptureIssue:
+    """What a client is told when it names an attribute option combo the form declares no vocabulary for."""
+    return CaptureIssue(
+        severity="error" if strict else "warning",
+        code="business-rule",
+        expression=_COMBO_EXPRESSION,
+        diagnostics=(
+            f"`{index.canonical}` declares no `{naming.attribute_option_combos_url}` vocabulary, so the "
+            f"attribute option combo this response names is not written: its values are keyed under the "
+            f"default attribute option combo"
         ),
     )
 

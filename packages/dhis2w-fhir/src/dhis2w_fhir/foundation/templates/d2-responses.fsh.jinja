@@ -16,8 +16,14 @@ Description: {{ profile.description_literal }}
 {% elif profile.period_required %}
 * extension contains
     {{ names.period_extension }} named {{ names.period_extension }} 1..1 and
+{% if profile.attribute_option_combo_allowed %}
+    {{ names.attribute_option_combo_extension }} named {{ names.attribute_option_combo_extension }} 0..1 and
+{% endif %}
     {{ names.form_type_extension }} named {{ names.form_type_extension }} 1..1
 * extension[{{ names.period_extension }}] ^short = "The DHIS2 reporting period the values were captured for."
+{% if profile.attribute_option_combo_allowed %}
+* extension[{{ names.attribute_option_combo_extension }}] ^short = "The DHIS2 attribute option combo the values were captured under. A response answering a form that declares a {{ names.attribute_option_combos_extension }} vocabulary has to carry it, coded from that ValueSet; absent means the default attribute option combo, which is the only combo a form without that extension has."
+{% endif %}
 {% else %}
 * extension contains {{ names.form_type_extension }} named {{ names.form_type_extension }} 1..1
 {% endif %}

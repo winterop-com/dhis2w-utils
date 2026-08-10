@@ -35,6 +35,7 @@ from dhis2w_fhir import (
     GenerateConfig,
     OptionSetIn,
     QuestionnaireSourceIn,
+    build_attribute_combo_artifacts,
     build_example_documents,
     build_synthetic_responses,
     option_set_identities,
@@ -110,6 +111,7 @@ def _built_responses() -> dict[str, Any]:
         config,
         _CANONICAL,
         option_set_plan=option_set_identities(plan_sets, config),
+        attribute_combos=build_attribute_combo_artifacts(sources, config, _CANONICAL, ig_status="draft").plan,
     )
     assert [note.message for note in build.notes] == []
     return {str(response.id): _emitted(response) for response in build.responses}

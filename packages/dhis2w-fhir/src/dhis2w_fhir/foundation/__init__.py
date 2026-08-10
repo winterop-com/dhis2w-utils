@@ -11,9 +11,11 @@ Extension that carries a DHIS2 attribute value onto every resource that can hold
 `d2-organisation-unit.fsh` defines the Extension pointing a response at the Location of the
 organisation unit it was captured at, `d2-organisation-unit-assignment.fsh` the Extension
 naming the List of Locations a form may be captured against, `d2-organisation-unit-level.fsh`
-the Extension stating the hierarchy level a published Location sits at, and
-`d2-tracker-enrollment.fsh` the Extension carrying the DHIS2 tracker enrollment an event
-belongs to.
+the Extension stating the hierarchy level a published Location sits at,
+`d2-attribute-option-combos.fsh` the Extension naming the ValueSet of attribute option combos
+a form's responses may be keyed under, `d2-attribute-option-combo.fsh` the Extension carrying
+the one an aggregate response was captured under, and `d2-tracker-enrollment.fsh` the Extension
+carrying the DHIS2 tracker enrollment an event belongs to.
 
 Three more artifacts turn that vocabulary into a capture contract a third party can build
 against without reading DHIS2: `d2-responses.fsh` profiles the QuestionnaireResponse a
@@ -189,6 +191,16 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         ig_status=ig_status,
         experimental=experimental,
     )
+    attribute_option_combo = _ENVIRONMENT.get_template("d2-attribute-option-combo.fsh.jinja").render(
+        names=names,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
+    attribute_option_combos = _ENVIRONMENT.get_template("d2-attribute-option-combos.fsh.jinja").render(
+        names=names,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     organisation_unit_level = _ENVIRONMENT.get_template("d2-organisation-unit-level.fsh.jinja").render(
         names=names,
         level_value_set=organisation_unit_naming.level_value_set,
@@ -277,6 +289,18 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             content=organisation_unit_assignment,
         ),
         FshArtifact(
+            relative_path="foundation/d2-attribute-option-combo.fsh",
+            kind="extension",
+            fsh_name=names.attribute_option_combo_extension,
+            content=attribute_option_combo,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-attribute-option-combos.fsh",
+            kind="extension",
+            fsh_name=names.attribute_option_combos_extension,
+            content=attribute_option_combos,
+        ),
+        FshArtifact(
             relative_path="foundation/d2-organisation-unit-level.fsh",
             kind="extension",
             fsh_name=names.organisation_unit_level_extension,
@@ -319,10 +343,12 @@ def build_response_profile_declarations(config: GenerateConfig) -> list[Response
             form_type_code="aggregate",
             title="DHIS2 aggregate response",
             description=(
-                "One submission of a DHIS2 data set form: the values captured for one organisation unit "
-                "and one reporting period, answered on the linkIds of the data set's Questionnaire."
+                "One submission of a DHIS2 data set form: the values captured for one organisation unit, "
+                "one reporting period, and one attribute option combo, answered on the linkIds of the data "
+                "set's Questionnaire."
             ),
             period_required=True,
+            attribute_option_combo_allowed=True,
         ),
         ResponseProfileDeclaration(
             name=names.event_response_profile,

@@ -30,6 +30,9 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir.conversion.schemas import (
+    CONCEPT_CODE_TIER,
+    OPTION_CODE_TIER,
+    OPTION_UID_TIER,
     CodedAnswerMode,
     ConversionNote,
     ConversionNoteCategory,
@@ -87,11 +90,6 @@ ANSWER_VALUE_ELEMENTS = (
 #: The DHIS2 wire spellings of a true and a false value, which is what a boolean answer becomes.
 _TRUE_WIRE_VALUE = "true"
 _FALSE_WIRE_VALUE = "false"
-
-#: The tiers a lenient resolution walks, in order, after the concept code the contract asks for.
-_CONCEPT_CODE_TIER = "concept-code"
-_OPTION_UID_TIER = "option-uid"
-_OPTION_CODE_TIER = "option-code"
 
 
 class WireValue(BaseModel):
@@ -159,15 +157,15 @@ def resolve_option(table: OptionTable, code: str, mode: CodedAnswerMode) -> Opti
     carries every option under both spellings and a client that sent the other one still named
     exactly one option. Two matches inside one tier is an ambiguity leniency cannot paper over.
     """
-    matched = _tier(table, code, _CONCEPT_CODE_TIER)
+    matched = _tier(table, code, CONCEPT_CODE_TIER)
     if matched.option is not None or matched.ambiguous_option_uids:
         return matched
     if mode == CodedAnswerMode.STRICT:
         return OptionLookup()
-    by_uid = _tier(table, code, _OPTION_UID_TIER)
+    by_uid = _tier(table, code, OPTION_UID_TIER)
     if by_uid.option is not None or by_uid.ambiguous_option_uids:
         return by_uid
-    return _tier(table, code, _OPTION_CODE_TIER)
+    return _tier(table, code, OPTION_CODE_TIER)
 
 
 def wall_clock_reading(value: str, timezone: str | None) -> WallClockReading:
@@ -372,7 +370,7 @@ def _coded_answers(
 def _option_notes(question: QuestionSpec, code: str, resolved: ResolvedOption) -> list[ConversionNote]:
     """What one resolved coding is worth telling the caller: a fall-back spelling, or an unrecoverable code."""
     notes: list[ConversionNote] = []
-    if resolved.matched_by != _CONCEPT_CODE_TIER:
+    if not resolved.matched_contract_spelling:
         notes.append(
             _note(
                 question,
@@ -485,9 +483,9 @@ def _tier(table: OptionTable, code: str, tier: str) -> OptionLookup:
 
 def _spelling(entry: OptionEntry, tier: str) -> str | None:
     """One option's code under the spelling a resolution tier matches on."""
-    if tier == _CONCEPT_CODE_TIER:
+    if tier == CONCEPT_CODE_TIER:
         return entry.concept_code
-    if tier == _OPTION_UID_TIER:
+    if tier == OPTION_UID_TIER:
         return entry.option_uid
     return entry.option_code
 

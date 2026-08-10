@@ -75,25 +75,33 @@ class NamingConfig(BaseModel):
 
     Artifact names merge the prefix and kind tokens and underscore the rest
     (`D2` + `OS` + `_BirthType` + `_CS`); ids join the kebab of each non-empty token
-    (`d2-os-birth-type-cs`). `prefix`, `option_set`, `category`, `data_set`, `program`, and
-    `program_stage` may be empty to drop them; `organisation_unit` must stay non-empty or the
-    org-unit artifact names would degenerate to bare `_CS`/`_Level_CS`. Future group /
-    group-set artifacts follow the same scheme (`OUG`, `OUGS`).
+    (`d2-os-birth-type-cs`). `prefix`, `option_set`, `category`, `attribute_option_combo`,
+    `data_set`, `program`, and `program_stage` may be empty to drop them;
+    `organisation_unit` must stay non-empty or the org-unit artifact names would degenerate
+    to bare `_CS`/`_Level_CS`. `attribute_option_combo` names the vocabulary a data
+    set's non-default category combo publishes, and it takes a token of its own rather than the
+    `COC` the data dictionary uses: `D2COC_CS` is the disaggregation vocabulary a
+    question's cells are coded from, while `D2AOC_*_VS` is the vocabulary a response's
+    attribute option combo is drawn from, and the two are bound in different places. Future
+    group / group-set artifacts follow the same scheme (`OUG`, `OUGS`).
     """
 
     source: NamingSource = "id"
     prefix: str = "D2"
     option_set: str = "OS"
     category: str = "CAT"
+    attribute_option_combo: str = "AOC"
     organisation_unit: str = "OU"
     data_set: str = "DS"
     program: str = "PR"
     program_stage: str = "PS"
 
-    @field_validator("prefix", "option_set", "category", "data_set", "program", "program_stage")
+    @field_validator(
+        "prefix", "option_set", "category", "attribute_option_combo", "data_set", "program", "program_stage"
+    )
     @classmethod
     def _optional_token(cls, value: str) -> str:
-        """Prefix, option_set, category, data_set, program, and program_stage may be empty or FSH-name-safe."""
+        """Prefix, option_set, category, attribute_option_combo, data_set, program, and program_stage may be empty."""
         return _validate_fsh_token(value, allow_empty=True)
 
     @field_validator("organisation_unit")

@@ -17,6 +17,12 @@ import { expect, test, type APIRequestContext } from '@playwright/test'
 const AGGREGATE_FORM = 'BfMAe6Itzgt'
 const FHIR_JSON = 'application/fhir+json'
 
+/** The aggregate form whose DHIS2 data set rides a non-default category combo. */
+const ATTRIBUTE_COMBO_FORM = 'TuL8IOPzpHh'
+
+/** One combo of the vocabulary that form declares, as the published CodeSystem displays it. */
+const ATTRIBUTE_COMBO_CHOICE = 'Improve access to clean water'
+
 /** Ask the server to fill one form, then post the answer straight back at it. */
 async function generateAndPost(request: APIRequestContext, questionnaireId: string, seed: number): Promise<string> {
     const generated = await request.get(`/Questionnaire/${questionnaireId}/$generate?seed=${String(seed)}`, {
@@ -194,5 +200,59 @@ test.describe('filling a form in the browser', () => {
 
         const after = (await (await request.get('/spool')).json()) as { total: number }
         expect(after.total).toBe(before.total + 1)
+    })
+})
+
+/**
+ * The one piece of capture context a person supplies, on the one form that needs it.
+ *
+ * A DHIS2 data value is keyed by the organisation unit, the period, and the attribute option
+ * combo. The first two come off `$generate`; the third cannot - which project a month of stock
+ * figures is reported under is a fact the person filling the form brought with them - so the form
+ * asks for it above the questions and Submit refuses until it has one. This walks that: the picker
+ * renders the combos the served vocabulary publishes, the button is disabled with a reason, and
+ * the chosen combo is on the receipt afterwards, named the same way it was picked.
+ */
+test.describe('a form whose data set reports per attribute option combo', () => {
+    test('asks for the combo, refuses to submit without one, and puts it on the receipt', async ({
+        page,
+    }) => {
+        // The skeleton read is awaited rather than raced: `$generate` draws a combo of its own and
+        // it lands in the picker as the pre-selection, so "nothing is chosen" is a state this spec
+        // has to arrive at deliberately - which is what Clear below is for.
+        const opened = page.waitForResponse((response) => response.url().includes('$generate'))
+        await page.goto(`/#/forms/${ATTRIBUTE_COMBO_FORM}`)
+        await opened
+
+        // The label is the published vocabulary's own title - the DHIS2 category combo's name -
+        // rather than the artifact's, which is what a data clerk is actually choosing between.
+        const picker = page.getByLabel('Reporting for Project')
+        await expect(picker).toBeVisible()
+        // The draw is a proposal: whatever combo `$generate` filed its skeleton under is already
+        // in the picker, so the common case is one click rather than a hunt through the list.
+        await expect(picker).not.toHaveText('Not chosen')
+
+        const submit = page.getByRole('button', { name: 'Submit' })
+        await page.getByRole('button', { name: 'Clear' }).click()
+        await expect(submit).toBeDisabled()
+        await expect(page.getByText('Choose what this submission reports for before submitting')).toBeVisible()
+
+        await page.getByRole('button', { name: 'Fill with test data' }).click()
+        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+
+        // Chosen after the refill, because a refill is the server proposing a whole submission and
+        // its combo lands in the picker too - so the last word here has to be the user's.
+        await picker.click()
+        await page.getByRole('option', { name: new RegExp(ATTRIBUTE_COMBO_CHOICE) }).click()
+        await expect(submit).toBeEnabled()
+
+        await submit.click()
+        await expect(page.getByText('The server accepted this submission')).toBeVisible()
+        await expect(page).toHaveURL(/#\/responses$/)
+
+        await page.getByRole('row').filter({ hasText: 'EPI Stock' }).first().click()
+        await expect(page.getByRole('heading', { name: 'Capture context' })).toBeVisible()
+        await expect(page.getByText('Reporting for Project', { exact: true })).toBeVisible()
+        await expect(page.getByText(ATTRIBUTE_COMBO_CHOICE)).toBeVisible()
     })
 })

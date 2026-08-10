@@ -115,6 +115,20 @@ class CaptureAssignment(BaseModel):
         return reference in self.references
 
 
+class CaptureAttributeOptionCombos(BaseModel):
+    """The attribute-option-combo vocabulary one form declares, and the CodeSystem a coding into it names.
+
+    `system` is None when the facade serves no readable ValueSet for the declared canonical. The
+    declaration still stands - the form says its responses carry one - but which concepts are in it
+    cannot be checked, exactly as an unpublished `answerValueSet` leaves a coded answer's binding open.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    value_set: str
+    system: str | None = None
+
+
 class CaptureIndex(BaseModel):
     """One served Questionnaire flattened into the lookups a received response is validated with."""
 
@@ -130,6 +144,9 @@ class CaptureIndex(BaseModel):
     group_link_ids: frozenset[str] = frozenset()
     assignment: CaptureAssignment | None = None
     """The form's organisation-unit assignment, or None - which means every published unit may report it."""
+
+    attribute_option_combos: CaptureAttributeOptionCombos | None = None
+    """The vocabulary the form's responses key their values from, or None on the default category combo."""
 
 
 class CaptureIndexCache(BaseModel):
@@ -192,7 +209,25 @@ def build_capture_index(
         questions=questions,
         group_link_ids=frozenset(group_link_ids),
         assignment=_assignment(questionnaire, naming, store),
+        attribute_option_combos=_attribute_option_combos(questionnaire, naming, store),
     )
+
+
+def _attribute_option_combos(
+    questionnaire: Questionnaire, naming: CaptureNaming, store: ResourceStore
+) -> CaptureAttributeOptionCombos | None:
+    """The attribute-option-combo vocabulary the form declares, or None when it rides the default combo.
+
+    A data set on the default category combo has one attribute option combo and declares nothing,
+    so absence here is the contract saying its responses carry no `D2AttributeOptionCombo`.
+    """
+    for extension in questionnaire.extension or []:
+        if extension.url != naming.attribute_option_combos_url or not extension.valueCanonical:
+            continue
+        return CaptureAttributeOptionCombos(
+            value_set=extension.valueCanonical, system=_value_set_system(extension.valueCanonical, store)
+        )
+    return None
 
 
 def _form_kind(questionnaire: Questionnaire, naming: CaptureNaming, canonical: str) -> FormKind:
@@ -310,9 +345,14 @@ def _bound_value(item: QuestionnaireItem, url: str) -> int | None:
 
 def _option_system(item: QuestionnaireItem, store: ResourceStore) -> str | None:
     """The CodeSystem behind the question's `answerValueSet`, or None when the facade does not serve it."""
-    if not item.answerValueSet:
+    return _value_set_system(item.answerValueSet, store)
+
+
+def _value_set_system(canonical: str | None, store: ResourceStore) -> str | None:
+    """The CodeSystem one served ValueSet includes, or None when the facade serves no readable ValueSet for it."""
+    if not canonical:
         return None
-    entry = store.by_canonical(item.answerValueSet)
+    entry = store.by_canonical(canonical)
     if entry is None:
         return None
     try:

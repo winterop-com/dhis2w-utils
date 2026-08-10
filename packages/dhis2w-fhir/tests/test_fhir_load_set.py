@@ -36,10 +36,27 @@ _QUESTIONNAIRE_COUNT = 2
 _DATA_SET_UID = "BfMAe6Itzgt"
 _PROGRAM_UID = "VBqh0ynB2wv"
 
-#: The non-default category combo a data set carrying one is refused for: no QuestionnaireResponse
-#: names an attribute option combo, so DHIS2 would key every response to the default and raise E8023.
-_NON_DEFAULT_DATA_SET_COMBO: dict[str, object] = {"id": "CcAaBbCcDdE", "isDefault": False}
-_DEFAULT_DATA_SET_COMBO: dict[str, object] = {"id": "bjDvmb4bfuf", "isDefault": True}
+#: The non-default category combo a data set may ride: its option combos are the attribute option
+#: combos every value it holds is keyed by, and a response has to name one of them or earn `E8023`.
+_NON_DEFAULT_DATA_SET_COMBO: dict[str, object] = {
+    "id": "AccAaBbCcDd",
+    "name": "Project",
+    "isDefault": False,
+    "categoryOptionCombos": [
+        {"id": "Aoc1aaaaaaa", "name": "Partner A", "code": "PA"},
+        {"id": "Aoc2aaaaaaa", "name": "Partner B", "code": "PB"},
+    ],
+}
+_DEFAULT_DATA_SET_COMBO: dict[str, object] = {"id": "bjDvmb4bfuf", "name": "default", "isDefault": True}
+
+#: The attribute option combos the non-default combo publishes, which a drawn response must name one of.
+_ATTRIBUTE_OPTION_COMBO_CODES = frozenset({"Aoc1aaaaaaa", "Aoc2aaaaaaa"})
+
+#: Where a drawn attribute option combo is coded from - the pair the questionnaire target publishes.
+_ATTRIBUTE_COMBO_CODE_SYSTEM = f"{_CANONICAL}/CodeSystem/d2-aoc-AccAaBbCcDd-cs"
+
+#: The extension an aggregate response carries its attribute option combo on.
+_ATTRIBUTE_OPTION_COMBO_EXTENSION = f"{_CANONICAL}/StructureDefinition/d2-attribute-option-combo"
 
 
 def _data_sets_payload(
@@ -172,6 +189,11 @@ async def _run(tmp_path: Path, per_target: int = 3) -> service.LoadSetReport:
     """Scaffold a project and generate one load set into it."""
     await _scaffold_project(tmp_path)
     return await service.generate_load_set(resolve_profile("probe"), load_project(tmp_path), per_target=per_target)
+
+
+def _load_files(tmp_path: Path, target_uid: str) -> list[Path]:
+    """The corpus files one target contributed, in file-name order."""
+    return sorted((tmp_path / "load").glob(f"{target_uid}-*.json"))
 
 
 @respx.mock
@@ -421,26 +443,53 @@ async def test_a_target_assigned_to_nothing_is_skipped_with_the_same_note(
 
 
 @respx.mock
-async def test_a_data_set_on_a_non_default_category_combo_is_skipped_with_a_note(
+async def test_a_data_set_on_a_non_default_category_combo_carries_a_drawn_attribute_option_combo(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     wire_version: str,
     tmp_path: Path,
 ) -> None:
-    """A response names no attribute option combo, so a data set needing one would be refused with E8023."""
+    """Every response names one of the combos the data set really holds, so DHIS2 has no `E8023` to raise."""
     mock_system_info(wire_version)
     _mock_metadata()
     respx.get(f"{_HOST}/api/dataSets").mock(
         return_value=httpx.Response(200, json=_data_sets_payload(category_combo=_NON_DEFAULT_DATA_SET_COMBO))
     )
     report = await _run(tmp_path, per_target=3)
-    assert report.questionnaire_count == 1
-    assert list((tmp_path / "load").glob(f"{_DATA_SET_UID}-*.json")) == []
-    assert any(
-        note.message.startswith("1 data sets carry a non-default category combo")
-        and f"Child Health ({_DATA_SET_UID})" in note.message
-        for note in report.notes
+    assert report.questionnaire_count == _QUESTIONNAIRE_COUNT
+    documents = [json.loads(path.read_text(encoding="utf-8")) for path in _load_files(tmp_path, _DATA_SET_UID)]
+    assert len(documents) == 3
+    codings = [
+        extension["valueCoding"]
+        for document in documents
+        for extension in document["extension"]
+        if extension["url"] == _ATTRIBUTE_OPTION_COMBO_EXTENSION
+    ]
+    assert len(codings) == 3
+    assert {coding["system"] for coding in codings} == {_ATTRIBUTE_COMBO_CODE_SYSTEM}
+    assert {coding["code"] for coding in codings} <= _ATTRIBUTE_OPTION_COMBO_CODES
+    assert not [note for note in report.notes if "category combo" in note.message]
+
+
+@respx.mock
+async def test_the_drawn_attribute_option_combo_is_reproducible(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    wire_version: str,
+    tmp_path: Path,
+) -> None:
+    """Same instance state, same combo per response: the draw is seeded, not left to request order."""
+    mock_system_info(wire_version)
+    _mock_metadata()
+    respx.get(f"{_HOST}/api/dataSets").mock(
+        return_value=httpx.Response(200, json=_data_sets_payload(category_combo=_NON_DEFAULT_DATA_SET_COMBO))
     )
+    await _run(tmp_path, per_target=3)
+    first = {path.name: path.read_text(encoding="utf-8") for path in _load_files(tmp_path, _DATA_SET_UID)}
+    report = await _run(tmp_path, per_target=3)
+    second = {path.name: path.read_text(encoding="utf-8") for path in _load_files(tmp_path, _DATA_SET_UID)}
+    assert first == second
+    assert report.written_files == []
 
 
 @respx.mock

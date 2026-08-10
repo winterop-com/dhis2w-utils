@@ -431,9 +431,9 @@ illegal. Those definitions fall back to `D2` rather than fail.
 #### The canonical token registry
 
 Keys are added to `[generate.naming]` as each generator lands, with these
-defaults. `NamingConfig` carries six of them today - `option_set`, `category`,
-`organisation_unit`, `data_set`, `program`, and `program_stage`; the rest are the
-decided defaults for the generators still to come. Every token composes as
+defaults. `NamingConfig` carries seven of them today - `option_set`, `category`,
+`attribute_option_combo`, `organisation_unit`, `data_set`, `program`, and
+`program_stage`; the rest are the decided defaults for the generators still to come. Every token composes as
 `{prefix}{token}_<segment>_CS`, and ids derive from the kebab of prefix plus
 token (`d2-deg-<uid>-cs`).
 
@@ -442,7 +442,7 @@ token (`d2-deg-<uid>-cs`).
 | `OS` | option set | `CO` | category option |
 | `OG` | option group | `CC` | category combo |
 | `OGS` | option group set | `COC` | category option combo |
-| `OU` | organisation unit | `AOC` | attribute option combo |
+| `OU` | organisation unit | `AOC` | attribute option combo (in code) |
 | `OUG` | organisation unit group | `COG` | category option group |
 | `OUGS` | organisation unit group set | `COGS` | category option group set |
 | `DE` | data element | `IND` | indicator |
@@ -456,8 +456,15 @@ token (`d2-deg-<uid>-cs`).
 | `VRG` | validation rule group | `PRED` | predictor |
 | `LS` | legend set | | |
 
-`D2Period`, `D2FormType`, and `D2AttributeValue` are fixed names: each takes the
-prefix and no token of its own.
+`D2Period`, `D2FormType`, `D2AttributeValue`, `D2AttributeOptionCombos`, and
+`D2AttributeOptionCombo` are fixed names: each takes the prefix and no token of its own.
+
+**`AOC` names the attribute-option-combo pair, not `CC`.** The pair is emitted once per
+non-default *category combo* and holds that combo's *attribute option combos*, so either
+noun could have named it. `AOC` wins because the token has to be told apart from `COC` at
+a glance - `D2COC_CS` is the disaggregation vocabulary a question's cells are coded from,
+`D2AOC_<stem>_VS` the vocabulary a whole response is filed under - and because `CC` stays
+reserved for a future artifact publishing category combos in their own right.
 
 **`CO` is reserved, and there is deliberately no `category_option` key.** A
 category's options are the concepts inside that category's CodeSystem, exactly as
@@ -1217,6 +1224,11 @@ ig/input/fsh/data-dictionary/             The shared data-element and
                                           category-option-combo terminology
 ig/input/resources/assignments/           One List of Locations per form whose
   List-<id>.json                          assignment narrows the registry
+ig/input/resources/                       One CodeSystem/ValueSet pair per
+  attribute-option-combos/                non-default attribute category combo
+  {CodeSystem,ValueSet}-<id>.json         a selected data set rides
+ig/input/resources/concept-maps/          One ConceptMap per published attribute
+  ConceptMap-d2-aoc-<stem>-cm.json        combo, back to the DHIS2 identifiers
 ```
 
 `<stem>` is each target's [identity stem](#the-identity-stem) - the DHIS2 UID
@@ -1458,6 +1470,68 @@ by default, a 422 under `--strict-codes`. A form that publishes no List, or one 
 facade does not serve, is checked against nothing. `$generate` draws its Location from
 the assignment when there is one, so a generated response stays postable and forwardable.
 
+### Attribute option combos
+
+A DHIS2 data value set is keyed by three things, not two: the organisation unit, the
+reporting period, and the **attribute option combo**. The third key comes from the data
+set's own category combo. A data set on the default combo has exactly one attribute
+option combo and nothing to choose between; a data set on a non-default combo has
+several, and a capture that does not name one is refused at write time with `E8023` -
+another perfectly valid FHIR document DHIS2 will not take. So the choice is published,
+as terminology.
+
+**One pair per combo, published only when it is non-default.** A non-default attribute
+category combo emits a `CodeSystem` over its attribute option combos and the `ValueSet`
+including it whole, under the `AOC` naming token:
+
+```
+ig/input/resources/attribute-option-combos/CodeSystem-d2-aoc-idcDPkDtepR-cs.json
+ig/input/resources/attribute-option-combos/ValueSet-d2-aoc-idcDPkDtepR-vs.json
+```
+
+The pair belongs to the *combo*, not to the form, so two data sets on one combo share
+one pair. A default-combo data set publishes nothing at all - the same economy the
+[organisation-unit assignment](#organisation-unit-assignment) keeps, and for the same
+reason: absence already means the default combo, which is what every consumer assumed.
+
+**A dedicated token, not `COC`.** The data dictionary already publishes a
+`D2COC_CS`/`D2COC_VS` pair over the category option combos a *question* disaggregates
+into. That is a different vocabulary answering a different question in a different
+place: `D2COC_CS` codes an item's cells, `D2AOC_<stem>_VS` codes the combo the whole
+response is filed under. Sharing a token would leave a form's two combo vocabularies
+indistinguishable by name, so the attribute combos take `AOC` and a directory of their own.
+
+**The form declares the vocabulary, the response names one concept.** Two extensions,
+one on each side of the capture contract:
+
+```
+* extension[D2AttributeOptionCombos].valueCanonical = Canonical(D2AOC_idcDPkDtepR_VS)
+```
+
+`D2AttributeOptionCombos` (plural) is contexted on `Questionnaire` and valued as
+`canonical(ValueSet)` - a ValueSet is a definitional resource, bound by canonical
+everywhere else in the guide too (`answerValueSet` is the nearest neighbour), so a
+literal `Reference` would be the odd one out. It contrasts with the assignment
+extension, which points at a `List` *instance* and is therefore a `Reference`.
+
+```
+* extension[D2AttributeOptionCombo].valueCoding = D2AOC_idcDPkDtepR_CS#BqblOcSwGey "Provide access to primary health care"
+```
+
+`D2AttributeOptionCombo` (singular) is contexted on `QuestionnaireResponse` and carries
+one `Coding` into the CodeSystem the declared ValueSet includes. The coding's `code` is
+the concept code the run assigned under
+[`concept_code_source`](#generate) - the DHIS2 category option
+combo UID by default, the DHIS2 code under `concept_code_source = "code"` - and the
+published `ConceptMap` takes it back to both DHIS2 identifiers, whichever one it is.
+
+The aggregate response profile slices it `0..1`: the guide cannot express "required when
+the form declares a vocabulary" in a single StructureDefinition, so the profile allows
+it and states the rule in prose. **A response answering a form that carries a
+`D2AttributeOptionCombos` extension has to carry the matching
+`D2AttributeOptionCombo`.** A response answering a form without one carries neither, and
+DHIS2 keys its values under the default attribute option combo.
+
 ### Example responses
 
 A `Questionnaire` says what a DHIS2 form asks. A `QuestionnaireResponse` says what
@@ -1648,6 +1722,7 @@ parameters:
     - input/resources/terminology/*
     - input/resources/concept-maps/*
     - input/resources/categories/*
+    - input/resources/attribute-option-combos/*
     - input/resources/assignments/*
 ```
 
@@ -1696,7 +1771,7 @@ to the DHIS2 instance's metadata API, no conversation.
 
 | Profile | Parent | What it pins |
 | --- | --- | --- |
-| `D2AggregateResponse` | `QuestionnaireResponse` | `D2Period` 1..1, `D2FormType` 1..1 fixed to `#aggregate`, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
+| `D2AggregateResponse` | `QuestionnaireResponse` | `D2Period` 1..1, `D2AttributeOptionCombo` 0..1, `D2FormType` 1..1 fixed to `#aggregate`, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
 | `D2EventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#event`, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
 | `D2TrackerEventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker-event`, `D2TrackerEnrollment` 1..1, `D2OrganisationUnit` 1..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(Patient)` with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
 
@@ -1712,6 +1787,15 @@ one, and a capture client constrains its Location picker by reading it. Its `dat
 literal, for the same byte-stability reason the NamingSystem declarations pin
 theirs - R4 makes the element mandatory and a generated timestamp would rewrite the
 file on every run.
+
+**The aggregate response's third key is per-form.** `D2AttributeOptionCombo` is sliced
+`0..1` rather than `1..1` because whether a response has to carry it is a fact about the
+form, not about the kind: a data set on the default category combo has exactly one
+attribute option combo, and naming it would be noise. The rule the profile documents and
+a server enforces is
+[stated with the vocabulary](#attribute-option-combos): a response answering a form that
+carries `D2AttributeOptionCombos` has to carry `D2AttributeOptionCombo`, coded from the
+ValueSet that extension names.
 
 **The Patient subject is logical, not resolvable.** This guide publishes no `Patient`
 instances - DHIS2 holds the tracked entities and this IG describes forms, not people.
@@ -2008,7 +2092,11 @@ What gets filled in:
 | a `choice` whose ValueSet this project never published | left unanswered - inventing a code would only make the server warn about its own output |
 
 And the context each form kind's response profile requires: an aggregate response gets a
-`D2Period` and a `Location` subject, an event response an `authored` instant, and a
+`D2Period` and a `Location` subject - plus, where the form declares an
+[attribute-option-combo vocabulary](#attribute-option-combos), one drawn
+`D2AttributeOptionCombo` out of it, in the same concept-code spelling a coded answer takes,
+so a data set on a non-default category combo generates a response its own capture path
+accepts under `--strict-codes` too. An event response gets an `authored` instant, and a
 tracker-event response an `authored` instant, an organisation-unit extension, a tracker
 enrollment, and a tracked-entity subject. The tracked entity and the enrollment are
 **shaped synthetic UIDs** - they name nothing on any instance. That is what makes the form
@@ -2182,8 +2270,10 @@ a rejection is readable rather than a wall of consequences:
 | 0 | the body is JSON, is a `QuestionnaireResponse`, and parses as one | 400 |
 | 1 | the `D2FormType` kind, then the invariants that kind's profile pins | 422 |
 | 2 | the `questionnaire` canonical, the served Questionnaire it names, and its item index | 422 |
-| 3 | an aggregate response's `D2Period` - its ISO period, its type, and the range it claims | 422 |
-| 4 | every answer against the index: link ids, cardinality, value types, terminology | 422 |
+| 3 | the organisation unit the response reports for, against the form's published assignment | 422 |
+| 4 | the `D2AttributeOptionCombo`, against the vocabulary the form declares | 422 |
+| 5 | an aggregate response's `D2Period` - its ISO period, its type, and the range it claims | 422 |
+| 6 | every answer against the index: link ids, cardinality, value types, terminology | 422 |
 
 Inside one phase every issue is collected, so one round trip reports every problem at
 that level. Each issue names where it is with a FHIRPath `expression`:
@@ -2227,6 +2317,21 @@ is a fact about the instance rather than a mistake by the client.
 `--strict-codes` flips both into refusals: only the concept code is accepted, and
 anything else is a 422. One case is refused under either setting - two options matching
 one code is an ambiguity the server cannot resolve and leniency cannot paper over.
+
+**The same dial grades the attribute option combo.** A form carrying
+[`D2AttributeOptionCombos`](#attribute-option-combos) says its responses are filed under
+one concept of that vocabulary, and the server checks exactly that: one
+`D2AttributeOptionCombo` extension, coded from the CodeSystem the declared ValueSet
+includes, naming a concept this server really holds. A response that names none, and a
+concept the published vocabulary does not carry, are both warnings by default and 422s
+under `--strict-codes` - DHIS2 refuses that write with `E8023`, which the diagnostics
+say, exactly as the assignment's say `E1029`. The mirror grades too: a response naming a
+combo against a form that declares none would be stored and then silently not written,
+because a data set on the default category combo has one attribute option combo and the
+payload has no field to carry another. Two things are refused whatever the dial, because
+they are malformed rather than drifted: a coding from a different system than the one the
+form declares, and a coding with no code at all. A form declaring nothing and a response
+naming nothing is the default combo, and nothing is checked.
 
 **The same dial grades the organisation unit.** Where a form publishes an
 [organisation-unit assignment](#organisation-unit-assignment), the unit the response
@@ -2297,14 +2402,15 @@ measurement on refusals already known about. Each response is captured at a unit
 from the intersection of the published registry selection and its target's own DHIS2
 organisation-unit assignment - id-only, one request per kind, and a tracker stage is
 placed by its program's assignment because that is where DHIS2 hangs it - so no response
-names a unit its data set or program does not report for (`E1029`). And a data set whose
-own category combo is non-default is dropped, because a `QuestionnaireResponse` names no
-attribute option combo, so DHIS2 would key every response to the default one the data set
-does not admit (`E8023`, BUGS.md #41). A target the intersection leaves empty is dropped
-the same way. Both drops are reported as notes naming the targets, and
-`questionnaire_count` counts what the corpus covers rather than what the selection holds -
-a form the corpus cannot exercise is a fact worth reading, not one worth hiding behind
-responses nobody can accept.
+names a unit its data set or program does not report for (`E1029`). And a data set on a
+non-default category combo carries a
+[`D2AttributeOptionCombo`](#attribute-option-combos) drawn from the attribute option
+combos the data set really holds, on a seeded stream of its own, so the third key of the
+data value set is stated and DHIS2 has no `E8023` to raise (BUGS.md #41). A target the
+intersection of registry and assignment leaves empty is dropped, reported as a note
+naming it, and `questionnaire_count` counts what the corpus covers rather than what the
+selection holds - a form the corpus cannot exercise is a fact worth reading, not one
+worth hiding behind responses nobody can accept.
 
 Then post the lot:
 
@@ -2612,6 +2718,32 @@ generated model (`ImportSummary` / `TrackerImportReport`) rides along untouched 
 One POST per response is deliberate. DHIS2 answers a bundle with one report for the
 bundle, and a spool whose receipts move individually needs one answer each.
 
+### What a translated aggregate envelope is built from
+
+Every field of the `/api/dataValueSets` envelope is read out of the response through an
+identifier or an extension, never off a URL - a questionnaire canonical ends in an identity
+stem, and under `naming.source = "code"` that stem is not a DHIS2 UID:
+
+| DHIS2 field | Read from | If it is missing |
+| --- | --- | --- |
+| `dataSet` | the form's `{base}/id/data-set` identifier | refused (`missing-target-identifier`) |
+| `period` | the `D2Period` extension's `iso` sub-extension, re-parsed | refused (`missing-period` / `malformed-period`) |
+| `orgUnit` | `subject.reference`, resolved through the published Location's `{base}/id/org-unit` identifier | refused (`missing-organisation-unit` / `unresolvable-organisation-unit`) |
+| `attributeOptionCombo` | the `D2AttributeOptionCombo` extension's coding, resolved against the vocabulary the form declares | refused (`missing-attribute-option-combo` / `unresolvable-attribute-option-combo`) where the form declares one; unset where it does not |
+| `completeDate` | the day of the response's `authored` instant, noted | left unset |
+| `dataValues[].dataElement` / `.categoryOptionCombo` | the answered item's link id, `<dataElement>.<categoryOptionCombo>` for a disaggregated cell | refused (`unknown-link-id`) |
+| `dataValues[].value` | the answer's `value[x]`, per the question's DHIS2 value type | refused, per the reason |
+
+**The attribute option combo resolves in the same tiers a coded answer does.** The concept
+code first - which under `concept_code_source = "id"` *is* the DHIS2 category option combo
+UID - then, leniently, the UID the CodeSystem carries as its `dhis2-id` property and the
+DHIS2 code, both refined by whatever the combo's own ConceptMap maps onto
+`{base}/id/category-option-combo`. A response filed under a combo the published vocabulary
+does not hold is refused rather than posted, because DHIS2 refuses that write with `E8023`
+and a payload we know it will not take is worse than a named refusal. A response naming a
+combo against a form that declares none is noted and not written: its data set rides the
+default category combo, and DHIS2 fills the field itself.
+
 ### The three states a receipt can end in
 
 ```
@@ -2634,7 +2766,7 @@ The two failure modes are different jobs, and the terminal never collapses them:
 | --- | --- | --- |
 | Who said no | the translator, before DHIS2 saw it | DHIS2, on the import |
 | Where to look | the response, the guide, or `fhir.toml` | the import summary on the outcome |
-| Typical cause | a canonical the guide does not publish, an answer element the question does not answer on, a missing D2Period | a data element outside the data set, an org unit the user cannot write to, a locked period |
+| Typical cause | a canonical the guide does not publish, an answer element the question does not answer on, a missing D2Period, an attribute option combo the form declares and the response does not name | a data element outside the data set, an org unit the user cannot write to, a locked period |
 | What happens to the file | **stays in `received/`** | moves to `rejected/` with its report |
 | How to retry | fix locally, run again - the receipt never left the queue | fix the instance or the data, move the file back, run again |
 
@@ -2659,6 +2791,10 @@ strict_codes = false   # lenient (the default): resolve, and note what was resol
 
 `--strict-codes` / `--no-strict-codes` overrides the table for one run, so all three
 levels are reachable from the command line.
+
+The dial reaches the attribute option combo too, on the same tiers - a response filed
+under the DHIS2 code where the contract asked for the concept code translates under
+lenient with a note, and is refused under strict.
 
 ### Worked run
 

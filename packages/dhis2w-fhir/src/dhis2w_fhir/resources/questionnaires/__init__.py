@@ -38,6 +38,7 @@ from dhis2w_fhir.foundation.attribute_values import (
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import code_or_uid, page_text, quote
 from dhis2w_fhir.notes import GenerateNoteCategory, aggregate_generate_note
+from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
 from dhis2w_fhir.resources.option_sets import option_set_identity_index
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
 from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
@@ -303,6 +304,10 @@ class _QuestionnaireView(BaseModel):
     assignment_reference: str | None = None
     """Literal `List/<id>` reference of the form's assignment artifact, or None when it publishes none."""
 
+    attribute_option_combos_extension: str
+    attribute_option_combo_value_set: str | None = None
+    """FSH name of the ValueSet of attribute option combos the form admits, or None on a default combo."""
+
     attribute_value_extension: str
     ig_status: IgStatus
     attribute_values: list[_AttributeValueView] = Field(default_factory=list)
@@ -362,6 +367,7 @@ def build_questionnaire_artifacts(
     attribute_codes: AttributeCodeIndex,
     stem_plan: QuestionnaireStemPlan | None = None,
     assignments: AssignmentPlan | None = None,
+    attribute_combos: AttributeComboPlan | None = None,
 ) -> FshBuild:
     """Build one `data-sets/` or `event-programs/` file per target plus the `data-dictionary/` support pairs.
 
@@ -373,9 +379,13 @@ def build_questionnaire_artifacts(
     without one gets it resolved here through the same `plan_questionnaire_stems` call.
     `assignments` names the assignment List each form is scoped by; a form absent from the plan
     carries no assignment extension, which means the whole published registry may report it.
+    `attribute_combos` names the attribute-option-combo ValueSet each form's responses are keyed
+    from; a form absent from that plan carries no extension either, which means the default
+    attribute option combo.
     """
     build = FshBuild()
     assignment_plan = assignments if assignments is not None else AssignmentPlan()
+    attribute_combo_plan = attribute_combos if attribute_combos is not None else AttributeComboPlan()
     plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
     build.notes.extend(plan.notes)
     names = QuestionnaireNaming.from_naming(config.naming)
@@ -402,6 +412,7 @@ def build_questionnaire_artifacts(
             attribute_codes=attribute_codes,
             identifier_system_base=config.identifier_system_base,
             assignments=assignment_plan,
+            attribute_combos=attribute_combo_plan,
         )
         build.artifacts.append(
             FshArtifact(
@@ -523,6 +534,7 @@ def _questionnaire_view(
     attribute_codes: AttributeCodeIndex,
     identifier_system_base: str,
     assignments: AssignmentPlan,
+    attribute_combos: AttributeComboPlan,
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders.
 
@@ -552,11 +564,21 @@ def _questionnaire_view(
         form_type_code=source.kind,
         assignment_extension=foundation.organisation_unit_assignment_extension,
         assignment_reference=assignments.reference_for(source),
+        attribute_option_combos_extension=foundation.attribute_option_combos_extension,
+        attribute_option_combo_value_set=_attribute_option_combo_value_set(source, attribute_combos),
         attribute_value_extension=foundation.attribute_value_extension,
         ig_status=ig_status,
         attribute_values=_attribute_value_views(source.attribute_values, attribute_codes),
         items=_item_views(source, names, identities),
     )
+
+
+def _attribute_option_combo_value_set(
+    source: QuestionnaireSourceIn, attribute_combos: AttributeComboPlan
+) -> str | None:
+    """The FSH name of the ValueSet one form's responses draw an attribute option combo from, or None."""
+    identity = attribute_combos.identity_for(source.uid)
+    return None if identity is None else identity.value_set_name
 
 
 def source_description(source: QuestionnaireSourceIn, profile: FormKindProfile) -> str:

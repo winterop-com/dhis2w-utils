@@ -40,6 +40,12 @@ from dhis2w_fhir.names import StemResolution, StemSubject, code_or_uid
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note
 from dhis2w_fhir.period import parse_period, recent_periods
 from dhis2w_fhir.r4 import QuestionnaireResponse
+from dhis2w_fhir.resources.attribute_combos import (
+    ATTRIBUTE_COMBO_DIRECTORY,
+    attribute_combo_concept_map_file_prefix,
+    build_attribute_combo_artifacts,
+    build_attribute_combo_concept_map_artifacts,
+)
 from dhis2w_fhir.resources.categories import (
     CATEGORY_DIRECTORY,
     build_category_artifacts,
@@ -170,9 +176,15 @@ _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
     "dataElement[id,name,formName,valueType,domainType,optionSet[id],"
     "categoryCombo[id,name,isDefault,categoryOptionCombos[id,name,code]]]"
 )
+#: The data set's own category combo - the attribute combo whose option combos are the third key
+#: of every value it holds. It rides the very projection the disaggregation combos ride, so the
+#: attribute-option-combo vocabulary is read on the metadata sweep the forms already cost rather
+#: than on a request of its own.
+_ATTRIBUTE_COMBO_FIELDS = "categoryCombo[id,code,name,isDefault,categoryOptionCombos[id,name,code]]"
+
 _DATA_SET_FIELDS = (
     "id,name,code,description,periodType,sections[id,name,dataElements[id]],"
-    f"{_ATTRIBUTE_VALUE_FIELDS},"
+    f"{_ATTRIBUTE_VALUE_FIELDS},{_ATTRIBUTE_COMBO_FIELDS},"
     "compulsoryDataElementOperands[dataElement[id],categoryOptionCombo[id]],"
     f"dataSetElements[{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
 )
@@ -222,10 +234,10 @@ _LOAD_DIRECTORY = "load"
 #: enough that a seven-form instance yields a corpus worth measuring a POST loop against.
 DEFAULT_LOAD_SET_PER_TARGET = 25
 
-#: The id-only data-set projection the load set reads its capture constraints from: the units the
-#: data set is assigned to, and whether its own category combo admits the default attribute option
-#: combo - the only one a QuestionnaireResponse can express today (open decision 5.4).
-_LOAD_SET_DATA_SET_FIELDS = "id,organisationUnits[id],categoryCombo[id,isDefault]"
+#: The id-only data-set projection the load set reads its capture constraints from - the units the
+#: data set is assigned to. The attribute option combo a response is keyed under comes off the form
+#: projection instead, which already carries the data set's own category combo.
+_LOAD_SET_DATA_SET_FIELDS = "id,organisationUnits[id]"
 
 #: The id-only program projection the load set reads its capture constraints from. DHIS2 hangs the
 #: assignment on the program, so a tracker stage is placed by the program's units rather than its own.
@@ -245,6 +257,7 @@ class GenerateReport(BaseModel):
     category_count: int = 0
     questionnaire_count: int = 0
     assignment_count: int = 0
+    attribute_combo_count: int = 0
     organisation_unit_count: int = 0
     position_count: int = 0
     boundary_count: int = 0
@@ -968,48 +981,72 @@ def _emit_questionnaires(
     unusable code has therefore refused the run before this step opens - and the builder raises
     its code-or-id fall-back notes onto this target's report.
 
-    The assignment Lists are built first, because a form that publishes one carries its reference
-    on the Questionnaire: both emitters read the one plan the build returns, so the FSH source and
-    the served document name the same artifact.
+    The assignment Lists and the attribute-option-combo pairs are built first, because a form that
+    publishes either one carries a reference to it on the Questionnaire: both emitters read the one
+    plan each build returns, so the FSH source and the served document name the same artifacts.
     """
+    generate = project.config.generate
+    canonical = project.config.ig.canonical
+    ig_status = project.config.ig.status
     progress.step(
         "questionnaires",
-        f"writing ig/input/fsh/{{{','.join(QUESTIONNAIRE_DIRECTORIES)}}} and ig/input/resources/{ASSIGNMENT_DIRECTORY}",
+        f"writing ig/input/fsh/{{{','.join(QUESTIONNAIRE_DIRECTORIES)}}} and "
+        f"ig/input/resources/{{{ASSIGNMENT_DIRECTORY},{ATTRIBUTE_COMBO_DIRECTORY}}}",
     )
     _refuse_build_aborting_codes([_coded_source(source) for source in sources])
     assignment_build = build_assignment_artifacts(
         sources,
         assignments,
-        project.config.generate,
+        generate,
         published=published_organisation_unit_stems,
         stem_plan=stem_plan,
     )
+    attribute_combo_build = build_attribute_combo_artifacts(sources, generate, canonical, ig_status=ig_status)
+    concept_maps = build_attribute_combo_concept_map_artifacts(sources, generate, canonical, ig_status=ig_status)
     build = build_questionnaire_artifacts(
         sources,
-        project.config.generate,
-        project.config.ig.canonical,
-        ig_status=project.config.ig.status,
+        generate,
+        canonical,
+        ig_status=ig_status,
         option_set_plan=option_set_plan,
         attribute_codes=attribute_codes,
         stem_plan=stem_plan,
         assignments=assignment_build.plan,
+        attribute_combos=attribute_combo_build.plan,
     )
     syncs = [
         sync_artifacts(project.fsh_directory, directory, _artifacts_under(build.artifacts, directory))
         for directory in QUESTIONNAIRE_DIRECTORIES
     ]
-    assignment_sync = sync_json_artifacts(project.resources_directory, ASSIGNMENT_DIRECTORY, assignment_build.artifacts)
+    json_syncs = [
+        sync_json_artifacts(project.resources_directory, ASSIGNMENT_DIRECTORY, assignment_build.artifacts),
+        sync_json_artifacts(project.resources_directory, ATTRIBUTE_COMBO_DIRECTORY, attribute_combo_build.artifacts),
+        sync_json_artifacts(
+            project.resources_directory,
+            CONCEPT_MAP_DIRECTORY,
+            concept_maps,
+            owned_prefix=attribute_combo_concept_map_file_prefix(generate),
+        ),
+    ]
     report = GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",
         target_directory=f"{', '.join(f'fsh/{directory}' for directory in QUESTIONNAIRE_DIRECTORIES)}, "
-        f"resources/{ASSIGNMENT_DIRECTORY}",
-        deleted_files=[*(name for sync in syncs for name in sync.deleted), *assignment_sync.deleted],
-        written_files=[*(path for sync in syncs for path in sync.written), *assignment_sync.written],
-        unchanged_count=sum(len(sync.unchanged) for sync in syncs) + len(assignment_sync.unchanged),
+        f"resources/{ASSIGNMENT_DIRECTORY}, resources/{ATTRIBUTE_COMBO_DIRECTORY}, "
+        f"resources/{CONCEPT_MAP_DIRECTORY}",
+        deleted_files=[
+            *(name for sync in syncs for name in sync.deleted),
+            *(name for sync in json_syncs for name in sync.deleted),
+        ],
+        written_files=[
+            *(path for sync in syncs for path in sync.written),
+            *(path for sync in json_syncs for path in sync.written),
+        ],
+        unchanged_count=sum(len(sync.unchanged) for sync in [*syncs, *json_syncs]),
         questionnaire_count=len(sources),
         assignment_count=len(assignment_build.artifacts),
-        notes=[*notes, *build.notes, *assignment_build.notes],
+        attribute_combo_count=len(attribute_combo_build.artifacts),
+        notes=[*notes, *build.notes, *assignment_build.notes, *attribute_combo_build.notes],
     )
     progress.complete(_target_counts(report))
     return report
@@ -1101,6 +1138,12 @@ async def _emit_examples(
             published_organisation_unit_uids=published_organisation_unit_uids,
             stem_plan=stem_plan,
             organisation_unit_stems=organisation_unit_stems,
+            attribute_combos=build_attribute_combo_artifacts(
+                published_sources,
+                project.config.generate,
+                project.config.ig.canonical,
+                ig_status=project.config.ig.status,
+            ).plan,
         )
         artifacts = build.artifacts
         notes.extend(build.notes)
@@ -1142,11 +1185,11 @@ async def generate_load_set(
     The references are drawn to be instance-valid, which is where it parts from the examples
     target. Each response is captured at a unit drawn from the intersection of the published
     registry selection and its target's own DHIS2 organisation-unit assignment, so DHIS2 has no
-    `E1029` to raise; and a data set whose category combo does not admit the default attribute
-    option combo is dropped, because a QuestionnaireResponse expresses no attribute option combo
-    (open decision 5.4) and every response against it would be refused with `E8023`. A target
-    left with no unit is dropped the same way, with a note naming it: a corpus exists to be
-    forwarded, and a response nobody can accept measures a refusal we already knew about.
+    `E1029` to raise; and a data set on a non-default category combo carries the attribute option
+    combo its values are keyed under, drawn from the combos the data set really holds, so there is
+    no `E8023` either. A target left with no published unit assigned to it is dropped with a note
+    naming it: a corpus exists to be forwarded, and a response nobody can accept measures a
+    refusal we already knew about.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
@@ -1192,6 +1235,9 @@ async def generate_load_set(
             option_set_plan=option_set_plan,
             stem_plan=plan_questionnaire_stems(sources, config.naming.source),
             organisation_unit_stems=organisation_unit_stems,
+            attribute_combos=build_attribute_combo_artifacts(
+                sources, config, project.config.ig.canonical, ig_status=project.config.ig.status
+            ).plan,
         )
         documents = build.responses
         notes.extend(build.notes)
@@ -1212,20 +1258,16 @@ async def generate_load_set(
 
 
 class _ContainerAssignment(BaseModel):
-    """What DHIS2 will accept a write against one data set or program: its units, and its combo.
+    """What DHIS2 will accept a write against one data set or program: the units it is scoped to.
 
-    `organisation_unit_uids` is the assignment DHIS2 scopes the container to - a write at a unit
-    outside it is `E1029`. `admits_default_attribute_option_combo` is false exactly when a data
-    set carries a non-default category combo, which is the `E8023` a write keyed to the default
-    attribute option combo earns. A program is always true: an event carries no attribute option
-    combo at all.
+    A write at a unit outside `organisation_unit_uids` is `E1029`, which is what makes the load
+    set place every response inside the assignment rather than at the registry root.
     """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
     organisation_unit_uids: frozenset[str] = frozenset()
-    admits_default_attribute_option_combo: bool = True
 
 
 class _LoadSetPlan(BaseModel):
@@ -1260,7 +1302,6 @@ async def _fetch_load_set_assignments(
                 assignments[data_set.id] = _ContainerAssignment(
                     uid=data_set.id,
                     organisation_unit_uids=_reference_uids(data_set.organisationUnits),
-                    admits_default_attribute_option_combo=_admits_default_combo(data_set),
                 )
     program_uids = sorted({assignment_container_uid(source) for source in sources if source.kind != "aggregate"})
     if program_uids:
@@ -1289,19 +1330,6 @@ def _reference_uids(raw: object) -> frozenset[str]:
     return frozenset(uids)
 
 
-def _admits_default_combo(data_set: DataSet) -> bool:
-    """Whether a data set's own category combo admits the default attribute option combo.
-
-    DHIS2 answers `categoryCombo.isDefault` on the id-only projection; a data set the instance
-    sent no category combo for is read as the default one, which is what every data set on a
-    default combo already writes against.
-    """
-    combo = data_set.categoryCombo
-    if combo is None:
-        return True
-    return bool(combo.model_dump().get("isDefault", True))
-
-
 def _plan_load_set(
     sources: list[QuestionnaireSourceIn],
     assignments: dict[str, _ContainerAssignment],
@@ -1311,38 +1339,27 @@ def _plan_load_set(
 
     A target is placed on the intersection of the published registry selection and its own DHIS2
     assignment, sorted so the seeded pick is reproducible whatever order the instance answered in.
-    Two classes are dropped rather than emitted: a data set whose category combo does not admit
-    the default attribute option combo, because a QuestionnaireResponse carries no attribute
-    option combo to name a valid one with (open decision 5.4) and DHIS2 refuses the write with
-    `E8023`; and a target the intersection leaves empty, because every response would name a unit
-    the container does not report for and DHIS2 refuses that with `E1029`. Dropping beats reusing
-    the registry root: a load set is measured by what DHIS2 accepts, so a response nobody can
-    accept is noise in the very number the corpus exists to produce.
+    One class is dropped rather than emitted: a target the intersection leaves empty, because
+    every response would name a unit the container does not report for and DHIS2 refuses that with
+    `E1029`. Dropping beats reusing the registry root: a load set is measured by what DHIS2
+    accepts, so a response nobody can accept is noise in the very number the corpus exists to
+    produce.
+
+    A data set on a non-default category combo is covered like any other. Its responses carry the
+    `D2AttributeOptionCombo` extension, drawn from the attribute option combos the data set really
+    holds, so the third key of the data value set is stated and DHIS2 has no `E8023` to raise.
     """
     plan = _LoadSetPlan()
-    unusable_combo: list[str] = []
     unplaced: list[str] = []
     for source in sources:
         label = f"{source.name} ({source.uid})"
         assignment = assignments.get(assignment_container_uid(source))
-        if assignment is not None and not assignment.admits_default_attribute_option_combo:
-            unusable_combo.append(label)
-            continue
         units = sorted(published_organisation_unit_uids & assignment.organisation_unit_uids) if assignment else []
         if not units:
             unplaced.append(label)
             continue
         plan.sources.append(source)
         plan.placements[source.uid] = SyntheticPlacement(organisation_unit_uids=tuple(units))
-    if unusable_combo:
-        plan.notes.append(
-            aggregate_generate_note(
-                GenerateNoteCategory.REFUSED_FORM,
-                f"{len(unusable_combo)} data sets carry a non-default category combo, and a "
-                "QuestionnaireResponse names no attribute option combo; no load-set responses emitted for them",
-                unusable_combo,
-            )
-        )
     if unplaced:
         plan.notes.append(
             aggregate_generate_note(
@@ -1515,7 +1532,12 @@ def _data_value_groups(raw: dict[str, object], data_set_uid: str, fallback_iso: 
 
 
 def _data_value_response(group: _DataValueGroup, data_set_uid: str) -> ExampleResponseIn:
-    """Turn one grouped data value key into the example projection, resolving its period's dates."""
+    """Turn one grouped data value key into the example projection, resolving its period's dates.
+
+    The attribute option combo travels on: it is the third of the three keys the group was formed
+    on, so an instance-sourced example of a data set on a non-default category combo says which
+    combo its values were captured under rather than dropping the fact the instance held.
+    """
     try:
         period = parse_period(group.period_iso)
     except ValueError:
@@ -1527,6 +1549,7 @@ def _data_value_response(group: _DataValueGroup, data_set_uid: str) -> ExampleRe
         organisation_unit_uid=group.organisation_unit_uid,
         status_code=COMPLETED_STATUS,
         period=period,
+        attribute_option_combo_uid=group.attribute_option_combo_uid or None,
         answers=group.answers,
     )
 
@@ -2424,8 +2447,19 @@ def _data_set_source(model: DataSet, notes: list[GenerateNote]) -> Questionnaire
         items=items,
         raw_sections=model.sections,
         attribute_values=_attribute_value_inputs(model.attributeValues),
+        attribute_combo=_category_combo_input(_attribute_combo_wire(model)),
         notes=notes,
     )
+
+
+def _attribute_combo_wire(model: DataSet) -> object:
+    """One data set's own category combo as the wire dict the combo projection reads.
+
+    The generated `DataSet.categoryCombo` is a reference model rather than the inline shape the
+    data-element path already parses, so it is dumped back to the wire dict both paths share.
+    """
+    combo = model.categoryCombo
+    return None if combo is None else combo.model_dump()
 
 
 class _CompulsoryOperands(BaseModel):
@@ -2612,6 +2646,7 @@ def _questionnaire_source(
     notes: list[GenerateNote],
     period_type: str | None = None,
     program: ProgramContextIn | None = None,
+    attribute_combo: CategoryComboIn | None = None,
 ) -> QuestionnaireSourceIn:
     """Split one form's data elements into its sections plus whatever the sections leave out."""
     sections = _questionnaire_sections(raw_sections, items)
@@ -2634,6 +2669,7 @@ def _questionnaire_source(
         kind=kind,
         period_type=period_type,
         program=program,
+        attribute_combo=attribute_combo,
         sections=sections,
         flat_items=flat_items,
         attribute_values=attribute_values,
@@ -2695,6 +2731,7 @@ def _category_combo_input(raw: object) -> CategoryComboIn | None:
     return CategoryComboIn(
         uid=uid,
         name=_optional_text(raw.get("name")) or uid,
+        code=_optional_text(raw.get("code")),
         is_default=bool(raw.get("isDefault")),
         option_combos=_option_combo_inputs(raw.get("categoryOptionCombos")),
     )

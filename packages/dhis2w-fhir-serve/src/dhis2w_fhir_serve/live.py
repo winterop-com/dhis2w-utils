@@ -12,11 +12,11 @@ StructureDefinitions, the extensions, the IG's `kind #requirements` CapabilitySt
 authored as FSH and only exist as JSON once SUSHI has compiled them, and no FSH compiler runs in
 this process. That costs the live store nothing: a capture server reads Questionnaire, CodeSystem,
 ValueSet, Location, and Organization (`CAPTURE_SERVER_READ_RESOURCE_TYPES`), every one of which
-comes out of a JSON builder here. Both ConceptMap families - option sets and categories - ride
-along with the terminology they map, so a live store serves the same reads, searches, and
-`$translate` answers over the maps that a compiled one does. The IG's own CapabilityStatement is
-still named by `/metadata`, which `instantiates` it by canonical - a URL derived from config,
-needing no artifact to state.
+comes out of a JSON builder here. All three ConceptMap families - option sets, categories, and
+the attribute option combos an aggregate form is keyed by - ride along with the terminology they
+map, so a live store serves the same reads, searches, and `$translate` answers over the maps that
+a compiled one does. The IG's own CapabilityStatement is still named by `/metadata`, which
+`instantiates` it by canonical - a URL derived from config, needing no artifact to state.
 """
 
 from __future__ import annotations
@@ -34,6 +34,10 @@ from dhis2w_fhir import (
     build_option_set_concept_map_artifacts,
     build_organisation_unit_instances,
     build_questionnaire_documents,
+)
+from dhis2w_fhir.resources.attribute_combos import (
+    build_attribute_combo_artifacts,
+    build_attribute_combo_concept_map_artifacts,
 )
 from dhis2w_fhir.resources.questionnaires.assignments import build_assignment_artifacts
 from dhis2w_fhir.service import fetch_live_ig_inputs, resolve_generation_profile
@@ -83,6 +87,7 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
         published=inputs.organisation_unit_stems,
         stem_plan=inputs.questionnaire_stems,
     )
+    attribute_combos = build_attribute_combo_artifacts(inputs.sources, config, canonical, ig_status=ig_status)
     questionnaires = build_questionnaire_documents(
         inputs.sources,
         config,
@@ -91,6 +96,7 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
         option_set_plan=inputs.option_set_plan,
         attribute_codes=inputs.attribute_codes,
         assignments=assignments.plan,
+        attribute_combos=attribute_combos.plan,
     )
     data_dictionary = build_data_dictionary_documents(inputs.sources, config, canonical, ig_status=ig_status)
     json_builds: tuple[JsonBuild, ...] = (
@@ -110,6 +116,12 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
             inputs.organisation_units, config, canonical, attribute_codes=inputs.attribute_codes
         ),
         assignments,
+        attribute_combos,
+        JsonBuild(
+            artifacts=build_attribute_combo_concept_map_artifacts(
+                inputs.sources, config, canonical, ig_status=ig_status
+            )
+        ),
     )
     documents: list[CodeSystem | Questionnaire | ValueSet] = [
         *questionnaires.questionnaires,

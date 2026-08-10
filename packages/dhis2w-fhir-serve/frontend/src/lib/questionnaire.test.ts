@@ -5,8 +5,17 @@ import generateEventFixture from '@/lib/__fixtures__/generate-EVTsupVis01.json'
 import generateTemporalFixture from '@/lib/__fixtures__/generate-PrTemporal1.json'
 import generateTrackerFixture from '@/lib/__fixtures__/generate-ZzYYXq4fJie.json'
 import temporalQuestionnaireFixture from '@/lib/__fixtures__/questionnaire-PrTemporal1.json'
+import attributeComboFormFixture from '@/lib/__fixtures__/questionnaire-TuL8IOPzpHh.json'
 import questionnaireBundleFixture from '@/lib/__fixtures__/questionnaire-bundle.json'
-import { bundleResources, questionCount, type Bundle, type Questionnaire, type QuestionnaireResponse } from '@/lib/fhir'
+import attributeComboResponseFixture from '@/lib/__fixtures__/response-TuL8IOPzpHh.json'
+import {
+    attributeOptionComboOf,
+    bundleResources,
+    questionCount,
+    type Bundle,
+    type Questionnaire,
+    type QuestionnaireResponse,
+} from '@/lib/fhir'
 import {
     answersFromResponse,
     answersReducer,
@@ -19,6 +28,8 @@ import {
     isAnswered,
     normaliseDateTime,
     normaliseTime,
+    openedAttributeOptionCombo,
+    refilledAttributeOptionCombo,
     slotAnswer,
     unansweredRequiredLinkIds,
     type AnswerState,
@@ -48,6 +59,8 @@ const questionnaires = new Map(
 )
 
 const temporalQuestionnaire = temporalQuestionnaireFixture as unknown as Questionnaire
+const attributeComboForm = attributeComboFormFixture as unknown as Questionnaire
+const attributeComboResponse = attributeComboResponseFixture as unknown as QuestionnaireResponse
 
 /** One served form by its DHIS2 uid, failing loudly rather than testing against undefined. */
 function servedForm(id: string): Questionnaire {
@@ -394,7 +407,7 @@ describe('enableWhen', () => {
     it('keeps a disabled item’s answers in state but writes none of them', () => {
         const answers = { ...answersOf({ 'q-boolean': 'false' }), ...answersOf({ 'd-in-group': 'typed earlier' }) }
 
-        const built = buildQuestionnaireResponse(conditionalSpec, answers, CONDITIONAL_FORM, null)
+        const built = buildQuestionnaireResponse(conditionalSpec, answers, CONDITIONAL_FORM, null, null)
 
         expect(answers['d-in-group']).toHaveLength(1)
         expect(JSON.stringify(built.item ?? [])).not.toContain('typed earlier')
@@ -581,6 +594,7 @@ describe('rebuilding a QuestionnaireResponse', () => {
                 answersFromResponse(spec, generated),
                 questionnaire,
                 generated,
+                null,
             )
 
             expect(rebuilt.item).toEqual(generated.item)
@@ -589,7 +603,7 @@ describe('rebuilding a QuestionnaireResponse', () => {
         it(`keeps the ${id} envelope the server built, and drops the seed identifier`, () => {
             const spec = flattenQuestionnaire(questionnaire)
 
-            const rebuilt = buildQuestionnaireResponse(spec, {}, questionnaire, generated)
+            const rebuilt = buildQuestionnaireResponse(spec, {}, questionnaire, generated, null)
 
             expect(rebuilt.resourceType).toBe('QuestionnaireResponse')
             expect(rebuilt.status).toBe('completed')
@@ -610,7 +624,7 @@ describe('rebuilding a QuestionnaireResponse', () => {
         const dataElement = spec.byLinkId.get(section?.childLinkIds[0] ?? '')
         const cell = dataElement?.childLinkIds[1] ?? ''
 
-        const built = buildQuestionnaireResponse(spec, answersOf({ [cell]: '12' }), questionnaire, null)
+        const built = buildQuestionnaireResponse(spec, answersOf({ [cell]: '12' }), questionnaire, null, null)
 
         // One answered cell yields one branch: the whole rest of a 200-question form is absent,
         // and the two groups above the cell are there only because it is.
@@ -631,7 +645,7 @@ describe('rebuilding a QuestionnaireResponse', () => {
             ],
         }
 
-        const built = buildQuestionnaireResponse(spec, answers, temporalQuestionnaire, null)
+        const built = buildQuestionnaireResponse(spec, answers, temporalQuestionnaire, null, null)
 
         expect(built.item).toEqual([
             {
@@ -653,14 +667,14 @@ describe('rebuilding a QuestionnaireResponse', () => {
         const spec = flattenQuestionnaire(unfillable)
 
         expect(spec.byLinkId.get('photo')?.fillable).toBe(false)
-        expect(buildQuestionnaireResponse(spec, answersOf({ photo: 'anything' }), unfillable, null).item).toBeUndefined()
+        expect(buildQuestionnaireResponse(spec, answersOf({ photo: 'anything' }), unfillable, null, null).item).toBeUndefined()
     })
 
     it('assembles a response with no envelope rather than refusing to build one', () => {
         const questionnaire = servedForm('EVTsupVis01')
         const spec = flattenQuestionnaire(questionnaire)
 
-        const built = buildQuestionnaireResponse(spec, answersOf({ s46m5MS0hxu: '148' }), questionnaire, null)
+        const built = buildQuestionnaireResponse(spec, answersOf({ s46m5MS0hxu: '148' }), questionnaire, null, null)
 
         expect(built).toEqual({
             resourceType: 'QuestionnaireResponse',
@@ -668,5 +682,76 @@ describe('rebuilding a QuestionnaireResponse', () => {
             status: 'completed',
             item: [{ linkId: 's46m5MS0hxu', answer: [{ valueInteger: 148 }] }],
         })
+    })
+})
+
+/**
+ * The one piece of envelope context the user owns, and the two moments it is decided in.
+ *
+ * The fixtures are the wave's own artifacts: `Questionnaire-TuL8IOPzpHh` is the golden aggregate
+ * form whose data set rides a non-default category combo, and the response beside it is the
+ * example the emitter publishes for it - carrying the singular extension exactly as a conformant
+ * capture must. So what is asserted below is the wire contract, not a spelling agreed on here.
+ */
+describe('the attribute option combo a submission reports for', () => {
+    const spec = flattenQuestionnaire(attributeComboForm)
+    const chosen = {
+        system: 'http://localhost:8080/fhir/CodeSystem/d2-aoc-idcDPkDtepR-cs',
+        code: 'pO5CEqK6c1s',
+        display: 'Improve access to clean water',
+    }
+
+    it('writes the chosen coding onto a response built from no envelope at all', () => {
+        const built = buildQuestionnaireResponse(spec, {}, attributeComboForm, null, chosen)
+
+        expect(built.extension).toEqual([
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-attribute-option-combo',
+                valueCoding: chosen,
+            },
+        ])
+    })
+
+    it('replaces the envelope`s combo in place, keeping every other piece of context', () => {
+        const built = buildQuestionnaireResponse(spec, {}, attributeComboForm, attributeComboResponse, chosen)
+
+        // The picker wins over the draw, on the same philosophy the answers follow - and the
+        // period, the form type, and the order they were written in are the server's own.
+        expect(built.extension?.map((extension) => extension.url)).toEqual(
+            attributeComboResponse.extension?.map((extension) => extension.url),
+        )
+        expect(attributeOptionComboOf(built)).toEqual(chosen)
+        expect(built.extension?.[0]).toEqual(attributeComboResponse.extension?.[0])
+    })
+
+    it('leaves the envelope untouched when nothing was chosen, which is the default-combo case', () => {
+        const built = buildQuestionnaireResponse(spec, {}, attributeComboForm, attributeComboResponse, null)
+
+        expect(built.extension).toEqual(attributeComboResponse.extension)
+    })
+
+    it('writes nothing at all for a form that declares no vocabulary', () => {
+        const questionnaire = servedForm('BfMAe6Itzgt')
+        const built = buildQuestionnaireResponse(flattenQuestionnaire(questionnaire), {}, questionnaire, null, chosen)
+
+        expect(built.extension).toBeUndefined()
+    })
+
+    it('pre-selects the drawn combo when a form opens, and never over a choice already made', () => {
+        expect(openedAttributeOptionCombo(null, attributeComboResponse)).toEqual(
+            attributeOptionComboOf(attributeComboResponse),
+        )
+        expect(openedAttributeOptionCombo(chosen, attributeComboResponse)).toEqual(chosen)
+        expect(openedAttributeOptionCombo(null, null)).toBeNull()
+    })
+
+    it('takes the fresh draw on a refill, and keeps the choice when the draw states none', () => {
+        expect(refilledAttributeOptionCombo(chosen, attributeComboResponse)).toEqual(
+            attributeOptionComboOf(attributeComboResponse),
+        )
+        expect(refilledAttributeOptionCombo(chosen, generateAggregateFixture as unknown as QuestionnaireResponse)).toEqual(
+            chosen,
+        )
+        expect(refilledAttributeOptionCombo(null, null)).toBeNull()
     })
 })

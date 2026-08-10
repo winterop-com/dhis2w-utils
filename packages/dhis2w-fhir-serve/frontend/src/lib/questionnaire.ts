@@ -32,7 +32,11 @@
  */
 
 import {
+    attributeOptionComboExtensionUrl,
+    attributeOptionComboOf,
+    ATTRIBUTE_OPTION_COMBO_EXTENSION_SUFFIX,
     type Coding,
+    type Extension,
     type Questionnaire,
     type QuestionnaireAnswerOption,
     type QuestionnaireEnableBehavior,
@@ -278,12 +282,22 @@ export function isEnabled(spec: QuestionnaireSpec, linkId: string, answers: Answ
  * answers, and once a person has edited them it would be a false claim about the submission.
  * With no envelope at all the response is still assembled, and the server's refusal naming the
  * missing context is a better error than a button that refuses to submit.
+ *
+ * THE ONE PIECE OF CONTEXT THE USER OWNS is the attribute option combo. It is the third key of a
+ * DHIS2 data value - beside the organisation unit and the period - and unlike those two it is not
+ * derivable from anything: which project a month of stock figures is reported under is a fact only
+ * the person filling the form has. So it is not taken from the envelope but *written over* it:
+ * whatever the picker holds replaces whatever `$generate` happened to draw, on exactly the
+ * philosophy the answers follow. A null choice leaves the envelope's extensions as they came,
+ * which is the whole of the default-combo case - a form declaring no vocabulary has nothing to
+ * pick and nothing to write.
  */
 export function buildQuestionnaireResponse(
     spec: QuestionnaireSpec,
     answers: AnswerState,
     questionnaire: Questionnaire,
     envelope: QuestionnaireResponse | null,
+    attributeOptionCombo: Coding | null,
 ): QuestionnaireResponse {
     const enabled = enabledLinkIds(spec, answers)
     const item = spec.rootLinkIds.flatMap((linkId) => {
@@ -291,16 +305,73 @@ export function buildQuestionnaireResponse(
         return built === null ? [] : [built]
     })
     const questionnaireUrl = questionnaire.url ?? envelope?.questionnaire
+    const extension = extensionsWithAttributeOptionCombo(questionnaire, envelope, attributeOptionCombo)
     return {
         resourceType: 'QuestionnaireResponse',
         ...(envelope?.meta ? { meta: envelope.meta } : {}),
         ...(questionnaireUrl ? { questionnaire: questionnaireUrl } : {}),
         status: 'completed',
-        ...(envelope?.extension ? { extension: envelope.extension } : {}),
+        ...(extension.length > 0 ? { extension } : {}),
         ...(envelope?.subject ? { subject: envelope.subject } : {}),
         ...(envelope?.authored ? { authored: envelope.authored } : {}),
         ...(item.length > 0 ? { item } : {}),
     }
+}
+
+/**
+ * The picker's selection when a form is first opened: whatever is chosen, else what the server drew.
+ *
+ * `$generate` answers with a whole capture-valid context, combo included, and adopting it is what
+ * makes the common case one click - the form opens already reporting for something plausible, and
+ * changing it is a choice rather than a chore. The current selection wins because the skeleton is
+ * read *after* the form is on screen: a person who picked while it was still in flight must not
+ * have their choice replaced by a draw that started before they made it.
+ */
+export function openedAttributeOptionCombo(
+    current: Coding | null,
+    envelope: QuestionnaireResponse | null,
+): Coding | null {
+    return current ?? (envelope === null ? null : attributeOptionComboOf(envelope))
+}
+
+/**
+ * The picker's selection after "fill with test data": what the fresh draw states, else what is chosen.
+ *
+ * The other order, and for the same reason the answers are replaced wholesale - a refill is the
+ * server proposing a whole submission, so its combo lands in the picker too. A draw that states no
+ * combo leaves the selection alone rather than clearing it: an emptied picker would take a required
+ * choice away from a person who had already made one.
+ */
+export function refilledAttributeOptionCombo(
+    current: Coding | null,
+    envelope: QuestionnaireResponse | null,
+): Coding | null {
+    return (envelope === null ? null : attributeOptionComboOf(envelope)) ?? current
+}
+
+/**
+ * The envelope's extensions with the chosen combo written into them.
+ *
+ * The url is the envelope's own spelling when it already carries the extension, so a project served
+ * under one canonical and compiled under another keeps the server's; otherwise it is derived from
+ * the form's own declaration. Nothing is written when neither states a url, because an extension
+ * under a guessed canonical is a fact nobody can read back.
+ */
+function extensionsWithAttributeOptionCombo(
+    questionnaire: Questionnaire,
+    envelope: QuestionnaireResponse | null,
+    attributeOptionCombo: Coding | null,
+): Extension[] {
+    const carried = envelope?.extension ?? []
+    if (attributeOptionCombo === null) return [...carried]
+    const stated = carried.find((candidate) => candidate.url.endsWith(ATTRIBUTE_OPTION_COMBO_EXTENSION_SUFFIX))
+    const url = stated?.url ?? attributeOptionComboExtensionUrl(questionnaire)
+    if (url === null) return [...carried]
+    const written: Extension = { url, valueCoding: attributeOptionCombo }
+    // Replaced where the server wrote it, so a rebuilt response reads as the same document rather
+    // than as one with its context shuffled to the end.
+    if (stated === undefined) return [...carried, written]
+    return carried.map((candidate) => (candidate === stated ? written : candidate))
 }
 
 /**

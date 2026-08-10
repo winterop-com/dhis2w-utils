@@ -1,0 +1,27 @@
+{
+  "resourceType": "ValueSet",
+  "id": "d2-aoc-idcDPkDtepR-vs",
+  "url": "http://localhost:8080/fhir/ValueSet/d2-aoc-idcDPkDtepR-vs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/category-combo",
+      "value": "idcDPkDtepR"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/category-combo-code",
+      "value": "idcDPkDtepR"
+    }
+  ],
+  "name": "D2AOC_idcDPkDtepR_VS",
+  "title": "Project",
+  "description": "DHIS2 attribute option combos of category combo Project (idcDPkDtepR). A data set on this combo keys every value it holds by one of them. Concept codes are DHIS2 category option combo UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://localhost:8080/fhir/CodeSystem/d2-aoc-idcDPkDtepR-cs"
+      }
+    ]
+  }
+}

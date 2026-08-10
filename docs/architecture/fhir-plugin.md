@@ -87,7 +87,8 @@ wire format worth a file and a rendered page per resource) plus one
 `path-resource` glob per predefined-resource sub-folder - `registry/` for the
 org-unit instances, `terminology/` for the option-set pairs, `concept-maps/` for
 the ConceptMap beside each pair, `categories/` for the category pairs,
-`assignments/` for the organisation-unit assignment Lists:
+`attribute-option-combos/` for the attribute-option-combo pairs, `assignments/`
+for the organisation-unit assignment Lists:
 
 ```yaml
   path-resource:
@@ -95,6 +96,7 @@ the ConceptMap beside each pair, `categories/` for the category pairs,
     - input/resources/terminology/*
     - input/resources/concept-maps/*
     - input/resources/categories/*
+    - input/resources/attribute-option-combos/*
     - input/resources/assignments/*
 ```
 
@@ -284,6 +286,19 @@ depends on `fhir.toml` alone and never opens a client:
   and `Group.type` to `person | animal | practitioner | device | medication | substance`:
   a Location is neither a legal member nor a legal type, while `List.entry.item` is
   `Reference(Resource)` and `List.mode` says `snapshot`.
+- `d2-attribute-option-combos.fsh` - the `D2AttributeOptionCombos` extension, `value[x]
+  only canonical(ValueSet)` with `valueCanonical` 1..1, contexted on `Questionnaire`. It
+  names the ValueSet of attribute option combos a form's responses may be keyed under.
+  `canonical` rather than `Reference` because a ValueSet is a definitional resource the
+  guide binds by URL everywhere else too (`Questionnaire.item.answerValueSet` is the
+  nearest neighbour), where the assignment extension points at a `List` instance and is
+  therefore a literal reference.
+- `d2-attribute-option-combo.fsh` - the `D2AttributeOptionCombo` extension, `value[x] only
+  Coding` with `valueCoding` 1..1 and both `system` and `code` required, contexted on
+  `QuestionnaireResponse`. It carries the one attribute option combo an aggregate
+  response's values are keyed under. Singular against its plural sibling on purpose: the
+  form declares the set, the response names one member, the way `D2OrganisationUnit` and
+  `D2OrganisationUnitAssignment` already split.
 - `d2-organisation-unit-level.fsh` - the `D2OrganisationUnitLevel` extension, `value[x]
   only Coding` with `valueCoding` 1..1 bound extensibly to the org-unit level ValueSet,
   contexted on `Location`. Every registry Location carries one - the `D2Location` profile
@@ -540,8 +555,28 @@ data-dictionary/data-elements.fsh        D2DE_CS / _VS over every referenced ele
 data-dictionary/category-option-combos.fsh   D2COC_CS / _VS over every option combo
 ```
 
+It also writes three JSON targets under `ig/input/resources/`, because a form's context
+is published beside the form rather than by a command of its own:
+
+```
+assignments/List-<id>.json                One List of Locations per form whose
+                                          assignment narrows the registry
+attribute-option-combos/                  D2AOC_<stem>_CS / _VS per distinct
+  {CodeSystem,ValueSet}-<id>.json         non-default attribute category combo
+concept-maps/ConceptMap-d2-aoc-<stem>-cm.json   Each pair's route back to DHIS2
+```
+
 `<stem>` is each target's identity stem - the DHIS2 id under the default
 `[generate.naming] source`, the object's code under the code sources.
+
+The attribute-option-combo pair is what makes a data set on a non-default category
+combo capturable at all: a data value set is keyed by
+`(orgUnit, period, attributeOptionCombo)`, and a response naming no combo is refused
+with `E8023`. The pair belongs to the combo rather than the form, so two data sets on
+one combo share one pair, and a default-combo data set publishes nothing - absence is
+the default combo, the same economy the assignment List keeps. `concept-maps/` now holds
+three families behind one publisher glob, each sweeping its own id-stem prefix
+(`ConceptMap-d2-os-`, `ConceptMap-d2-cat-`, `ConceptMap-d2-aoc-`).
 
 `tracker-programs/` is the only nested layout, and it is nested because a national
 instance's stage count is what makes a flat directory unreadable: grouping by program
@@ -1190,6 +1225,18 @@ The components:
   selection, `category_fsh_name`, `max_category_slug_length`, and the `CategoryIn`
   / `CategorySelection` schemas. It reads `resources/option_sets/` for the shared
   concept assignment and is read by none of them.
+- `resources/attribute_combos/` - the pre-built CodeSystem/ValueSet pair per distinct
+  non-default attribute category combo a selected data set rides, its own
+  `ATTRIBUTE_COMBO_DIRECTORY` sync directory, `attribute_combo_sources` reducing the run's
+  forms to the combos they share, `attribute_combo_identities` and the
+  `AttributeComboIdentity` / `AttributeComboIdentityPlan` it assigns over that selection,
+  the `AttributeComboPlan` both Questionnaire emitters stamp their
+  `D2AttributeOptionCombos` extension from and both example emitters code their
+  `D2AttributeOptionCombo` from, and `build_attribute_combo_concept_map_artifacts` taking
+  every concept back to `<base>/id/category-option-combo` and its `-code` sibling. It
+  reads `resources/option_sets/` for the shared concept assignment and
+  `resources/questionnaires/schemas` for the form projection; the questionnaire emitters
+  read only its `schemas`, so nothing cycles.
 - `resources/questionnaires/` - the Questionnaire instance per data set / event
   program / tracker program stage plus the two support terminology pairs, the exported
   `ITEM_TYPES_BY_VALUE_TYPE` table mapping every DHIS2 `valueType` on v41/v42/v43 to its
@@ -1354,7 +1401,8 @@ project's contract is written in from `fhir.toml` alone, `index` reads one serve
 Questionnaire into the lookups an answer is checked against, `resolve` maps a received
 code back to the DHIS2 option it names against the served terminology, and `validate`
 runs the phases - body and R4 shape (400), the `D2FormType` kind and its profile
-invariants, the questionnaire and its index, the period, then every answer (422). A
+invariants, the questionnaire and its index, the organisation-unit assignment, the
+attribute option combo, the period, then every answer (422). A
 phase that finds an error is the last one to run, so a rejection is readable; inside a
 phase every issue is collected, so one round trip reports every problem at that level.
 `outcome` is the OperationOutcome vocabulary every answer is spoken in, accepted or
@@ -1367,6 +1415,18 @@ it. Lenient resolution walks three tiers - concept code, option UID, DHIS2 code 
 warns on anything below the first, because the generated CodeSystem publishes both DHIS2
 spellings and a client that sent the other one still named exactly one option. Two
 options matching one code is an ambiguity refused under either setting.
+
+**Three things grade on that one dial.** A drifted code, an organisation unit outside the
+form's published assignment, and the attribute option combo a form declares its responses
+carry - all of them describe drift between a client and the instance rather than a
+malformed document, so all of them warn by default and refuse under `--strict-codes`.
+`CaptureIndex.attribute_option_combos` is where the form's `D2AttributeOptionCombos`
+declaration is read into the phase, resolved through the served ValueSet to the CodeSystem
+a coding into it names; absence means the data set rides the default category combo, and a
+response naming a combo against such a form grades too, because it would be stored and
+then silently not written. What is refused whatever the dial is what the coded-answer path
+refuses whatever the dial: a coding from another system, a coding with no code, and an
+ambiguity.
 
 **`$generate` reads the capture index backwards.** `GET|POST
 /Questionnaire/{id}/$generate` answers a served form with a synthetic
@@ -1382,7 +1442,12 @@ call reproducible and rides back on `QuestionnaireResponse.identifier`, so a see
 is reproducible too. Two facts a compiled Questionnaire does not carry get documented
 rules rather than guesses: the data set's period type is read off a served example
 response answering the same form and falls back to `Monthly`, and `TRUE_ONLY` is
-indistinguishable from `BOOLEAN` so both generate either value. The operation is custom -
+indistinguishable from `BOOLEAN` so both generate either value. A form declaring an
+attribute-option-combo vocabulary gets one drawn out of the served CodeSystem, in the
+concept-code spelling, which is what keeps the 201 invariant holding for a non-default
+data set under `--strict-codes`; a form declaring one this project never published gets
+the extension left off, exactly as an unpublished `answerValueSet` leaves a question
+unanswered. The operation is custom -
 not SDC's `$populate`, which means fill-from-real-context - so the IG publishes its own
 `OperationDefinition` and `/metadata` declares it on the `Questionnaire` resource entry,
 where R4 puts an instance-level operation.
@@ -1474,7 +1539,11 @@ unit hierarchy, in a language with none of the tests. So `pages/FormFill.tsx` re
 away its answers, and puts the user's in their place. That call is pinned postable to this same
 server by `test_generate_endpoint.py`, so the context leaving the page is valid by construction
 and the operation earns a second consumer beyond its fill-with-test-data button. The seed
-identifier is dropped on the way out, because it names a draw the answers may no longer be.
+identifier is dropped on the way out, because it names a draw the answers may no longer be. The
+one exception is the attribute option combo: a form declaring `D2AttributeOptionCombos` gets a
+reporting-context picker above its items - expanded from that ValueSet, pre-selected from whatever
+`$generate` drew, and required, because which combo a submission is filed under is the third key of
+every value it carries and the one piece of context nothing can derive.
 
 `lib/questionnaire.ts` is where that lives, and it is deliberately the only interesting file in
 the UI without a DOM in it: the item tree flattened into an ordered spec, one reducer keyed by

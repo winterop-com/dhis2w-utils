@@ -24,9 +24,12 @@ from typing import Any
 import pytest
 from dhis2w_fhir import (
     AttributeCodeIndex,
+    AttributeComboPlan,
     GenerateConfig,
     OptionSetIn,
     QuestionnaireSourceIn,
+    build_attribute_combo_artifacts,
+    build_attribute_combo_concept_maps,
     build_example_documents,
     build_questionnaire_documents,
     build_synthetic_responses,
@@ -91,6 +94,11 @@ def _captured() -> list[ExampleResponseIn]:
     return build_synthetic_responses(_sources(), _option_sets(), 1, _ROOT_ORG_UNIT, _REFERENCE_DATE).responses
 
 
+def _attribute_combos(config: GenerateConfig) -> AttributeComboPlan:
+    """The attribute-option-combo plan the questionnaire target publishes for the run's data sets."""
+    return build_attribute_combo_artifacts(_sources(), config, _CANONICAL, ig_status="draft").plan
+
+
 def _context(config: GenerateConfig) -> ConversionContext:
     """The translation context, assembled from the artifacts the same run publishes."""
     sources = _sources()
@@ -102,13 +110,15 @@ def _context(config: GenerateConfig) -> ConversionContext:
         ig_status="draft",
         option_set_plan=plan,
         attribute_codes=AttributeCodeIndex(),
+        attribute_combos=_attribute_combos(config),
     ).questionnaires
     terminology = build_option_set_artifacts(
         _option_sets(), config, _CANONICAL, ig_status="draft", attribute_codes=AttributeCodeIndex()
     )
+    combos = build_attribute_combo_artifacts(sources, config, _CANONICAL, ig_status="draft")
     code_systems: list[CodeSystem] = []
     value_sets: list[ValueSet] = []
-    for artifact in terminology.artifacts:
+    for artifact in [*terminology.artifacts, *combos.artifacts]:
         name = artifact.relative_path.rsplit("/", 1)[-1]
         if name.startswith("CodeSystem-"):
             code_systems.append(CodeSystem.model_validate_json(artifact.content))
@@ -120,7 +130,10 @@ def _context(config: GenerateConfig) -> ConversionContext:
         questionnaires,
         code_systems=code_systems,
         value_sets=value_sets,
-        concept_maps=build_option_set_concept_maps(_option_sets(), config, _CANONICAL, ig_status="draft"),
+        concept_maps=[
+            *build_option_set_concept_maps(_option_sets(), config, _CANONICAL, ig_status="draft"),
+            *build_attribute_combo_concept_maps(sources, config, _CANONICAL, ig_status="draft"),
+        ],
         locations=[
             Location(
                 id=_ROOT_ORG_UNIT, identifier=[Identifier(system=naming.organisation_unit_system, value=_ROOT_ORG_UNIT)]
@@ -143,6 +156,7 @@ def _report(config: GenerateConfig | None = None) -> ConversionReport:
         resolved,
         _CANONICAL,
         option_set_plan=option_set_identities(_plan_sets(), resolved),
+        attribute_combos=_attribute_combos(resolved),
     )
     return translate_responses(documents.responses, _context(resolved))
 
@@ -198,7 +212,7 @@ def test_every_data_value_comes_back_to_what_the_example_was_built_from(response
 
 @pytest.mark.parametrize("response_id", _AGGREGATE_IDS)
 def test_an_aggregate_example_reports_for_the_data_set_period_and_unit_it_was_captured_for(response_id: str) -> None:
-    """The envelope's three keys come back off the form identifier, the D2Period extension, and the subject."""
+    """The envelope's keys come back off the form identifier, D2Period, the subject, and D2AttributeOptionCombo."""
     result = _results()[response_id]
     capture = _captures()[response_id]
     assert result.data_value_set is not None
@@ -206,6 +220,23 @@ def test_an_aggregate_example_reports_for_the_data_set_period_and_unit_it_was_ca
     assert result.data_value_set.dataSet == capture.target_uid
     assert result.data_value_set.period == capture.period.iso
     assert result.data_value_set.orgUnit == capture.organisation_unit_uid
+    assert result.data_value_set.attributeOptionCombo == capture.attribute_option_combo_uid
+
+
+def test_a_non_default_data_set_comes_back_keyed_to_the_attribute_option_combo_it_was_built_from() -> None:
+    """The one selected data set on a non-default category combo names its third key, and the default one does not."""
+    results = _results()
+    captures = _captures()
+    non_default = "TuL8IOPzpHh-example-1"
+    default = "BfMAe6Itzgt-example-1"
+    assert captures[non_default].attribute_option_combo_uid is not None
+    assert results[non_default].data_value_set is not None
+    assert (
+        results[non_default].data_value_set.attributeOptionCombo == captures[non_default].attribute_option_combo_uid  # type: ignore[union-attr]
+    )
+    assert captures[default].attribute_option_combo_uid is None
+    assert results[default].data_value_set is not None
+    assert results[default].data_value_set.attributeOptionCombo is None  # type: ignore[union-attr]
 
 
 @pytest.mark.parametrize("response_id", _EVENT_IDS)

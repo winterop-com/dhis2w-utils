@@ -179,6 +179,7 @@ def build_form_spec(
         group_link_ids,
     )
     target_uid = _identifier_value(questionnaire, naming.target_identifier_system(form_kind))
+    value_set = _attribute_option_combo_value_set(questionnaire, naming)
     return FormSpec(
         canonical=canonical,
         form_kind=form_kind,
@@ -188,7 +189,17 @@ def build_form_spec(
         program_stage_uid=target_uid if form_kind == "tracker-event" else None,
         questions=questions,
         group_link_ids=frozenset(group_link_ids),
+        attribute_option_combo_value_set=value_set,
+        attribute_option_combo_system=code_system_urls_by_value_set.get(value_set or ""),
     )
+
+
+def _attribute_option_combo_value_set(questionnaire: Questionnaire, naming: ConversionNaming) -> str | None:
+    """The vocabulary one form declares its responses key their values from, or None on the default combo."""
+    for extension in questionnaire.extension or []:
+        if extension.url == naming.attribute_option_combos_url and extension.valueCanonical:
+            return extension.valueCanonical
+    return None
 
 
 def build_option_table(
@@ -242,9 +253,14 @@ def _mapped_entries(
     naming: ConversionNaming,
     concept_maps: Sequence[ConceptMap],
 ) -> tuple[OptionEntry, ...]:
-    """Refine one set's entries with the DHIS2 identifiers its ConceptMap carries, where a map was given."""
-    codes = _mapped_codes(system, naming.option_code_system, concept_maps)
-    uids = _mapped_codes(system, naming.option_uid_system, concept_maps)
+    """Refine one set's entries with the DHIS2 identifiers its ConceptMap carries, where a map was given.
+
+    Two terminology families reach this table through one call - the option sets and the attribute
+    option combos - and each names its own pair of DHIS2 target namespaces. A map only ever carries
+    one family's targets, so reading both pairs resolves either without the caller saying which.
+    """
+    codes = _mapped_codes(system, (naming.option_code_system, naming.attribute_option_combo_code_system), concept_maps)
+    uids = _mapped_codes(system, (naming.option_uid_system, naming.attribute_option_combo_uid_system), concept_maps)
     if not codes and not uids:
         return tuple(entries)
     return tuple(
@@ -258,12 +274,12 @@ def _mapped_entries(
     )
 
 
-def _mapped_codes(system: str, target: str, concept_maps: Sequence[ConceptMap]) -> dict[str, str]:
-    """Every `concept code -> DHIS2 identifier` row one system's maps carry onto one target namespace."""
+def _mapped_codes(system: str, target_systems: tuple[str, ...], concept_maps: Sequence[ConceptMap]) -> dict[str, str]:
+    """Every `concept code -> DHIS2 identifier` row one system's maps carry onto any of the target namespaces."""
     mapped: dict[str, str] = {}
     for concept_map in concept_maps:
         for group in concept_map.group or []:
-            if group.source != system or group.target != target:
+            if group.source != system or group.target not in target_systems:
                 continue
             for element in group.element or []:
                 code = element.code

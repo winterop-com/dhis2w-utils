@@ -67,25 +67,40 @@ basemap = "none"
 """
 
 #: The compiled Questionnaires the capture project serves - one per form kind, plus the tracker
-#: stage carrying a required question and a numeric bound.
+#: stage carrying a required question and a numeric bound, and the aggregate form whose data set
+#: rides a non-default category combo and therefore declares a vocabulary of attribute option
+#: combos its responses must name one of.
 CAPTURE_QUESTIONNAIRE_FILES = (
     "Questionnaire-BfMAe6Itzgt.json",
     "Questionnaire-EVTsupVis01.json",
     "Questionnaire-ZzYYXq4fJie.json",
     "Questionnaire-PsAncVisit1.json",
+    "Questionnaire-TuL8IOPzpHh.json",
 )
 
-#: The data-dictionary terminology every generated form draws its question codes from.
+#: The data-dictionary terminology every generated form draws its question codes from, plus the
+#: attribute-option-combo pair the non-default-combo form binds - without which a capture client
+#: has a form declaring a vocabulary and no way to expand it.
 CAPTURE_SUPPORT_FILES = (
     "CodeSystem-d2-de-cs.json",
     "CodeSystem-d2-coc-cs.json",
     "ValueSet-d2-de-vs.json",
     "ValueSet-d2-coc-vs.json",
+    "CodeSystem-d2-aoc-idcDPkDtepR-cs.json",
+    "ValueSet-d2-aoc-idcDPkDtepR-vs.json",
 )
 
 AGGREGATE_RESPONSE_FILE = "QuestionnaireResponse-BfMAe6Itzgt-example-1.json"
 EVENT_RESPONSE_FILE = "QuestionnaireResponse-EVTsupVis01-example-1.json"
 TRACKER_RESPONSE_FILE = "QuestionnaireResponse-ZzYYXq4fJie-example-1.json"
+
+#: The golden submission of the non-default-combo data set - the one that names the attribute
+#: option combo its values are filed under, coded from the vocabulary its form declares.
+ATTRIBUTE_COMBO_RESPONSE_FILE = "QuestionnaireResponse-TuL8IOPzpHh-example-1.json"
+
+#: The vocabulary that form declares, and the CodeSystem behind it a response codes its combo from.
+ATTRIBUTE_COMBO_VALUE_SET = f"{CAPTURE_CANONICAL}/ValueSet/d2-aoc-idcDPkDtepR-vs"
+ATTRIBUTE_COMBO_CODE_SYSTEM = f"{CAPTURE_CANONICAL}/CodeSystem/d2-aoc-idcDPkDtepR-cs"
 
 #: The concept property an id-mode CodeSystem carries the DHIS2 option code on.
 OPTION_CODE_PROPERTY_URI = f"{CAPTURE_IDENTIFIER_BASE}/property/dhis2-code"

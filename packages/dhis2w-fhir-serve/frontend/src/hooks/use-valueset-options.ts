@@ -31,37 +31,56 @@ export interface ValueSetOption {
     label: string
 }
 
+/**
+ * One expanded ValueSet: what it offers, and what it is called.
+ *
+ * The title is carried because one caller picks *context* rather than an answer - the attribute
+ * option combo a whole submission is filed under - and the published vocabulary's title is the
+ * combo's own DHIS2 name ("Project"), which is the only string on the wire that names what the
+ * choice is about. A choice question has no use for it: the question text above the control
+ * already says what is being asked.
+ */
+export interface ValueSetExpansion {
+    title: string | null
+    options: ValueSetOption[]
+}
+
 /** An expansion in the three states a read lands in, so a control never has to guess which it is in. */
 export interface ValueSetOptionsState {
     options: ValueSetOption[]
+    /** The published title of the ValueSet, or null before it is read and when it states none. */
+    title: string | null
     loading: boolean
     /** The refusal the server stated, already reduced to its OperationOutcome diagnostics. */
     error: string | null
 }
 
+/** An expansion that has not been read yet - what a control renders before the first byte lands. */
+const NOTHING_EXPANDED: ValueSetExpansion = { title: null, options: [] }
+
 /** Every expansion this session has already paid for, keyed by ValueSet canonical. */
-const expansions = new Map<string, ValueSetOption[]>()
+const expansions = new Map<string, ValueSetExpansion>()
 
 /** Expansions currently in flight, so a form asking the same set twice reads it once. */
-const inFlight = new Map<string, Promise<ValueSetOption[]>>()
+const inFlight = new Map<string, Promise<ValueSetExpansion>>()
 
 /** The options one question offers, expanded once per canonical and shared across the form. */
 export function useValueSetOptions(canonical: string | null): ValueSetOptionsState {
-    const cached = canonical === null ? [] : (expansions.get(canonical) ?? null)
-    const [options, setOptions] = useState<ValueSetOption[]>(cached ?? [])
+    const cached = canonical === null ? NOTHING_EXPANDED : (expansions.get(canonical) ?? null)
+    const [expansion, setExpansion] = useState<ValueSetExpansion>(cached ?? NOTHING_EXPANDED)
     const [loading, setLoading] = useState(canonical !== null && cached === null)
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
         if (canonical === null) {
-            setOptions([])
+            setExpansion(NOTHING_EXPANDED)
             setLoading(false)
             setError(null)
             return
         }
         const known = expansions.get(canonical)
         if (known !== undefined) {
-            setOptions(known)
+            setExpansion(known)
             setLoading(false)
             setError(null)
             return
@@ -72,13 +91,13 @@ export function useValueSetOptions(canonical: string | null): ValueSetOptionsSta
         expandValueSet(canonical)
             .then((expanded) => {
                 if (cancelled) return
-                setOptions(expanded)
+                setExpansion(expanded)
                 setLoading(false)
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
                 setError(failure instanceof Error ? failure.message : String(failure))
-                setOptions([])
+                setExpansion(NOTHING_EXPANDED)
                 setLoading(false)
             })
         return () => {
@@ -86,11 +105,11 @@ export function useValueSetOptions(canonical: string | null): ValueSetOptionsSta
         }
     }, [canonical])
 
-    return { options, loading, error }
+    return { options: expansion.options, title: expansion.title, loading, error }
 }
 
 /** Read one ValueSet and whatever it composes, answering with the options it admits. */
-async function expandValueSet(canonical: string): Promise<ValueSetOption[]> {
+async function expandValueSet(canonical: string): Promise<ValueSetExpansion> {
     const running = inFlight.get(canonical)
     if (running !== undefined) return running
     const started = readExpansion(canonical)
@@ -110,7 +129,7 @@ async function expandValueSet(canonical: string): Promise<ValueSetOption[]> {
  * a read of one - but a hand-written ValueSet served with `--live` may compose several, and
  * reading them together costs nothing over reading them in turn.
  */
-async function readExpansion(canonical: string): Promise<ValueSetOption[]> {
+async function readExpansion(canonical: string): Promise<ValueSetExpansion> {
     const valueSetId = canonicalId(canonical)
     if (valueSetId === null) throw new Error(`\`${canonical}\` is not a canonical this UI can read a ValueSet from`)
     const valueSet = await readResource<ValueSet>('ValueSet', valueSetId)
@@ -127,7 +146,7 @@ async function readExpansion(canonical: string): Promise<ValueSetOption[]> {
             return (codeSystem.concept ?? []).map((concept) => optionOf(system, concept))
         }),
     )
-    return expanded.flat()
+    return { title: valueSet.title ?? valueSet.name ?? null, options: expanded.flat() }
 }
 
 /** One concept as an option: the full coding goes on the wire, the display is what a person picks by. */

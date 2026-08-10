@@ -152,12 +152,18 @@ class CategoryOptionComboIn(BaseModel):
 
 
 class CategoryComboIn(BaseModel):
-    """The category combo a data element is disaggregated by, its option combos included."""
+    """One DHIS2 category combo, its option combos included - a disaggregation or a data set's own key.
+
+    A data element carries one to say how its question splits into cells; a data set carries one
+    to say which attribute option combos its values are keyed under. `code` is the combo's DHIS2
+    code, which the attribute-combo terminology resolves its identity stem from.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
     name: str
+    code: str | None = None
     is_default: bool = False
     option_combos: list[CategoryOptionComboIn] = Field(default_factory=list)
 
@@ -223,6 +229,11 @@ class QuestionnaireSourceIn(BaseModel):
     `program` is set exactly when `kind` is `tracker-event`: the source is then one program
     stage, so `uid`, `name`, `code`, and `description` are the stage's own and `program`
     names the tracker program the stage belongs to.
+
+    `attribute_combo` is the data set's own category combo - the third key of every value it
+    holds, beside the organisation unit and the period. Only an aggregate form carries one, and
+    a non-default one is what makes the form publish an attribute-option-combo vocabulary and
+    its responses name a combo out of it.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -234,6 +245,7 @@ class QuestionnaireSourceIn(BaseModel):
     kind: FormKind
     period_type: str | None = None
     program: ProgramContextIn | None = None
+    attribute_combo: CategoryComboIn | None = None
     sections: list[QuestionnaireSectionIn] = Field(default_factory=list)
     flat_items: list[QuestionnaireItemIn] = Field(default_factory=list)
     attribute_values: list[AttributeValueIn] = Field(default_factory=list)

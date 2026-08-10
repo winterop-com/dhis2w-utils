@@ -1,0 +1,12 @@
+Extension: {{ names.attribute_option_combo_extension }}
+Id: {{ names.attribute_option_combo_extension_id }}
+Title: "DHIS2 attribute option combo"
+Description: "The DHIS2 attribute option combo one aggregate response's values are keyed under, drawn from the ValueSet the form's {{ names.attribute_option_combos_extension }} extension names. Absent means the default attribute option combo."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "QuestionnaireResponse"
+* value[x] only Coding
+* valueCoding 1..1
+* valueCoding.system 1..1
+* valueCoding.code 1..1

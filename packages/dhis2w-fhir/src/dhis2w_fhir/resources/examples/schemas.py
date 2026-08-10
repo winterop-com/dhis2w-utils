@@ -80,6 +80,11 @@ class ExampleResponseIn(BaseModel):
     `tracked_entity_uid` and `enrollment_uid` are carried exactly by tracker-event responses:
     a tracker event belongs to one enrollment of one tracked entity, and both UIDs travel onto
     the response as the subject identifier and the enrollment extension.
+
+    `attribute_option_combo_uid` is the third key of an aggregate response - a data value set is
+    keyed by `(orgUnit, period, attributeOptionCombo)`. It rides onto the response as the
+    `D2AttributeOptionCombo` extension when the form publishes a vocabulary to code it from, and
+    is otherwise the default combo, which the guide says by publishing nothing.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -90,6 +95,7 @@ class ExampleResponseIn(BaseModel):
     organisation_unit_uid: str
     status_code: str
     period: PeriodValue | None = None
+    attribute_option_combo_uid: str | None = None
     authored: str | None = None
     tracked_entity_uid: str | None = None
     enrollment_uid: str | None = None
@@ -107,6 +113,22 @@ class ExampleCoding(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     option_set_uid: str
+    concept_code: str
+    display: str
+
+
+class ExampleAttributeOptionCombo(BaseModel):
+    """The attribute option combo one aggregate response is keyed under, as the coding it is written as.
+
+    The combo is named by the attribute category combo's UID rather than by system, for the same
+    reason a coded answer names its option set by UID: the two emitters spell the CodeSystem
+    differently - FSH writes the `D2AOC_..._CS` name SUSHI resolves, the document path writes the
+    canonical URL the run publishes it at - and both resolve it through the one identity plan.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    combo_uid: str
     concept_code: str
     display: str
 

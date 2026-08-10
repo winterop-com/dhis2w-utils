@@ -13,12 +13,12 @@ def _by_path(config: GenerateConfig, *, ig_status: IgStatus = "draft") -> dict[s
 
 
 #: The DHIS2 identifier systems declared: a UID system per object kind, plus a code system for the
-#: ten kinds that carry a DHIS2 code.
-_IDENTIFIER_SYSTEM_COUNT = 22
+#: eleven kinds that carry a DHIS2 code.
+_IDENTIFIER_SYSTEM_COUNT = 24
 
 
 def test_foundation_covers_expected_files() -> None:
-    """The target emits the aliases, the NamingSystems, the seven extensions, and the capture contract."""
+    """The target emits the aliases, the NamingSystems, the nine extensions, and the capture contract."""
     assert set(_by_path(GenerateConfig())) == {
         "foundation/d2-aliases.fsh",
         "foundation/d2-naming-systems.fsh",
@@ -27,6 +27,8 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-attribute-value.fsh",
         "foundation/d2-organisation-unit.fsh",
         "foundation/d2-organisation-unit-assignment.fsh",
+        "foundation/d2-attribute-option-combo.fsh",
+        "foundation/d2-attribute-option-combos.fsh",
         "foundation/d2-organisation-unit-level.fsh",
         "foundation/d2-tracker-enrollment.fsh",
         "foundation/d2-responses.fsh",
@@ -258,13 +260,19 @@ Parent: QuestionnaireResponse
 Id: d2-aggregate-response
 Title: "DHIS2 aggregate response"
 Description: "One submission of a DHIS2 data set form: the values captured for one organisation \
-unit and one reporting period, answered on the linkIds of the data set's Questionnaire."
+unit, one reporting period, and one attribute option combo, answered on the linkIds of the data \
+set's Questionnaire."
 * ^status = #draft
 * ^experimental = true
 * extension contains
     D2Period named D2Period 1..1 and
+    D2AttributeOptionCombo named D2AttributeOptionCombo 0..1 and
     D2FormType named D2FormType 1..1
 * extension[D2Period] ^short = "The DHIS2 reporting period the values were captured for."
+* extension[D2AttributeOptionCombo] ^short = "The DHIS2 attribute option combo the values were \
+captured under. A response answering a form that declares a D2AttributeOptionCombos vocabulary has \
+to carry it, coded from that ValueSet; absent means the default attribute option combo, which is \
+the only combo a form without that extension has."
 * extension[D2FormType] ^short = "The DHIS2 form kind this response answers."
 * extension[D2FormType].valueCode = #aggregate (exactly)
 * questionnaire 1..1

@@ -26,6 +26,7 @@ _PATH_RESOURCE_LINES = {
     "    - input/resources/terminology/*",
     "    - input/resources/concept-maps/*",
     "    - input/resources/categories/*",
+    "    - input/resources/attribute-option-combos/*",
     "    - input/resources/assignments/*",
 }
 
@@ -105,6 +106,7 @@ def test_sushi_config_declares_the_prebuilt_resource_subfolders() -> None:
             "input/resources/terminology/*",
             "input/resources/concept-maps/*",
             "input/resources/categories/*",
+            "input/resources/attribute-option-combos/*",
             "input/resources/assignments/*",
         ],
     }
@@ -501,6 +503,7 @@ def test_refresh_adds_the_path_resource_block_to_a_stale_sushi_config(tmp_path: 
         "input/resources/terminology/*",
         "input/resources/concept-maps/*",
         "input/resources/categories/*",
+        "input/resources/attribute-option-combos/*",
         "input/resources/assignments/*",
     ]
 
