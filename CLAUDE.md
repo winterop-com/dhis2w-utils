@@ -156,6 +156,10 @@ states, tooltips - follows these rules. They exist because each was violated onc
 - **Never state one fact twice in two casings.** A "Level 1" badge beside a
   "level-1" chip is one fact wearing two costumes; pick the human spelling once,
   keep the machine spelling for machine contexts (codes, ids - mono).
+- **Name the actual subject.** "This DHIS2 instance stores no boundary", not
+  "DHIS2 holds no geometry" - the platform, an instance, the API, and the
+  organisation are different things, and "DHIS2" unqualified can mean a hundred of
+  them. Say which one. No trailing philosophical clauses.
 - **Copy review is a review dimension.** Any change adding or moving user-facing
   text gets read as prose - by someone whose only job in that pass is the words.
 
