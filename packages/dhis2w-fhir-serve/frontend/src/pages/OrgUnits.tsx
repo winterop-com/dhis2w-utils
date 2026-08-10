@@ -202,7 +202,13 @@ export function OrgUnits() {
 
     const expanded = useMemo(() => {
         const open = new Set<string>(filtered)
-        if (selected !== null) for (const ancestor of ancestorsOf(tree, selected.id)) open.add(ancestor.id)
+        // The selected unit's own row opens too, not just its ancestors: selecting something means
+        // wanting what is under it - which is also what puts the districts on screen when the page
+        // opens on its default root selection.
+        if (selected !== null) {
+            open.add(selected.id)
+            for (const ancestor of ancestorsOf(tree, selected.id)) open.add(ancestor.id)
+        }
         return open
     }, [filtered, selected, tree])
 
@@ -1093,11 +1099,12 @@ function FormRow({
     note?: string
 }) {
     return (
-        // `items-baseline` + `break-words`, not `truncate`: a shelf row's title wraps to as many
-        // lines as it needs, and the note and badge hang off its first line. An ellipsis here hid
-        // the difference between two forms whose names share a long prefix.
-        <li className="flex min-w-0 items-baseline gap-2 text-sm">
-            <Link to={`/forms/${formId}`} className="text-primary min-w-0 break-words hover:underline">
+        // The row WRAPS rather than truncates or squeezes: `flex-wrap` lets the note and badge
+        // drop to their own line when the rail is narrow, and the title keeps `flex-1` with a
+        // floor so flex pressure can never collapse it to a zero-width - the invisible-link twin
+        // of the ellipsis bug this row already fixed once.
+        <li className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+            <Link to={`/forms/${formId}`} className="text-primary min-w-[8ch] flex-1 break-words hover:underline">
                 {questionnaire === null ? formId : formTitle(questionnaire)}
             </Link>
             {note !== undefined && <span className="text-muted-foreground shrink-0 text-xs">{note}</span>}

@@ -152,7 +152,7 @@ test('a row opens the receipt at its own route, with the answers on it', async (
     await expect(page.getByText('Received', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Capture context' })).toBeVisible()
     await expect(page.getByText('Period', { exact: true })).toBeVisible()
-    await expect(page.getByText('Organisation unit')).toBeVisible()
+    await expect(page.getByText('Organisation unit', { exact: true })).toBeVisible()
     await expect(page.getByText('GET /QuestionnaireResponse/')).toBeVisible()
 
     // The headline: the answers joined to the questions the form asks. `Fixed, <1y` is the text
@@ -229,7 +229,7 @@ test.describe('filling a form in the browser', () => {
         await expect(page).toHaveURL(new RegExp(`#/forms/${AGGREGATE_FORM}$`))
 
         await page.getByRole('button', { name: 'Fill with test data' }).click()
-        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
 
         await page.getByRole('button', { name: 'Submit' }).click()
         await expect(page.getByText('The server accepted this submission')).toBeVisible()
@@ -279,7 +279,7 @@ test.describe('a form whose data set reports per attribute option combo', () => 
         await expect(page.getByText('Choose what this submission reports for before submitting')).toBeVisible()
 
         await page.getByRole('button', { name: 'Fill with test data' }).click()
-        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
 
         // Chosen after the refill, because a refill is the server proposing a whole submission and
         // its combo lands in the picker too - so the last word here has to be the user's.
@@ -334,9 +334,9 @@ test.describe('a form whose assignment narrows where it may be reported from', (
         const picker = page.getByLabel('Reporting from')
         await expect(picker).toBeVisible()
         await expect(picker).toContainText(new RegExp(`${CHOSEN_UNIT}|${HELD_UNIT}`))
-        await expect(page.getByText('2 units are assigned to this form')).toBeVisible()
+        await expect(page.getByText('2 organisation units are assigned to this form')).toBeVisible()
 
-        // Two of ten. The registry the org-units page browses is the same one this reads.
+        // Two of ten. The registry the organisation-units page browses is the same one this reads.
         await picker.click()
         await expect(page.getByRole('option')).toHaveCount(2)
 
@@ -483,7 +483,7 @@ test.describe('a form asking for an organisation unit as an answer', () => {
         // the draw named is the seed's business; that the control stopped being unanswered is
         // the fact under test.
         await page.getByRole('button', { name: 'Fill with test data' }).click()
-        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
         await expect(answer).not.toContainText('Not chosen')
 
         await answer.click()
@@ -560,7 +560,7 @@ test.describe('filling a tracker-event form', () => {
         await expect(page.getByText('No registration has been captured for this program yet')).toBeVisible()
 
         await page.getByRole('button', { name: 'Fill with test data' }).click()
-        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
 
         await page.getByRole('button', { name: 'Submit' }).click()
         await expect(page.getByText('The server accepted this submission')).toBeVisible()
@@ -642,7 +642,7 @@ test.describe('a tracker registration form', () => {
         await expect(page.getByText('Enrolled at', { exact: true })).toBeVisible()
 
         await page.getByRole('button', { name: 'Fill with test data' }).click()
-        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
 
         await page.getByRole('button', { name: 'Submit' }).click()
         await expect(page.getByText('The server accepted this submission')).toBeVisible()
@@ -739,7 +739,7 @@ test.describe('a stage form answering for a captured registration', () => {
 
         // The refill rule: the answers are the fresh draw's, the identity stands.
         await page.getByRole('button', { name: 'Fill with test data' }).click()
-        await expect(page.getByText('Filled with generated answers')).toBeVisible()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
         await expect(picker).toContainText(enrollment)
 
         await page.getByRole('button', { name: 'Submit' }).click()
