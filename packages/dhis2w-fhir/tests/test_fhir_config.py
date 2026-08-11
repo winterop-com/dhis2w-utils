@@ -9,6 +9,7 @@ from dhis2w_fhir.config import (
     IgConfig,
     NoFhirProjectError,
     ServeConfig,
+    UnknownFhirConfigKeyError,
     find_project_fhir_config,
     load_fhir_config,
     load_project,
@@ -188,3 +189,98 @@ def test_locales_default_to_every_locale_found() -> None:
 def test_locales_are_normalized_to_bcp47() -> None:
     """Java-style DHIS2 tags in fhir.toml are held in the BCP-47 form the emitters compare against."""
     assert GenerateConfig(locales=["pt_BR", "LO", "km"]).locales == ["pt-BR", "lo", "km"]
+
+
+_IDENTITY_TOML = """
+[ig]
+id = "dhis2.fhir.example"
+canonical = "http://example.org/fhir"
+name = "Dhis2FhirExample"
+title = "DHIS2 FHIR Example IG"
+publisher = "Example Organisation"
+"""
+
+
+def _write(tmp_path: Path, *, before: str = "", after: str = "") -> Path:
+    """A fhir.toml holding the identity table, with `before` above it and `after` below it."""
+    path = tmp_path / "fhir.toml"
+    path.write_text(before + _IDENTITY_TOML + after, encoding="utf-8")
+    return path
+
+
+def test_a_misspelled_key_is_refused_and_the_right_name_suggested(tmp_path: Path) -> None:
+    """A misspelled option is named, placed in its table, and matched against what the table accepts."""
+    path = _write(tmp_path, after='\n[generate.naming]\nprefx = "D2"\n')
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+    assert raised.value.diagnostics == (
+        "fhir.toml: unknown key 'prefx' in [generate.naming]\n  did you mean 'prefix'?",
+    )
+
+
+def test_a_misspelled_key_in_a_nested_section_names_that_section(tmp_path: Path) -> None:
+    """The trap this refusal exists for: `max_lvl = 4` set nothing and said nothing."""
+    path = _write(tmp_path, after="\n[generate.organisation_units]\nmax_lvl = 4\n")
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+    assert raised.value.diagnostics == (
+        "fhir.toml: unknown key 'max_lvl' in [generate.organisation_units]\n  did you mean 'max_level'?",
+    )
+
+
+def test_a_key_resembling_nothing_is_refused_without_a_suggestion(tmp_path: Path) -> None:
+    """A guess would be worse than none: an unknown key with no near neighbour is reported on its own."""
+    path = _write(tmp_path, after='\n[serve]\nlisten_on_every_interface = "0.0.0.0"\n')
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+    assert raised.value.diagnostics == ("fhir.toml: unknown key 'listen_on_every_interface' in [serve]",)
+
+
+def test_a_misspelled_top_level_key_is_placed_at_the_top_of_the_file(tmp_path: Path) -> None:
+    """A key outside every table has no section name to be reported under, so it is placed by where it sits."""
+    path = _write(tmp_path, before='profil = "myserver"\n')
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+    assert raised.value.diagnostics == (
+        "fhir.toml: unknown key 'profil' at the top level of the file\n  did you mean 'profile'?",
+    )
+
+
+def test_every_unknown_key_is_reported_in_one_pass(tmp_path: Path) -> None:
+    """One run names every misspelling, so the file is fixed in one edit rather than one command per key."""
+    path = _write(
+        tmp_path,
+        after='\n[generate]\nidentifier_system_bases = "http://example.org"\n'
+        "\n[generate.organisation_units]\nmax_lvl = 4\n"
+        "\n[serve]\nstrict_code = true\n",
+    )
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+    assert raised.value.diagnostics == (
+        "fhir.toml: unknown key 'identifier_system_bases' in [generate]\n  did you mean 'identifier_system_base'?",
+        "fhir.toml: unknown key 'max_lvl' in [generate.organisation_units]\n  did you mean 'max_level'?",
+        "fhir.toml: unknown key 'strict_code' in [serve]\n  did you mean 'strict_codes'?",
+    )
+
+
+def test_a_selection_table_refuses_unknown_keys_too(tmp_path: Path) -> None:
+    """Every table of the document forbids what it does not declare, the selection tables included."""
+    path = _write(tmp_path, after='\n[generate.data_sets]\ninclude_id = ["BfMAe6Itzgt"]\n')
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+    assert raised.value.diagnostics == (
+        "fhir.toml: unknown key 'include_id' in [generate.data_sets]\n  did you mean 'include_ids'?",
+    )
+
+
+def test_a_wrong_value_keeps_the_pydantic_report(tmp_path: Path) -> None:
+    """A refusal about a value is not a refusal about a name: it keeps the report naming the accepted values."""
+    path = _write(tmp_path, after='\n[generate.naming]\nprefix = "2D"\n')
+    with pytest.raises(ValidationError, match="letter-leading alphanumeric"):
+        load_fhir_config(path)
+
+
+def test_a_tracked_entity_type_map_still_takes_any_uid_as_a_key(tmp_path: Path) -> None:
+    """The one table whose keys are DHIS2 UIDs rather than option names keeps taking whatever the instance holds."""
+    path = _write(tmp_path, after='\n[generate.tracked_entity_types]\n"Kd6Nk9wnAJa" = "Group"\n')
+    assert load_fhir_config(path).generate.tracked_entity_types == {"Kd6Nk9wnAJa": "Group"}

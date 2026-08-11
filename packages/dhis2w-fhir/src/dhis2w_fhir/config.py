@@ -11,6 +11,7 @@ receives its config as a parameter.
 
 from __future__ import annotations
 
+import difflib
 import re
 import tomllib
 import zoneinfo
@@ -18,7 +19,8 @@ from pathlib import Path
 from typing import Literal
 
 import tomli_w
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from dhis2w_core.cli_errors import CliUserError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from dhis2w_fhir.i18n import normalize_locale
 from dhis2w_fhir.names import NamingSource, strip_trailing_slash
@@ -40,8 +42,14 @@ class NoFhirProjectError(LookupError):
     """Raised when no `fhir.toml` is found walking up from the working directory."""
 
 
+class UnknownFhirConfigKeyError(CliUserError):
+    """Raised when `fhir.toml` names keys the configuration document does not declare."""
+
+
 class IgConfig(BaseModel):
     """SUSHI IG identity - the `[ig]` table of `fhir.toml`."""
+
+    model_config = ConfigDict(extra="forbid")
 
     id: str
     canonical: str
@@ -87,6 +95,8 @@ class NamingConfig(BaseModel):
     group / group-set artifacts follow the same scheme (`OUG`, `OUGS`).
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     source: NamingSource = "id"
     prefix: str = "D2"
     option_set: str = "OS"
@@ -130,6 +140,8 @@ class GenerateConfig(BaseModel):
     it: selection stays with the three data-definition tables, and a type this table never
     mentions is a `Patient`, which is what keeps a person-tracking project's config empty.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     identifier_system_base: str = "http://dhis2.org/fhir"
     concept_code_source: Literal["id", "code"] = "id"
@@ -217,7 +229,7 @@ class ServeConfig(BaseModel):
     under.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     host: str = "127.0.0.1"
     port: int = 8080
@@ -233,6 +245,8 @@ class ServeConfig(BaseModel):
 
 class FhirProjectConfig(BaseModel):
     """The full parsed `fhir.toml` document."""
+
+    model_config = ConfigDict(extra="forbid")
 
     profile: str | None = None
     ig: IgConfig
@@ -279,10 +293,67 @@ def find_project_fhir_config(start: Path | None = None) -> Path | None:
     return None
 
 
+#: How close a declared name must be to the key that was written before it is offered as the one
+#: that was meant. `difflib`'s own default: it carries a dropped letter (`max_lvl`), a transposition
+#: (`stirct_codes`), and a wrong separator (`max-level`), and turns down a word that merely shares
+#: a few characters with a field of the table.
+_SUGGESTION_CUTOFF = 0.6
+
+
+def _config_table_at(location: tuple[int | str, ...]) -> type[BaseModel] | None:
+    """The config model one table path names, or None where the path leaves the tree of tables.
+
+    Walked from `FhirProjectConfig` down the declared annotations, so the field names a suggestion
+    is drawn from are the very ones that table accepts.
+    """
+    model: type[BaseModel] = FhirProjectConfig
+    for segment in location:
+        if not isinstance(segment, str):
+            return None
+        field = model.model_fields.get(segment)
+        if field is None:
+            return None
+        annotation = field.annotation
+        if not (isinstance(annotation, type) and issubclass(annotation, BaseModel)):
+            return None
+        model = annotation
+    return model
+
+
+def _unknown_key_diagnostic(location: tuple[int | str, ...]) -> str:
+    """One `fhir.toml: unknown key ...` line, with the `did you mean ...?` line under it when one fits."""
+    key = str(location[-1])
+    table = ".".join(str(segment) for segment in location[:-1])
+    where = f"in [{table}]" if table else "at the top level of the file"
+    diagnostic = f"fhir.toml: unknown key {key!r} {where}"
+    model = _config_table_at(location[:-1])
+    if model is None:
+        return diagnostic
+    matches = difflib.get_close_matches(key, list(model.model_fields), n=1, cutoff=_SUGGESTION_CUTOFF)
+    if not matches:
+        return diagnostic
+    return f"{diagnostic}\n  did you mean {matches[0]!r}?"
+
+
 def load_fhir_config(path: Path) -> FhirProjectConfig:
-    """Parse and validate a `fhir.toml` file."""
+    """Parse and validate a `fhir.toml` file, refusing any key the document does not declare.
+
+    Every table declares its full key set, so a misspelled option is a refusal rather than a line
+    that sets nothing: the key is named, placed in its table, and matched against the names that
+    table accepts, and every unknown key in the file is reported in one pass. A refusal about a
+    value rather than a name (a wrong type, a value outside its range) keeps pydantic's own report.
+    """
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
-    return FhirProjectConfig.model_validate(raw)
+    try:
+        return FhirProjectConfig.model_validate(raw)
+    except ValidationError as error:
+        unknown_keys = [item["loc"] for item in error.errors() if item["type"] == "extra_forbidden"]
+        if not unknown_keys:
+            raise
+        # Sorted by location so the diagnostics read as an outline of the document - a table before
+        # its sub-tables - rather than in the order the validators happened to reach them.
+        ordered = sorted(unknown_keys, key=lambda location: [str(segment) for segment in location])
+        raise UnknownFhirConfigKeyError(*(_unknown_key_diagnostic(location) for location in ordered)) from error
 
 
 def write_fhir_config(path: Path, config: FhirProjectConfig) -> None:

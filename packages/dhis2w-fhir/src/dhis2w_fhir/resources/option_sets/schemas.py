@@ -17,6 +17,8 @@ class OptionSetSelection(BaseModel):
     UIDs only: names are not unique in DHIS2. An empty (or absent) list means all option sets.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     include_ids: list[str] = Field(default_factory=list)
 
 

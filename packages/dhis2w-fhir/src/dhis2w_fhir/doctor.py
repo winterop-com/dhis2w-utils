@@ -37,7 +37,7 @@ from dhis2w_core.client_context import open_client
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir import service
-from dhis2w_fhir.config import FhirProject, load_project, write_fhir_config
+from dhis2w_fhir.config import FhirProject, UnknownFhirConfigKeyError, load_project, write_fhir_config
 from dhis2w_fhir.foundation import CAPTURE_SERVER_READ_RESOURCE_TYPES
 from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_string, pascal
 from dhis2w_fhir.scaffold.schemas import DEFAULT_SUSHI_TIMEOUT_SECONDS, InitOptions
@@ -701,7 +701,7 @@ class _DoctorRun:
         try:
             report = await service.init_project(self._workspace, options)
             self._project = _apply_registry_root(load_project(self._workspace), selection.root)
-        except (OSError, LookupError, ValueError) as error:
+        except (OSError, LookupError, ValueError, UnknownFhirConfigKeyError) as error:
             self._record(DoctorPhase.SCAFFOLD, DoctorOutcome.FAILED, str(error), started)
             return False
         self._record(
@@ -864,7 +864,14 @@ class _DoctorRun:
                 source = f"the live builders ({materialised:,} document(s) written to disk)"
             application = create_app(ServeSettings(project_dir=self._workspace, live=False))
             await stack.enter_async_context(application.router.lifespan_context(application))
-        except (Dhis2ClientError, httpx.HTTPError, LookupError, ValueError, OSError) as error:
+        except (
+            Dhis2ClientError,
+            httpx.HTTPError,
+            LookupError,
+            ValueError,
+            OSError,
+            UnknownFhirConfigKeyError,
+        ) as error:
             self._record(DoctorPhase.SERVE, DoctorOutcome.FAILED, str(error), started)
             return False
         self._app = application

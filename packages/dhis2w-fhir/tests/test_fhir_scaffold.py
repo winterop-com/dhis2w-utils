@@ -1,5 +1,6 @@
 """Unit tests for `d2w fhir init` scaffold contents and the `--refresh` comparison."""
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -150,6 +151,30 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     assert config.serve.host == "127.0.0.1"
     assert config.serve.port == 8080
     assert config.serve.strict_codes is False
+
+
+#: A commented-out option line of the example file: `# key = value`, or `# "UID" = "Type"` in the
+#: one table keyed by DHIS2 UID. Prose comments never match, because they carry no `=` in that shape.
+_COMMENTED_OPTION = re.compile(r'^# ((?:[a-z_]+|"[A-Za-z0-9]+") = .*?)(?:\s{2,}#.*)?$')
+
+
+def test_fhir_toml_example_catalogues_only_keys_the_document_declares() -> None:
+    """Uncommenting the whole catalog still loads: every line it offers to be copied is a key that exists.
+
+    The example is what a reader copies option lines out of, and `fhir.toml` refuses a key the
+    document does not declare - so a stale line in the catalog would hand someone an error rather
+    than a setting. Uncommenting every option line at once proves the catalog is exactly the
+    declared surface, suggestions and all.
+    """
+    lines = _by_path()["fhir.toml.example"].splitlines()
+    uncommented = "\n".join(match.group(1) if (match := _COMMENTED_OPTION.match(line)) else line for line in lines)
+    assert "# max_level = 4" not in uncommented
+    config = FhirProjectConfig.model_validate(tomllib.loads(uncommented))
+    assert config.generate.organisation_units.max_level == 4
+    assert config.generate.organisation_units.root == "ImspTQPwCqd"
+    assert config.generate.timezone == "Asia/Vientiane"
+    assert config.profile == "myserver"
+    assert config.generate.tracked_entity_types == {"Kd6Nk9wnAJa": "Group", "Bx8L1nQ4EiP": "Location"}
 
 
 def test_fhir_toml_example_documents_the_serve_table() -> None:

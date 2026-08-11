@@ -124,6 +124,8 @@ class TargetSelection(BaseModel):
     program listed under the table its type does not belong to is refused by name.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     include_ids: list[str] = Field(default_factory=list)
 
 
