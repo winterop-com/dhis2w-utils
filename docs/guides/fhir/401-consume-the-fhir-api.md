@@ -208,6 +208,19 @@ the stored receipt, so a corpus generated last week can be regenerated
 exactly by reading the seeds off it. Seeds are R4 `integer`s, `0` to
 `2147483647`; anything else is a 400 OperationOutcome.
 
+The organisation unit a response reports for is drawn from the seed like
+every other value. The set it is drawn over is the one the form admits: the
+organisation units its published assignment names, intersected with the
+served registry, and the whole registry for a form publishing no assignment.
+Same seed, same organisation unit; a different seed ranges over the rest of
+the set, so a corpus generated from a handful of seeds is spread across the
+places the form is captured at rather than filed at one of them. Staying
+inside the assignment is what keeps that corpus importable - DHIS2 refuses a
+capture at an organisation unit the form is not assigned to with `E1029`. A
+project that published no registry at all gets a shaped UID, which the
+[capture contract](401-capture-contract.md) admits because it checks the
+reference's shape rather than its target.
+
 A generated **registration** mints the tracked entity and the enrollment it
 creates, exactly as a real client does - shaped UIDs, which is what the
 [capture contract](401-capture-contract.md) checks. A generated **stage**
