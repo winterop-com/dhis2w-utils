@@ -14,6 +14,8 @@ a checkout needs `make build-frontend` once.
 - fill a form with generated test data, change what you like, and submit it
 - register a person with no program, and answer a registration for somebody
   the DHIS2 instance already holds
+- search the DHIS2 instance for a person, page through the people it holds, and
+  read what it holds about one of them
 - read a receipt back joined to the questions it answers
 - follow a receipt's lifecycle from the browser while `d2w fhir forward`
   runs in a terminal
@@ -269,6 +271,64 @@ the file is in, and the server re-reads that directory to answer. So running
 `d2w fhir forward` in another terminal changes what this page shows with
 nothing restarted - hit **Reload**, or just switch back to the browser,
 which refetches on focus.
+
+## Patients
+
+A **live** server carries one more page: **Patients**, the people the DHIS2
+instance holds. It is in the navigation only when this server answers about
+people - a compiled guide has no instance behind it, and a project that states
+`[serve.patients] enabled = false` has said it does not want the surface at all
+([Configure serving](301-serving.md#patients)). In both cases there is no page,
+rather than a page that apologises.
+
+Everything on it is read from the instance while you wait, which is the one way
+it differs from every other page here. Responses shows receipts - what was
+submitted. This shows what DHIS2 holds right now.
+
+**Two ways to arrive at a person, and the page offers both.** Type an
+identifier - a card number, a register number, whatever value the person is
+known by - and the search runs once the typing stops; it is the same search the
+registration form's **Person** control runs, and it searches identifier values,
+never names. Type nothing and the page lists the people the instance holds,
+twenty at a time, with **Next** and **Previous** underneath. Searching is for a
+clerk holding a card; browsing is for one who is not.
+
+How many a page holds is `[serve.patients] page_size`, and a project that
+states `listing = false` has kept the search and dropped the browsing: the page
+then opens on its search box alone, with nothing to page through. That is a
+posture rather than a fault - looking up somebody a clerk can already name is a
+different act from paging through everyone an instance holds, and a deployment
+may offer the first without the second.
+
+A count of all the people sits above the list when DHIS2 states one, and stays
+away when it does not - the instance does not always count what it pages, and
+"137 people" is worth showing only when it is true. Where there is no count,
+the paging controls are the whole of what the page claims: there is a next page
+or there is not.
+
+**What a row shows is what the server states about a person, and nothing
+more.** The value of a unique attribute leads, because that is the value that
+names them; the other attribute values sit beside it, and the DHIS2 tracked
+entity id is last. There is no name column. DHIS2 states no attribute that
+means a name - which of an instance's attributes carry one is that instance's
+own decision - so a name column would be this page guessing, and a wrong name
+on a person's row is worse than no name at all.
+
+**A row opens that person.** The detail view is the same three facts laid out
+to be read: the identifiers they are findable by, each named for the attribute
+whose value it is; every attribute value the instance holds for them, including
+the ones collected at a programme rather than at registration; and the
+programmes they are enrolled in - the name this project publishes for the
+programme where it publishes one, the state of the enrollment in words, when it
+began, and the organisation unit it sits at.
+
+!!! warning "A completed enrollment is listed, and said to be completed"
+    DHIS2 accepts a new event into a completed enrollment with no error and no
+    warning at all (BUGS.md 70). So a completed enrollment is shown rather than
+    hidden - it is a fact about the person, and hiding it would leave somebody
+    wondering where a programme went - and it carries the warning it earns,
+    because capturing into a closed episode should be a decision somebody made
+    on purpose.
 
 ## The other three pages
 

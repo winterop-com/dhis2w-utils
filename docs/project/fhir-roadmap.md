@@ -2082,7 +2082,13 @@ commitment.
 
 - **Full circle: DHIS2 in, DHIS2 out.** The input leg is closed - a form captured in
   the browser lands in DHIS2 through the spool and the forwarder, every kind, measured
-  at 225/225/0. The output leg is the next phase: the same facade answering FHIR
+  at 225/225/0. The output leg has started, on its identity half: `--live`
+  answers `GET /Patient?identifier=` for a person somebody can name, `GET /Patient`
+  as a paged listing for a client that cannot, and `GET /patients/{uid}/enrollments`
+  for the programmes one person is in - each read from the instance per request, and
+  each offered or withheld by `[serve.patients]`, whose defaults offer everything and
+  whose reason to exist is the deployment that wants less. What remains is the data
+  half: the same facade answering FHIR
   consumers **from DHIS2's data**, not just its metadata - stored
   QuestionnaireResponses served from live `dataValueSets` / tracker reads (the
   instance-sourced example builders already prove the projection), so a FHIR client
