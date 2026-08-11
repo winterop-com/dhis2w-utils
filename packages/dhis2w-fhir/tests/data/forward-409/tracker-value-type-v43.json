@@ -1,0 +1,25 @@
+{
+  "status": "ERROR",
+  "validationReport": {
+    "errorReports": [
+      {
+        "message": "DataElement `COORDINATE` is not valid: `Value type is COORDINATE but the value `not-a-coordinate` is not.`.",
+        "errorCode": "E1302",
+        "trackerType": "EVENT",
+        "uid": "EvBbCcDd002",
+        "args": [
+          "COORDINATE",
+          "Value type is COORDINATE but the value `not-a-coordinate` is not."
+        ]
+      }
+    ],
+    "warningReports": []
+  },
+  "stats": {
+    "created": 0,
+    "updated": 0,
+    "deleted": 0,
+    "ignored": 1,
+    "total": 1
+  }
+}
