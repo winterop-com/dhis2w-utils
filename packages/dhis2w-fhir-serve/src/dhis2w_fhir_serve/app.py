@@ -37,6 +37,7 @@ from dhis2w_fhir_serve.live import build_live_store, open_live_client
 from dhis2w_fhir_serve.log import LOGGER_NAME, RequestLogMiddleware
 from dhis2w_fhir_serve.metadata import build_metadata_body
 from dhis2w_fhir_serve.patients.index import PatientIndex
+from dhis2w_fhir_serve.patients.surface import PatientSurface
 from dhis2w_fhir_serve.routes import register_routes
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseSpool
@@ -63,8 +64,8 @@ class ServeContext(BaseModel):
     store: ResourceStore
     spool: ResponseSpool
     settings: ServeSettings
-    patient_index: PatientIndex
-    """What the published guide says about people, read out of the store once so a lookup is a dictionary hit."""
+    patient_surface: PatientSurface
+    """Who this process answers for: what the guide says about people, narrowed by `[serve.patients]`."""
 
     capability_body: dict[str, Any]
     """The `/metadata` document, pre-rendered - the same HTTP-boundary escape hatch `StoreEntry.body` documents."""
@@ -128,19 +129,19 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
         store = await build_store(settings, project, client)
         spool = ResponseSpool.at(project.project_root)
         summary = store.summary()
-        patient_index = PatientIndex.from_store(project, store)
+        patient_surface = PatientSurface.resolve(PatientIndex.from_store(project, store), settings.patients)
         app.state.context = ServeContext(
             project=project,
             store=store,
             spool=spool,
             settings=settings,
-            patient_index=patient_index,
+            patient_surface=patient_surface,
             capability_body=build_metadata_body(
                 project=project,
                 store_summary=summary,
                 spool_count=spool.count(),
                 settings=settings,
-                patient_index=patient_index,
+                patient_surface=patient_surface,
                 server_version=server_version(),
             ),
         )

@@ -30,7 +30,8 @@ Patient is the one entry that is not about the store at all. It is answered from
 per request, so it is declared only by a process that has one - `--live`, over a project that
 publishes a registration form and therefore names a tracked entity type. A compiled run declares no
 Patient, which is the same refusal `GET /Patient` gives, stated before the request rather than
-after it.
+after it - and so does a live run over a project whose `[serve.patients] enabled` is false, which is
+that same refusal reached from the project rather than from the invocation.
 """
 
 from __future__ import annotations
@@ -60,7 +61,7 @@ from dhis2w_fhir_serve.store import CONCEPT_MAP_RESOURCE_TYPE
 if TYPE_CHECKING:
     from dhis2w_fhir.config import FhirProject
 
-    from dhis2w_fhir_serve.patients.index import PatientIndex
+    from dhis2w_fhir_serve.patients.surface import PatientSurface
     from dhis2w_fhir_serve.settings import ServeSettings
     from dhis2w_fhir_serve.store import StoreSummary
 
@@ -99,6 +100,14 @@ PATIENT_DOCUMENTATION = (
     "attribute values as extensions. No name, gender, or birth date: DHIS2 states no mapping for them."
 )
 
+#: What the Patient entry adds about the no-identifier search, which is either a page or a refusal.
+LISTING_DOCUMENTATION = (
+    "A search naming no identifier is answered with one page of the register: `_count` people at a "
+    "time, walked by following the Bundle's own `next` and `previous` links, whose `page` parameter "
+    "names the page and is this server's to compose."
+)
+LISTING_OFF_DOCUMENTATION = "A search naming no identifier is refused: this project serves people by identifier only."
+
 #: What the QuestionnaireResponse entry states about the resources it holds.
 RESPONSE_DOCUMENTATION = "One response per request; stored responses are receipts of what was submitted"
 
@@ -113,7 +122,7 @@ def build_server_capability(
     store_summary: StoreSummary,
     spool_count: int,
     settings: ServeSettings,
-    patient_index: PatientIndex,
+    patient_surface: PatientSurface,
     server_version: str,
 ) -> CapabilityStatement:
     """State what this process serves: the capture contract, the read types the store holds, and live Patient."""
@@ -127,7 +136,7 @@ def build_server_capability(
             for resource_type in SERVED_READ_RESOURCE_TYPES
             if resource_type in store_summary.counts_by_type
         ),
-        *_patient_resource(settings, patient_index),
+        *_patient_resource(settings, patient_surface),
     ]
     return CapabilityStatement(
         status="active",
@@ -158,21 +167,27 @@ def build_server_capability(
     )
 
 
-def _patient_resource(settings: ServeSettings, patient_index: PatientIndex) -> list[CapabilityStatementResource]:
+def _patient_resource(settings: ServeSettings, patient_surface: PatientSurface) -> list[CapabilityStatementResource]:
     """Declare Patient only when this process can actually answer for one.
 
-    Two conditions, and both are properties of how the process was started rather than of the IG:
-    the store has to be live, because a Patient is read from the DHIS2 instance and there is no
-    instance behind a compiled guide, and the project has to publish a registration form, because
-    the tracked entity type it names is what a DHIS2 search must be given. A statement that declared
-    Patient anyway would advertise an interaction every request to it refuses.
+    Three conditions. Two are properties of how the process was started rather than of the IG: the
+    store has to be live, because a Patient is read from the DHIS2 instance and there is no instance
+    behind a compiled guide, and the project has to publish a registration form (or name a type in
+    `[serve.patients]`), because the tracked entity type is what a DHIS2 search must be given. The
+    third is the project's own word: `[serve.patients] enabled = false` removes the surface, and a
+    statement declaring it anyway would advertise an interaction every request to it refuses.
+
+    The listing is stated in the resource's documentation rather than as another search parameter:
+    `_count` is a FHIR-wide parameter and `page` is this server's own naming of the cursor, and
+    neither is a search parameter of Patient in the sense `searchParam` enumerates.
     """
-    if not settings.live or not patient_index.serves_patients():
+    if not settings.live or not patient_surface.serves_patients():
         return []
+    index = patient_surface.index
     return [
         CapabilityStatementResource(
             type=PATIENT_RESOURCE_TYPE,
-            documentation=PATIENT_DOCUMENTATION,
+            documentation=_patient_documentation(patient_surface),
             interaction=[
                 CapabilityStatementInteraction(code="read"),
                 CapabilityStatementInteraction(code="search-type"),
@@ -182,15 +197,22 @@ def _patient_resource(settings: ServeSettings, patient_index: PatientIndex) -> l
                     name="identifier",
                     type="token",
                     documentation=(
-                        f"The DHIS2 tracked entity UID under `{patient_index.tracked_entity_system}`, or the value "
-                        "of a tracked entity attribute DHIS2 declares unique under "
-                        f"`{patient_index.identifier_system_base}/tracked-entity-attribute/<uid>`. A token naming "
+                        f"The DHIS2 tracked entity UID under `{index.tracked_entity_system}`, or the value "
+                        "of a tracked entity attribute this server holds as an identifier key under "
+                        f"`{index.identifier_system_base}/tracked-entity-attribute/<uid>`. A token naming "
                         "no system is searched across every one of them."
                     ),
                 )
             ],
         )
     ]
+
+
+def _patient_documentation(patient_surface: PatientSurface) -> str:
+    """What the Patient entry says this server answers, listing included when this project serves one."""
+    if not patient_surface.serves_listing():
+        return f"{PATIENT_DOCUMENTATION} {LISTING_OFF_DOCUMENTATION}"
+    return f"{PATIENT_DOCUMENTATION} {LISTING_DOCUMENTATION}"
 
 
 def _operations(store_summary: StoreSummary) -> list[CapabilityStatementOperation] | None:

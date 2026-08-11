@@ -25,10 +25,11 @@ import pytest
 import respx
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile
-from dhis2w_fhir.config import FhirProject
+from dhis2w_fhir.config import FhirProject, PatientsConfig
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.capability import build_server_capability
 from dhis2w_fhir_serve.patients.index import PatientIndex
+from dhis2w_fhir_serve.patients.surface import PatientSurface
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.store import load_compiled_store
 from fastapi import FastAPI
@@ -430,14 +431,15 @@ def test_the_index_reads_the_unique_attributes_and_the_published_type(capture_pr
     assert index.program_name(REGISTRATION_PROGRAM_UID) == "Antenatal care"
 
 
-def _capability(project: FhirProject, *, live: bool) -> Any:
+def _capability(project: FhirProject, *, live: bool, patients: PatientsConfig | None = None) -> Any:
     """The statement one run publishes, over the capture guide's own index."""
     store = load_compiled_store(project)
+    settings = ServeSettings(project_dir=project.project_root, live=live, patients=patients or PatientsConfig())
     return build_server_capability(
         project=project,
         store_summary=store.summary(),
         spool_count=0,
-        settings=ServeSettings(project_dir=project.project_root, live=live),
-        patient_index=PatientIndex.from_store(project, store),
+        settings=settings,
+        patient_surface=PatientSurface.resolve(PatientIndex.from_store(project, store), settings.patients),
         server_version="9.9.9",
     )

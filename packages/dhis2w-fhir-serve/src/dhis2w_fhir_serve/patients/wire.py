@@ -1,7 +1,7 @@
 """The DHIS2 reads behind a patient lookup, and the contract `/api/tracker/trackedEntities` actually holds to.
 
-Four facts decide every request here, each established against a running instance and recorded in
-the repository's `BUGS.md`:
+Five facts decide every request here, the first four established against a running instance and
+recorded in the repository's `BUGS.md`:
 
 1. **A search names a tracked entity type or a program, or it is refused** with `E1003`. The type
    comes from the published forms (`dhis2w_fhir_serve.patients.index`); a program is never named,
@@ -19,6 +19,11 @@ the repository's `BUGS.md`:
    statements about the person, so every read names its `fields` explicitly - including
    `enrollments[...]` and the attribute values those enrollments carry, without which a person
    found by a program attribute's unique value would come back not carrying it.
+5. **A page states how many pages there are only when it is asked to.** `page` and `pageSize` come
+   back on every request; `total` and `pageCount` come back only under `totalPages=true`, on 2.42
+   and 2.43 alike. The listing asks for it, because a searchset that states a total is worth one
+   count of a table DHIS2 has indexed; a lookup does not, because nobody asks an identifier search
+   how many people the instance holds.
 
 The client is held open for the life of the process and passed in, because these are the only
 routes on this server that talk to DHIS2 per request.
@@ -60,12 +65,91 @@ TRACKED_ENTITY_FIELDS = (
 )
 
 
+#: The parameter that makes the tracker endpoint count the result set, and what it adds to the page.
+#:
+#: Verified against 2.42 and 2.43: `totalPages=true` puts `total` and `pageCount` in the `pager`
+#: object beside `page` and `pageSize`, and without it the pager carries neither. The endpoint counts
+#: the whole set to answer it, so it is asked for only by the listing, which states a Bundle total -
+#: an identifier lookup wants the people, not how many the instance holds.
+TOTAL_PAGES_PARAMETER = "totalPages"
+
+#: The projection a page of the listing asks for when it only needs to know how many pages there are.
+_COUNT_ONLY_FIELDS = "trackedEntity"
+
+
+class TrackedEntitiesPager(BaseModel):
+    """Where one tracker page sits in its result set, as `totalPages=true` states it.
+
+    `total` and `pageCount` are absent unless that parameter was passed, so both are optional here
+    rather than defaulted to zero: "the instance did not say" and "the instance said none" are
+    different answers, and a Bundle states a total only for the first.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    page: int | None = None
+    pageSize: int | None = None
+    total: int | None = None
+    pageCount: int | None = None
+
+
 class TrackedEntitiesPage(BaseModel):
-    """One page of `/api/tracker/trackedEntities`, keyed only on the array a lookup reads."""
+    """One page of `/api/tracker/trackedEntities`: the people on it, and where it sits."""
 
     model_config = ConfigDict(extra="allow")
 
     trackedEntities: list[TrackerTrackedEntity] = []
+    pager: TrackedEntitiesPager | None = None
+
+
+async def list_tracked_entities(
+    client: Dhis2Client,
+    *,
+    tracked_entity_type_uid: str,
+    page: int,
+    page_size: int,
+) -> TrackedEntitiesPage:
+    """Read one page of every person of one tracked entity type, counted so the page can say how many.
+
+    No `filter=`: this is the listing, and its whole query is the type. `ouMode=ACCESSIBLE` for the
+    same reason every search here sends it (BUGS.md 74) - the register a user may see is the register
+    they are shown, and a listing scoped to the capture unit would answer a fraction of it without
+    saying so.
+    """
+    raw = await client.get_raw(
+        TRACKED_ENTITIES_PATH,
+        params={
+            "trackedEntityType": tracked_entity_type_uid,
+            "ouMode": SEARCH_ORG_UNIT_MODE,
+            "fields": TRACKED_ENTITY_FIELDS,
+            "page": page,
+            "pageSize": page_size,
+            TOTAL_PAGES_PARAMETER: "true",
+        },
+    )
+    return TrackedEntitiesPage.model_validate(raw)
+
+
+async def count_tracked_entity_pages(client: Dhis2Client, *, tracked_entity_type_uid: str, page_size: int) -> int:
+    """How many pages of one type there are at one page size, asked without carrying anybody back.
+
+    The listing needs this at one place only: a `previous` link crossing back over a type boundary
+    lands on the last page of the type before it, and the last page is a number nothing on the
+    current page states. The projection is the UID alone, because the answer read is the pager.
+    """
+    raw = await client.get_raw(
+        TRACKED_ENTITIES_PATH,
+        params={
+            "trackedEntityType": tracked_entity_type_uid,
+            "ouMode": SEARCH_ORG_UNIT_MODE,
+            "fields": _COUNT_ONLY_FIELDS,
+            "page": 1,
+            "pageSize": page_size,
+            TOTAL_PAGES_PARAMETER: "true",
+        },
+    )
+    pager = TrackedEntitiesPage.model_validate(raw).pager
+    return 0 if pager is None or pager.pageCount is None else pager.pageCount
 
 
 async def search_tracked_entities(

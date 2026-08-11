@@ -21,10 +21,10 @@ from urllib.parse import urlsplit
 
 import tomli_w
 from dhis2w_core.cli_errors import CliUserError
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from dhis2w_fhir.i18n import normalize_locale
-from dhis2w_fhir.names import NamingSource, strip_trailing_slash
+from dhis2w_fhir.names import NamingSource, is_dhis2_uid, strip_trailing_slash
 from dhis2w_fhir.r4 import SUBJECT_RESOURCE_TYPES
 from dhis2w_fhir.resources.categories.schemas import CategorySelection
 from dhis2w_fhir.resources.examples.schemas import ExampleSelection
@@ -247,6 +247,75 @@ class BasemapSource(BaseModel):
 DEFAULT_BASEMAPS = (BasemapSource(name=DEFAULT_BASEMAP_NAME, url=DEFAULT_BASEMAP_TEMPLATE),)
 
 
+#: What one page of the Patient listing carries when the client names no `_count`.
+DEFAULT_PATIENT_PAGE_SIZE = 20
+
+#: The largest `_count` the Patient listing honours; a client asking for more is served this many.
+DEFAULT_PATIENT_PAGE_SIZE_LIMIT = 100
+
+
+class PatientsConfig(BaseModel):
+    """The Patient surface a live run serves - the `[serve.patients]` table of `fhir.toml`.
+
+    People are the one thing this facade answers from the DHIS2 instance rather than from what it
+    published, so what it will say about them is stated here rather than inferred from the guide.
+    `enabled` is the whole surface: false and every Patient route answers the not-supported outcome
+    and `/metadata` declares no Patient, in a live process exactly as in a compiled one. `listing`
+    is the no-parameter `GET /Patient` alone - false leaves identifier search untouched and refuses
+    only the request that means "everybody", which is the posture for an instance whose register is
+    not something a capture client may page through.
+
+    `page_size` is what one page carries when the client names no `_count`, and `page_size_limit`
+    is the largest `_count` honoured: a client asking for more is served the limit rather than
+    refused, which is what FHIR says a server may do with a `_count` it will not meet.
+
+    `tracked_entity_types` and `search_attributes` both mean "the ones the guide publishes" when
+    empty, which is what keeps this table absent from a project that publishes what it serves.
+    Naming types restricts search and listing alike to them. Naming attributes defines the
+    identifier keys outright - a named attribute is a key whether or not DHIS2 declares it unique,
+    because the operator naming it has said it names a person here.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool = True
+    listing: bool = True
+    page_size: int = DEFAULT_PATIENT_PAGE_SIZE
+    page_size_limit: int = DEFAULT_PATIENT_PAGE_SIZE_LIMIT
+    tracked_entity_types: list[str] = Field(default_factory=list)
+    search_attributes: list[str] = Field(default_factory=list)
+
+    @field_validator("page_size")
+    @classmethod
+    def _at_least_one_person_per_page(cls, value: int) -> int:
+        """A page carrying nobody is a listing that never ends, so the smallest page is one person."""
+        if value < 1:
+            raise ValueError(f"page_size is {value}: a page carries at least one person")
+        return value
+
+    @field_validator("tracked_entity_types", "search_attributes")
+    @classmethod
+    def _dhis2_uids(cls, value: list[str]) -> list[str]:
+        """Both lists name DHIS2 objects by UID - a name or a code here would select nothing, silently."""
+        for uid in value:
+            if not is_dhis2_uid(uid):
+                raise ValueError(
+                    f"{uid!r} is not a DHIS2 UID (one letter followed by ten alphanumeric places): "
+                    "name the object by its UID, since names and codes are not unique in DHIS2"
+                )
+        return value
+
+    @model_validator(mode="after")
+    def _limit_holds_the_default(self) -> PatientsConfig:
+        """The limit is the largest page this run serves, so a default above it could never be served."""
+        if self.page_size_limit < self.page_size:
+            raise ValueError(
+                f"page_size_limit is {self.page_size_limit} and page_size is {self.page_size}: the limit is "
+                "the largest page this server serves, so it cannot be smaller than the page it serves by default"
+            )
+        return self
+
+
 class ServeConfig(BaseModel):
     """How `d2w fhir serve` runs this project - the `[serve]` table of `fhir.toml`.
 
@@ -265,6 +334,10 @@ class ServeConfig(BaseModel):
     offer is `None`, and the page reaches no origin but this server. It is the one part of this
     table that makes the browser talk to anybody else, which is why it is stated rather than
     inferred.
+
+    `[serve.patients]` is the Patient surface: whether people are served at all, whether they can
+    be listed rather than only searched for, and how a listing is paged. It is the one part of this
+    table that says what a live run will tell a client about the instance behind it.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -274,6 +347,7 @@ class ServeConfig(BaseModel):
     strict_codes: bool = False
     ui: bool = False
     basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
+    patients: PatientsConfig = Field(default_factory=PatientsConfig)
 
 
 def basemaps_from_options(values: list[str]) -> list[BasemapSource]:
