@@ -33,6 +33,11 @@ default = "probe"
 base_url = "https://dhis2.example"
 auth = "pat"
 token = "d2p_test"
+
+[profiles.demo]
+base_url = "https://demo.example"
+auth = "pat"
+token = "d2p_demo"
 """
     )
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -208,27 +213,123 @@ def test_a_serve_flag_beats_the_table_and_the_table_beats_the_default(
     assert recorded_run.application.state.settings.strict_codes is False
 
 
-def test_the_basemap_follows_the_same_three_way_precedence(workdir: Path, recorded_run: _RecordedRun) -> None:
-    """Tiles are on by default, the table restates them once per project, and a flag beats both."""
-    from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE
+def test_the_basemaps_follow_the_same_three_way_precedence(workdir: Path, recorded_run: _RecordedRun) -> None:
+    """One layer by default, the table restates the offer once per project, and the flag beats both."""
+    from dhis2w_fhir.config import DEFAULT_BASEMAP_NAME, DEFAULT_BASEMAP_TEMPLATE
 
     project = _scaffold(workdir)
     _compile(project)
 
     default_run = _runner.invoke(build_app(), ["fhir", "serve", "project"])
     assert default_run.exit_code == 0, default_run.output
-    assert recorded_run.application.state.settings.basemap == DEFAULT_BASEMAP_TEMPLATE
+    assert [(layer.name, layer.url) for layer in recorded_run.application.state.settings.basemaps] == [
+        (DEFAULT_BASEMAP_NAME, DEFAULT_BASEMAP_TEMPLATE)
+    ]
 
-    _write_serve_table(project, 'basemap = "none"')
+    _write_serve_table(project, "basemaps = []")
     from_table = _runner.invoke(build_app(), ["fhir", "serve", "project"])
     assert from_table.exit_code == 0, from_table.output
-    assert recorded_run.application.state.settings.basemap == "none"
+    assert recorded_run.application.state.settings.basemaps == []
 
     from_flag = _runner.invoke(
-        build_app(), ["fhir", "serve", "project", "--basemap", "https://tiles.example/{z}/{x}/{y}.png"]
+        build_app(), ["fhir", "serve", "project", "--basemap", "Streets=https://tiles.example/{z}/{x}/{y}.png"]
     )
     assert from_flag.exit_code == 0, from_flag.output
-    assert recorded_run.application.state.settings.basemap == "https://tiles.example/{z}/{x}/{y}.png"
+    assert [(layer.name, layer.url) for layer in recorded_run.application.state.settings.basemaps] == [
+        ("Streets", "https://tiles.example/{z}/{x}/{y}.png")
+    ]
+
+
+def test_a_repeated_basemap_flag_offers_every_layer_it_names_in_the_order_it_named_them(
+    workdir: Path, recorded_run: _RecordedRun
+) -> None:
+    """The layer control is a list, so the flag that fills it is repeatable and the order is the offer."""
+    project = _scaffold(workdir)
+    _compile(project)
+
+    result = _runner.invoke(
+        build_app(),
+        [
+            "fhir",
+            "serve",
+            "project",
+            "--basemap",
+            "Streets=https://tiles.example/{z}/{x}/{y}.png",
+            "--basemap",
+            "https://aerial.example/{z}/{x}/{y}.jpg?key=abc",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    # The bare template is named after its host - the honest word for a source with nothing else
+    # stated about it - and its `key=abc` is part of one url rather than a name and a url.
+    assert [(layer.name, layer.url) for layer in recorded_run.application.state.settings.basemaps] == [
+        ("Streets", "https://tiles.example/{z}/{x}/{y}.png"),
+        ("aerial.example", "https://aerial.example/{z}/{x}/{y}.jpg?key=abc"),
+    ]
+
+
+def test_basemap_none_offers_no_layer_and_refuses_to_be_combined_with_one(
+    workdir: Path, recorded_run: _RecordedRun
+) -> None:
+    """`none` is the command line's way of writing `basemaps = []`, and it means it."""
+    project = _scaffold(workdir)
+    _compile(project)
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--basemap", "none"])
+    assert result.exit_code == 0, result.output
+    assert recorded_run.application.state.settings.basemaps == []
+
+    contradiction = _runner.invoke(
+        build_app(),
+        ["fhir", "serve", "project", "--basemap", "none", "--basemap", "https://tiles.example/{z}/{x}/{y}.png"],
+    )
+    assert contradiction.exit_code != 0
+    assert "--basemap" in contradiction.output
+    assert recorded_run.calls == 1
+
+
+def test_the_resolved_profile_hands_the_screens_the_instance_they_link_to(
+    workdir: Path, recorded_run: _RecordedRun
+) -> None:
+    """A guide is generated from one instance; naming its address is what makes an identity clickable."""
+    project = _scaffold(workdir)
+    _compile(project)
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project"])
+
+    assert result.exit_code == 0, result.output
+    assert recorded_run.application.state.settings.dhis2_base_url == "https://dhis2.example"
+    # The name and the origin are for whoever runs the process; only the address reaches a browser.
+    assert recorded_run.application.state.settings.profile is None
+
+
+def test_serving_a_compiled_guide_where_no_profile_exists_links_to_no_instance(
+    workdir: Path, recorded_run: _RecordedRun
+) -> None:
+    """A compiled guide on a machine that names no profile is a whole posture, not a broken one."""
+    project = _scaffold(workdir)
+    _compile(project)
+    (workdir / ".config" / "dhis2" / "profiles.toml").unlink()
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project"])
+
+    assert result.exit_code == 0, result.output
+    assert recorded_run.application.state.settings.dhis2_base_url is None
+
+
+def test_a_profile_that_is_named_and_does_not_exist_refuses_the_run(
+    workdir: Path, monkeypatch: pytest.MonkeyPatch, recorded_run: _RecordedRun
+) -> None:
+    """Absence links nothing; a statement that is wrong is a statement, and it fails as one."""
+    project = _scaffold(workdir)
+    _compile(project)
+    monkeypatch.setenv("DHIS2_PROFILE", "not-a-profile")
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project"])
+
+    assert result.exit_code != 0
+    assert recorded_run.calls == 0
 
 
 def test_serve_takes_the_profile_from_the_root_flag(
@@ -250,6 +351,8 @@ def test_serve_takes_the_profile_from_the_root_flag(
     assert result.exit_code == 0, result.output
     assert os.environ["DHIS2_PROFILE"] == "demo"
     assert recorded_run.application.state.settings.profile is None
+    # And the instance the root flag named is the one the screens link identities into.
+    assert recorded_run.application.state.settings.dhis2_base_url == "https://demo.example"
 
 
 def test_serve_announces_the_address_before_the_server_starts(workdir: Path, recorded_run: _RecordedRun) -> None:

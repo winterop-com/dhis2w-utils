@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE
-from pydantic import BaseModel, ConfigDict
+from dhis2w_fhir.config import DEFAULT_BASEMAPS, BasemapSource
+from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir_serve.capture.validate import DEFAULT_STRICT_CODES
 
@@ -26,10 +26,17 @@ class ServeSettings(BaseModel):
     off by default: a facade is an endpoint first, and a process answering `/metadata` for a
     scripted client has no reason to also hold a React bundle open.
 
-    `basemap` is the raster tile template the UI's organisation-unit map draws under the
-    boundaries, and `"none"` turns it off. It lives here rather than being read from the project
-    at request time for the same reason `strict_codes` does: a flag may override the table, so the
-    resolved value is a property of this run.
+    `basemaps` are the raster tile layers the UI's organisation-unit map offers under the
+    boundaries, first one first, and an empty list offers none. They live here rather than being
+    read from the project at request time for the same reason `strict_codes` does: a flag may
+    override the table, so the resolved value is a property of this run.
+
+    `dhis2_base_url` is the address of the instance this run resolved a profile for, and None when
+    it resolved none - a compiled guide served on a machine that names no profile is a whole,
+    supported posture. It is what the UI links an organisation unit, a form, or a data element out
+    to; with no address there are no links, which is the honest rendering of not knowing which of a
+    hundred DHIS2 instances a guide was generated from. The profile's NAME and its credentials stay
+    here and never reach a browser - see `dhis2w_fhir_serve.routes.uiconfig`.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -39,4 +46,5 @@ class ServeSettings(BaseModel):
     profile: str | None = None
     strict_codes: bool = DEFAULT_STRICT_CODES
     ui: bool = False
-    basemap: str = DEFAULT_BASEMAP_TEMPLATE
+    basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
+    dhis2_base_url: str | None = None

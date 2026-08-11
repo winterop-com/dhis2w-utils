@@ -65,11 +65,13 @@ root = ""
 max_level = 0
 
 [serve]
-# No basemap tiles. The browser suite asserts that the org-units page issues no failing
-# request, and a run that reached tile.openstreetmap.org would be asserting on somebody
-# else's uptime - and would make a test suite that is meant to be offline talk to the
-# internet. The tiles-on path is covered by the vitest case over the style fork.
-basemap = "none"
+# No basemap layers, so the map's layer control offers None alone. The browser suite asserts
+# that the organisation-units page issues no failing request, and a run that reached
+# tile.openstreetmap.org would be asserting on somebody else's uptime - and would make a test
+# suite that is meant to be offline talk to the internet. The layers-on path is covered by the
+# vitest cases over the style fork and by the e2e spec that states its own layers over
+# `/uiconfig`, whose tiles are fulfilled in the browser and never fetched.
+basemaps = []
 """
 
 #: The compiled Questionnaires the capture project serves - one per form kind, plus the tracker

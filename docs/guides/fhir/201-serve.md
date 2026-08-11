@@ -134,9 +134,38 @@ One honest limit: the probe binds an IPv4 socket, so a listener that holds
 the port only on IPv6 - Docker on macOS publishing `*:8080` is the common
 case - is not caught, and serve starts beside it.
 
-The table has one more setting, `basemap` - the raster tiles the capture
-UI's organisation-unit map draws. Every `[serve]` key, the basemap policy
-included, is covered in [Configure serving](301-serving.md).
+The table has one more setting, `basemaps` - the raster tile layers the
+capture UI's organisation-unit map offers under the boundaries. The screens'
+layer control lists them, opens on the first, and always carries a **None**
+entry beside them; `basemaps = []` offers None alone, which is the posture of
+a deployment that must reach no origin but this server. Every `[serve]` key,
+the basemap policy included, is covered in
+[Configure serving](301-serving.md).
+
+## Serving with a profile also links the screens back to the instance
+
+`d2w fhir serve` resolves a DHIS2 profile the same way `d2w fhir generate`
+does - `d2w -p <name>`, `DHIS2_PROFILE`, then `profile` in `fhir.toml`, then
+the default - and it does so whether or not `--live` needs to connect with it.
+Reads still come from the compiled guide; what the profile adds to a compiled
+run is the instance's **address**, which the capture UI uses to link an
+organisation unit, a form, or a data element back to the DHIS2 object it was
+generated from ([The capture UI](201-capture-ui.md)).
+
+A machine that names no profile at all is a supported posture, not a broken
+one: the run starts, the guide is served, and the screens simply carry no links
+out - there is nowhere honest to point a compiled guide that names no instance.
+A profile that **is** named and does not exist is a different thing, and it
+refuses the run. Which of the two happened is stated at startup when the
+screens are being served:
+
+```
+starting /path/to/project on http://127.0.0.1:8080 as a FHIR endpoint + capture UI (ctrl-c to stop)
+links: the screens link identities into https://play.dhis2.org/40 (demo, from fhir.toml)
+```
+
+Only the address crosses to the browser. The profile's name, its credentials,
+and any userinfo written into its base url stay in the process.
 
 ## Stored responses are receipts
 

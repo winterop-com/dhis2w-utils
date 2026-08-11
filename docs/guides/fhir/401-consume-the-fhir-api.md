@@ -343,20 +343,31 @@ between - see [Forward captures into DHIS2](201-forward.md).
 ## `/uiconfig`: what the UI is allowed to know
 
 The handful of run-time settings the capture UI has to act on - today, the
-basemap tile template and the attribution the server can honestly state for
-it. Deliberately not the profile, the host, or the strictness dial: those
-describe the process to whoever runs it, and a browser that could read them
-would be a browser that leaks them.
+basemap layers this run offers with the attribution the server can honestly
+state for each, and the address of the DHIS2 instance it resolved a profile
+for, which is what an identity on a page links back to. Deliberately not the
+profile's name, its credentials, the host this process listens on, or the
+strictness dial: those describe the process to whoever runs it, and a browser
+that could read them would be a browser that leaks them.
 
 ```console
 $ curl -s localhost:8091/uiconfig | jq .
 {
-  "basemap": {
-    "template": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noreferrer\">OpenStreetMap</a> contributors"
-  }
+  "basemaps": [
+    {
+      "name": "OpenStreetMap",
+      "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noreferrer\">OpenStreetMap</a> contributors"
+    }
+  ],
+  "dhis2_base_url": "https://play.dhis2.org/40"
 }
 ```
+
+`basemaps` is `[]` when this run offers no tiles, and `dhis2_base_url` is
+`null` when it resolved no profile. Both are states the UI renders rather than
+absences it guesses at: the map's layer control holds `None` alone, and the
+screens carry no links out.
 
 Both live on single lowercase path segments precisely so they can never
 shadow a FHIR resource type, which is PascalCase.

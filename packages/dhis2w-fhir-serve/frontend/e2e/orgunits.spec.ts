@@ -15,9 +15,11 @@ import { expect, test, type APIRequestContext } from '@playwright/test'
  * asserted directly, with no tab clicks. The narrow fallback - the same sections behind tabs - has
  * a spec of its own at a sub-breakpoint viewport.
  *
- * THE PROJECT SETS `basemap = "none"`. A suite that fetched real tiles would be asserting on
- * somebody else's uptime and would make an offline test run reach the internet, so the browser here
- * draws the boundary-only map. The tiles-on style is covered by src/lib/basemap.test.ts.
+ * THE PROJECT OFFERS NO BASEMAP (`basemaps = []`). A suite that fetched real tiles would be
+ * asserting on somebody else's uptime and would make an offline test run reach the internet, so the
+ * browser here draws the boundary-only map. The layer control over a real offer is covered by
+ * uiconfig.spec.ts, which states its own layers over `/uiconfig` and fulfils their tiles in the
+ * browser; the tiles-on style itself is covered by src/lib/basemap.test.ts.
  *
  * WHAT THE MAP IS ASSERTED ON. Headless chromium here renders WebGL through SwiftShader, so the
  * canvas really is acquired and the assertion is the positive one: the canvas mounts, and the page
@@ -174,20 +176,22 @@ test('the rail shelves the forms by kind, beside a map that never leaves', async
 
     // Data sets and programs are different capture surfaces, so they are different shelves.
     await expect(shelves.getByRole('heading', { name: 'Data sets' })).toBeVisible()
-    await expect(shelves.getByRole('link', { name: 'Child Health' })).toBeVisible()
+    // `exact` throughout: beside each row's own link sits the link out to the same object in this
+    // DHIS2 instance's Maintenance app, whose accessible name states the form's title too.
+    await expect(shelves.getByRole('link', { name: 'Child Health', exact: true })).toBeVisible()
     await expect(shelves.getByRole('heading', { name: 'Programs' })).toBeVisible()
-    await expect(shelves.getByRole('link', { name: 'Supervision visit' })).toBeVisible()
+    await expect(shelves.getByRole('link', { name: 'Supervision visit', exact: true })).toBeVisible()
 
     // The two forms whose assignment Lists name Bo carry the badge; everything else is assigned
     // everywhere and appears plainly rather than behind a collapse.
-    await expect(shelves.getByRole('link', { name: 'Outbreak response' })).toBeVisible()
-    await expect(shelves.getByRole('link', { name: 'Antenatal care' })).toBeVisible()
+    await expect(shelves.getByRole('link', { name: 'Outbreak response', exact: true })).toBeVisible()
+    await expect(shelves.getByRole('link', { name: 'Antenatal care', exact: true })).toBeVisible()
     await expect(shelves.getByText('assigned to this organisation unit')).toHaveCount(2)
 
     // A tracker program is one thing: its stage is grouped under its registration, with the role
     // note saying which row is which.
     await expect(shelves.getByText('registration', { exact: true })).toBeVisible()
-    await expect(shelves.getByRole('link', { name: 'ANC follow-up - ANC visit' })).toBeVisible()
+    await expect(shelves.getByRole('link', { name: 'ANC follow-up - ANC visit', exact: true })).toBeVisible()
 })
 
 test('a unit outside the assignments is offered only the forms assigned everywhere', async ({ page }) => {
@@ -197,8 +201,8 @@ test('a unit outside the assignments is offered only the forms assigned everywhe
     await expect(shelves.getByRole('heading', { name: 'Data sets' })).toBeVisible()
     // The two scoped forms are not reportable here, so they are not listed at all - and with no
     // named assignment reaching this unit, nothing carries the badge.
-    await expect(shelves.getByRole('link', { name: 'Outbreak response' })).toHaveCount(0)
-    await expect(shelves.getByRole('link', { name: 'Antenatal care' })).toHaveCount(0)
+    await expect(shelves.getByRole('link', { name: 'Outbreak response', exact: true })).toHaveCount(0)
+    await expect(shelves.getByRole('link', { name: 'Antenatal care', exact: true })).toHaveCount(0)
     await expect(shelves.getByText('assigned to this organisation unit')).toHaveCount(0)
 })
 
@@ -207,7 +211,7 @@ test('a form assigned to one unit opens from that unit', async ({ page }) => {
 
     // Scoped to the shelves: earlier files in the run may have spooled Outbreak captures at
     // Ngelehun, and their receipt rows carry the same title.
-    await page.getByTestId('org-unit-forms').getByRole('link', { name: 'Outbreak response' }).click()
+    await page.getByTestId('org-unit-forms').getByRole('link', { name: 'Outbreak response', exact: true }).click()
 
     await expect(page).toHaveURL(/#\/forms\/PrScoped001$/)
 })
@@ -364,7 +368,7 @@ test('below the three-pane breakpoint the sections sit behind tabs, and Map is t
 
     await page.getByRole('tab', { name: 'Forms' }).click()
     await expect(page.getByRole('heading', { name: 'Data sets' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Outbreak response' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Outbreak response', exact: true })).toBeVisible()
 
     await page.getByRole('tab', { name: 'Details' }).click()
     await expect(page.getByTestId('org-unit-children')).toContainText('3 direct')
@@ -488,11 +492,13 @@ test('a unit with no geometry anywhere near it says so rather than framing on no
     )
 })
 
-test('the served settings turn the tiles off, and the map honours that', async ({ page }) => {
+test('the served settings offer no tile layer, and the map honours that', async ({ page }) => {
     const settings = await page.request.get('/uiconfig')
 
     expect(settings.status()).toBe(200)
-    expect(await settings.json()).toEqual({ basemap: null })
+    // The instance address is deliberately not asserted: whether this machine resolves a profile
+    // at all is a property of the machine, and uiconfig.spec.ts states both answers explicitly.
+    expect((await settings.json()).basemaps).toEqual([])
 
     const tileRequests: string[] = []
     page.on('request', (request) => {
@@ -508,7 +514,9 @@ test('the served settings turn the tiles off, and the map honours that', async (
 
     // No tiles asked for, and the caption says so rather than leaving a reader to wonder.
     expect(tileRequests, tileRequests.join('\n')).toEqual([])
-    await expect(page.getByText('drawn from this server alone, with no basemap')).toBeVisible()
+    await expect(page.getByText('no basemap offered, so the map draws from this server alone')).toBeVisible()
+    // The layer control is still there, holding the one thing this deployment offers.
+    await expect(page.getByTestId('org-unit-map')).toHaveAttribute('data-map-basemap', 'None')
 })
 
 test('the theme reaches the renderer, not just the stylesheet', async ({ page }) => {

@@ -216,10 +216,12 @@ which refetches on focus.
   them with `E1029`; **Captured here** is the receipts this server holds
   for captures at that unit, linked into Responses; **Children** is the
   subtree as a mini tree, and selecting a row re-roots the rail. The map
-  draws the published boundaries and points over raster tiles from
-  `[serve] basemap` (see [Configure serving](301-serving.md));
-  `basemap = "none"` draws them on a plain canvas and reaches no origin but
-  this server, which is what an air-gapped deployment wants. The selected
+  draws the published boundaries and points over the raster layers
+  `[serve.basemaps]` names (see [Configure serving](301-serving.md)), and a
+  layers control in the corner offers each of them plus **None** - so a
+  reader can put the boundaries on a plain canvas at any moment, and a
+  project offering no layer (`basemaps = []`) reaches no origin but this
+  server, which is what an air-gapped deployment wants. The selected
   unit is lit in amber against the blue wash of the units below it, and the
   selection rides the URL (`#/organisation-units?unit=<uid>`), so an
   organisation unit is a link you can send. Clicking is two gestures: a
@@ -229,8 +231,8 @@ which refetches on focus.
   in toward the pointer instead; a right-click drills straight to the
   selection at any zoom. The corner controls are fullscreen, a globe toggle
   that switches the projection in place and hangs the sphere in a
-  starfield, and a recenter button back to whatever the map is framing -
-  the selection's extent, or the whole registry.
+  starfield, the layers control, and a recenter button back to whatever the
+  map is framing - the selection's extent, or the whole registry.
 - **Terminology** is a browser over the code systems, value sets, and
   concept maps the project publishes - concept tables with the DHIS2
   identifiers beside the concept codes, and a `$translate` tester on the
@@ -242,6 +244,36 @@ which refetches on focus.
   server's self-description are worth a glance before blaming a form: a UI
   pointed at a stale `--live` process and one pointed at a freshly compiled
   IG look identical until you read the conformance document.
+
+## Opening an identity in DHIS2
+
+Every identity these screens show is a DHIS2 uid: an organisation unit, a data
+set, a program, one of its stages, a data element. Reading one here answers
+*what the guide published*; the next question is usually *what the instance
+holds*, and the screens answer that with a small external-link mark beside the
+identity, opening that object's own page in the DHIS2 instance's Maintenance
+app in a new tab. It is there in three places:
+
+- the organisation-unit rail header, beside the selected unit's name;
+- each **Data sets** and **Programs** row of that rail, on the data set,
+  program, or program stage the form was generated from;
+- each concept row of the data-element dictionary (`D2DE_CS`), on the data
+  element the concept code is the uid of.
+
+**The links exist only when the server knows which instance to point at.**
+The address comes from the DHIS2 profile the serve run resolved (see
+[Serve the guide](201-serve.md)). A compiled guide served on a machine that
+names no profile carries no links at all - not a disabled control, not a link
+to a search page, nothing - because a guide with no named instance behind it
+has nowhere honest to point. Only the address ever reaches the browser; the
+profile's name and its credentials do not.
+
+!!! note "On DHIS2 2.43 the Maintenance app says it is superseded"
+    2.43 serves the Maintenance app through the global shell and shows a
+    banner pointing at the newer Metadata Management app. The link still opens
+    the object's own edit form, which is what these links are for; the
+    Maintenance route is used because it is the one by-uid metadata route that
+    is the same on every DHIS2 major this toolchain supports.
 
 ## How the screenshots on this page are made
 

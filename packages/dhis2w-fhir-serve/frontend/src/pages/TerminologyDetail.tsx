@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Search } from 'lucide-react'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
+import { MaintenanceLink } from '@/components/MaintenanceLink'
 import { PageState } from '@/components/PageState'
 import { TranslateTester } from '@/components/TranslateTester'
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +18,9 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { useFhirResource } from '@/hooks/use-fhir-resource'
+import { useUiConfig } from '@/hooks/use-ui-config'
 import { useValueSetOptions } from '@/hooks/use-valueset-options'
+import { holdsDataElementConcepts } from '@/lib/dhis2'
 import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet, unescapeMarkup } from '@/lib/fhir'
 import {
     composedSystems,
@@ -124,7 +127,14 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
     const [query, setQuery] = useState('')
     const [page, setPage] = useState(1)
     const [asked, setAsked] = useState('')
+    const settings = useUiConfig()
 
+    // THE ONE VOCABULARY WHOSE CODES ARE DHIS2 OBJECTS THIS UI HOLDS A ROUTE TO. A data dictionary's
+    // concept codes are data element uids, so each row can open the data element itself; the option
+    // sets, the category option combos, and the attribute pair beside it are edited on screens this
+    // UI knows no by-uid route for, and their rows link nowhere rather than somewhere wrong.
+    const dataElements = holdsDataElementConcepts(codeSystem)
+    const dhis2BaseUrl = settings.config.dhis2_base_url
     const columns = useMemo(() => conceptPropertyColumns(codeSystem), [codeSystem])
     const concepts = useMemo(() => codeSystem.concept ?? [], [codeSystem])
     const matching = useMemo(() => filterConcepts(concepts, query), [concepts, query])
@@ -191,7 +201,17 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                     {shown.rows.map((concept) => (
                                         <TableRow key={concept.code}>
                                             <TableCell className="font-mono text-xs font-medium">
-                                                {concept.code}
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    {concept.code}
+                                                    {dataElements && (
+                                                        <MaintenanceLink
+                                                            baseUrl={dhis2BaseUrl}
+                                                            object="dataElement"
+                                                            uid={concept.code}
+                                                            subject={concept.display ?? concept.code}
+                                                        />
+                                                    )}
+                                                </span>
                                             </TableCell>
                                             <TableCell>{concept.display ?? '-'}</TableCell>
                                             {columns.map((column) => (

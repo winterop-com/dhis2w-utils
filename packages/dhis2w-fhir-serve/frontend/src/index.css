@@ -220,6 +220,63 @@
     filter: invert(1);
 }
 
+/* The layers menu hangs off the layers button in that same corner stack, so it
+   is positioned against the control's own chip and painted as a card - one row
+   per offered basemap plus None. It opens to the LEFT, because the stack sits
+   at the top right of the canvas and a menu opening rightwards would leave the
+   map entirely. `position: relative` on the group is what the menu's absolute
+   placement is measured from; MapLibre's own groups are static. */
+.maplibregl-map .map-basemap-control {
+    position: relative;
+}
+.maplibregl-map .map-basemap-menu {
+    position: absolute;
+    top: 0;
+    right: calc(100% + 0.375rem);
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 9rem;
+    padding: 0.25rem;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) * 0.8);
+    background: var(--card);
+    color: var(--card-foreground);
+    font-family: var(--font-sans);
+}
+.maplibregl-map .map-basemap-menu[hidden] {
+    display: none;
+}
+/* A flex row rather than a text line with a floated mark: the tick is a second
+   item on the row, which is what keeps it on the row. */
+.maplibregl-map .map-basemap-menu button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.3rem 0.5rem;
+    border-radius: calc(var(--radius) * 0.6);
+    background: transparent;
+    text-align: left;
+    font-size: 0.8125rem;
+    line-height: 1.2rem;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.maplibregl-map .map-basemap-menu button:hover {
+    background: var(--accent);
+    color: var(--accent-foreground);
+}
+/* The checked row is marked in ink weight as well as by the tick, so which
+   ground is drawn survives a reader who cannot tell the glyph from the row. */
+.maplibregl-map .map-basemap-menu button[aria-checked='true'] {
+    font-weight: 600;
+}
+.maplibregl-map .map-basemap-menu button[aria-checked='true']::after {
+    content: '\2713';
+}
+
 /* The popup a click on the map opens - MapLibre's own chrome (a white card, a
    white tip, a black close glyph) repainted from the same tokens as the rest of
    the app's cards, in both themes. The content inside it is the component's own

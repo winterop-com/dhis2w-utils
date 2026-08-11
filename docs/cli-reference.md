@@ -10015,9 +10015,9 @@ Received QuestionnaireResponses are stored as receipts, so reading one back says
 
 `--ui` also serves the capture UI at `/`, same-origin with the FHIR routes it reads.
 
-`--basemap` points the org-unit map at another tile source, and `--basemap none` draws no tiles at all.
+`--basemap` offers another tile layer on the organisation-unit map, and `--basemap none` offers none.
 
-Host, port, strict codes, the UI, and the basemap come from `` in fhir.toml unless a flag overrides them.
+Host, port, strict codes, the UI, and the basemaps come from `` in fhir.toml unless a flag overrides them.
 
 **Usage**:
 
@@ -10036,7 +10036,7 @@ $ d2w fhir serve [OPTIONS] [directory]
 * `--port <int>`: Port to listen on, overriding ` port` (default 8080).
 * `--strict-codes / --no-strict-codes`: Refuse a received answer whose code is outside the served terminology, overriding ` strict_codes`. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
 * `--ui / --no-ui`: Serve the capture UI at `/` alongside the FHIR routes, overriding ` ui`. The bundle is mounted around them and shadows none of them; a checkout that has never run `make build-frontend` is refused rather than served blank.
-* `--basemap <str>`: Raster tile template the capture UI&#x27;s organisation-unit map draws under the boundaries, overriding `[serve] basemap` (default: OpenStreetMap&#x27;s standard tiles). `--basemap none` turns the tiles off and leaves the boundaries on a plain canvas, which is what an air-gapped deployment wants - it is the only thing in the UI that reaches an origin other than this server.
+* `--basemap <str>`: Raster tile layer the capture UI&#x27;s organisation-unit map offers under the boundaries, overriding `[serve.basemaps]` (default: OpenStreetMap&#x27;s standard tiles). Repeat it to offer several: `Name=https://.../{z}/{x}/{y}.png`, or a bare template named after its host. The map&#x27;s layer control always carries a None entry beside them, and `--basemap none` offers nothing else - which is what an air-gapped deployment wants, the tiles being the only thing in the UI that reaches an origin other than this server.
 * `--help`: Show this message and exit.
 
 ### `d2w fhir forward`

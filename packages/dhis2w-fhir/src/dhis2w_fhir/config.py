@@ -17,6 +17,7 @@ import tomllib
 import zoneinfo
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 import tomli_w
 from dhis2w_core.cli_errors import CliUserError
@@ -193,22 +194,43 @@ class GenerateConfig(BaseModel):
         return [normalize_locale(locale) for locale in value]
 
 
-#: The raster tile template the capture UI's map draws under the organisation-unit boundaries.
+#: The raster tile template the capture UI's map offers by default, under the boundaries.
 #:
 #: OpenStreetMap's standard tiles, because they need no key, no account, and no contract to try -
 #: which is what a capture UI someone runs on a laptop for an afternoon needs. The policy that
 #: comes with them is a volunteer-funded service with no SLA, so a deployment that serves this UI
-#: to a district office points `[serve] basemap` at its own tile source; the guide says so where
+#: to a district office states its own tile source in `[serve.basemaps]`; the guide says so where
 #: the key is documented.
 DEFAULT_BASEMAP_TEMPLATE = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 
-#: The `[serve] basemap` value that turns the tiles off, leaving the boundaries on a plain canvas.
+#: What that layer is called in the map's layer control.
+DEFAULT_BASEMAP_NAME = "OpenStreetMap"
+
+#: The `--basemap` value that serves no layers at all, leaving the boundaries on a plain canvas.
 #:
-#: A word rather than an empty string: `basemap = ""` reads like an oversight in a config file,
-#: and the whole point of the setting is that the boundary-only map is a deliberate posture - an
-#: air-gapped instance, a deployment that may not talk to a tile vendor, a test run that must make
-#: no external request.
+#: A word rather than an empty flag: on the command line the absence of the option means "use the
+#: table", so turning the tiles off from there needs something to say. In `fhir.toml` the same
+#: posture is the empty list `basemaps = []`, which needs no word.
 BASEMAP_DISABLED = "none"
+
+
+class BasemapSource(BaseModel):
+    """One named raster tile source the capture UI's map offers as a layer.
+
+    `name` is what the map's layer control calls it and is the deployment's own word - this
+    project never renames a source it was pointed at. `url` is the `{z}/{x}/{y}` template the
+    tiles are fetched from, and it is the one thing in the whole UI that reaches an origin other
+    than the server the page came from.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    url: str
+
+
+#: What a project offers when it states no `[serve.basemaps]` at all: OpenStreetMap's standard tiles.
+DEFAULT_BASEMAPS = (BasemapSource(name=DEFAULT_BASEMAP_NAME, url=DEFAULT_BASEMAP_TEMPLATE),)
 
 
 class ServeConfig(BaseModel):
@@ -222,11 +244,13 @@ class ServeConfig(BaseModel):
     `ui` serves the capture UI at `/` alongside the FHIR routes. A project whose whole workflow is
     people filling in forms states it once here and gets the UI from every `make serve`.
 
-    `basemap` is the raster tile template under the capture UI's organisation-unit map. It is the
-    one setting here that makes the UI reach an origin other than this server, so it is stated
-    rather than assumed: `"none"` turns the tiles off and leaves the boundaries on a plain canvas,
-    which is the posture an air-gapped deployment wants and the one the browser test suite runs
-    under.
+    `basemaps` names the raster tile layers the capture UI's organisation-unit map offers, in the
+    order it offers them; the first is the one the map opens with. The layer control always carries
+    a `None` entry beside them, so drawing the boundaries on a plain canvas is a click rather than a
+    config change. An empty list is therefore the air-gapped posture in full - the only layer on
+    offer is `None`, and the page reaches no origin but this server. It is the one part of this
+    table that makes the browser talk to anybody else, which is why it is stated rather than
+    inferred.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -235,12 +259,30 @@ class ServeConfig(BaseModel):
     port: int = 8080
     strict_codes: bool = False
     ui: bool = False
-    basemap: str = DEFAULT_BASEMAP_TEMPLATE
+    basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
 
-    @property
-    def basemap_template(self) -> str | None:
-        """The tile template to draw, or None when the project has turned the basemap off."""
-        return None if self.basemap.strip().lower() == BASEMAP_DISABLED else self.basemap
+
+def basemaps_from_options(values: list[str]) -> list[BasemapSource]:
+    """Read repeated `--basemap` values as the layers a run offers, or refuse the ones that say nothing.
+
+    Each value is either `Name=https://.../{z}/{x}/{y}.png` or a bare template, whose host becomes
+    the layer's name - the honest word for a source this project was handed and knows nothing else
+    about. The split is on the first `=` and only when what precedes it is a plain word: a template
+    carrying `?api_key=...` is one url, not a name and a url.
+
+    The single value `none` serves no layers, which is the command line's way of saying what
+    `basemaps = []` says in the table. Naming it beside a real layer is a contradiction rather than
+    a shorthand, so it is refused instead of guessed at.
+    """
+    disabled = [value for value in values if value.strip().lower() == BASEMAP_DISABLED]
+    if disabled and len(values) > 1:
+        raise ValueError(
+            f"--basemap {BASEMAP_DISABLED} serves no layers at all, so it cannot be combined with "
+            f"{len(values) - len(disabled)} other --basemap value(s): pass one or the other"
+        )
+    if disabled:
+        return []
+    return [_basemap_from_option(value) for value in values]
 
 
 class FhirProjectConfig(BaseModel):
@@ -360,6 +402,22 @@ def write_fhir_config(path: Path, config: FhirProjectConfig) -> None:
     """Write a `fhir.toml` with default permissions - it is committed project config, not a credential store."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(tomli_w.dumps(config.model_dump(exclude_none=True)), encoding="utf-8")
+
+
+def _basemap_from_option(value: str) -> BasemapSource:
+    """One `--basemap` value as a named source, naming it after its host when the value names nothing."""
+    stated = value.strip()
+    if not stated:
+        raise ValueError("--basemap was given an empty value: name a tile template, or `none` for no layers")
+    name, separator, url = stated.partition("=")
+    if separator and _is_plain_name(name):
+        return BasemapSource(name=name.strip(), url=url.strip())
+    return BasemapSource(name=urlsplit(stated).hostname or stated, url=stated)
+
+
+def _is_plain_name(candidate: str) -> bool:
+    """Whether what precedes the first `=` is a layer's name rather than the head of a url."""
+    return candidate.strip() != "" and ":" not in candidate and "/" not in candidate
 
 
 def load_project(start: Path | None = None) -> FhirProject:

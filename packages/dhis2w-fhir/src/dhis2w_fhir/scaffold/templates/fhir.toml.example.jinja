@@ -91,5 +91,19 @@ host = "127.0.0.1"                  # this computer only; changing it opens the 
 port = 8080                         # a local dev DHIS2 commonly owns 8080; port = 8090 avoids the clash -> 301-serving#port
 strict_codes = false                # true refuses an out-of-list answer instead of warning -> 301-serving#strict_codes
 ui = false                          # true also serves the data-entry screens at / -> 301-serving#ui
-# Map background of the org-unit map - the one outbound call; "none" turns it off. -> 301-serving#basemap
-basemap = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+# The map backgrounds the organisation-unit map offers - the one outbound call. The screens'
+# layer control lists these in order, opens on the first, and always carries a None entry
+# beside them, so drawing the boundaries on a plain canvas is a click. `basemaps = []` offers
+# nothing but None, which is the fully offline posture. -> 301-serving#basemaps
+[[serve.basemaps]]
+name = "OpenStreetMap"
+url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+# A second layer someone can switch to. Satellite imagery is the usual reason to want one -
+# a facility pin lands on a roof rather than on a blank field - and every provider of it wants
+# an account, a key, and an attribution line of their own. Uncomment, name yours, and read
+# their terms; this project credits OpenStreetMap's tiles and no others.
+# [[serve.basemaps]]
+# name = "Satellite"
+# url = "https://tiles.example.org/satellite/{z}/{x}/{y}.jpg?api_key=YOUR_KEY"

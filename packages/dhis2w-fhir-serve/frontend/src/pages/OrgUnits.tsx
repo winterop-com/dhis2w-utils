@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, MapPin, PanelRightClose, PanelRightOpen, Sea
 import { usePanelRef } from 'react-resizable-panels'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
+import { MaintenanceLink } from '@/components/MaintenanceLink'
 import { PageHeader, PageState } from '@/components/PageState'
 import { LifecycleBadge } from '@/components/ReceiptBadges'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +18,7 @@ import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useSpool, type SpoolState } from '@/hooks/use-spool'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { catalogueForms, isEventProgram, type ProgramGroup } from '@/lib/catalogue'
+import { maintenanceTargetOf } from '@/lib/dhis2'
 import { formIdentifier, formTitle, type Location, type Questionnaire, type ResourceList } from '@/lib/fhir'
 import {
     ancestorsOf,
@@ -40,7 +42,7 @@ import {
     type SpoolResponseSummary,
 } from '@/lib/spool'
 import { identifierBadges } from '@/lib/terminology'
-import type { BasemapConfig } from '@/lib/uiconfig'
+import type { BasemapLayer } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
 /**
@@ -291,7 +293,7 @@ export function OrgUnits() {
                                 selected={selected}
                                 loading={registry.loading}
                                 onSelect={select}
-                                basemap={settings.config.basemap}
+                                basemaps={settings.config.basemaps}
                                 settingsLoading={settings.loading}
                             />
                         </section>
@@ -319,13 +321,19 @@ export function OrgUnits() {
                                 <NothingSelected total={tree.total} loading={registry.loading} />
                             ) : (
                                 <>
-                                    <UnitHeader tree={tree} node={selected} onSelect={select} />
+                                    <UnitHeader
+                                        tree={tree}
+                                        node={selected}
+                                        onSelect={select}
+                                        dhis2BaseUrl={settings.config.dhis2_base_url}
+                                    />
                                     <FormCatalogSections
                                         catalog={catalog}
                                         published={formsById.size}
                                         unresolvedAssignmentFormIds={assignmentIndex.unresolvedAssignmentFormIds}
                                         loading={forms.loading || assignments.loading}
                                         error={forms.error ?? assignments.error}
+                                        dhis2BaseUrl={settings.config.dhis2_base_url}
                                     />
                                     <CapturedHere node={selected} formsById={formsById} spool={spool} />
                                     <UnitChildren key={selected.id} node={selected} onSelect={select} />
@@ -351,13 +359,18 @@ export function OrgUnits() {
                                     selected={null}
                                     loading={registry.loading}
                                     onSelect={select}
-                                    basemap={settings.config.basemap}
+                                    basemaps={settings.config.basemaps}
                                     settingsLoading={settings.loading}
                                 />
                             </>
                         ) : (
                             <>
-                                <UnitHeader tree={tree} node={selected} onSelect={select} />
+                                <UnitHeader
+                                    tree={tree}
+                                    node={selected}
+                                    onSelect={select}
+                                    dhis2BaseUrl={settings.config.dhis2_base_url}
+                                />
                                 <UnitTabs
                                     tree={tree}
                                     node={selected}
@@ -368,11 +381,12 @@ export function OrgUnits() {
                                     formsLoading={forms.loading || assignments.loading}
                                     formsError={forms.error ?? assignments.error}
                                     registryLoading={registry.loading}
-                                    basemap={settings.config.basemap}
+                                    basemaps={settings.config.basemaps}
                                     settingsLoading={settings.loading}
                                     formsById={formsById}
                                     spool={spool}
                                     onSelect={select}
+                                    dhis2BaseUrl={settings.config.dhis2_base_url}
                                 />
                             </>
                         )}
@@ -638,10 +652,13 @@ function UnitHeader({
     tree,
     node,
     onSelect,
+    dhis2BaseUrl,
 }: {
     tree: OrgUnitTree
     node: OrgUnitNode
     onSelect: (unitId: string) => void
+    /** The DHIS2 instance this guide was generated from, or null when the server named none. */
+    dhis2BaseUrl: string | null
 }) {
     const chain = ancestorsOf(tree, node.id)
     const badges = identifierBadges(node.location.identifier)
@@ -650,6 +667,15 @@ function UnitHeader({
         <div className="space-y-2 rounded-lg border p-4">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <h3 className="text-lg font-semibold tracking-tight">{node.name}</h3>
+                {/* The way out to the instance, beside the name it belongs to. Absent entirely
+                    when the server named no instance, which is the compiled-guide posture. */}
+                <MaintenanceLink
+                    baseUrl={dhis2BaseUrl}
+                    object="organisationUnit"
+                    uid={node.id}
+                    subject={node.name}
+                    className="self-center"
+                />
                 {node.level === null ? (
                     <Badge variant="outline" className="text-muted-foreground" data-testid="org-unit-level">
                         no level stated
@@ -721,11 +747,12 @@ function UnitTabs({
     formsLoading,
     formsError,
     registryLoading,
-    basemap,
+    basemaps,
     settingsLoading,
     formsById,
     spool,
     onSelect,
+    dhis2BaseUrl,
 }: {
     tree: OrgUnitTree
     node: OrgUnitNode
@@ -736,11 +763,12 @@ function UnitTabs({
     formsLoading: boolean
     formsError: string | null
     registryLoading: boolean
-    basemap: BasemapConfig | null
+    basemaps: BasemapLayer[]
     settingsLoading: boolean
     formsById: Map<string, Questionnaire>
     spool: SpoolState
     onSelect: (unitId: string) => void
+    dhis2BaseUrl: string | null
 }) {
     const [choice, setChoice] = useState<{ unitId: string; tab: UnitTab }>({ unitId: node.id, tab: 'map' })
     const tab = choice.unitId === node.id ? choice.tab : 'map'
@@ -767,7 +795,7 @@ function UnitTabs({
                     selected={node}
                     loading={registryLoading}
                     onSelect={onSelect}
-                    basemap={basemap}
+                    basemaps={basemaps}
                     settingsLoading={settingsLoading}
                 />
             </TabsContent>
@@ -778,6 +806,7 @@ function UnitTabs({
                     unresolvedAssignmentFormIds={unresolvedAssignmentFormIds}
                     loading={formsLoading}
                     error={formsError}
+                    dhis2BaseUrl={dhis2BaseUrl}
                 />
             </TabsContent>
             <TabsContent value="details" className="space-y-4">
@@ -904,12 +933,14 @@ function FormCatalogSections({
     unresolvedAssignmentFormIds,
     loading,
     error,
+    dhis2BaseUrl,
 }: {
     catalog: UnitFormCatalog
     published: number
     unresolvedAssignmentFormIds: string[]
     loading: boolean
     error: string | null
+    dhis2BaseUrl: string | null
 }) {
     const empty = catalog.dataSets.length === 0 && catalog.programs.length === 0 && catalog.other.length === 0
 
@@ -945,6 +976,7 @@ function FormCatalogSections({
                                         formId={formIdentifier(questionnaire)}
                                         questionnaire={questionnaire}
                                         assignedHere={catalog.assignedHere.has(formIdentifier(questionnaire))}
+                                        dhis2BaseUrl={dhis2BaseUrl}
                                     />
                                 ))}
                             </ul>
@@ -961,7 +993,12 @@ function FormCatalogSections({
                             </h4>
                             <ul className="space-y-2">
                                 {catalog.programs.map((group) => (
-                                    <ProgramRows key={group.key} group={group} assignedHere={catalog.assignedHere} />
+                                    <ProgramRows
+                                        key={group.key}
+                                        group={group}
+                                        assignedHere={catalog.assignedHere}
+                                        dhis2BaseUrl={dhis2BaseUrl}
+                                    />
                                 ))}
                             </ul>
                         </section>
@@ -982,6 +1019,7 @@ function FormCatalogSections({
                                         formId={entry.formId}
                                         questionnaire={entry.questionnaire}
                                         assignedHere={catalog.assignedHere.has(entry.formId)}
+                                        dhis2BaseUrl={dhis2BaseUrl}
                                     />
                                 ))}
                             </ul>
@@ -1003,7 +1041,15 @@ function FormCatalogSections({
 }
 
 /** One program's rows: an event program is its one form; a tracker program groups its stages. */
-function ProgramRows({ group, assignedHere }: { group: ProgramGroup; assignedHere: Set<string> }) {
+function ProgramRows({
+    group,
+    assignedHere,
+    dhis2BaseUrl,
+}: {
+    group: ProgramGroup
+    assignedHere: Set<string>
+    dhis2BaseUrl: string | null
+}) {
     if (isEventProgram(group) && group.event !== null) {
         const formId = formIdentifier(group.event)
         return (
@@ -1012,6 +1058,7 @@ function ProgramRows({ group, assignedHere }: { group: ProgramGroup; assignedHer
                 questionnaire={group.event}
                 note="event"
                 assignedHere={assignedHere.has(formId)}
+                dhis2BaseUrl={dhis2BaseUrl}
             />
         )
     }
@@ -1025,6 +1072,7 @@ function ProgramRows({ group, assignedHere }: { group: ProgramGroup; assignedHer
                         questionnaire={group.event}
                         note="event"
                         assignedHere={assignedHere.has(formIdentifier(group.event))}
+                        dhis2BaseUrl={dhis2BaseUrl}
                     />
                 )}
                 {group.registration !== null ? (
@@ -1033,6 +1081,7 @@ function ProgramRows({ group, assignedHere }: { group: ProgramGroup; assignedHer
                         questionnaire={group.registration}
                         note="registration"
                         assignedHere={assignedHere.has(formIdentifier(group.registration))}
+                        dhis2BaseUrl={dhis2BaseUrl}
                     />
                 ) : (
                     group.event === null && <li className="text-sm font-medium">{group.title}</li>
@@ -1047,6 +1096,7 @@ function ProgramRows({ group, assignedHere }: { group: ProgramGroup; assignedHer
                             questionnaire={stage}
                             note="stage"
                             assignedHere={assignedHere.has(formIdentifier(stage))}
+                            dhis2BaseUrl={dhis2BaseUrl}
                         />
                     ))}
                 </ul>
@@ -1061,6 +1111,7 @@ function FormRow({
     questionnaire,
     assignedHere,
     note,
+    dhis2BaseUrl,
 }: {
     formId: string
     /** Null when the assignment names a form the store no longer serves - linked by bare id. */
@@ -1069,7 +1120,11 @@ function FormRow({
     assignedHere: boolean
     /** A muted role note beside the title - 'registration', 'stage', 'event'. */
     note?: string
+    dhis2BaseUrl: string | null
 }) {
+    // A form the store no longer serves has no declared kind to read, so it carries no link out:
+    // the row knows an id and nothing about which kind of DHIS2 object wears it.
+    const target = questionnaire === null ? null : maintenanceTargetOf(questionnaire)
     return (
         // The row WRAPS rather than truncates or squeezes: `flex-wrap` lets the note and badge
         // drop to their own line when the rail is narrow, and the title keeps `flex-1` with a
@@ -1079,6 +1134,15 @@ function FormRow({
             <Link to={`/forms/${formId}`} className="text-primary min-w-[8ch] flex-1 break-words hover:underline">
                 {questionnaire === null ? formId : formTitle(questionnaire)}
             </Link>
+            {target !== null && (
+                <MaintenanceLink
+                    baseUrl={dhis2BaseUrl}
+                    object={target.object}
+                    uid={target.uid}
+                    subject={questionnaire === null ? formId : formTitle(questionnaire)}
+                    className="self-center"
+                />
+            )}
             {note !== undefined && <span className="text-muted-foreground shrink-0 text-xs">{note}</span>}
             {assignedHere && (
                 <Badge variant="outline" className="text-muted-foreground shrink-0 text-[10px]">
@@ -1225,7 +1289,7 @@ function MapPanel({
     selected,
     loading,
     onSelect,
-    basemap,
+    basemaps,
     settingsLoading,
 }: {
     tree: OrgUnitTree
@@ -1233,7 +1297,7 @@ function MapPanel({
     selected: OrgUnitNode | null
     loading: boolean
     onSelect: (unitId: string) => void
-    basemap: BasemapConfig | null
+    basemaps: BasemapLayer[]
     /** True until `GET /uiconfig` has answered - the map is built once, against settled settings. */
     settingsLoading: boolean
 }) {
@@ -1272,9 +1336,12 @@ function MapPanel({
         <section className="flex flex-1 flex-col gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-base font-semibold">Map</h3>
+                {/* The caption states the OFFER, which is the deployment's own posture and does
+                    not change while the page is open. Which of the offered layers is drawn right
+                    now is the reader's, and the map's layer control is where that is said. */}
                 <span className="text-muted-foreground text-xs">
                     {shapeCount(geometry)}
-                    {basemap === null ? ' - drawn from this server alone, with no basemap' : ''}
+                    {basemaps.length === 0 ? ' - no basemap offered, so the map draws from this server alone' : ''}
                 </span>
             </div>
             <Suspense
@@ -1293,7 +1360,7 @@ function MapPanel({
                         // The folded registry: where the click popup reads a unit's name,
                         // level, and parent from.
                         tree={tree}
-                        basemap={basemap}
+                        basemaps={basemaps}
                         selectedUnitId={selected?.id ?? null}
                         descendantUnitIds={descendantUnitIds}
                         focusUnitIds={extent?.unitIds ?? NO_FOCUS_UNIT_IDS}
